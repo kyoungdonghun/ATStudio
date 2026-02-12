@@ -1,7 +1,7 @@
 ---
 version: 1.0
-last_updated: 2026-01-06
-project: system
+last_updated: 2026-02-12
+project: ATS
 owner: EO
 category: standard
 status: stable
@@ -60,6 +60,22 @@ task_types:
 | domain-fit  | Domain Fit                         | Whether reuse asset has no conflict with domain invariants/terms | domain suitability       | -                   | TBD                   | Verified in PROJECT_DOMAIN_CONTEXT.md              |
 | deprecated  | Deprecated                         | Scheduled for deprecation (provide alternative path, migration needed) | scheduled for deprecation, end-of-life | Deleted (immediate deletion) | TBD                   | Follow VERSIONING_AND_DEPRECATION.md procedure     |
 | stable      | Stable                             | Interface/behavior stabilized, backward compatibility guaranteed | stable, Production-ready | Final (change prohibited) | TBD                   | Draft → Stable → Deprecated sequence               |
+
+## 3-A) ATStudio Domain Terms
+
+| Key | Canonical Term | Definition | Synonyms (allowed) | Forbidden | External Standard Ref | Notes/Examples |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| music | Music | Shorts-ready audio content uploaded by creators | track, song, audio | file (too generic) | - | Core marketplace product |
+| creator | Creator | User who uploads and sells music on the platform | uploader, artist, seller | user (ambiguous) | - | Supply side of marketplace |
+| buyer | Buyer | User who searches and purchases music for shorts | purchaser, customer | user (ambiguous) | - | Demand side of marketplace |
+| shorts | Shorts | Short-form video content (target use case for music) | short-form, clip | video (too generic) | - | YouTube Shorts, TikTok, Reels |
+| genre | Genre | Music classification category | category, type | tag (different concept) | - | e.g., EDM, Lo-fi, Hip-hop |
+| tag | Tag | User-defined keyword for music discovery | keyword, label | genre (different concept) | - | Free-form search metadata |
+| license | License | Usage rights granted upon music purchase | permission, rights | copyright (broader) | - | Defines how buyer can use music |
+| upload | Upload | Process of creator submitting music to platform | submit, publish | post (ambiguous) | - | Includes file validation |
+| purchase | Purchase | Transaction where buyer acquires music license | buy, order, transaction | download (subset) | - | Includes payment processing |
+| royalty | Royalty | Revenue share paid to creator per sale | commission, revenue share | profit (broader) | - | Platform takes commission % |
+| playlist | Playlist | Curated collection of music tracks | collection, mix | album (different) | - | For discovery/recommendation |
 
 ### External Standard Ref Format (Recommended)
 

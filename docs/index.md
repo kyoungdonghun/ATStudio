@@ -1,7 +1,7 @@
 ---
 version: 1.1
-last_updated: 2026-01-06
-project: system
+last_updated: 2026-02-12
+project: ATS
 owner: EO
 category: registry
 status: stable
@@ -48,17 +48,19 @@ status: stable
 
 ## Project-specific Document Overview
 
-Currently, most documents are system-wide (`project: system`).
+### PRJ-ATS-001: ATStudio (Shorts Music Marketplace)
 
-- **Meta framework**: This workspace (general-purpose orchestration)
-- **Domain projects**: `projects/` directory (domain-specific agents/skills added)
-- **Project registry**: See [Project Registry](registry/project-registry.md)
-- **Workspace configuration**: `.claude/config/workspace.json` — Meta + domain project definitions
+| Category | Document | Description |
+|----------|----------|-------------|
+| Standards | [core-principles.md](standards/core-principles.md) | Section 13: ATStudio Domain Principles |
+| Standards | [development-standards.md](standards/development-standards.md) | Section 2A: Java/Spring Boot Coding Standards |
+| Standards | [glossary.md](standards/glossary.md) | Section 3-A: ATStudio Domain Terms |
+| Policies | [security-policy.md](policies/security-policy.md) | Section 6: JWT/MySQL Secrets Management |
+| Registry | [project-registry.md](registry/project-registry.md) | PRJ-ATS-001 registration |
+| Config | `.claude/config/workspace.json` | ATStudio routing, tech_stack |
 
-### Domain Project Examples
-
-- `projects/design-system/` — Figma, Storybook, design tokens
-- `projects/api-platform/` — OpenAPI, Swagger, API documentation
+- **Tech Stack**: Java 17, Spring Boot 4.x, MySQL 8.x, Thymeleaf (Phase 1), React (Phase 2)
+- **Project Registry**: See [Project Registry](registry/project-registry.md)
 
 ## Starting Point Guides
 
@@ -90,7 +92,7 @@ Documents are classified by scope for context injection to domain projects.
 
 ### Meta-only (Exclude for Domain Projects)
 
-These documents describe meta framework operation. **DO NOT inject for domain project work** (DDS, USI, PMV2, etc.):
+These documents describe meta framework operation. **DO NOT inject for ATStudio domain work** unless explicitly needed:
 
 | Category | Documents | Purpose |
 |----------|-----------|---------|
@@ -116,7 +118,7 @@ These documents apply to all projects including domain projects:
 | Guides | `actor-guidelines.md`, `project-onboarding.md`, `runbook-postmortem.md` | Collaboration/operation |
 | ADR | All decision records | Architectural decisions |
 
-**Rule**: When project tag is NOT `SYS`, exclude meta-only documents from context injection.
+**Rule**: For ATStudio (`ATS`) domain work, exclude meta-only documents from context injection unless explicitly required.
 
 ## Document Update Rules
 

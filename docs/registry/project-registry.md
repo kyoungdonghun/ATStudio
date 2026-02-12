@@ -1,7 +1,7 @@
 ---
 version: 1.0
-last_updated: 2026-01-06
-project: system
+last_updated: 2026-02-12
+project: ATS
 owner: EO
 category: registry
 status: stable
@@ -26,9 +26,4 @@ dependencies:
 
 | Project ID | Name/Alias | Repo (URL or path) | Status | Owner | Last Updated | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| PRJ-DDS-001 | dds | https://github.com/hiyong7759/agent-dds.git | active | MA | 2026-01-31 | Deonaeun Design System (KRDS-based) |
-| PRJ-USI-001 | usi-groupware | - | active | MA | 2026-01-31 | USI Groupware Test |
-| PRJ-POOMACY-001 | poomacy-v2 | - | active | MA | 2026-01-31 | Poomacy V2 (Shadcn/ui) |
-| PRJ-POOMACY-DDS-001 | poomacy-dds | - | active | MA | 2026-01-31 | Poomacy V2 (DDS) |
-| PRJ-DASHBOARD-001 | meta-dashboard | - | active | MA | 2026-02-01 | Meta Dashboard (Agent Monitoring) |
-| PRJ-EXAMPLE | Example | repo-url-or-path | Draft | MA | YYYY-MM-DD | Example row |
+| PRJ-ATS-001 | ATStudio | TBD | active | MA | 2026-02-12 | Shorts Music Marketplace (Java 17 + Spring Boot 4.x) |

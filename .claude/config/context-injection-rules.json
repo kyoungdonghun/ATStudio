@@ -1,6 +1,6 @@
 {
-  "version": "1.0",
-  "_description": "Rule definitions for dynamic context injection to subagents. Tier 0/1 docs are agent-based; Tier 2/3 docs are task-type keyword matched via task_type_documents section.",
+  "version": "1.1",
+  "_description": "Rule definitions for dynamic context injection to subagents (ATStudio). Tier 0/1 docs are agent-based; Tier 2/3 docs are task-type keyword matched via task_type_documents section.",
 
   "tier_defaults": {
     "_comment": "Path pattern to default tier mapping (0=Constitution, 1=Policy, 2=Guide, 3=Reference)",
@@ -75,10 +75,10 @@
       {
         "id": "ui-ux",
         "description": "UI/UX design, components, styling, layout tasks",
-        "keywords": ["UI", "UX", "컴포넌트", "component", "스타일", "style", "레이아웃", "layout", "색상", "color", "타이포", "typography", "폰트", "font", "반응형", "responsive", "디자인시스템", "design system", "DDS", "KRDS"],
-        "documents": ["projects/agent-dds/docs/guide/더나은-UIUX-가이드라인.md", "projects/agent-dds/docs/guide/dds_design_strategy.md"],
+        "keywords": ["UI", "UX", "컴포넌트", "component", "스타일", "style", "레이아웃", "layout", "색상", "color", "타이포", "typography", "폰트", "font", "반응형", "responsive", "Thymeleaf", "템플릿", "template"],
+        "documents": [],
         "tier": 2,
-        "_note": "UI/UX guidelines in DDS project. uv agent references these for design tasks."
+        "_note": "Phase 1: Thymeleaf SSR. Phase 2에서 React 전환 시 UI 가이드라인 문서 추가 예정."
       },
       {
         "id": "agent-design",
@@ -229,7 +229,17 @@
       "documents": [".claude/skills/react-best-practices/AGENTS.md"],
       "applicable_agents": ["se", "qa", "cr", "uv"],
       "tier": 2,
-      "note": "React/Next.js performance optimization guidelines (45 rules from Vercel Engineering)"
+      "phase_gate": "phase-2",
+      "enabled": false,
+      "note": "Phase 2 전용. React 프론트엔드 전환 시 enabled: true로 변경. (45 rules from Vercel Engineering)"
+    },
+
+    "spring-boot": {
+      "documents": ["docs/standards/development-standards.md"],
+      "applicable_agents": ["se", "sa", "qa", "cr", "pg"],
+      "tier": 0,
+      "enabled": true,
+      "note": "Phase 1 (현재). Java/Spring Boot 코딩 표준 (Section 2A)."
     }
   }
 }

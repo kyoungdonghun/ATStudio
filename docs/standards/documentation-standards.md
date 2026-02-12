@@ -112,10 +112,10 @@ The following fields have been replaced by trigger-based on-demand injection (`.
 
 - **Project-related documents**: `project: {identifier}` required (e.g., project-specific plan, agent documents, workboard)
 - **System-wide documents**: `project: system` or omitted (e.g., standards, policies, guides, templates)
-- **Project ID format**: Three-letter code (e.g., `AMS`, `ECP`, `WEB`)
-  - Format: Three uppercase letters (e.g., `AMS`, `ECP`, `WEB`)
-  - Rule: Must be unique, duplication check in `docs/registry/PROJECTS.md` required
-  - Recommended: Project name-based initials (e.g., "Agentic System" → `AS`, "E-commerce Platform" → `ECP`)
+- **Project ID format**: Three-letter code (e.g., `ATS`, `AMS`, `ECP`)
+  - Format: Three uppercase letters (e.g., `ATS`, `AMS`, `ECP`)
+  - Rule: Must be unique, duplication check in `docs/registry/project-registry.md` required
+  - Recommended: Project name-based initials (e.g., "ATStudio" → `ATS`, "Agentic System" → `AS`, "E-commerce Platform" → `ECP`)
 - **Project ID source**: Use Project ID registered in `docs/registry/PROJECTS.md`
 
 **Project Identifier Management and Issuance Procedure:**
@@ -133,11 +133,11 @@ Project identifiers are centrally managed in the system project. When a new proj
    - Issuance timing: After project creation request approval
    - Issuer: EO
    - Issuance rules:
-     - **Format**: Three uppercase letters (e.g., `AMS`, `ECP`, `WEB`)
+     - **Format**: Three uppercase letters (e.g., `ATS`, `AMS`, `ECP`)
      - **Recommended**: Use project name-based initials
+       - Example: Project name "ATStudio" → `ATS`
        - Example: Project name "Agentic System" → `AS`
        - Example: Project name "E-commerce Platform" → `ECP`
-       - Example: Project name "Web Dashboard" → `WEB`
      - **Duplicate prevention**: Must check existing IDs in `docs/registry/project-registry.md` before issuance
      - **Uniqueness**: All project IDs must be unique across the entire system
 

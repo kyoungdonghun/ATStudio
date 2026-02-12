@@ -1,7 +1,7 @@
 ---
 version: 1.0
-last_updated: 2026-01-06
-project: system
+last_updated: 2026-02-12
+project: ATS
 owner: PG
 category: policy
 status: stable
@@ -62,7 +62,43 @@ task_types:
 - If sharing needed, allow only `.claude/knowledge/public/`
 - Use `private` or `encrypted` mode for sensitive knowledge (key management separate)
 
-## 6) Exception Handling (If Necessary)
+## 6) ATStudio-specific Secrets Management
+
+### 6.1 JWT Configuration
+
+| Secret | Environment Variable | Description |
+|--------|---------------------|-------------|
+| JWT Secret Key | `JWT_SECRET` | Token signing key (HS256+) |
+| JWT Expiration | `JWT_EXPIRATION` | Access token TTL (ms) |
+| JWT Refresh Expiration | `JWT_REFRESH_EXPIRATION` | Refresh token TTL (ms) |
+
+**Rules:**
+- Never hardcode in `application.yml`. Use `${JWT_SECRET}` placeholder.
+- Minimum key length: 256 bits for HS256.
+- Rotate keys via environment variable update + rolling restart.
+
+### 6.2 Database Credentials
+
+| Secret | Environment Variable | Description |
+|--------|---------------------|-------------|
+| DB URL | `SPRING_DATASOURCE_URL` | `jdbc:mysql://host:3306/atstudio` |
+| DB Username | `SPRING_DATASOURCE_USERNAME` | MySQL user |
+| DB Password | `SPRING_DATASOURCE_PASSWORD` | MySQL password |
+
+**Rules:**
+- Production DB credentials must never appear in committed files.
+- Use `application-local.yml` (gitignored) for local development.
+- Production uses environment variables or external secret store.
+
+### 6.3 Spring Security Configuration
+
+- CSRF: Disabled for REST API endpoints (JWT-based), enabled for Thymeleaf form pages.
+- CORS: Explicitly configured per environment (dev/staging/prod).
+- Password encoding: BCryptPasswordEncoder (strength 10+).
+
+---
+
+## 7) Exception Handling (If Necessary)
 
 If sharing is exceptionally needed:
 - What to share (scope)
@@ -70,5 +106,3 @@ If sharing is exceptionally needed:
 - Duration/expiration
 - Masking/sanitization method
 Record in WI/ADR, then approve.
-
-
