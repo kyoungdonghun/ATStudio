@@ -29,6 +29,12 @@ status: stable
 | **[Runbook & Postmortem Guide](runbook-postmortem.md)** | Incident response procedures and post-mortem retrospective guide | stable |
 | **[Traceability Guide](traceability.md)** | Connection rules between WI ↔ ADR ↔ Asset | stable |
 
+## 1-A. Korean Guide (한글 가이드)
+
+| Document Name | Description | Status |
+| :--- | :--- | :--- |
+| **[한글 가이드 인덱스](ko/index.md)** | Korean practical guide index for Claude Code beginners | stable |
+
 ## 2. Document Map (Reading Order)
 
 1. **Start**: `request-intake.md` (request) → `development-workflow.md` (understand overall flow)
