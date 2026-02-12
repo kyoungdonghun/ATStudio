@@ -256,16 +256,27 @@ public class Music {
 ```
 ATStudio/
 ├── .claude/
-│   ├── agents/                  ← 11개 에이전트 정의
+│   ├── agents/                  ← 11개 에이전트 정의 (ps, eo, sa, se, re, pg, tr, uv, docops, qa, cr)
 │   ├── skills/                  ← 18개 스킬 정의
-│   └── config/                  ← workspace.json, context-injection-rules.json
-├── CLAUDE.md                    ← 이 파일
-├── src/main/java/com/atstudio/atstudio/   ← Spring Boot 소스
-├── src/main/resources/          ← application.yml, templates/
+│   ├── config/                  ← workspace.json, context-injection-rules.json
+│   └── scripts/                 ← 시스템 자동화 스크립트 (Python)
+├── CLAUDE.md                    ← 이 파일 (프로젝트 지침서)
+├── src/
+│   ├── main/java/com/atstudio/atstudio/   ← Spring Boot 소스
+│   ├── main/resources/          ← application.yml, templates/
+│   └── test/java/               ← JUnit5 테스트
 ├── deliverables/
 │   ├── user/                    ← REQ-*.md, WI-*-summary.md
 │   └── agent/                   ← WI-*-handoff.md, WI-*-evidence-pack.md
-└── docs/standards/              ← 시스템 문서 (정적)
+├── docs/
+│   ├── standards/               ← Tier 0: 헌법, 개발표준, 용어사전
+│   ├── policies/                ← Tier 1: 보안, 실행, 품질 정책
+│   ├── architecture/            ← Tier 1: 시스템 설계
+│   ├── guides/                  ← Tier 2: 워크플로우, 운영 가이드
+│   ├── templates/               ← Tier 2: ADR, WI 등 템플릿
+│   └── registry/                ← Tier 2: 프로젝트, 자산 레지스트리
+├── build.gradle                 ← Gradle 빌드 설정
+└── gradlew.bat                  ← Gradle 래퍼 (Windows)
 ```
 
 ## Architecture
@@ -278,23 +289,43 @@ ATStudio/
 
 ## Skills Reference
 
+### 핵심 워크플로우 스킬
+
 | 스킬 | 설명 |
 |------|------|
 | `/create-req` | 사용자 발화 → REQ 정규화 |
-| `/create-wi-handoff-packet` | 표준 WI 핸드오프 패킷 생성 |
-| `/create-wi-evidence-pack` | Evidence Pack 표준화 |
+| `/create-wi-handoff-packet` | 표준 WI 핸드오프 패킷 생성 (Subagent 호출 전 필수) |
+| `/create-wi-evidence-pack` | Evidence Pack 표준화 (작업 완료 후) |
 | `/ce` | Context Engineering - 최소 주입 번들 설계 |
 | `/pe` | Prompt Engineering - Subagent 지시 강화 |
-| `/lint` | 코드/문서 품질 검증 |
-| `/typecheck` | 타입 검사 (Java 컴파일 검증) |
-| `/test` | `./gradlew test` 실행 |
+
+### 빌드/품질 검증 스킬
+
+| 스킬 | 설명 |
+|------|------|
+| `/build-check` | `gradlew.bat build` 빌드 검증 |
+| `/test` | `gradlew.bat test` 테스트 실행 |
 | `/test-coverage` | 테스트 커버리지 분석 |
-| `/build-check` | `./gradlew build` 빌드 검증 |
+| `/typecheck` | Java 컴파일 검증 |
+| `/lint` | 코드/문서 품질 검증 |
+
+### 문서/시스템 관리 스킬
+
+| 스킬 | 설명 |
+|------|------|
 | `/validate-docs` | 문서 무결성 검증 |
+| `/sync-docs-index` | 문서 인덱스 동기화 |
 | `/create-agent` | 새 Subagent 정의 생성 |
 | `/skill-creator` | 새 Skill 생성 가이드 |
 | `/manage-hooks` | Git 훅 관리 |
-| `/sync-docs-index` | 문서 인덱스 동기화 |
+
+### Phase 2 전용 (React 전환 시 활성화)
+
+| 스킬 | 설명 |
+|------|------|
+| `/eslint` | JavaScript/TypeScript 코드 품질 검사 |
+| `/prettier` | 코드 포맷팅 검증 |
+| `/react-best-practices` | React/Next.js 성능 최적화 가이드라인 |
 
 ## Deliverables Naming Convention
 
@@ -309,6 +340,12 @@ ATStudio/
 
 ## Documentation Entry Points
 
-- `docs/standards/core-principles.md` - 시스템 헌법
-- `docs/guides/development-workflow.md` - 표준 7단계 워크플로우
-- `docs/architecture/system-design.md` - 시스템 설계 원칙
+| 문서 | 설명 | Tier |
+|------|------|------|
+| `docs/standards/core-principles.md` | 시스템 헌법 + ATStudio 도메인 원칙 | 0 |
+| `docs/standards/development-standards.md` | Java/Spring Boot 코딩 표준 (Section 2A) | 0 |
+| `docs/standards/glossary.md` | 용어 사전 + ATStudio 도메인 용어 | 0 |
+| `docs/policies/security-policy.md` | JWT/MySQL 시크릿 관리 정책 | 1 |
+| `docs/guides/development-workflow.md` | 표준 7단계 워크플로우 | 2 |
+| `docs/architecture/system-design.md` | 멀티에이전트 시스템 설계 원칙 | 1 |
+| `docs/index.md` | 전체 문서 인덱스 | - |
