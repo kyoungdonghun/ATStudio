@@ -1,0 +1,235 @@
+{
+  "version": "1.0",
+  "_description": "Rule definitions for dynamic context injection to subagents. Tier 0/1 docs are agent-based; Tier 2/3 docs are task-type keyword matched via task_type_documents section.",
+
+  "tier_defaults": {
+    "_comment": "Path pattern to default tier mapping (0=Constitution, 1=Policy, 2=Guide, 3=Reference)",
+
+    "docs/standards/core-principles.md": 0,
+    "docs/standards/development-standards.md": 0,
+    "docs/standards/documentation-standards.md": 0,
+    "docs/standards/prompt-caching-strategy.md": 1,
+    "docs/standards/glossary.md": 0,
+    "docs/policies/security-policy.md": 1,
+    "docs/architecture/system-design.md": 1,
+
+    "docs/standards/*": 0,
+    "docs/policies/*": 1,
+    "docs/architecture/*": 1,
+    "docs/adr/*": 1,
+    "docs/guides/*": 2,
+    "docs/design/*": 2,
+    "docs/templates/*": 2,
+    "docs/registry/*": 2,
+    "docs/projects/*": 2,
+    "docs/eval/*": 3,
+    "docs/analysis/*": 3,
+    "deliverables/agent/*": 3
+  },
+
+  "category_agent_mapping": {
+    "_comment": "Document category to agent groups mapping. '*' means all agents.",
+
+    "standards": ["*"],
+    "policies": ["eo", "pg", "sa", "cr"],
+    "architecture": ["sa", "se", "eo", "cr"],
+    "adr": ["sa", "se", "eo", "cr"],
+    "guides": ["se", "re", "docops", "qa"],
+    "design": ["uv", "se", "sa"],
+    "templates": ["se", "sa", "docops", "uv", "ps"],
+    "registry": ["eo", "docops", "sa"],
+    "projects": ["sa", "se", "ps", "eo"],
+    "eval": ["re", "qa"],
+    "analysis": ["tr", "sa", "ps"],
+    "deliverables": ["se", "re", "qa", "eo", "cr"]
+  },
+
+  "agent_required_tiers": {
+    "_comment": "Agent to required tier levels mapping. Based on CLAUDE.md L164-178 'Required Injection Documents by Agent' table.",
+
+    "ps": [0],
+    "eo": [0, 1],
+    "sa": [0, 1],
+    "se": [0],
+    "re": [0],
+    "pg": [0, 1],
+    "tr": [0],
+    "uv": [0],
+    "docops": [0, 1],
+    "qa": [0],
+    "cr": [0, 1]
+  },
+
+  "task_type_documents": {
+    "_comment": "Two-phase document injection with union merge. Phase 1 (keyword) and Phase 2 (LLM) always run in parallel. Results are merged with deduplication.",
+
+    "matching_strategy": {
+      "phase_1": "keyword_contains",
+      "phase_2": "llm_inference",
+      "execution": "parallel_always",
+      "merge_strategy": "union_dedupe",
+      "_description": "Both phases always execute. Phase 1 provides deterministic baseline via keyword matching. Phase 2 LLM analyzes WI content semantically to catch what keywords miss. Final result = union of both with duplicates removed."
+    },
+
+    "types": [
+      {
+        "id": "ui-ux",
+        "description": "UI/UX design, components, styling, layout tasks",
+        "keywords": ["UI", "UX", "컴포넌트", "component", "스타일", "style", "레이아웃", "layout", "색상", "color", "타이포", "typography", "폰트", "font", "반응형", "responsive", "디자인시스템", "design system", "DDS", "KRDS"],
+        "documents": ["projects/agent-dds/docs/guide/더나은-UIUX-가이드라인.md", "projects/agent-dds/docs/guide/dds_design_strategy.md"],
+        "tier": 2,
+        "_note": "UI/UX guidelines in DDS project. uv agent references these for design tasks."
+      },
+      {
+        "id": "agent-design",
+        "description": "Agent design, protocol, communication tasks",
+        "keywords": ["에이전트", "agent", "서브에이전트", "subagent", "프로토콜", "protocol", "통신", "communication", "A2A", "페르소나", "persona"],
+        "documents": ["docs/design/base-agent.md", "docs/design/protocols/agent-communication.md"],
+        "tier": 2,
+        "_note": "docs/design/ contains agent/system design, not UI design"
+      },
+      {
+        "id": "testing-qa",
+        "description": "Testing, validation, quality assurance, evaluation tasks",
+        "keywords": ["테스트", "test", "검증", "validation", "QA", "품질", "quality", "regression", "회귀", "E2E", "평가", "evaluation", "골든셋", "golden"],
+        "documents": ["docs/guides/agent-evaluation.md", "docs/guides/eval-golden-set.md", "docs/policies/quality-gates.md"],
+        "tier": [1, 2]
+      },
+      {
+        "id": "security",
+        "description": "Security, authentication, authorization, privacy tasks",
+        "keywords": ["보안", "security", "인증", "auth", "authentication", "로그인", "login", "개인정보", "PII", "privacy", "권한", "permission", "access control", "암호", "password", "token", "토큰", "비밀", "secret", "credential"],
+        "documents": ["docs/policies/security-policy.md", "docs/policies/access-control-policy.md"],
+        "tier": 1
+      },
+      {
+        "id": "architecture",
+        "description": "System architecture, ADR, structural decisions",
+        "keywords": ["아키텍처", "architecture", "ADR", "시스템 설계", "system design", "구조", "structure", "모듈", "module", "의존성", "dependency", "MA", "오케스트레이션", "orchestration"],
+        "documents": ["docs/architecture/system-design.md", "docs/adr/*"],
+        "tier": 1
+      },
+      {
+        "id": "workflow",
+        "description": "Development workflow, process, operation tasks",
+        "keywords": ["워크플로우", "workflow", "프로세스", "process", "운영", "operation", "절차", "procedure", "REQ", "WI", "handoff", "핸드오프"],
+        "documents": ["docs/guides/development-workflow.md", "docs/guides/operation-process.md", "docs/guides/traceability.md"],
+        "tier": 2
+      },
+      {
+        "id": "documentation",
+        "description": "Documentation, glossary, terminology tasks",
+        "keywords": ["문서", "document", "documentation", "번역", "translation", "용어", "glossary", "terminology"],
+        "documents": ["docs/standards/glossary.md", "docs/standards/documentation-standards.md"],
+        "tier": [0, 2]
+      },
+      {
+        "id": "onboarding",
+        "description": "Project onboarding, setup, initialization tasks",
+        "keywords": ["온보딩", "onboarding", "셋업", "setup", "초기화", "init", "프로젝트 생성", "project creation", "환경설정", "configuration"],
+        "documents": ["docs/guides/project-onboarding.md", "docs/guides/request-intake.md"],
+        "tier": 2
+      }
+    ],
+
+    "llm_inference_config": {
+      "_comment": "Phase 2: LLM semantic analysis runs alongside Phase 1 keyword matching.",
+      "search_scope": ["docs/guides/*", "docs/design/*", "docs/analysis/*", "docs/policies/*", "docs/architecture/*", "docs/adr/*", "docs/templates/*"],
+      "exclude_from_inference": ["docs/standards/*", "docs/registry/*", "docs/eval/*"],
+      "max_additional_docs": 5,
+      "instruction": "Analyze the WI content semantically. Identify relevant documents from search_scope based on task context. Note: docs/design/ contains agent/system design, not UI design. Return document paths that would help the assignee complete the task."
+    }
+  },
+
+  "priority_rules": {
+    "_comment": "Priority and conflict resolution rules.",
+
+    "tier_precedence": "metadata_first",
+    "conflict_resolution": "lowest_tier_wins",
+    "max_documents_per_tier": {
+      "0": 10,
+      "1": 15,
+      "2": 20,
+      "3": 10
+    }
+  },
+
+  "agent_specific_requirements": {
+    "_comment": "Explicit document requirements per agent, matching CLAUDE.md L164-178.",
+
+    "ps": {
+      "required": ["docs/standards/core-principles.md"],
+      "optional": []
+    },
+    "eo": {
+      "required": ["docs/standards/core-principles.md"],
+      "optional": ["docs/policies/*"]
+    },
+    "sa": {
+      "required": [
+        "docs/standards/core-principles.md",
+        "docs/standards/development-standards.md"
+      ],
+      "optional": ["docs/adr/*"]
+    },
+    "se": {
+      "required": [
+        "docs/standards/core-principles.md",
+        "docs/standards/development-standards.md"
+      ],
+      "optional": ["docs/design/*"]
+    },
+    "re": {
+      "required": ["docs/standards/core-principles.md"],
+      "optional": ["docs/guides/*"]
+    },
+    "pg": {
+      "required": [
+        "docs/standards/core-principles.md",
+        "docs/policies/security-policy.md"
+      ],
+      "optional": []
+    },
+    "tr": {
+      "required": ["docs/standards/core-principles.md"],
+      "optional": []
+    },
+    "uv": {
+      "required": ["docs/standards/core-principles.md"],
+      "optional": ["docs/design/*"]
+    },
+    "docops": {
+      "required": [
+        "docs/standards/core-principles.md",
+        "docs/standards/documentation-standards.md",
+        "docs/standards/glossary.md"
+      ],
+      "optional": []
+    },
+    "qa": {
+      "required": [
+        "docs/standards/core-principles.md",
+        "docs/standards/development-standards.md"
+      ],
+      "optional": ["docs/projects/*/lint-config.md", "docs/projects/*/test-config.md"]
+    },
+    "cr": {
+      "required": [
+        "docs/standards/core-principles.md",
+        "docs/standards/development-standards.md"
+      ],
+      "optional": ["docs/policies/security-policy.md", "docs/adr/*"]
+    }
+  },
+
+  "tech_stack_documents": {
+    "_comment": "Tech-stack-based conditional document injection. Resolved from workspace.json domain_projects[].tech_stack. When project's tech_stack includes a key below AND assignee is in applicable_agents, the documents are auto-injected.",
+
+    "react": {
+      "documents": [".claude/skills/react-best-practices/AGENTS.md"],
+      "applicable_agents": ["se", "qa", "cr", "uv"],
+      "tier": 2,
+      "note": "React/Next.js performance optimization guidelines (45 rules from Vercel Engineering)"
+    }
+  }
+}

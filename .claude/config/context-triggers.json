@@ -1,0 +1,64 @@
+{
+    "triggers": [
+        {
+            "category": "Security Policy",
+            "regex": "password|비밀번호|security|보안|secret|시크릿|token|토큰|key|키|reset|초기화",
+            "load": [
+                "docs/policies/security-policy.md"
+            ]
+        },
+        {
+            "category": "Database Standards",
+            "regex": "database|데이터베이스|schema|스키마|db|sql|migration|마이그레이션",
+            "load": [
+                "docs/standards/development-standards.md"
+            ]
+        },
+        {
+            "category": "Versioning & Deployment",
+            "regex": "deploy|배포|production|프로덕션|release|릴리스|version|버전",
+            "load": [
+                "docs/policies/versioning-policy.md"
+            ]
+        },
+        {
+            "category": "Documentation Standards",
+            "regex": "prd|spec|document|문서|write|작성|template|템플릿",
+            "load": [
+                "docs/standards/documentation-standards.md"
+            ]
+        },
+        {
+            "category": "MA Workflow (REQ/WI Loop)",
+            "regex": "REQ|요구사항|requirement|WI|work\\s*item|작업\\s*항목|작업지시|workflow|워크플로우",
+            "load": [
+                "docs/guides/development-workflow.md",
+                "docs/standards/glossary.md",
+                "docs/guides/traceability.md"
+            ]
+        },
+        {
+            "category": "Agent System (Subagents/Skills/DocOps)",
+            "regex": "subagent|서브에이전트|skills?|스킬|docops|문서\\s*운영|routing|라우팅|agent\\s*docs\\s*map",
+            "load": [
+                "docs/architecture/system-design.md",
+                "docs/guides/agent-docs-map.md"
+            ]
+        },
+        {
+            "category": "Execution / HITL Policy",
+            "regex": "execute|실행|command|명령|approval|승인|HITL|tool",
+            "load": [
+                "docs/policies/execution-policy.md"
+            ]
+        },
+        {
+            "category": "Observability & Logs",
+            "regex": "observability|관측|log|로그|trace|추적|retention|보존|postmortem|회고",
+            "load": [
+                "docs/policies/future-policy-stubs.md",
+                "docs/guides/runbook-postmortem.md"
+            ]
+        }
+    ]
+}

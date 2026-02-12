@@ -1,0 +1,72 @@
+spring:
+  application:
+    name: ATStudio
+
+  # 데이터베이스 설정
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 이유: MySQL 8.x 이상의 최신 드라이버 클래스
+
+    url: jdbc:mysql://localhost:3306/myapp?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    # 이유:
+    # - `myapp`: 생성한 DB 이름
+    # - serverTimezone=Asia/Seoul: MySQL 시간대 설정 (안 하면 에러 발생)
+    # - characterEncoding=UTF-8: 한글 깨짐 방지
+
+    username: root
+    password: 1234
+    # 이유: 본인의 MySQL 계정 정보로 변경 필요
+
+  # JPA/Hibernate 설정
+  jpa:
+    hibernate:
+      ddl-auto: update
+      # 이유:
+      # - create: 서버 시작할 때마다 테이블 삭제 후 재생성 (데이터 날아감! 개발 초기만)
+      # - update: 엔티티 변경사항만 반영 (컬럼 추가는 되지만 삭제는 안 됨)
+      # - validate: 엔티티와 테이블 일치 여부만 검증 (운영 환경 권장)
+      # - none: 아무것도 안 함
+      # ⚠️ 운영에서는 반드시 validate나 none 사용!
+
+    show-sql: true
+    # 이유: 콘솔에 실행된 SQL 쿼리 출력 → 디버깅 편함
+
+    properties:
+      hibernate:
+        format_sql: true
+        # 이유: SQL을 예쁘게 포맷팅해서 보여줌 (가독성)
+
+        dialect: org.hibernate.dialect.MySQLDialect
+        # 이유: MySQL 문법에 맞게 SQL 생성 (DB마다 문법이 조금씩 다름)
+
+  # Thymeleaf 템플릿 엔진 설정
+  thymeleaf:
+    cache: false
+    # 이유:
+    # - false: HTML 수정 후 서버 재시작 없이 새로고침만으로 반영 (개발 편의)
+    # - true: 템플릿 캐싱해서 성능 향상 (운영 환경에서는 true)
+
+    prefix: classpath:/templates/
+    # 이유: HTML 파일 위치 지정 (src/main/resources/templates/)
+
+    suffix: .html
+    # 이유: 컨트롤러에서 "index" 반환 시 자동으로 "index.html" 찾음
+
+  # 파일 업로드 설정
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      # 이유: 업로드 가능한 파일 하나의 최대 크기 (기본값 1MB는 너무 작음)
+
+      max-request-size: 10MB
+      # 이유: 한 번의 요청에서 전체 업로드 크기 제한 (여러 파일 동시 업로드 시)
+
+# 로깅 설정
+logging:
+  level:
+    org.hibernate.SQL: debug
+    # 이유: Hibernate가 실행하는 SQL 쿼리를 DEBUG 레벨로 출력
+
+    org.hibernate.type.descriptor.sql.BasicBinder: trace
+    # 이유: SQL의 ? 파라미터에 어떤 값이 바인딩되는지 상세히 출력
+    # 예: where id = ? → where id = 1 이렇게 보임

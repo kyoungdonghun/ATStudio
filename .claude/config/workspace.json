@@ -1,0 +1,70 @@
+{
+  "version": "1.1",
+  "workspace_root": ".",
+  "meta_framework": {
+    "name": "claude-agentic-subagent-team",
+    "tag": "ATS",
+    "role": "ATStudio orchestration",
+    "agents": [
+      "ps",
+      "eo",
+      "sa",
+      "se",
+      "re",
+      "pg",
+      "tr",
+      "uv",
+      "docops",
+      "qa",
+      "cr"
+    ],
+    "skills": [
+      "create-req",
+      "create-wi-handoff-packet",
+      "create-wi-evidence-pack",
+      "ce",
+      "pe",
+      "lint",
+      "validate-docs",
+      "skill-creator",
+      "typecheck",
+      "eslint",
+      "prettier",
+      "test",
+      "test-coverage",
+      "build-check",
+      "create-agent",
+      "manage-hooks",
+      "sync-docs-index",
+      "react-best-practices"
+    ]
+  },
+  "domain_projects": [
+    {
+      "project_id": "PRJ-ATS-001",
+      "tag": "ATS",
+      "name": "atstudio",
+      "display_name": "ATStudio - Shorts Music Marketplace",
+      "path": ".",
+      "routing_triggers": [
+        "atstudio",
+        "music",
+        "shorts"
+      ],
+      "custom_agents": [],
+      "custom_skills": [],
+      "tech_stack": [
+        "java",
+        "spring-boot",
+        "mysql",
+        "thymeleaf",
+        "react"
+      ],
+      "status": "active"
+    }
+  ],
+  "routing_config": {
+    "default_project": "PRJ-ATS-001",
+    "keyword_matching": true
+  }
+}
