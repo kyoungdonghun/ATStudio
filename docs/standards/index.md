@@ -24,6 +24,9 @@ status: stable
 | [Prompt Caching Strategy](prompt-caching-strategy.md) | system | Prompt caching strategy | stable |
 | [Standard Evolution Procedure and Patterns](evolution-pattern.md) | system | System evolution patterns (Subagent Evolution) | stable |
 | [Evidence Pack Standard](evidence-pack-standard.md) | system | Evidence Pack format standard | stable |
+| [DTO Standards](dto-standards.md) | ATS | Entity/DTO separation, ResponseDTO, RequestDTO | stable |
+| [Exception Handling Standards](exception-handling.md) | ATS | Business/Technic exceptions, GlobalExceptionHandler | stable |
+| [Frontend Standards](frontend-standards.md) | ATS | React + TypeScript architecture (Phase 2) | draft |
 
 ## Document Dependencies
 
@@ -31,3 +34,6 @@ status: stable
 - **development-standards.md**: Development standards, references glossary.md
 - **glossary.md**: Standard term basis, referenced by all documents
 - **glossary-sources.md**: Source information for glossary.md
+- **dto-standards.md**: References development-standards.md (layer architecture), exception-handling.md
+- **exception-handling.md**: References development-standards.md, dto-standards.md (ExceptionResponseDTO)
+- **frontend-standards.md**: References development-standards.md, dto-standards.md, exception-handling.md

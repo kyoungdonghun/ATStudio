@@ -131,11 +131,23 @@ ATStudio/
 |---------|-----------|---------|
 | Class | PascalCase | `MusicService`, `MusicUploadRequest` |
 | Method | camelCase | `findByGenre()`, `uploadMusic()` |
-| Variable | camelCase | `musicTitle`, `creatorId` |
+| Variable | camelCase (abbreviation-preserving) | `responseDTO`, `userID`, `musicTitle` |
 | Constant | UPPER_SNAKE | `MAX_FILE_SIZE`, `DEFAULT_PAGE_SIZE` |
 | Package | lowercase | `com.atstudio.atstudio.service` |
 | DB Table | snake_case | `music`, `user_profile` |
 | DB Column | snake_case | `created_at`, `music_title` |
+
+> **Abbreviation-preserving camelCase:** Acronyms and abbreviations retain their original casing in variable/field names (e.g., `responseDTO` not `responseDto`, `userID` not `userId`).
+
+### 2A.3.1 Coding Style Rules
+
+- **One statement per line:** Do not place multiple statements on a single line.
+- **Variable initialization:** Initialize variables at declaration time.
+- **Remove unused variables:** Never ignore IDE warnings for unused variables.
+- **Early return (not-case first):** Handle failure/invalid cases first to reduce nesting and improve readability.
+- **Line length:** Break long lines with line continuation for readability.
+- **Blank lines:** Use blank lines to separate logical blocks within methods.
+- **Javadoc:** Write Javadoc only where the "why" is not self-evident — public APIs, complex business logic, non-obvious behavior. Do not write Javadoc that merely restates the method name.
 
 ### 2A.4 Code Templates
 
@@ -232,20 +244,13 @@ public abstract class BaseEntity {
 
 ### 2A.5 Exception Handling
 
-- Use `@RestControllerAdvice` with a single `GlobalExceptionHandler`.
-- Define custom exceptions per domain: `EntityNotFoundException`, `DuplicateException`, etc.
-- Return consistent error response format.
+> **Full specification:** See [exception-handling.md](exception-handling.md) for the complete exception handling strategy including Business/Technic exception taxonomy, ENUM-based error codes, dual-message pattern, GlobalExceptionHandler with Fallback, and the full error code table.
 
-```java
-@RestControllerAdvice
-public class GlobalExceptionHandler {
-    @ExceptionHandler(EntityNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleNotFound(EntityNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-            .body(new ErrorResponse("NOT_FOUND", e.getMessage()));
-    }
-}
-```
+**Summary:**
+- Two exception categories: `BusinessException` (client-caused, 4xx) and `TechnicException` (system-caused, 5xx).
+- ENUM-based error codes with dual messages: client message (safe) + developer message (detailed).
+- Single `@RestControllerAdvice` `GlobalExceptionHandler` with Fallback for unthrown exceptions.
+- Standardized error response via `ExceptionResponseDTO`.
 
 ### 2A.6 Security Rules
 

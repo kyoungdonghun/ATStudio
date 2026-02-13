@@ -20,7 +20,7 @@ status: stable
 | Design | 2 | [Design Index](design/index.md) | Design reference documents |
 | Guides | 11 | [Guides Index](guides/index.md) | Execution/operation guides |
 | Policies | 7 | [Policies Index](policies/index.md) | Operational policy documents |
-| Standards | 9 | [Standards Index](standards/index.md) | Standard documents |
+| Standards | 12 | [Standards Index](standards/index.md) | Standard documents |
 | Templates | 18 | [Templates Index](templates/index.md) | Document/artifact templates |
 | Registry | 4 | [Registry Index](registry/index.md) | Asset/context/project registries |
 | ADR | 1 | [ADR (Decision Records)](adr/) | Decision records |
@@ -54,6 +54,9 @@ status: stable
 |----------|----------|-------------|
 | Standards | [core-principles.md](standards/core-principles.md) | Section 13: ATStudio Domain Principles |
 | Standards | [development-standards.md](standards/development-standards.md) | Section 2A: Java/Spring Boot Coding Standards |
+| Standards | [dto-standards.md](standards/dto-standards.md) | Entity/DTO separation, ResponseDTO, RequestDTO |
+| Standards | [exception-handling.md](standards/exception-handling.md) | Business/Technic exceptions, GlobalExceptionHandler |
+| Standards | [frontend-standards.md](standards/frontend-standards.md) | React + TypeScript architecture (Phase 2) |
 | Standards | [glossary.md](standards/glossary.md) | Section 3-A: ATStudio Domain Terms |
 | Policies | [security-policy.md](policies/security-policy.md) | Section 6: JWT/MySQL Secrets Management |
 | Registry | [project-registry.md](registry/project-registry.md) | PRJ-ATS-001 registration |
