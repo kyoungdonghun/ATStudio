@@ -1,8 +1,19 @@
-# ATStudio API Specification v4 (Confirmed)
+# ATStudio API Specification v5 (Confirmed)
 
-> **Status**: 4차 확정본 — 상호 검토 반영
-> **Base**: v3 + 상호 검토 8항목 확정
+> **Status**: 5차 확정본 — 표준 문서 정합성 반영
+> **Base**: v4 + docs/standards 정합성 검증 결과
 > **Date**: 2026-02-20
+
+---
+
+## v4 → v5 변경 이력
+
+| # | 항목 | 결정 |
+|---|------|------|
+| V1 | 에러 응답 `error` 필드 | **표준 준수** — `error` = HTTP reason phrase (예: "Forbidden"). 도메인 코드는 `errorCode` 신규 필드로 분리. |
+| V2 | pageInfo 구조 | **표준 준수** — `totalElements/totalPages` 제거 → `total, start, end, prev, next` (블록 페이지네이션). |
+| V3 | 목록 필드명 | **표준 준수** — `content` → `dataList` |
+| V4 | 성공 응답 body | **표준 준수** — `status` 필드 제거. HTTP 상태코드로만 전달. |
 
 ---
 
@@ -60,33 +71,46 @@
 ### 공통 응답 형식
 ```json
 {
-  "status": 200,
   "message": "Success",
   "data": { ... }
 }
 ```
 
+> `status` 필드는 HTTP 상태코드로만 전달. 응답 body에 포함하지 않음.
+
 ### 공통 에러 응답
 ```json
 {
   "status": 400,
-  "message": "사용자 메시지",
-  "error": "ERROR_CODE"
+  "error": "Bad Request",
+  "errorCode": "DOMAIN_ERROR_CODE",
+  "message": "사용자 메시지"
 }
 ```
+
+> - `error`: HTTP reason phrase (예: "Bad Request", "Forbidden", "Not Found")
+> - `errorCode`: 도메인 에러 코드 (도메인 특화 에러인 경우에만 포함, 없으면 생략)
+> - `message`: 사용자에게 표시할 안전한 메시지
 
 ### 페이지네이션 (목록 조회 공통)
 ```json
 {
-  "content": [ ... ],
+  "dataList": [ ... ],
   "pageInfo": {
     "page": 1,
     "size": 20,
-    "totalElements": 150,
-    "totalPages": 8
+    "total": 150,
+    "start": 1,
+    "end": 8,
+    "prev": false,
+    "next": true
   }
 }
 ```
+
+> - `total`: 전체 데이터 수
+> - `start` / `end`: 현재 블록의 시작/끝 페이지 번호
+> - `prev` / `next`: 이전/다음 블록 존재 여부
 
 ---
 
@@ -153,7 +177,7 @@ sort: String (optional, "latest"|"popular", default: "latest")
 **Response** `200 OK`
 ```json
 {
-  "content": [
+  "dataList": [
     {
       "id": 1,
       "title": "Summer Vibes",
@@ -167,7 +191,7 @@ sort: String (optional, "latest"|"popular", default: "latest")
       "createdAt": "2026-02-19T10:00:00"
     }
   ],
-  "pageInfo": { "page": 1, "size": 20, "totalElements": 150, "totalPages": 8 }
+  "pageInfo": { "page": 1, "size": 20, "total": 150, "start": 1, "end": 8, "prev": false, "next": true }
 }
 ```
 
@@ -219,8 +243,8 @@ sort: String (optional, "latest"|"popular", default: "latest")
 
 **에러 케이스**
 ```json
-{ "status": 403, "message": "일일 다운로드 한도를 초과했습니다.", "error": "DOWNLOAD_LIMIT_EXCEEDED" }
-{ "status": 403, "message": "구독 중인 플랜이 없습니다.", "error": "NO_ACTIVE_SUBSCRIPTION" }
+{ "status": 403, "error": "Forbidden", "errorCode": "DOWNLOAD_LIMIT_EXCEEDED", "message": "오늘의 다운로드 한도를 초과했습니다." }
+{ "status": 403, "error": "Forbidden", "errorCode": "NO_ACTIVE_SUBSCRIPTION", "message": "구독이 필요한 서비스입니다." }
 ```
 
 ## 1.6 음원 수정
@@ -497,14 +521,14 @@ size: Integer (default: 50)
 **Response** `200 OK`
 ```json
 {
-  "content": [
+  "dataList": [
     {
       "id": 100,
       "track": { "id": 10, "title": "Summer Vibes", "thumbnail": "..." },
       "playedAt": "2026-02-19T14:30:00"
     }
   ],
-  "pageInfo": { ... }
+  "pageInfo": { "page": 1, "size": 50, "total": 120, "start": 1, "end": 3, "prev": false, "next": true }
 }
 ```
 
@@ -633,7 +657,7 @@ size: Integer (default: 50)
 
 **에러 케이스**
 ```json
-{ "status": 409, "message": "이미 사용 중인 닉네임입니다.", "error": "NICKNAME_DUPLICATED" }
+{ "status": 409, "error": "Conflict", "errorCode": "NICKNAME_DUPLICATED", "message": "이미 사용 중인 닉네임입니다." }
 ```
 
 ## 5.4 내 정보 보기
@@ -799,7 +823,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 
 **에러 케이스**
 ```json
-{ "status": 403, "message": "기업 라이센스 승인이 필요합니다.", "error": "BUSINESS_LICENSE_REQUIRED" }
+{ "status": 403, "error": "Forbidden", "errorCode": "BUSINESS_LICENSE_REQUIRED", "message": "기업회원 라이센스 심사 승인 후 이용 가능합니다." }
 ```
 
 ## 6.4 내 구독 정보 보기
@@ -880,7 +904,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 
 **에러**
 ```json
-{ "status": 404, "message": "활성 구독이 없습니다.", "error": "SUBSCRIPTION_NOT_FOUND" }
+{ "status": 404, "error": "Not Found", "errorCode": "SUBSCRIPTION_NOT_FOUND", "message": "구독 정보를 찾을 수 없습니다." }
 ```
 
 ---
@@ -898,7 +922,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 **Response** `200 OK`
 ```json
 {
-  "content": [
+  "dataList": [
     {
       "id": 1,
       "track": { "id": 10, "title": "Summer Vibes" },
@@ -906,7 +930,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
       "issuedAt": "2026-02-19T10:00:00"
     }
   ],
-  "pageInfo": { ... }
+  "pageInfo": { "page": 1, "size": 20, "total": 5, "start": 1, "end": 1, "prev": false, "next": false }
 }
 ```
 
@@ -1277,7 +1301,7 @@ size: Integer (default: 20)
 
 **에러 케이스**
 ```json
-{ "status": 403, "message": "등록 가능한 채널 수를 초과했습니다.", "error": "WHITELIST_CHANNEL_LIMIT_EXCEEDED" }
+{ "status": 403, "error": "Forbidden", "errorCode": "WHITELIST_CHANNEL_LIMIT_EXCEEDED", "message": "채널 등록 한도를 초과했습니다." }
 ```
 
 ## 12.2 내 채널 목록 조회

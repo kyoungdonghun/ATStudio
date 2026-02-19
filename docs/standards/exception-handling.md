@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-02-13
+version: 1.1
+last_updated: 2026-02-20
 project: ATS
 owner: SE
 category: standard
@@ -97,6 +97,12 @@ Each exception carries an ENUM value that defines HTTP status, client message, a
 | `PAYMENT_FAILED` | 402 PAYMENT_REQUIRED | 결제 처리에 실패했습니다. | 결제 게이트웨이 오류. |
 | `FILE_FORMAT_INVALID` | 400 BAD_REQUEST | 지원하지 않는 파일 형식입니다. | 허용되지 않은 음악 파일 포맷. |
 | `STORAGE_LIMIT_EXCEEDED` | 507 INSUFFICIENT_STORAGE | 업로드 용량을 초과했습니다. | 사용자 스토리지 한도 초과. |
+| `NO_ACTIVE_SUBSCRIPTION` | 403 FORBIDDEN | 구독이 필요한 서비스입니다. | 활성 구독이 없는 사용자의 구독자 전용 기능 접근. |
+| `DOWNLOAD_LIMIT_EXCEEDED` | 403 FORBIDDEN | 오늘의 다운로드 한도를 초과했습니다. | 일일 다운로드 제한 초과. |
+| `NICKNAME_DUPLICATED` | 409 CONFLICT | 이미 사용 중인 닉네임입니다. | 닉네임 중복. |
+| `WHITELIST_CHANNEL_LIMIT_EXCEEDED` | 403 FORBIDDEN | 채널 등록 한도를 초과했습니다. | 구독 플랜 최대 채널 수 초과. |
+| `BUSINESS_LICENSE_REQUIRED` | 403 FORBIDDEN | 기업회원 라이센스 심사 승인 후 이용 가능합니다. | 기업회원 라이센스 미승인 상태. |
+| `SUBSCRIPTION_NOT_FOUND` | 404 NOT_FOUND | 구독 정보를 찾을 수 없습니다. | 활성 구독 레코드가 존재하지 않습니다. |
 
 ---
 
@@ -202,25 +208,44 @@ private static final Map<Class<? extends Exception>, ErrorCode> EXCEPTION_MAP = 
 
 All error responses use a single `buildErrorResponse` method to guarantee consistent format.
 
+`ExceptionResponseDTO` uses `@JsonInclude(NON_NULL)` — `errorCode` is omitted when null (generic errors).
+
 ```java
 private ResponseEntity<ExceptionResponseDTO> buildErrorResponse(
         HttpStatus status, String clientMessage) {
+    return buildErrorResponse(status, clientMessage, null);
+}
+
+private ResponseEntity<ExceptionResponseDTO> buildErrorResponse(
+        HttpStatus status, String clientMessage, String errorCode) {
     ExceptionResponseDTO response = ExceptionResponseDTO.builder()
         .status(status.value())
         .error(status.getReasonPhrase())
+        .errorCode(errorCode)
         .message(clientMessage)
         .build();
     return new ResponseEntity<>(response, status);
 }
 ```
 
-**Result:** Every error response has this structure:
+**Result — Generic error (no errorCode):**
 
 ```json
 {
     "status": 400,
     "error": "Bad Request",
     "message": "입력값이 올바르지 않습니다. 다시 확인해주세요."
+}
+```
+
+**Result — Domain-specific error (with errorCode):**
+
+```json
+{
+    "status": 403,
+    "error": "Forbidden",
+    "errorCode": "NO_ACTIVE_SUBSCRIPTION",
+    "message": "구독이 필요한 서비스입니다."
 }
 ```
 
