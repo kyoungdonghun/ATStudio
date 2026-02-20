@@ -1,0 +1,39 @@
+package com.atstudio.atstudio.dto.track;
+
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
+
+@Getter
+@Setter
+@NoArgsConstructor
+public class TrackCreateRequest {
+
+    @NotBlank
+    @Size(max = 100)
+    private String title;
+
+    @NotNull
+    @Min(1)
+    private Integer bpm;
+
+    @NotBlank
+    @Size(max = 10)
+    private String tonality;
+
+    private String description;
+
+    @NotNull
+    private MultipartFile audioFile;
+
+    private MultipartFile thumbnail;
+
+    private List<Long> tagIds;
+}

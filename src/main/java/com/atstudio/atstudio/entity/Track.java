@@ -48,4 +48,27 @@ public class Track extends BaseEntity {
     @Builder.Default
     @Column(nullable = false)
     private long playCount = 0L;
+
+    public void update(String title, Integer bpm, String tonality, String description) {
+        if (title != null) this.title = title;
+        if (bpm != null) this.bpm = bpm;
+        if (tonality != null) this.tonality = tonality;
+        if (description != null) this.description = description;
+    }
+
+    public void updateAudioFile(String audioFile) {
+        this.audioFile = audioFile;
+    }
+
+    public void updateThumbnail(String thumbnail) {
+        this.thumbnail = thumbnail;
+    }
+
+    public void updateIsActive(boolean isActive) {
+        this.isActive = isActive;
+    }
+
+    public void deactivate() {
+        this.isActive = false;
+    }
 }

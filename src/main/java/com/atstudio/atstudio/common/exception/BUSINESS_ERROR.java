@@ -149,7 +149,23 @@ public enum BUSINESS_ERROR {
     EMAIL_ALREADY_REGISTERED(
             HttpStatus.CONFLICT,
             "이미 가입된 이메일입니다.",
-            "회원가입 시 이메일 중복.");
+            "회원가입 시 이메일 중복."),
+
+    // ── Track / Tag ───────────────────────────────────────────────────────────
+    TRACK_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "트랙 정보를 찾을 수 없습니다.",
+            "trackId에 해당하는 Track이 존재하지 않습니다."),
+
+    TAG_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "태그 정보를 찾을 수 없습니다.",
+            "tagId에 해당하는 Tag가 존재하지 않습니다."),
+
+    TAG_NAME_DUPLICATED(
+            HttpStatus.CONFLICT,
+            "이미 존재하는 태그 이름입니다.",
+            "태그 이름 중복.");
 
     private final HttpStatus status;
     private final String clientMessage;
