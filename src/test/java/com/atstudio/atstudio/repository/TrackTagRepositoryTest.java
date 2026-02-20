@@ -1,5 +1,6 @@
 package com.atstudio.atstudio.repository;
 
+import com.atstudio.atstudio.config.JpaConfig;
 import com.atstudio.atstudio.entity.Tag;
 import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.TrackTag;
@@ -11,10 +12,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.context.annotation.Import;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
+@Import(JpaConfig.class)
 @DisplayName("TrackTagRepository (복합 PK) 검증")
 class TrackTagRepositoryTest {
 
