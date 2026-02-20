@@ -1,34 +1,107 @@
 package com.atstudio.atstudio.config;
 
+import com.atstudio.atstudio.security.JwtAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception{
-        http
-                .csrf(csrf -> csrf.disable())
-                // 이유:
-                // - CSRF: Cross-Site Request Forgery 공격 방어 토큰
-                // - REST API 서버에서는 보통 비활성화 (JWT 사용 시)
-                // - Thymeleaf 폼 사용 시에는 나중에 활성화 필요
-                // ⚠️ 운영 환경에서는 신중하게 판단!
 
-                .authorizeHttpRequests(auth -> auth
-                                .anyRequest().permitAll()
-                        // 이유: 개발 중에는 모든 요청 허용
-                        // 나중에 이 부분을 수정해서:
-                        // - /api/public/** → 누구나 접근
-                        // - /api/user/** → 로그인 필요
-                        // - /api/admin/** → 관리자만 접근
-                        // 이런 식으로 세밀하게 제어
-                );
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final CorsConfigurationSource corsConfigurationSource;
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .cors(cors -> cors.configurationSource(corsConfigurationSource))
+            .sessionManagement(session ->
+                    session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write(
+                        "{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"인증이 필요합니다. 다시 로그인해주세요.\"}");
+                })
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write(
+                        "{\"status\":403,\"error\":\"Forbidden\",\"message\":\"해당 정보를 열람할 수 없습니다.\"}");
+                })
+            )
+            .authorizeHttpRequests(auth -> auth
+                // PUBLIC
+                .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/social/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/utils/check-email").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/utils/check-phone").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/utils/check-nickname").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/tracks").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/tracks/*").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/tracks/*/stream").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/tags").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/subscriptions").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/subscriptions/*").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/notices").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/notices/*").permitAll()
+                // Swagger (dev only -- SEC-15: checked at application level via profile)
+                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                // ADMIN
+                .requestMatchers(HttpMethod.GET, "/api/users").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/users/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/users/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/tracks").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/tracks/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/tracks/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/tags").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/tags/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/tags/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/notices").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/notices/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/notices/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/business-licenses").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/business-licenses/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/business-licenses/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/questions/*/status").hasRole("ADMIN")
+                // All other /api/** require authentication
+                .requestMatchers("/api/**").authenticated()
+                // Static resources (Thymeleaf)
+                .anyRequest().permitAll()
+            )
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder(10);
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration authConfig) throws Exception {
+        return authConfig.getAuthenticationManager();
+    }
 }

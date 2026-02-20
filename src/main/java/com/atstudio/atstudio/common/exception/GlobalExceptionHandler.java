@@ -4,6 +4,9 @@ import com.atstudio.atstudio.common.dto.ExceptionResponseDTO;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -47,7 +50,17 @@ public class GlobalExceptionHandler {
         BusinessException businessEx = null;
         TechnicException technicEx = null;
 
-        if (ex instanceof MethodArgumentNotValidException
+        if (ex instanceof BadCredentialsException) {
+            businessEx = new BusinessException(BUSINESS_ERROR.INVALID_CREDENTIALS);
+            logger.warn("BusinessException(Fallback): {}. Detail: {}",
+                    businessEx.getDeveloperMessage(), ex.toString(), ex);
+
+        } else if (ex instanceof DisabledException || ex instanceof LockedException) {
+            businessEx = new BusinessException(BUSINESS_ERROR.ACCOUNT_DEACTIVATED);
+            logger.warn("BusinessException(Fallback): {}. Detail: {}",
+                    businessEx.getDeveloperMessage(), ex.toString(), ex);
+
+        } else if (ex instanceof MethodArgumentNotValidException
                 || ex instanceof ConstraintViolationException) {
             businessEx = new BusinessException(BUSINESS_ERROR.INVALID_VALID);
             logger.warn("BusinessException(Fallback): {}. Detail: {}",

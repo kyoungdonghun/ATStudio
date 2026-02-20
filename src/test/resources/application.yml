@@ -5,3 +5,26 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+
+# JWT 테스트용 설정 (main application.yml이 test classpath에서 대체되므로 명시 필요)
+jwt:
+  secret: dGVzdC1zZWNyZXQta2V5LWZvci1hdHN0dWRpby10ZXN0aW5nLW9ubHktMjAyNg==
+  expiration: 3600000
+  refresh-expiration: 1209600000
+
+cors:
+  allowed-origins: http://localhost:3000,http://localhost:8080
+
+oauth2:
+  google:
+    client-id:
+    client-secret:
+    redirect-uri: http://localhost:8080/oauth2/callback/google
+  kakao:
+    client-id:
+    client-secret:
+    redirect-uri: http://localhost:8080/oauth2/callback/kakao
+  naver:
+    client-id:
+    client-secret:
+    redirect-uri: http://localhost:8080/oauth2/callback/naver

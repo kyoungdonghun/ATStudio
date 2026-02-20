@@ -55,4 +55,39 @@ public class User extends BaseEntity {
     @Column(name = "is_deleted", nullable = false)
     @Builder.Default
     private boolean isDeleted = false;
+
+    @Column(name = "refresh_token", length = 512)
+    private String refreshToken;
+
+    public void updateRefreshToken(String hashedRefreshToken) {
+        this.refreshToken = hashedRefreshToken;
+    }
+
+    public void clearRefreshToken() {
+        this.refreshToken = null;
+    }
+
+    public void updateProfile(String nickname, String phonePersonal, String phoneCompany, UserJob job) {
+        if (nickname != null) this.nickname = nickname;
+        if (phonePersonal != null) this.phonePersonal = phonePersonal;
+        if (phoneCompany != null) this.phoneCompany = phoneCompany;
+        if (job != null) this.job = job;
+    }
+
+    public void withdraw() {
+        this.isDeleted = true;
+        this.refreshToken = null;
+    }
+
+    public boolean isProfileComplete() {
+        return phonePersonal != null && job != null;
+    }
+
+    public void completeProfile(String nickname, String phonePersonal, String phoneCompany, UserJob job, UserType userType) {
+        this.nickname = nickname;
+        this.phonePersonal = phonePersonal;
+        if (phoneCompany != null) this.phoneCompany = phoneCompany;
+        this.job = job;
+        this.userType = userType;
+    }
 }

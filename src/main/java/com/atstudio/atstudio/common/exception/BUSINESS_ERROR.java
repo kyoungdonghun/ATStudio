@@ -113,7 +113,43 @@ public enum BUSINESS_ERROR {
     SUBSCRIPTION_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "구독 정보를 찾을 수 없습니다.",
-            "활성 구독 레코드가 존재하지 않습니다.");
+            "활성 구독 레코드가 존재하지 않습니다."),
+
+    // ── Auth ──────────────────────────────────────────────────────────────────
+    INVALID_CREDENTIALS(
+            HttpStatus.UNAUTHORIZED,
+            "이메일 또는 비밀번호가 올바르지 않습니다.",
+            "로그인 인증 실패."),
+
+    TOKEN_EXPIRED(
+            HttpStatus.UNAUTHORIZED,
+            "인증이 만료되었습니다. 다시 로그인해주세요.",
+            "JWT Access Token 만료."),
+
+    REFRESH_TOKEN_INVALID(
+            HttpStatus.UNAUTHORIZED,
+            "세션이 만료되었습니다. 다시 로그인해주세요.",
+            "Refresh Token이 유효하지 않거나 DB 불일치."),
+
+    SOCIAL_AUTH_FAILED(
+            HttpStatus.UNAUTHORIZED,
+            "소셜 로그인에 실패했습니다. 다시 시도해주세요.",
+            "소셜 프로바이더 인증 코드 교환 실패."),
+
+    PROFILE_ALREADY_COMPLETE(
+            HttpStatus.BAD_REQUEST,
+            "이미 프로필이 완성된 계정입니다.",
+            "isProfileComplete=true인 사용자가 complete-profile 호출."),
+
+    ACCOUNT_DEACTIVATED(
+            HttpStatus.UNAUTHORIZED,
+            "탈퇴한 계정입니다.",
+            "isDeleted=true인 사용자 로그인 시도."),
+
+    EMAIL_ALREADY_REGISTERED(
+            HttpStatus.CONFLICT,
+            "이미 가입된 이메일입니다.",
+            "회원가입 시 이메일 중복.");
 
     private final HttpStatus status;
     private final String clientMessage;
