@@ -3,6 +3,7 @@ package com.atstudio.atstudio.controller;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.tag.TagCreateRequest;
 import com.atstudio.atstudio.dto.tag.TagResponse;
+import com.atstudio.atstudio.entity.enums.TagType;
 import com.atstudio.atstudio.service.TagService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +32,8 @@ public class TagController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TagResponse>> getAllTags() {
-        return ResponseEntity.ok(tagService.getAllTags());
+    public ResponseEntity<List<TagResponse>> getAllTags(
+            @RequestParam(required = false) TagType type) {
+        return ResponseEntity.ok(tagService.getAllTags(type));
     }
 }

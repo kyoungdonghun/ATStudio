@@ -78,14 +78,14 @@ public class TrackService {
                 : Sort.by(Sort.Direction.DESC, "createdAt");
         Pageable pageable = PageRequest.of(Math.max(0, request.getPage() - 1), request.getSize(), sort);
 
-        Specification<Track> spec = Specification.where(TrackSpecification.isActive())
-                .and(TrackSpecification.titleContains(request.getKeyword()))
-                .and(TrackSpecification.hasBpmMin(request.getBpmMin()))
-                .and(TrackSpecification.hasBpmMax(request.getBpmMax()))
-                .and(TrackSpecification.hasTonality(request.getTonality()))
-                .and(TrackSpecification.hasTagWithNameAndType(request.getGenre(), "GENRE"))
-                .and(TrackSpecification.hasTagWithNameAndType(request.getMood(), "MOOD"))
-                .and(TrackSpecification.hasTagWithNameAndType(request.getInstrument(), "INSTRUMENT"));
+        Specification<Track> spec = TrackSpecification.isActive();
+        spec = addSpec(spec, TrackSpecification.titleContains(request.getKeyword()));
+        spec = addSpec(spec, TrackSpecification.hasBpmMin(request.getBpmMin()));
+        spec = addSpec(spec, TrackSpecification.hasBpmMax(request.getBpmMax()));
+        spec = addSpec(spec, TrackSpecification.hasTonality(request.getTonality()));
+        spec = addSpec(spec, TrackSpecification.hasTagWithNameAndType(request.getGenre(), "GENRE"));
+        spec = addSpec(spec, TrackSpecification.hasTagWithNameAndType(request.getMood(), "MOOD"));
+        spec = addSpec(spec, TrackSpecification.hasTagWithNameAndType(request.getInstrument(), "INSTRUMENT"));
 
         Page<Track> page = trackRepository.findAll(spec, pageable);
 
@@ -196,6 +196,10 @@ public class TrackService {
                 .toList();
         trackTagRepository.saveAll(trackTags);
         return tags;
+    }
+
+    private Specification<Track> addSpec(Specification<Track> base, Specification<Track> other) {
+        return other != null ? base.and(other) : base;
     }
 
     private Map<Long, List<Tag>> buildTagsMap(List<Long> trackIds) {

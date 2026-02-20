@@ -5,6 +5,7 @@ import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.tag.TagCreateRequest;
 import com.atstudio.atstudio.dto.tag.TagResponse;
 import com.atstudio.atstudio.entity.Tag;
+import com.atstudio.atstudio.entity.enums.TagType;
 import com.atstudio.atstudio.repository.TagRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -33,9 +34,10 @@ public class TagService {
         return TagResponse.from(tagRepository.save(tag));
     }
 
-    public List<TagResponse> getAllTags() {
-        return tagRepository.findAll().stream()
-                .map(TagResponse::from)
-                .toList();
+    public List<TagResponse> getAllTags(TagType type) {
+        List<Tag> tags = (type != null)
+                ? tagRepository.findAllByType(type)
+                : tagRepository.findAll();
+        return tags.stream().map(TagResponse::from).toList();
     }
 }
