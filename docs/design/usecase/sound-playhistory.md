@@ -1,83 +1,83 @@
-# Sound — Play History 유스케이스
+# Sound -- Play History Use Cases
 
-> **API 참조**: `docs/design/api-spec.md` 섹션 4 (Play History)
-> **DB 참조**: `docs/design/db-schema.md` 섹션 6.2 (`play_histories`)
+> **API Reference**: `docs/design/api-spec.md` Section 4 (Play History)
+> **DB Reference**: `docs/design/db-schema.md` Section 6.2 (`play_histories`)
 >
-> **원본 UC 코드**: SOUND-004(재생 기록 저장), SOUND-009(조회), SOUND-015(삭제)
-> 원본에서 "재생 목록(playlog)"으로 표기되어 있었으나, API 기준 "재생 기록(play_histories)"으로 정정.
+> **Original UC codes**: SOUND-004 (save play history), SOUND-009 (view), SOUND-015 (delete)
+> Originally labeled as "playlog" in the source; corrected to "play history (play_histories)" per the API spec.
 
 ---
 
-## SOUND-004: 재생 기록 저장
+## SOUND-004: Save Play History
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-004 |
-| **버전** | 26-02-20 |
-| **설명** | QueBar에서 음원 재생이 시작될 때 프론트엔드가 명시적으로 호출하여 재생 기록을 저장하고 play_count를 증가시킨다. 회원 전용. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. |
-| **트리거** | SOUND-010(음원 재생) 후 프론트엔드가 QueBar 재생 시작을 감지하여 자동 호출한다. |
-| **관련 UC** | SOUND-010(음원 재생), SOUND-009(재생 기록 조회) |
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-004 |
+| **Version** | 26-02-20 |
+| **Description** | When track playback starts in QueBar, the frontend explicitly calls this endpoint to save play history and increment play_count. Members only. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. |
+| **Trigger** | After SOUND-010 (play track), frontend detects QueBar playback start and calls automatically. |
+| **Related UC** | SOUND-010 (play track), SOUND-009 (view play history) |
 
-**기본 흐름**
-1. 프론트엔드가 QueBar에서 재생이 시작됨을 감지한다.
-2. 프론트엔드가 인증 토큰과 trackId를 포함하여 `POST /api/play-histories`를 호출한다.
-3. 백엔드가 play_histories 테이블에 (user_id, track_id, played_at) 레코드를 생성한다.
-4. 백엔드가 tracks.play_count를 1 증가시킨다.
-5. 백엔드가 201 응답을 반환한다.
+**Main Flow**
+1. Frontend detects that playback has started in QueBar.
+2. Frontend calls `POST /api/play-histories` with auth token and trackId.
+3. Backend creates a (user_id, track_id, played_at) record in the play_histories table.
+4. Backend increments tracks.play_count by 1.
+5. Backend returns a 201 response.
 
-**예외/대안 흐름**
-- 비회원: 프론트엔드가 호출 자체를 하지 않음. 재생 기록 없음, play_count 증가 없음.
+**Exception / Alternative Flow**
+- Non-member: Frontend does not call this endpoint. No play history recorded, no play_count increment.
 
-**사후 조건**
-- play_histories에 기록 추가됨. tracks.play_count 증가.
-
----
-
-## SOUND-009: 재생 기록 조회
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-009 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 사용자가 본인의 재생 기록 목록을 최신순으로 조회한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. |
-| **트리거** | 사용자가 재생 기록 화면에 접근한다. |
-| **관련 UC** | SOUND-015(재생 기록 삭제) |
-
-**기본 흐름**
-1. 프론트엔드가 인증 토큰과 페이지 파라미터를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 사용자의 play_histories를 최신순으로 페이지네이션하여 반환한다.
-
-**사후 조건**
-- 재생 기록(음원 정보, played_at)이 최신순으로 화면에 출력됨.
+**Postconditions**
+- Record added to play_histories. tracks.play_count incremented.
 
 ---
 
-## SOUND-015: 재생 기록 삭제
+## SOUND-009: View Play History
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-015 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 사용자가 본인의 재생 기록을 선택 삭제하거나 전체 삭제한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. |
-| **트리거** | 사용자가 재생 기록 화면에서 '삭제' 버튼을 클릭한다. |
-| **관련 UC** | SOUND-009(재생 기록 조회) |
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-009 |
+| **Version** | 26-02-20 |
+| **Description** | Logged-in user views their own play history list in reverse chronological order. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. |
+| **Trigger** | User navigates to the play history screen. |
+| **Related UC** | SOUND-015 (delete play history) |
 
-**기본 흐름 A — 선택 삭제**
-1. 사용자가 삭제할 기록을 체크박스로 선택한다.
-2. '삭제' 버튼을 클릭한다.
-3. 프론트엔드가 historyIds 배열을 포함한 삭제 요청을 백엔드에 전송한다.
-4. 백엔드가 해당 play_histories 레코드를 삭제하고 204 No Content를 반환한다.
+**Main Flow**
+1. Frontend sends a request including auth token and page parameters to the backend.
+2. Backend returns the user's play_histories paginated in reverse chronological order.
 
-**기본 흐름 B — 전체 삭제**
-1. 사용자가 '전체 삭제' 버튼을 클릭한다.
-2. 프론트엔드가 historyIds=[]인 삭제 요청을 백엔드에 전송한다.
-3. 백엔드가 해당 사용자의 play_histories 전체를 삭제하고 204 No Content를 반환한다.
+**Postconditions**
+- Play history (track info, played_at) displayed in reverse chronological order on screen.
 
-**사후 조건**
-- 선택된 또는 전체 play_histories 레코드가 삭제됨.
+---
+
+## SOUND-015: Delete Play History
+
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-015 |
+| **Version** | 26-02-20 |
+| **Description** | Logged-in user selectively deletes or bulk-deletes their own play history. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. |
+| **Trigger** | User clicks the 'Delete' button on the play history screen. |
+| **Related UC** | SOUND-009 (view play history) |
+
+**Main Flow A -- Selective Delete**
+1. User selects records to delete via checkboxes.
+2. Clicks the 'Delete' button.
+3. Frontend sends a delete request including historyIds array to the backend.
+4. Backend deletes the corresponding play_histories records and returns 204 No Content.
+
+**Main Flow B -- Delete All**
+1. User clicks the 'Delete All' button.
+2. Frontend sends a delete request with historyIds=[] to the backend.
+3. Backend deletes all play_histories for the user and returns 204 No Content.
+
+**Postconditions**
+- Selected or all play_histories records deleted.

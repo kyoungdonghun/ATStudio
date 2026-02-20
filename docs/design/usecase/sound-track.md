@@ -1,210 +1,210 @@
-# Sound — Track 유스케이스
+# Sound -- Track Use Cases
 
-> **API 참조**: `docs/design/api-spec.md` 섹션 1 (Track)
-> **DB 참조**: `docs/design/db-schema.md` 섹션 4.1 (`tracks`, `track_tags`, `track_downloads`)
-
----
-
-## SOUND-001: 음원 생성
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-001 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 신규 음원을 등록한다. 업로드 완료 후 비동기로 저품질 preview_file 생성. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. 태그 DB에 태그 1개 이상 존재. |
-| **트리거** | 관리자가 '음원 등록' 페이지에서 '생성' 버튼을 클릭한다. |
-| **관련 UC** | SOUND-006(음원 한개 조회), SOUND-012(음원 수정), SOUND-010(음원 재생) |
-
-**기본 흐름**
-1. 관리자가 메타데이터(제목, BPM, 조성, 설명)를 입력하고 태그를 선택한다.
-2. 음원 파일(audioFile)과 썸네일(thumbnail, 선택)을 첨부한다.
-3. 프론트엔드가 클라이언트 유효성 검사를 수행한다.
-4. 프론트엔드가 메타데이터, 파일을 multipart/form-data로 백엔드에 전송한다.
-5. 백엔드가 권한 및 서버 유효성 검사를 수행한다.
-6. 백엔드가 파일을 파일 저장소에 저장하고 경로를 확보한다.
-7. 백엔드가 음원 레코드(is_active=0, play_count=0)와 track_tags를 DB에 생성한다.
-8. 백엔드가 비동기로 저품질 preview_file 생성을 큐에 등록한다.
-9. 백엔드가 성공 응답(201 Created)을 반환한다.
-
-**예외/대안 흐름**
-- preview_file 비동기 생성 실패: preview_file=NULL 유지. 스트리밍 요청 시 audio_file로 fallback.
-
-**사후 조건**
-- 음원 레코드(is_active=0)가 DB에 생성됨.
-- 파일 저장소에 audioFile 저장됨. preview_file 비동기 생성 대기 중(NULL).
-- track_tags 연결됨. 관리자가 별도로 is_active=1로 활성화해야 사용자에게 노출됨.
+> **API Reference**: `docs/design/api-spec.md` Section 1 (Track)
+> **DB Reference**: `docs/design/db-schema.md` Section 4.1 (`tracks`, `track_tags`, `track_downloads`)
 
 ---
 
-## SOUND-005: 음원 목록 조회
+## SOUND-001: Create Track
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-005 |
-| **버전** | 26-02-20 |
-| **설명** | 사용자(회원/비회원)가 음원 목록을 조회한다. is_active=1인 음원만 반환. |
-| **액터** | 사용자(비회원 포함), 백엔드 시스템 |
-| **사전 조건** | - |
-| **트리거** | 사용자가 음원 목록 화면에 접근하거나 검색 조건을 입력한다. |
-| **관련 UC** | SOUND-010(음원 재생), SOUND-011(음원 다운로드), SOUND-006(음원 한개 조회) |
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-001 |
+| **Version** | 26-02-20 |
+| **Description** | Admin registers a new track. After upload, a low-quality preview_file is generated asynchronously. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. At least one tag exists in the tags DB. |
+| **Trigger** | Admin clicks the 'Create' button on the track registration page. |
+| **Related UC** | SOUND-006 (view track detail), SOUND-012 (update track), SOUND-010 (play track) |
 
-**기본 흐름**
-1. 사용자가 검색 조건(키워드, 태그, BPM 범위, 조성, 정렬)을 선택/입력한다. (모두 선택 사항)
-2. 프론트엔드가 조건을 쿼리 파라미터로 백엔드에 전송한다.
-3. 백엔드가 is_active=1인 음원 중 조건에 맞는 목록을 페이지네이션하여 반환한다.
-4. 프론트엔드가 음원 목록을 화면에 출력한다.
+**Main Flow**
+1. Admin enters metadata (title, BPM, key, description) and selects tags.
+2. Admin attaches the audio file (audioFile) and thumbnail (optional).
+3. Frontend performs client-side validation.
+4. Frontend sends metadata and files to the backend as multipart/form-data.
+5. Backend performs authorization and server-side validation.
+6. Backend saves files to file storage and obtains the paths.
+7. Backend creates the track record (is_active=0, play_count=0) and track_tags in the DB.
+8. Backend enqueues async low-quality preview_file generation.
+9. Backend returns a success response (201 Created).
 
-**예외/대안 흐름**
-- 검색 결과 없음: 빈 content 배열 반환.
+**Exception / Alternative Flow**
+- Async preview_file generation failure: preview_file remains NULL. On streaming request, falls back to audio_file.
 
-**사후 조건**
-- 조건에 맞는 음원 목록(제목, BPM, 조성, 썸네일, playCount, 태그)과 pageInfo가 화면에 출력된다.
-
----
-
-## SOUND-006: 음원 한개 조회
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-006 |
-| **버전** | 26-02-20 |
-| **설명** | 사용자(회원/비회원)가 음원 상세 정보를 조회한다. |
-| **액터** | 사용자(비회원 포함), 백엔드 시스템 |
-| **사전 조건** | 조회 대상 음원이 DB에 존재하고 is_active=1인 상태. |
-| **트리거** | 사용자가 음원을 클릭하거나 음원 상세 URL에 접근한다. |
-| **관련 UC** | SOUND-010(음원 재생), SOUND-011(음원 다운로드) |
-
-**기본 흐름**
-1. 프론트엔드가 trackId를 포함한 상세 조회 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 음원 레코드와 연결된 태그를 조회하여 반환한다.
-3. 프론트엔드가 음원 상세 정보를 화면에 출력한다.
-
-**예외/대안 흐름**
-- 음원 없음 또는 is_active=0: 404 응답.
-
-**사후 조건**
-- 음원 메타데이터(제목, BPM, 조성, 설명, 태그, playCount, audioFile 경로 등)가 화면에 출력된다.
+**Postconditions**
+- Track record (is_active=0) created in DB.
+- audioFile saved in file storage. preview_file async generation pending (NULL).
+- track_tags linked. Admin must separately set is_active=1 to expose the track to users.
 
 ---
 
-## SOUND-010: 음원 재생
+## SOUND-005: List Tracks
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-010 |
-| **버전** | 26-02-20 |
-| **설명** | 사용자(회원/비회원)가 음원을 스트리밍 재생한다. preview_file(저품질) 우선 제공, 없으면 audio_file fallback. 재생 기록 저장은 프론트엔드가 SOUND-004를 별도 호출하여 처리. |
-| **액터** | 사용자(비회원 포함), 백엔드 시스템 |
-| **사전 조건** | 음원이 DB에 존재하고 is_active=1. 파일 저장소에 audio_file 존재. |
-| **트리거** | 사용자가 음원의 '재생' 버튼을 클릭한다. |
-| **관련 UC** | SOUND-005(음원 목록 조회) |
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-005 |
+| **Version** | 26-02-20 |
+| **Description** | User (including non-members) views the track list. Only tracks with is_active=1 are returned. |
+| **Actor** | User (including non-members), Backend |
+| **Preconditions** | - |
+| **Trigger** | User navigates to the track list screen or enters search criteria. |
+| **Related UC** | SOUND-010 (play track), SOUND-011 (download track), SOUND-006 (view track detail) |
 
-**기본 흐름**
-1. 사용자가 '재생' 버튼을 클릭한다.
-2. 프론트엔드가 trackId를 포함한 스트리밍 요청을 백엔드에 전송한다.
-3. 백엔드가 tracks.preview_file 존재 여부를 확인한다.
-4. preview_file이 있으면 저품질 파일 스트리밍. NULL이면 audio_file 스트리밍(fallback).
-5. 프론트엔드 QueBar에서 스트리밍 재생이 시작된다.
-6. 회원인 경우: 프론트엔드가 QueBar 재생 시작과 동시에 SOUND-004(재생 기록 저장)를 별도로 호출한다.
+**Main Flow**
+1. User selects/enters search criteria (keyword, tag, BPM range, key, sort order). All optional.
+2. Frontend sends criteria as query parameters to the backend.
+3. Backend returns a paginated list of tracks matching the criteria where is_active=1.
+4. Frontend displays the track list on screen.
 
-**예외/대안 흐름**
-- preview_file=NULL: audio_file로 자동 fallback. 기능 동작에 문제 없음.
-- 파일 저장소 오류: 503 응답.
+**Exception / Alternative Flow**
+- No search results: returns an empty content array.
 
-**사후 조건**
-- 음원이 스트리밍 재생됨. 재생 기록 및 play_count 갱신은 SOUND-004에서 처리됨.
+**Postconditions**
+- Track list matching criteria (title, BPM, key, thumbnail, playCount, tags) and pageInfo displayed on screen.
 
 ---
 
-## SOUND-011: 음원 다운로드
+## SOUND-006: View Track Detail
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-011 |
-| **버전** | 26-02-20 |
-| **설명** | 구독 중인 회원이 음원 원본 파일(audio_file)을 다운로드한다. 다운로드 기록 저장 및 라이센스 자동 발급. |
-| **액터** | 사용자(회원, 구독자), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. user_subscriptions.status = ACTIVE. 당일 다운로드 횟수 < 플랜 download_per_day. |
-| **트리거** | 사용자가 음원의 '다운로드' 버튼을 클릭한다. |
-| **관련 UC** | UTIL-006(다운로드 횟수 확인), INFO-009(내 라이센스 목록) |
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-006 |
+| **Version** | 26-02-20 |
+| **Description** | User (including non-members) views detailed track information. |
+| **Actor** | User (including non-members), Backend |
+| **Preconditions** | Target track exists in DB with is_active=1. |
+| **Trigger** | User clicks a track or navigates to the track detail URL. |
+| **Related UC** | SOUND-010 (play track), SOUND-011 (download track) |
 
-**기본 흐름**
-1. 사용자가 '다운로드' 버튼을 클릭한다.
-2. 프론트엔드가 인증 토큰과 trackId를 포함한 다운로드 요청을 백엔드에 전송한다.
-3. 백엔드가 user_subscriptions에서 구독 상태를 확인한다.
-4. 백엔드가 track_downloads에서 당일(DATE(downloaded_at) = CURDATE()) COUNT 쿼리로 다운로드 횟수를 계산하여 플랜 limit와 비교한다.
-5. 백엔드가 파일 저장소에서 audio_file(원본)을 가져온다.
-6. 백엔드가 track_downloads에 다운로드 기록을 저장한다.
-7. 백엔드가 licenses 테이블에서 (user_id, track_id) 기존 라이센스를 확인한다. 없으면 UUID 기반으로 신규 발급. 있으면 중복 발급 안 함.
-8. 백엔드가 파일을 반환한다(Content-Disposition: attachment).
+**Main Flow**
+1. Frontend sends a detail request including trackId to the backend.
+2. Backend retrieves the track record and associated tags, then returns them.
+3. Frontend displays the track detail on screen.
 
-**예외/대안 흐름**
-- 구독 없음: 403 `NO_ACTIVE_SUBSCRIPTION`.
-- 일일 한도 초과: 403 `DOWNLOAD_LIMIT_EXCEEDED`.
+**Exception / Alternative Flow**
+- Track not found or is_active=0: 404 response.
 
-**사후 조건**
-- audio_file이 사용자 기기에 다운로드됨.
-- track_downloads에 기록 추가됨.
-- licenses에 해당 곡의 라이센스 존재(신규 발급 또는 기존 유지).
+**Postconditions**
+- Track metadata (title, BPM, key, description, tags, playCount, audioFile path, etc.) displayed on screen.
 
 ---
 
-## SOUND-012: 음원 수정
+## SOUND-010: Play Track
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-012 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 음원 메타데이터 및 파일을 수정한다. is_active 변경으로 공개/비공개 처리 포함. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. 수정 대상 음원이 DB에 존재. |
-| **트리거** | 관리자가 음원 상세 페이지에서 '수정' 버튼을 클릭한다. |
-| **관련 UC** | SOUND-006(음원 한개 조회) |
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-010 |
+| **Version** | 26-02-20 |
+| **Description** | User (including non-members) streams a track. preview_file (low-quality) is served first; falls back to audio_file if unavailable. Play history recording is handled by the frontend calling SOUND-004 separately. |
+| **Actor** | User (including non-members), Backend |
+| **Preconditions** | Track exists in DB with is_active=1. audio_file exists in file storage. |
+| **Trigger** | User clicks the 'Play' button on a track. |
+| **Related UC** | SOUND-005 (list tracks) |
 
-**기본 흐름**
-1. 관리자가 수정할 필드(제목, BPM, 조성, 설명, 태그, 파일, is_active)를 변경한다.
-2. 프론트엔드가 변경 데이터를 multipart/form-data로 백엔드에 전송한다.
-3. 백엔드가 권한 및 유효성 검사를 수행한다.
-4. audioFile 변경 시: 파일 저장소에 신규 파일 저장, 경로 교체. preview_file 재생성 큐 등록.
-5. 태그 변경 시: track_tags 갱신 + tracks.updated_at 갱신.
-6. 백엔드가 DB 레코드를 업데이트하고 수정된 음원 정보를 반환한다.
+**Main Flow**
+1. User clicks the 'Play' button.
+2. Frontend sends a streaming request including trackId to the backend.
+3. Backend checks whether tracks.preview_file exists.
+4. If preview_file exists, streams the low-quality file. If NULL, streams audio_file (fallback).
+5. Streaming playback starts in the frontend QueBar.
+6. If member: frontend simultaneously calls SOUND-004 (save play history) when QueBar playback starts.
 
-**예외/대안 흐름**
+**Exception / Alternative Flow**
+- preview_file=NULL: automatic fallback to audio_file. No functional impact.
+- File storage error: 503 response.
+
+**Postconditions**
+- Track is streaming. Play history and play_count updates are handled in SOUND-004.
+
+---
+
+## SOUND-011: Download Track
+
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-011 |
+| **Version** | 26-02-20 |
+| **Description** | A subscribed member downloads the original track file (audio_file). Download record is saved and license is automatically issued. |
+| **Actor** | User (Member, subscriber), Backend |
+| **Preconditions** | Logged in. user_subscriptions.status = ACTIVE. Today's download count < plan download_per_day. |
+| **Trigger** | User clicks the 'Download' button on a track. |
+| **Related UC** | UTIL-006 (check download count), INFO-009 (my license list) |
+
+**Main Flow**
+1. User clicks the 'Download' button.
+2. Frontend sends a download request including auth token and trackId to the backend.
+3. Backend checks subscription status from user_subscriptions.
+4. Backend calculates today's download count via COUNT query on track_downloads (DATE(downloaded_at) = CURDATE()) and compares against the plan limit.
+5. Backend retrieves the audio_file (original) from file storage.
+6. Backend saves a download record in track_downloads.
+7. Backend checks for an existing license (user_id, track_id) in the licenses table. If none exists, issues a new UUID-based license. If one exists, skips duplicate issuance.
+8. Backend returns the file (Content-Disposition: attachment).
+
+**Exception / Alternative Flow**
+- No subscription: 403 `NO_ACTIVE_SUBSCRIPTION`.
+- Daily limit exceeded: 403 `DOWNLOAD_LIMIT_EXCEEDED`.
+
+**Postconditions**
+- audio_file downloaded to user's device.
+- Record added to track_downloads.
+- License for the track exists in licenses (newly issued or existing).
+
+---
+
+## SOUND-012: Update Track
+
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-012 |
+| **Version** | 26-02-20 |
+| **Description** | Admin updates track metadata and files. Includes publish/unpublish via is_active change. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. Target track exists in DB. |
+| **Trigger** | Admin clicks the 'Edit' button on the track detail page. |
+| **Related UC** | SOUND-006 (view track detail) |
+
+**Main Flow**
+1. Admin modifies fields (title, BPM, key, description, tags, files, is_active).
+2. Frontend sends the changed data as multipart/form-data to the backend.
+3. Backend performs authorization and validation.
+4. If audioFile changed: saves the new file to storage, replaces path. Enqueues preview_file regeneration.
+5. If tags changed: updates track_tags + updates tracks.updated_at.
+6. Backend updates the DB record and returns the updated track information.
+
+**Exception / Alternative Flow**
 - -
 
-**사후 조건**
-- 변경된 음원 정보가 DB에 반영됨.
-- 파일 변경 시 파일 저장소 업데이트됨.
+**Postconditions**
+- Updated track information reflected in DB.
+- If files changed, file storage updated.
 
 ---
 
-## SOUND-016: 음원 삭제
+## SOUND-016: Delete Track
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-016 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 음원을 논리적으로 삭제한다. (is_active=0. 파일 저장소의 실제 파일은 유지.) |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. 삭제 대상 음원이 DB에 존재. |
-| **트리거** | 관리자가 음원의 '삭제' 버튼을 클릭한다. |
-| **관련 UC** | - |
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-016 |
+| **Version** | 26-02-20 |
+| **Description** | Admin soft-deletes a track. (is_active=0. Actual files in storage are retained.) |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. Target track exists in DB. |
+| **Trigger** | Admin clicks the 'Delete' button on a track. |
+| **Related UC** | - |
 
-**기본 흐름**
-1. 관리자가 음원의 '삭제' 버튼을 클릭한다.
-2. 프론트엔드가 삭제 확인 dialog를 출력한다.
-3. 관리자가 확인을 클릭하면 프론트엔드가 삭제 요청을 백엔드에 전송한다.
-4. 백엔드가 권한 및 유효성 검사를 수행한다.
-5. 백엔드가 tracks.is_active=0으로 업데이트한다. (논리적 삭제)
-6. 백엔드가 track_tags에서 해당 음원의 태그 매핑 레코드를 삭제한다.
-7. 백엔드가 204 No Content를 반환한다.
+**Main Flow**
+1. Admin clicks the 'Delete' button on a track.
+2. Frontend displays a deletion confirmation dialog.
+3. Upon confirmation, frontend sends a delete request to the backend.
+4. Backend performs authorization and validation.
+5. Backend sets tracks.is_active=0. (soft delete)
+6. Backend deletes the tag mapping records for this track from track_tags.
+7. Backend returns 204 No Content.
 
-**예외/대안 흐름**
+**Exception / Alternative Flow**
 - -
 
-**사후 조건**
-- tracks.is_active=0으로 갱신됨(논리 삭제). 파일 저장소의 실제 파일은 유지됨.
-- track_tags에서 해당 음원 태그 매핑 삭제됨.
-- 음원 목록 조회(SOUND-005) 시 해당 음원 제외됨.
+**Postconditions**
+- tracks.is_active=0 updated (soft delete). Actual files in storage are retained.
+- Tag mappings for this track deleted from track_tags.
+- Track excluded from track list queries (SOUND-005).

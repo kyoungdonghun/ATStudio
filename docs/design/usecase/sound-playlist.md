@@ -1,178 +1,178 @@
-# Sound — Playlist 유스케이스
+# Sound -- Playlist Use Cases
 
-> **API 참조**: `docs/design/api-spec.md` 섹션 3 (Playlist)
-> **DB 참조**: `docs/design/db-schema.md` 섹션 5 (`playlists`, `playlist_tracks`)
+> **API Reference**: `docs/design/api-spec.md` Section 3 (Playlist)
+> **DB Reference**: `docs/design/db-schema.md` Section 5 (`playlists`, `playlist_tracks`)
 
 ---
 
-## SOUND-002: 플레이리스트 생성
+## SOUND-002: Create Playlist
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-002 |
-| **버전** | 26-02-20 |
-| **설명** | 회원이 신규 플레이리스트를 생성한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 활성 구독(user_subscriptions.status=ACTIVE) 보유. |
-| **트리거** | 사용자가 '플레이리스트 생성' 버튼을 클릭한다. |
-| **관련 UC** | SOUND-019(음원 추가), SOUND-008(한개 조회) |
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-002 |
+| **Version** | 26-02-20 |
+| **Description** | Member creates a new playlist. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
+| **Trigger** | User clicks the 'Create Playlist' button. |
+| **Related UC** | SOUND-019 (add track), SOUND-008 (view detail) |
 
-**기본 흐름**
-1. 사용자가 플레이리스트 제목(title, 필수)과 설명(description, 선택)을 입력한다.
-2. 썸네일 이미지(선택)를 첨부한다.
-3. 프론트엔드가 유효성 검사를 수행한다.
-4. 프론트엔드가 데이터를 multipart/form-data로 백엔드에 전송한다.
-5. 백엔드가 유효성 검사를 수행한다.
-6. 백엔드가 playlists 레코드(is_active=1)를 생성하고 201 응답을 반환한다.
+**Main Flow**
+1. User enters the playlist title (title, required) and description (optional).
+2. Attaches a thumbnail image (optional).
+3. Frontend performs validation.
+4. Frontend sends data as multipart/form-data to the backend.
+5. Backend performs validation.
+6. Backend creates a playlists record (is_active=1) and returns a 201 response.
 
-**예외/대안 흐름**
+**Exception / Alternative Flow**
 - -
 
-**사후 조건**
-- playlists 레코드가 생성됨. 음원은 아직 없음(빈 플레이리스트).
+**Postconditions**
+- playlists record created. No tracks yet (empty playlist).
 
 ---
 
-## SOUND-007: 플레이리스트 목록 조회
+## SOUND-007: List Playlists
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-007 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 사용자가 본인의 플레이리스트 목록을 조회한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 활성 구독(user_subscriptions.status=ACTIVE) 보유. |
-| **트리거** | 사용자가 플레이리스트 목록 화면에 접근한다. |
-| **관련 UC** | SOUND-008(한개 조회) |
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-007 |
+| **Version** | 26-02-20 |
+| **Description** | Logged-in user views their own playlist list. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
+| **Trigger** | User navigates to the playlist list screen. |
+| **Related UC** | SOUND-008 (view detail) |
 
-**기본 흐름**
-1. 프론트엔드가 인증 토큰을 포함한 목록 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 사용자의 플레이리스트 목록(id, 제목, 썸네일, 음원 수)을 반환한다.
+**Main Flow**
+1. Frontend sends a list request including auth token to the backend.
+2. Backend returns the user's playlist list (id, title, thumbnail, track count).
 
-**사후 조건**
-- 본인의 플레이리스트 목록이 화면에 출력됨.
-
----
-
-## SOUND-008: 플레이리스트 한개 조회
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-008 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 사용자가 플레이리스트 상세(포함된 음원 목록 + 재생 순서)를 조회한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 활성 구독(user_subscriptions.status=ACTIVE) 보유. 본인 플레이리스트. |
-| **트리거** | 사용자가 플레이리스트를 클릭한다. |
-| **관련 UC** | SOUND-013(수정), SOUND-020(음원 제거) |
-
-**기본 흐름**
-1. 프론트엔드가 playlistId를 포함한 상세 조회 요청을 백엔드에 전송한다.
-2. 백엔드가 플레이리스트 정보와 포함된 음원 목록(재생 순서 포함)을 반환한다.
-
-**예외/대안 흐름**
-- 타인의 플레이리스트 접근: 403 응답.
-
-**사후 조건**
-- 플레이리스트 상세와 포함된 음원 목록(trackOrder 순 정렬)이 화면에 출력됨.
+**Postconditions**
+- User's playlist list displayed on screen.
 
 ---
 
-## SOUND-019: 플레이리스트 음원 추가 [신규]
+## SOUND-008: View Playlist Detail
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-019 |
-| **버전** | 26-02-20 |
-| **설명** | 사용자가 기존 플레이리스트에 음원을 추가한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 활성 구독(user_subscriptions.status=ACTIVE) 보유. 플레이리스트가 본인 것이어야 함. |
-| **트리거** | 사용자가 음원의 '플레이리스트에 추가' 버튼을 클릭한다. |
-| **관련 UC** | SOUND-008(한개 조회), SOUND-020(음원 제거) |
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-008 |
+| **Version** | 26-02-20 |
+| **Description** | Logged-in user views playlist detail (included tracks + track order). |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). Owns the playlist. |
+| **Trigger** | User clicks a playlist. |
+| **Related UC** | SOUND-013 (update), SOUND-020 (remove track) |
 
-**기본 흐름**
-1. 사용자가 음원 목록 또는 상세 화면에서 '플레이리스트에 추가' 버튼을 클릭한다.
-2. 추가할 플레이리스트를 선택한다.
-3. 프론트엔드가 playlistId와 trackId를 백엔드에 전송한다.
-4. 백엔드가 본인 플레이리스트인지 확인한다.
-5. 백엔드가 playlist_tracks에 레코드를 생성(trackOrder는 현재 마지막 순서+1)하고 201 응답을 반환한다.
+**Main Flow**
+1. Frontend sends a detail request including playlistId to the backend.
+2. Backend returns the playlist information and included track list (with track order).
 
-**예외/대안 흐름**
-- 이미 포함된 음원: 409 응답.
+**Exception / Alternative Flow**
+- Accessing another user's playlist: 403 response.
 
-**사후 조건**
-- playlist_tracks에 레코드 추가됨. 플레이리스트 음원 수 증가.
+**Postconditions**
+- Playlist detail and included track list (sorted by trackOrder) displayed on screen.
 
 ---
 
-## SOUND-013: 플레이리스트 수정
+## SOUND-019: Add Track to Playlist [New]
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-013 |
-| **버전** | 26-02-20 |
-| **설명** | 사용자가 플레이리스트 메타데이터(제목/설명/썸네일)를 수정하거나 음원 재생 순서를 변경한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 활성 구독(user_subscriptions.status=ACTIVE) 보유. 본인 플레이리스트. |
-| **트리거** | 사용자가 플레이리스트 '수정' 버튼을 클릭한다. |
-| **관련 UC** | SOUND-008(한개 조회) |
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-019 |
+| **Version** | 26-02-20 |
+| **Description** | User adds a track to an existing playlist. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). Must own the playlist. |
+| **Trigger** | User clicks the 'Add to Playlist' button on a track. |
+| **Related UC** | SOUND-008 (view detail), SOUND-020 (remove track) |
 
-**기본 흐름 A — 메타데이터 수정**
-1. 사용자가 제목, 설명, 썸네일을 변경한다.
-2. 프론트엔드가 playlistId와 변경 데이터를 multipart/form-data로 백엔드에 전송한다.
-3. 백엔드가 playlists 레코드를 업데이트하고 200 응답을 반환한다.
+**Main Flow**
+1. User clicks the 'Add to Playlist' button on the track list or detail screen.
+2. Selects the target playlist.
+3. Frontend sends playlistId and trackId to the backend.
+4. Backend verifies the playlist belongs to the user.
+5. Backend creates a record in playlist_tracks (trackOrder = current last order + 1) and returns a 201 response.
 
-**기본 흐름 B — 음원 재생 순서 변경**
-1. 사용자가 드래그&드롭으로 음원 순서를 변경한다.
-2. 프론트엔드가 [{trackId, trackOrder}, ...] 배열을 백엔드에 전송한다.
-3. 백엔드가 playlist_tracks의 track_order를 일괄 업데이트하고 200 응답을 반환한다.
+**Exception / Alternative Flow**
+- Track already in playlist: 409 response.
 
-**사후 조건**
-- 변경된 플레이리스트 정보가 DB에 반영됨.
-
----
-
-## SOUND-020: 플레이리스트 음원 제거 [신규]
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-020 |
-| **버전** | 26-02-20 |
-| **설명** | 사용자가 플레이리스트에서 특정 음원을 제거한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 활성 구독(user_subscriptions.status=ACTIVE) 보유. 본인 플레이리스트. 해당 음원이 플레이리스트에 포함되어 있어야 함. |
-| **트리거** | 사용자가 플레이리스트 상세 화면에서 음원의 '제거' 버튼을 클릭한다. |
-| **관련 UC** | SOUND-008(한개 조회) |
-
-**기본 흐름**
-1. 사용자가 플레이리스트 상세에서 특정 음원의 '제거' 버튼을 클릭한다.
-2. 프론트엔드가 playlistId와 trackId를 포함한 제거 요청을 백엔드에 전송한다.
-3. 백엔드가 본인 플레이리스트 여부를 확인한다.
-4. 백엔드가 playlist_tracks에서 해당 레코드를 삭제하고 204 No Content를 반환한다.
-
-**사후 조건**
-- playlist_tracks에서 해당 레코드 삭제됨. 플레이리스트 음원 수 감소.
+**Postconditions**
+- Record added to playlist_tracks. Playlist track count increased.
 
 ---
 
-## SOUND-017: 플레이리스트 삭제
+## SOUND-013: Update Playlist
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-017 |
-| **버전** | 26-02-20 |
-| **설명** | 사용자가 본인의 플레이리스트를 삭제한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 활성 구독(user_subscriptions.status=ACTIVE) 보유. 본인 플레이리스트. |
-| **트리거** | 사용자가 플레이리스트의 '삭제' 버튼을 클릭한다. |
-| **관련 UC** | - |
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-013 |
+| **Version** | 26-02-20 |
+| **Description** | User updates playlist metadata (title/description/thumbnail) or changes track order. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). Owns the playlist. |
+| **Trigger** | User clicks the playlist 'Edit' button. |
+| **Related UC** | SOUND-008 (view detail) |
 
-**기본 흐름**
-1. 사용자가 플레이리스트의 '삭제' 버튼을 클릭한다.
-2. 프론트엔드가 삭제 확인 dialog를 출력한다.
-3. 확인 후 프론트엔드가 playlistId를 포함한 삭제 요청을 백엔드에 전송한다.
-4. 백엔드가 본인 플레이리스트 여부를 확인한다.
-5. 백엔드가 playlist_tracks 레코드 삭제 후 playlists 레코드를 삭제하고 204 No Content를 반환한다.
+**Main Flow A -- Metadata Update**
+1. User modifies title, description, thumbnail.
+2. Frontend sends playlistId and changed data as multipart/form-data to the backend.
+3. Backend updates the playlists record and returns a 200 response.
 
-**사후 조건**
-- playlists 및 연결된 playlist_tracks 레코드가 삭제됨.
+**Main Flow B -- Track Order Change**
+1. User reorders tracks via drag-and-drop.
+2. Frontend sends [{trackId, trackOrder}, ...] array to the backend.
+3. Backend batch-updates track_order in playlist_tracks and returns a 200 response.
+
+**Postconditions**
+- Updated playlist information reflected in DB.
+
+---
+
+## SOUND-020: Remove Track from Playlist [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-020 |
+| **Version** | 26-02-20 |
+| **Description** | User removes a specific track from a playlist. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). Owns the playlist. The track must be in the playlist. |
+| **Trigger** | User clicks the 'Remove' button on a track in the playlist detail screen. |
+| **Related UC** | SOUND-008 (view detail) |
+
+**Main Flow**
+1. User clicks the 'Remove' button on a specific track in the playlist detail.
+2. Frontend sends a remove request including playlistId and trackId to the backend.
+3. Backend verifies the playlist belongs to the user.
+4. Backend deletes the record from playlist_tracks and returns 204 No Content.
+
+**Postconditions**
+- Record deleted from playlist_tracks. Playlist track count decreased.
+
+---
+
+## SOUND-017: Delete Playlist
+
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-017 |
+| **Version** | 26-02-20 |
+| **Description** | User deletes their own playlist. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). Owns the playlist. |
+| **Trigger** | User clicks the playlist 'Delete' button. |
+| **Related UC** | - |
+
+**Main Flow**
+1. User clicks the playlist 'Delete' button.
+2. Frontend displays a deletion confirmation dialog.
+3. Upon confirmation, frontend sends a delete request including playlistId to the backend.
+4. Backend verifies the playlist belongs to the user.
+5. Backend deletes playlist_tracks records, then deletes the playlists record and returns 204 No Content.
+
+**Postconditions**
+- playlists and associated playlist_tracks records deleted.

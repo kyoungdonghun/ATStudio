@@ -1,113 +1,113 @@
-# User — Notice 유스케이스
+# User -- Notice Use Cases
 
-> **API 참조**: `docs/design/api-spec.md` 섹션 9 (Notice)
-> **DB 참조**: `docs/design/db-schema.md` 섹션 12 (`notices`)
-
----
-
-## ANNOUNCE-001: 공지 생성
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | ANNOUNCE-001 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 공지사항을 작성한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. |
-| **트리거** | 관리자가 '공지 작성' 버튼을 클릭한다. |
-| **관련 UC** | ANNOUNCE-004(수정), ANNOUNCE-005(삭제) |
-
-**기본 흐름**
-1. 관리자가 제목(title, 필수), 내용(content, 필수), 상단 고정 여부(isPinned)를 입력한다.
-2. 프론트엔드가 유효성 검사를 수행한다.
-3. 프론트엔드가 데이터를 백엔드에 전송한다.
-4. 백엔드가 권한 확인 후 notices 레코드를 생성하고 201 응답을 반환한다.
-
-**사후 조건**
-- notices 테이블에 레코드가 생성됨.
+> **API Reference**: `docs/design/api-spec.md` Section 9 (Notice)
+> **DB Reference**: `docs/design/db-schema.md` Section 12 (`notices`)
 
 ---
 
-## ANNOUNCE-002: 공지 목록 조회
+## ANNOUNCE-001: Create Notice
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | ANNOUNCE-002 |
-| **버전** | 26-02-20 |
-| **설명** | 사용자(비회원 포함)가 공지사항 목록을 조회한다. 고정 공지(is_pinned=1)가 상단에 표시됨. |
-| **액터** | 사용자(비회원 포함), 백엔드 시스템 |
-| **사전 조건** | - |
-| **트리거** | 사용자가 공지사항 목록 화면에 접근한다. |
-| **관련 UC** | ANNOUNCE-003(상세 조회) |
+| Field | Value |
+|-------|-------|
+| **Code** | ANNOUNCE-001 |
+| **Version** | 26-02-20 |
+| **Description** | Admin creates a notice. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. |
+| **Trigger** | Admin clicks the 'Create Notice' button. |
+| **Related UC** | ANNOUNCE-004 (update), ANNOUNCE-005 (delete) |
 
-**기본 흐름**
-1. 프론트엔드가 페이지 파라미터를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 공지 목록을 반환한다. (is_pinned=1인 공지 상단 정렬, 이후 최신순)
+**Main Flow**
+1. Admin enters title (title, required), content (content, required), and pinned status (isPinned).
+2. Frontend performs validation.
+3. Frontend sends data to the backend.
+4. Backend verifies authorization, creates a notices record, and returns a 201 response.
 
-**사후 조건**
-- 공지 목록(제목, 고정여부, 작성일)이 화면에 출력됨.
-
----
-
-## ANNOUNCE-003: 공지 상세 조회
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | ANNOUNCE-003 |
-| **버전** | 26-02-20 |
-| **설명** | 사용자(비회원 포함)가 특정 공지사항의 전문을 조회한다. |
-| **액터** | 사용자(비회원 포함), 백엔드 시스템 |
-| **사전 조건** | 조회 대상 공지가 DB에 존재. |
-| **트리거** | 사용자가 공지 목록에서 특정 공지를 클릭한다. |
-| **관련 UC** | - |
-
-**기본 흐름**
-1. 프론트엔드가 noticeId를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 공지 상세(제목, 내용, 고정여부, 작성일, 수정일)를 반환한다.
-
-**사후 조건**
-- 공지 전문이 화면에 출력됨.
+**Postconditions**
+- Record created in the notices table.
 
 ---
 
-## ANNOUNCE-004: 공지 수정
+## ANNOUNCE-002: List Notices
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | ANNOUNCE-004 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 기존 공지사항을 수정한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. 수정 대상 공지가 DB에 존재. |
-| **트리거** | 관리자가 공지 상세 화면에서 '수정' 버튼을 클릭한다. |
-| **관련 UC** | ANNOUNCE-003(상세 조회) |
+| Field | Value |
+|-------|-------|
+| **Code** | ANNOUNCE-002 |
+| **Version** | 26-02-20 |
+| **Description** | User (including non-members) views the notice list. Pinned notices (is_pinned=1) appear at the top. |
+| **Actor** | User (including non-members), Backend |
+| **Preconditions** | - |
+| **Trigger** | User navigates to the notice list screen. |
+| **Related UC** | ANNOUNCE-003 (view detail) |
 
-**기본 흐름**
-1. 관리자가 제목, 내용, isPinned를 수정한다.
-2. 프론트엔드가 noticeId와 변경 데이터를 백엔드에 전송한다.
-3. 백엔드가 권한 확인 후 notices 레코드를 업데이트하고 200 응답을 반환한다.
+**Main Flow**
+1. Frontend sends a request including page parameters to the backend.
+2. Backend returns the notice list. (is_pinned=1 notices sorted to top, then by most recent)
 
-**사후 조건**
-- 변경된 공지 정보가 DB에 반영됨.
+**Postconditions**
+- Notice list (title, pinned status, created date) displayed on screen.
 
 ---
 
-## ANNOUNCE-005: 공지 삭제
+## ANNOUNCE-003: View Notice Detail
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | ANNOUNCE-005 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 공지사항을 삭제한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. 삭제 대상 공지가 DB에 존재. |
-| **트리거** | 관리자가 공지 상세 화면에서 '삭제' 버튼을 클릭한다. |
-| **관련 UC** | - |
+| Field | Value |
+|-------|-------|
+| **Code** | ANNOUNCE-003 |
+| **Version** | 26-02-20 |
+| **Description** | User (including non-members) views the full text of a specific notice. |
+| **Actor** | User (including non-members), Backend |
+| **Preconditions** | Target notice exists in DB. |
+| **Trigger** | User clicks a specific notice in the notice list. |
+| **Related UC** | - |
 
-**기본 흐름**
-1. 관리자가 '삭제' 버튼을 클릭하고 확인한다.
-2. 프론트엔드가 noticeId를 포함한 삭제 요청을 백엔드에 전송한다.
-3. 백엔드가 권한 확인 후 notices 레코드를 삭제하고 204 No Content를 반환한다.
+**Main Flow**
+1. Frontend sends a request including noticeId to the backend.
+2. Backend returns the notice detail (title, content, pinned status, created date, updated date).
 
-**사후 조건**
-- 해당 공지가 DB에서 삭제됨.
+**Postconditions**
+- Full notice text displayed on screen.
+
+---
+
+## ANNOUNCE-004: Update Notice
+
+| Field | Value |
+|-------|-------|
+| **Code** | ANNOUNCE-004 |
+| **Version** | 26-02-20 |
+| **Description** | Admin updates an existing notice. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. Target notice exists in DB. |
+| **Trigger** | Admin clicks the 'Edit' button on the notice detail screen. |
+| **Related UC** | ANNOUNCE-003 (view detail) |
+
+**Main Flow**
+1. Admin modifies title, content, and isPinned.
+2. Frontend sends noticeId and changed data to the backend.
+3. Backend verifies authorization, updates the notices record, and returns a 200 response.
+
+**Postconditions**
+- Updated notice information reflected in DB.
+
+---
+
+## ANNOUNCE-005: Delete Notice
+
+| Field | Value |
+|-------|-------|
+| **Code** | ANNOUNCE-005 |
+| **Version** | 26-02-20 |
+| **Description** | Admin deletes a notice. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. Target notice exists in DB. |
+| **Trigger** | Admin clicks the 'Delete' button on the notice detail screen. |
+| **Related UC** | - |
+
+**Main Flow**
+1. Admin clicks the 'Delete' button and confirms.
+2. Frontend sends a delete request including noticeId to the backend.
+3. Backend verifies authorization, deletes the notices record, and returns 204 No Content.
+
+**Postconditions**
+- Notice deleted from DB.

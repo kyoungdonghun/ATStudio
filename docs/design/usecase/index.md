@@ -1,229 +1,229 @@
-# 유스케이스 명세서 인덱스
+# Use Case Specification Index
 
-> **버전**: v4 (Confirmed)
-> **확정일**: 2026-02-20
-> **기준 문서**: `docs/design/db-schema.md` (v4), `docs/design/api-spec.md` (v4)
-> **원본**: `docs/check/유스케이스명세서 csv/`
-
----
-
-## 파일 목록
-
-| 파일 | 분류 | UC 수 |
-|------|------|-------|
-| `sound-track.md` | 음원 (생성/조회/수정/삭제/재생/다운로드) | 7 |
-| `sound-tag.md` | 태그 (생성/조회/수정/삭제) | 4 |
-| `sound-playlist.md` | 플레이리스트 (생성/조회/수정/삭제/음원 추가·제거) | 7 |
-| `sound-playhistory.md` | 재생 기록 (저장/조회/삭제) | 3 |
-| `user-info.md` | 회원 정보 (회원가입/로그인/소셜 로그인/소셜 프로필 완성/조회/수정/탈퇴) | 10 |
-| `user-subscription.md` | 구독 (신청/조회/변경/취소/관리자 관리) | 10 |
-| `user-license.md` | 음원 사용 라이센스 (조회) | 4 |
-| `user-question.md` | 문의 (생성/조회/답변/삭제/첨부파일/관리자 상태변경) | 7 |
-| `user-notice.md` | 공지 (생성/조회/수정/삭제) | 5 |
-| `likes.md` | 즐겨찾기 (추가/조회/해제) | 3 |
-| `download-queue.md` | 다운로드 대기 목록 (추가/조회/제거) | 3 |
-| `whitelist.md` | 화이트리스트 채널 (등록/조회/수정/삭제) | 4 |
-| `business-license.md` | 기업 라이센스 심사 (신청/현황 조회/관리자 관리) | 5 |
-| `util.md` | 유틸리티 (중복 확인/토큰/구독 상태/다운로드 횟수 등) | 7 |
-
-**총 UC 수: 79개** (v3 대비 순증 2개: +3 추가, -1 제거)
+> **Version**: v4 (Confirmed)
+> **Confirmed date**: 2026-02-20
+> **Reference documents**: `docs/design/db-schema.md` (v4), `docs/design/api-spec.md` (v4)
+> **Source**: `docs/check/usecase-spec csv/`
 
 ---
 
-## 전체 UC 코드 목록
+## File List
+
+| File | Category | UC Count |
+|------|----------|----------|
+| `sound-track.md` | Track (create/list/detail/update/delete/play/download) | 7 |
+| `sound-tag.md` | Tag (create/list/update/delete) | 4 |
+| `sound-playlist.md` | Playlist (create/list/detail/update/delete/add track/remove track) | 7 |
+| `sound-playhistory.md` | Play history (save/list/delete) | 3 |
+| `user-info.md` | User info (register/login/social login/social profile completion/view/update/withdraw) | 10 |
+| `user-subscription.md` | Subscription (subscribe/list/change/cancel/admin management) | 10 |
+| `user-license.md` | Track usage license (view) | 4 |
+| `user-question.md` | Inquiry (create/list/answer/delete/attachment/admin status change) | 7 |
+| `user-notice.md` | Notice (create/list/update/delete) | 5 |
+| `likes.md` | Likes (add/list/remove) | 3 |
+| `download-queue.md` | Download queue (add/list/remove) | 3 |
+| `whitelist.md` | Whitelist channel (register/list/update/delete) | 4 |
+| `business-license.md` | Business license review (apply/view status/admin management) | 5 |
+| `util.md` | Utility (duplicate check/token/subscription status/download count, etc.) | 7 |
+
+**Total UC count: 79** (net +2 vs v3: +3 added, -1 removed)
+
+---
+
+## Full UC Code List
 
 ### Sound
 
-| 코드 | 제목 | 파일 |
-|------|------|------|
-| SOUND-001 | 음원 생성 | `sound-track.md` |
-| SOUND-002 | 플레이리스트 생성 | `sound-playlist.md` |
-| SOUND-003 | 태그 생성 | `sound-tag.md` |
-| SOUND-004 | 재생 기록 저장 | `sound-playhistory.md` |
-| SOUND-005 | 음원 목록 조회 | `sound-track.md` |
-| SOUND-006 | 음원 한개 조회 | `sound-track.md` |
-| SOUND-007 | 플레이리스트 목록 조회 | `sound-playlist.md` |
-| SOUND-008 | 플레이리스트 한개 조회 | `sound-playlist.md` |
-| SOUND-009 | 재생 기록 조회 | `sound-playhistory.md` |
-| SOUND-010 | 음원 재생 | `sound-track.md` |
-| SOUND-011 | 음원 다운로드 | `sound-track.md` |
-| SOUND-012 | 음원 수정 | `sound-track.md` |
-| SOUND-013 | 플레이리스트 수정 | `sound-playlist.md` |
-| SOUND-014 | 태그 수정 | `sound-tag.md` |
-| SOUND-015 | 재생 기록 삭제 | `sound-playhistory.md` |
-| SOUND-016 | 음원 삭제 | `sound-track.md` |
-| SOUND-017 | 플레이리스트 삭제 | `sound-playlist.md` |
-| SOUND-018 | 태그 삭제 | `sound-tag.md` |
-| SOUND-019 | 플레이리스트 음원 추가 ⭐ | `sound-playlist.md` |
-| SOUND-020 | 플레이리스트 음원 제거 ⭐ | `sound-playlist.md` |
+| Code | Title | File |
+|------|-------|------|
+| SOUND-001 | Create track | `sound-track.md` |
+| SOUND-002 | Create playlist | `sound-playlist.md` |
+| SOUND-003 | Create tag | `sound-tag.md` |
+| SOUND-004 | Save play history | `sound-playhistory.md` |
+| SOUND-005 | List tracks | `sound-track.md` |
+| SOUND-006 | View track detail | `sound-track.md` |
+| SOUND-007 | List playlists | `sound-playlist.md` |
+| SOUND-008 | View playlist detail | `sound-playlist.md` |
+| SOUND-009 | View play history | `sound-playhistory.md` |
+| SOUND-010 | Play track | `sound-track.md` |
+| SOUND-011 | Download track | `sound-track.md` |
+| SOUND-012 | Update track | `sound-track.md` |
+| SOUND-013 | Update playlist | `sound-playlist.md` |
+| SOUND-014 | Update tag | `sound-tag.md` |
+| SOUND-015 | Delete play history | `sound-playhistory.md` |
+| SOUND-016 | Delete track | `sound-track.md` |
+| SOUND-017 | Delete playlist | `sound-playlist.md` |
+| SOUND-018 | Delete tag | `sound-tag.md` |
+| SOUND-019 | Add track to playlist | `sound-playlist.md` |
+| SOUND-020 | Remove track from playlist | `sound-playlist.md` |
 
 ### User Info
 
-| 코드 | 제목 | 파일 |
-|------|------|------|
-| INFO-001 | 회원가입 | `user-info.md` |
-| INFO-002 | 내 정보 보기 | `user-info.md` |
-| INFO-003 | 회원 목록 조회 | `user-info.md` |
-| INFO-004 | 특정 회원 정보 보기 | `user-info.md` |
-| INFO-005 | 내 정보 수정 | `user-info.md` |
-| INFO-006 | 회원 정보 수정 (관리자) | `user-info.md` |
-| INFO-007 | 회원탈퇴 (본인) | `user-info.md` |
-| INFO-008 | 로그인 | `user-info.md` |
-| INFO-009 | 내 라이센스 목록 보기 | `user-license.md` |
-| INFO-010 | 회원의 라이센스 목록 보기 (관리자) | `user-license.md` |
-| INFO-011 | 내 라이센스 상세 조회 | `user-license.md` |
-| INFO-012 | 회원의 라이센스 상세 조회 (관리자) | `user-license.md` |
-| INFO-013 | 소셜 로그인 ⭐ | `user-info.md` |
-| INFO-014 | 소셜 회원 프로필 완성 ⭐⭐ | `user-info.md` |
+| Code | Title | File |
+|------|-------|------|
+| INFO-001 | Register | `user-info.md` |
+| INFO-002 | View my info | `user-info.md` |
+| INFO-003 | List members (Admin) | `user-info.md` |
+| INFO-004 | View member detail (Admin) | `user-info.md` |
+| INFO-005 | Update my info | `user-info.md` |
+| INFO-006 | Update member info (Admin) | `user-info.md` |
+| INFO-007 | Withdraw account | `user-info.md` |
+| INFO-008 | Login | `user-info.md` |
+| INFO-009 | View my license list | `user-license.md` |
+| INFO-010 | View member license list (Admin) | `user-license.md` |
+| INFO-011 | View my license detail | `user-license.md` |
+| INFO-012 | View member license detail (Admin) | `user-license.md` |
+| INFO-013 | Social login | `user-info.md` |
+| INFO-014 | Complete social profile | `user-info.md` |
 
 ### Payment / Subscription
 
-| 코드 | 제목 | 파일 |
-|------|------|------|
-| PAYMENT-001 | 구독 신청 | `user-subscription.md` |
-| PAYMENT-002 | 구독 플랜 목록 조회 | `user-subscription.md` |
-| PAYMENT-003 | 구독 플랜 상세 조회 | `user-subscription.md` |
-| PAYMENT-004 | 회원 구독 목록 조회 (관리자) | `user-subscription.md` |
-| PAYMENT-005 | 회원 구독 상세 조회 (관리자) | `user-subscription.md` |
-| PAYMENT-006 | 내 구독 정보 보기 | `user-subscription.md` |
-| PAYMENT-007 | 본인 구독 변경 | `user-subscription.md` |
-| PAYMENT-008 | 회원 구독 수정 (관리자) | `user-subscription.md` |
-| PAYMENT-009 | 회원 구독 삭제/취소 (관리자) | `user-subscription.md` |
-| PAYMENT-010 | 본인 구독 취소 ⭐⭐ | `user-subscription.md` |
+| Code | Title | File |
+|------|-------|------|
+| PAYMENT-001 | Subscribe | `user-subscription.md` |
+| PAYMENT-002 | List subscription plans | `user-subscription.md` |
+| PAYMENT-003 | View subscription plan detail | `user-subscription.md` |
+| PAYMENT-004 | List member subscriptions (Admin) | `user-subscription.md` |
+| PAYMENT-005 | View member subscription detail (Admin) | `user-subscription.md` |
+| PAYMENT-006 | View my subscription | `user-subscription.md` |
+| PAYMENT-007 | Change my subscription | `user-subscription.md` |
+| PAYMENT-008 | Update member subscription (Admin) | `user-subscription.md` |
+| PAYMENT-009 | Delete/cancel member subscription (Admin) | `user-subscription.md` |
+| PAYMENT-010 | Cancel my subscription | `user-subscription.md` |
 
 ### Question / Notice
 
-| 코드 | 제목 | 파일 |
-|------|------|------|
-| QUESTION-001 | 문의 생성 | `user-question.md` |
-| QUESTION-002 | 답변 작성 | `user-question.md` |
-| QUESTION-003 | 문의 목록 조회 | `user-question.md` |
-| QUESTION-004 | 문의 상세 조회 | `user-question.md` |
-| QUESTION-005 | 첨부파일 다운로드 | `user-question.md` |
-| QUESTION-006 | 문의 삭제 | `user-question.md` |
-| QUESTION-007 | 문의 상태 변경 (관리자) ⭐⭐ | `user-question.md` |
-| ANNOUNCE-001 | 공지 생성 | `user-notice.md` |
-| ANNOUNCE-002 | 공지 목록 조회 | `user-notice.md` |
-| ANNOUNCE-003 | 공지 상세 조회 | `user-notice.md` |
-| ANNOUNCE-004 | 공지 수정 | `user-notice.md` |
-| ANNOUNCE-005 | 공지 삭제 | `user-notice.md` |
+| Code | Title | File |
+|------|-------|------|
+| QUESTION-001 | Create inquiry | `user-question.md` |
+| QUESTION-002 | Write answer | `user-question.md` |
+| QUESTION-003 | List inquiries | `user-question.md` |
+| QUESTION-004 | View inquiry detail | `user-question.md` |
+| QUESTION-005 | Download attachment | `user-question.md` |
+| QUESTION-006 | Delete inquiry | `user-question.md` |
+| QUESTION-007 | Change inquiry status (Admin) | `user-question.md` |
+| ANNOUNCE-001 | Create notice | `user-notice.md` |
+| ANNOUNCE-002 | List notices | `user-notice.md` |
+| ANNOUNCE-003 | View notice detail | `user-notice.md` |
+| ANNOUNCE-004 | Update notice | `user-notice.md` |
+| ANNOUNCE-005 | Delete notice | `user-notice.md` |
 
 ### Likes / Download Queue / Whitelist
 
-| 코드 | 제목 | 파일 |
-|------|------|------|
-| LIKE-001 | 즐겨찾기 추가 ⭐ | `likes.md` |
-| LIKE-002 | 즐겨찾기 목록 조회 ⭐ | `likes.md` |
-| LIKE-003 | 즐겨찾기 해제 ⭐ | `likes.md` |
-| DLQ-001 | 대기 목록 추가 ⭐ | `download-queue.md` |
-| DLQ-002 | 대기 목록 조회 ⭐ | `download-queue.md` |
-| DLQ-003 | 대기 목록 제거 ⭐ | `download-queue.md` |
-| WL-001 | 채널 등록 ⭐ | `whitelist.md` |
-| WL-002 | 내 채널 목록 조회 ⭐ | `whitelist.md` |
-| WL-003 | 채널 수정 ⭐ | `whitelist.md` |
-| WL-004 | 채널 삭제 ⭐ | `whitelist.md` |
+| Code | Title | File |
+|------|-------|------|
+| LIKE-001 | Add to likes | `likes.md` |
+| LIKE-002 | List likes | `likes.md` |
+| LIKE-003 | Remove from likes | `likes.md` |
+| DLQ-001 | Add to download queue | `download-queue.md` |
+| DLQ-002 | View download queue | `download-queue.md` |
+| DLQ-003 | Remove from download queue | `download-queue.md` |
+| WL-001 | Register channel | `whitelist.md` |
+| WL-002 | List my channels | `whitelist.md` |
+| WL-003 | Update channel | `whitelist.md` |
+| WL-004 | Delete channel | `whitelist.md` |
 
 ### Business License
 
-| 코드 | 제목 | 파일 |
-|------|------|------|
-| BL-001 | 기업 라이센스 신청 ⭐ | `business-license.md` |
-| BL-002 | 내 라이센스 신청 현황 조회 ⭐ | `business-license.md` |
-| BL-003 | 라이센스 신청 목록 조회 (관리자) ⭐ | `business-license.md` |
-| BL-004 | 라이센스 신청 상세 조회 (관리자) ⭐ | `business-license.md` |
-| BL-005 | 라이센스 심사 처리 (관리자) ⭐ | `business-license.md` |
+| Code | Title | File |
+|------|-------|------|
+| BL-001 | Apply for business license | `business-license.md` |
+| BL-002 | View my application status | `business-license.md` |
+| BL-003 | List applications (Admin) | `business-license.md` |
+| BL-004 | View application detail (Admin) | `business-license.md` |
+| BL-005 | Process review (Admin) | `business-license.md` |
 
 ### Util
 
-| 코드 | 제목 | 파일 |
-|------|------|------|
-| UTIL-002 | 이메일 중복 확인 | `util.md` |
-| UTIL-003 | 휴대폰 중복 확인 | `util.md` |
-| UTIL-004 | 토큰 재발급 | `util.md` |
-| UTIL-005 | 구독 등급 확인 | `util.md` |
-| UTIL-006 | 다운로드 횟수 확인 | `util.md` |
-| UTIL-007 | 회원 타입 확인 | `util.md` |
-| UTIL-012 | 닉네임 중복 확인 ⭐ | `util.md` |
+| Code | Title | File |
+|------|-------|------|
+| UTIL-002 | Check email duplicate | `util.md` |
+| UTIL-003 | Check phone duplicate | `util.md` |
+| UTIL-004 | Reissue token | `util.md` |
+| UTIL-005 | Check subscription tier | `util.md` |
+| UTIL-006 | Check download count | `util.md` |
+| UTIL-007 | Check member type | `util.md` |
+| UTIL-012 | Check nickname duplicate | `util.md` |
 
-> ⭐ = v3 신규 추가 (원본 대비)
-> ⭐⭐ = v4 신규 추가 (상호 검토 반영)
-
----
-
-## 변경 이력 (v3 → v4)
-
-### UC v4 수정 사항 (상호 검토 확정)
-
-| # | 항목 | 내용 |
-|---|------|------|
-| 1 | INFO-013 소셜 로그인 | isProfileComplete 파생 필드 추가. 신규 가입 시 2단계 프로필 완성 흐름으로 분기. INFO-014 참조. |
-| 2 | INFO-014 소셜 프로필 완성 | **신규** — `PUT /api/users/me/complete-profile`. 소셜 최초 가입자 필수 프로필 입력. |
-| 3 | SOUND-010 음원 재생 | stream API에서 play_histories 기록 제거. 프론트엔드가 SOUND-004를 별도 호출하는 구조로 변경. |
-| 4 | SOUND-004 재생 기록 저장 | 트리거 변경: "SOUND-010 내부 자동" → "프론트엔드가 QueBar 재생 시작 시 명시적 호출". |
-| 5 | SOUND-002/007/008/013/017/019/020 | 사전 조건에 "활성 구독(ACTIVE) 보유" 추가. 플레이리스트 전 기능 구독자 전용 확정. |
-| 6 | QUESTION-006 수정 제거 | 문의 수정 기능 제거. 수정 불가 정책 → 삭제 후 재작성 유도. |
-| 7 | QUESTION-006 삭제 (재번호) | 기존 QUESTION-007(삭제) → QUESTION-006(삭제)로 재번호. |
-| 8 | QUESTION-007 상태 변경 | **신규** — 관리자 문의 상태 변경 UC (기존 API 8.7 → v4 API 8.6 대응). |
-| 9 | PAYMENT-010 본인 구독 취소 | **신규** — `DELETE /api/user-subscriptions/me`. 회원 직접 구독 취소. |
-| 10 | BL-001 사전 조건 수정 | "PENDING 또는 APPROVED 없음" → "PENDING/APPROVED 없음, REJECTED/REVISION_REQUESTED 후 재신청 가능" |
-
-### 제거된 UC (v3 → v4)
-
-| 원본 코드 | 이유 |
-|-----------|------|
-| QUESTION-006 (문의 수정) | 문의 수정 기능 제거 결정. 프론트엔드에서 수정 불가 안내 + 삭제 후 재작성 유도. |
+> New in v3 (vs original)
+> New in v4 (cross-review additions)
 
 ---
 
-## 변경 이력 (원본 → v3)
+## Change History (v3 to v4)
 
-### 원본 대비 주요 수정 사항
+### UC v4 Modifications (cross-review confirmed)
 
-| # | 항목 | 내용 |
-|---|------|------|
-| 1 | INFO-001 | 흐름 번호 중복 수정, job/userType 필드 추가, 닉네임 중복 확인 단계 추가 |
-| 2 | INFO-005 | 수정 가능 필드 명시(nickname/phonePersonal/phoneCompany/job), email/userType 불변 명시 |
-| 3 | INFO-007 | 논리적 삭제(is_deleted=1)로 변경, 비밀번호 재확인 추가 |
-| 4 | INFO-009 | 설명 오류 수정("특정 회원의" → "본인의"), 구독 활성 사전 조건 제거 |
-| 5 | INFO-011 | 코드 오타 수정 (IFNO-011 → INFO-011) |
-| 6 | SOUND-001 | 파일 업로드 흐름 수정 (multipart를 백엔드에 직접 전송), 비동기 preview_file 생성 추가 |
-| 7 | SOUND-002 | 액터 수정 (관리자/아티스트 → 사용자(회원)) |
-| 8 | SOUND-004/009/015 | "재생 목록(playlog)" → "재생 기록(play_histories)"으로 명칭 수정 |
-| 9 | SOUND-010 | play_histories 기록 + play_count 증가 사후 조건 추가 |
-| 10 | SOUND-011 | 사전 조건 수정(구독 활성 + COUNT 쿼리 체크), 다운로드 횟수 차감 → COUNT 방식으로 수정, 라이센스 자동 발급 추가 |
-| 11 | SOUND-016 | 흐름 번호 수정, track_tags 삭제 명시 |
-| 12 | PAYMENT-001 | billingCycle 추가, 기업 라이센스 승인 사전 조건 추가, 음원 사용 라이센스 혼동 제거 |
-| 13 | PAYMENT-007 | 사후 조건에서 라이센스 변경 내용 제거 |
-| 14 | QUESTION-001 | category/isPublic/첨부파일 필드 추가 |
-| 15 | QUESTION-002 | 답변 가능 대상 명시 (회원=본인 문의만, 관리자=전체) |
+| # | Field | Value |
+|---|-------|-------|
+| 1 | INFO-013 Social login | Added isProfileComplete derived field. New sign-ups branch to 2-step profile completion flow. See INFO-014. |
+| 2 | INFO-014 Social profile completion | **New** -- `PUT /api/users/me/complete-profile`. Required profile input for first-time social sign-ups. |
+| 3 | SOUND-010 Play track | Removed play_histories recording from stream API. Changed to frontend calling SOUND-004 separately. |
+| 4 | SOUND-004 Save play history | Trigger changed: "automatic inside SOUND-010" to "frontend explicitly calls when QueBar playback starts". |
+| 5 | SOUND-002/007/008/013/017/019/020 | Added "has active subscription (ACTIVE)" to preconditions. All playlist features confirmed subscriber-only. |
+| 6 | QUESTION-006 edit removed | Inquiry edit feature removed. No-edit policy -- guide users to delete and rewrite. |
+| 7 | QUESTION-006 delete (renumbered) | Former QUESTION-007 (delete) renumbered to QUESTION-006 (delete). |
+| 8 | QUESTION-007 status change | **New** -- Admin inquiry status change UC (maps to existing API 8.7 to v4 API 8.6). |
+| 9 | PAYMENT-010 Cancel my subscription | **New** -- `DELETE /api/user-subscriptions/me`. Member directly cancels subscription. |
+| 10 | BL-001 precondition updated | "No PENDING or APPROVED" to "No PENDING/APPROVED; reapplication allowed after REJECTED/REVISION_REQUESTED". |
 
-### 신규 추가 UC (19개)
+### Removed UC (v3 to v4)
 
-| 코드 | 제목 | 사유 |
-|------|------|------|
-| INFO-013 | 소셜 로그인 | API spec 섹션 5.3에 존재하나 원본 누락 |
-| SOUND-019 | 플레이리스트 음원 추가 | API spec 섹션 4.5에 존재하나 원본 누락 |
-| SOUND-020 | 플레이리스트 음원 제거 | API spec 섹션 4.6에 존재하나 원본 누락 |
-| LIKE-001~003 | 즐겨찾기 CRUD | DB likes 테이블 + API 섹션 10 존재하나 원본 누락 |
-| DLQ-001~003 | 다운로드 대기 목록 | DB download_queue 테이블 + API 섹션 11 존재하나 원본 누락 |
-| WL-001~004 | 화이트리스트 채널 | DB whitelist_channels 테이블 + API 섹션 12 존재하나 원본 누락 |
-| BL-001~005 | 기업 라이센스 심사 | DB business_license_requests 테이블 + API 섹션 13 존재하나 원본 누락 |
-| UTIL-012 | 닉네임 중복 확인 | INFO-001/005에서 필요하나 원본 누락. API 14.7 추가 확정 |
+| Original Code | Reason |
+|---------------|--------|
+| QUESTION-006 (edit inquiry) | Inquiry edit feature removed. Frontend shows no-edit notice and guides to delete and rewrite. |
 
-### 제거된 UC (5개)
+---
 
-| 원본 코드 | 이유 |
-|-----------|------|
-| UTIL-001 (토큰 발급) | INFO-008(로그인)에 통합 |
-| UTIL-008 (라이센스 발급) | SOUND-011(음원 다운로드)에 통합 |
-| UTIL-009 (입력값 검증-BE) | Spring Bean Validation 표준 기능 |
-| UTIL-010 (입력값 검증-FE) | 프론트엔드 코드 레벨, UC 범위 아님 |
-| UTIL-011 (파일 저장) | SOUND-001(음원 생성)에 통합 |
+## Change History (original to v3)
 
-### DB/API 명세 변경 사항 (v2 → v3)
+### Major modifications from original
 
-| # | 항목 | 내용 |
-|---|------|------|
-| 1 | `tracks.preview_file` 컬럼 추가 | 업로드 후 비동기 저품질 파일 생성. NULL이면 audio_file로 스트리밍 fallback |
-| 2 | `GET /api/utils/check-nickname` API 추가 | 닉네임 중복 확인 API (UTIL-012) |
-| 3 | `track_tags` 조인 테이블 | 음원 논리적 삭제 시 물리적 삭제 확정 |
+| # | Field | Value |
+|---|-------|-------|
+| 1 | INFO-001 | Fixed duplicate flow numbers, added job/userType fields, added nickname duplicate check step |
+| 2 | INFO-005 | Specified editable fields (nickname/phonePersonal/phoneCompany/job), marked email/userType as immutable |
+| 3 | INFO-007 | Changed to soft delete (is_deleted=1), added password re-confirmation |
+| 4 | INFO-009 | Fixed description error ("specific member's" to "own"), removed active subscription precondition |
+| 5 | INFO-011 | Fixed code typo (IFNO-011 to INFO-011) |
+| 6 | SOUND-001 | Updated file upload flow (multipart sent directly to backend), added async preview_file generation |
+| 7 | SOUND-002 | Fixed actor (admin/artist to User (Member)) |
+| 8 | SOUND-004/009/015 | Renamed "playlog" to "play history (play_histories)" |
+| 9 | SOUND-010 | Added play_histories recording + play_count increment as postconditions |
+| 10 | SOUND-011 | Updated preconditions (active subscription + COUNT query check), changed download count deduction to COUNT-based approach, added automatic license issuance |
+| 11 | SOUND-016 | Fixed flow numbers, explicitly included track_tags deletion |
+| 12 | PAYMENT-001 | Added billingCycle, added business license approval precondition, removed track usage license confusion |
+| 13 | PAYMENT-007 | Removed license change content from postconditions |
+| 14 | QUESTION-001 | Added category/isPublic/attachment fields |
+| 15 | QUESTION-002 | Specified who can answer (member: own inquiry only, admin: all inquiries) |
+
+### Newly Added UC (19)
+
+| Code | Title | Reason |
+|------|-------|--------|
+| INFO-013 | Social login | Present in API spec section 5.3 but missing from original |
+| SOUND-019 | Add track to playlist | Present in API spec section 4.5 but missing from original |
+| SOUND-020 | Remove track from playlist | Present in API spec section 4.6 but missing from original |
+| LIKE-001~003 | Likes CRUD | DB likes table + API section 10 present but missing from original |
+| DLQ-001~003 | Download queue | DB download_queue table + API section 11 present but missing from original |
+| WL-001~004 | Whitelist channels | DB whitelist_channels table + API section 12 present but missing from original |
+| BL-001~005 | Business license review | DB business_license_requests table + API section 13 present but missing from original |
+| UTIL-012 | Check nickname duplicate | Required by INFO-001/005 but missing from original. Added as API 14.7 |
+
+### Removed UC (5)
+
+| Original Code | Reason |
+|---------------|--------|
+| UTIL-001 (token issuance) | Merged into INFO-008 (login) |
+| UTIL-008 (license issuance) | Merged into SOUND-011 (track download) |
+| UTIL-009 (input validation - BE) | Spring Bean Validation standard feature |
+| UTIL-010 (input validation - FE) | Frontend code level, outside UC scope |
+| UTIL-011 (file storage) | Merged into SOUND-001 (create track) |
+
+### DB/API Spec Changes (v2 to v3)
+
+| # | Field | Value |
+|---|-------|-------|
+| 1 | `tracks.preview_file` column added | Low-quality file generated asynchronously after upload. If NULL, fallback to audio_file for streaming |
+| 2 | `GET /api/utils/check-nickname` API added | Nickname duplicate check API (UTIL-012) |
+| 3 | `track_tags` join table | Physical deletion confirmed when track is soft-deleted |

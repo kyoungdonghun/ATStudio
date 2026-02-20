@@ -1,177 +1,177 @@
-# Util — 유틸리티 유스케이스
+# Util — Utility Use Cases
 
-> **API 참조**: `docs/design/api-spec.md` 섹션 14 (Util)
+> **API Reference**: `docs/design/api-spec.md` Section 14 (Util)
 >
-> **이 파일의 범위**: 회원가입, 로그인, 인증 등 다른 흐름에서 공통으로 사용되는 유틸리티 API.
-> 아래 원본 UTIL UC 중 일부는 상위 UC에 통합되어 독립 UC로 관리하지 않음. 제거 목록 참고.
+> **Scope of this file**: Utility APIs commonly used across other flows such as registration, login, and authentication.
+> Some of the original UTIL UCs have been merged into parent UCs and are not managed as independent UCs. See the removed list below.
 
 ---
 
-## 제거된 UTIL UC 목록
+## Removed UTIL UCs
 
-| 원본 코드 | 제목 | 처리 | 이유 |
-|-----------|------|------|------|
-| UTIL-001 | 토큰 발급 | INFO-008(로그인)에 통합 | 로그인 흐름의 일부. 독립 UC 불필요. |
-| UTIL-008 | 라이센스 발급 | SOUND-011(음원 다운로드)에 통합 | 다운로드 사후 조건의 일부. 독립 UC 불필요. |
-| UTIL-009 | 입력값 검증(백엔드) | 제거 | Spring Bean Validation 표준 기능. 모든 API에 내재. |
-| UTIL-010 | 입력값 검증(프론트엔드) | 제거 | 프론트엔드 코드 레벨. UC 범위 아님. |
-| UTIL-011 | 파일 저장 | SOUND-001(음원 생성)에 통합 | 음원 생성 흐름의 일부. 독립 UC 불필요. |
-
----
-
-## UTIL-002: 이메일 중복 확인
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | UTIL-002 |
-| **버전** | 26-02-20 |
-| **설명** | 회원가입 시 이메일 중복 여부를 확인한다. |
-| **액터** | 사용자(비회원), 백엔드 시스템 |
-| **사전 조건** | - |
-| **트리거** | 사용자가 회원가입 화면에서 '이메일 중복 확인' 버튼을 클릭한다. |
-| **관련 UC** | INFO-001(회원가입) |
-
-**기본 흐름**
-1. 프론트엔드가 email 파라미터를 포함한 요청을 백엔드에 전송한다. (`GET /api/utils/check-email?email=xxx`)
-2. 백엔드가 users 테이블에서 해당 이메일 존재 여부를 조회한다.
-3. 백엔드가 결과를 반환한다. (`{ "available": true/false }`)
-
-**사후 조건**
-- available=true이면 사용 가능. available=false이면 이미 사용 중인 이메일.
+| Original Code | Title | Disposition | Reason |
+|---------------|-------|-------------|--------|
+| UTIL-001 | Token issuance | Merged into INFO-008 (login) | Part of the login flow. No need for independent UC. |
+| UTIL-008 | License issuance | Merged into SOUND-011 (download track) | Part of download postconditions. No need for independent UC. |
+| UTIL-009 | Input validation (backend) | Removed | Spring Bean Validation standard feature. Inherent in all APIs. |
+| UTIL-010 | Input validation (frontend) | Removed | Frontend code level. Outside UC scope. |
+| UTIL-011 | File storage | Merged into SOUND-001 (create track) | Part of the track creation flow. No need for independent UC. |
 
 ---
 
-## UTIL-003: 휴대폰 중복 확인
+## UTIL-002: Check Email Duplicate
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | UTIL-003 |
-| **버전** | 26-02-20 |
-| **설명** | 회원가입 시 휴대폰 번호 중복 여부를 확인한다. |
-| **액터** | 사용자(비회원), 백엔드 시스템 |
-| **사전 조건** | - |
-| **트리거** | 사용자가 회원가입 화면에서 '전화번호 중복 확인' 버튼을 클릭한다. |
-| **관련 UC** | INFO-001(회원가입) |
+| Field | Value |
+|-------|-------|
+| **Code** | UTIL-002 |
+| **Version** | 26-02-20 |
+| **Description** | Checks whether an email is already in use during registration. |
+| **Actor** | User (non-member), Backend |
+| **Preconditions** | - |
+| **Trigger** | User clicks the 'Check Email' button on the registration screen. |
+| **Related UC** | INFO-001 (register) |
 
-**기본 흐름**
-1. 프론트엔드가 phone 파라미터를 포함한 요청을 백엔드에 전송한다. (`GET /api/utils/check-phone?phone=xxx`)
-2. 백엔드가 users 테이블에서 해당 전화번호 존재 여부를 조회한다.
-3. 백엔드가 결과를 반환한다. (`{ "available": true/false }`)
+**Main Flow**
+1. Frontend sends a request with the email parameter to the backend. (`GET /api/utils/check-email?email=xxx`)
+2. Backend queries the users table to check if the email exists.
+3. Backend returns the result. (`{ "available": true/false }`)
 
-**사후 조건**
-- available=true이면 사용 가능. available=false이면 이미 사용 중인 번호.
-
----
-
-## UTIL-004: 토큰 재발급
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | UTIL-004 |
-| **버전** | 26-02-20 |
-| **설명** | 만료된 Access Token을 Refresh Token을 이용하여 재발급받는다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 유효한 Refresh Token 보유. |
-| **트리거** | Access Token 만료 시 프론트엔드가 자동으로 재발급 요청을 수행한다. |
-| **관련 UC** | INFO-008(로그인) |
-
-**기본 흐름**
-1. 프론트엔드가 httpOnly 쿠키에서 Refresh Token을 포함한 요청을 백엔드에 전송한다. (`POST /api/auth/refresh`)
-2. 백엔드가 Refresh Token의 유효성(서명, 만료 여부)을 검증한다.
-3. 백엔드가 새 Access Token과 새 Refresh Token을 발급한다.
-4. 백엔드가 토큰 정보(accessToken, refreshToken, tokenType, expiresIn)를 반환한다.
-
-**예외/대안 흐름**
-- Refresh Token 만료 또는 유효하지 않은 경우: 401 응답. 프론트엔드가 로그아웃 처리 후 로그인 화면으로 이동.
-
-**사후 조건**
-- 새 Access Token이 발급됨. 프론트엔드는 새 Access Token을 메모리에 저장.
+**Postconditions**
+- available=true means the email is available. available=false means the email is already in use.
 
 ---
 
-## UTIL-005: 구독 등급 확인
+## UTIL-003: Check Phone Duplicate
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | UTIL-005 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원의 현재 구독 등급 및 혜택 정보를 확인한다. 음원 다운로드, 채널 등록 전 권한 체크에 활용. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. |
-| **트리거** | 프론트엔드가 권한 체크가 필요한 기능 진입 시 자동 호출한다. |
-| **관련 UC** | SOUND-011(음원 다운로드), WL-001(채널 등록) |
+| Field | Value |
+|-------|-------|
+| **Code** | UTIL-003 |
+| **Version** | 26-02-20 |
+| **Description** | Checks whether a phone number is already in use during registration. |
+| **Actor** | User (non-member), Backend |
+| **Preconditions** | - |
+| **Trigger** | User clicks the 'Check Phone Number' button on the registration screen. |
+| **Related UC** | INFO-001 (register) |
 
-**기본 흐름**
-1. 프론트엔드가 인증 토큰을 포함한 요청을 백엔드에 전송한다. (`GET /api/utils/subscription-status`)
-2. 백엔드가 해당 사용자의 활성 구독 정보를 조회한다.
-3. 백엔드가 구독 정보(hasSubscription, planName, userType, downloadPerDay, maxWhitelistChannels)를 반환한다.
+**Main Flow**
+1. Frontend sends a request with the phone parameter to the backend. (`GET /api/utils/check-phone?phone=xxx`)
+2. Backend queries the users table to check if the phone number exists.
+3. Backend returns the result. (`{ "available": true/false }`)
 
-**사후 조건**
-- 구독 등급 및 혜택 정보가 반환됨. 구독이 없는 경우 hasSubscription=false.
+**Postconditions**
+- available=true means the phone number is available. available=false means it is already in use.
 
 ---
 
-## UTIL-006: 다운로드 횟수 확인
+## UTIL-004: Reissue Token
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | UTIL-006 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원의 오늘 다운로드 횟수 및 남은 횟수를 확인한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. |
-| **트리거** | 프론트엔드가 다운로드 전 또는 다운로드 화면 진입 시 자동 호출한다. |
-| **관련 UC** | SOUND-011(음원 다운로드) |
+| Field | Value |
+|-------|-------|
+| **Code** | UTIL-004 |
+| **Version** | 26-02-20 |
+| **Description** | Reissues an expired Access Token using a Refresh Token. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Holds a valid Refresh Token. |
+| **Trigger** | Frontend automatically sends a reissue request when the Access Token expires. |
+| **Related UC** | INFO-008 (login) |
 
-**기본 흐름**
-1. 프론트엔드가 인증 토큰을 포함한 요청을 백엔드에 전송한다. (`GET /api/utils/download-count`)
-2. 백엔드가 track_downloads 테이블에서 오늘 날짜의 다운로드 건수를 COUNT한다.
+**Main Flow**
+1. Frontend sends a request with the Refresh Token from the httpOnly cookie to the backend. (`POST /api/auth/refresh`)
+2. Backend validates the Refresh Token (signature and expiry).
+3. Backend issues a new Access Token and a new Refresh Token.
+4. Backend returns the token info (accessToken, refreshToken, tokenType, expiresIn).
+
+**Exception / Alternative Flow**
+- Refresh Token expired or invalid: 401 response. Frontend logs the user out and navigates to the login screen.
+
+**Postconditions**
+- New Access Token issued. Frontend stores the new Access Token in memory.
+
+---
+
+## UTIL-005: Check Subscription Tier
+
+| Field | Value |
+|-------|-------|
+| **Code** | UTIL-005 |
+| **Version** | 26-02-20 |
+| **Description** | Checks the current subscription tier and benefit info of a logged-in member. Used for permission checks before track download or channel registration. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. |
+| **Trigger** | Frontend automatically calls this when entering a feature that requires permission check. |
+| **Related UC** | SOUND-011 (download track), WL-001 (register channel) |
+
+**Main Flow**
+1. Frontend sends a request with the auth token to the backend. (`GET /api/utils/subscription-status`)
+2. Backend queries the user's active subscription info.
+3. Backend returns the subscription info (hasSubscription, planName, userType, downloadPerDay, maxWhitelistChannels).
+
+**Postconditions**
+- Subscription tier and benefit info returned. If no subscription exists, hasSubscription=false.
+
+---
+
+## UTIL-006: Check Download Count
+
+| Field | Value |
+|-------|-------|
+| **Code** | UTIL-006 |
+| **Version** | 26-02-20 |
+| **Description** | Checks the logged-in member's today's download count and remaining downloads. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. |
+| **Trigger** | Frontend automatically calls this before a download or when entering the download screen. |
+| **Related UC** | SOUND-011 (download track) |
+
+**Main Flow**
+1. Frontend sends a request with the auth token to the backend. (`GET /api/utils/download-count`)
+2. Backend counts today's downloads in the track_downloads table.
    (`COUNT(*) WHERE user_id=? AND DATE(downloaded_at)=CURDATE()`)
-3. 백엔드가 결과(todayDownloads, dailyLimit, remaining)를 반환한다.
+3. Backend returns the result (todayDownloads, dailyLimit, remaining).
 
-**사후 조건**
-- 오늘 다운로드 횟수 정보가 반환됨. 프론트엔드는 remaining을 기반으로 다운로드 버튼 활성화 여부를 결정.
-
----
-
-## UTIL-007: 회원 타입 확인
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | UTIL-007 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원의 회원 유형(userType)과 직업(job)을 확인한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. |
-| **트리거** | 프론트엔드가 회원 유형에 따라 다른 UI를 렌더링해야 할 때 호출한다. |
-| **관련 UC** | BL-001(기업 라이센스 신청), PAYMENT-001(구독 신청) |
-
-**기본 흐름**
-1. 프론트엔드가 인증 토큰을 포함한 요청을 백엔드에 전송한다. (`GET /api/utils/user-type`)
-2. 백엔드가 JWT에서 userId를 추출하여 users 테이블에서 userType, job을 조회한다.
-3. 백엔드가 결과(userType, job)를 반환한다.
-
-**사후 조건**
-- userType(INDIVIDUAL/BUSINESS)과 job 정보가 반환됨.
+**Postconditions**
+- Today's download count info returned. Frontend uses `remaining` to decide whether to enable the download button.
 
 ---
 
-## UTIL-012: 닉네임 중복 확인 [신규]
+## UTIL-007: Check Member Type
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | UTIL-012 |
-| **버전** | 26-02-20 |
-| **설명** | 회원가입 또는 내 정보 수정 시 닉네임 중복 여부를 확인한다. |
-| **액터** | 사용자, 백엔드 시스템 |
-| **사전 조건** | - |
-| **트리거** | 사용자가 회원가입 또는 내 정보 수정 화면에서 '닉네임 중복 확인' 버튼을 클릭한다. |
-| **관련 UC** | INFO-001(회원가입), INFO-005(내 정보 수정) |
+| Field | Value |
+|-------|-------|
+| **Code** | UTIL-007 |
+| **Version** | 26-02-20 |
+| **Description** | Checks the logged-in member's user type (userType) and job. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. |
+| **Trigger** | Frontend calls this when it needs to render different UI depending on the member type. |
+| **Related UC** | BL-001 (apply for business license), PAYMENT-001 (subscribe) |
 
-**기본 흐름**
-1. 프론트엔드가 nickname 파라미터를 포함한 요청을 백엔드에 전송한다. (`GET /api/utils/check-nickname?nickname=xxx`)
-2. 백엔드가 users 테이블에서 해당 닉네임 존재 여부를 조회한다.
-3. 백엔드가 결과를 반환한다. (`{ "available": true/false }`)
+**Main Flow**
+1. Frontend sends a request with the auth token to the backend. (`GET /api/utils/user-type`)
+2. Backend extracts userId from the JWT and queries userType and job from the users table.
+3. Backend returns the result (userType, job).
 
-**사후 조건**
-- available=true이면 사용 가능. available=false이면 이미 사용 중인 닉네임.
+**Postconditions**
+- userType (INDIVIDUAL/BUSINESS) and job info returned.
+
+---
+
+## UTIL-012: Check Nickname Duplicate [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | UTIL-012 |
+| **Version** | 26-02-20 |
+| **Description** | Checks whether a nickname is already in use during registration or profile update. |
+| **Actor** | User, Backend |
+| **Preconditions** | - |
+| **Trigger** | User clicks the 'Check Nickname' button on the registration or profile update screen. |
+| **Related UC** | INFO-001 (register), INFO-005 (update my info) |
+
+**Main Flow**
+1. Frontend sends a request with the nickname parameter to the backend. (`GET /api/utils/check-nickname?nickname=xxx`)
+2. Backend queries the users table to check if the nickname exists.
+3. Backend returns the result. (`{ "available": true/false }`)
+
+**Postconditions**
+- available=true means the nickname is available. available=false means the nickname is already in use.

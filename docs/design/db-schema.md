@@ -1,467 +1,467 @@
 # ATStudio DB Schema Definition v4 (Confirmed)
 
-> **Status**: 4차 확정본 — 상호 검토 반영
-> **Base**: v3 + 상호 검토 8항목 확정
+> **Status**: v4 Confirmed — Mutual review reflected
+> **Base**: v3 + 8 mutual review items confirmed
 > **Date**: 2026-02-20
 
 ---
 
-## v3 → v4 변경 이력
+## v3 to v4 Change History
 
-| # | 항목 | 결정 |
-|---|------|------|
-| 1 | `users.password` | **NULL 허용** — 소셜 로그인 전용 계정은 NULL. 2단계 가입 지원. |
-| 2 | `users.phone_personal` | **NULL 허용** — 소셜 로그인 가입 시 NULL. 프로필 완성 단계에서 입력. |
-| 3 | `users.job` | **NULL 허용 + DEFAULT NULL** — 소셜 로그인 가입 시 NULL. 프로필 완성 단계에서 입력. |
-| 4 | `whitelist_channels.is_active` | **컬럼 제거** — 삭제는 물리 삭제로 확정. is_active 사용 시나리오 없음. |
-| 5 | `licenses.issued_at` | **컬럼 제거** — created_at과 의미 중복. API 응답에서 created_at → issuedAt 매핑. |
-| 6 | `subscription_payments.user_subscription_id` | **FK 추가** — 결제 기록을 특정 구독 세션과 연결. |
-| 7 | 플레이리스트 구독 전용 | **구독(ACTIVE) 보유 회원만** 플레이리스트 기능 사용 가능. DB 변경 없음 (앱 레벨 권한 체크). |
-| 8 | `users.userType` DEFAULT 명시 | **DEFAULT 'INDIVIDUAL'** 추가 확인 |
-
----
-
-## v2 → v3 변경 이력
-
-| # | 항목 | 결정 |
-|---|------|------|
-| 1 | `tracks.preview_file` | **추가 확정** — 업로드 후 비동기 저품질 파일 생성. NULL이면 audio_file로 스트리밍 fallback |
+| # | Item | Decision |
+|---|------|----------|
+| 1 | `users.password` | **Allow NULL** — Social login-only accounts have NULL password. Supports two-step registration. |
+| 2 | `users.phone_personal` | **Allow NULL** — NULL on social login registration. Entered during profile completion step. |
+| 3 | `users.job` | **Allow NULL + DEFAULT NULL** — NULL on social login registration. Entered during profile completion step. |
+| 4 | `whitelist_channels.is_active` | **Column removed** — Deletion confirmed as physical delete. No use case for is_active. |
+| 5 | `licenses.issued_at` | **Column removed** — Semantically duplicates created_at. Map created_at to issuedAt in API response. |
+| 6 | `subscription_payments.user_subscription_id` | **FK added** — Links payment record to a specific subscription session. |
+| 7 | Playlist subscription-only | **Only members with an active subscription (ACTIVE)** can use playlist features. No DB changes (app-level permission check). |
+| 8 | `users.userType` DEFAULT specified | **DEFAULT 'INDIVIDUAL'** confirmed |
 
 ---
 
-## v1 → v2 변경 이력
+## v2 to v3 Change History
 
-| # | 항목 | 결정 |
-|---|------|------|
-| 1 | `users.download_remain` | **제거 확정** — COUNT 쿼리 방식으로 대체 |
-| 2 | 구독 플랜 구조 | **하나의 레코드에 월/연 가격 포함** |
-| 3 | 장바구니 용도 | **"다운로드 대기 목록"으로 재정의** |
-| 4 | `tracks.is_active` DEFAULT | **0 (검토 후 공개)** |
-| 5 | `tracks.play_count` | **추가 확정** |
-| 6 | 소셜 로그인 제공자 | **Google/Kakao/Naver 3개로 확정** |
-| 7 | 기업 서류 파일 관리 | **단일 경로 컬럼** + 앱 레벨에서 회원별 폴더 분리 |
-| 8 | 일반 사용자 라이센스 | **별도 `licenses` 테이블** 추가 |
-| 9 | `track_purchases` | **제거 확정** |
-| 10 | 문의 비밀번호 | **컬럼 제거** — 비공개 문의는 작성자 본인+ADMIN만 열람 (앱 레벨 권한) |
+| # | Item | Decision |
+|---|------|----------|
+| 1 | `tracks.preview_file` | **Addition confirmed** — Low-quality file generated asynchronously after upload. Falls back to audio_file for streaming if NULL |
 
 ---
 
-## 공통 규칙
+## v1 to v2 Change History
 
-### Base Columns (모든 테이블 공통)
+| # | Item | Decision |
+|---|------|----------|
+| 1 | `users.download_remain` | **Removal confirmed** — Replaced with COUNT query approach |
+| 2 | Subscription plan structure | **Single record contains both monthly and yearly prices** |
+| 3 | Cart purpose | **Redefined as "download queue"** |
+| 4 | `tracks.is_active` DEFAULT | **0 (published after review)** |
+| 5 | `tracks.play_count` | **Addition confirmed** |
+| 6 | Social login providers | **Confirmed 3 providers: Google/Kakao/Naver** |
+| 7 | Business document file management | **Single path column** + app-level per-user folder separation |
+| 8 | Individual user license | **Separate `licenses` table** added |
+| 9 | `track_purchases` | **Removal confirmed** |
+| 10 | Inquiry password | **Column removed** — Private inquiries viewable only by author + ADMIN (app-level permission) |
 
-| 설명 | 컬럼명 | 타입 | NULL | DEFAULT |
-|------|--------|------|------|---------|
-| 생성일 | `created_at` | DATETIME | NOT NULL | CURRENT_TIMESTAMP |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP |
+---
 
-### 타입 규칙
+## Common Rules
+
+### Base Columns (Common to All Tables)
+
+| Description | Column | Type | NULL | DEFAULT |
+|-------------|--------|------|------|---------|
+| Created at | `created_at` | DATETIME | NOT NULL | CURRENT_TIMESTAMP |
+| Updated at | `updated_at` | DATETIME | NOT NULL | CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP |
+
+### Type Rules
 
 - PK: `BIGINT AUTO_INCREMENT`
-- FK: `BIGINT` (PK와 동일 타입)
+- FK: `BIGINT` (same type as PK)
 - Boolean: `TINYINT(1)` (0/1)
-- 금액: `DECIMAL(10,2)`
-- 날짜: `DATETIME` (시간 포함) 또는 `DATE` (날짜만)
+- Currency: `DECIMAL(10,2)`
+- Date: `DATETIME` (includes time) or `DATE` (date only)
 
 ---
 
-# 1. 사용자와 권한
+# 1. Users and Roles
 
-## 1.1 사용자 (`users`)
+## 1.1 Users (`users`)
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 닉네임 | `nickname` | VARCHAR(20) | NOT NULL | UNIQUE | | |
-| 이메일 | `email` | VARCHAR(100) | NOT NULL | UNIQUE | | |
-| 비밀번호 | `password` | VARCHAR(255) | NULL | | | BCrypt 해시 저장. 소셜 로그인 전용 계정은 NULL. |
-| 회사 전화번호 | `phone_company` | VARCHAR(20) | NULL | | | 기업회원용 |
-| 개인 전화번호 | `phone_personal` | VARCHAR(20) | NULL | | | 소셜 로그인 가입 시 NULL. 프로필 완성 단계에서 입력. |
-| 계정 인증 여부 | `is_verified` | TINYINT(1) | NOT NULL | | 0 | 이메일 or 전화번호 인증 |
-| 권한 | `role` | ENUM('USER','ADMIN') | NOT NULL | | 'USER' | |
-| 직업 | `job` | ENUM('EDITOR','ARTIST','FREELANCER') | NULL | | NULL | 소셜 로그인 가입 시 NULL. 프로필 완성 단계에서 입력. |
-| 회원 구분 | `user_type` | ENUM('INDIVIDUAL','BUSINESS') | NOT NULL | | 'INDIVIDUAL' | 일반회원/기업회원 |
-| 논리적 삭제 여부 | `is_deleted` | TINYINT(1) | NOT NULL | | 0 | 탈퇴 처리 |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Nickname | `nickname` | VARCHAR(20) | NOT NULL | UNIQUE | | |
+| Email | `email` | VARCHAR(100) | NOT NULL | UNIQUE | | |
+| Password | `password` | VARCHAR(255) | NULL | | | BCrypt hash stored. NULL for social login-only accounts. |
+| Company phone | `phone_company` | VARCHAR(20) | NULL | | | For business members |
+| Personal phone | `phone_personal` | VARCHAR(20) | NULL | | | NULL on social login registration. Entered during profile completion step. |
+| Account verified | `is_verified` | TINYINT(1) | NOT NULL | | 0 | Email or phone verification |
+| Role | `role` | ENUM('USER','ADMIN') | NOT NULL | | 'USER' | |
+| Job | `job` | ENUM('EDITOR','ARTIST','FREELANCER') | NULL | | NULL | NULL on social login registration. Entered during profile completion step. |
+| User type | `user_type` | ENUM('INDIVIDUAL','BUSINESS') | NOT NULL | | 'INDIVIDUAL' | Individual / Business member |
+| Soft delete flag | `is_deleted` | TINYINT(1) | NOT NULL | | 0 | Account deactivation |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-**소셜 로그인 2단계 가입 처리:**
-- 소셜 로그인 최초 가입 시: email(OAuth 제공), nickname(자동생성 또는 입력), userType=INDIVIDUAL(default)으로 최소 레코드 생성
-- `password`, `phone_personal`, `job` = NULL → 프로필 미완성 상태
-- 프론트엔드가 `isProfileComplete` 플래그(=phone_personal IS NOT NULL AND job IS NOT NULL)를 확인 후 프로필 완성 화면으로 이동
-- 프로필 완성 후 모든 기능 정상 이용 가능
+**Social login two-step registration flow:**
+- On first social login registration: minimal record created with email (from OAuth), nickname (auto-generated or user input), userType=INDIVIDUAL (default)
+- `password`, `phone_personal`, `job` = NULL indicates incomplete profile state
+- Frontend checks `isProfileComplete` flag (= phone_personal IS NOT NULL AND job IS NOT NULL) and redirects to profile completion screen
+- Full feature access available after profile completion
 
-**일일 다운로드 제한 처리:**
-- `download_remain` 컬럼 없음
-- `track_downloads` 테이블에서 `WHERE user_id = ? AND DATE(downloaded_at) = CURDATE()` COUNT 쿼리로 계산
-- 구독 플랜의 `download_per_day`와 비교하여 제한
+**Daily download limit handling:**
+- No `download_remain` column
+- Calculated via COUNT query on `track_downloads` table: `WHERE user_id = ? AND DATE(downloaded_at) = CURDATE()`
+- Compared against subscription plan's `download_per_day` to enforce limit
 
-## 1.2 소셜 로그인 (`social_accounts`)
+## 1.2 Social Login (`social_accounts`)
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 사용자 | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
-| 소셜 제공자 | `provider` | ENUM('GOOGLE','KAKAO','NAVER') | NOT NULL | | | |
-| 소셜 고유 ID | `provider_id` | VARCHAR(255) | NOT NULL | | | 소셜 서비스에서 부여하는 사용자 ID |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
+| Social provider | `provider` | ENUM('GOOGLE','KAKAO','NAVER') | NOT NULL | | | |
+| Social unique ID | `provider_id` | VARCHAR(255) | NOT NULL | | | User ID assigned by the social service |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-- UNIQUE 제약: (`provider`, `provider_id`)
-- 한 사용자가 여러 소셜 계정 연결 가능 (1:N)
+- UNIQUE constraint: (`provider`, `provider_id`)
+- A single user can link multiple social accounts (1:N)
 
 ---
 
-# 2. 구독제
+# 2. Subscription Plans
 
-## 2.1 구독 플랜 (`subscriptions`)
+## 2.1 Subscription Plans (`subscriptions`)
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 플랜 이름 | `name` | VARCHAR(30) | NOT NULL | | | STANDARD/DELUXE/PREMIUM |
-| 설명 | `description` | TEXT | NULL | | | |
-| 대상 회원 유형 | `user_type` | ENUM('INDIVIDUAL','BUSINESS') | NOT NULL | | | 개인/기업 구분 |
-| 월간 가격 | `price_monthly` | DECIMAL(10,2) | NOT NULL | | | |
-| 연간 가격 | `price_yearly` | DECIMAL(10,2) | NOT NULL | | | |
-| 일일 다운로드 허용 수 | `download_per_day` | INT | NOT NULL | | | -1 = 무제한 |
-| 화이트리스트 채널 수 | `max_whitelist_channels` | INT | NOT NULL | | | 등급별 채널 수 제한 |
-| 활성 여부 | `is_active` | TINYINT(1) | NOT NULL | | 1 | 사용자가 선택 가능 여부 |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Plan name | `name` | VARCHAR(30) | NOT NULL | | | STANDARD/DELUXE/PREMIUM |
+| Description | `description` | TEXT | NULL | | | |
+| Target user type | `user_type` | ENUM('INDIVIDUAL','BUSINESS') | NOT NULL | | | Individual / Business distinction |
+| Monthly price | `price_monthly` | DECIMAL(10,2) | NOT NULL | | | |
+| Yearly price | `price_yearly` | DECIMAL(10,2) | NOT NULL | | | |
+| Daily download limit | `download_per_day` | INT | NOT NULL | | | -1 = unlimited |
+| Max whitelist channels | `max_whitelist_channels` | INT | NOT NULL | | | Channel limit per tier |
+| Active flag | `is_active` | TINYINT(1) | NOT NULL | | 1 | Whether selectable by users |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-- UNIQUE 제약: (`name`, `user_type`) — 같은 이름+유형 조합 중복 방지
+- UNIQUE constraint: (`name`, `user_type`) — prevents duplicate name+type combinations
 
-### 구독 플랜 초기 데이터
+### Subscription Plan Seed Data
 
 | name | user_type | price_monthly | price_yearly | download_per_day | max_whitelist_channels |
 |------|-----------|---------------|--------------|------------------|----------------------|
-| STANDARD | INDIVIDUAL | [미정] | [미정] | 5 | 1 |
-| DELUXE | INDIVIDUAL | [미정] | [미정] | 20 | 2 |
-| PREMIUM | INDIVIDUAL | [미정] | [미정] | -1 | 2 |
-| DELUXE | BUSINESS | [미정] | [미정] | 50 | 2 |
-| PREMIUM | BUSINESS | [미정] | [미정] | -1 | 2 |
+| STANDARD | INDIVIDUAL | [TBD] | [TBD] | 5 | 1 |
+| DELUXE | INDIVIDUAL | [TBD] | [TBD] | 20 | 2 |
+| PREMIUM | INDIVIDUAL | [TBD] | [TBD] | -1 | 2 |
+| DELUXE | BUSINESS | [TBD] | [TBD] | 50 | 2 |
+| PREMIUM | BUSINESS | [TBD] | [TBD] | -1 | 2 |
 
-## 2.2 사용자 구독 상태 (`user_subscriptions`)
+## 2.2 User Subscription Status (`user_subscriptions`)
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 사용자 | `user_id` | BIGINT | NOT NULL | FK(users.id), UNIQUE | | 1인 1구독 |
-| 구독 플랜 | `subscription_id` | BIGINT | NOT NULL | FK(subscriptions.id) | | |
-| 결제 주기 | `billing_cycle` | ENUM('MONTHLY','YEARLY') | NOT NULL | | | |
-| 구독 상태 | `status` | ENUM('ACTIVE','CANCELLED','EXPIRED') | NOT NULL | | 'ACTIVE' | |
-| 현재 구독 시작일 | `started_at` | DATE | NOT NULL | | | |
-| 현재 구독 만료일 | `expires_at` | DATE | NOT NULL | | | 다음 결제일 = 만료일 + 1일 |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| User | `user_id` | BIGINT | NOT NULL | FK(users.id), UNIQUE | | One subscription per user |
+| Subscription plan | `subscription_id` | BIGINT | NOT NULL | FK(subscriptions.id) | | |
+| Billing cycle | `billing_cycle` | ENUM('MONTHLY','YEARLY') | NOT NULL | | | |
+| Subscription status | `status` | ENUM('ACTIVE','CANCELLED','EXPIRED') | NOT NULL | | 'ACTIVE' | |
+| Current period start date | `started_at` | DATE | NOT NULL | | | |
+| Current period end date | `expires_at` | DATE | NOT NULL | | | Next billing date = expiration date + 1 day |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-**구독 업그레이드 처리:**
-- 변경 시 즉시 적용 (바로 사용 가능)
-- 결제 금액 = 새 플랜 가격 - 현재 플랜 잔여 기간 비례 금액
-- 상세 계산 로직은 애플리케이션 레벨에서 처리
+**Subscription upgrade handling:**
+- Changes take effect immediately (usable right away)
+- Payment amount = new plan price - prorated remaining amount of current plan
+- Detailed calculation logic handled at application level
 
 ---
 
-# 3. 기업 라이센스 심사
+# 3. Business License Review
 
-## 3.1 기업 라이센스 신청 (`business_license_requests`)
+## 3.1 Business License Application (`business_license_requests`)
 
-> 기업 회원(100명 초과)이 구독제 구매 전 서류 제출 → 관리자 검토 → 승인/반려
+> Business members (over 100 employees) submit documents before purchasing a subscription plan. Admin reviews and approves or rejects.
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 신청자 | `user_id` | BIGINT | NOT NULL | FK(users.id) | | 기업회원 |
-| 심사 상태 | `status` | ENUM('PENDING','APPROVED','REVISION_REQUESTED','REJECTED') | NOT NULL | | 'PENDING' | 승인 대기/승인/보완요청/반려 |
-| 관리자 메모 | `admin_note` | TEXT | NULL | | | 보완 요청 사유 등 |
-| 제출 파일 경로 | `document_path` | VARCHAR(500) | NOT NULL | | | 회원별 전용 폴더에 저장 |
-| 라이센스 코드 | `license_code` | VARCHAR(50) | NULL | UNIQUE | | 승인 시 UUID 기반 발급 |
-| 승인일 | `approved_at` | DATETIME | NULL | | | 승인 완료 시각 |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Applicant | `user_id` | BIGINT | NOT NULL | FK(users.id) | | Business member |
+| Review status | `status` | ENUM('PENDING','APPROVED','REVISION_REQUESTED','REJECTED') | NOT NULL | | 'PENDING' | Pending / Approved / Revision requested / Rejected |
+| Admin note | `admin_note` | TEXT | NULL | | | Reason for revision request, etc. |
+| Document file path | `document_path` | VARCHAR(500) | NOT NULL | | | Stored in per-user dedicated folder |
+| License code | `license_code` | VARCHAR(50) | NULL | UNIQUE | | UUID-based, issued upon approval |
+| Approved at | `approved_at` | DATETIME | NULL | | | Timestamp of approval completion |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-**파일 저장 정책:**
-- 앱 레벨에서 회원별 전용 디렉토리 생성 (예: `/uploads/business-docs/{user_id}/`)
-- `document_path`에는 해당 디렉토리 경로 저장
-- 디렉토리 내 파일은 파일시스템에서 직접 관리
+**File storage policy:**
+- App-level creation of per-user dedicated directory (e.g., `/uploads/business-docs/{user_id}/`)
+- `document_path` stores the directory path
+- Files within the directory are managed directly on the filesystem
 
-**프로세스:**
-1. 기업 회원 → 구독제 선택 → 서류 제출 페이지
-2. 파일 업로드 + 라이센스 요청 전송 (status: PENDING)
-3. 관리자 검토 → 보완 요청(REVISION_REQUESTED) 또는 승인(APPROVED)
-4. 승인 완료 → `license_code` 발급 → 구독제 결제 가능
-5. 결제 후 관리자가 기업에게 세금계산서/계약서 등 제공 (오프라인/별도 처리)
+**Process:**
+1. Business member selects subscription plan and goes to document submission page
+2. File upload + license request submission (status: PENDING)
+3. Admin review: revision request (REVISION_REQUESTED) or approval (APPROVED)
+4. Upon approval: `license_code` issued, subscription payment enabled
+5. After payment, admin provides tax invoice/contract to the business (offline/separate process)
 
 ---
 
-# 4. 음원과 태그
+# 4. Tracks and Tags
 
-## 4.1 음원 (`tracks`)
+## 4.1 Audio Tracks (`tracks`)
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 곡 제목 | `title` | VARCHAR(100) | NOT NULL | | | |
-| 썸네일 파일명 | `thumbnail` | VARCHAR(255) | NULL | | | |
+| Track title | `title` | VARCHAR(100) | NOT NULL | | | |
+| Thumbnail filename | `thumbnail` | VARCHAR(255) | NULL | | | |
 | BPM | `bpm` | INT | NOT NULL | | | |
-| 조성 | `tonality` | VARCHAR(10) | NOT NULL | | | ex) C, Am, F#m |
-| 설명 | `description` | TEXT | NULL | | | |
-| 오디오 파일 경로 | `audio_file` | VARCHAR(255) | NOT NULL | | | 원본 파일 (다운로드용) |
-| 미리듣기 파일 경로 | `preview_file` | VARCHAR(255) | NULL | | | 저품질 변환본 (스트리밍용). NULL이면 audio_file로 fallback |
-| 저작권자 | `user_id` | BIGINT | NOT NULL | FK(users.id) | | 현재 단일 관리자(아티스트)만 사용 |
-| 활성 여부 | `is_active` | TINYINT(1) | NOT NULL | | 0 | 검토 후 공개 (관리자가 활성화) |
-| 재생 수 | `play_count` | BIGINT | NOT NULL | | 0 | 인기순 정렬 등에 활용 |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Key/Tonality | `tonality` | VARCHAR(10) | NOT NULL | | | e.g., C, Am, F#m |
+| Description | `description` | TEXT | NULL | | | |
+| Audio file path | `audio_file` | VARCHAR(255) | NOT NULL | | | Original file (for download) |
+| Preview file path | `preview_file` | VARCHAR(255) | NULL | | | Low-quality converted file (for streaming). Falls back to audio_file if NULL |
+| Copyright holder | `user_id` | BIGINT | NOT NULL | FK(users.id) | | Currently only a single admin (artist) uses this |
+| Active flag | `is_active` | TINYINT(1) | NOT NULL | | 0 | Published after review (admin activates) |
+| Play count | `play_count` | BIGINT | NOT NULL | | 0 | Used for popularity sorting, etc. |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-## 4.2 태그 (`tags`)
+## 4.2 Tags (`tags`)
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 태그 이름 | `name` | VARCHAR(50) | NOT NULL | UNIQUE | | |
-| 태그 타입 | `type` | ENUM('MOOD','GENRE','INSTRUMENT') | NOT NULL | | | 분위기/장르/악기 |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Tag name | `name` | VARCHAR(50) | NOT NULL | UNIQUE | | |
+| Tag type | `type` | ENUM('MOOD','GENRE','INSTRUMENT') | NOT NULL | | | Mood / Genre / Instrument |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-## 4.3 음원-태그 매핑 (`track_tags`)
+## 4.3 Track-Tag Mapping (`track_tags`)
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
-| 음원 | `track_id` | BIGINT | NOT NULL | PK, FK(tracks.id) | | |
-| 태그 | `tag_id` | BIGINT | NOT NULL | PK, FK(tags.id) | | |
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| Track | `track_id` | BIGINT | NOT NULL | PK, FK(tracks.id) | | |
+| Tag | `tag_id` | BIGINT | NOT NULL | PK, FK(tags.id) | | |
 
-- 복합 PK: (`track_id`, `tag_id`)
-- 태그 변경 시 `tracks.updated_at` 함께 갱신
+- Composite PK: (`track_id`, `tag_id`)
+- When tags are modified, `tracks.updated_at` is also updated
 
 ---
 
-# 5. 플레이리스트
+# 5. Playlists
 
-## 5.1 플레이리스트 (`playlists`)
+## 5.1 Playlists (`playlists`)
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 제목 | `title` | VARCHAR(50) | NOT NULL | | | |
-| 설명 | `description` | TEXT | NULL | | | |
-| 썸네일 | `thumbnail` | VARCHAR(255) | NULL | | | |
-| 생성자 | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
-| 활성 여부 | `is_active` | TINYINT(1) | NOT NULL | | 1 | |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Title | `title` | VARCHAR(50) | NOT NULL | | | |
+| Description | `description` | TEXT | NULL | | | |
+| Thumbnail | `thumbnail` | VARCHAR(255) | NULL | | | |
+| Creator | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
+| Active flag | `is_active` | TINYINT(1) | NOT NULL | | 1 | |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-## 5.2 플레이리스트-음원 매핑 (`playlist_tracks`)
+## 5.2 Playlist-Track Mapping (`playlist_tracks`)
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
-| 플레이리스트 | `playlist_id` | BIGINT | NOT NULL | PK, FK(playlists.id) | | |
-| 음원 | `track_id` | BIGINT | NOT NULL | PK, FK(tracks.id) | | |
-| 재생 순서 | `track_order` | INT | NOT NULL | | | |
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| Playlist | `playlist_id` | BIGINT | NOT NULL | PK, FK(playlists.id) | | |
+| Track | `track_id` | BIGINT | NOT NULL | PK, FK(tracks.id) | | |
+| Track order | `track_order` | INT | NOT NULL | | | |
 
-- 복합 PK: (`playlist_id`, `track_id`)
-- 수정 시 `playlists.updated_at` 함께 갱신
+- Composite PK: (`playlist_id`, `track_id`)
+- When modified, `playlists.updated_at` is also updated
 
 ---
 
-# 6. 기록
+# 6. History / Logs
 
-## 6.1 음원 다운로드 기록 (`track_downloads`)
+## 6.1 Track Download History (`track_downloads`)
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 사용자 | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
-| 음원 | `track_id` | BIGINT | NOT NULL | FK(tracks.id) | | |
-| 다운로드 일시 | `downloaded_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
+| Track | `track_id` | BIGINT | NOT NULL | FK(tracks.id) | | |
+| Downloaded at | `downloaded_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-- 같은 곡 여러 번 다운로드 가능
-- 일일 다운로드 제한: `COUNT(*) WHERE user_id = ? AND DATE(downloaded_at) = CURDATE()`
-- INDEX: (`user_id`, `downloaded_at`) — 일일 카운트 쿼리 성능 확보
+- Same track can be downloaded multiple times
+- Daily download limit: `COUNT(*) WHERE user_id = ? AND DATE(downloaded_at) = CURDATE()`
+- INDEX: (`user_id`, `downloaded_at`) — ensures daily count query performance
 
-## 6.2 재생 기록 (`play_histories`)
+## 6.2 Play History (`play_histories`)
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 사용자 | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
-| 음원 | `track_id` | BIGINT | NOT NULL | FK(tracks.id) | | |
-| 재생 일시 | `played_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
+| Track | `track_id` | BIGINT | NOT NULL | FK(tracks.id) | | |
+| Played at | `played_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-- 같은 곡 반복 재생 시 매번 기록 (히스토리)
-- Que bar에서 재생 시 기록 생성
-- `tracks.play_count` 증가와 연동 (앱 레벨)
+- Each repeated play of the same track is recorded (history)
+- Record created when played from the Que bar
+- Linked with `tracks.play_count` increment (app-level)
 
-## 6.3 구독 결제 기록 (`subscription_payments`)
+## 6.3 Subscription Payment Records (`subscription_payments`)
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 사용자 | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
-| 구독 레코드 | `user_subscription_id` | BIGINT | NOT NULL | FK(user_subscriptions.id) | | 어떤 구독 세션에 대한 결제인지 연결 |
-| 구독 플랜 | `subscription_id` | BIGINT | NOT NULL | FK(subscriptions.id) | | |
-| 결제 주기 | `billing_cycle` | ENUM('MONTHLY','YEARLY') | NOT NULL | | | |
-| 결제 금액 | `amount` | DECIMAL(10,2) | NOT NULL | | | 업그레이드 시 차등 금액 |
-| 결제 상태 | `payment_status` | ENUM('READY','DONE','REFUND') | NOT NULL | | 'READY' | |
-| PG 거래 ID | `pg_transaction_id` | VARCHAR(100) | NULL | | | PG사 연동 시 사용 |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
+| Subscription record | `user_subscription_id` | BIGINT | NOT NULL | FK(user_subscriptions.id) | | Links to which subscription session this payment belongs to |
+| Subscription plan | `subscription_id` | BIGINT | NOT NULL | FK(subscriptions.id) | | |
+| Billing cycle | `billing_cycle` | ENUM('MONTHLY','YEARLY') | NOT NULL | | | |
+| Payment amount | `amount` | DECIMAL(10,2) | NOT NULL | | | Prorated amount for upgrades |
+| Payment status | `payment_status` | ENUM('READY','DONE','REFUND') | NOT NULL | | 'READY' | |
+| PG transaction ID | `pg_transaction_id` | VARCHAR(100) | NULL | | | Used for PG provider integration |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
 ---
 
-# 7. 즐겨찾기
+# 7. Likes
 
-## 7.1 즐겨찾기 (`likes`)
+## 7.1 Likes (`likes`)
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
-| 사용자 | `user_id` | BIGINT | NOT NULL | PK, FK(users.id) | | |
-| 음원 | `track_id` | BIGINT | NOT NULL | PK, FK(tracks.id) | | |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| User | `user_id` | BIGINT | NOT NULL | PK, FK(users.id) | | |
+| Track | `track_id` | BIGINT | NOT NULL | PK, FK(tracks.id) | | |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-- 복합 PK: (`user_id`, `track_id`)
-
----
-
-# 8. 다운로드 대기 목록
-
-> 구매 개념이 없으므로 "장바구니" → **"다운로드 대기 목록"**으로 재정의.
-> 여러 곡을 모아 일괄 다운로드하는 용도.
-
-## 8.1 다운로드 대기 목록 (`download_queue`)
-
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
-| 사용자 | `user_id` | BIGINT | NOT NULL | PK, FK(users.id) | | |
-| 음원 | `track_id` | BIGINT | NOT NULL | PK, FK(tracks.id) | | |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-
-- 복합 PK: (`user_id`, `track_id`)
-- 테이블명 `cart_items` → `download_queue`로 변경 (용도에 맞는 명칭)
+- Composite PK: (`user_id`, `track_id`)
 
 ---
 
-# 9. 화이트리스트 채널
+# 8. Download Queue
 
-## 9.1 화이트리스트 채널 (`whitelist_channels`)
+> Since there is no purchase concept, "cart" has been redefined as **"download queue"**.
+> Used for collecting multiple tracks and downloading them in bulk.
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+## 8.1 Download Queue (`download_queue`)
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| User | `user_id` | BIGINT | NOT NULL | PK, FK(users.id) | | |
+| Track | `track_id` | BIGINT | NOT NULL | PK, FK(tracks.id) | | |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+- Composite PK: (`user_id`, `track_id`)
+- Table renamed from `cart_items` to `download_queue` (matches actual purpose)
+
+---
+
+# 9. Whitelist Channels
+
+## 9.1 Whitelist Channels (`whitelist_channels`)
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 사용자 | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
-| 채널 URL | `channel_url` | VARCHAR(255) | NOT NULL | | | 유튜브 채널 URL |
-| 채널 이름 | `channel_name` | VARCHAR(100) | NOT NULL | | | 표시용 |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
+| Channel URL | `channel_url` | VARCHAR(255) | NOT NULL | | | YouTube channel URL |
+| Channel name | `channel_name` | VARCHAR(100) | NOT NULL | | | Display name |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-- 등록 가능 채널 수: `subscriptions.max_whitelist_channels`로 제한
-- 앱에서 등록 시 현재 활성 채널 수 체크
-
----
-
-# 10. 게시판 (문의/답변)
-
-## 10.1 문의 (`questions`)
-
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
-| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 문의자 | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
-| 제목 | `title` | VARCHAR(200) | NOT NULL | | | |
-| 내용 | `content` | TEXT | NOT NULL | | | |
-| 문의 유형 | `category` | ENUM('DOWNLOAD','PAYMENT','COPYRIGHT','PRODUCTION','OTHER') | NOT NULL | | | 다운로드/결제/저작권/음원제작/기타 |
-| 공개 여부 | `is_public` | TINYINT(1) | NOT NULL | | 0 | |
-| 문의 상태 | `status` | ENUM('OPEN','IN_PROGRESS','RESOLVED','CLOSED') | NOT NULL | | 'OPEN' | |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-
-**비공개 문의 접근 정책:**
-- `password` 컬럼 없음
-- `is_public = 0`인 문의: **작성자 본인 + ADMIN만** 열람 가능
-- 애플리케이션 레벨에서 권한 체크 (Spring Security)
-
-**상태 흐름:**
-- OPEN → IN_PROGRESS (관리자 첫 답변 시) → RESOLVED (해결) → CLOSED (종료)
-- OPEN → CLOSED (답변 없이 관리자가 닫는 경우)
-
-## 10.2 문의 답변 (`answers`)
-
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
-| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 문의 | `question_id` | BIGINT | NOT NULL | FK(questions.id) | | |
-| 작성자 | `user_id` | BIGINT | NOT NULL | FK(users.id) | | 문의자 or 관리자 |
-| 내용 | `content` | TEXT | NOT NULL | | | |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-
-- 문의자와 관리자가 주고받는 대화형 구조 (1:N)
-- `user_id`의 role(USER/ADMIN)로 작성자 구분
-- 새 답변 작성 시 `questions.updated_at` 갱신
+- Maximum registerable channels limited by `subscriptions.max_whitelist_channels`
+- App checks current active channel count on registration
 
 ---
 
-# 11. 라이센스 (일반 사용자용)
+# 10. Board (Inquiries / Answers)
 
-## 11.1 음원 사용 라이센스 (`licenses`)
+## 10.1 Inquiries (`questions`)
 
-> 다운로드한 음원에 대해 UUID 기반 라이센스 코드 발급
-
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 사용자 | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
-| 음원 | `track_id` | BIGINT | NOT NULL | FK(tracks.id) | | |
-| 라이센스 코드 | `license_code` | VARCHAR(50) | NOT NULL | UNIQUE | | UUID 기반 |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | API 응답에서 issuedAt으로 매핑 |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Author | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
+| Title | `title` | VARCHAR(200) | NOT NULL | | | |
+| Content | `content` | TEXT | NOT NULL | | | |
+| Category | `category` | ENUM('DOWNLOAD','PAYMENT','COPYRIGHT','PRODUCTION','OTHER') | NOT NULL | | | Download / Payment / Copyright / Music Production / Other |
+| Public/private flag | `is_public` | TINYINT(1) | NOT NULL | | 0 | |
+| Inquiry status | `status` | ENUM('OPEN','IN_PROGRESS','RESOLVED','CLOSED') | NOT NULL | | 'OPEN' | |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-- 다운로드 시 자동 발급 (같은 곡 재다운로드 시 기존 라이센스 유지, 중복 발급 방지)
-- UNIQUE 제약: (`user_id`, `track_id`) — 1인 1곡당 1라이센스
-- 저작권 증빙용 식별코드 역할
-- 상세 법적 포맷은 추후 가이드 시 구현
+**Private inquiry access policy:**
+- No `password` column
+- Inquiries with `is_public = 0`: viewable only by **the author + ADMIN**
+- Permission check at application level (Spring Security)
+
+**Status flow:**
+- OPEN -> IN_PROGRESS (on admin's first answer) -> RESOLVED (resolved) -> CLOSED (closed)
+- OPEN -> CLOSED (admin closes without answering)
+
+## 10.2 Inquiry Answers (`answers`)
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Inquiry | `question_id` | BIGINT | NOT NULL | FK(questions.id) | | |
+| Author | `user_id` | BIGINT | NOT NULL | FK(users.id) | | Inquiry author or admin |
+| Content | `content` | TEXT | NOT NULL | | | |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+- Conversational structure between inquiry author and admin (1:N)
+- Author distinguished by `user_id` role (USER/ADMIN)
+- `questions.updated_at` updated when a new answer is posted
 
 ---
 
-# 12. 공지사항
+# 11. Licenses (For Individual Users)
 
-## 12.1 공지사항 (`notices`)
+## 11.1 Track Usage License (`licenses`)
 
-> API 명세서 반영으로 추가
+> UUID-based license code issued for downloaded tracks
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 작성자 | `user_id` | BIGINT | NOT NULL | FK(users.id) | | ADMIN |
-| 제목 | `title` | VARCHAR(200) | NOT NULL | | | |
-| 내용 | `content` | TEXT | NOT NULL | | | |
-| 고정 여부 | `is_pinned` | TINYINT(1) | NOT NULL | | 0 | 상단 고정 |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-| 수정일 | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
+| Track | `track_id` | BIGINT | NOT NULL | FK(tracks.id) | | |
+| License code | `license_code` | VARCHAR(50) | NOT NULL | UNIQUE | | UUID-based |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | Mapped as issuedAt in API response |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+- Automatically issued on download (existing license retained on re-download of same track; no duplicate issuance)
+- UNIQUE constraint: (`user_id`, `track_id`) — one license per user per track
+- Serves as a copyright proof identifier
+- Detailed legal format to be implemented in future guidance
 
 ---
 
-# 13. 문의 첨부파일
+# 12. Notices
 
-## 13.1 문의 첨부파일 (`question_attachments`)
+## 12.1 Notices (`notices`)
 
-> API 명세서 반영으로 추가
+> Added per API specification
 
-| 설명 | 컬럼명 | 타입 | NULL | 제약조건 | DEFAULT | 비고 |
-|------|--------|------|------|----------|---------|------|
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| 문의 | `question_id` | BIGINT | NOT NULL | FK(questions.id) | | |
-| 원본 파일명 | `original_name` | VARCHAR(255) | NOT NULL | | | 업로드 시 원래 파일명 |
-| 저장 파일 경로 | `file_path` | VARCHAR(500) | NOT NULL | | | 서버 저장 경로 |
-| 파일 크기 | `file_size` | BIGINT | NOT NULL | | | 바이트 단위 |
-| 생성일 | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
-
-- 하나의 문의에 여러 첨부파일 가능 (1:N)
+| Author | `user_id` | BIGINT | NOT NULL | FK(users.id) | | ADMIN |
+| Title | `title` | VARCHAR(200) | NOT NULL | | | |
+| Content | `content` | TEXT | NOT NULL | | | |
+| Pinned flag | `is_pinned` | TINYINT(1) | NOT NULL | | 0 | Pinned to top |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
 ---
 
-# 테이블 관계도
+# 13. Inquiry Attachments
+
+## 13.1 Inquiry Attachments (`question_attachments`)
+
+> Added per API specification
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Inquiry | `question_id` | BIGINT | NOT NULL | FK(questions.id) | | |
+| Original filename | `original_name` | VARCHAR(255) | NOT NULL | | | Original filename at upload |
+| Stored file path | `file_path` | VARCHAR(500) | NOT NULL | | | Server storage path |
+| File size | `file_size` | BIGINT | NOT NULL | | | In bytes |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+- One inquiry can have multiple attachments (1:N)
+
+---
+
+# Table Relationship Diagram
 
 ```
 users ─┬─< social_accounts
@@ -484,30 +484,30 @@ tracks ─< track_tags ──> tags
 
 ---
 
-# 전체 테이블 목록 (17개)
+# Complete Table List (21 Tables)
 
-| # | 테이블명 | 설명 | 유형 |
-|---|----------|------|------|
-| 1 | `users` | 사용자 | 마스터 |
-| 2 | `social_accounts` | 소셜 로그인 | 마스터 |
-| 3 | `subscriptions` | 구독 플랜 정의 | 마스터 |
-| 4 | `user_subscriptions` | 사용자 구독 상태 | 트랜잭션 |
-| 5 | `business_license_requests` | 기업 라이센스 심사 | 트랜잭션 |
-| 6 | `tracks` | 음원 | 마스터 |
-| 7 | `tags` | 태그 | 마스터 |
-| 8 | `track_tags` | 음원-태그 매핑 | 매핑 |
-| 9 | `playlists` | 플레이리스트 | 마스터 |
-| 10 | `playlist_tracks` | 플레이리스트-음원 매핑 | 매핑 |
-| 11 | `track_downloads` | 다운로드 기록 | 로그 |
-| 12 | `play_histories` | 재생 기록 | 로그 |
-| 13 | `subscription_payments` | 구독 결제 기록 | 트랜잭션 |
-| 14 | `likes` | 즐겨찾기 | 매핑 |
-| 15 | `download_queue` | 다운로드 대기 목록 | 매핑 |
-| 16 | `whitelist_channels` | 화이트리스트 채널 | 마스터 |
-| 17 | `questions` | 문의 | 트랜잭션 |
-| 18 | `answers` | 문의 답변 | 트랜잭션 |
-| 19 | `licenses` | 음원 사용 라이센스 | 트랜잭션 |
-| 20 | `notices` | 공지사항 | 마스터 |
-| 21 | `question_attachments` | 문의 첨부파일 | 트랜잭션 |
+| # | Table Name | Description | Type |
+|---|------------|-------------|------|
+| 1 | `users` | Users | Master |
+| 2 | `social_accounts` | Social login | Master |
+| 3 | `subscriptions` | Subscription plan definitions | Master |
+| 4 | `user_subscriptions` | User subscription status | Transaction |
+| 5 | `business_license_requests` | Business license review | Transaction |
+| 6 | `tracks` | Audio tracks | Master |
+| 7 | `tags` | Tags | Master |
+| 8 | `track_tags` | Track-tag mapping | Mapping |
+| 9 | `playlists` | Playlists | Master |
+| 10 | `playlist_tracks` | Playlist-track mapping | Mapping |
+| 11 | `track_downloads` | Download history | Log |
+| 12 | `play_histories` | Play history | Log |
+| 13 | `subscription_payments` | Subscription payment records | Transaction |
+| 14 | `likes` | Likes | Mapping |
+| 15 | `download_queue` | Download queue | Mapping |
+| 16 | `whitelist_channels` | Whitelist channels | Master |
+| 17 | `questions` | Inquiries | Transaction |
+| 18 | `answers` | Inquiry answers | Transaction |
+| 19 | `licenses` | Track usage licenses | Transaction |
+| 20 | `notices` | Notices | Master |
+| 21 | `question_attachments` | Inquiry attachments | Transaction |
 
-총 **21개 테이블**
+Total **21 tables**

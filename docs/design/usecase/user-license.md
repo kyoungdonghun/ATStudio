@@ -1,101 +1,101 @@
-# User — License 유스케이스
+# User -- License Use Cases
 
-> **API 참조**: `docs/design/api-spec.md` 섹션 7 (License)
-> **DB 참조**: `docs/design/db-schema.md` 섹션 11 (`licenses`)
+> **API Reference**: `docs/design/api-spec.md` Section 7 (License)
+> **DB Reference**: `docs/design/db-schema.md` Section 11 (`licenses`)
 >
-> **라이센스 종류 구분**:
-> - **음원 사용 라이센스** (이 파일): `licenses` 테이블. 다운로드 시 자동 발급. UUID 기반.
-> - **기업 심사 라이센스**: `business_license_requests` 테이블. → `business-license.md` 참조.
+> **License type distinction**:
+> - **Track usage license** (this file): `licenses` table. Automatically issued on download. UUID-based.
+> - **Business review license**: `business_license_requests` table. See `business-license.md`.
 
 ---
 
-## INFO-009: 내 라이센스 목록 보기
+## INFO-009: View My License List
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | INFO-009 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원이 본인이 다운로드한 음원에 대한 라이센스 목록을 조회한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. |
-| **트리거** | 사용자가 '내 라이센스 목록' 화면에 접근한다. |
-| **관련 UC** | INFO-011(라이센스 상세), SOUND-011(음원 다운로드) |
+| Field | Value |
+|-------|-------|
+| **Code** | INFO-009 |
+| **Version** | 26-02-20 |
+| **Description** | Logged-in member views their license list for downloaded tracks. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. |
+| **Trigger** | User navigates to the 'My Licenses' screen. |
+| **Related UC** | INFO-011 (license detail), SOUND-011 (download track) |
 
-**기본 흐름**
-1. 프론트엔드가 인증 토큰과 페이지 파라미터를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 JWT에서 userId를 추출하여 licenses 테이블에서 해당 사용자의 라이센스 목록을 조회한다.
-3. 백엔드가 라이센스 목록(id, 음원 정보, licenseCode, issuedAt)을 페이지네이션하여 반환한다.
+**Main Flow**
+1. Frontend sends a request including auth token and page parameters to the backend.
+2. Backend extracts userId from JWT and queries the licenses table for the user's license list.
+3. Backend returns the license list (id, track info, licenseCode, issuedAt) paginated.
 
-**사후 조건**
-- 라이센스 목록이 화면에 출력됨. 페이징이 정상 작동함.
+**Postconditions**
+- License list displayed on screen. Pagination works correctly.
 
-> **수정 사항**: 원본 사전 조건 "구독 중이어야 한다" 제거. 구독이 만료되어도 기발급 라이센스는 조회 가능.
-
----
-
-## INFO-010: 회원의 라이센스 목록 보기 (관리자)
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | INFO-010 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 특정 회원의 라이센스 목록을 조회한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. 조회 대상 회원이 DB에 존재. |
-| **트리거** | 관리자가 회원 상세 화면에서 '라이센스 목록' 버튼을 클릭한다. |
-| **관련 UC** | INFO-012(라이센스 상세) |
-
-**기본 흐름**
-1. 프론트엔드가 userId와 페이지 파라미터를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 사용자의 라이센스 목록을 조회하여 반환한다.
-
-**사후 조건**
-- 해당 회원의 라이센스 목록이 화면에 출력됨.
+> **Modification note**: Original precondition "must have active subscription" removed. Previously issued licenses remain viewable even after subscription expires.
 
 ---
 
-## INFO-011: 내 라이센스 상세 조회
+## INFO-010: View Member License List (Admin)
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | INFO-011 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원이 본인의 특정 라이센스 상세 정보를 조회한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 조회 대상 라이센스가 본인 것이어야 함. |
-| **트리거** | 사용자가 라이센스 목록에서 특정 라이센스를 클릭한다. |
-| **관련 UC** | INFO-009(라이센스 목록) |
+| Field | Value |
+|-------|-------|
+| **Code** | INFO-010 |
+| **Version** | 26-02-20 |
+| **Description** | Admin views the license list of a specific member. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. Target member exists in DB. |
+| **Trigger** | Admin clicks the 'License List' button on the member detail screen. |
+| **Related UC** | INFO-012 (license detail) |
 
-**기본 흐름**
-1. 프론트엔드가 licenseId를 포함한 상세 조회 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 라이센스가 본인 것인지 확인한다.
-3. 백엔드가 라이센스 상세(id, 음원 정보, licenseCode, issuedAt, 사용자 정보)를 반환한다.
+**Main Flow**
+1. Frontend sends a request including userId and page parameters to the backend.
+2. Backend queries and returns the member's license list.
 
-**예외/대안 흐름**
-- 타인의 라이센스 접근: 403 응답.
-
-**사후 조건**
-- 라이센스 상세 정보가 화면에 출력됨.
-
-> **수정 사항**: 원본 코드 `IFNO-011` 오타 수정 → `INFO-011`.
+**Postconditions**
+- Member's license list displayed on screen.
 
 ---
 
-## INFO-012: 회원의 라이센스 상세 조회 (관리자)
+## INFO-011: View My License Detail
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | INFO-012 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 특정 회원의 특정 라이센스 상세 정보를 조회한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. |
-| **트리거** | 관리자가 회원 라이센스 목록에서 특정 라이센스를 클릭한다. |
-| **관련 UC** | INFO-010(라이센스 목록) |
+| Field | Value |
+|-------|-------|
+| **Code** | INFO-011 |
+| **Version** | 26-02-20 |
+| **Description** | Logged-in member views the detail of a specific license they own. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Target license must belong to the user. |
+| **Trigger** | User clicks a specific license in the license list. |
+| **Related UC** | INFO-009 (license list) |
 
-**기본 흐름**
-1. 프론트엔드가 userId와 licenseId를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 라이센스 상세 정보를 반환한다.
+**Main Flow**
+1. Frontend sends a detail request including licenseId to the backend.
+2. Backend verifies the license belongs to the user.
+3. Backend returns the license detail (id, track info, licenseCode, issuedAt, user info).
 
-**사후 조건**
-- 해당 라이센스의 상세 정보(licenseCode 포함)가 화면에 출력됨.
+**Exception / Alternative Flow**
+- Accessing another user's license: 403 response.
+
+**Postconditions**
+- License detail displayed on screen.
+
+> **Modification note**: Original code typo `IFNO-011` corrected to `INFO-011`.
+
+---
+
+## INFO-012: View Member License Detail (Admin)
+
+| Field | Value |
+|-------|-------|
+| **Code** | INFO-012 |
+| **Version** | 26-02-20 |
+| **Description** | Admin views the detail of a specific license of a specific member. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. |
+| **Trigger** | Admin clicks a specific license in the member's license list. |
+| **Related UC** | INFO-010 (license list) |
+
+**Main Flow**
+1. Frontend sends a request including userId and licenseId to the backend.
+2. Backend returns the license detail information.
+
+**Postconditions**
+- License detail (including licenseCode) displayed on screen.

@@ -1,74 +1,74 @@
 # ATStudio API Specification v5 (Confirmed)
 
-> **Status**: 5차 확정본 — 표준 문서 정합성 반영
-> **Base**: v4 + docs/standards 정합성 검증 결과
+> **Status**: 5th confirmed — standards alignment applied
+> **Base**: v4 + docs/standards alignment verification results
 > **Date**: 2026-02-20
 
 ---
 
-## v4 → v5 변경 이력
+## v4 → v5 Change History
 
-| # | 항목 | 결정 |
-|---|------|------|
-| V1 | 에러 응답 `error` 필드 | **표준 준수** — `error` = HTTP reason phrase (예: "Forbidden"). 도메인 코드는 `errorCode` 신규 필드로 분리. |
-| V2 | pageInfo 구조 | **표준 준수** — `totalElements/totalPages` 제거 → `total, start, end, prev, next` (블록 페이지네이션). |
-| V3 | 목록 필드명 | **표준 준수** — `content` → `dataList` |
-| V4 | 성공 응답 body | **표준 준수** — `status` 필드 제거. HTTP 상태코드로만 전달. |
-
----
-
-## v3 → v4 변경 이력
-
-| # | 항목 | 결정 |
-|---|------|------|
-| 1 | 소셜 로그인 2단계 가입 | **추가 확정** — 최초 가입 시 `isProfileComplete: false` 반환. 5.10 프로필 완성 API 추가. |
-| 2 | 플레이리스트 전체 API | **구독자 전용 확정** — 3.1~3.8 권한 `인증 필요 (구독자만)` |
-| 3 | 스트리밍 API 재생 기록 제거 | **분리 확정** — 1.4 stream에서 play_histories 기록 제거. 4.1 POST /api/play-histories 단일 경로. |
-| 4 | 문의 수정 API 제거 | **제거 확정** — 8.6 문의 수정 API 삭제. 프론트에서 수정 불가 안내. |
-| 5 | 화이트리스트 응답에서 isActive 제거 | **제거 확정** — is_active 컬럼 삭제에 따른 응답 수정. |
-| 6 | 본인 구독 취소 API 추가 | **추가 확정** — 6.10 DELETE /api/user-subscriptions/me |
-| 7 | 문의 상태 변경 API UC 추가 | **추가 확정** — QUESTION-008 (관리자 전용, 기존 8.7 API에 대응) |
-| 8 | subscription_payments | `user_subscription_id` FK 반영 (DB 변경 연동) |
+| # | Item | Decision |
+|---|------|----------|
+| V1 | Error response `error` field | **Standards compliance** — `error` = HTTP reason phrase (e.g., "Forbidden"). Domain code separated into new `errorCode` field. |
+| V2 | pageInfo structure | **Standards compliance** — `totalElements/totalPages` removed → `total, start, end, prev, next` (block pagination). |
+| V3 | List field name | **Standards compliance** — `content` → `dataList` |
+| V4 | Success response body | **Standards compliance** — `status` field removed. Delivered via HTTP status code only. |
 
 ---
 
-## v2 → v3 변경 이력
+## v3 → v4 Change History
 
-| # | 항목 | 결정 |
-|---|------|------|
-| 1 | 음원 스트리밍 | **preview_file 우선 제공** — `preview_file` 존재 시 저품질 스트리밍, NULL이면 `audio_file` fallback |
-| 2 | 닉네임 중복 확인 API | **추가 확정** — `GET /api/utils/check-nickname` |
-
----
-
-## v1 → v2 변경 이력
-
-| # | 항목 | 결정 |
-|---|------|------|
-| 1 | playlog 해석 | **재생 기록(play_histories) 확정** |
-| 2 | 음원 삭제 | **논리적 삭제(is_active=0)** |
-| 3 | 공지사항 DB | **`notices` 테이블 추가 확정** |
-| 4 | 문의 첨부파일 | **`question_attachments` 별도 테이블 추가** |
-| 5 | 재생 기록 삭제 | **전체/선택 삭제 둘 다 지원** |
-| 6 | 라이센스 발급 | **다운로드 시 자동 발급** (수동 발급 API 제거, 중복 방지) |
-| 7 | 일괄 다운로드 | **ZIP 아님** — 프론트에서 개별 API 순차 호출 + beforeunload 이탈 방지 |
-| 8 | 태그 목록 조회 | **추가 확정** |
+| # | Item | Decision |
+|---|------|----------|
+| 1 | Social login two-step registration | **Added (confirmed)** — On first signup, returns `isProfileComplete: false`. Added 5.10 Profile Completion API. |
+| 2 | Playlist full API | **Subscriber-only (confirmed)** — 3.1~3.8 auth: `auth required (subscribers only)` |
+| 3 | Streaming API play history removal | **Separated (confirmed)** — Removed play_histories recording from 1.4 stream. Single path: 4.1 POST /api/play-histories. |
+| 4 | Inquiry edit API removal | **Removed (confirmed)** — 8.6 inquiry edit API deleted. Frontend shows edit-not-allowed notice. |
+| 5 | Remove isActive from whitelist response | **Removed (confirmed)** — Response updated due to is_active column removal. |
+| 6 | Add self subscription cancel API | **Added (confirmed)** — 6.10 DELETE /api/user-subscriptions/me |
+| 7 | Add inquiry status change API UC | **Added (confirmed)** — QUESTION-008 (admin only, corresponds to existing 8.7 API) |
+| 8 | subscription_payments | `user_subscription_id` FK applied (DB change sync) |
 
 ---
 
-## 공통 규칙
+## v2 → v3 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| 1 | Track streaming | **preview_file served first** — If `preview_file` exists, serve low-quality stream; if NULL, `audio_file` fallback |
+| 2 | Nickname duplicate check API | **Added (confirmed)** — `GET /api/utils/check-nickname` |
+
+---
+
+## v1 → v2 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| 1 | playlog interpretation | **Play history (play_histories) confirmed** |
+| 2 | Track deletion | **Soft delete (is_active=0)** |
+| 3 | Notice DB | **`notices` table added (confirmed)** |
+| 4 | Inquiry attachments | **`question_attachments` separate table added** |
+| 5 | Play history deletion | **Both full and selective delete supported** |
+| 6 | License issuance | **Auto-issued on download** (manual issuance API removed, duplicate prevention) |
+| 7 | Batch download | **Not ZIP** — Frontend calls individual API sequentially + beforeunload exit prevention |
+| 8 | Tag list retrieval | **Added (confirmed)** |
+
+---
+
+## Common Rules
 
 ### Base URL
 ```
 /api
 ```
 
-### 인증
+### Authentication
 - JWT Bearer Token (`Authorization: Bearer {token}`)
-- `[PUBLIC]` = 인증 불필요
-- `[ADMIN]` = 관리자 전용
+- `[PUBLIC]` = no auth required
+- `[ADMIN]` = admin only
 
-### 공통 응답 형식
+### Common Response Format
 ```json
 {
   "message": "Success",
@@ -76,9 +76,9 @@
 }
 ```
 
-> `status` 필드는 HTTP 상태코드로만 전달. 응답 body에 포함하지 않음.
+> `status` field is delivered via HTTP status code only. Not included in the response body.
 
-### 공통 에러 응답
+### Common Error Response
 ```json
 {
   "status": 400,
@@ -88,11 +88,11 @@
 }
 ```
 
-> - `error`: HTTP reason phrase (예: "Bad Request", "Forbidden", "Not Found")
-> - `errorCode`: 도메인 에러 코드 (도메인 특화 에러인 경우에만 포함, 없으면 생략)
-> - `message`: 사용자에게 표시할 안전한 메시지
+> - `error`: HTTP reason phrase (e.g., "Bad Request", "Forbidden", "Not Found")
+> - `errorCode`: Domain error code (included only for domain-specific errors; omitted otherwise)
+> - `message`: Safe message to display to the user
 
-### 페이지네이션 (목록 조회 공통)
+### Pagination (Common for List Queries)
 ```json
 {
   "dataList": [ ... ],
@@ -108,20 +108,20 @@
 }
 ```
 
-> - `total`: 전체 데이터 수
-> - `start` / `end`: 현재 블록의 시작/끝 페이지 번호
-> - `prev` / `next`: 이전/다음 블록 존재 여부
+> - `total`: Total data count
+> - `start` / `end`: Start/end page numbers of the current block
+> - `prev` / `next`: Whether previous/next block exists
 
 ---
 
-# 1. Sound — Track (음원)
+# 1. Sound — Track
 
-## 1.1 음원 생성
-| 항목 | 내용 |
-|------|------|
+## 1.1 Create Track
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/tracks` |
-| **권한** | `[ADMIN]` |
-| **설명** | 관리자가 새 음원 업로드 (검토 후 공개: is_active=0). 업로드 완료 후 비동기로 저품질 `preview_file` 생성 (실패 시 NULL 유지 → audio_file fallback) |
+| **Auth** | `[ADMIN]` |
+| **Description** | Admin uploads a new track (published after review: is_active=0). After upload, async low-quality `preview_file` generation (on failure, stays NULL → audio_file fallback) |
 
 **Request** (multipart/form-data)
 ```
@@ -153,21 +153,21 @@ tagIds: List<Long> (optional)
 }
 ```
 
-## 1.2 음원 목록 조회
-| 항목 | 내용 |
-|------|------|
+## 1.2 List Tracks
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/tracks` |
-| **권한** | `[PUBLIC]` |
-| **설명** | 음원 목록 조회 (검색, 필터, 페이지네이션). 활성(is_active=1) 음원만 반환 |
+| **Auth** | `[PUBLIC]` |
+| **Description** | List tracks (search, filter, pagination). Returns only active (is_active=1) tracks |
 
 **Query Parameters**
 ```
 page: Integer (default: 1)
 size: Integer (default: 20)
-keyword: String (optional, 제목 검색)
-genre: String (optional, 장르 태그 필터)
-mood: String (optional, 분위기 태그 필터)
-instrument: String (optional, 악기 태그 필터)
+keyword: String (optional, title search)
+genre: String (optional, genre tag filter)
+mood: String (optional, mood tag filter)
+instrument: String (optional, instrument tag filter)
 bpmMin: Integer (optional)
 bpmMax: Integer (optional)
 tonality: String (optional)
@@ -195,12 +195,12 @@ sort: String (optional, "latest"|"popular", default: "latest")
 }
 ```
 
-## 1.3 음원 한개 조회
-| 항목 | 내용 |
-|------|------|
+## 1.3 Get Track
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/tracks/{trackId}` |
-| **권한** | `[PUBLIC]` |
-| **설명** | 음원 상세 정보 조회 |
+| **Auth** | `[PUBLIC]` |
+| **Description** | Get track detail |
 
 **Response** `200 OK`
 ```json
@@ -223,36 +223,36 @@ sort: String (optional, "latest"|"popular", default: "latest")
 }
 ```
 
-## 1.4 음원 재생
-| 항목 | 내용 |
-|------|------|
+## 1.4 Stream Track
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/tracks/{trackId}/stream` |
-| **권한** | `[PUBLIC]` |
-| **설명** | 음원 미리듣기 스트리밍 (비회원도 가능). `preview_file` 존재 시 저품질 파일 제공, `preview_file`이 NULL이면 `audio_file` fallback. 재생 기록 저장은 프론트엔드가 별도로 4.1 API를 명시적으로 호출. |
+| **Auth** | `[PUBLIC]` |
+| **Description** | Track preview streaming (available to non-members). If `preview_file` exists, serves low-quality file; if `preview_file` is NULL, falls back to `audio_file`. Play history recording is done by the frontend explicitly calling 4.1 API separately. |
 
 **Response** `200 OK` — audio stream (Content-Type: audio/mpeg)
 
-## 1.5 음원 다운로드
-| 항목 | 내용 |
-|------|------|
+## 1.5 Download Track
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/tracks/{trackId}/download` |
-| **권한** | 인증 필요 (구독자만) |
-| **설명** | 음원 파일 다운로드. 일일 다운로드 제한 체크. 다운로드 기록 저장 + 라이센스 자동 발급 (기존 라이센스 있으면 중복 발급 안 함) |
+| **Auth** | auth required (subscribers only) |
+| **Description** | Download track file. Checks daily download limit. Saves download record + auto-issues license (does not re-issue if existing license exists) |
 
 **Response** `200 OK` — file download (Content-Disposition: attachment)
 
-**에러 케이스**
+**Error Cases**
 ```json
 { "status": 403, "error": "Forbidden", "errorCode": "DOWNLOAD_LIMIT_EXCEEDED", "message": "오늘의 다운로드 한도를 초과했습니다." }
 { "status": 403, "error": "Forbidden", "errorCode": "NO_ACTIVE_SUBSCRIPTION", "message": "구독이 필요한 서비스입니다." }
 ```
 
-## 1.6 음원 수정
-| 항목 | 내용 |
-|------|------|
+## 1.6 Update Track
+| Field | Value |
+|-------|-------|
 | **URL** | `PUT /api/tracks/{trackId}` |
-| **권한** | `[ADMIN]` |
-| **설명** | 음원 정보 수정 (활성화/비활성화 포함) |
+| **Auth** | `[ADMIN]` |
+| **Description** | Update track info (including activate/deactivate) |
 
 **Request** (multipart/form-data)
 ```
@@ -266,26 +266,26 @@ tagIds: List<Long> (optional)
 isActive: Boolean (optional)
 ```
 
-**Response** `200 OK` — 수정된 음원 상세 정보 (1.3과 동일 형식)
+**Response** `200 OK` — Updated track detail (same format as 1.3)
 
-## 1.7 음원 삭제 (논리적)
-| 항목 | 내용 |
-|------|------|
+## 1.7 Delete Track (Soft Delete)
+| Field | Value |
+|-------|-------|
 | **URL** | `DELETE /api/tracks/{trackId}` |
-| **권한** | `[ADMIN]` |
-| **설명** | 논리적 삭제 (is_active=0으로 비활성화) |
+| **Auth** | `[ADMIN]` |
+| **Description** | Soft delete (deactivate with is_active=0) |
 
 **Response** `204 No Content`
 
 ---
 
-# 2. Sound — Tag (태그)
+# 2. Sound — Tag
 
-## 2.1 태그 생성
-| 항목 | 내용 |
-|------|------|
+## 2.1 Create Tag
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/tags` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
 **Request**
 ```json
@@ -305,12 +305,12 @@ isActive: Boolean (optional)
 }
 ```
 
-## 2.2 태그 목록 조회
-| 항목 | 내용 |
-|------|------|
+## 2.2 List Tags
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/tags` |
-| **권한** | `[PUBLIC]` |
-| **설명** | 필터 UI 구성용 태그 전체 목록 |
+| **Auth** | `[PUBLIC]` |
+| **Description** | Full tag list for filter UI |
 
 **Query Parameters**
 ```
@@ -325,11 +325,11 @@ type: String (optional, "MOOD"|"GENRE"|"INSTRUMENT")
 ]
 ```
 
-## 2.3 태그 수정
-| 항목 | 내용 |
-|------|------|
+## 2.3 Update Tag
+| Field | Value |
+|-------|-------|
 | **URL** | `PUT /api/tags/{tagId}` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
 **Request**
 ```json
@@ -339,25 +339,25 @@ type: String (optional, "MOOD"|"GENRE"|"INSTRUMENT")
 }
 ```
 
-**Response** `200 OK` — 수정된 태그 정보
+**Response** `200 OK` — Updated tag info
 
-## 2.4 태그 삭제
-| 항목 | 내용 |
-|------|------|
+## 2.4 Delete Tag
+| Field | Value |
+|-------|-------|
 | **URL** | `DELETE /api/tags/{tagId}` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
 **Response** `204 No Content`
 
 ---
 
-# 3. Sound — Playlist (플레이리스트)
+# 3. Sound — Playlist
 
-## 3.1 플레이리스트 생성
-| 항목 | 내용 |
-|------|------|
+## 3.1 Create Playlist
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/playlists` |
-| **권한** | 인증 필요 (구독자만) |
+| **Auth** | auth required (subscribers only) |
 
 **Request** (multipart/form-data)
 ```
@@ -378,12 +378,12 @@ thumbnail: File (optional)
 }
 ```
 
-## 3.2 플레이리스트 목록 조회
-| 항목 | 내용 |
-|------|------|
+## 3.2 List Playlists
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/playlists` |
-| **권한** | 인증 필요 (구독자만) |
-| **설명** | 내 플레이리스트 목록 조회 |
+| **Auth** | auth required (subscribers only) |
+| **Description** | List my playlists |
 
 **Response** `200 OK`
 ```json
@@ -398,12 +398,12 @@ thumbnail: File (optional)
 ]
 ```
 
-## 3.3 플레이리스트 한개 조회
-| 항목 | 내용 |
-|------|------|
+## 3.3 Get Playlist
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/playlists/{playlistId}` |
-| **권한** | 인증 필요 (구독자만, 본인 플레이리스트만) |
-| **설명** | 플레이리스트 상세 (포함된 음원 목록 + 재생 순서) |
+| **Auth** | auth required (subscribers only, owner only) |
+| **Description** | Playlist detail (included tracks + play order) |
 
 **Response** `200 OK`
 ```json
@@ -421,11 +421,11 @@ thumbnail: File (optional)
 }
 ```
 
-## 3.4 플레이리스트에 음원 추가
-| 항목 | 내용 |
-|------|------|
+## 3.4 Add Track to Playlist
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/playlists/{playlistId}/tracks` |
-| **권한** | 인증 필요 (구독자만, 본인 플레이리스트만) |
+| **Auth** | auth required (subscribers only, owner only) |
 
 **Request**
 ```json
@@ -436,11 +436,11 @@ thumbnail: File (optional)
 
 **Response** `201 Created`
 
-## 3.5 플레이리스트 수정
-| 항목 | 내용 |
-|------|------|
+## 3.5 Update Playlist
+| Field | Value |
+|-------|-------|
 | **URL** | `PUT /api/playlists/{playlistId}` |
-| **권한** | 인증 필요 (구독자만, 본인 플레이리스트만) |
+| **Auth** | auth required (subscribers only, owner only) |
 
 **Request** (multipart/form-data)
 ```
@@ -451,11 +451,11 @@ thumbnail: File (optional)
 
 **Response** `200 OK`
 
-## 3.6 플레이리스트 음원 순서 변경
-| 항목 | 내용 |
-|------|------|
+## 3.6 Reorder Playlist Tracks
+| Field | Value |
+|-------|-------|
 | **URL** | `PUT /api/playlists/{playlistId}/tracks` |
-| **권한** | 인증 필요 (구독자만, 본인 플레이리스트만) |
+| **Auth** | auth required (subscribers only, owner only) |
 
 **Request**
 ```json
@@ -469,32 +469,32 @@ thumbnail: File (optional)
 
 **Response** `200 OK`
 
-## 3.7 플레이리스트에서 음원 제거
-| 항목 | 내용 |
-|------|------|
+## 3.7 Remove Track from Playlist
+| Field | Value |
+|-------|-------|
 | **URL** | `DELETE /api/playlists/{playlistId}/tracks/{trackId}` |
-| **권한** | 인증 필요 (구독자만, 본인 플레이리스트만) |
+| **Auth** | auth required (subscribers only, owner only) |
 
 **Response** `204 No Content`
 
-## 3.8 플레이리스트 삭제
-| 항목 | 내용 |
-|------|------|
+## 3.8 Delete Playlist
+| Field | Value |
+|-------|-------|
 | **URL** | `DELETE /api/playlists/{playlistId}` |
-| **권한** | 인증 필요 (구독자만, 본인 플레이리스트만) |
+| **Auth** | auth required (subscribers only, owner only) |
 
 **Response** `204 No Content`
 
 ---
 
-# 4. Sound — Play History (재생 기록)
+# 4. Sound — Play History
 
-## 4.1 재생 기록 저장
-| 항목 | 내용 |
-|------|------|
+## 4.1 Save Play History
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/play-histories` |
-| **권한** | 인증 필요 |
-| **설명** | Que bar에서 음원 재생 시 자동 기록 (tracks.play_count 연동) |
+| **Auth** | auth required |
+| **Description** | Auto-records when track is played in the Que bar (synced with tracks.play_count) |
 
 **Request**
 ```json
@@ -505,12 +505,12 @@ thumbnail: File (optional)
 
 **Response** `201 Created`
 
-## 4.2 재생 기록 조회
-| 항목 | 내용 |
-|------|------|
+## 4.2 List Play History
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/play-histories` |
-| **권한** | 인증 필요 |
-| **설명** | 내 재생 기록 목록 (최신순) |
+| **Auth** | auth required |
+| **Description** | My play history list (newest first) |
 
 **Query Parameters**
 ```
@@ -532,12 +532,12 @@ size: Integer (default: 50)
 }
 ```
 
-## 4.3 재생 기록 삭제
-| 항목 | 내용 |
-|------|------|
+## 4.3 Delete Play History
+| Field | Value |
+|-------|-------|
 | **URL** | `DELETE /api/play-histories` |
-| **권한** | 인증 필요 |
-| **설명** | 선택 삭제 (historyIds 지정) 또는 전체 삭제 (historyIds 비어있으면) |
+| **Auth** | auth required |
+| **Description** | Selective delete (specify historyIds) or full delete (if historyIds is empty) |
 
 **Request**
 ```json
@@ -545,19 +545,19 @@ size: Integer (default: 50)
   "historyIds": [100, 101, 102]
 }
 ```
-> `historyIds`가 빈 배열 `[]`이면 전체 삭제
+> If `historyIds` is an empty array `[]`, deletes all records
 
 **Response** `204 No Content`
 
 ---
 
-# 5. User — Info (회원)
+# 5. User — Info
 
-## 5.1 회원가입
-| 항목 | 내용 |
-|------|------|
+## 5.1 Register
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/users` |
-| **권한** | `[PUBLIC]` |
+| **Auth** | `[PUBLIC]` |
 
 **Request**
 ```json
@@ -585,11 +585,11 @@ size: Integer (default: 50)
 }
 ```
 
-## 5.2 로그인
-| 항목 | 내용 |
-|------|------|
+## 5.2 Login
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/auth/login` |
-| **권한** | `[PUBLIC]` |
+| **Auth** | `[PUBLIC]` |
 
 **Request**
 ```json
@@ -609,12 +609,12 @@ size: Integer (default: 50)
 }
 ```
 
-## 5.3 소셜 로그인
-| 항목 | 내용 |
-|------|------|
+## 5.3 Social Login
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/auth/social/{provider}` |
-| **권한** | `[PUBLIC]` |
-| **설명** | OAuth2.0 소셜 로그인 (GOOGLE/KAKAO/NAVER). 최초 가입 시 최소 정보로 users 레코드 생성 후 `isProfileComplete: false` 반환. 프론트엔드가 감지 후 5.10 프로필 완성 화면으로 이동. |
+| **Auth** | `[PUBLIC]` |
+| **Description** | OAuth2.0 social login (GOOGLE/KAKAO/NAVER). On first signup, creates a users record with minimal info and returns `isProfileComplete: false`. Frontend detects this and navigates to 5.10 Profile Completion screen. |
 
 **Request**
 ```json
@@ -633,14 +633,14 @@ size: Integer (default: 50)
   "isProfileComplete": true
 }
 ```
-> `isProfileComplete: false`이면 프론트엔드가 5.10 프로필 완성 화면으로 redirect.
+> If `isProfileComplete: false`, the frontend redirects to the 5.10 Profile Completion screen.
 
-## 5.10 소셜 회원 프로필 완성
-| 항목 | 내용 |
-|------|------|
+## 5.10 Complete Social Member Profile
+| Field | Value |
+|-------|-------|
 | **URL** | `PUT /api/users/me/complete-profile` |
-| **권한** | 인증 필요 (isProfileComplete=false인 회원만) |
-| **설명** | 소셜 로그인 최초 가입 후 추가 정보(닉네임, 전화번호, 직업, 회원 유형)를 입력하여 프로필을 완성한다. userType은 이 단계에서만 설정 가능. |
+| **Auth** | auth required (only members with isProfileComplete=false) |
+| **Description** | After initial social login signup, completes the profile by entering additional info (nickname, phone, job, user type). userType can only be set at this step. |
 
 **Request**
 ```json
@@ -653,18 +653,18 @@ size: Integer (default: 50)
 }
 ```
 
-**Response** `200 OK` — 5.4 내 정보 보기 응답과 동일 형식
+**Response** `200 OK` — Same format as 5.4 My Profile response
 
-**에러 케이스**
+**Error Cases**
 ```json
 { "status": 409, "error": "Conflict", "errorCode": "NICKNAME_DUPLICATED", "message": "이미 사용 중인 닉네임입니다." }
 ```
 
-## 5.4 내 정보 보기
-| 항목 | 내용 |
-|------|------|
+## 5.4 My Profile
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/users/me` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
 **Response** `200 OK`
 ```json
@@ -682,35 +682,35 @@ size: Integer (default: 50)
 }
 ```
 
-## 5.5 회원 목록 조회
-| 항목 | 내용 |
-|------|------|
+## 5.5 List Users
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/users` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
 **Query Parameters**
 ```
 page: Integer (default: 1)
 size: Integer (default: 20)
-keyword: String (optional, 닉네임/이메일 검색)
+keyword: String (optional, nickname/email search)
 userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 ```
 
-**Response** `200 OK` — 페이지네이션 + 사용자 목록
+**Response** `200 OK` — Pagination + user list
 
-## 5.6 특정 회원 정보 보기
-| 항목 | 내용 |
-|------|------|
+## 5.6 Get User
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/users/{userId}` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
-**Response** `200 OK` — 사용자 상세 정보
+**Response** `200 OK` — User detail
 
-## 5.7 내 정보 수정
-| 항목 | 내용 |
-|------|------|
+## 5.7 Update My Profile
+| Field | Value |
+|-------|-------|
 | **URL** | `PUT /api/users/me` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
 **Request**
 ```json
@@ -722,13 +722,13 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 }
 ```
 
-**Response** `200 OK` — 수정된 내 정보
+**Response** `200 OK` — Updated profile
 
-## 5.8 회원 정보 수정 (관리자)
-| 항목 | 내용 |
-|------|------|
+## 5.8 Update User (Admin)
+| Field | Value |
+|-------|-------|
 | **URL** | `PUT /api/users/{userId}` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
 **Request**
 ```json
@@ -740,12 +740,12 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 
 **Response** `200 OK`
 
-## 5.9 회원탈퇴 (본인)
-| 항목 | 내용 |
-|------|------|
+## 5.9 Withdraw (Self)
+| Field | Value |
+|-------|-------|
 | **URL** | `DELETE /api/users/me` |
-| **권한** | 인증 필요 |
-| **설명** | 논리적 삭제 (is_deleted = 1) |
+| **Auth** | auth required |
+| **Description** | Soft delete (is_deleted = 1) |
 
 **Request**
 ```json
@@ -758,13 +758,13 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 
 ---
 
-# 6. User — Subscription (구독제)
+# 6. User — Subscription
 
-## 6.1 구독제 목록 조회
-| 항목 | 내용 |
-|------|------|
+## 6.1 List Subscription Plans
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/subscriptions` |
-| **권한** | `[PUBLIC]` |
+| **Auth** | `[PUBLIC]` |
 
 **Query Parameters**
 ```
@@ -786,20 +786,20 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 ]
 ```
 
-## 6.2 구독제 상세 조회
-| 항목 | 내용 |
-|------|------|
+## 6.2 Get Subscription Plan
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/subscriptions/{subscriptionId}` |
-| **권한** | `[PUBLIC]` |
+| **Auth** | `[PUBLIC]` |
 
-**Response** `200 OK` — 구독 플랜 상세
+**Response** `200 OK` — Subscription plan detail
 
-## 6.3 구독 신청
-| 항목 | 내용 |
-|------|------|
+## 6.3 Subscribe
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/user-subscriptions` |
-| **권한** | 인증 필요 |
-| **설명** | 구독제 구독 신청 (결제 포함). 기업회원(100명 초과)은 라이센스 승인 필요 |
+| **Auth** | auth required |
+| **Description** | Subscribe to a plan (includes payment). Business members (over 100 employees) require license approval |
 
 **Request**
 ```json
@@ -821,41 +821,41 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 }
 ```
 
-**에러 케이스**
+**Error Cases**
 ```json
 { "status": 403, "error": "Forbidden", "errorCode": "BUSINESS_LICENSE_REQUIRED", "message": "기업회원 라이센스 심사 승인 후 이용 가능합니다." }
 ```
 
-## 6.4 내 구독 정보 보기
-| 항목 | 내용 |
-|------|------|
+## 6.4 My Subscription
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/user-subscriptions/me` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
-**Response** `200 OK` — 내 현재 구독 상태
+**Response** `200 OK` — My current subscription status
 
-## 6.5 회원 구독 정보 목록 조회 (관리자)
-| 항목 | 내용 |
-|------|------|
+## 6.5 List User Subscriptions (Admin)
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/user-subscriptions` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
-**Response** `200 OK` — 페이지네이션 + 전체 구독 목록
+**Response** `200 OK` — Pagination + full subscription list
 
-## 6.6 회원 구독 정보 상세 조회 (관리자)
-| 항목 | 내용 |
-|------|------|
+## 6.6 Get User Subscription Detail (Admin)
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/user-subscriptions/{userSubscriptionId}` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
 **Response** `200 OK`
 
-## 6.7 본인 구독 변경 (업/다운그레이드)
-| 항목 | 내용 |
-|------|------|
+## 6.7 Change My Subscription (Upgrade/Downgrade)
+| Field | Value |
+|-------|-------|
 | **URL** | `PUT /api/user-subscriptions/me` |
-| **권한** | 인증 필요 |
-| **설명** | 즉시 적용, 차등 금액 결제 |
+| **Auth** | auth required |
+| **Description** | Applied immediately, prorated amount charged |
 
 **Request**
 ```json
@@ -877,47 +877,47 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 }
 ```
 
-## 6.8 회원 구독 수정 (관리자)
-| 항목 | 내용 |
-|------|------|
+## 6.8 Update User Subscription (Admin)
+| Field | Value |
+|-------|-------|
 | **URL** | `PUT /api/user-subscriptions/{userSubscriptionId}` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
 **Response** `200 OK`
 
-## 6.9 회원 구독 삭제/취소 (관리자)
-| 항목 | 내용 |
-|------|------|
+## 6.9 Delete/Cancel User Subscription (Admin)
+| Field | Value |
+|-------|-------|
 | **URL** | `DELETE /api/user-subscriptions/{userSubscriptionId}` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
 **Response** `204 No Content`
 
-## 6.10 본인 구독 취소
-| 항목 | 내용 |
-|------|------|
+## 6.10 Cancel My Subscription
+| Field | Value |
+|-------|-------|
 | **URL** | `DELETE /api/user-subscriptions/me` |
-| **권한** | 인증 필요 |
-| **설명** | 회원이 본인의 활성 구독을 취소한다. 즉시 취소(status=CANCELLED). |
+| **Auth** | auth required |
+| **Description** | Member cancels their own active subscription. Immediate cancellation (status=CANCELLED). |
 
 **Response** `204 No Content`
 
-**에러**
+**Error**
 ```json
 { "status": 404, "error": "Not Found", "errorCode": "SUBSCRIPTION_NOT_FOUND", "message": "구독 정보를 찾을 수 없습니다." }
 ```
 
 ---
 
-# 7. User — License (라이센스)
+# 7. User — License
 
-> 라이센스는 다운로드 시 자동 발급. 같은 곡 재다운로드 시 기존 라이센스 유지 (중복 발급 방지).
+> Licenses are auto-issued on download. Re-downloading the same track retains the existing license (duplicate prevention).
 
-## 7.1 내 라이센스 목록 보기
-| 항목 | 내용 |
-|------|------|
+## 7.1 My Licenses
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/licenses/me` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
 **Response** `200 OK`
 ```json
@@ -934,19 +934,19 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 }
 ```
 
-## 7.2 회원의 라이센스 목록 보기 (관리자)
-| 항목 | 내용 |
-|------|------|
+## 7.2 User's Licenses (Admin)
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/users/{userId}/licenses` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
-**Response** `200 OK` — 7.1과 동일 형식
+**Response** `200 OK` — Same format as 7.1
 
-## 7.3 내 라이센스 상세 조회
-| 항목 | 내용 |
-|------|------|
+## 7.3 My License Detail
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/licenses/{licenseId}` |
-| **권한** | 인증 필요 (본인 라이센스만) |
+| **Auth** | auth required (owner only) |
 
 **Response** `200 OK`
 ```json
@@ -959,23 +959,23 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 }
 ```
 
-## 7.4 회원의 라이센스 상세 조회 (관리자)
-| 항목 | 내용 |
-|------|------|
+## 7.4 User's License Detail (Admin)
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/users/{userId}/licenses/{licenseId}` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
-**Response** `200 OK` — 7.3과 동일 형식
+**Response** `200 OK` — Same format as 7.3
 
 ---
 
-# 8. User — Question (문의/답변)
+# 8. User — Question (Inquiry/Answer)
 
-## 8.1 문의 생성
-| 항목 | 내용 |
-|------|------|
+## 8.1 Create Inquiry
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/questions` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
 **Request** (multipart/form-data)
 ```
@@ -1001,12 +1001,12 @@ attachments: List<File> (optional)
 }
 ```
 
-## 8.2 문의 답변 작성
-| 항목 | 내용 |
-|------|------|
+## 8.2 Write Answer
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/questions/{questionId}/answers` |
-| **권한** | 인증 필요 (문의자 본인 or ADMIN) |
-| **설명** | 관리자 첫 답변 시 문의 상태 자동 변경 (OPEN → IN_PROGRESS) |
+| **Auth** | auth required (inquiry owner or ADMIN) |
+| **Description** | On admin's first answer, inquiry status changes automatically (OPEN → IN_PROGRESS) |
 
 **Request**
 ```json
@@ -1025,12 +1025,12 @@ attachments: List<File> (optional)
 }
 ```
 
-## 8.3 문의 목록 조회
-| 항목 | 내용 |
-|------|------|
+## 8.3 List Inquiries
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/questions` |
-| **권한** | 인증 필요 |
-| **설명** | 일반 사용자: 공개 문의 + 내 비공개 문의. 관리자: 전체 |
+| **Auth** | auth required |
+| **Description** | Regular user: public inquiries + my private inquiries. Admin: all |
 
 **Query Parameters**
 ```
@@ -1038,16 +1038,16 @@ page: Integer (default: 1)
 size: Integer (default: 20)
 category: String (optional)
 status: String (optional, "OPEN"|"IN_PROGRESS"|"RESOLVED"|"CLOSED")
-mine: Boolean (optional, true이면 내 문의만)
+mine: Boolean (optional, if true returns my inquiries only)
 ```
 
-**Response** `200 OK` — 페이지네이션 + 문의 목록
+**Response** `200 OK` — Pagination + inquiry list
 
-## 8.4 문의 상세 조회
-| 항목 | 내용 |
-|------|------|
+## 8.4 Get Inquiry Detail
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/questions/{questionId}` |
-| **권한** | 인증 필요 (비공개 문의: 본인+ADMIN만) |
+| **Auth** | auth required (private inquiry: owner + ADMIN only) |
 
 **Response** `200 OK`
 ```json
@@ -1074,19 +1074,19 @@ mine: Boolean (optional, true이면 내 문의만)
 }
 ```
 
-## 8.5 첨부 파일 다운로드
-| 항목 | 내용 |
-|------|------|
+## 8.5 Download Attachment
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/questions/{questionId}/attachments/{attachmentId}` |
-| **권한** | 인증 필요 (문의 열람 권한 동일: 본인+ADMIN) |
+| **Auth** | auth required (same access as inquiry view: owner + ADMIN) |
 
 **Response** `200 OK` — file download
 
-## 8.6 문의 상태 변경
-| 항목 | 내용 |
-|------|------|
+## 8.6 Change Inquiry Status
+| Field | Value |
+|-------|-------|
 | **URL** | `PUT /api/questions/{questionId}/status` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
 **Request**
 ```json
@@ -1097,27 +1097,27 @@ mine: Boolean (optional, true이면 내 문의만)
 
 **Response** `200 OK`
 
-**상태 흐름:**
-- OPEN → IN_PROGRESS (관리자 첫 답변 시 자동) → RESOLVED → CLOSED
-- OPEN → CLOSED (관리자가 직접 닫음)
+**Status Flow:**
+- OPEN → IN_PROGRESS (auto on admin's first answer) → RESOLVED → CLOSED
+- OPEN → CLOSED (admin closes directly)
 
-## 8.7 문의 삭제
-| 항목 | 내용 |
-|------|------|
+## 8.7 Delete Inquiry
+| Field | Value |
+|-------|-------|
 | **URL** | `DELETE /api/questions/{questionId}` |
-| **권한** | 인증 필요 (본인만, OPEN 상태만) 또는 `[ADMIN]` |
+| **Auth** | auth required (owner only, OPEN status only) or `[ADMIN]` |
 
 **Response** `204 No Content`
 
 ---
 
-# 9. User — Notice (공지사항)
+# 9. User — Notice
 
-## 9.1 공지 생성
-| 항목 | 내용 |
-|------|------|
+## 9.1 Create Notice
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/notices` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
 **Request**
 ```json
@@ -1139,11 +1139,11 @@ mine: Boolean (optional, true이면 내 문의만)
 }
 ```
 
-## 9.2 공지 목록 조회
-| 항목 | 내용 |
-|------|------|
+## 9.2 List Notices
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/notices` |
-| **권한** | `[PUBLIC]` |
+| **Auth** | `[PUBLIC]` |
 
 **Query Parameters**
 ```
@@ -1151,13 +1151,13 @@ page: Integer (default: 1)
 size: Integer (default: 20)
 ```
 
-**Response** `200 OK` — 페이지네이션 + 공지 목록 (고정 공지 상단 정렬)
+**Response** `200 OK` — Pagination + notice list (pinned notices first)
 
-## 9.3 공지 상세 조회
-| 항목 | 내용 |
-|------|------|
+## 9.3 Get Notice
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/notices/{noticeId}` |
-| **권한** | `[PUBLIC]` |
+| **Auth** | `[PUBLIC]` |
 
 **Response** `200 OK`
 ```json
@@ -1171,11 +1171,11 @@ size: Integer (default: 20)
 }
 ```
 
-## 9.4 공지 수정
-| 항목 | 내용 |
-|------|------|
+## 9.4 Update Notice
+| Field | Value |
+|-------|-------|
 | **URL** | `PUT /api/notices/{noticeId}` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
 **Request**
 ```json
@@ -1188,31 +1188,31 @@ size: Integer (default: 20)
 
 **Response** `200 OK`
 
-## 9.5 공지 삭제
-| 항목 | 내용 |
-|------|------|
+## 9.5 Delete Notice
+| Field | Value |
+|-------|-------|
 | **URL** | `DELETE /api/notices/{noticeId}` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
 **Response** `204 No Content`
 
 ---
 
-# 10. 즐겨찾기 (Likes)
+# 10. Likes (Favorites)
 
-## 10.1 즐겨찾기 추가
-| 항목 | 내용 |
-|------|------|
+## 10.1 Add to Likes
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/likes/{trackId}` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
 **Response** `201 Created`
 
-## 10.2 즐겨찾기 목록 조회
-| 항목 | 내용 |
-|------|------|
+## 10.2 List Likes
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/likes` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
 **Response** `200 OK`
 ```json
@@ -1228,34 +1228,34 @@ size: Integer (default: 20)
 ]
 ```
 
-## 10.3 즐겨찾기 해제
-| 항목 | 내용 |
-|------|------|
+## 10.3 Remove from Likes
+| Field | Value |
+|-------|-------|
 | **URL** | `DELETE /api/likes/{trackId}` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
 **Response** `204 No Content`
 
 ---
 
-# 11. 다운로드 대기 목록 (Download Queue)
+# 11. Download Queue
 
-> 여러 곡을 모아 프론트에서 개별 다운로드 API를 순차 호출하는 방식.
-> 다운로드 중 페이지 이탈 시 `beforeunload` 이벤트로 경고 표시.
+> Collects multiple tracks and the frontend calls individual download APIs sequentially.
+> On page exit during download, a `beforeunload` event shows a warning.
 
-## 11.1 대기 목록에 추가
-| 항목 | 내용 |
-|------|------|
+## 11.1 Add to Queue
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/download-queue/{trackId}` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
 **Response** `201 Created`
 
-## 11.2 대기 목록 조회
-| 항목 | 내용 |
-|------|------|
+## 11.2 List Queue
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/download-queue` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
 **Response** `200 OK`
 ```json
@@ -1271,23 +1271,23 @@ size: Integer (default: 20)
 ]
 ```
 
-## 11.3 대기 목록에서 제거
-| 항목 | 내용 |
-|------|------|
+## 11.3 Remove from Queue
+| Field | Value |
+|-------|-------|
 | **URL** | `DELETE /api/download-queue/{trackId}` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
 **Response** `204 No Content`
 
 ---
 
-# 12. 화이트리스트 채널
+# 12. Whitelist Channels
 
-## 12.1 채널 등록
-| 항목 | 내용 |
-|------|------|
+## 12.1 Register Channel
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/whitelist-channels` |
-| **권한** | 인증 필요 (구독자만) |
+| **Auth** | auth required (subscribers only) |
 
 **Request**
 ```json
@@ -1299,16 +1299,16 @@ size: Integer (default: 20)
 
 **Response** `201 Created`
 
-**에러 케이스**
+**Error Cases**
 ```json
 { "status": 403, "error": "Forbidden", "errorCode": "WHITELIST_CHANNEL_LIMIT_EXCEEDED", "message": "채널 등록 한도를 초과했습니다." }
 ```
 
-## 12.2 내 채널 목록 조회
-| 항목 | 내용 |
-|------|------|
+## 12.2 My Channel List
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/whitelist-channels` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
 **Response** `200 OK`
 ```json
@@ -1322,11 +1322,11 @@ size: Integer (default: 20)
 ]
 ```
 
-## 12.3 채널 수정
-| 항목 | 내용 |
-|------|------|
+## 12.3 Update Channel
+| Field | Value |
+|-------|-------|
 | **URL** | `PUT /api/whitelist-channels/{channelId}` |
-| **권한** | 인증 필요 (본인 채널만) |
+| **Auth** | auth required (owner only) |
 
 **Request**
 ```json
@@ -1338,23 +1338,23 @@ size: Integer (default: 20)
 
 **Response** `200 OK`
 
-## 12.4 채널 삭제
-| 항목 | 내용 |
-|------|------|
+## 12.4 Delete Channel
+| Field | Value |
+|-------|-------|
 | **URL** | `DELETE /api/whitelist-channels/{channelId}` |
-| **권한** | 인증 필요 (본인 채널만) |
+| **Auth** | auth required (owner only) |
 
 **Response** `204 No Content`
 
 ---
 
-# 13. 기업 라이센스 심사
+# 13. Business License Review
 
-## 13.1 라이센스 신청
-| 항목 | 내용 |
-|------|------|
+## 13.1 Submit License Application
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/business-licenses` |
-| **권한** | 인증 필요 (기업회원만) |
+| **Auth** | auth required (business members only) |
 
 **Request** (multipart/form-data)
 ```
@@ -1371,11 +1371,11 @@ documents: List<File> (required)
 }
 ```
 
-## 13.2 내 라이센스 신청 현황 조회
-| 항목 | 내용 |
-|------|------|
+## 13.2 My License Application Status
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/business-licenses/me` |
-| **권한** | 인증 필요 (기업회원) |
+| **Auth** | auth required (business members) |
 
 **Response** `200 OK`
 ```json
@@ -1388,11 +1388,11 @@ documents: List<File> (required)
 }
 ```
 
-## 13.3 라이센스 신청 목록 조회 (관리자)
-| 항목 | 내용 |
-|------|------|
+## 13.3 List License Applications (Admin)
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/business-licenses` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
 **Query Parameters**
 ```
@@ -1401,22 +1401,22 @@ page: Integer (default: 1)
 size: Integer (default: 20)
 ```
 
-**Response** `200 OK` — 페이지네이션
+**Response** `200 OK` — Pagination
 
-## 13.4 라이센스 신청 상세 조회 (관리자)
-| 항목 | 내용 |
-|------|------|
+## 13.4 Get License Application Detail (Admin)
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/business-licenses/{requestId}` |
-| **권한** | `[ADMIN]` |
+| **Auth** | `[ADMIN]` |
 
 **Response** `200 OK`
 
-## 13.5 라이센스 심사 처리 (관리자)
-| 항목 | 내용 |
-|------|------|
+## 13.5 Process License Review (Admin)
+| Field | Value |
+|-------|-------|
 | **URL** | `PUT /api/business-licenses/{requestId}` |
-| **권한** | `[ADMIN]` |
-| **설명** | 승인/보완요청/반려 처리. 승인 시 license_code 자동 생성 |
+| **Auth** | `[ADMIN]` |
+| **Description** | Approve / request revision / reject. On approval, license_code is auto-generated |
 
 **Request**
 ```json
@@ -1438,13 +1438,13 @@ size: Integer (default: 20)
 
 ---
 
-# 14. Util (유틸리티)
+# 14. Util (Utility)
 
-## 14.1 토큰 재발급
-| 항목 | 내용 |
-|------|------|
+## 14.1 Refresh Token
+| Field | Value |
+|-------|-------|
 | **URL** | `POST /api/auth/refresh` |
-| **권한** | `[PUBLIC]` (Refresh Token 필요) |
+| **Auth** | `[PUBLIC]` (Refresh Token required) |
 
 **Request**
 ```json
@@ -1463,11 +1463,11 @@ size: Integer (default: 20)
 }
 ```
 
-## 14.2 이메일 중복 확인
-| 항목 | 내용 |
-|------|------|
+## 14.2 Email Duplicate Check
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/utils/check-email` |
-| **권한** | `[PUBLIC]` |
+| **Auth** | `[PUBLIC]` |
 
 **Query Parameters**
 ```
@@ -1479,11 +1479,11 @@ email: String (required)
 { "available": true }
 ```
 
-## 14.3 휴대폰 중복 확인
-| 항목 | 내용 |
-|------|------|
+## 14.3 Phone Duplicate Check
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/utils/check-phone` |
-| **권한** | `[PUBLIC]` |
+| **Auth** | `[PUBLIC]` |
 
 **Query Parameters**
 ```
@@ -1495,11 +1495,11 @@ phone: String (required)
 { "available": true }
 ```
 
-## 14.4 구독 등급 확인
-| 항목 | 내용 |
-|------|------|
+## 14.4 Subscription Status Check
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/utils/subscription-status` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
 **Response** `200 OK`
 ```json
@@ -1512,11 +1512,11 @@ phone: String (required)
 }
 ```
 
-## 14.5 다운로드 횟수 확인
-| 항목 | 내용 |
-|------|------|
+## 14.5 Download Count Check
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/utils/download-count` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
 **Response** `200 OK`
 ```json
@@ -1527,11 +1527,11 @@ phone: String (required)
 }
 ```
 
-## 14.6 회원 타입 확인
-| 항목 | 내용 |
-|------|------|
+## 14.6 User Type Check
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/utils/user-type` |
-| **권한** | 인증 필요 |
+| **Auth** | auth required |
 
 **Response** `200 OK`
 ```json
@@ -1541,11 +1541,11 @@ phone: String (required)
 }
 ```
 
-## 14.7 닉네임 중복 확인
-| 항목 | 내용 |
-|------|------|
+## 14.7 Nickname Duplicate Check
+| Field | Value |
+|-------|-------|
 | **URL** | `GET /api/utils/check-nickname` |
-| **권한** | `[PUBLIC]` |
+| **Auth** | `[PUBLIC]` |
 
 **Query Parameters**
 ```
@@ -1557,34 +1557,34 @@ nickname: String (required)
 { "available": true }
 ```
 
-### 제거된 항목
+### Removed Items
 
-| 원본 항목 | 사유 |
-|----------|------|
-| 토큰 발급 | 로그인 API (5.2)에서 처리 |
-| 라이센스 발급 (수동) | 다운로드 시 자동 발급으로 통합 |
-| 입력값 검증(백엔드) | API가 아닌 내부 Validation 로직 (Bean Validation) |
-| 입력값 검증(프론트엔드) | 프론트엔드 코드 영역, API 아님 |
-| 일괄 다운로드 (ZIP) | 프론트에서 개별 다운로드 API 순차 호출로 대체 |
+| Original Item | Reason |
+|---------------|--------|
+| Token issuance | Handled by Login API (5.2) |
+| License issuance (manual) | Consolidated into auto-issuance on download |
+| Input validation (backend) | Internal Validation logic (Bean Validation), not an API |
+| Input validation (frontend) | Frontend code area, not an API |
+| Batch download (ZIP) | Replaced with frontend calling individual download APIs sequentially |
 
 ---
 
-# 전체 API 목록 요약 (68개)
+# Full API Summary (68)
 
-| # | 섹션 | API 수 |
-|---|------|--------|
-| 1 | Track (음원) | 7 |
-| 2 | Tag (태그) | 4 |
-| 3 | Playlist (플레이리스트) | 8 |
-| 4 | Play History (재생 기록) | 3 |
-| 5 | User Info (회원) | 9 |
-| 6 | Subscription (구독제) | 9 |
-| 7 | License (라이센스) | 4 |
-| 8 | Question (문의/답변) | 8 |
-| 9 | Notice (공지사항) | 5 |
-| 10 | Likes (즐겨찾기) | 3 |
-| 11 | Download Queue (대기 목록) | 3 |
+| # | Section | API Count |
+|---|---------|-----------|
+| 1 | Track | 7 |
+| 2 | Tag | 4 |
+| 3 | Playlist | 8 |
+| 4 | Play History | 3 |
+| 5 | User Info | 9 |
+| 6 | Subscription | 9 |
+| 7 | License | 4 |
+| 8 | Question (Inquiry/Answer) | 8 |
+| 9 | Notice | 5 |
+| 10 | Likes (Favorites) | 3 |
+| 11 | Download Queue | 3 |
 | 12 | Whitelist Channels | 4 |
-| 13 | Business License (기업 심사) | 5 |
-| 14 | Util (유틸리티) | 7 |
-| | **합계** | **79** |
+| 13 | Business License Review | 5 |
+| 14 | Utility | 7 |
+| | **Total** | **79** |

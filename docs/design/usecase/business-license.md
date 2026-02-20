@@ -1,135 +1,135 @@
-# User — Business License 유스케이스
+# User — Business License Use Cases
 
-> **API 참조**: `docs/design/api-spec.md` 섹션 13 (기업 라이센스 심사)
-> **DB 참조**: `docs/design/db-schema.md` 섹션 3 (`business_license_requests`)
+> **API Reference**: `docs/design/api-spec.md` Section 13 (Business License Review)
+> **DB Reference**: `docs/design/db-schema.md` Section 3 (`business_license_requests`)
 >
-> **라이센스 종류 구분**:
-> - **기업 심사 라이센스** (이 파일): `business_license_requests` 테이블. 기업회원이 구독 전 서류 제출 → 관리자 심사.
-> - **음원 사용 라이센스**: `licenses` 테이블. → `user-license.md` 참조.
+> **License Type Distinction**:
+> - **Business Review License** (this file): `business_license_requests` table. BUSINESS type member submits documents → admin reviews.
+> - **Track Usage License**: `licenses` table. → See `user-license.md`.
 >
-> **심사 프로세스**: 기업 회원 → 서류 제출(PENDING) → 관리자 검토 → 보완 요청(REVISION_REQUESTED) 또는 승인(APPROVED) / 반려(REJECTED) → 승인 완료 시 license_code 발급 → 구독제 결제 가능
+> **Review Process**: BUSINESS member → submit documents (PENDING) → admin review → REVISION_REQUESTED or APPROVED / REJECTED → on approval, license_code issued → subscription payment enabled
 
 ---
 
-## BL-001: 기업 라이센스 신청 [신규]
+## BL-001: Apply for Business License [New]
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | BL-001 |
-| **버전** | 26-02-20 |
-| **설명** | 기업 회원이 구독제 가입을 위한 기업 라이센스 심사를 신청한다. |
-| **액터** | 사용자(기업회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. userType=BUSINESS인 회원. 기존 PENDING 신청 없음. APPROVED 신청 없음. (REJECTED 또는 REVISION_REQUESTED 후 재신청 가능.) |
-| **트리거** | 사용자가 구독 플랜 선택 후 '기업 라이센스 심사 신청' 버튼을 클릭한다. |
-| **관련 UC** | BL-002(내 현황 조회), PAYMENT-001(구독 신청) |
+| Field | Value |
+|-------|-------|
+| **Code** | BL-001 |
+| **Version** | 26-02-20 |
+| **Description** | A BUSINESS type member applies for a business license review in order to subscribe to a plan. |
+| **Actor** | User (BUSINESS member), Backend |
+| **Preconditions** | Logged in. Member with userType=BUSINESS. No existing PENDING application. No existing APPROVED application. (Reapplication allowed after REJECTED or REVISION_REQUESTED.) |
+| **Trigger** | User clicks the 'Apply for Business License Review' button after selecting a subscription plan. |
+| **Related UC** | BL-002 (view status), PAYMENT-001 (subscribe) |
 
-**기본 흐름**
-1. 사용자가 심사용 서류 파일(documents, 필수, 복수 가능)을 업로드한다.
-2. 프론트엔드가 multipart/form-data로 백엔드에 전송한다.
-3. 백엔드가 userType=BUSINESS 여부를 확인한다.
-4. 백엔드가 서류 파일을 `/uploads/business-docs/{userId}/` 경로에 저장한다.
-5. 백엔드가 business_license_requests 레코드를 생성(status=PENDING)한다.
-6. 백엔드가 성공 응답(201 Created, id/status/documentPath/createdAt 포함)을 반환한다.
+**Main Flow**
+1. User uploads review document files (documents, required, multiple files allowed).
+2. Frontend sends the files to the backend as multipart/form-data.
+3. Backend verifies that the member has userType=BUSINESS.
+4. Backend stores the document files at `/uploads/business-docs/{userId}/`.
+5. Backend creates a business_license_requests record (status=PENDING).
+6. Backend returns a success response (201 Created, including id/status/documentPath/createdAt).
 
-**예외/대안 흐름**
-- 기업회원(BUSINESS)이 아닌 경우: 403 응답.
-- 이미 PENDING 또는 APPROVED 신청 존재: 409 Conflict.
+**Exception / Alternative Flow**
+- Not a BUSINESS type member: 403 response.
+- Existing PENDING or APPROVED application: 409 Conflict.
 
-**사후 조건**
-- business_license_requests 레코드 생성됨(status=PENDING). 서류가 파일시스템에 저장됨.
-
----
-
-## BL-002: 내 라이센스 신청 현황 조회 [신규]
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | BL-002 |
-| **버전** | 26-02-20 |
-| **설명** | 기업 회원이 본인의 기업 라이센스 심사 현황을 조회한다. |
-| **액터** | 사용자(기업회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. userType=BUSINESS인 회원. |
-| **트리거** | 사용자가 '기업 라이센스 현황' 화면에 접근한다. |
-| **관련 UC** | BL-001(신청) |
-
-**기본 흐름**
-1. 프론트엔드가 인증 토큰을 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 JWT에서 userId를 추출하여 해당 사용자의 business_license_requests 레코드를 조회한다.
-3. 백엔드가 현황(id, status, adminNote, licenseCode, createdAt)을 반환한다.
-
-**사후 조건**
-- 심사 현황이 화면에 출력됨. 신청 없는 경우 null 반환.
-
-> **status 의미**: PENDING(심사 대기) / APPROVED(승인) / REVISION_REQUESTED(보완 요청) / REJECTED(반려)
-> - REVISION_REQUESTED 시 adminNote에 보완 사유가 포함됨.
-> - APPROVED 시 licenseCode가 포함됨 (구독 신청 가능 상태).
+**Postconditions**
+- business_license_requests record created (status=PENDING). Documents saved to the filesystem.
 
 ---
 
-## BL-003: 라이센스 신청 목록 조회 (관리자) [신규]
+## BL-002: View My License Application Status [New]
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | BL-003 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 기업 라이센스 심사 신청 목록을 조회한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. |
-| **트리거** | 관리자가 '기업 라이센스 심사 목록' 화면에 접근한다. |
-| **관련 UC** | BL-004(상세 조회), BL-005(심사 처리) |
+| Field | Value |
+|-------|-------|
+| **Code** | BL-002 |
+| **Version** | 26-02-20 |
+| **Description** | A BUSINESS type member views the status of their business license review application. |
+| **Actor** | User (BUSINESS member), Backend |
+| **Preconditions** | Logged in. Member with userType=BUSINESS. |
+| **Trigger** | User accesses the 'Business License Status' screen. |
+| **Related UC** | BL-001 (apply) |
 
-**기본 흐름**
-1. 프론트엔드가 status(선택), 페이지 파라미터를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 business_license_requests 목록을 페이지네이션하여 반환한다.
+**Main Flow**
+1. Frontend sends a request with the auth token to the backend.
+2. Backend extracts userId from the JWT and queries the corresponding business_license_requests record.
+3. Backend returns the status (id, status, adminNote, licenseCode, createdAt).
 
-**사후 조건**
-- 심사 신청 목록과 pageInfo가 화면에 출력됨.
+**Postconditions**
+- Review status displayed on screen. Returns null if no application exists.
 
----
-
-## BL-004: 라이센스 신청 상세 조회 (관리자) [신규]
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | BL-004 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 특정 기업 라이센스 신청의 상세 정보를 조회한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. 조회 대상 신청이 DB에 존재. |
-| **트리거** | 관리자가 심사 목록에서 특정 신청을 클릭한다. |
-| **관련 UC** | BL-003(목록 조회), BL-005(심사 처리) |
-
-**기본 흐름**
-1. 프론트엔드가 requestId를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 신청의 상세 정보(신청자 정보, status, documentPath, adminNote, licenseCode 등)를 반환한다.
-
-**사후 조건**
-- 신청 상세 정보 및 제출 서류 경로가 화면에 출력됨.
+> **status meanings**: PENDING (awaiting review) / APPROVED (approved) / REVISION_REQUESTED (revision requested) / REJECTED (rejected)
+> - On REVISION_REQUESTED: adminNote contains the reason for revision.
+> - On APPROVED: licenseCode is included (subscription payment now available).
 
 ---
 
-## BL-005: 라이센스 심사 처리 (관리자) [신규]
+## BL-003: List License Applications (Admin) [New]
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | BL-005 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 기업 라이센스 신청에 대해 승인/보완 요청/반려 처리를 한다. 승인 시 license_code가 자동 생성됨. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. 처리 대상 신청이 DB에 존재. |
-| **트리거** | 관리자가 신청 상세 화면에서 심사 결과 버튼을 클릭한다. |
-| **관련 UC** | BL-004(상세 조회) |
+| Field | Value |
+|-------|-------|
+| **Code** | BL-003 |
+| **Version** | 26-02-20 |
+| **Description** | Admin retrieves the list of business license review applications. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. |
+| **Trigger** | Admin accesses the 'Business License Review List' screen. |
+| **Related UC** | BL-004 (detail), BL-005 (process review) |
 
-**기본 흐름**
-1. 관리자가 처리 결과(status: APPROVED/REVISION_REQUESTED/REJECTED)와 adminNote를 입력한다.
-2. 프론트엔드가 requestId, status, adminNote를 백엔드에 전송한다.
-3. 백엔드가 권한 확인 후 business_license_requests 레코드를 업데이트한다.
-   - APPROVED인 경우: license_code(UUID 기반) 자동 생성, approved_at 기록.
-   - REVISION_REQUESTED/REJECTED인 경우: adminNote에 사유 저장.
-4. 백엔드가 처리 결과(id, status, licenseCode, approvedAt 포함)를 반환하고 200 OK를 반환한다.
+**Main Flow**
+1. Frontend sends a request with optional status filter and page parameters to the backend.
+2. Backend returns a paginated list of business_license_requests records.
 
-**사후 조건**
-- business_license_requests 레코드 status 갱신됨.
-- APPROVED인 경우: license_code 발급됨, approved_at 기록됨. 해당 기업회원은 이후 구독 신청(PAYMENT-001) 가능.
+**Postconditions**
+- Review application list and pageInfo displayed on screen.
 
-> **연계**: 승인된 기업 회원이 PAYMENT-001(구독 신청) 진행 시, 백엔드가 business_license_requests.status=APPROVED 여부를 확인함.
+---
+
+## BL-004: View License Application Detail (Admin) [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | BL-004 |
+| **Version** | 26-02-20 |
+| **Description** | Admin retrieves the detail of a specific business license application. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. Target application exists in DB. |
+| **Trigger** | Admin clicks a specific application in the review list. |
+| **Related UC** | BL-003 (list), BL-005 (process review) |
+
+**Main Flow**
+1. Frontend sends a request with requestId to the backend.
+2. Backend returns the application detail (applicant info, status, documentPath, adminNote, licenseCode, etc.).
+
+**Postconditions**
+- Application detail and submitted document path displayed on screen.
+
+---
+
+## BL-005: Process License Review (Admin) [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | BL-005 |
+| **Version** | 26-02-20 |
+| **Description** | Admin approves, requests revision, or rejects a business license application. On approval, license_code is auto-generated. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. Target application exists in DB. |
+| **Trigger** | Admin clicks the review result button on the application detail screen. |
+| **Related UC** | BL-004 (detail) |
+
+**Main Flow**
+1. Admin enters the review result (status: APPROVED/REVISION_REQUESTED/REJECTED) and adminNote.
+2. Frontend sends requestId, status, and adminNote to the backend.
+3. Backend verifies authorization and updates the business_license_requests record.
+   - If APPROVED: auto-generates license_code (UUID-based), records approved_at.
+   - If REVISION_REQUESTED/REJECTED: saves reason in adminNote.
+4. Backend returns the result (id, status, licenseCode, approvedAt) and a 200 OK response.
+
+**Postconditions**
+- business_license_requests record status updated.
+- If APPROVED: license_code issued, approved_at recorded. The BUSINESS member may now proceed with subscription (PAYMENT-001).
+
+> **Integration**: When an approved BUSINESS member initiates PAYMENT-001 (subscribe), the backend verifies that business_license_requests.status=APPROVED.

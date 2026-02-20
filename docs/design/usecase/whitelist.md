@@ -1,108 +1,108 @@
-# User — Whitelist Channels 유스케이스
+# User — Whitelist Channels Use Cases
 
-> **API 참조**: `docs/design/api-spec.md` 섹션 12 (Whitelist Channels)
-> **DB 참조**: `docs/design/db-schema.md` 섹션 9 (`whitelist_channels`)
+> **API Reference**: `docs/design/api-spec.md` Section 12 (Whitelist Channels)
+> **DB Reference**: `docs/design/db-schema.md` Section 9 (`whitelist_channels`)
 >
-> **화이트리스트 채널 개념**: 구독자가 음원을 사용할 유튜브 채널을 등록하는 기능. 등록 가능한 최대 채널 수는 구독 플랜(`subscriptions.max_whitelist_channels`)에 따라 제한됨.
+> **Whitelist Channel Concept**: A feature that allows subscribers to register the YouTube channels where they will use tracks. The maximum number of channels that can be registered is limited by the subscription plan (`subscriptions.max_whitelist_channels`).
 
 ---
 
-## WL-001: 채널 등록 [신규]
+## WL-001: Register Channel [New]
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | WL-001 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 구독 회원이 유튜브 채널을 화이트리스트에 등록한다. |
-| **액터** | 사용자(구독 회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 활성 구독(user_subscriptions.status=ACTIVE) 보유. 현재 등록 채널 수 < max_whitelist_channels. |
-| **트리거** | 사용자가 '채널 등록' 버튼을 클릭한다. |
-| **관련 UC** | WL-002(목록 조회), PAYMENT-006(내 구독 정보) |
+| Field | Value |
+|-------|-------|
+| **Code** | WL-001 |
+| **Version** | 26-02-20 |
+| **Description** | A logged-in subscriber registers a YouTube channel to the whitelist. |
+| **Actor** | User (subscriber), Backend |
+| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). Current registered channel count < max_whitelist_channels. |
+| **Trigger** | User clicks the 'Register Channel' button. |
+| **Related UC** | WL-002 (list), PAYMENT-006 (my subscription) |
 
-**기본 흐름**
-1. 사용자가 채널 URL(channelUrl, 필수)과 채널 이름(channelName, 필수)을 입력한다.
-2. 프론트엔드가 입력값을 백엔드에 전송한다.
-3. 백엔드가 활성 구독 보유 여부를 확인한다.
-4. 백엔드가 현재 등록된 활성 채널 수가 max_whitelist_channels 미만인지 확인한다.
-5. 백엔드가 whitelist_channels 레코드를 생성(is_active=1)하고 201 Created를 반환한다.
+**Main Flow**
+1. User enters the channel URL (channelUrl, required) and channel name (channelName, required).
+2. Frontend sends the input to the backend.
+3. Backend verifies that the user has an active subscription.
+4. Backend checks that the current number of registered active channels is less than max_whitelist_channels.
+5. Backend creates a whitelist_channels record (is_active=1) and returns 201 Created.
 
-**예외/대안 흐름**
-- 구독 없음: 403 응답.
-- 채널 수 초과: 403 `WHITELIST_CHANNEL_LIMIT_EXCEEDED`.
+**Exception / Alternative Flow**
+- No active subscription: 403 response.
+- Channel count exceeded: 403 `WHITELIST_CHANNEL_LIMIT_EXCEEDED`.
 
-**사후 조건**
-- whitelist_channels 테이블에 레코드가 생성됨(is_active=1).
-
----
-
-## WL-002: 내 채널 목록 조회 [신규]
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | WL-002 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원이 본인의 화이트리스트 채널 목록을 조회한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. |
-| **트리거** | 사용자가 '화이트리스트 채널 관리' 화면에 접근한다. |
-| **관련 UC** | WL-001(등록), WL-003(수정), WL-004(삭제) |
-
-**기본 흐름**
-1. 프론트엔드가 인증 토큰을 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 JWT에서 userId를 추출하여 해당 사용자의 whitelist_channels 목록을 조회한다.
-3. 백엔드가 채널 목록(id, channelUrl, channelName, isActive, createdAt)을 반환한다.
-
-**사후 조건**
-- 화이트리스트 채널 목록이 화면에 출력됨.
+**Postconditions**
+- A record is created in the whitelist_channels table (is_active=1).
 
 ---
 
-## WL-003: 채널 수정 [신규]
+## WL-002: List My Channels [New]
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | WL-003 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원이 본인의 화이트리스트 채널 정보를 수정한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 수정 대상 채널이 본인의 채널이어야 함. |
-| **트리거** | 사용자가 채널 목록에서 특정 채널의 '수정' 버튼을 클릭한다. |
-| **관련 UC** | WL-002(목록 조회) |
+| Field | Value |
+|-------|-------|
+| **Code** | WL-002 |
+| **Version** | 26-02-20 |
+| **Description** | A logged-in member retrieves their whitelist channel list. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. |
+| **Trigger** | User accesses the 'Whitelist Channel Management' screen. |
+| **Related UC** | WL-001 (register), WL-003 (update), WL-004 (delete) |
 
-**기본 흐름**
-1. 사용자가 채널 URL(channelUrl), 채널 이름(channelName)을 변경한다.
-2. 프론트엔드가 channelId와 변경 데이터를 백엔드에 전송한다.
-3. 백엔드가 본인 채널 여부를 확인한다.
-4. 백엔드가 whitelist_channels 레코드를 업데이트하고 200 OK를 반환한다.
+**Main Flow**
+1. Frontend sends a request with the auth token to the backend.
+2. Backend extracts userId from the JWT and queries the user's whitelist_channels list.
+3. Backend returns the channel list (id, channelUrl, channelName, isActive, createdAt).
 
-**예외/대안 흐름**
-- 타인의 채널 수정 시도: 403 응답.
-
-**사후 조건**
-- 변경된 채널 정보가 DB에 반영됨.
+**Postconditions**
+- Whitelist channel list displayed on screen.
 
 ---
 
-## WL-004: 채널 삭제 [신규]
+## WL-003: Update Channel [New]
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | WL-004 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원이 본인의 화이트리스트 채널을 삭제한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 삭제 대상 채널이 본인의 채널이어야 함. |
-| **트리거** | 사용자가 채널 목록에서 특정 채널의 '삭제' 버튼을 클릭한다. |
-| **관련 UC** | WL-002(목록 조회) |
+| Field | Value |
+|-------|-------|
+| **Code** | WL-003 |
+| **Version** | 26-02-20 |
+| **Description** | A logged-in member updates their whitelist channel information. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Target channel must belong to the logged-in user. |
+| **Trigger** | User clicks the 'Edit' button for a specific channel in the channel list. |
+| **Related UC** | WL-002 (list) |
 
-**기본 흐름**
-1. 사용자가 '삭제' 버튼을 클릭하고 확인한다.
-2. 프론트엔드가 channelId를 포함한 삭제 요청을 백엔드에 전송한다.
-3. 백엔드가 본인 채널 여부를 확인한다.
-4. 백엔드가 whitelist_channels 레코드를 삭제하고 204 No Content를 반환한다.
+**Main Flow**
+1. User changes the channel URL (channelUrl) and channel name (channelName).
+2. Frontend sends channelId and the updated data to the backend.
+3. Backend verifies that the channel belongs to the user.
+4. Backend updates the whitelist_channels record and returns 200 OK.
 
-**예외/대안 흐름**
-- 타인의 채널 삭제 시도: 403 응답.
+**Exception / Alternative Flow**
+- Attempt to update another user's channel: 403 response.
 
-**사후 조건**
-- 해당 채널 레코드가 whitelist_channels 테이블에서 삭제됨.
+**Postconditions**
+- Updated channel info reflected in DB.
+
+---
+
+## WL-004: Delete Channel [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | WL-004 |
+| **Version** | 26-02-20 |
+| **Description** | A logged-in member deletes their whitelist channel. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Target channel must belong to the logged-in user. |
+| **Trigger** | User clicks the 'Delete' button for a specific channel in the channel list. |
+| **Related UC** | WL-002 (list) |
+
+**Main Flow**
+1. User clicks the 'Delete' button and confirms.
+2. Frontend sends a delete request with channelId to the backend.
+3. Backend verifies that the channel belongs to the user.
+4. Backend deletes the whitelist_channels record and returns 204 No Content.
+
+**Exception / Alternative Flow**
+- Attempt to delete another user's channel: 403 response.
+
+**Postconditions**
+- The channel record is deleted from the whitelist_channels table.

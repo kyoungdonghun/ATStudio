@@ -1,105 +1,105 @@
-# Sound — Tag 유스케이스
+# Sound -- Tag Use Cases
 
-> **API 참조**: `docs/design/api-spec.md` 섹션 2 (Tag)
-> **DB 참조**: `docs/design/db-schema.md` 섹션 4.2, 4.3 (`tags`, `track_tags`)
-
----
-
-## SOUND-003: 태그 생성
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-003 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 신규 태그를 생성한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. |
-| **트리거** | 관리자가 '태그 생성' 버튼을 클릭한다. |
-| **관련 UC** | SOUND-001(음원 생성), SOUND-012(음원 수정) |
-
-**기본 흐름**
-1. 관리자가 태그 이름(name)과 유형(type: MOOD/GENRE/INSTRUMENT)을 입력한다.
-2. 프론트엔드가 데이터를 백엔드에 전송한다.
-3. 백엔드가 유효성 검사를 수행한다. (name UNIQUE 체크)
-4. 백엔드가 tags 테이블에 레코드를 생성하고 201 응답을 반환한다.
-
-**예외/대안 흐름**
-- 중복된 name: 409 응답.
-
-**사후 조건**
-- tags 테이블에 신규 태그가 저장됨.
+> **API Reference**: `docs/design/api-spec.md` Section 2 (Tag)
+> **DB Reference**: `docs/design/db-schema.md` Section 4.2, 4.3 (`tags`, `track_tags`)
 
 ---
 
-## 태그 목록 조회
+## SOUND-003: Create Tag
 
-> **서브 UC** (별도 코드 없음): SOUND-001(음원 생성), SOUND-005(음원 목록 조회) 내부에서 포함됨.
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-003 |
+| **Version** | 26-02-20 |
+| **Description** | Admin creates a new tag. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. |
+| **Trigger** | Admin clicks the 'Create Tag' button. |
+| **Related UC** | SOUND-001 (create track), SOUND-012 (update track) |
 
-| 항목 | 내용 |
-|------|------|
+**Main Flow**
+1. Admin enters the tag name (name) and type (type: MOOD/GENRE/INSTRUMENT).
+2. Frontend sends the data to the backend.
+3. Backend performs validation (name UNIQUE check).
+4. Backend creates a record in the tags table and returns a 201 response.
+
+**Exception / Alternative Flow**
+- Duplicate name: 409 response.
+
+**Postconditions**
+- New tag saved in the tags table.
+
+---
+
+## Tag List Query
+
+> **Sub UC** (no separate code): included within SOUND-001 (create track) and SOUND-005 (list tracks).
+
+| Field | Value |
+|-------|-------|
 | **API** | `GET /api/tags?type={MOOD\|GENRE\|INSTRUMENT}` |
-| **버전** | 26-02-20 |
-| **설명** | 필터 UI 또는 태그 선택 팝업 구성용으로 태그 전체 목록을 조회한다. type 파라미터로 필터링 가능. |
-| **액터** | 사용자(비회원 포함), 백엔드 시스템 |
-| **사전 조건** | - |
-| **트리거** | 태그 선택 UI 로드 시 자동 호출. |
-| **관련 UC** | SOUND-001(음원 생성 - 태그 선택 팝업), SOUND-005(음원 목록 - 필터 UI) |
+| **Version** | 26-02-20 |
+| **Description** | Retrieves the full tag list for filter UI or tag selection popup. Filterable by type parameter. |
+| **Actor** | User (including non-members), Backend |
+| **Preconditions** | - |
+| **Trigger** | Automatically called when tag selection UI loads. |
+| **Related UC** | SOUND-001 (create track - tag selection popup), SOUND-005 (list tracks - filter UI) |
 
-**기본 흐름**
-1. 프론트엔드가 type 파라미터(선택)를 포함하여 태그 목록을 요청한다.
-2. 백엔드가 조건에 맞는 태그 전체 목록을 반환한다. (페이지네이션 없음)
+**Main Flow**
+1. Frontend requests the tag list with an optional type parameter.
+2. Backend returns the full tag list matching the criteria. (No pagination)
 
-**사후 조건**
-- 태그 목록(id, name, type)이 반환됨.
-
----
-
-## SOUND-014: 태그 수정
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-014 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 기존 태그의 이름 또는 유형을 수정한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. 수정 대상 태그가 DB에 존재. |
-| **트리거** | 관리자가 태그 목록에서 '수정' 버튼을 클릭한다. |
-| **관련 UC** | - |
-
-**기본 흐름**
-1. 관리자가 수정할 name, type을 입력한다.
-2. 프론트엔드가 tagId와 변경 데이터를 백엔드에 전송한다.
-3. 백엔드가 유효성 검사 및 UNIQUE 체크를 수행한다.
-4. 백엔드가 태그를 업데이트하고 수정된 태그 정보를 반환한다.
-
-**예외/대안 흐름**
-- 중복된 name: 409 응답.
-
-**사후 조건**
-- 해당 태그의 name, type이 DB에 반영됨. 해당 태그를 참조하는 음원의 태그 표시도 즉시 변경됨.
+**Postconditions**
+- Tag list (id, name, type) returned.
 
 ---
 
-## SOUND-018: 태그 삭제
+## SOUND-014: Update Tag
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | SOUND-018 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 태그를 삭제한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. 삭제 대상 태그가 DB에 존재. |
-| **트리거** | 관리자가 태그 목록에서 '삭제' 버튼을 클릭한다. |
-| **관련 UC** | - |
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-014 |
+| **Version** | 26-02-20 |
+| **Description** | Admin updates the name or type of an existing tag. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. Target tag exists in DB. |
+| **Trigger** | Admin clicks the 'Edit' button in the tag list. |
+| **Related UC** | - |
 
-**기본 흐름**
-1. 관리자가 삭제할 태그의 '삭제' 버튼을 클릭한다.
-2. 프론트엔드가 tagId를 포함한 삭제 요청을 백엔드에 전송한다.
-3. 백엔드가 tags 레코드를 삭제한다. (연결된 track_tags도 CASCADE 삭제 또는 앱 레벨 처리)
-4. 백엔드가 204 No Content를 반환한다.
+**Main Flow**
+1. Admin enters the updated name and type.
+2. Frontend sends tagId and changed data to the backend.
+3. Backend performs validation and UNIQUE check.
+4. Backend updates the tag and returns the updated tag information.
 
-**예외/대안 흐름**
+**Exception / Alternative Flow**
+- Duplicate name: 409 response.
+
+**Postconditions**
+- Tag name and type reflected in DB. Tag display on tracks referencing this tag is updated immediately.
+
+---
+
+## SOUND-018: Delete Tag
+
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-018 |
+| **Version** | 26-02-20 |
+| **Description** | Admin deletes a tag. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. Target tag exists in DB. |
+| **Trigger** | Admin clicks the 'Delete' button in the tag list. |
+| **Related UC** | - |
+
+**Main Flow**
+1. Admin clicks the 'Delete' button on the target tag.
+2. Frontend sends a delete request including tagId to the backend.
+3. Backend deletes the tags record. (Associated track_tags are CASCADE-deleted or handled at application level)
+4. Backend returns 204 No Content.
+
+**Exception / Alternative Flow**
 - -
 
-**사후 조건**
-- 태그가 tags 테이블에서 삭제됨.
+**Postconditions**
+- Tag deleted from the tags table.

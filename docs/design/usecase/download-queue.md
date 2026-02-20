@@ -1,82 +1,82 @@
-# User — Download Queue 유스케이스
+# User — Download Queue Use Cases
 
-> **API 참조**: `docs/design/api-spec.md` 섹션 11 (Download Queue)
-> **DB 참조**: `docs/design/db-schema.md` 섹션 8 (`download_queue`)
+> **API Reference**: `docs/design/api-spec.md` Section 11 (Download Queue)
+> **DB Reference**: `docs/design/db-schema.md` Section 8 (`download_queue`)
 >
-> **다운로드 대기 목록 개념**: 여러 곡을 모아두었다가 프론트엔드에서 개별 다운로드 API(SOUND-011)를 순차 호출하는 방식. 구매 개념이 없으므로 "장바구니"가 아닌 "다운로드 대기 목록"으로 정의.
+> **Download Queue Concept**: Collects multiple tracks so the frontend can call the individual download API (SOUND-011) sequentially. Since there is no purchase concept, this is defined as a "download queue" rather than a "cart".
 
 ---
 
-## DLQ-001: 대기 목록 추가 [신규]
+## DLQ-001: Add to Queue [New]
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | DLQ-001 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원이 특정 음원을 다운로드 대기 목록에 추가한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 해당 음원이 DB에 존재(is_active=1). |
-| **트리거** | 사용자가 음원 목록 또는 상세 화면에서 '대기 목록 추가' 버튼을 클릭한다. |
-| **관련 UC** | DLQ-002(조회), SOUND-011(음원 다운로드) |
+| Field | Value |
+|-------|-------|
+| **Code** | DLQ-001 |
+| **Version** | 26-02-20 |
+| **Description** | A logged-in member adds a specific track to the download queue. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Target track exists in DB (is_active=1). |
+| **Trigger** | User clicks the 'Add to Queue' button on the track list or detail screen. |
+| **Related UC** | DLQ-002 (view queue), SOUND-011 (download track) |
 
-**기본 흐름**
-1. 프론트엔드가 trackId를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 음원의 존재 여부를 확인한다.
-3. 백엔드가 이미 추가된 여부를 확인한다. (download_queue 복합 PK 중복 체크)
-4. 백엔드가 download_queue 레코드를 생성하고 201 Created를 반환한다.
+**Main Flow**
+1. Frontend sends a request with trackId to the backend.
+2. Backend verifies the track exists.
+3. Backend checks whether it has already been added (composite PK duplicate check on download_queue).
+4. Backend creates a download_queue record and returns 201 Created.
 
-**예외/대안 흐름**
-- 이미 대기 목록에 있는 음원: 409 Conflict.
+**Exception / Alternative Flow**
+- Track already in the queue: 409 Conflict.
 
-**사후 조건**
-- download_queue 테이블에 (user_id, track_id) 레코드가 생성됨.
-
----
-
-## DLQ-002: 대기 목록 조회 [신규]
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | DLQ-002 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원이 본인의 다운로드 대기 목록을 조회한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. |
-| **트리거** | 사용자가 '다운로드 대기 목록' 화면에 접근한다. |
-| **관련 UC** | DLQ-001(추가), DLQ-003(제거), SOUND-011(음원 다운로드) |
-
-**기본 흐름**
-1. 프론트엔드가 인증 토큰을 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 JWT에서 userId를 추출하여 download_queue 목록을 조회한다.
-3. 백엔드가 대기 목록 음원 정보(trackId, title, bpm, tonality, thumbnail, createdAt)를 반환한다.
-
-**사후 조건**
-- 다운로드 대기 목록 음원 목록이 화면에 출력됨.
-- 사용자는 목록 전체 또는 개별 음원에 대해 SOUND-011을 순차 호출하여 다운로드할 수 있음.
-
-> **프론트엔드 참고**: 다운로드 중 페이지 이탈 시 `beforeunload` 이벤트로 경고 표시.
+**Postconditions**
+- A (user_id, track_id) record is created in the download_queue table.
 
 ---
 
-## DLQ-003: 대기 목록 제거 [신규]
+## DLQ-002: View Download Queue [New]
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | DLQ-003 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원이 다운로드 대기 목록에서 특정 음원을 제거한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 해당 음원이 대기 목록에 존재. |
-| **트리거** | 사용자가 대기 목록에서 특정 음원의 '제거' 버튼을 클릭한다. |
-| **관련 UC** | DLQ-001(추가) |
+| Field | Value |
+|-------|-------|
+| **Code** | DLQ-002 |
+| **Version** | 26-02-20 |
+| **Description** | A logged-in member views their download queue. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. |
+| **Trigger** | User accesses the 'Download Queue' screen. |
+| **Related UC** | DLQ-001 (add), DLQ-003 (remove), SOUND-011 (download track) |
 
-**기본 흐름**
-1. 프론트엔드가 trackId를 포함한 삭제 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 (user_id, track_id) 레코드를 확인한다.
-3. 백엔드가 download_queue 레코드를 삭제하고 204 No Content를 반환한다.
+**Main Flow**
+1. Frontend sends a request with the auth token to the backend.
+2. Backend extracts userId from the JWT and queries the download_queue list.
+3. Backend returns the queued track information (trackId, title, bpm, tonality, thumbnail, createdAt).
 
-**예외/대안 흐름**
-- 대기 목록에 없는 음원: 404 응답.
+**Postconditions**
+- Download queue track list displayed on screen.
+- User can call SOUND-011 sequentially on all or individual tracks to download them.
 
-**사후 조건**
-- 해당 (user_id, track_id) 레코드가 download_queue 테이블에서 삭제됨.
+> **Frontend Note**: On page exit during download, a `beforeunload` event displays a warning.
+
+---
+
+## DLQ-003: Remove from Queue [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | DLQ-003 |
+| **Version** | 26-02-20 |
+| **Description** | A logged-in member removes a specific track from the download queue. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Target track exists in the queue. |
+| **Trigger** | User clicks the 'Remove' button for a specific track in the download queue. |
+| **Related UC** | DLQ-001 (add) |
+
+**Main Flow**
+1. Frontend sends a delete request with trackId to the backend.
+2. Backend verifies the (user_id, track_id) record exists.
+3. Backend deletes the download_queue record and returns 204 No Content.
+
+**Exception / Alternative Flow**
+- Track not in the queue: 404 response.
+
+**Postconditions**
+- The (user_id, track_id) record is deleted from the download_queue table.

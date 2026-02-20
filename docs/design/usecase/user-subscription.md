@@ -1,241 +1,241 @@
-# User — Subscription 유스케이스
+# User -- Subscription Use Cases
 
-> **API 참조**: `docs/design/api-spec.md` 섹션 6 (Subscription)
-> **DB 참조**: `docs/design/db-schema.md` 섹션 2 (`subscriptions`, `user_subscriptions`, `subscription_payments`)
-
----
-
-## PAYMENT-001: 구독 신청
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | PAYMENT-001 |
-| **버전** | 26-02-20 |
-| **설명** | 회원이 구독 플랜을 선택하고 결제하여 구독을 시작한다. 기업회원(BUSINESS)은 라이센스 심사 승인 후에만 가능. |
-| **액터** | 사용자(회원), 백엔드 시스템, 결제 시스템(PG사) |
-| **사전 조건** | 로그인 상태. 구독 플랜 DB에 1개 이상 존재. 기업회원인 경우: BL-001~005 심사 승인(business_license_requests.status=APPROVED) 완료. |
-| **트리거** | 사용자가 '구독제 목록' 화면에서 특정 플랜의 '구독하기' 버튼을 클릭한다. |
-| **관련 UC** | PAYMENT-002(구독 목록), PAYMENT-006(내 구독 정보), BL-001(기업 라이센스 신청) |
-
-**기본 흐름**
-1. 사용자가 구독 플랜과 결제 주기(MONTHLY/YEARLY)를 선택한다.
-2. 프론트엔드가 결제 화면을 출력하고 PG사 결제를 진행한다.
-3. 결제 완료 후 프론트엔드가 subscriptionId, billingCycle을 포함한 구독 요청을 백엔드에 전송한다.
-4. 백엔드가 회원 유형 및 기업 라이센스 승인 여부를 확인한다.
-5. 백엔드가 user_subscriptions 레코드를 생성(status=ACTIVE, started_at, expires_at 설정)한다.
-6. 백엔드가 subscription_payments에 결제 기록을 저장한다.
-7. 백엔드가 성공 응답(201 Created)을 반환한다.
-
-**예외/대안 흐름**
-- 기업회원 라이센스 미승인: 403 `BUSINESS_LICENSE_REQUIRED`.
-
-**사후 조건**
-- user_subscriptions 레코드 생성됨(status=ACTIVE). subscription_payments에 결제 기록 저장됨.
-
-> **주의**: 구독 완료 시 음원 사용 라이센스(licenses 테이블)는 발급되지 않음. 라이센스는 다운로드 시 자동 발급.
+> **API Reference**: `docs/design/api-spec.md` Section 6 (Subscription)
+> **DB Reference**: `docs/design/db-schema.md` Section 2 (`subscriptions`, `user_subscriptions`, `subscription_payments`)
 
 ---
 
-## PAYMENT-002: 구독 플랜 목록 조회
+## PAYMENT-001: Subscribe
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | PAYMENT-002 |
-| **버전** | 26-02-20 |
-| **설명** | 사용자(비회원 포함)가 구독 플랜 목록을 조회한다. |
-| **액터** | 사용자(비회원 포함), 백엔드 시스템 |
-| **사전 조건** | - |
-| **트리거** | 사용자가 구독 플랜 목록 화면에 접근한다. |
-| **관련 UC** | PAYMENT-003(플랜 상세) |
+| Field | Value |
+|-------|-------|
+| **Code** | PAYMENT-001 |
+| **Version** | 26-02-20 |
+| **Description** | Member selects a subscription plan and pays to start a subscription. BUSINESS type members can only subscribe after business license review approval. |
+| **Actor** | User (Member), Backend, Payment Gateway (PG) |
+| **Preconditions** | Logged in. At least one subscription plan exists in DB. If BUSINESS type: BL-001~005 review approved (business_license_requests.status=APPROVED). |
+| **Trigger** | User clicks the 'Subscribe' button on a specific plan in the subscription plan list screen. |
+| **Related UC** | PAYMENT-002 (list plans), PAYMENT-006 (view my subscription), BL-001 (apply for business license) |
 
-**기본 흐름**
-1. 프론트엔드가 userType(선택) 파라미터를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 is_active=1인 구독 플랜 목록을 반환한다.
+**Main Flow**
+1. User selects a subscription plan and billing cycle (MONTHLY/YEARLY).
+2. Frontend displays the payment screen and initiates PG payment.
+3. After payment completion, frontend sends a subscription request including subscriptionId and billingCycle to the backend.
+4. Backend verifies member type and business license approval status.
+5. Backend creates a user_subscriptions record (status=ACTIVE, started_at, expires_at set).
+6. Backend saves the payment record in subscription_payments.
+7. Backend returns a success response (201 Created).
 
-**사후 조건**
-- 구독 플랜 목록(name, userType, priceMonthly, priceYearly, downloadPerDay, maxWhitelistChannels)이 화면에 출력됨.
+**Exception / Alternative Flow**
+- BUSINESS type member without license approval: 403 `BUSINESS_LICENSE_REQUIRED`.
 
----
+**Postconditions**
+- user_subscriptions record created (status=ACTIVE). Payment record saved in subscription_payments.
 
-## PAYMENT-003: 구독 플랜 상세 조회
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | PAYMENT-003 |
-| **버전** | 26-02-20 |
-| **설명** | 사용자(비회원 포함)가 특정 구독 플랜의 상세 정보를 조회한다. |
-| **액터** | 사용자(비회원 포함), 백엔드 시스템 |
-| **사전 조건** | 조회 대상 구독 플랜이 DB에 존재. |
-| **트리거** | 사용자가 특정 구독 플랜을 클릭한다. |
-| **관련 UC** | PAYMENT-001(구독 신청) |
-
-**기본 흐름**
-1. 프론트엔드가 subscriptionId를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 구독 플랜 상세 정보를 반환한다.
-
-**사후 조건**
-- 구독 플랜 상세 정보가 화면에 출력됨.
+> **Note**: Upon subscription completion, track usage licenses (licenses table) are NOT issued. Licenses are automatically issued at download time.
 
 ---
 
-## PAYMENT-004: 회원 구독 목록 조회 (관리자)
+## PAYMENT-002: List Subscription Plans
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | PAYMENT-004 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 전체 회원의 구독 현황 목록을 조회한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. |
-| **트리거** | 관리자가 구독 현황 관리 화면에 접근한다. |
-| **관련 UC** | PAYMENT-005(상세 조회), PAYMENT-008(수정), PAYMENT-009(삭제) |
+| Field | Value |
+|-------|-------|
+| **Code** | PAYMENT-002 |
+| **Version** | 26-02-20 |
+| **Description** | User (including non-members) views the subscription plan list. |
+| **Actor** | User (including non-members), Backend |
+| **Preconditions** | - |
+| **Trigger** | User navigates to the subscription plan list screen. |
+| **Related UC** | PAYMENT-003 (plan detail) |
 
-**기본 흐름**
-1. 프론트엔드가 페이지 파라미터를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 전체 user_subscriptions 목록을 페이지네이션하여 반환한다.
+**Main Flow**
+1. Frontend sends a request with optional userType parameter to the backend.
+2. Backend returns the list of subscription plans where is_active=1.
 
-**사후 조건**
-- 전체 구독 현황 목록과 pageInfo가 화면에 출력됨.
-
----
-
-## PAYMENT-005: 회원 구독 상세 조회 (관리자)
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | PAYMENT-005 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 특정 회원의 구독 상세 정보를 조회한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. |
-| **트리거** | 관리자가 구독 목록에서 특정 레코드를 클릭한다. |
-| **관련 UC** | PAYMENT-008(수정), PAYMENT-009(삭제) |
-
-**기본 흐름**
-1. 프론트엔드가 userSubscriptionId를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 구독 상세 정보를 반환한다.
-
-**사후 조건**
-- 구독 상세(플랜, 결제 주기, 상태, 기간)가 화면에 출력됨.
+**Postconditions**
+- Subscription plan list (name, userType, priceMonthly, priceYearly, downloadPerDay, maxWhitelistChannels) displayed on screen.
 
 ---
 
-## PAYMENT-006: 내 구독 정보 보기
+## PAYMENT-003: View Subscription Plan Detail
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | PAYMENT-006 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원이 본인의 현재 구독 상태를 조회한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. |
-| **트리거** | 사용자가 '내 구독 정보' 화면에 접근한다. |
-| **관련 UC** | PAYMENT-007(구독 변경) |
+| Field | Value |
+|-------|-------|
+| **Code** | PAYMENT-003 |
+| **Version** | 26-02-20 |
+| **Description** | User (including non-members) views detailed information of a specific subscription plan. |
+| **Actor** | User (including non-members), Backend |
+| **Preconditions** | Target subscription plan exists in DB. |
+| **Trigger** | User clicks a specific subscription plan. |
+| **Related UC** | PAYMENT-001 (subscribe) |
 
-**기본 흐름**
-1. 프론트엔드가 인증 토큰을 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 사용자의 user_subscriptions 레코드를 반환한다.
+**Main Flow**
+1. Frontend sends a request including subscriptionId to the backend.
+2. Backend returns the subscription plan detail information.
 
-**사후 조건**
-- 현재 구독 플랜, 결제 주기, 상태, 만료일 등이 화면에 출력됨. 구독이 없는 경우 null 반환.
-
----
-
-## PAYMENT-007: 본인 구독 변경 (업/다운그레이드)
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | PAYMENT-007 |
-| **버전** | 26-02-20 |
-| **설명** | 회원이 현재 구독 플랜을 다른 플랜으로 변경한다. 즉시 적용, 차등 금액 결제. |
-| **액터** | 사용자(회원), 백엔드 시스템, 결제 시스템(PG사) |
-| **사전 조건** | 로그인 상태. 활성 구독(user_subscriptions.status=ACTIVE) 보유. |
-| **트리거** | 사용자가 '구독 변경' 버튼을 클릭한다. |
-| **관련 UC** | PAYMENT-006(내 구독 정보) |
-
-**기본 흐름**
-1. 사용자가 변경할 구독 플랜과 결제 주기를 선택한다.
-2. 차등 금액이 계산되어 화면에 표시된다 (proratedAmount).
-3. 프론트엔드가 PG사 결제를 진행한다.
-4. 결제 완료 후 프론트엔드가 subscriptionId, billingCycle을 포함한 변경 요청을 백엔드에 전송한다.
-5. 백엔드가 user_subscriptions를 즉시 업데이트(새 플랜, 새 주기, 새 만료일)한다.
-6. 백엔드가 subscription_payments에 차등 결제 기록을 저장한다.
-7. 백엔드가 수정된 구독 정보(proratedAmount 포함)를 반환한다.
-
-**사후 조건**
-- user_subscriptions 업데이트됨. subscription_payments에 결제 기록 저장됨.
-- 변경된 플랜의 서비스(downloadPerDay, maxWhitelistChannels)가 즉시 적용됨.
-
-> **주의**: 구독 변경은 음원 사용 라이센스(licenses 테이블)에 영향 없음. 기발급 라이센스는 그대로 유지.
+**Postconditions**
+- Subscription plan detail displayed on screen.
 
 ---
 
-## PAYMENT-008: 회원 구독 수정 (관리자)
+## PAYMENT-004: List Member Subscriptions (Admin)
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | PAYMENT-008 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 특정 회원의 구독 정보를 수정한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. 수정 대상 구독 레코드 존재. |
-| **트리거** | 관리자가 구독 상세 화면에서 '수정' 버튼을 클릭한다. |
-| **관련 UC** | PAYMENT-005(상세 조회) |
+| Field | Value |
+|-------|-------|
+| **Code** | PAYMENT-004 |
+| **Version** | 26-02-20 |
+| **Description** | Admin views the subscription status list of all members. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. |
+| **Trigger** | Admin navigates to the subscription management screen. |
+| **Related UC** | PAYMENT-005 (view detail), PAYMENT-008 (update), PAYMENT-009 (delete) |
 
-**기본 흐름**
-1. 관리자가 수정할 구독 정보를 변경하고 제출한다.
-2. 프론트엔드가 userSubscriptionId와 변경 데이터를 백엔드에 전송한다.
-3. 백엔드가 권한 확인 후 user_subscriptions 레코드를 업데이트하고 200 응답을 반환한다.
+**Main Flow**
+1. Frontend sends a request including page parameters to the backend.
+2. Backend returns the full user_subscriptions list paginated.
 
-**사후 조건**
-- 해당 구독 정보가 DB에 반영됨.
-
----
-
-## PAYMENT-009: 회원 구독 삭제/취소 (관리자)
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | PAYMENT-009 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 특정 회원의 구독을 삭제(취소)한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. 삭제 대상 구독 레코드 존재. |
-| **트리거** | 관리자가 구독 상세 화면에서 '삭제' 버튼을 클릭한다. |
-| **관련 UC** | PAYMENT-005(상세 조회) |
-
-**기본 흐름**
-1. 관리자가 '삭제' 버튼을 클릭하고 확인한다.
-2. 프론트엔드가 userSubscriptionId를 포함한 삭제 요청을 백엔드에 전송한다.
-3. 백엔드가 권한 확인 후 user_subscriptions 레코드를 삭제(또는 status=CANCELLED 처리)하고 204 No Content를 반환한다.
-
-**사후 조건**
-- 해당 회원의 구독이 취소됨.
+**Postconditions**
+- Full subscription status list and pageInfo displayed on screen.
 
 ---
 
-## PAYMENT-010: 본인 구독 취소 [신규]
+## PAYMENT-005: View Member Subscription Detail (Admin)
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | PAYMENT-010 |
-| **버전** | 26-02-20 |
-| **설명** | 회원이 본인의 활성 구독을 직접 취소한다. 즉시 취소(status=CANCELLED). |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 활성 구독(user_subscriptions.status=ACTIVE) 보유. |
-| **트리거** | 사용자가 '내 구독 정보' 화면에서 '구독 취소' 버튼을 클릭한다. |
-| **관련 UC** | PAYMENT-006(내 구독 정보) |
+| Field | Value |
+|-------|-------|
+| **Code** | PAYMENT-005 |
+| **Version** | 26-02-20 |
+| **Description** | Admin views detailed subscription information of a specific member. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. |
+| **Trigger** | Admin clicks a specific record in the subscription list. |
+| **Related UC** | PAYMENT-008 (update), PAYMENT-009 (delete) |
 
-**기본 흐름**
-1. 사용자가 '구독 취소' 버튼을 클릭한다.
-2. 프론트엔드가 취소 안내(취소 후 서비스 이용 제한 고지)를 출력한다.
-3. 사용자가 '확인' 버튼을 클릭한다.
-4. 프론트엔드가 인증 토큰을 포함한 취소 요청을 백엔드에 전송한다. (`DELETE /api/user-subscriptions/me`)
-5. 백엔드가 활성 구독 존재 여부를 확인한다.
-6. 백엔드가 user_subscriptions.status를 CANCELLED로 업데이트하고 204 No Content를 반환한다.
+**Main Flow**
+1. Frontend sends a request including userSubscriptionId to the backend.
+2. Backend returns the subscription detail information.
 
-**예외/대안 흐름**
-- 활성 구독이 없는 경우: 404 `SUBSCRIPTION_NOT_FOUND`.
+**Postconditions**
+- Subscription detail (plan, billing cycle, status, period) displayed on screen.
 
-**사후 조건**
-- user_subscriptions.status=CANCELLED로 갱신됨. 구독 혜택(다운로드, 채널 등록, 플레이리스트) 이용 불가.
+---
+
+## PAYMENT-006: View My Subscription
+
+| Field | Value |
+|-------|-------|
+| **Code** | PAYMENT-006 |
+| **Version** | 26-02-20 |
+| **Description** | Logged-in member views their current subscription status. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. |
+| **Trigger** | User navigates to the 'My Subscription' screen. |
+| **Related UC** | PAYMENT-007 (change subscription) |
+
+**Main Flow**
+1. Frontend sends a request including auth token to the backend.
+2. Backend returns the user's user_subscriptions record.
+
+**Postconditions**
+- Current subscription plan, billing cycle, status, expiration date, etc. displayed on screen. Returns null if no subscription.
+
+---
+
+## PAYMENT-007: Change My Subscription (Upgrade/Downgrade)
+
+| Field | Value |
+|-------|-------|
+| **Code** | PAYMENT-007 |
+| **Version** | 26-02-20 |
+| **Description** | Member changes their current subscription plan to a different plan. Applied immediately with prorated amount payment. |
+| **Actor** | User (Member), Backend, Payment Gateway (PG) |
+| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
+| **Trigger** | User clicks the 'Change Subscription' button. |
+| **Related UC** | PAYMENT-006 (view my subscription) |
+
+**Main Flow**
+1. User selects the new subscription plan and billing cycle.
+2. The prorated amount is calculated and displayed on screen (proratedAmount).
+3. Frontend initiates PG payment.
+4. After payment completion, frontend sends a change request including subscriptionId and billingCycle to the backend.
+5. Backend immediately updates user_subscriptions (new plan, new cycle, new expiration date).
+6. Backend saves the prorated payment record in subscription_payments.
+7. Backend returns the updated subscription information (including proratedAmount).
+
+**Postconditions**
+- user_subscriptions updated. Payment record saved in subscription_payments.
+- Changed plan services (downloadPerDay, maxWhitelistChannels) applied immediately.
+
+> **Note**: Subscription changes do NOT affect track usage licenses (licenses table). Previously issued licenses are retained as-is.
+
+---
+
+## PAYMENT-008: Update Member Subscription (Admin)
+
+| Field | Value |
+|-------|-------|
+| **Code** | PAYMENT-008 |
+| **Version** | 26-02-20 |
+| **Description** | Admin updates a specific member's subscription information. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. Target subscription record exists. |
+| **Trigger** | Admin clicks the 'Edit' button on the subscription detail screen. |
+| **Related UC** | PAYMENT-005 (view detail) |
+
+**Main Flow**
+1. Admin modifies the subscription information and submits.
+2. Frontend sends userSubscriptionId and changed data to the backend.
+3. Backend verifies authorization, updates the user_subscriptions record, and returns a 200 response.
+
+**Postconditions**
+- Subscription information reflected in DB.
+
+---
+
+## PAYMENT-009: Delete/Cancel Member Subscription (Admin)
+
+| Field | Value |
+|-------|-------|
+| **Code** | PAYMENT-009 |
+| **Version** | 26-02-20 |
+| **Description** | Admin deletes (cancels) a specific member's subscription. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. Target subscription record exists. |
+| **Trigger** | Admin clicks the 'Delete' button on the subscription detail screen. |
+| **Related UC** | PAYMENT-005 (view detail) |
+
+**Main Flow**
+1. Admin clicks the 'Delete' button and confirms.
+2. Frontend sends a delete request including userSubscriptionId to the backend.
+3. Backend verifies authorization, deletes the user_subscriptions record (or sets status=CANCELLED), and returns 204 No Content.
+
+**Postconditions**
+- Member's subscription cancelled.
+
+---
+
+## PAYMENT-010: Cancel My Subscription [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | PAYMENT-010 |
+| **Version** | 26-02-20 |
+| **Description** | Member directly cancels their own active subscription. Immediate cancellation (status=CANCELLED). |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
+| **Trigger** | User clicks the 'Cancel Subscription' button on the 'My Subscription' screen. |
+| **Related UC** | PAYMENT-006 (view my subscription) |
+
+**Main Flow**
+1. User clicks the 'Cancel Subscription' button.
+2. Frontend displays the cancellation notice (service restriction advisory after cancellation).
+3. User clicks the 'Confirm' button.
+4. Frontend sends a cancellation request including auth token to the backend. (`DELETE /api/user-subscriptions/me`)
+5. Backend checks for an active subscription.
+6. Backend updates user_subscriptions.status to CANCELLED and returns 204 No Content.
+
+**Exception / Alternative Flow**
+- No active subscription: 404 `SUBSCRIPTION_NOT_FOUND`.
+
+**Postconditions**
+- user_subscriptions.status=CANCELLED updated. Subscription benefits (downloads, channel registration, playlists) no longer available.

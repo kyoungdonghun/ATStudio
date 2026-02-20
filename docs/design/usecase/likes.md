@@ -1,77 +1,77 @@
-# User — Likes 유스케이스
+# User — Likes Use Cases
 
-> **API 참조**: `docs/design/api-spec.md` 섹션 10 (Likes)
-> **DB 참조**: `docs/design/db-schema.md` 섹션 7 (`likes`)
-
----
-
-## LIKE-001: 즐겨찾기 추가 [신규]
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | LIKE-001 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원이 특정 음원을 즐겨찾기에 추가한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 해당 음원이 DB에 존재(is_active=1). |
-| **트리거** | 사용자가 음원 목록 또는 상세 화면에서 '즐겨찾기' 버튼을 클릭한다. |
-| **관련 UC** | LIKE-002(목록 조회), LIKE-003(해제) |
-
-**기본 흐름**
-1. 프론트엔드가 trackId를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 음원의 존재 여부를 확인한다.
-3. 백엔드가 이미 추가된 즐겨찾기 여부를 확인한다. (likes 복합 PK 중복 체크)
-4. 백엔드가 likes 레코드를 생성하고 201 Created를 반환한다.
-
-**예외/대안 흐름**
-- 이미 즐겨찾기에 추가된 음원: 409 Conflict.
-
-**사후 조건**
-- likes 테이블에 (user_id, track_id) 레코드가 생성됨.
+> **API Reference**: `docs/design/api-spec.md` Section 10 (Likes)
+> **DB Reference**: `docs/design/db-schema.md` Section 7 (`likes`)
 
 ---
 
-## LIKE-002: 즐겨찾기 목록 조회 [신규]
+## LIKE-001: Add to Likes [New]
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | LIKE-002 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원이 본인의 즐겨찾기 목록을 조회한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. |
-| **트리거** | 사용자가 '즐겨찾기' 화면에 접근한다. |
-| **관련 UC** | LIKE-001(추가), LIKE-003(해제) |
+| Field | Value |
+|-------|-------|
+| **Code** | LIKE-001 |
+| **Version** | 26-02-20 |
+| **Description** | A logged-in member adds a specific track to their likes. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Target track exists in DB (is_active=1). |
+| **Trigger** | User clicks the 'Like' button on the track list or detail screen. |
+| **Related UC** | LIKE-002 (list), LIKE-003 (remove) |
 
-**기본 흐름**
-1. 프론트엔드가 인증 토큰을 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 JWT에서 userId를 추출하여 해당 사용자의 likes 목록을 조회한다.
-3. 백엔드가 즐겨찾기 음원 목록(trackId, title, bpm, tonality, thumbnail, createdAt)을 반환한다.
+**Main Flow**
+1. Frontend sends a request with trackId to the backend.
+2. Backend verifies the track exists.
+3. Backend checks whether it has already been liked (composite PK duplicate check on likes).
+4. Backend creates a likes record and returns 201 Created.
 
-**사후 조건**
-- 즐겨찾기 음원 목록이 화면에 출력됨.
+**Exception / Alternative Flow**
+- Track already in likes: 409 Conflict.
+
+**Postconditions**
+- A (user_id, track_id) record is created in the likes table.
 
 ---
 
-## LIKE-003: 즐겨찾기 해제 [신규]
+## LIKE-002: List Likes [New]
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | LIKE-003 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원이 즐겨찾기에 추가한 음원을 해제한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 해당 음원이 likes 테이블에 존재. |
-| **트리거** | 사용자가 즐겨찾기 목록 또는 음원 상세에서 '즐겨찾기 해제' 버튼을 클릭한다. |
-| **관련 UC** | LIKE-001(추가) |
+| Field | Value |
+|-------|-------|
+| **Code** | LIKE-002 |
+| **Version** | 26-02-20 |
+| **Description** | A logged-in member views their likes list. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. |
+| **Trigger** | User accesses the 'Likes' screen. |
+| **Related UC** | LIKE-001 (add), LIKE-003 (remove) |
 
-**기본 흐름**
-1. 프론트엔드가 trackId를 포함한 삭제 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 (user_id, track_id) 레코드를 확인한다.
-3. 백엔드가 likes 레코드를 삭제하고 204 No Content를 반환한다.
+**Main Flow**
+1. Frontend sends a request with the auth token to the backend.
+2. Backend extracts userId from the JWT and queries the user's likes list.
+3. Backend returns the liked track list (trackId, title, bpm, tonality, thumbnail, createdAt).
 
-**예외/대안 흐름**
-- 즐겨찾기에 없는 음원: 404 응답.
+**Postconditions**
+- Liked track list displayed on screen.
 
-**사후 조건**
-- 해당 (user_id, track_id) 레코드가 likes 테이블에서 삭제됨.
+---
+
+## LIKE-003: Remove from Likes [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | LIKE-003 |
+| **Version** | 26-02-20 |
+| **Description** | A logged-in member removes a track from their likes. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Target track exists in the likes table. |
+| **Trigger** | User clicks the 'Remove from Likes' button on the likes list or track detail screen. |
+| **Related UC** | LIKE-001 (add) |
+
+**Main Flow**
+1. Frontend sends a delete request with trackId to the backend.
+2. Backend verifies the (user_id, track_id) record exists.
+3. Backend deletes the likes record and returns 204 No Content.
+
+**Exception / Alternative Flow**
+- Track not in likes: 404 response.
+
+**Postconditions**
+- The (user_id, track_id) record is deleted from the likes table.

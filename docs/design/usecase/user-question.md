@@ -1,190 +1,190 @@
-# User — Question 유스케이스
+# User -- Question Use Cases
 
-> **API 참조**: `docs/design/api-spec.md` 섹션 8 (Question)
-> **DB 참조**: `docs/design/db-schema.md` 섹션 10, 13 (`questions`, `answers`, `question_attachments`)
-
----
-
-## QUESTION-001: 문의 생성
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | QUESTION-001 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 회원이 문의 게시판에 글을 등록한다. |
-| **액터** | 사용자(회원), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. |
-| **트리거** | 사용자가 '문의 글 등록' 버튼을 클릭한다. |
-| **관련 UC** | QUESTION-004(문의 상세) |
-
-**기본 흐름**
-1. 사용자가 문의 내용을 입력한다.
-   - 제목(title, 필수), 내용(content, 필수), 문의 유형(category: DOWNLOAD/PAYMENT/COPYRIGHT/PRODUCTION/OTHER, 필수), 공개 여부(isPublic, 필수)
-2. 첨부파일(선택)을 업로드한다.
-3. 프론트엔드가 유효성 검사를 수행한다.
-4. 프론트엔드가 데이터를 multipart/form-data로 백엔드에 전송한다.
-5. 백엔드가 유효성 검사를 수행한다.
-6. 백엔드가 questions 레코드(status=OPEN)를 생성한다.
-7. 첨부파일이 있는 경우 파일 저장소에 저장 후 question_attachments 레코드를 생성한다.
-8. 백엔드가 성공 응답(201 Created)을 반환한다.
-
-**사후 조건**
-- questions 레코드(status=OPEN)가 생성됨. 첨부파일 있는 경우 question_attachments에 저장됨.
+> **API Reference**: `docs/design/api-spec.md` Section 8 (Question)
+> **DB Reference**: `docs/design/db-schema.md` Section 10, 13 (`questions`, `answers`, `question_attachments`)
 
 ---
 
-## QUESTION-002: 답변 작성
+## QUESTION-001: Create Inquiry
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | QUESTION-002 |
-| **버전** | 26-02-20 |
-| **설명** | 문의자(본인) 또는 관리자가 문의 글에 답변을 작성한다. 관리자 첫 답변 시 문의 상태가 OPEN→IN_PROGRESS로 자동 변경. |
-| **액터** | 사용자(문의 작성자 or 관리자), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 해당 문의 글이 존재. 회원은 본인 문의 글에만, 관리자는 모든 문의 글에 답변 가능. |
-| **트리거** | 사용자가 '문의 상세' 화면에서 '답변 달기' 버튼을 클릭한다. |
-| **관련 UC** | QUESTION-004(문의 상세) |
+| Field | Value |
+|-------|-------|
+| **Code** | QUESTION-001 |
+| **Version** | 26-02-20 |
+| **Description** | Logged-in member creates a post on the inquiry board. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. |
+| **Trigger** | User clicks the 'Create Inquiry' button. |
+| **Related UC** | QUESTION-004 (inquiry detail) |
 
-**기본 흐름**
-1. 사용자가 답변 내용을 입력하고 '등록' 버튼을 클릭한다.
-2. 프론트엔드가 questionId와 content를 백엔드에 전송한다.
-3. 백엔드가 접근 권한을 확인한다. (본인 문의 또는 ADMIN)
-4. 백엔드가 answers 테이블에 레코드를 생성한다.
-5. 관리자가 최초로 답변 작성한 경우: questions.status를 OPEN→IN_PROGRESS로 변경한다.
-6. questions.updated_at을 갱신한다.
-7. 백엔드가 성공 응답(201 Created)을 반환한다.
+**Main Flow**
+1. User enters inquiry content.
+   - Title (title, required), content (content, required), category (category: DOWNLOAD/PAYMENT/COPYRIGHT/PRODUCTION/OTHER, required), visibility (isPublic, required)
+2. Uploads attachments (optional).
+3. Frontend performs validation.
+4. Frontend sends data as multipart/form-data to the backend.
+5. Backend performs validation.
+6. Backend creates a questions record (status=OPEN).
+7. If attachments exist, saves files to storage and creates question_attachments records.
+8. Backend returns a success response (201 Created).
 
-**예외/대안 흐름**
-- 본인 문의가 아닌 일반 회원: 403 응답.
-
-**사후 조건**
-- answers 레코드가 생성됨. 관리자 첫 답변 시 문의 status=IN_PROGRESS로 변경됨.
-
----
-
-## QUESTION-003: 문의 목록 조회
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | QUESTION-003 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 사용자가 문의 목록을 조회한다. 일반 회원: 공개 문의 + 본인 비공개 문의. 관리자: 전체. |
-| **액터** | 사용자(회원 또는 관리자), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. |
-| **트리거** | 사용자가 문의 목록 화면에 접근한다. |
-| **관련 UC** | QUESTION-004(문의 상세) |
-
-**기본 흐름**
-1. 프론트엔드가 조건(category, status, mine 여부)과 페이지 파라미터를 백엔드에 전송한다.
-2. 백엔드가 사용자 역할에 따라 접근 가능한 문의 목록을 필터링하여 페이지네이션 반환한다.
-   - 일반 회원: is_public=1 OR (is_public=0 AND user_id=본인)
-   - 관리자: 전체
-
-**사후 조건**
-- 접근 권한에 맞는 문의 목록과 pageInfo가 화면에 출력됨.
+**Postconditions**
+- questions record (status=OPEN) created. If attachments exist, saved in question_attachments.
 
 ---
 
-## QUESTION-004: 문의 상세 조회
+## QUESTION-002: Write Answer
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | QUESTION-004 |
-| **버전** | 26-02-20 |
-| **설명** | 로그인한 사용자가 문의 상세 정보(답변 포함)를 조회한다. 비공개 문의는 작성자 본인 + 관리자만 열람 가능. |
-| **액터** | 사용자(회원 또는 관리자), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 해당 문의가 DB에 존재. |
-| **트리거** | 사용자가 문의 목록에서 특정 문의를 클릭한다. |
-| **관련 UC** | QUESTION-002(답변 작성), QUESTION-005(첨부파일 다운로드) |
+| Field | Value |
+|-------|-------|
+| **Code** | QUESTION-002 |
+| **Version** | 26-02-20 |
+| **Description** | Inquiry author or admin writes an answer to an inquiry. On the admin's first answer, the inquiry status automatically changes from OPEN to IN_PROGRESS. |
+| **Actor** | User (question author or Admin), Backend |
+| **Preconditions** | Logged in. Inquiry exists. Members can only answer their own inquiries; admins can answer all. |
+| **Trigger** | User clicks the 'Write Answer' button on the inquiry detail screen. |
+| **Related UC** | QUESTION-004 (inquiry detail) |
 
-**기본 흐름**
-1. 프론트엔드가 questionId를 포함한 요청을 백엔드에 전송한다.
-2. 백엔드가 해당 문의의 공개 여부 및 접근 권한을 확인한다.
-3. 백엔드가 문의 상세(제목, 내용, 카테고리, 공개여부, 상태, 작성자, 첨부파일 목록, 답변 목록)를 반환한다.
+**Main Flow**
+1. User enters the answer content and clicks the 'Submit' button.
+2. Frontend sends questionId and content to the backend.
+3. Backend checks access permissions. (Own inquiry or ADMIN)
+4. Backend creates a record in the answers table.
+5. If admin writes the first answer: changes questions.status from OPEN to IN_PROGRESS.
+6. Updates questions.updated_at.
+7. Backend returns a success response (201 Created).
 
-**예외/대안 흐름**
-- 비공개 문의에 타인이 접근: 403 응답.
+**Exception / Alternative Flow**
+- Non-author member accessing another's inquiry: 403 response.
 
-**사후 조건**
-- 문의 상세 및 답변 목록이 화면에 출력됨.
-
----
-
-## QUESTION-005: 첨부파일 다운로드
-
-| 항목 | 내용 |
-|------|------|
-| **코드** | QUESTION-005 |
-| **버전** | 26-02-20 |
-| **설명** | 문의 첨부파일을 다운로드한다. 문의 열람 권한과 동일(비공개: 작성자+관리자). |
-| **액터** | 사용자(회원 또는 관리자), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 해당 첨부파일이 DB에 존재. 문의 열람 권한 보유. |
-| **트리거** | 사용자가 문의 상세 화면에서 첨부파일을 클릭한다. |
-| **관련 UC** | QUESTION-004(문의 상세) |
-
-**기본 흐름**
-1. 프론트엔드가 questionId, attachmentId를 포함한 다운로드 요청을 백엔드에 전송한다.
-2. 백엔드가 문의 열람 권한을 확인한다.
-3. 백엔드가 파일 저장소에서 파일을 가져와 반환한다(Content-Disposition: attachment).
-
-**예외/대안 흐름**
-- 권한 없음: 403 응답.
-
-**사후 조건**
-- 첨부파일이 사용자 기기에 다운로드됨.
+**Postconditions**
+- answers record created. If admin's first answer, inquiry status=IN_PROGRESS.
 
 ---
 
-> **문의 수정 정책**: 문의 수정 기능은 제공하지 않음. 프론트엔드에서 수정 불가 안내 후 삭제 후 재작성 유도.
+## QUESTION-003: List Inquiries
 
-## QUESTION-006: 문의 삭제
+| Field | Value |
+|-------|-------|
+| **Code** | QUESTION-003 |
+| **Version** | 26-02-20 |
+| **Description** | Logged-in user views the inquiry list. Regular members: public inquiries + own private inquiries. Admin: all. |
+| **Actor** | User (Member or Admin), Backend |
+| **Preconditions** | Logged in. |
+| **Trigger** | User navigates to the inquiry list screen. |
+| **Related UC** | QUESTION-004 (inquiry detail) |
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | QUESTION-006 |
-| **버전** | 26-02-20 |
-| **설명** | 문의 작성자(status=OPEN인 경우) 또는 관리자가 문의를 삭제한다. |
-| **액터** | 사용자(문의 작성자 또는 관리자), 백엔드 시스템 |
-| **사전 조건** | 로그인 상태. 본인의 문의(status=OPEN이어야 함) 또는 관리자. |
-| **트리거** | 사용자가 문의 상세 화면에서 '삭제' 버튼을 클릭한다. |
-| **관련 UC** | - |
+**Main Flow**
+1. Frontend sends criteria (category, status, mine flag) and page parameters to the backend.
+2. Backend filters the inquiry list based on user role and returns paginated results.
+   - Regular member: is_public=1 OR (is_public=0 AND user_id=self)
+   - Admin: all
 
-**기본 흐름**
-1. 사용자가 '삭제' 버튼을 클릭하고 확인한다.
-2. 프론트엔드가 questionId를 포함한 삭제 요청을 백엔드에 전송한다.
-3. 백엔드가 삭제 권한을 확인한다. (본인+OPEN 또는 ADMIN)
-4. 백엔드가 연결된 answers, question_attachments를 삭제한 후 questions 레코드를 삭제한다.
-5. 백엔드가 204 No Content를 반환한다.
-
-**예외/대안 흐름**
-- 일반 회원이 OPEN이 아닌 문의 삭제 시도: 403 응답.
-
-**사후 조건**
-- 해당 문의 및 관련 레코드(answers, attachments) 삭제됨.
+**Postconditions**
+- Inquiry list matching access permissions and pageInfo displayed on screen.
 
 ---
 
-## QUESTION-007: 문의 상태 변경 (관리자) [신규]
+## QUESTION-004: View Inquiry Detail
 
-| 항목 | 내용 |
-|------|------|
-| **코드** | QUESTION-007 |
-| **버전** | 26-02-20 |
-| **설명** | 관리자가 문의의 처리 상태를 변경한다. |
-| **액터** | 관리자, 백엔드 시스템 |
-| **사전 조건** | 관리자 로그인 상태. 해당 문의가 DB에 존재. |
-| **트리거** | 관리자가 문의 상세 화면에서 '상태 변경' 버튼을 클릭한다. |
-| **관련 UC** | QUESTION-002(답변 작성), QUESTION-004(문의 상세) |
+| Field | Value |
+|-------|-------|
+| **Code** | QUESTION-004 |
+| **Version** | 26-02-20 |
+| **Description** | Logged-in user views inquiry detail (including answers). Private inquiries are viewable only by the author and admins. |
+| **Actor** | User (Member or Admin), Backend |
+| **Preconditions** | Logged in. Inquiry exists in DB. |
+| **Trigger** | User clicks a specific inquiry in the inquiry list. |
+| **Related UC** | QUESTION-002 (write answer), QUESTION-005 (download attachment) |
 
-**기본 흐름**
-1. 관리자가 변경할 상태를 선택한다.
-2. 프론트엔드가 questionId와 status를 백엔드에 전송한다. (`PUT /api/questions/{questionId}/status`)
-3. 백엔드가 관리자 권한을 확인한다.
-4. 백엔드가 questions.status를 업데이트하고 200 응답을 반환한다.
+**Main Flow**
+1. Frontend sends a request including questionId to the backend.
+2. Backend checks the inquiry's visibility and access permissions.
+3. Backend returns inquiry detail (title, content, category, visibility, status, author, attachment list, answer list).
 
-**상태 흐름**
-- OPEN → IN_PROGRESS (관리자 첫 답변 시 자동) → RESOLVED → CLOSED
-- OPEN → CLOSED (관리자가 직접 닫음)
+**Exception / Alternative Flow**
+- Non-author accessing a private inquiry: 403 response.
 
-**사후 조건**
-- questions.status가 갱신됨.
+**Postconditions**
+- Inquiry detail and answer list displayed on screen.
+
+---
+
+## QUESTION-005: Download Attachment
+
+| Field | Value |
+|-------|-------|
+| **Code** | QUESTION-005 |
+| **Version** | 26-02-20 |
+| **Description** | Downloads an inquiry attachment. Access permissions are the same as inquiry viewing (private: author + admin only). |
+| **Actor** | User (Member or Admin), Backend |
+| **Preconditions** | Logged in. Attachment exists in DB. Has inquiry viewing permission. |
+| **Trigger** | User clicks an attachment on the inquiry detail screen. |
+| **Related UC** | QUESTION-004 (inquiry detail) |
+
+**Main Flow**
+1. Frontend sends a download request including questionId and attachmentId to the backend.
+2. Backend checks inquiry viewing permissions.
+3. Backend retrieves the file from storage and returns it (Content-Disposition: attachment).
+
+**Exception / Alternative Flow**
+- No permission: 403 response.
+
+**Postconditions**
+- Attachment downloaded to user's device.
+
+---
+
+> **Inquiry edit policy**: Inquiry editing is not supported. Frontend displays a no-edit notice and guides users to delete and rewrite.
+
+## QUESTION-006: Delete Inquiry
+
+| Field | Value |
+|-------|-------|
+| **Code** | QUESTION-006 |
+| **Version** | 26-02-20 |
+| **Description** | Inquiry author (if status=OPEN) or admin deletes an inquiry. |
+| **Actor** | User (question author or Admin), Backend |
+| **Preconditions** | Logged in. Own inquiry (must be status=OPEN) or admin. |
+| **Trigger** | User clicks the 'Delete' button on the inquiry detail screen. |
+| **Related UC** | - |
+
+**Main Flow**
+1. User clicks the 'Delete' button and confirms.
+2. Frontend sends a delete request including questionId to the backend.
+3. Backend checks deletion permissions. (Own + OPEN or ADMIN)
+4. Backend deletes associated answers and question_attachments, then deletes the questions record.
+5. Backend returns 204 No Content.
+
+**Exception / Alternative Flow**
+- Regular member attempting to delete a non-OPEN inquiry: 403 response.
+
+**Postconditions**
+- Inquiry and related records (answers, attachments) deleted.
+
+---
+
+## QUESTION-007: Change Inquiry Status (Admin) [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | QUESTION-007 |
+| **Version** | 26-02-20 |
+| **Description** | Admin changes the processing status of an inquiry. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. Inquiry exists in DB. |
+| **Trigger** | Admin clicks the 'Change Status' button on the inquiry detail screen. |
+| **Related UC** | QUESTION-002 (write answer), QUESTION-004 (inquiry detail) |
+
+**Main Flow**
+1. Admin selects the target status.
+2. Frontend sends questionId and status to the backend. (`PUT /api/questions/{questionId}/status`)
+3. Backend verifies admin authorization.
+4. Backend updates questions.status and returns a 200 response.
+
+**Status Flow**
+- OPEN -> IN_PROGRESS (automatic on admin's first answer) -> RESOLVED -> CLOSED
+- OPEN -> CLOSED (admin directly closes)
+
+**Postconditions**
+- questions.status updated.
