@@ -72,22 +72,23 @@ Each exception carries an ENUM value that defines HTTP status, client message, a
 | `INVALID_VALID` | 400 BAD_REQUEST | 입력값이 유효하지 않습니다. 필수 항목을 확인하거나 형식을 맞춰주세요. | @Valid, @Validated 유효성 검사 실패. |
 | `INVALID_VALIDATED` | 400 BAD_REQUEST | 입력값이 유효하지 않습니다. 필수 항목을 확인하거나 형식을 맞춰주세요. | @ModelAttribute, @RequestParam 유효성 검사 실패. |
 | `UNEXPECTED_BIND` | 400 BAD_REQUEST | 입력값을 처리할 수 없습니다. 필드 형식이 맞는지 확인해주세요. | 바인딩 유효성 검사 실패. |
+| `IO_LARGE` | 413 PAYLOAD_TOO_LARGE | 파일 크기가 너무 큽니다. 제한된 크기를 확인해주세요. | 업로드 파일 크기가 허용된 제한을 초과했습니다. |
+| `METHOD_NOT_ALLOWED` | 405 METHOD_NOT_ALLOWED | 잘못된 요청입니다. 요청 방식을 확인해주세요. | 허용되지 않은 HTTP 메서드 요청입니다. |
+| `DATA_INTEGRITY_VIOLATION` | 409 CONFLICT | 요청을 처리할 수 없습니다. 이미 존재하는 데이터이거나 참조 관계에 문제가 있습니다. | 데이터 무결성 제약 위반 (DataIntegrityViolationException fallback). |
 
 ### 2.2 TechnicException Error Codes
 
 | Code | HTTP Status | Client Message | Developer Message |
 |------|------------|----------------|-------------------|
-| `IO_LARGE` | 413 PAYLOAD_TOO_LARGE | 파일 크기가 너무 큽니다. 제한된 크기를 확인해주세요. | 업로드 파일 크기가 허용된 제한을 초과했습니다. |
-| `METHOD_NOT_ALLOWED` | 405 METHOD_NOT_ALLOWED | 잘못된 요청입니다. 요청 방식을 확인해주세요. | 허용되지 않은 HTTP 메서드 요청입니다. |
 | `IO_EXCEPTION` | 500 INTERNAL_SERVER_ERROR | 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요. | 네트워크 또는 입출력 처리 중 오류 발생. |
 | `CONNECT_TIMEOUT` | 504 GATEWAY_TIMEOUT | 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요. | 네트워크 통신 시간 초과. |
 | `CONNECT_EXCEPTION` | 500 INTERNAL_SERVER_ERROR | 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요. | 서버 연결 실패. |
-| `DATA_INTEGRITY_VIOLATION` | 409 CONFLICT | 요청을 처리할 수 없습니다. 이미 존재하는 데이터이거나 참조 관계에 문제가 있습니다. | 데이터 무결성 제약 위반. |
 | `DATA_SQL_EXCEPTION` | 500 INTERNAL_SERVER_ERROR | 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요. | SQL 실행 중 오류 발생. |
 | `DATA_ACCESS_EXCEPTION` | 500 INTERNAL_SERVER_ERROR | 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요. | 데이터 접근 중 오류 발생. |
-| `UNEXPECTED_ERROR` | 500 INTERNAL_SERVER_ERROR | 예기치 않은 시스템 오류가 발생했습니다. | 일시적인 오류. 잠시 후 다시 시도해주세요. |
+| `UNEXPECTED_ERROR` | 500 INTERNAL_SERVER_ERROR | 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요. | 예기치 않은 시스템 오류 발생. |
 
 > **Note:** Client messages for TechnicException must never expose internal technical terms (e.g., "무결성 위반", "SQL", "데이터베이스"). Use generic safe messages.
+> **Classification rule:** 4xx responses (client-caused errors) belong to BusinessException. 5xx responses (system-level failures) belong to TechnicException.
 
 ### 2.3 ATStudio Domain Extensions (Add as Needed)
 

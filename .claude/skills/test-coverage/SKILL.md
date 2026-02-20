@@ -1,13 +1,13 @@
 ---
 name: test-coverage
-description: This skill should be used when analyzing test coverage metrics. It runs tests with coverage collection and reports line, branch, and function coverage percentages.
+description: This skill should be used when analyzing test coverage metrics. For Java it uses JaCoCo/Gradle; for JavaScript it uses Jest/Vitest coverage.
 ---
 
 # Test Coverage
 
 ## Purpose
 
-Analyze test coverage to identify untested code paths. Reports coverage metrics (lines, branches, functions, statements) and highlights files with low coverage for improvement.
+Analyze test coverage to identify untested code paths. Supports Java/JaCoCo (Phase 1) and JavaScript/Jest/Vitest (Phase 2) via auto-detection.
 
 ## When to Use
 
@@ -20,13 +20,52 @@ Analyze test coverage to identify untested code paths. Reports coverage metrics 
 
 ### 1. Detect Coverage Tool
 
-Check for coverage configuration:
-1. Jest with `--coverage` flag
-2. Vitest with `--coverage` flag
-3. `nyc` / `c8` for Node.js projects
-4. Istanbul configuration
+Check **in order**:
+
+1. `build.gradle` or `src/test/java/` → **Java/JaCoCo + Gradle mode**
+2. Jest/Vitest config → **JavaScript coverage mode**
 
 ### 2. Run Coverage
+
+#### Java / JaCoCo / Gradle (Phase 1 — Current)
+
+```bash
+# Windows — run tests + generate JaCoCo report
+gradlew.bat test jacocoTestReport
+
+# Linux/Mac
+./gradlew test jacocoTestReport
+
+# Run only if tests already passed
+gradlew.bat jacocoTestReport
+
+# Generate with XML (for CI integration)
+gradlew.bat test jacocoTestReport jacocoTestCoverageVerification
+```
+
+**JaCoCo configuration** (in `build.gradle`):
+```groovy
+jacocoTestReport {
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            limit {
+                minimum = 0.80  // 80% line coverage
+            }
+        }
+    }
+}
+```
+
+HTML report generated at: `build/reports/jacoco/test/html/index.html`
+
+#### JavaScript / npm (Phase 2 — React Frontend)
 
 ```bash
 # Jest
@@ -34,9 +73,6 @@ npx jest --coverage
 
 # Vitest
 npx vitest run --coverage
-
-# Node.js with c8
-npx c8 npm test
 
 # Generate HTML report
 npx jest --coverage --coverageReporters="html"
@@ -49,53 +85,50 @@ Report results in structured format:
 ```
 ## Coverage Report
 
-**Overall Coverage**: 78.5%
+**Overall Coverage**: 82.3%
+**Mode**: Java/JaCoCo | JS/Jest | JS/Vitest
 
 | Metric | Coverage | Threshold | Status |
 |--------|----------|-----------|--------|
-| Lines | 78.5% | 80% | ⚠️ Below |
-| Branches | 65.2% | 70% | ❌ Failed |
-| Functions | 82.1% | 80% | ✅ Passed |
-| Statements | 79.3% | 80% | ⚠️ Below |
+| Lines | 82.3% | 80% | ✅ Passed |
+| Branches | 71.5% | 70% | ✅ Passed |
+| Methods | 85.0% | 80% | ✅ Passed |
+| Instructions | 81.2% | 80% | ✅ Passed |
 
 ### Files with Low Coverage (<50%)
 
-| File | Lines | Branches | Functions |
-|------|-------|----------|-----------|
-| src/utils/parser.ts | 32% | 25% | 40% |
-| src/api/client.ts | 45% | 38% | 50% |
+| File | Lines | Branches | Methods |
+|------|-------|----------|---------|
+| MusicService.java | 32% | 25% | 40% |
 
-### Uncovered Lines
+### Uncovered Methods
 
-**src/utils/parser.ts**:
-- Lines 45-67: Error handling branch
-- Lines 89-102: Edge case validation
+**MusicService.java**:
+- `updateTrack()` — not covered
+- `deleteTrack()` — not covered
 
 ### Recommendations
 
-1. Add tests for `parser.ts` error handling
-2. Cover edge cases in `client.ts` retry logic
+1. Add unit tests for `MusicService.updateTrack()`
+2. Add exception path tests for `MusicService.deleteTrack()`
 ```
 
-## Coverage Thresholds
+## Coverage Thresholds (ATStudio Standards)
 
-Common threshold configuration:
+Per `docs/standards/development-standards.md` Section 6.3:
 
-```json
-{
-  "coverageThreshold": {
-    "global": {
-      "branches": 70,
-      "functions": 80,
-      "lines": 80,
-      "statements": 80
-    }
-  }
-}
-```
+| Metric | Threshold |
+|--------|-----------|
+| Lines | 80% |
+| Branches | 70% |
+| Methods/Functions | 80% |
+| Statements/Instructions | 80% |
+
+**100% coverage required for:** Security code, JWT/auth logic, business rule validators.
 
 ## Integration
 
 - Runs as part of `qa` agent comprehensive check
 - Supplements `/test` skill with coverage metrics
 - Results inform `cr` agent review decisions
+- Required before WI completion (per Evidence Pack standards)

@@ -160,8 +160,11 @@ public class MusicController {
     private final MusicService musicService;
 
     @GetMapping("/{id}")
-    public ResponseEntity<MusicResponse> getMusic(@PathVariable Long id) {
-        return ResponseEntity.ok(musicService.getMusic(id));
+    public ResponseEntity<ResponseDTO<MusicResponse>> getMusic(@PathVariable Long id) {
+        return ResponseEntity.ok(ResponseDTO.<MusicResponse>withSingleData()
+            .message("Track fetched")
+            .data(musicService.getMusic(id))
+            .build());
     }
 }
 ```
@@ -182,7 +185,9 @@ public class MusicService {
 
     @Transactional
     public MusicResponse createMusic(MusicCreateRequest request) {
-        Music music = request.toEntity();
+        Music music = Music.builder()
+            .title(request.getTitle())
+            .build();
         return MusicResponse.from(musicRepository.save(music));
     }
 }
@@ -374,7 +379,7 @@ Engineer who implements user requirements as working code and manages technical 
 
 ### 4.2 Artifact Management (Clean Workspace Policy)
 
-- **Root Protection:** Prohibit creating temporary files in project root (`ws/`) except for config files (`task.md`, `README.md`, etc.).
+- **Root Protection:** Prohibit creating temporary files in project root (`ATStudio/`) except for config files (`task.md`, `README.md`, etc.).
 - **Paths:**
   - **Reports:** Store one-time analysis/audit reports in `reports/` (e.g., `reports/audit_20260122.md`).
   - **System Data:** Store reusable agent data in `.claude/artifacts/`.
@@ -465,22 +470,31 @@ def test_parse_config_missing_key():
 
 **Example (Java / JUnit5):**
 ```java
-@SpringBootTest
+@ExtendWith(MockitoExtension.class)
 class MusicServiceTest {
-    @Autowired
+    @Mock
+    private MusicRepository musicRepository;
+
+    @InjectMocks
     private MusicService musicService;
 
     @Test
     @DisplayName("Should return music by valid ID")
     void getMusicById() {
+        Music music = Music.builder().title("Test Track").build();
+        given(musicRepository.findById(1L)).willReturn(Optional.of(music));
+
         MusicResponse result = musicService.getMusic(1L);
+
         assertThat(result).isNotNull();
-        assertThat(result.title()).isNotEmpty();
+        assertThat(result.title()).isEqualTo("Test Track");
     }
 
     @Test
     @DisplayName("Should throw when music not found")
     void getMusicByInvalidId() {
+        given(musicRepository.findById(999L)).willReturn(Optional.empty());
+
         assertThatThrownBy(() -> musicService.getMusic(999L))
             .isInstanceOf(EntityNotFoundException.class);
     }

@@ -146,7 +146,7 @@ The documents listed below, including this one, hold **top-priority authority th
    - All sensitive files must be encrypted when compressed (`zip -e` or `gpg`) before storage.
    - The encryption key (Master Key) is managed separately by the user (physical memo, password manager).
 2. **Distributed Storage (Minimal Redundancy):**
-   - **Primary:** Local Disk (Mac Mini)
+   - **Primary:** Local Disk (Windows 11)
    - **Secondary:** **Free cloud storage** (Google Drive/Dropbox/iCloud free tier).
    - *Automation:* `PG` (Guardian) agent periodically encrypts sensitive files and copies them to the designated cloud sync folder.
 

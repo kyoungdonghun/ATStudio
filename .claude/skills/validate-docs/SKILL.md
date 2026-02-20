@@ -47,8 +47,8 @@ python3 .claude/skills/validate-docs/scripts/validate_docs.py
 
 3. **Traceability IDs**
    - Validate ID format compliance:
-     - `REQ-YYYYMMDD-###` (Requirements)
-     - `WI-###` (Work Items)
+     - `REQ-YYYYMMDD-<PRJ>-###` (Requirements, e.g., `REQ-20260211-ATS-001`)
+     - `WI-YYYYMMDD-<PRJ>-###` (Work Items, e.g., `WI-20260211-ATS-001`)
      - `STD-###` (Standards)
    - Detect duplicate IDs across documents
 

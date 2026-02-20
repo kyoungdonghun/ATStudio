@@ -436,6 +436,12 @@ thumbnail: File (optional)
 
 **Response** `201 Created`
 
+**Error Cases**
+
+| Status | errorCode | Condition |
+|--------|-----------|-----------|
+| 409 Conflict | - | Track already in playlist |
+
 ## 3.5 Update Playlist
 | Field | Value |
 |-------|-------|
@@ -1569,7 +1575,7 @@ nickname: String (required)
 
 ---
 
-# Full API Summary (68)
+# Full API Summary (80)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -1577,10 +1583,10 @@ nickname: String (required)
 | 2 | Tag | 4 |
 | 3 | Playlist | 8 |
 | 4 | Play History | 3 |
-| 5 | User Info | 9 |
-| 6 | Subscription | 9 |
+| 5 | User Info | 10 |
+| 6 | Subscription | 10 |
 | 7 | License | 4 |
-| 8 | Question (Inquiry/Answer) | 8 |
+| 8 | Question (Inquiry/Answer) | 7 |
 | 9 | Notice | 5 |
 | 10 | Likes (Favorites) | 3 |
 | 11 | Download Queue | 3 |

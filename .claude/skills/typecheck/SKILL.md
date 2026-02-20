@@ -1,94 +1,121 @@
 ---
 name: typecheck
-description: This skill should be used when verifying TypeScript type safety in a project. It runs the TypeScript compiler in type-check-only mode to catch type errors without emitting files.
+description: This skill should be used when verifying type safety in a project. For Java it runs Gradle compile check; for TypeScript it runs the TypeScript compiler in type-check-only mode.
 ---
 
 # Typecheck
 
 ## Purpose
 
-Run TypeScript compiler to verify type safety across the codebase. This skill detects type mismatches, missing types, and incorrect type annotations before code is committed or deployed.
+Verify type safety across the codebase. Supports Java (Phase 1) and TypeScript (Phase 2) via auto-detection.
 
 ## When to Use
 
-- Before creating commits or pull requests in TypeScript projects
-- After making significant code changes that affect type definitions
-- When reviewing code for type safety issues
+- Before creating commits or pull requests
+- After making significant code changes
+- When reviewing code for type/compilation issues
 - As part of CI/CD quality gates
 
-## How to Use
+## Workflow
 
-### Quick Start
+### 1. Detect Project Type
 
-Run the bundled typecheck script:
+Check **in order**:
+
+1. `build.gradle` or `gradlew.bat` → **Java/Gradle mode**
+2. `tsconfig.json` → **TypeScript mode**
+3. Both present → **Java mode** (primary)
+
+### 2. Run Type Check
+
+#### Java / Gradle (Phase 1 — Current)
 
 ```bash
-python3 .claude/skills/typecheck/scripts/run_typecheck.py [project_path]
+# Windows — compile Java sources only (no test compilation, fast)
+gradlew.bat compileJava
+
+# Linux/Mac
+./gradlew compileJava
+
+# Full compile including tests
+gradlew.bat compileJava compileTestJava
+
+# Check only (equivalent to build without test/jar)
+gradlew.bat check -x test
 ```
 
-If no project path is provided, it uses the current working directory.
+**Success output:**
+```
+> Task :compileJava UP-TO-DATE
+BUILD SUCCESSFUL in 2s
+```
 
-### Manual Commands
+**Failure output:**
+```
+> Task :compileJava FAILED
+src/main/java/com/atstudio/atstudio/service/MusicService.java:42:
+  error: cannot find symbol
+      Music music = request.toEntity();
+                           ^
+  symbol:   method toEntity()
+BUILD FAILED in 3s
+```
 
-For direct TypeScript compiler usage:
+#### TypeScript (Phase 2 — React Frontend)
 
 ```bash
 # Check entire project
 npx tsc --noEmit
 
-# Check specific file
-npx tsc --noEmit src/index.ts
-
 # Check with specific config
 npx tsc --noEmit --project tsconfig.json
 ```
 
-### Prerequisites
+**Prerequisites:** TypeScript installed, valid `tsconfig.json`
 
-- TypeScript installed (`npm install -D typescript`)
-- Valid `tsconfig.json` in project root
-- Node.js and npm available
+### 3. Output Format
 
-### Interpreting Results
+Report results in structured format:
 
-**Success Output:**
 ```
-[TYPECHECK]
-Project: /path/to/project
-Status: PASSED
-Files checked: 42
-No type errors found.
-```
+## Typecheck Results
 
-**Failure Output:**
-```
-[TYPECHECK]
-Project: /path/to/project
-Status: FAILED (5 errors)
+**Status**: ❌ Failed / ✅ Passed
+**Mode**: Java/Gradle | TypeScript
+**Files checked**: X
 
-Errors:
-  src/components/Button.tsx:15:3 - error TS2322: Type 'string' is not assignable to type 'number'.
-  src/utils/helpers.ts:42:10 - error TS2345: Argument of type 'null' is not assignable to parameter of type 'string'.
-  ...
+### Errors (if any)
 
-[FIX SUGGESTIONS]
-1. Check type annotations at indicated line numbers
-2. Ensure imported types match expected usage
-3. Consider using type guards for union types
+| File | Line | Error |
+|------|------|-------|
+| src/.../MusicService.java | 42 | cannot find symbol: method toEntity() |
+| src/.../MusicController.java | 15 | incompatible types: MusicResponse cannot be converted to ResponseDTO |
+
+### Fix Suggestions
+1. Remove `toEntity()` call — mapping is Service layer responsibility
+2. Wrap return value in `ResponseDTO.withSingleData().data(...).build()`
 ```
 
-### Common Type Errors
+## Common Java Compilation Errors
+
+| Error | Likely Cause | Fix |
+|-------|-------------|-----|
+| `cannot find symbol` | Missing import, wrong method name | Check imports and method signatures |
+| `incompatible types` | Wrong return type | Match declared vs actual type |
+| `package does not exist` | Missing dependency | Add to `build.gradle` |
+| `method not applicable` | Wrong argument types | Check method signature |
+
+## Common TypeScript Errors
 
 | Error Code | Description | Fix |
 |------------|-------------|-----|
 | TS2322 | Type not assignable | Check variable/parameter types |
 | TS2345 | Argument type mismatch | Verify function call arguments |
-| TS2551 | Property does not exist | Check property names, use optional chaining |
-| TS7006 | Parameter implicitly has 'any' type | Add explicit type annotation |
+| TS7006 | Parameter implicitly `any` | Add explicit type annotation |
 | TS2304 | Cannot find name | Import missing type or declare it |
 
-### Integration with Other Skills
+## Integration with Other Skills
 
-- Use `/eslint` for code style and best practices
-- Use `/test` after fixing type errors
+- Use `/lint` for code style checks
+- Use `/test` after fixing compilation errors
 - Use `/build-check` to verify full build succeeds

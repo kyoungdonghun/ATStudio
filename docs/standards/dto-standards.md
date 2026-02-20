@@ -311,6 +311,7 @@ Standardized error response format. See [exception-handling.md](exception-handli
 public class ExceptionResponseDTO {
     private int status;
     private String error;
+    private String errorCode;
     private String message;
 }
 ```

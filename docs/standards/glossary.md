@@ -65,17 +65,20 @@ task_types:
 
 | Key | Canonical Term | Definition | Synonyms (allowed) | Forbidden | External Standard Ref | Notes/Examples |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| music | Music | Shorts-ready audio content uploaded by creators | track, song, audio | file (too generic) | - | Core marketplace product |
-| creator | Creator | User who uploads and sells music on the platform | uploader, artist, seller | user (ambiguous) | - | Supply side of marketplace |
-| buyer | Buyer | User who searches and purchases music for shorts | purchaser, customer | user (ambiguous) | - | Demand side of marketplace |
-| shorts | Shorts | Short-form video content (target use case for music) | short-form, clip | video (too generic) | - | YouTube Shorts, TikTok, Reels |
-| genre | Genre | Music classification category | category, type | tag (different concept) | - | e.g., EDM, Lo-fi, Hip-hop |
-| tag | Tag | User-defined keyword for music discovery | keyword, label | genre (different concept) | - | Free-form search metadata |
-| license | License | Usage rights granted upon music purchase | permission, rights | copyright (broader) | - | Defines how buyer can use music |
-| upload | Upload | Process of creator submitting music to platform | submit, publish | post (ambiguous) | - | Includes file validation |
-| purchase | Purchase | Transaction where buyer acquires music license | buy, order, transaction | download (subset) | - | Includes payment processing |
+| track | Track | Shorts-ready audio content uploaded by creators and sold on the platform | music, song, audio | file (too generic) | - | Core marketplace product; DB table `tracks`, API `/api/tracks` |
+| creator | Creator | User who uploads and sells tracks on the platform | uploader, artist, seller | user (ambiguous) | - | Supply side of marketplace |
+| buyer | Buyer | User who searches and purchases tracks for shorts | purchaser, customer | user (ambiguous) | - | Demand side of marketplace |
+| shorts | Shorts | Short-form video content (target use case for tracks) | short-form, clip | video (too generic) | - | YouTube Shorts, TikTok, Reels |
+| genre | Genre | Track classification category | category, type | tag (different concept) | - | e.g., EDM, Lo-fi, Hip-hop |
+| tag | Tag | Admin-managed category for track discovery and classification | keyword, label | genre (different concept) | - | Predefined categories managed by admin; not user-defined |
+| license | License | Track usage rights automatically issued upon download | permission, rights | copyright (broader) | - | DB table `licenses`; issued per (user, track) pair |
+| upload | Upload | Process of creator submitting a track to the platform | submit, publish | post (ambiguous) | - | Includes file validation and async preview generation |
+| subscription | Subscription | Paid plan that grants download and playlist access | plan, membership | purchase (different) | - | DB table `user_subscriptions`; required for downloads |
+| whitelist-channel | Whitelist Channel | YouTube channel registered by a subscriber for track usage tracking | channel | account (ambiguous) | - | DB table `whitelist_channels`; count limited by subscription plan |
+| download-queue | Download Queue | Temporary collection of tracks queued for sequential download | cart (incorrect) | cart (no purchase concept) | - | DB table `download_queue`; frontend calls SOUND-011 per track |
+| business-license | Business License | Document review process for BUSINESS-type members to unlock subscription | corporate review | personal license (different) | - | DB table `business_license_requests`; required before BUSINESS subscription |
 | royalty | Royalty | Revenue share paid to creator per sale | commission, revenue share | profit (broader) | - | Platform takes commission % |
-| playlist | Playlist | Curated collection of music tracks | collection, mix | album (different) | - | For discovery/recommendation |
+| playlist | Playlist | Curated collection of tracks for subscribers | collection, mix | album (different) | - | DB table `playlists`; subscriber-only feature |
 
 ### External Standard Ref Format (Recommended)
 

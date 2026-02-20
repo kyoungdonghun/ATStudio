@@ -1,13 +1,13 @@
 ---
 name: test
-description: This skill should be used when running project test suites. It executes tests using the project's configured test framework (Jest, Vitest, etc.) and reports results.
+description: This skill should be used when running project test suites. It executes tests using the project's configured test framework (JUnit5/Gradle or Jest/Vitest) and reports results.
 ---
 
 # Test
 
 ## Purpose
 
-Execute project test suites and report results. Supports common test frameworks (Jest, Vitest, Mocha) with structured output for pass/fail status, coverage hints, and failure details.
+Execute project test suites and report results. Supports Java/JUnit5 (Phase 1) and JavaScript/Jest/Vitest (Phase 2) via auto-detection.
 
 ## When to Use
 
@@ -21,18 +21,43 @@ Execute project test suites and report results. Supports common test frameworks 
 
 ### 1. Detect Test Framework
 
-Check for test configuration:
-1. `vitest.config.ts` / `vite.config.ts` with test config → Vitest
-2. `jest.config.js` / `jest.config.ts` → Jest
-3. `package.json` scripts (test command) → Infer framework
+Check for test configuration **in order**:
+
+1. `build.gradle` or `src/test/java/` → **Java/JUnit5 + Gradle mode**
+2. `vitest.config.ts` / `vite.config.ts` with test config → **Vitest**
+3. `jest.config.js` / `jest.config.ts` → **Jest**
+4. `package.json` scripts.test → **npm test**
 
 ### 2. Run Tests
+
+#### Java / JUnit5 / Gradle (Phase 1 — Current)
+
+```bash
+# Windows — run all tests
+gradlew.bat test
+
+# Linux/Mac
+./gradlew test
+
+# Run specific test class
+gradlew.bat test --tests "com.atstudio.atstudio.service.MusicServiceTest"
+
+# Run with verbose output
+gradlew.bat test --info
+
+# Run and generate report
+gradlew.bat test jacocoTestReport
+```
+
+Test reports generated at: `build/reports/tests/test/index.html`
+
+#### JavaScript / npm (Phase 2 — React Frontend)
 
 ```bash
 # Run all tests
 npm test
 
-# Run with verbose output
+# Verbose output
 npm test -- --verbose
 
 # Run specific test file
@@ -40,9 +65,6 @@ npm test -- src/utils/helpers.test.ts
 
 # Run tests matching pattern
 npm test -- --testNamePattern="should validate"
-
-# Watch mode (interactive development)
-npm test -- --watch
 ```
 
 ### 3. Output Format
@@ -53,36 +75,32 @@ Report results in structured format:
 ## Test Results
 
 **Status**: ❌ Failed / ✅ Passed
+**Mode**: Java/JUnit5 | JS/Jest | JS/Vitest
 **Total**: X tests | **Passed**: Y | **Failed**: Z | **Skipped**: W
 
 ### Summary
 
 | Suite | Tests | Passed | Failed | Duration |
 |-------|-------|--------|--------|----------|
-| utils/helpers.test.ts | 5 | 5 | 0 | 0.3s |
-| components/Button.test.tsx | 8 | 6 | 2 | 1.2s |
+| MusicServiceTest | 5 | 5 | 0 | 0.8s |
+| MusicControllerTest | 3 | 2 | 1 | 1.2s |
 
 ### Failed Tests
 
-#### components/Button.test.tsx
+#### MusicControllerTest
 
-**Test**: should render with correct text
-**Error**: Expected "Submit" but received "Cancel"
-**Location**: line 45
-
-\`\`\`
-Expected: "Submit"
-Received: "Cancel"
-\`\`\`
+**Test**: should return 404 when music not found
+**Error**: Expected status 404 but was 200
+**Location**: MusicControllerTest.java:45
 ```
 
 ## Framework-Specific Commands
 
-| Framework | Run All | Watch | Coverage |
-|-----------|---------|-------|----------|
-| Jest | `npx jest` | `npx jest --watch` | `npx jest --coverage` |
-| Vitest | `npx vitest run` | `npx vitest` | `npx vitest --coverage` |
-| Mocha | `npx mocha` | `npx mocha --watch` | `npx nyc mocha` |
+| Framework | Run All | Specific Class | Verbose |
+|-----------|---------|----------------|---------|
+| Gradle/JUnit5 | `gradlew.bat test` | `gradlew.bat test --tests "ClassName"` | `gradlew.bat test --info` |
+| Jest | `npx jest` | `npx jest helpers.test.ts` | `npx jest --verbose` |
+| Vitest | `npx vitest run` | `npx vitest run helpers.test.ts` | `npx vitest run --reporter=verbose` |
 
 ## Integration
 

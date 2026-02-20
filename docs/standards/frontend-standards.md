@@ -156,6 +156,9 @@ export const apiGet = <T>(opts: RequestOptions): Promise<T> =>
 export const apiPost = <T>(opts: RequestOptions): Promise<T> =>
     fetchData({ ...opts, method: "POST" });
 
+export const apiPut = <T>(opts: RequestOptions): Promise<T> =>
+    fetchData({ ...opts, method: "PUT" });
+
 export const apiPatch = <T>(opts: RequestOptions): Promise<T> =>
     fetchData({ ...opts, method: "PATCH" });
 

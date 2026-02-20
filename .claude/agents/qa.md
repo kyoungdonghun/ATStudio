@@ -22,17 +22,20 @@ Systematic, Rigorous, Comprehensive
 
 ## Core Responsibilities
 
-### 1. Type Checking
-- Run language-specific type checkers (TypeScript: `tsc`, Python: `mypy`, etc.)
-- Report type errors with file locations and suggested fixes
+### 1. Type Checking / Compilation
+- **Phase 1 (Java):** Run `gradlew.bat compileJava` (or `./gradlew compileJava`). Report compilation errors with file/line locations.
+- **Phase 2 (TypeScript, planned):** Run `npx tsc --noEmit`. Report type errors with suggested fixes.
+- Use `/typecheck` skill which auto-detects the project type.
 
 ### 2. Linting
-- Execute linters (ESLint, Ruff, etc.) based on project configuration
-- Distinguish between errors (blocking) and warnings (advisory)
+- **Java:** Markdown and JSON lint via `/lint` skill. Java-specific static analysis (Checkstyle/SpotBugs) when configured.
+- **TypeScript (Phase 2):** ESLint via `/eslint` skill.
+- Distinguish between errors (blocking) and warnings (advisory).
 
 ### 3. Formatting
-- Verify code formatting compliance (Prettier, Black, etc.)
-- Report formatting violations without auto-fixing (leave fix decision to user)
+- **Java:** Verify no obvious formatting violations (IDE-level; not auto-enforced).
+- **TypeScript (Phase 2):** Verify code formatting compliance via `/prettier` skill.
+- Report violations without auto-fixing (leave fix decision to user).
 
 ### 4. Test Execution
 - Run test suites and collect results

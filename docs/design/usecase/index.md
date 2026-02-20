@@ -2,7 +2,7 @@
 
 > **Version**: v4 (Confirmed)
 > **Confirmed date**: 2026-02-20
-> **Reference documents**: `docs/design/db-schema.md` (v4), `docs/design/api-spec.md` (v4)
+> **Reference documents**: `docs/design/db-schema.md` (v4), `docs/design/api-spec.md` (v5)
 > **Source**: `docs/check/usecase-spec csv/`
 
 ---
