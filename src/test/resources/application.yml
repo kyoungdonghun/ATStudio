@@ -1,0 +1,7 @@
+spring:
+  sql:
+    init:
+      mode: never   # schema.sql은 MySQL 전용. H2 테스트에서는 Hibernate가 Entity 기반으로 스키마 생성
+  jpa:
+    hibernate:
+      ddl-auto: create-drop

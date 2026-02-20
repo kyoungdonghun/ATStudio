@@ -836,4 +836,86 @@ se completes implementation → qa runs unified checks →
 - `qa` agent confirms coverage thresholds met
 - Evidence Pack must be traceable (commands reproducible)
 
+### 6.7 Spring Boot 4.x JPA Test Guidelines
+
+> **Background:** Spring Boot 4.x restructured test slice packages significantly from 3.x. These guidelines prevent known pitfalls confirmed in ATStudio development.
+
+#### 6.7.1 Package Changes (3.x → 4.x)
+
+| Annotation | Spring Boot 3.x | Spring Boot 4.x |
+|-----------|----------------|----------------|
+| `@DataJpaTest` | `org.springframework.boot.test.autoconfigure.orm.jpa` | `org.springframework.boot.data.jpa.test.autoconfigure` |
+| `@AutoConfigureTestEntityManager` | same old package | `org.springframework.boot.jpa.test.autoconfigure` |
+
+**Always verify the correct import package when writing JPA slice tests in Spring Boot 4.x.**
+
+#### 6.7.2 JPA Auditing in Slice Tests
+
+`@DataJpaTest` does NOT automatically activate `@EnableJpaAuditing`. If `@EnableJpaAuditing` lives in a dedicated `JpaConfig` class (recommended), it must be explicitly imported in each test class that relies on `@CreatedDate` / `@LastModifiedDate`.
+
+```java
+// ✅ Required for @CreatedDate / @LastModifiedDate to work in @DataJpaTest
+@DataJpaTest
+@Import(JpaConfig.class)
+class SomeRepositoryTest { ... }
+```
+
+> **Why a separate `JpaConfig`?** Placing `@EnableJpaAuditing` on `@SpringBootApplication` causes `@DataJpaTest` to fail with `No bean found for JpaAuditingHandler` because the main application class is excluded from slice contexts.
+
+#### 6.7.3 H2 vs MySQL Strategy
+
+| Phase | Strategy | Configuration |
+|-------|----------|---------------|
+| **Initial development / unit** | H2 in-memory | `@DataJpaTest` default + `src/test/resources/application.yml` |
+| **Integration / feature** | Real MySQL | `@DataJpaTest` + `@AutoConfigureTestDatabase(replace = NONE)` |
+
+**Required `src/test/resources/application.yml`** (prevents MySQL-specific `schema.sql` from running against H2):
+
+```yaml
+spring:
+  sql:
+    init:
+      mode: never   # schema.sql is MySQL-only; H2 schema managed by Hibernate
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+```
+
+> **Root cause:** Spring Boot auto-executes `schema.sql` found on the classpath for embedded databases. Our `schema.sql` contains MySQL-specific syntax (`ENUM`, `TINYINT(1)`, `ON UPDATE CURRENT_TIMESTAMP`) which H2 cannot parse.
+
+#### 6.7.4 Composite PK (@EmbeddedId) Test Patterns
+
+Entities with `@EmbeddedId` always have a non-null ID, so Spring Data JPA's `save()` always calls `merge()` instead of `persist()`. This means:
+
+- **Duplicate `save()` → UPDATE, not INSERT** → `DataIntegrityViolationException` is NOT thrown
+- **Correct duplicate test:** Verify `count() == 1` (idempotency), not exception
+
+```java
+// ❌ Wrong: expects exception that will never come
+assertThatThrownBy(() -> {
+    likeRepository.save(Like.builder().id(id)...build());
+    likeRepository.flush();
+}).isInstanceOf(DataIntegrityViolationException.class);
+
+// ✅ Correct: verify idempotent behavior
+likeRepository.save(Like.builder().id(id)...build());
+likeRepository.save(Like.builder().id(id)...build()); // merge, not insert
+assertThat(likeRepository.count()).isEqualTo(1);
+```
+
+#### 6.7.5 Test Environment Setup Order
+
+Always follow this sequence before writing JPA test code:
+
+1. **Environment design first**
+   - Confirm Spring Boot version and test slice package names
+   - Identify `schema.sql` / init conflicts
+   - Prepare `src/test/resources/application.yml`
+
+2. **Test case design**
+   - Review JPA behavior for the entity type (simple PK vs composite PK vs auditing)
+   - Determine correct assertion strategy
+
+3. **Write test code**
+
 ---

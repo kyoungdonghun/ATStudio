@@ -72,7 +72,7 @@ Each exception carries an ENUM value that defines HTTP status, client message, a
 | `INVALID_VALID` | 400 BAD_REQUEST | 입력값이 유효하지 않습니다. 필수 항목을 확인하거나 형식을 맞춰주세요. | @Valid, @Validated 유효성 검사 실패. |
 | `INVALID_VALIDATED` | 400 BAD_REQUEST | 입력값이 유효하지 않습니다. 필수 항목을 확인하거나 형식을 맞춰주세요. | @ModelAttribute, @RequestParam 유효성 검사 실패. |
 | `UNEXPECTED_BIND` | 400 BAD_REQUEST | 입력값을 처리할 수 없습니다. 필드 형식이 맞는지 확인해주세요. | 바인딩 유효성 검사 실패. |
-| `IO_LARGE` | 413 PAYLOAD_TOO_LARGE | 파일 크기가 너무 큽니다. 제한된 크기를 확인해주세요. | 업로드 파일 크기가 허용된 제한을 초과했습니다. |
+| `IO_LARGE` | 413 CONTENT_TOO_LARGE | 파일 크기가 너무 큽니다. 제한된 크기를 확인해주세요. | 업로드 파일 크기가 허용된 제한을 초과했습니다. |
 | `METHOD_NOT_ALLOWED` | 405 METHOD_NOT_ALLOWED | 잘못된 요청입니다. 요청 방식을 확인해주세요. | 허용되지 않은 HTTP 메서드 요청입니다. |
 | `DATA_INTEGRITY_VIOLATION` | 409 CONFLICT | 요청을 처리할 수 없습니다. 이미 존재하는 데이터이거나 참조 관계에 문제가 있습니다. | 데이터 무결성 제약 위반 (DataIntegrityViolationException fallback). |
 
@@ -95,9 +95,9 @@ Each exception carries an ENUM value that defines HTTP status, client message, a
 | Code | HTTP Status | Client Message | Developer Message |
 |------|------------|----------------|-------------------|
 | `UNAUTHORIZED_ACTION` | 401 UNAUTHORIZED | 인증이 필요합니다. 다시 로그인해주세요. | JWT 토큰 만료 또는 무효. |
-| `PAYMENT_FAILED` | 402 PAYMENT_REQUIRED | 결제 처리에 실패했습니다. | 결제 게이트웨이 오류. |
+| `PAYMENT_FAILED` | 400 BAD_REQUEST | 결제 처리에 실패했습니다. | 결제 게이트웨이 오류. |
 | `FILE_FORMAT_INVALID` | 400 BAD_REQUEST | 지원하지 않는 파일 형식입니다. | 허용되지 않은 음악 파일 포맷. |
-| `STORAGE_LIMIT_EXCEEDED` | 507 INSUFFICIENT_STORAGE | 업로드 용량을 초과했습니다. | 사용자 스토리지 한도 초과. |
+| `STORAGE_LIMIT_EXCEEDED` | 403 FORBIDDEN | 업로드 용량을 초과했습니다. | 사용자 스토리지 한도 초과. |
 | `NO_ACTIVE_SUBSCRIPTION` | 403 FORBIDDEN | 구독이 필요한 서비스입니다. | 활성 구독이 없는 사용자의 구독자 전용 기능 접근. |
 | `DOWNLOAD_LIMIT_EXCEEDED` | 403 FORBIDDEN | 오늘의 다운로드 한도를 초과했습니다. | 일일 다운로드 제한 초과. |
 | `NICKNAME_DUPLICATED` | 409 CONFLICT | 이미 사용 중인 닉네임입니다. | 닉네임 중복. |

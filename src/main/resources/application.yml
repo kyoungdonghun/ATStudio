@@ -7,9 +7,9 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     # 이유: MySQL 8.x 이상의 최신 드라이버 클래스
 
-    url: jdbc:mysql://localhost:3306/myapp?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    url: jdbc:mysql://localhost:3306/atstudio?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     # 이유:
-    # - `myapp`: 생성한 DB 이름
+    # - `atstudio`: 생성한 DB 이름
     # - serverTimezone=Asia/Seoul: MySQL 시간대 설정 (안 하면 에러 발생)
     # - characterEncoding=UTF-8: 한글 깨짐 방지
 
@@ -28,6 +28,10 @@ spring:
       # - none: 아무것도 안 함
       # ⚠️ 운영에서는 반드시 validate나 none 사용!
 
+    open-in-view: false
+    # 이유: REST API에서는 반드시 false. true이면 View 렌더링 중에도 DB 커넥션을 점유하여
+    #       N+1 문제 + 커넥션 고갈 위험 발생.
+
     show-sql: true
     # 이유: 콘솔에 실행된 SQL 쿼리 출력 → 디버깅 편함
 
@@ -35,9 +39,7 @@ spring:
       hibernate:
         format_sql: true
         # 이유: SQL을 예쁘게 포맷팅해서 보여줌 (가독성)
-
-        dialect: org.hibernate.dialect.MySQLDialect
-        # 이유: MySQL 문법에 맞게 SQL 생성 (DB마다 문법이 조금씩 다름)
+        # dialect 제거: Hibernate 6+부터 DB 드라이버를 보고 자동 감지하므로 명시 불필요
 
   # Thymeleaf 템플릿 엔진 설정
   thymeleaf:
