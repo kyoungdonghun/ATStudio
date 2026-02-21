@@ -48,7 +48,7 @@ public class PlayHistoryService {
         User user = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
-        Pageable pageable = PageRequest.of(Math.max(0, page - 1), size);
+        Pageable pageable = PageRequest.of(Math.max(0, page - 1), Math.max(1, size));
         Page<PlayHistory> result = playHistoryRepository.findAllByUserOrderByPlayedAtDesc(user, pageable);
 
         List<PlayHistoryListItemResponse> dataList = result.getContent().stream()

@@ -46,7 +46,7 @@ public class NoticeService {
     }
 
     public ResponseDTO<NoticeListItemResponse> getNotices(int page, int size) {
-        Pageable pageable = PageRequest.of(Math.max(0, page - 1), size);
+        Pageable pageable = PageRequest.of(Math.max(0, page - 1), Math.max(1, size));
         Page<Notice> result = noticeRepository.findAllByOrderByIsPinnedDescCreatedAtDesc(pageable);
 
         List<NoticeListItemResponse> dataList = result.getContent().stream()

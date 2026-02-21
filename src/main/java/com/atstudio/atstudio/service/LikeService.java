@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
-@Transactional
+@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class LikeService {
 
@@ -26,6 +26,7 @@ public class LikeService {
     private final UserRepository userRepository;
     private final TrackRepository trackRepository;
 
+    @Transactional
     public void addLike(Long trackId, CustomUserDetails userDetails) {
         User user = getUser(userDetails);
 
@@ -46,7 +47,6 @@ public class LikeService {
         likeRepository.save(like);
     }
 
-    @Transactional(readOnly = true)
     public List<LikeResponse> getMyLikes(CustomUserDetails userDetails) {
         User user = getUser(userDetails);
         return likeRepository.findAllByUser(user).stream()
@@ -54,6 +54,7 @@ public class LikeService {
                 .toList();
     }
 
+    @Transactional
     public void removeLike(Long trackId, CustomUserDetails userDetails) {
         User user = getUser(userDetails);
         Like like = likeRepository.findByUserAndTrack_Id(user, trackId)

@@ -24,11 +24,15 @@ public class NoticeController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<NoticeResponse> createNotice(
+    public ResponseEntity<ResponseDTO<NoticeResponse>> createNotice(
             @Valid @RequestBody NoticeCreateRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
+        NoticeResponse response = noticeService.createNotice(request, userDetails);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(noticeService.createNotice(request, userDetails));
+                .body(ResponseDTO.<NoticeResponse>withSingleData()
+                        .message("Notice created")
+                        .data(response)
+                        .build());
     }
 
     @GetMapping
@@ -39,16 +43,24 @@ public class NoticeController {
     }
 
     @GetMapping("/{noticeId}")
-    public ResponseEntity<NoticeResponse> getNotice(@PathVariable Long noticeId) {
-        return ResponseEntity.ok(noticeService.getNotice(noticeId));
+    public ResponseEntity<ResponseDTO<NoticeResponse>> getNotice(@PathVariable Long noticeId) {
+        NoticeResponse response = noticeService.getNotice(noticeId);
+        return ResponseEntity.ok(ResponseDTO.<NoticeResponse>withSingleData()
+                .message("Notice retrieved")
+                .data(response)
+                .build());
     }
 
     @PutMapping("/{noticeId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<NoticeResponse> updateNotice(
+    public ResponseEntity<ResponseDTO<NoticeResponse>> updateNotice(
             @PathVariable Long noticeId,
             @Valid @RequestBody NoticeUpdateRequest request) {
-        return ResponseEntity.ok(noticeService.updateNotice(noticeId, request));
+        NoticeResponse response = noticeService.updateNotice(noticeId, request);
+        return ResponseEntity.ok(ResponseDTO.<NoticeResponse>withSingleData()
+                .message("Notice updated")
+                .data(response)
+                .build());
     }
 
     @DeleteMapping("/{noticeId}")

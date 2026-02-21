@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
-@Transactional
+@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class DownloadQueueService {
 
@@ -26,6 +26,7 @@ public class DownloadQueueService {
     private final UserRepository userRepository;
     private final TrackRepository trackRepository;
 
+    @Transactional
     public void addToQueue(Long trackId, CustomUserDetails userDetails) {
         User user = getUser(userDetails);
 
@@ -46,7 +47,6 @@ public class DownloadQueueService {
         downloadQueueRepository.save(downloadQueue);
     }
 
-    @Transactional(readOnly = true)
     public List<DownloadQueueResponse> getMyQueue(CustomUserDetails userDetails) {
         User user = getUser(userDetails);
         return downloadQueueRepository.findAllByUser(user).stream()
@@ -54,6 +54,7 @@ public class DownloadQueueService {
                 .toList();
     }
 
+    @Transactional
     public void removeFromQueue(Long trackId, CustomUserDetails userDetails) {
         User user = getUser(userDetails);
         DownloadQueue downloadQueue = downloadQueueRepository.findByUserAndTrack_Id(user, trackId)

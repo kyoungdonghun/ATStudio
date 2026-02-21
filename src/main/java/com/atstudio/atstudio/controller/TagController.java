@@ -22,6 +22,7 @@ public class TagController {
     private final TagService tagService;
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<TagResponse>> createTag(
             @Valid @RequestBody TagCreateRequest request) {
         TagResponse response = tagService.createTag(request);

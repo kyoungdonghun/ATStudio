@@ -17,13 +17,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Transactional
+@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Transactional
     public UserResponse register(RegisterRequest request) {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new BusinessException(BUSINESS_ERROR.EMAIL_ALREADY_REGISTERED);
@@ -46,13 +47,13 @@ public class UserService {
         return toResponse(userRepository.save(user));
     }
 
-    @Transactional(readOnly = true)
     public UserResponse getMyProfile(Long userID) {
         User user = userRepository.findById(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         return toResponse(user);
     }
 
+    @Transactional
     public UserResponse updateMyProfile(Long userID, UpdateProfileRequest request) {
         User user = userRepository.findById(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
@@ -68,6 +69,7 @@ public class UserService {
         return toResponse(user);
     }
 
+    @Transactional
     public void withdraw(Long userID, WithdrawRequest request) {
         User user = userRepository.findById(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
@@ -80,6 +82,7 @@ public class UserService {
         user.withdraw();
     }
 
+    @Transactional
     public UserResponse completeProfile(Long userID, CompleteProfileRequest request) {
         User user = userRepository.findById(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
@@ -99,22 +102,18 @@ public class UserService {
         return toResponse(user);
     }
 
-    @Transactional(readOnly = true)
     public boolean isEmailAvailable(String email) {
         return userRepository.findByEmail(email).isEmpty();
     }
 
-    @Transactional(readOnly = true)
     public boolean isPhoneAvailable(String phone) {
         return userRepository.findByPhonePersonal(phone).isEmpty();
     }
 
-    @Transactional(readOnly = true)
     public boolean isNicknameAvailable(String nickname) {
         return userRepository.findByNickname(nickname).isEmpty();
     }
 
-    @Transactional(readOnly = true)
     public ResponseDTO<UserListItemResponse> getUsers(String keyword, UserType userType, int page, int size) {
         PageRequest pageable = PageRequest.of(Math.max(0, page - 1), Math.max(1, size));
         Page<User> userPage = userRepository.searchUsers(keyword, userType, pageable);
@@ -125,13 +124,13 @@ public class UserService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
     public UserDetailResponse getUser(Long userID) {
         User user = userRepository.findById(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         return UserDetailResponse.from(user);
     }
 
+    @Transactional
     public UserDetailResponse updateUserByAdmin(Long userID, UserAdminUpdateRequest request) {
         User user = userRepository.findById(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
