@@ -2,12 +2,14 @@ package com.atstudio.atstudio.controller;
 
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.user.*;
+import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -60,6 +62,34 @@ public class UserController {
             @Valid @RequestBody CompleteProfileRequest request) {
         return ResponseEntity.ok(ResponseDTO.<UserResponse>withSingleData()
                 .data(userService.completeProfile(userDetails.getId(), request))
+                .build());
+    }
+
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<UserListItemResponse>> getUsers(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) UserType userType,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(userService.getUsers(keyword, userType, page, size));
+    }
+
+    @GetMapping("/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<UserDetailResponse>> getUser(@PathVariable Long userId) {
+        return ResponseEntity.ok(ResponseDTO.<UserDetailResponse>withSingleData()
+                .data(userService.getUser(userId))
+                .build());
+    }
+
+    @PutMapping("/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<UserDetailResponse>> updateUser(
+            @PathVariable Long userId,
+            @Valid @RequestBody UserAdminUpdateRequest request) {
+        return ResponseEntity.ok(ResponseDTO.<UserDetailResponse>withSingleData()
+                .data(userService.updateUserByAdmin(userId, request))
                 .build());
     }
 }

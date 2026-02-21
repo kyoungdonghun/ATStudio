@@ -7,6 +7,7 @@ import com.atstudio.atstudio.dto.tag.TagResponse;
 import com.atstudio.atstudio.entity.Tag;
 import com.atstudio.atstudio.entity.enums.TagType;
 import com.atstudio.atstudio.repository.TagRepository;
+import com.atstudio.atstudio.repository.TrackTagRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import java.util.List;
 public class TagService {
 
     private final TagRepository tagRepository;
+    private final TrackTagRepository trackTagRepository;
 
     @Transactional
     public TagResponse createTag(TagCreateRequest request) {
@@ -39,5 +41,26 @@ public class TagService {
                 ? tagRepository.findAllByType(type)
                 : tagRepository.findAll();
         return tags.stream().map(TagResponse::from).toList();
+    }
+
+    @Transactional
+    public TagResponse updateTag(Long id, TagCreateRequest request) {
+        Tag tag = tagRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TAG_NOT_FOUND));
+
+        if (!tag.getName().equals(request.getName()) && tagRepository.existsByName(request.getName())) {
+            throw new BusinessException(BUSINESS_ERROR.TAG_NAME_DUPLICATED);
+        }
+
+        tag.update(request.getName(), request.getType());
+        return TagResponse.from(tag);
+    }
+
+    @Transactional
+    public void deleteTag(Long id) {
+        Tag tag = tagRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TAG_NOT_FOUND));
+        trackTagRepository.deleteAllByTag(tag);
+        tagRepository.delete(tag);
     }
 }

@@ -83,6 +83,11 @@ public class User extends BaseEntity {
         return phonePersonal != null && job != null;
     }
 
+    public void updateByAdmin(UserRole role, Boolean isVerified) {
+        if (role != null) this.role = role;
+        if (isVerified != null) this.isVerified = isVerified;
+    }
+
     public void completeProfile(String nickname, String phonePersonal, String phoneCompany, UserJob job, UserType userType) {
         this.nickname = nickname;
         this.phonePersonal = phonePersonal;

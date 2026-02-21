@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -35,5 +36,24 @@ public class TagController {
     public ResponseEntity<List<TagResponse>> getAllTags(
             @RequestParam(required = false) TagType type) {
         return ResponseEntity.ok(tagService.getAllTags(type));
+    }
+
+    @PutMapping("/{tagId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<TagResponse>> updateTag(
+            @PathVariable Long tagId,
+            @Valid @RequestBody TagCreateRequest request) {
+        TagResponse response = tagService.updateTag(tagId, request);
+        return ResponseEntity.ok(ResponseDTO.<TagResponse>withSingleData()
+                .message("Tag updated")
+                .data(response)
+                .build());
+    }
+
+    @DeleteMapping("/{tagId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> deleteTag(@PathVariable Long tagId) {
+        tagService.deleteTag(tagId);
+        return ResponseEntity.noContent().build();
     }
 }

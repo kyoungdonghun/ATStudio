@@ -29,4 +29,10 @@ public class Notice extends BaseEntity {
     @Builder.Default
     @Column(nullable = false)
     private boolean isPinned = false;
+
+    public void update(String title, String content, Boolean isPinned) {
+        if (title != null) this.title = title;
+        if (content != null) this.content = content;
+        if (isPinned != null) this.isPinned = isPinned;
+    }
 }

@@ -1,12 +1,17 @@
 package com.atstudio.atstudio.service;
 
+import com.atstudio.atstudio.common.dto.PageInfo;
+import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.user.*;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.UserRole;
+import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -107,6 +112,31 @@ public class UserService {
     @Transactional(readOnly = true)
     public boolean isNicknameAvailable(String nickname) {
         return userRepository.findByNickname(nickname).isEmpty();
+    }
+
+    @Transactional(readOnly = true)
+    public ResponseDTO<UserListItemResponse> getUsers(String keyword, UserType userType, int page, int size) {
+        PageRequest pageable = PageRequest.of(Math.max(0, page - 1), Math.max(1, size));
+        Page<User> userPage = userRepository.searchUsers(keyword, userType, pageable);
+
+        return ResponseDTO.<UserListItemResponse>withAll()
+                .dataList(userPage.getContent().stream().map(UserListItemResponse::from).toList())
+                .pageInfo(PageInfo.of(page, size, (int) userPage.getTotalElements(), 10))
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public UserDetailResponse getUser(Long userID) {
+        User user = userRepository.findById(userID)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        return UserDetailResponse.from(user);
+    }
+
+    public UserDetailResponse updateUserByAdmin(Long userID, UserAdminUpdateRequest request) {
+        User user = userRepository.findById(userID)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        user.updateByAdmin(request.getRole(), request.getIsVerified());
+        return UserDetailResponse.from(user);
     }
 
     private UserResponse toResponse(User user) {
