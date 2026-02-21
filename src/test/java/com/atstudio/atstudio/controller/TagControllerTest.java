@@ -15,9 +15,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.mockito.Mockito.doNothing;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -73,5 +74,66 @@ class TagControllerTest {
 
         mockMvc.perform(get("/api/tags"))
                 .andExpect(status().isOk());
+    }
+
+    // ── PUT /api/tags/{id} (ADMIN 전용) ───────────────────────────────────────
+
+    @Test
+    @DisplayName("PUT /api/tags/{id} - 비인증 → 401")
+    void updateTag_unauthenticated_returns401() throws Exception {
+        mockMvc.perform(put("/api/tags/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"NewName\",\"type\":\"MOOD\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("PUT /api/tags/{id} - 일반 유저 → 403")
+    void updateTag_userRole_returns403() throws Exception {
+        mockMvc.perform(put("/api/tags/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"NewName\",\"type\":\"MOOD\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("PUT /api/tags/{id} - ADMIN → 200")
+    void updateTag_adminRole_returns200() throws Exception {
+        given(tagService.updateTag(anyLong(), any())).willReturn(
+                new TagResponse(1L, "NewName", TagType.MOOD, null));
+
+        mockMvc.perform(put("/api/tags/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"NewName\",\"type\":\"MOOD\"}"))
+                .andExpect(status().isOk());
+    }
+
+    // ── DELETE /api/tags/{id} (ADMIN 전용) ────────────────────────────────────
+
+    @Test
+    @DisplayName("DELETE /api/tags/{id} - 비인증 → 401")
+    void deleteTag_unauthenticated_returns401() throws Exception {
+        mockMvc.perform(delete("/api/tags/1"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("DELETE /api/tags/{id} - 일반 유저 → 403")
+    void deleteTag_userRole_returns403() throws Exception {
+        mockMvc.perform(delete("/api/tags/1"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("DELETE /api/tags/{id} - ADMIN → 204")
+    void deleteTag_adminRole_returns204() throws Exception {
+        doNothing().when(tagService).deleteTag(anyLong());
+
+        mockMvc.perform(delete("/api/tags/1"))
+                .andExpect(status().isNoContent());
     }
 }

@@ -7,6 +7,7 @@ import com.atstudio.atstudio.dto.tag.TagResponse;
 import com.atstudio.atstudio.entity.Tag;
 import com.atstudio.atstudio.entity.enums.TagType;
 import com.atstudio.atstudio.repository.TagRepository;
+import com.atstudio.atstudio.repository.TrackTagRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,11 +29,10 @@ import static org.mockito.Mockito.verify;
 @DisplayName("TagService 단위 테스트")
 class TagServiceTest {
 
-    @Mock
-    TagRepository tagRepository;
+    @Mock TagRepository tagRepository;
+    @Mock TrackTagRepository trackTagRepository;
 
-    @InjectMocks
-    TagService tagService;
+    @InjectMocks TagService tagService;
 
     // ── createTag() ───────────────────────────────────────────────────────────
 
@@ -95,6 +96,81 @@ class TagServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).type()).isEqualTo(TagType.GENRE);
         verify(tagRepository).findAllByType(TagType.GENRE);
+    }
+
+    // ── updateTag() ───────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("updateTag() 성공 - 태그 이름/타입 수정 후 응답 반환")
+    void updateTag_success() {
+        Tag tag = buildTag(1L, "OldName", TagType.GENRE);
+        TagCreateRequest request = new TagCreateRequest();
+        request.setName("NewName");
+        request.setType(TagType.MOOD);
+
+        given(tagRepository.findById(1L)).willReturn(Optional.of(tag));
+        given(tagRepository.existsByName("NewName")).willReturn(false);
+
+        TagResponse response = tagService.updateTag(1L, request);
+
+        assertThat(response.name()).isEqualTo("NewName");
+        assertThat(response.type()).isEqualTo(TagType.MOOD);
+    }
+
+    @Test
+    @DisplayName("updateTag() 실패 - 존재하지 않는 ID → TAG_NOT_FOUND 예외")
+    void updateTag_notFound() {
+        given(tagRepository.findById(99L)).willReturn(Optional.empty());
+        TagCreateRequest request = new TagCreateRequest();
+        request.setName("Any");
+        request.setType(TagType.MOOD);
+
+        assertThatThrownBy(() -> tagService.updateTag(99L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.TAG_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("updateTag() 실패 - 다른 태그와 이름 중복 → TAG_NAME_DUPLICATED 예외")
+    void updateTag_duplicateName() {
+        Tag tag = buildTag(1L, "Original", TagType.GENRE);
+        TagCreateRequest request = new TagCreateRequest();
+        request.setName("Duplicate");
+        request.setType(TagType.GENRE);
+
+        given(tagRepository.findById(1L)).willReturn(Optional.of(tag));
+        given(tagRepository.existsByName("Duplicate")).willReturn(true);
+
+        assertThatThrownBy(() -> tagService.updateTag(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.TAG_NAME_DUPLICATED));
+    }
+
+    // ── deleteTag() ───────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("deleteTag() 성공 - TrackTag 먼저 삭제 후 태그 삭제")
+    void deleteTag_success() {
+        Tag tag = buildTag(1L, "Happy", TagType.MOOD);
+        given(tagRepository.findById(1L)).willReturn(Optional.of(tag));
+
+        tagService.deleteTag(1L);
+
+        verify(trackTagRepository).deleteAllByTag(tag);
+        verify(tagRepository).delete(tag);
+    }
+
+    @Test
+    @DisplayName("deleteTag() 실패 - 존재하지 않는 ID → TAG_NOT_FOUND 예외")
+    void deleteTag_notFound() {
+        given(tagRepository.findById(99L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> tagService.deleteTag(99L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.TAG_NOT_FOUND));
     }
 
     // ── helper ────────────────────────────────────────────────────────────────
