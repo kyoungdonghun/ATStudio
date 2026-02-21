@@ -3,6 +3,7 @@ package com.atstudio.atstudio.controller;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.track.*;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.DownloadService;
 import com.atstudio.atstudio.service.TrackService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 public class TrackController {
 
     private final TrackService trackService;
+    private final DownloadService downloadService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseDTO<TrackResponse>> createTrack(
@@ -45,6 +47,18 @@ public class TrackController {
         return ResponseEntity.ok(ResponseDTO.<TrackResponse>withSingleData()
                 .data(trackService.getTrack(trackId))
                 .build());
+    }
+
+    @GetMapping("/{trackId}/download")
+    public ResponseEntity<Resource> downloadTrack(
+            @PathVariable Long trackId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        Resource resource = downloadService.download(trackId, userDetails);
+        String filename = resource.getFilename() != null ? resource.getFilename() : "track.mp3";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resource);
     }
 
     @GetMapping("/{trackId}/stream")

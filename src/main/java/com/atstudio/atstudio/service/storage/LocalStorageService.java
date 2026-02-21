@@ -3,10 +3,13 @@ package com.atstudio.atstudio.service.storage;
 import com.atstudio.atstudio.common.exception.TECHNIC_ERROR;
 import com.atstudio.atstudio.common.exception.TechnicException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -48,6 +51,20 @@ public class LocalStorageService implements StorageService {
             Path target = Paths.get(basePath, relativePath);
             Files.deleteIfExists(target);
         } catch (IOException ignored) {
+        }
+    }
+
+    @Override
+    public Resource loadAsResource(String relativePath) {
+        try {
+            Path file = Paths.get(basePath, relativePath).normalize();
+            Resource resource = new UrlResource(file.toUri());
+            if (!resource.exists()) {
+                throw new TechnicException(TECHNIC_ERROR.IO_EXCEPTION);
+            }
+            return resource;
+        } catch (MalformedURLException e) {
+            throw new TechnicException(TECHNIC_ERROR.IO_EXCEPTION);
         }
     }
 }
