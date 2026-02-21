@@ -122,6 +122,18 @@ gradlew.bat build        # Windows
 - **WI 없음**: `/create-wi-handoff-packet`으로 WI 먼저 생성. 파일 수정 금지.
 - **위임 없음**: 적절한 Subagent(Task)에게 먼저 위임. 직접 수정 금지.
 
+### WI Chain Rule (Enforced)
+
+**WI 완료 직후, 반드시 아래 체크를 수행:**
+
+1. 완료된 WI가 REQ PARALLEL WORK PLAN에서 어떤 WI를 **Blocks** 하는가?
+2. 해당 다음 WI가 존재하면 → **즉시 `/create-wi-handoff-packet` 생성 → Subagent 위임**
+3. 모든 WI가 완료된 경우에만 REQ를 닫고 다음 작업으로 넘어감
+
+**위반 패턴 (NEVER):**
+- WI 완료 후 deliverable 작성, 커밋, 메모리 업데이트를 하면서 다음 WI 트리거를 빠뜨리는 것
+- 비정상 흐름(MA 직접 개입 등) 처리 후 복귀 시 체인 확인 생략
+
 ### Skill Gates (Enforced)
 
 - **REQ 승인 전**: `/create-req` 스킬로 REQ 초안 작성
