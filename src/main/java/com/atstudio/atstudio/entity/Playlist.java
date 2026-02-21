@@ -32,4 +32,14 @@ public class Playlist extends BaseEntity {
     @Builder.Default
     @Column(nullable = false)
     private boolean isActive = true;
+
+    public void update(String title, String description, String thumbnail) {
+        if (title != null) this.title = title;
+        if (description != null) this.description = description;
+        if (thumbnail != null) this.thumbnail = thumbnail;
+    }
+
+    public void deactivate() {
+        this.isActive = false;
+    }
 }
