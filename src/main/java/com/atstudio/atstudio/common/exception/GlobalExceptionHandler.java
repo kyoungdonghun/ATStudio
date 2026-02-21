@@ -4,6 +4,7 @@ import com.atstudio.atstudio.common.dto.ExceptionResponseDTO;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
@@ -111,6 +112,10 @@ public class GlobalExceptionHandler {
             technicEx = new TechnicException(TECHNIC_ERROR.IO_EXCEPTION);
             logger.error("TechnicException(Fallback): {}. Detail: {}",
                     technicEx.getDeveloperMessage(), ex.toString(), ex);
+
+        } else if (ex instanceof AccessDeniedException) {
+            logger.warn("AccessDeniedException(Fallback): insufficient authority. Detail: {}", ex.toString());
+            return buildErrorResponse(HttpStatus.FORBIDDEN, "해당 정보를 열람할 수 없습니다.", null);
 
         } else {
             technicEx = new TechnicException(TECHNIC_ERROR.UNEXPECTED_ERROR);
