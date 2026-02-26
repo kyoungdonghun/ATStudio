@@ -11,23 +11,23 @@
 |-------|-------|
 | **Code** | PAYMENT-001 |
 | **Version** | 26-02-20 |
-| **Description** | Member selects a subscription plan and pays to start a subscription. BUSINESS type members can only subscribe after business license review approval. |
+| **Description** | Member selects a subscription plan and pays to start a subscription. BUSINESS type members can only subscribe after company certification review approval. |
 | **Actor** | User (Member), Backend, Payment Gateway (PG) |
-| **Preconditions** | Logged in. At least one subscription plan exists in DB. If BUSINESS type: BL-001~005 review approved (business_license_requests.status=APPROVED). |
+| **Preconditions** | Logged in. At least one subscription plan exists in DB. If BUSINESS type: CC-001~005 review approved (company_certifications.status=APPROVED). |
 | **Trigger** | User clicks the 'Subscribe' button on a specific plan in the subscription plan list screen. |
-| **Related UC** | PAYMENT-002 (list plans), PAYMENT-006 (view my subscription), BL-001 (apply for business license) |
+| **Related UC** | PAYMENT-002 (list plans), PAYMENT-006 (view my subscription), CC-001 (apply for company certification) |
 
 **Main Flow**
 1. User selects a subscription plan and billing cycle (MONTHLY/YEARLY).
 2. Frontend displays the payment screen and initiates PG payment.
 3. After payment completion, frontend sends a subscription request including subscriptionId and billingCycle to the backend.
-4. Backend verifies member type and business license approval status.
+4. Backend verifies member type and company certification approval status.
 5. Backend creates a user_subscriptions record (status=ACTIVE, started_at, expires_at set).
 6. Backend saves the payment record in subscription_payments.
 7. Backend returns a success response (201 Created).
 
 **Exception / Alternative Flow**
-- BUSINESS type member without license approval: 403 `BUSINESS_LICENSE_REQUIRED`.
+- BUSINESS type member without certification approval: 403 `COMPANY_CERTIFICATION_REQUIRED`.
 
 **Postconditions**
 - user_subscriptions record created (status=ACTIVE). Payment record saved in subscription_payments.

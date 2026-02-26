@@ -1,19 +1,19 @@
 package com.atstudio.atstudio.entity;
 
 import com.atstudio.atstudio.common.entity.BaseEntity;
-import com.atstudio.atstudio.entity.enums.BusinessLicenseStatus;
+import com.atstudio.atstudio.entity.enums.CompanyCertificationStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "business_license_requests")
+@Table(name = "company_certifications")
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class BusinessLicenseRequest extends BaseEntity {
+public class CompanyCertification extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,7 +26,7 @@ public class BusinessLicenseRequest extends BaseEntity {
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private BusinessLicenseStatus status = BusinessLicenseStatus.PENDING;
+    private CompanyCertificationStatus status = CompanyCertificationStatus.PENDING;
 
     @Column(columnDefinition = "TEXT")
     private String adminNote;
@@ -35,7 +35,15 @@ public class BusinessLicenseRequest extends BaseEntity {
     private String documentPath;
 
     @Column(length = 50, unique = true)
-    private String licenseCode;
+    private String certificationCode;
 
     private LocalDateTime approvedAt;
+
+    public void process(CompanyCertificationStatus newStatus, String adminNote,
+                        String certificationCode, LocalDateTime approvedAt) {
+        this.status = newStatus;
+        this.adminNote = adminNote;
+        this.certificationCode = certificationCode;
+        this.approvedAt = approvedAt;
+    }
 }

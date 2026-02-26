@@ -76,7 +76,7 @@ task_types:
 | subscription | Subscription | Paid plan that grants download and playlist access | plan, membership | purchase (different) | - | DB table `user_subscriptions`; required for downloads |
 | whitelist-channel | Whitelist Channel | YouTube channel registered by a subscriber for track usage tracking | channel | account (ambiguous) | - | DB table `whitelist_channels`; count limited by subscription plan |
 | download-queue | Download Queue | Temporary collection of tracks queued for sequential download | cart (incorrect) | cart (no purchase concept) | - | DB table `download_queue`; frontend calls SOUND-011 per track |
-| business-license | Business License | Document review process for BUSINESS-type members to unlock subscription | corporate review | personal license (different) | - | DB table `business_license_requests`; required before BUSINESS subscription |
+| company-certification | Company Certification | Document review process for BUSINESS-type members to unlock subscription | corporate review | personal license (different) | - | DB table `company_certifications`; required before BUSINESS subscription |
 | royalty | Royalty | Revenue share paid to creator per sale | commission, revenue share | profit (broader) | - | Platform takes commission % |
 | playlist | Playlist | Curated collection of tracks for subscribers | collection, mix | album (different) | - | DB table `playlists`; subscriber-only feature |
 

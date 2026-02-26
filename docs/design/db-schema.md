@@ -163,9 +163,9 @@
 
 ---
 
-# 3. Business License Review
+# 3. Company Certification
 
-## 3.1 Business License Application (`business_license_requests`)
+## 3.1 Company Certification (`company_certifications`)
 
 > Business members (over 100 employees) submit documents before purchasing a subscription plan. Admin reviews and approves or rejects.
 
@@ -176,21 +176,21 @@
 | Review status | `status` | ENUM('PENDING','APPROVED','REVISION_REQUESTED','REJECTED') | NOT NULL | | 'PENDING' | Pending / Approved / Revision requested / Rejected |
 | Admin note | `admin_note` | TEXT | NULL | | | Reason for revision request, etc. |
 | Document file path | `document_path` | VARCHAR(500) | NOT NULL | | | Stored in per-user dedicated folder |
-| License code | `license_code` | VARCHAR(50) | NULL | UNIQUE | | UUID-based, issued upon approval |
+| Certification code | `certification_code` | VARCHAR(50) | NULL | UNIQUE | | UUID-based, issued upon approval |
 | Approved at | `approved_at` | DATETIME | NULL | | | Timestamp of approval completion |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
 **File storage policy:**
-- App-level creation of per-user dedicated directory (e.g., `/uploads/business-docs/{user_id}/`)
+- App-level creation of per-user dedicated directory (e.g., `/uploads/company-docs/{user_id}/`)
 - `document_path` stores the directory path
 - Files within the directory are managed directly on the filesystem
 
 **Process:**
 1. Business member selects subscription plan and goes to document submission page
-2. File upload + license request submission (status: PENDING)
+2. File upload + certification request submission (status: PENDING)
 3. Admin review: revision request (REVISION_REQUESTED) or approval (APPROVED)
-4. Upon approval: `license_code` issued, subscription payment enabled
+4. Upon approval: `certification_code` issued, subscription payment enabled
 5. After payment, admin provides tax invoice/contract to the business (offline/separate process)
 
 ---
@@ -467,7 +467,7 @@
 users ─┬─< social_accounts
        ├─< user_subscriptions ──> subscriptions
        ├─< subscription_payments ──> subscriptions
-       ├─< business_license_requests
+       ├─< company_certifications
        ├─< track_downloads ──> tracks
        ├─< play_histories ──> tracks
        ├─< likes ──> tracks
@@ -492,7 +492,7 @@ tracks ─< track_tags ──> tags
 | 2 | `social_accounts` | Social login | Master |
 | 3 | `subscriptions` | Subscription plan definitions | Master |
 | 4 | `user_subscriptions` | User subscription status | Transaction |
-| 5 | `business_license_requests` | Business license review | Transaction |
+| 5 | `company_certifications` | Company certification | Transaction |
 | 6 | `tracks` | Audio tracks | Master |
 | 7 | `tags` | Tags | Master |
 | 8 | `track_tags` | Track-tag mapping | Mapping |

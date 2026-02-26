@@ -829,7 +829,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 
 **Error Cases**
 ```json
-{ "status": 403, "error": "Forbidden", "errorCode": "BUSINESS_LICENSE_REQUIRED", "message": "기업회원 라이센스 심사 승인 후 이용 가능합니다." }
+{ "status": 403, "error": "Forbidden", "errorCode": "COMPANY_CERTIFICATION_REQUIRED", "message": "기업 인증 심사 승인 후 이용 가능합니다." }
 ```
 
 ## 6.4 My Subscription
@@ -1359,12 +1359,12 @@ size: Integer (default: 20)
 
 ---
 
-# 13. Business License Review
+# 13. Company Certification
 
-## 13.1 Submit License Application
+## 13.1 Submit Certification Application
 | Field | Value |
 |-------|-------|
-| **URL** | `POST /api/business-licenses` |
+| **URL** | `POST /api/company-certifications` |
 | **Auth** | auth required (business members only) |
 
 **Request** (multipart/form-data)
@@ -1377,15 +1377,15 @@ documents: List<File> (required)
 {
   "id": 1,
   "status": "PENDING",
-  "documentPath": "/uploads/business-docs/1/",
+  "documentPath": "/uploads/company-docs/1/",
   "createdAt": "2026-02-19T10:00:00"
 }
 ```
 
-## 13.2 My License Application Status
+## 13.2 My Certification Application Status
 | Field | Value |
 |-------|-------|
-| **URL** | `GET /api/business-licenses/me` |
+| **URL** | `GET /api/company-certifications/me` |
 | **Auth** | auth required (business members) |
 
 **Response** `200 OK`
@@ -1394,15 +1394,15 @@ documents: List<File> (required)
   "id": 1,
   "status": "PENDING",
   "adminNote": null,
-  "licenseCode": null,
+  "certificationCode": null,
   "createdAt": "2026-02-19T10:00:00"
 }
 ```
 
-## 13.3 List License Applications (Admin)
+## 13.3 List Certification Applications (Admin)
 | Field | Value |
 |-------|-------|
-| **URL** | `GET /api/business-licenses` |
+| **URL** | `GET /api/company-certifications` |
 | **Auth** | `[ADMIN]` |
 
 **Query Parameters**
@@ -1414,20 +1414,20 @@ size: Integer (default: 20)
 
 **Response** `200 OK` — Pagination
 
-## 13.4 Get License Application Detail (Admin)
+## 13.4 Get Certification Application Detail (Admin)
 | Field | Value |
 |-------|-------|
-| **URL** | `GET /api/business-licenses/{requestId}` |
+| **URL** | `GET /api/company-certifications/{certificationId}` |
 | **Auth** | `[ADMIN]` |
 
 **Response** `200 OK`
 
-## 13.5 Process License Review (Admin)
+## 13.5 Process Certification Review (Admin)
 | Field | Value |
 |-------|-------|
-| **URL** | `PUT /api/business-licenses/{requestId}` |
+| **URL** | `PUT /api/company-certifications/{certificationId}` |
 | **Auth** | `[ADMIN]` |
-| **Description** | Approve / request revision / reject. On approval, license_code is auto-generated |
+| **Description** | Approve / request revision / reject. On approval, certification_code is auto-generated |
 
 **Request**
 ```json
@@ -1442,7 +1442,7 @@ size: Integer (default: 20)
 {
   "id": 1,
   "status": "APPROVED",
-  "licenseCode": "BIZ-a1b2c3d4-e5f6-...",
+  "certificationCode": "BIZ-a1b2c3d4-e5f6-...",
   "approvedAt": "2026-02-19T15:00:00"
 }
 ```
@@ -1596,6 +1596,6 @@ nickname: String (required)
 | 10 | Likes (Favorites) | 3 |
 | 11 | Download Queue | 3 |
 | 12 | Whitelist Channels | 4 |
-| 13 | Business License Review | 5 |
+| 13 | Company Certification | 5 |
 | 14 | Utility | 7 |
 | | **Total** | **79** |

@@ -23,7 +23,7 @@
 | `likes.md` | Likes (add/list/remove) | 3 |
 | `download-queue.md` | Download queue (add/list/remove) | 3 |
 | `whitelist.md` | Whitelist channel (register/list/update/delete) | 4 |
-| `business-license.md` | Business license review (apply/view status/admin management) | 5 |
+| `company-certification.md` | Company certification (apply/view status/admin management) | 5 |
 | `util.md` | Utility (duplicate check/token/subscription status/download count, etc.) | 7 |
 
 **Total UC count: 79** (net +2 vs v3: +3 added, -1 removed)
@@ -123,15 +123,15 @@
 | WL-003 | Update channel | `whitelist.md` |
 | WL-004 | Delete channel | `whitelist.md` |
 
-### Business License
+### Company Certification
 
 | Code | Title | File |
 |------|-------|------|
-| BL-001 | Apply for business license | `business-license.md` |
-| BL-002 | View my application status | `business-license.md` |
-| BL-003 | List applications (Admin) | `business-license.md` |
-| BL-004 | View application detail (Admin) | `business-license.md` |
-| BL-005 | Process review (Admin) | `business-license.md` |
+| CC-001 | Apply for company certification | `company-certification.md` |
+| CC-002 | View my application status | `company-certification.md` |
+| CC-003 | List applications (Admin) | `company-certification.md` |
+| CC-004 | View application detail (Admin) | `company-certification.md` |
+| CC-005 | Process review (Admin) | `company-certification.md` |
 
 ### Util
 

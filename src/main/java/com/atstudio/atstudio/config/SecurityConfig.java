@@ -80,9 +80,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/notices").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/notices/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/notices/*").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/business-licenses").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/business-licenses/*").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/api/business-licenses/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/company-certifications/me").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/company-certifications").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/company-certifications/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/company-certifications/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/questions/*/status").hasRole("ADMIN")
                 // All other /api/** require authentication
                 .requestMatchers("/api/**").authenticated()

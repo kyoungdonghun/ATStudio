@@ -1,5 +1,5 @@
 package com.atstudio.atstudio.entity.enums;
 
-public enum BusinessLicenseStatus {
+public enum CompanyCertificationStatus {
     PENDING, APPROVED, REVISION_REQUESTED, REJECTED
 }

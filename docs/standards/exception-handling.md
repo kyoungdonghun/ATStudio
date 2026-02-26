@@ -102,7 +102,7 @@ Each exception carries an ENUM value that defines HTTP status, client message, a
 | `DOWNLOAD_LIMIT_EXCEEDED` | 403 FORBIDDEN | 오늘의 다운로드 한도를 초과했습니다. | 일일 다운로드 제한 초과. |
 | `NICKNAME_DUPLICATED` | 409 CONFLICT | 이미 사용 중인 닉네임입니다. | 닉네임 중복. |
 | `WHITELIST_CHANNEL_LIMIT_EXCEEDED` | 403 FORBIDDEN | 채널 등록 한도를 초과했습니다. | 구독 플랜 최대 채널 수 초과. |
-| `BUSINESS_LICENSE_REQUIRED` | 403 FORBIDDEN | 기업회원 라이센스 심사 승인 후 이용 가능합니다. | 기업회원 라이센스 미승인 상태. |
+| `COMPANY_CERTIFICATION_REQUIRED` | 403 FORBIDDEN | 기업 인증 심사 승인 후 이용 가능합니다. | 기업회원 Company Certification 미승인 상태. |
 | `SUBSCRIPTION_NOT_FOUND` | 404 NOT_FOUND | 구독 정보를 찾을 수 없습니다. | 활성 구독 레코드가 존재하지 않습니다. |
 
 ---

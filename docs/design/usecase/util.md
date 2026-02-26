@@ -144,7 +144,7 @@
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. |
 | **Trigger** | Frontend calls this when it needs to render different UI depending on the member type. |
-| **Related UC** | BL-001 (apply for business license), PAYMENT-001 (subscribe) |
+| **Related UC** | CC-001 (apply for company certification), PAYMENT-001 (subscribe) |
 
 **Main Flow**
 1. Frontend sends a request with the auth token to the backend. (`GET /api/utils/user-type`)

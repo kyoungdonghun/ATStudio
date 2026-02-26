@@ -105,10 +105,10 @@ public enum BUSINESS_ERROR {
             "채널 등록 한도를 초과했습니다.",
             "구독 플랜 최대 채널 수 초과."),
 
-    BUSINESS_LICENSE_REQUIRED(
+    COMPANY_CERTIFICATION_REQUIRED(
             HttpStatus.FORBIDDEN,
-            "기업회원 라이센스 심사 승인 후 이용 가능합니다.",
-            "기업회원 라이센스 미승인 상태."),
+            "기업 인증 심사 승인 후 이용 가능합니다.",
+            "기업회원 Company Certification 미승인 상태."),
 
     SUBSCRIPTION_NOT_FOUND(
             HttpStatus.NOT_FOUND,

@@ -130,22 +130,22 @@ CREATE TABLE IF NOT EXISTS user_subscriptions
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 2.3  business_license_requests  (→ users)
+-- 2.3  company_certifications  (→ users)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS business_license_requests
+CREATE TABLE IF NOT EXISTS company_certifications
 (
-    id            BIGINT                                                          NOT NULL AUTO_INCREMENT,
-    user_id       BIGINT                                                          NOT NULL,
-    status        ENUM ('PENDING', 'APPROVED', 'REVISION_REQUESTED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
-    admin_note    TEXT                                                            NULL     COMMENT 'Reason for revision request, etc.',
-    document_path VARCHAR(500)                                                    NOT NULL COMMENT 'Per-user dedicated folder path (e.g. /uploads/business-docs/{user_id}/).',
-    license_code  VARCHAR(50)                                                     NULL     COMMENT 'UUID-based. Issued upon approval.',
-    approved_at   DATETIME                                                        NULL,
-    created_at    DATETIME                                                        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at    DATETIME                                                        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    id                 BIGINT                                                          NOT NULL AUTO_INCREMENT,
+    user_id            BIGINT                                                          NOT NULL,
+    status             ENUM ('PENDING', 'APPROVED', 'REVISION_REQUESTED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
+    admin_note         TEXT                                                            NULL     COMMENT 'Reason for revision request, etc.',
+    document_path      VARCHAR(500)                                                    NOT NULL COMMENT 'Per-user dedicated folder path (e.g. /uploads/company-docs/{user_id}/).',
+    certification_code VARCHAR(50)                                                     NULL     COMMENT 'UUID-based. Issued upon approval.',
+    approved_at        DATETIME                                                        NULL,
+    created_at         DATETIME                                                        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at         DATETIME                                                        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_business_license_code (license_code),
-    CONSTRAINT fk_business_license_requests_user FOREIGN KEY (user_id) REFERENCES users (id)
+    UNIQUE KEY uq_company_certification_code (certification_code),
+    CONSTRAINT fk_company_certifications_user FOREIGN KEY (user_id) REFERENCES users (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;

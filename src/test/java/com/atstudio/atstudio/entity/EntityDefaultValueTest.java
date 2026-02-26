@@ -102,13 +102,15 @@ class EntityDefaultValueTest {
     }
 
     @Test
-    @DisplayName("BusinessLicenseRequest: status=PENDING")
-    void businessLicenseRequest_defaults() {
-        BusinessLicenseRequest req = BusinessLicenseRequest.builder()
-                .documentPath("/uploads/docs/1/")
+    @DisplayName("CompanyCertification: status=PENDING")
+    void companyCertification_defaults() {
+        User mockUser = org.mockito.Mockito.mock(User.class);
+        CompanyCertification cert = CompanyCertification.builder()
+                .user(mockUser)
+                .documentPath("/uploads/company-docs/1/")
                 .build();
 
-        assertThat(req.getStatus()).isEqualTo(BusinessLicenseStatus.PENDING);
+        assertThat(cert.getStatus()).isEqualTo(CompanyCertificationStatus.PENDING);
     }
 
     @Test

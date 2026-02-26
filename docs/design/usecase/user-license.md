@@ -5,7 +5,7 @@
 >
 > **License type distinction**:
 > - **Track usage license** (this file): `licenses` table. Automatically issued on download. UUID-based.
-> - **Business review license**: `business_license_requests` table. See `business-license.md`.
+> - **Company certification**: `company_certifications` table. See `company-certification.md`.
 
 ---
 
