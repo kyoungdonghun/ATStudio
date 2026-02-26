@@ -25,4 +25,9 @@ public class WhitelistChannel extends BaseEntity {
 
     @Column(nullable = false, length = 100)
     private String channelName;
+
+    public void update(String channelUrl, String channelName) {
+        this.channelUrl = channelUrl;
+        this.channelName = channelName;
+    }
 }
