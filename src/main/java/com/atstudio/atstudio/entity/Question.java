@@ -40,4 +40,8 @@ public class Question extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 15)
     private QuestionStatus status = QuestionStatus.OPEN;
+
+    public void updateStatus(QuestionStatus status) {
+        this.status = status;
+    }
 }
