@@ -22,16 +22,18 @@
 **Main Flow**
 1. User enters the channel URL (channelUrl, required) and channel name (channelName, required).
 2. Frontend sends the input to the backend.
-3. Backend verifies that the user has an active subscription.
-4. Backend checks that the current number of registered active channels is less than max_whitelist_channels.
-5. Backend creates a whitelist_channels record (is_active=1) and returns 201 Created.
+3. Backend validates that channelUrl contains `youtube.com` (loose format check).
+4. Backend verifies that the user has an active subscription.
+5. Backend checks that the current number of registered channels is less than max_whitelist_channels.
+6. Backend creates a whitelist_channels record and returns 201 Created.
 
 **Exception / Alternative Flow**
+- Invalid channel URL (not youtube.com): 400 `INVALID_ARGUMENT`.
 - No active subscription: 403 response.
 - Channel count exceeded: 403 `WHITELIST_CHANNEL_LIMIT_EXCEEDED`.
 
 **Postconditions**
-- A record is created in the whitelist_channels table (is_active=1).
+- A record is created in the whitelist_channels table.
 
 ---
 
@@ -50,7 +52,7 @@
 **Main Flow**
 1. Frontend sends a request with the auth token to the backend.
 2. Backend extracts userId from the JWT and queries the user's whitelist_channels list.
-3. Backend returns the channel list (id, channelUrl, channelName, isActive, createdAt).
+3. Backend returns the channel list (id, channelUrl, channelName, createdAt).
 
 **Postconditions**
 - Whitelist channel list displayed on screen.

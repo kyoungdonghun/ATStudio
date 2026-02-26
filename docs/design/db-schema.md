@@ -350,7 +350,7 @@
 |-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
 | User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
-| Channel URL | `channel_url` | VARCHAR(255) | NOT NULL | | | YouTube channel URL |
+| Channel URL | `channel_url` | VARCHAR(255) | NOT NULL | | | YouTube channel URL. Validated at app level: must contain `youtube.com`. |
 | Channel name | `channel_name` | VARCHAR(100) | NOT NULL | | | Display name |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |

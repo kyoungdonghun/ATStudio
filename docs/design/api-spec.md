@@ -1303,11 +1303,14 @@ size: Integer (default: 20)
 }
 ```
 
+> **channelUrl validation**: Must contain `youtube.com` (loose check). Supports all URL formats — `@handle`, `/channel/UCxxx`, `/c/customname`.
+
 **Response** `201 Created`
 
 **Error Cases**
 ```json
 { "status": 403, "error": "Forbidden", "errorCode": "WHITELIST_CHANNEL_LIMIT_EXCEEDED", "message": "채널 등록 한도를 초과했습니다." }
+{ "status": 400, "error": "Bad Request", "errorCode": "INVALID_ARGUMENT", "message": "유튜브 채널 URL이 올바르지 않습니다." }
 ```
 
 ## 12.2 My Channel List
@@ -1341,6 +1344,8 @@ size: Integer (default: 20)
   "channelName": "New Channel Name"
 }
 ```
+
+> **channelUrl validation**: Same as 12.1 — must contain `youtube.com`.
 
 **Response** `200 OK`
 
