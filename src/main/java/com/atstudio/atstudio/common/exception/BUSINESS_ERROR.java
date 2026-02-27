@@ -115,6 +115,11 @@ public enum BUSINESS_ERROR {
             "구독 정보를 찾을 수 없습니다.",
             "활성 구독 레코드가 존재하지 않습니다."),
 
+    SUBSCRIPTION_ALREADY_EXISTS(
+            HttpStatus.CONFLICT,
+            "이미 활성 구독이 존재합니다.",
+            "중복 구독 시도."),
+
     // ── Auth ──────────────────────────────────────────────────────────────────
     INVALID_CREDENTIALS(
             HttpStatus.UNAUTHORIZED,

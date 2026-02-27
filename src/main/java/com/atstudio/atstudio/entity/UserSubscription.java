@@ -42,4 +42,21 @@ public class UserSubscription extends BaseEntity {
 
     @Column(nullable = false)
     private LocalDate expiresAt;
+
+    public void upgrade(Subscription newSubscription, BillingCycle newBillingCycle, LocalDate newExpiresAt) {
+        this.subscription = newSubscription;
+        this.billingCycle = newBillingCycle;
+        this.startedAt = LocalDate.now();
+        this.expiresAt = newExpiresAt;
+    }
+
+    public void cancel() {
+        this.status = SubscriptionStatus.CANCELLED;
+    }
+
+    public void adminUpdate(SubscriptionStatus newStatus, BillingCycle newBillingCycle, LocalDate newExpiresAt) {
+        if (newStatus != null) this.status = newStatus;
+        if (newBillingCycle != null) this.billingCycle = newBillingCycle;
+        if (newExpiresAt != null) this.expiresAt = newExpiresAt;
+    }
 }
