@@ -242,12 +242,12 @@ class UserSubscriptionControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    @DisplayName("DELETE /api/user-subscriptions/100 - ADMIN -> 200")
+    @DisplayName("DELETE /api/user-subscriptions/100 - ADMIN -> 204")
     void adminCancel_success() throws Exception {
         doNothing().when(userSubscriptionService).adminCancel(100L);
 
         mockMvc.perform(delete("/api/user-subscriptions/100"))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     // -- 6.10 DELETE /api/user-subscriptions/me ------------------------------
@@ -261,11 +261,11 @@ class UserSubscriptionControllerTest {
 
     @Test
     @WithMockUser(roles = "USER")
-    @DisplayName("DELETE /api/user-subscriptions/me - 인증 유저 -> 200")
+    @DisplayName("DELETE /api/user-subscriptions/me - 인증 유저 -> 204")
     void selfCancel_success() throws Exception {
         doNothing().when(userSubscriptionService).selfCancel(any());
 
         mockMvc.perform(delete("/api/user-subscriptions/me"))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 }

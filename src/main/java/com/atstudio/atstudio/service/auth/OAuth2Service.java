@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Service
-@Transactional
+@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class OAuth2Service {
 
@@ -54,6 +54,7 @@ public class OAuth2Service {
     @Value("${oauth2.naver.redirect-uri:}")
     private String naverRedirectUri;
 
+    @Transactional
     public User processSocialLogin(SocialProvider provider, String authorizationCode) {
         // 1. Authorization Code -> Provider Access Token 교환
         String socialAccessToken = exchangeCodeForToken(provider, authorizationCode);

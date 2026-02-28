@@ -95,21 +95,19 @@ public class UserSubscriptionController {
     // -- 6.9 DELETE /api/user-subscriptions/{id} -----------------------------
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ResponseDTO<Void>> adminCancel(@PathVariable Long id) {
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public ResponseEntity<Void> adminCancel(@PathVariable Long id) {
         userSubscriptionService.adminCancel(id);
-        return ResponseEntity.ok(ResponseDTO.<Void>withMessage()
-                .message("Subscription cancelled by admin")
-                .build());
+        return ResponseEntity.noContent().build();
     }
 
     // -- 6.10 DELETE /api/user-subscriptions/me ------------------------------
 
     @DeleteMapping("/me")
-    public ResponseEntity<ResponseDTO<Void>> selfCancel(
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public ResponseEntity<Void> selfCancel(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         userSubscriptionService.selfCancel(userDetails);
-        return ResponseEntity.ok(ResponseDTO.<Void>withMessage()
-                .message("Subscription cancelled")
-                .build());
+        return ResponseEntity.noContent().build();
     }
 }

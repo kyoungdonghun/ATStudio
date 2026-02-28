@@ -4,6 +4,9 @@ import com.atstudio.atstudio.common.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Table(name = "tracks")
 @Getter
@@ -48,6 +51,10 @@ public class Track extends BaseEntity {
     @Builder.Default
     @Column(nullable = false)
     private long playCount = 0L;
+
+    @OneToMany(mappedBy = "track", fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<TrackTag> trackTags = new ArrayList<>();
 
     public void update(String title, Integer bpm, String tonality, String description) {
         if (title != null) this.title = title;

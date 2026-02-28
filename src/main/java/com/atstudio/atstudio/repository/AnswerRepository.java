@@ -14,4 +14,6 @@ public interface AnswerRepository extends JpaRepository<Answer, Long> {
 
     boolean existsByQuestionAndUser_Role(Question question,
                                          com.atstudio.atstudio.entity.enums.UserRole role);
+
+    void deleteAllByQuestion(Question question);
 }

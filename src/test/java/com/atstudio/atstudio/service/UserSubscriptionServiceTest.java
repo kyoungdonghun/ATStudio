@@ -323,6 +323,9 @@ class UserSubscriptionServiceTest {
 
             // newPrice(9900) - refund(19900 * 15/30 = 9950) = -50
             assertThat(result.proratedAmount()).isNegative();
+            // CR-B-003: processPayment에 음수 금액이 그대로 전달되어야 함 (abs 적용 X)
+            verify(paymentService).processPayment(any(), any(), any(), any(),
+                    argThat(amount -> ((BigDecimal) amount).signum() < 0));
         }
 
         @Test

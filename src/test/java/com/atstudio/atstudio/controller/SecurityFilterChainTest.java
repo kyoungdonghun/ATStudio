@@ -17,10 +17,13 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.atstudio.atstudio.dto.user.UserResponse;
+
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -94,7 +97,103 @@ class SecurityFilterChainTest {
                         assertNotUnauthorized(result.getResponse().getStatus()));
     }
 
+    // ── CR-P-001: /api/users/me — USER 역할 허용 ─────────────────────────────
+
+    @Test
+    @DisplayName("GET /api/users/me - USER 토큰 → 200 (CR-P-001 fix)")
+    void getUsersMe_userToken_returns200() throws Exception {
+        String token = jwtTokenProvider.generateAccessToken(1L, UserRole.USER);
+        CustomUserDetails userDetails = buildUserDetails(1L);
+        when(customUserDetailsService.loadUserById(1L)).thenReturn(userDetails);
+        when(userService.getMyProfile(1L)).thenReturn(
+                new UserResponse(1L, "nick", "user@test.com", null, null, null, "INDIVIDUAL", "USER", false, null));
+
+        mockMvc.perform(get("/api/users/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("PUT /api/users/me - USER 토큰 → 200 (CR-P-001 fix)")
+    void putUsersMe_userToken_returns200() throws Exception {
+        String token = jwtTokenProvider.generateAccessToken(1L, UserRole.USER);
+        CustomUserDetails userDetails = buildUserDetails(1L);
+        when(customUserDetailsService.loadUserById(1L)).thenReturn(userDetails);
+        when(userService.updateMyProfile(anyLong(), any())).thenReturn(
+                new UserResponse(1L, "nick", "user@test.com", null, null, null, "INDIVIDUAL", "USER", false, null));
+
+        mockMvc.perform(put("/api/users/me")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nickname\":\"newNick\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/users/me - USER 토큰 → 204 (CR-P-001 fix)")
+    void deleteUsersMe_userToken_returns204() throws Exception {
+        String token = jwtTokenProvider.generateAccessToken(1L, UserRole.USER);
+        CustomUserDetails userDetails = buildUserDetails(1L);
+        when(customUserDetailsService.loadUserById(1L)).thenReturn(userDetails);
+        doNothing().when(userService).withdraw(anyLong(), any());
+
+        mockMvc.perform(delete("/api/users/me")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"pass123\"}"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("PUT /api/users/me/complete-profile - USER 토큰 → 403 아님 (CR-P-001 fix)")
+    void putUsersMeCompleteProfile_userToken_notForbidden() throws Exception {
+        String token = jwtTokenProvider.generateAccessToken(1L, UserRole.USER);
+        CustomUserDetails userDetails = buildUserDetails(1L);
+        when(customUserDetailsService.loadUserById(1L)).thenReturn(userDetails);
+
+        mockMvc.perform(put("/api/users/me/complete-profile")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nickname\":\"nick\",\"phonePersonal\":\"010-1234-5678\",\"job\":\"EDITOR\",\"userType\":\"INDIVIDUAL\"}"))
+                .andExpect(result -> assertNotForbidden(result.getResponse().getStatus()));
+    }
+
+    @Test
+    @DisplayName("PUT /api/users/me/password - USER 토큰 → 204 (CR-C-003)")
+    void putUsersMePassword_userToken_returns204() throws Exception {
+        String token = jwtTokenProvider.generateAccessToken(1L, UserRole.USER);
+        CustomUserDetails userDetails = buildUserDetails(1L);
+        when(customUserDetailsService.loadUserById(1L)).thenReturn(userDetails);
+        doNothing().when(userService).updatePassword(anyLong(), any());
+
+        mockMvc.perform(put("/api/users/me/password")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"old\",\"newPassword\":\"new123\"}"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("PUT /api/users/me/password - 비인증 → 401")
+    void putUsersMePassword_noToken_returns401() throws Exception {
+        mockMvc.perform(put("/api/users/me/password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"old\",\"newPassword\":\"new123\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
     // ── helper ────────────────────────────────────────────────────────────────
+
+    private CustomUserDetails buildUserDetails(Long id) {
+        return CustomUserDetails.builder()
+                .id(id)
+                .email("user@test.com")
+                .password("encoded")
+                .role(UserRole.USER)
+                .isDeleted(false)
+                .isProfileComplete(false)
+                .build();
+    }
 
     private String buildExpiredToken(Long userId) {
         JwtConfig expiredConfig = org.mockito.Mockito.mock(JwtConfig.class);
@@ -109,6 +208,12 @@ class SecurityFilterChainTest {
     private void assertNotUnauthorized(int status) {
         if (status == 401) {
             throw new AssertionError("Expected status NOT to be 401, but was 401");
+        }
+    }
+
+    private void assertNotForbidden(int status) {
+        if (status == 403) {
+            throw new AssertionError("Expected status NOT to be 403, but was 403");
         }
     }
 }

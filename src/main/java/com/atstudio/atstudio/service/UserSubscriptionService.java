@@ -171,9 +171,9 @@ public class UserSubscriptionService {
 
         current.upgrade(newPlan, request.billingCycle(), newExpiresAt);
 
-        // Mock 결제 기록 (절대값)
+        // 양수 = 추가 결제, 음수 = 환불
         paymentService.processPayment(user, current, newPlan,
-                request.billingCycle(), proratedAmount.abs());
+                request.billingCycle(), proratedAmount);
 
         return new ChangeSubscriptionResponse(
                 SubscriptionResponse.from(newPlan),

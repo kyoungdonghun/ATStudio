@@ -56,6 +56,14 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/me/password")
+    public ResponseEntity<Void> updatePassword(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody UpdatePasswordRequest request) {
+        userService.updatePassword(userDetails.getId(), request);
+        return ResponseEntity.noContent().build();
+    }
+
     @PutMapping("/me/complete-profile")
     public ResponseEntity<ResponseDTO<UserResponse>> completeProfile(
             @AuthenticationPrincipal CustomUserDetails userDetails,

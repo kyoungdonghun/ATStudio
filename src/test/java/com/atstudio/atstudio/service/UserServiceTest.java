@@ -86,6 +86,80 @@ class UserServiceTest {
                         .isEqualTo(BUSINESS_ERROR.NICKNAME_DUPLICATED));
     }
 
+    // ── updatePassword() ──────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("updatePassword() 성공 - 현재 비밀번호 일치 시 새 비밀번호로 변경")
+    void updatePassword_success() {
+        User user = buildUser(1L, "user@test.com", "nick", null, null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("currentPw", "encoded")).thenReturn(true);
+        when(passwordEncoder.encode("newPw")).thenReturn("encoded-new");
+
+        UpdatePasswordRequest request = new UpdatePasswordRequest();
+        request.setCurrentPassword("currentPw");
+        request.setNewPassword("newPw");
+
+        userService.updatePassword(1L, request);
+
+        assertThat(user.getPassword()).isEqualTo("encoded-new");
+    }
+
+    @Test
+    @DisplayName("updatePassword() 실패 - 현재 비밀번호 불일치 → INVALID_CREDENTIALS 예외")
+    void updatePassword_wrongCurrentPassword_throwsException() {
+        User user = buildUser(1L, "user@test.com", "nick", null, null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrongPw", "encoded")).thenReturn(false);
+
+        UpdatePasswordRequest request = new UpdatePasswordRequest();
+        request.setCurrentPassword("wrongPw");
+        request.setNewPassword("newPw");
+
+        assertThatThrownBy(() -> userService.updatePassword(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_CREDENTIALS));
+    }
+
+    @Test
+    @DisplayName("updatePassword() 실패 - 소셜 회원(password null) → INVALID_CREDENTIALS 예외")
+    void updatePassword_nullPassword_throwsException() {
+        User user = User.builder()
+                .email("social@test.com")
+                .nickname("socialNick")
+                .password(null)
+                .role(UserRole.USER)
+                .userType(UserType.INDIVIDUAL)
+                .build();
+        ReflectionTestUtils.setField(user, "id", 1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        UpdatePasswordRequest request = new UpdatePasswordRequest();
+        request.setCurrentPassword("any");
+        request.setNewPassword("newPw");
+
+        assertThatThrownBy(() -> userService.updatePassword(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_CREDENTIALS));
+    }
+
+    @Test
+    @DisplayName("updatePassword() 실패 - 존재하지 않는 사용자 → RESOURCE_NOT_FOUND 예외")
+    void updatePassword_userNotFound_throwsException() {
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        UpdatePasswordRequest request = new UpdatePasswordRequest();
+        request.setCurrentPassword("pw");
+        request.setNewPassword("newPw");
+
+        assertThatThrownBy(() -> userService.updatePassword(99L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+    }
+
     // ── completeProfile() ─────────────────────────────────────────────────────
 
     @Test

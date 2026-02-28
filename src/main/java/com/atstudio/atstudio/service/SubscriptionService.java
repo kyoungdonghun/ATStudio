@@ -22,7 +22,12 @@ public class SubscriptionService {
 
     public List<SubscriptionResponse> getActiveSubscriptions(String userType) {
         if (userType != null && !userType.isBlank()) {
-            UserType type = UserType.valueOf(userType);
+            UserType type;
+            try {
+                type = UserType.valueOf(userType);
+            } catch (IllegalArgumentException e) {
+                throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+            }
             return subscriptionRepository.findAllByUserTypeAndIsActive(type, true).stream()
                     .map(SubscriptionResponse::from)
                     .toList();

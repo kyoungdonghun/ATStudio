@@ -1,5 +1,6 @@
 package com.atstudio.atstudio.repository;
 
+import com.atstudio.atstudio.entity.Question;
 import com.atstudio.atstudio.entity.QuestionAttachment;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -11,4 +12,6 @@ public interface QuestionAttachmentRepository extends JpaRepository<QuestionAtta
     List<QuestionAttachment> findAllByQuestionId(Long questionId);
 
     Optional<QuestionAttachment> findByIdAndQuestionId(Long id, Long questionId);
+
+    void deleteAllByQuestion(Question question);
 }

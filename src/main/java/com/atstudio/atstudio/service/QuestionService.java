@@ -178,15 +178,14 @@ public class QuestionService {
         boolean isAdmin = userDetails.getRole() == UserRole.ADMIN;
 
         // Owner can only delete OPEN questions; ADMIN can delete any
-        if (isAdmin) {
-            questionRepository.delete(question);
-            return;
+        if (!isAdmin && !(isOwner && question.getStatus() == QuestionStatus.OPEN)) {
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
         }
-        if (isOwner && question.getStatus() == QuestionStatus.OPEN) {
-            questionRepository.delete(question);
-            return;
-        }
-        throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
+
+        // Delete children first to avoid FK constraint violation (CR-C-001)
+        attachmentRepository.deleteAllByQuestion(question);
+        answerRepository.deleteAllByQuestion(question);
+        questionRepository.delete(question);
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────

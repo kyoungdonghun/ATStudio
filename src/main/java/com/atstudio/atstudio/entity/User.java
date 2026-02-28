@@ -88,6 +88,10 @@ public class User extends BaseEntity {
         if (isVerified != null) this.isVerified = isVerified;
     }
 
+    public void updatePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
+
     public void completeProfile(String nickname, String phonePersonal, String phoneCompany, UserJob job, UserType userType) {
         this.nickname = nickname;
         this.phonePersonal = phonePersonal;

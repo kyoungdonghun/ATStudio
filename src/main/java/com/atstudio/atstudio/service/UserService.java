@@ -102,6 +102,19 @@ public class UserService {
         return toResponse(user);
     }
 
+    @Transactional
+    public void updatePassword(Long userID, UpdatePasswordRequest request) {
+        User user = userRepository.findById(userID)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+
+        if (user.getPassword() == null
+                || !passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_CREDENTIALS);
+        }
+
+        user.updatePassword(passwordEncoder.encode(request.getNewPassword()));
+    }
+
     public boolean isEmailAvailable(String email) {
         return userRepository.findByEmail(email).isEmpty();
     }

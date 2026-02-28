@@ -70,6 +70,15 @@ class SubscriptionServiceTest {
 
             assertThat(result).isEmpty();
         }
+
+        @Test
+        @DisplayName("실패 - 잘못된 userType → INVALID_ARGUMENT (400)")
+        void getAll_invalidUserType() {
+            assertThatThrownBy(() -> subscriptionService.getActiveSubscriptions("WRONG_TYPE"))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+        }
     }
 
     // -- 6.2 getSubscription -------------------------------------------------

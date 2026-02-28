@@ -21,7 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Transactional
+@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class AuthService {
 
@@ -31,6 +31,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final OAuth2Service oAuth2Service;
 
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         // 1. Spring Security 인증 (BadCredentialsException 자동 발생)
         Authentication authentication = authenticationManager.authenticate(
@@ -50,6 +51,7 @@ public class AuthService {
                 jwtTokenProvider.getAccessTokenExpiration() / 1000);
     }
 
+    @Transactional
     public SocialAuthResponse socialLogin(SocialProvider provider, String authorizationCode) {
         User user = oAuth2Service.processSocialLogin(provider, authorizationCode);
 
@@ -64,6 +66,7 @@ public class AuthService {
                 jwtTokenProvider.getAccessTokenExpiration() / 1000, isProfileComplete);
     }
 
+    @Transactional
     public AuthResponse refresh(RefreshRequest request) {
         String requestToken = request.getRefreshToken();
 

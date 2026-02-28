@@ -447,6 +447,8 @@ class QuestionServiceTest {
 
             questionService.deleteQuestion(10L, buildUserDetails(1L, UserRole.USER));
 
+            verify(attachmentRepository).deleteAllByQuestion(question);
+            verify(answerRepository).deleteAllByQuestion(question);
             verify(questionRepository).delete(question);
         }
 
@@ -461,6 +463,41 @@ class QuestionServiceTest {
 
             questionService.deleteQuestion(10L, buildUserDetails(99L, UserRole.ADMIN));
 
+            verify(attachmentRepository).deleteAllByQuestion(question);
+            verify(answerRepository).deleteAllByQuestion(question);
+            verify(questionRepository).delete(question);
+        }
+
+        @Test
+        @DisplayName("성공 - Answer 포함 Question 삭제 시 자식 먼저 삭제 (CR-C-001)")
+        void success_cascadeDeleteWithAnswers() {
+            User owner = buildUser(1L, UserRole.USER);
+            Question question = buildQuestion(10L, owner, "제목", "내용",
+                    QuestionCategory.DOWNLOAD, false, QuestionStatus.OPEN);
+
+            given(questionRepository.findById(10L)).willReturn(Optional.of(question));
+
+            questionService.deleteQuestion(10L, buildUserDetails(1L, UserRole.USER));
+
+            var inOrder = inOrder(attachmentRepository, answerRepository, questionRepository);
+            inOrder.verify(attachmentRepository).deleteAllByQuestion(question);
+            inOrder.verify(answerRepository).deleteAllByQuestion(question);
+            inOrder.verify(questionRepository).delete(question);
+        }
+
+        @Test
+        @DisplayName("성공 - Attachment 포함 Question 삭제 시 자식 먼저 삭제 (CR-C-001)")
+        void success_cascadeDeleteWithAttachments() {
+            User owner = buildUser(1L, UserRole.USER);
+            Question question = buildQuestion(10L, owner, "제목", "내용",
+                    QuestionCategory.PAYMENT, true, QuestionStatus.OPEN);
+
+            given(questionRepository.findById(10L)).willReturn(Optional.of(question));
+
+            questionService.deleteQuestion(10L, buildUserDetails(1L, UserRole.USER));
+
+            verify(attachmentRepository).deleteAllByQuestion(question);
+            verify(answerRepository).deleteAllByQuestion(question);
             verify(questionRepository).delete(question);
         }
 
