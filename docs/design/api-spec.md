@@ -1303,7 +1303,7 @@ size: Integer (default: 20)
 }
 ```
 
-> **channelUrl validation**: Must contain `youtube.com` (loose check). Supports all URL formats — `@handle`, `/channel/UCxxx`, `/c/customname`.
+> **channelUrl validation**: Strict URI parsing — host must be exactly `youtube.com` or end with `.youtube.com`. Supports all URL formats — `@handle`, `/channel/UCxxx`, `/c/customname`. Spoofed domains (e.g., `notarealsite-youtube.com`) are rejected.
 
 **Response** `201 Created`
 
@@ -1345,7 +1345,7 @@ size: Integer (default: 20)
 }
 ```
 
-> **channelUrl validation**: Same as 12.1 — must contain `youtube.com`.
+> **channelUrl validation**: Same as 12.1 — strict URI parsing, host must be exactly `youtube.com` or end with `.youtube.com`.
 
 **Response** `200 OK`
 
@@ -1474,6 +1474,12 @@ size: Integer (default: 20)
 }
 ```
 
+**Error Cases**
+```json
+{ "status": 401, "error": "Unauthorized", "errorCode": "REFRESH_TOKEN_EXPIRED", "message": "리프레시 토큰이 만료되었습니다." }
+{ "status": 401, "error": "Unauthorized", "errorCode": "INVALID_TOKEN", "message": "유효하지 않은 토큰입니다." }
+```
+
 ## 14.2 Email Duplicate Check
 | Field | Value |
 |-------|-------|
@@ -1580,7 +1586,7 @@ nickname: String (required)
 
 ---
 
-# Full API Summary (80)
+# Full API Summary (79)
 
 | # | Section | API Count |
 |---|---------|-----------|
