@@ -145,28 +145,43 @@ class TrackServiceTest {
 
         assertThat(result.getDataList()).isEmpty();
         assertThat(result.getPageInfo().getTotal()).isZero();
+        verify(trackRepository).findAll(any(Specification.class), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("getTracks() - @EntityGraph로 트랙+태그 일괄 로딩 (findAll 호출 검증)")
+    @SuppressWarnings("unchecked")
+    void getTracks_callsFindAllWithEntityGraph() {
+        Track track = buildTrack(1L, true);
+        Page<Track> page = new PageImpl<>(List.of(track), PageRequest.of(0, 20), 1);
+        given(trackRepository.findAll(any(Specification.class), any(Pageable.class))).willReturn(page);
+
+        ResponseDTO<TrackListItemResponse> result = trackService.getTracks(new TrackSearchRequest());
+
+        assertThat(result.getDataList()).hasSize(1);
+        verify(trackRepository).findAll(any(Specification.class), any(Pageable.class));
     }
 
     // ── getTrack() ────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("getTrack() 성공 - 활성 트랙 상세 반환")
+    @DisplayName("getTrack() 성공 - findByIdWithTags로 @EntityGraph 활용하여 태그 일괄 로딩")
     void getTrack_success() {
         Track track = buildTrack(1L, true);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(trackTagRepository.findAllWithTagByTrack(any(Track.class))).willReturn(List.of());
+        given(trackRepository.findByIdWithTags(1L)).willReturn(Optional.of(track));
 
         TrackResponse response = trackService.getTrack(1L);
 
         assertThat(response.id()).isEqualTo(1L);
         assertThat(response.isActive()).isTrue();
         assertThat(response.tags()).isEmpty();
+        verify(trackRepository).findByIdWithTags(1L);
     }
 
     @Test
     @DisplayName("getTrack() 실패 - 존재하지 않는 트랙 → TRACK_NOT_FOUND 예외")
     void getTrack_fail_notFound() {
-        given(trackRepository.findById(999L)).willReturn(Optional.empty());
+        given(trackRepository.findByIdWithTags(999L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> trackService.getTrack(999L))
                 .isInstanceOf(BusinessException.class)
@@ -178,7 +193,7 @@ class TrackServiceTest {
     @DisplayName("getTrack() 실패 - 비활성 트랙(isActive=false) → TRACK_NOT_FOUND 예외")
     void getTrack_fail_inactiveTrack() {
         Track inactiveTrack = buildTrack(1L, false);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(inactiveTrack));
+        given(trackRepository.findByIdWithTags(1L)).willReturn(Optional.of(inactiveTrack));
 
         assertThatThrownBy(() -> trackService.getTrack(1L))
                 .isInstanceOf(BusinessException.class)

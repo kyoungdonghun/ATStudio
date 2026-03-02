@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,6 +45,24 @@ class PlayHistoryServiceTest {
     @InjectMocks PlayHistoryService playHistoryService;
 
     // ── savePlayHistory() ─────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("savePlayHistory() - 단건 저장이므로 save() 단일 호출 확인 (saveAll 불필요)")
+    void savePlayHistory_singleSaveCall() {
+        User user = buildUser(1L);
+        Track track = buildTrack(2L, true);
+        CustomUserDetails userDetails = buildUserDetails(1L);
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(trackRepository.findById(2L)).willReturn(Optional.of(track));
+        given(playHistoryRepository.save(any(PlayHistory.class))).willReturn(
+                PlayHistory.builder().user(user).track(track).build());
+
+        playHistoryService.savePlayHistory(2L, userDetails);
+
+        verify(playHistoryRepository).save(any(PlayHistory.class));
+        verify(playHistoryRepository, never()).saveAll(any());
+    }
 
     @Test
     @DisplayName("savePlayHistory() 성공 - 히스토리 저장 및 playCount 증가")

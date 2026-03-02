@@ -54,7 +54,7 @@ class NoticeServiceTest {
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(noticeRepository.save(any(Notice.class))).willReturn(saved);
 
-        NoticeResponse result = noticeService.createNotice(request, buildUserDetails(1L));
+        NoticeResponse result = noticeService.createNotice(request, buildAdminDetails(1L));
 
         assertThat(result.id()).isEqualTo(1L);
         assertThat(result.title()).isEqualTo("제목");
@@ -103,17 +103,44 @@ class NoticeServiceTest {
     // ── updateNotice() ────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("updateNotice() 성공 - 공지사항 제목/내용/핀 수정")
+    @DisplayName("updateNotice() 성공 - ADMIN이 공지사항 제목/내용/핀 수정")
     void updateNotice_success() {
         User user = buildUser(1L);
         Notice notice = buildNotice(1L, user, "구제목", "구내용", false);
         NoticeUpdateRequest request = new NoticeUpdateRequest("새제목", "새내용", true);
         given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
 
-        NoticeResponse result = noticeService.updateNotice(1L, request);
+        NoticeResponse result = noticeService.updateNotice(1L, request, buildAdminDetails(1L));
 
         assertThat(result.title()).isEqualTo("새제목");
         assertThat(result.isPinned()).isTrue();
+    }
+
+    @Test
+    @DisplayName("updateNotice() 성공 - ADMIN이 타인 공지사항 수정 허용")
+    void updateNotice_adminCanUpdateOtherNotice() {
+        User author = buildUser(2L);
+        Notice notice = buildNotice(1L, author, "구제목", "구내용", false);
+        NoticeUpdateRequest request = new NoticeUpdateRequest("새제목", "새내용", true);
+        given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
+
+        NoticeResponse result = noticeService.updateNotice(1L, request, buildAdminDetails(1L));
+
+        assertThat(result.title()).isEqualTo("새제목");
+    }
+
+    @Test
+    @DisplayName("updateNotice() 실패 - 비ADMIN 타인 공지사항 수정 → RESOURCE_NOT_ACCESS 예외")
+    void updateNotice_nonAdminCannotUpdateOtherNotice() {
+        User author = buildUser(2L);
+        Notice notice = buildNotice(1L, author, "제목", "내용", false);
+        given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
+
+        assertThatThrownBy(() -> noticeService.updateNotice(1L,
+                new NoticeUpdateRequest("t", "c", false), buildUserDetails(1L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_ACCESS));
     }
 
     @Test
@@ -121,7 +148,8 @@ class NoticeServiceTest {
     void updateNotice_notFound() {
         given(noticeRepository.findById(99L)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> noticeService.updateNotice(99L, new NoticeUpdateRequest("t", "c", false)))
+        assertThatThrownBy(() -> noticeService.updateNotice(99L,
+                new NoticeUpdateRequest("t", "c", false), buildAdminDetails(1L)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
@@ -130,15 +158,40 @@ class NoticeServiceTest {
     // ── deleteNotice() ────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("deleteNotice() 성공 - 공지사항 삭제")
+    @DisplayName("deleteNotice() 성공 - ADMIN이 공지사항 삭제")
     void deleteNotice_success() {
         User user = buildUser(1L);
         Notice notice = buildNotice(1L, user, "제목", "내용", false);
         given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
 
-        noticeService.deleteNotice(1L);
+        noticeService.deleteNotice(1L, buildAdminDetails(1L));
 
         verify(noticeRepository).delete(notice);
+    }
+
+    @Test
+    @DisplayName("deleteNotice() 성공 - ADMIN이 타인 공지사항 삭제 허용")
+    void deleteNotice_adminCanDeleteOtherNotice() {
+        User author = buildUser(2L);
+        Notice notice = buildNotice(1L, author, "제목", "내용", false);
+        given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
+
+        noticeService.deleteNotice(1L, buildAdminDetails(1L));
+
+        verify(noticeRepository).delete(notice);
+    }
+
+    @Test
+    @DisplayName("deleteNotice() 실패 - 비ADMIN 타인 공지사항 삭제 → RESOURCE_NOT_ACCESS 예외")
+    void deleteNotice_nonAdminCannotDeleteOtherNotice() {
+        User author = buildUser(2L);
+        Notice notice = buildNotice(1L, author, "제목", "내용", false);
+        given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
+
+        assertThatThrownBy(() -> noticeService.deleteNotice(1L, buildUserDetails(1L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_ACCESS));
     }
 
     @Test
@@ -146,7 +199,7 @@ class NoticeServiceTest {
     void deleteNotice_notFound() {
         given(noticeRepository.findById(99L)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> noticeService.deleteNotice(99L))
+        assertThatThrownBy(() -> noticeService.deleteNotice(99L, buildAdminDetails(1L)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
@@ -168,10 +221,17 @@ class NoticeServiceTest {
         return notice;
     }
 
-    private CustomUserDetails buildUserDetails(Long id) {
+    private CustomUserDetails buildAdminDetails(Long id) {
         return CustomUserDetails.builder()
                 .id(id).email("admin@test.com").password("pw")
                 .role(UserRole.ADMIN).isDeleted(false).isProfileComplete(true)
+                .build();
+    }
+
+    private CustomUserDetails buildUserDetails(Long id) {
+        return CustomUserDetails.builder()
+                .id(id).email("user@test.com").password("pw")
+                .role(UserRole.USER).isDeleted(false).isProfileComplete(true)
                 .build();
     }
 }

@@ -92,7 +92,7 @@ class AuthServiceTest {
         user.updateRefreshToken("hashed-old");
 
         when(jwtTokenProvider.validateToken("old-refresh")).thenReturn(TokenValidationResult.VALID);
-        when(jwtTokenProvider.getUserIDAllowExpired("old-refresh")).thenReturn(1L);
+        when(jwtTokenProvider.getUserID("old-refresh")).thenReturn(1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("old-refresh", "hashed-old")).thenReturn(true);
         when(jwtTokenProvider.generateAccessToken(1L, UserRole.USER)).thenReturn("new-access");
@@ -110,25 +110,17 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("refresh() 성공 - EXPIRED 토큰도 rotation 가능 (getUserIDAllowExpired 경로)")
-    void refresh_expiredToken_stillRotates() {
-        User user = buildUser(1L, false);
-        user.updateRefreshToken("hashed-old");
-
+    @DisplayName("refresh() 실패 - EXPIRED 토큰 → REFRESH_TOKEN_EXPIRED 예외 (CR-P-005)")
+    void refresh_expiredToken_throwsRefreshTokenExpired() {
         when(jwtTokenProvider.validateToken("expired-refresh")).thenReturn(TokenValidationResult.EXPIRED);
-        when(jwtTokenProvider.getUserIDAllowExpired("expired-refresh")).thenReturn(1L);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("expired-refresh", "hashed-old")).thenReturn(true);
-        when(jwtTokenProvider.generateAccessToken(1L, UserRole.USER)).thenReturn("new-access");
-        when(jwtTokenProvider.generateRefreshToken(1L)).thenReturn("new-refresh");
-        when(jwtTokenProvider.getAccessTokenExpiration()).thenReturn(3600000L);
-        when(passwordEncoder.encode("new-refresh")).thenReturn("hashed-new");
 
         RefreshRequest request = new RefreshRequest();
         request.setRefreshToken("expired-refresh");
-        AuthResponse response = authService.refresh(request);
 
-        assertThat(response.accessToken()).isEqualTo("new-access");
+        assertThatThrownBy(() -> authService.refresh(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.REFRESH_TOKEN_EXPIRED));
     }
 
     @Test
@@ -152,7 +144,7 @@ class AuthServiceTest {
         user.updateRefreshToken("hashed-other");
 
         when(jwtTokenProvider.validateToken("some-refresh")).thenReturn(TokenValidationResult.VALID);
-        when(jwtTokenProvider.getUserIDAllowExpired("some-refresh")).thenReturn(1L);
+        when(jwtTokenProvider.getUserID("some-refresh")).thenReturn(1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("some-refresh", "hashed-other")).thenReturn(false);
 
@@ -175,7 +167,7 @@ class AuthServiceTest {
         user.updateRefreshToken("hashed-refresh");  // token back for test scenario
 
         when(jwtTokenProvider.validateToken("some-refresh")).thenReturn(TokenValidationResult.VALID);
-        when(jwtTokenProvider.getUserIDAllowExpired("some-refresh")).thenReturn(1L);
+        when(jwtTokenProvider.getUserID("some-refresh")).thenReturn(1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("some-refresh", "hashed-refresh")).thenReturn(true);
 

@@ -205,6 +205,23 @@ class PlaylistServiceTest {
         assertThat(result.title()).isEqualTo("New Title");
     }
 
+    @Test
+    @DisplayName("updatePlaylist() 실패 - 소유자 아님 → RESOURCE_NOT_ACCESS 예외")
+    void updatePlaylist_notOwner() {
+        User owner = buildUser(2L);
+        Playlist playlist = buildPlaylist(1L, owner, "Other's Playlist");
+        PlaylistUpdateRequest request = new PlaylistUpdateRequest();
+        request.setTitle("Hacked Title");
+
+        setupSubscriberMocks(buildUser(1L));
+        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+
+        assertThatThrownBy(() -> playlistService.updatePlaylist(1L, request, null, buildUserDetails(1L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_ACCESS));
+    }
+
     // ── reorderTracks() ───────────────────────────────────────────────────────
 
     @Test
@@ -257,6 +274,21 @@ class PlaylistServiceTest {
         playlistService.deletePlaylist(1L, buildUserDetails(1L));
 
         assertThat(playlist.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("deletePlaylist() 실패 - 소유자 아님 → RESOURCE_NOT_ACCESS 예외")
+    void deletePlaylist_notOwner() {
+        User owner = buildUser(2L);
+        Playlist playlist = buildPlaylist(1L, owner, "Other's Playlist");
+
+        setupSubscriberMocks(buildUser(1L));
+        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+
+        assertThatThrownBy(() -> playlistService.deletePlaylist(1L, buildUserDetails(1L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_ACCESS));
     }
 
     // ── helper ────────────────────────────────────────────────────────────────

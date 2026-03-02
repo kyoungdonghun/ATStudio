@@ -75,7 +75,7 @@ class WhitelistChannelServiceTest {
         }
 
         @Test
-        @DisplayName("실패 - youtube.com 미포함 URL → INVALID_ARGUMENT")
+        @DisplayName("실패 - 비 YouTube 도메인 → INVALID_ARGUMENT")
         void fail_invalidUrl() {
             assertThatThrownBy(() -> whitelistChannelService.registerChannel(
                     buildUserDetails(1L, UserRole.USER),
@@ -83,6 +83,50 @@ class WhitelistChannelServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+        }
+
+        @Test
+        @DisplayName("실패 - 유사 도메인 (notarealsite-youtube.com) → INVALID_ARGUMENT")
+        void fail_spoofedDomain() {
+            assertThatThrownBy(() -> whitelistChannelService.registerChannel(
+                    buildUserDetails(1L, UserRole.USER),
+                    new WhitelistChannelRequest("https://notarealsite-youtube.com/@ch", "채널")))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+        }
+
+        @Test
+        @DisplayName("실패 - 잘못된 URL 형식 → INVALID_ARGUMENT")
+        void fail_malformedUrl() {
+            assertThatThrownBy(() -> whitelistChannelService.registerChannel(
+                    buildUserDetails(1L, UserRole.USER),
+                    new WhitelistChannelRequest("not a valid url :::", "채널")))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+        }
+
+        @Test
+        @DisplayName("성공 - www.youtube.com 서브도메인 허용")
+        void success_wwwSubdomain() {
+            User user = buildUser(1L, UserRole.USER);
+            Subscription plan = buildSubscription(5);
+            UserSubscription sub = buildUserSubscription(user, plan);
+            WhitelistChannel saved = buildChannel(1L, user,
+                    "https://www.youtube.com/channel/xxx", "채널WWW");
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+                    .willReturn(Optional.of(sub));
+            given(whitelistChannelRepository.countByUser(user)).willReturn(0L);
+            given(whitelistChannelRepository.save(any(WhitelistChannel.class))).willReturn(saved);
+
+            WhitelistChannelResponse result = whitelistChannelService.registerChannel(
+                    buildUserDetails(1L, UserRole.USER),
+                    new WhitelistChannelRequest("https://www.youtube.com/channel/xxx", "채널WWW"));
+
+            assertThat(result.channelUrl()).isEqualTo("https://www.youtube.com/channel/xxx");
         }
 
         @Test

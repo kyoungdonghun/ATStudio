@@ -32,8 +32,6 @@ import java.net.MalformedURLException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -89,11 +87,11 @@ public class TrackService {
 
         Page<Track> page = trackRepository.findAll(spec, pageable);
 
-        List<Long> trackIds = page.getContent().stream().map(Track::getId).toList();
-        Map<Long, List<Tag>> tagsByTrackId = buildTagsMap(trackIds);
-
         List<TrackListItemResponse> dataList = page.getContent().stream()
-                .map(t -> TrackListItemResponse.from(t, tagsByTrackId.getOrDefault(t.getId(), List.of())))
+                .map(t -> {
+                    List<Tag> tags = t.getTrackTags().stream().map(TrackTag::getTag).toList();
+                    return TrackListItemResponse.from(t, tags);
+                })
                 .toList();
 
         int total = (int) page.getTotalElements();
@@ -107,9 +105,12 @@ public class TrackService {
     }
 
     public TrackResponse getTrack(Long trackId) {
-        Track track = findActiveTrack(trackId);
-        List<Tag> tags = trackTagRepository.findAllWithTagByTrack(track)
-                .stream().map(TrackTag::getTag).toList();
+        Track track = trackRepository.findByIdWithTags(trackId)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND));
+        if (!track.isActive()) {
+            throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
+        }
+        List<Tag> tags = track.getTrackTags().stream().map(TrackTag::getTag).toList();
         return TrackResponse.from(track, tags);
     }
 
@@ -202,12 +203,4 @@ public class TrackService {
         return other != null ? base.and(other) : base;
     }
 
-    private Map<Long, List<Tag>> buildTagsMap(List<Long> trackIds) {
-        if (trackIds.isEmpty()) return Map.of();
-        return trackTagRepository.findAllWithTagByTrackIdIn(trackIds).stream()
-                .collect(Collectors.groupingBy(
-                        tt -> tt.getId().getTrackId(),
-                        Collectors.mapping(TrackTag::getTag, Collectors.toList())
-                ));
-    }
 }

@@ -20,6 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +40,36 @@ class DownloadQueueServiceTest {
     @Mock TrackRepository trackRepository;
 
     @InjectMocks DownloadQueueService downloadQueueService;
+
+    // ── @Transactional 검증 ───────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("DownloadQueueService 클래스 레벨 @Transactional(readOnly=true) 존재 확인")
+    void classLevel_transactionalReadOnly() {
+        Transactional annotation = DownloadQueueService.class.getAnnotation(Transactional.class);
+        assertThat(annotation).isNotNull();
+        assertThat(annotation.readOnly()).isTrue();
+    }
+
+    @Test
+    @DisplayName("addToQueue() 메서드 레벨 @Transactional override 존재 확인")
+    void addToQueue_hasTransactional() throws NoSuchMethodException {
+        Transactional annotation = DownloadQueueService.class
+                .getMethod("addToQueue", Long.class, CustomUserDetails.class)
+                .getAnnotation(Transactional.class);
+        assertThat(annotation).isNotNull();
+        assertThat(annotation.readOnly()).isFalse();
+    }
+
+    @Test
+    @DisplayName("removeFromQueue() 메서드 레벨 @Transactional override 존재 확인")
+    void removeFromQueue_hasTransactional() throws NoSuchMethodException {
+        Transactional annotation = DownloadQueueService.class
+                .getMethod("removeFromQueue", Long.class, CustomUserDetails.class)
+                .getAnnotation(Transactional.class);
+        assertThat(annotation).isNotNull();
+        assertThat(annotation.readOnly()).isFalse();
+    }
 
     // ── addToQueue() ──────────────────────────────────────────────────────────
 

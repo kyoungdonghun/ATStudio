@@ -55,8 +55,9 @@ public class NoticeController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<NoticeResponse>> updateNotice(
             @PathVariable Long noticeId,
-            @Valid @RequestBody NoticeUpdateRequest request) {
-        NoticeResponse response = noticeService.updateNotice(noticeId, request);
+            @Valid @RequestBody NoticeUpdateRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        NoticeResponse response = noticeService.updateNotice(noticeId, request, userDetails);
         return ResponseEntity.ok(ResponseDTO.<NoticeResponse>withSingleData()
                 .message("Notice updated")
                 .data(response)
@@ -65,8 +66,10 @@ public class NoticeController {
 
     @DeleteMapping("/{noticeId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteNotice(@PathVariable Long noticeId) {
-        noticeService.deleteNotice(noticeId);
+    public ResponseEntity<Void> deleteNotice(
+            @PathVariable Long noticeId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        noticeService.deleteNotice(noticeId, userDetails);
         return ResponseEntity.noContent().build();
     }
 }

@@ -131,6 +131,11 @@ public enum BUSINESS_ERROR {
             "인증이 만료되었습니다. 다시 로그인해주세요.",
             "JWT Access Token 만료."),
 
+    REFRESH_TOKEN_EXPIRED(
+            HttpStatus.UNAUTHORIZED,
+            "세션이 만료되었습니다. 다시 로그인해주세요.",
+            "Refresh Token 만료. 재로그인 필요."),
+
     REFRESH_TOKEN_INVALID(
             HttpStatus.UNAUTHORIZED,
             "세션이 만료되었습니다. 다시 로그인해주세요.",

@@ -10,6 +10,7 @@ import com.atstudio.atstudio.dto.notice.NoticeResponse;
 import com.atstudio.atstudio.dto.notice.NoticeUpdateRequest;
 import com.atstudio.atstudio.entity.Notice;
 import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.repository.NoticeRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
@@ -67,17 +68,31 @@ public class NoticeService {
     }
 
     @Transactional
-    public NoticeResponse updateNotice(Long noticeId, NoticeUpdateRequest request) {
+    public NoticeResponse updateNotice(Long noticeId, NoticeUpdateRequest request,
+                                       CustomUserDetails userDetails) {
         Notice notice = noticeRepository.findById(noticeId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        validateNoticeOwnership(notice, userDetails);
         notice.update(request.title(), request.content(), request.isPinned());
         return NoticeResponse.from(notice);
     }
 
     @Transactional
-    public void deleteNotice(Long noticeId) {
+    public void deleteNotice(Long noticeId, CustomUserDetails userDetails) {
         Notice notice = noticeRepository.findById(noticeId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        validateNoticeOwnership(notice, userDetails);
         noticeRepository.delete(notice);
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    private void validateNoticeOwnership(Notice notice, CustomUserDetails userDetails) {
+        if (userDetails.getRole() == UserRole.ADMIN) {
+            return;
+        }
+        if (!notice.getUser().getId().equals(userDetails.getId())) {
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
+        }
     }
 }

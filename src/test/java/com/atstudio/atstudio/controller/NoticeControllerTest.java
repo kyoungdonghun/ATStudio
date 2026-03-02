@@ -111,7 +111,7 @@ class NoticeControllerTest {
     @WithMockUser(roles = "ADMIN")
     @DisplayName("PUT /api/notices/{id} - ADMIN → 200")
     void updateNotice_adminRole_returns200() throws Exception {
-        given(noticeService.updateNotice(anyLong(), any())).willReturn(MOCK_NOTICE);
+        given(noticeService.updateNotice(anyLong(), any(), any())).willReturn(MOCK_NOTICE);
 
         mockMvc.perform(put("/api/notices/1")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -140,7 +140,7 @@ class NoticeControllerTest {
     @WithMockUser(roles = "ADMIN")
     @DisplayName("DELETE /api/notices/{id} - ADMIN → 204")
     void deleteNotice_adminRole_returns204() throws Exception {
-        doNothing().when(noticeService).deleteNotice(anyLong());
+        doNothing().when(noticeService).deleteNotice(anyLong(), any());
 
         mockMvc.perform(delete("/api/notices/1"))
                 .andExpect(status().isNoContent());

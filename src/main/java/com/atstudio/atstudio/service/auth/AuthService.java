@@ -71,12 +71,14 @@ public class AuthService {
         String requestToken = request.getRefreshToken();
 
         TokenValidationResult result = jwtTokenProvider.validateToken(requestToken);
-        if (result != TokenValidationResult.VALID && result != TokenValidationResult.EXPIRED) {
+        if (result == TokenValidationResult.EXPIRED) {
+            throw new BusinessException(BUSINESS_ERROR.REFRESH_TOKEN_EXPIRED);
+        }
+        if (result != TokenValidationResult.VALID) {
             throw new BusinessException(BUSINESS_ERROR.REFRESH_TOKEN_INVALID);
         }
 
-        // 만료 여부와 관계없이 sub 추출
-        Long userID = jwtTokenProvider.getUserIDAllowExpired(requestToken);
+        Long userID = jwtTokenProvider.getUserID(requestToken);
 
         User user = userRepository.findById(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));

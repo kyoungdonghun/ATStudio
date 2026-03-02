@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -95,7 +96,14 @@ public class WhitelistChannelService {
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private void validateChannelUrl(String channelUrl) {
-        if (!channelUrl.contains("youtube.com")) {
+        try {
+            URI uri = URI.create(channelUrl);
+            String host = uri.getHost();
+            if (host == null
+                    || !(host.equals("youtube.com") || host.endsWith(".youtube.com"))) {
+                throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+            }
+        } catch (IllegalArgumentException e) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
     }
