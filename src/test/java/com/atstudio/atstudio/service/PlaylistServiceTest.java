@@ -66,6 +66,45 @@ class PlaylistServiceTest {
     }
 
     @Test
+    @DisplayName("createPlaylist() 실패 - 활성 플레이리스트 3개 보유 시 PLAYLIST_LIMIT_EXCEEDED 예외")
+    void createPlaylist_limitExceeded_throws() {
+        // given
+        User user = buildUser(1L);
+        PlaylistCreateRequest request = new PlaylistCreateRequest();
+        request.setTitle("Fourth Playlist");
+
+        setupSubscriberMocks(user);
+        given(playlistRepository.countByUserAndIsActiveTrue(user)).willReturn(3);
+
+        // when & then
+        assertThatThrownBy(() -> playlistService.createPlaylist(request, null, buildUserDetails(1L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PLAYLIST_LIMIT_EXCEEDED));
+    }
+
+    @Test
+    @DisplayName("createPlaylist() 성공 - 활성 플레이리스트 2개 보유 시 정상 생성")
+    void createPlaylist_atLimit_succeeds() {
+        // given
+        User user = buildUser(1L);
+        Playlist saved = buildPlaylist(2L, user, "Third Playlist");
+        PlaylistCreateRequest request = new PlaylistCreateRequest();
+        request.setTitle("Third Playlist");
+
+        setupSubscriberMocks(user);
+        given(playlistRepository.countByUserAndIsActiveTrue(user)).willReturn(2);
+        given(playlistRepository.save(any(Playlist.class))).willReturn(saved);
+
+        // when
+        PlaylistResponse result = playlistService.createPlaylist(request, null, buildUserDetails(1L));
+
+        // then
+        assertThat(result.id()).isEqualTo(2L);
+        assertThat(result.title()).isEqualTo("Third Playlist");
+    }
+
+    @Test
     @DisplayName("createPlaylist() 실패 - 비구독자 → NO_ACTIVE_SUBSCRIPTION 예외")
     void createPlaylist_notSubscribed() {
         User user = buildUser(1L);

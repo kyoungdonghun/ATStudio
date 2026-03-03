@@ -9,4 +9,6 @@ import java.util.List;
 public interface PlaylistRepository extends JpaRepository<Playlist, Long> {
 
     List<Playlist> findAllByUserAndIsActiveTrueOrderByCreatedAtDesc(User user);
+
+    int countByUserAndIsActiveTrue(User user);
 }

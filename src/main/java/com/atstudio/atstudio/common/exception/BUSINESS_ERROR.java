@@ -125,6 +125,11 @@ public enum BUSINESS_ERROR {
             "이미 활성 구독이 존재합니다.",
             "중복 구독 시도."),
 
+    PLAYLIST_LIMIT_EXCEEDED(
+            HttpStatus.CONFLICT,
+            "플레이리스트는 최대 3개까지 생성할 수 있습니다.",
+            "활성 플레이리스트 3개 초과 시도."),
+
     // ── Auth ──────────────────────────────────────────────────────────────────
     INVALID_CREDENTIALS(
             HttpStatus.UNAUTHORIZED,

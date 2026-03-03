@@ -43,6 +43,10 @@ public class PlaylistService {
                                            CustomUserDetails userDetails) {
         User user = validateSubscriber(userDetails);
 
+        if (playlistRepository.countByUserAndIsActiveTrue(user) >= 3) {
+            throw new BusinessException(BUSINESS_ERROR.PLAYLIST_LIMIT_EXCEEDED);
+        }
+
         String thumbnailUrl = (thumbnailFile != null && !thumbnailFile.isEmpty())
                 ? storageService.store(thumbnailFile, "playlists/thumbnails")
                 : null;
