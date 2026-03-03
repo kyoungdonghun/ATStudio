@@ -25,8 +25,9 @@
 | `whitelist.md` | Whitelist channel (register/list/update/delete) | 4 |
 | `company-certification.md` | Company certification (apply/view status/admin management) | 5 |
 | `util.md` | Utility (duplicate check/token/subscription status/download count, etc.) | 7 |
+| `sound-album.md` | Album (create/list/detail/update/delete/add track/remove track/reorder) | 8 |
 
-**Total UC count: 79** (net +2 vs v3: +3 added, -1 removed)
+**Total UC count: 87** (net +8 vs v4: Album domain added)
 
 ---
 
@@ -133,6 +134,19 @@
 | CC-004 | View application detail (Admin) | `company-certification.md` |
 | CC-005 | Process review (Admin) | `company-certification.md` |
 
+### Album
+
+| Code | Title | File |
+|------|-------|------|
+| ALBUM-001 | Create album | `sound-album.md` |
+| ALBUM-002 | List albums | `sound-album.md` |
+| ALBUM-003 | View album detail | `sound-album.md` |
+| ALBUM-004 | Update album | `sound-album.md` |
+| ALBUM-005 | Delete album | `sound-album.md` |
+| ALBUM-006 | Add track to album | `sound-album.md` |
+| ALBUM-007 | Remove track from album | `sound-album.md` |
+| ALBUM-008 | Reorder album tracks | `sound-album.md` |
+
 ### Util
 
 | Code | Title | File |
@@ -147,6 +161,16 @@
 
 > New in v3 (vs original)
 > New in v4 (cross-review additions)
+
+---
+
+## Change History (v4 to v5)
+
+### UC v5 Modifications (2026-03-04)
+
+| # | Field | Value |
+|---|-------|-------|
+| 1 | ALBUM-001~008 | **New** — Album domain (admin curated album). 8 UCs added. `sound-album.md` created. |
 
 ---
 
