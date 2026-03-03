@@ -72,7 +72,7 @@ public class CompanyCertificationService {
         User user = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
-        return certificationRepository.findByUser(user)
+        return certificationRepository.findTopByUserOrderByCreatedAtDesc(user)
                 .map(CompanyCertificationResponse::from)
                 .orElse(null);
     }
@@ -86,7 +86,12 @@ public class CompanyCertificationService {
 
         Page<CompanyCertification> result;
         if (status != null && !status.isBlank()) {
-            CompanyCertificationStatus certStatus = CompanyCertificationStatus.valueOf(status);
+            CompanyCertificationStatus certStatus;
+            try {
+                certStatus = CompanyCertificationStatus.valueOf(status);
+            } catch (IllegalArgumentException e) {
+                throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+            }
             result = certificationRepository.findByStatus(certStatus, pageable);
         } else {
             result = certificationRepository.findAll(pageable);

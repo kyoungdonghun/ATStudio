@@ -92,6 +92,78 @@ class DownloadServiceTest {
         verify(licenseRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("download() 성공 - 무제한 플랜(downloadPerDay=-1) todayCount=0 → 다운로드 허용")
+    void download_success_unlimitedPlan_zeroCount() {
+        User user = buildUser(1L);
+        Track track = buildTrack(1L, true);
+        Resource mockResource = mock(Resource.class);
+
+        given(userDetails.getId()).willReturn(1L);
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any(LocalDate.class)))
+                .willReturn(Optional.of(buildSubscription(-1)));
+        given(trackDownloadRepository.countByUserAndDownloadedAtBetween(eq(user), any(), any())).willReturn(0L);
+        given(trackDownloadRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(licenseRepository.findByUserAndTrack(user, track)).willReturn(Optional.empty());
+        given(licenseRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(storageService.loadAsResource(anyString())).willReturn(mockResource);
+
+        Resource result = downloadService.download(1L, userDetails);
+
+        assertThat(result).isEqualTo(mockResource);
+        verify(trackDownloadRepository).save(any(TrackDownload.class));
+    }
+
+    @Test
+    @DisplayName("download() 성공 - 무제한 플랜(downloadPerDay=-1) todayCount=1000 → 다운로드 허용")
+    void download_success_unlimitedPlan_highUsage() {
+        User user = buildUser(1L);
+        Track track = buildTrack(1L, true);
+        Resource mockResource = mock(Resource.class);
+
+        given(userDetails.getId()).willReturn(1L);
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any(LocalDate.class)))
+                .willReturn(Optional.of(buildSubscription(-1)));
+        given(trackDownloadRepository.countByUserAndDownloadedAtBetween(eq(user), any(), any())).willReturn(1000L);
+        given(trackDownloadRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(licenseRepository.findByUserAndTrack(user, track)).willReturn(Optional.empty());
+        given(licenseRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(storageService.loadAsResource(anyString())).willReturn(mockResource);
+
+        Resource result = downloadService.download(1L, userDetails);
+
+        assertThat(result).isEqualTo(mockResource);
+        verify(trackDownloadRepository).save(any(TrackDownload.class));
+    }
+
+    @Test
+    @DisplayName("download() 성공 - 제한 플랜(downloadPerDay=5) todayCount=4 → 다운로드 허용")
+    void download_success_limitedPlan_underLimit() {
+        User user = buildUser(1L);
+        Track track = buildTrack(1L, true);
+        Resource mockResource = mock(Resource.class);
+
+        given(userDetails.getId()).willReturn(1L);
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any(LocalDate.class)))
+                .willReturn(Optional.of(buildSubscription(5)));
+        given(trackDownloadRepository.countByUserAndDownloadedAtBetween(eq(user), any(), any())).willReturn(4L);
+        given(trackDownloadRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(licenseRepository.findByUserAndTrack(user, track)).willReturn(Optional.empty());
+        given(licenseRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(storageService.loadAsResource(anyString())).willReturn(mockResource);
+
+        Resource result = downloadService.download(1L, userDetails);
+
+        assertThat(result).isEqualTo(mockResource);
+        verify(trackDownloadRepository).save(any(TrackDownload.class));
+    }
+
     // ── download() 실패 ────────────────────────────────────────────────────────
 
     @Test

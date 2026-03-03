@@ -2,6 +2,8 @@ package com.atstudio.atstudio.entity;
 
 import com.atstudio.atstudio.common.entity.BaseEntity;
 import com.atstudio.atstudio.entity.enums.CompanyCertificationStatus;
+import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
+import com.atstudio.atstudio.common.exception.BusinessException;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -41,9 +43,23 @@ public class CompanyCertification extends BaseEntity {
 
     public void process(CompanyCertificationStatus newStatus, String adminNote,
                         String certificationCode, LocalDateTime approvedAt) {
+        validateTransition(this.status, newStatus);
         this.status = newStatus;
         this.adminNote = adminNote;
         this.certificationCode = certificationCode;
         this.approvedAt = approvedAt;
+    }
+
+    private void validateTransition(CompanyCertificationStatus from, CompanyCertificationStatus to) {
+        boolean valid = switch (from) {
+            case PENDING -> to == CompanyCertificationStatus.APPROVED
+                         || to == CompanyCertificationStatus.REVISION_REQUESTED
+                         || to == CompanyCertificationStatus.REJECTED;
+            case REVISION_REQUESTED -> to == CompanyCertificationStatus.PENDING;
+            default -> false;
+        };
+        if (!valid) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_STATE_TRANSITION);
+        }
     }
 }

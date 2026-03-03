@@ -20,7 +20,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u FROM User u WHERE " +
            "(:keyword IS NULL OR u.nickname LIKE %:keyword% OR u.email LIKE %:keyword%) " +
-           "AND (:userType IS NULL OR u.userType = :userType)")
+           "AND (:userType IS NULL OR u.userType = :userType) " +
+           "AND u.isDeleted = false")
     Page<User> searchUsers(
             @Param("keyword") String keyword,
             @Param("userType") UserType userType,

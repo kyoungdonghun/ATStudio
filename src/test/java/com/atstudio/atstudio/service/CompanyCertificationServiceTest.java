@@ -95,6 +95,24 @@ class CompanyCertificationServiceTest {
         }
 
         @Test
+        @DisplayName("실패 - RESOURCE_DUPLICATE 시 HTTP 409 Conflict 반환")
+        void apply_duplicateReturns409() {
+            User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList()))
+                    .willReturn(true);
+
+            assertThatThrownBy(() -> certificationService.apply(
+                    buildUserDetails(1L, UserRole.USER), List.of()))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> {
+                        BusinessException be = (BusinessException) e;
+                        assertThat(be.getErrorCode()).isEqualTo(BUSINESS_ERROR.RESOURCE_DUPLICATE);
+                        assertThat(be.getStatus().value()).isEqualTo(409);
+                    });
+        }
+
+        @Test
         @DisplayName("실패 - PENDING 신청 이미 존재 시 RESOURCE_DUPLICATE")
         void apply_duplicatePending() {
             User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
@@ -139,7 +157,7 @@ class CompanyCertificationServiceTest {
                     CompanyCertificationStatus.PENDING, "/uploads/company-docs/1/");
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(certificationRepository.findByUser(user)).willReturn(Optional.of(cert));
+            given(certificationRepository.findTopByUserOrderByCreatedAtDesc(user)).willReturn(Optional.of(cert));
 
             CompanyCertificationResponse result = certificationService.getMyStatus(
                     buildUserDetails(1L, UserRole.USER));
@@ -155,7 +173,7 @@ class CompanyCertificationServiceTest {
             User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(certificationRepository.findByUser(user)).willReturn(Optional.empty());
+            given(certificationRepository.findTopByUserOrderByCreatedAtDesc(user)).willReturn(Optional.empty());
 
             CompanyCertificationResponse result = certificationService.getMyStatus(
                     buildUserDetails(1L, UserRole.USER));
@@ -186,6 +204,18 @@ class CompanyCertificationServiceTest {
 
             assertThat(result.getDataList()).hasSize(1);
             assertThat(result.getDataList().get(0).id()).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("실패 - 유효하지 않은 status 문자열 → INVALID_ARGUMENT(400)")
+        void listAll_invalidStatus() {
+            assertThatThrownBy(() -> certificationService.listAll("INVALID_STATUS", 1, 20))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> {
+                        BusinessException be = (BusinessException) e;
+                        assertThat(be.getErrorCode()).isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT);
+                        assertThat(be.getStatus().value()).isEqualTo(400);
+                    });
         }
 
         @Test

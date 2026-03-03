@@ -18,7 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -63,11 +66,19 @@ public class PlaylistService {
         List<Playlist> playlists = playlistRepository
                 .findAllByUserAndIsActiveTrueOrderByCreatedAtDesc(user);
 
+        List<Long> playlistIds = playlists.stream().map(Playlist::getId).toList();
+
+        Map<Long, Long> countMap = playlistIds.isEmpty()
+                ? Collections.emptyMap()
+                : playlistTrackRepository.countByPlaylistIdIn(playlistIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                row -> (Long) row[0],
+                                row -> (Long) row[1]
+                        ));
+
         return playlists.stream()
-                .map(p -> {
-                    int trackCount = (int) playlistTrackRepository.countByIdPlaylistId(p.getId());
-                    return PlaylistListItemResponse.from(p, trackCount);
-                })
+                .map(p -> PlaylistListItemResponse.from(p, countMap.getOrDefault(p.getId(), 0L).intValue()))
                 .toList();
     }
 
@@ -182,6 +193,7 @@ public class PlaylistService {
     public void deletePlaylist(Long playlistId, CustomUserDetails userDetails) {
         validateSubscriber(userDetails);
         Playlist playlist = getOwnedPlaylist(playlistId, userDetails.getId());
+        playlistTrackRepository.deleteAllByIdPlaylistId(playlistId);
         playlist.deactivate();
     }
 

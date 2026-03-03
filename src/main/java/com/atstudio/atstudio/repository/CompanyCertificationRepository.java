@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface CompanyCertificationRepository extends JpaRepository<CompanyCertification, Long> {
-    Optional<CompanyCertification> findByUser(User user);
+    Optional<CompanyCertification> findTopByUserOrderByCreatedAtDesc(User user);
     boolean existsByUserAndStatusIn(User user, List<CompanyCertificationStatus> statuses);
     Page<CompanyCertification> findByStatus(CompanyCertificationStatus status, Pageable pageable);
 }

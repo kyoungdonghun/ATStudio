@@ -22,6 +22,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -83,7 +85,7 @@ class PlaylistServiceTest {
     // ── getMyPlaylists() ──────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("getMyPlaylists() 성공 - 내 플레이리스트 목록 반환")
+    @DisplayName("getMyPlaylists() 성공 - 배치 count 쿼리로 트랙 수 조회")
     void getMyPlaylists_success() {
         User user = buildUser(1L);
         Playlist playlist = buildPlaylist(1L, user, "My Playlist");
@@ -91,13 +93,57 @@ class PlaylistServiceTest {
         setupSubscriberMocks(user);
         given(playlistRepository.findAllByUserAndIsActiveTrueOrderByCreatedAtDesc(user))
                 .willReturn(List.of(playlist));
-        given(playlistTrackRepository.countByIdPlaylistId(1L)).willReturn(3L);
+        List<Object[]> countResult = new ArrayList<>();
+        countResult.add(new Object[]{1L, 3L});
+        given(playlistTrackRepository.countByPlaylistIdIn(List.of(1L)))
+                .willReturn(countResult);
 
         List<PlaylistListItemResponse> result = playlistService.getMyPlaylists(buildUserDetails(1L));
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).id()).isEqualTo(1L);
         assertThat(result.get(0).trackCount()).isEqualTo(3);
+        verify(playlistTrackRepository).countByPlaylistIdIn(List.of(1L));
+    }
+
+    @Test
+    @DisplayName("getMyPlaylists() 성공 - 다수 플레이리스트 배치 count 매핑 정확성")
+    void getMyPlaylists_multiplePlaylists_batchCount() {
+        User user = buildUser(1L);
+        Playlist playlist1 = buildPlaylist(1L, user, "Playlist A");
+        Playlist playlist2 = buildPlaylist(2L, user, "Playlist B");
+        Playlist playlist3 = buildPlaylist(3L, user, "Playlist C");
+
+        setupSubscriberMocks(user);
+        given(playlistRepository.findAllByUserAndIsActiveTrueOrderByCreatedAtDesc(user))
+                .willReturn(List.of(playlist1, playlist2, playlist3));
+        List<Object[]> countResult = new ArrayList<>();
+        countResult.add(new Object[]{1L, 5L});
+        countResult.add(new Object[]{3L, 2L});
+        given(playlistTrackRepository.countByPlaylistIdIn(List.of(1L, 2L, 3L)))
+                .willReturn(countResult);
+
+        List<PlaylistListItemResponse> result = playlistService.getMyPlaylists(buildUserDetails(1L));
+
+        assertThat(result).hasSize(3);
+        assertThat(result.get(0).trackCount()).isEqualTo(5);
+        assertThat(result.get(1).trackCount()).isEqualTo(0);
+        assertThat(result.get(2).trackCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("getMyPlaylists() 성공 - 빈 플레이리스트 목록 시 배치 쿼리 미호출")
+    void getMyPlaylists_empty() {
+        User user = buildUser(1L);
+
+        setupSubscriberMocks(user);
+        given(playlistRepository.findAllByUserAndIsActiveTrueOrderByCreatedAtDesc(user))
+                .willReturn(List.of());
+
+        List<PlaylistListItemResponse> result = playlistService.getMyPlaylists(buildUserDetails(1L));
+
+        assertThat(result).isEmpty();
+        verify(playlistTrackRepository, org.mockito.Mockito.never()).countByPlaylistIdIn(anyList());
     }
 
     // ── getPlaylistDetail() ───────────────────────────────────────────────────
@@ -274,6 +320,23 @@ class PlaylistServiceTest {
         playlistService.deletePlaylist(1L, buildUserDetails(1L));
 
         assertThat(playlist.isActive()).isFalse();
+        verify(playlistTrackRepository).deleteAllByIdPlaylistId(1L);
+    }
+
+    @Test
+    @DisplayName("deletePlaylist() - playlist_tracks 레코드를 deactivate 전에 삭제")
+    void deletePlaylist_deletesPlaylistTracksBeforeDeactivate() {
+        User user = buildUser(1L);
+        Playlist playlist = spy(buildPlaylist(1L, user, "My Playlist"));
+
+        setupSubscriberMocks(user);
+        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+
+        playlistService.deletePlaylist(1L, buildUserDetails(1L));
+
+        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(playlistTrackRepository, playlist);
+        inOrder.verify(playlistTrackRepository).deleteAllByIdPlaylistId(1L);
+        inOrder.verify(playlist).deactivate();
     }
 
     @Test

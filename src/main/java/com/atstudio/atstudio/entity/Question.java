@@ -1,6 +1,8 @@
 package com.atstudio.atstudio.entity;
 
 import com.atstudio.atstudio.common.entity.BaseEntity;
+import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
+import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.entity.enums.QuestionCategory;
 import com.atstudio.atstudio.entity.enums.QuestionStatus;
 import jakarta.persistence.*;
@@ -41,7 +43,20 @@ public class Question extends BaseEntity {
     @Column(nullable = false, length = 15)
     private QuestionStatus status = QuestionStatus.OPEN;
 
-    public void updateStatus(QuestionStatus status) {
-        this.status = status;
+    public void updateStatus(QuestionStatus newStatus) {
+        validateTransition(this.status, newStatus);
+        this.status = newStatus;
+    }
+
+    private void validateTransition(QuestionStatus from, QuestionStatus to) {
+        boolean valid = switch (from) {
+            case OPEN -> to == QuestionStatus.IN_PROGRESS || to == QuestionStatus.CLOSED;
+            case IN_PROGRESS -> to == QuestionStatus.RESOLVED || to == QuestionStatus.CLOSED;
+            case RESOLVED -> to == QuestionStatus.CLOSED;
+            case CLOSED -> false;
+        };
+        if (!valid) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_STATE_TRANSITION);
+        }
     }
 }

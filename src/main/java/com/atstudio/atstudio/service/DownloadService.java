@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
+@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class DownloadService {
 
@@ -43,7 +44,8 @@ public class DownloadService {
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
         LocalDateTime endOfDay = startOfDay.plusDays(1);
         long todayCount = trackDownloadRepository.countByUserAndDownloadedAtBetween(user, startOfDay, endOfDay);
-        if (todayCount >= subscription.getSubscription().getDownloadPerDay()) {
+        int downloadPerDay = subscription.getSubscription().getDownloadPerDay();
+        if (downloadPerDay != -1 && todayCount >= downloadPerDay) {
             throw new BusinessException(BUSINESS_ERROR.DOWNLOAD_LIMIT_EXCEEDED);
         }
 

@@ -20,7 +20,7 @@ public enum BUSINESS_ERROR {
             "리소스 접근에 대한 적절한 권한이 없습니다."),
 
     RESOURCE_DUPLICATE(
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.CONFLICT,
             "이미 존재하는 데이터입니다.",
             "중복된 리소스를 생성하려고 했습니다."),
 
@@ -28,6 +28,11 @@ public enum BUSINESS_ERROR {
             HttpStatus.BAD_REQUEST,
             "입력값이 올바르지 않습니다. 다시 확인해주세요.",
             "입력값이 올바르지 않습니다."),
+
+    INVALID_STATE_TRANSITION(
+            HttpStatus.BAD_REQUEST,
+            "유효하지 않은 상태 전이입니다.",
+            "현재 상태에서 해당 상태로 전이할 수 없습니다."),
 
     INVALID_TYPE(
             HttpStatus.BAD_REQUEST,

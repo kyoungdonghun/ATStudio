@@ -88,7 +88,7 @@ class CompanyCertificationControllerTest {
 
     @Test
     @WithMockUser(roles = "USER")
-    @DisplayName("POST /api/company-certifications - 중복 신청 -> 400")
+    @DisplayName("POST /api/company-certifications - 중복 신청 -> 409")
     void apply_conflict() throws Exception {
         given(certificationService.apply(any(), anyList()))
                 .willThrow(new BusinessException(BUSINESS_ERROR.RESOURCE_DUPLICATE));
@@ -97,7 +97,7 @@ class CompanyCertificationControllerTest {
                 "documents", "doc.pdf", "application/pdf", new byte[]{1, 2, 3});
 
         mockMvc.perform(multipart("/api/company-certifications").file(doc))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isConflict());
     }
 
     // ── 13.2 GET /api/company-certifications/me ──────────────────────────────

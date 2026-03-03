@@ -164,6 +164,7 @@ public class TrackService {
     @Transactional
     public void deleteTrack(Long trackId) {
         Track track = findTrackById(trackId);
+        trackTagRepository.deleteAllByTrack(track);
         track.deactivate();
     }
 

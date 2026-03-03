@@ -126,6 +126,9 @@ public class OAuth2Service {
                         + "&grant_type=authorization_code")
                 .retrieve()
                 .body(Map.class);
+        if (response == null) {
+            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
+        }
         return (String) response.get("access_token");
     }
 
@@ -141,6 +144,9 @@ public class OAuth2Service {
                         + "&code=" + code)
                 .retrieve()
                 .body(Map.class);
+        if (response == null) {
+            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
+        }
         return (String) response.get("access_token");
     }
 
@@ -156,6 +162,9 @@ public class OAuth2Service {
                         + "&code=" + code)
                 .retrieve()
                 .body(Map.class);
+        if (response == null) {
+            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
+        }
         return (String) response.get("access_token");
     }
 
@@ -174,6 +183,9 @@ public class OAuth2Service {
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
                 .body(Map.class);
+        if (info == null) {
+            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
+        }
         return new SocialUserInfo(
                 (String) info.get("id"),
                 (String) info.get("email"),
@@ -187,8 +199,17 @@ public class OAuth2Service {
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
                 .body(Map.class);
+        if (info == null) {
+            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
+        }
         Map<String, Object> account = (Map<String, Object>) info.get("kakao_account");
+        if (account == null) {
+            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
+        }
         Map<String, Object> profile = (Map<String, Object>) account.get("profile");
+        if (profile == null) {
+            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
+        }
         return new SocialUserInfo(
                 String.valueOf(info.get("id")),
                 (String) account.get("email"),
@@ -202,7 +223,13 @@ public class OAuth2Service {
                 .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
                 .body(Map.class);
+        if (body == null) {
+            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
+        }
         Map<String, Object> response = (Map<String, Object>) body.get("response");
+        if (response == null) {
+            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
+        }
         return new SocialUserInfo(
                 (String) response.get("id"),
                 (String) response.get("email"),

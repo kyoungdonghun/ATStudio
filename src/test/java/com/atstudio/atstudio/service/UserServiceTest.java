@@ -194,6 +194,21 @@ class UserServiceTest {
         assertThat(result.getDataList()).isEmpty();
     }
 
+    @Test
+    @DisplayName("getUsers() - searchUsers JPQL은 isDeleted=false 조건을 포함하므로 탈퇴 계정 미노출 (C-2 PII 보호)")
+    void getUsers_excludesDeletedUsers() {
+        // Repository의 searchUsers JPQL에 AND u.isDeleted = false 조건이 포함됨.
+        // 단위 테스트에서는 repository mock이므로, 반환된 목록에 deleted user가 없음을 검증.
+        User activeUser = buildUser(1L, "active@test.com", "activeNick", null, null);
+        Page<User> page = new PageImpl<>(List.of(activeUser));
+        given(userRepository.searchUsers(any(), any(), any())).willReturn(page);
+
+        ResponseDTO<UserListItemResponse> result = userService.getUsers(null, null, 1, 20);
+
+        assertThat(result.getDataList()).hasSize(1);
+        assertThat(result.getDataList().get(0).email()).isEqualTo("active@test.com");
+    }
+
     // ── getUser() (Admin) ─────────────────────────────────────────────────────
 
     @Test

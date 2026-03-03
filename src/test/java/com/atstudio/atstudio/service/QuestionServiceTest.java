@@ -402,7 +402,7 @@ class QuestionServiceTest {
     class UpdateQuestionStatus {
 
         @Test
-        @DisplayName("성공 - OPEN → RESOLVED")
+        @DisplayName("성공 - OPEN → IN_PROGRESS")
         void success() {
             User owner = buildUser(1L, UserRole.USER);
             Question question = buildQuestion(10L, owner, "제목", "내용",
@@ -411,10 +411,10 @@ class QuestionServiceTest {
             given(questionRepository.findById(10L)).willReturn(Optional.of(question));
 
             QuestionResponse result = questionService.updateQuestionStatus(10L,
-                    new QuestionStatusUpdateRequest(QuestionStatus.RESOLVED));
+                    new QuestionStatusUpdateRequest(QuestionStatus.IN_PROGRESS));
 
-            assertThat(result.status()).isEqualTo("RESOLVED");
-            assertThat(question.getStatus()).isEqualTo(QuestionStatus.RESOLVED);
+            assertThat(result.status()).isEqualTo("IN_PROGRESS");
+            assertThat(question.getStatus()).isEqualTo(QuestionStatus.IN_PROGRESS);
         }
 
         @Test

@@ -274,6 +274,19 @@ class TrackServiceTest {
         assertThat(track.isActive()).isFalse();
     }
 
+    @Test
+    @DisplayName("deleteTrack() - track_tags 레코드를 deactivate 전에 삭제")
+    void deleteTrack_deletesTrackTagsBeforeDeactivate() {
+        Track track = spy(buildTrack(1L, true));
+        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+
+        trackService.deleteTrack(1L);
+
+        org.mockito.InOrder inOrder = inOrder(trackTagRepository, track);
+        inOrder.verify(trackTagRepository).deleteAllByTrack(track);
+        inOrder.verify(track).deactivate();
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private Track buildTrack(Long id, boolean active) {
