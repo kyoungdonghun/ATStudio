@@ -461,6 +461,35 @@
 
 ---
 
+# 14. Albums
+
+## 14.1 Albums (`albums`)
+
+> Admin-curated album collections
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Title | `title` | VARCHAR(100) | NOT NULL | | | |
+| Description | `description` | TEXT | | | | |
+| Thumbnail | `thumbnail` | VARCHAR(500) | | | | URL |
+| Created by | `created_by` | BIGINT | NOT NULL | FK(users.id) | | ADMIN |
+| Active flag | `is_active` | TINYINT(1) | NOT NULL | | 1 | Soft delete |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+## 14.2 Album-Track Mapping (`album_tracks`)
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| Album | `album_id` | BIGINT | NOT NULL | PK, FK(albums.id) | | |
+| Track | `track_id` | BIGINT | NOT NULL | PK, FK(tracks.id) | | |
+| Track order | `track_order` | INT | NOT NULL | | 0 | |
+
+- Composite PK: (`album_id`, `track_id`)
+
+---
+
 # Table Relationship Diagram
 
 ```
@@ -475,6 +504,7 @@ users ─┬─< social_accounts
        ├─< whitelist_channels
        ├─< licenses ──> tracks
        ├─< playlists ─< playlist_tracks ──> tracks
+       ├─< albums ─< album_tracks ──> tracks
        ├─< questions ─┬─< answers
        │              └─< question_attachments
        └─< notices (ADMIN only)
@@ -509,5 +539,7 @@ tracks ─< track_tags ──> tags
 | 19 | `licenses` | Track usage licenses | Transaction |
 | 20 | `notices` | Notices | Master |
 | 21 | `question_attachments` | Inquiry attachments | Transaction |
+| 22 | `albums` | Curated albums | Master |
+| 23 | `album_tracks` | Album-track mapping | Mapping |
 
-Total **21 tables**
+Total **23 tables**

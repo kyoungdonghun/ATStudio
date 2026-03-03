@@ -1618,7 +1618,79 @@ nickname: String (required)
 
 ---
 
-# Full API Summary (79)
+---
+
+## 15. Album
+
+### 15.1 Create Album
+- Method: POST
+- URL: /api/albums
+- Auth: ADMIN
+- Request: multipart/form-data
+  - title: string (required)
+  - description: string (optional)
+  - thumbnailFile: file (optional)
+- Response: 201 Created
+  - id, title, description, thumbnailUrl, trackCount, createdAt
+- Errors: 400 INVALID_ARGUMENT
+
+### 15.2 List Albums
+- Method: GET
+- URL: /api/albums
+- Auth: none
+- Response: 200 OK
+  - dataList: [ { id, title, thumbnailUrl, trackCount } ]
+
+### 15.3 Get Album
+- Method: GET
+- URL: /api/albums/{id}
+- Auth: none
+- Response: 200 OK
+  - id, title, description, thumbnailUrl, tracks: [ { trackId, title, artistName, thumbnailUrl, order } ], createdAt
+- Errors: 404 RESOURCE_NOT_FOUND
+
+### 15.4 Update Album
+- Method: PUT
+- URL: /api/albums/{id}
+- Auth: ADMIN
+- Request: multipart/form-data (title, description, thumbnailFile -- all optional)
+- Response: 200 OK
+  - id, title, description, thumbnailUrl, trackCount, createdAt
+- Errors: 404 RESOURCE_NOT_FOUND
+
+### 15.5 Delete Album
+- Method: DELETE
+- URL: /api/albums/{id}
+- Auth: ADMIN
+- Response: 204 No Content
+- Errors: 404 RESOURCE_NOT_FOUND
+
+### 15.6 Add Track to Album
+- Method: POST
+- URL: /api/albums/{id}/tracks
+- Auth: ADMIN
+- Request Body: { "trackId": number }
+- Response: 200 OK, AlbumDetailResponse
+- Errors: 404 RESOURCE_NOT_FOUND, 409 RESOURCE_DUPLICATE
+
+### 15.7 Remove Track from Album
+- Method: DELETE
+- URL: /api/albums/{id}/tracks/{trackId}
+- Auth: ADMIN
+- Response: 204 No Content
+- Errors: 404 RESOURCE_NOT_FOUND
+
+### 15.8 Reorder Album Tracks
+- Method: PUT
+- URL: /api/albums/{id}/tracks
+- Auth: ADMIN
+- Request Body: { "trackOrders": [ { "trackId": number, "order": number } ] }
+- Response: 200 OK, AlbumDetailResponse
+- Errors: 404 RESOURCE_NOT_FOUND
+
+---
+
+# Full API Summary (87)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -1636,4 +1708,5 @@ nickname: String (required)
 | 12 | Whitelist Channels | 4 |
 | 13 | Company Certification | 5 |
 | 14 | Utility | 7 |
-| | **Total** | **79** |
+| 15 | Album | 8 |
+| | **Total** | **87** |
