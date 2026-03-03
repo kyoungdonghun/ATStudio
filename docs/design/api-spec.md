@@ -387,15 +387,17 @@ thumbnail: File (optional)
 
 **Response** `200 OK`
 ```json
-[
-  {
-    "id": 1,
-    "title": "My Workout Mix",
-    "thumbnail": null,
-    "trackCount": 5,
-    "createdAt": "2026-02-19T10:00:00"
-  }
-]
+{
+  "dataList": [
+    {
+      "id": 1,
+      "title": "My Workout Mix",
+      "thumbnail": null,
+      "trackCount": 5,
+      "createdAt": "2026-02-19T10:00:00"
+    }
+  ]
+}
 ```
 
 ## 3.3 Get Playlist
@@ -762,6 +764,28 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 
 **Response** `204 No Content`
 
+## 5.11 Update Password
+| Field | Value |
+|-------|-------|
+| **URL** | `PUT /api/users/me/password` |
+| **Auth** | auth required |
+| **Description** | Change the currently logged-in user's password. Verifies current password before updating. |
+
+**Request**
+```json
+{
+  "currentPassword": "OldP@ss123",
+  "newPassword": "NewP@ss456"
+}
+```
+
+**Response** `204 No Content`
+
+**Error Cases**
+```json
+{ "status": 400, "error": "Bad Request", "errorCode": "INVALID_ARGUMENT", "message": "현재 비밀번호가 일치하지 않습니다." }
+```
+
 ---
 
 # 6. User — Subscription
@@ -783,11 +807,13 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
   {
     "id": 1,
     "name": "STANDARD",
+    "description": "개인 구독 기본 플랜",
     "userType": "INDIVIDUAL",
     "priceMonthly": 9900.00,
     "priceYearly": 99000.00,
     "downloadPerDay": 5,
-    "maxWhitelistChannels": 1
+    "maxWhitelistChannels": 1,
+    "isActive": true
   }
 ]
 ```
@@ -1222,16 +1248,18 @@ size: Integer (default: 20)
 
 **Response** `200 OK`
 ```json
-[
-  {
-    "trackId": 10,
-    "title": "Summer Vibes",
-    "bpm": 120,
-    "tonality": "C",
-    "thumbnail": "/tracks/thumbnail/summer-vibes.jpg",
-    "createdAt": "2026-02-19T10:00:00"
-  }
-]
+{
+  "dataList": [
+    {
+      "trackId": 10,
+      "title": "Summer Vibes",
+      "bpm": 120,
+      "tonality": "C",
+      "thumbnail": "/tracks/thumbnail/summer-vibes.jpg",
+      "createdAt": "2026-02-19T10:00:00"
+    }
+  ]
+}
 ```
 
 ## 10.3 Remove from Likes
@@ -1265,16 +1293,18 @@ size: Integer (default: 20)
 
 **Response** `200 OK`
 ```json
-[
-  {
-    "trackId": 10,
-    "title": "Summer Vibes",
-    "bpm": 120,
-    "tonality": "C",
-    "thumbnail": "/tracks/thumbnail/summer-vibes.jpg",
-    "createdAt": "2026-02-19T10:00:00"
-  }
-]
+{
+  "dataList": [
+    {
+      "trackId": 10,
+      "title": "Summer Vibes",
+      "bpm": 120,
+      "tonality": "C",
+      "thumbnail": "/tracks/thumbnail/summer-vibes.jpg",
+      "createdAt": "2026-02-19T10:00:00"
+    }
+  ]
+}
 ```
 
 ## 11.3 Remove from Queue
@@ -1321,14 +1351,16 @@ size: Integer (default: 20)
 
 **Response** `200 OK`
 ```json
-[
-  {
-    "id": 1,
-    "channelUrl": "https://youtube.com/@mychannel",
-    "channelName": "My Channel",
-    "createdAt": "2026-02-19T10:00:00"
-  }
-]
+{
+  "dataList": [
+    {
+      "id": 1,
+      "channelUrl": "https://youtube.com/@mychannel",
+      "channelName": "My Channel",
+      "createdAt": "2026-02-19T10:00:00"
+    }
+  ]
+}
 ```
 
 ## 12.3 Update Channel

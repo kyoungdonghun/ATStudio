@@ -164,6 +164,24 @@ class DownloadServiceTest {
         verify(trackDownloadRepository).save(any(TrackDownload.class));
     }
 
+    @Test
+    @DisplayName("download() 실패 - downloadPerDay=0 플랜 → 즉시 차단 (DOWNLOAD_LIMIT_EXCEEDED)")
+    void downloadLimited_zeroPlan_blocks() {
+        User user = buildUser(1L);
+
+        given(userDetails.getId()).willReturn(1L);
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(trackRepository.findById(1L)).willReturn(Optional.of(buildTrack(1L, true)));
+        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any(LocalDate.class)))
+                .willReturn(Optional.of(buildSubscription(0)));
+        given(trackDownloadRepository.countByUserAndDownloadedAtBetween(eq(user), any(), any())).willReturn(0L);
+
+        assertThatThrownBy(() -> downloadService.download(1L, userDetails))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.DOWNLOAD_LIMIT_EXCEEDED));
+    }
+
     // ── download() 실패 ────────────────────────────────────────────────────────
 
     @Test

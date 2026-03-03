@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
+import org.springframework.web.util.UriComponentsBuilder;
+
 import java.util.Map;
 import java.util.Optional;
 
@@ -119,11 +121,7 @@ public class OAuth2Service {
         Map<String, Object> response = restClient.post()
                 .uri("https://oauth2.googleapis.com/token")
                 .header("Content-Type", "application/x-www-form-urlencoded")
-                .body("code=" + code
-                        + "&client_id=" + googleClientId
-                        + "&client_secret=" + googleClientSecret
-                        + "&redirect_uri=" + googleRedirectUri
-                        + "&grant_type=authorization_code")
+                .body(buildTokenRequestBody(code, googleClientId, googleClientSecret, googleRedirectUri))
                 .retrieve()
                 .body(Map.class);
         if (response == null) {
@@ -137,11 +135,7 @@ public class OAuth2Service {
         Map<String, Object> response = restClient.post()
                 .uri("https://kauth.kakao.com/oauth/token")
                 .header("Content-Type", "application/x-www-form-urlencoded")
-                .body("grant_type=authorization_code"
-                        + "&client_id=" + kakaoClientId
-                        + "&client_secret=" + kakaoClientSecret
-                        + "&redirect_uri=" + kakaoRedirectUri
-                        + "&code=" + code)
+                .body(buildTokenRequestBody(code, kakaoClientId, kakaoClientSecret, kakaoRedirectUri))
                 .retrieve()
                 .body(Map.class);
         if (response == null) {
@@ -155,17 +149,25 @@ public class OAuth2Service {
         Map<String, Object> response = restClient.post()
                 .uri("https://nid.naver.com/oauth2.0/token")
                 .header("Content-Type", "application/x-www-form-urlencoded")
-                .body("grant_type=authorization_code"
-                        + "&client_id=" + naverClientId
-                        + "&client_secret=" + naverClientSecret
-                        + "&redirect_uri=" + naverRedirectUri
-                        + "&code=" + code)
+                .body(buildTokenRequestBody(code, naverClientId, naverClientSecret, naverRedirectUri))
                 .retrieve()
                 .body(Map.class);
         if (response == null) {
             throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
         }
         return (String) response.get("access_token");
+    }
+
+    private String buildTokenRequestBody(String code, String clientId, String clientSecret, String redirectUri) {
+        return UriComponentsBuilder.newInstance()
+                .queryParam("grant_type", "authorization_code")
+                .queryParam("client_id", clientId)
+                .queryParam("client_secret", clientSecret)
+                .queryParam("redirect_uri", redirectUri)
+                .queryParam("code", code)
+                .build()
+                .encode()
+                .getQuery();
     }
 
     private SocialUserInfo fetchUserInfo(SocialProvider provider, String accessToken) {

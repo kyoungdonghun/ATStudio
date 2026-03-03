@@ -187,6 +187,38 @@ class OAuth2ServiceTest {
         }
     }
 
+    // ── Kakao profile null 처리 (CR-M-4) ───────────────────────────────────────
+
+    @Nested
+    @DisplayName("Kakao profile=null 처리 (CR-M-4)")
+    class KakaoProfileNull {
+
+        @Test
+        @DisplayName("Kakao profile null -> SOCIAL_AUTH_FAILED 예외")
+        void fetchKakaoUserInfo_nullProfile_throwsSocialAuthFailed() {
+            // token exchange 성공
+            when(restClient.post()).thenReturn(requestBodyUriSpec);
+            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
+            when(requestBodySpec.header(anyString(), anyString())).thenReturn(requestBodySpec);
+            when(requestBodySpec.body(any(Object.class))).thenReturn(requestBodySpec);
+            when(requestBodySpec.retrieve()).thenReturn(tokenResponseSpec);
+            when(tokenResponseSpec.body(Map.class)).thenReturn(Map.of("access_token", "valid-token"));
+
+            // userInfo 응답: kakao_account 존재하지만 profile이 null
+            when(restClient.get()).thenReturn(requestHeadersUriSpec);
+            when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.header(anyString(), anyString())).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(userInfoResponseSpec);
+            when(userInfoResponseSpec.body(Map.class)).thenReturn(
+                    Map.of("id", "12345", "kakao_account", new java.util.HashMap<>(Map.of("email", "user@kakao.com"))));
+
+            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.KAKAO, "auth-code"))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.SOCIAL_AUTH_FAILED));
+        }
+    }
+
     // ── 정상 플로우 (기존 소셜 계정 매칭) ──────────────────────────────────────
 
     @Test

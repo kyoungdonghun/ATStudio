@@ -106,6 +106,32 @@ class CompanyCertificationTest {
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.INVALID_STATE_TRANSITION));
         }
+
+        @ParameterizedTest
+        @EnumSource(value = CompanyCertificationStatus.class,
+                names = {"APPROVED", "REVISION_REQUESTED", "REJECTED"})
+        @DisplayName("APPROVED -> APPROVED/REVISION_REQUESTED/REJECTED 실패 (CR-M-001)")
+        void approvedToInvalid(CompanyCertificationStatus target) {
+            CompanyCertification cert = buildCertification(CompanyCertificationStatus.APPROVED);
+
+            assertThatThrownBy(() -> cert.process(target, null, null, null))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.INVALID_STATE_TRANSITION));
+        }
+
+        @ParameterizedTest
+        @EnumSource(value = CompanyCertificationStatus.class,
+                names = {"APPROVED", "REVISION_REQUESTED", "REJECTED"})
+        @DisplayName("REJECTED -> APPROVED/REVISION_REQUESTED/REJECTED 실패 (CR-M-002)")
+        void rejectedToInvalid(CompanyCertificationStatus target) {
+            CompanyCertification cert = buildCertification(CompanyCertificationStatus.REJECTED);
+
+            assertThatThrownBy(() -> cert.process(target, null, null, null))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.INVALID_STATE_TRANSITION));
+        }
     }
 
     private CompanyCertification buildCertification(CompanyCertificationStatus status) {
