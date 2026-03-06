@@ -1,7 +1,9 @@
 # ATStudio 화면 목록 (Frontend)
 
-> API Spec v5 기준 | 2026-02-20  
+> API Spec v5 기준 | v2 2026-03-06
 > `[PUBLIC]` = 인증 불필요 / `auth required` = 로그인 필요 / `[ADMIN]` = 관리자 전용 / `⚠️` = API 미정의
+
+> `🗑️ 삭제` = 상세/목록 페이지에서 `confirm()` 처리 / 회원탈퇴만 비밀번호 재확인 모달
 
 ---
 
@@ -29,14 +31,27 @@
 
 ---
 
-## 💿 플레이리스트 (Playlist)
+## 💿 앨범 (Album)
+
+| No | 화면명 | 관련 API | 인증 |
+|----|--------|---------|------|
+| L-1 | 앨범 목록 (이미지 타입) | `15.2 GET /api/albums` | [PUBLIC] |
+| L-2 | 앨범 목록 (리스트 타입) | `15.2 GET /api/albums` | [PUBLIC] |
+| L-3 | 앨범 상세 | `15.3 GET /api/albums/{id}` | [PUBLIC] |
+| L-4 | 앨범 생성 | `15.1 POST /api/albums` | [ADMIN] |
+| L-5 | 앨범 수정 + 트랙 관리 | `15.4 PUT /api/albums/{id}` `15.5 DELETE /api/albums/{id}` `15.6 POST (트랙 추가)` `15.7 DELETE (트랙 제거)` `15.8 PUT (순서 변경)` | [ADMIN] |
+
+---
+
+## 💿 재생목록 (Playlist)
 
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
 | 4 | 재생목록 목록 (이미지 타입) | `3.2 GET /api/playlists` | auth required |
 | 5 | 재생목록 목록 (리스트 타입) | `3.2 GET /api/playlists` | auth required |
+| C-1 | 재생목록 상세 | `3.3 GET /api/playlists/{id}` | auth required |
 | 8 | 재생목록 생성 | `3.1 POST /api/playlists` | auth required |
-| 9 | 재생목록 수정 | `3.5 PUT /api/playlists/{id}` `3.6 PUT (트랙 순서)` `3.7 DELETE (트랙 삭제)` | auth required |
+| 9 | 재생목록 수정 | `3.5 PUT /api/playlists/{id}` `3.6 PUT (트랙 순서)` `3.7 DELETE (트랙 삭제)` `3.4 POST (트랙 추가)` `3.8 DELETE /api/playlists/{id}` | auth required |
 
 ---
 
@@ -44,7 +59,7 @@
 
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
-| 10 | 개인정보 페이지 | `5.4 GET /api/users/me` `5.7 PUT /api/users/me` `5.9 DELETE /api/users/me` | auth required |
+| 10 | 개인정보 페이지 (비밀번호 변경 모달 포함) | `5.4 GET /api/users/me` `5.7 PUT /api/users/me` `5.9 DELETE /api/users/me` `5.11 PUT /api/users/me/password` | auth required |
 | D-1 | 좋아요 목록 | `10.1~10.3 /api/likes` | auth required |
 | E-1 | 재생 기록 | `4.2 GET /api/play-histories` `4.3 DELETE /api/play-histories` | auth required |
 | F-1 | 내 라이선스 목록 | `7.1 GET /api/licenses/me` | auth required |
@@ -119,7 +134,8 @@
 | K-4 | 문의 관리 (상태 변경) | `8.3 GET /api/questions` `8.6 PUT /api/questions/{id}/status` | [ADMIN] |
 | K-5 | 기업 인증 목록 / 심사 처리 | `13.3 GET /api/company-certifications` `13.4 GET` `13.5 PUT` | [ADMIN] |
 | K-6 | 태그 관리 (생성/수정/삭제) | `2.1 POST /api/tags` `2.3 PUT` `2.4 DELETE` | [ADMIN] |
+| K-7 | 트랙 관리 (전체 목록 + 활성화/삭제) | `1.2 GET /api/tracks` (비활성 포함) `1.6 PUT /api/tracks/{id}` `1.7 DELETE /api/tracks/{id}` | [ADMIN] |
 
 ---
 
-> 총 **40개** 화면 (관리자 전용 포함)
+> 총 **47개** 화면 (관리자 전용 포함)
