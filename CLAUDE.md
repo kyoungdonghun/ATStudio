@@ -350,6 +350,13 @@ ATStudio/
 | WI 증거 | `WI-YYYYMMDD-ATS-###-evidence-pack.md` | `WI-20260211-ATS-001-evidence-pack.md` |
 | WI 핸드오프 | `WI-YYYYMMDD-ATS-###-handoff.md` | `WI-20260211-ATS-001-handoff.md` |
 
+## Memory Management Rules
+
+- MEMORY.md는 200줄 제한. 초과 시 정리 필요.
+- **정리 기준**: 완료된 REQ 상세 내역, 오래된 이슈 로그 등 현재 세션과 무관한 내용 제거.
+- **제거 전 체크**: 다음 프로젝트에 재사용 가능한 꿀팁(기술 패턴, 함정, 프로세스 교훈)이면 제거 전에 `docs/retrospective/kick.md`에 먼저 기록.
+- MEMORY.md Key Paths 섹션은 항상 상단 유지 (압축 시 소실 방지).
+
 ## Documentation Entry Points
 
 | 문서 | 설명 | Tier |
