@@ -1,6 +1,6 @@
 # ATStudio 화면 목록 (Frontend)
 
-> API Spec v5 기준 | v2 2026-03-06
+> API Spec v5 기준 | v3 2026-03-07
 > `[PUBLIC]` = 인증 불필요 / `auth required` = 로그인 필요 / `[ADMIN]` = 관리자 전용 / `⚠️` = API 미정의
 
 > `🗑️ 삭제` = 상세/목록 페이지에서 `confirm()` 처리 / 회원탈퇴만 비밀번호 재확인 모달
@@ -23,7 +23,6 @@
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
 | 1 | 메인화면 | `1.2 GET /api/tracks` `2.2 GET /api/tags` | [PUBLIC] |
-| 2 | 음원 목록 (이미지 타입) | `1.2 GET /api/tracks` | [PUBLIC] |
 | 3 | 음원 목록 (리스트 타입) | `1.2 GET /api/tracks` | [PUBLIC] |
 | B-1 | 음원 상세 | `1.3 GET /api/tracks/{trackId}` `1.4 GET /api/tracks/{trackId}/stream` | [PUBLIC] |
 | 6 | 음원 업로드 (단일/다수) | `1.1 POST /api/tracks` `2.2 GET /api/tags` | [ADMIN] |
@@ -138,4 +137,15 @@
 
 ---
 
-> 총 **47개** 화면 (관리자 전용 포함)
+---
+
+## ❌ 에러 페이지
+
+| No | 화면명 | 설명 | 인증 |
+|----|--------|------|------|
+| ERR-1 | 404 Not Found | 존재하지 않는 경로 접근 시 표시 | [PUBLIC] |
+| ERR-2 | 500 Server Error | 서버 오류 발생 시 표시 | [PUBLIC] |
+
+---
+
+> 총 **48개** 화면 (관리자 전용 포함)

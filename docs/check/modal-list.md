@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-03-06
+version: 1.1
+last_updated: 2026-03-07
 project: ATS
 owner: docops
 category: guide
@@ -34,8 +34,8 @@ dependencies:
 
 # ATStudio Modal/Popup Interaction List
 
-> API Spec v5 / Usecase v5 기준 | v1 2026-03-06
-> 관련 화면 목록: [docs/check/atstudio-front-list.md](atstudio-front-list.md) v2
+> API Spec v5 / Usecase v5 기준 | v1.1 2026-03-07
+> 관련 화면 목록: [docs/check/atstudio-front-list.md](atstudio-front-list.md) v3
 
 ---
 
@@ -78,7 +78,7 @@ dependencies:
 | ID | UC | 발생 화면 | 트리거 | 내용 | 컴포넌트 | API |
 |----|-----|---------|--------|------|----------|-----|
 | M-11 | SOUND-016 | K-7 (트랙 관리) | "트랙 삭제" 클릭 | "트랙을 삭제하시겠습니까?" | ConfirmModal | `1.7 DELETE /api/tracks/{id}` |
-| M-12 | SOUND-019 | 1/2/3/B-1 (음원 목록/상세) | "재생목록에 추가" 클릭 | 내 재생목록 목록 선택 | SelectModal | `3.4 POST /api/playlists/{id}/tracks` |
+| M-12 | SOUND-019 | 1/3/B-1 (음원 목록/상세) | "재생목록에 추가" 클릭 | 내 재생목록 목록 선택 | SelectModal | `3.4 POST /api/playlists/{id}/tracks` |
 | M-13 | SOUND-017 | Screen 4/5 (재생목록 목록) | "재생목록 삭제" 클릭 | "재생목록을 삭제하시겠습니까?" | ConfirmModal | `3.8 DELETE /api/playlists/{id}` |
 | M-14 | ALBUM-005 | L-1/L-2 (앨범 목록) | "앨범 삭제" 클릭 | "앨범을 삭제하시겠습니까?" | ConfirmModal | `15.5 DELETE /api/albums/{id}` |
 | M-15 | CC-001 | I-1 (기업인증 신청) | 서류 첨부 영역 클릭 | 파일 업로드 (복수 가능) **[보류]** | FileUploadModal | `13.1 POST /api/company-certifications` |
@@ -94,6 +94,7 @@ dependencies:
 | M-25 | INFO-006 | K-1 (회원 목록/상세) | "권한 수정 저장" 클릭 | "회원 권한을 변경하시겠습니까?" | ConfirmModal | `5.8 PUT /api/users/{id}` |
 | M-26 | PAYMENT-001 | Screen 16-2 (구독 결제) | "결제하기" 클릭 | PG 결제 창 **[보류]** | ⚠️ PG 보류 | `6.3 POST /api/user-subscriptions` |
 | M-27 | PAYMENT-007 | M-09 (PlanCompareModal 내) | 업그레이드 결제 확인 | PG 결제 창 **[보류]** | ⚠️ PG 보류 | `6.7 PUT /api/user-subscriptions/me` |
+| M-28 | - | K-6 (태그 관리) | "태그 삭제" 클릭 | "태그를 삭제하시겠습니까?" | ConfirmModal | `2.4 DELETE /api/tags/{id}` |
 
 ---
 
@@ -161,7 +162,7 @@ dependencies:
 ### Flow 3: SelectModal — 재생목록에 트랙 추가 (M-12)
 
 ```
-[Screen 1/2/3 음원 목록 or B-1 음원 상세]
+[Screen 1/3 음원 목록 or B-1 음원 상세]
   트랙 항목 → "재생목록에 추가" 버튼 클릭
         |
         v
@@ -229,13 +230,15 @@ dependencies:
 
 ---
 
-## TODO — Backend Supplement Required
+## Backend Supplement (완료)
 
-| # | 항목 | 내용 | 관련 API |
-|---|------|------|---------|
-| T-1 | UTIL-006 `nextResetAt` | 오늘 다운로드 잔여 횟수 조회 응답에 `nextResetAt` (다음 리셋 시각) 필드 추가 필요. 장바구니 화면(Screen 11) 표시 용도. | `GET /api/utils/download-count` |
-| T-2 | `GET /api/utils/subscription-change-preview` 신규 API | PlanCompareModal 업그레이드 분기에서 `proratedAmount` 계산 결과 표시. `proratedAmount = (newDailyRate - oldDailyRate) x 남은 일수`. 현재 미구현. | `GET /api/utils/subscription-change-preview?subscriptionId=&billingCycle=` |
-| T-3 | `user_subscriptions` 다운그레이드 예약 컬럼 | 다운그레이드 예약 처리를 위해 `pendingSubscriptionId`, `pendingBillingCycle` 컬럼 추가 필요. 현재 `PUT 6.7`은 즉시 변경만 지원. | `6.7 PUT /api/user-subscriptions/me` |
+> REQ-20260307-ATS-007 에서 T-1/T-2/T-3 전부 구현 완료 (2026-03-07)
+
+| # | 항목 | 상태 |
+|---|------|------|
+| T-1 | `nextResetAt` 필드 (`GET /api/utils/download-count`) | ✅ 완료 |
+| T-2 | `GET /api/utils/subscription-change-preview` | ✅ 완료 (UPGRADE/DOWNGRADE 분기, proratedAmount) |
+| T-3 | `user_subscriptions` pending 컬럼 + DOWNGRADE 예약 | ✅ 완료 (스케줄러 적용은 별도 REQ) |
 
 ---
 
@@ -249,9 +252,9 @@ dependencies:
 
 ---
 
-> 총 **27개** 모달 (M-01 ~ M-27)
+> 총 **28개** 모달 (M-01 ~ M-28)
 > - 1차 (화면 목록 기반): M-01 ~ M-10 (10개)
-> - 2차 (유스케이스 추가): M-11 ~ M-27 (17개)
+> - 2차 (유스케이스 추가): M-11 ~ M-28 (18개)
 > - 보류: M-15, M-26, M-27 (3개)
 
 ## Related Documents
