@@ -7,7 +7,6 @@ import com.atstudio.atstudio.dto.whitelist.WhitelistChannelResponse;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.WhitelistChannel;
-import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.repository.WhitelistChannelRepository;
@@ -39,7 +38,7 @@ public class WhitelistChannelService {
         User user = findUserById(userDetails.getId());
 
         UserSubscription subscription = userSubscriptionRepository
-                .findActiveByUser(user, SubscriptionStatus.ACTIVE, LocalDate.now())
+                .findActiveByUser(user, LocalDate.now())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
 
         long currentCount = whitelistChannelRepository.countByUser(user);

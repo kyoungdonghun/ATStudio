@@ -10,7 +10,6 @@ import com.atstudio.atstudio.entity.Subscription;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
-import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.repository.SubscriptionRepository;
 import com.atstudio.atstudio.repository.TrackDownloadRepository;
 import com.atstudio.atstudio.repository.UserRepository;
@@ -41,7 +40,7 @@ public class UtilService {
     public SubscriptionStatusResponse getSubscriptionStatus(CustomUserDetails userDetails) {
         User user = findUser(userDetails.getId());
         Optional<UserSubscription> subscriptionOpt = userSubscriptionRepository
-                .findActiveByUser(user, SubscriptionStatus.ACTIVE, LocalDate.now());
+                .findActiveByUser(user, LocalDate.now());
 
         if (subscriptionOpt.isEmpty()) {
             return SubscriptionStatusResponse.noSubscription();
@@ -62,7 +61,7 @@ public class UtilService {
     public DownloadCountResponse getDownloadCount(CustomUserDetails userDetails) {
         User user = findUser(userDetails.getId());
         Optional<UserSubscription> subscriptionOpt = userSubscriptionRepository
-                .findActiveByUser(user, SubscriptionStatus.ACTIVE, LocalDate.now());
+                .findActiveByUser(user, LocalDate.now());
 
         LocalDateTime todayStart = LocalDate.now().atStartOfDay();
         LocalDateTime todayEnd = LocalDate.now().atTime(LocalTime.MAX);
@@ -107,7 +106,7 @@ public class UtilService {
         User user = findUser(userDetails.getId());
 
         UserSubscription current = userSubscriptionRepository
-                .findActiveByUser(user, SubscriptionStatus.ACTIVE, LocalDate.now())
+                .findActiveByUser(user, LocalDate.now())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
 
         Subscription newPlan = subscriptionRepository.findById(subscriptionId)

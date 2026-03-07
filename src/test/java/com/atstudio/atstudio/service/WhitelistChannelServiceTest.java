@@ -24,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -60,7 +61,7 @@ class WhitelistChannelServiceTest {
                     "https://youtube.com/@channel1", "채널1");
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(sub));
             given(whitelistChannelRepository.countByUser(user)).willReturn(2L);
             given(whitelistChannelRepository.save(any(WhitelistChannel.class))).willReturn(saved);
@@ -117,7 +118,7 @@ class WhitelistChannelServiceTest {
                     "https://www.youtube.com/channel/xxx", "채널WWW");
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(sub));
             given(whitelistChannelRepository.countByUser(user)).willReturn(0L);
             given(whitelistChannelRepository.save(any(WhitelistChannel.class))).willReturn(saved);
@@ -134,7 +135,7 @@ class WhitelistChannelServiceTest {
         void fail_noSubscription() {
             User user = buildUser(1L, UserRole.USER);
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.empty());
 
             assertThatThrownBy(() -> whitelistChannelService.registerChannel(
@@ -153,7 +154,7 @@ class WhitelistChannelServiceTest {
             UserSubscription sub = buildUserSubscription(user, plan);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(sub));
             given(whitelistChannelRepository.countByUser(user)).willReturn(3L);
 

@@ -3,7 +3,6 @@ package com.atstudio.atstudio.service;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.entity.*;
-import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.storage.StorageService;
@@ -38,7 +37,7 @@ public class DownloadService {
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND));
 
         UserSubscription subscription = userSubscriptionRepository
-                .findActiveByUser(user, SubscriptionStatus.ACTIVE, LocalDate.now())
+                .findActiveByUser(user, LocalDate.now())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
 
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();

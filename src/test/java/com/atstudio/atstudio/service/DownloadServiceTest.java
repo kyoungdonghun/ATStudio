@@ -4,7 +4,6 @@ import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.entity.*;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
-import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.security.CustomUserDetails;
@@ -56,7 +55,7 @@ class DownloadServiceTest {
         given(userDetails.getId()).willReturn(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any(LocalDate.class)))
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(buildSubscription(5)));
         given(trackDownloadRepository.countByUserAndDownloadedAtBetween(eq(user), any(), any())).willReturn(2L);
         given(trackDownloadRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
@@ -80,7 +79,7 @@ class DownloadServiceTest {
         given(userDetails.getId()).willReturn(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any(LocalDate.class)))
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(buildSubscription(5)));
         given(trackDownloadRepository.countByUserAndDownloadedAtBetween(eq(user), any(), any())).willReturn(0L);
         given(trackDownloadRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
@@ -102,7 +101,7 @@ class DownloadServiceTest {
         given(userDetails.getId()).willReturn(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any(LocalDate.class)))
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(buildSubscription(-1)));
         given(trackDownloadRepository.countByUserAndDownloadedAtBetween(eq(user), any(), any())).willReturn(0L);
         given(trackDownloadRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
@@ -126,7 +125,7 @@ class DownloadServiceTest {
         given(userDetails.getId()).willReturn(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any(LocalDate.class)))
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(buildSubscription(-1)));
         given(trackDownloadRepository.countByUserAndDownloadedAtBetween(eq(user), any(), any())).willReturn(1000L);
         given(trackDownloadRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
@@ -150,7 +149,7 @@ class DownloadServiceTest {
         given(userDetails.getId()).willReturn(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any(LocalDate.class)))
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(buildSubscription(5)));
         given(trackDownloadRepository.countByUserAndDownloadedAtBetween(eq(user), any(), any())).willReturn(4L);
         given(trackDownloadRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
@@ -172,7 +171,7 @@ class DownloadServiceTest {
         given(userDetails.getId()).willReturn(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(buildTrack(1L, true)));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any(LocalDate.class)))
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(buildSubscription(0)));
         given(trackDownloadRepository.countByUserAndDownloadedAtBetween(eq(user), any(), any())).willReturn(0L);
 
@@ -215,7 +214,7 @@ class DownloadServiceTest {
         given(userDetails.getId()).willReturn(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(buildUser(1L)));
         given(trackRepository.findById(1L)).willReturn(Optional.of(buildTrack(1L, true)));
-        given(userSubscriptionRepository.findActiveByUser(any(), any(), any())).willReturn(Optional.empty());
+        given(userSubscriptionRepository.findActiveByUser(any(), any(LocalDate.class))).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> downloadService.download(1L, userDetails))
                 .isInstanceOf(BusinessException.class)
@@ -231,7 +230,7 @@ class DownloadServiceTest {
         given(userDetails.getId()).willReturn(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(buildTrack(1L, true)));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any(LocalDate.class)))
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(buildSubscription(5)));
         given(trackDownloadRepository.countByUserAndDownloadedAtBetween(eq(user), any(), any())).willReturn(5L);
 

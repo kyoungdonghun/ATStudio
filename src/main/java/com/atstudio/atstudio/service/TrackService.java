@@ -168,6 +168,30 @@ public class TrackService {
         track.deactivate();
     }
 
+    public ResponseDTO<AdminTrackListItemResponse> getTracksForAdmin(Boolean isActive, int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(0, page - 1), size, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        Specification<Track> spec = Specification.where(TrackSpecification.hasIsActive(isActive));
+
+        Page<Track> trackPage = trackRepository.findAll(spec, pageable);
+
+        List<AdminTrackListItemResponse> dataList = trackPage.getContent().stream()
+                .map(t -> {
+                    List<Tag> tags = t.getTrackTags().stream().map(TrackTag::getTag).toList();
+                    return AdminTrackListItemResponse.from(t, tags);
+                })
+                .toList();
+
+        int total = (int) trackPage.getTotalElements();
+        PageInfo pageInfo = PageInfo.of(page, size, total, 10);
+
+        return ResponseDTO.<AdminTrackListItemResponse>builder()
+                .message("Admin track list retrieved")
+                .dataList(dataList)
+                .pageInfo(pageInfo)
+                .build();
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private Track findTrackById(Long trackId) {

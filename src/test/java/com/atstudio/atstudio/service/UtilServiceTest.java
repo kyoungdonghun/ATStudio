@@ -10,7 +10,6 @@ import com.atstudio.atstudio.entity.Subscription;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
-import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserJob;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
@@ -58,7 +57,7 @@ class UtilServiceTest {
         User user = buildUser(1L);
         UserSubscription userSubscription = buildUserSubscription(user, 10);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(userSubscription));
 
         SubscriptionStatusResponse result = utilService.getSubscriptionStatus(buildUserDetails(1L));
@@ -72,7 +71,7 @@ class UtilServiceTest {
     void getSubscriptionStatus_noSubscription() {
         User user = buildUser(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(userSubscriptionRepository.findActiveByUser(any(), any(), any()))
+        given(userSubscriptionRepository.findActiveByUser(any(), any(LocalDate.class)))
                 .willReturn(Optional.empty());
 
         SubscriptionStatusResponse result = utilService.getSubscriptionStatus(buildUserDetails(1L));
@@ -88,7 +87,7 @@ class UtilServiceTest {
         User user = buildUser(1L);
         UserSubscription userSubscription = buildUserSubscription(user, 10);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(userSubscriptionRepository.findActiveByUser(any(), any(), any()))
+        given(userSubscriptionRepository.findActiveByUser(any(), any(LocalDate.class)))
                 .willReturn(Optional.of(userSubscription));
         given(trackDownloadRepository.countByUserAndDownloadedAtBetween(any(), any(), any()))
                 .willReturn(3L);
@@ -107,7 +106,7 @@ class UtilServiceTest {
         User user = buildUser(1L);
         UserSubscription userSubscription = buildUserSubscription(user, -1);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(userSubscriptionRepository.findActiveByUser(any(), any(), any()))
+        given(userSubscriptionRepository.findActiveByUser(any(), any(LocalDate.class)))
                 .willReturn(Optional.of(userSubscription));
         given(trackDownloadRepository.countByUserAndDownloadedAtBetween(any(), any(), any()))
                 .willReturn(5L);
@@ -124,7 +123,7 @@ class UtilServiceTest {
     void getDownloadCount_noSubscription() {
         User user = buildUser(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(userSubscriptionRepository.findActiveByUser(any(), any(), any()))
+        given(userSubscriptionRepository.findActiveByUser(any(), any(LocalDate.class)))
                 .willReturn(Optional.empty());
         given(trackDownloadRepository.countByUserAndDownloadedAtBetween(any(), any(), any()))
                 .willReturn(0L);
@@ -194,7 +193,7 @@ class UtilServiceTest {
         ReflectionTestUtils.setField(newPlan, "id", 2L);
 
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(currentSub));
         given(subscriptionRepository.findById(2L)).willReturn(Optional.of(newPlan));
 
@@ -234,7 +233,7 @@ class UtilServiceTest {
         ReflectionTestUtils.setField(newPlan, "id", 1L);
 
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(currentSub));
         given(subscriptionRepository.findById(1L)).willReturn(Optional.of(newPlan));
 
@@ -253,7 +252,7 @@ class UtilServiceTest {
     void previewSubscriptionChange_noSubscription() {
         User user = buildUser(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(userSubscriptionRepository.findActiveByUser(any(), any(), any()))
+        given(userSubscriptionRepository.findActiveByUser(any(), any(LocalDate.class)))
                 .willReturn(Optional.empty());
 
         assertThatThrownBy(() -> utilService.previewSubscriptionChange(

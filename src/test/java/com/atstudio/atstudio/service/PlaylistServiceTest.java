@@ -5,7 +5,6 @@ import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.playlist.*;
 import com.atstudio.atstudio.entity.*;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
-import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.entity.key.PlaylistTrackId;
@@ -112,7 +111,7 @@ class PlaylistServiceTest {
         request.setTitle("Test Playlist");
 
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(userSubscriptionRepository.findActiveByUser(any(User.class), eq(SubscriptionStatus.ACTIVE), any(LocalDate.class)))
+        given(userSubscriptionRepository.findActiveByUser(any(User.class), any(LocalDate.class)))
                 .willReturn(Optional.empty());
 
         assertThatThrownBy(() -> playlistService.createPlaylist(request, null, buildUserDetails(1L)))
@@ -398,7 +397,7 @@ class PlaylistServiceTest {
     private void setupSubscriberMocks(User user) {
         UserSubscription sub = buildSubscription(user);
         given(userRepository.findById(user.getId())).willReturn(Optional.of(user));
-        given(userSubscriptionRepository.findActiveByUser(any(User.class), eq(SubscriptionStatus.ACTIVE), any(LocalDate.class)))
+        given(userSubscriptionRepository.findActiveByUser(any(User.class), any(LocalDate.class)))
                 .willReturn(Optional.of(sub));
     }
 

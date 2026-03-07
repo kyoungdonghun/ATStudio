@@ -13,6 +13,11 @@ public class TrackSpecification {
         return (root, query, cb) -> cb.isTrue(root.get("isActive"));
     }
 
+    public static Specification<Track> hasIsActive(Boolean isActive) {
+        if (isActive == null) return (root, query, cb) -> cb.conjunction();
+        return (root, query, cb) -> cb.equal(root.get("isActive"), isActive);
+    }
+
     public static Specification<Track> titleContains(String keyword) {
         if (keyword == null || keyword.isBlank()) return null;
         return (root, query, cb) -> cb.like(cb.lower(root.get("title")), "%" + keyword.toLowerCase() + "%");

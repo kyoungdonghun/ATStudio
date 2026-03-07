@@ -10,7 +10,6 @@ import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
 import com.atstudio.atstudio.entity.enums.CompanyCertificationStatus;
-import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.CompanyCertificationRepository;
 import com.atstudio.atstudio.repository.SubscriptionRepository;
@@ -61,7 +60,7 @@ public class UserSubscriptionService {
         }
 
         // 중복 구독 체크
-        userSubscriptionRepository.findActiveByUser(user, SubscriptionStatus.ACTIVE, LocalDate.now())
+        userSubscriptionRepository.findActiveByUser(user, LocalDate.now())
                 .ifPresent(us -> {
                     throw new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_ALREADY_EXISTS);
                 });
@@ -98,7 +97,7 @@ public class UserSubscriptionService {
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
         UserSubscription userSubscription = userSubscriptionRepository
-                .findActiveByUser(user, SubscriptionStatus.ACTIVE, LocalDate.now())
+                .findActiveByUser(user, LocalDate.now())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
 
         return UserSubscriptionResponse.from(userSubscription);
@@ -141,7 +140,7 @@ public class UserSubscriptionService {
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
         UserSubscription current = userSubscriptionRepository
-                .findActiveByUser(user, SubscriptionStatus.ACTIVE, LocalDate.now())
+                .findActiveByUser(user, LocalDate.now())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
 
         Subscription newPlan = subscriptionRepository.findById(request.subscriptionId())
@@ -234,7 +233,7 @@ public class UserSubscriptionService {
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
         UserSubscription userSubscription = userSubscriptionRepository
-                .findActiveByUser(user, SubscriptionStatus.ACTIVE, LocalDate.now())
+                .findActiveByUser(user, LocalDate.now())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
 
         userSubscription.cancel();

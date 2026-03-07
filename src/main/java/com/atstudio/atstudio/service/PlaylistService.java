@@ -7,7 +7,6 @@ import com.atstudio.atstudio.entity.Playlist;
 import com.atstudio.atstudio.entity.PlaylistTrack;
 import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.User;
-import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.key.PlaylistTrackId;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.security.CustomUserDetails;
@@ -206,7 +205,7 @@ public class PlaylistService {
     private User validateSubscriber(CustomUserDetails userDetails) {
         User user = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
-        userSubscriptionRepository.findActiveByUser(user, SubscriptionStatus.ACTIVE, LocalDate.now())
+        userSubscriptionRepository.findActiveByUser(user, LocalDate.now())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
         return user;
     }

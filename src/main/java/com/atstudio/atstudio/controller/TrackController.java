@@ -12,6 +12,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,6 +40,15 @@ public class TrackController {
     public ResponseEntity<ResponseDTO<TrackListItemResponse>> getTracks(
             @ModelAttribute TrackSearchRequest request) {
         return ResponseEntity.ok(trackService.getTracks(request));
+    }
+
+    @GetMapping("/admin")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminTrackListItemResponse>> getTracksForAdmin(
+            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(trackService.getTracksForAdmin(isActive, page, size));
     }
 
     @GetMapping("/{trackId}")

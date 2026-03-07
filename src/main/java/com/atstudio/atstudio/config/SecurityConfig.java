@@ -58,6 +58,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/utils/check-phone").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/utils/check-nickname").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/tracks").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/tracks/admin").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/tracks/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/tracks/*/stream").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/tags").permitAll()

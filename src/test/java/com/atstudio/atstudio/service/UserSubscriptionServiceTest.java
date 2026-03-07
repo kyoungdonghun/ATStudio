@@ -65,7 +65,7 @@ class UserSubscriptionServiceTest {
                     BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.empty());
             given(subscriptionRepository.findById(10L)).willReturn(Optional.of(sub));
             given(userSubscriptionRepository.save(any(UserSubscription.class))).willReturn(saved);
@@ -92,7 +92,7 @@ class UserSubscriptionServiceTest {
             given(userRepository.findById(2L)).willReturn(Optional.of(user));
             given(companyCertificationRepository.existsByUserAndStatusIn(eq(user), anyList()))
                     .willReturn(true);
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.empty());
             given(subscriptionRepository.findById(10L)).willReturn(Optional.of(sub));
             given(userSubscriptionRepository.save(any(UserSubscription.class))).willReturn(saved);
@@ -132,7 +132,7 @@ class UserSubscriptionServiceTest {
                     BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(existing));
 
             assertThatThrownBy(() -> userSubscriptionService.subscribe(
@@ -148,7 +148,7 @@ class UserSubscriptionServiceTest {
             User user = buildUser(1L, UserType.INDIVIDUAL);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.empty());
             given(subscriptionRepository.findById(99L)).willReturn(Optional.empty());
 
@@ -175,7 +175,7 @@ class UserSubscriptionServiceTest {
                     BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
 
             UserSubscriptionResponse result = userSubscriptionService.getMySubscription(
@@ -191,7 +191,7 @@ class UserSubscriptionServiceTest {
             User user = buildUser(1L, UserType.INDIVIDUAL);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.empty());
 
             assertThatThrownBy(() -> userSubscriptionService.getMySubscription(
@@ -280,7 +280,7 @@ class UserSubscriptionServiceTest {
             ReflectionTestUtils.setField(newSub, "priceMonthly", BigDecimal.valueOf(19900));
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
             given(paymentService.processPayment(any(), any(), any(), any(), any()))
@@ -315,7 +315,7 @@ class UserSubscriptionServiceTest {
             Subscription newSub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(10L)).willReturn(Optional.of(newSub));
 
@@ -345,7 +345,7 @@ class UserSubscriptionServiceTest {
             User user = buildUser(1L, UserType.INDIVIDUAL);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.empty());
 
             assertThatThrownBy(() -> userSubscriptionService.changeSubscription(
@@ -461,7 +461,7 @@ class UserSubscriptionServiceTest {
                     BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
 
             userSubscriptionService.selfCancel(buildUserDetails(1L));
@@ -475,10 +475,73 @@ class UserSubscriptionServiceTest {
             User user = buildUser(1L, UserType.INDIVIDUAL);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.empty());
 
             assertThatThrownBy(() -> userSubscriptionService.selfCancel(buildUserDetails(1L)))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+        }
+    }
+
+    // -- BD-1 구독 취소 유예 기간 테스트 ----------------------------------------
+
+    @Nested
+    @DisplayName("BD-1: CANCELLED 구독 유예 기간")
+    class CancelledGracePeriod {
+
+        @Test
+        @DisplayName("selfCancel 후 status=CANCELLED이고 expiresAt 유지됨")
+        void selfCancel_statusCancelledAndExpiresAtPreserved() {
+            User user = buildUser(1L, UserType.INDIVIDUAL);
+            Subscription sub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
+            LocalDate originalExpiresAt = LocalDate.now().plusDays(20);
+            UserSubscription us = buildUserSubscription(100L, user, sub,
+                    BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
+            ReflectionTestUtils.setField(us, "expiresAt", originalExpiresAt);
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.of(us));
+
+            userSubscriptionService.selfCancel(buildUserDetails(1L));
+
+            assertThat(us.getStatus()).isEqualTo(SubscriptionStatus.CANCELLED);
+            assertThat(us.getExpiresAt()).isEqualTo(originalExpiresAt);
+        }
+
+        @Test
+        @DisplayName("CANCELLED 상태 + expiresAt 이내 → getMySubscription 정상 반환")
+        void cancelledWithinGracePeriod_getMySubscription_returnsSubscription() {
+            User user = buildUser(1L, UserType.INDIVIDUAL);
+            Subscription sub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
+            UserSubscription us = buildUserSubscription(100L, user, sub,
+                    BillingCycle.MONTHLY, SubscriptionStatus.CANCELLED);
+            ReflectionTestUtils.setField(us, "expiresAt", LocalDate.now().plusDays(10));
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.of(us));
+
+            UserSubscriptionResponse result = userSubscriptionService.getMySubscription(
+                    buildUserDetails(1L));
+
+            assertThat(result.id()).isEqualTo(100L);
+            assertThat(result.status()).isEqualTo("CANCELLED");
+        }
+
+        @Test
+        @DisplayName("expiresAt 지난 CANCELLED 구독 → NO_ACTIVE_SUBSCRIPTION")
+        void cancelledPastExpiry_getMySubscription_throwsNoActive() {
+            User user = buildUser(1L, UserType.INDIVIDUAL);
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> userSubscriptionService.getMySubscription(
+                    buildUserDetails(1L)))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));

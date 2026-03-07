@@ -162,6 +162,64 @@ class TrackServiceTest {
         verify(trackRepository).findAll(any(Specification.class), any(Pageable.class));
     }
 
+    // ── getTracksForAdmin() ─────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("getTracksForAdmin() - isActive=null이면 활성+비활성 전체 반환")
+    @SuppressWarnings("unchecked")
+    void getTracksForAdmin_allTracks() {
+        Track active = buildTrack(1L, true);
+        Track inactive = buildTrack(2L, false);
+        Page<Track> page = new PageImpl<>(List.of(active, inactive), PageRequest.of(0, 20), 2);
+        given(trackRepository.findAll(any(Specification.class), any(Pageable.class))).willReturn(page);
+
+        ResponseDTO<AdminTrackListItemResponse> result = trackService.getTracksForAdmin(null, 1, 20);
+
+        assertThat(result.getDataList()).hasSize(2);
+        assertThat(result.getPageInfo().getTotal()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("getTracksForAdmin() - isActive=true이면 활성 트랙만 반환")
+    @SuppressWarnings("unchecked")
+    void getTracksForAdmin_activeOnly() {
+        Track active = buildTrack(1L, true);
+        Page<Track> page = new PageImpl<>(List.of(active), PageRequest.of(0, 20), 1);
+        given(trackRepository.findAll(any(Specification.class), any(Pageable.class))).willReturn(page);
+
+        ResponseDTO<AdminTrackListItemResponse> result = trackService.getTracksForAdmin(true, 1, 20);
+
+        assertThat(result.getDataList()).hasSize(1);
+        assertThat(result.getDataList().get(0).isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("getTracksForAdmin() - isActive=false이면 비활성 트랙만 반환")
+    @SuppressWarnings("unchecked")
+    void getTracksForAdmin_inactiveOnly() {
+        Track inactive = buildTrack(2L, false);
+        Page<Track> page = new PageImpl<>(List.of(inactive), PageRequest.of(0, 20), 1);
+        given(trackRepository.findAll(any(Specification.class), any(Pageable.class))).willReturn(page);
+
+        ResponseDTO<AdminTrackListItemResponse> result = trackService.getTracksForAdmin(false, 1, 20);
+
+        assertThat(result.getDataList()).hasSize(1);
+        assertThat(result.getDataList().get(0).isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("getTracksForAdmin() - 결과 없으면 빈 dataList 반환")
+    @SuppressWarnings("unchecked")
+    void getTracksForAdmin_emptyResult() {
+        Page<Track> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 20), 0);
+        given(trackRepository.findAll(any(Specification.class), any(Pageable.class))).willReturn(emptyPage);
+
+        ResponseDTO<AdminTrackListItemResponse> result = trackService.getTracksForAdmin(null, 1, 20);
+
+        assertThat(result.getDataList()).isEmpty();
+        assertThat(result.getPageInfo().getTotal()).isZero();
+    }
+
     // ── getTrack() ────────────────────────────────────────────────────────────
 
     @Test
