@@ -14,6 +14,8 @@ public record UserSubscriptionResponse(
         String status,
         LocalDate startedAt,
         LocalDate expiresAt,
+        Long pendingSubscriptionId,
+        String pendingBillingCycle,
         LocalDateTime createdAt
 ) {
     public static UserSubscriptionResponse from(UserSubscription us) {
@@ -26,6 +28,8 @@ public record UserSubscriptionResponse(
                 us.getStatus().name(),
                 us.getStartedAt(),
                 us.getExpiresAt(),
+                us.getPendingSubscription() != null ? us.getPendingSubscription().getId() : null,
+                us.getPendingBillingCycle() != null ? us.getPendingBillingCycle().name() : null,
                 us.getCreatedAt()
         );
     }

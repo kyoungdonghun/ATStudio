@@ -7,6 +7,7 @@ public record ChangeSubscriptionResponse(
         SubscriptionResponse subscription,
         String billingCycle,
         String status,
+        String changeType,
         BigDecimal proratedAmount,
         LocalDate startedAt,
         LocalDate expiresAt

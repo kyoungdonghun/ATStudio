@@ -43,11 +43,26 @@ public class UserSubscription extends BaseEntity {
     @Column(nullable = false)
     private LocalDate expiresAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "pending_subscription_id")
+    private Subscription pendingSubscription;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pending_billing_cycle", length = 10)
+    private BillingCycle pendingBillingCycle;
+
+    public void schedulePendingChange(Subscription pendingSub, BillingCycle cycle) {
+        this.pendingSubscription = pendingSub;
+        this.pendingBillingCycle = cycle;
+    }
+
     public void upgrade(Subscription newSubscription, BillingCycle newBillingCycle, LocalDate newExpiresAt) {
         this.subscription = newSubscription;
         this.billingCycle = newBillingCycle;
         this.startedAt = LocalDate.now();
         this.expiresAt = newExpiresAt;
+        this.pendingSubscription = null;
+        this.pendingBillingCycle = null;
     }
 
     public void cancel() {

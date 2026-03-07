@@ -1,6 +1,9 @@
 package com.atstudio.atstudio.service;
 
+import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
+import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.util.DownloadCountResponse;
+import com.atstudio.atstudio.dto.util.SubscriptionChangePreviewResponse;
 import com.atstudio.atstudio.dto.util.SubscriptionStatusResponse;
 import com.atstudio.atstudio.dto.util.UserTypeResponse;
 import com.atstudio.atstudio.entity.Subscription;
@@ -11,6 +14,7 @@ import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserJob;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
+import com.atstudio.atstudio.repository.SubscriptionRepository;
 import com.atstudio.atstudio.repository.TrackDownloadRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
@@ -28,9 +32,12 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("UtilService 단위 테스트")
@@ -38,6 +45,7 @@ class UtilServiceTest {
 
     @Mock UserRepository userRepository;
     @Mock UserSubscriptionRepository userSubscriptionRepository;
+    @Mock SubscriptionRepository subscriptionRepository;
     @Mock TrackDownloadRepository trackDownloadRepository;
 
     @InjectMocks UtilService utilService;
@@ -90,6 +98,7 @@ class UtilServiceTest {
         assertThat(result.todayDownloads()).isEqualTo(3L);
         assertThat(result.dailyLimit()).isEqualTo(10);
         assertThat(result.remaining()).isEqualTo(7);
+        assertThat(result.nextResetAt()).isEqualTo(LocalDate.now().plusDays(1).atStartOfDay());
     }
 
     @Test
@@ -107,6 +116,7 @@ class UtilServiceTest {
 
         assertThat(result.dailyLimit()).isEqualTo(-1);
         assertThat(result.remaining()).isEqualTo(-1);
+        assertThat(result.nextResetAt()).isEqualTo(LocalDate.now().plusDays(1).atStartOfDay());
     }
 
     @Test
@@ -123,6 +133,7 @@ class UtilServiceTest {
 
         assertThat(result.dailyLimit()).isEqualTo(0);
         assertThat(result.remaining()).isEqualTo(0);
+        assertThat(result.nextResetAt()).isEqualTo(LocalDate.now().plusDays(1).atStartOfDay());
     }
 
     // ── getUserType() ─────────────────────────────────────────────────────────
@@ -154,6 +165,114 @@ class UtilServiceTest {
 
         assertThat(result.userType()).isEqualTo("BUSINESS");
         assertThat(result.job()).isEqualTo("EDITOR");
+    }
+
+    // ── previewSubscriptionChange() ────────────────────────────────────────────
+
+    @Test
+    @DisplayName("previewSubscriptionChange() UPGRADE - 비싼 플랜 변경 시 proratedAmount > 0, effectiveDate = today")
+    void previewSubscriptionChange_upgrade() {
+        User user = buildUser(1L);
+        Subscription currentPlan = Subscription.builder()
+                .name("Basic").userType(UserType.INDIVIDUAL)
+                .downloadPerDay(5).maxWhitelistChannels(3)
+                .priceMonthly(BigDecimal.valueOf(10000)).priceYearly(BigDecimal.valueOf(100000))
+                .build();
+        ReflectionTestUtils.setField(currentPlan, "id", 1L);
+
+        UserSubscription currentSub = UserSubscription.builder()
+                .user(user).subscription(currentPlan)
+                .billingCycle(BillingCycle.MONTHLY)
+                .startedAt(LocalDate.now().minusDays(15)).expiresAt(LocalDate.now().plusDays(15))
+                .build();
+
+        Subscription newPlan = Subscription.builder()
+                .name("Pro").userType(UserType.INDIVIDUAL)
+                .downloadPerDay(20).maxWhitelistChannels(10)
+                .priceMonthly(BigDecimal.valueOf(30000)).priceYearly(BigDecimal.valueOf(300000))
+                .build();
+        ReflectionTestUtils.setField(newPlan, "id", 2L);
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+                .willReturn(Optional.of(currentSub));
+        given(subscriptionRepository.findById(2L)).willReturn(Optional.of(newPlan));
+
+        SubscriptionChangePreviewResponse result = utilService.previewSubscriptionChange(
+                buildUserDetails(1L), 2L, "MONTHLY");
+
+        assertThat(result.changeType()).isEqualTo("UPGRADE");
+        assertThat(result.proratedAmount()).isGreaterThan(BigDecimal.ZERO);
+        assertThat(result.effectiveDate()).isEqualTo(LocalDate.now());
+        assertThat(result.newPlanName()).isEqualTo("Pro");
+        assertThat(result.newBillingCycle()).isEqualTo("MONTHLY");
+    }
+
+    @Test
+    @DisplayName("previewSubscriptionChange() DOWNGRADE - 저렴한 플랜 변경 시 proratedAmount = 0, effectiveDate = expiresAt")
+    void previewSubscriptionChange_downgrade() {
+        User user = buildUser(1L);
+        Subscription currentPlan = Subscription.builder()
+                .name("Pro").userType(UserType.INDIVIDUAL)
+                .downloadPerDay(20).maxWhitelistChannels(10)
+                .priceMonthly(BigDecimal.valueOf(30000)).priceYearly(BigDecimal.valueOf(300000))
+                .build();
+        ReflectionTestUtils.setField(currentPlan, "id", 2L);
+
+        LocalDate expiresAt = LocalDate.now().plusDays(15);
+        UserSubscription currentSub = UserSubscription.builder()
+                .user(user).subscription(currentPlan)
+                .billingCycle(BillingCycle.MONTHLY)
+                .startedAt(LocalDate.now().minusDays(15)).expiresAt(expiresAt)
+                .build();
+
+        Subscription newPlan = Subscription.builder()
+                .name("Basic").userType(UserType.INDIVIDUAL)
+                .downloadPerDay(5).maxWhitelistChannels(3)
+                .priceMonthly(BigDecimal.valueOf(10000)).priceYearly(BigDecimal.valueOf(100000))
+                .build();
+        ReflectionTestUtils.setField(newPlan, "id", 1L);
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
+                .willReturn(Optional.of(currentSub));
+        given(subscriptionRepository.findById(1L)).willReturn(Optional.of(newPlan));
+
+        SubscriptionChangePreviewResponse result = utilService.previewSubscriptionChange(
+                buildUserDetails(1L), 1L, "MONTHLY");
+
+        assertThat(result.changeType()).isEqualTo("DOWNGRADE");
+        assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(result.effectiveDate()).isEqualTo(expiresAt);
+        assertThat(result.newPlanName()).isEqualTo("Basic");
+        assertThat(result.newBillingCycle()).isEqualTo("MONTHLY");
+    }
+
+    @Test
+    @DisplayName("previewSubscriptionChange() 활성 구독 없음 - BusinessException 발생")
+    void previewSubscriptionChange_noSubscription() {
+        User user = buildUser(1L);
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userSubscriptionRepository.findActiveByUser(any(), any(), any()))
+                .willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> utilService.previewSubscriptionChange(
+                buildUserDetails(1L), 1L, "MONTHLY"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION);
+    }
+
+    @Test
+    @DisplayName("previewSubscriptionChange() 잘못된 billingCycle - BusinessException 발생")
+    void previewSubscriptionChange_invalidBillingCycle() {
+        assertThatThrownBy(() -> utilService.previewSubscriptionChange(
+                buildUserDetails(1L), 1L, "INVALID"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT);
+
+        verify(userRepository, never()).findById(any());
     }
 
     // ── helper ────────────────────────────────────────────────────────────────

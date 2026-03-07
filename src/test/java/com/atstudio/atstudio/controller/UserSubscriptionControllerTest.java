@@ -47,10 +47,11 @@ class UserSubscriptionControllerTest {
             100L, 1L, "user1", MOCK_SUB_RESPONSE,
             "MONTHLY", "ACTIVE",
             LocalDate.now(), LocalDate.now().plusMonths(1),
+            null, null,
             LocalDateTime.now());
 
     private static final ChangeSubscriptionResponse MOCK_CHANGE_RESPONSE = new ChangeSubscriptionResponse(
-            MOCK_SUB_RESPONSE, "MONTHLY", "ACTIVE",
+            MOCK_SUB_RESPONSE, "MONTHLY", "ACTIVE", "UPGRADE",
             BigDecimal.valueOf(5000),
             LocalDate.now(), LocalDate.now().plusMonths(1));
 

@@ -266,8 +266,8 @@ class UserSubscriptionServiceTest {
     class ChangeSubscription {
 
         @Test
-        @DisplayName("성공 - 업그레이드 (proratedAmount 양수)")
-        void change_upgrade() {
+        @DisplayName("성공 - UPGRADE 즉시 적용 + payment 호출")
+        void changeSubscription_upgrade_immediate() {
             User user = buildUser(1L, UserType.INDIVIDUAL);
             Subscription currentSub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
             // priceMonthly=9900, 30일 구독 중 15일 남음
@@ -291,15 +291,19 @@ class UserSubscriptionServiceTest {
                     new ChangeSubscriptionRequest(20L, BillingCycle.MONTHLY));
 
             assertThat(result.subscription().id()).isEqualTo(20L);
+            assertThat(result.changeType()).isEqualTo("UPGRADE");
             assertThat(result.proratedAmount()).isNotNull();
             // newPrice(19900) - refund(9900 * 15/30 = 4950) = 14950
             assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.valueOf(14950));
             verify(paymentService).processPayment(any(), any(), any(), any(), any());
+
+            // upgrade()로 구독이 즉시 변경됨
+            assertThat(us.getSubscription()).isEqualTo(newSub);
         }
 
         @Test
-        @DisplayName("성공 - 다운그레이드 (proratedAmount 음수)")
-        void change_downgrade() {
+        @DisplayName("성공 - DOWNGRADE pending 저장 + payment 미호출")
+        void changeSubscription_downgrade_pending() {
             User user = buildUser(1L, UserType.INDIVIDUAL);
             Subscription currentSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
             ReflectionTestUtils.setField(currentSub, "priceMonthly", BigDecimal.valueOf(19900));
@@ -314,18 +318,25 @@ class UserSubscriptionServiceTest {
             given(userSubscriptionRepository.findActiveByUser(eq(user), eq(SubscriptionStatus.ACTIVE), any()))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(10L)).willReturn(Optional.of(newSub));
-            given(paymentService.processPayment(any(), any(), any(), any(), any()))
-                    .willReturn(buildPayment());
 
             ChangeSubscriptionResponse result = userSubscriptionService.changeSubscription(
                     buildUserDetails(1L),
                     new ChangeSubscriptionRequest(10L, BillingCycle.MONTHLY));
 
-            // newPrice(9900) - refund(19900 * 15/30 = 9950) = -50
-            assertThat(result.proratedAmount()).isNegative();
-            // CR-B-003: processPayment에 음수 금액이 그대로 전달되어야 함 (abs 적용 X)
-            verify(paymentService).processPayment(any(), any(), any(), any(),
-                    argThat(amount -> ((BigDecimal) amount).signum() < 0));
+            // DOWNGRADE 확인
+            assertThat(result.changeType()).isEqualTo("DOWNGRADE");
+            assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+
+            // pending 필드 설정됨
+            assertThat(us.getPendingSubscription()).isEqualTo(newSub);
+            assertThat(us.getPendingBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
+
+            // 현재 구독은 변경되지 않음 (Premium 유지)
+            assertThat(us.getSubscription()).isEqualTo(currentSub);
+
+            // payment 미호출 verify
+            verify(paymentService, org.mockito.Mockito.never())
+                    .processPayment(any(), any(), any(), any(), any());
         }
 
         @Test

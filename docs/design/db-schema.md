@@ -153,13 +153,14 @@
 | Subscription status | `status` | ENUM('ACTIVE','CANCELLED','EXPIRED') | NOT NULL | | 'ACTIVE' | |
 | Current period start date | `started_at` | DATE | NOT NULL | | | |
 | Current period end date | `expires_at` | DATE | NOT NULL | | | Next billing date = expiration date + 1 day |
+| Pending subscription plan | `pending_subscription_id` | BIGINT | NULL | FK(subscriptions.id) | | Downgrade scheduled plan (applied at next billing) |
+| Pending billing cycle | `pending_billing_cycle` | VARCHAR(10) | NULL | | | MONTHLY or YEARLY for pending change |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-**Subscription upgrade handling:**
-- Changes take effect immediately (usable right away)
-- Payment amount = new plan price - prorated remaining amount of current plan
-- Detailed calculation logic handled at application level
+**Subscription change handling:**
+- **Upgrade** (higher or equal price): Changes take effect immediately. Payment amount = new plan price - prorated remaining amount of current plan. Detailed calculation logic handled at application level.
+- **Downgrade** (lower price): Change is **scheduled** (pending). Current subscription remains active until expiration. `pending_subscription_id` and `pending_billing_cycle` store the target plan. Actual switch happens at next billing cycle (handled by scheduled job).
 
 ---
 

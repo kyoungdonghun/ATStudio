@@ -3,6 +3,7 @@ package com.atstudio.atstudio.controller;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.util.CheckResponse;
 import com.atstudio.atstudio.dto.util.DownloadCountResponse;
+import com.atstudio.atstudio.dto.util.SubscriptionChangePreviewResponse;
 import com.atstudio.atstudio.dto.util.SubscriptionStatusResponse;
 import com.atstudio.atstudio.dto.util.UserTypeResponse;
 import com.atstudio.atstudio.security.CustomUserDetails;
@@ -69,6 +70,16 @@ public class UtilController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         return ResponseEntity.ok(ResponseDTO.<UserTypeResponse>withSingleData()
                 .data(utilService.getUserType(userDetails))
+                .build());
+    }
+
+    @GetMapping("/subscription-change-preview")
+    public ResponseEntity<ResponseDTO<SubscriptionChangePreviewResponse>> previewSubscriptionChange(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam Long subscriptionId,
+            @RequestParam String billingCycle) {
+        return ResponseEntity.ok(ResponseDTO.<SubscriptionChangePreviewResponse>withSingleData()
+                .data(utilService.previewSubscriptionChange(userDetails, subscriptionId, billingCycle))
                 .build());
     }
 }

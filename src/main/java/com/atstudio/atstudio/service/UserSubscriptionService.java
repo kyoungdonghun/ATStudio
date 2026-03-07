@@ -147,42 +147,61 @@ public class UserSubscriptionService {
         Subscription newPlan = subscriptionRepository.findById(request.subscriptionId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_NOT_FOUND));
 
-        // prorated amount 계산
-        LocalDate today = LocalDate.now();
-        long remainingDays = ChronoUnit.DAYS.between(today, current.getExpiresAt());
-        long totalDays = ChronoUnit.DAYS.between(current.getStartedAt(), current.getExpiresAt());
+        // UPGRADE vs DOWNGRADE 판정: 월간 가격 기준
+        boolean isUpgrade = newPlan.getPriceMonthly().compareTo(
+                current.getSubscription().getPriceMonthly()) > 0;
 
-        BigDecimal currentPrice = current.getBillingCycle() == BillingCycle.MONTHLY
-                ? current.getSubscription().getPriceMonthly()
-                : current.getSubscription().getPriceYearly();
+        if (isUpgrade) {
+            // UPGRADE: 기존 즉시 적용 로직 유지
+            LocalDate today = LocalDate.now();
+            long remainingDays = ChronoUnit.DAYS.between(today, current.getExpiresAt());
+            long totalDays = ChronoUnit.DAYS.between(current.getStartedAt(), current.getExpiresAt());
 
-        BigDecimal refundAmount = totalDays > 0
-                ? currentPrice.multiply(BigDecimal.valueOf(remainingDays))
-                    .divide(BigDecimal.valueOf(totalDays), 2, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO;
+            BigDecimal currentPrice = current.getBillingCycle() == BillingCycle.MONTHLY
+                    ? current.getSubscription().getPriceMonthly()
+                    : current.getSubscription().getPriceYearly();
 
-        BigDecimal newPrice = request.billingCycle() == BillingCycle.MONTHLY
-                ? newPlan.getPriceMonthly() : newPlan.getPriceYearly();
+            BigDecimal refundAmount = totalDays > 0
+                    ? currentPrice.multiply(BigDecimal.valueOf(remainingDays))
+                        .divide(BigDecimal.valueOf(totalDays), 2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
 
-        BigDecimal proratedAmount = newPrice.subtract(refundAmount);
+            BigDecimal newPrice = request.billingCycle() == BillingCycle.MONTHLY
+                    ? newPlan.getPriceMonthly() : newPlan.getPriceYearly();
 
-        LocalDate newExpiresAt = request.billingCycle() == BillingCycle.MONTHLY
-                ? today.plusMonths(1) : today.plusYears(1);
+            BigDecimal proratedAmount = newPrice.subtract(refundAmount);
 
-        current.upgrade(newPlan, request.billingCycle(), newExpiresAt);
+            LocalDate newExpiresAt = request.billingCycle() == BillingCycle.MONTHLY
+                    ? today.plusMonths(1) : today.plusYears(1);
 
-        // 양수 = 추가 결제, 음수 = 환불
-        paymentService.processPayment(user, current, newPlan,
-                request.billingCycle(), proratedAmount);
+            current.upgrade(newPlan, request.billingCycle(), newExpiresAt);
 
-        return new ChangeSubscriptionResponse(
-                SubscriptionResponse.from(newPlan),
-                request.billingCycle().name(),
-                current.getStatus().name(),
-                proratedAmount,
-                current.getStartedAt(),
-                current.getExpiresAt()
-        );
+            paymentService.processPayment(user, current, newPlan,
+                    request.billingCycle(), proratedAmount);
+
+            return new ChangeSubscriptionResponse(
+                    SubscriptionResponse.from(newPlan),
+                    request.billingCycle().name(),
+                    current.getStatus().name(),
+                    "UPGRADE",
+                    proratedAmount,
+                    current.getStartedAt(),
+                    current.getExpiresAt()
+            );
+        } else {
+            // DOWNGRADE: pending 예약만, 현재 구독 유지, payment 없음
+            current.schedulePendingChange(newPlan, request.billingCycle());
+
+            return new ChangeSubscriptionResponse(
+                    SubscriptionResponse.from(newPlan),
+                    request.billingCycle().name(),
+                    current.getStatus().name(),
+                    "DOWNGRADE",
+                    BigDecimal.ZERO,
+                    current.getStartedAt(),
+                    current.getExpiresAt()
+            );
+        }
     }
 
     // -- 6.8 PUT /api/user-subscriptions/{id} --------------------------------
