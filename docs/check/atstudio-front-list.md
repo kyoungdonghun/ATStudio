@@ -1,6 +1,6 @@
 # ATStudio 화면 목록 (Frontend)
 
-> API Spec v5 기준 | v3 2026-03-07
+> API Spec v5 기준 | v4 2026-03-07
 > `[PUBLIC]` = 인증 불필요 / `auth required` = 로그인 필요 / `[ADMIN]` = 관리자 전용 / `⚠️` = API 미정의
 
 > `🗑️ 삭제` = 상세/목록 페이지에서 `confirm()` 처리 / 회원탈퇴만 비밀번호 재확인 모달
@@ -22,9 +22,9 @@
 
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
-| 1 | 메인화면 | `1.2 GET /api/tracks` `2.2 GET /api/tags` | [PUBLIC] |
-| 3 | 음원 목록 (리스트 타입) | `1.2 GET /api/tracks` | [PUBLIC] |
-| B-1 | 음원 상세 | `1.3 GET /api/tracks/{trackId}` `1.4 GET /api/tracks/{trackId}/stream` | [PUBLIC] |
+| 1 | 메인화면 | `1.2 GET /api/tracks` `2.2 GET /api/tags` `10.1 POST /api/likes/{trackId}` `11.1 POST /api/download-queue` | [PUBLIC] |
+| 3 | 음원 목록 (리스트 타입) | `1.2 GET /api/tracks` `10.1 POST /api/likes/{trackId}` `11.1 POST /api/download-queue` | [PUBLIC] |
+| B-1 | 음원 상세 | `1.3 GET /api/tracks/{trackId}` `1.4 GET /api/tracks/{trackId}/stream` `4.1 POST /api/play-histories` | [PUBLIC] |
 | 6 | 음원 업로드 (단일/다수) | `1.1 POST /api/tracks` `2.2 GET /api/tags` | [ADMIN] |
 | 7 | 음원 수정 | `1.6 PUT /api/tracks/{trackId}` `1.3 GET /api/tracks/{trackId}` | [ADMIN] |
 
@@ -107,7 +107,7 @@
 |----|--------|---------|------|
 | 13 | 문의글 목록 | `8.3 GET /api/questions` | auth required |
 | 14 | 문의글 작성 | `8.1 POST /api/questions` | auth required |
-| 15 | 문의글 보기 | `8.4 GET /api/questions/{id}` `8.2 POST (답변 작성)` `8.5 GET (첨부파일)` | auth required |
+| 15 | 문의글 보기 | `8.4 GET /api/questions/{id}` `8.2 POST (답변 작성)` `8.5 GET (첨부파일)` `8.7 DELETE /api/questions/{id}` | auth required |
 
 ---
 
@@ -133,7 +133,7 @@
 | K-4 | 문의 관리 (상태 변경) | `8.3 GET /api/questions` `8.6 PUT /api/questions/{id}/status` | [ADMIN] |
 | K-5 | 기업 인증 목록 / 심사 처리 | `13.3 GET /api/company-certifications` `13.4 GET` `13.5 PUT` | [ADMIN] |
 | K-6 | 태그 관리 (생성/수정/삭제) | `2.1 POST /api/tags` `2.3 PUT` `2.4 DELETE` | [ADMIN] |
-| K-7 | 트랙 관리 (전체 목록 + 활성화/삭제) | `1.2 GET /api/tracks` (비활성 포함) `1.6 PUT /api/tracks/{id}` `1.7 DELETE /api/tracks/{id}` | [ADMIN] |
+| K-7 | 트랙 관리 (전체 목록 + 활성화/삭제) | `1.8 GET /api/tracks/admin` `1.6 PUT /api/tracks/{id}` `1.7 DELETE /api/tracks/{id}` | [ADMIN] |
 
 ---
 

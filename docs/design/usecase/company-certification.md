@@ -19,7 +19,7 @@
 | **Version** | 26-02-20 |
 | **Description** | A BUSINESS type member applies for a company certification review in order to subscribe to a plan. |
 | **Actor** | User (BUSINESS member), Backend |
-| **Preconditions** | Logged in. Member with userType=BUSINESS. No existing PENDING application. No existing APPROVED application. (Reapplication allowed after REJECTED or REVISION_REQUESTED.) |
+| **Preconditions** | Logged in. Member with userType=BUSINESS. No existing PENDING application. No existing APPROVED application. Initial version: no UI re-application flow after REJECTED or REVISION_REQUESTED. Admin guides the member directly via email or 1:1 inquiry. Automated re-application flow planned after site stabilization. |
 | **Trigger** | User clicks the 'Apply for Company Certification Review' button after selecting a subscription plan. |
 | **Related UC** | CC-002 (view status), PAYMENT-001 (subscribe) |
 

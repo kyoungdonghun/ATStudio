@@ -26,7 +26,7 @@
 6. Backend creates a playlists record (is_active=1) and returns a 201 response.
 
 **Exception / Alternative Flow**
-- -
+- Active playlist count already at 3: 409 `PLAYLIST_LIMIT_EXCEEDED`. Frontend pre-empts this by hiding the 'Create Playlist' button when 3 active playlists exist (client-side guard before API call).
 
 **Postconditions**
 - playlists record created. No tracks yet (empty playlist).

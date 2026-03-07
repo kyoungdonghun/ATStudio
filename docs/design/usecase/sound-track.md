@@ -180,6 +180,37 @@
 
 ---
 
+## SOUND-019: Add Track to Playlist [Cross-reference]
+
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-019 |
+| **Version** | 26-03-07 |
+| **Description** | User adds a track to an existing playlist from the track list or track detail screen. Canonical definition is in `sound-playlist.md`. This entry exists as a trigger-side reference for track-context UX flows. |
+| **Actor** | User (subscriber), Backend |
+| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). Must own the target playlist. |
+| **Trigger** | User clicks the 'Add to Playlist' button on the track list (Screen 1/3) or track detail screen (B-1). |
+| **Related UC** | SOUND-005 (list tracks), SOUND-006 (view track detail), SOUND-008 (view playlist detail) |
+
+**Main Flow**
+1. User clicks the 'Add to Playlist' button on a track in the track list or detail screen.
+2. Frontend displays a SelectModal showing the user's active playlists.
+3. User selects a playlist.
+4. Frontend sends a request to the backend. (`POST /api/playlists/{id}/tracks` with `{ "trackId": ... }`)
+5. Backend verifies the playlist belongs to the user.
+6. Backend creates a record in playlist_tracks and returns 201 Created.
+7. Frontend displays a completion toast notification.
+
+**Exception / Alternative Flow**
+- Track already in the selected playlist: 409 response.
+
+**Postconditions**
+- Record added to playlist_tracks. Playlist track count increased.
+
+> **Canonical definition**: `docs/design/usecase/sound-playlist.md` — SOUND-019.
+
+---
+
 ## SOUND-016: Delete Track
 
 | Field | Value |

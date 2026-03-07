@@ -127,10 +127,11 @@
 1. Frontend sends a request with the auth token to the backend. (`GET /api/utils/download-count`)
 2. Backend counts today's downloads in the track_downloads table.
    (`COUNT(*) WHERE user_id=? AND DATE(downloaded_at)=CURDATE()`)
-3. Backend returns the result (todayDownloads, dailyLimit, remaining).
+3. Backend returns the result (todayDownloads, dailyLimit, remaining, nextResetAt).
+   - `nextResetAt`: tomorrow 00:00:00 as LocalDateTime (the point at which the daily count resets).
 
 **Postconditions**
-- Today's download count info returned. Frontend uses `remaining` to decide whether to enable the download button.
+- Today's download count info returned. Frontend uses `remaining` to decide whether to enable the download button. Frontend may display `nextResetAt` as a countdown or reset time indicator.
 
 ---
 
@@ -175,3 +176,41 @@
 
 **Postconditions**
 - available=true means the nickname is available. available=false means the nickname is already in use.
+
+---
+
+## UTIL-013: Subscription Change Preview [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | UTIL-013 |
+| **Version** | 26-03-07 |
+| **Description** | Returns a preview of the financial and scheduling impact before the member confirms a subscription plan change. Used by the frontend to display proratedAmount (UPGRADE) or effectiveDate (DOWNGRADE) before initiating payment. |
+| **Actor** | User (subscriber), Backend |
+| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
+| **Trigger** | Frontend calls this automatically when the user selects a new plan on the subscription change screen. |
+| **Related UC** | PAYMENT-007 (change my subscription) |
+
+**Main Flow**
+1. Frontend sends a request with subscriptionId (target new plan) and billingCycle (MONTHLY/YEARLY) as query parameters. (`GET /api/utils/subscription-change-preview?subscriptionId=X&billingCycle=Y`)
+2. Backend retrieves the current user_subscriptions record and the target subscription plan.
+3. Backend determines change type by comparing plan prices:
+   - If new plan daily rate > current plan daily rate → changeType=UPGRADE
+   - Otherwise → changeType=DOWNGRADE
+4. For UPGRADE: Backend calculates proratedAmount = (newDailyRate - oldDailyRate) × remainingDays.
+   For DOWNGRADE: proratedAmount = 0. effectiveDate = current expiresAt.
+5. Backend returns the preview response.
+
+**Response Fields**
+- `changeType`: UPGRADE or DOWNGRADE
+- `proratedAmount`: Amount to be charged now (UPGRADE) or 0 (DOWNGRADE)
+- `effectiveDate`: Date the new plan becomes active (UPGRADE: today, DOWNGRADE: current expiresAt)
+- `newPlanName`: Display name of the target plan
+- `newBillingCycle`: Billing cycle selected (MONTHLY/YEARLY)
+
+**Exception / Alternative Flow**
+- No active subscription: 404 `SUBSCRIPTION_NOT_FOUND`.
+- Target plan not found: 404 `SUBSCRIPTION_NOT_FOUND`.
+
+**Postconditions**
+- Preview data returned. No DB state changes. Frontend uses this to render the confirmation screen before the user initiates the actual change (PAYMENT-007).

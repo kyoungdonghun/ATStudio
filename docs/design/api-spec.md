@@ -1,10 +1,21 @@
-# ATStudio API Specification v5 (Confirmed)
+# ATStudio API Specification v6 (Confirmed)
 
-> **Status**: 5th confirmed — standards alignment applied
-> **Base**: v4 + docs/standards alignment verification results
-> **Date**: 2026-02-20
+> **Status**: 6th confirmed — subscription change semantics, admin track API, playlist limit error
+> **Base**: v5 + WI-20260307-ATS-013 patch
+> **Date**: 2026-03-07
 
 ---
+
+## v5 → v6 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| W1 | §14.5 GET /api/utils/download-count response | Added `nextResetAt` (LocalDateTime, ISO-8601) field |
+| W2 | §14 new entry | Added §14.8 GET /api/utils/subscription-change-preview |
+| W3 | §6.7 PUT /api/user-subscriptions/me | Added UPGRADE/DOWNGRADE branch semantics, `changeType` field in response |
+| W4 | §6.10 DELETE /api/user-subscriptions/me | Grace period semantics — expiresAt까지 서비스 이용 가능으로 수정 |
+| W5 | §1 new entry | Added §1.8 GET /api/tracks/admin (admin-only full track list) |
+| W6 | §3.1 POST /api/playlists error cases | Added 409 PLAYLIST_LIMIT_EXCEEDED |
 
 ## v4 → v5 Change History
 
@@ -277,6 +288,48 @@ isActive: Boolean (optional)
 
 **Response** `204 No Content`
 
+## 1.8 List All Tracks (Admin)
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/tracks/admin` |
+| **Auth** | `[ADMIN]` |
+| **Description** | Full track list including inactive tracks (admin only). Filter by `is_active` if provided; if omitted, returns all tracks regardless of active status. |
+
+**Query Parameters**
+```
+page: Integer (default: 1)
+size: Integer (default: 20)
+is_active: Boolean (optional — if omitted, all tracks returned; true = active only, false = inactive only)
+```
+
+**Response** `200 OK`
+```json
+{
+  "dataList": [
+    {
+      "id": 1,
+      "title": "Summer Vibes",
+      "bpm": 120,
+      "tonality": "C",
+      "thumbnail": "/tracks/thumbnail/summer-vibes.jpg",
+      "playCount": 1500,
+      "isActive": false,
+      "tags": [
+        { "id": 1, "name": "Happy", "type": "MOOD" }
+      ],
+      "createdAt": "2026-02-19T10:00:00"
+    }
+  ],
+  "pageInfo": { "page": 1, "size": 20, "total": 150, "start": 1, "end": 8, "prev": false, "next": true }
+}
+```
+
+**Error Cases**
+```json
+{ "status": 401, "error": "Unauthorized", "message": "인증이 필요합니다." }
+{ "status": 403, "error": "Forbidden", "message": "관리자 권한이 필요합니다." }
+```
+
 ---
 
 # 2. Sound — Tag
@@ -376,6 +429,11 @@ thumbnail: File (optional)
   "trackCount": 0,
   "createdAt": "2026-02-19T10:00:00"
 }
+```
+
+**Error Cases**
+```json
+{ "status": 409, "error": "Conflict", "errorCode": "PLAYLIST_LIMIT_EXCEEDED", "message": "활성 재생목록은 최대 3개까지 생성할 수 있습니다." }
 ```
 
 ## 3.2 List Playlists
@@ -887,7 +945,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 |-------|-------|
 | **URL** | `PUT /api/user-subscriptions/me` |
 | **Auth** | auth required |
-| **Description** | Applied immediately, prorated amount charged |
+| **Description** | Change plan or billing cycle. Behavior differs by change type: **UPGRADE** is applied immediately with a prorated charge; **DOWNGRADE** is saved as pending (`pendingSubscriptionId`, `pendingBillingCycle`) and takes effect after the current period expires. Response includes `changeType` to indicate which branch was taken. |
 
 **Request**
 ```json
@@ -903,11 +961,15 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
   "subscription": { "id": 2, "name": "DELUXE" },
   "billingCycle": "YEARLY",
   "status": "ACTIVE",
+  "changeType": "UPGRADE",
   "proratedAmount": 15000.00,
   "startedAt": "2026-02-19",
   "expiresAt": "2027-02-19"
 }
 ```
+
+> - `changeType`: `"UPGRADE"` — new plan applied immediately, `proratedAmount` charged.
+> - `changeType`: `"DOWNGRADE"` — pending values (`pendingSubscriptionId`, `pendingBillingCycle`) stored; current plan remains active until `expiresAt`; new plan activates automatically after expiry.
 
 ## 6.8 Update User Subscription (Admin)
 | Field | Value |
@@ -930,7 +992,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 |-------|-------|
 | **URL** | `DELETE /api/user-subscriptions/me` |
 | **Auth** | auth required |
-| **Description** | Member cancels their own active subscription. Immediate cancellation (status=CANCELLED). |
+| **Description** | Member cancels their own active subscription. status가 CANCELLED로 변경되나, expiresAt까지 서비스 이용 가능. expiresAt 이후 자동 만료. |
 
 **Response** `204 No Content`
 
@@ -1572,9 +1634,12 @@ phone: String (required)
 {
   "todayDownloads": 3,
   "dailyLimit": 20,
-  "remaining": 17
+  "remaining": 17,
+  "nextResetAt": "2026-03-08T00:00:00"
 }
 ```
+
+> `nextResetAt`: LocalDateTime (ISO-8601) — timestamp when the daily download counter resets.
 
 ## 14.6 User Type Check
 | Field | Value |
@@ -1604,6 +1669,43 @@ nickname: String (required)
 **Response** `200 OK`
 ```json
 { "available": true }
+```
+
+## 14.8 Subscription Change Preview
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/utils/subscription-change-preview` |
+| **Auth** | auth required (subscribers only) |
+| **Description** | Preview the financial and scheduling impact of a plan change before committing. Returns whether the change is an UPGRADE or DOWNGRADE, the prorated amount, and effective dates. |
+
+**Query Parameters**
+```
+subscriptionId: Long (required — target subscription plan ID)
+billingCycle: String (required — "MONTHLY" | "YEARLY")
+```
+
+**Response** `200 OK`
+```json
+{
+  "changeType": "UPGRADE",
+  "proratedAmount": 15000.00,
+  "effectiveDate": "2026-03-07",
+  "newPlanName": "DELUXE",
+  "newBillingCycle": "YEARLY"
+}
+```
+
+> - `changeType`: `"UPGRADE"` or `"DOWNGRADE"`
+> - `proratedAmount`: Charge (UPGRADE) or credit (DOWNGRADE) amount in KRW
+> - `effectiveDate`: LocalDate (ISO-8601) — date the new plan takes effect
+> - `newPlanName`: Name of the target subscription plan
+> - `newBillingCycle`: `"MONTHLY"` or `"YEARLY"`
+
+**Error Cases**
+```json
+{ "status": 401, "error": "Unauthorized", "message": "인증이 필요합니다." }
+{ "status": 400, "error": "Bad Request", "errorCode": "INVALID_ARGUMENT", "message": "잘못된 파라미터입니다." }
+{ "status": 404, "error": "Not Found", "errorCode": "SUBSCRIPTION_NOT_FOUND", "message": "구독 정보를 찾을 수 없습니다." }
 ```
 
 ### Removed Items
@@ -1690,11 +1792,11 @@ nickname: String (required)
 
 ---
 
-# Full API Summary (87)
+# Full API Summary (89)
 
 | # | Section | API Count |
 |---|---------|-----------|
-| 1 | Track | 7 |
+| 1 | Track | 8 |
 | 2 | Tag | 4 |
 | 3 | Playlist | 8 |
 | 4 | Play History | 3 |
@@ -1707,6 +1809,6 @@ nickname: String (required)
 | 11 | Download Queue | 3 |
 | 12 | Whitelist Channels | 4 |
 | 13 | Company Certification | 5 |
-| 14 | Utility | 7 |
+| 14 | Utility | 8 |
 | 15 | Album | 8 |
-| | **Total** | **87** |
+| | **Total** | **89** |

@@ -146,25 +146,37 @@
 | Field | Value |
 |-------|-------|
 | **Code** | PAYMENT-007 |
-| **Version** | 26-02-20 |
-| **Description** | Member changes their current subscription plan to a different plan. Applied immediately with prorated amount payment. |
+| **Version** | 26-03-07 |
+| **Description** | Member changes their current subscription plan to a different plan. UPGRADE is applied immediately with prorated amount payment. DOWNGRADE is deferred to the end of the current billing period. |
 | **Actor** | User (Member), Backend, Payment Gateway (PG) |
 | **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
 | **Trigger** | User clicks the 'Change Subscription' button. |
-| **Related UC** | PAYMENT-006 (view my subscription) |
+| **Related UC** | PAYMENT-006 (view my subscription), UTIL-013 (subscription change preview) |
 
-**Main Flow**
+**Main Flow — UPGRADE (new plan price > current plan price)**
 1. User selects the new subscription plan and billing cycle.
-2. The prorated amount is calculated and displayed on screen (proratedAmount).
-3. Frontend initiates PG payment.
+2. Frontend calls UTIL-013 to calculate and display proratedAmount.
+3. Frontend initiates PG payment for proratedAmount.
 4. After payment completion, frontend sends a change request including subscriptionId and billingCycle to the backend.
-5. Backend immediately updates user_subscriptions (new plan, new cycle, new expiration date).
+5. Backend immediately updates user_subscriptions (new plan, new billing cycle, new expiration date).
 6. Backend saves the prorated payment record in subscription_payments.
 7. Backend returns the updated subscription information (including proratedAmount).
+   - New plan services (downloadPerDay, maxWhitelistChannels) applied immediately.
+
+**Main Flow — DOWNGRADE (new plan price <= current plan price)**
+1. User selects the new (lower-tier) subscription plan and billing cycle.
+2. Frontend calls UTIL-013 to display effectiveDate (end of current billing period).
+3. User confirms the deferred change.
+4. Frontend sends a change request including subscriptionId and billingCycle to the backend.
+5. Backend stores pendingSubscriptionId and pendingBillingCycle on the current user_subscriptions record.
+6. Backend does NOT change the current plan. No PG payment at this point.
+7. At expiresAt, the system automatically applies the pending plan (replaces subscriptionId/billingCycle, resets expiresAt).
+8. Backend returns a 200 response confirming the scheduled change.
+   - Current plan services remain until expiresAt.
 
 **Postconditions**
-- user_subscriptions updated. Payment record saved in subscription_payments.
-- Changed plan services (downloadPerDay, maxWhitelistChannels) applied immediately.
+- UPGRADE: user_subscriptions updated immediately. Payment record saved in subscription_payments. New plan benefits active.
+- DOWNGRADE: pendingSubscriptionId and pendingBillingCycle saved. Current plan active until expiresAt. New plan applied automatically at expiresAt.
 
 > **Note**: Subscription changes do NOT affect track usage licenses (licenses table). Previously issued licenses are retained as-is.
 
@@ -219,8 +231,8 @@
 | Field | Value |
 |-------|-------|
 | **Code** | PAYMENT-010 |
-| **Version** | 26-02-20 |
-| **Description** | Member directly cancels their own active subscription. Immediate cancellation (status=CANCELLED). |
+| **Version** | 26-03-07 |
+| **Description** | Member directly cancels their own active subscription. Status is set to CANCELLED immediately, but service remains available until expiresAt (grace period). Benefits terminate automatically at expiresAt. |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
 | **Trigger** | User clicks the 'Cancel Subscription' button on the 'My Subscription' screen. |
@@ -228,14 +240,15 @@
 
 **Main Flow**
 1. User clicks the 'Cancel Subscription' button.
-2. Frontend displays the cancellation notice (service restriction advisory after cancellation).
+2. Frontend displays the cancellation notice (advisory: service remains available until expiresAt, no refund).
 3. User clicks the 'Confirm' button.
 4. Frontend sends a cancellation request including auth token to the backend. (`DELETE /api/user-subscriptions/me`)
 5. Backend checks for an active subscription.
 6. Backend updates user_subscriptions.status to CANCELLED and returns 204 No Content.
+   - expiresAt is NOT changed. Service access continues until the original expiresAt.
 
 **Exception / Alternative Flow**
 - No active subscription: 404 `SUBSCRIPTION_NOT_FOUND`.
 
 **Postconditions**
-- user_subscriptions.status=CANCELLED updated. Subscription benefits (downloads, channel registration, playlists) no longer available.
+- user_subscriptions.status=CANCELLED. Service (downloads, channel registration, playlists) remains available until expiresAt. At expiresAt, subscription expires automatically and all benefits terminate.

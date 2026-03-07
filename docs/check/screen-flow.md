@@ -1,5 +1,5 @@
 ---
-version: 1.1
+version: 1.2
 last_updated: 2026-03-07
 project: ATS
 owner: MA
@@ -16,7 +16,7 @@ dependencies:
 
 # ATStudio 화면 흐름도 (Screen Flow)
 
-> atstudio-front-list.md v3 / modal-list.md v1 기준 | v1.1 2026-03-07 확정
+> atstudio-front-list.md v4 / modal-list.md v1.2 기준 | v1.2 2026-03-07 확정
 > `[PUBLIC]` = 비인증 접근 가능 / `[AUTH]` = 로그인 필요 / `[ADMIN]` = 관리자 전용
 > `M-##` = modal-list.md 참조
 
@@ -27,7 +27,7 @@ dependencies:
 ```
 [비로그인]    GNB: 메인 / 앨범 / 구독플랜 / 로그인
 [구독자]      GNB: 메인 / 앨범 / 재생목록 / 장바구니 / 내정보 / 로그아웃
-[관리자]      GNB: 메인 / 앨범 / 음원관리 / 관리자대시보드 / 로그아웃
+[관리자]      GNB: 메인 / 앨범 / 앨범관리 / 음원관리 / 관리자대시보드 / 로그아웃
 ```
 
 > 권한에 따라 헤더(네비게이션) 분기 처리. 세부 메뉴 구성은 구현 전 제안 후 컨펌.
@@ -50,7 +50,7 @@ dependencies:
                                                    │              │  완료 → [1 메인]
                                                    │  기존 유저 → [1 메인] (직행)
 
-[로그아웃]  어느 화면에서든 → [1 메인] (비로그인 상태)
+[로그아웃]  클라이언트 측 토큰 삭제 (서버 무효화 엔드포인트 없음 — 초기 버전) → [1 메인] (비로그인 상태)
 
 [로그인 필요 화면 접근]
   → [A-1 로그인] 리다이렉트 (returnUrl 보존)
@@ -308,8 +308,8 @@ dependencies:
 | 삭제 완료 후 | 목록 화면으로 (기본값) | |
 | API 에러 400/422 | 인라인 오류 메시지 | |
 | API 에러 401/403 | 토스트 또는 리다이렉트 | 구현 전 제안 |
-| API 에러 404 | [404 에러 페이지] | |
-| API 에러 500 | [500 에러 페이지] | |
+| API 에러 404 | [ERR-1 404 Not Found 에러 페이지] | |
+| API 에러 500 | [ERR-2 500 Server Error 에러 페이지] | |
 | 성공 토스트 | 생성/수정/삭제 성공 시 하단 토스트 | 문구 기준 구현 전 정의 |
 | 로딩 인디케이터 | 페이지 전환 + API 호출 중 표시 | 기준 구현 전 정의 |
 
@@ -354,5 +354,5 @@ dependencies:
 
 ---
 
-> v1.1 확정 | 총 **48개** 화면 (46 + ERR-1 + ERR-2)
+> v1.2 확정 | 총 **48개** 화면 (46 + ERR-1 + ERR-2)
 > 관련 문서: [atstudio-front-list.md](atstudio-front-list.md) · [modal-list.md](modal-list.md)
