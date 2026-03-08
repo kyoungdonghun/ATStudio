@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ATStudio — 음원 목록</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+  <style>
+    :root {
+      --bg0: #0F172A;
+      --bg1: #111827;
+      --bg2: #1F2937;
+      --bg3: #253244;
+      --text0: #F9FAFB;
+      --text1: #9CA3AF;
+      --text2: #6B7280;
+      --accent: #C6A75E;
+      --accent-dim: rgba(198,167,94,0.12);
+      --accent-border: rgba(198,167,94,0.3);
+      --border: #1E293B;
+      --border2: #2D3748;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg0);
+      color: var(--text0);
+      font-size: 14px;
+      line-height: 1.5;
+      padding-bottom: 72px;
+    }
+
+    /* ───────── HEADER ───────── */
+    header {
+      position: fixed; top: 0; left: 0; right: 0; height: 58px;
+      background: rgba(17,24,39,0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 28px; gap: 14px;
+      z-index: 200;
+    }
+    .logo { font-size: 17px; font-weight: 600; color: var(--accent); letter-spacing: 0.04em; white-space: nowrap; flex-shrink: 0; }
+    .search {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 6px; padding: 0 12px; height: 34px; width: 210px;
+      color: var(--text1); font-size: 13px; flex-shrink: 0;
+    }
+    .search svg { flex-shrink: 0; opacity: 0.5; }
+    .nav-tabs { display: flex; gap: 2px; flex: 1; }
+    .tab { padding: 6px 13px; border-radius: 5px; font-size: 13px; font-weight: 400; color: var(--text1); cursor: pointer; transition: color .15s, background .15s; }
+    .tab:hover { color: var(--text0); background: var(--bg2); }
+    .tab.on { color: var(--accent); font-weight: 500; }
+    .nav-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .btn { border: none; border-radius: 5px; padding: 7px 15px; font-size: 13px; font-family: inherit; cursor: pointer; }
+    .btn-ghost { background: transparent; color: var(--text0); border: 1px solid var(--border2); }
+    .btn-cta { background: var(--accent); color: #0F172A; font-weight: 500; }
+
+    /* ───────── PAGE LAYOUT ───────── */
+    .page {
+      margin-top: 58px;
+      padding: 28px 48px;
+      max-width: 1280px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* ───────── PAGE HEADER ───────── */
+    .page-header {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: 22px;
+    }
+    .page-title { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+    .page-title span { font-size: 14px; font-weight: 400; color: var(--text2); margin-left: 10px; }
+    .sort-bar { display: flex; align-items: center; gap: 8px; }
+    .sort-label { font-size: 12px; color: var(--text2); }
+    .sort-select {
+      background: var(--bg2); border: 1px solid var(--border2);
+      color: var(--text1); border-radius: 5px; padding: 5px 10px;
+      font-size: 12px; font-family: inherit; cursor: pointer;
+    }
+
+    /* ───────── FILTER BAR ───────── */
+    .filter-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 18px;
+      background: var(--bg1); border: 1px solid var(--border);
+      border-radius: 8px; margin-bottom: 18px; flex-wrap: wrap;
+    }
+    .filter-group { display: flex; align-items: center; gap: 7px; }
+    .filter-label { font-size: 11px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+    .filter-chip {
+      background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 100px; padding: 4px 13px;
+      font-size: 12px; color: var(--text1); cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s;
+      white-space: nowrap;
+    }
+    .filter-chip:hover { border-color: var(--accent-border); color: var(--accent); }
+    .filter-chip.on { background: var(--accent-dim); border-color: var(--accent-border); color: var(--accent); }
+    .filter-divider { width: 1px; height: 20px; background: var(--border2); flex-shrink: 0; }
+    .filter-search {
+      display: flex; align-items: center; gap: 7px;
+      background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 5px; padding: 4px 11px; margin-left: auto;
+      color: var(--text2); font-size: 12px;
+    }
+    .filter-search svg { opacity: 0.45; flex-shrink: 0; }
+    .filter-search span { color: var(--text2); }
+
+    /* ───────── TRACK TABLE ───────── */
+    .track-table { width: 100%; border-collapse: collapse; }
+    .track-table thead th {
+      font-size: 11px; font-weight: 500; color: var(--text2);
+      text-transform: uppercase; letter-spacing: .06em;
+      padding: 8px 12px; border-bottom: 1px solid var(--border);
+      text-align: left; white-space: nowrap;
+    }
+    .track-table thead th.right { text-align: right; }
+    .track-table thead th.center { text-align: center; }
+
+    /* col widths */
+    .col-num  { width: 42px; }
+    .col-info { }
+    .col-tag  { width: 130px; }
+    .col-bpm  { width: 70px; }
+    .col-key  { width: 70px; }
+    .col-dur  { width: 66px; }
+    .col-acts { width: 120px; }
+
+    .track-row {
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .track-row:hover { background: var(--bg1); }
+    .track-row:hover .tr-num { display: none; }
+    .track-row:hover .tr-play { display: flex; }
+    .track-row:hover .tr-acts { opacity: 1; }
+
+    .track-table tbody td { padding: 10px 12px; vertical-align: middle; }
+
+    /* number / play toggle */
+    .td-num { text-align: center; }
+    .tr-num { font-size: 13px; color: var(--text2); }
+    .tr-play {
+      display: none; width: 24px; height: 24px; background: var(--accent);
+      border-radius: 50%; align-items: center; justify-content: center;
+      color: #0F172A; font-size: 10px; margin: 0 auto;
+    }
+    .track-row.playing .tr-num { display: none; }
+    .track-row.playing .tr-play { display: flex; }
+    .track-row.playing .tr-title { color: var(--accent); }
+
+    /* thumbnail */
+    .tr-thumb {
+      width: 40px; height: 40px; background: var(--bg3); border-radius: 5px;
+      border: 1px solid var(--border2); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; color: var(--border2);
+    }
+    .td-info { display: flex; align-items: center; gap: 12px; }
+    .tr-title { font-size: 13px; font-weight: 500; }
+    .tr-artist { font-size: 12px; color: var(--text1); margin-top: 2px; }
+    .tr-badge {
+      display: inline-block; font-size: 10px; padding: 1px 6px;
+      border-radius: 3px; font-weight: 500; margin-left: 6px; vertical-align: middle;
+    }
+    .tr-badge-new { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-border); }
+    .tr-badge-hot { background: rgba(239,68,68,0.12); color: #F87171; border: 1px solid rgba(239,68,68,0.3); }
+
+    /* tag chip */
+    .tag-chip {
+      display: inline-block; background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 4px; padding: 2px 8px; font-size: 11px; color: var(--text1);
+      margin-right: 4px;
+    }
+
+    /* bpm / key */
+    .td-bpm, .td-key { font-size: 13px; color: var(--text1); }
+    .td-dur { font-size: 13px; color: var(--text2); text-align: right; }
+
+    /* action icons */
+    .td-acts { text-align: right; }
+    .tr-acts { display: flex; align-items: center; justify-content: flex-end; gap: 4px; opacity: 0; transition: opacity .12s; }
+    .act-btn {
+      background: none; border: none; color: var(--text2); cursor: pointer;
+      width: 28px; height: 28px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; transition: color .15s, background .15s;
+    }
+    .act-btn:hover { color: var(--text0); background: var(--bg3); }
+    .act-btn.liked { color: var(--accent); }
+    .act-btn-buy {
+      background: var(--accent-dim); border: 1px solid var(--accent-border);
+      color: var(--accent); border-radius: 4px; padding: 3px 10px;
+      font-size: 11px; font-family: inherit; font-weight: 500; cursor: pointer;
+      white-space: nowrap; transition: background .15s;
+    }
+    .act-btn-buy:hover { background: rgba(198,167,94,0.22); }
+
+    /* ───────── PAGINATION ───────── */
+    .pagination {
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+      padding: 32px 0 16px;
+    }
+    .pg-btn {
+      width: 34px; height: 34px; background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 5px; color: var(--text1); font-size: 13px; font-family: inherit;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: border-color .15s, color .15s;
+    }
+    .pg-btn:hover { border-color: var(--border2); color: var(--text0); background: var(--bg3); }
+    .pg-btn.on { background: var(--accent); border-color: var(--accent); color: #0F172A; font-weight: 600; }
+    .pg-btn.arr { font-size: 16px; }
+    .pg-ellipsis { width: 34px; text-align: center; color: var(--text2); font-size: 13px; }
+
+    /* ───────── PLAYER BAR ───────── */
+    .player {
+      position: fixed; bottom: 0; left: 0; right: 0; height: 72px;
+      background: rgba(17,24,39,0.97); backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 24px; gap: 20px; z-index: 200;
+    }
+    .p-track { display: flex; align-items: center; gap: 11px; width: 230px; flex-shrink: 0; }
+    .p-thumb {
+      width: 42px; height: 42px; background: var(--bg3); border-radius: 4px;
+      border: 1px solid var(--border2); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--border2);
+    }
+    .p-name { font-size: 13px; font-weight: 500; }
+    .p-artist { font-size: 11px; color: var(--text1); margin-top: 2px; }
+    .p-heart { color: var(--accent); font-size: 14px; cursor: pointer; flex-shrink: 0; }
+    .p-ctrl { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .p-btns { display: flex; align-items: center; gap: 18px; }
+    .pbtn { background: none; border: none; color: var(--text1); font-size: 13px; cursor: pointer; padding: 4px; }
+    .pbtn:hover { color: var(--text0); }
+    .pbtn-play {
+      width: 30px; height: 30px; background: var(--accent); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; color: #0F172A; font-size: 12px; cursor: pointer;
+    }
+    .p-bar { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 440px; }
+    .p-time { font-size: 11px; color: var(--text2); width: 32px; text-align: right; flex-shrink: 0; }
+    .p-prog { flex: 1; height: 3px; background: var(--border2); border-radius: 2px; cursor: pointer; }
+    .p-fill { width: 38%; height: 100%; background: var(--accent); border-radius: 2px; }
+    .p-right { display: flex; align-items: center; gap: 10px; width: 200px; justify-content: flex-end; flex-shrink: 0; }
+    .p-act {
+      background: var(--bg2); border: 1px solid var(--border2); color: var(--text1);
+      border-radius: 5px; padding: 5px 11px; font-size: 12px; font-family: inherit; cursor: pointer;
+    }
+    .p-act:hover { color: var(--text0); }
+    .p-act.buy { border-color: var(--accent-border); color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="logo">ATStudio</div>
+  <div class="search">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    음원, 앨범 검색
+  </div>
+  <nav class="nav-tabs">
+    <div class="tab">홈</div>
+    <div class="tab on">음원</div>
+    <div class="tab">앨범</div>
+    <div class="tab">구독</div>
+    <div class="tab">공지</div>
+  </nav>
+  <div class="nav-right">
+    <button class="btn btn-ghost">로그인</button>
+    <button class="btn btn-cta">구독 시작하기</button>
+  </div>
+</header>
+
+<!-- ── MAIN ── -->
+<main class="page" style="margin-top: calc(58px + 28px);">
+
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="page-title">음원 <span>총 1,248곡</span></div>
+    <div class="sort-bar">
+      <span class="sort-label">정렬</span>
+      <select class="sort-select">
+        <option>최신순</option>
+        <option>인기순</option>
+        <option>BPM 낮은순</option>
+        <option>BPM 높은순</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <!-- 장르 -->
+    <div class="filter-group">
+      <span class="filter-label">장르</span>
+      <div class="filter-chip on">전체</div>
+      <div class="filter-chip">Hip-Hop</div>
+      <div class="filter-chip">Lo-Fi</div>
+      <div class="filter-chip">Pop</div>
+      <div class="filter-chip">R&amp;B</div>
+      <div class="filter-chip">Electronic</div>
+      <div class="filter-chip">Ambient</div>
+      <div class="filter-chip">Trap</div>
+    </div>
+
+    <div class="filter-divider"></div>
+
+    <!-- 분위기 -->
+    <div class="filter-group">
+      <span class="filter-label">분위기</span>
+      <div class="filter-chip">Chill</div>
+      <div class="filter-chip">Energetic</div>
+      <div class="filter-chip">Dark</div>
+      <div class="filter-chip">Uplifting</div>
+    </div>
+
+    <div class="filter-divider"></div>
+
+    <!-- BPM -->
+    <div class="filter-group">
+      <span class="filter-label">BPM</span>
+      <div class="filter-chip">~ 80</div>
+      <div class="filter-chip">80 – 120</div>
+      <div class="filter-chip">120 ~</div>
+    </div>
+
+    <!-- 검색 -->
+    <div class="filter-search">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <span>태그 검색</span>
+    </div>
+  </div>
+
+  <!-- Track Table -->
+  <table class="track-table">
+    <thead>
+      <tr>
+        <th class="col-num center">#</th>
+        <th class="col-info">음원</th>
+        <th class="col-tag">장르 / 태그</th>
+        <th class="col-bpm right">BPM</th>
+        <th class="col-key center">조성</th>
+        <th class="col-dur right">길이</th>
+        <th class="col-acts"></th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <!-- Row 1 — playing -->
+      <tr class="track-row playing">
+        <td class="td-num">
+          <span class="tr-num">1</span>
+          <div class="tr-play">▶</div>
+        </td>
+        <td>
+          <div class="td-info">
+            <div class="tr-thumb">♪</div>
+            <div>
+              <div class="tr-title">
+                Midnight Drive <span class="tr-badge tr-badge-hot">HOT</span>
+              </div>
+              <div class="tr-artist">Soulwave Studio</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="tag-chip">Lo-Fi</span><span class="tag-chip">Chill</span></td>
+        <td class="td-bpm" style="text-align:right;">85</td>
+        <td class="td-key" style="text-align:center;">C Major</td>
+        <td class="td-dur">2:38</td>
+        <td class="td-acts"><div class="tr-acts" style="opacity:1;">
+          <button class="act-btn liked" title="좋아요">♥</button>
+          <button class="act-btn" title="재생목록에 추가">+</button>
+          <button class="act-btn" title="다운로드">↓</button>
+          <button class="act-btn-buy">구매</button>
+        </div></td>
+      </tr>
+
+      <!-- Row 2 -->
+      <tr class="track-row">
+        <td class="td-num">
+          <span class="tr-num">2</span>
+          <div class="tr-play">▶</div>
+        </td>
+        <td>
+          <div class="td-info">
+            <div class="tr-thumb">♫</div>
+            <div>
+              <div class="tr-title">Urban Pulse <span class="tr-badge tr-badge-new">NEW</span></div>
+              <div class="tr-artist">BeatFactory</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="tag-chip">Hip-Hop</span><span class="tag-chip">Energetic</span></td>
+        <td class="td-bpm" style="text-align:right;">98</td>
+        <td class="td-key" style="text-align:center;">G Minor</td>
+        <td class="td-dur">3:14</td>
+        <td class="td-acts"><div class="tr-acts">
+          <button class="act-btn" title="좋아요">♡</button>
+          <button class="act-btn" title="재생목록에 추가">+</button>
+          <button class="act-btn" title="다운로드">↓</button>
+          <button class="act-btn-buy">구매</button>
+        </div></td>
+      </tr>
+
+      <!-- Row 3 -->
+      <tr class="track-row">
+        <td class="td-num">
+          <span class="tr-num">3</span>
+          <div class="tr-play">▶</div>
+        </td>
+        <td>
+          <div class="td-info">
+            <div class="tr-thumb">♩</div>
+            <div>
+              <div class="tr-title">Golden Hour</div>
+              <div class="tr-artist">SunsetBeats</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="tag-chip">Pop</span><span class="tag-chip">Uplifting</span></td>
+        <td class="td-bpm" style="text-align:right;">110</td>
+        <td class="td-key" style="text-align:center;">D Major</td>
+        <td class="td-dur">3:02</td>
+        <td class="td-acts"><div class="tr-acts">
+          <button class="act-btn liked" title="좋아요">♥</button>
+          <button class="act-btn" title="재생목록에 추가">+</button>
+          <button class="act-btn" title="다운로드">↓</button>
+          <button class="act-btn-buy">구매</button>
+        </div></td>
+      </tr>
+
+      <!-- Row 4 -->
+      <tr class="track-row">
+        <td class="td-num">
+          <span class="tr-num">4</span>
+          <div class="tr-play">▶</div>
+        </td>
+        <td>
+          <div class="td-info">
+            <div class="tr-thumb">𝄞</div>
+            <div>
+              <div class="tr-title">Deep Waters</div>
+              <div class="tr-artist">OceanMind</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="tag-chip">Ambient</span><span class="tag-chip">Dark</span></td>
+        <td class="td-bpm" style="text-align:right;">72</td>
+        <td class="td-key" style="text-align:center;">A Minor</td>
+        <td class="td-dur">4:20</td>
+        <td class="td-acts"><div class="tr-acts">
+          <button class="act-btn" title="좋아요">♡</button>
+          <button class="act-btn" title="재생목록에 추가">+</button>
+          <button class="act-btn" title="다운로드">↓</button>
+          <button class="act-btn-buy">구매</button>
+        </div></td>
+      </tr>
+
+      <!-- Row 5 -->
+      <tr class="track-row">
+        <td class="td-num">
+          <span class="tr-num">5</span>
+          <div class="tr-play">▶</div>
+        </td>
+        <td>
+          <div class="td-info">
+            <div class="tr-thumb">♬</div>
+            <div>
+              <div class="tr-title">Solar Flare</div>
+              <div class="tr-artist">NeonSynth</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="tag-chip">Electronic</span><span class="tag-chip">Energetic</span></td>
+        <td class="td-bpm" style="text-align:right;">128</td>
+        <td class="td-key" style="text-align:center;">F# Minor</td>
+        <td class="td-dur">2:54</td>
+        <td class="td-acts"><div class="tr-acts">
+          <button class="act-btn" title="좋아요">♡</button>
+          <button class="act-btn" title="재생목록에 추가">+</button>
+          <button class="act-btn" title="다운로드">↓</button>
+          <button class="act-btn-buy">구매</button>
+        </div></td>
+      </tr>
+
+      <!-- Row 6 -->
+      <tr class="track-row">
+        <td class="td-num">
+          <span class="tr-num">6</span>
+          <div class="tr-play">▶</div>
+        </td>
+        <td>
+          <div class="td-info">
+            <div class="tr-thumb">♪</div>
+            <div>
+              <div class="tr-title">City Rain</div>
+              <div class="tr-artist">VelvetWave</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="tag-chip">R&amp;B</span><span class="tag-chip">Chill</span></td>
+        <td class="td-bpm" style="text-align:right;">92</td>
+        <td class="td-key" style="text-align:center;">Bb Major</td>
+        <td class="td-dur">3:31</td>
+        <td class="td-acts"><div class="tr-acts">
+          <button class="act-btn" title="좋아요">♡</button>
+          <button class="act-btn" title="재생목록에 추가">+</button>
+          <button class="act-btn" title="다운로드">↓</button>
+          <button class="act-btn-buy">구매</button>
+        </div></td>
+      </tr>
+
+      <!-- Row 7 -->
+      <tr class="track-row">
+        <td class="td-num">
+          <span class="tr-num">7</span>
+          <div class="tr-play">▶</div>
+        </td>
+        <td>
+          <div class="td-info">
+            <div class="tr-thumb">♫</div>
+            <div>
+              <div class="tr-title">Neon Alley <span class="tr-badge tr-badge-new">NEW</span></div>
+              <div class="tr-artist">DarkRoom</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="tag-chip">Trap</span><span class="tag-chip">Dark</span></td>
+        <td class="td-bpm" style="text-align:right;">140</td>
+        <td class="td-key" style="text-align:center;">E Minor</td>
+        <td class="td-dur">2:47</td>
+        <td class="td-acts"><div class="tr-acts">
+          <button class="act-btn" title="좋아요">♡</button>
+          <button class="act-btn" title="재생목록에 추가">+</button>
+          <button class="act-btn" title="다운로드">↓</button>
+          <button class="act-btn-buy">구매</button>
+        </div></td>
+      </tr>
+
+      <!-- Row 8 -->
+      <tr class="track-row">
+        <td class="td-num">
+          <span class="tr-num">8</span>
+          <div class="tr-play">▶</div>
+        </td>
+        <td>
+          <div class="td-info">
+            <div class="tr-thumb">♩</div>
+            <div>
+              <div class="tr-title">Pastel Sky</div>
+              <div class="tr-artist">Morning Blend</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="tag-chip">Pop</span><span class="tag-chip">Uplifting</span></td>
+        <td class="td-bpm" style="text-align:right;">104</td>
+        <td class="td-key" style="text-align:center;">G Major</td>
+        <td class="td-dur">3:08</td>
+        <td class="td-acts"><div class="tr-acts">
+          <button class="act-btn" title="좋아요">♡</button>
+          <button class="act-btn" title="재생목록에 추가">+</button>
+          <button class="act-btn" title="다운로드">↓</button>
+          <button class="act-btn-buy">구매</button>
+        </div></td>
+      </tr>
+
+      <!-- Row 9 -->
+      <tr class="track-row">
+        <td class="td-num">
+          <span class="tr-num">9</span>
+          <div class="tr-play">▶</div>
+        </td>
+        <td>
+          <div class="td-info">
+            <div class="tr-thumb">𝄞</div>
+            <div>
+              <div class="tr-title">Velvet Underground</div>
+              <div class="tr-artist">DuskProducer</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="tag-chip">Lo-Fi</span><span class="tag-chip">Chill</span></td>
+        <td class="td-bpm" style="text-align:right;">78</td>
+        <td class="td-key" style="text-align:center;">C# Minor</td>
+        <td class="td-dur">3:55</td>
+        <td class="td-acts"><div class="tr-acts">
+          <button class="act-btn liked" title="좋아요">♥</button>
+          <button class="act-btn" title="재생목록에 추가">+</button>
+          <button class="act-btn" title="다운로드">↓</button>
+          <button class="act-btn-buy">구매</button>
+        </div></td>
+      </tr>
+
+      <!-- Row 10 -->
+      <tr class="track-row">
+        <td class="td-num">
+          <span class="tr-num">10</span>
+          <div class="tr-play">▶</div>
+        </td>
+        <td>
+          <div class="td-info">
+            <div class="tr-thumb">♬</div>
+            <div>
+              <div class="tr-title">Thunder Road</div>
+              <div class="tr-artist">IronBeat</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="tag-chip">Hip-Hop</span><span class="tag-chip">Dark</span></td>
+        <td class="td-bpm" style="text-align:right;">93</td>
+        <td class="td-key" style="text-align:center;">D Minor</td>
+        <td class="td-dur">2:58</td>
+        <td class="td-acts"><div class="tr-acts">
+          <button class="act-btn" title="좋아요">♡</button>
+          <button class="act-btn" title="재생목록에 추가">+</button>
+          <button class="act-btn" title="다운로드">↓</button>
+          <button class="act-btn-buy">구매</button>
+        </div></td>
+      </tr>
+
+    </tbody>
+  </table>
+
+  <!-- Pagination -->
+  <div class="pagination">
+    <button class="pg-btn arr">‹</button>
+    <button class="pg-btn on">1</button>
+    <button class="pg-btn">2</button>
+    <button class="pg-btn">3</button>
+    <button class="pg-btn">4</button>
+    <button class="pg-btn">5</button>
+    <span class="pg-ellipsis">…</span>
+    <button class="pg-btn">125</button>
+    <button class="pg-btn arr">›</button>
+  </div>
+
+</main>
+
+<!-- ── PLAYER BAR ── -->
+<div class="player">
+  <div class="p-track">
+    <div class="p-thumb">♪</div>
+    <div>
+      <div class="p-name">Midnight Drive</div>
+      <div class="p-artist">Soulwave Studio</div>
+    </div>
+    <div class="p-heart">♥</div>
+  </div>
+  <div class="p-ctrl">
+    <div class="p-btns">
+      <button class="pbtn" title="셔플">⇌</button>
+      <button class="pbtn" title="이전">⏮</button>
+      <div class="pbtn-play">▶</div>
+      <button class="pbtn" title="다음">⏭</button>
+      <button class="pbtn" title="반복">↺</button>
+    </div>
+    <div class="p-bar">
+      <span class="p-time" style="text-align:left;">1:02</span>
+      <div class="p-prog"><div class="p-fill"></div></div>
+      <span class="p-time">2:38</span>
+    </div>
+  </div>
+  <div class="p-right">
+    <button class="p-act">대기열</button>
+    <button class="p-act">재생목록</button>
+    <button class="p-act buy">구매하기</button>
+  </div>
+</div>
+
+</body>
+</html>

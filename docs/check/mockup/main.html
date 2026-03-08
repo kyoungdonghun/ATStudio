@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ATStudio — Main</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+  <style>
+    :root {
+      --bg0: #0F172A;
+      --bg1: #111827;
+      --bg2: #1F2937;
+      --bg3: #253244;
+      --text0: #F9FAFB;
+      --text1: #9CA3AF;
+      --text2: #6B7280;
+      --accent: #C6A75E;
+      --accent-dim: rgba(198,167,94,0.12);
+      --accent-border: rgba(198,167,94,0.3);
+      --border: #1E293B;
+      --border2: #2D3748;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg0);
+      color: var(--text0);
+      font-size: 14px;
+      line-height: 1.5;
+      padding-bottom: 72px;
+    }
+
+    /* ───────── HEADER ───────── */
+    header {
+      position: fixed; top: 0; left: 0; right: 0; height: 58px;
+      background: rgba(17,24,39,0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 28px; gap: 14px;
+      z-index: 200;
+    }
+    .logo {
+      font-size: 17px; font-weight: 600; color: var(--accent);
+      letter-spacing: 0.04em; white-space: nowrap; flex-shrink: 0;
+    }
+    .search {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 6px; padding: 0 12px; height: 34px; width: 210px;
+      color: var(--text1); font-size: 13px; flex-shrink: 0;
+    }
+    .search svg { flex-shrink: 0; opacity: 0.5; }
+    .nav-tabs { display: flex; gap: 2px; flex: 1; }
+    .tab {
+      padding: 6px 13px; border-radius: 5px; font-size: 13px; font-weight: 400;
+      color: var(--text1); cursor: pointer; transition: color .15s, background .15s;
+    }
+    .tab:hover { color: var(--text0); background: var(--bg2); }
+    .tab.on { color: var(--accent); font-weight: 500; }
+    .nav-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .btn { border: none; border-radius: 5px; padding: 7px 15px; font-size: 13px; font-family: inherit; cursor: pointer; }
+    .btn-ghost { background: transparent; color: var(--text0); border: 1px solid var(--border2); }
+    .btn-cta { background: var(--accent); color: #0F172A; font-weight: 500; }
+
+    /* ───────── HERO ───────── */
+    .hero {
+      margin-top: 58px;
+      height: 360px; background: linear-gradient(135deg, #162236 0%, #0F172A 65%);
+      display: flex; align-items: center; padding: 0 64px;
+      border-bottom: 1px solid var(--border); position: relative; overflow: hidden;
+    }
+    .hero::after {
+      content: ''; position: absolute; right: -60px; top: -60px;
+      width: 520px; height: 520px;
+      background: radial-gradient(circle, rgba(198,167,94,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-body { max-width: 460px; z-index: 1; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--accent-dim); border: 1px solid var(--accent-border);
+      border-radius: 4px; padding: 3px 10px;
+      font-size: 11px; font-weight: 500; color: var(--accent);
+      letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 18px;
+    }
+    .hero-title { font-size: 34px; font-weight: 600; line-height: 1.25; letter-spacing: -0.02em; margin-bottom: 14px; }
+    .hero-sub { font-size: 15px; color: var(--text1); line-height: 1.65; margin-bottom: 30px; }
+    .hero-btns { display: flex; gap: 12px; }
+    .btn-hero { border: none; border-radius: 6px; padding: 11px 24px; font-size: 14px; font-weight: 500; font-family: inherit; cursor: pointer; }
+    .btn-hero-fill { background: var(--accent); color: #0F172A; }
+    .btn-hero-outline { background: transparent; color: var(--text0); border: 1px solid var(--border2); }
+
+    .hero-stacks {
+      position: absolute; right: 80px; top: 50%; transform: translateY(-50%);
+      display: flex; align-items: flex-end; gap: -8px;
+    }
+    .hero-card {
+      width: 130px; height: 130px; border-radius: 10px;
+      background: var(--bg3); border: 1px solid var(--border2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; color: var(--border2); flex-shrink: 0;
+    }
+    .hero-card:nth-child(1) { transform: rotate(-10deg) translateX(30px); opacity: .7; z-index: 1; }
+    .hero-card:nth-child(2) { transform: rotate(-4deg) translateX(16px); z-index: 2; }
+    .hero-card:nth-child(3) { transform: rotate(2deg); z-index: 3; box-shadow: 0 8px 32px rgba(0,0,0,.4); }
+
+    /* ───────── SECTION COMMON ───────── */
+    .section { padding: 36px 48px; }
+    .sec-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px; }
+    .sec-title { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+    .sec-title small { font-size: 11px; font-weight: 400; color: var(--text2); margin-left: 8px; letter-spacing: .06em; text-transform: uppercase; }
+    .sec-more { font-size: 12px; color: var(--text1); cursor: pointer; }
+    .sec-more:hover { color: var(--accent); }
+    hr.div { border: none; border-top: 1px solid var(--border); margin: 0 48px; }
+
+    /* ───────── ALBUM CAROUSEL ───────── */
+    .carousel { display: flex; gap: 16px; overflow: hidden; }
+    .acard { flex-shrink: 0; width: 158px; cursor: pointer; }
+    .acard:hover .athumb { border-color: rgba(198,167,94,.5); }
+    .acard:hover .aplay { opacity: 1; }
+    .athumb {
+      width: 158px; height: 158px; background: var(--bg3); border-radius: 8px;
+      border: 1px solid var(--border2); position: relative; overflow: hidden;
+      transition: border-color .2s; display: flex; align-items: center; justify-content: center;
+      font-size: 36px; color: var(--border2);
+    }
+    .aplay {
+      position: absolute; inset: 0; background: rgba(0,0,0,.45);
+      display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .2s;
+    }
+    .aplay-btn {
+      width: 38px; height: 38px; background: var(--accent); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; color: #0F172A; font-size: 14px;
+    }
+    .aname { font-size: 13px; font-weight: 500; margin-top: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ameta { font-size: 12px; color: var(--text1); margin-top: 3px; }
+
+    /* ───────── ALBUM GRID ───────── */
+    .agrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; }
+    .agrid .acard { width: 100%; }
+    .agrid .athumb { width: 100%; height: 0; padding-bottom: 100%; }
+    .agrid .athumb-inner {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 32px; color: var(--border2);
+    }
+
+    /* ───────── GENRE TAGS ───────── */
+    .tags { display: flex; flex-wrap: wrap; gap: 9px; }
+    .tag {
+      background: var(--bg2); border: 1px solid var(--border2); border-radius: 100px;
+      padding: 7px 16px; font-size: 13px; color: var(--text1); cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s;
+    }
+    .tag:hover { border-color: var(--accent-border); color: var(--accent); }
+    .tag.on { background: var(--accent-dim); border-color: var(--accent-border); color: var(--accent); }
+
+    /* ───────── FOOTER ───────── */
+    footer {
+      background: #080d17; padding: 44px 48px 28px;
+      border-top: 1px solid var(--border);
+      display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 40px;
+    }
+    .ft-logo { font-size: 16px; font-weight: 600; color: var(--accent); margin-bottom: 12px; }
+    .ft-desc { font-size: 13px; color: var(--text2); line-height: 1.7; }
+    .ft-head { font-size: 11px; font-weight: 600; color: var(--text1); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 14px; }
+    .ft-link { display: block; font-size: 13px; color: var(--text2); margin-bottom: 9px; cursor: pointer; }
+    .ft-link:hover { color: var(--text1); }
+    .ft-copy { grid-column: 1/-1; font-size: 12px; color: var(--text2); padding-top: 24px; border-top: 1px solid var(--border); }
+
+    /* ───────── PLAYER BAR ───────── */
+    .player {
+      position: fixed; bottom: 0; left: 0; right: 0; height: 72px;
+      background: rgba(17,24,39,0.97); backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 24px; gap: 20px; z-index: 200;
+    }
+    .p-track { display: flex; align-items: center; gap: 11px; width: 230px; flex-shrink: 0; }
+    .p-thumb {
+      width: 42px; height: 42px; background: var(--bg3); border-radius: 4px;
+      border: 1px solid var(--border2); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--border2);
+    }
+    .p-name { font-size: 13px; font-weight: 500; }
+    .p-artist { font-size: 11px; color: var(--text1); margin-top: 2px; }
+    .p-heart { color: var(--accent); font-size: 14px; cursor: pointer; flex-shrink: 0; }
+    .p-ctrl { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .p-btns { display: flex; align-items: center; gap: 18px; }
+    .pbtn { background: none; border: none; color: var(--text1); font-size: 13px; cursor: pointer; padding: 4px; }
+    .pbtn:hover { color: var(--text0); }
+    .pbtn-play {
+      width: 30px; height: 30px; background: var(--accent); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; color: #0F172A; font-size: 12px; cursor: pointer;
+    }
+    .p-bar { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 440px; }
+    .p-time { font-size: 11px; color: var(--text2); width: 32px; text-align: right; flex-shrink: 0; }
+    .p-prog { flex: 1; height: 3px; background: var(--border2); border-radius: 2px; position: relative; cursor: pointer; }
+    .p-fill { width: 32%; height: 100%; background: var(--accent); border-radius: 2px; }
+    .p-right { display: flex; align-items: center; gap: 10px; width: 200px; justify-content: flex-end; flex-shrink: 0; }
+    .p-act {
+      background: var(--bg2); border: 1px solid var(--border2); color: var(--text1);
+      border-radius: 5px; padding: 5px 11px; font-size: 12px; font-family: inherit; cursor: pointer;
+    }
+    .p-act:hover { color: var(--text0); }
+    .p-act.buy { border-color: var(--accent-border); color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="logo">ATStudio</div>
+  <div class="search">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    음원, 앨범 검색
+  </div>
+  <nav class="nav-tabs">
+    <div class="tab on">홈</div>
+    <div class="tab">음원</div>
+    <div class="tab">앨범</div>
+    <div class="tab">구독</div>
+    <div class="tab">공지</div>
+  </nav>
+  <div class="nav-right">
+    <button class="btn btn-ghost">로그인</button>
+    <button class="btn btn-cta">구독 시작하기</button>
+  </div>
+</header>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <div class="hero-body">
+    <div class="badge">✦ New Release</div>
+    <h1 class="hero-title">쇼츠를 위한<br>최고의 음악</h1>
+    <p class="hero-sub">크리에이터를 위한 고품질 라이선스 음악.<br>구독 하나로 무제한 사용하세요.</p>
+    <div class="hero-btns">
+      <button class="btn-hero btn-hero-fill">지금 시작하기</button>
+      <button class="btn-hero btn-hero-outline">음원 둘러보기</button>
+    </div>
+  </div>
+  <div class="hero-stacks">
+    <div class="hero-card">♪</div>
+    <div class="hero-card">♫</div>
+    <div class="hero-card">♩</div>
+  </div>
+</section>
+
+<!-- ── NEW RELEASES ── -->
+<section class="section">
+  <div class="sec-head">
+    <div class="sec-title">신규 앨범 <small>New</small></div>
+    <div class="sec-more">전체 보기 →</div>
+  </div>
+  <div class="carousel">
+    <div class="acard"><div class="athumb">♪<div class="aplay"><div class="aplay-btn">▶</div></div></div><div class="aname">Midnight Drive</div><div class="ameta">Lo-Fi · 8곡</div></div>
+    <div class="acard"><div class="athumb">♫<div class="aplay"><div class="aplay-btn">▶</div></div></div><div class="aname">Urban Pulse</div><div class="ameta">Hip-Hop · 12곡</div></div>
+    <div class="acard"><div class="athumb">♩<div class="aplay"><div class="aplay-btn">▶</div></div></div><div class="aname">Golden Hour</div><div class="ameta">Pop · 10곡</div></div>
+    <div class="acard"><div class="athumb">𝄞<div class="aplay"><div class="aplay-btn">▶</div></div></div><div class="aname">Deep Waters</div><div class="ameta">Ambient · 6곡</div></div>
+    <div class="acard"><div class="athumb">♬<div class="aplay"><div class="aplay-btn">▶</div></div></div><div class="aname">Solar Flare</div><div class="ameta">Electronic · 9곡</div></div>
+    <div class="acard"><div class="athumb">♪<div class="aplay"><div class="aplay-btn">▶</div></div></div><div class="aname">City Rain</div><div class="ameta">R&B · 7곡</div></div>
+    <div class="acard"><div class="athumb">♫<div class="aplay"><div class="aplay-btn">▶</div></div></div><div class="aname">Neon Alley</div><div class="ameta">Trap · 11곡</div></div>
+  </div>
+</section>
+
+<hr class="div" />
+
+<!-- ── POPULAR ALBUMS ── -->
+<section class="section">
+  <div class="sec-head">
+    <div class="sec-title">인기 앨범</div>
+    <div class="sec-more">전체 보기 →</div>
+  </div>
+  <div class="agrid">
+    <div class="acard"><div class="athumb" style="width:100%;height:0;padding-bottom:100%;"><div class="athumb-inner">♪</div><div class="aplay"><div class="aplay-btn">▶</div></div></div><div class="aname">Chill Zone</div><div class="ameta">Lo-Fi · 14곡</div></div>
+    <div class="acard"><div class="athumb" style="width:100%;height:0;padding-bottom:100%;"><div class="athumb-inner">♫</div><div class="aplay"><div class="aplay-btn">▶</div></div></div><div class="aname">Street Code</div><div class="ameta">Hip-Hop · 9곡</div></div>
+    <div class="acard"><div class="athumb" style="width:100%;height:0;padding-bottom:100%;"><div class="athumb-inner">♩</div><div class="aplay"><div class="aplay-btn">▶</div></div></div><div class="aname">Pastel Days</div><div class="ameta">Pop · 11곡</div></div>
+    <div class="acard"><div class="athumb" style="width:100%;height:0;padding-bottom:100%;"><div class="athumb-inner">𝄞</div><div class="aplay"><div class="aplay-btn">▶</div></div></div><div class="aname">Void Space</div><div class="ameta">Ambient · 5곡</div></div>
+    <div class="acard"><div class="athumb" style="width:100%;height:0;padding-bottom:100%;"><div class="athumb-inner">♬</div><div class="aplay"><div class="aplay-btn">▶</div></div></div><div class="aname">Pulse Wave</div><div class="ameta">Electronic · 8곡</div></div>
+    <div class="acard"><div class="athumb" style="width:100%;height:0;padding-bottom:100%;"><div class="athumb-inner">♪</div><div class="aplay"><div class="aplay-btn">▶</div></div></div><div class="aname">Soul Shift</div><div class="ameta">R&B · 10곡</div></div>
+  </div>
+</section>
+
+<hr class="div" />
+
+<!-- ── GENRE TAGS ── -->
+<section class="section">
+  <div class="sec-head">
+    <div class="sec-title">장르별 탐색</div>
+  </div>
+  <div class="tags">
+    <div class="tag on">Hip-Hop</div>
+    <div class="tag on">Lo-Fi</div>
+    <div class="tag">R&amp;B</div>
+    <div class="tag">Pop</div>
+    <div class="tag">Electronic</div>
+    <div class="tag">Jazz</div>
+    <div class="tag">Classical</div>
+    <div class="tag">Rock</div>
+    <div class="tag">Acoustic</div>
+    <div class="tag">Ambient</div>
+    <div class="tag">Trap</div>
+    <div class="tag">Cinematic</div>
+    <div class="tag">Folk</div>
+    <div class="tag">Funk</div>
+    <div class="tag">Latin</div>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div>
+    <div class="ft-logo">ATStudio</div>
+    <div class="ft-desc">쇼츠 크리에이터를 위한<br>음악 라이선스 플랫폼</div>
+  </div>
+  <div>
+    <div class="ft-head">음원</div>
+    <a class="ft-link">음원 목록</a>
+    <a class="ft-link">앨범</a>
+    <a class="ft-link">장르별 탐색</a>
+    <a class="ft-link">태그</a>
+  </div>
+  <div>
+    <div class="ft-head">구독</div>
+    <a class="ft-link">구독 플랜</a>
+    <a class="ft-link">기업 인증</a>
+    <a class="ft-link">자주 묻는 질문</a>
+  </div>
+  <div>
+    <div class="ft-head">고객지원</div>
+    <a class="ft-link">공지사항</a>
+    <a class="ft-link">1:1 문의</a>
+    <a class="ft-link">이용약관</a>
+    <a class="ft-link">개인정보처리방침</a>
+  </div>
+  <div class="ft-copy">© 2026 ATStudio. All rights reserved.</div>
+</footer>
+
+<!-- ── PLAYER BAR ── -->
+<div class="player">
+  <div class="p-track">
+    <div class="p-thumb">♫</div>
+    <div>
+      <div class="p-name">Summer Vibes</div>
+      <div class="p-artist">Artist Name</div>
+    </div>
+    <div class="p-heart">♥</div>
+  </div>
+  <div class="p-ctrl">
+    <div class="p-btns">
+      <button class="pbtn">⇌</button>
+      <button class="pbtn">|◀</button>
+      <div class="pbtn-play">▶</div>
+      <button class="pbtn">▶|</button>
+      <button class="pbtn">↺</button>
+    </div>
+    <div class="p-bar">
+      <span class="p-time">1:23</span>
+      <div class="p-prog"><div class="p-fill"></div></div>
+      <span class="p-time" style="text-align:left">3:45</span>
+    </div>
+  </div>
+  <div class="p-right">
+    <button class="p-act">대기열</button>
+    <button class="p-act">+ 재생목록</button>
+    <button class="p-act buy">구매</button>
+  </div>
+</div>
+
+</body>
+</html>
