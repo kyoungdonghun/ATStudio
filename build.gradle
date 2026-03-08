@@ -63,7 +63,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
     // Swagger UI (API 문서)
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.2'
 }
 
 tasks.named('test') {
