@@ -64,9 +64,9 @@ dependencies:
 | M-02 | Screen 10 (개인정보) | "회원탈퇴" 클릭 | 탈퇴 안내 + 비밀번호 재확인 | InputModal | `5.9 DELETE /api/users/me` |
 | M-03 | Screen 6 (음원 업로드) | 태그 선택 영역 클릭 | 태그 검색 + 다중 선택 | SelectModal | `2.2 GET /api/tags` |
 | M-04 | Screen 7 (음원 수정) | 태그 수정 영역 클릭 | 태그 검색 + 다중 선택 | SelectModal | `2.2 GET /api/tags` |
-| M-05 | Screen 9 (재생목록 수정) | "트랙 추가" 클릭 | 트랙 검색 + 선택 | SelectModal | `3.4 POST /api/playlists/{id}/tracks` |
+| M-05 | Screen 9 (재생목록 수정) | "트랙 추가" 클릭 | 트랙 검색 + 선택 | SelectModal | `3.4 POST /api/playlists/{playlistId}/tracks` |
 | M-06 | L-5 (앨범 수정 + 트랙 관리) | "트랙 추가" 클릭 | 트랙 검색 + 선택 | SelectModal | `15.6 POST /api/albums/{id}/tracks` |
-| M-07 | Screen 9 (재생목록 수정) | "재생목록 삭제" 클릭 | "재생목록을 삭제하시겠습니까?" | ConfirmModal | `3.8 DELETE /api/playlists/{id}` |
+| M-07 | Screen 9 (재생목록 수정) | "재생목록 삭제" 클릭 | "재생목록을 삭제하시겠습니까?" | ConfirmModal | `3.8 DELETE /api/playlists/{playlistId}` |
 | M-08 | L-5 (앨범 수정) | "앨범 삭제" 클릭 | "앨범을 삭제하시겠습니까?" | ConfirmModal | `15.5 DELETE /api/albums/{id}` |
 | M-09 | Screen 16-3 (내 구독) | "플랜 변경" 클릭 | 플랜 비교 + 업그레이드/다운그레이드 분기 | PlanCompareModal | `6.7 PUT /api/user-subscriptions/me` |
 | M-10 | Screen 16-3 (내 구독) | "구독 취소" 클릭 | 취소 후 유예 안내 + 확인 | StatusModal | `6.10 DELETE /api/user-subscriptions/me` |
@@ -79,24 +79,24 @@ dependencies:
 
 | ID | UC | 발생 화면 | 트리거 | 내용 | 컴포넌트 | API |
 |----|-----|---------|--------|------|----------|-----|
-| M-11 | SOUND-016 | K-7 (트랙 관리) | "트랙 삭제" 클릭 | "트랙을 삭제하시겠습니까?" | ConfirmModal | `1.7 DELETE /api/tracks/{id}` |
-| M-12 | SOUND-019 | 1/3/B-1 (음원 목록/상세) | "재생목록에 추가" 클릭 | 내 재생목록 목록 선택 | SelectModal | `3.4 POST /api/playlists/{id}/tracks` |
-| M-13 | SOUND-017 | Screen 4/5 (재생목록 목록) | "재생목록 삭제" 클릭 | "재생목록을 삭제하시겠습니까?" | ConfirmModal | `3.8 DELETE /api/playlists/{id}` |
+| M-11 | SOUND-016 | K-7 (트랙 관리) | "트랙 삭제" 클릭 | "트랙을 삭제하시겠습니까?" | ConfirmModal | `1.7 DELETE /api/tracks/{trackId}` |
+| M-12 | SOUND-019 | 1/3/B-1 (음원 목록/상세) | "재생목록에 추가" 클릭 | 내 재생목록 목록 선택 | SelectModal | `3.4 POST /api/playlists/{playlistId}/tracks` |
+| M-13 | SOUND-017 | Screen 4/5 (재생목록 목록) | "재생목록 삭제" 클릭 | "재생목록을 삭제하시겠습니까?" | ConfirmModal | `3.8 DELETE /api/playlists/{playlistId}` |
 | M-14 | ALBUM-005 | L-1/L-2 (앨범 목록) | "앨범 삭제" 클릭 | "앨범을 삭제하시겠습니까?" | ConfirmModal | `15.5 DELETE /api/albums/{id}` |
 | M-15 | CC-001 | I-1 (기업인증 신청) | 서류 첨부 영역 클릭 | 파일 업로드 (복수 가능) **[보류]** | FileUploadModal | `13.1 POST /api/company-certifications` |
 | M-16 | QUESTION-001 | Screen 14 (문의글 작성) | 첨부파일 클릭 | 파일 업로드 | FileUploadModal | `8.1 POST /api/questions` |
 | M-17 | CC-005 | K-5 (기업인증 심사) | 심사결과 처리 클릭 | APPROVED / REVISION_REQUESTED / REJECTED 선택 + adminNote 입력 | ReviewModal | `13.5 PUT /api/company-certifications/{certificationId}` |
-| M-18 | QUESTION-007 | K-4 (문의 관리) | 상태 변경 클릭 | 문의 상태 선택 (OPEN / IN_PROGRESS / RESOLVED / CLOSED) | SelectModal | `8.6 PUT /api/questions/{id}/status` |
+| M-18 | QUESTION-007 | K-4 (문의 관리) | 상태 변경 클릭 | 문의 상태 선택 (OPEN / IN_PROGRESS / RESOLVED / CLOSED) | SelectModal | `8.6 PUT /api/questions/{questionId}/status` |
 | M-19 | ANNOUNCE-005 | Screen 22 (공지 조회) | "공지 삭제" 클릭 | "공지를 삭제하시겠습니까?" | ConfirmModal | `9.5 DELETE /api/notices/{noticeId}` |
 | M-20 | QUESTION-006 | Screen 15 (문의 보기) | "문의 삭제" 클릭 | "문의를 삭제하시겠습니까?" | ConfirmModal | `8.7 DELETE /api/questions/{questionId}` |
-| M-21 | WL-004 | H-1 (채널 등록/목록/수정) | "채널 삭제" 클릭 | "채널을 삭제하시겠습니까?" | ConfirmModal | `12.4 DELETE /api/whitelist-channels/{id}` |
+| M-21 | WL-004 | H-1 (채널 등록/목록/수정) | "채널 삭제" 클릭 | "채널을 삭제하시겠습니까?" | ConfirmModal | `12.4 DELETE /api/whitelist-channels/{channelId}` |
 | M-22 | DLQ-003 | Screen 11 (장바구니) | "항목 제거" 클릭 | "장바구니에서 제거하시겠습니까?" | ConfirmModal | `11.3 DELETE /api/download-queue/{trackId}` |
 | M-23 | LIKE-003 | D-1 (좋아요 목록) | "좋아요 취소" 클릭 | "좋아요를 취소하시겠습니까?" | ConfirmModal | `10.3 DELETE /api/likes/{trackId}` |
-| M-24 | PAYMENT-009 | K-2 (구독 목록/상세) | "구독 강제 취소" 클릭 | "구독을 강제 취소하시겠습니까?" | ConfirmModal | `6.9 DELETE /api/user-subscriptions/{id}` |
-| M-25 | INFO-006 | K-1 (회원 목록/상세) | "권한 수정 저장" 클릭 | "회원 권한을 변경하시겠습니까?" | ConfirmModal | `5.8 PUT /api/users/{id}` |
+| M-24 | PAYMENT-009 | K-2 (구독 목록/상세) | "구독 강제 취소" 클릭 | "구독을 강제 취소하시겠습니까?" | ConfirmModal | `6.9 DELETE /api/user-subscriptions/{userSubscriptionId}` |
+| M-25 | INFO-006 | K-1 (회원 목록/상세) | "권한 수정 저장" 클릭 | "회원 권한을 변경하시겠습니까?" | ConfirmModal | `5.8 PUT /api/users/{userId}` |
 | M-26 | PAYMENT-001 | Screen 16-2 (구독 결제) | "결제하기" 클릭 | PG 결제 창 **[보류]** | ⚠️ PG 보류 | `6.3 POST /api/user-subscriptions` |
 | M-27 | PAYMENT-007 | M-09 (PlanCompareModal 내) | 업그레이드 결제 확인 | PG 결제 창 **[보류]** | ⚠️ PG 보류 | `6.7 PUT /api/user-subscriptions/me` |
-| M-28 | - | K-6 (태그 관리) | "태그 삭제" 클릭 | "태그를 삭제하시겠습니까?" | ConfirmModal | `2.4 DELETE /api/tags/{id}` |
+| M-28 | - | K-6 (태그 관리) | "태그 삭제" 클릭 | "태그를 삭제하시겠습니까?" | ConfirmModal | `2.4 DELETE /api/tags/{tagId}` |
 
 ---
 
@@ -117,7 +117,7 @@ dependencies:
   |         [취소]    [확인]          |
   +----------------------------------+
         |                |
-      dismiss         3.8 DELETE /api/playlists/{id}
+      dismiss         3.8 DELETE /api/playlists/{playlistId}
                           |
                       204 No Content
                           |
@@ -183,7 +183,7 @@ dependencies:
   |         [취소]    [추가]          |
   +----------------------------------+
         |                |
-      dismiss     3.4 POST /api/playlists/{id}/tracks
+      dismiss     3.4 POST /api/playlists/{playlistId}/tracks
                       {trackId}
                           |
                       201 Created → 완료 토스트

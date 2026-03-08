@@ -1302,6 +1302,11 @@ size: Integer (default: 20)
 
 **Response** `201 Created`
 
+**Error Cases**
+```json
+{ "status": 409, "error": "Conflict", "errorCode": "TRACK_ALREADY_IN_LIKES", "message": "이미 좋아요한 트랙입니다." }
+```
+
 ## 10.2 List Likes
 | Field | Value |
 |-------|-------|
@@ -1332,6 +1337,11 @@ size: Integer (default: 20)
 
 **Response** `204 No Content`
 
+**Error Cases**
+```json
+{ "status": 404, "error": "Not Found", "errorCode": "TRACK_NOT_IN_LIKES", "message": "좋아요 목록에 없는 트랙입니다." }
+```
+
 ---
 
 # 11. Download Queue
@@ -1346,6 +1356,11 @@ size: Integer (default: 20)
 | **Auth** | auth required |
 
 **Response** `201 Created`
+
+**Error Cases**
+```json
+{ "status": 409, "error": "Conflict", "errorCode": "TRACK_ALREADY_IN_QUEUE", "message": "이미 다운로드 큐에 있는 트랙입니다." }
+```
 
 ## 11.2 List Queue
 | Field | Value |
@@ -1376,6 +1391,11 @@ size: Integer (default: 20)
 | **Auth** | auth required |
 
 **Response** `204 No Content`
+
+**Error Cases**
+```json
+{ "status": 404, "error": "Not Found", "errorCode": "TRACK_NOT_IN_QUEUE", "message": "다운로드 큐에 없는 트랙입니다." }
+```
 
 ---
 

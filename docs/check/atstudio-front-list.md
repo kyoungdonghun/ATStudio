@@ -1,6 +1,6 @@
 # ATStudio 화면 목록 (Frontend)
 
-> API Spec v5 기준 | v4 2026-03-07
+> API Spec v6 기준 | v4 2026-03-07
 > `[PUBLIC]` = 인증 불필요 / `auth required` = 로그인 필요 / `[ADMIN]` = 관리자 전용 / `⚠️` = API 미정의
 
 > `🗑️ 삭제` = 상세/목록 페이지에서 `confirm()` 처리 / 회원탈퇴만 비밀번호 재확인 모달
@@ -48,9 +48,9 @@
 |----|--------|---------|------|
 | 4 | 재생목록 목록 (이미지 타입) | `3.2 GET /api/playlists` | auth required |
 | 5 | 재생목록 목록 (리스트 타입) | `3.2 GET /api/playlists` | auth required |
-| C-1 | 재생목록 상세 | `3.3 GET /api/playlists/{id}` | auth required |
+| C-1 | 재생목록 상세 | `3.3 GET /api/playlists/{playlistId}` | auth required |
 | 8 | 재생목록 생성 | `3.1 POST /api/playlists` | auth required |
-| 9 | 재생목록 수정 | `3.5 PUT /api/playlists/{id}` `3.6 PUT (트랙 순서)` `3.7 DELETE (트랙 삭제)` `3.4 POST (트랙 추가)` `3.8 DELETE /api/playlists/{id}` | auth required |
+| 9 | 재생목록 수정 | `3.5 PUT /api/playlists/{playlistId}` `3.6 PUT (트랙 순서)` `3.7 DELETE (트랙 삭제)` `3.4 POST (트랙 추가)` `3.8 DELETE /api/playlists/{playlistId}` | auth required |
 
 ---
 
@@ -70,7 +70,7 @@
 
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
-| 11 | 장바구니 (다운로드 큐) | `11.1~11.3 /api/download-queue` `1.5 GET /api/tracks/{id}/download` | auth required |
+| 11 | 장바구니 (다운로드 큐) | `11.1~11.3 /api/download-queue` `1.5 GET /api/tracks/{trackId}/download` | auth required |
 
 ---
 
@@ -129,7 +129,7 @@
 | 18 | 통계 대시보드 | ⚠️ API 미정의 — 별도 설계 필요 | [ADMIN] |
 | K-1 | 회원 목록 / 상세 / 권한 수정 | `5.5 GET /api/users` `5.6 GET /api/users/{id}` `5.8 PUT /api/users/{id}` | [ADMIN] |
 | K-2 | 구독 목록 / 상세 / 강제 취소 | `6.5 GET /api/user-subscriptions` `6.6 GET` `6.8 PUT` `6.9 DELETE` | [ADMIN] |
-| K-3 | 라이선스 조회 (회원별) | `7.2 GET /api/users/{id}/licenses` `7.4 GET /api/users/{id}/licenses/{id}` | [ADMIN] |
+| K-3 | 라이선스 조회 (회원별) | `7.2 GET /api/users/{userId}/licenses` `7.4 GET /api/users/{userId}/licenses/{licenseId}` | [ADMIN] |
 | K-4 | 문의 관리 (상태 변경) | `8.3 GET /api/questions` `8.6 PUT /api/questions/{id}/status` | [ADMIN] |
 | K-5 | 기업 인증 목록 / 심사 처리 | `13.3 GET /api/company-certifications` `13.4 GET` `13.5 PUT` | [ADMIN] |
 | K-6 | 태그 관리 (생성/수정/삭제) | `2.1 POST /api/tags` `2.3 PUT` `2.4 DELETE` | [ADMIN] |

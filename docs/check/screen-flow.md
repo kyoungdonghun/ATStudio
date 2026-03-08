@@ -95,7 +95,7 @@ dependencies:
 > 재생목록 생성은 경량 액션 (유튜브 패턴). 생성 후 음원 목록에서 M-12로 트랙 추가.
 
 ```
-[재생목록 생성]
+[8 재생목록 생성]
   "새 재생목록 만들기" (위치: 헤더/푸터/음원 Que bar 등 적절한 위치)
   활성 >= 3개면 버튼 비노출
   생성 폼 제출 → 3.1 POST → 이전 화면 복귀 (크게 강조 불필요)
@@ -154,7 +154,7 @@ dependencies:
   │
   ├── "항목 제거" → [M-22 ConfirmModal] → 11.3 DELETE → 목록 갱신
   │
-  ├── "항목별 다운로드" → 1.5 GET /api/tracks/{id}/download
+  ├── "항목별 다운로드" → 1.5 GET /api/tracks/{trackId}/download
   │    성공 → 파일 다운로드 시작 (화면 유지)
   │    한도 초과 → 토스트: "오늘 다운로드 한도 초과. {nextResetAt} 초기화"
   │
@@ -279,7 +279,7 @@ dependencies:
 
 [K-4 문의 관리]  "상태 변경" → [M-18 SelectModal] → 화면 갱신
 
-[K-5 기업인증 심사]  "심사 처리" → [M-17 ReviewModal] → 화면 갱신
+[K-5 기업 인증 목록 / 심사 처리]  "심사 처리" → [M-17 ReviewModal] → 화면 갱신
 
 [K-6 태그 관리]
   ├── "태그 생성" → POST /api/tags → 목록 갱신

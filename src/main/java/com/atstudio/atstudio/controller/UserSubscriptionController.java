@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -47,6 +48,7 @@ public class UserSubscriptionController {
     // -- 6.5 GET /api/user-subscriptions -------------------------------------
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<UserSubscriptionResponse>> listAll(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -56,6 +58,7 @@ public class UserSubscriptionController {
     // -- 6.6 GET /api/user-subscriptions/{id} --------------------------------
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<UserSubscriptionResponse>> getDetail(
             @PathVariable Long id) {
         UserSubscriptionResponse response = userSubscriptionService.getDetail(id);
@@ -82,6 +85,7 @@ public class UserSubscriptionController {
     // -- 6.8 PUT /api/user-subscriptions/{id} --------------------------------
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<UserSubscriptionResponse>> adminUpdate(
             @PathVariable Long id,
             @Valid @RequestBody AdminUpdateSubscriptionRequest request) {
@@ -95,6 +99,7 @@ public class UserSubscriptionController {
     // -- 6.9 DELETE /api/user-subscriptions/{id} -----------------------------
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> adminCancel(@PathVariable Long id) {
         userSubscriptionService.adminCancel(id);

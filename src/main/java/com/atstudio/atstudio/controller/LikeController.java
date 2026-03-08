@@ -35,6 +35,7 @@ public class LikeController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         List<LikeResponse> likes = likeService.getMyLikes(userDetails);
         return ResponseEntity.ok(ResponseDTO.<LikeResponse>withAll()
+                .message("Likes retrieved")
                 .dataList(likes)
                 .build());
     }
