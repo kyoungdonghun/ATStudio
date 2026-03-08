@@ -275,3 +275,40 @@
 
 **Postconditions**
 - users.is_deleted=1 updated. Login with this account is no longer possible.
+
+---
+
+## INFO-015: Change Password
+
+| Field | Value |
+|-------|-------|
+| **Code** | INFO-015 |
+| **Version** | 26-03-08 |
+| **Description** | Logged-in member changes their account password by providing the current password and a new password. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Account was registered via email/password (non-social). |
+| **Trigger** | User clicks the 'Change Password' button on the personal info page (Screen 10). |
+| **Related UC** | INFO-002 (view my info) |
+
+**Main Flow**
+1. User clicks the 'Change Password' button on the personal info page.
+2. Frontend displays an input modal (M-01 InputModal) prompting for currentPassword and newPassword.
+3. User enters the current password and the new password, then submits.
+4. Frontend sends a request to `PUT /api/users/me/password` with `{ currentPassword, newPassword }` and the auth token.
+5. Backend extracts userId from the JWT and retrieves the users record.
+6. Backend verifies the currentPassword against the stored BCrypt hash.
+7. Backend hashes the newPassword with BCrypt and updates the users record.
+8. Backend returns 204 No Content.
+9. Frontend closes the modal and displays a success toast.
+
+**Request Body**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| currentPassword | String | Yes | Current account password |
+| newPassword | String | Yes | New password to set |
+
+**Exception / Alternative Flow**
+- Current password mismatch: 400 Bad Request.
+
+**Postconditions**
+- Password updated in the users record. Subsequent logins require the new password.

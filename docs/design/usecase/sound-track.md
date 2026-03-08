@@ -239,3 +239,55 @@
 - tracks.is_active=0 updated (soft delete). Actual files in storage are retained.
 - Tag mappings for this track deleted from track_tags.
 - Track excluded from track list queries (SOUND-005).
+
+---
+
+## SOUND-021: List Tracks (Admin)
+
+| Field | Value |
+|-------|-------|
+| **Code** | SOUND-021 |
+| **Version** | 26-03-08 |
+| **Description** | Admin retrieves the full track list including both active and inactive tracks. Supports optional filtering by isActive status. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. |
+| **Trigger** | Admin navigates to the track management screen (K-7). |
+| **Related UC** | SOUND-016 (delete track), SOUND-012 (update track) |
+
+**Main Flow**
+1. Admin navigates to the track management screen.
+2. Frontend sends a request to `GET /api/tracks/admin` with optional query parameters (page, size, isActive).
+3. Backend verifies ADMIN role authorization.
+4. Backend applies filtering:
+   - `isActive=true`: returns active tracks only (is_active=1).
+   - `isActive=false`: returns inactive tracks only (is_active=0).
+   - `isActive` not provided: returns all tracks regardless of is_active status.
+5. Backend returns a paginated list of `AdminTrackListItemResponse` objects.
+6. Frontend displays the track list on the management screen.
+
+**Query Parameters**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| page | Integer | 1 | Page number (1-based) |
+| size | Integer | 20 | Items per page |
+| isActive | Boolean | (none) | Optional filter by active status |
+
+**Response Fields (AdminTrackListItemResponse)**
+| Field | Type | Description |
+|-------|------|-------------|
+| id | Long | Track ID |
+| title | String | Track title |
+| bpm | Integer | BPM value |
+| tonality | String | Key/tonality |
+| thumbnail | String | Thumbnail file path |
+| playCount | Long | Total play count |
+| isActive | Boolean | Active/inactive status |
+| tags | List\<String\> | Associated tag names |
+| createdAt | LocalDateTime | Track creation timestamp |
+
+**Exception / Alternative Flow**
+- Non-admin access: 403 Forbidden.
+- No results matching filter: returns empty content array.
+
+**Postconditions**
+- Paginated track list (including inactive tracks) displayed on admin management screen.

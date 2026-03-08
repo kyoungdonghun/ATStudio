@@ -77,7 +77,7 @@ dependencies:
                           ┌────────────────────────────┼──────────────────────┐
                           │                            │                      │
                     "좋아요" 클릭               "재생목록에 추가" 클릭    "장바구니 담기" 클릭
-             10.1 POST /api/likes/{trackId}            │        11.1 POST /api/download-queue
+             10.1 POST /api/likes/{trackId}            │        11.1 POST /api/download-queue/{trackId}
                    (토글, 화면 유지)             [M-12 SelectModal]          (토글, 화면 유지)
                                                        │
                                             어떤 재생목록에 추가할지 선택
@@ -279,7 +279,7 @@ dependencies:
 
 [K-4 문의 관리]  "상태 변경" → [M-18 SelectModal] → 화면 갱신
 
-[K-5 기업인증 심사]  "심사 처리" → [M-17 StatusModal] → 화면 갱신
+[K-5 기업인증 심사]  "심사 처리" → [M-17 ReviewModal] → 화면 갱신
 
 [K-6 태그 관리]
   ├── "태그 생성" → POST /api/tags → 목록 갱신

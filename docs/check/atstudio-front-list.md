@@ -22,8 +22,8 @@
 
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
-| 1 | 메인화면 | `1.2 GET /api/tracks` `2.2 GET /api/tags` `10.1 POST /api/likes/{trackId}` `11.1 POST /api/download-queue` | [PUBLIC] |
-| 3 | 음원 목록 (리스트 타입) | `1.2 GET /api/tracks` `10.1 POST /api/likes/{trackId}` `11.1 POST /api/download-queue` | [PUBLIC] |
+| 1 | 메인화면 | `1.2 GET /api/tracks` `2.2 GET /api/tags` `10.1 POST /api/likes/{trackId}` `11.1 POST /api/download-queue/{trackId}` | [PUBLIC] |
+| 3 | 음원 목록 (리스트 타입) | `1.2 GET /api/tracks` `10.1 POST /api/likes/{trackId}` `11.1 POST /api/download-queue/{trackId}` | [PUBLIC] |
 | B-1 | 음원 상세 | `1.3 GET /api/tracks/{trackId}` `1.4 GET /api/tracks/{trackId}/stream` `4.1 POST /api/play-histories` | [PUBLIC] |
 | 6 | 음원 업로드 (단일/다수) | `1.1 POST /api/tracks` `2.2 GET /api/tags` | [ADMIN] |
 | 7 | 음원 수정 | `1.6 PUT /api/tracks/{trackId}` `1.3 GET /api/tracks/{trackId}` | [ADMIN] |

@@ -1,7 +1,7 @@
 # Use Case Specification Index
 
-> **Version**: v4 (Confirmed)
-> **Confirmed date**: 2026-02-20
+> **Version**: v6 (Confirmed)
+> **Confirmed date**: 2026-03-08
 > **Reference documents**: `docs/design/db-schema.md` (v4), `docs/design/api-spec.md` (v5)
 > **Source**: `docs/check/usecase-spec csv/`
 
@@ -11,11 +11,11 @@
 
 | File | Category | UC Count |
 |------|----------|----------|
-| `sound-track.md` | Track (create/list/detail/update/delete/play/download) | 7 |
+| `sound-track.md` | Track (create/list/detail/update/delete/play/download/admin list) | 8 |
 | `sound-tag.md` | Tag (create/list/update/delete) | 4 |
 | `sound-playlist.md` | Playlist (create/list/detail/update/delete/add track/remove track) | 7 |
 | `sound-playhistory.md` | Play history (save/list/delete) | 3 |
-| `user-info.md` | User info (register/login/social login/social profile completion/view/update/withdraw) | 10 |
+| `user-info.md` | User info (register/login/social login/social profile completion/view/update/withdraw/change password) | 11 |
 | `user-subscription.md` | Subscription (subscribe/list/change/cancel/admin management) | 10 |
 | `user-license.md` | Track usage license (view) | 4 |
 | `user-question.md` | Inquiry (create/list/answer/delete/attachment/admin status change) | 7 |
@@ -27,7 +27,7 @@
 | `util.md` | Utility (duplicate check/token/subscription status/download count, etc.) | 7 |
 | `sound-album.md` | Album (create/list/detail/update/delete/add track/remove track/reorder) | 8 |
 
-**Total UC count: 87** (net +8 vs v4: Album domain added)
+**Total UC count: 89** (net +2 vs v5: SOUND-021, INFO-015 added)
 
 ---
 
@@ -57,6 +57,7 @@
 | SOUND-018 | Delete tag | `sound-tag.md` |
 | SOUND-019 | Add track to playlist | `sound-playlist.md` |
 | SOUND-020 | Remove track from playlist | `sound-playlist.md` |
+| SOUND-021 | List tracks (Admin) | `sound-track.md` |
 
 ### User Info
 
@@ -76,6 +77,7 @@
 | INFO-012 | View member license detail (Admin) | `user-license.md` |
 | INFO-013 | Social login | `user-info.md` |
 | INFO-014 | Complete social profile | `user-info.md` |
+| INFO-015 | Change password | `user-info.md` |
 
 ### Payment / Subscription
 
@@ -161,6 +163,17 @@
 
 > New in v3 (vs original)
 > New in v4 (cross-review additions)
+
+---
+
+## Change History (v5 to v6)
+
+### UC v6 Modifications (2026-03-08)
+
+| # | Field | Value |
+|---|-------|-------|
+| 1 | SOUND-021 | **New** — Admin track list UC. `GET /api/tracks/admin` [ADMIN]. Returns AdminTrackListItemResponse list including isActive field. `sound-track.md` updated. |
+| 2 | INFO-015 | **New** — Change password UC. `PUT /api/users/me/password` [Auth]. Verifies current password then updates to new password. `user-info.md` updated. |
 
 ---
 

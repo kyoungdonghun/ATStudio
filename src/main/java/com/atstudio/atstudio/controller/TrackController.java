@@ -25,6 +25,7 @@ public class TrackController {
     private final DownloadService downloadService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<TrackResponse>> createTrack(
             @Valid @ModelAttribute TrackCreateRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -45,7 +46,7 @@ public class TrackController {
     @GetMapping("/admin")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<AdminTrackListItemResponse>> getTracksForAdmin(
-            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(name = "is_active", required = false) Boolean isActive,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(trackService.getTracksForAdmin(isActive, page, size));
@@ -55,6 +56,7 @@ public class TrackController {
     public ResponseEntity<ResponseDTO<TrackResponse>> getTrack(
             @PathVariable Long trackId) {
         return ResponseEntity.ok(ResponseDTO.<TrackResponse>withSingleData()
+                .message("Track retrieved")
                 .data(trackService.getTrack(trackId))
                 .build());
     }
@@ -81,6 +83,7 @@ public class TrackController {
     }
 
     @PutMapping(value = "/{trackId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<TrackResponse>> updateTrack(
             @PathVariable Long trackId,
             @Valid @ModelAttribute TrackUpdateRequest request) {
@@ -91,6 +94,7 @@ public class TrackController {
     }
 
     @DeleteMapping("/{trackId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteTrack(@PathVariable Long trackId) {
         trackService.deleteTrack(trackId);
         return ResponseEntity.noContent().build();
