@@ -1,6 +1,6 @@
 ---
-version: 2.0
-last_updated: 2026-01-15
+version: 2.1
+last_updated: 2026-03-08
 project: ATS
 owner: SE
 category: standard
@@ -168,6 +168,21 @@ public class MusicController {
     }
 }
 ```
+
+#### Lookup Data Exception
+
+Endpoints that serve **lookup (reference) data** may return a raw JSON array directly — without a `ResponseDTO` wrapper — when **both** of the following conditions hold:
+
+1. The endpoint is specified as a raw array response in `docs/design/api-spec.md`.
+2. The data is read-only, stateless reference data (e.g., filter options, tag lists) with no pagination.
+
+**Current applicable endpoint:**
+
+| Endpoint | api-spec Reference | Return Type |
+|----------|--------------------|-------------|
+| `GET /api/tags` | §2.2 | `ResponseEntity<List<TagResponse>>` |
+
+> **Note:** Any new endpoint claiming this exception must be explicitly named in `api-spec.md` as a raw array response before implementation. Do not apply this exception speculatively.
 
 **Service (Business Logic):**
 ```java

@@ -70,9 +70,9 @@ class TrackServiceTest {
         request.setTitle("Test Track");
         request.setBpm(120);
         request.setTonality("C");
-        request.setAudioFile(mockMultipartFile("test.mp3"));
+        MultipartFile audioFile = mockMultipartFile("test.mp3");
 
-        TrackResponse response = trackService.createTrack(request, userDetails);
+        TrackResponse response = trackService.createTrack(request, audioFile, null, userDetails);
 
         assertThat(response.id()).isEqualTo(1L);
         assertThat(response.title()).isEqualTo("Test Track");
@@ -103,11 +103,11 @@ class TrackServiceTest {
         request.setTitle("Test Track");
         request.setBpm(120);
         request.setTonality("C");
-        request.setAudioFile(mockMultipartFile("test.mp3"));
-        request.setThumbnail(mockMultipartFile("cover.jpg"));
         request.setTagIds(List.of(10L));
+        MultipartFile audioFile = mockMultipartFile("test.mp3");
+        MultipartFile thumbnail = mockMultipartFile("cover.jpg");
 
-        TrackResponse response = trackService.createTrack(request, userDetails);
+        TrackResponse response = trackService.createTrack(request, audioFile, thumbnail, userDetails);
 
         assertThat(response.thumbnail()).isEqualTo("tracks/thumbnail/cover.jpg");
         assertThat(response.tags()).hasSize(1);
@@ -124,9 +124,9 @@ class TrackServiceTest {
         request.setTitle("Track");
         request.setBpm(100);
         request.setTonality("D");
-        request.setAudioFile(mockMultipartFile("test.mp3"));
+        MultipartFile audioFile = mockMultipartFile("test.mp3");
 
-        assertThatThrownBy(() -> trackService.createTrack(request, userDetails))
+        assertThatThrownBy(() -> trackService.createTrack(request, audioFile, null, userDetails))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
@@ -272,7 +272,7 @@ class TrackServiceTest {
         request.setTitle("Updated Title");
         request.setBpm(140);
 
-        TrackResponse response = trackService.updateTrack(1L, request);
+        TrackResponse response = trackService.updateTrack(1L, request, null, null);
 
         assertThat(response.title()).isEqualTo("Updated Title");
         assertThat(response.bpm()).isEqualTo(140);
@@ -289,9 +289,9 @@ class TrackServiceTest {
         given(trackTagRepository.findAllWithTagByTrack(any(Track.class))).willReturn(List.of());
 
         TrackUpdateRequest request = new TrackUpdateRequest();
-        request.setAudioFile(mockMultipartFile("new.mp3"));
+        MultipartFile newAudioFile = mockMultipartFile("new.mp3");
 
-        TrackResponse response = trackService.updateTrack(1L, request);
+        TrackResponse response = trackService.updateTrack(1L, request, newAudioFile, null);
 
         assertThat(response.audioFile()).isEqualTo("tracks/audio/new.mp3");
         verify(storageService).delete("tracks/audio/test.mp3");
@@ -311,7 +311,7 @@ class TrackServiceTest {
         TrackUpdateRequest request = new TrackUpdateRequest();
         request.setTagIds(List.of(5L));
 
-        TrackResponse response = trackService.updateTrack(1L, request);
+        TrackResponse response = trackService.updateTrack(1L, request, null, null);
 
         verify(trackTagRepository).deleteAllByTrack(track);
         verify(trackTagRepository).saveAll(any());

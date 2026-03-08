@@ -18,6 +18,7 @@ import com.atstudio.atstudio.repository.spec.TrackSpecification;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.Page;
@@ -45,13 +46,14 @@ public class TrackService {
     private final StorageService storageService;
 
     @Transactional
-    public TrackResponse createTrack(TrackCreateRequest request, CustomUserDetails userDetails) {
+    public TrackResponse createTrack(TrackCreateRequest request, MultipartFile audioFile,
+                                     MultipartFile thumbnail, CustomUserDetails userDetails) {
         User user = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
-        String audioFilePath = storageService.store(request.getAudioFile(), "tracks/audio");
-        String thumbnailPath = (request.getThumbnail() != null && !request.getThumbnail().isEmpty())
-                ? storageService.store(request.getThumbnail(), "tracks/thumbnail")
+        String audioFilePath = storageService.store(audioFile, "tracks/audio");
+        String thumbnailPath = (thumbnail != null && !thumbnail.isEmpty())
+                ? storageService.store(thumbnail, "tracks/thumbnail")
                 : null;
 
         Track track = Track.builder()
@@ -132,18 +134,19 @@ public class TrackService {
     }
 
     @Transactional
-    public TrackResponse updateTrack(Long trackId, TrackUpdateRequest request) {
+    public TrackResponse updateTrack(Long trackId, TrackUpdateRequest request,
+                                     MultipartFile audioFile, MultipartFile thumbnail) {
         Track track = findTrackById(trackId);
 
         track.update(request.getTitle(), request.getBpm(), request.getTonality(), request.getDescription());
 
-        if (request.getAudioFile() != null && !request.getAudioFile().isEmpty()) {
+        if (audioFile != null && !audioFile.isEmpty()) {
             storageService.delete(track.getAudioFile());
-            track.updateAudioFile(storageService.store(request.getAudioFile(), "tracks/audio"));
+            track.updateAudioFile(storageService.store(audioFile, "tracks/audio"));
         }
-        if (request.getThumbnail() != null && !request.getThumbnail().isEmpty()) {
+        if (thumbnail != null && !thumbnail.isEmpty()) {
             storageService.delete(track.getThumbnail());
-            track.updateThumbnail(storageService.store(request.getThumbnail(), "tracks/thumbnail"));
+            track.updateThumbnail(storageService.store(thumbnail, "tracks/thumbnail"));
         }
         if (request.getIsActive() != null) {
             track.updateIsActive(request.getIsActive());

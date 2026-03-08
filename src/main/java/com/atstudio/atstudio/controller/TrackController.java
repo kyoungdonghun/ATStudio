@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/tracks")
@@ -28,8 +29,10 @@ public class TrackController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<TrackResponse>> createTrack(
             @Valid @ModelAttribute TrackCreateRequest request,
+            @RequestPart MultipartFile audioFile,
+            @RequestPart(required = false) MultipartFile thumbnail,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        TrackResponse response = trackService.createTrack(request, userDetails);
+        TrackResponse response = trackService.createTrack(request, audioFile, thumbnail, userDetails);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ResponseDTO.<TrackResponse>withSingleData()
                         .message("Track created")
@@ -86,10 +89,12 @@ public class TrackController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<TrackResponse>> updateTrack(
             @PathVariable Long trackId,
-            @Valid @ModelAttribute TrackUpdateRequest request) {
+            @Valid @ModelAttribute TrackUpdateRequest request,
+            @RequestPart(required = false) MultipartFile audioFile,
+            @RequestPart(required = false) MultipartFile thumbnail) {
         return ResponseEntity.ok(ResponseDTO.<TrackResponse>withSingleData()
                 .message("Track updated")
-                .data(trackService.updateTrack(trackId, request))
+                .data(trackService.updateTrack(trackId, request, audioFile, thumbnail))
                 .build());
     }
 

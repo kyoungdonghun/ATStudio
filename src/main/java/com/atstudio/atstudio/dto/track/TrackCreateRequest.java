@@ -7,7 +7,6 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -29,11 +28,6 @@ public class TrackCreateRequest {
     private String tonality;
 
     private String description;
-
-    @NotNull
-    private MultipartFile audioFile;
-
-    private MultipartFile thumbnail;
 
     private List<Long> tagIds;
 }
