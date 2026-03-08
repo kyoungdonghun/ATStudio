@@ -1,0 +1,161 @@
+/* ── Page Layout ── */
+
+.page {
+  padding: 32px 48px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ── Page Header ── */
+
+.pageHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text0);
+}
+
+.pageTitleCount {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text2);
+  margin-left: 10px;
+}
+
+/* ── Table ── */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.table td {
+  padding: 12px;
+  font-size: 13px;
+  color: var(--text1);
+  border-bottom: 1px solid var(--border);
+}
+
+.table tr:hover td {
+  background: var(--bg1);
+}
+
+.cellTitle {
+  color: var(--text0);
+  font-weight: 500;
+}
+
+.cellCode {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 12px;
+  color: var(--text2);
+}
+
+.cellDate {
+  white-space: nowrap;
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.cellActions {
+  width: 80px;
+  text-align: right;
+}
+
+.detailLink {
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.detailLink:hover {
+  text-decoration: underline;
+}
+
+/* ── Pagination ── */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 36px 0 16px;
+}
+
+.pgBtn {
+  width: 34px;
+  height: 34px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  color: var(--text1);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pgBtn:hover {
+  color: var(--text0);
+  background: var(--bg3);
+}
+
+.pgBtnActive {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--bg0);
+  font-weight: 600;
+}
+
+/* ── Loading / Error / Empty ── */
+
+.loading {
+  text-align: center;
+  padding: 64px 0;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+.error {
+  text-align: center;
+  padding: 40px 0;
+  color: #f87171;
+  font-size: 14px;
+}
+
+.empty {
+  text-align: center;
+  padding: 64px 0;
+  color: var(--text2);
+  font-size: 14px;
+}

@@ -1,0 +1,315 @@
+/* ── Page Layout ── */
+
+.page {
+  padding: 32px 48px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* ── Page Title ── */
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text0);
+  margin-bottom: 32px;
+}
+
+/* ── Current Plan Card ── */
+
+.planCard {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 28px;
+  margin-bottom: 24px;
+}
+
+.planHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.planName {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.statusActive {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(74, 222, 128, 0.12);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.statusCancelled {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.statusExpired {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(107, 114, 128, 0.12);
+  color: var(--text2);
+  border: 1px solid var(--border2);
+}
+
+.planInfo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.infoLabel {
+  font-size: 12px;
+  color: var(--text2);
+}
+
+.infoValue {
+  font-size: 14px;
+  color: var(--text0);
+  font-weight: 500;
+}
+
+/* ── Pending Notice ── */
+
+.pendingNotice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  border-radius: 8px;
+  padding: 14px 20px;
+  margin-top: 20px;
+}
+
+.pendingIcon {
+  font-size: 16px;
+}
+
+.pendingText {
+  font-size: 13px;
+  color: #fbbf24;
+}
+
+/* ── Action Section ── */
+
+.actionSection {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.actionTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text0);
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.actionDesc {
+  font-size: 13px;
+  color: var(--text2);
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+.actionButtons {
+  display: flex;
+  gap: 10px;
+}
+
+/* ── Cancel Section (Danger) ── */
+
+.cancelSection {
+  background: var(--bg1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.cancelTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #f87171;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.cancelDesc {
+  font-size: 13px;
+  color: var(--text2);
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+/* ── Plan Selection Grid ── */
+
+.planGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.planOption {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.planOption:hover {
+  border-color: var(--accent-border);
+}
+
+.planOptionSelected {
+  composes: planOption;
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.planOptionName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text0);
+  margin-bottom: 6px;
+}
+
+.planOptionPrice {
+  font-size: 12px;
+  color: var(--text1);
+}
+
+.planOptionCurrent {
+  font-size: 11px;
+  color: var(--accent);
+  margin-top: 6px;
+}
+
+/* ── Preview Box ── */
+
+.previewBox {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.previewRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.previewLabel {
+  color: var(--text2);
+}
+
+.previewValue {
+  color: var(--text0);
+  font-weight: 500;
+}
+
+.previewUpgrade {
+  color: #4ade80;
+}
+
+.previewDowngrade {
+  color: #fbbf24;
+}
+
+/* ── Loading / Error ── */
+
+.loading {
+  text-align: center;
+  padding: 64px 0;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+.error {
+  text-align: center;
+  padding: 40px 0;
+  color: #f87171;
+  font-size: 14px;
+}
+
+.noSub {
+  text-align: center;
+  padding: 64px 0;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+.noSubLink {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.noSubLink:hover {
+  text-decoration: underline;
+}
+
+/* ── Modal ── */
+
+.modalBody {
+  padding: 16px 24px 24px;
+}
+
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 24px 20px;
+}
+
+.successMsg {
+  font-size: 13px;
+  color: #4ade80;
+  margin-top: 12px;
+}
+
+.errorMsg {
+  font-size: 13px;
+  color: #f87171;
+  margin-top: 12px;
+}

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ATStudio — 내 재생목록</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+  <style>
+    :root {
+      --bg0: #0F172A; --bg1: #111827; --bg2: #1F2937; --bg3: #253244;
+      --text0: #F9FAFB; --text1: #9CA3AF; --text2: #6B7280;
+      --accent: #C6A75E; --accent-dim: rgba(198,167,94,0.12); --accent-border: rgba(198,167,94,0.3);
+      --border: #1E293B; --border2: #2D3748;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Pretendard', -apple-system, sans-serif; background: var(--bg0); color: var(--text0); font-size: 14px; line-height: 1.5; padding-bottom: 72px; }
+
+    /* ── HEADER ── */
+    header { position: fixed; top: 0; left: 0; right: 0; height: 58px; background: rgba(17,24,39,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 28px; gap: 14px; z-index: 200; }
+    .logo { font-size: 17px; font-weight: 600; color: var(--accent); letter-spacing: 0.04em; flex-shrink: 0; }
+    .search { display: flex; align-items: center; gap: 8px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 6px; padding: 0 12px; height: 34px; width: 210px; color: var(--text1); font-size: 13px; flex-shrink: 0; }
+    .search svg { opacity: 0.5; flex-shrink: 0; }
+    .nav-tabs { display: flex; gap: 2px; flex: 1; }
+    .tab { padding: 6px 13px; border-radius: 5px; font-size: 13px; color: var(--text1); cursor: pointer; }
+    .tab:hover { color: var(--text0); background: var(--bg2); }
+    .tab.on { color: var(--accent); font-weight: 500; }
+    .nav-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .btn { border: none; border-radius: 5px; padding: 7px 15px; font-size: 13px; font-family: inherit; cursor: pointer; }
+    .btn-ghost { background: transparent; color: var(--text0); border: 1px solid var(--border2); }
+    .btn-cta { background: var(--accent); color: #0F172A; font-weight: 500; }
+
+    /* ── PAGE ── */
+    .page { margin-top: 58px; padding: 32px 48px; max-width: 1280px; margin-left: auto; margin-right: auto; }
+
+    /* ── PAGE HEADER ── */
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .page-title { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+    .page-title span { font-size: 14px; font-weight: 400; color: var(--text2); margin-left: 10px; }
+    .header-actions { display: flex; align-items: center; gap: 10px; }
+    .btn-new-pl {
+      display: flex; align-items: center; gap: 7px;
+      background: var(--accent); color: #0F172A; border: none;
+      border-radius: 6px; padding: 9px 18px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
+    }
+    .btn-new-pl:hover { opacity: .88; }
+    /* 3개 꽉 찼을 때 버튼 비노출 케이스 → 주석으로 표현 */
+
+    /* ── PLAN NOTICE ── */
+    .plan-notice {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--bg1); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px 20px; margin-bottom: 28px;
+    }
+    .pn-left { display: flex; align-items: center; gap: 12px; }
+    .pn-icon { font-size: 18px; }
+    .pn-text { font-size: 13px; color: var(--text1); }
+    .pn-text strong { color: var(--text0); }
+    .pn-bar-wrap { display: flex; align-items: center; gap: 10px; }
+    .pn-bar { width: 120px; height: 4px; background: var(--border2); border-radius: 2px; }
+    .pn-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+    .pn-count { font-size: 12px; color: var(--text2); white-space: nowrap; }
+
+    /* ── GRID ── */
+    .pl-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px; }
+
+    /* ── MY PLAYLIST CARD ── */
+    .my-card {
+      background: var(--bg1); border: 1px solid var(--border2);
+      border-radius: 10px; overflow: hidden; cursor: pointer;
+      transition: border-color .2s, transform .2s;
+      position: relative;
+    }
+    .my-card:hover { border-color: rgba(198,167,94,.4); transform: translateY(-2px); }
+    .my-card.add-new {
+      border: 2px dashed var(--border2); background: transparent;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px; min-height: 220px;
+    }
+    .my-card.add-new:hover { border-color: var(--accent-border); }
+    .my-card.add-new .add-icon { font-size: 28px; color: var(--text2); }
+    .my-card.add-new .add-label { font-size: 13px; color: var(--text2); font-weight: 500; }
+    .my-card.add-new:hover .add-icon, .my-card.add-new:hover .add-label { color: var(--accent); }
+
+    /* thumb — mosaic 4-split or single */
+    .pl-thumb { width: 100%; aspect-ratio: 1; position: relative; overflow: hidden; background: var(--bg3); }
+    .pl-thumb-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; height: 100%; }
+    .pl-thumb-cell {
+      background: var(--bg3); display: flex; align-items: center; justify-content: center;
+      font-size: 20px; color: var(--border2);
+    }
+    .pl-thumb-cell:nth-child(even) { background: var(--bg2); }
+    .pl-thumb-single { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: var(--border2); }
+
+    /* overlay actions */
+    .pl-overlay {
+      position: absolute; top: 8px; left: 8px; right: 8px;
+      display: flex; justify-content: space-between; opacity: 0; transition: opacity .15s;
+    }
+    .my-card:hover .pl-overlay { opacity: 1; }
+    .pl-ov-btn {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: rgba(15,23,42,.75); backdrop-filter: blur(4px);
+      border: 1px solid rgba(255,255,255,.12); color: var(--text1);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; cursor: pointer;
+    }
+    .pl-ov-btn:hover { color: var(--accent); }
+    .pl-ov-btn.liked { color: var(--accent); }
+
+    /* play button center overlay */
+    .pl-play-overlay {
+      position: absolute; inset: 0; background: rgba(0,0,0,.35);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity .15s;
+    }
+    .my-card:hover .pl-play-overlay { opacity: 1; }
+    .pl-play-btn {
+      width: 40px; height: 40px; background: var(--accent); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: #0F172A; font-size: 14px;
+    }
+
+    /* card body */
+    .pl-body { padding: 12px 13px 14px; }
+    .pl-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+    .pl-meta { font-size: 12px; color: var(--text1); }
+
+    /* ── PAGINATION ── */
+    .pagination { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 36px 0 16px; }
+    .pg-btn { width: 34px; height: 34px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 5px; color: var(--text1); font-size: 13px; font-family: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .pg-btn:hover { color: var(--text0); background: var(--bg3); }
+    .pg-btn.on { background: var(--accent); border-color: var(--accent); color: #0F172A; font-weight: 600; }
+
+    /* ── PLAYER BAR ── */
+    .player { position: fixed; bottom: 0; left: 0; right: 0; height: 72px; background: rgba(17,24,39,0.97); backdrop-filter: blur(16px); border-top: 1px solid var(--border); display: flex; align-items: center; padding: 0 24px; gap: 20px; z-index: 200; }
+    .p-track { display: flex; align-items: center; gap: 11px; width: 230px; flex-shrink: 0; }
+    .p-thumb { width: 42px; height: 42px; background: var(--bg3); border-radius: 4px; border: 1px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--border2); }
+    .p-name { font-size: 13px; font-weight: 500; }
+    .p-artist { font-size: 11px; color: var(--text1); margin-top: 2px; }
+    .p-heart { color: var(--accent); font-size: 14px; cursor: pointer; flex-shrink: 0; }
+    .p-ctrl { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .p-btns { display: flex; align-items: center; gap: 18px; }
+    .pbtn { background: none; border: none; color: var(--text1); font-size: 13px; cursor: pointer; padding: 4px; }
+    .pbtn-play { width: 30px; height: 30px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #0F172A; font-size: 12px; cursor: pointer; }
+    .p-bar { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 440px; }
+    .p-time { font-size: 11px; color: var(--text2); width: 32px; flex-shrink: 0; }
+    .p-prog { flex: 1; height: 3px; background: var(--border2); border-radius: 2px; cursor: pointer; }
+    .p-fill { width: 55%; height: 100%; background: var(--accent); border-radius: 2px; }
+    .p-right { display: flex; align-items: center; gap: 10px; width: 200px; justify-content: flex-end; flex-shrink: 0; }
+    .p-act { background: var(--bg2); border: 1px solid var(--border2); color: var(--text1); border-radius: 5px; padding: 5px 11px; font-size: 12px; font-family: inherit; cursor: pointer; }
+    .p-act.buy { border-color: var(--accent-border); color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="logo">ATStudio</div>
+  <div class="search">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    음원, 앨범 검색
+  </div>
+  <nav class="nav-tabs">
+    <div class="tab">홈</div>
+    <div class="tab">음원</div>
+    <div class="tab">앨범</div>
+    <div class="tab">구독</div>
+    <div class="tab">공지</div>
+  </nav>
+  <div class="nav-right">
+    <!-- 로그인 상태: 아바타/내 계정 -->
+    <span style="font-size:13px; color:var(--text1);">안녕하세요, <strong style="color:var(--text0);">홍길동</strong></span>
+    <button class="btn btn-ghost">내 계정</button>
+  </div>
+</header>
+
+<!-- ── MAIN ── -->
+<main class="page" style="margin-top: calc(58px + 32px);">
+
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="page-title">내 재생목록 <span>2 / 3개</span></div>
+    <div class="header-actions">
+      <!-- 3개 미만일 때만 노출 -->
+      <button class="btn-new-pl">+ 새 재생목록</button>
+    </div>
+  </div>
+
+  <!-- Plan Notice — 재생목록 한도 안내 -->
+  <div class="plan-notice">
+    <div class="pn-left">
+      <span class="pn-icon">📋</span>
+      <div class="pn-text">
+        <strong>Pro 플랜</strong> — 재생목록은 최대 3개까지 만들 수 있어요.
+      </div>
+    </div>
+    <div class="pn-bar-wrap">
+      <div class="pn-bar"><div class="pn-bar-fill" style="width: 67%;"></div></div>
+      <span class="pn-count">2 / 3</span>
+    </div>
+  </div>
+
+  <!-- Playlist Grid -->
+  <div class="pl-grid">
+
+    <!-- My Playlist 1 — 4곡 모자이크 -->
+    <div class="my-card">
+      <div class="pl-thumb">
+        <div class="pl-thumb-grid">
+          <div class="pl-thumb-cell">♪</div>
+          <div class="pl-thumb-cell">♫</div>
+          <div class="pl-thumb-cell">♩</div>
+          <div class="pl-thumb-cell">♬</div>
+        </div>
+        <div class="pl-overlay">
+          <div class="pl-ov-btn">+</div>
+          <div class="pl-ov-btn liked">♥</div>
+        </div>
+        <div class="pl-play-overlay"><div class="pl-play-btn">▶</div></div>
+      </div>
+      <div class="pl-body">
+        <div class="pl-name">작업용 Lo-Fi</div>
+        <div class="pl-meta">12곡 · 38분</div>
+      </div>
+    </div>
+
+    <!-- My Playlist 2 -->
+    <div class="my-card">
+      <div class="pl-thumb">
+        <div class="pl-thumb-grid">
+          <div class="pl-thumb-cell">♬</div>
+          <div class="pl-thumb-cell">𝄞</div>
+          <div class="pl-thumb-cell">♫</div>
+          <div class="pl-thumb-cell">♪</div>
+        </div>
+        <div class="pl-overlay">
+          <div class="pl-ov-btn">+</div>
+          <div class="pl-ov-btn">♡</div>
+        </div>
+        <div class="pl-play-overlay"><div class="pl-play-btn">▶</div></div>
+      </div>
+      <div class="pl-body">
+        <div class="pl-name">운동 플리</div>
+        <div class="pl-meta">8곡 · 24분</div>
+      </div>
+    </div>
+
+    <!-- Add New (3개 미만일 때 노출) -->
+    <div class="my-card add-new">
+      <div class="add-icon">+</div>
+      <div class="add-label">새 재생목록</div>
+    </div>
+
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination">
+    <button class="pg-btn">‹</button>
+    <button class="pg-btn on">1</button>
+    <button class="pg-btn">2</button>
+    <button class="pg-btn">›</button>
+  </div>
+
+</main>
+
+<!-- ── PLAYER BAR ── -->
+<div class="player">
+  <div class="p-track">
+    <div class="p-thumb">♪</div>
+    <div><div class="p-name">City Rain</div><div class="p-artist">VelvetWave</div></div>
+    <div class="p-heart">♥</div>
+  </div>
+  <div class="p-ctrl">
+    <div class="p-btns">
+      <button class="pbtn">⇌</button>
+      <button class="pbtn">⏮</button>
+      <div class="pbtn-play">▶</div>
+      <button class="pbtn">⏭</button>
+      <button class="pbtn">↺</button>
+    </div>
+    <div class="p-bar">
+      <span class="p-time">1:55</span>
+      <div class="p-prog"><div class="p-fill"></div></div>
+      <span class="p-time" style="text-align:right;">3:31</span>
+    </div>
+  </div>
+  <div class="p-right">
+    <button class="p-act">대기열</button>
+    <button class="p-act">재생목록</button>
+    <button class="p-act buy">구매하기</button>
+  </div>
+</div>
+
+</body>
+</html>

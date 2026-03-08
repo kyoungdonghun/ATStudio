@@ -1,0 +1,383 @@
+/* ── Page Layout ── */
+
+.page {
+  padding: 32px 48px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ── Page Header ── */
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text0);
+}
+
+.pageTitleCount {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text2);
+  margin-left: 10px;
+}
+
+/* ── Plan Notice ── */
+
+.planNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 20px;
+  margin-bottom: 28px;
+}
+
+.pnLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pnIcon {
+  font-size: 18px;
+}
+
+.pnText {
+  font-size: 13px;
+  color: var(--text1);
+}
+
+.pnStrong {
+  color: var(--text0);
+  font-weight: 600;
+}
+
+.pnBarWrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pnBar {
+  width: 120px;
+  height: 4px;
+  background: var(--border2);
+  border-radius: 2px;
+}
+
+.pnBarFill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+.pnCount {
+  font-size: 12px;
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+/* ── Playlist Grid ── */
+
+.plGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 18px;
+}
+
+/* ── My Playlist Card ── */
+
+.myCard {
+  background: var(--bg1);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.2s;
+  position: relative;
+}
+
+.myCard:hover {
+  border-color: rgba(198, 167, 94, 0.4);
+  transform: translateY(-2px);
+}
+
+/* ── Add New Card ── */
+
+.addNewCard {
+  border: 2px dashed var(--border2);
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 220px;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: border-color 0.2s;
+}
+
+.addNewCard:hover {
+  border-color: var(--accent-border);
+}
+
+.addIcon {
+  font-size: 28px;
+  color: var(--text2);
+  transition: color 0.15s;
+}
+
+.addLabel {
+  font-size: 13px;
+  color: var(--text2);
+  font-weight: 500;
+  transition: color 0.15s;
+}
+
+.addNewCard:hover .addIcon,
+.addNewCard:hover .addLabel {
+  color: var(--accent);
+}
+
+/* ── Thumbnail ── */
+
+.plThumb {
+  width: 100%;
+  aspect-ratio: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg3);
+}
+
+.plThumbGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  height: 100%;
+}
+
+.plThumbCell {
+  background: var(--bg3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: var(--border2);
+}
+
+.plThumbCell:nth-child(even) {
+  background: var(--bg2);
+}
+
+.plThumbSingle {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: var(--border2);
+}
+
+/* ── Overlay Actions ── */
+
+.plOverlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  justify-content: space-between;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.myCard:hover .plOverlay {
+  opacity: 1;
+}
+
+/* ── Play Overlay ── */
+
+.plPlayOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.myCard:hover .plPlayOverlay {
+  opacity: 1;
+}
+
+.plPlayBtn {
+  width: 40px;
+  height: 40px;
+  background: var(--accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bg0);
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+}
+
+/* ── Card Body ── */
+
+.plBody {
+  padding: 12px 13px 14px;
+}
+
+.plName {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+  color: var(--text0);
+}
+
+.plMeta {
+  font-size: 12px;
+  color: var(--text1);
+}
+
+/* ── Delete Button ── */
+
+.deleteBtn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.deleteBtn:hover {
+  color: #f87171;
+}
+
+/* ── Loading / Error ── */
+
+.loading {
+  text-align: center;
+  padding: 64px 0;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+.error {
+  text-align: center;
+  padding: 40px 0;
+  color: #f87171;
+  font-size: 14px;
+}
+
+.empty {
+  text-align: center;
+  padding: 64px 0;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+/* ── New Playlist Button ── */
+
+.btnNewPl {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--accent);
+  color: var(--bg0);
+  border: none;
+  border-radius: 6px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btnNewPl:hover {
+  opacity: 0.88;
+}
+
+/* ── Modal Form ── */
+
+.modalBody {
+  padding: 16px 24px 24px;
+}
+
+.formGroup {
+  margin-bottom: 16px;
+}
+
+.formLabel {
+  display: block;
+  font-size: 13px;
+  color: var(--text1);
+  margin-bottom: 6px;
+}
+
+.formInput {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--text0);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.formInput:focus {
+  outline: none;
+  border-color: var(--accent-border);
+}
+
+.formTextarea {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--text0);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.formTextarea:focus {
+  outline: none;
+  border-color: var(--accent-border);
+}
+
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 24px 20px;
+}

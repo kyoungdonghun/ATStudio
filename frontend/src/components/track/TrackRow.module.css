@@ -1,0 +1,221 @@
+.row {
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.row:hover {
+  background: var(--bg1);
+}
+
+.row:hover .num {
+  display: none;
+}
+
+.row:hover .playBtn {
+  display: flex;
+}
+
+.row:hover .actions {
+  opacity: 1;
+}
+
+/* ── Playing state ── */
+
+.playing .num {
+  display: none;
+}
+
+.playing .playBtn {
+  display: flex;
+}
+
+.playing .title {
+  color: var(--accent);
+}
+
+.playing .actions {
+  opacity: 1;
+}
+
+/* ── Cells ── */
+
+.cell {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.cellNum {
+  composes: cell;
+  text-align: center;
+  width: 42px;
+}
+
+.cellInfo {
+  composes: cell;
+}
+
+.cellTag {
+  composes: cell;
+  width: 130px;
+}
+
+.cellBpm {
+  composes: cell;
+  width: 70px;
+  text-align: right;
+  font-size: 13px;
+  color: var(--text1);
+}
+
+.cellKey {
+  composes: cell;
+  width: 70px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text1);
+}
+
+.cellDur {
+  composes: cell;
+  width: 66px;
+  text-align: right;
+  font-size: 13px;
+  color: var(--text2);
+}
+
+.cellActs {
+  composes: cell;
+  width: 120px;
+  text-align: right;
+}
+
+/* ── Number / Play toggle ── */
+
+.num {
+  font-size: 13px;
+  color: var(--text2);
+}
+
+.playBtn {
+  display: none;
+  width: 24px;
+  height: 24px;
+  background: var(--accent);
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  color: var(--bg0);
+  font-size: 10px;
+  margin: 0 auto;
+  border: none;
+  cursor: pointer;
+}
+
+/* ── Info section ── */
+
+.info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.thumb {
+  width: 40px;
+  height: 40px;
+  background: var(--bg3);
+  border-radius: 5px;
+  border: 1px solid var(--border2);
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--border2);
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text0);
+  transition: color 0.15s;
+}
+
+.artist {
+  font-size: 12px;
+  color: var(--text1);
+  margin-top: 2px;
+}
+
+/* ── Tag chips ── */
+
+.tagChip {
+  display: inline-block;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--text1);
+  margin-right: 4px;
+}
+
+/* ── Actions ── */
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.actBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.actBtn:hover {
+  color: var(--text0);
+  background: var(--bg3);
+}
+
+.liked {
+  color: var(--accent);
+}
+
+.buyBtn {
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.buyBtn:hover {
+  background: rgba(198, 167, 94, 0.22);
+}

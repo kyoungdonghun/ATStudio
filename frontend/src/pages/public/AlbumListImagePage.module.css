@@ -1,0 +1,183 @@
+/* ── Page Layout ── */
+
+.page {
+  padding: 28px 48px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ── Page Header ── */
+
+.pageHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text0);
+}
+
+.pageTitleCount {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text2);
+  margin-left: 10px;
+}
+
+.viewToggle {
+  display: flex;
+  gap: 6px;
+}
+
+.viewBtn {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  color: var(--text1);
+  border-radius: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.viewBtn:hover {
+  color: var(--text0);
+}
+
+.viewBtnActive {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* ── Album Grid ── */
+
+.albumGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+}
+
+/* ── Pagination ── */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 32px 0 16px;
+}
+
+.pgBtn {
+  width: 34px;
+  height: 34px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  color: var(--text1);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.pgBtn:hover {
+  color: var(--text0);
+  background: var(--bg3);
+}
+
+.pgBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pgBtnActive {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg0);
+  font-weight: 600;
+}
+
+.pgEllipsis {
+  width: 34px;
+  text-align: center;
+  color: var(--text2);
+  font-size: 13px;
+}
+
+/* ── Loading / Error ── */
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px;
+  color: #f87171;
+  font-size: 14px;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+/* ── Skeleton ── */
+
+.skeletonThumb {
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--bg3);
+  border-radius: 8px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeletonText {
+  height: 12px;
+  margin-top: 10px;
+  background: var(--bg3);
+  border-radius: 4px;
+  width: 80%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeletonMeta {
+  height: 10px;
+  margin-top: 6px;
+  background: var(--bg3);
+  border-radius: 4px;
+  width: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

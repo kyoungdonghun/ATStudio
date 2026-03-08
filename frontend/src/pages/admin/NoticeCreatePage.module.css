@@ -1,0 +1,100 @@
+/* ── Page ── */
+
+.page {
+  padding: 36px 48px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 28px;
+}
+
+.loading,
+.error {
+  text-align: center;
+  padding: 80px 0;
+  color: var(--text1);
+  font-size: 15px;
+}
+
+/* ── Form ── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formLabel {
+  font-size: 13px;
+  color: var(--text2);
+  font-weight: 500;
+}
+
+.formInput {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 10px 14px;
+  color: var(--text0);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.formInput::placeholder {
+  color: var(--text2);
+}
+
+.formInput:focus {
+  outline: none;
+  border-color: var(--accent-border);
+}
+
+.formTextarea {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 10px 14px;
+  color: var(--text0);
+  font-size: 14px;
+  font-family: inherit;
+  min-height: 200px;
+  resize: vertical;
+}
+
+.formTextarea::placeholder {
+  color: var(--text2);
+}
+
+.formTextarea:focus {
+  outline: none;
+  border-color: var(--accent-border);
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkboxLabel {
+  font-size: 14px;
+  color: var(--text0);
+  cursor: pointer;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}

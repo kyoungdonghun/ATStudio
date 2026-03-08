@@ -1,0 +1,24 @@
+.tag {
+  display: inline-block;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 100px;
+  padding: 7px 16px;
+  font-size: 13px;
+  color: var(--text1);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.tag:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.on {
+  background: var(--accent-dim);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}

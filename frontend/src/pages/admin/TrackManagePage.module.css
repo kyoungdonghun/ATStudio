@@ -1,0 +1,315 @@
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 32px 20px 60px;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text0);
+}
+
+.pageTitleCount {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text2);
+  margin-left: 8px;
+}
+
+.headerActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ── Filter bar ── */
+
+.filterBar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.filterLabel {
+  font-size: 13px;
+  color: var(--text2);
+}
+
+.filterSelect {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  padding: 5px 28px 5px 10px;
+  font-size: 13px;
+  color: var(--text0);
+  font-family: inherit;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239CA3AF'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+/* ── Table ── */
+
+.trackTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.trackTable th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.thCenter {
+  text-align: center;
+}
+
+.thRight {
+  text-align: right;
+}
+
+.trackTable td {
+  padding: 10px 8px;
+  font-size: 13px;
+  color: var(--text0);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.trackTable tbody tr:hover {
+  background: var(--bg2);
+}
+
+/* ── Cell specifics ── */
+
+.cellId {
+  text-align: center;
+  color: var(--text2);
+  width: 50px;
+}
+
+.cellInfo {
+  min-width: 200px;
+}
+
+.info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--text2);
+  flex-shrink: 0;
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.trackTitle {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+.cellBpm {
+  text-align: right;
+  width: 60px;
+}
+
+.cellKey {
+  text-align: center;
+  width: 60px;
+}
+
+.cellPlays {
+  text-align: right;
+  width: 80px;
+  color: var(--text2);
+}
+
+.cellDate {
+  width: 100px;
+  color: var(--text2);
+  font-size: 12px;
+}
+
+/* ── Status badge ── */
+
+.statusBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.statusActive {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+}
+
+.statusInactive {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+}
+
+/* ── Action buttons ── */
+
+.cellActions {
+  width: 120px;
+}
+
+.actionBtns {
+  display: flex;
+  gap: 6px;
+}
+
+.actBtn {
+  background: none;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  color: var(--text1);
+  font-size: 12px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+
+.actBtn:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.actBtnDanger {
+  composes: actBtn;
+}
+
+.actBtnDanger:hover {
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+/* ── Pagination ── */
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 24px;
+}
+
+.pgBtn {
+  min-width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text1);
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.pgBtn:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.pgBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pgBtnActive {
+  background: var(--accent);
+  color: var(--bg0);
+  border-color: var(--accent);
+}
+
+.pgEllipsis {
+  min-width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text2);
+}
+
+/* ── States ── */
+
+.loading {
+  text-align: center;
+  padding: 60px 0;
+  color: var(--text2);
+}
+
+.error {
+  color: #f87171;
+  font-size: 13px;
+  padding: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 6px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.empty {
+  text-align: center;
+  padding: 60px 0;
+  color: var(--text2);
+}
+
+/* ── ConfirmModal body ── */
+
+.modalBody {
+  font-size: 14px;
+  color: var(--text1);
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.modalActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

@@ -1,0 +1,98 @@
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 58px;
+  background: rgba(17, 24, 39, 0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 28px;
+  gap: 14px;
+  z-index: 200;
+}
+
+/* ── Logo ── */
+
+.logo {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* ── Search ── */
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 0 12px;
+  height: 34px;
+  width: 210px;
+  color: var(--text1);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.searchIcon {
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+/* ── Tabs ── */
+
+.navTabs {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+}
+
+.tab {
+  padding: 6px 13px;
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text1);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  text-decoration: none;
+}
+
+.tab:hover {
+  color: var(--text0);
+  background: var(--bg2);
+}
+
+.tabActive {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* ── Right section ── */
+
+.navRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.greeting {
+  font-size: 13px;
+  color: var(--text1);
+}
+
+.greetingName {
+  color: var(--text0);
+  font-weight: 600;
+}

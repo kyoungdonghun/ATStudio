@@ -1,0 +1,146 @@
+/* ── Page ── */
+
+.page {
+  padding: 36px 48px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.loading,
+.error {
+  text-align: center;
+  padding: 80px 0;
+  color: var(--text1);
+  font-size: 15px;
+}
+
+/* ── Table ── */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table thead th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.table tbody td {
+  padding: 12px 14px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.row {
+  transition: background 0.12s;
+}
+
+.row:hover {
+  background: var(--bg1);
+}
+
+.typeBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+}
+
+.actionBtns {
+  display: flex;
+  gap: 6px;
+}
+
+.empty {
+  text-align: center;
+  padding: 48px 0;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+/* ── Modal Form ── */
+
+.modalBody {
+  padding: 16px 20px;
+}
+
+.formGroup {
+  margin-bottom: 16px;
+}
+
+.formLabel {
+  display: block;
+  font-size: 13px;
+  color: var(--text2);
+  margin-bottom: 6px;
+}
+
+.formInput {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text0);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.formInput::placeholder {
+  color: var(--text2);
+}
+
+.formInput:focus {
+  outline: none;
+  border-color: var(--accent-border);
+}
+
+.formSelect {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  color: var(--text1);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 20px;
+}
+
+.deleteText {
+  padding: 16px 20px;
+  font-size: 14px;
+  color: var(--text0);
+  line-height: 1.6;
+}

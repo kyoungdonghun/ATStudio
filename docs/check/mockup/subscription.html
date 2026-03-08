@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ATStudio — 구독 플랜</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+  <style>
+    :root {
+      --bg0: #0F172A; --bg1: #111827; --bg2: #1F2937; --bg3: #253244;
+      --text0: #F9FAFB; --text1: #9CA3AF; --text2: #6B7280;
+      --accent: #C6A75E; --accent-dim: rgba(198,167,94,0.12); --accent-border: rgba(198,167,94,0.3);
+      --border: #1E293B; --border2: #2D3748;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Pretendard', -apple-system, sans-serif; background: var(--bg0); color: var(--text0); font-size: 14px; line-height: 1.5; }
+
+    /* ── HEADER ── */
+    header { position: fixed; top: 0; left: 0; right: 0; height: 58px; background: rgba(17,24,39,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 28px; gap: 14px; z-index: 200; }
+    .logo { font-size: 17px; font-weight: 600; color: var(--accent); letter-spacing: 0.04em; flex-shrink: 0; }
+    .search { display: flex; align-items: center; gap: 8px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 6px; padding: 0 12px; height: 34px; width: 210px; color: var(--text1); font-size: 13px; flex-shrink: 0; }
+    .search svg { opacity: 0.5; flex-shrink: 0; }
+    .nav-tabs { display: flex; gap: 2px; flex: 1; }
+    .tab { padding: 6px 13px; border-radius: 5px; font-size: 13px; color: var(--text1); cursor: pointer; }
+    .tab:hover { color: var(--text0); background: var(--bg2); }
+    .tab.on { color: var(--accent); font-weight: 500; }
+    .nav-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .btn { border: none; border-radius: 5px; padding: 7px 15px; font-size: 13px; font-family: inherit; cursor: pointer; }
+    .btn-ghost { background: transparent; color: var(--text0); border: 1px solid var(--border2); }
+    .btn-cta { background: var(--accent); color: #0F172A; font-weight: 500; }
+
+    /* ── PAGE ── */
+    .page { margin-top: 58px; padding: 56px 48px 80px; max-width: 1100px; margin-left: auto; margin-right: auto; }
+
+    /* ── PAGE HERO ── */
+    .page-hero { text-align: center; margin-bottom: 52px; }
+    .page-hero h1 { font-size: 34px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 14px; }
+    .page-hero p { font-size: 16px; color: var(--text1); line-height: 1.7; }
+
+    /* ── BILLING TOGGLE ── */
+    .billing-toggle {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      margin-bottom: 44px;
+    }
+    .toggle-label { font-size: 14px; color: var(--text1); }
+    .toggle-label.on { color: var(--text0); font-weight: 500; }
+    .toggle-track {
+      width: 44px; height: 24px; background: var(--accent); border-radius: 100px;
+      position: relative; cursor: pointer;
+    }
+    .toggle-thumb {
+      position: absolute; top: 3px; right: 3px;
+      width: 18px; height: 18px; background: #0F172A; border-radius: 50%;
+    }
+    .badge-save {
+      background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3);
+      color: #4ade80; border-radius: 100px; padding: 2px 10px; font-size: 11px; font-weight: 600;
+    }
+
+    /* ── PLANS ── */
+    .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 60px; align-items: start; }
+
+    .plan-card {
+      background: var(--bg1); border: 1px solid var(--border2);
+      border-radius: 14px; padding: 28px 28px 32px; position: relative;
+      transition: border-color .2s;
+    }
+    .plan-card:hover { border-color: var(--border2); }
+    .plan-card.popular {
+      border-color: var(--accent); background: #131e30;
+      transform: translateY(-6px);
+      box-shadow: 0 12px 40px rgba(198,167,94,.12);
+    }
+    .popular-badge {
+      position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: #0F172A; border-radius: 100px;
+      padding: 3px 16px; font-size: 11px; font-weight: 700; letter-spacing: .06em;
+      white-space: nowrap;
+    }
+
+    .plan-name { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 10px; }
+    .plan-price { display: flex; align-items: baseline; gap: 4px; margin-bottom: 6px; }
+    .plan-price-num { font-size: 38px; font-weight: 700; letter-spacing: -0.04em; }
+    .plan-price-unit { font-size: 16px; color: var(--text1); }
+    .plan-price-period { font-size: 13px; color: var(--text2); margin-left: 2px; }
+    .plan-price-annual { font-size: 12px; color: var(--text2); margin-bottom: 22px; }
+    .plan-price-annual span { color: #4ade80; }
+
+    .plan-divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+    .plan-features { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+    .plan-features li { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; color: var(--text1); }
+    .plan-features li .check { color: var(--accent); font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+    .plan-features li .cross { color: var(--text2); font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+    .plan-features li.dim { color: var(--text2); }
+
+    .btn-plan {
+      width: 100%; padding: 12px; border-radius: 8px; font-size: 14px; font-weight: 600;
+      font-family: inherit; cursor: pointer; border: none; transition: opacity .15s;
+    }
+    .btn-plan:hover { opacity: .88; }
+    .btn-plan-outline { background: transparent; border: 1px solid var(--border2) !important; border: none; color: var(--text0); }
+    .btn-plan-fill { background: var(--accent); color: #0F172A; }
+    .btn-plan-ghost { background: var(--bg2); color: var(--text0); }
+
+    /* ── COMPARE TABLE ── */
+    .compare-section { margin-bottom: 60px; }
+    .compare-title { font-size: 18px; font-weight: 600; margin-bottom: 22px; }
+    .compare-table { width: 100%; border-collapse: collapse; }
+    .compare-table th, .compare-table td { padding: 13px 18px; text-align: left; font-size: 13px; border-bottom: 1px solid var(--border); }
+    .compare-table thead th { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; background: var(--bg1); }
+    .compare-table thead th:first-child { border-radius: 8px 0 0 0; }
+    .compare-table thead th:last-child { border-radius: 0 8px 0 0; }
+    .compare-table thead th.hl { color: var(--accent); }
+    .compare-table tbody td { color: var(--text1); }
+    .compare-table tbody td:first-child { color: var(--text0); font-weight: 500; }
+    .compare-table tbody tr:hover { background: var(--bg1); }
+    .compare-table .check { color: var(--accent); }
+    .compare-table .cross { color: var(--text2); }
+    .compare-table .partial { color: var(--text1); }
+
+    /* ── FAQ ── */
+    .faq-section { margin-bottom: 40px; }
+    .faq-title { font-size: 18px; font-weight: 600; margin-bottom: 22px; }
+    .faq-item { border-bottom: 1px solid var(--border); }
+    .faq-q {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 4px; font-size: 14px; font-weight: 500; cursor: pointer; gap: 16px;
+    }
+    .faq-q:hover { color: var(--accent); }
+    .faq-icon { font-size: 18px; color: var(--text2); flex-shrink: 0; }
+    .faq-a { padding: 0 4px 18px; font-size: 13px; color: var(--text1); line-height: 1.75; }
+    .faq-item.open .faq-icon { transform: rotate(45deg); }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="logo">ATStudio</div>
+  <div class="search">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    음원, 앨범 검색
+  </div>
+  <nav class="nav-tabs">
+    <div class="tab">홈</div>
+    <div class="tab">음원</div>
+    <div class="tab">앨범</div>
+    <div class="tab on">구독</div>
+    <div class="tab">공지</div>
+  </nav>
+  <div class="nav-right">
+    <button class="btn btn-ghost">로그인</button>
+    <button class="btn btn-cta">구독 시작하기</button>
+  </div>
+</header>
+
+<!-- ── MAIN ── -->
+<main class="page">
+
+  <!-- Hero -->
+  <div class="page-hero">
+    <h1>쇼츠 크리에이터를 위한 플랜</h1>
+    <p>고품질 라이선스 음악을 구독 하나로 무제한 사용하세요.<br>언제든 취소 가능, 위약금 없음.</p>
+  </div>
+
+  <!-- Billing Toggle -->
+  <div class="billing-toggle">
+    <span class="toggle-label">월간 결제</span>
+    <div class="toggle-track"><div class="toggle-thumb"></div></div>
+    <span class="toggle-label on">연간 결제</span>
+    <span class="badge-save">2개월 무료</span>
+  </div>
+
+  <!-- Plans -->
+  <div class="plans">
+
+    <!-- Starter -->
+    <div class="plan-card">
+      <div class="plan-name">Starter</div>
+      <div class="plan-price">
+        <span class="plan-price-num">₩9,900</span>
+        <span class="plan-price-period">/ 월</span>
+      </div>
+      <div class="plan-price-annual">연간 결제 시 <span>₩99,000 (₩8,250/월)</span></div>
+      <hr class="plan-divider" />
+      <ul class="plan-features">
+        <li><span class="check">✓</span> 월 30곡 다운로드</li>
+        <li><span class="check">✓</span> 개인 채널 라이선스</li>
+        <li><span class="check">✓</span> 재생목록 최대 1개</li>
+        <li><span class="check">✓</span> 모든 장르 접근</li>
+        <li class="dim"><span class="cross">✗</span> 상업 채널 라이선스</li>
+        <li class="dim"><span class="cross">✗</span> 기업 인증</li>
+        <li class="dim"><span class="cross">✗</span> 우선 지원</li>
+      </ul>
+      <button class="btn-plan btn-plan-ghost">시작하기</button>
+    </div>
+
+    <!-- Pro (popular) -->
+    <div class="plan-card popular">
+      <div class="popular-badge">가장 인기 있어요</div>
+      <div class="plan-name" style="color:var(--accent);">Pro</div>
+      <div class="plan-price">
+        <span class="plan-price-num">₩19,900</span>
+        <span class="plan-price-period">/ 월</span>
+      </div>
+      <div class="plan-price-annual">연간 결제 시 <span>₩199,000 (₩16,583/월)</span></div>
+      <hr class="plan-divider" style="border-color: var(--accent-border);" />
+      <ul class="plan-features">
+        <li><span class="check">✓</span> 월 100곡 다운로드</li>
+        <li><span class="check">✓</span> 개인 + 상업 채널 라이선스</li>
+        <li><span class="check">✓</span> 재생목록 최대 3개</li>
+        <li><span class="check">✓</span> 모든 장르 접근</li>
+        <li><span class="check">✓</span> 기업 인증 가능</li>
+        <li class="dim"><span class="cross">✗</span> 무제한 다운로드</li>
+        <li class="dim"><span class="cross">✗</span> 우선 지원</li>
+      </ul>
+      <button class="btn-plan btn-plan-fill">지금 시작하기</button>
+    </div>
+
+    <!-- Business -->
+    <div class="plan-card">
+      <div class="plan-name">Business</div>
+      <div class="plan-price">
+        <span class="plan-price-num">₩49,900</span>
+        <span class="plan-price-period">/ 월</span>
+      </div>
+      <div class="plan-price-annual">연간 결제 시 <span>₩499,000 (₩41,583/월)</span></div>
+      <hr class="plan-divider" />
+      <ul class="plan-features">
+        <li><span class="check">✓</span> 무제한 다운로드</li>
+        <li><span class="check">✓</span> 개인 + 상업 채널 라이선스</li>
+        <li><span class="check">✓</span> 재생목록 최대 3개</li>
+        <li><span class="check">✓</span> 모든 장르 접근</li>
+        <li><span class="check">✓</span> 기업 인증 가능</li>
+        <li><span class="check">✓</span> 우선 지원 (72시간 내)</li>
+      </ul>
+      <button class="btn-plan btn-plan-ghost">시작하기</button>
+    </div>
+
+  </div>
+
+  <!-- Compare Table -->
+  <div class="compare-section">
+    <div class="compare-title">플랜 상세 비교</div>
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th style="width:36%;">기능</th>
+          <th>Starter</th>
+          <th class="hl">Pro</th>
+          <th>Business</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>월 다운로드 한도</td><td>30곡</td><td class="hl partial">100곡</td><td>무제한</td></tr>
+        <tr><td>재생목록</td><td>1개</td><td class="hl partial">3개</td><td>3개</td></tr>
+        <tr><td>개인 채널 라이선스</td><td class="check">✓</td><td class="hl check">✓</td><td class="check">✓</td></tr>
+        <tr><td>상업 채널 라이선스</td><td class="cross">✗</td><td class="hl check">✓</td><td class="check">✓</td></tr>
+        <tr><td>기업 인증</td><td class="cross">✗</td><td class="hl check">✓</td><td class="check">✓</td></tr>
+        <tr><td>우선 지원</td><td class="cross">✗</td><td class="hl cross">✗</td><td class="check">✓</td></tr>
+        <tr><td>구독 취소</td><td>언제든 가능</td><td class="hl partial">언제든 가능</td><td>언제든 가능</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- FAQ -->
+  <div class="faq-section">
+    <div class="faq-title">자주 묻는 질문</div>
+
+    <div class="faq-item open">
+      <div class="faq-q">
+        구독 취소 후에도 다운로드한 음원을 사용할 수 있나요?
+        <span class="faq-icon">+</span>
+      </div>
+      <div class="faq-a">
+        구독 취소 후 결제 기간이 끝나면 신규 다운로드는 불가하지만, 구독 기간 중 다운로드한 음원의 라이선스는 계속 유효합니다. 이미 제작·업로드된 콘텐츠에는 영향이 없습니다.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">
+        플랜을 중간에 업그레이드하거나 다운그레이드할 수 있나요?
+        <span class="faq-icon">+</span>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">
+        상업 채널 라이선스란 무엇인가요?
+        <span class="faq-icon">+</span>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">
+        기업 인증은 어떻게 진행되나요?
+        <span class="faq-icon">+</span>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">
+        월 다운로드 횟수는 언제 초기화되나요?
+        <span class="faq-icon">+</span>
+      </div>
+    </div>
+
+  </div>
+
+</main>
+
+</body>
+</html>

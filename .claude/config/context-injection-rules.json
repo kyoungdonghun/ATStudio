@@ -230,8 +230,8 @@
       "applicable_agents": ["se", "qa", "cr", "uv"],
       "tier": 2,
       "phase_gate": "phase-2",
-      "enabled": false,
-      "note": "Phase 2 전용. React 프론트엔드 전환 시 enabled: true로 변경. (45 rules from Vercel Engineering)"
+      "enabled": true,
+      "note": "Phase 2 활성화됨. React 프론트엔드 전환 완료. (45 rules from Vercel Engineering)"
     },
 
     "spring-boot": {

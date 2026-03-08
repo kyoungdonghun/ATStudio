@@ -1,0 +1,147 @@
+/** Screen L-3: Album detail */
+import { useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { fetchAlbumDetail, type AlbumDetail } from '@/api/albums';
+import styles from './AlbumDetailPage.module.css';
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export default function AlbumDetailPage() {
+  const { albumId } = useParams<{ albumId: string }>();
+  const [album, setAlbum] = useState<AlbumDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!albumId) return;
+
+    setLoading(true);
+    setError(null);
+    fetchAlbumDetail(Number(albumId))
+      .then(setAlbum)
+      .catch(() => setError('Failed to load album'))
+      .finally(() => setLoading(false));
+  }, [albumId]);
+
+  if (loading) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.loading}>Loading...</div>
+      </div>
+    );
+  }
+
+  if (error || !album) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.error}>{error ?? 'Album not found'}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.page}>
+      {/* Breadcrumb */}
+      <nav className={styles.breadcrumb}>
+        <Link to="/">Home</Link>
+        <span>&rsaquo;</span>
+        <Link to="/albums">Album</Link>
+        <span>&rsaquo;</span>
+        <span className={styles.breadcrumbCurrent}>{album.title}</span>
+      </nav>
+
+      {/* Hero */}
+      <section className={styles.hero}>
+        {/* Cover + Vinyl */}
+        <div className={styles.coverWrap}>
+          <div className={styles.vinyl} />
+          <div className={styles.cover}>
+            {album.thumbnailUrl ? (
+              <img
+                src={album.thumbnailUrl}
+                alt={album.title}
+                className={styles.coverImg}
+              />
+            ) : (
+              <span className={styles.coverPlaceholder}>{'\u266A'}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Info */}
+        <div className={styles.info}>
+          <div className={styles.albumType}>Album</div>
+          <h1 className={styles.title}>{album.title}</h1>
+          <div className={styles.meta}>
+            <span className={styles.metaItem}>
+              {'\uD83C\uDFB5'} {album.tracks.length}곡
+            </span>
+            <span className={styles.metaItem}>
+              {'\uD83D\uDCC5'} {formatDate(album.createdAt)}
+            </span>
+          </div>
+          {album.description && (
+            <p className={styles.desc}>{album.description}</p>
+          )}
+          <div className={styles.actions}>
+            <button className={styles.btnPlayAll}>
+              {'\u25B6'}&nbsp;&nbsp;전체 재생
+            </button>
+            <button className={styles.btnLike}>
+              {'\u2661'}&nbsp;&nbsp;좋아요
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Track List */}
+      <section>
+        <div className={styles.sectionLabel}>수록곡</div>
+        <table className={styles.trackTable}>
+          <thead>
+            <tr>
+              <th className={styles.thCenter} style={{ width: 42 }}>
+                #
+              </th>
+              <th>음원</th>
+              <th style={{ width: 66 }} className={styles.thRight}>
+                순서
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {album.tracks.map((t, idx) => (
+              <tr key={t.trackId} className={styles.trackRow}>
+                <td className={styles.tdNum}>
+                  <span className={styles.trNum}>{idx + 1}</span>
+                </td>
+                <td>
+                  <Link
+                    to={`/tracks/${t.trackId}`}
+                    className={styles.tdInfo}
+                  >
+                    <div className={styles.trThumb}>
+                      {t.thumbnailUrl ? (
+                        <img src={t.thumbnailUrl} alt={t.title} />
+                      ) : (
+                        '\u266A'
+                      )}
+                    </div>
+                    <div>
+                      <div className={styles.trTitle}>{t.title}</div>
+                      <div className={styles.trArtist}>{t.artistName}</div>
+                    </div>
+                  </Link>
+                </td>
+                <td className={styles.tdOrder}>{t.order}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </div>
+  );
+}

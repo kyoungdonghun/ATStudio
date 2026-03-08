@@ -1,0 +1,34 @@
+:root {
+  --bg0: #0F172A;
+  --bg1: #111827;
+  --bg2: #1F2937;
+  --bg3: #253244;
+  --text0: #F9FAFB;
+  --text1: #9CA3AF;
+  --text2: #6B7280;
+  --accent: #C6A75E;
+  --accent-dim: rgba(198, 167, 94, 0.12);
+  --accent-border: rgba(198, 167, 94, 0.3);
+  --border: #1E293B;
+  --border2: #2D3748;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg0);
+  color: var(--text0);
+  font-size: 14px;
+  line-height: 1.5;
+}

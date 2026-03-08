@@ -1,0 +1,301 @@
+/* ── Hero Section ── */
+
+.hero {
+  height: 360px;
+  background: linear-gradient(135deg, #162236 0%, var(--bg0) 65%);
+  display: flex;
+  align-items: center;
+  padding: 0 64px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  right: -60px;
+  top: -60px;
+  width: 520px;
+  height: 520px;
+  background: radial-gradient(
+    circle,
+    rgba(198, 167, 94, 0.06) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+.heroBody {
+  max-width: 460px;
+  z-index: 1;
+}
+
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 18px;
+}
+
+.heroTitle {
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  margin-bottom: 14px;
+  color: var(--text0);
+}
+
+.heroSub {
+  font-size: 15px;
+  color: var(--text1);
+  line-height: 1.65;
+  margin-bottom: 30px;
+}
+
+.heroBtns {
+  display: flex;
+  gap: 12px;
+}
+
+.heroStacks {
+  position: absolute;
+  right: 80px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: flex-end;
+}
+
+.heroCard {
+  width: 130px;
+  height: 130px;
+  border-radius: 10px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: var(--border2);
+  flex-shrink: 0;
+}
+
+.heroCard:nth-child(1) {
+  transform: rotate(-10deg) translateX(30px);
+  opacity: 0.7;
+  z-index: 1;
+}
+
+.heroCard:nth-child(2) {
+  transform: rotate(-4deg) translateX(16px);
+  z-index: 2;
+}
+
+.heroCard:nth-child(3) {
+  transform: rotate(2deg);
+  z-index: 3;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Section Common ── */
+
+.section {
+  padding: 36px 48px;
+}
+
+.secHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.secTitle {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text0);
+}
+
+.secTitleSmall {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text2);
+  margin-left: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.secMore {
+  font-size: 12px;
+  color: var(--text1);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.secMore:hover {
+  color: var(--accent);
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0 48px;
+}
+
+/* ── Album Carousel ── */
+
+.carousel {
+  display: flex;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.carouselCard {
+  flex-shrink: 0;
+  width: 158px;
+}
+
+/* ── Album Grid ── */
+
+.albumGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+}
+
+/* ── Genre Tags ── */
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+/* ── Footer ── */
+
+.footer {
+  background: #080d17;
+  padding: 44px 48px 28px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+  gap: 40px;
+}
+
+.ftLogo {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.ftDesc {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.7;
+}
+
+.ftHead {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text1);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 14px;
+}
+
+.ftLink {
+  display: block;
+  font-size: 13px;
+  color: var(--text2);
+  margin-bottom: 9px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.ftLink:hover {
+  color: var(--text1);
+}
+
+.ftCopy {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--text2);
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Loading / Error ── */
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  color: #f87171;
+  font-size: 14px;
+}
+
+/* ── Skeleton placeholders ── */
+
+.skeletonCard {
+  flex-shrink: 0;
+  width: 158px;
+}
+
+.skeletonThumb {
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--bg3);
+  border-radius: 8px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeletonText {
+  height: 12px;
+  margin-top: 10px;
+  background: var(--bg3);
+  border-radius: 4px;
+  width: 80%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeletonMeta {
+  height: 10px;
+  margin-top: 6px;
+  background: var(--bg3);
+  border-radius: 4px;
+  width: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

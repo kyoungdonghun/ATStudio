@@ -1,0 +1,261 @@
+import { type FormEvent, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { register, checkEmailAvailability, checkNicknameAvailability } from '@/api/auth';
+import Button from '@/components/ui/Button';
+import styles from './SignupPage.module.css';
+
+type UserType = 'INDIVIDUAL' | 'BUSINESS';
+
+const JOB_OPTIONS = [
+  { value: '', label: '직업을 선택하세요' },
+  { value: 'CREATOR', label: '크리에이터' },
+  { value: 'EDITOR', label: '편집자' },
+  { value: 'PRODUCER', label: '프로듀서' },
+  { value: 'OTHER', label: '기타' },
+];
+
+/** Screen A-2: Signup */
+export default function SignupPage() {
+  const navigate = useNavigate();
+
+  const [userType, setUserType] = useState<UserType>('INDIVIDUAL');
+  const [nickname, setNickname] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [phonePersonal, setPhonePersonal] = useState('');
+  const [job, setJob] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  function validate(): boolean {
+    if (!nickname.trim()) {
+      setError('닉네임을 입력해주세요.');
+      return false;
+    }
+    if (!email.trim()) {
+      setError('이메일을 입력해주세요.');
+      return false;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('올바른 이메일 형식을 입력해주세요.');
+      return false;
+    }
+    if (!password) {
+      setError('비밀번호를 입력해주세요.');
+      return false;
+    }
+    if (password.length < 8) {
+      setError('비밀번호는 8자 이상이어야 합니다.');
+      return false;
+    }
+    if (password !== passwordConfirm) {
+      setError('비밀번호가 일치하지 않습니다.');
+      return false;
+    }
+    if (!phonePersonal.trim()) {
+      setError('연락처를 입력해주세요.');
+      return false;
+    }
+    if (!job) {
+      setError('직업을 선택해주세요.');
+      return false;
+    }
+    return true;
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+
+    if (!validate()) return;
+
+    setLoading(true);
+    try {
+      /* Parallel availability checks */
+      const [emailCheck, nicknameCheck] = await Promise.all([
+        checkEmailAvailability(email),
+        checkNicknameAvailability(nickname),
+      ]);
+
+      if (!emailCheck.data.available) {
+        setError('이미 사용 중인 이메일입니다.');
+        return;
+      }
+      if (!nicknameCheck.data.available) {
+        setError('이미 사용 중인 닉네임입니다.');
+        return;
+      }
+
+      await register({
+        nickname,
+        email,
+        password,
+        phonePersonal,
+        phoneCompany: null,
+        job,
+        userType,
+      });
+
+      navigate('/email-verify', {
+        state: { email },
+        replace: true,
+      });
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message;
+      setError(msg ?? '회원가입에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className={styles.page}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>회원가입</h1>
+        <p className={styles.subtitle}>ATStudio에 가입하고 음악을 시작하세요</p>
+
+        <form className={styles.form} onSubmit={handleSubmit} noValidate>
+          {/* User Type Toggle */}
+          <div className={styles.fieldGroup}>
+            <span className={styles.label}>회원 유형</span>
+            <div className={styles.roleToggle}>
+              <button
+                type="button"
+                className={userType === 'INDIVIDUAL' ? styles.roleOptionActive : styles.roleOption}
+                onClick={() => setUserType('INDIVIDUAL')}
+              >
+                개인
+              </button>
+              <button
+                type="button"
+                className={userType === 'BUSINESS' ? styles.roleOptionActive : styles.roleOption}
+                onClick={() => setUserType('BUSINESS')}
+              >
+                기업
+              </button>
+            </div>
+          </div>
+
+          {/* Nickname */}
+          <div className={styles.fieldGroup}>
+            <label className={styles.label} htmlFor="signup-nickname">
+              닉네임
+            </label>
+            <input
+              id="signup-nickname"
+              className={styles.input}
+              type="text"
+              placeholder="닉네임"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              autoComplete="nickname"
+            />
+          </div>
+
+          {/* Email */}
+          <div className={styles.fieldGroup}>
+            <label className={styles.label} htmlFor="signup-email">
+              이메일
+            </label>
+            <input
+              id="signup-email"
+              className={styles.input}
+              type="email"
+              placeholder="your@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+            />
+          </div>
+
+          {/* Password */}
+          <div className={styles.fieldGroup}>
+            <label className={styles.label} htmlFor="signup-password">
+              비밀번호
+            </label>
+            <input
+              id="signup-password"
+              className={styles.input}
+              type="password"
+              placeholder="8자 이상"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+
+          {/* Password Confirm */}
+          <div className={styles.fieldGroup}>
+            <label className={styles.label} htmlFor="signup-password-confirm">
+              비밀번호 확인
+            </label>
+            <input
+              id="signup-password-confirm"
+              className={styles.input}
+              type="password"
+              placeholder="비밀번호 재입력"
+              value={passwordConfirm}
+              onChange={(e) => setPasswordConfirm(e.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+
+          {/* Phone */}
+          <div className={styles.fieldGroup}>
+            <label className={styles.label} htmlFor="signup-phone">
+              연락처
+            </label>
+            <input
+              id="signup-phone"
+              className={styles.input}
+              type="tel"
+              placeholder="010-1234-5678"
+              value={phonePersonal}
+              onChange={(e) => setPhonePersonal(e.target.value)}
+              autoComplete="tel"
+            />
+          </div>
+
+          {/* Job */}
+          <div className={styles.fieldGroup}>
+            <label className={styles.label} htmlFor="signup-job">
+              직업
+            </label>
+            <select
+              id="signup-job"
+              className={styles.select}
+              value={job}
+              onChange={(e) => setJob(e.target.value)}
+            >
+              {JOB_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <p className={styles.errorText}>{error}</p>
+
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            loading={loading}
+            className={styles.submitButton}
+          >
+            가입하기
+          </Button>
+        </form>
+
+        <div className={styles.links}>
+          <Link to="/login" className={styles.link}>
+            이미 계정이 있으신가요? 로그인
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}

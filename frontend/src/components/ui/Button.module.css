@@ -1,0 +1,111 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: 5px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Variants ── */
+
+.primary {
+  background: var(--accent);
+  color: var(--bg0);
+}
+
+.primary:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.ghost {
+  background: transparent;
+  color: var(--text0);
+  border: 1px solid var(--border2);
+}
+
+.ghost:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.outline {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+}
+
+.outline:hover:not(:disabled) {
+  background: rgba(198, 167, 94, 0.22);
+}
+
+.danger {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.22);
+}
+
+/* ── Sizes ── */
+
+.sm {
+  padding: 5px 11px;
+  font-size: 12px;
+}
+
+.md {
+  padding: 7px 15px;
+  font-size: 13px;
+}
+
+.lg {
+  padding: 11px 24px;
+  font-size: 14px;
+  border-radius: 6px;
+}
+
+/* ── Loading ── */
+
+.loading {
+  position: relative;
+  color: transparent !important;
+}
+
+.spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  color: var(--text1);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
