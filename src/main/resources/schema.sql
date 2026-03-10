@@ -123,8 +123,11 @@ CREATE TABLE IF NOT EXISTS user_subscriptions
     updated_at      DATETIME                                NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_user_subscriptions_user (user_id)         COMMENT 'One active subscription per user.',
-    CONSTRAINT fk_user_subscriptions_user         FOREIGN KEY (user_id)         REFERENCES users         (id),
-    CONSTRAINT fk_user_subscriptions_subscription FOREIGN KEY (subscription_id) REFERENCES subscriptions (id)
+    pending_subscription_id BIGINT                                  NULL     COMMENT 'Downgrade scheduled plan (applied at next billing).',
+    pending_billing_cycle   VARCHAR(10)                             NULL     COMMENT 'MONTHLY or YEARLY for pending change.',
+    CONSTRAINT fk_user_subscriptions_user            FOREIGN KEY (user_id)                  REFERENCES users         (id),
+    CONSTRAINT fk_user_subscriptions_subscription    FOREIGN KEY (subscription_id)          REFERENCES subscriptions (id),
+    CONSTRAINT fk_user_subscriptions_pending_sub     FOREIGN KEY (pending_subscription_id)  REFERENCES subscriptions (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
@@ -424,9 +427,44 @@ CREATE TABLE IF NOT EXISTS question_attachments
   COLLATE = utf8mb4_unicode_ci;
 
 
+-- ─────────────────────────────────────────────
+-- 3.11  albums  (→ users)
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS albums
+(
+    id          BIGINT       NOT NULL AUTO_INCREMENT,
+    title       VARCHAR(100) NOT NULL,
+    description TEXT         NULL,
+    thumbnail   VARCHAR(500) NULL     COMMENT 'Album cover image URL.',
+    created_by  BIGINT       NOT NULL COMMENT 'ADMIN user who created this album.',
+    is_active   TINYINT(1)   NOT NULL DEFAULT 1 COMMENT 'Soft delete flag.',
+    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_albums_user FOREIGN KEY (created_by) REFERENCES users (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────
+-- 3.12  album_tracks  (→ albums, tracks)
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS album_tracks
+(
+    album_id    BIGINT NOT NULL,
+    track_id    BIGINT NOT NULL,
+    track_order INT    NOT NULL DEFAULT 0,
+    PRIMARY KEY (album_id, track_id),
+    CONSTRAINT fk_album_tracks_album FOREIGN KEY (album_id) REFERENCES albums (id),
+    CONSTRAINT fk_album_tracks_track FOREIGN KEY (track_id) REFERENCES tracks (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- =============================================================================
 -- END OF SCHEMA
--- Total: 21 tables
+-- Total: 23 tables
 -- =============================================================================
