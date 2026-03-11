@@ -78,11 +78,11 @@ export default function SignupPage() {
         checkNicknameAvailability(nickname),
       ]);
 
-      if (!emailCheck.data.available) {
+      if (!emailCheck.available) {
         setError('이미 사용 중인 이메일입니다.');
         return;
       }
-      if (!nicknameCheck.data.available) {
+      if (!nicknameCheck.available) {
         setError('이미 사용 중인 닉네임입니다.');
         return;
       }

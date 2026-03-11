@@ -57,8 +57,8 @@ export async function fetchUsers(
 }
 
 export async function fetchUser(userId: number): Promise<User> {
-  const { data } = await client.get<User>(`/users/${userId}`);
-  return data;
+  const { data } = await client.get<ApiResponse<User>>(`/users/${userId}`);
+  return data.data;
 }
 
 interface UpdateUserAdminRequest {
@@ -69,12 +69,12 @@ interface UpdateUserAdminRequest {
 export async function updateUserAdmin(
   userId: number,
   body: UpdateUserAdminRequest,
-): Promise<ApiResponse<User>> {
+): Promise<User> {
   const { data } = await client.put<ApiResponse<User>>(
     `/users/${userId}`,
     body,
   );
-  return data;
+  return data.data;
 }
 
 /* ── Company Certification ── */
@@ -98,10 +98,10 @@ export async function fetchCompanyCerts(
 export async function fetchCompanyCert(
   certId: number,
 ): Promise<CompanyCertification> {
-  const { data } = await client.get<CompanyCertification>(
+  const { data } = await client.get<ApiResponse<CompanyCertification>>(
     `/company-certifications/${certId}`,
   );
-  return data;
+  return data.data;
 }
 
 interface ProcessCertRequest {
@@ -120,9 +120,9 @@ export async function processCompanyCert(
   certId: number,
   body: ProcessCertRequest,
 ): Promise<ProcessCertResponse> {
-  const { data } = await client.put<ProcessCertResponse>(
+  const { data } = await client.put<ApiResponse<ProcessCertResponse>>(
     `/company-certifications/${certId}`,
     body,
   );
-  return data;
+  return data.data;
 }

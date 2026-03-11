@@ -44,14 +44,12 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const tokenRes = await login({ email, password });
-      const tokens = tokenRes.data;
+      const tokens = await login({ email, password });
 
       localStorage.setItem('accessToken', tokens.accessToken);
       localStorage.setItem('refreshToken', tokens.refreshToken);
 
-      const meRes = await fetchMe();
-      const me: MeResponse = meRes.data;
+      const me: MeResponse = await fetchMe();
 
       authLogin(tokens.accessToken, {
         id: me.id,

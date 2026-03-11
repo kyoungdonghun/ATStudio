@@ -122,6 +122,37 @@
   background: var(--accent-dim);
 }
 
+/* ── Sub Actions (Like + Add to Playlist) ── */
+
+.coverSubActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btnSubAction {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--text1);
+  border-radius: 6px;
+  padding: 9px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.btnSubAction:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.btnSubActionActive {
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
 /* ── Info section ── */
 
 .infoSection {

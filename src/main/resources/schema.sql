@@ -166,6 +166,7 @@ CREATE TABLE IF NOT EXISTS tracks
     description  TEXT         NULL,
     audio_file   VARCHAR(255) NOT NULL COMMENT 'Original file path (for download).',
     preview_file VARCHAR(255) NULL     COMMENT 'Low-quality converted file (for streaming). Falls back to audio_file if NULL.',
+    duration     INT          NOT NULL DEFAULT 0 COMMENT 'Duration in seconds, auto-extracted from audio file.',
     user_id      BIGINT       NOT NULL COMMENT 'Copyright holder (currently admin/artist only).',
     is_active    TINYINT(1)   NOT NULL DEFAULT 0 COMMENT 'Published after admin review.',
     play_count   BIGINT       NOT NULL DEFAULT 0,

@@ -77,12 +77,53 @@ public class TrackController {
     }
 
     @GetMapping("/{trackId}/stream")
-    public ResponseEntity<Resource> streamTrack(@PathVariable Long trackId) {
+    public ResponseEntity<org.springframework.core.io.support.ResourceRegion> streamTrack(
+            @PathVariable Long trackId,
+            @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader) {
         Resource resource = trackService.getStreamResource(trackId);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
-                .contentType(MediaType.parseMediaType("audio/mpeg"))
-                .body(resource);
+        try {
+            long fileLength = resource.contentLength();
+            String contentType = "audio/mpeg";
+            String filename = resource.getFilename();
+            if (filename != null && filename.toLowerCase().endsWith(".wav")) {
+                contentType = "audio/wav";
+            }
+
+            long start = 0;
+            long end = fileLength - 1;
+            long chunkSize = Math.min(1024 * 1024, fileLength); // 1MB default chunk
+
+            if (rangeHeader != null) {
+                String range = rangeHeader.replace("bytes=", "");
+                String[] parts = range.split("-");
+                start = Long.parseLong(parts[0]);
+                end = (parts.length > 1 && !parts[1].isEmpty())
+                        ? Long.parseLong(parts[1])
+                        : Math.min(start + chunkSize - 1, fileLength - 1);
+                if (end >= fileLength) end = fileLength - 1;
+            }
+
+            long contentLength = end - start + 1;
+            var region = new org.springframework.core.io.support.ResourceRegion(resource, start, contentLength);
+
+            if (rangeHeader == null) {
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                        .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileLength))
+                        .contentType(MediaType.parseMediaType(contentType))
+                        .body(region);
+            }
+
+            return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
+                    .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                    .header(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + end + "/" + fileLength)
+                    .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(contentLength))
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .body(region);
+        } catch (java.io.IOException e) {
+            throw new com.atstudio.atstudio.common.exception.BusinessException(
+                    com.atstudio.atstudio.common.exception.BUSINESS_ERROR.TRACK_NOT_FOUND);
+        }
     }
 
     @PutMapping(value = "/{trackId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

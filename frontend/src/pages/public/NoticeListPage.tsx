@@ -82,7 +82,7 @@ export default function NoticeListPage() {
                 {formatDate(n.createdAt)}
               </td>
               <td className={styles.cellViews}>
-                {n.viewCount.toLocaleString()}
+                {(n.viewCount ?? 0).toLocaleString()}
               </td>
             </tr>
           ))}

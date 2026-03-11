@@ -2,6 +2,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { fetchAlbumDetail, type AlbumDetail } from '@/api/albums';
+import { usePlayerStore } from '@/store/playerStore';
+import { useLikeStore } from '@/store/likeStore';
+import { useAuthStore } from '@/store/authStore';
+import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import styles from './AlbumDetailPage.module.css';
 
 function formatDate(iso: string): string {
@@ -14,6 +18,7 @@ export default function AlbumDetailPage() {
   const [album, setAlbum] = useState<AlbumDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [addToPlTrackId, setAddToPlTrackId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!albumId) return;
@@ -25,6 +30,16 @@ export default function AlbumDetailPage() {
       .catch(() => setError('Failed to load album'))
       .finally(() => setLoading(false));
   }, [albumId]);
+
+  const playTrack = usePlayerStore((s) => s.play);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const likeStore = useLikeStore();
+
+  useEffect(() => {
+    if (isAuthenticated && !likeStore.loaded) {
+      likeStore.load();
+    }
+  }, [isAuthenticated, likeStore.loaded]);
 
   if (loading) {
     return (
@@ -90,7 +105,10 @@ export default function AlbumDetailPage() {
             <button className={styles.btnPlayAll}>
               {'\u25B6'}&nbsp;&nbsp;전체 재생
             </button>
-            <button className={styles.btnLike}>
+            <button
+              className={`${styles.btnLike} ${album.tracks.some((t) => likeStore.likedIds.has(t.trackId)) ? styles.btnLikeActive : ''}`}
+              title="앨범 수록곡 전체 좋아요는 개별 트랙에서 설정하세요"
+            >
               {'\u2661'}&nbsp;&nbsp;좋아요
             </button>
           </div>
@@ -110,6 +128,7 @@ export default function AlbumDetailPage() {
               <th style={{ width: 66 }} className={styles.thRight}>
                 순서
               </th>
+              <th style={{ width: 70 }} />
             </tr>
           </thead>
           <tbody>
@@ -117,6 +136,31 @@ export default function AlbumDetailPage() {
               <tr key={t.trackId} className={styles.trackRow}>
                 <td className={styles.tdNum}>
                   <span className={styles.trNum}>{idx + 1}</span>
+                  <button
+                    className={styles.trPlayBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playTrack({
+                        id: t.trackId,
+                        title: t.title,
+                        artistName: t.artistName ?? '',
+                        duration: 0,
+                        bpm: 0,
+                        tonality: '',
+                        description: null,
+                        audioFile: null,
+                        thumbnail: t.thumbnailUrl ?? null,
+                        tags: [],
+                        isActive: true,
+                        playCount: 0,
+                        createdAt: '',
+                        updatedAt: '',
+                      });
+                    }}
+                    aria-label="Play"
+                  >
+                    &#9654;
+                  </button>
                 </td>
                 <td>
                   <Link
@@ -137,11 +181,34 @@ export default function AlbumDetailPage() {
                   </Link>
                 </td>
                 <td className={styles.tdOrder}>{t.order}</td>
+                <td className={styles.tdActions}>
+                  <button
+                    className={`${styles.trLikeBtn} ${likeStore.likedIds.has(t.trackId) ? styles.trLikeBtnActive : ''}`}
+                    onClick={() => likeStore.toggle(t.trackId)}
+                    aria-label="Like"
+                  >
+                    {likeStore.likedIds.has(t.trackId) ? '\u2665' : '\u2661'}
+                  </button>
+                  <button
+                    className={styles.trAddPlBtn}
+                    onClick={() => setAddToPlTrackId(t.trackId)}
+                    aria-label="Add to playlist"
+                    title="재생목록에 추가"
+                  >
+                    +
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </section>
+
+      <AddToPlaylistModal
+        open={addToPlTrackId !== null}
+        trackId={addToPlTrackId}
+        onClose={() => setAddToPlTrackId(null)}
+      />
     </div>
   );
 }

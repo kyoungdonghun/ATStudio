@@ -4,7 +4,6 @@ import styles from './AlbumCard.module.css';
 interface AlbumCardProps {
   album: Album;
   genre?: string;
-  onPlay?: (album: Album) => void;
   onClick?: (album: Album) => void;
   className?: string;
 }
@@ -12,16 +11,10 @@ interface AlbumCardProps {
 export default function AlbumCard({
   album,
   genre,
-  onPlay,
   onClick,
   className,
 }: AlbumCardProps) {
   const classes = [styles.card, className ?? ''].filter(Boolean).join(' ');
-
-  const handlePlay = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onPlay?.(album);
-  };
 
   return (
     <div className={classes} onClick={() => onClick?.(album)}>
@@ -31,15 +24,6 @@ export default function AlbumCard({
         ) : (
           '\u266A'
         )}
-        <div className={styles.playOverlay}>
-          <button
-            className={styles.playBtn}
-            onClick={handlePlay}
-            aria-label="Play album"
-          >
-            &#9654;
-          </button>
-        </div>
       </div>
       <div className={styles.name}>{album.title}</div>
       <div className={styles.meta}>

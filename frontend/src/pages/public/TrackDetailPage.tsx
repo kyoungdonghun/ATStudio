@@ -2,6 +2,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { fetchTrackDetail, type TrackDetail } from '@/api/tracks';
+import { usePlayerStore } from '@/store/playerStore';
+import { useLikeStore } from '@/store/likeStore';
+import { useAuthStore } from '@/store/authStore';
+import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import styles from './TrackDetailPage.module.css';
 
 function formatDate(iso: string): string {
@@ -14,6 +18,11 @@ export default function TrackDetailPage() {
   const [track, setTrack] = useState<TrackDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showPlModal, setShowPlModal] = useState(false);
+
+  const playTrack = usePlayerStore((s) => s.play);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const likeStore = useLikeStore();
 
   useEffect(() => {
     if (!trackId) return;
@@ -25,6 +34,12 @@ export default function TrackDetailPage() {
       .catch(() => setError('Failed to load track'))
       .finally(() => setLoading(false));
   }, [trackId]);
+
+  useEffect(() => {
+    if (isAuthenticated && !likeStore.loaded) {
+      likeStore.load();
+    }
+  }, [isAuthenticated, likeStore.loaded]);
 
   if (loading) {
     return (
@@ -44,6 +59,7 @@ export default function TrackDetailPage() {
 
   const genreTags = track.tags.filter((t) => t.type === 'GENRE');
   const moodTags = track.tags.filter((t) => t.type === 'MOOD');
+  const liked = likeStore.likedIds.has(track.id);
 
   return (
     <div className={styles.page}>
@@ -73,10 +89,46 @@ export default function TrackDetailPage() {
 
           {/* Actions under cover */}
           <div className={styles.coverActions}>
-            <button className={styles.btnPlay}>
+            <button
+              className={styles.btnPlay}
+              onClick={() =>
+                playTrack({
+                  id: track.id,
+                  title: track.title,
+                  artistName: track.artistName ?? '',
+                  duration: track.duration ?? 0,
+                  bpm: track.bpm,
+                  tonality: track.tonality,
+                  description: track.description,
+                  audioFile: track.audioFile,
+                  thumbnail: track.thumbnail,
+                  tags: track.tags as unknown as import('@/types').TagItem[],
+                  isActive: track.isActive,
+                  playCount: track.playCount,
+                  createdAt: track.createdAt,
+                  updatedAt: track.updatedAt,
+                })
+              }
+            >
               {'\u25B6'}&nbsp;&nbsp;미리 듣기
             </button>
             <button className={styles.btnBuy}>구매하기</button>
+          </div>
+
+          {/* Like + Add to Playlist */}
+          <div className={styles.coverSubActions}>
+            <button
+              className={`${styles.btnSubAction} ${liked ? styles.btnSubActionActive : ''}`}
+              onClick={() => likeStore.toggle(track.id)}
+            >
+              {liked ? '\u2665' : '\u2661'}&nbsp;&nbsp;좋아요
+            </button>
+            <button
+              className={styles.btnSubAction}
+              onClick={() => setShowPlModal(true)}
+            >
+              +&nbsp;&nbsp;재생목록에 추가
+            </button>
           </div>
         </div>
 
@@ -146,6 +198,12 @@ export default function TrackDetailPage() {
           </div>
         </div>
       </div>
+
+      <AddToPlaylistModal
+        open={showPlModal}
+        trackId={track.id}
+        onClose={() => setShowPlModal(false)}
+      />
     </div>
   );
 }

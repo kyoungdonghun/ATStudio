@@ -1,0 +1,109 @@
+.empty,
+.success {
+  text-align: center;
+  color: var(--text2);
+  padding: 32px 0;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.success {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.plBtn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  text-align: left;
+}
+
+.plBtn:hover {
+  background: var(--bg2);
+}
+
+.plBtnSelected {
+  border-color: var(--accent-border);
+  background: var(--accent-dim);
+}
+
+.plIcon {
+  width: 28px;
+  height: 28px;
+  background: var(--bg3);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--border2);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.plName {
+  flex: 1;
+  font-weight: 500;
+}
+
+.plCount {
+  font-size: 11px;
+  color: var(--text2);
+}
+
+.errorMsg {
+  text-align: center;
+  color: #f87171;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cancelBtn,
+.addBtn {
+  border: none;
+  border-radius: 5px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cancelBtn {
+  background: var(--bg3);
+  color: var(--text1);
+}
+
+.addBtn {
+  background: var(--accent);
+  color: var(--bg0);
+  font-weight: 600;
+}
+
+.addBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

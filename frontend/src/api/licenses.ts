@@ -1,5 +1,5 @@
 import client from '@/api/client';
-import type { PagedResponse } from '@/types';
+import type { ApiResponse, PagedResponse } from '@/types';
 
 /* ── Response types ── */
 
@@ -43,6 +43,6 @@ export async function fetchMyLicenses(
 export async function fetchLicenseDetail(
   licenseId: number,
 ): Promise<LicenseDetail> {
-  const { data } = await client.get<LicenseDetail>(`/licenses/${licenseId}`);
-  return data;
+  const { data } = await client.get<ApiResponse<LicenseDetail>>(`/licenses/${licenseId}`);
+  return data.data;
 }

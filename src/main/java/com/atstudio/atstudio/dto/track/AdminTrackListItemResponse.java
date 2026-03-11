@@ -3,7 +3,6 @@ package com.atstudio.atstudio.dto.track;
 import com.atstudio.atstudio.dto.tag.TagResponse;
 import com.atstudio.atstudio.entity.Tag;
 import com.atstudio.atstudio.entity.Track;
-import com.atstudio.atstudio.entity.TrackTag;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -11,6 +10,8 @@ import java.util.List;
 public record AdminTrackListItemResponse(
         Long id,
         String title,
+        String artistName,
+        int duration,
         int bpm,
         String tonality,
         String thumbnail,
@@ -23,6 +24,8 @@ public record AdminTrackListItemResponse(
         return new AdminTrackListItemResponse(
                 track.getId(),
                 track.getTitle(),
+                track.getUser().getNickname(),
+                track.getDuration(),
                 track.getBpm(),
                 track.getTonality(),
                 track.getThumbnail(),

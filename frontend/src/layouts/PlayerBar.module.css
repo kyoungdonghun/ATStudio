@@ -61,13 +61,37 @@
 }
 
 .heartBtn {
-  color: var(--accent);
+  color: var(--text2);
   font-size: 14px;
   cursor: pointer;
   flex-shrink: 0;
   background: none;
   border: none;
   padding: 4px;
+  transition: color 0.15s;
+}
+
+.heartBtn:hover {
+  color: var(--accent);
+}
+
+.heartBtnActive {
+  color: var(--accent);
+}
+
+.addToPlBtn {
+  color: var(--text2);
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 4px;
+  transition: color 0.15s;
+}
+
+.addToPlBtn:hover {
+  color: var(--accent);
 }
 
 /* ── Controls (center) ── */
@@ -187,6 +211,11 @@
 
 .actionBtn:hover {
   color: var(--text0);
+}
+
+.actionBtnActive {
+  color: var(--accent);
+  border-color: var(--accent-border);
 }
 
 .buyBtn {

@@ -1,5 +1,5 @@
 import client from '@/api/client';
-import type { Playlist } from '@/types';
+import type { ApiResponse, Playlist } from '@/types';
 
 /* ── Detail types ── */
 
@@ -38,18 +38,18 @@ export async function fetchMyPlaylists(): Promise<{ dataList: Playlist[] }> {
 export async function fetchPlaylistDetail(
   playlistId: number,
 ): Promise<PlaylistDetail> {
-  const { data } = await client.get<PlaylistDetail>(
+  const { data } = await client.get<ApiResponse<PlaylistDetail>>(
     `/playlists/${playlistId}`,
   );
-  return data;
+  return data.data;
 }
 
 /** POST /api/playlists -- create a new playlist */
 export async function createPlaylist(
   req: PlaylistCreateRequest,
 ): Promise<Playlist> {
-  const { data } = await client.post<Playlist>('/playlists', req);
-  return data;
+  const { data } = await client.post<ApiResponse<Playlist>>('/playlists', req);
+  return data.data;
 }
 
 /** PUT /api/playlists/{playlistId} -- update playlist */
@@ -71,6 +71,14 @@ export async function addTrackToPlaylist(
   trackId: number,
 ): Promise<void> {
   await client.post(`/playlists/${playlistId}/tracks`, { trackId });
+}
+
+/** PUT /api/playlists/{playlistId}/tracks -- reorder tracks */
+export async function reorderTracks(
+  playlistId: number,
+  tracks: { trackId: number; trackOrder: number }[],
+): Promise<void> {
+  await client.put(`/playlists/${playlistId}/tracks`, { tracks });
 }
 
 /** DELETE /api/playlists/{playlistId}/tracks/{trackId} -- remove track */

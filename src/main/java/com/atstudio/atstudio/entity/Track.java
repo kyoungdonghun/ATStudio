@@ -40,6 +40,11 @@ public class Track extends BaseEntity {
     @Column(length = 255)
     private String previewFile;
 
+    /** Duration in seconds — auto-extracted from audio file on upload */
+    @Builder.Default
+    @Column(nullable = false)
+    private int duration = 0;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;

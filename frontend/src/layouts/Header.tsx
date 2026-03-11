@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import Button from '@/components/ui/Button';
@@ -15,6 +15,11 @@ const NAV_ITEMS: NavItem[] = [
   { label: '\uC568\uBC94', path: '/albums' },
   { label: '\uAD6C\uB3C5', path: '/subscriptions' },
   { label: '\uACF5\uC9C0', path: '/notices' },
+];
+
+const AUTH_NAV_ITEMS: NavItem[] = [
+  { label: '\uC88B\uC544\uC694', path: '/likes' },
+  { label: '\uC7AC\uC0DD\uBAA9\uB85D', path: '/playlists' },
 ];
 
 function SearchIcon() {
@@ -61,8 +66,10 @@ function ThemeToggle() {
 
 export default function Header() {
   const location = useLocation();
+  const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
 
   function isActive(path: string): boolean {
     if (path === '/') return location.pathname === '/';
@@ -90,6 +97,15 @@ export default function Header() {
             {item.label}
           </Link>
         ))}
+        {isAuthenticated && AUTH_NAV_ITEMS.map((item) => (
+          <Link
+            key={item.path}
+            to={item.path}
+            className={`${styles.tab} ${isActive(item.path) ? styles.tabActive : ''}`}
+          >
+            {item.label}
+          </Link>
+        ))}
       </nav>
 
       <div className={styles.navRight}>
@@ -107,6 +123,16 @@ export default function Header() {
                 {'\uB0B4 \uACC4\uC815'}
               </Button>
             </Link>
+            <Button
+              variant="ghost"
+              size="md"
+              onClick={() => {
+                logout();
+                navigate('/', { replace: true });
+              }}
+            >
+              {'\uB85C\uADF8\uC544\uC6C3'}
+            </Button>
           </>
         ) : (
           <>

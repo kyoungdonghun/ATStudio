@@ -10,6 +10,8 @@ import java.util.List;
 public record TrackResponse(
         Long id,
         String title,
+        String artistName,
+        int duration,
         int bpm,
         String tonality,
         String description,
@@ -25,6 +27,8 @@ public record TrackResponse(
         return new TrackResponse(
                 track.getId(),
                 track.getTitle(),
+                track.getUser().getNickname(),
+                track.getDuration(),
                 track.getBpm(),
                 track.getTonality(),
                 track.getDescription(),
