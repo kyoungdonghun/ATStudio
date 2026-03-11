@@ -11,65 +11,85 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Tech Stack
 
-### Backend (현재)
+### Backend
 
 | Category | Technology |
 |----------|-----------|
 | Language | Java 17 |
-| Framework | Spring Boot 4.x |
-| Build | Gradle 9.3.0 |
+| Framework | Spring Boot 4.0.2 |
+| Build | Gradle |
 | ORM | Spring Data JPA / Hibernate |
 | Security | Spring Security 6 + JWT (JJWT 0.12.5) |
-| Database | MySQL 8.x |
+| Database | MySQL 8.x (prod) / H2 in-memory (test) |
 | Test | JUnit5 + Mockito |
 | Utility | Lombok, ModelMapper |
-| API Docs | Springdoc OpenAPI / Swagger |
-| Template | Thymeleaf (React 전환 전 초기 UI) |
+| API Docs | Springdoc OpenAPI 3.0.2 → `http://localhost:8080/swagger-ui/index.html` |
+| Storage | LocalStorageService (`uploads/` 디렉터리, S3 미적용) |
 
-### Frontend (계획)
+### Frontend (구현 완료)
 
 | Category | Technology |
 |----------|-----------|
-| Framework | React |
-| Language | TypeScript |
+| Framework | React 18 + Vite 6 |
+| Language | TypeScript 5.6 |
+| State | Zustand 5 |
+| Routing | React Router DOM 6 |
+| HTTP | Axios (프록시: `/api/*` → `localhost:8080`) |
 | Lint/Format | ESLint, Prettier |
 
-> **로드맵:** 초기에는 Thymeleaf SSR로 개발 → 추후 React SPA로 프론트엔드 전환 예정.
-> React 전환 시 ESLint/Prettier/TypeScript 스킬이 활성화됨.
+> **현재 상태:** React SPA 전환 완료. ESLint/Prettier/TypeScript 스킬 모두 활성화됨.
 
 ## Package Structure
 
 ```
 com.atstudio.atstudio
-├── config/         ← Spring 설정 (SecurityConfig, WebConfig 등)
+├── common/
+│   ├── dto/        ← BaseDTO, ResponseDTO<T>, ExceptionResponseDTO, PageInfo
+│   ├── entity/     ← BaseEntity (createdAt, updatedAt — JPA Auditing)
+│   └── exception/  ← BUSINESS_ERROR enum, BusinessException, TECHNIC_ERROR enum, TechnicException, GlobalExceptionHandler
+├── config/         ← SecurityConfig, JpaConfig, CorsConfig, JwtConfig, WebConfig, AppConfig
 ├── controller/     ← REST API 엔드포인트 (얇게 유지)
-├── dto/            ← Request/Response DTO
-├── entity/         ← JPA 엔티티
-├── repository/     ← JpaRepository 인터페이스
-└── service/        ← 비즈니스 로직 (핵심)
+├── dto/            ← 도메인별 Request/Response DTO
+├── entity/         ← JPA 엔티티 (모두 BaseEntity 상속)
+│   ├── enums/      ← UserRole, UserType, SubscriptionStatus 등 열거형
+│   └── key/        ← 복합키 클래스 (AlbumTrackId, LikeId 등)
+├── repository/
+│   └── spec/       ← JPA Specification (TrackSpecification, QuestionSpecification)
+├── security/       ← JwtTokenProvider, JwtAuthenticationFilter, CustomUserDetails
+└── service/
+    ├── auth/       ← AuthService, OAuth2Service
+    ├── payment/    ← PaymentService 인터페이스, MockPaymentServiceImpl
+    └── storage/    ← StorageService 인터페이스, LocalStorageService
 ```
+
+### 예외 처리 패턴
+
+예외는 두 트랙으로 분리:
+- **BusinessException(BUSINESS_ERROR)**: 도메인 규칙 위반 (4xx) — `throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND)`
+- **TechnicException(TECHNIC_ERROR)**: 시스템/인프라 오류 (5xx)
+
+`BUSINESS_ERROR` enum은 `clientMessage`(사용자 노출)와 `developerMessage`(내부 로그) 두 메시지를 포함.
 
 ## Build & Test Commands
 
 ```bash
-# 빌드
-./gradlew build          # Linux/Mac
-gradlew.bat build        # Windows
+# ── Backend ──────────────────────────────────────────
+./gradlew build              # 빌드 (Linux/Mac)
+gradlew.bat build            # 빌드 (Windows)
+./gradlew bootRun            # 실행 (MySQL 필요: localhost:3306/atstudio, pw:1234)
+./gradlew test               # 전체 테스트 (H2 in-memory, MySQL 불필요)
+./gradlew test --tests "com.atstudio.atstudio.SomeTest"  # 단일 테스트
+./gradlew build -x test      # 테스트 제외 빌드
 
-# 테스트
-./gradlew test
-
-# 실행
-./gradlew bootRun
-
-# 특정 테스트만 실행
-./gradlew test --tests "com.atstudio.atstudio.SomeTest"
-
-# 빌드 (테스트 제외)
-./gradlew build -x test
+# ── Frontend (frontend/ 디렉터리에서 실행) ────────────
+npm run dev        # 개발 서버 (localhost:5173)
+npm run build      # 프로덕션 빌드
+npm run lint       # ESLint 검사
+npm run typecheck  # TypeScript 타입 검사
+npm run format     # Prettier 포맷 검사
 ```
 
-**주의:** TypeScript/npm/ESLint/Prettier 관련 스킬은 현재 백엔드 단계에서는 적용 안 함. React 프론트엔드 전환 시 활성화.
+**환경변수:** `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, `JWT_SECRET` 등 — 기본값은 `application.yml` 참조.
 
 ## Core Principles (Tier 0)
 
@@ -331,13 +351,13 @@ ATStudio/
 | `/skill-creator` | 새 Skill 생성 가이드 |
 | `/manage-hooks` | Git 훅 관리 |
 
-### Phase 2 전용 (React 전환 시 활성화)
+### Frontend 스킬 (활성화됨 — React 전환 완료)
 
 | 스킬 | 설명 |
 |------|------|
 | `/eslint` | JavaScript/TypeScript 코드 품질 검사 |
 | `/prettier` | 코드 포맷팅 검증 |
-| `/react-best-practices` | React/Next.js 성능 최적화 가이드라인 |
+| `/react-best-practices` | React 성능 최적화 가이드라인 |
 
 ## Deliverables Naming Convention
 
