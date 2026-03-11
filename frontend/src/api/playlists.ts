@@ -44,20 +44,30 @@ export async function fetchPlaylistDetail(
   return data.data;
 }
 
-/** POST /api/playlists -- create a new playlist */
+/** POST /api/playlists -- create a new playlist (multipart/form-data) */
 export async function createPlaylist(
   req: PlaylistCreateRequest,
 ): Promise<Playlist> {
-  const { data } = await client.post<ApiResponse<Playlist>>('/playlists', req);
+  const formData = new FormData();
+  formData.append('title', req.title);
+  if (req.description) formData.append('description', req.description);
+  const { data } = await client.post<ApiResponse<Playlist>>('/playlists', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
   return data.data;
 }
 
-/** PUT /api/playlists/{playlistId} -- update playlist */
+/** PUT /api/playlists/{playlistId} -- update playlist (multipart/form-data) */
 export async function updatePlaylist(
   playlistId: number,
   req: PlaylistCreateRequest,
 ): Promise<void> {
-  await client.put(`/playlists/${playlistId}`, req);
+  const formData = new FormData();
+  formData.append('title', req.title);
+  if (req.description) formData.append('description', req.description);
+  await client.put(`/playlists/${playlistId}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
 }
 
 /** DELETE /api/playlists/{playlistId} -- delete playlist */
