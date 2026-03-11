@@ -52,9 +52,12 @@ INSERT IGNORE INTO tags (name, type) VALUES
 -- ─────────────────────────────────────────────
 -- 3. Admin User (development only)
 -- ─────────────────────────────────────────────
--- password: admin123 (BCrypt hash)
+-- NOTE: Admin password must be set via the application's register API
+-- because BCrypt hashes generated outside Spring may not match.
+-- Steps: 1) Start the app  2) POST /api/users with desired password
+--        3) UPDATE users SET role='ADMIN', is_verified=1 WHERE email='admin@atstudio.com';
 INSERT IGNORE INTO users (nickname, email, password, is_verified, role, user_type)
-VALUES ('admin', 'admin@atstudio.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 1, 'ADMIN', 'INDIVIDUAL');
+VALUES ('admin', 'admin@atstudio.com', '$2a$10$placeholder_register_via_api', 1, 'ADMIN', 'INDIVIDUAL');
 
 -- =============================================================================
 -- END OF SEED DATA

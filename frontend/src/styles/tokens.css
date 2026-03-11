@@ -1,16 +1,35 @@
+/* ── Dark theme (default) ── */
 :root {
-  --bg0: #0F172A;
+  --bg0: #121826;
   --bg1: #111827;
   --bg2: #1F2937;
   --bg3: #253244;
   --text0: #F9FAFB;
   --text1: #9CA3AF;
   --text2: #6B7280;
-  --accent: #C6A75E;
-  --accent-dim: rgba(198, 167, 94, 0.12);
-  --accent-border: rgba(198, 167, 94, 0.3);
+  --accent: #19B981;
+  --accent-dim: rgba(25, 185, 129, 0.12);
+  --accent-border: rgba(25, 185, 129, 0.3);
   --border: #1E293B;
   --border2: #2D3748;
+  --header-bg: rgba(17, 24, 39, 0.95);
+}
+
+/* ── Light theme ── */
+[data-theme="light"] {
+  --bg0: #FFFFFF;
+  --bg1: #F9FAFB;
+  --bg2: #F3F4F6;
+  --bg3: #E5E7EB;
+  --text0: #111827;
+  --text1: #6B7280;
+  --text2: #9CA3AF;
+  --accent: #16A34A;
+  --accent-dim: rgba(22, 163, 74, 0.08);
+  --accent-border: rgba(22, 163, 74, 0.2);
+  --border: #E5E7EB;
+  --border2: #D1D5DB;
+  --header-bg: rgba(255, 255, 255, 0.95);
 }
 
 *,
