@@ -30,7 +30,7 @@ export default function AlbumListPage() {
     try {
       const res = await fetchAlbums({ page: currentPage, size: PAGE_SIZE });
       setAlbums(res.dataList);
-      setPageInfo(res.pageInfo);
+      setPageInfo((res as unknown as { pageInfo?: typeof pageInfo }).pageInfo ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load albums');
     } finally {
@@ -131,7 +131,7 @@ export default function AlbumListPage() {
                     {`${album.trackCount}곡`}
                   </td>
                   <td className={styles.cellDate}>
-                    {formatDate(album.createdAt)}
+                    {album.createdAt ? formatDate(album.createdAt) : '-'}
                   </td>
                 </tr>
               ))}

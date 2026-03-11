@@ -53,6 +53,8 @@ export interface AuthTokens {
 export interface TrackListItem {
   id: number;
   title: string;
+  artistName: string;
+  duration: number;
   bpm: number;
   tonality: string;
   thumbnail: string | null;
@@ -105,13 +107,11 @@ export interface Album {
 
 export interface Playlist {
   id: number;
-  name: string;
+  title: string;
   description: string | null;
-  coverImageUrl: string | null;
+  thumbnail: string | null;
   trackCount: number;
-  isPublic: boolean;
   createdAt: string;
-  updatedAt: string;
 }
 
 /* ── Subscription ── */
@@ -164,7 +164,7 @@ export interface Notice {
 
 export interface PlayHistory {
   id: number;
-  track: Track;
+  track: { id: number; title: string; thumbnail: string | null };
   playedAt: string;
 }
 
@@ -180,7 +180,10 @@ export interface DownloadQueueItem {
 
 export interface LikeItem {
   trackId: number;
-  track: Track;
+  title: string;
+  bpm: number;
+  tonality: string;
+  thumbnail: string | null;
   createdAt: string;
 }
 

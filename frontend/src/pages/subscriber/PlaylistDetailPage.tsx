@@ -91,7 +91,7 @@ export default function PlaylistDetailPage() {
   return (
     <div className={styles.page}>
       {/* Back */}
-      <Link to="/playlists/list" className={styles.backLink}>
+      <Link to="/playlists" className={styles.backLink}>
         {'\u2190 재생목록으로 돌아가기'}
       </Link>
 

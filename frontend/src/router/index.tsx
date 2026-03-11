@@ -25,7 +25,6 @@ import SocialLoginPage from '@/pages/auth/SocialLoginPage';
 import SocialCompleteProfilePage from '@/pages/auth/SocialCompleteProfilePage';
 
 // Subscriber
-import PlaylistImageListPage from '@/pages/subscriber/PlaylistImageListPage';
 import PlaylistListPage from '@/pages/subscriber/PlaylistListPage';
 import PlaylistDetailPage from '@/pages/subscriber/PlaylistDetailPage';
 import PlaylistCreatePage from '@/pages/subscriber/PlaylistCreatePage';
@@ -104,8 +103,7 @@ const routes: RouteObject[] = [
       { path: '/complete-profile', element: authRequired(<SocialCompleteProfilePage />) },
 
       /* ── Subscriber / auth-required (19 routes) ── */
-      { path: '/playlists', element: authRequired(<PlaylistImageListPage />) },
-      { path: '/playlists/list', element: authRequired(<PlaylistListPage />) },
+      { path: '/playlists', element: authRequired(<PlaylistListPage />) },
       { path: '/playlists/:playlistId', element: authRequired(<PlaylistDetailPage />) },
       { path: '/playlists/new', element: authRequired(<PlaylistCreatePage />) },
       { path: '/playlists/:playlistId/edit', element: authRequired(<PlaylistEditPage />) },

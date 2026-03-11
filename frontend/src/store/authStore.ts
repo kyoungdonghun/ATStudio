@@ -1,6 +1,20 @@
 import { create } from 'zustand';
 import type { User, UserRole } from '@/types';
 
+function loadUser(): User | null {
+  try {
+    const raw = localStorage.getItem('user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function loadRole(): UserRole {
+  const user = loadUser();
+  return user?.role ?? 'GUEST';
+}
+
 interface AuthState {
   user: User | null;
   accessToken: string | null;
@@ -11,18 +25,20 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  user: null,
+  user: loadUser(),
   accessToken: localStorage.getItem('accessToken'),
-  role: 'GUEST',
+  role: loadRole(),
 
   login: (token: string, user: User) => {
     localStorage.setItem('accessToken', token);
+    localStorage.setItem('user', JSON.stringify(user));
     set({ accessToken: token, user, role: user.role });
   },
 
   logout: () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
     set({ accessToken: null, user: null, role: 'GUEST' });
   },
 

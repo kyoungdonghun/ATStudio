@@ -1,5 +1,5 @@
 import client from '@/api/client';
-import type { Notice, PagedResponse } from '@/types';
+import type { ApiResponse, Notice, PagedResponse } from '@/types';
 
 interface NoticeListParams {
   page?: number;
@@ -16,8 +16,8 @@ export async function fetchNotices(
 }
 
 export async function fetchNotice(noticeId: number): Promise<Notice> {
-  const { data } = await client.get<Notice>(`/notices/${noticeId}`);
-  return data;
+  const { data } = await client.get<ApiResponse<Notice>>(`/notices/${noticeId}`);
+  return data.data;
 }
 
 /* ── Admin Notice CRUD ── */
@@ -35,16 +35,16 @@ interface NoticeUpdateRequest {
 }
 
 export async function createNotice(body: NoticeCreateRequest): Promise<Notice> {
-  const { data } = await client.post<Notice>('/notices', body);
-  return data;
+  const { data } = await client.post<ApiResponse<Notice>>('/notices', body);
+  return data.data;
 }
 
 export async function updateNotice(
   noticeId: number,
   body: NoticeUpdateRequest,
 ): Promise<Notice> {
-  const { data } = await client.put<Notice>(`/notices/${noticeId}`, body);
-  return data;
+  const { data } = await client.put<ApiResponse<Notice>>(`/notices/${noticeId}`, body);
+  return data.data;
 }
 
 export async function deleteNotice(noticeId: number): Promise<void> {

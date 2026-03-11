@@ -51,9 +51,9 @@ export default function HomePage() {
 
         if (cancelled) return;
 
-        setNewAlbums(newRes.dataList);
-        setPopularAlbums(popRes.dataList);
-        setGenreTags(tags);
+        setNewAlbums(newRes.dataList ?? []);
+        setPopularAlbums(popRes.dataList ?? []);
+        setGenreTags(Array.isArray(tags) ? tags : []);
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -89,7 +89,9 @@ export default function HomePage() {
       .filter((t) => selectedGenres.has(t.id))
       .map((t) => t.name);
     if (names.length > 0) {
-      navigate(`/tracks?genre=${encodeURIComponent(names[0])}`);
+      const params = new URLSearchParams();
+      names.forEach((name) => params.append('genre', name));
+      navigate(`/tracks?${params.toString()}`);
     } else {
       navigate('/tracks');
     }

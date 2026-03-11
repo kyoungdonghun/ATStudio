@@ -16,9 +16,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 @Service
 @Transactional(readOnly = true)
@@ -28,7 +32,6 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
     private final OAuth2Service oAuth2Service;
 
     @Transactional
@@ -43,9 +46,9 @@ public class AuthService {
         String accessToken = jwtTokenProvider.generateAccessToken(userDetails.getId(), userDetails.getRole());
         String refreshToken = jwtTokenProvider.generateRefreshToken(userDetails.getId());
 
-        // 3. Refresh Token DB 저장 (BCrypt 해시)
+        // 3. Refresh Token DB 저장 (SHA-256 해시 — BCrypt 72바이트 제한 회피)
         User user = userRepository.findById(userDetails.getId()).orElseThrow();
-        user.updateRefreshToken(passwordEncoder.encode(refreshToken));
+        user.updateRefreshToken(sha256(refreshToken));
 
         return new AuthResponse(accessToken, refreshToken, "Bearer",
                 jwtTokenProvider.getAccessTokenExpiration() / 1000);
@@ -58,7 +61,7 @@ public class AuthService {
         String accessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
 
-        user.updateRefreshToken(passwordEncoder.encode(refreshToken));
+        user.updateRefreshToken(sha256(refreshToken));
 
         boolean isProfileComplete = user.isProfileComplete();
 
@@ -85,7 +88,7 @@ public class AuthService {
 
         // SEC-07: DB 불일치 시 refresh token clear
         if (user.getRefreshToken() == null
-                || !passwordEncoder.matches(requestToken, user.getRefreshToken())) {
+                || !sha256(requestToken).equals(user.getRefreshToken())) {
             user.clearRefreshToken();
             throw new BusinessException(BUSINESS_ERROR.REFRESH_TOKEN_INVALID);
         }
@@ -98,9 +101,20 @@ public class AuthService {
         // 토큰 재발급 (rotation)
         String newAccessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
-        user.updateRefreshToken(passwordEncoder.encode(newRefreshToken));
+        user.updateRefreshToken(sha256(newRefreshToken));
 
         return new AuthResponse(newAccessToken, newRefreshToken, "Bearer",
                 jwtTokenProvider.getAccessTokenExpiration() / 1000);
+    }
+
+    /** SHA-256 해시 (refresh token용 — BCrypt 72바이트 제한 회피) */
+    private static String sha256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
     }
 }

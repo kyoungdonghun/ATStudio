@@ -20,9 +20,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,7 +39,6 @@ class AuthServiceTest {
     @Mock AuthenticationManager authenticationManager;
     @Mock JwtTokenProvider jwtTokenProvider;
     @Mock UserRepository userRepository;
-    @Mock PasswordEncoder passwordEncoder;
     @Mock OAuth2Service oAuth2Service;
 
     @InjectMocks AuthService authService;
@@ -45,7 +46,7 @@ class AuthServiceTest {
     // ── login() ───────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("login() 성공 - AuthResponse 반환 및 hashed refreshToken DB 저장")
+    @DisplayName("login() 성공 - AuthResponse 반환 및 SHA-256 hashed refreshToken DB 저장")
     void login_success_storesHashedTokenAndReturnsResponse() {
         User user = buildUser(1L, false);
         CustomUserDetails userDetails = CustomUserDetails.from(user);
@@ -56,7 +57,6 @@ class AuthServiceTest {
         when(jwtTokenProvider.generateRefreshToken(1L)).thenReturn("refresh-token");
         when(jwtTokenProvider.getAccessTokenExpiration()).thenReturn(3600000L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(passwordEncoder.encode("refresh-token")).thenReturn("hashed-refresh");
 
         LoginRequest request = new LoginRequest();
         request.setEmail("user@test.com");
@@ -66,7 +66,7 @@ class AuthServiceTest {
         assertThat(response.accessToken()).isEqualTo("access-token");
         assertThat(response.refreshToken()).isEqualTo("refresh-token");
         assertThat(response.tokenType()).isEqualTo("Bearer");
-        assertThat(user.getRefreshToken()).isEqualTo("hashed-refresh");
+        assertThat(user.getRefreshToken()).isEqualTo(sha256("refresh-token"));
     }
 
     @Test
@@ -89,16 +89,14 @@ class AuthServiceTest {
     @DisplayName("refresh() 성공 - VALID 토큰 + DB 해시 일치 → 토큰 rotation")
     void refresh_validToken_rotatesTokens() {
         User user = buildUser(1L, false);
-        user.updateRefreshToken("hashed-old");
+        user.updateRefreshToken(sha256("old-refresh"));
 
         when(jwtTokenProvider.validateToken("old-refresh")).thenReturn(TokenValidationResult.VALID);
         when(jwtTokenProvider.getUserID("old-refresh")).thenReturn(1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("old-refresh", "hashed-old")).thenReturn(true);
         when(jwtTokenProvider.generateAccessToken(1L, UserRole.USER)).thenReturn("new-access");
         when(jwtTokenProvider.generateRefreshToken(1L)).thenReturn("new-refresh");
         when(jwtTokenProvider.getAccessTokenExpiration()).thenReturn(3600000L);
-        when(passwordEncoder.encode("new-refresh")).thenReturn("hashed-new");
 
         RefreshRequest request = new RefreshRequest();
         request.setRefreshToken("old-refresh");
@@ -106,7 +104,7 @@ class AuthServiceTest {
 
         assertThat(response.accessToken()).isEqualTo("new-access");
         assertThat(response.refreshToken()).isEqualTo("new-refresh");
-        assertThat(user.getRefreshToken()).isEqualTo("hashed-new");
+        assertThat(user.getRefreshToken()).isEqualTo(sha256("new-refresh"));
     }
 
     @Test
@@ -141,12 +139,11 @@ class AuthServiceTest {
     @DisplayName("refresh() 실패 - DB 해시 불일치 → clearRefreshToken() 호출 + REFRESH_TOKEN_INVALID 예외")
     void refresh_dbHashMismatch_clearsTokenAndThrows() {
         User user = buildUser(1L, false);
-        user.updateRefreshToken("hashed-other");
+        user.updateRefreshToken(sha256("other-refresh"));
 
         when(jwtTokenProvider.validateToken("some-refresh")).thenReturn(TokenValidationResult.VALID);
         when(jwtTokenProvider.getUserID("some-refresh")).thenReturn(1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("some-refresh", "hashed-other")).thenReturn(false);
 
         RefreshRequest request = new RefreshRequest();
         request.setRefreshToken("some-refresh");
@@ -164,12 +161,11 @@ class AuthServiceTest {
     void refresh_deletedUser_throwsAccountDeactivated() {
         User user = buildUser(1L, false);
         user.withdraw();                        // isDeleted=true, refreshToken=null
-        user.updateRefreshToken("hashed-refresh");  // token back for test scenario
+        user.updateRefreshToken(sha256("some-refresh"));  // token back for test scenario
 
         when(jwtTokenProvider.validateToken("some-refresh")).thenReturn(TokenValidationResult.VALID);
         when(jwtTokenProvider.getUserID("some-refresh")).thenReturn(1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("some-refresh", "hashed-refresh")).thenReturn(true);
 
         RefreshRequest request = new RefreshRequest();
         request.setRefreshToken("some-refresh");
@@ -191,5 +187,16 @@ class AuthServiceTest {
         ReflectionTestUtils.setField(user, "id", id);
         if (deleted) user.withdraw();
         return user;
+    }
+
+    /** Mirror of AuthService.sha256() for test assertions */
+    private static String sha256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

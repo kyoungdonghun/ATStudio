@@ -1,5 +1,5 @@
 import client from '@/api/client';
-import type { PagedResponse, TrackListItem } from '@/types';
+import type { ApiResponse, PagedResponse, TrackListItem } from '@/types';
 
 /* ── Local detail types (not in shared types) ── */
 
@@ -12,6 +12,8 @@ export interface TrackTag {
 export interface TrackDetail {
   id: number;
   title: string;
+  artistName: string;
+  duration: number;
   bpm: number;
   tonality: string;
   description: string | null;
@@ -66,8 +68,8 @@ export async function fetchTracks(
 
 /** GET /api/tracks/{trackId} -- track detail */
 export async function fetchTrackDetail(trackId: number): Promise<TrackDetail> {
-  const { data } = await client.get<TrackDetail>(`/tracks/${trackId}`);
-  return data;
+  const { data } = await client.get<ApiResponse<TrackDetail>>(`/tracks/${trackId}`);
+  return data.data;
 }
 
 /* ── Admin track list item (includes isActive) ── */
@@ -75,6 +77,8 @@ export async function fetchTrackDetail(trackId: number): Promise<TrackDetail> {
 export interface AdminTrackListItem {
   id: number;
   title: string;
+  artistName: string;
+  duration: number;
   bpm: number;
   tonality: string;
   thumbnail: string | null;
@@ -109,10 +113,10 @@ export async function fetchAdminTracks(
 
 /** POST /api/tracks -- create track (multipart/form-data) */
 export async function createTrack(formData: FormData): Promise<TrackDetail> {
-  const { data } = await client.post<TrackDetail>('/tracks', formData, {
+  const { data } = await client.post<ApiResponse<TrackDetail>>('/tracks', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
-  return data;
+  return data.data;
 }
 
 /** PUT /api/tracks/{trackId} -- update track (multipart/form-data) */
@@ -120,12 +124,12 @@ export async function updateTrack(
   trackId: number,
   formData: FormData,
 ): Promise<TrackDetail> {
-  const { data } = await client.put<TrackDetail>(
+  const { data } = await client.put<ApiResponse<TrackDetail>>(
     `/tracks/${trackId}`,
     formData,
     { headers: { 'Content-Type': 'multipart/form-data' } },
   );
-  return data;
+  return data.data;
 }
 
 /** DELETE /api/tracks/{trackId} -- soft delete */

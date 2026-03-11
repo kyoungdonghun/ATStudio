@@ -187,7 +187,7 @@ export default function PlaylistListPage() {
                 </div>
               </div>
               <div className={styles.plBody}>
-                <div className={styles.plName}>{pl.name}</div>
+                <div className={styles.plName}>{pl.title}</div>
                 <div className={styles.plMeta}>
                   {pl.trackCount}곡
                 </div>
@@ -261,7 +261,7 @@ export default function PlaylistListPage() {
         <div className={styles.modalBody}>
           <p>
             {'정말 '}
-            <strong>{deleteTarget?.name}</strong>
+            <strong>{deleteTarget?.title}</strong>
             {' 재생목록을 삭제하시겠습니까?'}
           </p>
         </div>

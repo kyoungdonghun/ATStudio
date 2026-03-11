@@ -1,65 +1,121 @@
 import { create } from 'zustand';
 import type { Track } from '@/types';
+import { recordPlay } from '@/api/playHistory';
+
+const audio = new Audio();
 
 interface PlayerState {
   currentTrack: Track | null;
   isPlaying: boolean;
+  currentTime: number;
+  duration: number;
   queue: Track[];
   play: (track: Track) => void;
   pause: () => void;
   resume: () => void;
   next: () => void;
   prev: () => void;
+  seek: (time: number) => void;
   addToQueue: (track: Track) => void;
+  removeFromQueue: (trackId: number) => void;
   clearQueue: () => void;
 }
 
-export const usePlayerStore = create<PlayerState>((set, get) => ({
-  currentTrack: null,
-  isPlaying: false,
-  queue: [],
+export const usePlayerStore = create<PlayerState>((set, get) => {
+  // Audio event listeners
+  audio.addEventListener('timeupdate', () => {
+    set({ currentTime: audio.currentTime, duration: audio.duration || 0 });
+  });
 
-  play: (track: Track) => {
-    set({ currentTrack: track, isPlaying: true });
-  },
+  audio.addEventListener('ended', () => {
+    get().next();
+  });
 
-  pause: () => {
-    set({ isPlaying: false });
-  },
+  audio.addEventListener('loadedmetadata', () => {
+    set({ duration: audio.duration || 0 });
+  });
 
-  resume: () => {
-    set({ isPlaying: true });
-  },
+  return {
+    currentTrack: null,
+    isPlaying: false,
+    currentTime: 0,
+    duration: 0,
+    queue: [],
 
-  next: () => {
-    const { queue, currentTrack } = get();
-    if (queue.length === 0) return;
-    const currentIndex = currentTrack
-      ? queue.findIndex((t) => t.id === currentTrack.id)
-      : -1;
-    const nextIndex = (currentIndex + 1) % queue.length;
-    set({ currentTrack: queue[nextIndex], isPlaying: true });
-  },
+    play: (track: Track) => {
+      const apiBase = '/api/tracks';
+      audio.src = `${apiBase}/${track.id}/stream`;
+      audio.play().catch(() => {});
+      set({ currentTrack: track, isPlaying: true, currentTime: 0 });
 
-  prev: () => {
-    const { queue, currentTrack } = get();
-    if (queue.length === 0) return;
-    const currentIndex = currentTrack
-      ? queue.findIndex((t) => t.id === currentTrack.id)
-      : 0;
-    const prevIndex = (currentIndex - 1 + queue.length) % queue.length;
-    set({ currentTrack: queue[prevIndex], isPlaying: true });
-  },
+      // Record play history (fire-and-forget, only if logged in)
+      if (localStorage.getItem('accessToken')) {
+        recordPlay(track.id).catch(() => {});
+      }
+    },
 
-  addToQueue: (track: Track) => {
-    set((state) => ({
-      queue: state.queue.some((t) => t.id === track.id)
-        ? state.queue
-        : [...state.queue, track],
-    }));
-  },
+    pause: () => {
+      audio.pause();
+      set({ isPlaying: false });
+    },
 
-  clearQueue: () => {
-    set({ queue: [], currentTrack: null, isPlaying: false });
-  },
-}));
+    resume: () => {
+      audio.play().catch(() => {});
+      set({ isPlaying: true });
+    },
+
+    next: () => {
+      const { queue, currentTrack, play } = get();
+      if (queue.length === 0) {
+        audio.pause();
+        set({ isPlaying: false });
+        return;
+      }
+      const currentIndex = currentTrack
+        ? queue.findIndex((t) => t.id === currentTrack.id)
+        : -1;
+      const nextIndex = (currentIndex + 1) % queue.length;
+      play(queue[nextIndex]);
+    },
+
+    prev: () => {
+      // If more than 3 seconds in, restart current track
+      if (audio.currentTime > 3) {
+        audio.currentTime = 0;
+        return;
+      }
+      const { queue, currentTrack, play } = get();
+      if (queue.length === 0) return;
+      const currentIndex = currentTrack
+        ? queue.findIndex((t) => t.id === currentTrack.id)
+        : 0;
+      const prevIndex = (currentIndex - 1 + queue.length) % queue.length;
+      play(queue[prevIndex]);
+    },
+
+    seek: (time: number) => {
+      audio.currentTime = time;
+      set({ currentTime: time });
+    },
+
+    addToQueue: (track: Track) => {
+      set((state) => ({
+        queue: state.queue.some((t) => t.id === track.id)
+          ? state.queue
+          : [...state.queue, track],
+      }));
+    },
+
+    removeFromQueue: (trackId: number) => {
+      set((state) => ({
+        queue: state.queue.filter((t) => t.id !== trackId),
+      }));
+    },
+
+    clearQueue: () => {
+      audio.pause();
+      audio.src = '';
+      set({ queue: [], currentTrack: null, isPlaying: false, currentTime: 0, duration: 0 });
+    },
+  };
+});

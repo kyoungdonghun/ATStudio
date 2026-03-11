@@ -1,4 +1,5 @@
 import client from '@/api/client';
+import type { ApiResponse } from '@/types';
 import type { SubscriptionPlan } from '@/api/subscriptions';
 
 /* ── Response types ── */
@@ -41,21 +42,21 @@ export interface ChangeSubscriptionRequest {
 
 /** GET /api/user-subscriptions/me -- my current subscription */
 export async function fetchMySubscription(): Promise<MySubscription> {
-  const { data } = await client.get<MySubscription>(
+  const { data } = await client.get<ApiResponse<MySubscription>>(
     '/user-subscriptions/me',
   );
-  return data;
+  return data.data;
 }
 
 /** PUT /api/user-subscriptions/me -- change (upgrade/downgrade) subscription */
 export async function changeMySubscription(
   req: ChangeSubscriptionRequest,
 ): Promise<SubscriptionChangeResponse> {
-  const { data } = await client.put<SubscriptionChangeResponse>(
+  const { data } = await client.put<ApiResponse<SubscriptionChangeResponse>>(
     '/user-subscriptions/me',
     req,
   );
-  return data;
+  return data.data;
 }
 
 /** DELETE /api/user-subscriptions/me -- cancel my subscription */
@@ -68,9 +69,9 @@ export async function fetchSubscriptionChangePreview(
   subscriptionId: number,
   billingCycle: 'MONTHLY' | 'YEARLY',
 ): Promise<SubscriptionChangePreview> {
-  const { data } = await client.get<SubscriptionChangePreview>(
+  const { data } = await client.get<ApiResponse<SubscriptionChangePreview>>(
     '/utils/subscription-change-preview',
     { params: { subscriptionId, billingCycle } },
   );
-  return data;
+  return data.data;
 }

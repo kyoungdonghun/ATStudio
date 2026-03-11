@@ -273,6 +273,29 @@
   color: var(--text2);
 }
 
+.trPlayBtn {
+  display: none;
+  width: 24px;
+  height: 24px;
+  background: var(--accent);
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  color: var(--bg0);
+  font-size: 10px;
+  margin: 0 auto;
+  border: none;
+  cursor: pointer;
+}
+
+.trackRow:hover .trNum {
+  display: none;
+}
+
+.trackRow:hover .trPlayBtn {
+  display: flex;
+}
+
 .tdInfo {
   display: flex;
   align-items: center;
@@ -322,4 +345,49 @@
   font-size: 13px;
   color: var(--text2);
   text-align: right;
+}
+
+/* ── Track row actions ── */
+
+.tdActions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.trLikeBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.15s;
+}
+
+.trLikeBtn:hover {
+  color: var(--accent);
+}
+
+.trLikeBtnActive {
+  color: var(--accent);
+}
+
+.trAddPlBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  margin-left: 4px;
+  transition: color 0.15s;
+}
+
+.trAddPlBtn:hover {
+  color: var(--accent);
+}
+
+.btnLikeActive {
+  color: var(--accent);
+  border-color: var(--accent-border);
 }

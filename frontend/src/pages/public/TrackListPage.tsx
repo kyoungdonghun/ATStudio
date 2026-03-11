@@ -5,7 +5,10 @@ import { fetchTags } from '@/api/tags';
 import type { TrackListItem, TagItem, PageInfo } from '@/types';
 import TrackRow from '@/components/track/TrackRow';
 import FilterChip from '@/components/ui/FilterChip';
+import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import { usePlayerStore } from '@/store/playerStore';
+import { useLikeStore } from '@/store/likeStore';
+import { useAuthStore } from '@/store/authStore';
 import styles from './TrackListPage.module.css';
 
 /* ── BPM filter presets ── */
@@ -30,13 +33,25 @@ export default function TrackListPage() {
 
   /* ── Derive filters from URL ── */
   const currentPage = Number(searchParams.get('page') ?? '1');
-  const activeGenre = searchParams.get('genre') ?? '';
+  const activeGenres = searchParams.getAll('genre');
   const activeMood = searchParams.get('mood') ?? '';
   const activeBpmLabel = searchParams.get('bpm') ?? '';
   const sortValue = (searchParams.get('sort') ?? 'latest') as 'latest' | 'popular';
 
   /* Player store for playing state */
   const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const playTrack = usePlayerStore((s) => s.play);
+
+  /* Like store */
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const likeStore = useLikeStore();
+  const [addToPlTrackId, setAddToPlTrackId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isAuthenticated && !likeStore.loaded) {
+      likeStore.load();
+    }
+  }, [isAuthenticated, likeStore.loaded]);
 
   /* ── Load tags once ── */
   useEffect(() => {
@@ -74,7 +89,7 @@ export default function TrackListPage() {
       sort: sortValue,
     };
 
-    if (activeGenre) params.genre = activeGenre;
+    if (activeGenres.length > 0) params.genre = activeGenres.join(',');
     if (activeMood) params.mood = activeMood;
 
     const bpmPreset = BPM_PRESETS.find((p) => p.label === activeBpmLabel);
@@ -92,7 +107,7 @@ export default function TrackListPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, sortValue, activeGenre, activeMood, activeBpmLabel]);
+  }, [currentPage, sortValue, activeGenres.join(','), activeMood, activeBpmLabel]);
 
   useEffect(() => {
     loadTracks();
@@ -111,7 +126,14 @@ export default function TrackListPage() {
   }
 
   function toggleGenre(name: string) {
-    setFilter('genre', activeGenre === name ? '' : name);
+    const next = new URLSearchParams(searchParams);
+    next.delete('genre');
+    const updated = activeGenres.includes(name)
+      ? activeGenres.filter((g) => g !== name)
+      : [...activeGenres, name];
+    updated.forEach((g) => next.append('genre', g));
+    next.set('page', '1');
+    setSearchParams(next);
   }
 
   function toggleMood(name: string) {
@@ -184,14 +206,19 @@ export default function TrackListPage() {
           <span className={styles.filterLabel}>{'장르'}</span>
           <FilterChip
             label={'전체'}
-            active={!activeGenre}
-            onClick={() => setFilter('genre', '')}
+            active={activeGenres.length === 0}
+            onClick={() => {
+              const next = new URLSearchParams(searchParams);
+              next.delete('genre');
+              next.set('page', '1');
+              setSearchParams(next);
+            }}
           />
           {genreTags.map((tag) => (
             <FilterChip
               key={tag.id}
               label={tag.name}
-              active={activeGenre === tag.name}
+              active={activeGenres.includes(tag.name)}
               onClick={() => toggleGenre(tag.name)}
             />
           ))}
@@ -256,6 +283,25 @@ export default function TrackListPage() {
                   index={(currentPage - 1) * PAGE_SIZE + idx + 1}
                   track={track}
                   playing={currentTrack?.id === track.id}
+                  liked={likeStore.likedIds.has(track.id)}
+                  onPlay={(t) => playTrack({
+                    id: t.id,
+                    title: t.title,
+                    artistName: t.artistName ?? '',
+                    duration: t.duration ?? 0,
+                    bpm: t.bpm,
+                    tonality: t.tonality,
+                    description: null,
+                    audioFile: null,
+                    thumbnail: t.thumbnail,
+                    tags: t.tags,
+                    isActive: true,
+                    playCount: t.playCount,
+                    createdAt: t.createdAt,
+                    updatedAt: t.createdAt,
+                  })}
+                  onLike={(t) => likeStore.toggle(t.id)}
+                  onAddToPlaylist={(t) => setAddToPlTrackId(t.id)}
                 />
               ))}
             </tbody>
@@ -299,6 +345,12 @@ export default function TrackListPage() {
           )}
         </>
       )}
+
+      <AddToPlaylistModal
+        open={addToPlTrackId !== null}
+        trackId={addToPlTrackId}
+        onClose={() => setAddToPlTrackId(null)}
+      />
     </div>
   );
 }

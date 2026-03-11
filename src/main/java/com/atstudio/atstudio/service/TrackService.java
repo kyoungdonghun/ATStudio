@@ -29,7 +29,11 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -56,6 +60,8 @@ public class TrackService {
                 ? storageService.store(thumbnail, "tracks/thumbnail")
                 : null;
 
+        int duration = extractDuration(audioFile);
+
         Track track = Track.builder()
                 .title(request.getTitle())
                 .bpm(request.getBpm())
@@ -63,6 +69,7 @@ public class TrackService {
                 .description(request.getDescription())
                 .audioFile(audioFilePath)
                 .thumbnail(thumbnailPath)
+                .duration(duration)
                 .user(user)
                 .build();
 
@@ -229,6 +236,37 @@ public class TrackService {
 
     private Specification<Track> addSpec(Specification<Track> base, Specification<Track> other) {
         return other != null ? base.and(other) : base;
+    }
+
+    /**
+     * Extract duration (seconds) from uploaded audio file.
+     * Supports WAV (RIFF header) and falls back to 0 for unsupported formats.
+     */
+    private int extractDuration(MultipartFile file) {
+        String filename = file.getOriginalFilename();
+        if (filename != null && filename.toLowerCase().endsWith(".wav")) {
+            return extractWavDuration(file);
+        }
+        // MP3 and other formats: estimate from file size (128kbps assumed)
+        if (filename != null && filename.toLowerCase().endsWith(".mp3")) {
+            return (int) (file.getSize() / (128 * 1024 / 8));
+        }
+        return 0;
+    }
+
+    private int extractWavDuration(MultipartFile file) {
+        try (InputStream is = file.getInputStream()) {
+            byte[] header = new byte[44];
+            if (is.read(header) < 44) return 0;
+
+            // WAV header: bytes 28-31 = byte rate (little-endian)
+            int byteRate = ByteBuffer.wrap(header, 28, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            if (byteRate <= 0) return 0;
+
+            return (int) (file.getSize() / byteRate);
+        } catch (IOException e) {
+            return 0;
+        }
     }
 
 }

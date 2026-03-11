@@ -64,44 +64,45 @@ export interface CheckAvailabilityResponse {
 
 /* ── API Functions ── */
 
-export function login(data: LoginRequest) {
-  return client.post<LoginResponse>('/auth/login', data);
+export async function login(req: LoginRequest): Promise<LoginResponse> {
+  const { data } = await client.post<ApiResponse<LoginResponse>>('/auth/login', req);
+  return data.data;
 }
 
-export function register(data: RegisterRequest) {
-  return client.post<ApiResponse<RegisterResponse>>('/users', data);
+export async function register(data: RegisterRequest): Promise<RegisterResponse> {
+  const res = await client.post<ApiResponse<RegisterResponse>>('/users', data);
+  return res.data.data;
 }
 
-export function fetchMe() {
-  return client.get<MeResponse>('/users/me');
+export async function fetchMe(): Promise<MeResponse> {
+  const { data } = await client.get<ApiResponse<MeResponse>>('/users/me');
+  return data.data;
 }
 
-export function checkEmailAvailability(email: string) {
-  return client.get<CheckAvailabilityResponse>('/utils/check-email', {
+export async function checkEmailAvailability(email: string): Promise<CheckAvailabilityResponse> {
+  const { data } = await client.get<ApiResponse<CheckAvailabilityResponse>>('/utils/check-email', {
     params: { email },
   });
+  return data.data;
 }
 
-export function checkNicknameAvailability(nickname: string) {
-  return client.get<CheckAvailabilityResponse>('/utils/check-nickname', {
+export async function checkNicknameAvailability(nickname: string): Promise<CheckAvailabilityResponse> {
+  const { data } = await client.get<ApiResponse<CheckAvailabilityResponse>>('/utils/check-nickname', {
     params: { nickname },
   });
+  return data.data;
 }
 
 /**
  * Password reset request (placeholder).
- * The backend API for this endpoint is not yet implemented.
- * This function simulates a successful response for frontend flow development.
  */
 export function requestPasswordReset(_data: PasswordResetRequest) {
-  return Promise.resolve({ data: { message: 'ok' } });
+  return Promise.resolve({ message: 'ok' });
 }
 
 /**
  * Email verification (placeholder).
- * The backend API for this endpoint is not yet implemented.
- * This function simulates a successful response for frontend flow development.
  */
 export function verifyEmail(_data: VerifyEmailRequest) {
-  return Promise.resolve({ data: { message: 'ok' } });
+  return Promise.resolve({ message: 'ok' });
 }

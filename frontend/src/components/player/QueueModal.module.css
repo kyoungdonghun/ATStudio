@@ -1,0 +1,84 @@
+.empty {
+  text-align: center;
+  color: var(--text2);
+  padding: 32px 0;
+  font-size: 14px;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+
+.item:hover {
+  background: var(--bg2);
+}
+
+.itemActive {
+  background: var(--accent-dim);
+}
+
+.playBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg3);
+  color: var(--text1);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.playBtn:hover {
+  background: var(--accent);
+  color: var(--bg0);
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artist {
+  font-size: 11px;
+  color: var(--text2);
+  margin-top: 1px;
+}
+
+.removeBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.removeBtn:hover {
+  color: var(--text0);
+}

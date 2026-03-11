@@ -16,8 +16,8 @@ export async function fetchSubscriptionPlans(
   userType?: string,
 ): Promise<SubscriptionPlan[]> {
   const params = userType ? { userType } : {};
-  const { data } = await client.get<SubscriptionPlan[]>('/subscriptions', {
+  const { data } = await client.get<{ dataList: SubscriptionPlan[] }>('/subscriptions', {
     params,
   });
-  return data;
+  return data.dataList;
 }

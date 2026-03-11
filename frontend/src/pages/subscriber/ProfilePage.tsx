@@ -31,10 +31,10 @@ export default function ProfilePage() {
       try {
         setLoading(true);
         setError(null);
-        const { data } = await fetchMe();
+        const me = await fetchMe();
         if (!cancelled) {
-          setProfile(data);
-          setNickname(data.nickname);
+          setProfile(me);
+          setNickname(me.nickname);
         }
       } catch (err) {
         if (!cancelled) {

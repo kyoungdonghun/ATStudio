@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import type { TrackListItem } from '@/types';
 import Badge from '@/components/ui/Badge';
 import styles from './TrackRow.module.css';
@@ -60,7 +61,9 @@ export default function TrackRow({
           </div>
           <div>
             <div className={styles.title}>
-              {track.title}
+              <Link to={`/tracks/${track.id}`} className={styles.titleLink}>
+                {track.title}
+              </Link>
               {badge === 'new' && (
                 <>
                   {' '}
@@ -75,7 +78,7 @@ export default function TrackRow({
               )}
             </div>
             <div className={styles.artist}>
-              {genreTag?.name ?? ''}
+              {track.artistName ?? genreTag?.name ?? ''}
             </div>
           </div>
         </div>
@@ -93,8 +96,12 @@ export default function TrackRow({
       {/* Key (tonality) */}
       <td className={styles.cellKey}>{track.tonality ?? '-'}</td>
 
-      {/* Duration — not available in list API, show dash */}
-      <td className={styles.cellDur}>-</td>
+      {/* Duration */}
+      <td className={styles.cellDur}>
+        {track.duration
+          ? `${Math.floor(track.duration / 60)}:${String(track.duration % 60).padStart(2, '0')}`
+          : '-'}
+      </td>
 
       {/* Actions */}
       <td className={styles.cellActs}>
