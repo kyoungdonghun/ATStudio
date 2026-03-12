@@ -8,7 +8,7 @@ import com.atstudio.atstudio.dto.user.*;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
-import com.atstudio.atstudio.repository.UserRepository;
+import com.atstudio.atstudio.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -23,6 +23,12 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final LikeRepository likeRepository;
+    private final DownloadQueueRepository downloadQueueRepository;
+    private final PlayHistoryRepository playHistoryRepository;
+    private final TrackDownloadRepository trackDownloadRepository;
+    private final LicenseRepository licenseRepository;
+    private final WhitelistChannelRepository whitelistChannelRepository;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -78,6 +84,14 @@ public class UserService {
                 || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_CREDENTIALS);
         }
+
+        // 관련 레코드 정리 (고아 레코드 방지)
+        likeRepository.deleteAllByUser(user);
+        downloadQueueRepository.deleteAllByUser(user);
+        playHistoryRepository.deleteAllByUser(user);
+        trackDownloadRepository.deleteAllByUser(user);
+        licenseRepository.deleteAllByUser(user);
+        whitelistChannelRepository.deleteAllByUser(user);
 
         user.withdraw();
     }

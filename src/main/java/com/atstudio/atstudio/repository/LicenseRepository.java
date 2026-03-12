@@ -21,4 +21,8 @@ public interface LicenseRepository extends JpaRepository<License, Long> {
 
     @EntityGraph(attributePaths = "track")
     Page<License> findAllByUser_Id(Long userId, Pageable pageable);
+
+    void deleteAllByTrack(Track track);
+
+    void deleteAllByUser(User user);
 }

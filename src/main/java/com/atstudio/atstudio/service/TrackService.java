@@ -10,10 +10,7 @@ import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.TrackTag;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.key.TrackTagId;
-import com.atstudio.atstudio.repository.TagRepository;
-import com.atstudio.atstudio.repository.TrackRepository;
-import com.atstudio.atstudio.repository.TrackTagRepository;
-import com.atstudio.atstudio.repository.UserRepository;
+import com.atstudio.atstudio.repository.*;;
 import com.atstudio.atstudio.repository.spec.TrackSpecification;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.storage.StorageService;
@@ -48,6 +45,13 @@ public class TrackService {
     private final TagRepository tagRepository;
     private final UserRepository userRepository;
     private final StorageService storageService;
+    private final LikeRepository likeRepository;
+    private final DownloadQueueRepository downloadQueueRepository;
+    private final PlayHistoryRepository playHistoryRepository;
+    private final TrackDownloadRepository trackDownloadRepository;
+    private final LicenseRepository licenseRepository;
+    private final PlaylistTrackRepository playlistTrackRepository;
+    private final AlbumTrackRepository albumTrackRepository;
 
     @Transactional
     public TrackResponse createTrack(TrackCreateRequest request, MultipartFile audioFile,
@@ -174,7 +178,17 @@ public class TrackService {
     @Transactional
     public void deleteTrack(Long trackId) {
         Track track = findTrackById(trackId);
+
+        // 관련 레코드 정리 (고아 레코드 방지)
+        likeRepository.deleteAllByTrack(track);
+        downloadQueueRepository.deleteAllByTrack(track);
+        playHistoryRepository.deleteAllByTrack(track);
+        trackDownloadRepository.deleteAllByTrack(track);
+        licenseRepository.deleteAllByTrack(track);
+        playlistTrackRepository.deleteAllByIdTrackId(track.getId());
+        albumTrackRepository.deleteAllByTrack(track);
         trackTagRepository.deleteAllByTrack(track);
+
         track.deactivate();
     }
 

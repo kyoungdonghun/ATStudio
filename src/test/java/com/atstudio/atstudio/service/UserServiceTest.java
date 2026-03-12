@@ -9,7 +9,7 @@ import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.UserJob;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
-import com.atstudio.atstudio.repository.UserRepository;
+import com.atstudio.atstudio.repository.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,6 +36,12 @@ class UserServiceTest {
 
     @Mock UserRepository userRepository;
     @Mock PasswordEncoder passwordEncoder;
+    @Mock LikeRepository likeRepository;
+    @Mock DownloadQueueRepository downloadQueueRepository;
+    @Mock PlayHistoryRepository playHistoryRepository;
+    @Mock TrackDownloadRepository trackDownloadRepository;
+    @Mock LicenseRepository licenseRepository;
+    @Mock WhitelistChannelRepository whitelistChannelRepository;
 
     @InjectMocks UserService userService;
 

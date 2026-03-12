@@ -20,4 +20,6 @@ public interface PlaylistTrackRepository extends JpaRepository<PlaylistTrack, Pl
     List<Object[]> countByPlaylistIdIn(@Param("playlistIds") List<Long> playlistIds);
 
     void deleteAllByIdPlaylistId(Long playlistId);
+
+    void deleteAllByIdTrackId(Long trackId);
 }

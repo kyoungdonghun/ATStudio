@@ -11,4 +11,6 @@ public interface WhitelistChannelRepository extends JpaRepository<WhitelistChann
     List<WhitelistChannel> findByUserOrderByCreatedAtDesc(User user);
 
     long countByUser(User user);
+
+    void deleteAllByUser(User user);
 }

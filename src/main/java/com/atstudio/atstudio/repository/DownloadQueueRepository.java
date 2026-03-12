@@ -1,6 +1,7 @@
 package com.atstudio.atstudio.repository;
 
 import com.atstudio.atstudio.entity.DownloadQueue;
+import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.key.DownloadQueueId;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -15,4 +16,8 @@ public interface DownloadQueueRepository extends JpaRepository<DownloadQueue, Do
     List<DownloadQueue> findAllByUser(User user);
 
     Optional<DownloadQueue> findByUserAndTrack_Id(User user, Long trackId);
+
+    void deleteAllByTrack(Track track);
+
+    void deleteAllByUser(User user);
 }

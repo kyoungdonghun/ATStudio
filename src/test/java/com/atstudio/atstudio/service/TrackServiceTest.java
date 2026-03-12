@@ -8,10 +8,7 @@ import com.atstudio.atstudio.entity.Tag;
 import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.TagType;
-import com.atstudio.atstudio.repository.TagRepository;
-import com.atstudio.atstudio.repository.TrackRepository;
-import com.atstudio.atstudio.repository.TrackTagRepository;
-import com.atstudio.atstudio.repository.UserRepository;
+import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.storage.StorageService;
 import org.junit.jupiter.api.DisplayName;
@@ -49,6 +46,13 @@ class TrackServiceTest {
     @Mock UserRepository userRepository;
     @Mock StorageService storageService;
     @Mock CustomUserDetails userDetails;
+    @Mock LikeRepository likeRepository;
+    @Mock DownloadQueueRepository downloadQueueRepository;
+    @Mock PlayHistoryRepository playHistoryRepository;
+    @Mock TrackDownloadRepository trackDownloadRepository;
+    @Mock LicenseRepository licenseRepository;
+    @Mock PlaylistTrackRepository playlistTrackRepository;
+    @Mock AlbumTrackRepository albumTrackRepository;
 
     @InjectMocks TrackService trackService;
 

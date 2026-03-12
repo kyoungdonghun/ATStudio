@@ -1,6 +1,7 @@
 package com.atstudio.atstudio.repository;
 
 import com.atstudio.atstudio.entity.PlayHistory;
+import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,4 +18,6 @@ public interface PlayHistoryRepository extends JpaRepository<PlayHistory, Long> 
     void deleteByIdInAndUser(List<Long> ids, User user);
 
     void deleteAllByUser(User user);
+
+    void deleteAllByTrack(Track track);
 }

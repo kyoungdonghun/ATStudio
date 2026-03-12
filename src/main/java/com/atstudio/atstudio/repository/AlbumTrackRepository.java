@@ -19,4 +19,6 @@ public interface AlbumTrackRepository extends JpaRepository<AlbumTrack, AlbumTra
     boolean existsByAlbumAndTrack(Album album, Track track);
 
     long countByAlbum(Album album);
+
+    void deleteAllByTrack(Track track);
 }

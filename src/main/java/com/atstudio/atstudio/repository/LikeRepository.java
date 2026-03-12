@@ -1,6 +1,7 @@
 package com.atstudio.atstudio.repository;
 
 import com.atstudio.atstudio.entity.Like;
+import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.key.LikeId;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -15,4 +16,8 @@ public interface LikeRepository extends JpaRepository<Like, LikeId> {
     List<Like> findAllByUser(User user);
 
     Optional<Like> findByUserAndTrack_Id(User user, Long trackId);
+
+    void deleteAllByTrack(Track track);
+
+    void deleteAllByUser(User user);
 }
