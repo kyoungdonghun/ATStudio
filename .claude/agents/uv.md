@@ -28,6 +28,7 @@ Creative, User-centered, Systematic
 - At task start, treat `docs/standards/core-principles.md` (constitution) as baseline injection and prohibit violations.
 - The design system is **SoT**. (Prohibit proliferation of temporary/improvised UI patterns)
 - When SE requests UI elements not in the design system, UV clearly decides "add/modify/reject" and records rationale.
+- **CSS Modules table pattern:** When a base selector like `.table thead th` sets properties (e.g. `text-align: left`, `padding`), all per-cell overrides MUST use scoped selectors (`.table thead .thXxx`) to guarantee higher specificity. Never write a standalone `.thXxx { text-align: right }` — it will be silently overridden.
 - Always create deliverables in **two sets**:
   - User-facing: Summary for approval/decision (what to add/change, impact)
   - Agent-facing: Details for implementation/reuse (component specs, tokens/variants, usage guide, rationale pointers)

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { fetchTracks, type TrackListParams } from '@/api/tracks';
 import { fetchTags } from '@/api/tags';
+import { addToDownloadQueue } from '@/api/downloadQueue';
+import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import type { TrackListItem, TagItem, PageInfo } from '@/types';
 import TrackRow from '@/components/track/TrackRow';
 import FilterChip from '@/components/ui/FilterChip';
@@ -303,6 +305,22 @@ export default function TrackListPage() {
                   })}
                   onLike={(t) => likeStore.toggle(t.id)}
                   onAddToPlaylist={(t) => setAddToPlTrackId(t.id)}
+                  onDownload={async (t) => {
+                    try {
+                      const blob = await downloadTrack(t.id);
+                      triggerBlobDownload(blob, `${t.title}.mp3`);
+                    } catch {
+                      alert('다운로드에 실패했습니다.');
+                    }
+                  }}
+                  onBuy={async (t) => {
+                    try {
+                      await addToDownloadQueue(t.id);
+                      alert('다운로드 대기열에 추가되었습니다.');
+                    } catch {
+                      alert('대기열 추가에 실패했습니다.');
+                    }
+                  }}
                 />
               ))}
             </tbody>

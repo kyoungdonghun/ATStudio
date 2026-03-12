@@ -1,0 +1,332 @@
+/* ── Page ── */
+
+.page {
+  padding: 32px var(--page-px);
+  max-width: var(--page-max-w);
+  margin: 0 auto;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.count {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text2);
+  margin-left: 10px;
+}
+
+/* ── States ── */
+
+.loading,
+.error,
+.empty {
+  text-align: center;
+  padding: 80px 0;
+  color: var(--text2);
+  font-size: 14px;
+  line-height: 2;
+}
+
+.error {
+  color: #f87171;
+}
+
+.emptyLink {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.emptyLink:hover {
+  text-decoration: underline;
+}
+
+/* ── Add Form ── */
+
+.addForm {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  align-items: flex-end;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.fieldLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.input {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg0);
+  color: var(--text0);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: var(--accent);
+}
+
+.input::placeholder {
+  color: var(--text2);
+}
+
+.btnAdd {
+  background: var(--accent);
+  color: var(--bg0);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+  height: 35px;
+}
+
+.btnAdd:hover {
+  opacity: 0.88;
+}
+
+.btnAdd:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Table ── */
+
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table thead th {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table thead .thNum {
+  width: 42px;
+  text-align: center;
+}
+
+.table thead .thDate {
+  width: 120px;
+}
+
+.table thead .thActs {
+  width: 90px;
+  text-align: center;
+}
+
+.table tbody td {
+  padding: 10px 12px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text1);
+}
+
+.row {
+  transition: background 0.12s;
+}
+
+.row:hover {
+  background: var(--bg1);
+}
+
+/* ── Cells ── */
+
+.cellNum {
+  text-align: center;
+  width: 42px;
+  color: var(--text2);
+}
+
+.cellName {
+  font-weight: 500;
+  color: var(--text0);
+}
+
+.cellUrl {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channelLink {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.channelLink:hover {
+  text-decoration: underline;
+}
+
+.cellDate {
+  width: 120px;
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+.cellActs {
+  width: 90px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ── Action Buttons ── */
+
+.editBtn,
+.deleteBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 14px;
+  transition: color 0.15s;
+}
+
+.editBtn {
+  color: var(--accent);
+}
+
+.editBtn:hover {
+  opacity: 0.7;
+}
+
+.deleteBtn {
+  color: var(--text2);
+  margin-left: 4px;
+}
+
+.deleteBtn:hover {
+  color: #f87171;
+}
+
+/* ── Inline Edit ── */
+
+.editInput {
+  padding: 4px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg0);
+  color: var(--text0);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+}
+
+.saveBtn,
+.cancelBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 13px;
+  transition: color 0.15s;
+}
+
+.saveBtn {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.saveBtn:hover {
+  opacity: 0.7;
+}
+
+.cancelBtn {
+  color: var(--text2);
+  margin-left: 2px;
+}
+
+.cancelBtn:hover {
+  color: var(--text0);
+}
+
+/* ══ Tablet ══ */
+@media (max-width: 1023px) {
+  .cellDate,
+  .thDate {
+    display: none;
+  }
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .pageTitle {
+    font-size: 18px;
+  }
+
+  .pageHeader {
+    margin-bottom: 16px;
+  }
+
+  .addForm {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btnAdd {
+    height: auto;
+    padding: 10px 18px;
+  }
+
+  .cellDate,
+  .thDate {
+    display: none;
+  }
+
+  .table thead th,
+  .table tbody td {
+    padding: 8px 8px;
+  }
+
+  .cellUrl {
+    max-width: 160px;
+  }
+}

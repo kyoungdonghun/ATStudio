@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { fetchTrackDetail, type TrackDetail } from '@/api/tracks';
+import { addToDownloadQueue } from '@/api/downloadQueue';
+import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
@@ -19,6 +21,7 @@ export default function TrackDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showPlModal, setShowPlModal] = useState(false);
+  const [dlStatus, setDlStatus] = useState<'idle' | 'adding' | 'downloading'>('idle');
 
   const playTrack = usePlayerStore((s) => s.play);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
@@ -40,6 +43,35 @@ export default function TrackDetailPage() {
       likeStore.load();
     }
   }, [isAuthenticated, likeStore.loaded]);
+
+  async function handleAddToQueue() {
+    if (!track) return;
+    try {
+      setDlStatus('adding');
+      setError(null);
+      await addToDownloadQueue(track.id);
+      alert('다운로드 대기열에 추가되었습니다.');
+    } catch {
+      setError('대기열 추가에 실패했습니다.');
+    } finally {
+      setDlStatus('idle');
+    }
+  }
+
+  async function handleDownload() {
+    if (!track) return;
+    try {
+      setDlStatus('downloading');
+      setError(null);
+      const blob = await downloadTrack(track.id);
+      triggerBlobDownload(blob, `${track.title}.mp3`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '다운로드에 실패했습니다.';
+      setError(msg);
+    } finally {
+      setDlStatus('idle');
+    }
+  }
 
   if (loading) {
     return (
@@ -112,7 +144,13 @@ export default function TrackDetailPage() {
             >
               {'\u25B6'}&nbsp;&nbsp;미리 듣기
             </button>
-            <button className={styles.btnBuy}>구매하기</button>
+            <button
+              className={styles.btnBuy}
+              onClick={handleDownload}
+              disabled={dlStatus !== 'idle'}
+            >
+              {dlStatus === 'downloading' ? '다운로드 중...' : '다운로드'}
+            </button>
           </div>
 
           {/* Like + Add to Playlist */}
@@ -128,6 +166,13 @@ export default function TrackDetailPage() {
               onClick={() => setShowPlModal(true)}
             >
               +&nbsp;&nbsp;재생목록에 추가
+            </button>
+            <button
+              className={styles.btnSubAction}
+              onClick={handleAddToQueue}
+              disabled={dlStatus === 'adding'}
+            >
+              {dlStatus === 'adding' ? '추가 중...' : '\u2B07\u00A0\u00A0대기열에 추가'}
             </button>
           </div>
         </div>
