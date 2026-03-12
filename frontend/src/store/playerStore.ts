@@ -9,6 +9,8 @@ interface PlayerState {
   isPlaying: boolean;
   currentTime: number;
   duration: number;
+  volume: number;
+  muted: boolean;
   queue: Track[];
   play: (track: Track) => void;
   pause: () => void;
@@ -16,6 +18,8 @@ interface PlayerState {
   next: () => void;
   prev: () => void;
   seek: (time: number) => void;
+  setVolume: (volume: number) => void;
+  toggleMute: () => void;
   addToQueue: (track: Track) => void;
   removeFromQueue: (trackId: number) => void;
   clearQueue: () => void;
@@ -35,11 +39,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     set({ duration: audio.duration || 0 });
   });
 
+  // Initialize volume from localStorage
+  const savedVolume = parseFloat(localStorage.getItem('playerVolume') ?? '1');
+  audio.volume = isNaN(savedVolume) ? 1 : savedVolume;
+
   return {
     currentTrack: null,
     isPlaying: false,
     currentTime: 0,
     duration: 0,
+    volume: audio.volume,
+    muted: false,
     queue: [],
 
     play: (track: Track) => {
@@ -96,6 +106,26 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     seek: (time: number) => {
       audio.currentTime = time;
       set({ currentTime: time });
+    },
+
+    setVolume: (volume: number) => {
+      const v = Math.max(0, Math.min(1, volume));
+      audio.volume = v;
+      audio.muted = false;
+      localStorage.setItem('playerVolume', String(v));
+      set({ volume: v, muted: false });
+    },
+
+    toggleMute: () => {
+      const { muted, volume } = get();
+      audio.muted = !muted;
+      set({ muted: !muted });
+      if (!muted && volume === 0) {
+        // Unmuting with 0 volume → set to default
+        audio.volume = 0.5;
+        localStorage.setItem('playerVolume', '0.5');
+        set({ volume: 0.5 });
+      }
     },
 
     addToQueue: (track: Track) => {

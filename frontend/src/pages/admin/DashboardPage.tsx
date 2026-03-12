@@ -64,6 +64,7 @@ export default function DashboardPage() {
       </div>
 
       <h2 className={styles.sectionTitle}>Recent Users</h2>
+      <div className={styles.tableWrap}>
       <table className={styles.table}>
         <thead>
           <tr>
@@ -95,6 +96,7 @@ export default function DashboardPage() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

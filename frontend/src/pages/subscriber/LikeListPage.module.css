@@ -1,6 +1,6 @@
 .page {
-  padding: 32px 48px;
-  max-width: 1280px;
+  padding: 32px var(--page-px);
+  max-width: var(--page-max-w);
   margin: 0 auto;
 }
 
@@ -50,6 +50,12 @@
 
 /* ── Table ── */
 
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .trackTable {
   width: 100%;
   border-collapse: collapse;
@@ -67,11 +73,11 @@
   white-space: nowrap;
 }
 
-.thCenter {
+.trackTable thead .thCenter {
   text-align: center;
 }
 
-.thRight {
+.trackTable thead .thRight {
   text-align: right;
 }
 
@@ -184,6 +190,12 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+}
+
+.infoText {
+  min-width: 0;
+  flex: 1;
 }
 
 .thumb {
@@ -213,6 +225,10 @@
   color: var(--text0);
   text-decoration: none;
   transition: color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
 }
 
 .titleLink:hover {
@@ -250,4 +266,38 @@
 
 .unlikeBtn:hover {
   opacity: 0.6;
+}
+
+/* ══ Tablet ══ */
+@media (max-width: 1023px) {
+  .cellBpm,
+  .cellKey {
+    display: none;
+  }
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .pageTitle {
+    font-size: 18px;
+  }
+
+  .cellBpm,
+  .cellKey,
+  .cellDate {
+    display: none;
+  }
+
+  .thumb {
+    width: 32px;
+    height: 32px;
+  }
+
+  .num {
+    display: none;
+  }
+
+  .playBtn {
+    display: flex;
+  }
 }

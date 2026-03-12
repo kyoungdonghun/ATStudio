@@ -83,3 +83,13 @@ client.interceptors.response.use(
 );
 
 export default client;
+
+/**
+ * Convert a relative upload path from the backend to a full URL.
+ * e.g. "playlists/thumbnails/abc.jpg" → "/uploads/playlists/thumbnails/abc.jpg"
+ */
+export function toUploadUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  if (path.startsWith('/') || path.startsWith('http') || path.startsWith('blob:')) return path;
+  return `/uploads/${path}`;
+}

@@ -264,16 +264,17 @@ export default function TrackListPage() {
         <div className={styles.empty}>{'검색 결과가 없습니다.'}</div>
       ) : (
         <>
+          <div className={styles.tableWrap}>
           <table className={styles.trackTable}>
             <thead>
               <tr>
                 <th className={styles.thCenter}>#</th>
                 <th>{'음원'}</th>
                 <th>{'장르 / 태그'}</th>
-                <th className={styles.thRight}>BPM</th>
-                <th className={styles.thCenter}>{'조성'}</th>
-                <th className={styles.thRight}>{'길이'}</th>
-                <th />
+                <th className={`${styles.thRight} ${styles.thBpm}`}>BPM</th>
+                <th className={`${styles.thCenter} ${styles.thKey}`}>{'조성'}</th>
+                <th className={`${styles.thRight} ${styles.thDur}`}>{'길이'}</th>
+                <th className={`${styles.thRight} ${styles.thActs}`}>{'액션'}</th>
               </tr>
             </thead>
             <tbody>
@@ -306,6 +307,7 @@ export default function TrackListPage() {
               ))}
             </tbody>
           </table>
+          </div>
 
           {/* Pagination */}
           {pageInfo && (

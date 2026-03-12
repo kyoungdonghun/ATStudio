@@ -120,14 +120,15 @@ export default function PlaylistDetailPage() {
           {'아직 수록곡이 없습니다. 음원 목록에서 곡을 추가해보세요.'}
         </div>
       ) : (
+        <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
             <tr>
               <th className={styles.cellNum}>#</th>
-              <th className={styles.cellTitle}>{'곡명'}</th>
+              <th>{'곡명'}</th>
               <th className={styles.cellBpm}>BPM</th>
               <th className={styles.cellKey}>Key</th>
-              <th className={styles.cellActions} />
+              <th className={styles.cellActions}>{'관리'}</th>
             </tr>
           </thead>
           <tbody>
@@ -149,6 +150,7 @@ export default function PlaylistDetailPage() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       {/* Remove Track Confirm Modal */}

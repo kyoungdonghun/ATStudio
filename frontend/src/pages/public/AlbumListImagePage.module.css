@@ -1,8 +1,8 @@
 /* ── Page Layout ── */
 
 .page {
-  padding: 28px 48px;
-  max-width: 1280px;
+  padding: 28px var(--page-px);
+  max-width: var(--page-max-w);
   margin: 0 auto;
 }
 
@@ -63,6 +63,37 @@
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 16px;
+}
+
+/* ══ Tablet ══ */
+@media (max-width: 1023px) {
+  .albumGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .pageHeader {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .albumGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .pageTitle {
+    font-size: 18px;
+  }
+
+  .pgBtn {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+  }
 }
 
 /* ── Pagination ── */

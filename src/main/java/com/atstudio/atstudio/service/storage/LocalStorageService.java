@@ -13,6 +13,7 @@ import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 
 @Service
@@ -29,9 +30,10 @@ public class LocalStorageService implements StorageService {
         String relativePath = directory + "/" + filename;
 
         try {
-            Path targetDir = Paths.get(basePath, directory);
+            Path targetDir = Paths.get(basePath, directory).toAbsolutePath();
             Files.createDirectories(targetDir);
-            file.transferTo(targetDir.resolve(filename).toFile());
+            Files.copy(file.getInputStream(), targetDir.resolve(filename),
+                    StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             throw new TechnicException(TECHNIC_ERROR.IO_EXCEPTION);
         }

@@ -93,15 +93,16 @@ export default function LikeListPage() {
           </Link>
         </div>
       ) : (
+        <div className={styles.tableWrap}>
         <table className={styles.trackTable}>
           <thead>
             <tr>
               <th className={styles.thCenter}>#</th>
               <th>{'음원'}</th>
-              <th className={styles.thRight}>BPM</th>
-              <th className={styles.thCenter}>Key</th>
-              <th className={styles.thRight}>{'추가일'}</th>
-              <th />
+              <th className={`${styles.thRight} ${styles.cellBpm}`}>BPM</th>
+              <th className={`${styles.thCenter} ${styles.cellKey}`}>Key</th>
+              <th className={`${styles.thRight} ${styles.cellDate}`}>{'추가일'}</th>
+              <th className={styles.cellActions}>{'관리'}</th>
             </tr>
           </thead>
           <tbody>
@@ -129,7 +130,7 @@ export default function LikeListPage() {
                         '\u266A'
                       )}
                     </div>
-                    <div>
+                    <div className={styles.infoText}>
                       <Link
                         to={`/tracks/${item.trackId}`}
                         className={styles.titleLink}
@@ -164,6 +165,7 @@ export default function LikeListPage() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
       <AddToPlaylistModal
         open={addToPlTrackId !== null}

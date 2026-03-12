@@ -1,8 +1,8 @@
 /* ── Page ── */
 
 .page {
-  padding: 36px 48px;
-  max-width: 1280px;
+  padding: 36px var(--page-px);
+  max-width: var(--page-max-w);
   margin: 0 auto;
 }
 
@@ -260,4 +260,54 @@
   font-size: 13px;
   color: var(--text1);
   line-height: 1.6;
+}
+
+/* ══ Tablet ══ */
+@media (max-width: 1023px) {
+  .layout {
+    gap: 32px;
+  }
+
+  .coverSection {
+    width: 220px;
+  }
+
+  .cover {
+    width: 220px;
+    height: 220px;
+  }
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .layout {
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .coverSection {
+    width: 100%;
+    max-width: 280px;
+    margin: 0 auto;
+  }
+
+  .cover {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+
+  .title {
+    font-size: 22px;
+    text-align: center;
+  }
+
+  .metaGrid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .licenseCards {
+    grid-template-columns: 1fr;
+  }
 }

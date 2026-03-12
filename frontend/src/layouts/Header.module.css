@@ -3,7 +3,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 58px;
+  height: var(--header-h);
   background: var(--header-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
@@ -66,6 +66,7 @@
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .tab:hover {
@@ -116,4 +117,208 @@
 .themeToggle:hover {
   color: var(--accent);
   background: var(--accent-dim);
+}
+
+/* ── Mobile-only elements (hidden on desktop) ── */
+
+.mobileRight {
+  display: none;
+}
+
+.hamburger {
+  display: none;
+}
+
+.mobileOverlay {
+  display: none;
+}
+
+.mobileMenu {
+  display: none;
+}
+
+/* ══════════════════════════════════════
+   Tablet (768 – 1023)
+   ══════════════════════════════════════ */
+
+@media (max-width: 1023px) {
+  .header {
+    padding: 0 16px;
+    gap: 10px;
+  }
+
+  .search {
+    width: 160px;
+  }
+
+  .tab {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .greeting {
+    display: none;
+  }
+}
+
+/* ══════════════════════════════════════
+   Mobile (≤ 767)
+   ══════════════════════════════════════ */
+
+@media (max-width: 767px) {
+  .header {
+    padding: 0 var(--page-px);
+    gap: 0;
+    justify-content: space-between;
+  }
+
+  /* Hide desktop elements */
+  .search,
+  .navTabs,
+  .navRight {
+    display: none;
+  }
+
+  /* Show mobile elements */
+  .mobileRight {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .hamburger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: none;
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    color: var(--text0);
+    font-size: 18px;
+    cursor: pointer;
+  }
+
+  .hamburger:hover {
+    background: var(--bg2);
+  }
+
+  /* Overlay */
+  .mobileOverlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 199;
+  }
+
+  /* Slide-down menu */
+  .mobileMenu {
+    display: block;
+    position: fixed;
+    top: var(--header-h);
+    left: 0;
+    right: 0;
+    background: var(--bg1);
+    border-bottom: 1px solid var(--border);
+    z-index: 199;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+  }
+
+  .mobileMenuOpen {
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  /* Mobile search */
+  .mobileSearch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 0 12px;
+    height: 38px;
+    margin: 12px var(--page-px);
+    color: var(--text1);
+    font-size: 13px;
+  }
+
+  /* Mobile nav */
+  .mobileNav {
+    display: flex;
+    flex-direction: column;
+    padding: 0 var(--page-px);
+  }
+
+  .mobileNavItem {
+    display: block;
+    padding: 12px 0;
+    font-size: 15px;
+    color: var(--text1);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border);
+    transition: color 0.15s;
+  }
+
+  .mobileNavItem:hover {
+    color: var(--text0);
+  }
+
+  .mobileNavItemActive {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* Mobile auth */
+  .mobileAuth {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px var(--page-px);
+  }
+
+  .mobileGreeting {
+    font-size: 13px;
+    color: var(--text1);
+    padding-bottom: 4px;
+  }
+
+  .mobileAuthLink {
+    display: block;
+    padding: 10px 0;
+    font-size: 14px;
+    color: var(--text1);
+    text-decoration: none;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .mobileAuthLink:hover {
+    color: var(--text0);
+  }
+
+  .mobileAuthLinkPrimary {
+    display: block;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--bg0);
+    background: var(--accent);
+    border-radius: 6px;
+    text-decoration: none;
+    text-align: center;
+    margin-top: 4px;
+  }
+
+  .mobileAuthLinkPrimary:hover {
+    opacity: 0.9;
+  }
 }

@@ -1,8 +1,8 @@
 /* ── Page Layout ── */
 
 .page {
-  padding: 28px 48px;
-  max-width: 1280px;
+  padding: 28px var(--page-px);
+  max-width: var(--page-max-w);
   margin: 0 auto;
 }
 
@@ -69,6 +69,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
+  flex-wrap: wrap;
 }
 
 .filterLabel {
@@ -89,6 +90,12 @@
 
 /* ── Track Table ── */
 
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .trackTable {
   width: 100%;
   border-collapse: collapse;
@@ -106,11 +113,11 @@
   white-space: nowrap;
 }
 
-.thRight {
+.trackTable thead .thRight {
   text-align: right;
 }
 
-.thCenter {
+.trackTable thead .thCenter {
   text-align: center;
 }
 
@@ -192,4 +199,58 @@
   padding: 64px;
   color: var(--text2);
   font-size: 14px;
+}
+
+/* ══ Tablet ══ */
+@media (max-width: 1023px) {
+  .trackTable thead th {
+    padding: 8px 8px;
+  }
+
+  .thBpm,
+  .thKey {
+    display: none;
+  }
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .pageHeader {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .pageTitle {
+    font-size: 18px;
+  }
+
+  .filterBar {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .filterDivider {
+    display: none;
+  }
+
+  .thBpm,
+  .thKey {
+    display: none;
+  }
+
+  .thDur {
+    display: none;
+  }
+
+  .trackTable thead th {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+
+  .pgBtn {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+  }
 }

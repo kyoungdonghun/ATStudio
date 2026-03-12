@@ -59,7 +59,7 @@ export default function TrackRow({
               '\u266A'
             )}
           </div>
-          <div>
+          <div className={styles.infoText}>
             <div className={styles.title}>
               <Link to={`/tracks/${track.id}`} className={styles.titleLink}>
                 {track.title}

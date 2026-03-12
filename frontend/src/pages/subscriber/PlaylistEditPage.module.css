@@ -1,0 +1,400 @@
+/* ── Page Layout ── */
+
+.page {
+  padding: 32px var(--page-px);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* ── Back Link ── */
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text2);
+  font-size: 13px;
+  text-decoration: none;
+  margin-bottom: 20px;
+}
+
+.backLink:hover {
+  color: var(--accent);
+}
+
+/* ── Page Header ── */
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text0);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Error Banner ── */
+
+.errorBanner {
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  color: #f87171;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+
+/* ── Sections ── */
+
+.section {
+  margin-bottom: 32px;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text0);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.trackCount {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text2);
+}
+
+/* ── Form ── */
+
+.formGroup {
+  margin-bottom: 16px;
+}
+
+.formLabel {
+  display: block;
+  font-size: 13px;
+  color: var(--text1);
+  margin-bottom: 6px;
+}
+
+.formInput {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--text0);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.formInput:focus {
+  outline: none;
+  border-color: var(--accent-border);
+}
+
+.formTextarea {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--text0);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.formTextarea:focus {
+  outline: none;
+  border-color: var(--accent-border);
+}
+
+/* ── Thumbnail Upload ── */
+
+.thumbUpload {
+  width: 100%;
+}
+
+.thumbDropArea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100px;
+  border: 2px dashed var(--border2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.thumbDropArea:hover {
+  border-color: var(--accent-border);
+}
+
+.thumbDropIcon {
+  font-size: 22px;
+}
+
+.thumbDropText {
+  font-size: 12px;
+  color: var(--text2);
+}
+
+.thumbFileInput {
+  display: none;
+}
+
+.thumbPreviewWrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.thumbPreview {
+  width: 100px;
+  height: 100px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border2);
+  flex-shrink: 0;
+}
+
+.thumbPreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbChangeBtn {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  color: var(--text1);
+  padding: 6px 14px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.thumbChangeBtn:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+/* ── Track List ── */
+
+.trackList {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.trackItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+
+.trackItem:last-child {
+  border-bottom: none;
+}
+
+.trackItem:hover {
+  background: var(--bg1);
+}
+
+.trackOrder {
+  width: 28px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text2);
+  flex-shrink: 0;
+}
+
+.trackInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.trackTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trackMeta {
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 2px;
+}
+
+.trackActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.orderBtn {
+  background: none;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  color: var(--text2);
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.orderBtn:hover:not(:disabled) {
+  color: var(--text0);
+  border-color: var(--accent-border);
+}
+
+.orderBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.removeBtn {
+  background: none;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  color: var(--text2);
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+  margin-left: 4px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.removeBtn:hover {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+/* ── Empty ── */
+
+.emptyTracks {
+  text-align: center;
+  padding: 40px 0;
+  color: var(--text2);
+  font-size: 13px;
+}
+
+/* ── Danger Zone ── */
+
+.dangerZone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-top: 16px;
+}
+
+.dangerInfo {
+  min-width: 0;
+}
+
+.dangerTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f87171;
+  margin-bottom: 4px;
+}
+
+.dangerDesc {
+  font-size: 12px;
+  color: var(--text2);
+}
+
+/* ── Loading / Error ── */
+
+.status {
+  text-align: center;
+  padding: 80px 0;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+.statusError {
+  text-align: center;
+  padding: 80px 0;
+  color: #f87171;
+  font-size: 14px;
+}
+
+/* ── Modal ── */
+
+.modalBody {
+  padding: 16px 24px 24px;
+  font-size: 14px;
+  color: var(--text0);
+  line-height: 1.6;
+}
+
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 24px 20px;
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .pageTitle {
+    font-size: 18px;
+  }
+
+  .pageHeader {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .trackItem {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .dangerZone {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+}

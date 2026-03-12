@@ -3,7 +3,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 72px;
+  height: var(--player-h);
   background: rgba(17, 24, 39, 0.97);
   backdrop-filter: blur(16px);
   border-top: 1px solid var(--border);
@@ -49,15 +49,26 @@
   object-fit: cover;
 }
 
+.trackMeta {
+  min-width: 0;
+  flex: 1;
+}
+
 .trackName {
   font-size: 13px;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .trackArtist {
   font-size: 11px;
   color: var(--text1);
   margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .heartBtn {
@@ -141,6 +152,7 @@
   cursor: pointer;
   border: none;
   transition: opacity 0.15s;
+  padding-left: 2px;
 }
 
 .playBtn:hover {
@@ -186,13 +198,66 @@
   transition: width 0.1s linear;
 }
 
+/* ── Volume control ── */
+
+.volumeGroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.volumeBtn {
+  background: none;
+  border: none;
+  color: var(--text1);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.volumeBtn:hover {
+  color: var(--text0);
+}
+
+.volumeSlider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 80px;
+  height: 3px;
+  background: var(--border2);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.volumeSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  background: var(--text0);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.volumeSlider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  background: var(--text0);
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+}
+
 /* ── Right actions ── */
 
 .rightActions {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 200px;
+  width: 280px;
   justify-content: flex-end;
   flex-shrink: 0;
 }
@@ -222,4 +287,199 @@
   composes: actionBtn;
   border-color: var(--accent-border);
   color: var(--accent);
+}
+
+/* ── Mobile player (hidden on desktop) ── */
+
+.mobilePlayer {
+  display: none;
+}
+
+/* ══════════════════════════════════════
+   Tablet (768 – 1023)
+   ══════════════════════════════════════ */
+
+@media (max-width: 1023px) {
+  .player {
+    padding: 0 16px;
+    gap: 14px;
+  }
+
+  .trackInfo {
+    width: 180px;
+    gap: 8px;
+  }
+
+  .rightActions {
+    width: auto;
+    gap: 8px;
+  }
+
+  .volumeSlider {
+    width: 60px;
+  }
+
+  .progressBar {
+    max-width: 320px;
+  }
+}
+
+/* ══════════════════════════════════════
+   Mobile (≤ 767)
+   ══════════════════════════════════════ */
+
+@media (max-width: 767px) {
+  /* Hide desktop player */
+  .player {
+    display: none;
+  }
+
+  /* Show mobile player */
+  .mobilePlayer {
+    display: block;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(17, 24, 39, 0.97);
+    backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border);
+    z-index: 200;
+  }
+
+  /* Thin progress bar at the very top of mobile player */
+  .mobileProgressTrack {
+    width: 100%;
+    height: 2px;
+    background: var(--border2);
+    cursor: pointer;
+  }
+
+  .mobileProgressFill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.1s linear;
+  }
+
+  /* Mini bar row */
+  .mobileBar {
+    display: flex;
+    align-items: center;
+    padding: 6px var(--page-px);
+    gap: 10px;
+    height: calc(var(--player-h) - 2px);
+  }
+
+  .mobileInfo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+  }
+
+  .mobileInfo .thumb {
+    width: 38px;
+    height: 38px;
+  }
+
+  .mobileControls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .mobileControls .playBtn {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+  }
+
+  .mobileExpandBtn {
+    background: none;
+    border: none;
+    color: var(--text2);
+    font-size: 10px;
+    cursor: pointer;
+    padding: 4px;
+  }
+
+  .mobileExpandBtn:hover {
+    color: var(--text0);
+  }
+
+  /* Expanded panel */
+  .mobileExpanded {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+    border-top: 1px solid var(--border);
+  }
+
+  .mobileExpandedOpen {
+    max-height: 300px;
+  }
+
+  .mobileFullControls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 12px var(--page-px) 4px;
+  }
+
+  .mobileFullControls .playBtn {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+
+  .mobileFullControls .ctrlBtn {
+    font-size: 15px;
+    padding: 6px;
+  }
+
+  .mobileTime {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px var(--page-px);
+    font-size: 11px;
+    color: var(--text2);
+  }
+
+  .mobileVolume {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px var(--page-px);
+  }
+
+  .mobileVolume .volumeSlider {
+    flex: 1;
+    width: auto;
+  }
+
+  .mobileActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px var(--page-px) 14px;
+    flex-wrap: wrap;
+  }
+
+  .mobileActions .actionBtn {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+
+  .mobileActions .addToPlBtn {
+    font-size: 12px;
+    padding: 5px 10px;
+    color: var(--text1);
+    border: 1px solid var(--border2);
+    border-radius: 5px;
+    background: var(--bg2);
+  }
 }

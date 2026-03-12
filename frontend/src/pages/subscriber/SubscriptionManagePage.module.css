@@ -1,7 +1,7 @@
 /* ── Page Layout ── */
 
 .page {
-  padding: 32px 48px;
+  padding: 32px var(--page-px);
   max-width: 800px;
   margin: 0 auto;
 }
@@ -312,4 +312,34 @@
   font-size: 13px;
   color: #f87171;
   margin-top: 12px;
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .pageTitle {
+    font-size: 18px;
+  }
+
+  .planCard {
+    padding: 20px;
+  }
+
+  .planHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .planInfo {
+    grid-template-columns: 1fr;
+  }
+
+  .actionSection,
+  .cancelSection {
+    padding: 18px;
+  }
+
+  .actionButtons {
+    flex-direction: column;
+  }
 }

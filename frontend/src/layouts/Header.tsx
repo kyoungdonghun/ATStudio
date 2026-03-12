@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
@@ -10,16 +11,16 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: '\uD648', path: '/' },
-  { label: '\uC74C\uC6D0', path: '/tracks' },
-  { label: '\uC568\uBC94', path: '/albums' },
-  { label: '\uAD6C\uB3C5', path: '/subscriptions' },
-  { label: '\uACF5\uC9C0', path: '/notices' },
+  { label: '홈', path: '/' },
+  { label: '음원', path: '/tracks' },
+  { label: '앨범', path: '/albums' },
+  { label: '구독', path: '/subscriptions' },
+  { label: '공지', path: '/notices' },
 ];
 
 const AUTH_NAV_ITEMS: NavItem[] = [
-  { label: '\uC88B\uC544\uC694', path: '/likes' },
-  { label: '\uC7AC\uC0DD\uBAA9\uB85D', path: '/playlists' },
+  { label: '좋아요', path: '/likes' },
+  { label: '재생목록', path: '/playlists' },
 ];
 
 function SearchIcon() {
@@ -70,6 +71,12 @@ export default function Header() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
 
   function isActive(path: string): boolean {
     if (path === '/') return location.pathname === '/';
@@ -77,78 +84,164 @@ export default function Header() {
   }
 
   return (
-    <header className={styles.header}>
-      <Link to="/" className={styles.logo}>
-        ATStudio
-      </Link>
+    <>
+      <header className={styles.header}>
+        <Link to="/" className={styles.logo}>
+          ATStudio
+        </Link>
 
-      <div className={styles.search}>
-        <SearchIcon />
-        <span>{'\uC74C\uC6D0, \uC568\uBC94 \uAC80\uC0C9'}</span>
-      </div>
+        {/* Desktop/Tablet: inline search */}
+        <div className={styles.search}>
+          <SearchIcon />
+          <span>{'음원, 앨범 검색'}</span>
+        </div>
 
-      <nav className={styles.navTabs}>
-        {NAV_ITEMS.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className={`${styles.tab} ${isActive(item.path) ? styles.tabActive : ''}`}
-          >
-            {item.label}
-          </Link>
-        ))}
-        {isAuthenticated && AUTH_NAV_ITEMS.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className={`${styles.tab} ${isActive(item.path) ? styles.tabActive : ''}`}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </nav>
-
-      <div className={styles.navRight}>
-        <ThemeToggle />
-        {isAuthenticated ? (
-          <>
-            {user && (
-              <span className={styles.greeting}>
-                {'\uC548\uB155\uD558\uC138\uC694, '}
-                <strong className={styles.greetingName}>{user.nickname}</strong>
-              </span>
-            )}
-            <Link to="/profile">
-              <Button variant="ghost" size="md">
-                {'\uB0B4 \uACC4\uC815'}
-              </Button>
-            </Link>
-            <Button
-              variant="ghost"
-              size="md"
-              onClick={() => {
-                logout();
-                navigate('/', { replace: true });
-              }}
+        {/* Desktop/Tablet: inline nav */}
+        <nav className={styles.navTabs}>
+          {NAV_ITEMS.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`${styles.tab} ${isActive(item.path) ? styles.tabActive : ''}`}
             >
-              {'\uB85C\uADF8\uC544\uC6C3'}
-            </Button>
-          </>
-        ) : (
-          <>
-            <Link to="/login">
-              <Button variant="ghost" size="md">
-                {'\uB85C\uADF8\uC778'}
-              </Button>
+              {item.label}
             </Link>
-            <Link to="/subscriptions">
-              <Button variant="primary" size="md">
-                {'\uAD6C\uB3C5 \uC2DC\uC791\uD558\uAE30'}
-              </Button>
+          ))}
+          {isAuthenticated && AUTH_NAV_ITEMS.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`${styles.tab} ${isActive(item.path) ? styles.tabActive : ''}`}
+            >
+              {item.label}
             </Link>
-          </>
-        )}
+          ))}
+        </nav>
+
+        {/* Desktop/Tablet: inline right section */}
+        <div className={styles.navRight}>
+          <ThemeToggle />
+          {isAuthenticated ? (
+            <>
+              {user && (
+                <span className={styles.greeting}>
+                  {'안녕하세요, '}
+                  <strong className={styles.greetingName}>{user.nickname}</strong>
+                </span>
+              )}
+              <Link to="/profile">
+                <Button variant="ghost" size="md">
+                  {'내 계정'}
+                </Button>
+              </Link>
+              <Button
+                variant="ghost"
+                size="md"
+                onClick={() => {
+                  logout();
+                  navigate('/', { replace: true });
+                }}
+              >
+                {'로그아웃'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link to="/login">
+                <Button variant="ghost" size="md">
+                  {'로그인'}
+                </Button>
+              </Link>
+              <Link to="/subscriptions">
+                <Button variant="primary" size="md">
+                  {'구독 시작하기'}
+                </Button>
+              </Link>
+            </>
+          )}
+        </div>
+
+        {/* Mobile: hamburger button */}
+        <div className={styles.mobileRight}>
+          <ThemeToggle />
+          <button
+            className={styles.hamburger}
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          >
+            {menuOpen ? '\u2715' : '\u2630'}
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile: slide-down menu */}
+      {menuOpen && (
+        <div className={styles.mobileOverlay} onClick={() => setMenuOpen(false)} />
+      )}
+      <div className={`${styles.mobileMenu} ${menuOpen ? styles.mobileMenuOpen : ''}`}>
+        {/* Search */}
+        <div className={styles.mobileSearch}>
+          <SearchIcon />
+          <span>{'음원, 앨범 검색'}</span>
+        </div>
+
+        {/* Nav links */}
+        <nav className={styles.mobileNav}>
+          {NAV_ITEMS.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`${styles.mobileNavItem} ${isActive(item.path) ? styles.mobileNavItemActive : ''}`}
+            >
+              {item.label}
+            </Link>
+          ))}
+          {isAuthenticated && AUTH_NAV_ITEMS.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`${styles.mobileNavItem} ${isActive(item.path) ? styles.mobileNavItemActive : ''}`}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
+        {/* Auth actions */}
+        <div className={styles.mobileAuth}>
+          {isAuthenticated ? (
+            <>
+              {user && (
+                <span className={styles.mobileGreeting}>
+                  {'안녕하세요, '}
+                  <strong>{user.nickname}</strong>
+                </span>
+              )}
+              <Link to="/profile" className={styles.mobileAuthLink}>
+                {'내 계정'}
+              </Link>
+              <button
+                className={styles.mobileAuthLink}
+                onClick={() => {
+                  logout();
+                  navigate('/', { replace: true });
+                }}
+              >
+                {'로그아웃'}
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className={styles.mobileAuthLink}>
+                {'로그인'}
+              </Link>
+              <Link to="/subscriptions" className={styles.mobileAuthLinkPrimary}>
+                {'구독 시작하기'}
+              </Link>
+            </>
+          )}
+        </div>
       </div>
-    </header>
+    </>
   );
 }

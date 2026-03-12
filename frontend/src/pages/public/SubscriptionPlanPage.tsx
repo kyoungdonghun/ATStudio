@@ -295,6 +295,7 @@ export default function SubscriptionPlanPage() {
       {/* Compare Table */}
       <section className={styles.compareSection}>
         <h2 className={styles.compareTitle}>플랜 상세 비교</h2>
+        <div className={styles.compareWrap}>
         <table className={styles.compareTable}>
           <thead>
             <tr>
@@ -315,6 +316,7 @@ export default function SubscriptionPlanPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
 
       {/* FAQ */}

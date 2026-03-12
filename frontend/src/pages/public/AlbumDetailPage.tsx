@@ -118,6 +118,7 @@ export default function AlbumDetailPage() {
       {/* Track List */}
       <section>
         <div className={styles.sectionLabel}>수록곡</div>
+        <div className={styles.tableWrap}>
         <table className={styles.trackTable}>
           <thead>
             <tr>
@@ -202,6 +203,7 @@ export default function AlbumDetailPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
 
       <AddToPlaylistModal

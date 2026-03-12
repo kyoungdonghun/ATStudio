@@ -1,8 +1,8 @@
 /* ── Page Layout ── */
 
 .page {
-  padding: 32px 48px;
-  max-width: 1280px;
+  padding: 32px var(--page-px);
+  max-width: var(--page-max-w);
   margin: 0 auto;
 }
 
@@ -178,6 +178,12 @@
 
 .plThumbCell:nth-child(even) {
   background: var(--bg2);
+}
+
+.plThumbImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .plThumbSingle {
@@ -375,9 +381,113 @@
   border-color: var(--accent-border);
 }
 
+/* ── Thumbnail Upload ── */
+
+.thumbUpload {
+  width: 100%;
+}
+
+.thumbDropArea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100px;
+  border: 2px dashed var(--border2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.thumbDropArea:hover {
+  border-color: var(--accent-border);
+}
+
+.thumbDropIcon {
+  font-size: 22px;
+}
+
+.thumbDropText {
+  font-size: 12px;
+  color: var(--text2);
+}
+
+.thumbFileInput {
+  display: none;
+}
+
+.thumbPreview {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border2);
+}
+
+.thumbPreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbRemoveBtn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border: none;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thumbRemoveBtn:hover {
+  background: rgba(248, 113, 113, 0.8);
+}
+
 .modalFooter {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   padding: 0 24px 20px;
+}
+
+/* ══ Tablet ══ */
+@media (max-width: 1023px) {
+  .plGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .pageHeader {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .pageTitle {
+    font-size: 18px;
+  }
+
+  .plGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .planNotice {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
 }

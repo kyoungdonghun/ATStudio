@@ -111,7 +111,7 @@
 /* ── Section Common ── */
 
 .section {
-  padding: 36px 48px;
+  padding: 36px var(--page-px);
 }
 
 .secHead {
@@ -151,7 +151,7 @@
 .divider {
   border: none;
   border-top: 1px solid var(--border);
-  margin: 0 48px;
+  margin: 0 var(--page-px);
 }
 
 /* ── Album Carousel ── */
@@ -187,7 +187,7 @@
 
 .footer {
   background: #080d17;
-  padding: 44px 48px 28px;
+  padding: 44px var(--page-px) 28px;
   border-top: 1px solid var(--border);
   display: grid;
   grid-template-columns: 1.4fr 1fr 1fr 1fr;
@@ -297,5 +297,120 @@
   }
   50% {
     opacity: 0.5;
+  }
+}
+
+/* ══ Tablet ══ */
+@media (max-width: 1023px) {
+  .hero {
+    height: 300px;
+    padding: 0 var(--page-px);
+  }
+
+  .heroTitle {
+    font-size: 26px;
+  }
+
+  .heroStacks {
+    right: 24px;
+  }
+
+  .heroCard {
+    width: 100px;
+    height: 100px;
+  }
+
+  .section {
+    padding: 28px var(--page-px);
+  }
+
+  .divider {
+    margin: 0 var(--page-px);
+  }
+
+  .albumGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .carouselCard,
+  .skeletonCard {
+    width: 140px;
+  }
+
+  .footer {
+    padding: 36px var(--page-px) 24px;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+  }
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .hero {
+    height: auto;
+    padding: 32px var(--page-px);
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .heroTitle {
+    font-size: 22px;
+  }
+
+  .heroSub {
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+
+  .heroBtns {
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .heroStacks {
+    display: none;
+  }
+
+  .hero::after {
+    width: 300px;
+    height: 300px;
+  }
+
+  .section {
+    padding: 24px var(--page-px);
+  }
+
+  .divider {
+    margin: 0 var(--page-px);
+  }
+
+  .secTitle {
+    font-size: 15px;
+  }
+
+  .albumGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .carousel {
+    gap: 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 4px;
+  }
+
+  .carouselCard,
+  .skeletonCard {
+    width: 130px;
+    scroll-snap-align: start;
+  }
+
+  .footer {
+    padding: 28px var(--page-px) 20px;
+    grid-template-columns: 1fr;
+    gap: 24px;
   }
 }

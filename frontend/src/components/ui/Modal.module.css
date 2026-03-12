@@ -68,3 +68,13 @@
     transform: translateY(0);
   }
 }
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .modal {
+    min-width: 0;
+    width: calc(100vw - 32px);
+    max-width: 540px;
+    padding: 20px;
+  }
+}

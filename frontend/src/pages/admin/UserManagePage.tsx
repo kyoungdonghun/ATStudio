@@ -110,6 +110,7 @@ export default function UserManagePage() {
       </div>
 
       {/* Table */}
+      <div className={styles.tableWrap}>
       <table className={styles.table}>
         <thead>
           <tr>
@@ -157,6 +158,7 @@ export default function UserManagePage() {
           ))}
         </tbody>
       </table>
+      </div>
 
       {/* Pagination */}
       {pageInfo && pageInfo.total > pageInfo.size && (

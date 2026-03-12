@@ -1,3 +1,14 @@
+/* ── Breakpoints (media query reference) ──
+ *  Mobile:   max-width: 767px
+ *  Tablet:   min-width: 768px  AND  max-width: 1023px
+ *  Desktop:  min-width: 1024px  (default / no query needed)
+ *
+ *  Usage in .module.css:
+ *    @media (max-width: 767px)  { ... }    ← mobile
+ *    @media (max-width: 1023px) { ... }    ← mobile + tablet
+ *    @media (min-width: 768px)  { ... }    ← tablet + desktop
+ * ─────────────────────────────────────── */
+
 /* ── Dark theme (default) ── */
 :root {
   --bg0: #121826;
@@ -13,6 +24,12 @@
   --border: #1E293B;
   --border2: #2D3748;
   --header-bg: rgba(17, 24, 39, 0.95);
+
+  /* Layout */
+  --header-h: 58px;
+  --player-h: 72px;
+  --page-px: 48px;           /* page horizontal padding */
+  --page-max-w: 1280px;
 }
 
 /* ── Light theme ── */
@@ -42,6 +59,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
@@ -50,4 +68,35 @@ body {
   color: var(--text0);
   font-size: 14px;
   line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* ── Responsive layout overrides ── */
+
+/* Tablet */
+@media (max-width: 1023px) {
+  :root {
+    --page-px: 24px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 767px) {
+  :root {
+    --page-px: 16px;
+    --player-h: 56px;
+  }
+}
+
+/* ── Utility: visually hidden (sr-only) ── */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

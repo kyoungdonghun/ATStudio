@@ -1,7 +1,7 @@
 /* ── Page ── */
 
 .page {
-  padding: 36px 48px;
+  padding: 36px var(--page-px);
   max-width: 1000px;
   margin: 0 auto;
 }
@@ -22,6 +22,12 @@
 
 /* ── Table ── */
 
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -38,8 +44,9 @@
   text-align: left;
 }
 
-.thPin {
-  width: 50px;
+.table thead .thPin {
+  width: 60px;
+  padding: 10px 4px 10px 14px;
 }
 
 .thDate {
@@ -65,18 +72,22 @@
   vertical-align: middle;
 }
 
-.cellPin {
-  width: 50px;
+.table tbody .cellPin {
+  width: 60px;
+  padding: 14px 4px 14px 14px;
+  white-space: nowrap;
 }
 
 .pinBadge {
+  display: inline-block;
   background: var(--accent-dim);
   border: 1px solid var(--accent-border);
   color: var(--accent);
   border-radius: 4px;
-  padding: 2px 8px;
+  padding: 2px 6px;
   font-size: 11px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .cellTitle {
@@ -154,4 +165,38 @@
 
 .pageBtnActive:hover {
   opacity: 0.88;
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .title {
+    font-size: 20px;
+  }
+
+  .thDate,
+  .thViews,
+  .cellDate,
+  .cellViews {
+    display: none;
+  }
+
+  .table thead th,
+  .table tbody td {
+    padding: 10px 8px;
+  }
+
+  .table thead .thPin,
+  .table tbody .cellPin {
+    width: 40px;
+    padding: 10px 4px 10px 8px;
+  }
+
+  .cellTitle {
+    font-size: 13px;
+  }
+
+  .pinBadge {
+    padding: 1px 5px;
+    font-size: 10px;
+  }
 }

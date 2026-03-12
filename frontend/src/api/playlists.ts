@@ -24,6 +24,7 @@ export interface PlaylistDetail {
 export interface PlaylistCreateRequest {
   title: string;
   description?: string;
+  thumbnail?: File;
 }
 
 /* ── API functions ── */
@@ -51,6 +52,7 @@ export async function createPlaylist(
   const formData = new FormData();
   formData.append('title', req.title);
   if (req.description) formData.append('description', req.description);
+  if (req.thumbnail) formData.append('thumbnail', req.thumbnail);
   const { data } = await client.post<ApiResponse<Playlist>>('/playlists', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
@@ -65,6 +67,7 @@ export async function updatePlaylist(
   const formData = new FormData();
   formData.append('title', req.title);
   if (req.description) formData.append('description', req.description);
+  if (req.thumbnail) formData.append('thumbnail', req.thumbnail);
   await client.put(`/playlists/${playlistId}`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });

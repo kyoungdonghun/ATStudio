@@ -49,6 +49,7 @@ export default function NoticeListPage() {
     <div className={styles.page}>
       <h1 className={styles.title}>공지사항</h1>
 
+      <div className={styles.tableWrap}>
       <table className={styles.table}>
         <thead>
           <tr>
@@ -88,6 +89,7 @@ export default function NoticeListPage() {
           ))}
         </tbody>
       </table>
+      </div>
 
       {/* Pagination */}
       {pageInfo && pageInfo.total > pageInfo.size && (

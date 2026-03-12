@@ -98,3 +98,16 @@
 .link:hover {
   color: var(--accent);
 }
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .page {
+    padding: 16px;
+    align-items: flex-start;
+    padding-top: 80px;
+  }
+
+  .card {
+    padding: 28px 20px;
+  }
+}

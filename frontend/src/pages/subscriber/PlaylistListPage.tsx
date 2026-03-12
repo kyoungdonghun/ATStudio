@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchMyPlaylists, createPlaylist, deletePlaylist } from '@/api/playlists';
+import { toUploadUrl } from '@/api/client';
 import type { Playlist } from '@/types';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -24,6 +25,8 @@ export default function PlaylistListPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [newThumbFile, setNewThumbFile] = useState<File | null>(null);
+  const [newThumbPreview, setNewThumbPreview] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   /* ── Delete confirm ── */
@@ -58,7 +61,20 @@ export default function PlaylistListPage() {
   function openCreateModal() {
     setNewTitle('');
     setNewDesc('');
+    setNewThumbFile(null);
+    setNewThumbPreview(null);
     setShowCreate(true);
+  }
+
+  function handleThumbChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    setNewThumbFile(file);
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setNewThumbPreview(url);
+    } else {
+      setNewThumbPreview(null);
+    }
   }
 
   async function handleCreate() {
@@ -68,6 +84,7 @@ export default function PlaylistListPage() {
       await createPlaylist({
         title: newTitle.trim(),
         description: newDesc.trim() || undefined,
+        thumbnail: newThumbFile ?? undefined,
       });
       setShowCreate(false);
       await load();
@@ -156,7 +173,13 @@ export default function PlaylistListPage() {
               onClick={() => handleCardClick(pl)}
             >
               <div className={styles.plThumb}>
-                {pl.trackCount >= 4 ? (
+                {pl.thumbnail ? (
+                  <img
+                    className={styles.plThumbImg}
+                    src={toUploadUrl(pl.thumbnail)!}
+                    alt={pl.title}
+                  />
+                ) : pl.trackCount >= 4 ? (
                   <div className={styles.plThumbGrid}>
                     {NOTES.map((note, i) => (
                       <div key={i} className={styles.plThumbCell}>
@@ -235,6 +258,34 @@ export default function PlaylistListPage() {
               onChange={(e) => setNewDesc(e.target.value)}
               rows={3}
             />
+          </div>
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>{'썸네일 (선택)'}</label>
+            <div className={styles.thumbUpload}>
+              {newThumbPreview ? (
+                <div className={styles.thumbPreview}>
+                  <img src={newThumbPreview} alt="Preview" />
+                  <button
+                    className={styles.thumbRemoveBtn}
+                    type="button"
+                    onClick={() => { setNewThumbFile(null); setNewThumbPreview(null); }}
+                  >
+                    {'\u2715'}
+                  </button>
+                </div>
+              ) : (
+                <label className={styles.thumbDropArea}>
+                  <span className={styles.thumbDropIcon}>{'\uD83D\uDDBC'}</span>
+                  <span className={styles.thumbDropText}>{'이미지 선택'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className={styles.thumbFileInput}
+                    onChange={handleThumbChange}
+                  />
+                </label>
+              )}
+            </div>
           </div>
         </div>
         <div className={styles.modalFooter}>

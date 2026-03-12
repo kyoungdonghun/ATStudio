@@ -1,7 +1,7 @@
 /* ── Page ── */
 
 .page {
-  padding: 36px 48px;
+  padding: 36px var(--page-px);
   max-width: 1200px;
   margin: 0 auto;
 }
@@ -56,6 +56,12 @@
   margin-bottom: 16px;
 }
 
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -98,4 +104,36 @@
   padding: 48px 0;
   color: var(--text2);
   font-size: 14px;
+}
+
+/* ══ Tablet ══ */
+@media (max-width: 1023px) {
+  .statsGrid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+
+  .statCard {
+    padding: 18px;
+  }
+
+  .statValue {
+    font-size: 26px;
+  }
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .title {
+    font-size: 20px;
+  }
+
+  .statsGrid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .table {
+    min-width: 500px;
+  }
 }
