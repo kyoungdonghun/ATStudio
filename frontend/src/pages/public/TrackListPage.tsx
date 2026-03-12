@@ -8,6 +8,7 @@ import type { TrackListItem, TagItem, PageInfo } from '@/types';
 import TrackRow from '@/components/track/TrackRow';
 import FilterChip from '@/components/ui/FilterChip';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
+import Pagination from '@/components/ui/Pagination';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
@@ -154,25 +155,6 @@ export default function TrackListPage() {
     const next = new URLSearchParams(searchParams);
     next.set('page', String(page));
     setSearchParams(next);
-  }
-
-  /* ── Pagination range ── */
-  function buildPageRange(): (number | 'ellipsis')[] {
-    if (!pageInfo) return [];
-    const { start, end } = pageInfo;
-    const totalPages = Math.ceil(pageInfo.total / PAGE_SIZE);
-    const result: (number | 'ellipsis')[] = [];
-
-    for (let i = start; i <= end; i++) {
-      result.push(i);
-    }
-
-    if (end < totalPages) {
-      result.push('ellipsis');
-      result.push(totalPages);
-    }
-
-    return result;
   }
 
   /* ── Render ── */
@@ -327,41 +309,8 @@ export default function TrackListPage() {
           </table>
           </div>
 
-          {/* Pagination */}
           {pageInfo && (
-            <div className={styles.pagination}>
-              <button
-                className={styles.pgBtn}
-                disabled={!pageInfo.prev}
-                onClick={() => goToPage(currentPage - 1)}
-              >
-                {'\u2039'}
-              </button>
-
-              {buildPageRange().map((item, idx) =>
-                item === 'ellipsis' ? (
-                  <span key={`e-${idx}`} className={styles.pgEllipsis}>
-                    {'\u2026'}
-                  </span>
-                ) : (
-                  <button
-                    key={item}
-                    className={`${styles.pgBtn} ${item === currentPage ? styles.pgBtnActive : ''}`}
-                    onClick={() => goToPage(item)}
-                  >
-                    {item}
-                  </button>
-                ),
-              )}
-
-              <button
-                className={styles.pgBtn}
-                disabled={!pageInfo.next}
-                onClick={() => goToPage(currentPage + 1)}
-              >
-                {'\u203A'}
-              </button>
-            </div>
+            <Pagination pageInfo={pageInfo} currentPage={currentPage} onPageChange={goToPage} />
           )}
         </>
       )}

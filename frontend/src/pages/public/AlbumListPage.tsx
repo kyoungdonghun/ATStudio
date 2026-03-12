@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchAlbums } from '@/api/albums';
 import type { Album, PageInfo } from '@/types';
+import Pagination from '@/components/ui/Pagination';
 import styles from './AlbumListPage.module.css';
 
 const PAGE_SIZE = 20;
@@ -47,19 +48,6 @@ export default function AlbumListPage() {
     const next = new URLSearchParams(searchParams);
     next.set('page', String(page));
     setSearchParams(next);
-  }
-
-  function buildPageRange(): (number | 'ellipsis')[] {
-    if (!pageInfo) return [];
-    const { start, end } = pageInfo;
-    const totalPages = Math.ceil(pageInfo.total / PAGE_SIZE);
-    const result: (number | 'ellipsis')[] = [];
-    for (let i = start; i <= end; i++) result.push(i);
-    if (end < totalPages) {
-      result.push('ellipsis');
-      result.push(totalPages);
-    }
-    return result;
   }
 
   return (
@@ -138,41 +126,8 @@ export default function AlbumListPage() {
             </tbody>
           </table>
 
-          {/* Pagination */}
           {pageInfo && (
-            <div className={styles.pagination}>
-              <button
-                className={styles.pgBtn}
-                disabled={!pageInfo.prev}
-                onClick={() => goToPage(currentPage - 1)}
-              >
-                {'\u2039'}
-              </button>
-
-              {buildPageRange().map((item, idx) =>
-                item === 'ellipsis' ? (
-                  <span key={`e-${idx}`} className={styles.pgEllipsis}>
-                    {'\u2026'}
-                  </span>
-                ) : (
-                  <button
-                    key={item}
-                    className={`${styles.pgBtn} ${item === currentPage ? styles.pgBtnActive : ''}`}
-                    onClick={() => goToPage(item)}
-                  >
-                    {item}
-                  </button>
-                ),
-              )}
-
-              <button
-                className={styles.pgBtn}
-                disabled={!pageInfo.next}
-                onClick={() => goToPage(currentPage + 1)}
-              >
-                {'\u203A'}
-              </button>
-            </div>
+            <Pagination pageInfo={pageInfo} currentPage={currentPage} onPageChange={goToPage} />
           )}
         </>
       )}

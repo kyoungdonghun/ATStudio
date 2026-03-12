@@ -4,6 +4,7 @@ import { fetchUsers, updateUserAdmin } from '@/api/admin';
 import type { User, PageInfo, UserRole } from '@/types';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
+import Pagination from '@/components/ui/Pagination';
 import styles from './UserManagePage.module.css';
 
 const ROLES: UserRole[] = ['USER', 'CREATOR', 'ADMIN'];
@@ -160,36 +161,8 @@ export default function UserManagePage() {
       </table>
       </div>
 
-      {/* Pagination */}
       {pageInfo && pageInfo.total > pageInfo.size && (
-        <nav className={styles.pagination}>
-          <button
-            className={styles.pageBtn}
-            disabled={!pageInfo.prev}
-            onClick={() => setPage(pageInfo.start - 1)}
-          >
-            &lsaquo;
-          </button>
-          {Array.from(
-            { length: pageInfo.end - pageInfo.start + 1 },
-            (_, i) => pageInfo.start + i,
-          ).map((p) => (
-            <button
-              key={p}
-              className={`${styles.pageBtn} ${p === page ? styles.pageBtnActive : ''}`}
-              onClick={() => setPage(p)}
-            >
-              {p}
-            </button>
-          ))}
-          <button
-            className={styles.pageBtn}
-            disabled={!pageInfo.next}
-            onClick={() => setPage(pageInfo.end + 1)}
-          >
-            &rsaquo;
-          </button>
-        </nav>
+        <Pagination pageInfo={pageInfo} currentPage={page} onPageChange={setPage} />
       )}
 
       {/* Role change confirm modal */}

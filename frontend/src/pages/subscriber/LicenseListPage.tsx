@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchMyLicenses, type LicenseListItem } from '@/api/licenses';
 import type { PageInfo } from '@/types';
+import Pagination from '@/components/ui/Pagination';
 import styles from './LicenseListPage.module.css';
 
 const PAGE_SIZE = 20;
@@ -44,53 +45,6 @@ export default function LicenseListPage() {
   useEffect(() => {
     load(currentPage);
   }, [load, currentPage]);
-
-  /* ── Pagination helpers ── */
-  function goToPage(page: number) {
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  function renderPagination() {
-    if (!pageInfo || pageInfo.total === 0) return null;
-
-    const pages: number[] = [];
-    for (let i = pageInfo.start; i <= pageInfo.end; i++) {
-      pages.push(i);
-    }
-
-    return (
-      <div className={styles.pagination}>
-        {pageInfo.prev && (
-          <button
-            className={styles.pgBtn}
-            onClick={() => goToPage(pageInfo.start - 1)}
-          >
-            {'\u2039'}
-          </button>
-        )}
-        {pages.map((p) => (
-          <button
-            key={p}
-            className={
-              p === currentPage ? styles.pgBtnActive : styles.pgBtn
-            }
-            onClick={() => goToPage(p)}
-          >
-            {p}
-          </button>
-        ))}
-        {pageInfo.next && (
-          <button
-            className={styles.pgBtn}
-            onClick={() => goToPage(pageInfo.end + 1)}
-          >
-            {'\u203A'}
-          </button>
-        )}
-      </div>
-    );
-  }
 
   /* ── Render ── */
   return (
@@ -150,7 +104,16 @@ export default function LicenseListPage() {
               ))}
             </tbody>
           </table>
-          {renderPagination()}
+          {pageInfo && (
+            <Pagination
+              pageInfo={pageInfo}
+              currentPage={currentPage}
+              onPageChange={(p) => {
+                setCurrentPage(p);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
+          )}
         </>
       )}
     </div>
