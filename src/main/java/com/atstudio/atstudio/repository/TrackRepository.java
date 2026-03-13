@@ -23,6 +23,8 @@ public interface TrackRepository extends JpaRepository<Track, Long>, JpaSpecific
     @Query("SELECT t FROM Track t WHERE t.id = :id")
     Optional<Track> findByIdWithTags(@Param("id") Long id);
 
+    long countByIsActiveTrue();
+
     @Modifying
     @Query("UPDATE Track t SET t.playCount = t.playCount + 1 WHERE t.id = :trackId")
     void incrementPlayCount(@Param("trackId") Long trackId);

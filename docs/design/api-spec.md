@@ -1792,7 +1792,7 @@ billingCycle: String (required — "MONTHLY" | "YEARLY")
 - URL: /api/albums/{id}/tracks
 - Auth: ADMIN
 - Request Body: { "trackId": number }
-- Response: 200 OK, AlbumDetailResponse
+- Response: 201 Created, AlbumDetailResponse
 - Errors: 404 RESOURCE_NOT_FOUND, 409 RESOURCE_DUPLICATE
 
 ### 15.7 Remove Track from Album
@@ -1812,7 +1812,50 @@ billingCycle: String (required — "MONTHLY" | "YEARLY")
 
 ---
 
-# Full API Summary (89)
+## 16. Admin Dashboard
+
+### 16.1 Get Dashboard Stats
+
+| Field | Value |
+|-------|-------|
+| **Method** | `GET` |
+| **URL** | `/api/admin/stats` |
+| **Auth** | `[ADMIN]` |
+| **Description** | Aggregated dashboard statistics for admin overview. |
+
+**Response** `200 OK`
+```json
+{
+  "message": "Dashboard stats retrieved",
+  "data": {
+    "totalUsers": 150,
+    "totalTracks": 45,
+    "totalSubscribers": 30,
+    "recentUsers": [
+      {
+        "id": 1,
+        "nickname": "user01",
+        "email": "user@example.com",
+        "userType": "INDIVIDUAL",
+        "role": "USER",
+        "isVerified": true,
+        "createdAt": "2026-02-19T10:00:00"
+      }
+    ]
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| totalUsers | long | Non-deleted user count |
+| totalTracks | long | Active (published) track count |
+| totalSubscribers | long | Users with ACTIVE subscription status |
+| recentUsers | List | Latest 5 users (same format as §5.10 admin user list item) |
+
+---
+
+# Full API Summary (90)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -1831,4 +1874,5 @@ billingCycle: String (required — "MONTHLY" | "YEARLY")
 | 13 | Company Certification | 5 |
 | 14 | Utility | 8 |
 | 15 | Album | 8 |
-| | **Total** | **89** |
+| 16 | Admin Dashboard | 1 |
+| | **Total** | **90** |

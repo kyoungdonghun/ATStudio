@@ -29,6 +29,9 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
            "WHERE us.status IN ('ACTIVE', 'CANCELLED') AND us.expiresAt < :today")
     List<UserSubscription> findExpired(@Param("today") LocalDate today);
 
+    @Query("SELECT COUNT(us) FROM UserSubscription us WHERE us.status = 'ACTIVE'")
+    long countActiveSubscribers();
+
     @EntityGraph(attributePaths = {"user", "subscription"})
     Page<UserSubscription> findAll(Pageable pageable);
 

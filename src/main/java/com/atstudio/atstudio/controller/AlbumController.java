@@ -89,7 +89,8 @@ public class AlbumController {
             @PathVariable Long id,
             @Valid @RequestBody AlbumTrackAddRequest request) {
         AlbumDetailResponse response = albumService.addTrack(id, request);
-        return ResponseEntity.ok(ResponseDTO.<AlbumDetailResponse>withSingleData()
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ResponseDTO.<AlbumDetailResponse>withSingleData()
                 .message("Track added to album")
                 .data(response)
                 .build());

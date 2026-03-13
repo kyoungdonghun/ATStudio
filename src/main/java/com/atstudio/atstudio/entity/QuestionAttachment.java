@@ -1,20 +1,16 @@
 package com.atstudio.atstudio.entity;
 
+import com.atstudio.atstudio.common.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "question_attachments")
-@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class QuestionAttachment {
+public class QuestionAttachment extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -32,8 +28,4 @@ public class QuestionAttachment {
 
     @Column(nullable = false)
     private Long fileSize;
-
-    @CreatedDate
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
 }

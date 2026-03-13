@@ -457,6 +457,7 @@
 | Stored file path | `file_path` | VARCHAR(500) | NOT NULL | | | Server storage path |
 | File size | `file_size` | BIGINT | NOT NULL | | | In bytes |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP ON UPDATE | Common column (BaseEntity) |
 
 - One inquiry can have multiple attachments (1:N)
 

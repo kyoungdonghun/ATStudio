@@ -10,7 +10,7 @@ import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.TrackTag;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.key.TrackTagId;
-import com.atstudio.atstudio.repository.*;;
+import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.repository.spec.TrackSpecification;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.storage.StorageService;

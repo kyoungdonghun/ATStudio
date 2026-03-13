@@ -108,9 +108,11 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/user-subscriptions/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/user-subscriptions/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/user-subscriptions/*").hasRole("ADMIN")
+                // Admin dashboard
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // All other /api/** require authentication
                 .requestMatchers("/api/**").authenticated()
-                // Static resources (Thymeleaf)
+                // Static resources
                 .anyRequest().permitAll()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
