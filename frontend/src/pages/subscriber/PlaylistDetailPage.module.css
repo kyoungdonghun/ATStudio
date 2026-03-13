@@ -114,8 +114,163 @@
 }
 
 .table .cellActions {
-  width: 80px;
+  width: 200px;
   text-align: right;
+  white-space: nowrap;
+}
+
+/* ── Row ── */
+
+.row {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.row:hover .num {
+  display: none;
+}
+
+.row:hover .playBtn {
+  display: flex;
+}
+
+.rowPlaying .num {
+  display: none;
+}
+
+.rowPlaying .playBtn {
+  display: flex;
+}
+
+.rowPlaying .titleLink {
+  color: var(--accent);
+}
+
+/* ── Num / Play ── */
+
+.num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: 0 auto;
+  font-size: 13px;
+  color: var(--text2);
+}
+
+.playBtn {
+  display: none;
+  width: 24px;
+  height: 24px;
+  background: var(--accent);
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  color: var(--bg0);
+  font-size: 10px;
+  margin: 0 auto;
+  border: none;
+  cursor: pointer;
+}
+
+/* ── Title Link ── */
+
+.titleLink {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text0);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.titleLink:hover {
+  color: var(--accent);
+}
+
+/* ── Hover actions wrapper ── */
+
+.hoverActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.row:hover .hoverActions {
+  opacity: 1;
+}
+
+/* ── Like Button ── */
+
+.likeBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  margin-right: 4px;
+  transition: color 0.15s;
+}
+
+.likeBtn:hover {
+  color: var(--accent);
+}
+
+/* ── Add to Playlist ── */
+
+.addPlBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  margin-right: 4px;
+  transition: color 0.15s;
+}
+
+.addPlBtn:hover {
+  color: var(--accent);
+}
+
+/* ── Download ── */
+
+.dlBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 4px;
+  margin-right: 4px;
+  transition: color 0.15s;
+}
+
+.dlBtn:hover {
+  color: var(--accent);
+}
+
+/* ── Queue ── */
+
+.queueBtn {
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  color: var(--text2);
+  padding: 2px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  margin-right: 4px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.queueBtn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 /* ── Remove Button ── */

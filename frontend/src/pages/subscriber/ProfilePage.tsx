@@ -1,12 +1,30 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { fetchMe, type MeResponse } from '@/api/auth';
+import { fetchMySubscription, type MySubscription } from '@/api/userSubscriptions';
 import client from '@/api/client';
+import { formatDate } from '@/utils/format';
 import Button from '@/components/ui/Button';
 import styles from './ProfilePage.module.css';
 
+const SUB_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: '활성',
+  CANCELLED: '취소됨',
+  EXPIRED: '만료됨',
+};
+
+const PLAN_NAME_LABELS: Record<string, string> = {
+  STANDARD: 'Starter',
+  PRO: 'Pro',
+  PREMIUM: 'Business',
+};
+
 export default function ProfilePage() {
+  const navigate = useNavigate();
+
   /* ── Profile State ── */
   const [profile, setProfile] = useState<MeResponse | null>(null);
+  const [mySub, setMySub] = useState<MySubscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,6 +53,12 @@ export default function ProfilePage() {
         if (!cancelled) {
           setProfile(me);
           setNickname(me.nickname);
+        }
+        try {
+          const sub = await fetchMySubscription();
+          if (!cancelled) setMySub(sub);
+        } catch {
+          /* no subscription */
         }
       } catch (err) {
         if (!cancelled) {
@@ -151,9 +175,54 @@ export default function ProfilePage() {
         <div className={styles.infoRow}>
           <span className={styles.infoLabel}>{'가입일'}</span>
           <span className={styles.infoValue}>
-            {profile.createdAt.slice(0, 10)}
+            {formatDate(profile.createdAt)}
           </span>
         </div>
+      </div>
+
+      {/* ── Subscription Info ── */}
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>{'구독 정보'}</div>
+        {mySub ? (
+          <>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>{'현재 플랜'}</span>
+              <span className={styles.infoValue}>
+                {PLAN_NAME_LABELS[mySub.subscription.name] ?? mySub.subscription.name}
+              </span>
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>{'결제 주기'}</span>
+              <span className={styles.infoValue}>
+                {mySub.billingCycle === 'YEARLY' ? '연간' : '월간'}
+              </span>
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>{'상태'}</span>
+              <span className={styles.infoValue}>
+                <span className={mySub.status === 'ACTIVE' ? styles.statusActive : styles.statusInactive}>
+                  {SUB_STATUS_LABELS[mySub.status] ?? mySub.status}
+                </span>
+              </span>
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>{'만료일'}</span>
+              <span className={styles.infoValue}>{formatDate(mySub.expiresAt)}</span>
+            </div>
+            <div className={styles.buttonRow}>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/subscriptions/manage')}>
+                {'구독 관리'}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className={styles.noSub}>
+            <p>{'현재 구독 중인 플랜이 없습니다.'}</p>
+            <Button variant="primary" size="sm" onClick={() => navigate('/subscriptions')}>
+              {'구독 시작하기'}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* ── Edit Nickname ── */}

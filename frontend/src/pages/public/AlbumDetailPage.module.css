@@ -52,7 +52,7 @@
 .coverWrap {
   position: relative;
   flex-shrink: 0;
-  width: 220px;
+  width: 290px;
   height: 220px;
 }
 
@@ -275,6 +275,12 @@
 }
 
 .trNum {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: 0 auto;
   font-size: 13px;
   color: var(--text2);
 }
@@ -393,6 +399,36 @@
   color: var(--accent);
 }
 
+.trDlBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  margin-left: 4px;
+  transition: color 0.15s;
+}
+
+.trDlBtn:hover {
+  color: var(--accent);
+}
+
+.trQueueBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 6px;
+  margin-left: 4px;
+  transition: color 0.15s;
+}
+
+.trQueueBtn:hover {
+  color: var(--accent);
+}
+
 .btnLikeActive {
   color: var(--accent);
   border-color: var(--accent-border);
@@ -405,7 +441,7 @@
   }
 
   .coverWrap {
-    width: 180px;
+    width: 240px;
     height: 180px;
   }
 

@@ -1,0 +1,138 @@
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px var(--page-px) 60px;
+}
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text0);
+}
+
+.description {
+  font-size: 14px;
+  color: var(--text2);
+  margin-bottom: 28px;
+  line-height: 1.5;
+}
+
+/* ── Form ── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text1);
+}
+
+.required::after {
+  content: ' *';
+  color: #f87171;
+}
+
+/* ── File drop zone ── */
+
+.dropZone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 16px;
+  background: var(--bg2);
+  border: 1px dashed var(--border2);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text2);
+  font-size: 13px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.dropZone:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.fileHidden {
+  display: none;
+}
+
+/* ── File list ── */
+
+.fileList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fileItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text1);
+}
+
+.fileItemName {
+  word-break: break-all;
+  flex: 1;
+  margin-right: 8px;
+}
+
+.fileRemoveBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.fileRemoveBtn:hover {
+  color: var(--danger);
+}
+
+/* ── Actions ── */
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+/* ── Feedback ── */
+
+.error {
+  color: #f87171;
+  font-size: 13px;
+  padding: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 6px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.loading {
+  text-align: center;
+  color: var(--text2);
+  padding: 60px 0;
+  font-size: 14px;
+}

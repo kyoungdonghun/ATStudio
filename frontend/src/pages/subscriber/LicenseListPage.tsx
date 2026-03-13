@@ -1,16 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchMyLicenses, type LicenseListItem } from '@/api/licenses';
+import { formatDate } from '@/utils/format';
 import type { PageInfo } from '@/types';
 import Pagination from '@/components/ui/Pagination';
 import styles from './LicenseListPage.module.css';
 
 const PAGE_SIZE = 20;
-
-/** Format ISO date to YYYY-MM-DD */
-function formatDate(iso: string): string {
-  return iso.slice(0, 10);
-}
 
 /** Truncate license code for display */
 function truncateCode(code: string): string {

@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { fetchCompanyCerts, processCompanyCert } from '@/api/admin';
 import type { CompanyCertification, CertificationStatus, PageInfo } from '@/types';
+import { formatDate } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Pagination from '@/components/ui/Pagination';
@@ -14,11 +15,6 @@ const STATUS_OPTIONS: Array<{ label: string; value: CertificationStatus | '' }> 
   { label: 'Rejected', value: 'REJECTED' },
   { label: 'Revision Requested', value: 'REVISION_REQUESTED' },
 ];
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-}
 
 function statusClass(status: CertificationStatus): string {
   const map: Record<CertificationStatus, string> = {

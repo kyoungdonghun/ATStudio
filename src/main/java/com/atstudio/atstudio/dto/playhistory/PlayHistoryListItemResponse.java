@@ -12,7 +12,7 @@ public record PlayHistoryListItemResponse(
         LocalDateTime playedAt
 ) {
 
-    public record TrackSummary(Long id, String title, String thumbnail) {
+    public record TrackSummary(Long id, String title, String artistName, String thumbnail) {
     }
 
     public static PlayHistoryListItemResponse from(PlayHistory h) {
@@ -21,6 +21,7 @@ public record PlayHistoryListItemResponse(
                 new TrackSummary(
                         h.getTrack().getId(),
                         h.getTrack().getTitle(),
+                        h.getTrack().getUser().getNickname(),
                         h.getTrack().getThumbnail()
                 ),
                 h.getPlayedAt()

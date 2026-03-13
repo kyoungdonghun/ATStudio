@@ -58,6 +58,9 @@ public class LocalStorageService implements StorageService {
 
     @Override
     public Resource loadAsResource(String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) {
+            throw new TechnicException(TECHNIC_ERROR.IO_EXCEPTION);
+        }
         try {
             Path file = Paths.get(basePath, relativePath).normalize();
             Resource resource = new UrlResource(file.toUri());

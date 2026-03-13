@@ -5,6 +5,9 @@ import {
   fetchSubscriptionPlans,
   type SubscriptionPlan,
 } from '@/api/subscriptions';
+import { fetchMySubscription, type MySubscription } from '@/api/userSubscriptions';
+import { useAuthStore } from '@/store/authStore';
+import { formatPrice } from '@/utils/format';
 import styles from './SubscriptionPlanPage.module.css';
 
 /* ── Static plan presentation data ── */
@@ -118,32 +121,52 @@ const FAQ_ITEMS: FaqItem[] = [
   },
 ];
 
-function formatPrice(n: number): string {
-  return `\u20A9${n.toLocaleString()}`;
-}
-
 function formatMonthlyFromYearly(yearly: number): string {
-  const monthly = Math.floor(yearly / 12);
-  return `\u20A9${monthly.toLocaleString()}`;
+  return formatPrice(Math.floor(yearly / 12));
 }
 
 export default function SubscriptionPlanPage() {
   const navigate = useNavigate();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [mySub, setMySub] = useState<MySubscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isYearly, setIsYearly] = useState(true);
   const [openFaq, setOpenFaq] = useState<number>(0);
 
   useEffect(() => {
-    fetchSubscriptionPlans()
-      .then(setPlans)
-      .catch(() => setError('Failed to load plans'))
-      .finally(() => setLoading(false));
-  }, []);
+    const loadAll = async () => {
+      try {
+        const res = await fetchSubscriptionPlans();
+        setPlans(res.dataList);
+        if (isAuthenticated) {
+          try {
+            const sub = await fetchMySubscription();
+            setMySub(sub);
+          } catch {
+            /* no active subscription */
+          }
+        }
+      } catch {
+        setError('Failed to load plans');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadAll();
+  }, [isAuthenticated]);
 
-  const handleSubscribe = () => {
-    navigate('/login');
+  const handleSubscribe = (_planKey: string) => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (mySub && mySub.status === 'ACTIVE') {
+      navigate('/subscriptions/manage');
+    } else {
+      navigate('/subscriptions/payment');
+    }
   };
 
   const toggleFaq = (idx: number) => {
@@ -211,12 +234,35 @@ export default function SubscriptionPlanPage() {
         )}
       </div>
 
+      {/* Current subscription banner */}
+      {mySub && mySub.status === 'ACTIVE' && (
+        <div className={styles.currentSubBanner}>
+          {'현재 '}
+          <strong>{mySub.subscription.name}</strong>
+          {' 플랜을 구독 중입니다.'}
+          <button
+            className={styles.manageLink}
+            onClick={() => navigate('/subscriptions/manage')}
+          >
+            {'구독 관리 \u2192'}
+          </button>
+        </div>
+      )}
+
       {/* Plan Cards */}
       <div className={styles.plans}>
         {displayPlans.map(({ display, api }) => {
-          const cardClass = display.popular
-            ? `${styles.planCard} ${styles.popular}`
-            : styles.planCard;
+          const isCurrentPlan =
+            mySub?.status === 'ACTIVE' &&
+            mySub.subscription.name === display.key;
+
+          const cardClass = [
+            styles.planCard,
+            display.popular ? styles.popular : '',
+            isCurrentPlan ? styles.currentPlan : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
 
           const price = api
             ? isYearly
@@ -228,7 +274,10 @@ export default function SubscriptionPlanPage() {
 
           return (
             <div key={display.key} className={cardClass}>
-              {display.popular && (
+              {isCurrentPlan && (
+                <div className={styles.currentBadge}>{'현재 구독 중'}</div>
+              )}
+              {!isCurrentPlan && display.popular && (
                 <div className={styles.popularBadge}>가장 인기 있어요</div>
               )}
               <div
@@ -264,7 +313,7 @@ export default function SubscriptionPlanPage() {
                 {api && (
                   <li>
                     <span className={styles.check}>{'\u2713'}</span>
-                    일 {api.downloadPerDay}곡 다운로드
+                    일 {api.downloadPerDay === -1 ? '무제한' : api.downloadPerDay + '곡'} 다운로드
                   </li>
                 )}
                 {display.features.map((f) => (
@@ -282,10 +331,11 @@ export default function SubscriptionPlanPage() {
                 ))}
               </ul>
               <button
-                className={`${styles.btnPlan} ${display.btnVariant === 'fill' ? styles.btnFill : styles.btnGhost}`}
-                onClick={handleSubscribe}
+                className={`${styles.btnPlan} ${isCurrentPlan ? styles.btnCurrent : display.btnVariant === 'fill' ? styles.btnFill : styles.btnGhost}`}
+                onClick={() => handleSubscribe(display.key)}
+                disabled={isCurrentPlan}
               >
-                {display.btnLabel}
+                {isCurrentPlan ? '현재 플랜' : display.btnLabel}
               </button>
             </div>
           );

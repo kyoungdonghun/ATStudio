@@ -12,14 +12,10 @@ import {
   fetchSubscriptionPlans,
   type SubscriptionPlan,
 } from '@/api/subscriptions';
+import { formatDate } from '@/utils/format';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import styles from './SubscriptionManagePage.module.css';
-
-/** Format ISO date to YYYY-MM-DD */
-function formatDate(iso: string): string {
-  return iso.slice(0, 10);
-}
 
 /** Format amount with comma separator */
 function formatAmount(amount: number): string {
@@ -56,7 +52,7 @@ export default function SubscriptionManagePage() {
         fetchSubscriptionPlans(),
       ]);
       setSub(subRes);
-      setPlans(plansRes);
+      setPlans(plansRes.dataList);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : '구독 정보를 불러오지 못했습니다.',

@@ -1,13 +1,7 @@
 import client from '@/api/client';
-import type { ApiResponse, PagedResponse, TrackListItem } from '@/types';
+import type { ApiResponse, PagedResponse, TagItem, TrackListItem } from '@/types';
 
 /* ── Local detail types (not in shared types) ── */
-
-export interface TrackTag {
-  id: number;
-  name: string;
-  type: string;
-}
 
 export interface TrackDetail {
   id: number;
@@ -21,7 +15,7 @@ export interface TrackDetail {
   thumbnail: string | null;
   isActive: boolean;
   playCount: number;
-  tags: TrackTag[];
+  tags: TagItem[];
   createdAt: string;
   updatedAt: string;
 }
@@ -84,7 +78,7 @@ export interface AdminTrackListItem {
   thumbnail: string | null;
   playCount: number;
   isActive: boolean;
-  tags: TrackTag[];
+  tags: TagItem[];
   createdAt: string;
 }
 

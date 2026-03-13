@@ -1,0 +1,130 @@
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px var(--page-px) 60px;
+}
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 28px;
+  color: var(--text0);
+}
+
+/* ── Status card ── */
+
+.card {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.statusLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  min-width: 80px;
+}
+
+/* ── Badge ── */
+
+.badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.badgePending {
+  background: rgba(250, 204, 21, 0.15);
+  color: #eab308;
+}
+
+.badgeApproved {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.badgeRejected {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+/* ── Info rows ── */
+
+.infoRow {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.infoLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.infoValue {
+  font-size: 14px;
+  color: var(--text0);
+  word-break: break-all;
+}
+
+.certCode {
+  font-family: monospace;
+  font-size: 14px;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+
+.adminNote {
+  font-size: 14px;
+  color: var(--text1);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* ── Empty state ── */
+
+.empty {
+  text-align: center;
+  padding: 60px 0;
+}
+
+.emptyText {
+  font-size: 14px;
+  color: var(--text2);
+  margin-bottom: 16px;
+}
+
+/* ── Feedback ── */
+
+.error {
+  color: #f87171;
+  font-size: 13px;
+  padding: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 6px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.loading {
+  text-align: center;
+  color: var(--text2);
+  padding: 60px 0;
+  font-size: 14px;
+}

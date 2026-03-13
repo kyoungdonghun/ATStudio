@@ -1,0 +1,282 @@
+/* ── Page ── */
+
+.page {
+  padding: 32px var(--page-px);
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.loading,
+.error {
+  text-align: center;
+  padding: 80px 0;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+.error {
+  color: #f87171;
+}
+
+/* ── Back ── */
+
+.backLink {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--text2);
+  text-decoration: none;
+  margin-bottom: 20px;
+  transition: color 0.15s;
+}
+
+.backLink:hover {
+  color: var(--accent);
+}
+
+/* ── Header ── */
+
+.header {
+  margin-bottom: 24px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 10px;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.date {
+  font-size: 13px;
+  color: var(--text2);
+}
+
+.privateBadge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text2);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+/* ── Category Badge ── */
+
+.categoryBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--bg3);
+  color: var(--text1);
+  border: 1px solid var(--border2);
+}
+
+/* ── Status Badges ── */
+
+.statusBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.statusOPEN {
+  background: rgba(96, 165, 250, 0.12);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.statusIN_PROGRESS {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.statusRESOLVED {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.statusCLOSED {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+/* ── Content ── */
+
+.content {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 24px;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text0);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 28px;
+}
+
+/* ── Sections ── */
+
+.section {
+  margin-bottom: 28px;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+/* ── Attachments ── */
+
+.attachList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attachItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.attachLink {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.attachLink:hover {
+  text-decoration: underline;
+}
+
+.attachSize {
+  color: var(--text2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* ── Answers ── */
+
+.answerList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.answerCard {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+
+.answerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.answerUser {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text0);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.adminBadge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(96, 165, 250, 0.12);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.answerDate {
+  font-size: 12px;
+  color: var(--text2);
+}
+
+.answerContent {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text1);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Actions ── */
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+/* ── Modal ── */
+
+.modalBody {
+  padding: 16px 20px;
+  font-size: 14px;
+  color: var(--text0);
+  line-height: 1.6;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 20px;
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .title {
+    font-size: 18px;
+  }
+
+  .content {
+    padding: 14px 16px;
+  }
+
+  .answerCard {
+    padding: 12px 14px;
+  }
+}

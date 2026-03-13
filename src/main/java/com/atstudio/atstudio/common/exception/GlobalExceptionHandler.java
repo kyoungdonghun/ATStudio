@@ -44,6 +44,12 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(ex.getStatus(), ex.getClientMessage(), null);
     }
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ExceptionResponseDTO> handleAccessDeniedException(AccessDeniedException ex) {
+        logger.warn("AccessDeniedException: insufficient authority. Detail: {}", ex.toString());
+        return buildErrorResponse(HttpStatus.FORBIDDEN, "해당 정보를 열람할 수 없습니다.", null);
+    }
+
     // ── Fallback Handler (unthrown Spring/Java exceptions) ───────────────────
 
     @ExceptionHandler(Exception.class)
@@ -112,10 +118,6 @@ public class GlobalExceptionHandler {
             technicEx = new TechnicException(TECHNIC_ERROR.IO_EXCEPTION);
             logger.error("TechnicException(Fallback): {}. Detail: {}",
                     technicEx.getDeveloperMessage(), ex.toString(), ex);
-
-        } else if (ex instanceof AccessDeniedException) {
-            logger.warn("AccessDeniedException(Fallback): insufficient authority. Detail: {}", ex.toString());
-            return buildErrorResponse(HttpStatus.FORBIDDEN, "해당 정보를 열람할 수 없습니다.", null);
 
         } else {
             technicEx = new TechnicException(TECHNIC_ERROR.UNEXPECTED_ERROR);

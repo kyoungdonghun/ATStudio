@@ -5,13 +5,11 @@ import { fetchAlbumDetail, type AlbumDetail } from '@/api/albums';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
+import { formatDate } from '@/utils/format';
+import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
+import { addToDownloadQueue } from '@/api/downloadQueue';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import styles from './AlbumDetailPage.module.css';
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-}
 
 export default function AlbumDetailPage() {
   const { albumId } = useParams<{ albumId: string }>();
@@ -129,7 +127,7 @@ export default function AlbumDetailPage() {
               <th style={{ width: 66 }} className={styles.thRight}>
                 순서
               </th>
-              <th style={{ width: 70 }} />
+              <th style={{ width: 140 }} />
             </tr>
           </thead>
           <tbody>
@@ -197,6 +195,38 @@ export default function AlbumDetailPage() {
                     title="재생목록에 추가"
                   >
                     +
+                  </button>
+                  <button
+                    className={styles.trDlBtn}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        const blob = await downloadTrack(t.trackId);
+                        triggerBlobDownload(blob, `${t.title}.mp3`);
+                      } catch {
+                        alert('다운로드에 실패했습니다.');
+                      }
+                    }}
+                    aria-label="Download"
+                    title="다운로드"
+                  >
+                    &#8595;
+                  </button>
+                  <button
+                    className={styles.trQueueBtn}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        await addToDownloadQueue(t.trackId);
+                        alert('다운로드 대기열에 추가되었습니다.');
+                      } catch {
+                        alert('대기열 추가에 실패했습니다.');
+                      }
+                    }}
+                    aria-label="Add to download queue"
+                    title="대기열에 추가"
+                  >
+                    대기열
                   </button>
                 </td>
               </tr>

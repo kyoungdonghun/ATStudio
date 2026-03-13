@@ -1,5 +1,5 @@
 import client from '@/api/client';
-import type { Album, ApiResponse } from '@/types';
+import type { Album, ApiResponse, PagedResponse } from '@/types';
 
 /* ── Detail types ── */
 
@@ -33,14 +33,14 @@ export interface AlbumListParams {
 /** GET /api/albums -- public album list */
 export async function fetchAlbums(
   params: AlbumListParams = {},
-): Promise<{ dataList: Album[] }> {
+): Promise<PagedResponse<Album>> {
   const query: Record<string, string | number> = {};
 
   if (params.page !== undefined) query.page = params.page;
   if (params.size !== undefined) query.size = params.size;
   if (params.sort) query.sort = params.sort;
 
-  const { data } = await client.get<{ dataList: Album[] }>('/albums', {
+  const { data } = await client.get<PagedResponse<Album>>('/albums', {
     params: query,
   });
   return data;

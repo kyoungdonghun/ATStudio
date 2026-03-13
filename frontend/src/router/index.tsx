@@ -2,6 +2,7 @@ import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { type ReactNode } from 'react';
 import ProtectedRoute from '@/router/ProtectedRoute';
 import MainLayout from '@/layouts/MainLayout';
+import AdminLayout from '@/layouts/AdminLayout';
 
 /* ── Page imports ── */
 
@@ -122,28 +123,36 @@ const routes: RouteObject[] = [
       { path: '/questions/new', element: authRequired(<QuestionCreatePage />) },
       { path: '/questions/:questionId', element: authRequired(<QuestionDetailPage />) },
 
-      /* ── Creator / Admin (5 routes) ── */
-      { path: '/admin/tracks/upload', element: adminOnly(<TrackUploadPage />) },
-      { path: '/admin/tracks/:trackId/edit', element: adminOnly(<TrackEditPage />) },
-      { path: '/admin/albums', element: adminOnly(<AlbumManagePage />) },
-      { path: '/admin/albums/new', element: adminOnly(<AlbumCreatePage />) },
-      { path: '/admin/albums/:albumId/edit', element: adminOnly(<AlbumEditPage />) },
-
-      /* ── Admin (10 routes) ── */
-      { path: '/admin/dashboard', element: adminOnly(<DashboardPage />) },
-      { path: '/admin/users', element: adminOnly(<UserManagePage />) },
-      { path: '/admin/subscriptions', element: adminOnly(<AdminSubscriptionManagePage />) },
-      { path: '/admin/licenses', element: adminOnly(<LicenseManagePage />) },
-      { path: '/admin/questions', element: adminOnly(<QuestionManagePage />) },
-      { path: '/admin/company-certifications', element: adminOnly(<CompanyCertManagePage />) },
-      { path: '/admin/tags', element: adminOnly(<TagManagePage />) },
-      { path: '/admin/track-manage', element: adminOnly(<TrackManagePage />) },
-      { path: '/admin/notices/new', element: adminOnly(<NoticeCreatePage />) },
-      { path: '/admin/notices/:noticeId/edit', element: adminOnly(<NoticeEditPage />) },
-
       /* ── Error (2 routes) ── */
       { path: '/error', element: <ServerErrorPage /> },
       { path: '*', element: <NotFoundPage /> },
+    ],
+  },
+
+  /* ── Admin layout (sidebar + topbar, no PlayerBar) ── */
+  {
+    path: '/admin',
+    element: adminOnly(<AdminLayout />),
+    children: [
+      /* ── Creator / Admin (5 routes) ── */
+      { index: true, element: <DashboardPage /> },
+      { path: 'tracks/upload', element: <TrackUploadPage /> },
+      { path: 'tracks/:trackId/edit', element: <TrackEditPage /> },
+      { path: 'albums', element: <AlbumManagePage /> },
+      { path: 'albums/new', element: <AlbumCreatePage /> },
+      { path: 'albums/:albumId/edit', element: <AlbumEditPage /> },
+
+      /* ── Admin (9 routes) ── */
+      { path: 'dashboard', element: <DashboardPage /> },
+      { path: 'users', element: <UserManagePage /> },
+      { path: 'subscriptions', element: <AdminSubscriptionManagePage /> },
+      { path: 'licenses', element: <LicenseManagePage /> },
+      { path: 'questions', element: <QuestionManagePage /> },
+      { path: 'company-certifications', element: <CompanyCertManagePage /> },
+      { path: 'tags', element: <TagManagePage /> },
+      { path: 'track-manage', element: <TrackManagePage /> },
+      { path: 'notices/new', element: <NoticeCreatePage /> },
+      { path: 'notices/:noticeId/edit', element: <NoticeEditPage /> },
     ],
   },
 ];

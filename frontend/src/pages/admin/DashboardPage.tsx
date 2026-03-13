@@ -1,12 +1,8 @@
 /** Screen 18: Admin stats dashboard */
 import { useEffect, useState } from 'react';
 import { fetchDashboardStats, type DashboardStats } from '@/api/admin';
+import { formatDate } from '@/utils/format';
 import styles from './DashboardPage.module.css';
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-}
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);

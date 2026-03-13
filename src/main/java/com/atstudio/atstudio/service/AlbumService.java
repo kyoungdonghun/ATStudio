@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Transactional(readOnly = true)
@@ -60,11 +61,9 @@ public class AlbumService {
 
     public List<AlbumListItemResponse> getAlbums() {
         List<Album> albums = albumRepository.findAllByIsActiveTrueOrderByCreatedAtDesc();
+        Map<Long, Integer> countMap = albumTrackRepository.countMapByAlbums(albums);
         return albums.stream()
-                .map(album -> {
-                    int trackCount = (int) albumTrackRepository.countByAlbum(album);
-                    return AlbumListItemResponse.from(album, trackCount);
-                })
+                .map(album -> AlbumListItemResponse.from(album, countMap.getOrDefault(album.getId(), 0)))
                 .toList();
     }
 

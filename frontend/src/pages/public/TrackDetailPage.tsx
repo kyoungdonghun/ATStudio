@@ -7,13 +7,9 @@ import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
+import { formatDate } from '@/utils/format';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import styles from './TrackDetailPage.module.css';
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-}
 
 export default function TrackDetailPage() {
   const { trackId } = useParams<{ trackId: string }>();
@@ -134,7 +130,7 @@ export default function TrackDetailPage() {
                   description: track.description,
                   audioFile: track.audioFile,
                   thumbnail: track.thumbnail,
-                  tags: track.tags as unknown as import('@/types').TagItem[],
+                  tags: track.tags,
                   isActive: track.isActive,
                   playCount: track.playCount,
                   createdAt: track.createdAt,

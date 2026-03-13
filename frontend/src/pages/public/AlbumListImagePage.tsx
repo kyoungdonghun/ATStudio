@@ -28,7 +28,7 @@ export default function AlbumListImagePage() {
     try {
       const res = await fetchAlbums({ page: currentPage, size: PAGE_SIZE });
       setAlbums(res.dataList);
-      setPageInfo((res as unknown as { pageInfo?: typeof pageInfo }).pageInfo ?? null);
+      setPageInfo(res.pageInfo ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load albums');
     } finally {

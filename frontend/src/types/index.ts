@@ -123,7 +123,7 @@ export interface Subscription {
   name: string;
   tier: SubscriptionTier;
   price: number;
-  dailyDownloadLimit: number;
+  downloadPerDay: number;
   description: string | null;
 }
 
@@ -164,7 +164,7 @@ export interface Notice {
 
 export interface PlayHistory {
   id: number;
-  track: { id: number; title: string; thumbnail: string | null };
+  track: { id: number; title: string; artistName: string; thumbnail: string | null };
   playedAt: string;
 }
 

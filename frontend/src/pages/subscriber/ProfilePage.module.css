@@ -56,6 +56,28 @@
   flex: 1;
 }
 
+/* ── Subscription Status ── */
+
+.statusActive {
+  color: #4ade80;
+  font-weight: 500;
+}
+
+.statusInactive {
+  color: var(--text2);
+}
+
+.noSub {
+  text-align: center;
+  padding: 16px 0;
+  color: var(--text2);
+  font-size: 13px;
+}
+
+.noSub p {
+  margin-bottom: 12px;
+}
+
 /* ── Form ── */
 
 .formGroup {

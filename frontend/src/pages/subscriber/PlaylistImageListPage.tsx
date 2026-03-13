@@ -1,4 +1,10 @@
-/** Screen 4: Playlist list (image type) */
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+
 export default function PlaylistImageListPage() {
-  return <div><h1>Playlist List (Image)</h1></div>;
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate('/playlists', { replace: true });
+  }, [navigate]);
+  return null;
 }

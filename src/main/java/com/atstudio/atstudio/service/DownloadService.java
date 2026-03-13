@@ -60,6 +60,11 @@ public class DownloadService {
                         .licenseCode(UUID.randomUUID().toString())
                         .build()));
 
-        return storageService.loadAsResource(track.getAudioFile());
+        String audioFile = track.getAudioFile();
+        if (audioFile == null || audioFile.isBlank()) {
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND);
+        }
+
+        return storageService.loadAsResource(audioFile);
     }
 }

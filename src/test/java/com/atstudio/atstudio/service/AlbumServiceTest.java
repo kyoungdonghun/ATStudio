@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -72,8 +73,8 @@ class AlbumServiceTest {
 
         given(albumRepository.findAllByIsActiveTrueOrderByCreatedAtDesc())
                 .willReturn(List.of(album));
-        given(albumTrackRepository.countByAlbum(album))
-                .willReturn(0L);
+        given(albumTrackRepository.countMapByAlbums(List.of(album)))
+                .willReturn(Map.of());
 
         List<AlbumListItemResponse> result = albumService.getAlbums();
 

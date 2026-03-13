@@ -2,15 +2,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchLikes, removeLike } from '@/api/likes';
+import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
+import { addToDownloadQueue } from '@/api/downloadQueue';
+import { formatDate } from '@/utils/format';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import type { LikeItem } from '@/types';
 import styles from './LikeListPage.module.css';
-
-function formatDate(iso: string): string {
-  return iso.substring(0, 10);
-}
 
 export default function LikeListPage() {
   const [items, setItems] = useState<LikeItem[]>([]);
@@ -47,6 +46,24 @@ export default function LikeListPage() {
       likeStore.likedIds.delete(trackId);
     } catch {
       /* ignore */
+    }
+  }
+
+  async function handleDownload(item: LikeItem) {
+    try {
+      const blob = await downloadTrack(item.trackId);
+      triggerBlobDownload(blob, `${item.title}.mp3`);
+    } catch {
+      alert('다운로드에 실패했습니다.');
+    }
+  }
+
+  async function handleAddToQueue(item: LikeItem) {
+    try {
+      await addToDownloadQueue(item.trackId);
+      alert('다운로드 대기열에 추가되었습니다.');
+    } catch {
+      alert('대기열 추가에 실패했습니다.');
     }
   }
 
@@ -146,13 +163,29 @@ export default function LikeListPage() {
                   {formatDate(item.createdAt)}
                 </td>
                 <td className={styles.cellActions}>
-                  <button
-                    className={styles.addPlBtn}
-                    onClick={() => setAddToPlTrackId(item.trackId)}
-                    title="재생목록에 추가"
-                  >
-                    +
-                  </button>
+                  <span className={styles.hoverActions}>
+                    <button
+                      className={styles.addPlBtn}
+                      onClick={() => setAddToPlTrackId(item.trackId)}
+                      title="재생목록에 추가"
+                    >
+                      +
+                    </button>
+                    <button
+                      className={styles.dlBtn}
+                      onClick={() => handleDownload(item)}
+                      title="다운로드"
+                    >
+                      {'\u2193'}
+                    </button>
+                    <button
+                      className={styles.queueBtn}
+                      onClick={() => handleAddToQueue(item)}
+                      title="대기열에 추가"
+                    >
+                      {'대기열'}
+                    </button>
+                  </span>
                   <button
                     className={styles.unlikeBtn}
                     onClick={() => handleUnlike(item.trackId)}

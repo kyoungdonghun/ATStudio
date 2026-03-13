@@ -1,12 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { fetchLicenseDetail, type LicenseDetail } from '@/api/licenses';
+import { formatDate } from '@/utils/format';
 import styles from './LicenseDetailPage.module.css';
-
-/** Format ISO date to YYYY-MM-DD */
-function formatDate(iso: string): string {
-  return iso.slice(0, 10);
-}
 
 export default function LicenseDetailPage() {
   const { licenseId } = useParams<{ licenseId: string }>();

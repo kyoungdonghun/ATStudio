@@ -12,7 +12,7 @@ import java.util.List;
 
 public interface PlayHistoryRepository extends JpaRepository<PlayHistory, Long> {
 
-    @EntityGraph(attributePaths = "track")
+    @EntityGraph(attributePaths = {"track", "track.user"})
     Page<PlayHistory> findAllByUserOrderByPlayedAtDesc(User user, Pageable pageable);
 
     void deleteByIdInAndUser(List<Long> ids, User user);

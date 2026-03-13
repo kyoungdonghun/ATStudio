@@ -7,6 +7,7 @@ import {
   deleteChannel,
   type WhitelistChannelRequest,
 } from '@/api/whitelistChannels';
+import { formatDate } from '@/utils/format';
 import type { WhitelistChannel } from '@/types';
 import styles from './WhitelistChannelPage.module.css';
 
@@ -198,7 +199,7 @@ export default function WhitelistChannelPage() {
 
                   {/* Date cell */}
                   <td className={styles.cellDate}>
-                    {ch.createdAt?.slice(0, 10) ?? '-'}
+                    {formatDate(ch.createdAt)}
                   </td>
 
                   {/* Actions */}

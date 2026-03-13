@@ -2,17 +2,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { fetchUsers, updateUserAdmin } from '@/api/admin';
 import type { User, PageInfo, UserRole } from '@/types';
+import { formatDate } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Pagination from '@/components/ui/Pagination';
 import styles from './UserManagePage.module.css';
 
 const ROLES: UserRole[] = ['USER', 'CREATOR', 'ADMIN'];
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-}
 
 export default function UserManagePage() {
   const [users, setUsers] = useState<User[]>([]);

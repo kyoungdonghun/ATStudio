@@ -3,12 +3,8 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { fetchNotice } from '@/api/notices';
 import type { Notice } from '@/types';
+import { formatDate } from '@/utils/format';
 import styles from './NoticeDetailPage.module.css';
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-}
 
 export default function NoticeDetailPage() {
   const { noticeId } = useParams<{ noticeId: string }>();

@@ -1,4 +1,5 @@
 import client from '@/api/client';
+import type { PagedResponse } from '@/types';
 
 export interface SubscriptionPlan {
   id: number;
@@ -14,10 +15,10 @@ export interface SubscriptionPlan {
 
 export async function fetchSubscriptionPlans(
   userType?: string,
-): Promise<SubscriptionPlan[]> {
+): Promise<PagedResponse<SubscriptionPlan>> {
   const params = userType ? { userType } : {};
-  const { data } = await client.get<{ dataList: SubscriptionPlan[] }>('/subscriptions', {
+  const { data } = await client.get<PagedResponse<SubscriptionPlan>>('/subscriptions', {
     params,
   });
-  return data.dataList;
+  return data;
 }

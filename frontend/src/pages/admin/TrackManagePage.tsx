@@ -6,6 +6,7 @@ import {
   type AdminTrackListItem,
 } from '@/api/tracks';
 import type { PageInfo } from '@/types';
+import { formatDate } from '@/utils/format';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Pagination from '@/components/ui/Pagination';
@@ -95,11 +96,6 @@ export default function TrackManagePage() {
     } finally {
       setDeleting(false);
     }
-  }
-
-  /* ── Format date ── */
-  function formatDate(iso: string): string {
-    return iso.slice(0, 10);
   }
 
   return (

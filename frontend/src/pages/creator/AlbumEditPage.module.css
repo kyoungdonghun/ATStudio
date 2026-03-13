@@ -1,0 +1,138 @@
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px var(--page-px) 60px;
+}
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 28px;
+  color: var(--text0);
+}
+
+/* ── Form ── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text1);
+}
+
+.required::after {
+  content: ' *';
+  color: #f87171;
+}
+
+.input {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 14px;
+  color: var(--text0);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: var(--accent-border);
+}
+
+.textarea {
+  composes: input;
+  min-height: 100px;
+  resize: vertical;
+}
+
+/* ── Thumbnail ── */
+
+.thumbArea {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.thumbPreview {
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+}
+
+.fileLabel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 16px;
+  background: var(--bg2);
+  border: 1px dashed var(--border2);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text2);
+  font-size: 13px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.fileLabel:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.fileLabelSelected {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  border-style: solid;
+}
+
+.fileHidden {
+  display: none;
+}
+
+.currentFile {
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 2px;
+}
+
+/* ── Actions ── */
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+/* ── Feedback ── */
+
+.error {
+  color: #f87171;
+  font-size: 13px;
+  padding: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 6px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.loading {
+  text-align: center;
+  color: var(--text2);
+  padding: 60px 0;
+  font-size: 14px;
+}

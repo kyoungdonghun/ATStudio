@@ -1,4 +1,10 @@
-/** Screen 8: Playlist create */
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+
 export default function PlaylistCreatePage() {
-  return <div><h1>Create Playlist</h1></div>;
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate('/playlists', { replace: true });
+  }, [navigate]);
+  return null;
 }

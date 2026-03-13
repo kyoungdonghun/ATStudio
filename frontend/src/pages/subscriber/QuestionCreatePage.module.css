@@ -1,0 +1,199 @@
+/* ── Page ── */
+
+.page {
+  padding: 32px var(--page-px);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 28px;
+}
+
+/* ── Form ── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+/* ── Field ── */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text1);
+}
+
+.input,
+.select,
+.textarea {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text0);
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--text2);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 160px;
+  line-height: 1.6;
+}
+
+.charCount {
+  font-size: 12px;
+  color: var(--text2);
+  text-align: right;
+}
+
+/* ── Checkbox ── */
+
+.checkField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.checkLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text0);
+  cursor: pointer;
+}
+
+.checkLabel input[type='checkbox'] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+
+.checkHint {
+  font-size: 12px;
+  color: var(--text2);
+  margin-left: 24px;
+}
+
+/* ── File ── */
+
+.fileInput {
+  display: none;
+}
+
+.fileBtn {
+  align-self: flex-start;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text1);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.fileBtn:hover {
+  border-color: var(--accent);
+}
+
+.fileList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fileItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.fileName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text0);
+}
+
+.fileSize {
+  color: var(--text2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.fileRemove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text2);
+  font-size: 12px;
+  padding: 2px 4px;
+  transition: color 0.15s;
+}
+
+.fileRemove:hover {
+  color: #f87171;
+}
+
+/* ── Actions ── */
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .pageTitle {
+    font-size: 18px;
+  }
+}

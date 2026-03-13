@@ -17,12 +17,36 @@
   letter-spacing: -0.02em;
 }
 
-.pageTitleCount {
+.count {
   font-size: 14px;
   font-weight: 400;
   color: var(--text2);
   margin-left: 10px;
 }
+
+.btnDelete {
+  background: none;
+  border: 1px solid var(--danger, #f87171);
+  color: var(--danger, #f87171);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btnDelete:hover {
+  background: var(--danger, #f87171);
+  color: #fff;
+}
+
+.btnDelete:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── States ── */
 
 .loading,
 .error,
@@ -56,12 +80,12 @@
   -webkit-overflow-scrolling: touch;
 }
 
-.trackTable {
+.table {
   width: 100%;
   border-collapse: collapse;
 }
 
-.trackTable thead th {
+.table thead th {
   font-size: 11px;
   font-weight: 500;
   color: var(--text2);
@@ -73,44 +97,39 @@
   white-space: nowrap;
 }
 
-.trackTable thead .thCenter {
+.table thead .thCenter {
   text-align: center;
 }
 
-.trackTable thead .thRight {
+.table thead .thRight {
   text-align: right;
+}
+
+/* ── Checkbox ── */
+
+.cellCheck {
+  padding: 10px 8px;
+  width: 36px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.cellCheck input[type='checkbox'] {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
 }
 
 /* ── Row ── */
 
 .row {
   border-bottom: 1px solid var(--border);
-  cursor: pointer;
   transition: background 0.12s;
 }
 
 .row:hover {
   background: var(--bg1);
-}
-
-.row:hover .num {
-  display: none;
-}
-
-.row:hover .playBtn {
-  display: flex;
-}
-
-.rowPlaying .num {
-  display: none;
-}
-
-.rowPlaying .playBtn {
-  display: flex;
-}
-
-.rowPlaying .titleLink {
-  color: var(--accent);
 }
 
 /* ── Cells ── */
@@ -119,6 +138,8 @@
   padding: 10px 12px;
   text-align: center;
   width: 42px;
+  font-size: 13px;
+  color: var(--text2);
   vertical-align: middle;
 }
 
@@ -127,67 +148,25 @@
   vertical-align: middle;
 }
 
-.cellBpm {
+.cellArtist {
   padding: 10px 12px;
-  width: 70px;
-  text-align: right;
   font-size: 13px;
   color: var(--text1);
   vertical-align: middle;
-}
-
-.cellKey {
-  padding: 10px 12px;
-  width: 70px;
-  text-align: center;
-  font-size: 13px;
-  color: var(--text1);
-  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
 }
 
 .cellDate {
   padding: 10px 12px;
-  width: 100px;
+  width: 140px;
   text-align: right;
   font-size: 12px;
   color: var(--text2);
   vertical-align: middle;
-}
-
-.cellActions {
-  padding: 10px 12px;
-  width: 160px;
-  text-align: center;
-  vertical-align: middle;
   white-space: nowrap;
-}
-
-/* ── Num / Play ── */
-
-.num {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin: 0 auto;
-  font-size: 13px;
-  color: var(--text2);
-}
-
-.playBtn {
-  display: none;
-  width: 24px;
-  height: 24px;
-  background: var(--accent);
-  border-radius: 50%;
-  align-items: center;
-  justify-content: center;
-  color: var(--bg0);
-  font-size: 10px;
-  margin: 0 auto;
-  border: none;
-  cursor: pointer;
 }
 
 /* ── Info ── */
@@ -241,95 +220,18 @@
   color: var(--accent);
 }
 
-/* ── Hover actions wrapper ── */
+/* ── Pagination wrapper ── */
 
-.hoverActions {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  opacity: 0;
-  transition: opacity 0.12s;
-}
-
-.row:hover .hoverActions {
-  opacity: 1;
-}
-
-/* ── Add to playlist ── */
-
-.addPlBtn {
-  background: none;
-  border: none;
-  color: var(--text2);
-  font-size: 14px;
-  cursor: pointer;
-  padding: 4px;
-  margin-right: 4px;
-  transition: color 0.15s;
-}
-
-.addPlBtn:hover {
-  color: var(--accent);
-}
-
-/* ── Download ── */
-
-.dlBtn {
-  background: none;
-  border: none;
-  color: var(--text2);
-  font-size: 15px;
-  cursor: pointer;
-  padding: 4px;
-  margin-right: 4px;
-  transition: color 0.15s;
-}
-
-.dlBtn:hover {
-  color: var(--accent);
-}
-
-/* ── Queue ── */
-
-.queueBtn {
-  background: transparent;
-  border: 1px solid var(--border2);
-  border-radius: 5px;
-  color: var(--text2);
-  padding: 2px 6px;
-  font-size: 11px;
-  font-family: inherit;
-  cursor: pointer;
-  margin-right: 4px;
-  transition: color 0.15s, border-color 0.15s;
-}
-
-.queueBtn:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-/* ── Unlike (always visible) ── */
-
-.unlikeBtn {
-  background: none;
-  border: none;
-  color: var(--accent);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 4px;
-  transition: opacity 0.15s;
-}
-
-.unlikeBtn:hover {
-  opacity: 0.6;
+.paginationWrap {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
 }
 
 /* ══ Tablet ══ */
 @media (max-width: 1023px) {
-  .cellBpm,
-  .cellKey {
-    display: none;
+  .cellArtist {
+    max-width: 120px;
   }
 }
 
@@ -339,8 +241,7 @@
     font-size: 18px;
   }
 
-  .cellBpm,
-  .cellKey,
+  .cellArtist,
   .cellDate {
     display: none;
   }
@@ -348,13 +249,5 @@
   .thumb {
     width: 32px;
     height: 32px;
-  }
-
-  .num {
-    display: none;
-  }
-
-  .playBtn {
-    display: flex;
   }
 }

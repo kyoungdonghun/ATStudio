@@ -1,15 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchAlbums } from '@/api/albums';
+import { formatDate } from '@/utils/format';
 import type { Album, PageInfo } from '@/types';
 import Pagination from '@/components/ui/Pagination';
 import styles from './AlbumListPage.module.css';
 
 const PAGE_SIZE = 20;
-
-function formatDate(iso: string): string {
-  return iso.substring(0, 10);
-}
 
 export default function AlbumListPage() {
   const navigate = useNavigate();
@@ -31,7 +28,7 @@ export default function AlbumListPage() {
     try {
       const res = await fetchAlbums({ page: currentPage, size: PAGE_SIZE });
       setAlbums(res.dataList);
-      setPageInfo((res as unknown as { pageInfo?: typeof pageInfo }).pageInfo ?? null);
+      setPageInfo(res.pageInfo ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load albums');
     } finally {
@@ -119,7 +116,7 @@ export default function AlbumListPage() {
                     {`${album.trackCount}곡`}
                   </td>
                   <td className={styles.cellDate}>
-                    {album.createdAt ? formatDate(album.createdAt) : '-'}
+                    {formatDate(album.createdAt)}
                   </td>
                 </tr>
               ))}

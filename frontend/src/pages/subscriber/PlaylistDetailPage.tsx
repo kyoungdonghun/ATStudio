@@ -6,6 +6,12 @@ import {
   type PlaylistDetail,
   type PlaylistTrack,
 } from '@/api/playlists';
+import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
+import { addToDownloadQueue } from '@/api/downloadQueue';
+import { usePlayerStore } from '@/store/playerStore';
+import { useLikeStore } from '@/store/likeStore';
+import { useAuthStore } from '@/store/authStore';
+import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import styles from './PlaylistDetailPage.module.css';
@@ -15,10 +21,19 @@ export default function PlaylistDetailPage() {
   const navigate = useNavigate();
   const id = Number(playlistId);
 
+  /* ── Stores ── */
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const playTrack = usePlayerStore((s) => s.play);
+  const likeStore = useLikeStore();
+  const user = useAuthStore((s) => s.user);
+
   /* ── State ── */
   const [detail, setDetail] = useState<PlaylistDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  /* ── Add to playlist modal ── */
+  const [addToPlTrackId, setAddToPlTrackId] = useState<number | null>(null);
 
   /* ── Remove track confirm ── */
   const [removeTarget, setRemoveTarget] = useState<PlaylistTrack | null>(null);
@@ -44,6 +59,54 @@ export default function PlaylistDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  /* ── Like toggle (fetch on mount) ── */
+  useEffect(() => {
+    if (user) likeStore.load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  /* ── Track action handlers ── */
+  function handlePlay(track: PlaylistTrack) {
+    playTrack({
+      id: track.trackId,
+      title: track.title,
+      artistName: '',
+      duration: 0,
+      bpm: track.bpm,
+      tonality: track.tonality,
+      description: null,
+      audioFile: null,
+      thumbnail: null,
+      tags: [],
+      isActive: true,
+      playCount: 0,
+      createdAt: '',
+      updatedAt: '',
+    });
+  }
+
+  function handleToggleLike(trackId: number) {
+    likeStore.toggle(trackId);
+  }
+
+  async function handleDownload(track: PlaylistTrack) {
+    try {
+      const blob = await downloadTrack(track.trackId);
+      triggerBlobDownload(blob, `${track.title}.mp3`);
+    } catch {
+      alert('다운로드에 실패했습니다.');
+    }
+  }
+
+  async function handleAddToQueue(track: PlaylistTrack) {
+    try {
+      await addToDownloadQueue(track.trackId);
+      alert('다운로드 대기열에 추가되었습니다.');
+    } catch {
+      alert('대기열 추가에 실패했습니다.');
+    }
+  }
 
   /* ── Remove track handler ── */
   async function handleRemoveTrack() {
@@ -133,15 +196,62 @@ export default function PlaylistDetailPage() {
           </thead>
           <tbody>
             {detail.tracks.map((track) => (
-              <tr key={track.trackId}>
-                <td className={styles.cellNum}>{track.trackOrder}</td>
-                <td className={styles.cellTitle}>{track.title}</td>
+              <tr
+                key={track.trackId}
+                className={`${styles.row} ${currentTrack?.id === track.trackId ? styles.rowPlaying : ''}`}
+              >
+                <td className={styles.cellNum}>
+                  <span className={styles.num}>{track.trackOrder}</span>
+                  <button
+                    className={styles.playBtn}
+                    onClick={() => handlePlay(track)}
+                    aria-label="Play"
+                  >
+                    &#9654;
+                  </button>
+                </td>
+                <td className={styles.cellTitle}>
+                  <Link to={`/tracks/${track.trackId}`} className={styles.titleLink}>
+                    {track.title}
+                  </Link>
+                </td>
                 <td className={styles.cellBpm}>{track.bpm}</td>
                 <td className={styles.cellKey}>{track.tonality}</td>
                 <td className={styles.cellActions}>
+                  <span className={styles.hoverActions}>
+                    <button
+                      className={styles.likeBtn}
+                      onClick={() => handleToggleLike(track.trackId)}
+                      title={likeStore.likedIds.has(track.trackId) ? '좋아요 해제' : '좋아요'}
+                    >
+                      {likeStore.likedIds.has(track.trackId) ? '\u2665' : '\u2661'}
+                    </button>
+                    <button
+                      className={styles.addPlBtn}
+                      onClick={() => setAddToPlTrackId(track.trackId)}
+                      title="재생목록에 추가"
+                    >
+                      +
+                    </button>
+                    <button
+                      className={styles.dlBtn}
+                      onClick={() => handleDownload(track)}
+                      title="다운로드"
+                    >
+                      {'\u2193'}
+                    </button>
+                    <button
+                      className={styles.queueBtn}
+                      onClick={() => handleAddToQueue(track)}
+                      title="대기열에 추가"
+                    >
+                      {'대기열'}
+                    </button>
+                  </span>
                   <button
                     className={styles.removeBtn}
                     onClick={() => setRemoveTarget(track)}
+                    title="재생목록에서 삭제"
                   >
                     {'삭제'}
                   </button>
@@ -152,6 +262,13 @@ export default function PlaylistDetailPage() {
         </table>
         </div>
       )}
+
+      {/* Add to Playlist Modal */}
+      <AddToPlaylistModal
+        open={addToPlTrackId !== null}
+        trackId={addToPlTrackId}
+        onClose={() => setAddToPlTrackId(null)}
+      />
 
       {/* Remove Track Confirm Modal */}
       <Modal
