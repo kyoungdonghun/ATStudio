@@ -274,7 +274,7 @@
 }
 
 .deletePlaylistBtn:hover {
-  color: #f87171;
+  color: var(--error);
 }
 
 /* ── Track list (detail) ── */
@@ -362,7 +362,7 @@
 }
 
 .removeBtn:hover {
-  color: #f87171;
+  color: var(--error);
 }
 
 /* ── History tab ── */
@@ -384,7 +384,7 @@
 }
 
 .clearHistBtn:hover {
-  color: #f87171;
+  color: var(--error);
 }
 
 .histList {
@@ -456,7 +456,7 @@
 }
 
 .histRemoveBtn:hover {
-  color: #f87171;
+  color: var(--error);
 }
 
 @keyframes slideUp {

@@ -162,7 +162,7 @@
   align-items: center;
   justify-content: center;
   padding: 64px;
-  color: #f87171;
+  color: var(--error);
   font-size: 14px;
 }
 

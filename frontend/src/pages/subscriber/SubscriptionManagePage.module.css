@@ -155,7 +155,7 @@
 
 .cancelSection {
   background: var(--bg1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: 1px solid var(--error-border);
   border-radius: 10px;
   padding: 24px;
   margin-bottom: 24px;
@@ -164,10 +164,10 @@
 .cancelTitle {
   font-size: 15px;
   font-weight: 600;
-  color: #f87171;
+  color: var(--error);
   margin-bottom: 16px;
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+  border-bottom: 1px solid var(--error-border);
 }
 
 .cancelDesc {
@@ -269,7 +269,7 @@
 .error {
   text-align: center;
   padding: 40px 0;
-  color: #f87171;
+  color: var(--error);
   font-size: 14px;
 }
 
@@ -310,7 +310,7 @@
 
 .errorMsg {
   font-size: 13px;
-  color: #f87171;
+  color: var(--error);
   margin-top: 12px;
 }
 

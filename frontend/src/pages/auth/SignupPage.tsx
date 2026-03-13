@@ -1,5 +1,6 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/store/authStore';
 import { register, checkEmailAvailability, checkNicknameAvailability } from '@/api/auth';
 import Button from '@/components/ui/Button';
 import styles from './SignupPage.module.css';
@@ -16,6 +17,11 @@ const JOB_OPTIONS = [
 /** Screen A-2: Signup */
 export default function SignupPage() {
   const navigate = useNavigate();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+
+  useEffect(() => {
+    if (isAuthenticated) navigate('/', { replace: true });
+  }, [isAuthenticated, navigate]);
 
   const [userType, setUserType] = useState<UserType>('INDIVIDUAL');
   const [nickname, setNickname] = useState('');

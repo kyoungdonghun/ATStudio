@@ -77,7 +77,7 @@
 
 .errorText {
   font-size: 12px;
-  color: #f87171;
+  color: var(--error);
   min-height: 16px;
 }
 

@@ -288,8 +288,8 @@
 }
 
 .removeBtn:hover {
-  color: #f87171;
-  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--error);
+  border-color: var(--error-border);
 }
 
 /* ── Loading / Error / Empty ── */
@@ -304,7 +304,7 @@
 .error {
   text-align: center;
   padding: 40px 0;
-  color: #f87171;
+  color: var(--error);
   font-size: 14px;
 }
 

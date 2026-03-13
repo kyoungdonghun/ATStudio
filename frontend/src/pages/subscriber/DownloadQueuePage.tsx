@@ -6,9 +6,10 @@ import {
   removeFromDownloadQueue,
   type QueueListItem,
 } from '@/api/downloadQueue';
-import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
+import { downloadTrack, triggerBlobDownload, fetchDownloadCount, type DownloadCount } from '@/api/downloads';
 import { toUploadUrl } from '@/api/client';
 import { usePlayerStore } from '@/store/playerStore';
+import { useAuthStore } from '@/store/authStore';
 import styles from './DownloadQueuePage.module.css';
 
 export default function DownloadQueuePage() {
@@ -16,21 +17,28 @@ export default function DownloadQueuePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<number | null>(null);
+  const [dlCount, setDlCount] = useState<DownloadCount | null>(null);
 
   const playTrack = usePlayerStore((s) => s.play);
+  const role = useAuthStore((s) => s.role);
+  const isAdmin = role === 'ADMIN';
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const result = await fetchDownloadQueue();
+      const [result, countResult] = await Promise.all([
+        fetchDownloadQueue(),
+        isAdmin ? Promise.resolve(null) : fetchDownloadCount().catch(() => null),
+      ]);
       setItems(result.dataList ?? []);
+      setDlCount(countResult);
     } catch {
       setError('다운로드 대기열을 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     load();
@@ -99,6 +107,21 @@ export default function DownloadQueuePage() {
             {'전체 다운로드'}
           </button>
         )}
+      </div>
+
+      {/* Download limit info */}
+      <div className={styles.limitInfo}>
+        {isAdmin ? (
+          <span className={styles.limitBadge}>{'무제한 다운로드'}</span>
+        ) : dlCount ? (
+          <span className={styles.limitBadge}>
+            {'오늘 '}
+            {dlCount.todayDownloads}
+            {' / '}
+            {dlCount.dailyLimit === -1 ? '무제한' : `${dlCount.dailyLimit}곡`}
+            {dlCount.dailyLimit !== -1 && ` (남은 횟수: ${dlCount.remaining})`}
+          </span>
+        ) : null}
       </div>
 
       {loading ? (

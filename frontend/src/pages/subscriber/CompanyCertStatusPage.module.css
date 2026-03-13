@@ -53,18 +53,18 @@
 }
 
 .badgeApproved {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+  background: var(--success-dim);
+  color: var(--success);
 }
 
 .badgeRejected {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+  background: var(--error-dim);
+  color: var(--error);
 }
 
 .badgeRevision {
-  background: rgba(251, 146, 60, 0.15);
-  color: #f97316;
+  background: var(--warning-dim);
+  color: var(--warning);
 }
 
 /* ── Info rows ── */
@@ -119,12 +119,12 @@
 /* ── Feedback ── */
 
 .error {
-  color: #f87171;
+  color: var(--error);
   font-size: 13px;
   padding: 12px;
-  background: rgba(239, 68, 68, 0.08);
+  background: var(--error-dim);
   border-radius: 6px;
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  border: 1px solid var(--error-border);
 }
 
 .loading {

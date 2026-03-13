@@ -32,6 +32,7 @@ export default function PlayerBar() {
   const toggleMute = usePlayerStore((s) => s.toggleMute);
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const role = useAuthStore((s) => s.role);
   const likeStore = useLikeStore();
 
   const shuffle = usePlayerStore((s) => s.shuffle);
@@ -197,9 +198,11 @@ export default function PlayerBar() {
           >
             {'\uC7AC\uC0DD\uBAA9\uB85D'}
           </button>
-          <button className={styles.buyBtn}>
-            {'\uAD6C\uB9E4\uD558\uAE30'}
-          </button>
+          {isAuthenticated && role === 'USER' && (
+            <button className={styles.buyBtn}>
+              {'\uAD6C\uB9E4\uD558\uAE30'}
+            </button>
+          )}
         </div>
       </div>
 

@@ -188,7 +188,7 @@
   align-items: center;
   justify-content: center;
   padding: 64px;
-  color: #f87171;
+  color: var(--error);
   font-size: 14px;
 }
 
@@ -213,15 +213,15 @@
 }
 
 .feedbackSuccess {
-  background: var(--success-bg, rgba(34, 197, 94, 0.12));
-  color: var(--success, #22c55e);
-  border: 1px solid var(--success, #22c55e);
+  background: var(--success-dim);
+  color: var(--success);
+  border: 1px solid var(--success);
 }
 
 .feedbackError {
-  background: var(--error-bg, rgba(239, 68, 68, 0.12));
-  color: var(--error, #ef4444);
-  border: 1px solid var(--error, #ef4444);
+  background: var(--error-dim);
+  color: var(--error);
+  border: 1px solid var(--error);
 }
 
 /* ── Keyword Bar ── */

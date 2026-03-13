@@ -283,7 +283,7 @@
 }
 
 .deleteBtn:hover {
-  color: #f87171;
+  color: var(--error);
 }
 
 /* ── Loading / Error ── */
@@ -298,7 +298,7 @@
 .error {
   text-align: center;
   padding: 40px 0;
-  color: #f87171;
+  color: var(--error);
   font-size: 14px;
 }
 

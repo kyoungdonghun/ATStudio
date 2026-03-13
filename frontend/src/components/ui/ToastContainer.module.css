@@ -22,14 +22,14 @@
 
 .success {
   background: var(--bg1);
-  color: #22c55e;
-  border: 1px solid #22c55e;
+  color: var(--success);
+  border: 1px solid var(--success);
 }
 
 .error {
   background: var(--bg1);
-  color: #ef4444;
-  border: 1px solid #ef4444;
+  color: var(--error);
+  border: 1px solid var(--error);
 }
 
 @keyframes slideUp {

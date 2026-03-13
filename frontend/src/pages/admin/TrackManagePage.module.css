@@ -185,8 +185,8 @@
 }
 
 .statusInactive {
-  background: rgba(239, 68, 68, 0.12);
-  color: #f87171;
+  background: var(--error-dim);
+  color: var(--error);
 }
 
 /* ── Action buttons ── */
@@ -222,8 +222,8 @@
 }
 
 .actBtnDanger:hover {
-  border-color: rgba(239, 68, 68, 0.3);
-  color: #f87171;
+  border-color: var(--error-border);
+  color: var(--error);
 }
 
 /* ── Pagination ── */
@@ -285,12 +285,12 @@
 }
 
 .error {
-  color: #f87171;
+  color: var(--error);
   font-size: 13px;
   padding: 12px;
-  background: rgba(239, 68, 68, 0.08);
+  background: var(--error-dim);
   border-radius: 6px;
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  border: 1px solid var(--error-border);
 }
 
 .empty {

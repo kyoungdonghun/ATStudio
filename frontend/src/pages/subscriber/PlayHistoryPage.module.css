@@ -26,8 +26,8 @@
 
 .btnDelete {
   background: none;
-  border: 1px solid var(--danger, #f87171);
-  color: var(--danger, #f87171);
+  border: 1px solid var(--error);
+  color: var(--error);
   font-size: 13px;
   font-weight: 500;
   padding: 6px 16px;
@@ -37,7 +37,7 @@
 }
 
 .btnDelete:hover {
-  background: var(--danger, #f87171);
+  background: var(--error);
   color: #fff;
 }
 
@@ -59,7 +59,7 @@
 }
 
 .error {
-  color: #f87171;
+  color: var(--error);
 }
 
 .emptyLink {

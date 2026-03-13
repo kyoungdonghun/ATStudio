@@ -59,7 +59,7 @@
 }
 
 .error {
-  color: #f87171;
+  color: var(--error);
 }
 
 /* ── Table ── */

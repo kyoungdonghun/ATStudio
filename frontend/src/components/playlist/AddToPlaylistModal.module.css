@@ -71,7 +71,7 @@
 
 .errorMsg {
   text-align: center;
-  color: #f87171;
+  color: var(--error);
   font-size: 12px;
   margin-bottom: 12px;
 }
