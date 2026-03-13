@@ -1,24 +1,12 @@
 /** Screen K-3: License lookup by user */
 import { useState, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import client from '@/api/client';
+import { fetchUserLicenses, type LicenseListItem } from '@/api/licenses';
 import type { PageInfo } from '@/types';
 import { formatDate } from '@/utils/format';
 import Button from '@/components/ui/Button';
 import Pagination from '@/components/ui/Pagination';
 import styles from './LicenseManagePage.module.css';
-
-interface AdminLicenseItem {
-  id: number;
-  licenseCode: string;
-  issuedAt: string;
-  track: { id: number; title: string };
-}
-
-interface LicenseListResponse {
-  dataList: AdminLicenseItem[];
-  pageInfo: PageInfo;
-}
 
 export default function LicenseManagePage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -26,7 +14,7 @@ export default function LicenseManagePage() {
   const activeUserId = searchParams.get('userId') || '';
 
   const [userIdInput, setUserIdInput] = useState(activeUserId);
-  const [licenses, setLicenses] = useState<AdminLicenseItem[]>([]);
+  const [licenses, setLicenses] = useState<LicenseListItem[]>([]);
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,12 +26,9 @@ export default function LicenseManagePage() {
     setError(null);
     setSearched(true);
     try {
-      const { data } = await client.get<LicenseListResponse>(
-        `/users/${userId}/licenses`,
-        { params: { page, size: 20 } },
-      );
-      setLicenses(data.dataList);
-      setPageInfo(data.pageInfo);
+      const result = await fetchUserLicenses(Number(userId), page, 20);
+      setLicenses(result.dataList);
+      setPageInfo(result.pageInfo);
     } catch {
       setError('라이선스 목록을 불러올 수 없습니다.');
       setLicenses([]);

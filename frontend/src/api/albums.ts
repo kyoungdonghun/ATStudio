@@ -88,6 +88,18 @@ export async function addTrackToAlbum(
   return data.data;
 }
 
+/** PUT /api/albums/{id}/tracks -- reorder tracks in album */
+export async function reorderAlbumTracks(
+  albumId: number,
+  trackOrders: { trackId: number; order: number }[],
+): Promise<AlbumDetail> {
+  const { data } = await client.put<ApiResponse<AlbumDetail>>(
+    `/albums/${albumId}/tracks`,
+    { trackOrders },
+  );
+  return data.data;
+}
+
 /** DELETE /api/albums/{id}/tracks/{trackId} -- remove track from album */
 export async function removeTrackFromAlbum(
   albumId: number,

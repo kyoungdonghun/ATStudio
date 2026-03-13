@@ -16,6 +16,7 @@
 | W4 | §6.10 DELETE /api/user-subscriptions/me | Grace period semantics — expiresAt까지 서비스 이용 가능으로 수정 |
 | W5 | §1 new entry | Added §1.8 GET /api/tracks/admin (admin-only full track list) |
 | W6 | §3.1 POST /api/playlists error cases | Added 409 PLAYLIST_LIMIT_EXCEEDED |
+| W7 | §6 new entry | Added §6.1.1 GET /api/subscriptions/admin (admin-only, includes inactive plans) |
 
 ## v4 → v5 Change History
 
@@ -874,6 +875,32 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
     "isActive": true
   }
 ]
+```
+
+## 6.1.1 List All Subscription Plans (Admin)
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/subscriptions/admin` |
+| **Auth** | `admin only` |
+| **Description** | Returns ALL subscription plans (including inactive) for admin management |
+
+**Response** `200 OK`
+```json
+{
+  "dataList": [
+    {
+      "id": 1,
+      "name": "STANDARD",
+      "description": "개인 구독 기본 플랜",
+      "userType": "INDIVIDUAL",
+      "priceMonthly": 9900.00,
+      "priceYearly": 99000.00,
+      "downloadPerDay": 5,
+      "maxWhitelistChannels": 1,
+      "isActive": true
+    }
+  ]
+}
 ```
 
 ## 6.2 Get Subscription Plan

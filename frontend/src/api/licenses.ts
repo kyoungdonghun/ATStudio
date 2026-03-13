@@ -27,6 +27,19 @@ export interface LicenseDetail {
 
 /* ── API functions ── */
 
+/** GET /api/users/{userId}/licenses -- admin: licenses by user (paginated) */
+export async function fetchUserLicenses(
+  userId: number,
+  page = 1,
+  size = 20,
+): Promise<PagedResponse<LicenseListItem>> {
+  const { data } = await client.get<PagedResponse<LicenseListItem>>(
+    `/users/${userId}/licenses`,
+    { params: { page, size } },
+  );
+  return data;
+}
+
 /** GET /api/licenses/me -- my licenses (paginated) */
 export async function fetchMyLicenses(
   page = 1,

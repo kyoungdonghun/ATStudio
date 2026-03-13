@@ -1,5 +1,5 @@
 import client from '@/api/client';
-import type { ApiResponse } from '@/types';
+import type { ApiResponse, PagedResponse } from '@/types';
 import type { SubscriptionPlan } from '@/api/subscriptions';
 
 /* ── Response types ── */
@@ -63,6 +63,56 @@ export async function changeMySubscription(
 export async function cancelMySubscription(): Promise<void> {
   await client.delete('/user-subscriptions/me');
 }
+
+/* ── Admin API functions ── */
+
+/** GET /api/user-subscriptions -- admin: list all user subscriptions */
+export async function fetchAdminUserSubscriptions(
+  page = 1,
+  size = 20,
+): Promise<PagedResponse<MySubscription>> {
+  const { data } = await client.get<PagedResponse<MySubscription>>(
+    '/user-subscriptions',
+    { params: { page, size } },
+  );
+  return data;
+}
+
+/** GET /api/user-subscriptions/{id} -- admin: subscription detail */
+export async function fetchAdminUserSubscriptionDetail(
+  id: number,
+): Promise<MySubscription> {
+  const { data } = await client.get<ApiResponse<MySubscription>>(
+    `/user-subscriptions/${id}`,
+  );
+  return data.data;
+}
+
+export interface AdminUpdateSubscriptionRequest {
+  status?: string;
+  billingCycle?: 'MONTHLY' | 'YEARLY';
+}
+
+/** PUT /api/user-subscriptions/{id} -- admin: update subscription */
+export async function updateAdminUserSubscription(
+  id: number,
+  req: AdminUpdateSubscriptionRequest,
+): Promise<MySubscription> {
+  const { data } = await client.put<ApiResponse<MySubscription>>(
+    `/user-subscriptions/${id}`,
+    req,
+  );
+  return data.data;
+}
+
+/** DELETE /api/user-subscriptions/{id} -- admin: cancel subscription */
+export async function deleteAdminUserSubscription(
+  id: number,
+): Promise<void> {
+  await client.delete(`/user-subscriptions/${id}`);
+}
+
+/* ── Utility API functions ── */
 
 /** GET /api/utils/subscription-change-preview -- preview change impact */
 export async function fetchSubscriptionChangePreview(
