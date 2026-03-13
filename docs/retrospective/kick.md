@@ -56,6 +56,22 @@
 
 ---
 
+## Seed Data / 테스트 데이터 체크리스트
+
+- [ ] **INSERT IGNORE + auto_increment 함정** — `INSERT IGNORE`로 스킵된 행도 MySQL auto_increment 카운터가 증가함. FK 참조하는 seed data가 있다면 **명시적 ID 지정** 필수 (`INSERT INTO tags (id, name, type)`). 안 하면 ID가 매번 달라져서 FK 매핑이 깨짐.
+- [ ] **raw SQL INSERT와 BaseEntity 날짜** — `@CreatedDate`/`@LastModifiedDate`는 JPA persist() 경유 시에만 작동. seed.sql의 raw INSERT는 `created_at`에 NULL/zero 넣음 → JDBC URL에 `zeroDateTimeBehavior=convertToNull` 추가 + seed 끝에 `UPDATE ... SET created_at = ... WHERE created_at IS NULL` 보정.
+- [ ] **seed data 양적 테스트** — 더미 데이터를 "현실적 개수"로 넣어서 레이아웃 스트레스 테스트. 태그 3개일 때 안 깨져도 68개일 때 깨질 수 있다. 극단값 최소 1건은 넣어둘 것.
+
+---
+
+## 필터 UI 설계 체크리스트
+
+- [ ] **인라인 필터 + 모달 검색 조합** — 선택지가 10개 이상이면 인라인 나열은 레이아웃 파괴. 행별 `overflow: hidden`으로 width 안에 들어가는 만큼만 보여주고, 나머지는 모달(텍스트 검색)으로 접근. 활성 태그를 배열 앞으로 sort해서 overflow로 잘려도 보이게 할 것.
+- [ ] **필터바 3행 구조** — 카테고리별 독립 행으로 분리하면 각 행이 독립적으로 overflow 처리 가능. 한 행에 모든 카테고리를 넣으면 앞쪽 카테고리가 공간을 독점.
+- [ ] **find() vs filter() 주의** — 태그 표시할 때 `tags.find(t => t.type === 'GENRE')`는 첫 번째 1개만 반환. 여러 개 표시하려면 `filter()` 사용. 코드 리뷰 시 `.find()`가 의도적 단일 선택인지 실수인지 확인.
+
+---
+
 ## 프론트엔드 상태관리 체크리스트
 
 - [ ] **Zustand Set/Map 반응성** — `Set.delete()`, `Map.set()` 직접 호출은 리렌더 트리거 안 됨. 반드시 `new Set(prev)` 복사 후 변경 → `setState()`. 배열도 동일 (`[...prev]`).
