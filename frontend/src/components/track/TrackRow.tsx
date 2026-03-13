@@ -10,6 +10,7 @@ interface TrackRowProps {
   playing?: boolean;
   liked?: boolean;
   badge?: 'new' | 'hot' | null;
+  showAuthActions?: boolean;
   onPlay?: (track: TrackListItem) => void;
   onLike?: (track: TrackListItem) => void;
   onAddToPlaylist?: (track: TrackListItem) => void;
@@ -23,6 +24,7 @@ export default function TrackRow({
   playing = false,
   liked = false,
   badge = null,
+  showAuthActions = true,
   onPlay,
   onLike,
   onAddToPlaylist,
@@ -107,33 +109,41 @@ export default function TrackRow({
       {/* Actions */}
       <td className={styles.cellActs}>
         <div className={styles.actions}>
-          <button
-            className={`${styles.actBtn} ${liked ? styles.liked : ''}`}
-            onClick={() => onLike?.(track)}
-            title="Like"
-          >
-            {liked ? '\u2665' : '\u2661'}
-          </button>
-          <button
-            className={styles.actBtn}
-            onClick={() => onAddToPlaylist?.(track)}
-            title="Add to playlist"
-          >
-            +
-          </button>
-          <button
-            className={styles.actBtn}
-            onClick={() => onDownload?.(track)}
-            title="Download"
-          >
-            &#8595;
-          </button>
-          <button
-            className={styles.buyBtn}
-            onClick={() => onBuy?.(track)}
-          >
-            Buy
-          </button>
+          {showAuthActions ? (
+            <>
+              <button
+                className={`${styles.actBtn} ${liked ? styles.liked : ''}`}
+                onClick={() => onLike?.(track)}
+                title="Like"
+              >
+                {liked ? '\u2665' : '\u2661'}
+              </button>
+              <button
+                className={styles.actBtn}
+                onClick={() => onAddToPlaylist?.(track)}
+                title="Add to playlist"
+              >
+                +
+              </button>
+              <button
+                className={styles.actBtn}
+                onClick={() => onDownload?.(track)}
+                title="Download"
+              >
+                &#8595;
+              </button>
+              <button
+                className={styles.buyBtn}
+                onClick={() => onBuy?.(track)}
+              >
+                Buy
+              </button>
+            </>
+          ) : (
+            <button className={styles.playBtn} onClick={() => onPlay?.(track)} title="Play">
+              &#9654;
+            </button>
+          )}
         </div>
       </td>
     </tr>

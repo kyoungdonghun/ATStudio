@@ -3,6 +3,9 @@ import type { Track } from '@/types';
 import { recordPlay } from '@/api/playHistory';
 
 const audio = new Audio();
+const STREAM_BASE = '/api/tracks';
+
+type RepeatMode = 'off' | 'all' | 'one';
 
 interface PlayerState {
   currentTrack: Track | null;
@@ -12,6 +15,8 @@ interface PlayerState {
   volume: number;
   muted: boolean;
   queue: Track[];
+  shuffle: boolean;
+  repeat: RepeatMode;
   play: (track: Track) => void;
   pause: () => void;
   resume: () => void;
@@ -20,6 +25,8 @@ interface PlayerState {
   seek: (time: number) => void;
   setVolume: (volume: number) => void;
   toggleMute: () => void;
+  toggleShuffle: () => void;
+  cycleRepeat: () => void;
   addToQueue: (track: Track) => void;
   removeFromQueue: (trackId: number) => void;
   clearQueue: () => void;
@@ -32,6 +39,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
   });
 
   audio.addEventListener('ended', () => {
+    const { repeat } = get();
+    if (repeat === 'one') {
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+      return;
+    }
     get().next();
   });
 
@@ -51,10 +64,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     volume: audio.volume,
     muted: false,
     queue: [],
+    shuffle: false,
+    repeat: 'off' as RepeatMode,
 
     play: (track: Track) => {
-      const apiBase = '/api/tracks';
-      audio.src = `${apiBase}/${track.id}/stream`;
+      audio.src = `${STREAM_BASE}/${track.id}/stream`;
       audio.play().catch(() => {});
       set({ currentTrack: track, isPlaying: true, currentTime: 0 });
 
@@ -75,7 +89,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     next: () => {
-      const { queue, currentTrack, play } = get();
+      const { queue, currentTrack, play, shuffle, repeat } = get();
       if (queue.length === 0) {
         audio.pause();
         set({ isPlaying: false });
@@ -84,7 +98,27 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       const currentIndex = currentTrack
         ? queue.findIndex((t) => t.id === currentTrack.id)
         : -1;
-      const nextIndex = (currentIndex + 1) % queue.length;
+
+      if (shuffle) {
+        const candidates = queue.filter((_, i) => i !== currentIndex);
+        if (candidates.length === 0) {
+          play(queue[0]);
+        } else {
+          play(candidates[Math.floor(Math.random() * candidates.length)]);
+        }
+        return;
+      }
+
+      const nextIndex = currentIndex + 1;
+      if (nextIndex >= queue.length) {
+        if (repeat === 'all') {
+          play(queue[0]);
+        } else {
+          audio.pause();
+          set({ isPlaying: false });
+        }
+        return;
+      }
       play(queue[nextIndex]);
     },
 
@@ -134,6 +168,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
           ? state.queue
           : [...state.queue, track],
       }));
+    },
+
+    toggleShuffle: () => {
+      set((state) => ({ shuffle: !state.shuffle }));
+    },
+
+    cycleRepeat: () => {
+      set((state) => {
+        const modes: RepeatMode[] = ['off', 'all', 'one'];
+        const idx = modes.indexOf(state.repeat);
+        return { repeat: modes[(idx + 1) % modes.length] };
+      });
     },
 
     removeFromQueue: (trackId: number) => {

@@ -12,6 +12,7 @@ import Pagination from '@/components/ui/Pagination';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
+import { useToastStore } from '@/store/toastStore';
 import styles from './TrackListPage.module.css';
 
 /* ── BPM filter presets ── */
@@ -34,8 +35,11 @@ export default function TrackListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const toast = useToastStore((s) => s.show);
+
   /* ── Derive filters from URL ── */
   const currentPage = Number(searchParams.get('page') ?? '1');
+  const activeKeyword = searchParams.get('keyword') ?? '';
   const activeGenres = searchParams.getAll('genre');
   const activeMood = searchParams.get('mood') ?? '';
   const activeBpmLabel = searchParams.get('bpm') ?? '';
@@ -55,6 +59,7 @@ export default function TrackListPage() {
       likeStore.load();
     }
   }, [isAuthenticated, likeStore.loaded]);
+
 
   /* ── Load tags once ── */
   useEffect(() => {
@@ -92,6 +97,7 @@ export default function TrackListPage() {
       sort: sortValue,
     };
 
+    if (activeKeyword) params.keyword = activeKeyword;
     if (activeGenres.length > 0) params.genre = activeGenres.join(',');
     if (activeMood) params.mood = activeMood;
 
@@ -110,7 +116,7 @@ export default function TrackListPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, sortValue, activeGenres.join(','), activeMood, activeBpmLabel]);
+  }, [currentPage, sortValue, activeKeyword, activeGenres.join(','), activeMood, activeBpmLabel]);
 
   useEffect(() => {
     loadTracks();
@@ -182,6 +188,24 @@ export default function TrackListPage() {
           </select>
         </div>
       </div>
+
+      {/* Active keyword */}
+      {activeKeyword && (
+        <div className={styles.keywordBar}>
+          <span>{`"${activeKeyword}" 검색 결과`}</span>
+          <button
+            className={styles.keywordClear}
+            onClick={() => {
+              const next = new URLSearchParams(searchParams);
+              next.delete('keyword');
+              next.set('page', '1');
+              setSearchParams(next);
+            }}
+          >
+            {'검색 해제'}
+          </button>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className={styles.filterBar}>
@@ -269,6 +293,7 @@ export default function TrackListPage() {
                   track={track}
                   playing={currentTrack?.id === track.id}
                   liked={likeStore.likedIds.has(track.id)}
+                  showAuthActions={isAuthenticated}
                   onPlay={(t) => playTrack({
                     id: t.id,
                     title: t.title,
@@ -292,15 +317,15 @@ export default function TrackListPage() {
                       const blob = await downloadTrack(t.id);
                       triggerBlobDownload(blob, `${t.title}.mp3`);
                     } catch {
-                      alert('다운로드에 실패했습니다.');
+                      toast('error', '다운로드에 실패했습니다.');
                     }
                   }}
                   onBuy={async (t) => {
                     try {
                       await addToDownloadQueue(t.id);
-                      alert('다운로드 대기열에 추가되었습니다.');
+                      toast('success', '다운로드 대기열에 추가되었습니다.');
                     } catch {
-                      alert('대기열 추가에 실패했습니다.');
+                      toast('error', '대기열 추가에 실패했습니다.');
                     }
                   }}
                 />

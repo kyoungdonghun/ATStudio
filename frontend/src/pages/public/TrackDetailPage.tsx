@@ -8,6 +8,7 @@ import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
+import { useToastStore } from '@/store/toastStore';
 import { formatDate } from '@/utils/format';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import styles from './TrackDetailPage.module.css';
@@ -23,6 +24,7 @@ export default function TrackDetailPage() {
   const playTrack = usePlayerStore((s) => s.play);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const likeStore = useLikeStore();
+  const toast = useToastStore((s) => s.show);
 
   useEffect(() => {
     if (!trackId) return;
@@ -47,7 +49,7 @@ export default function TrackDetailPage() {
       setDlStatus('adding');
       setError(null);
       await addToDownloadQueue(track.id);
-      alert('다운로드 대기열에 추가되었습니다.');
+      toast('success', '다운로드 대기열에 추가되었습니다.');
     } catch {
       setError('대기열 추가에 실패했습니다.');
     } finally {
@@ -141,37 +143,41 @@ export default function TrackDetailPage() {
             >
               {'\u25B6'}&nbsp;&nbsp;미리 듣기
             </button>
-            <button
-              className={styles.btnBuy}
-              onClick={handleDownload}
-              disabled={dlStatus !== 'idle'}
-            >
-              {dlStatus === 'downloading' ? '다운로드 중...' : '다운로드'}
-            </button>
+            {isAuthenticated && (
+              <button
+                className={styles.btnBuy}
+                onClick={handleDownload}
+                disabled={dlStatus !== 'idle'}
+              >
+                {dlStatus === 'downloading' ? '다운로드 중...' : '다운로드'}
+              </button>
+            )}
           </div>
 
-          {/* Like + Add to Playlist */}
-          <div className={styles.coverSubActions}>
-            <button
-              className={`${styles.btnSubAction} ${liked ? styles.btnSubActionActive : ''}`}
-              onClick={() => likeStore.toggle(track.id)}
-            >
-              {liked ? '\u2665' : '\u2661'}&nbsp;&nbsp;좋아요
-            </button>
-            <button
-              className={styles.btnSubAction}
-              onClick={() => setShowPlModal(true)}
-            >
-              +&nbsp;&nbsp;재생목록에 추가
-            </button>
-            <button
-              className={styles.btnSubAction}
-              onClick={handleAddToQueue}
-              disabled={dlStatus === 'adding'}
-            >
-              {dlStatus === 'adding' ? '추가 중...' : '\u2B07\u00A0\u00A0대기열에 추가'}
-            </button>
-          </div>
+          {/* Like + Add to Playlist (auth only) */}
+          {isAuthenticated && (
+            <div className={styles.coverSubActions}>
+              <button
+                className={`${styles.btnSubAction} ${liked ? styles.btnSubActionActive : ''}`}
+                onClick={() => likeStore.toggle(track.id)}
+              >
+                {liked ? '\u2665' : '\u2661'}&nbsp;&nbsp;좋아요
+              </button>
+              <button
+                className={styles.btnSubAction}
+                onClick={() => setShowPlModal(true)}
+              >
+                +&nbsp;&nbsp;재생목록에 추가
+              </button>
+              <button
+                className={styles.btnSubAction}
+                onClick={handleAddToQueue}
+                disabled={dlStatus === 'adding'}
+              >
+                {dlStatus === 'adding' ? '추가 중...' : '\u2B07\u00A0\u00A0대기열에 추가'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Right: Info */}

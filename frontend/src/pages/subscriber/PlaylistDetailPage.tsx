@@ -11,6 +11,7 @@ import { addToDownloadQueue } from '@/api/downloadQueue';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
+import { useToastStore } from '@/store/toastStore';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -26,6 +27,7 @@ export default function PlaylistDetailPage() {
   const playTrack = usePlayerStore((s) => s.play);
   const likeStore = useLikeStore();
   const user = useAuthStore((s) => s.user);
+  const toast = useToastStore((s) => s.show);
 
   /* ── State ── */
   const [detail, setDetail] = useState<PlaylistDetail | null>(null);
@@ -95,16 +97,16 @@ export default function PlaylistDetailPage() {
       const blob = await downloadTrack(track.trackId);
       triggerBlobDownload(blob, `${track.title}.mp3`);
     } catch {
-      alert('다운로드에 실패했습니다.');
+      toast('error', '다운로드에 실패했습니다.');
     }
   }
 
   async function handleAddToQueue(track: PlaylistTrack) {
     try {
       await addToDownloadQueue(track.trackId);
-      alert('다운로드 대기열에 추가되었습니다.');
+      toast('success', '다운로드 대기열에 추가되었습니다.');
     } catch {
-      alert('대기열 추가에 실패했습니다.');
+      toast('error', '대기열 추가에 실패했습니다.');
     }
   }
 

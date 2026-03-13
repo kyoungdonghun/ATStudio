@@ -8,6 +8,7 @@ import { toUploadUrl } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
+import { useToastStore } from '@/store/toastStore';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import type { LikeItem } from '@/types';
 import styles from './LikeListPage.module.css';
@@ -21,6 +22,7 @@ export default function LikeListPage() {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const playTrack = usePlayerStore((s) => s.play);
   const likeStore = useLikeStore();
+  const toast = useToastStore((s) => s.show);
 
   const load = useCallback(async () => {
     try {
@@ -57,16 +59,16 @@ export default function LikeListPage() {
       const blob = await downloadTrack(item.trackId);
       triggerBlobDownload(blob, `${item.title}.mp3`);
     } catch {
-      alert('다운로드에 실패했습니다.');
+      toast('error', '다운로드에 실패했습니다.');
     }
   }
 
   async function handleAddToQueue(item: LikeItem) {
     try {
       await addToDownloadQueue(item.trackId);
-      alert('다운로드 대기열에 추가되었습니다.');
+      toast('success', '다운로드 대기열에 추가되었습니다.');
     } catch {
-      alert('대기열 추가에 실패했습니다.');
+      toast('error', '대기열 추가에 실패했습니다.');
     }
   }
 

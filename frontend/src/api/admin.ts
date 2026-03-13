@@ -18,27 +18,9 @@ export interface DashboardStats {
   recentUsers: User[];
 }
 
-/**
- * Aggregates dashboard stats from multiple admin endpoints.
- * There is no single stats API -- we combine user list + track list data.
- */
 export async function fetchDashboardStats(): Promise<DashboardStats> {
-  const [usersRes, tracksRes] = await Promise.all([
-    client.get<PagedResponse<User>>('/users', { params: { page: 1, size: 5 } }),
-    client.get<PagedResponse<{ id: number }>>('/tracks/admin', {
-      params: { page: 1, size: 1 },
-    }),
-  ]);
-
-  const userPage = usersRes.data;
-  const trackPage = tracksRes.data;
-
-  return {
-    totalUsers: userPage.pageInfo.total,
-    totalTracks: trackPage.pageInfo.total,
-    totalSubscribers: 0,
-    recentUsers: userPage.dataList,
-  };
+  const { data } = await client.get<ApiResponse<DashboardStats>>('/admin/stats');
+  return data.data;
 }
 
 /* ── User Management ── */

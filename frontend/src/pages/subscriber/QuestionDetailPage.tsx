@@ -8,6 +8,7 @@ import {
   type QuestionDetail,
 } from '@/api/questions';
 import { formatDate } from '@/utils/format';
+import { useAuthStore } from '@/store/authStore';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import styles from './QuestionDetailPage.module.css';
@@ -49,6 +50,7 @@ export default function QuestionDetailPage() {
   const { questionId: id } = useParams<{ questionId: string }>();
   const navigate = useNavigate();
 
+  const currentUser = useAuthStore((s) => s.user);
   const [question, setQuestion] = useState<QuestionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -175,12 +177,14 @@ export default function QuestionDetailPage() {
         </div>
       )}
 
-      {/* Actions */}
-      <div className={styles.actions}>
-        <Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>
-          {'삭제'}
-        </Button>
-      </div>
+      {/* Actions — owner only */}
+      {question.user && currentUser && question.user.id === currentUser.id && (
+        <div className={styles.actions}>
+          <Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>
+            {'삭제'}
+          </Button>
+        </div>
+      )}
 
       {/* Delete confirm modal */}
       <Modal

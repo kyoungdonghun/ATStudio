@@ -3,6 +3,7 @@ package com.atstudio.atstudio.service;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.entity.*;
+import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.storage.StorageService;
@@ -36,16 +37,19 @@ public class DownloadService {
                 .filter(Track::isActive)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND));
 
-        UserSubscription subscription = userSubscriptionRepository
-                .findActiveByUser(user, LocalDate.now())
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+        // ADMIN bypasses subscription and daily limit checks
+        if (user.getRole() != UserRole.ADMIN) {
+            UserSubscription subscription = userSubscriptionRepository
+                    .findActiveByUser(user, LocalDate.now())
+                    .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
 
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        LocalDateTime endOfDay = startOfDay.plusDays(1);
-        long todayCount = trackDownloadRepository.countByUserAndDownloadedAtBetween(user, startOfDay, endOfDay);
-        int downloadPerDay = subscription.getSubscription().getDownloadPerDay();
-        if (downloadPerDay != -1 && todayCount >= downloadPerDay) {
-            throw new BusinessException(BUSINESS_ERROR.DOWNLOAD_LIMIT_EXCEEDED);
+            LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+            LocalDateTime endOfDay = startOfDay.plusDays(1);
+            long todayCount = trackDownloadRepository.countByUserAndDownloadedAtBetween(user, startOfDay, endOfDay);
+            int downloadPerDay = subscription.getSubscription().getDownloadPerDay();
+            if (downloadPerDay != -1 && todayCount >= downloadPerDay) {
+                throw new BusinessException(BUSINESS_ERROR.DOWNLOAD_LIMIT_EXCEEDED);
+            }
         }
 
         trackDownloadRepository.save(TrackDownload.builder()

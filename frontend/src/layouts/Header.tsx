@@ -18,9 +18,13 @@ const NAV_ITEMS: NavItem[] = [
   { label: '공지', path: '/notices' },
 ];
 
-const AUTH_NAV_ITEMS: NavItem[] = [
+const SUBSCRIBER_NAV_ITEMS: NavItem[] = [
   { label: '좋아요', path: '/likes' },
   { label: '재생목록', path: '/playlists' },
+];
+
+const ADMIN_NAV_ITEMS: NavItem[] = [
+  { label: '관리자', path: '/admin/dashboard' },
 ];
 
 function SearchIcon() {
@@ -70,13 +74,26 @@ export default function Header() {
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const user = useAuthStore((s) => s.user);
+  const role = useAuthStore((s) => s.role);
   const logout = useAuthStore((s) => s.logout);
+  const isAdmin = role === 'ADMIN';
+  const roleNavItems = isAdmin ? ADMIN_NAV_ITEMS : SUBSCRIBER_NAV_ITEMS;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Close mobile menu on route change
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    if (!q) return;
+    navigate(`/tracks?keyword=${encodeURIComponent(q)}&page=1`);
+    setSearchQuery('');
+    setMenuOpen(false);
+  }
 
   function isActive(path: string): boolean {
     if (path === '/') return location.pathname === '/';
@@ -91,10 +108,16 @@ export default function Header() {
         </Link>
 
         {/* Desktop/Tablet: inline search */}
-        <div className={styles.search}>
+        <form className={styles.search} onSubmit={handleSearch}>
           <SearchIcon />
-          <span>{'음원, 앨범 검색'}</span>
-        </div>
+          <input
+            className={styles.searchInput}
+            type="text"
+            placeholder="음원, 앨범 검색"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </form>
 
         {/* Desktop/Tablet: inline nav */}
         <nav className={styles.navTabs}>
@@ -107,7 +130,7 @@ export default function Header() {
               {item.label}
             </Link>
           ))}
-          {isAuthenticated && AUTH_NAV_ITEMS.map((item) => (
+          {isAuthenticated && roleNavItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
@@ -180,10 +203,16 @@ export default function Header() {
       )}
       <div className={`${styles.mobileMenu} ${menuOpen ? styles.mobileMenuOpen : ''}`}>
         {/* Search */}
-        <div className={styles.mobileSearch}>
+        <form className={styles.mobileSearch} onSubmit={handleSearch}>
           <SearchIcon />
-          <span>{'음원, 앨범 검색'}</span>
-        </div>
+          <input
+            className={styles.searchInput}
+            type="text"
+            placeholder="음원, 앨범 검색"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </form>
 
         {/* Nav links */}
         <nav className={styles.mobileNav}>
@@ -196,7 +225,7 @@ export default function Header() {
               {item.label}
             </Link>
           ))}
-          {isAuthenticated && AUTH_NAV_ITEMS.map((item) => (
+          {isAuthenticated && roleNavItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}

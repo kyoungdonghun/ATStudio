@@ -34,8 +34,10 @@ export default function PlayerBar() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const likeStore = useLikeStore();
 
-  const [shuffle, setShuffle] = useState(false);
-  const [repeat, setRepeat] = useState(false);
+  const shuffle = usePlayerStore((s) => s.shuffle);
+  const repeat = usePlayerStore((s) => s.repeat);
+  const toggleShuffle = usePlayerStore((s) => s.toggleShuffle);
+  const cycleRepeat = usePlayerStore((s) => s.cycleRepeat);
   const [queueOpen, setQueueOpen] = useState(false);
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [showPlModal, setShowPlModal] = useState(false);
@@ -112,7 +114,7 @@ export default function PlayerBar() {
           <div className={styles.buttons}>
             <button
               className={`${styles.ctrlBtn} ${shuffle ? styles.ctrlBtnActive : ''}`}
-              onClick={() => setShuffle((v) => !v)}
+              onClick={toggleShuffle}
               title="Shuffle"
             >
               {'\u21CC'}
@@ -131,11 +133,11 @@ export default function PlayerBar() {
               {'\u23ED'}
             </button>
             <button
-              className={`${styles.ctrlBtn} ${repeat ? styles.ctrlBtnActive : ''}`}
-              onClick={() => setRepeat((v) => !v)}
-              title="Repeat"
+              className={`${styles.ctrlBtn} ${repeat !== 'off' ? styles.ctrlBtnActive : ''}`}
+              onClick={cycleRepeat}
+              title={repeat === 'one' ? 'Repeat One' : repeat === 'all' ? 'Repeat All' : 'Repeat'}
             >
-              {'\u21BA'}
+              {repeat === 'one' ? '\uD83D\uDD02' : '\u21BA'}
             </button>
           </div>
           <div className={styles.progressBar}>
@@ -257,7 +259,7 @@ export default function PlayerBar() {
           <div className={styles.mobileFullControls}>
             <button
               className={`${styles.ctrlBtn} ${shuffle ? styles.ctrlBtnActive : ''}`}
-              onClick={() => setShuffle((v) => !v)}
+              onClick={toggleShuffle}
             >
               {'\u21CC'}
             </button>
@@ -267,10 +269,10 @@ export default function PlayerBar() {
             </button>
             <button className={styles.ctrlBtn} onClick={next}>{'\u23ED'}</button>
             <button
-              className={`${styles.ctrlBtn} ${repeat ? styles.ctrlBtnActive : ''}`}
-              onClick={() => setRepeat((v) => !v)}
+              className={`${styles.ctrlBtn} ${repeat !== 'off' ? styles.ctrlBtnActive : ''}`}
+              onClick={cycleRepeat}
             >
-              {'\u21BA'}
+              {repeat === 'one' ? '\uD83D\uDD02' : '\u21BA'}
             </button>
           </div>
 

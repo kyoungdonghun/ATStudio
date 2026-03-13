@@ -49,6 +49,20 @@
   opacity: 0.5;
 }
 
+.searchInput {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text1);
+  font-size: 13px;
+  outline: none;
+  min-width: 0;
+}
+
+.searchInput::placeholder {
+  color: var(--text2);
+}
+
 /* ── Tabs ── */
 
 .navTabs {

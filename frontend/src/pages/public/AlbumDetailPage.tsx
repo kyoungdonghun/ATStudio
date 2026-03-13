@@ -8,6 +8,7 @@ import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
 import { formatDate } from '@/utils/format';
 import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
+import { useToastStore } from '@/store/toastStore';
 import { addToDownloadQueue } from '@/api/downloadQueue';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import styles from './AlbumDetailPage.module.css';
@@ -18,6 +19,7 @@ export default function AlbumDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addToPlTrackId, setAddToPlTrackId] = useState<number | null>(null);
+  const toast = useToastStore((s) => s.show);
 
   useEffect(() => {
     if (!albumId) return;
@@ -182,53 +184,57 @@ export default function AlbumDetailPage() {
                 </td>
                 <td className={styles.tdOrder}>{t.order}</td>
                 <td className={styles.tdActions}>
-                  <button
-                    className={`${styles.trLikeBtn} ${likeStore.likedIds.has(t.trackId) ? styles.trLikeBtnActive : ''}`}
-                    onClick={() => likeStore.toggle(t.trackId)}
-                    aria-label="Like"
-                  >
-                    {likeStore.likedIds.has(t.trackId) ? '\u2665' : '\u2661'}
-                  </button>
-                  <button
-                    className={styles.trAddPlBtn}
-                    onClick={() => setAddToPlTrackId(t.trackId)}
-                    aria-label="Add to playlist"
-                    title="재생목록에 추가"
-                  >
-                    +
-                  </button>
-                  <button
-                    className={styles.trDlBtn}
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      try {
-                        const blob = await downloadTrack(t.trackId);
-                        triggerBlobDownload(blob, `${t.title}.mp3`);
-                      } catch {
-                        alert('다운로드에 실패했습니다.');
-                      }
-                    }}
-                    aria-label="Download"
-                    title="다운로드"
-                  >
-                    &#8595;
-                  </button>
-                  <button
-                    className={styles.trQueueBtn}
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      try {
-                        await addToDownloadQueue(t.trackId);
-                        alert('다운로드 대기열에 추가되었습니다.');
-                      } catch {
-                        alert('대기열 추가에 실패했습니다.');
-                      }
-                    }}
-                    aria-label="Add to download queue"
-                    title="대기열에 추가"
-                  >
-                    대기열
-                  </button>
+                  {isAuthenticated && (
+                    <>
+                      <button
+                        className={`${styles.trLikeBtn} ${likeStore.likedIds.has(t.trackId) ? styles.trLikeBtnActive : ''}`}
+                        onClick={() => likeStore.toggle(t.trackId)}
+                        aria-label="Like"
+                      >
+                        {likeStore.likedIds.has(t.trackId) ? '\u2665' : '\u2661'}
+                      </button>
+                      <button
+                        className={styles.trAddPlBtn}
+                        onClick={() => setAddToPlTrackId(t.trackId)}
+                        aria-label="Add to playlist"
+                        title="재생목록에 추가"
+                      >
+                        +
+                      </button>
+                      <button
+                        className={styles.trDlBtn}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const blob = await downloadTrack(t.trackId);
+                            triggerBlobDownload(blob, `${t.title}.mp3`);
+                          } catch {
+                            toast('error', '다운로드에 실패했습니다.');
+                          }
+                        }}
+                        aria-label="Download"
+                        title="다운로드"
+                      >
+                        &#8595;
+                      </button>
+                      <button
+                        className={styles.trQueueBtn}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await addToDownloadQueue(t.trackId);
+                            toast('success', '다운로드 대기열에 추가되었습니다.');
+                          } catch {
+                            toast('error', '대기열 추가에 실패했습니다.');
+                          }
+                        }}
+                        aria-label="Add to download queue"
+                        title="대기열에 추가"
+                      >
+                        대기열
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
