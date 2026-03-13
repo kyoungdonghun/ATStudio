@@ -4,6 +4,7 @@ import type {
   PagedResponse,
   User,
   CompanyCertification,
+  CompanyCertificationSummary,
   CertificationStatus,
   UserRole,
 } from '@/types';
@@ -87,8 +88,8 @@ interface CertListParams {
 
 export async function fetchCompanyCerts(
   params: CertListParams = {},
-): Promise<PagedResponse<CompanyCertification>> {
-  const { data } = await client.get<PagedResponse<CompanyCertification>>(
+): Promise<PagedResponse<CompanyCertificationSummary>> {
+  const { data } = await client.get<PagedResponse<CompanyCertificationSummary>>(
     '/company-certifications',
     { params },
   );

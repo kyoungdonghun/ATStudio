@@ -1,7 +1,7 @@
 /** Screen K-5: Company certification review */
 import { useEffect, useState, useCallback } from 'react';
 import { fetchCompanyCerts, processCompanyCert } from '@/api/admin';
-import type { CompanyCertification, CertificationStatus, PageInfo } from '@/types';
+import type { CompanyCertificationSummary, CertificationStatus, PageInfo } from '@/types';
 import { formatDate } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
@@ -27,7 +27,7 @@ function statusClass(status: CertificationStatus): string {
 }
 
 export default function CompanyCertManagePage() {
-  const [certs, setCerts] = useState<CompanyCertification[]>([]);
+  const [certs, setCerts] = useState<CompanyCertificationSummary[]>([]);
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<CertificationStatus | ''>('');
@@ -36,7 +36,7 @@ export default function CompanyCertManagePage() {
 
   /* Review modal */
   const [reviewTarget, setReviewTarget] = useState<{
-    cert: CompanyCertification;
+    cert: CompanyCertificationSummary;
     action: 'APPROVED' | 'REJECTED';
   } | null>(null);
   const [adminNote, setAdminNote] = useState('');
@@ -61,7 +61,7 @@ export default function CompanyCertManagePage() {
   }, [loadCerts]);
 
   const openReview = (
-    cert: CompanyCertification,
+    cert: CompanyCertificationSummary,
     action: 'APPROVED' | 'REJECTED',
   ) => {
     setReviewTarget({ cert, action });
@@ -129,8 +129,7 @@ export default function CompanyCertManagePage() {
         <thead>
           <tr>
             <th>ID</th>
-            <th>Company</th>
-            <th>Business No.</th>
+            <th>User</th>
             <th>Status</th>
             <th>Applied</th>
             <th>Actions</th>
@@ -139,7 +138,7 @@ export default function CompanyCertManagePage() {
         <tbody>
           {certs.length === 0 && (
             <tr>
-              <td colSpan={6} className={styles.empty}>
+              <td colSpan={5} className={styles.empty}>
                 No certification applications found.
               </td>
             </tr>
@@ -147,8 +146,7 @@ export default function CompanyCertManagePage() {
           {certs.map((cert) => (
             <tr key={cert.id} className={styles.row}>
               <td>{cert.id}</td>
-              <td>{cert.companyName}</td>
-              <td>{cert.businessNumber}</td>
+              <td>{cert.userNickname}</td>
               <td>
                 <span className={statusClass(cert.status)}>
                   {cert.status}
@@ -199,7 +197,7 @@ export default function CompanyCertManagePage() {
               ? 'Approve'
               : 'Reject'}{' '}
             certification for{' '}
-            <strong>{reviewTarget?.cert.companyName}</strong>?
+            <strong>{reviewTarget?.cert.userNickname}</strong>?
           </div>
           <textarea
             className={styles.noteInput}

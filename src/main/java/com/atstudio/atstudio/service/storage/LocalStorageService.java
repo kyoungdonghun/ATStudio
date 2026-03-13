@@ -16,24 +16,38 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class LocalStorageService implements StorageService {
 
     @Value("${app.storage.base-path:uploads}")
     private String basePath;
 
+    private Path resolvedBasePath;
+
+    @jakarta.annotation.PostConstruct
+    void init() {
+        resolvedBasePath = Paths.get(basePath).toAbsolutePath().normalize();
+    }
+
     @Override
     public String store(MultipartFile file, String directory) {
         String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "file";
+        String sanitized = Paths.get(originalFilename).getFileName().toString();
         String filename = UUID.randomUUID().toString().replace("-", "").substring(0, 8)
-                + "_" + originalFilename;
+                + "_" + sanitized;
         String relativePath = directory + "/" + filename;
 
         try {
-            Path targetDir = Paths.get(basePath, directory).toAbsolutePath();
+            Path targetDir = resolvedBasePath.resolve(directory).normalize();
+            validateInsideBasePath(targetDir);
             Files.createDirectories(targetDir);
-            Files.copy(file.getInputStream(), targetDir.resolve(filename),
-                    StandardCopyOption.REPLACE_EXISTING);
+
+            Path targetFile = targetDir.resolve(filename).normalize();
+            validateInsideBasePath(targetFile);
+            Files.copy(file.getInputStream(), targetFile, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             throw new TechnicException(TECHNIC_ERROR.IO_EXCEPTION);
         }
@@ -50,9 +64,11 @@ public class LocalStorageService implements StorageService {
     public void delete(String relativePath) {
         if (relativePath == null) return;
         try {
-            Path target = Paths.get(basePath, relativePath);
+            Path target = resolvedBasePath.resolve(relativePath).normalize();
+            validateInsideBasePath(target);
             Files.deleteIfExists(target);
-        } catch (IOException ignored) {
+        } catch (IOException e) {
+            log.warn("파일 삭제 실패: {}", relativePath, e);
         }
     }
 
@@ -62,13 +78,20 @@ public class LocalStorageService implements StorageService {
             throw new TechnicException(TECHNIC_ERROR.IO_EXCEPTION);
         }
         try {
-            Path file = Paths.get(basePath, relativePath).normalize();
+            Path file = resolvedBasePath.resolve(relativePath).normalize();
+            validateInsideBasePath(file);
             Resource resource = new UrlResource(file.toUri());
             if (!resource.exists()) {
                 throw new TechnicException(TECHNIC_ERROR.IO_EXCEPTION);
             }
             return resource;
         } catch (MalformedURLException e) {
+            throw new TechnicException(TECHNIC_ERROR.IO_EXCEPTION);
+        }
+    }
+
+    private void validateInsideBasePath(Path target) {
+        if (!target.startsWith(resolvedBasePath)) {
             throw new TechnicException(TECHNIC_ERROR.IO_EXCEPTION);
         }
     }

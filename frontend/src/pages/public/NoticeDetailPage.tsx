@@ -60,8 +60,6 @@ export default function NoticeDetailPage() {
         </div>
         <div className={styles.meta}>
           <span>{formatDate(notice.createdAt)}</span>
-          <span className={styles.metaDivider}>{'\u00B7'}</span>
-          <span>조회 {(notice.viewCount ?? 0).toLocaleString()}</span>
         </div>
       </header>
 

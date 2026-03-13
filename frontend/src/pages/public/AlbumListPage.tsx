@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchAlbums } from '@/api/albums';
+import { toUploadUrl } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import type { Album, PageInfo } from '@/types';
 import Pagination from '@/components/ui/Pagination';
@@ -97,7 +98,7 @@ export default function AlbumListPage() {
                     <div className={styles.cellInfo}>
                       <div className={styles.albumThumb}>
                         {album.thumbnailUrl ? (
-                          <img src={album.thumbnailUrl} alt={album.title} />
+                          <img src={toUploadUrl(album.thumbnailUrl)!} alt={album.title} />
                         ) : (
                           '\u266A'
                         )}

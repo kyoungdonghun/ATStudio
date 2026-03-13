@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { fetchLikes, removeLike } from '@/api/likes';
 import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import { addToDownloadQueue } from '@/api/downloadQueue';
+import { toUploadUrl } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
@@ -42,8 +43,10 @@ export default function LikeListPage() {
     try {
       await removeLike(trackId);
       setItems((prev) => prev.filter((it) => it.trackId !== trackId));
-      // Sync global likeStore
-      likeStore.likedIds.delete(trackId);
+      // Sync global likeStore (create new Set for reactivity)
+      const next = new Set(likeStore.likedIds);
+      next.delete(trackId);
+      useLikeStore.setState({ likedIds: next });
     } catch {
       /* ignore */
     }
@@ -142,7 +145,7 @@ export default function LikeListPage() {
                   <div className={styles.info}>
                     <div className={styles.thumb}>
                       {item.thumbnail ? (
-                        <img src={item.thumbnail} alt={item.title} />
+                        <img src={toUploadUrl(item.thumbnail)!} alt={item.title} />
                       ) : (
                         '\u266A'
                       )}

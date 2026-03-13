@@ -53,13 +53,12 @@ export default function NoticeListPage() {
             <th className={styles.thPin} />
             <th>제목</th>
             <th className={styles.thDate}>등록일</th>
-            <th className={styles.thViews}>조회</th>
           </tr>
         </thead>
         <tbody>
           {notices.length === 0 && (
             <tr>
-              <td colSpan={4} className={styles.empty}>
+              <td colSpan={3} className={styles.empty}>
                 등록된 공지사항이 없습니다.
               </td>
             </tr>
@@ -78,9 +77,6 @@ export default function NoticeListPage() {
               </td>
               <td className={styles.cellDate}>
                 {formatDate(n.createdAt)}
-              </td>
-              <td className={styles.cellViews}>
-                {(n.viewCount ?? 0).toLocaleString()}
               </td>
             </tr>
           ))}

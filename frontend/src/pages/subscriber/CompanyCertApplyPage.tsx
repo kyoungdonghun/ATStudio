@@ -24,7 +24,7 @@ export default function CompanyCertApplyPage() {
         await fetchMyCompanyCert();
         // If we get here, user already has a certification
         if (!cancelled) {
-          navigate('/company-cert/status', { replace: true });
+          navigate('/company-certification/status', { replace: true });
         }
       } catch (err: unknown) {
         // 404 means no existing cert → show form
@@ -72,7 +72,7 @@ export default function CompanyCertApplyPage() {
     setSubmitting(true);
     try {
       await applyCompanyCert(files);
-      navigate('/company-cert/status');
+      navigate('/company-certification/status');
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : '인증 신청에 실패했습니다.';

@@ -53,7 +53,7 @@ export interface MeResponse {
   phoneCompany: string | null;
   job: string;
   userType: string;
-  role: 'USER' | 'CREATOR' | 'ADMIN';
+  role: 'USER' | 'ADMIN';
   isVerified: boolean;
   createdAt: string;
 }

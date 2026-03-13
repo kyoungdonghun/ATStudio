@@ -6,8 +6,7 @@ import type { UserRole } from '@/types';
 const ROLE_LEVEL: Record<UserRole, number> = {
   GUEST: 0,
   USER: 1,
-  CREATOR: 2,
-  ADMIN: 3,
+  ADMIN: 2,
 };
 
 interface ProtectedRouteProps {

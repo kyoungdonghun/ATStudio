@@ -78,7 +78,7 @@ export default function CompanyCertStatusPage() {
         <h1 className={styles.pageTitle}>{'기업 인증 현황'}</h1>
         <div className={styles.empty}>
           <p className={styles.emptyText}>{'신청 내역이 없습니다.'}</p>
-          <Link to="/company-cert/apply">
+          <Link to="/company-certification/apply">
             <Button>{'인증 신청하기'}</Button>
           </Link>
         </div>

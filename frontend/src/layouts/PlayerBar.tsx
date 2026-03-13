@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { toUploadUrl } from '@/api/client';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
@@ -80,7 +81,7 @@ export default function PlayerBar() {
         <div className={styles.trackInfo}>
           <div className={styles.thumb}>
             {currentTrack.thumbnail ? (
-              <img src={currentTrack.thumbnail} alt={currentTrack.title} />
+              <img src={toUploadUrl(currentTrack.thumbnail)!} alt={currentTrack.title} />
             ) : (
               '\u266B'
             )}
@@ -211,7 +212,7 @@ export default function PlayerBar() {
           <div className={styles.mobileInfo} onClick={() => setExpanded((v) => !v)}>
             <div className={styles.thumb}>
               {currentTrack.thumbnail ? (
-                <img src={currentTrack.thumbnail} alt={currentTrack.title} />
+                <img src={toUploadUrl(currentTrack.thumbnail)!} alt={currentTrack.title} />
               ) : (
                 '\u266B'
               )}

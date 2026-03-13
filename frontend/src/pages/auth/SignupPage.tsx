@@ -8,10 +8,9 @@ type UserType = 'INDIVIDUAL' | 'BUSINESS';
 
 const JOB_OPTIONS = [
   { value: '', label: '직업을 선택하세요' },
-  { value: 'CREATOR', label: '크리에이터' },
   { value: 'EDITOR', label: '편집자' },
-  { value: 'PRODUCER', label: '프로듀서' },
-  { value: 'OTHER', label: '기타' },
+  { value: 'ARTIST', label: '아티스트' },
+  { value: 'FREELANCER', label: '프리랜서' },
 ];
 
 /** Screen A-2: Signup */

@@ -54,13 +54,14 @@ export default function LoginPage() {
       authLogin(tokens.accessToken, {
         id: me.id,
         email: me.email,
-        name: me.nickname,
         nickname: me.nickname,
         role: me.role,
-        profileImageUrl: null,
-        provider: 'LOCAL',
+        phonePersonal: me.phonePersonal,
+        phoneCompany: me.phoneCompany,
+        job: me.job as import('@/types').UserJob | null,
+        userType: me.userType as import('@/types').UserType,
+        isVerified: me.isVerified,
         createdAt: me.createdAt,
-        updatedAt: me.createdAt,
       });
 
       navigate('/', { replace: true });

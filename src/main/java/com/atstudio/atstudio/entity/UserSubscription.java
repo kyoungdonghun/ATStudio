@@ -69,6 +69,27 @@ public class UserSubscription extends BaseEntity {
         this.status = SubscriptionStatus.CANCELLED;
     }
 
+    public void expire() {
+        this.status = SubscriptionStatus.EXPIRED;
+    }
+
+    public void applyPending() {
+        if (this.pendingSubscription == null) return;
+        this.subscription = this.pendingSubscription;
+        this.billingCycle = this.pendingBillingCycle;
+        this.startedAt = LocalDate.now();
+        this.expiresAt = this.pendingBillingCycle == BillingCycle.YEARLY
+                ? this.startedAt.plusYears(1)
+                : this.startedAt.plusMonths(1);
+        this.status = SubscriptionStatus.ACTIVE;
+        this.pendingSubscription = null;
+        this.pendingBillingCycle = null;
+    }
+
+    public boolean hasPending() {
+        return this.pendingSubscription != null;
+    }
+
     public void adminUpdate(SubscriptionStatus newStatus, BillingCycle newBillingCycle, LocalDate newExpiresAt) {
         if (newStatus != null) this.status = newStatus;
         if (newBillingCycle != null) this.billingCycle = newBillingCycle;

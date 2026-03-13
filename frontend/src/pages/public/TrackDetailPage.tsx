@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { fetchTrackDetail, type TrackDetail } from '@/api/tracks';
+import { toUploadUrl } from '@/api/client';
 import { addToDownloadQueue } from '@/api/downloadQueue';
 import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import { usePlayerStore } from '@/store/playerStore';
@@ -106,7 +107,7 @@ export default function TrackDetailPage() {
           <div className={styles.cover}>
             {track.thumbnail ? (
               <img
-                src={track.thumbnail}
+                src={toUploadUrl(track.thumbnail)!}
                 alt={track.title}
                 className={styles.coverImg}
               />

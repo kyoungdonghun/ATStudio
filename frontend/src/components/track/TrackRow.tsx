@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { TrackListItem } from '@/types';
+import { toUploadUrl } from '@/api/client';
 import Badge from '@/components/ui/Badge';
 import styles from './TrackRow.module.css';
 
@@ -54,7 +55,7 @@ export default function TrackRow({
         <div className={styles.info}>
           <div className={styles.thumb}>
             {track.thumbnail ? (
-              <img src={track.thumbnail} alt={track.title} />
+              <img src={toUploadUrl(track.thumbnail)!} alt={track.title} />
             ) : (
               '\u266A'
             )}

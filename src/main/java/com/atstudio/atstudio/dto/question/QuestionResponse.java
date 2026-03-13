@@ -57,7 +57,7 @@ public record QuestionResponse(
         return new QuestionResponse(
                 question.getId(),
                 question.getTitle(),
-                null,
+                question.getContent(),
                 question.getCategory().name(),
                 question.isPublic(),
                 question.getStatus().name(),

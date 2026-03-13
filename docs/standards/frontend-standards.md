@@ -4,7 +4,7 @@ last_updated: 2026-02-13
 project: ATS
 owner: SA
 category: standard
-status: draft
+status: active
 dependencies:
   - path: development-standards.md
     reason: Overall development standards
@@ -28,7 +28,7 @@ task_types:
 
 > **Purpose:** Define the frontend architecture, coding standards, and patterns for ATStudio's React SPA. This document applies when the project transitions from Thymeleaf SSR to React SPA (Phase 2).
 >
-> **Status:** Draft — will be finalized when Phase 2 begins.
+> **Status:** Active — React SPA is implemented and running.
 
 ---
 
@@ -36,15 +36,14 @@ task_types:
 
 | Category | Technology | Purpose |
 |----------|-----------|---------|
-| Language | TypeScript | Type safety from day one |
-| Framework | React 19+ | UI rendering |
-| Routing | React Router 7 | Client-side routing |
-| State (Auth/UI) | Context API + Custom Hooks | Low-frequency global state |
-| State (Server Data) | TanStack Query (React Query) | Server data caching, loading, error states |
-| Validation | Zod | Schema-based form validation + type inference |
+| Language | TypeScript 5.6 | Type safety from day one |
+| Framework | React 18 | UI rendering |
+| Routing | React Router v6 | Client-side routing |
+| State | Zustand | Global auth, player, like, theme state |
 | HTTP Client | Axios (custom wrapper) | API communication |
-| Build | Vite | Fast dev server and build |
-| Lint/Format | ESLint + Prettier | Code quality and formatting |
+| Build | Vite 6 | Fast dev server and build |
+| Styling | CSS Modules + CSS Variables | Component-scoped styles with design tokens |
+| Lint/Format | ESLint + Prettier | Code quality and formatting (planned) |
 
 ---
 

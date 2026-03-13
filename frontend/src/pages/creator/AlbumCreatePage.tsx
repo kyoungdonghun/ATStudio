@@ -45,13 +45,13 @@ export default function AlbumCreatePage() {
       formData.append('description', description.trim());
     }
     if (thumbnail) {
-      formData.append('thumbnail', thumbnail);
+      formData.append('thumbnailFile', thumbnail);
     }
 
     setSubmitting(true);
     try {
       await createAlbum(formData);
-      navigate('/creator/albums');
+      navigate('/admin/albums');
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : '앨범 생성에 실패했습니다.';

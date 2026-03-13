@@ -46,7 +46,7 @@ function statusClass(status: string): string {
 }
 
 export default function QuestionDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { questionId: id } = useParams<{ questionId: string }>();
   const navigate = useNavigate();
 
   const [question, setQuestion] = useState<QuestionDetail | null>(null);

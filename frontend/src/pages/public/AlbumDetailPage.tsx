@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { fetchAlbumDetail, type AlbumDetail } from '@/api/albums';
+import { toUploadUrl } from '@/api/client';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
@@ -74,7 +75,7 @@ export default function AlbumDetailPage() {
           <div className={styles.cover}>
             {album.thumbnailUrl ? (
               <img
-                src={album.thumbnailUrl}
+                src={toUploadUrl(album.thumbnailUrl)!}
                 alt={album.title}
                 className={styles.coverImg}
               />
@@ -168,7 +169,7 @@ export default function AlbumDetailPage() {
                   >
                     <div className={styles.trThumb}>
                       {t.thumbnailUrl ? (
-                        <img src={t.thumbnailUrl} alt={t.title} />
+                        <img src={toUploadUrl(t.thumbnailUrl)!} alt={t.title} />
                       ) : (
                         '\u266A'
                       )}

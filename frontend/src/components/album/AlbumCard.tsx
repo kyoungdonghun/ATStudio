@@ -1,4 +1,5 @@
 import type { Album } from '@/types';
+import { toUploadUrl } from '@/api/client';
 import styles from './AlbumCard.module.css';
 
 interface AlbumCardProps {
@@ -20,7 +21,7 @@ export default function AlbumCard({
     <div className={classes} onClick={() => onClick?.(album)}>
       <div className={styles.thumb}>
         {album.thumbnailUrl ? (
-          <img src={album.thumbnailUrl} alt={album.title} />
+          <img src={toUploadUrl(album.thumbnailUrl)!} alt={album.title} />
         ) : (
           '\u266A'
         )}

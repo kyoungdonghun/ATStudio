@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 public interface UserSubscriptionRepository extends JpaRepository<UserSubscription, Long> {
@@ -23,6 +24,10 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
     Optional<UserSubscription> findActiveByUser(
             @Param("user") User user,
             @Param("today") LocalDate today);
+
+    @Query("SELECT us FROM UserSubscription us JOIN FETCH us.subscription " +
+           "WHERE us.status IN ('ACTIVE', 'CANCELLED') AND us.expiresAt < :today")
+    List<UserSubscription> findExpired(@Param("today") LocalDate today);
 
     @EntityGraph(attributePaths = {"user", "subscription"})
     Page<UserSubscription> findAll(Pageable pageable);

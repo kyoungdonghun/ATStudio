@@ -6,6 +6,7 @@ import {
   type AdminTrackListItem,
 } from '@/api/tracks';
 import type { PageInfo } from '@/types';
+import { toUploadUrl } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -161,7 +162,7 @@ export default function TrackManagePage() {
                     <div className={styles.info}>
                       <div className={styles.thumb}>
                         {track.thumbnail ? (
-                          <img src={track.thumbnail} alt={track.title} />
+                          <img src={toUploadUrl(track.thumbnail)!} alt={track.title} />
                         ) : (
                           '\u266A'
                         )}

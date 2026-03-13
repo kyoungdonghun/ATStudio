@@ -8,7 +8,7 @@ import Button from '@/components/ui/Button';
 import Pagination from '@/components/ui/Pagination';
 import styles from './UserManagePage.module.css';
 
-const ROLES: UserRole[] = ['USER', 'CREATOR', 'ADMIN'];
+const ROLES: UserRole[] = ['USER', 'ADMIN'];
 
 export default function UserManagePage() {
   const [users, setUsers] = useState<User[]>([]);

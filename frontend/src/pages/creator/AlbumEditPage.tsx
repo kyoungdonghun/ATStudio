@@ -7,7 +7,7 @@ import styles from './AlbumEditPage.module.css';
 
 /** Screen L-5: Album edit */
 export default function AlbumEditPage() {
-  const { id } = useParams<{ id: string }>();
+  const { albumId: id } = useParams<{ albumId: string }>();
   const navigate = useNavigate();
 
   /* ── Form state ── */
@@ -83,13 +83,13 @@ export default function AlbumEditPage() {
     formData.append('title', title.trim());
     formData.append('description', description.trim());
     if (thumbnail) {
-      formData.append('thumbnail', thumbnail);
+      formData.append('thumbnailFile', thumbnail);
     }
 
     setSubmitting(true);
     try {
       await updateAlbum(Number(id), formData);
-      navigate('/creator/albums');
+      navigate('/admin/albums');
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : '앨범 수정에 실패했습니다.';

@@ -7,6 +7,7 @@ import {
   type AlbumDetail,
   fetchAlbumDetail,
 } from '@/api/albums';
+import { toUploadUrl } from '@/api/client';
 import type { Album } from '@/types';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -167,7 +168,7 @@ export default function AlbumManagePage() {
             <div key={album.id} className={styles.albumCard}>
               <div className={styles.albumThumb}>
                 {album.thumbnailUrl ? (
-                  <img src={album.thumbnailUrl} alt={album.title} />
+                  <img src={toUploadUrl(album.thumbnailUrl)!} alt={album.title} />
                 ) : (
                   '\u266A'
                 )}

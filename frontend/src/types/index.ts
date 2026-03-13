@@ -28,18 +28,23 @@ export interface PagedResponse<T> {
 
 /* ── Auth ── */
 
-export type UserRole = 'GUEST' | 'USER' | 'CREATOR' | 'ADMIN';
+export type UserRole = 'GUEST' | 'USER' | 'ADMIN';
+
+export type UserJob = 'EDITOR' | 'ARTIST' | 'FREELANCER';
+
+export type UserType = 'INDIVIDUAL' | 'BUSINESS';
 
 export interface User {
   id: number;
   email: string;
-  name: string;
   nickname: string;
   role: UserRole;
-  profileImageUrl: string | null;
-  provider: string;
+  phonePersonal: string | null;
+  phoneCompany: string | null;
+  job: UserJob | null;
+  userType: UserType;
+  isVerified: boolean;
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface AuthTokens {
@@ -116,36 +121,36 @@ export interface Playlist {
 
 /* ── Subscription ── */
 
-export type SubscriptionTier = 'FREE' | 'BASIC' | 'PRO' | 'PREMIUM';
-
 export interface Subscription {
   id: number;
   name: string;
-  tier: SubscriptionTier;
-  price: number;
-  downloadPerDay: number;
   description: string | null;
+  userType: UserType;
+  priceMonthly: number;
+  priceYearly: number;
+  downloadPerDay: number;
+  maxWhitelistChannels: number;
+  isActive: boolean;
 }
 
 export interface UserSubscription {
   id: number;
   subscription: Subscription;
+  billingCycle: 'MONTHLY' | 'YEARLY';
   status: 'ACTIVE' | 'CANCELLED' | 'EXPIRED';
-  startDate: string;
-  endDate: string;
+  startedAt: string;
   expiresAt: string | null;
-  createdAt: string;
+  pendingSubscriptionId: number | null;
+  pendingBillingCycle: 'MONTHLY' | 'YEARLY' | null;
 }
 
 /* ── License ── */
 
 export interface License {
   id: number;
-  trackId: number;
-  trackTitle: string;
-  licenseType: string;
+  track: { id: number; title: string };
+  licenseCode: string;
   issuedAt: string;
-  expiresAt: string | null;
 }
 
 /* ── Notice ── */
@@ -155,7 +160,6 @@ export interface Notice {
   title: string;
   content: string;
   isPinned: boolean;
-  viewCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -172,8 +176,11 @@ export interface PlayHistory {
 
 export interface DownloadQueueItem {
   trackId: number;
-  track: Track;
-  addedAt: string;
+  title: string;
+  bpm: number;
+  tonality: string;
+  thumbnail: string | null;
+  createdAt: string;
 }
 
 /* ── Like ── */
@@ -189,13 +196,16 @@ export interface LikeItem {
 
 /* ── Question ── */
 
+export type QuestionStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+
 export interface Question {
   id: number;
   title: string;
   content: string;
-  status: 'OPEN' | 'ANSWERED' | 'CLOSED';
+  category: string;
+  isPublic: boolean;
+  status: QuestionStatus;
   createdAt: string;
-  updatedAt: string;
 }
 
 /* ── Company Certification ── */
@@ -206,13 +216,24 @@ export type CertificationStatus =
   | 'REJECTED'
   | 'REVISION_REQUESTED';
 
+/** Detail response (GET /company-certifications/me, GET /company-certifications/{id}) */
 export interface CompanyCertification {
   id: number;
-  companyName: string;
-  businessNumber: string;
+  status: CertificationStatus;
+  adminNote: string | null;
+  documentPath: string | null;
+  certificationCode: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+}
+
+/** Summary response for admin list (GET /company-certifications) */
+export interface CompanyCertificationSummary {
+  id: number;
+  userId: number;
+  userNickname: string;
   status: CertificationStatus;
   createdAt: string;
-  updatedAt: string;
 }
 
 /* ── Whitelist Channel ── */
@@ -221,6 +242,5 @@ export interface WhitelistChannel {
   id: number;
   channelUrl: string;
   channelName: string;
-  platform: string;
   createdAt: string;
 }

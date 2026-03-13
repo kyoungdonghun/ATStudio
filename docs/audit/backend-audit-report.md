@@ -11,9 +11,9 @@ dependencies:
   - path: ../standards/development-standards.md
     reason: Coding standards checklist source
   - path: ../design/api-spec.md
-    reason: API contract reference (v5, 79 APIs)
+    reason: API contract reference (v5, 79 APIs — audit baseline; current spec is v6, 89 APIs)
   - path: ../design/db-schema.md
-    reason: DB schema reference (v4, 21 tables)
+    reason: DB schema reference (v4, 21 tables — audit baseline; current schema has 23 tables)
 tier: 3
 target_agents:
   - sa
