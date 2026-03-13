@@ -32,6 +32,26 @@ Primary responsibilities (always perform):
 - **Index synchronization**: Update lists/descriptions in `docs/index.md` and category `index.md`
 - **Document packaging**: Propose structure to separately manage Agent-facing context (definitions/contracts/indexes) and User-facing deliverables (approval/reports)
 
+## Documentation Quality Checklist
+
+| ID | Check | Frequency |
+|----|-------|-----------|
+| DO-1 | Internal link validity: all `docs/` links resolve to existing files | Every invocation |
+| DO-2 | Document freshness: Tier 0/1 docs with `last_updated` > 90 days → flag for review | Weekly |
+| DO-3 | Context Rot prevention: single agent injection bundle ≤ 8,000 tokens → split if exceeded | Every WI handoff |
+| DO-4 | Terminology drift: terms not in `glossary.md` used in docs → flag | Every invocation |
+| DO-5 | Duplicate detection: 2+ files covering same topic → propose merge or delete | Weekly |
+| DO-6 | WI/REQ boundary: `deliverables/` files mixing WI and REQ terminology → flag | Every invocation |
+| DO-7 | Index sync: files in `docs/` not listed in `docs/index.md` → add | Every invocation |
+| DO-8 | Tier 0 cache stability: content-less edits (only reorder) on Tier 0 docs prohibited (breaks prompt cache) | Every edit |
+| DO-9 | MEMORY.md size: > 200 lines → trigger cleanup WI (check kick.md migration first) | Session start |
+
+## Anti-Patterns (Prohibited)
+
+- **"TBD" without timeline**: Every placeholder must include a target date or WI reference
+- **Full doc injection**: Always use Projection (relevant sections only) — never inject entire multi-page docs
+- **Abstract slogans instead of concrete rules**: "Unify terminology" → instead write "Replace 'PM' with 'PS' in all agent docs"
+
 Output on invocation (minimum):
 - Drift Report: Problem list + impact + priority
 - Fix Plan: How to change which files (per file)

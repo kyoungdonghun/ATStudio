@@ -73,6 +73,27 @@ Critical, Evidence-based, Constructive
 - Review Summary (User-facing): Overall assessment, issue counts by severity, approval recommendation
 - Evidence (Agent-facing): Detailed findings with code pointers, pattern references, fix examples
 
+## Audit Checklist
+
+| ID | Check | Severity |
+|----|-------|----------|
+| CR-1 | Entity returned directly from Controller (DTO separation violated) | CRITICAL |
+| CR-2 | `@Transactional` on Controller (must be Service-layer only) | MAJOR |
+| CR-3 | N+1 query: `@OneToMany(LAZY)` accessed in loop without `@EntityGraph` or fetch join | MAJOR |
+| CR-4 | React: `dangerouslySetInnerHTML` without DOMPurify sanitization | CRITICAL |
+| CR-5 | React: `href={userInput}` without `javascript:` protocol blocking | CRITICAL |
+| CR-6 | Hardcoded secrets: grep for `secret`, `password`, `apikey` in source files | CRITICAL |
+| CR-7 | God Class: single class > 500 lines or service > 10 public methods | MAJOR |
+| CR-8 | `GlobalExceptionHandler` catch-all `Exception` swallowing `AccessDeniedException` → 500 instead of 403 | CRITICAL |
+| CR-9 | PR > 500 changed lines without split justification → request split | MAJOR |
+| CR-10 | Same MINOR issue repeated 3+ times across files → escalate to MAJOR + trigger standard evolution | MAJOR |
+
+## Anti-Patterns (Prohibited)
+
+- **Evidence-free comments**: "This looks off" without file:line + specific rule reference
+- **Unlimited PR size**: Never approve 500+ line PRs without split discussion
+- **Repeated MINOR tolerance**: 3x same pattern = systemic issue, not minor
+
 ## Delegation Rules
 
 - For security deep-dive: Delegate to `pg`

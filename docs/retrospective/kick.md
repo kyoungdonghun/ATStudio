@@ -83,3 +83,37 @@
 
 - 다운그레이드 예약: `user_subscriptions`에 `pendingSubscriptionId`, `pendingBillingCycle` 컬럼 필요
 - 무제한 플랜: `downloadPerDay = -1` 컨벤션, guard 필수
+
+---
+
+## 전수조사 기법 — 역할×화면 매트릭스 감사
+
+> grep 기반 코드 패턴 스캔만으로는 **플로우 기반 문제**(역할별 UI 분기, 권한 불일치)를 못 잡는다.
+> ATStudio에서 ADMIN에게 좋아요/재생목록 노출, GUEST에게 인증 필수 버튼 노출 등을 놓친 후 도입.
+
+### 방법
+
+1. **라우터에서 전체 화면 목록 추출** (48개 등)
+2. **역할(GUEST/USER/ADMIN) × 화면 매트릭스** 작성
+3. 각 셀에서 검증:
+   - 라우트 가드 (ProtectedRoute minRole)가 백엔드 SecurityConfig와 일치하는가?
+   - 페이지 내 조건부 렌더링이 역할에 맞는가?
+   - API 호출이 해당 역할로 성공하는가?
+   - 에러 경로는 적절한가?
+4. **그룹별 병렬 에이전트** (Public, Subscriber, Admin 등)로 분산 스캔
+5. 불일치 리포트 → 심각도별 정렬 → 수정
+
+### 잡히는 유형 (grep으론 못 잡는 것들)
+
+| 유형 | 예시 |
+|------|------|
+| 역할별 UI 분기 누락 | ADMIN에게 좋아요/재생목록 노출 |
+| GUEST에게 인증 버튼 노출 | 좋아요/다운로드/대기열 버튼 → 401 사일런트 실패 |
+| 서비스 레이어 역할 불일치 | DownloadService가 ADMIN 구독 체크 → NO_ACTIVE_SUBSCRIPTION |
+| 소유자 체크 누락 | 다른 사용자 문의의 삭제 버튼 노출 |
+| 네비게이션 역할 분기 | Header에서 role별 메뉴 미분기 |
+
+### 3-way와의 관계
+
+기존 3-way (spec→code→spec)는 **정합성** 검증. 역할×화면은 **접근 권한** 검증.
+둘 다 해야 완전한 전수조사가 된다.

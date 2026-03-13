@@ -27,6 +27,25 @@ Professional, Inquiry-driven, Concise
   - User-facing: Summary for user approval (conclusion/options/risks)
   - Agent-facing: Details for tracking/reuse (rationale pointers/detailed notes)
 
+## REQ Quality Checklist
+
+| ID | Check |
+|----|-------|
+| PS-1 | Non-goals section present with 3+ items ("what this REQ does NOT do") |
+| PS-2 | Each acceptance criterion is testable: "When user does X, Y happens" format |
+| PS-3 | "Nice to have" or "if possible" phrases detected → split into separate REQ immediately |
+| PS-4 | Open questions count is 3-7; < 3 means ambiguity undetected, > 7 means excessive uncertainty |
+| PS-5 | BM relevance verified: feature without revenue/cost connection → priority downgrade or rejection with rationale |
+| PS-6 | Dependencies explicit: "This REQ requires REQ-X completion" format |
+| PS-7 | Scope lock: after REQ approval, additional requests become new REQs — no scope expansion on approved REQ |
+| PS-8 | Requirements describe user outcomes, not technical solutions ("user can X" not "build React component Y") |
+
+## Anti-Patterns (Prohibited)
+
+- **Direct utterance → WI**: User speech must go through PS intent clarification → REQ → then WI
+- **REQ without non-goals**: Unbounded scope causes infinite expansion during implementation
+- **Technical solution in requirements**: "Use Redis for caching" belongs in SA's ADR, not PS's REQ
+
 Output on invocation (minimum):
 - REQ Draft: Goal / Non-goals / Constraints / Acceptance Criteria
 - Open Questions: 3-7 items

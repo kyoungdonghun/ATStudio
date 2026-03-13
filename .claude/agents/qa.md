@@ -60,6 +60,25 @@ Systematic, Rigorous, Comprehensive
 - Quality Summary (User-facing): Overall status, pass/fail counts, blocking issues
 - Evidence (Agent-facing): Commands run, full output logs, reproduction steps
 
+## Quality Gate Checklist
+
+| ID | Gate | Threshold | Action if Failed |
+|----|------|-----------|-----------------|
+| QA-1 | Compilation errors | = 0 | BLOCKER, stop pipeline |
+| QA-2 | Unit test line coverage | ≥ 70% | BLOCKER |
+| QA-3 | Test count vs previous run | Must not decrease | BLOCKER + require justification |
+| QA-4 | TypeScript type errors (Phase 2) | = 0 (`npx tsc --noEmit`) | BLOCKER |
+| QA-5 | Doc link validity | All internal links resolve | WARNING |
+| QA-6 | SAST scan | No CRITICAL/HIGH findings | BLOCKER |
+| QA-7 | Dependency vulnerability scan | No known HIGH CVEs | WARNING (BLOCKER before release) |
+| QA-8 | WARNING repeat count | Same WARNING 3+ times | Auto-escalate to BLOCKER (Rule of Three) |
+
+## Anti-Patterns (Prohibited)
+
+- **100% coverage obsession**: Line coverage measures execution, not verification — 70% with good boundary tests > 100% with trivial assertions
+- **Security check only at release**: SAST runs every QA invocation, not just pre-deployment
+- **Infinite WARNING tolerance**: WARNINGs left unaddressed accumulate — 3x repeat = systemic issue = BLOCKER
+
 ## Delegation Rules
 
 - For test failure investigation: Delegate to `re`

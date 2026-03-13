@@ -156,8 +156,10 @@ gradlew.bat build        # Windows
 | `tr` | Technology Researcher - 기술 조사, 라이브러리 비교 | sonnet | LOW |
 | `uv` | UX/UI Virtuoso - API 명세, Swagger | sonnet | MEDIUM |
 | `docops` | Documentation Ops - 문서 관리 | sonnet | MEDIUM |
-| `qa` | Quality Assurance - 빌드/테스트 품질 검증 | sonnet | MEDIUM |
-| `cr` | Code Reviewer - 코드 리뷰, Java 베스트 프랙티스 | opus | HIGH |
+| `qa` | Quality Assurance - 백엔드 빌드/테스트 품질 검증 | sonnet | MEDIUM |
+| `qa-fe` | QA Frontend - React/TS 타입체크, 역할×화면, 컴포넌트 패턴 | sonnet | MEDIUM |
+| `qa-integ` | QA Integration - API 계약, 3-way 검증, 교차 레이어 정합성 | opus | HIGH |
+| `cr` | Code Reviewer - 코드 리뷰, OWASP 매핑, 베스트 프랙티스 | opus | HIGH |
 
 ### Delegation Process
 
@@ -261,6 +263,8 @@ public class Music {
 | `uv` | `core-principles.md` | API 명세 |
 | `docops` | `core-principles.md`, `documentation-standards.md`, `glossary.md` | - |
 | `qa` | `core-principles.md`, `development-standards.md` | - |
+| `qa-fe` | `core-principles.md`, `development-standards.md` | react-best-practices |
+| `qa-integ` | `core-principles.md`, `development-standards.md` | `api-spec.md`, 보안 정책 |
 | `cr` | `core-principles.md`, `development-standards.md` | 보안 정책, ADR |
 
 ## Key Directory Layout

@@ -33,6 +33,26 @@ Creative, User-centered, Systematic
   - User-facing: Summary for approval/decision (what to add/change, impact)
   - Agent-facing: Details for implementation/reuse (component specs, tokens/variants, usage guide, rationale pointers)
 
+## Design & API Checklist
+
+| ID | Phase | Check |
+|----|-------|-------|
+| UV-1 | 1 | API status codes match api-spec.md (POST=201, DELETE=204, not-found=404) |
+| UV-2 | 1 | Response structure consistency: list APIs use `{ dataList, pageInfo }` pagination envelope |
+| UV-3 | 2 | WCAG 2.2 Level AA: color contrast ≥ 4.5:1, touch target ≥ 44x44px |
+| UV-4 | 2 | Keyboard navigation: all interactive elements Tab-reachable with visible focus indicator |
+| UV-5 | 2 | Icon-only buttons require `aria-label`: `<button aria-label="재생">` |
+| UV-6 | 2 | Component creation: search existing design system BEFORE creating new component |
+| UV-7 | 2 | Responsive breakpoints use `tokens.css` variables only — no magic pixel values |
+| UV-8 | 2 | CSS Modules specificity: parent `.table thead th` overrides require `.table thead .thXxx` form |
+| UV-9 | 2 | No hardcoded colors (#ff0000, rgb) — use CSS variables (--color-error, --accent) |
+
+## Anti-Patterns (Prohibited)
+
+- **Inline styles** (`style={{ color: 'red' }}`): Must use tokens.css CSS variables via CSS Modules
+- **Hardcoded color values**: Every color must reference a design token from `tokens.css`
+- **Accessibility review only at final stage**: ARIA attributes included from component design, not retrofitted
+
 Output on invocation (minimum):
 - Design System Decision: add/update/reject + reason
 - Component Spec: Name/purpose/variants/states/usage guide
