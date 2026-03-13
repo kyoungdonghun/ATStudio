@@ -55,21 +55,28 @@
 
 .filterBar {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 18px;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
   background: var(--bg1);
   border: 1px solid var(--border);
   border-radius: 8px;
   margin-bottom: 18px;
-  flex-wrap: wrap;
+  overflow: hidden;
 }
 
-.filterGroup {
+.filterRow {
   display: flex;
   align-items: center;
   gap: 7px;
-  flex-wrap: wrap;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  max-height: 42px;
+}
+
+.filterRow:last-child {
+  border-bottom: none;
 }
 
 .filterLabel {
@@ -79,13 +86,41 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 36px;
 }
 
-.filterDivider {
-  width: 1px;
-  height: 20px;
-  background: var(--border2);
+.filterChips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+}
+
+.filterSpacer {
+  flex: 1;
+}
+
+.filterSearchBtn {
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  border-radius: 100px;
+  padding: 4px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
   flex-shrink: 0;
+  transition: background 0.15s;
+  margin-left: auto;
+}
+
+.filterSearchBtn:hover {
+  background: rgba(198, 167, 94, 0.22);
 }
 
 /* ── Track Table ── */
@@ -275,13 +310,9 @@
     font-size: 18px;
   }
 
-  .filterBar {
-    padding: 10px 12px;
-    gap: 8px;
-  }
-
-  .filterDivider {
-    display: none;
+  .filterRow {
+    padding: 8px 12px;
+    gap: 5px;
   }
 
   .thBpm,
@@ -289,7 +320,8 @@
     display: none;
   }
 
-  .thDur {
+  .thDur,
+  .thTag {
     display: none;
   }
 

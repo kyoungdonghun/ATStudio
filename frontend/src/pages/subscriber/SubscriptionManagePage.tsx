@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import {
   fetchMySubscription,
@@ -25,6 +25,7 @@ function formatAmount(amount: number): string {
 
 export default function SubscriptionManagePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const role = useAuthStore((s) => s.role);
 
   useEffect(() => {
@@ -73,6 +74,21 @@ export default function SubscriptionManagePage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  /* ── Pre-select plan from URL params (from SubscriptionPlanPage) ── */
+  useEffect(() => {
+    const urlPlan = searchParams.get('plan');
+    const urlCycle = searchParams.get('cycle');
+    if (urlPlan && plans.length > 0 && sub && !selectedPlan) {
+      const found = plans.find((p) => p.name.toUpperCase() === urlPlan.toUpperCase());
+      if (found && found.id !== sub.subscription.id) {
+        setSelectedPlan(found);
+        if (urlCycle === 'MONTHLY' || urlCycle === 'YEARLY') {
+          setSelectedCycle(urlCycle);
+        }
+      }
+    }
+  }, [plans, sub, searchParams, selectedPlan]);
 
   /* ── Preview change when plan/cycle selected ── */
   useEffect(() => {

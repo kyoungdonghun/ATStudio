@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { fetchMyLicenses, type LicenseListItem } from '@/api/licenses';
+import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import { formatDate } from '@/utils/format';
+import { useToastStore } from '@/store/toastStore';
 import type { PageInfo } from '@/types';
 import Pagination from '@/components/ui/Pagination';
+import Modal from '@/components/ui/Modal';
 import styles from './LicenseListPage.module.css';
 
 const PAGE_SIZE = 20;
@@ -14,12 +16,15 @@ function truncateCode(code: string): string {
 }
 
 export default function LicenseListPage() {
+  const toast = useToastStore((s) => s.show);
+
   /* ── State ── */
   const [licenses, setLicenses] = useState<LicenseListItem[]>([]);
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [modalLicense, setModalLicense] = useState<LicenseListItem | null>(null);
 
   /* ── Fetch ── */
   const load = useCallback(async (page: number) => {
@@ -41,6 +46,27 @@ export default function LicenseListPage() {
   useEffect(() => {
     load(currentPage);
   }, [load, currentPage]);
+
+  /* ── Re-download handler ── */
+  async function handleRedownload(lic: LicenseListItem) {
+    try {
+      const blob = await downloadTrack(lic.track.id);
+      triggerBlobDownload(blob, `${lic.track.title}.mp3`);
+      toast('success', '다운로드를 시작합니다.');
+    } catch {
+      toast('error', '다운로드에 실패했습니다. 구독이 활성 상태인지 확인하세요.');
+    }
+  }
+
+  /* ── Copy license code ── */
+  async function copyCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      toast('success', '라이선스 코드가 복사되었습니다.');
+    } catch {
+      toast('error', '복사에 실패했습니다.');
+    }
+  }
 
   /* ── Render ── */
   return (
@@ -89,12 +115,19 @@ export default function LicenseListPage() {
                     {formatDate(lic.issuedAt)}
                   </td>
                   <td className={styles.cellActions}>
-                    <Link
-                      to={`/licenses/${lic.id}`}
+                    <button
+                      className={styles.dlBtn}
+                      onClick={() => handleRedownload(lic)}
+                      title="다시 다운로드"
+                    >
+                      {'↓ 다운로드'}
+                    </button>
+                    <button
                       className={styles.detailLink}
+                      onClick={() => setModalLicense(lic)}
                     >
                       {'상세'}
-                    </Link>
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -112,6 +145,47 @@ export default function LicenseListPage() {
           )}
         </>
       )}
+
+      {/* License Detail Modal */}
+      <Modal
+        open={modalLicense !== null}
+        onClose={() => setModalLicense(null)}
+        title="라이선스 상세"
+      >
+        {modalLicense && (
+          <>
+            <div className={styles.modalBody}>
+              <div className={styles.modalRow}>
+                <span className={styles.modalLabel}>{'곡명'}</span>
+                <span className={styles.modalValue}>{modalLicense.track.title}</span>
+              </div>
+              <div className={styles.modalRow}>
+                <span className={styles.modalLabel}>{'발급일'}</span>
+                <span className={styles.modalValue}>{formatDate(modalLicense.issuedAt)}</span>
+              </div>
+              <div className={styles.modalRow}>
+                <span className={styles.modalLabel}>{'라이선스 코드'}</span>
+              </div>
+              <div className={styles.codeBox}>{modalLicense.licenseCode}</div>
+              <button
+                className={styles.copyBtn}
+                onClick={() => copyCode(modalLicense.licenseCode)}
+              >
+                {'코드 복사'}
+              </button>
+            </div>
+            <div className={styles.modalFooter}>
+              <button
+                className={styles.dlBtn}
+                onClick={() => handleRedownload(modalLicense)}
+                style={{ fontSize: 14 }}
+              >
+                {'↓ 다시 다운로드'}
+              </button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

@@ -157,15 +157,16 @@ export default function SubscriptionPlanPage() {
     loadAll();
   }, [isAuthenticated]);
 
-  const handleSubscribe = (_planKey: string) => {
+  const handleSubscribe = (planKey: string) => {
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
+    const cycle = isYearly ? 'YEARLY' : 'MONTHLY';
     if (mySub && mySub.status === 'ACTIVE') {
-      navigate('/subscriptions/manage');
+      navigate(`/subscriptions/manage?plan=${planKey}&cycle=${cycle}`);
     } else {
-      navigate('/subscriptions/payment');
+      navigate(`/subscriptions/payment?plan=${planKey}&cycle=${cycle}`);
     }
   };
 

@@ -35,8 +35,8 @@ export default function TrackRow({
     .filter(Boolean)
     .join(' ');
 
-  const genreTag = track.tags.find((t) => t.type === 'GENRE');
-  const moodTag = track.tags.find((t) => t.type === 'MOOD');
+  const genreTags = track.tags.filter((t) => t.type === 'GENRE');
+  const moodTags = track.tags.filter((t) => t.type === 'MOOD');
 
   return (
     <tr className={rowClass}>
@@ -81,7 +81,7 @@ export default function TrackRow({
               )}
             </div>
             <div className={styles.artist}>
-              {track.artistName ?? genreTag?.name ?? ''}
+              {track.artistName ?? genreTags[0]?.name ?? ''}
             </div>
           </div>
         </div>
@@ -89,8 +89,12 @@ export default function TrackRow({
 
       {/* Tags */}
       <td className={styles.cellTag}>
-        {genreTag && <span className={styles.tagChip}>{genreTag.name}</span>}
-        {moodTag && <span className={styles.tagChip}>{moodTag.name}</span>}
+        {genreTags.map((t) => (
+          <span key={t.id} className={styles.tagChip}>{t.name}</span>
+        ))}
+        {moodTags.map((t) => (
+          <span key={t.id} className={styles.tagChip}>{t.name}</span>
+        ))}
       </td>
 
       {/* BPM */}

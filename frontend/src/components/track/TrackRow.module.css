@@ -57,10 +57,10 @@
 
 .cellTag {
   composes: cell;
-  width: 130px;
+  min-width: 120px;
+  max-width: 220px;
   overflow: hidden;
   white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .cellBpm {
@@ -195,6 +195,7 @@
   font-size: 11px;
   color: var(--text1);
   margin-right: 4px;
+  white-space: nowrap;
 }
 
 /* ── Actions ── */
@@ -258,7 +259,8 @@
   }
 
   .cellTag {
-    width: 100px;
+    min-width: 80px;
+    max-width: 120px;
   }
 
   .cellActs {
@@ -286,7 +288,7 @@
   }
 
   .cellTag {
-    width: 80px;
+    display: none;
   }
 
   .cellActs {

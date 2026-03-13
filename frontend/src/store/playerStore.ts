@@ -27,6 +27,7 @@ interface PlayerState {
   toggleMute: () => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
+  playAll: (tracks: Track[]) => void;
   addToQueue: (track: Track) => void;
   removeFromQueue: (trackId: number) => void;
   clearQueue: () => void;
@@ -160,6 +161,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         localStorage.setItem('playerVolume', '0.5');
         set({ volume: 0.5 });
       }
+    },
+
+    playAll: (tracks: Track[]) => {
+      if (tracks.length === 0) return;
+      const { play } = get();
+      set({ queue: tracks });
+      play(tracks[0]);
     },
 
     addToQueue: (track: Track) => {

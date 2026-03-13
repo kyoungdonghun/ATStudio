@@ -33,6 +33,7 @@ export default function AlbumDetailPage() {
   }, [albumId]);
 
   const playTrack = usePlayerStore((s) => s.play);
+  const playAll = usePlayerStore((s) => s.playAll);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const likeStore = useLikeStore();
 
@@ -103,15 +104,48 @@ export default function AlbumDetailPage() {
             <p className={styles.desc}>{album.description}</p>
           )}
           <div className={styles.actions}>
-            <button className={styles.btnPlayAll}>
+            <button
+              className={styles.btnPlayAll}
+              onClick={() => {
+                const tracks = album.tracks.map((t) => ({
+                  id: t.trackId,
+                  title: t.title,
+                  artistName: t.artistName ?? '',
+                  duration: 0,
+                  bpm: 0,
+                  tonality: '',
+                  description: null,
+                  audioFile: null,
+                  thumbnail: t.thumbnailUrl ?? null,
+                  tags: [],
+                  isActive: true,
+                  playCount: 0,
+                  createdAt: '',
+                  updatedAt: '',
+                }));
+                playAll(tracks);
+              }}
+            >
               {'\u25B6'}&nbsp;&nbsp;전체 재생
             </button>
-            <button
-              className={`${styles.btnLike} ${album.tracks.some((t) => likeStore.likedIds.has(t.trackId)) ? styles.btnLikeActive : ''}`}
-              title="앨범 수록곡 전체 좋아요는 개별 트랙에서 설정하세요"
-            >
-              {'\u2661'}&nbsp;&nbsp;좋아요
-            </button>
+            {isAuthenticated && (
+              <button
+                className={`${styles.btnLike} ${album.tracks.every((t) => likeStore.likedIds.has(t.trackId)) ? styles.btnLikeActive : ''}`}
+                onClick={async () => {
+                  const allLiked = album.tracks.every((t) => likeStore.likedIds.has(t.trackId));
+                  for (const t of album.tracks) {
+                    const isLiked = likeStore.likedIds.has(t.trackId);
+                    if (allLiked ? isLiked : !isLiked) {
+                      await likeStore.toggle(t.trackId);
+                    }
+                  }
+                  toast('success', allLiked ? '전체 좋아요가 해제되었습니다.' : '전체 수록곡을 좋아요했습니다.');
+                }}
+                title={album.tracks.every((t) => likeStore.likedIds.has(t.trackId)) ? '전체 좋아요 해제' : '전체 수록곡 좋아요'}
+              >
+                {album.tracks.every((t) => likeStore.likedIds.has(t.trackId)) ? '\u2665' : '\u2661'}&nbsp;&nbsp;좋아요
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -224,8 +258,13 @@ export default function AlbumDetailPage() {
                           try {
                             await addToDownloadQueue(t.trackId);
                             toast('success', '다운로드 대기열에 추가되었습니다.');
-                          } catch {
-                            toast('error', '대기열 추가에 실패했습니다.');
+                          } catch (err: unknown) {
+                            const axErr = err as { response?: { status?: number } };
+                            if (axErr.response?.status === 409) {
+                              toast('error', '이미 대기열에 있는 음원입니다.');
+                            } else {
+                              toast('error', '대기열 추가에 실패했습니다.');
+                            }
                           }
                         }}
                         aria-label="Add to download queue"

@@ -7,6 +7,7 @@ import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import type { TrackListItem, TagItem, PageInfo } from '@/types';
 import TrackRow from '@/components/track/TrackRow';
 import FilterChip from '@/components/ui/FilterChip';
+import TagFilterModal from '@/components/filter/TagFilterModal';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import Pagination from '@/components/ui/Pagination';
 import { usePlayerStore } from '@/store/playerStore';
@@ -53,6 +54,7 @@ export default function TrackListPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const likeStore = useLikeStore();
   const [addToPlTrackId, setAddToPlTrackId] = useState<number | null>(null);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated && !likeStore.loaded) {
@@ -157,6 +159,37 @@ export default function TrackListPage() {
     setFilter('sort', e.target.value);
   }
 
+  function handleFilterApply(genres: string[], mood: string, bpm: string) {
+    const next = new URLSearchParams(searchParams);
+    next.delete('genre');
+    genres.forEach((g) => next.append('genre', g));
+    if (mood) {
+      next.set('mood', mood);
+    } else {
+      next.delete('mood');
+    }
+    if (bpm) {
+      next.set('bpm', bpm);
+    } else {
+      next.delete('bpm');
+    }
+    next.set('page', '1');
+    setSearchParams(next);
+  }
+
+  /* Sort tags: active ones first (CSS overflow hides the rest) */
+  const sortedGenreTags = [...genreTags].sort((a, b) => {
+    const aActive = activeGenres.includes(a.name) ? 0 : 1;
+    const bActive = activeGenres.includes(b.name) ? 0 : 1;
+    return aActive - bActive;
+  });
+
+  const sortedMoodTags = [...moodTags].sort((a, b) => {
+    const aActive = activeMood === a.name ? 0 : 1;
+    const bActive = activeMood === b.name ? 0 : 1;
+    return aActive - bActive;
+  });
+
   function goToPage(page: number) {
     const next = new URLSearchParams(searchParams);
     next.set('page', String(page));
@@ -209,59 +242,80 @@ export default function TrackListPage() {
 
       {/* Filter Bar */}
       <div className={styles.filterBar}>
-        {/* Genre */}
-        <div className={styles.filterGroup}>
+        {/* Genre row */}
+        <div className={styles.filterRow}>
           <span className={styles.filterLabel}>{'장르'}</span>
-          <FilterChip
-            label={'전체'}
-            active={activeGenres.length === 0}
-            onClick={() => {
-              const next = new URLSearchParams(searchParams);
-              next.delete('genre');
-              next.set('page', '1');
-              setSearchParams(next);
-            }}
-          />
-          {genreTags.map((tag) => (
+          <div className={styles.filterChips}>
             <FilterChip
-              key={tag.id}
-              label={tag.name}
-              active={activeGenres.includes(tag.name)}
-              onClick={() => toggleGenre(tag.name)}
+              label={'전체'}
+              active={activeGenres.length === 0}
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete('genre');
+                next.set('page', '1');
+                setSearchParams(next);
+              }}
             />
-          ))}
+            {sortedGenreTags.map((tag) => (
+              <FilterChip
+                key={tag.id}
+                label={tag.name}
+                active={activeGenres.includes(tag.name)}
+                onClick={() => toggleGenre(tag.name)}
+              />
+            ))}
+          </div>
         </div>
 
-        <div className={styles.filterDivider} />
-
-        {/* Mood */}
-        <div className={styles.filterGroup}>
+        {/* Mood row */}
+        <div className={styles.filterRow}>
           <span className={styles.filterLabel}>{'분위기'}</span>
-          {moodTags.map((tag) => (
-            <FilterChip
-              key={tag.id}
-              label={tag.name}
-              active={activeMood === tag.name}
-              onClick={() => toggleMood(tag.name)}
-            />
-          ))}
+          <div className={styles.filterChips}>
+            {sortedMoodTags.map((tag) => (
+              <FilterChip
+                key={tag.id}
+                label={tag.name}
+                active={activeMood === tag.name}
+                onClick={() => toggleMood(tag.name)}
+              />
+            ))}
+          </div>
         </div>
 
-        <div className={styles.filterDivider} />
-
-        {/* BPM */}
-        <div className={styles.filterGroup}>
+        {/* BPM row + search */}
+        <div className={styles.filterRow}>
           <span className={styles.filterLabel}>BPM</span>
-          {BPM_PRESETS.map((preset) => (
-            <FilterChip
-              key={preset.label}
-              label={preset.label}
-              active={activeBpmLabel === preset.label}
-              onClick={() => toggleBpm(preset.label)}
-            />
-          ))}
+          <div className={styles.filterChips}>
+            {BPM_PRESETS.map((preset) => (
+              <FilterChip
+                key={preset.label}
+                label={preset.label}
+                active={activeBpmLabel === preset.label}
+                onClick={() => toggleBpm(preset.label)}
+              />
+            ))}
+          </div>
+          <button
+            className={styles.filterSearchBtn}
+            onClick={() => setFilterModalOpen(true)}
+          >
+            {'추가 옵션'}
+          </button>
         </div>
       </div>
+
+      {/* Tag Filter Modal */}
+      <TagFilterModal
+        open={filterModalOpen}
+        onClose={() => setFilterModalOpen(false)}
+        genreTags={genreTags}
+        moodTags={moodTags}
+        activeGenres={activeGenres}
+        activeMood={activeMood}
+        activeBpmLabel={activeBpmLabel}
+        bpmPresets={BPM_PRESETS}
+        onApply={handleFilterApply}
+      />
 
       {/* Track Table */}
       {loading ? (
@@ -278,7 +332,7 @@ export default function TrackListPage() {
               <tr>
                 <th className={styles.thCenter}>#</th>
                 <th>{'음원'}</th>
-                <th>{'장르 / 태그'}</th>
+                <th className={styles.thTag}>{'장르 / 태그'}</th>
                 <th className={`${styles.thRight} ${styles.thBpm}`}>BPM</th>
                 <th className={`${styles.thCenter} ${styles.thKey}`}>{'조성'}</th>
                 <th className={`${styles.thRight} ${styles.thDur}`}>{'길이'}</th>
@@ -324,8 +378,13 @@ export default function TrackListPage() {
                     try {
                       await addToDownloadQueue(t.id);
                       toast('success', '다운로드 대기열에 추가되었습니다.');
-                    } catch {
-                      toast('error', '대기열 추가에 실패했습니다.');
+                    } catch (err: unknown) {
+                      const axErr = err as { response?: { status?: number } };
+                      if (axErr.response?.status === 409) {
+                        toast('error', '이미 대기열에 있는 음원입니다.');
+                      } else {
+                        toast('error', '대기열 추가에 실패했습니다.');
+                      }
                     }
                   }}
                 />

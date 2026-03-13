@@ -77,6 +77,11 @@ public class LocalStorageService implements StorageService {
         if (relativePath == null || relativePath.isBlank()) {
             throw new TechnicException(TECHNIC_ERROR.IO_EXCEPTION);
         }
+        // Strip leading base directory name if accidentally included (e.g. "uploads/tracks/..." → "tracks/...")
+        String baseDir = resolvedBasePath.getFileName().toString() + "/";
+        if (relativePath.startsWith(baseDir)) {
+            relativePath = relativePath.substring(baseDir.length());
+        }
         try {
             Path file = resolvedBasePath.resolve(relativePath).normalize();
             validateInsideBasePath(file);

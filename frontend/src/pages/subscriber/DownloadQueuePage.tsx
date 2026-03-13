@@ -7,9 +7,11 @@ import {
   type QueueListItem,
 } from '@/api/downloadQueue';
 import { downloadTrack, triggerBlobDownload, fetchDownloadCount, type DownloadCount } from '@/api/downloads';
+import { fetchMyLicenses } from '@/api/licenses';
 import { toUploadUrl } from '@/api/client';
 import { usePlayerStore } from '@/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
+import { useToastStore } from '@/store/toastStore';
 import styles from './DownloadQueuePage.module.css';
 
 export default function DownloadQueuePage() {
@@ -18,21 +20,27 @@ export default function DownloadQueuePage() {
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<number | null>(null);
   const [dlCount, setDlCount] = useState<DownloadCount | null>(null);
+  const [downloadedIds, setDownloadedIds] = useState<Set<number>>(new Set());
 
   const playTrack = usePlayerStore((s) => s.play);
   const role = useAuthStore((s) => s.role);
   const isAdmin = role === 'ADMIN';
+  const toast = useToastStore((s) => s.show);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const [result, countResult] = await Promise.all([
+      const [result, countResult, licensesResult] = await Promise.all([
         fetchDownloadQueue(),
         isAdmin ? Promise.resolve(null) : fetchDownloadCount().catch(() => null),
+        fetchMyLicenses(1, 9999).catch(() => null),
       ]);
       setItems(result.dataList ?? []);
       setDlCount(countResult);
+      if (licensesResult) {
+        setDownloadedIds(new Set(licensesResult.dataList.map((l) => l.track.id)));
+      }
     } catch {
       setError('다운로드 대기열을 불러오지 못했습니다.');
     } finally {
@@ -58,9 +66,13 @@ export default function DownloadQueuePage() {
       setDownloading(item.trackId);
       const blob = await downloadTrack(item.trackId);
       triggerBlobDownload(blob, `${item.title}.mp3`);
-      // 다운로드 성공 시 대기열에서 제거
-      await removeFromDownloadQueue(item.trackId);
-      setItems((prev) => prev.filter((i) => i.trackId !== item.trackId));
+      // Mark as downloaded (keep in queue)
+      setDownloadedIds((prev) => new Set(prev).add(item.trackId));
+      // Refresh download count
+      if (!isAdmin) {
+        fetchDownloadCount().then(setDlCount).catch(() => {});
+      }
+      toast('success', `${item.title} 다운로드 완료`);
     } catch (err: unknown) {
       const msg =
         err instanceof Error ? err.message : '다운로드에 실패했습니다.';
@@ -72,7 +84,9 @@ export default function DownloadQueuePage() {
 
   async function handleDownloadAll() {
     for (const item of items) {
-      await handleDownload(item);
+      if (!downloadedIds.has(item.trackId)) {
+        await handleDownload(item);
+      }
     }
   }
 
@@ -95,6 +109,8 @@ export default function DownloadQueuePage() {
     });
   }
 
+  const pendingCount = items.filter((i) => !downloadedIds.has(i.trackId)).length;
+
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
@@ -102,9 +118,11 @@ export default function DownloadQueuePage() {
           {'다운로드 대기열'}
           <span className={styles.count}>{items.length}곡</span>
         </h1>
-        {items.length > 0 && (
+        {pendingCount > 0 && (
           <button className={styles.btnDownloadAll} onClick={handleDownloadAll}>
-            {'전체 다운로드'}
+            {'미다운로드 전체 받기 ('}
+            {pendingCount}
+            {'곡)'}
           </button>
         )}
       </div>
@@ -144,59 +162,70 @@ export default function DownloadQueuePage() {
                 <th>{'음원'}</th>
                 <th className={`${styles.thRight} ${styles.thBpm}`}>BPM</th>
                 <th className={`${styles.thCenter} ${styles.thKey}`}>Key</th>
+                <th className={`${styles.thCenter} ${styles.thStatus}`}>{'상태'}</th>
                 <th className={styles.thActs}>{'관리'}</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item, idx) => (
-                <tr key={item.trackId} className={styles.row}>
-                  <td className={styles.cellNum}>{idx + 1}</td>
-                  <td className={styles.cellInfo}>
-                    <div className={styles.info}>
-                      <div
-                        className={styles.thumb}
-                        onClick={() => handlePlay(item)}
-                      >
-                        {item.thumbnail ? (
-                          <img
-                            src={toUploadUrl(item.thumbnail)!}
-                            alt={item.title}
-                          />
-                        ) : (
-                          '\u266A'
-                        )}
-                      </div>
-                      <div className={styles.infoText}>
-                        <Link
-                          to={`/tracks/${item.trackId}`}
-                          className={styles.titleLink}
+              {items.map((item, idx) => {
+                const isDone = downloadedIds.has(item.trackId);
+                return (
+                  <tr key={item.trackId} className={`${styles.row} ${isDone ? styles.rowDone : ''}`}>
+                    <td className={styles.cellNum}>{idx + 1}</td>
+                    <td className={styles.cellInfo}>
+                      <div className={styles.info}>
+                        <div
+                          className={styles.thumb}
+                          onClick={() => handlePlay(item)}
                         >
-                          {item.title}
-                        </Link>
+                          {item.thumbnail ? (
+                            <img
+                              src={toUploadUrl(item.thumbnail)!}
+                              alt={item.title}
+                            />
+                          ) : (
+                            '\u266A'
+                          )}
+                        </div>
+                        <div className={styles.infoText}>
+                          <Link
+                            to={`/tracks/${item.trackId}`}
+                            className={styles.titleLink}
+                          >
+                            {item.title}
+                          </Link>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className={styles.cellBpm}>{item.bpm ?? '-'}</td>
-                  <td className={styles.cellKey}>{item.tonality ?? '-'}</td>
-                  <td className={styles.cellActs}>
-                    <button
-                      className={styles.dlBtn}
-                      onClick={() => handleDownload(item)}
-                      disabled={downloading === item.trackId}
-                      title="다운로드"
-                    >
-                      {downloading === item.trackId ? '...' : '\u2B07'}
-                    </button>
-                    <button
-                      className={styles.removeBtn}
-                      onClick={() => handleRemove(item.trackId)}
-                      title="삭제"
-                    >
-                      {'\u2715'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className={styles.cellBpm}>{item.bpm ?? '-'}</td>
+                    <td className={styles.cellKey}>{item.tonality ?? '-'}</td>
+                    <td className={styles.cellStatus}>
+                      {isDone ? (
+                        <span className={styles.badgeDone} title="다운로드 완료">{'✅ 완료'}</span>
+                      ) : (
+                        <span className={styles.badgePending}>{'대기 중'}</span>
+                      )}
+                    </td>
+                    <td className={styles.cellActs}>
+                      <button
+                        className={styles.dlBtn}
+                        onClick={() => handleDownload(item)}
+                        disabled={downloading === item.trackId}
+                        title={isDone ? '다시 다운로드 (카운트 차감 없음)' : '다운로드'}
+                      >
+                        {downloading === item.trackId ? '...' : isDone ? '\u{1F504}' : '\u2B07'}
+                      </button>
+                      <button
+                        className={styles.removeBtn}
+                        onClick={() => handleRemove(item.trackId)}
+                        title="삭제"
+                      >
+                        {'\u2715'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

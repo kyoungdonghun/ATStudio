@@ -1,0 +1,131 @@
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 32px var(--page-px) 60px;
+}
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 28px;
+  color: var(--text0);
+}
+
+/* ── Plan summary card ── */
+
+.card {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.cardTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text0);
+  margin-bottom: 16px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+
+.label {
+  font-size: 13px;
+  color: var(--text2);
+}
+
+.value {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text0);
+}
+
+.total {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* ── PG notice ── */
+
+.pgNotice {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.pgIcon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.pgText {
+  font-size: 14px;
+  color: var(--text1);
+  line-height: 1.6;
+}
+
+/* ── Buttons ── */
+
+.btnGroup {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.btnBack {
+  background: var(--bg2);
+  color: var(--text1);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btnBack:hover {
+  background: var(--bg3);
+}
+
+.btnPay {
+  background: var(--accent);
+  color: var(--bg0);
+  border: none;
+  border-radius: 8px;
+  padding: 12px 32px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ── Loading / Error ── */
+
+.loading,
+.error {
+  text-align: center;
+  padding: 60px 0;
+  font-size: 14px;
+  color: var(--text2);
+}
+
+.error {
+  color: var(--error);
+}

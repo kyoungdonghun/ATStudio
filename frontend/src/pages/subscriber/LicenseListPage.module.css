@@ -76,8 +76,9 @@
 }
 
 .cellActions {
-  width: 80px;
+  width: 140px;
   text-align: right;
+  white-space: nowrap;
 }
 
 .detailLink {
@@ -89,6 +90,87 @@
 
 .detailLink:hover {
   text-decoration: underline;
+}
+
+.dlBtn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+
+.dlBtn:hover {
+  opacity: 0.7;
+}
+
+/* ── License Code Modal ── */
+
+.modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modalRow {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.modalLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.modalValue {
+  font-size: 14px;
+  color: var(--text0);
+  word-break: break-all;
+}
+
+.codeBox {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 12px 16px;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 13px;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+  word-break: break-all;
+  user-select: all;
+}
+
+.copyBtn {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text0);
+  cursor: pointer;
+  transition: background 0.15s;
+  align-self: flex-start;
+}
+
+.copyBtn:hover {
+  background: var(--bg3);
+}
+
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
 }
 
 /* ── Pagination ── */

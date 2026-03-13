@@ -67,8 +67,13 @@ export default function LikeListPage() {
     try {
       await addToDownloadQueue(item.trackId);
       toast('success', '다운로드 대기열에 추가되었습니다.');
-    } catch {
-      toast('error', '대기열 추가에 실패했습니다.');
+    } catch (err: unknown) {
+      const axErr = err as { response?: { status?: number } };
+      if (axErr.response?.status === 409) {
+        toast('error', '이미 대기열에 있는 음원입니다.');
+      } else {
+        toast('error', '대기열 추가에 실패했습니다.');
+      }
     }
   }
 

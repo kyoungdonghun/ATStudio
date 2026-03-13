@@ -21,6 +21,8 @@ const NAV_ITEMS: NavItem[] = [
 const SUBSCRIBER_NAV_ITEMS: NavItem[] = [
   { label: '좋아요', path: '/likes' },
   { label: '재생목록', path: '/playlists' },
+  { label: '다운로드', path: '/download-queue' },
+  { label: '라이선스', path: '/licenses' },
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [

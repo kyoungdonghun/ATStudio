@@ -37,32 +37,36 @@ public class DownloadService {
                 .filter(Track::isActive)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND));
 
-        // ADMIN bypasses subscription and daily limit checks
-        if (user.getRole() != UserRole.ADMIN) {
-            UserSubscription subscription = userSubscriptionRepository
-                    .findActiveByUser(user, LocalDate.now())
-                    .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+        // Re-download: if license already exists, skip count & just return file
+        boolean isRedownload = licenseRepository.findByUserAndTrack(user, track).isPresent();
 
-            LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-            LocalDateTime endOfDay = startOfDay.plusDays(1);
-            long todayCount = trackDownloadRepository.countByUserAndDownloadedAtBetween(user, startOfDay, endOfDay);
-            int downloadPerDay = subscription.getSubscription().getDownloadPerDay();
-            if (downloadPerDay != -1 && todayCount >= downloadPerDay) {
-                throw new BusinessException(BUSINESS_ERROR.DOWNLOAD_LIMIT_EXCEEDED);
+        if (!isRedownload) {
+            // ADMIN bypasses subscription and daily limit checks
+            if (user.getRole() != UserRole.ADMIN) {
+                UserSubscription subscription = userSubscriptionRepository
+                        .findActiveByUser(user, LocalDate.now())
+                        .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+
+                LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+                LocalDateTime endOfDay = startOfDay.plusDays(1);
+                long todayCount = trackDownloadRepository.countByUserAndDownloadedAtBetween(user, startOfDay, endOfDay);
+                int downloadPerDay = subscription.getSubscription().getDownloadPerDay();
+                if (downloadPerDay != -1 && todayCount >= downloadPerDay) {
+                    throw new BusinessException(BUSINESS_ERROR.DOWNLOAD_LIMIT_EXCEEDED);
+                }
             }
+
+            trackDownloadRepository.save(TrackDownload.builder()
+                    .user(user)
+                    .track(track)
+                    .build());
+
+            licenseRepository.save(License.builder()
+                    .user(user)
+                    .track(track)
+                    .licenseCode(UUID.randomUUID().toString())
+                    .build());
         }
-
-        trackDownloadRepository.save(TrackDownload.builder()
-                .user(user)
-                .track(track)
-                .build());
-
-        licenseRepository.findByUserAndTrack(user, track)
-                .orElseGet(() -> licenseRepository.save(License.builder()
-                        .user(user)
-                        .track(track)
-                        .licenseCode(UUID.randomUUID().toString())
-                        .build()));
 
         String audioFile = track.getAudioFile();
         if (audioFile == null || audioFile.isBlank()) {

@@ -17,7 +17,7 @@ import com.atstudio.atstudio.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -28,7 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.MalformedURLException;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
@@ -132,16 +132,7 @@ public class TrackService {
         String filePath = (track.getPreviewFile() != null)
                 ? track.getPreviewFile()
                 : track.getAudioFile();
-        try {
-            Path path = Paths.get(filePath);
-            Resource resource = new UrlResource(path.toUri());
-            if (!resource.exists()) {
-                resource = new UrlResource(Paths.get(track.getAudioFile()).toUri());
-            }
-            return resource;
-        } catch (MalformedURLException e) {
-            throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
-        }
+        return storageService.loadAsResource(filePath);
     }
 
     @Transactional
