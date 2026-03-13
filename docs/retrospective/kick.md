@@ -48,6 +48,21 @@
 
 ---
 
+## 보안 / 파일 저장 체크리스트
+
+- [ ] **Path Traversal 방어** — 파일 업로드/삭제/조회 서비스에서 `Paths.get(filename).getFileName()` sanitize + `resolvedPath.startsWith(basePath)` 검증 필수. `../` 공격으로 시스템 파일 읽기/삭제 가능.
+- [ ] **basePath 절대경로 변환** — `@PostConstruct`에서 `Paths.get(basePath).toAbsolutePath().normalize()` 한 번만 계산. 상대경로 그대로 쓰면 CWD 변경 시 경로 탈출.
+- [ ] **정적 리소스 핸들러 경로** — WebConfig `addResourceLocations("file:...")` 도 절대경로 변환 필수.
+
+---
+
+## 프론트엔드 상태관리 체크리스트
+
+- [ ] **Zustand Set/Map 반응성** — `Set.delete()`, `Map.set()` 직접 호출은 리렌더 트리거 안 됨. 반드시 `new Set(prev)` 복사 후 변경 → `setState()`. 배열도 동일 (`[...prev]`).
+- [ ] **공유 타입 파일(types/index.ts) drift 방지** — 각 API 모듈이 인라인 타입을 쓰면 공유 타입 파일과 괴리 발생. 정기적으로 백엔드 DTO와 대조하거나, API 모듈에서 공유 타입을 re-export하는 패턴 사용.
+
+---
+
 ## 프론트엔드 CSS 아키텍처 체크리스트
 
 - [ ] **CSS specificity 전략을 페이지 구현 전에 수립** — 48개 페이지를 만든 후에야 `.table thead th`(0,1,2)가 `.thRight`(0,1,0)을 오버라이드하는 문제를 발견. base selector의 specificity를 정하고, override 패턴을 확정한 뒤에 페이지를 만들어야 한다. 안 하면 한 곳 고칠 때 전체 테이블이 깨진다.

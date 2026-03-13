@@ -416,7 +416,7 @@ type: String (optional, "MOOD"|"GENRE"|"INSTRUMENT")
 ```
 title: String (required, max 50)
 description: String (optional)
-thumbnail: File (optional)
+thumbnailFile: File (optional)
 ```
 
 **Response** `201 Created`
@@ -512,7 +512,7 @@ thumbnail: File (optional)
 ```
 title: String (optional)
 description: String (optional)
-thumbnail: File (optional)
+thumbnailFile: File (optional)
 ```
 
 **Response** `200 OK`
