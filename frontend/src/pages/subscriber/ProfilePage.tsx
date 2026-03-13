@@ -218,9 +218,11 @@ export default function ProfilePage() {
         ) : (
           <div className={styles.noSub}>
             <p>{'현재 구독 중인 플랜이 없습니다.'}</p>
-            <Button variant="primary" size="sm" onClick={() => navigate('/subscriptions')}>
-              {'구독 시작하기'}
-            </Button>
+            {profile.role !== 'ADMIN' && (
+              <Button variant="primary" size="sm" onClick={() => navigate('/subscriptions')}>
+                {'구독 시작하기'}
+              </Button>
+            )}
           </div>
         )}
       </div>

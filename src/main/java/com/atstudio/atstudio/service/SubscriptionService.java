@@ -37,6 +37,14 @@ public class SubscriptionService {
                 .toList();
     }
 
+    // -- 6.1-admin GET /api/subscriptions/admin (all plans) -------------------
+
+    public List<SubscriptionResponse> getAllSubscriptions() {
+        return subscriptionRepository.findAll().stream()
+                .map(SubscriptionResponse::from)
+                .toList();
+    }
+
     // -- 6.2 GET /api/subscriptions/{subscriptionId} -------------------------
 
     public SubscriptionResponse getSubscription(Long subscriptionId) {

@@ -1,6 +1,6 @@
 /** Screen K-2: Subscription plan management (read-only) */
 import { useEffect, useState } from 'react';
-import { fetchSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
+import { fetchAdminSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
 import { formatNumber } from '@/utils/format';
 import styles from './SubscriptionManagePage.module.css';
 
@@ -15,7 +15,7 @@ export default function AdminSubscriptionManagePage() {
 
   useEffect(() => {
     setLoading(true);
-    fetchSubscriptionPlans()
+    fetchAdminSubscriptionPlans()
       .then((res) => setPlans(res.dataList))
       .catch(() => setError('구독 플랜 목록을 불러올 수 없습니다.'))
       .finally(() => setLoading(false));

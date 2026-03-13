@@ -7,6 +7,7 @@ import com.atstudio.atstudio.entity.Playlist;
 import com.atstudio.atstudio.entity.PlaylistTrack;
 import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.key.PlaylistTrackId;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.security.CustomUserDetails;
@@ -42,7 +43,8 @@ public class PlaylistService {
                                            CustomUserDetails userDetails) {
         User user = validateSubscriber(userDetails);
 
-        if (playlistRepository.countByUserAndIsActiveTrue(user) >= 3) {
+        boolean isAdmin = userDetails.getRole() == UserRole.ADMIN;
+        if (!isAdmin && playlistRepository.countByUserAndIsActiveTrue(user) >= 3) {
             throw new BusinessException(BUSINESS_ERROR.PLAYLIST_LIMIT_EXCEEDED);
         }
 

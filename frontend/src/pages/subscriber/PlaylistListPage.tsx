@@ -2,19 +2,23 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchMyPlaylists, createPlaylist, deletePlaylist } from '@/api/playlists';
 import { toUploadUrl } from '@/api/client';
+import { useAuthStore } from '@/store/authStore';
 import type { Playlist } from '@/types';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import styles from './PlaylistListPage.module.css';
 
 /** Maximum number of playlists a subscriber can create */
-const MAX_PLAYLISTS = 3;
+const MAX_PLAYLISTS_SUBSCRIBER = 3;
 
 /** Placeholder notes for the 4-cell mosaic thumb */
 const NOTES = ['\u266A', '\u266B', '\u2669', '\u266C'];
 
 export default function PlaylistListPage() {
   const navigate = useNavigate();
+  const role = useAuthStore((s) => s.role);
+  const isAdmin = role === 'ADMIN';
+  const MAX_PLAYLISTS = isAdmin ? Infinity : MAX_PLAYLISTS_SUBSCRIBER;
 
   /* ── State ── */
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -122,7 +126,7 @@ export default function PlaylistListPage() {
         <div className={styles.pageTitle}>
           {'내 재생목록 '}
           <span className={styles.pageTitleCount}>
-            {count} / {MAX_PLAYLISTS}개
+            {isAdmin ? `${count}개` : `${count} / ${MAX_PLAYLISTS_SUBSCRIBER}개`}
           </span>
         </div>
         {canCreate && (
@@ -135,29 +139,31 @@ export default function PlaylistListPage() {
         )}
       </div>
 
-      {/* Plan Notice */}
-      <div className={styles.planNotice}>
-        <div className={styles.pnLeft}>
-          <span className={styles.pnIcon}>{'\uD83D\uDCCB'}</span>
-          <div className={styles.pnText}>
-            <span className={styles.pnStrong}>{'구독 플랜'}</span>
-            {' \u2014 재생목록은 최대 '}
-            {MAX_PLAYLISTS}
-            {'개까지 만들 수 있어요.'}
+      {/* Plan Notice — hide for ADMIN (no playlist limit) */}
+      {!isAdmin && (
+        <div className={styles.planNotice}>
+          <div className={styles.pnLeft}>
+            <span className={styles.pnIcon}>{'\uD83D\uDCCB'}</span>
+            <div className={styles.pnText}>
+              <span className={styles.pnStrong}>{'구독 플랜'}</span>
+              {' \u2014 재생목록은 최대 '}
+              {MAX_PLAYLISTS_SUBSCRIBER}
+              {'개까지 만들 수 있어요.'}
+            </div>
+          </div>
+          <div className={styles.pnBarWrap}>
+            <div className={styles.pnBar}>
+              <div
+                className={styles.pnBarFill}
+                style={{ width: `${fillPercent}%` }}
+              />
+            </div>
+            <span className={styles.pnCount}>
+              {count} / {MAX_PLAYLISTS_SUBSCRIBER}
+            </span>
           </div>
         </div>
-        <div className={styles.pnBarWrap}>
-          <div className={styles.pnBar}>
-            <div
-              className={styles.pnBarFill}
-              style={{ width: `${fillPercent}%` }}
-            />
-          </div>
-          <span className={styles.pnCount}>
-            {count} / {MAX_PLAYLISTS}
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* Content */}
       {loading ? (

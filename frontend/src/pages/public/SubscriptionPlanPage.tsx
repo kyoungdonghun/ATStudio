@@ -191,7 +191,7 @@ export default function SubscriptionPlanPage() {
 
   /* Map API plans to display order */
   const displayPlans = PLAN_DISPLAYS.map((dp) => {
-    const apiPlan = plans.find((p) => p.name === dp.key);
+    const apiPlan = plans.find((p) => p.name.toUpperCase() === dp.key);
     return { display: dp, api: apiPlan };
   });
 
@@ -254,7 +254,7 @@ export default function SubscriptionPlanPage() {
         {displayPlans.map(({ display, api }) => {
           const isCurrentPlan =
             mySub?.status === 'ACTIVE' &&
-            mySub.subscription.name === display.key;
+            mySub.subscription.name.toUpperCase() === display.key;
 
           const cardClass = [
             styles.planCard,

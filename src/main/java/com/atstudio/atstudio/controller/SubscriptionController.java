@@ -5,6 +5,7 @@ import com.atstudio.atstudio.dto.subscription.SubscriptionResponse;
 import com.atstudio.atstudio.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +23,17 @@ public class SubscriptionController {
     public ResponseEntity<ResponseDTO<SubscriptionResponse>> list(
             @RequestParam(required = false) String userType) {
         List<SubscriptionResponse> subscriptions = subscriptionService.getActiveSubscriptions(userType);
+        return ResponseEntity.ok(ResponseDTO.<SubscriptionResponse>builder()
+                .dataList(subscriptions)
+                .build());
+    }
+
+    // -- 6.1-admin GET /api/subscriptions/admin (all plans) -------------------
+
+    @GetMapping("/admin")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<SubscriptionResponse>> listAll() {
+        List<SubscriptionResponse> subscriptions = subscriptionService.getAllSubscriptions();
         return ResponseEntity.ok(ResponseDTO.<SubscriptionResponse>builder()
                 .dataList(subscriptions)
                 .build());

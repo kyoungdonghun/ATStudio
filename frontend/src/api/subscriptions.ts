@@ -22,3 +22,9 @@ export async function fetchSubscriptionPlans(
   });
   return data;
 }
+
+/** 6.1-admin GET /api/subscriptions/admin — all plans (active + inactive) */
+export async function fetchAdminSubscriptionPlans(): Promise<PagedResponse<SubscriptionPlan>> {
+  const { data } = await client.get<PagedResponse<SubscriptionPlan>>('/subscriptions/admin');
+  return data;
+}
