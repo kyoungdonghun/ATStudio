@@ -6,7 +6,7 @@ import {
   updateQuestionStatus,
   type QuestionListItem,
 } from '@/api/questions';
-import type { PageInfo } from '@/types';
+import type { PageInfo, QuestionStatus } from '@/types';
 import { formatDate } from '@/utils/format';
 import Pagination from '@/components/ui/Pagination';
 import styles from './QuestionManagePage.module.css';
@@ -14,7 +14,7 @@ import styles from './QuestionManagePage.module.css';
 /* ── Constants ── */
 
 type QuestionCategory = 'DOWNLOAD' | 'PAYMENT' | 'COPYRIGHT' | 'PRODUCTION' | 'OTHER';
-type QuestionStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+
 
 const CATEGORY_LABELS: Record<QuestionCategory, string> = {
   DOWNLOAD: '다운로드',
@@ -99,7 +99,7 @@ export default function QuestionManagePage() {
     setSearchParams(next, { replace: true });
   }
 
-  async function handleStatusChange(questionId: number, newStatus: string) {
+  async function handleStatusChange(questionId: number, newStatus: QuestionStatus) {
     try {
       setUpdatingId(questionId);
       await updateQuestionStatus(questionId, newStatus);
@@ -193,7 +193,7 @@ export default function QuestionManagePage() {
                         value={item.status}
                         disabled={updatingId === item.id}
                         onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => handleStatusChange(item.id, e.target.value)}
+                        onChange={(e) => handleStatusChange(item.id, e.target.value as QuestionStatus)}
                       >
                         {ALL_STATUSES.map((s) => (
                           <option key={s} value={s}>

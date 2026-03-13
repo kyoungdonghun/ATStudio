@@ -1,14 +1,14 @@
 import client from './client';
-import type { PageInfo } from '@/types';
+import type { PageInfo, QuestionCategory, QuestionStatus } from '@/types';
 
 /* ── Types ── */
 
 export interface QuestionListItem {
   id: number;
   title: string;
-  category: string;
+  category: QuestionCategory;
   isPublic: boolean;
-  status: string;
+  status: QuestionStatus;
   createdAt: string;
 }
 
@@ -29,9 +29,9 @@ export interface QuestionDetail {
   id: number;
   title: string;
   content: string;
-  category: string;
+  category: QuestionCategory;
   isPublic: boolean;
-  status: string;
+  status: QuestionStatus;
   user: { id: number; nickname: string } | null;
   attachments: AttachmentInfo[] | null;
   answers: AnswerInfo[] | null;
@@ -49,8 +49,8 @@ export interface QuestionListResponse {
 export async function fetchQuestions(params: {
   page?: number;
   size?: number;
-  category?: string;
-  status?: string;
+  category?: QuestionCategory;
+  status?: QuestionStatus;
   mine?: boolean;
 }): Promise<QuestionListResponse> {
   const { data } = await client.get('/questions', { params });
@@ -93,9 +93,18 @@ export async function deleteQuestion(id: number): Promise<void> {
 /** 8.6 PUT /api/questions/{id}/status (admin) */
 export async function updateQuestionStatus(
   id: number,
-  status: string,
+  status: QuestionStatus,
 ): Promise<QuestionDetail> {
   const { data } = await client.put(`/questions/${id}/status`, { status });
+  return data.data;
+}
+
+/** 8.2 POST /api/questions/{id}/answers — create answer */
+export async function createAnswer(
+  questionId: number,
+  content: string,
+): Promise<AnswerInfo> {
+  const { data } = await client.post(`/questions/${questionId}/answers`, { content });
   return data.data;
 }
 

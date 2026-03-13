@@ -14,6 +14,8 @@ function getStatusBadge(status: string) {
       return { label: '승인', className: styles.badgeApproved };
     case 'REJECTED':
       return { label: '반려', className: styles.badgeRejected };
+    case 'REVISION_REQUESTED':
+      return { label: '수정 요청', className: styles.badgeRevision };
     default:
       return { label: status, className: styles.badgePending };
   }

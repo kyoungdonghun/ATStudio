@@ -62,6 +62,11 @@
   color: #ef4444;
 }
 
+.badgeRevision {
+  background: rgba(251, 146, 60, 0.15);
+  color: #f97316;
+}
+
 /* ── Info rows ── */
 
 .infoRow {

@@ -28,6 +28,11 @@ export interface PagedResponse<T> {
 
 /* ── Auth ── */
 
+/**
+ * Frontend-extended role type.
+ * Backend Java enum has USER | ADMIN only.
+ * GUEST is a frontend-only value representing unauthenticated users.
+ */
 export type UserRole = 'GUEST' | 'USER' | 'ADMIN';
 
 export type UserJob = 'EDITOR' | 'ARTIST' | 'FREELANCER';
@@ -196,13 +201,15 @@ export interface LikeItem {
 
 /* ── Question ── */
 
+export type QuestionCategory = 'DOWNLOAD' | 'PAYMENT' | 'COPYRIGHT' | 'PRODUCTION' | 'OTHER';
+
 export type QuestionStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
 
 export interface Question {
   id: number;
   title: string;
   content: string;
-  category: string;
+  category: QuestionCategory;
   isPublic: boolean;
   status: QuestionStatus;
   createdAt: string;
