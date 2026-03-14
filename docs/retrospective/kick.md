@@ -72,6 +72,21 @@
 
 ---
 
+## 파일 다운로드 / 첨부파일 체크리스트
+
+- [ ] **`<a href download>`는 JWT 미포함** — 인증 필요한 파일 다운로드에 `<a>` 태그 직접 사용 불가. Axios blob 요청 (`responseType: 'blob'`) + `URL.createObjectURL` + 프로그래밍 방식 다운로드 필수. 이 패턴을 모든 첨부파일 다운로드에 통일.
+- [ ] **record DTO에 MultipartFile 추가 시** — Java record는 `@ModelAttribute` 바인딩이 제한적. `List<MultipartFile>` 필드 추가하려면 record → class(Lombok `@Getter`/`@Setter`) 전환 필요. 이때 호출부 `.title()` → `.getTitle()` 일괄 변경 필수.
+- [ ] **공지사항 첨부 = public, 문의 첨부 = auth** — 같은 첨부파일 패턴이라도 접근 권한이 다를 수 있음. 엔드포인트별 `@AuthenticationPrincipal` 유무 확인.
+
+---
+
+## 멀티 파일 업로드 체크리스트
+
+- [ ] **순차 업로드 + 개별 에러 처리** — 전체 batch API 없이 기존 단일 API를 재사용할 때, 한 건 실패가 전체를 중단하지 않도록 설계. 성공/실패 상태를 각 항목에 표시하고, 실패건만 재시도 가능하게.
+- [ ] **파일 수 제한** — `<input multiple>`은 브라우저가 제한을 안 걸음. 프론트에서 명시적 상한(예: 20곡) 체크 필수. 초과분은 잘라내고 사용자에게 알림.
+
+---
+
 ## 프론트엔드 상태관리 체크리스트
 
 - [ ] **Zustand Set/Map 반응성** — `Set.delete()`, `Map.set()` 직접 호출은 리렌더 트리거 안 됨. 반드시 `new Set(prev)` 복사 후 변경 → `setState()`. 배열도 동일 (`[...prev]`).

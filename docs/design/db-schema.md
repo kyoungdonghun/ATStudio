@@ -463,6 +463,24 @@
 
 ---
 
+## 13.2 Notice Attachments (`notice_attachments`)
+
+> Notice file attachments (public download)
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Notice | `notice_id` | BIGINT | NOT NULL | FK(notices.id) | | |
+| Original filename | `original_name` | VARCHAR(255) | NOT NULL | | | Original filename at upload |
+| Stored file path | `file_path` | VARCHAR(500) | NOT NULL | | | Server storage path |
+| File size | `file_size` | BIGINT | NOT NULL | | | In bytes |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+- One notice can have multiple attachments (1:N)
+- Cascade delete when parent notice is deleted
+
+---
+
 # 14. Albums
 
 ## 14.1 Albums (`albums`)
@@ -575,6 +593,7 @@ tracks ─< track_tags ──> tags
 | 19 | `licenses` | Track usage licenses | Transaction |
 | 20 | `notices` | Notices | Master |
 | 21 | `question_attachments` | Inquiry attachments | Transaction |
+| 22 | `notice_attachments` | Notice attachments | Transaction |
 | 22 | `albums` | Curated albums | Master |
 | 23 | `album_tracks` | Album-track mapping | Mapping |
 | 24 | `email_verification_tokens` | Email verification tokens | Transaction |

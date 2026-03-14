@@ -1241,15 +1241,16 @@ mine: Boolean (optional, if true returns my inquiries only)
 |-------|-------|
 | **URL** | `POST /api/notices` |
 | **Auth** | `[ADMIN]` |
+| **Content-Type** | `multipart/form-data` |
 
-**Request**
-```json
-{
-  "title": "서비스 점검 안내",
-  "content": "2월 20일 오전 2시~4시 점검 예정입니다.",
-  "isPinned": true
-}
-```
+**Request (FormData)**
+
+| Part | Type | Required | Description |
+|------|------|----------|-------------|
+| title | String | Y | 제목 (max 200) |
+| content | String | Y | 내용 |
+| isPinned | Boolean | Y | 고정 여부 |
+| attachments | File[] | N | 첨부파일 (복수) |
 
 **Response** `201 Created`
 ```json
@@ -1258,6 +1259,9 @@ mine: Boolean (optional, if true returns my inquiries only)
   "title": "서비스 점검 안내",
   "content": "2월 20일 오전 2시~4시 점검 예정입니다.",
   "isPinned": true,
+  "attachments": [
+    { "id": 1, "originalName": "schedule.pdf", "fileSize": 204800 }
+  ],
   "createdAt": "2026-02-19T10:00:00"
 }
 ```
@@ -1318,6 +1322,19 @@ size: Integer (default: 20)
 | **Auth** | `[ADMIN]` |
 
 **Response** `204 No Content`
+
+> Cascade: 첨부파일(storage + DB) 자동 삭제.
+
+## 9.6 Download Notice Attachment
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/notices/{noticeId}/attachments/{attachmentId}` |
+| **Auth** | `[PUBLIC]` |
+
+**Response** `200 OK` — `application/octet-stream` binary file download.
+
+**Error Cases**
+- `404` — 공지사항 또는 첨부파일 없음.
 
 ---
 
