@@ -21,7 +21,7 @@ public class EmailVerificationToken {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false, length = 100, unique = true)
+    @Column(nullable = false, length = 255, unique = true)
     private String token;
 
     @Column(nullable = false)
@@ -34,6 +34,10 @@ public class EmailVerificationToken {
     @Column(nullable = false, updatable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(nullable = false)
+    @Builder.Default
+    private LocalDateTime updatedAt = LocalDateTime.now();
 
     public boolean isExpired() {
         return LocalDateTime.now().isAfter(expiresAt);

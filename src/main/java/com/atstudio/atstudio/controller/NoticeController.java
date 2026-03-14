@@ -54,11 +54,11 @@ public class NoticeController {
                 .build());
     }
 
-    @PutMapping("/{noticeId}")
+    @PutMapping(value = "/{noticeId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<NoticeResponse>> updateNotice(
             @PathVariable Long noticeId,
-            @Valid @RequestBody NoticeUpdateRequest request,
+            @Valid @ModelAttribute NoticeUpdateRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         NoticeResponse response = noticeService.updateNotice(noticeId, request, userDetails);
         return ResponseEntity.ok(ResponseDTO.<NoticeResponse>withSingleData()

@@ -74,7 +74,7 @@ public class CompanyCertificationService {
 
         return certificationRepository.findTopByUserOrderByCreatedAtDesc(user)
                 .map(CompanyCertificationResponse::from)
-                .orElse(null);
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
     }
 
     // ── 13.3 GET /api/company-certifications ─────────────────────────────────

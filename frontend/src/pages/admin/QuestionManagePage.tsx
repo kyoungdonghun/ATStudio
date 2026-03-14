@@ -71,10 +71,13 @@ export default function QuestionManagePage() {
     try {
       setLoading(true);
       setError(null);
-      const params: Record<string, unknown> = { page: currentPage, size: 20, mine: false };
-      if (categoryFilter) params.category = categoryFilter;
-      if (statusFilter) params.status = statusFilter;
-      const result = await fetchQuestions(params as Parameters<typeof fetchQuestions>[0]);
+      const result = await fetchQuestions({
+        page: currentPage,
+        size: 20,
+        mine: false,
+        category: categoryFilter ? categoryFilter as QuestionCategory : undefined,
+        status: statusFilter ? statusFilter as QuestionStatus : undefined,
+      });
       setItems(result.dataList);
       setPageInfo(result.pageInfo);
     } catch {
@@ -179,11 +182,11 @@ export default function QuestionManagePage() {
                       {!item.isPublic && <span className={styles.privateBadge}>{'비공개'}</span>}
                     </td>
                     <td className={styles.cellCenter}>
-                      {CATEGORY_LABELS[item.category as QuestionCategory] ?? item.category}
+                      {CATEGORY_LABELS[item.category] ?? item.category}
                     </td>
                     <td className={styles.cellCenter}>
                       <span className={statusClass(item.status)}>
-                        {STATUS_LABELS[item.status as QuestionStatus] ?? item.status}
+                        {STATUS_LABELS[item.status] ?? item.status}
                       </span>
                     </td>
                     <td className={styles.cellCenter}>{formatDate(item.createdAt)}</td>

@@ -29,9 +29,7 @@ export default function UserManagePage() {
   const loadUsers = useCallback(() => {
     setLoading(true);
     setError(null);
-    const params: Record<string, unknown> = { page, size: 20 };
-    if (keyword) params.keyword = keyword;
-    fetchUsers(params as Parameters<typeof fetchUsers>[0])
+    fetchUsers({ page, size: 20, keyword: keyword || undefined })
       .then((result) => {
         setUsers(result.dataList);
         setPageInfo(result.pageInfo);

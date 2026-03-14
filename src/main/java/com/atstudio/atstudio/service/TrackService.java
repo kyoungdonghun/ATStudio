@@ -143,12 +143,16 @@ public class TrackService {
         track.update(request.getTitle(), request.getBpm(), request.getTonality(), request.getDescription());
 
         if (audioFile != null && !audioFile.isEmpty()) {
-            storageService.delete(track.getAudioFile());
+            String oldAudioFile = track.getAudioFile();
             track.updateAudioFile(storageService.store(audioFile, "tracks/audio"));
+            storageService.delete(oldAudioFile);
         }
         if (thumbnail != null && !thumbnail.isEmpty()) {
-            storageService.delete(track.getThumbnail());
+            String oldThumbnail = track.getThumbnail();
             track.updateThumbnail(storageService.store(thumbnail, "tracks/thumbnail"));
+            if (oldThumbnail != null) {
+                storageService.delete(oldThumbnail);
+            }
         }
         if (request.getIsActive() != null) {
             track.updateIsActive(request.getIsActive());

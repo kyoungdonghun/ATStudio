@@ -34,9 +34,13 @@ public class TagController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TagResponse>> getAllTags(
+    public ResponseEntity<ResponseDTO<TagResponse>> getAllTags(
             @RequestParam(required = false) TagType type) {
-        return ResponseEntity.ok(tagService.getAllTags(type));
+        List<TagResponse> tags = tagService.getAllTags(type);
+        return ResponseEntity.ok(ResponseDTO.<TagResponse>builder()
+                .message("Tag list retrieved")
+                .dataList(tags)
+                .build());
     }
 
     @PutMapping("/{tagId}")

@@ -138,8 +138,8 @@ export default function SubscriptionPlanPage() {
   useEffect(() => {
     const loadAll = async () => {
       try {
-        const res = await fetchSubscriptionPlans();
-        setPlans(res.dataList);
+        const plans = await fetchSubscriptionPlans();
+        setPlans(plans);
         if (isAuthenticated) {
           try {
             const sub = await fetchMySubscription();

@@ -16,7 +16,7 @@ export default function AdminSubscriptionManagePage() {
   useEffect(() => {
     setLoading(true);
     fetchAdminSubscriptionPlans()
-      .then((res) => setPlans(res.dataList))
+      .then((plans) => setPlans(plans))
       .catch(() => setError('구독 플랜 목록을 불러올 수 없습니다.'))
       .finally(() => setLoading(false));
   }, []);

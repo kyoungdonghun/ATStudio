@@ -1,13 +1,13 @@
 import client from '@/api/client';
 import type { TagItem, TagType } from '@/types';
 
-/** GET /api/tags -- tag list (backend returns raw array) */
+/** GET /api/tags -- tag list */
 export async function fetchTags(type?: string): Promise<TagItem[]> {
   const params: Record<string, string> = {};
   if (type) params.type = type;
 
-  const { data } = await client.get<TagItem[]>('/tags', { params });
-  return data;
+  const { data } = await client.get<{ dataList: TagItem[] }>('/tags', { params });
+  return data.dataList;
 }
 
 /* ── Admin Tag CRUD ── */

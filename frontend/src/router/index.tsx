@@ -1,4 +1,4 @@
-import { createBrowserRouter, type RouteObject } from 'react-router-dom';
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom';
 import { type ReactNode } from 'react';
 import ProtectedRoute from '@/router/ProtectedRoute';
 import MainLayout from '@/layouts/MainLayout';
@@ -136,7 +136,7 @@ const routes: RouteObject[] = [
     element: adminOnly(<AdminLayout />),
     children: [
       /* ── Creator / Admin (5 routes) ── */
-      { index: true, element: <DashboardPage /> },
+      { index: true, element: <Navigate to="dashboard" replace /> },
       { path: 'tracks/upload', element: <TrackUploadPage /> },
       { path: 'tracks/:trackId/edit', element: <TrackEditPage /> },
       { path: 'albums', element: <AlbumManagePage /> },

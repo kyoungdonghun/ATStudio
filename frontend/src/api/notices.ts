@@ -29,10 +29,12 @@ interface NoticeCreateBody {
   attachments?: File[];
 }
 
-interface NoticeUpdateRequest {
+interface NoticeUpdateBody {
   title: string;
   content: string;
   isPinned: boolean;
+  deleteAttachmentIds?: number[];
+  newAttachments?: File[];
 }
 
 export async function createNotice(body: NoticeCreateBody): Promise<Notice> {
@@ -51,9 +53,21 @@ export async function createNotice(body: NoticeCreateBody): Promise<Notice> {
 
 export async function updateNotice(
   noticeId: number,
-  body: NoticeUpdateRequest,
+  body: NoticeUpdateBody,
 ): Promise<Notice> {
-  const { data } = await client.put<ApiResponse<Notice>>(`/notices/${noticeId}`, body);
+  const form = new FormData();
+  form.append('title', body.title);
+  form.append('content', body.content);
+  form.append('isPinned', String(body.isPinned));
+  if (body.deleteAttachmentIds) {
+    body.deleteAttachmentIds.forEach((id) => form.append('deleteAttachmentIds', String(id)));
+  }
+  if (body.newAttachments) {
+    body.newAttachments.forEach((file) => form.append('newAttachments', file));
+  }
+  const { data } = await client.put<ApiResponse<Notice>>(`/notices/${noticeId}`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
   return data.data;
 }
 

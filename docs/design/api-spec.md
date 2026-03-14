@@ -1970,7 +1970,7 @@ token: String (required — UUID token from email link)
 
 ---
 
-# Full API Summary (95)
+# Full API Summary (96)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -1982,7 +1982,7 @@ token: String (required — UUID token from email link)
 | 6 | Subscription | 11 |
 | 7 | License | 4 |
 | 8 | Question (Inquiry/Answer) | 7 |
-| 9 | Notice | 5 |
+| 9 | Notice | 6 |
 | 10 | Likes (Favorites) | 3 |
 | 11 | Download Queue | 3 |
 | 12 | Whitelist Channels | 4 |
@@ -1990,4 +1990,4 @@ token: String (required — UUID token from email link)
 | 14 | Utility / Auth | 11 |
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
-| | **Total** | **95** |
+| | **Total** | **96** |

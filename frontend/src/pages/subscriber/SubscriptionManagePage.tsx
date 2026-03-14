@@ -61,7 +61,7 @@ export default function SubscriptionManagePage() {
         fetchSubscriptionPlans(),
       ]);
       setSub(subRes);
-      setPlans(plansRes.dataList);
+      setPlans(plansRes);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : '구독 정보를 불러오지 못했습니다.',

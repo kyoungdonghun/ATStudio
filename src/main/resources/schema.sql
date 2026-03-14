@@ -313,6 +313,7 @@ CREATE TABLE IF NOT EXISTS play_histories
     track_id  BIGINT   NOT NULL,
     played_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
+    INDEX idx_play_histories_user_date (user_id, played_at),
     CONSTRAINT fk_play_histories_user  FOREIGN KEY (user_id)  REFERENCES users  (id),
     CONSTRAINT fk_play_histories_track FOREIGN KEY (track_id) REFERENCES tracks (id)
 ) ENGINE = InnoDB
@@ -421,6 +422,7 @@ CREATE TABLE IF NOT EXISTS question_attachments
     file_path     VARCHAR(500) NOT NULL COMMENT 'Server storage path.',
     file_size     BIGINT       NOT NULL COMMENT 'In bytes.',
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     CONSTRAINT fk_question_attachments_question FOREIGN KEY (question_id) REFERENCES questions (id)
 ) ENGINE = InnoDB
@@ -439,6 +441,7 @@ CREATE TABLE IF NOT EXISTS notice_attachments
     file_path     VARCHAR(500) NOT NULL COMMENT 'Server storage path.',
     file_size     BIGINT       NOT NULL COMMENT 'In bytes.',
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     CONSTRAINT fk_notice_attachments_notice FOREIGN KEY (notice_id) REFERENCES notices (id)
 ) ENGINE = InnoDB

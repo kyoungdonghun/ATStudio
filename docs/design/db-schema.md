@@ -82,6 +82,7 @@
 | Job | `job` | ENUM('EDITOR','ARTIST','FREELANCER') | NULL | | NULL | NULL on social login registration. Entered during profile completion step. |
 | User type | `user_type` | ENUM('INDIVIDUAL','BUSINESS') | NOT NULL | | 'INDIVIDUAL' | Individual / Business member |
 | Soft delete flag | `is_deleted` | TINYINT(1) | NOT NULL | | 0 | Account deactivation |
+| Refresh token | `refresh_token` | VARCHAR(512) | NULL | | | BCrypt-hashed refresh token. NULL when logged out. |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
@@ -210,6 +211,7 @@
 | Description | `description` | TEXT | NULL | | | |
 | Audio file path | `audio_file` | VARCHAR(255) | NOT NULL | | | Original file (for download) |
 | Preview file path | `preview_file` | VARCHAR(255) | NULL | | | Low-quality converted file (for streaming). Falls back to audio_file if NULL |
+| Duration | `duration` | INT | NOT NULL | | 0 | Duration in seconds, auto-extracted from audio file |
 | Copyright holder | `user_id` | BIGINT | NOT NULL | FK(users.id) | | Currently only a single admin (artist) uses this |
 | Active flag | `is_active` | TINYINT(1) | NOT NULL | | 0 | Published after review (admin activates) |
 | Play count | `play_count` | BIGINT | NOT NULL | | 0 | Used for popularity sorting, etc. |
@@ -475,6 +477,7 @@
 | Stored file path | `file_path` | VARCHAR(500) | NOT NULL | | | Server storage path |
 | File size | `file_size` | BIGINT | NOT NULL | | | In bytes |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP ON UPDATE | Common column (BaseEntity) |
 
 - One notice can have multiple attachments (1:N)
 - Cascade delete when parent notice is deleted

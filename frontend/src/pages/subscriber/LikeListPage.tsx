@@ -48,10 +48,8 @@ export default function LikeListPage() {
     try {
       await removeLike(trackId);
       setItems((prev) => prev.filter((it) => it.trackId !== trackId));
-      // Sync global likeStore (create new Set for reactivity)
-      const next = new Set(likeStore.likedIds);
-      next.delete(trackId);
-      useLikeStore.setState({ likedIds: next });
+      // Sync global likeStore via store action
+      likeStore.remove(trackId);
     } catch {
       /* ignore */
     }

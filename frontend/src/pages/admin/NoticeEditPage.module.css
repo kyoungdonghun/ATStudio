@@ -103,6 +103,88 @@
   gap: 10px;
 }
 
+/* ── File attachments ── */
+
+.fileLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--bg2);
+  border: 1px dashed var(--border2);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text2);
+  font-size: 13px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.fileLabel:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.fileHidden {
+  display: none;
+}
+
+.fileList {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fileItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg2);
+  border-radius: 5px;
+  font-size: 13px;
+}
+
+.fileName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text1);
+}
+
+.fileSize {
+  color: var(--text2);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.fileRemove {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.fileRemove:hover {
+  color: var(--error);
+}
+
+.existingBadge {
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-bg);
+  padding: 1px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
 /* ── Delete Modal ── */
 
 .deleteText {

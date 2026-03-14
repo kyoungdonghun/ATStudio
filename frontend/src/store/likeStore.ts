@@ -6,6 +6,7 @@ interface LikeState {
   loaded: boolean;
   load: () => Promise<void>;
   toggle: (trackId: number) => Promise<void>;
+  remove: (trackId: number) => void;
   isLiked: (trackId: number) => boolean;
 }
 
@@ -52,6 +53,12 @@ export const useLikeStore = create<LikeState>((set, get) => ({
       }
       set({ likedIds: revert });
     }
+  },
+
+  remove: (trackId: number) => {
+    const next = new Set(get().likedIds);
+    next.delete(trackId);
+    set({ likedIds: next });
   },
 
   isLiked: (trackId: number) => get().likedIds.has(trackId),

@@ -88,7 +88,21 @@ public class NoticeService {
         Notice notice = noticeRepository.findById(noticeId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         validateNoticeOwnership(notice, userDetails);
-        notice.update(request.title(), request.content(), request.isPinned());
+        notice.update(request.getTitle(), request.getContent(), request.getIsPinned());
+
+        // Delete specified attachments
+        if (request.getDeleteAttachmentIds() != null && !request.getDeleteAttachmentIds().isEmpty()) {
+            List<NoticeAttachment> toDelete = attachmentRepository.findAllByNoticeId(noticeId).stream()
+                    .filter(a -> request.getDeleteAttachmentIds().contains(a.getId()))
+                    .toList();
+            for (NoticeAttachment attachment : toDelete) {
+                storageService.delete(attachment.getFilePath());
+                attachmentRepository.delete(attachment);
+            }
+        }
+
+        // Add new attachments
+        saveAttachments(notice, request.getNewAttachments());
 
         List<NoticeAttachment> attachments = attachmentRepository.findAllByNoticeId(noticeId);
 

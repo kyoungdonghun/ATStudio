@@ -20,8 +20,8 @@ export default function SubscriptionPaymentPage() {
 
   useEffect(() => {
     fetchSubscriptionPlans()
-      .then((res) => {
-        const found = res.dataList.find(
+      .then((plans) => {
+        const found = plans.find(
           (p) => p.name.toUpperCase() === planKey.toUpperCase(),
         );
         setPlan(found ?? null);

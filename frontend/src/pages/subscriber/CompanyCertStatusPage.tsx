@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchMyCompanyCert, type CompanyCertification } from '@/api/companyCerts';
+import { fetchMyCompanyCert } from '@/api/companyCerts';
+import type { CompanyCertification } from '@/types';
 import { formatDateTime } from '@/utils/format';
 import Button from '@/components/ui/Button';
 import styles from './CompanyCertStatusPage.module.css';

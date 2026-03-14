@@ -1,10 +1,17 @@
 /** Screen 21-2: Notice edit (admin) */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchNotice, updateNotice, deleteNotice } from '@/api/notices';
+import type { NoticeAttachmentInfo } from '@/types';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import styles from './NoticeEditPage.module.css';
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function NoticeEditPage() {
   const { noticeId } = useParams<{ noticeId: string }>();
@@ -13,6 +20,14 @@ export default function NoticeEditPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isPinned, setIsPinned] = useState(false);
+
+  /* Existing attachments */
+  const [existingAttachments, setExistingAttachments] = useState<NoticeAttachmentInfo[]>([]);
+  const [deleteAttachmentIds, setDeleteAttachmentIds] = useState<number[]>([]);
+
+  /* New attachments */
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -31,10 +46,26 @@ export default function NoticeEditPage() {
         setTitle(notice.title);
         setContent(notice.content);
         setIsPinned(notice.isPinned);
+        setExistingAttachments(notice.attachments ?? []);
       })
       .catch(() => setError('Failed to load notice'))
       .finally(() => setLoading(false));
   }, [noticeId]);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files) return;
+    setNewFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+    e.target.value = '';
+  }
+
+  function removeExistingAttachment(attachmentId: number) {
+    setDeleteAttachmentIds((prev) => [...prev, attachmentId]);
+    setExistingAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
+  }
+
+  function removeNewFile(index: number) {
+    setNewFiles((prev) => prev.filter((_, i) => i !== index));
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +78,8 @@ export default function NoticeEditPage() {
         title: title.trim(),
         content: content.trim(),
         isPinned,
+        deleteAttachmentIds: deleteAttachmentIds.length > 0 ? deleteAttachmentIds : undefined,
+        newAttachments: newFiles.length > 0 ? newFiles : undefined,
       });
       navigate(`/notices/${noticeId}`);
     } catch {
@@ -125,6 +158,53 @@ export default function NoticeEditPage() {
               Pin this notice
             </label>
           </div>
+        </div>
+
+        {/* Attachments */}
+        <div className={styles.formGroup}>
+          <label className={styles.formLabel}>Attachments</label>
+          <label className={styles.fileLabel}>
+            {'+ Add files'}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className={styles.fileHidden}
+              onChange={handleFileChange}
+            />
+          </label>
+
+          {(existingAttachments.length > 0 || newFiles.length > 0) && (
+            <ul className={styles.fileList}>
+              {existingAttachments.map((att) => (
+                <li key={`existing-${att.id}`} className={styles.fileItem}>
+                  <span className={styles.existingBadge}>existing</span>
+                  <span className={styles.fileName}>{att.originalName}</span>
+                  <span className={styles.fileSize}>{formatFileSize(att.fileSize)}</span>
+                  <button
+                    type="button"
+                    className={styles.fileRemove}
+                    onClick={() => removeExistingAttachment(att.id)}
+                  >
+                    {'\u2715'}
+                  </button>
+                </li>
+              ))}
+              {newFiles.map((file, i) => (
+                <li key={`new-${i}`} className={styles.fileItem}>
+                  <span className={styles.fileName}>{file.name}</span>
+                  <span className={styles.fileSize}>{formatFileSize(file.size)}</span>
+                  <button
+                    type="button"
+                    className={styles.fileRemove}
+                    onClick={() => removeNewFile(i)}
+                  >
+                    {'\u2715'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className={styles.formActions}>

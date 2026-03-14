@@ -53,13 +53,13 @@ export async function fetchQuestions(params: {
   status?: QuestionStatus;
   mine?: boolean;
 }): Promise<QuestionListResponse> {
-  const { data } = await client.get('/questions', { params });
+  const { data } = await client.get<QuestionListResponse>('/questions', { params });
   return data;
 }
 
 /** 8.4 GET /api/questions/{id} — detail */
 export async function fetchQuestionDetail(id: number): Promise<QuestionDetail> {
-  const { data } = await client.get(`/questions/${id}`);
+  const { data } = await client.get<{ data: QuestionDetail }>(`/questions/${id}`);
   return data.data;
 }
 
@@ -79,7 +79,7 @@ export async function createQuestion(body: {
   if (body.attachments) {
     body.attachments.forEach((file) => form.append('attachments', file));
   }
-  const { data } = await client.post('/questions', form, {
+  const { data } = await client.post<{ data: QuestionDetail }>('/questions', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return data.data;
@@ -95,7 +95,7 @@ export async function updateQuestionStatus(
   id: number,
   status: QuestionStatus,
 ): Promise<QuestionDetail> {
-  const { data } = await client.put(`/questions/${id}/status`, { status });
+  const { data } = await client.put<{ data: QuestionDetail }>(`/questions/${id}/status`, { status });
   return data.data;
 }
 
@@ -104,7 +104,7 @@ export async function createAnswer(
   questionId: number,
   content: string,
 ): Promise<AnswerInfo> {
-  const { data } = await client.post(`/questions/${questionId}/answers`, { content });
+  const { data } = await client.post<{ data: AnswerInfo }>(`/questions/${questionId}/answers`, { content });
   return data.data;
 }
 

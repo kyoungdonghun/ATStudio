@@ -65,7 +65,7 @@ export default function UserSubscriptionManagePage() {
 
   useEffect(() => {
     fetchAdminSubscriptionPlans()
-      .then((result) => setPlans(result.dataList))
+      .then((plans) => setPlans(plans))
       .catch(() => {});
   }, []);
 
