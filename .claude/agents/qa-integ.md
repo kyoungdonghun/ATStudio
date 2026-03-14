@@ -97,6 +97,57 @@ Compare frontend guard vs backend guard for EVERY endpoint:
 | Both allow | Correct |
 | Both block | Correct |
 
+## Comprehensive Audit Framework — Three Verification Axes
+
+프로젝트 전수조사 시, 아래 3가지 축을 **모두** 수행해야 빈틈 없는 검증이 된다.
+각 축은 독립적인 관점이며, 하나만으로는 전체를 커버할 수 없다.
+
+### Axis 1: Three-Way Verification (spec → code → spec)
+- **관점**: 문서↔코드 정합성
+- **검증 대상**: api-spec.md, db-schema.md ↔ 실제 구현 코드
+- **담당**: `qa-integ` (§1 Three-Way Verification)
+- **발견 유형**: 명세와 코드 불일치, 문서 미반영, 응답 구조 차이
+
+### Axis 2: Role × Screen Matrix
+- **관점**: 접근 권한 정합성
+- **검증 대상**: 역할(GUEST/USER/ADMIN) × 전체 화면 매트릭스
+- **담당**: `qa-integ` (§7) + `qa-fe` (§4)
+- **발견 유형**: ADMIN에게 구독 CTA 노출, GUEST에게 인증 버튼 노출, 프론트/백엔드 권한 불일치
+
+### Axis 3: Three-Layer Contract Verification (FE ↔ BE ↔ DB)
+- **관점**: 계층 간 계약 정합성
+- **검증 대상**: 각 레이어 내부 + 레이어 간 교차 계약
+- **담당**: `qa-integ` (교차), `qa-fe` (FE 내부), `cr` (BE 내부)
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  Frontend   │◄──►│   Backend   │◄──►│   Database   │
+│  (React/TS) │    │ (Spring/JPA)│    │   (MySQL)    │
+└──────┬──────┘    └──────┬──────┘    └──────┬──────┘
+       │                  │                  │
+  ① FE 내부 정합      ② BE 내부 정합      ③ DB 내부 정합
+       │                  │                  │
+       └──── ④ FE↔BE ─────┘──── ⑤ BE↔DB ────┘
+                    │
+              ⑥ Doc↔Impl 드리프트
+```
+
+**6개 검증 단위 (병렬 실행 가능):**
+
+| # | 검증 단위 | 주요 체크 항목 |
+|---|----------|--------------|
+| ① | FE 내부 | 타입 중복/불일치, `as` 캐스트 남용, 고아 파일, CSS 일관성, Store 패턴 |
+| ② | BE 내부 | 파일 삭제 순서, null 안전성, ResponseDTO envelope 일관성, 상태 전이 검증 |
+| ③ | DB 내부 | Entity↔Schema 컬럼/타입/길이 일치, 인덱스 누락, BaseEntity 상속 정합 |
+| ④ | FE↔BE | API 제네릭 타입, 응답 타입 일치 (PagedResponse vs 배열), enum 값 동기화 |
+| ⑤ | BE↔DB | Entity 필드↔DDL 컬럼 매핑, nullable 일치, FK 관계, cascade 설정 |
+| ⑥ | Doc↔Impl | api-spec.md 총 개수, db-schema.md 컬럼 누락, 문서 버전 드리프트 |
+
+**실전 운용 (ATStudio 검증됨, 2026-03-15):**
+- 6개 단위를 병렬 에이전트로 동시 실행 → 결과 종합 → 중복 제거 → 심각도별 정렬
+- HIGH는 즉시 수정, MEDIUM은 같은 세션에서, LOW는 보류
+- 전수조사 자체는 별도 세션에서 수행 권장 (컨텍스트 소모 큼)
+
 ## Integration Audit Checklist
 
 | ID | Check |
