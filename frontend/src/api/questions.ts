@@ -108,7 +108,22 @@ export async function createAnswer(
   return data.data;
 }
 
-/** 8.5 GET attachment download URL */
-export function getAttachmentUrl(questionId: number, attachmentId: number): string {
-  return `/api/questions/${questionId}/attachments/${attachmentId}`;
+/** 8.5 Download attachment (blob with JWT auth) */
+export async function downloadAttachment(
+  questionId: number,
+  attachmentId: number,
+  filename: string,
+): Promise<void> {
+  const { data } = await client.get<Blob>(
+    `/questions/${questionId}/attachments/${attachmentId}`,
+    { responseType: 'blob' },
+  );
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

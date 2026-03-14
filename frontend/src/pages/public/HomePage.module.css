@@ -156,15 +156,58 @@
 
 /* ── Album Carousel ── */
 
+.carouselWrap {
+  position: relative;
+}
+
 .carousel {
   display: flex;
   gap: 16px;
-  overflow: hidden;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+
+.carousel::-webkit-scrollbar {
+  display: none;
 }
 
 .carouselCard {
   flex-shrink: 0;
   width: 158px;
+}
+
+.carouselBtn {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  font-size: 28px;
+  color: var(--text0);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.carouselWrap:hover .carouselBtn {
+  opacity: 1;
+}
+
+.carouselBtnLeft {
+  left: 0;
+  background: linear-gradient(to right, var(--bg0) 60%, transparent);
+  padding-right: 8px;
+}
+
+.carouselBtnRight {
+  right: 0;
+  background: linear-gradient(to left, var(--bg0) 60%, transparent);
+  padding-left: 8px;
 }
 
 /* ── Album Grid ── */
@@ -173,6 +216,67 @@
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 16px;
+}
+
+/* ── New Tracks List ── */
+
+.trackList {
+  display: flex;
+  flex-direction: column;
+}
+
+.trackItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+  color: var(--text0);
+  transition: background 0.15s;
+}
+
+.trackItem:hover {
+  background: var(--bg2);
+}
+
+.trackNum {
+  width: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text2);
+  flex-shrink: 0;
+}
+
+.trackTitle {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trackMeta {
+  font-size: 12px;
+  color: var(--text2);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trackDur {
+  font-size: 12px;
+  color: var(--text2);
+  width: 40px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.trackSkeleton {
+  padding: 14px 8px;
+  border-bottom: 1px solid var(--border);
 }
 
 /* ── Genre Tags ── */
@@ -406,6 +510,10 @@
   .skeletonCard {
     width: 130px;
     scroll-snap-align: start;
+  }
+
+  .carouselBtn {
+    display: none;
   }
 
   .footer {

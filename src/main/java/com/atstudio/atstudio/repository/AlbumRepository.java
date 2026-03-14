@@ -1,6 +1,8 @@
 package com.atstudio.atstudio.repository;
 
 import com.atstudio.atstudio.entity.Album;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -8,4 +10,6 @@ import java.util.List;
 public interface AlbumRepository extends JpaRepository<Album, Long> {
 
     List<Album> findAllByIsActiveTrueOrderByCreatedAtDesc();
+
+    Page<Album> findAllByIsActiveTrueOrderByCreatedAtDesc(Pageable pageable);
 }

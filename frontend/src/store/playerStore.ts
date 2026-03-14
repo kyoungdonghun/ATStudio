@@ -30,6 +30,7 @@ interface PlayerState {
   playAll: (tracks: Track[]) => void;
   addToQueue: (track: Track) => void;
   removeFromQueue: (trackId: number) => void;
+  reorderQueue: (fromIndex: number, toIndex: number) => void;
   clearQueue: () => void;
 }
 
@@ -71,7 +72,16 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     play: (track: Track) => {
       audio.src = `${STREAM_BASE}/${track.id}/stream`;
       audio.play().catch(() => {});
-      set({ currentTrack: track, isPlaying: true, currentTime: 0 });
+
+      // Add to queue if not already present
+      const { queue } = get();
+      const inQueue = queue.some((t) => t.id === track.id);
+      set({
+        currentTrack: track,
+        isPlaying: true,
+        currentTime: 0,
+        ...(inQueue ? {} : { queue: [...queue, track] }),
+      });
 
       // Record play history (fire-and-forget, only if logged in)
       if (localStorage.getItem('accessToken')) {
@@ -194,6 +204,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       set((state) => ({
         queue: state.queue.filter((t) => t.id !== trackId),
       }));
+    },
+
+    reorderQueue: (fromIndex: number, toIndex: number) => {
+      set((state) => {
+        const next = [...state.queue];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        return { queue: next };
+      });
     },
 
     clearQueue: () => {

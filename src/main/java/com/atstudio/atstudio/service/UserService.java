@@ -23,6 +23,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
     private final LikeRepository likeRepository;
     private final DownloadQueueRepository downloadQueueRepository;
     private final PlayHistoryRepository playHistoryRepository;
@@ -50,7 +51,9 @@ public class UserService {
                 .role(UserRole.USER)
                 .build();
 
-        return toResponse(userRepository.save(user));
+        user = userRepository.save(user);
+        emailService.sendVerificationEmail(user);
+        return toResponse(user);
     }
 
     public UserResponse getMyProfile(Long userID) {

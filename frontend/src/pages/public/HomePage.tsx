@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchAlbums } from '@/api/albums';
+import { fetchTracks } from '@/api/tracks';
 import { fetchTags } from '@/api/tags';
-import type { Album, TagItem } from '@/types';
+import type { Album, TagItem, TrackListItem } from '@/types';
 import AlbumCard from '@/components/album/AlbumCard';
 import Button from '@/components/ui/Button';
 import Tag from '@/components/ui/Tag';
@@ -11,7 +12,9 @@ import styles from './HomePage.module.css';
 /** Number of albums in the new releases carousel */
 const CAROUSEL_SIZE = 7;
 /** Number of albums in the popular grid */
-const GRID_SIZE = 6;
+const GRID_SIZE = 12;
+/** Number of tracks in the new tracks section */
+const NEW_TRACKS_SIZE = 6;
 
 function SkeletonCard() {
   return (
@@ -29,8 +32,11 @@ export default function HomePage() {
   /* ── State ── */
   const [newAlbums, setNewAlbums] = useState<Album[]>([]);
   const [popularAlbums, setPopularAlbums] = useState<Album[]>([]);
+  const [newTracks, setNewTracks] = useState<TrackListItem[]>([]);
   const [genreTags, setGenreTags] = useState<TagItem[]>([]);
+  const [moodTags, setMoodTags] = useState<TagItem[]>([]);
   const [selectedGenres, setSelectedGenres] = useState<Set<number>>(new Set());
+  const [selectedMoods, setSelectedMoods] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,17 +49,21 @@ export default function HomePage() {
         setLoading(true);
         setError(null);
 
-        const [newRes, popRes, tags] = await Promise.all([
+        const [newRes, popRes, trackRes, genreTagsRes, moodTagsRes] = await Promise.all([
           fetchAlbums({ page: 1, size: CAROUSEL_SIZE, sort: 'latest' }),
           fetchAlbums({ page: 1, size: GRID_SIZE, sort: 'popular' }),
+          fetchTracks({ page: 1, size: NEW_TRACKS_SIZE, sort: 'latest' }),
           fetchTags('GENRE'),
+          fetchTags('MOOD'),
         ]);
 
         if (cancelled) return;
 
         setNewAlbums(newRes.dataList ?? []);
         setPopularAlbums(popRes.dataList ?? []);
-        setGenreTags(Array.isArray(tags) ? tags : []);
+        setNewTracks(trackRes.dataList ?? []);
+        setGenreTags(Array.isArray(genreTagsRes) ? genreTagsRes : []);
+        setMoodTags(Array.isArray(moodTagsRes) ? moodTagsRes : []);
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -84,6 +94,19 @@ export default function HomePage() {
     });
   }
 
+  /* ── Mood tag toggle ── */
+  function toggleMood(tagId: number) {
+    setSelectedMoods((prev) => {
+      const next = new Set(prev);
+      if (next.has(tagId)) {
+        next.delete(tagId);
+      } else {
+        next.add(tagId);
+      }
+      return next;
+    });
+  }
+
   function handleGenreExplore() {
     const names = genreTags
       .filter((t) => selectedGenres.has(t.id))
@@ -97,9 +120,45 @@ export default function HomePage() {
     }
   }
 
+  function handleMoodExplore() {
+    const names = moodTags
+      .filter((t) => selectedMoods.has(t.id))
+      .map((t) => t.name);
+    if (names.length > 0) {
+      const params = new URLSearchParams();
+      names.forEach((name) => params.append('mood', name));
+      navigate(`/tracks?${params.toString()}`);
+    } else {
+      navigate('/tracks');
+    }
+  }
+
   /* ── Album click handler ── */
   function handleAlbumClick(album: Album) {
     navigate(`/albums/${album.id}`);
+  }
+
+  /* ── Carousel scroll ── */
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = carouselRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    updateScrollState();
+  }, [newAlbums, loading, updateScrollState]);
+
+  function scrollCarousel(dir: 'left' | 'right') {
+    const el = carouselRef.current;
+    if (!el) return;
+    const amount = el.clientWidth * 0.8;
+    el.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
   }
 
   return (
@@ -161,15 +220,39 @@ export default function HomePage() {
         ) : error ? (
           <div className={styles.error}>{error}</div>
         ) : (
-          <div className={styles.carousel}>
-            {newAlbums.map((album) => (
-              <AlbumCard
-                key={album.id}
-                album={album}
-                onClick={handleAlbumClick}
-                className={styles.carouselCard}
-              />
-            ))}
+          <div className={styles.carouselWrap}>
+            {canScrollLeft && (
+              <button
+                className={`${styles.carouselBtn} ${styles.carouselBtnLeft}`}
+                onClick={() => scrollCarousel('left')}
+                aria-label="Previous"
+              >
+                {'\u2039'}
+              </button>
+            )}
+            <div
+              className={styles.carousel}
+              ref={carouselRef}
+              onScroll={updateScrollState}
+            >
+              {newAlbums.map((album) => (
+                <AlbumCard
+                  key={album.id}
+                  album={album}
+                  onClick={handleAlbumClick}
+                  className={styles.carouselCard}
+                />
+              ))}
+            </div>
+            {canScrollRight && (
+              <button
+                className={`${styles.carouselBtn} ${styles.carouselBtnRight}`}
+                onClick={() => scrollCarousel('right')}
+                aria-label="Next"
+              >
+                {'\u203A'}
+              </button>
+            )}
           </div>
         )}
       </section>
@@ -212,6 +295,54 @@ export default function HomePage() {
 
       <hr className={styles.divider} />
 
+      {/* ── NEW TRACKS ── */}
+      <section className={styles.section}>
+        <div className={styles.secHead}>
+          <div className={styles.secTitle}>
+            {'신규 음원 '}
+            <span className={styles.secTitleSmall}>New</span>
+          </div>
+          <Link to="/tracks?sort=latest" className={styles.secMore}>
+            {'전체 보기 \u2192'}
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className={styles.trackList}>
+            {Array.from({ length: NEW_TRACKS_SIZE }).map((_, i) => (
+              <div key={i} className={styles.trackSkeleton}>
+                <div className={styles.skeletonText} />
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className={styles.error}>{error}</div>
+        ) : (
+          <div className={styles.trackList}>
+            {newTracks.map((track, idx) => (
+              <Link
+                key={track.id}
+                to={`/tracks/${track.id}`}
+                className={styles.trackItem}
+              >
+                <span className={styles.trackNum}>{idx + 1}</span>
+                <span className={styles.trackTitle}>{track.title}</span>
+                <span className={styles.trackMeta}>
+                  {track.tags.filter((t) => t.type === 'GENRE').map((t) => t.name).join(', ')}
+                </span>
+                <span className={styles.trackDur}>
+                  {track.duration
+                    ? `${Math.floor(track.duration / 60)}:${String(track.duration % 60).padStart(2, '0')}`
+                    : '-'}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <hr className={styles.divider} />
+
       {/* ── GENRE TAGS ── */}
       <section className={styles.section}>
         <div className={styles.secHead}>
@@ -228,6 +359,28 @@ export default function HomePage() {
           ))}
           {selectedGenres.size > 0 && (
             <Button variant="outline" size="sm" onClick={handleGenreExplore}>
+              {'탐색 \u2192'}
+            </Button>
+          )}
+        </div>
+      </section>
+
+      {/* ── MOOD TAGS ── */}
+      <section className={styles.section}>
+        <div className={styles.secHead}>
+          <div className={styles.secTitle}>{'분위기별 탐색'}</div>
+        </div>
+        <div className={styles.tags}>
+          {moodTags.map((tag) => (
+            <Tag
+              key={tag.id}
+              label={tag.name}
+              active={selectedMoods.has(tag.id)}
+              onClick={() => toggleMood(tag.id)}
+            />
+          ))}
+          {selectedMoods.size > 0 && (
+            <Button variant="outline" size="sm" onClick={handleMoodExplore}>
               {'탐색 \u2192'}
             </Button>
           )}

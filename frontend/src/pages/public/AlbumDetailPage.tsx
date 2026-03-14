@@ -32,7 +32,11 @@ export default function AlbumDetailPage() {
       .finally(() => setLoading(false));
   }, [albumId]);
 
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlayerPlaying = usePlayerStore((s) => s.isPlaying);
   const playTrack = usePlayerStore((s) => s.play);
+  const pauseTrack = usePlayerStore((s) => s.pause);
+  const resumeTrack = usePlayerStore((s) => s.resume);
   const playAll = usePlayerStore((s) => s.playAll);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const likeStore = useLikeStore();
@@ -176,26 +180,31 @@ export default function AlbumDetailPage() {
                     className={styles.trPlayBtn}
                     onClick={(e) => {
                       e.stopPropagation();
-                      playTrack({
-                        id: t.trackId,
-                        title: t.title,
-                        artistName: t.artistName ?? '',
-                        duration: 0,
-                        bpm: 0,
-                        tonality: '',
-                        description: null,
-                        audioFile: null,
-                        thumbnail: t.thumbnailUrl ?? null,
-                        tags: [],
-                        isActive: true,
-                        playCount: 0,
-                        createdAt: '',
-                        updatedAt: '',
-                      });
+                      if (currentTrack?.id === t.trackId) {
+                        if (isPlayerPlaying) pauseTrack();
+                        else resumeTrack();
+                      } else {
+                        playTrack({
+                          id: t.trackId,
+                          title: t.title,
+                          artistName: t.artistName ?? '',
+                          duration: 0,
+                          bpm: 0,
+                          tonality: '',
+                          description: null,
+                          audioFile: null,
+                          thumbnail: t.thumbnailUrl ?? null,
+                          tags: [],
+                          isActive: true,
+                          playCount: 0,
+                          createdAt: '',
+                          updatedAt: '',
+                        });
+                      }
                     }}
-                    aria-label="Play"
+                    aria-label={currentTrack?.id === t.trackId && isPlayerPlaying ? 'Pause' : 'Play'}
                   >
-                    &#9654;
+                    {currentTrack?.id === t.trackId && isPlayerPlaying ? '\u23F8' : '\u25B6'}
                   </button>
                 </td>
                 <td>

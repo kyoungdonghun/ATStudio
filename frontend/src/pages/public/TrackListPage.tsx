@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { fetchTracks, type TrackListParams } from '@/api/tracks';
 import { fetchTags } from '@/api/tags';
 import { addToDownloadQueue } from '@/api/downloadQueue';
@@ -37,6 +37,12 @@ export default function TrackListPage() {
   const [error, setError] = useState<string | null>(null);
 
   const toast = useToastStore((s) => s.show);
+  const navigate = useNavigate();
+
+  function handleGuestAction() {
+    const goLogin = window.confirm('로그인이 필요한 기능입니다. 로그인 페이지로 이동하시겠습니까?');
+    if (goLogin) navigate('/login');
+  }
 
   /* ── Derive filters from URL ── */
   const currentPage = Number(searchParams.get('page') ?? '1');
@@ -48,7 +54,10 @@ export default function TrackListPage() {
 
   /* Player store for playing state */
   const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
   const playTrack = usePlayerStore((s) => s.play);
+  const pauseTrack = usePlayerStore((s) => s.pause);
+  const resumeTrack = usePlayerStore((s) => s.resume);
 
   /* Like store */
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
@@ -345,25 +354,33 @@ export default function TrackListPage() {
                   key={track.id}
                   index={(currentPage - 1) * PAGE_SIZE + idx + 1}
                   track={track}
-                  playing={currentTrack?.id === track.id}
+                  playing={currentTrack?.id === track.id && isPlaying}
                   liked={likeStore.likedIds.has(track.id)}
                   showAuthActions={isAuthenticated}
-                  onPlay={(t) => playTrack({
-                    id: t.id,
-                    title: t.title,
-                    artistName: t.artistName ?? '',
-                    duration: t.duration ?? 0,
-                    bpm: t.bpm,
-                    tonality: t.tonality,
-                    description: null,
-                    audioFile: null,
-                    thumbnail: t.thumbnail,
-                    tags: t.tags,
-                    isActive: true,
-                    playCount: t.playCount,
-                    createdAt: t.createdAt,
-                    updatedAt: t.createdAt,
-                  })}
+                  onGuestAction={handleGuestAction}
+                  onPlay={(t) => {
+                    if (currentTrack?.id === t.id) {
+                      if (isPlaying) pauseTrack();
+                      else resumeTrack();
+                    } else {
+                      playTrack({
+                        id: t.id,
+                        title: t.title,
+                        artistName: t.artistName ?? '',
+                        duration: t.duration ?? 0,
+                        bpm: t.bpm,
+                        tonality: t.tonality,
+                        description: null,
+                        audioFile: null,
+                        thumbnail: t.thumbnail,
+                        tags: t.tags,
+                        isActive: true,
+                        playCount: t.playCount,
+                        createdAt: t.createdAt,
+                        updatedAt: t.createdAt,
+                      });
+                    }
+                  }}
                   onLike={(t) => likeStore.toggle(t.id)}
                   onAddToPlaylist={(t) => setAddToPlTrackId(t.id)}
                   onDownload={async (t) => {

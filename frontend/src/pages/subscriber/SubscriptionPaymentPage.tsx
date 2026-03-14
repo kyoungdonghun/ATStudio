@@ -1,18 +1,22 @@
-/** Screen 16-2: Subscription payment (PG stub) */
+/** Screen 16-2: Subscription payment (Mock PG — calls subscribe API) */
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
+import { subscribe } from '@/api/userSubscriptions';
 import { formatPrice } from '@/utils/format';
+import { useToastStore } from '@/store/toastStore';
 import styles from './SubscriptionPaymentPage.module.css';
 
 export default function SubscriptionPaymentPage() {
   const navigate = useNavigate();
+  const toast = useToastStore();
   const [searchParams] = useSearchParams();
   const planKey = searchParams.get('plan') ?? '';
   const cycle = (searchParams.get('cycle') ?? 'MONTHLY') as 'MONTHLY' | 'YEARLY';
 
   const [plan, setPlan] = useState<SubscriptionPlan | null>(null);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchSubscriptionPlans()
@@ -25,6 +29,23 @@ export default function SubscriptionPaymentPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [planKey]);
+
+  const handleSubscribe = async () => {
+    if (!plan || submitting) return;
+    setSubmitting(true);
+    try {
+      await subscribe({ subscriptionId: plan.id, billingCycle: cycle });
+      toast.show('success', '구독이 시작되었습니다!');
+      navigate('/subscriptions/manage');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? '구독 처리 중 오류가 발생했습니다.';
+      toast.show('error', msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -86,11 +107,10 @@ export default function SubscriptionPaymentPage() {
 
       {/* PG integration notice */}
       <div className={styles.pgNotice}>
-        <div className={styles.pgIcon}>{'\uD83D\uDCB3'}</div>
         <div className={styles.pgText}>
-          {'PG(결제 게이트웨이) 연동 준비 중입니다.'}
+          {'현재 테스트 환경에서는 결제 없이 구독이 즉시 시작됩니다.'}
           <br />
-          {'실제 결제 기능은 곧 추가될 예정입니다.'}
+          {'실제 PG 결제 연동은 프로덕션 단계에서 추가됩니다.'}
         </div>
       </div>
 
@@ -101,8 +121,12 @@ export default function SubscriptionPaymentPage() {
         >
           {'돌아가기'}
         </button>
-        <button className={styles.btnPay} disabled>
-          {'결제하기 (준비 중)'}
+        <button
+          className={styles.btnPay}
+          onClick={handleSubscribe}
+          disabled={submitting}
+        >
+          {submitting ? '처리 중...' : '구독 시작하기'}
         </button>
       </div>
     </div>

@@ -22,10 +22,6 @@ export interface PasswordResetRequest {
   email: string;
 }
 
-export interface VerifyEmailRequest {
-  token: string;
-}
-
 /* ── Response Types ── */
 
 export interface LoginResponse {
@@ -93,16 +89,39 @@ export async function checkNicknameAvailability(nickname: string): Promise<Check
   return data.data;
 }
 
-/**
- * Password reset request (placeholder).
- */
-export function requestPasswordReset(_data: PasswordResetRequest) {
-  return Promise.resolve({ message: 'ok' });
+/** POST /api/auth/social/{provider} -- social login */
+export async function socialLogin(
+  provider: string,
+  authorizationCode: string,
+): Promise<LoginResponse & { isProfileComplete: boolean }> {
+  const { data } = await client.post<
+    ApiResponse<LoginResponse & { isProfileComplete: boolean }>
+  >(`/auth/social/${provider}`, { authorizationCode });
+  return data.data;
 }
 
-/**
- * Email verification (placeholder).
- */
-export function verifyEmail(_data: VerifyEmailRequest) {
-  return Promise.resolve({ message: 'ok' });
+/** GET /api/utils/check-phone -- phone availability check */
+export async function checkPhoneAvailability(
+  phone: string,
+): Promise<CheckAvailabilityResponse> {
+  const { data } = await client.get<ApiResponse<CheckAvailabilityResponse>>(
+    '/utils/check-phone',
+    { params: { phone } },
+  );
+  return data.data;
+}
+
+/** POST /api/auth/forgot-password */
+export async function requestPasswordReset(req: PasswordResetRequest): Promise<void> {
+  await client.post('/auth/forgot-password', req);
+}
+
+/** POST /api/auth/reset-password */
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  await client.post('/auth/reset-password', { token, newPassword });
+}
+
+/** GET /api/auth/verify-email?token=... */
+export async function verifyEmail(token: string): Promise<void> {
+  await client.get('/auth/verify-email', { params: { token } });
 }

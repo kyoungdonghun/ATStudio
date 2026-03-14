@@ -862,19 +862,21 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 
 **Response** `200 OK`
 ```json
-[
-  {
-    "id": 1,
-    "name": "STANDARD",
-    "description": "개인 구독 기본 플랜",
-    "userType": "INDIVIDUAL",
-    "priceMonthly": 9900.00,
-    "priceYearly": 99000.00,
-    "downloadPerDay": 5,
-    "maxWhitelistChannels": 1,
-    "isActive": true
-  }
-]
+{
+  "dataList": [
+    {
+      "id": 1,
+      "name": "STANDARD",
+      "description": "개인 구독 기본 플랜",
+      "userType": "INDIVIDUAL",
+      "priceMonthly": 9900.00,
+      "priceYearly": 99000.00,
+      "downloadPerDay": 5,
+      "maxWhitelistChannels": 1,
+      "isActive": true
+    }
+  ]
+}
 ```
 
 ## 6.1.1 List All Subscription Plans (Admin)
@@ -1755,6 +1757,75 @@ billingCycle: String (required — "MONTHLY" | "YEARLY")
 { "status": 404, "error": "Not Found", "errorCode": "SUBSCRIPTION_NOT_FOUND", "message": "구독 정보를 찾을 수 없습니다." }
 ```
 
+## 14.9 Verify Email
+
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/auth/verify-email` |
+| **Auth** | `[PUBLIC]` |
+| **Description** | Verifies user email via token sent by email. Link is clicked from verification email. Token valid for 24 hours, single use. |
+
+**Query Parameters**
+```
+token: String (required — UUID token from email link)
+```
+
+**Response** `200 OK`
+```json
+{ "message": "이메일 인증이 완료되었습니다." }
+```
+
+**Error Cases**
+```json
+{ "status": 400, "error": "Bad Request", "errorCode": "INVALID_TOKEN", "message": "유효하지 않은 인증 링크입니다." }
+{ "status": 401, "error": "Unauthorized", "errorCode": "TOKEN_EXPIRED", "message": "인증이 만료되었습니다. 다시 로그인해주세요." }
+```
+
+## 14.10 Request Password Reset
+
+| Field | Value |
+|-------|-------|
+| **URL** | `POST /api/auth/forgot-password` |
+| **Auth** | `[PUBLIC]` |
+| **Description** | Sends a password reset email. Always returns 200 regardless of email existence (prevents account enumeration). Token valid for 1 hour. |
+
+**Request Body**
+```json
+{ "email": "user@example.com" }
+```
+
+**Response** `200 OK`
+```json
+{ "message": "비밀번호 재설정 이메일이 발송되었습니다." }
+```
+
+## 14.11 Reset Password
+
+| Field | Value |
+|-------|-------|
+| **URL** | `POST /api/auth/reset-password` |
+| **Auth** | `[PUBLIC]` |
+| **Description** | Resets password using token from email link. Token is single-use, valid for 1 hour. |
+
+**Request Body**
+```json
+{
+  "token": "uuid-token-from-email",
+  "newPassword": "newSecurePassword123"
+}
+```
+
+**Response** `200 OK`
+```json
+{ "message": "비밀번호가 재설정되었습니다." }
+```
+
+**Error Cases**
+```json
+{ "status": 400, "error": "Bad Request", "errorCode": "INVALID_TOKEN", "message": "유효하지 않은 인증 링크입니다." }
+{ "status": 401, "error": "Unauthorized", "errorCode": "TOKEN_EXPIRED", "message": "인증이 만료되었습니다. 다시 로그인해주세요." }
+```
+
 ### Removed Items
 
 | Original Item | Reason |
@@ -1882,7 +1953,7 @@ billingCycle: String (required — "MONTHLY" | "YEARLY")
 
 ---
 
-# Full API Summary (90)
+# Full API Summary (95)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -1890,8 +1961,8 @@ billingCycle: String (required — "MONTHLY" | "YEARLY")
 | 2 | Tag | 4 |
 | 3 | Playlist | 8 |
 | 4 | Play History | 3 |
-| 5 | User Info | 10 |
-| 6 | Subscription | 10 |
+| 5 | User Info | 11 |
+| 6 | Subscription | 11 |
 | 7 | License | 4 |
 | 8 | Question (Inquiry/Answer) | 7 |
 | 9 | Notice | 5 |
@@ -1899,7 +1970,7 @@ billingCycle: String (required — "MONTHLY" | "YEARLY")
 | 11 | Download Queue | 3 |
 | 12 | Whitelist Channels | 4 |
 | 13 | Company Certification | 5 |
-| 14 | Utility | 8 |
+| 14 | Utility / Auth | 11 |
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
-| | **Total** | **90** |
+| | **Total** | **95** |

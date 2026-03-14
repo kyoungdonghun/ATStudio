@@ -57,6 +57,27 @@
 
 ---
 
+## PAYMENT-002A: List All Subscription Plans (Admin) [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | PAYMENT-002A |
+| **Version** | 26-03-14 |
+| **Description** | Admin views the full subscription plan list including inactive (is_active=0) plans. Unlike PAYMENT-002 which only returns active plans, this endpoint returns all plans for management purposes. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. |
+| **Trigger** | Admin navigates to the subscription plan management screen. |
+| **Related UC** | PAYMENT-002 (public list) |
+
+**Main Flow**
+1. Frontend sends a request to the backend. (`GET /api/subscriptions/admin`)
+2. Backend returns the full list of subscription plans (both active and inactive).
+
+**Postconditions**
+- Full subscription plan list displayed, including is_active field for each plan.
+
+---
+
 ## PAYMENT-003: View Subscription Plan Detail
 
 | Field | Value |

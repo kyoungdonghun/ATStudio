@@ -92,6 +92,10 @@ public class User extends BaseEntity {
         this.password = encodedPassword;
     }
 
+    public void verify() {
+        this.isVerified = true;
+    }
+
     public void completeProfile(String nickname, String phonePersonal, String phoneCompany, UserJob job, UserType userType) {
         this.nickname = nickname;
         this.phonePersonal = phonePersonal;

@@ -1,5 +1,7 @@
 package com.atstudio.atstudio.service;
 
+import com.atstudio.atstudio.common.dto.PageInfo;
+import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.album.*;
@@ -15,6 +17,8 @@ import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -65,6 +69,21 @@ public class AlbumService {
         return albums.stream()
                 .map(album -> AlbumListItemResponse.from(album, countMap.getOrDefault(album.getId(), 0)))
                 .toList();
+    }
+
+    public ResponseDTO<AlbumListItemResponse> getAlbumsPaged(int page, int size) {
+        Page<Album> albumPage = albumRepository.findAllByIsActiveTrueOrderByCreatedAtDesc(
+                PageRequest.of(page - 1, size));
+        List<Album> albums = albumPage.getContent();
+        Map<Long, Integer> countMap = albumTrackRepository.countMapByAlbums(albums);
+        List<AlbumListItemResponse> dataList = albums.stream()
+                .map(album -> AlbumListItemResponse.from(album, countMap.getOrDefault(album.getId(), 0)))
+                .toList();
+        return ResponseDTO.<AlbumListItemResponse>builder()
+                .message("Albums retrieved")
+                .dataList(dataList)
+                .pageInfo(PageInfo.of(page, size, (int) albumPage.getTotalElements(), 10))
+                .build();
     }
 
     // -- 15.3 GET /api/albums/{id} --------------------------------------------

@@ -9,7 +9,10 @@ import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.NoticeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -22,10 +25,10 @@ public class NoticeController {
 
     private final NoticeService noticeService;
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<NoticeResponse>> createNotice(
-            @Valid @RequestBody NoticeCreateRequest request,
+            @Valid @ModelAttribute NoticeCreateRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         NoticeResponse response = noticeService.createNotice(request, userDetails);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -71,5 +74,19 @@ public class NoticeController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         noticeService.deleteNotice(noticeId, userDetails);
         return ResponseEntity.noContent().build();
+    }
+
+    // ── Attachment download (public — notice attachments are public) ──────
+
+    @GetMapping("/{noticeId}/attachments/{attachmentId}")
+    public ResponseEntity<Resource> downloadAttachment(
+            @PathVariable Long noticeId,
+            @PathVariable Long attachmentId) {
+        Resource resource = noticeService.downloadAttachment(noticeId, attachmentId);
+        String filename = resource.getFilename() != null ? resource.getFilename() : "attachment";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resource);
     }
 }

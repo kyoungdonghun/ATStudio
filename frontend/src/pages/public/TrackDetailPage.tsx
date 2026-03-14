@@ -21,7 +21,11 @@ export default function TrackDetailPage() {
   const [showPlModal, setShowPlModal] = useState(false);
   const [dlStatus, setDlStatus] = useState<'idle' | 'adding' | 'downloading'>('idle');
 
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlayerPlaying = usePlayerStore((s) => s.isPlaying);
   const playTrack = usePlayerStore((s) => s.play);
+  const pauseTrack = usePlayerStore((s) => s.pause);
+  const resumeTrack = usePlayerStore((s) => s.resume);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const likeStore = useLikeStore();
   const toast = useToastStore((s) => s.show);
@@ -127,26 +131,31 @@ export default function TrackDetailPage() {
           <div className={styles.coverActions}>
             <button
               className={styles.btnPlay}
-              onClick={() =>
-                playTrack({
-                  id: track.id,
-                  title: track.title,
-                  artistName: track.artistName ?? '',
-                  duration: track.duration ?? 0,
-                  bpm: track.bpm,
-                  tonality: track.tonality,
-                  description: track.description,
-                  audioFile: track.audioFile,
-                  thumbnail: track.thumbnail,
-                  tags: track.tags,
-                  isActive: track.isActive,
-                  playCount: track.playCount,
-                  createdAt: track.createdAt,
-                  updatedAt: track.updatedAt,
-                })
-              }
+              onClick={() => {
+                if (currentTrack?.id === track.id) {
+                  if (isPlayerPlaying) pauseTrack();
+                  else resumeTrack();
+                } else {
+                  playTrack({
+                    id: track.id,
+                    title: track.title,
+                    artistName: track.artistName ?? '',
+                    duration: track.duration ?? 0,
+                    bpm: track.bpm,
+                    tonality: track.tonality,
+                    description: track.description,
+                    audioFile: track.audioFile,
+                    thumbnail: track.thumbnail,
+                    tags: track.tags,
+                    isActive: track.isActive,
+                    playCount: track.playCount,
+                    createdAt: track.createdAt,
+                    updatedAt: track.updatedAt,
+                  });
+                }
+              }}
             >
-              {'\u25B6'}&nbsp;&nbsp;미리 듣기
+              {currentTrack?.id === track.id && isPlayerPlaying ? '\u23F8' : '\u25B6'}&nbsp;&nbsp;{currentTrack?.id === track.id && isPlayerPlaying ? '일시정지' : '미리 듣기'}
             </button>
             {isAuthenticated && (
               <button

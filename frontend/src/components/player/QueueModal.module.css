@@ -82,3 +82,20 @@
 .removeBtn:hover {
   color: var(--text0);
 }
+
+.dragHandle {
+  cursor: grab;
+  color: var(--text2);
+  font-size: 12px;
+  flex-shrink: 0;
+  padding: 0 2px;
+  user-select: none;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.item[draggable="true"]:active {
+  opacity: 0.6;
+}

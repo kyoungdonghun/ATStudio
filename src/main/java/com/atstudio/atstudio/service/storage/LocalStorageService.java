@@ -29,7 +29,22 @@ public class LocalStorageService implements StorageService {
 
     @jakarta.annotation.PostConstruct
     void init() {
-        resolvedBasePath = Paths.get(basePath).toAbsolutePath().normalize();
+        Path candidate = Paths.get(basePath).toAbsolutePath().normalize();
+        if (!Files.isDirectory(candidate)) {
+            // Gradle bootRun may set working dir to a subdirectory; try parent paths
+            Path current = Paths.get("").toAbsolutePath();
+            for (int i = 0; i < 3; i++) {
+                Path alt = current.resolve(basePath).normalize();
+                if (Files.isDirectory(alt)) {
+                    candidate = alt;
+                    break;
+                }
+                current = current.getParent();
+                if (current == null) break;
+            }
+        }
+        resolvedBasePath = candidate;
+        log.info("StorageService base path resolved to: {} (exists: {})", resolvedBasePath, Files.isDirectory(resolvedBasePath));
     }
 
     @Override
@@ -85,8 +100,10 @@ public class LocalStorageService implements StorageService {
         try {
             Path file = resolvedBasePath.resolve(relativePath).normalize();
             validateInsideBasePath(file);
+            log.debug("Loading resource: {} (exists: {})", file, Files.exists(file));
             Resource resource = new UrlResource(file.toUri());
             if (!resource.exists()) {
+                log.warn("File not found at resolved path: {}", file);
                 throw new TechnicException(TECHNIC_ERROR.IO_EXCEPTION);
             }
             return resource;

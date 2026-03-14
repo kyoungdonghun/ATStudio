@@ -1,17 +1,38 @@
 /** Screen 21: Notice create (admin) */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createNotice } from '@/api/notices';
 import Button from '@/components/ui/Button';
 import styles from './NoticeCreatePage.module.css';
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function NoticeCreatePage() {
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isPinned, setIsPinned] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files;
+    if (!selected) return;
+    setFiles((prev) => [...prev, ...Array.from(selected)]);
+    // Reset so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  function removeFile(idx: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== idx));
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,6 +45,7 @@ export default function NoticeCreatePage() {
         title: title.trim(),
         content: content.trim(),
         isPinned,
+        attachments: files.length > 0 ? files : undefined,
       });
       navigate('/notices');
     } catch {
@@ -74,6 +96,38 @@ export default function NoticeCreatePage() {
               Pin this notice
             </label>
           </div>
+        </div>
+
+        {/* Attachments */}
+        <div className={styles.formGroup}>
+          <label className={styles.formLabel}>{'첨부파일'}</label>
+          <label className={styles.fileLabel}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className={styles.fileHidden}
+              onChange={handleFileChange}
+            />
+            {'파일 선택'}
+          </label>
+          {files.length > 0 && (
+            <ul className={styles.fileList}>
+              {files.map((file, idx) => (
+                <li key={idx} className={styles.fileItem}>
+                  <span className={styles.fileName}>{file.name}</span>
+                  <span className={styles.fileSize}>{formatFileSize(file.size)}</span>
+                  <button
+                    type="button"
+                    className={styles.fileRemove}
+                    onClick={() => removeFile(idx)}
+                  >
+                    {'×'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className={styles.formActions}>

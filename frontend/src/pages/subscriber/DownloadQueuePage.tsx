@@ -22,7 +22,11 @@ export default function DownloadQueuePage() {
   const [dlCount, setDlCount] = useState<DownloadCount | null>(null);
   const [downloadedIds, setDownloadedIds] = useState<Set<number>>(new Set());
 
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlayerPlaying = usePlayerStore((s) => s.isPlaying);
   const playTrack = usePlayerStore((s) => s.play);
+  const pauseTrack = usePlayerStore((s) => s.pause);
+  const resumeTrack = usePlayerStore((s) => s.resume);
   const role = useAuthStore((s) => s.role);
   const isAdmin = role === 'ADMIN';
   const toast = useToastStore((s) => s.show);
@@ -91,6 +95,11 @@ export default function DownloadQueuePage() {
   }
 
   function handlePlay(item: QueueListItem) {
+    if (currentTrack?.id === item.trackId) {
+      if (isPlayerPlaying) pauseTrack();
+      else resumeTrack();
+      return;
+    }
     playTrack({
       id: item.trackId,
       title: item.title,

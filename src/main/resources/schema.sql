@@ -429,7 +429,25 @@ CREATE TABLE IF NOT EXISTS question_attachments
 
 
 -- ─────────────────────────────────────────────
--- 3.11  albums  (→ users)
+-- 3.11  notice_attachments  (→ notices)
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS notice_attachments
+(
+    id            BIGINT       NOT NULL AUTO_INCREMENT,
+    notice_id     BIGINT       NOT NULL,
+    original_name VARCHAR(255) NOT NULL COMMENT 'Original filename at upload.',
+    file_path     VARCHAR(500) NOT NULL COMMENT 'Server storage path.',
+    file_size     BIGINT       NOT NULL COMMENT 'In bytes.',
+    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_notice_attachments_notice FOREIGN KEY (notice_id) REFERENCES notices (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+
+-- ─────────────────────────────────────────────
+-- 3.12  albums  (→ users)
 -- ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS albums
 (
@@ -463,9 +481,48 @@ CREATE TABLE IF NOT EXISTS album_tracks
   COLLATE = utf8mb4_unicode_ci;
 
 
+-- ─────────────────────────────────────────────
+-- 3.13  email_verification_tokens  (→ users)
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS email_verification_tokens
+(
+    id         BIGINT       NOT NULL AUTO_INCREMENT,
+    user_id    BIGINT       NOT NULL,
+    token      VARCHAR(255) NOT NULL,
+    expires_at DATETIME     NOT NULL COMMENT 'Registration time + 24 hours.',
+    used       TINYINT(1)   NOT NULL DEFAULT 0 COMMENT 'Single-use token.',
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_email_verification_tokens_token (token),
+    CONSTRAINT fk_email_verification_tokens_user FOREIGN KEY (user_id) REFERENCES users (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────
+-- 3.14  password_reset_tokens  (→ users)
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS password_reset_tokens
+(
+    id         BIGINT       NOT NULL AUTO_INCREMENT,
+    user_id    BIGINT       NOT NULL,
+    token      VARCHAR(255) NOT NULL,
+    expires_at DATETIME     NOT NULL COMMENT 'Request time + 1 hour.',
+    used       TINYINT(1)   NOT NULL DEFAULT 0 COMMENT 'Single-use token.',
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_password_reset_tokens_token (token),
+    CONSTRAINT fk_password_reset_tokens_user FOREIGN KEY (user_id) REFERENCES users (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- =============================================================================
 -- END OF SCHEMA
--- Total: 23 tables
+-- Total: 25 tables
 -- =============================================================================

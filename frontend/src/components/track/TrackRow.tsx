@@ -16,6 +16,7 @@ interface TrackRowProps {
   onAddToPlaylist?: (track: TrackListItem) => void;
   onDownload?: (track: TrackListItem) => void;
   onBuy?: (track: TrackListItem) => void;
+  onGuestAction?: () => void;
 }
 
 export default function TrackRow({
@@ -30,6 +31,7 @@ export default function TrackRow({
   onAddToPlaylist,
   onDownload,
   onBuy,
+  onGuestAction,
 }: TrackRowProps) {
   const rowClass = [styles.row, playing ? styles.playing : '']
     .filter(Boolean)
@@ -46,9 +48,9 @@ export default function TrackRow({
         <button
           className={styles.playBtn}
           onClick={() => onPlay?.(track)}
-          aria-label="Play"
+          aria-label={playing ? 'Pause' : 'Play'}
         >
-          &#9654;
+          {playing ? '\u23F8' : '\u25B6'}
         </button>
       </td>
 
@@ -144,9 +146,35 @@ export default function TrackRow({
               </button>
             </>
           ) : (
-            <button className={styles.playBtn} onClick={() => onPlay?.(track)} title="Play">
-              &#9654;
-            </button>
+            <>
+              <button
+                className={styles.actBtn}
+                onClick={() => onGuestAction?.()}
+                title="Like"
+              >
+                {'\u2661'}
+              </button>
+              <button
+                className={styles.actBtn}
+                onClick={() => onGuestAction?.()}
+                title="Add to playlist"
+              >
+                +
+              </button>
+              <button
+                className={styles.actBtn}
+                onClick={() => onGuestAction?.()}
+                title="Download"
+              >
+                &#8595;
+              </button>
+              <button
+                className={styles.buyBtn}
+                onClick={() => onGuestAction?.()}
+              >
+                Buy
+              </button>
+            </>
           )}
         </div>
       </td>

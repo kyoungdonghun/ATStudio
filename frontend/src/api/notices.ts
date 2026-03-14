@@ -22,10 +22,11 @@ export async function fetchNotice(noticeId: number): Promise<Notice> {
 
 /* ── Admin Notice CRUD ── */
 
-interface NoticeCreateRequest {
+interface NoticeCreateBody {
   title: string;
   content: string;
   isPinned: boolean;
+  attachments?: File[];
 }
 
 interface NoticeUpdateRequest {
@@ -34,8 +35,17 @@ interface NoticeUpdateRequest {
   isPinned: boolean;
 }
 
-export async function createNotice(body: NoticeCreateRequest): Promise<Notice> {
-  const { data } = await client.post<ApiResponse<Notice>>('/notices', body);
+export async function createNotice(body: NoticeCreateBody): Promise<Notice> {
+  const form = new FormData();
+  form.append('title', body.title);
+  form.append('content', body.content);
+  form.append('isPinned', String(body.isPinned));
+  if (body.attachments) {
+    body.attachments.forEach((file) => form.append('attachments', file));
+  }
+  const { data } = await client.post<ApiResponse<Notice>>('/notices', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
   return data.data;
 }
 
@@ -49,4 +59,25 @@ export async function updateNotice(
 
 export async function deleteNotice(noticeId: number): Promise<void> {
   await client.delete(`/notices/${noticeId}`);
+}
+
+/* ── Attachment download ── */
+
+export async function downloadNoticeAttachment(
+  noticeId: number,
+  attachmentId: number,
+  filename: string,
+): Promise<void> {
+  const { data } = await client.get<Blob>(
+    `/notices/${noticeId}/attachments/${attachmentId}`,
+    { responseType: 'blob' },
+  );
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

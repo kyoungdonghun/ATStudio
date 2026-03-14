@@ -492,6 +492,38 @@
 
 ---
 
+# 15. Email / Password Tokens
+
+## 15.1 Email Verification Tokens (`email_verification_tokens`)
+
+> Token-based email verification. Sent on user registration. Valid for 24 hours, single use.
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
+| Token | `token` | VARCHAR(255) | NOT NULL | UNIQUE | | UUID |
+| Expiration | `expires_at` | DATETIME | NOT NULL | | | Registration time + 24h |
+| Used flag | `used` | TINYINT(1) | NOT NULL | | 0 | Single-use token |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+## 15.2 Password Reset Tokens (`password_reset_tokens`)
+
+> Token-based password reset. Sent on forgot-password request. Valid for 1 hour, single use.
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
+| Token | `token` | VARCHAR(255) | NOT NULL | UNIQUE | | UUID |
+| Expiration | `expires_at` | DATETIME | NOT NULL | | | Request time + 1h |
+| Used flag | `used` | TINYINT(1) | NOT NULL | | 0 | Single-use token |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+---
+
 # Table Relationship Diagram
 
 ```
@@ -509,6 +541,8 @@ users ─┬─< social_accounts
        ├─< albums ─< album_tracks ──> tracks
        ├─< questions ─┬─< answers
        │              └─< question_attachments
+       ├─< email_verification_tokens
+       ├─< password_reset_tokens
        └─< notices (ADMIN only)
 
 tracks ─< track_tags ──> tags
@@ -516,7 +550,7 @@ tracks ─< track_tags ──> tags
 
 ---
 
-# Complete Table List (23 Tables)
+# Complete Table List (25 Tables)
 
 | # | Table Name | Description | Type |
 |---|------------|-------------|------|
@@ -543,5 +577,7 @@ tracks ─< track_tags ──> tags
 | 21 | `question_attachments` | Inquiry attachments | Transaction |
 | 22 | `albums` | Curated albums | Master |
 | 23 | `album_tracks` | Album-track mapping | Mapping |
+| 24 | `email_verification_tokens` | Email verification tokens | Transaction |
+| 25 | `password_reset_tokens` | Password reset tokens | Transaction |
 
-Total **23 tables**
+Total **25 tables**

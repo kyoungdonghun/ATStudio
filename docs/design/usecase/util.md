@@ -1,8 +1,8 @@
 # Util — Utility Use Cases
 
-> **API Reference**: `docs/design/api-spec.md` Section 14 (Util)
+> **API Reference**: `docs/design/api-spec.md` Section 14 (Util / Auth)
 >
-> **Scope of this file**: Utility APIs commonly used across other flows such as registration, login, and authentication.
+> **Scope of this file**: Utility APIs commonly used across other flows such as registration, login, authentication, and email verification.
 > Some of the original UTIL UCs have been merged into parent UCs and are not managed as independent UCs. See the removed list below.
 
 ---
@@ -214,3 +214,94 @@
 
 **Postconditions**
 - Preview data returned. No DB state changes. Frontend uses this to render the confirmation screen before the user initiates the actual change (PAYMENT-007).
+
+---
+
+## UTIL-014: Verify Email [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | UTIL-014 |
+| **Version** | 26-03-14 |
+| **Description** | Verifies a user's email address via a token sent by email. The user clicks the verification link in the email, and the frontend automatically calls this API with the token from the URL query parameter. |
+| **Actor** | User (non-member or member), Backend |
+| **Preconditions** | User has registered and received a verification email containing a UUID token link. Token is valid (not expired, not already used). |
+| **Trigger** | User clicks the email verification link. Frontend page mounts and reads `?token=` from URL. |
+| **Related UC** | INFO-001 (register) |
+
+**Main Flow**
+1. User clicks the verification link in their email (e.g., `https://host/email-verify?token=UUID`).
+2. Frontend extracts the `token` query parameter and sends a request to the backend. (`GET /api/auth/verify-email?token=xxx`)
+3. Backend looks up the `email_verification_tokens` record by token.
+4. Backend validates: token exists, not used (`used=false`), not expired (`expires_at > now`).
+5. Backend marks the token as used (`used=true`).
+6. Backend sets `users.is_verified = true` for the associated user.
+7. Backend returns 200 OK with success message.
+
+**Exception / Alternative Flow**
+- Token not found or already used: 400 `INVALID_TOKEN`.
+- Token expired (24 hours): 401 `TOKEN_EXPIRED`.
+
+**Postconditions**
+- `users.is_verified = true`. Token marked as used. User can now log in with full verified status.
+
+---
+
+## UTIL-015: Request Password Reset [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | UTIL-015 |
+| **Version** | 26-03-14 |
+| **Description** | Sends a password reset email to the specified address. Always returns 200 regardless of whether the email exists in the system (prevents account enumeration). |
+| **Actor** | User (any), Backend |
+| **Preconditions** | - |
+| **Trigger** | User clicks 'Forgot Password' on the login screen and submits their email. |
+| **Related UC** | INFO-008 (login), UTIL-016 (reset password) |
+
+**Main Flow**
+1. User enters their email on the password reset request screen.
+2. Frontend sends a request with the email to the backend. (`POST /api/auth/forgot-password`)
+3. Backend looks up the user by email.
+4. If user exists: Backend deletes any existing password_reset_tokens for this user, generates a new UUID token (1-hour expiry), saves it, and sends a password reset email with a link (e.g., `https://host/password-reset?token=UUID`).
+5. If user does NOT exist: Backend does nothing (no email sent).
+6. Backend always returns 200 OK with "비밀번호 재설정 이메일이 발송되었습니다." (regardless of email existence).
+
+**Exception / Alternative Flow**
+- SMTP failure: Backend logs the email content to console as fallback (development environment).
+
+**Postconditions**
+- If user exists: `password_reset_tokens` record created. Email sent (or console fallback). No user state changes yet.
+- If user does not exist: No action taken. Same 200 response returned (security: prevents account enumeration).
+
+---
+
+## UTIL-016: Reset Password [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | UTIL-016 |
+| **Version** | 26-03-14 |
+| **Description** | Resets the user's password using a token from a password reset email. Token is single-use, valid for 1 hour. |
+| **Actor** | User (any), Backend |
+| **Preconditions** | User has received a password reset email and clicked the link. Token is valid (not expired, not already used). |
+| **Trigger** | User clicks the password reset link in their email, enters a new password on the reset form, and submits. |
+| **Related UC** | UTIL-015 (request password reset), INFO-008 (login) |
+
+**Main Flow**
+1. User clicks the reset link in their email (e.g., `https://host/password-reset?token=UUID`).
+2. Frontend displays the new password form (password + confirmation).
+3. User enters and confirms the new password (minimum 8 characters).
+4. Frontend sends a request with token and newPassword to the backend. (`POST /api/auth/reset-password`)
+5. Backend looks up the `password_reset_tokens` record by token.
+6. Backend validates: token exists, not used (`used=false`), not expired (`expires_at > now`).
+7. Backend marks the token as used (`used=true`).
+8. Backend encodes the new password (BCrypt) and updates `users.password`.
+9. Backend returns 200 OK with success message.
+
+**Exception / Alternative Flow**
+- Token not found or already used: 400 `INVALID_TOKEN`.
+- Token expired (1 hour): 401 `TOKEN_EXPIRED`.
+
+**Postconditions**
+- `users.password` updated with new BCrypt hash. Token marked as used. User can log in with the new password.

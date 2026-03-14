@@ -20,7 +20,10 @@ export default function LikeListPage() {
 
   const [addToPlTrackId, setAddToPlTrackId] = useState<number | null>(null);
   const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlayerPlaying = usePlayerStore((s) => s.isPlaying);
   const playTrack = usePlayerStore((s) => s.play);
+  const pauseTrack = usePlayerStore((s) => s.pause);
+  const resumeTrack = usePlayerStore((s) => s.resume);
   const likeStore = useLikeStore();
   const toast = useToastStore((s) => s.show);
 
@@ -78,6 +81,11 @@ export default function LikeListPage() {
   }
 
   function handlePlay(item: LikeItem) {
+    if (currentTrack?.id === item.trackId) {
+      if (isPlayerPlaying) pauseTrack();
+      else resumeTrack();
+      return;
+    }
     playTrack({
       id: item.trackId,
       title: item.title,
@@ -136,16 +144,16 @@ export default function LikeListPage() {
             {items.map((item, idx) => (
               <tr
                 key={item.trackId}
-                className={`${styles.row} ${currentTrack?.id === item.trackId ? styles.rowPlaying : ''}`}
+                className={`${styles.row} ${currentTrack?.id === item.trackId && isPlayerPlaying ? styles.rowPlaying : ''}`}
               >
                 <td className={styles.cellNum}>
                   <span className={styles.num}>{idx + 1}</span>
                   <button
                     className={styles.playBtn}
                     onClick={() => handlePlay(item)}
-                    aria-label="Play"
+                    aria-label={currentTrack?.id === item.trackId && isPlayerPlaying ? 'Pause' : 'Play'}
                   >
-                    &#9654;
+                    {currentTrack?.id === item.trackId && isPlayerPlaying ? '\u23F8' : '\u25B6'}
                   </button>
                 </td>
                 <td className={styles.cellInfo}>

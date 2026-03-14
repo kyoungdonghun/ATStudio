@@ -312,3 +312,29 @@
 
 **Postconditions**
 - Password updated in the users record. Subsequent logins require the new password.
+
+---
+
+## INFO-016: View Admin Dashboard Stats [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | INFO-016 |
+| **Version** | 26-03-14 |
+| **Description** | Admin views the dashboard statistics including total users, total tracks, total subscribers, and recent user registrations. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Admin logged in. |
+| **Trigger** | Admin navigates to the dashboard screen. |
+| **Related UC** | INFO-003 (list members) |
+
+**Main Flow**
+1. Frontend sends a request to the backend. (`GET /api/admin/stats`)
+2. Backend aggregates statistics:
+   - `totalUsers`: COUNT of users WHERE is_deleted=false
+   - `totalTracks`: COUNT of tracks WHERE is_active=true
+   - `totalSubscribers`: COUNT of user_subscriptions WHERE status=ACTIVE
+   - `recentUsers`: Latest 5 registered users (same format as admin user list item)
+3. Backend returns the aggregated stats response.
+
+**Postconditions**
+- Dashboard statistics displayed on the admin dashboard screen.

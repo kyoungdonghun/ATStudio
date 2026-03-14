@@ -4,7 +4,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   fetchQuestionDetail,
   deleteQuestion,
-  getAttachmentUrl,
+  downloadAttachment,
   type QuestionDetail,
 } from '@/api/questions';
 import { formatDate } from '@/utils/format';
@@ -140,13 +140,13 @@ export default function QuestionDetailPage() {
           <ul className={styles.attachList}>
             {attachments.map((att) => (
               <li key={att.id} className={styles.attachItem}>
-                <a
-                  href={getAttachmentUrl(question.id, att.id)}
+                <button
+                  type="button"
                   className={styles.attachLink}
-                  download
+                  onClick={() => downloadAttachment(question.id, att.id, att.originalName)}
                 >
                   {att.originalName}
-                </a>
+                </button>
                 <span className={styles.attachSize}>{formatFileSize(att.fileSize)}</span>
               </li>
             ))}

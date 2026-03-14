@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { usePlayerStore } from '@/store/playerStore';
 import Modal from '@/components/ui/Modal';
 import styles from './QueueModal.module.css';
@@ -12,6 +13,27 @@ export default function QueueModal({ open, onClose }: QueueModalProps) {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const play = usePlayerStore((s) => s.play);
   const removeFromQueue = usePlayerStore((s) => s.removeFromQueue);
+  const reorderQueue = usePlayerStore((s) => s.reorderQueue);
+
+  const dragIdx = useRef<number | null>(null);
+  const dragOverIdx = useRef<number | null>(null);
+
+  function handleDragStart(idx: number) {
+    dragIdx.current = idx;
+  }
+
+  function handleDragOver(e: React.DragEvent, idx: number) {
+    e.preventDefault();
+    dragOverIdx.current = idx;
+  }
+
+  function handleDrop() {
+    if (dragIdx.current !== null && dragOverIdx.current !== null && dragIdx.current !== dragOverIdx.current) {
+      reorderQueue(dragIdx.current, dragOverIdx.current);
+    }
+    dragIdx.current = null;
+    dragOverIdx.current = null;
+  }
 
   return (
     <Modal open={open} onClose={onClose} title="대기열">
@@ -23,7 +45,14 @@ export default function QueueModal({ open, onClose }: QueueModalProps) {
             <li
               key={track.id}
               className={`${styles.item} ${currentTrack?.id === track.id ? styles.itemActive : ''}`}
+              draggable
+              onDragStart={() => handleDragStart(idx)}
+              onDragOver={(e) => handleDragOver(e, idx)}
+              onDrop={handleDrop}
             >
+              <span className={styles.dragHandle} title="Drag to reorder">
+                {'\u2630'}
+              </span>
               <button
                 className={styles.playBtn}
                 onClick={() => play(track)}

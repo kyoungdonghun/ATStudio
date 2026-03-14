@@ -160,11 +160,18 @@ export interface License {
 
 /* ── Notice ── */
 
+export interface NoticeAttachmentInfo {
+  id: number;
+  originalName: string;
+  fileSize: number;
+}
+
 export interface Notice {
   id: number;
   title: string;
   content: string;
   isPinned: boolean;
+  attachments?: NoticeAttachmentInfo[] | null;
   createdAt: string;
   updatedAt: string;
 }

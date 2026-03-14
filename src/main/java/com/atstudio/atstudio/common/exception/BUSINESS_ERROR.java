@@ -151,6 +151,11 @@ public enum BUSINESS_ERROR {
             "세션이 만료되었습니다. 다시 로그인해주세요.",
             "Refresh Token이 유효하지 않거나 DB 불일치."),
 
+    INVALID_TOKEN(
+            HttpStatus.BAD_REQUEST,
+            "유효하지 않은 인증 링크입니다.",
+            "토큰이 존재하지 않거나 이미 사용됨."),
+
     SOCIAL_AUTH_FAILED(
             HttpStatus.UNAUTHORIZED,
             "소셜 로그인에 실패했습니다. 다시 시도해주세요.",

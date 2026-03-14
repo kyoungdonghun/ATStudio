@@ -24,7 +24,10 @@ export default function PlaylistDetailPage() {
 
   /* ── Stores ── */
   const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlayerPlaying = usePlayerStore((s) => s.isPlaying);
   const playTrack = usePlayerStore((s) => s.play);
+  const pauseTrack = usePlayerStore((s) => s.pause);
+  const resumeTrack = usePlayerStore((s) => s.resume);
   const likeStore = useLikeStore();
   const user = useAuthStore((s) => s.user);
   const toast = useToastStore((s) => s.show);
@@ -70,6 +73,11 @@ export default function PlaylistDetailPage() {
 
   /* ── Track action handlers ── */
   function handlePlay(track: PlaylistTrack) {
+    if (currentTrack?.id === track.trackId) {
+      if (isPlayerPlaying) pauseTrack();
+      else resumeTrack();
+      return;
+    }
     playTrack({
       id: track.trackId,
       title: track.title,
@@ -205,16 +213,16 @@ export default function PlaylistDetailPage() {
             {detail.tracks.map((track) => (
               <tr
                 key={track.trackId}
-                className={`${styles.row} ${currentTrack?.id === track.trackId ? styles.rowPlaying : ''}`}
+                className={`${styles.row} ${currentTrack?.id === track.trackId && isPlayerPlaying ? styles.rowPlaying : ''}`}
               >
                 <td className={styles.cellNum}>
                   <span className={styles.num}>{track.trackOrder}</span>
                   <button
                     className={styles.playBtn}
                     onClick={() => handlePlay(track)}
-                    aria-label="Play"
+                    aria-label={currentTrack?.id === track.trackId && isPlayerPlaying ? 'Pause' : 'Play'}
                   >
-                    &#9654;
+                    {currentTrack?.id === track.trackId && isPlayerPlaying ? '\u23F8' : '\u25B6'}
                   </button>
                 </td>
                 <td className={styles.cellTitle}>

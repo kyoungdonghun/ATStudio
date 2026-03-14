@@ -112,6 +112,15 @@
   font-size: 14px;
   font-weight: 600;
   font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btnPay:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.btnPay:disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }

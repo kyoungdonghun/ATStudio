@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,6 +26,7 @@ public class AlbumController {
     // -- 15.1 POST /api/albums ------------------------------------------------
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<AlbumResponse>> createAlbum(
             @Valid @ModelAttribute AlbumCreateRequest request,
             @RequestPart(required = false) MultipartFile thumbnailFile,
@@ -40,12 +42,10 @@ public class AlbumController {
     // -- 15.2 GET /api/albums -------------------------------------------------
 
     @GetMapping
-    public ResponseEntity<ResponseDTO<AlbumListItemResponse>> getAlbums() {
-        List<AlbumListItemResponse> albums = albumService.getAlbums();
-        return ResponseEntity.ok(ResponseDTO.<AlbumListItemResponse>builder()
-                .message("Albums retrieved")
-                .dataList(albums)
-                .build());
+    public ResponseEntity<ResponseDTO<AlbumListItemResponse>> getAlbums(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(albumService.getAlbumsPaged(page, size));
     }
 
     // -- 15.3 GET /api/albums/{id} --------------------------------------------
@@ -63,6 +63,7 @@ public class AlbumController {
     // -- 15.4 PUT /api/albums/{id} --------------------------------------------
 
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<AlbumResponse>> updateAlbum(
             @PathVariable Long id,
             @Valid @ModelAttribute AlbumUpdateRequest request,
@@ -77,6 +78,7 @@ public class AlbumController {
     // -- 15.5 DELETE /api/albums/{id} -----------------------------------------
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteAlbum(@PathVariable Long id) {
         albumService.deleteAlbum(id);
         return ResponseEntity.noContent().build();
@@ -85,6 +87,7 @@ public class AlbumController {
     // -- 15.6 POST /api/albums/{id}/tracks ------------------------------------
 
     @PostMapping("/{id}/tracks")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<AlbumDetailResponse>> addTrack(
             @PathVariable Long id,
             @Valid @RequestBody AlbumTrackAddRequest request) {
@@ -99,6 +102,7 @@ public class AlbumController {
     // -- 15.7 DELETE /api/albums/{id}/tracks/{trackId} ------------------------
 
     @DeleteMapping("/{id}/tracks/{trackId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> removeTrack(
             @PathVariable Long id,
             @PathVariable Long trackId) {
@@ -109,6 +113,7 @@ public class AlbumController {
     // -- 15.8 PUT /api/albums/{id}/tracks -------------------------------------
 
     @PutMapping("/{id}/tracks")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<AlbumDetailResponse>> reorderTracks(
             @PathVariable Long id,
             @Valid @RequestBody AlbumTrackOrderRequest request) {

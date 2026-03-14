@@ -54,6 +54,7 @@ public class CompanyCertificationController {
     // ── 13.3 GET /api/company-certifications ─────────────────────────────────
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<CompanyCertificationSummaryResponse>> listAll(
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "1") int page,
@@ -64,6 +65,7 @@ public class CompanyCertificationController {
     // ── 13.4 GET /api/company-certifications/{certificationId} ───────────────
 
     @GetMapping("/{certificationId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<CompanyCertificationResponse>> getDetail(
             @PathVariable Long certificationId) {
         CompanyCertificationResponse response = certificationService.getDetail(certificationId);

@@ -63,6 +63,7 @@ import TagManagePage from '@/pages/admin/TagManagePage';
 import TrackManagePage from '@/pages/admin/TrackManagePage';
 import NoticeCreatePage from '@/pages/admin/NoticeCreatePage';
 import NoticeEditPage from '@/pages/admin/NoticeEditPage';
+import UserSubscriptionManagePage from '@/pages/admin/UserSubscriptionManagePage';
 
 // Error
 import NotFoundPage from '@/pages/error/NotFoundPage';
@@ -151,6 +152,7 @@ const routes: RouteObject[] = [
       { path: 'company-certifications', element: <CompanyCertManagePage /> },
       { path: 'tags', element: <TagManagePage /> },
       { path: 'track-manage', element: <TrackManagePage /> },
+      { path: 'user-subscriptions', element: <UserSubscriptionManagePage /> },
       { path: 'notices/new', element: <NoticeCreatePage /> },
       { path: 'notices/:noticeId/edit', element: <NoticeEditPage /> },
     ],

@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: '앨범', path: '/albums' },
   { label: '구독', path: '/subscriptions' },
   { label: '공지', path: '/notices' },
+  { label: '문의', path: '/questions' },
 ];
 
 const SUBSCRIBER_NAV_ITEMS: NavItem[] = [

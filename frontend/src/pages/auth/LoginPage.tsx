@@ -132,6 +132,34 @@ export default function LoginPage() {
           </Button>
         </form>
 
+        <div className={styles.divider}>
+          <span className={styles.dividerText}>또는</span>
+        </div>
+
+        <div className={styles.socialButtons}>
+          <button
+            type="button"
+            className={styles.socialBtn}
+            onClick={() => handleSocialLogin('GOOGLE')}
+          >
+            Google 로그인
+          </button>
+          <button
+            type="button"
+            className={styles.socialBtn}
+            onClick={() => handleSocialLogin('KAKAO')}
+          >
+            Kakao 로그인
+          </button>
+          <button
+            type="button"
+            className={styles.socialBtn}
+            onClick={() => handleSocialLogin('NAVER')}
+          >
+            Naver 로그인
+          </button>
+        </div>
+
         <div className={styles.links}>
           <Link to="/signup" className={styles.link}>
             회원가입
@@ -143,4 +171,34 @@ export default function LoginPage() {
       </div>
     </div>
   );
+
+  function handleSocialLogin(provider: string) {
+    const providerConfig: Record<string, { authUrl: string; clientIdKey: string }> = {
+      GOOGLE: {
+        authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+        clientIdKey: 'google',
+      },
+      KAKAO: {
+        authUrl: 'https://kauth.kakao.com/oauth/authorize',
+        clientIdKey: 'kakao',
+      },
+      NAVER: {
+        authUrl: 'https://nid.naver.com/oauth2.0/authorize',
+        clientIdKey: 'naver',
+      },
+    };
+
+    const config = providerConfig[provider];
+    if (!config) return;
+
+    const redirectUri = `${window.location.origin}/social-login/${provider.toLowerCase()}`;
+    const params = new URLSearchParams({
+      response_type: 'code',
+      redirect_uri: redirectUri,
+      scope: provider === 'GOOGLE' ? 'email profile' : '',
+    });
+
+    // Client IDs should be injected via environment — placeholder alert for unconfigured
+    window.location.href = `${config.authUrl}?${params.toString()}`;
+  }
 }

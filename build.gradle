@@ -54,6 +54,9 @@ dependencies {
 
     // Swagger UI (API 문서)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.2'
+
+    // Mail (이메일 인증 / 비밀번호 재설정)
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
 }
 
 tasks.named('test') {

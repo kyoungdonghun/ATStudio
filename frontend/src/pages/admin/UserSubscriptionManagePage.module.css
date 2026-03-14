@@ -1,0 +1,176 @@
+/* ── Page ── */
+
+.page {
+  padding: 36px var(--page-px);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 28px;
+}
+
+.loading,
+.error {
+  text-align: center;
+  padding: 80px 0;
+  color: var(--text1);
+  font-size: 15px;
+}
+
+/* ── Table ── */
+
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table thead th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: 10px 12px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.row {
+  transition: background 0.12s;
+}
+
+.row:hover {
+  background: var(--bg1);
+}
+
+.empty {
+  text-align: center;
+  padding: 48px 0;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+/* ── Status badges ── */
+
+.statusBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.statusACTIVE {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.statusCANCELLED {
+  background: var(--error-dim);
+  color: var(--error);
+  border: 1px solid var(--error-border);
+}
+
+.statusEXPIRED {
+  background: var(--bg3);
+  color: var(--text2);
+  border: 1px solid var(--border2);
+}
+
+/* ── Action buttons ── */
+
+.actionBtns {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Modal ── */
+
+.modalBody {
+  padding: 16px 20px;
+  font-size: 14px;
+  color: var(--text0);
+  line-height: 1.6;
+}
+
+.modalInfo {
+  margin-bottom: 16px;
+  font-size: 15px;
+}
+
+.modalField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.modalLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+}
+
+.modalSelect {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  color: var(--text0);
+  border-radius: 5px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.modalInput {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  color: var(--text0);
+  border-radius: 5px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.modalInput:focus,
+.modalSelect:focus {
+  outline: none;
+  border-color: var(--accent-border);
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 20px;
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .title {
+    font-size: 20px;
+  }
+
+  .table {
+    min-width: 700px;
+  }
+}

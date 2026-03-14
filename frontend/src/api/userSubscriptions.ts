@@ -6,6 +6,8 @@ import type { SubscriptionPlan } from '@/api/subscriptions';
 
 export interface MySubscription {
   id: number;
+  userId?: number;
+  userNickname?: string;
   subscription: Pick<SubscriptionPlan, 'id' | 'name'>;
   billingCycle: 'MONTHLY' | 'YEARLY';
   status: 'ACTIVE' | 'CANCELLED' | 'EXPIRED';
@@ -38,7 +40,23 @@ export interface ChangeSubscriptionRequest {
   billingCycle: 'MONTHLY' | 'YEARLY';
 }
 
+export interface SubscribeRequest {
+  subscriptionId: number;
+  billingCycle: 'MONTHLY' | 'YEARLY';
+}
+
 /* ── API functions ── */
+
+/** POST /api/user-subscriptions -- subscribe to a plan */
+export async function subscribe(
+  req: SubscribeRequest,
+): Promise<MySubscription> {
+  const { data } = await client.post<ApiResponse<MySubscription>>(
+    '/user-subscriptions',
+    req,
+  );
+  return data.data;
+}
 
 /** GET /api/user-subscriptions/me -- my current subscription */
 export async function fetchMySubscription(): Promise<MySubscription> {
@@ -91,6 +109,7 @@ export async function fetchAdminUserSubscriptionDetail(
 export interface AdminUpdateSubscriptionRequest {
   status?: string;
   billingCycle?: 'MONTHLY' | 'YEARLY';
+  expiresAt?: string;
 }
 
 /** PUT /api/user-subscriptions/{id} -- admin: update subscription */

@@ -1,8 +1,8 @@
 # Use Case Specification Index
 
-> **Version**: v6 (Confirmed)
-> **Confirmed date**: 2026-03-08
-> **Reference documents**: `docs/design/db-schema.md` (v4), `docs/design/api-spec.md` (v5)
+> **Version**: v7 (Confirmed)
+> **Confirmed date**: 2026-03-14
+> **Reference documents**: `docs/design/db-schema.md` (v4), `docs/design/api-spec.md` (v6)
 > **Source**: `docs/check/usecase-spec csv/`
 
 ---
@@ -15,8 +15,8 @@
 | `sound-tag.md` | Tag (create/list/update/delete) | 4 |
 | `sound-playlist.md` | Playlist (create/list/detail/update/delete/add track/remove track) | 7 |
 | `sound-playhistory.md` | Play history (save/list/delete) | 3 |
-| `user-info.md` | User info (register/login/social login/social profile completion/view/update/withdraw/change password) | 11 |
-| `user-subscription.md` | Subscription (subscribe/list/change/cancel/admin management) | 10 |
+| `user-info.md` | User info (register/login/social login/social profile completion/view/update/withdraw/change password/admin dashboard) | 12 |
+| `user-subscription.md` | Subscription (subscribe/list/change/cancel/admin management/admin plan list) | 11 |
 | `user-license.md` | Track usage license (view) | 4 |
 | `user-question.md` | Inquiry (create/list/answer/delete/attachment/admin status change) | 7 |
 | `user-notice.md` | Notice (create/list/update/delete) | 5 |
@@ -24,10 +24,10 @@
 | `download-queue.md` | Download queue (add/list/remove) | 3 |
 | `whitelist.md` | Whitelist channel (register/list/update/delete) | 4 |
 | `company-certification.md` | Company certification (apply/view status/admin management) | 5 |
-| `util.md` | Utility (duplicate check/token/subscription status/download count, etc.) | 7 |
+| `util.md` | Utility (duplicate check/token/subscription status/download count/email verify/password reset, etc.) | 11 |
 | `sound-album.md` | Album (create/list/detail/update/delete/add track/remove track/reorder) | 8 |
 
-**Total UC count: 89** (net +2 vs v5: SOUND-021, INFO-015 added)
+**Total UC count: 95** (net +6 vs v6: UTIL-014~016, PAYMENT-002A, INFO-016 added; UTIL-013 indexed)
 
 ---
 
@@ -78,6 +78,7 @@
 | INFO-013 | Social login | `user-info.md` |
 | INFO-014 | Complete social profile | `user-info.md` |
 | INFO-015 | Change password | `user-info.md` |
+| INFO-016 | View admin dashboard stats | `user-info.md` |
 
 ### Payment / Subscription
 
@@ -93,6 +94,7 @@
 | PAYMENT-008 | Update member subscription (Admin) | `user-subscription.md` |
 | PAYMENT-009 | Delete/cancel member subscription (Admin) | `user-subscription.md` |
 | PAYMENT-010 | Cancel my subscription | `user-subscription.md` |
+| PAYMENT-002A | List all subscription plans (Admin) | `user-subscription.md` |
 
 ### Question / Notice
 
@@ -160,9 +162,28 @@
 | UTIL-006 | Check download count | `util.md` |
 | UTIL-007 | Check member type | `util.md` |
 | UTIL-012 | Check nickname duplicate | `util.md` |
+| UTIL-013 | Subscription change preview | `util.md` |
+| UTIL-014 | Verify email | `util.md` |
+| UTIL-015 | Request password reset | `util.md` |
+| UTIL-016 | Reset password | `util.md` |
 
 > New in v3 (vs original)
 > New in v4 (cross-review additions)
+
+---
+
+## Change History (v6 to v7)
+
+### UC v7 Modifications (2026-03-14)
+
+| # | Field | Value |
+|---|-------|-------|
+| 1 | UTIL-013 | **Indexed** — Subscription change preview UC existed in `util.md` but was missing from index. Now indexed. |
+| 2 | UTIL-014 | **New** — Verify email UC. `GET /api/auth/verify-email` [PUBLIC]. Token-based email verification (24h expiry, single-use). `util.md` updated. |
+| 3 | UTIL-015 | **New** — Request password reset UC. `POST /api/auth/forgot-password` [PUBLIC]. Sends reset email, always returns 200. `util.md` updated. |
+| 4 | UTIL-016 | **New** — Reset password UC. `POST /api/auth/reset-password` [PUBLIC]. Token-based password reset (1h expiry, single-use). `util.md` updated. |
+| 5 | PAYMENT-002A | **New** — Admin subscription plan list UC. `GET /api/subscriptions/admin` [ADMIN]. Returns all plans including inactive. `user-subscription.md` updated. |
+| 6 | INFO-016 | **New** — Admin dashboard stats UC. `GET /api/admin/stats` [ADMIN]. Aggregated statistics for admin dashboard. `user-info.md` updated. |
 
 ---
 

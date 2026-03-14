@@ -66,10 +66,11 @@ export default function LicenseManagePage() {
       <div className={styles.searchBar}>
         <input
           className={styles.searchInput}
-          type="number"
+          type="text"
+          inputMode="numeric"
           placeholder="사용자 ID를 입력하세요..."
           value={userIdInput}
-          onChange={(e) => setUserIdInput(e.target.value)}
+          onChange={(e) => setUserIdInput(e.target.value.replace(/[^0-9]/g, ''))}
           onKeyDown={handleKeyDown}
         />
         <Button size="sm" onClick={handleSearch}>

@@ -15,6 +15,8 @@
 | A-2 | 일반 회원가입 | `5.1 POST /api/users` | [PUBLIC] |
 | A-3 | 소셜 로그인 (Google/Kakao/Naver) | `5.3 POST /api/auth/social/{provider}` | [PUBLIC] |
 | A-4 | 소셜 회원 추가정보 입력 | `5.10 PUT /api/users/me/complete-profile` | auth required |
+| A-5 | 이메일 인증 | `14.9 GET /api/auth/verify-email` | [PUBLIC] |
+| A-6 | 비밀번호 찾기 / 재설정 | `14.10 POST /api/auth/forgot-password` `14.11 POST /api/auth/reset-password` | [PUBLIC] |
 
 ---
 

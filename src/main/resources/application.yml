@@ -26,6 +26,16 @@ spring:
     prefix: classpath:/templates/
     suffix: .html
 
+  # 이메일 발송 설정 (개발: localhost:1025 / 프로덕션: 실제 SMTP)
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS:false}
+
   # 파일 업로드 설정
   servlet:
     multipart:
@@ -47,15 +57,15 @@ oauth2:
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
     client-secret: ${GOOGLE_CLIENT_SECRET:}
-    redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/oauth2/callback/google}
+    redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:5173/social-login/google}
   kakao:
     client-id: ${KAKAO_CLIENT_ID:}
     client-secret: ${KAKAO_CLIENT_SECRET:}
-    redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:8080/oauth2/callback/kakao}
+    redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:5173/social-login/kakao}
   naver:
     client-id: ${NAVER_CLIENT_ID:}
     client-secret: ${NAVER_CLIENT_SECRET:}
-    redirect-uri: ${NAVER_REDIRECT_URI:http://localhost:8080/oauth2/callback/naver}
+    redirect-uri: ${NAVER_REDIRECT_URI:http://localhost:5173/social-login/naver}
 
 # Swagger/OpenAPI 설정 (SEC-15: 프로덕션에서는 SWAGGER_ENABLED=false 설정)
 springdoc:
@@ -68,6 +78,9 @@ springdoc:
 app:
   storage:
     base-path: uploads
+  mail:
+    from: ${MAIL_FROM:noreply@atstudio.com}
+    base-url: ${APP_BASE_URL:http://localhost:5173}
 
 # 로깅 설정
 logging:

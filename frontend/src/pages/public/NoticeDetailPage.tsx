@@ -1,10 +1,16 @@
 /** Screen 22: Notice detail */
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { fetchNotice } from '@/api/notices';
+import { fetchNotice, downloadNoticeAttachment } from '@/api/notices';
 import type { Notice } from '@/types';
 import { formatDate } from '@/utils/format';
 import styles from './NoticeDetailPage.module.css';
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function NoticeDetailPage() {
   const { noticeId } = useParams<{ noticeId: string }>();
@@ -39,6 +45,8 @@ export default function NoticeDetailPage() {
     );
   }
 
+  const attachments = notice.attachments ?? [];
+
   return (
     <div className={styles.page}>
       {/* Breadcrumb */}
@@ -69,6 +77,31 @@ export default function NoticeDetailPage() {
           <p key={idx}>{line || '\u00A0'}</p>
         ))}
       </article>
+
+      {/* Attachments */}
+      {attachments.length > 0 && (
+        <div className={styles.attachSection}>
+          <h2 className={styles.attachTitle}>{'첨부파일'}</h2>
+          <ul className={styles.attachList}>
+            {attachments.map((att) => (
+              <li key={att.id} className={styles.attachItem}>
+                <button
+                  type="button"
+                  className={styles.attachLink}
+                  onClick={() =>
+                    downloadNoticeAttachment(notice.id, att.id, att.originalName)
+                  }
+                >
+                  {att.originalName}
+                </button>
+                <span className={styles.attachSize}>
+                  {formatFileSize(att.fileSize)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Back */}
       <div className={styles.footer}>

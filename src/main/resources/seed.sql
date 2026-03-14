@@ -121,26 +121,26 @@ VALUES
     (8, 'Cinematic Epic',    NULL, 110, 'Bb', '영화 같은 시네마틱 사운드트랙',          'tracks/audio/track08_cinematic_bb.wav', NULL, 180, 1, 1, 145),
     (9, 'HipHop Groove',     NULL,  95, 'D',  '힙합 그루브 비트',                    'tracks/audio/track09_hiphop_d.wav',    NULL,  60, 1, 1, 267),
    (10, 'R&B Smooth',        NULL, 105, 'Ab', '부드러운 R&B 멜로디',                 'tracks/audio/track10_rnb_ab.wav',      NULL, 150, 1, 1, 89),
-   (11, 'Trap Kingdom',      NULL, 145, 'Cm', '강렬한 트랩 비트',                   'tracks/audio/track11_trap_cm.wav',     NULL,  45, 1, 1, 178),
-   (12, 'Jazz Café',         NULL,  95, 'Bb', '카페에서 듣기 좋은 재즈',             'tracks/audio/track12_jazz_bb.wav',     NULL, 120, 1, 1, 203),
-   (13, 'Future Bass',       NULL, 150, 'F',  '미래적 느낌의 베이스 뮤직',            'tracks/audio/track13_future_f.wav',    NULL,  60, 1, 1, 156),
-   (14, 'Rainy Day',         NULL,  70, 'Em', '비 오는 날의 감성 피아노',             'tracks/audio/track14_rainy_em.wav',    NULL,  90, 1, 1, 289),
-   (15, 'Punk Energy',       NULL, 160, 'A',  '펑크 에너지 넘치는 기타 사운드',        'tracks/audio/track15_punk_a.wav',      NULL,  30, 1, 1, 134),
-   (16, 'Dreamy Flute',      NULL,  80, 'G',  '꿈결 같은 플루트 선율',               'tracks/audio/track16_flute_g.wav',     NULL,  60, 1, 1, 97),
-   (17, 'House Party',       NULL, 126, 'C',  '파티용 하우스 뮤직',                  'tracks/audio/track17_house_c.wav',     NULL,  45, 1, 1, 312),
-   (18, 'Cello Serenade',    NULL,  88, 'D',  '첼로의 세레나데',                     'tracks/audio/track18_cello_d.wav',     NULL, 120, 1, 1, 167),
-   (19, 'Ukulele Summer',    NULL, 110, 'C',  '여름 느낌 우쿨렐레',                  'tracks/audio/track19_uku_c.wav',       NULL,  30, 1, 1, 245),
-   (20, 'Dark Ambient',      NULL,  65, 'Fm', '어둡고 신비로운 앰비언트',              'tracks/audio/track20_dark_fm.wav',     NULL, 180, 1, 1, 78),
-   (21, 'Trumpet Fanfare',   NULL, 130, 'Bb', '트럼펫 팡파르',                       'tracks/audio/track21_trumpet_bb.wav',  NULL,  30, 1, 1, 112),
-   (22, 'Pop Dance',         NULL, 118, 'G',  '댄스 팝 비트',                       'tracks/audio/track22_pop_g.wav',       NULL,  60, 1, 1, 398),
-   (23, 'Meditation Bell',   NULL,  60, 'C',  '명상용 벨 사운드',                    'tracks/audio/track23_meditation_c.wav',NULL, 300, 1, 1, 56),
-   (24, 'Rock Anthem',       NULL, 135, 'E',  '록 앤썸',                            'tracks/audio/track24_rock_e.wav',      NULL,  60, 1, 1, 276),
-   (25, 'Lofi Rain',         NULL,  72, 'Am', '비 소리가 섞인 로파이',                'tracks/audio/track25_lofi_am.wav',     NULL, 120, 1, 1, 445),
-   (26, 'Funky Groove',      NULL, 108, 'Dm', '펑키한 그루브 베이스',                 'tracks/audio/track26_funky_dm.wav',    NULL,  45, 1, 1, 189),
-   (27, 'Violin Romance',    NULL,  92, 'F',  '바이올린 로맨스',                     'tracks/audio/track27_violin_f.wav',    NULL,  90, 1, 1, 234),
-   (28, 'Chiptune Quest',    NULL, 140, 'C',  '레트로 칩튠 게임 사운드',              'tracks/audio/track28_chiptune_c.wav',  NULL,  30, 1, 1, 167),
-   (29, 'Blues Highway',     NULL,  82, 'G',  '블루스 하이웨이 기타',                 'tracks/audio/track29_blues_g.wav',     NULL, 120, 1, 1, 143),
-   (30, 'K-Pop Beat',        NULL, 125, 'D',  'K-Pop 스타일 비트',                  'tracks/audio/track30_kpop_d.wav',     NULL,  45, 1, 1, 521),
+   (11, 'Trap Kingdom',      NULL, 145, 'Cm', '강렬한 트랩 비트',                   'tracks/audio/track01_piano_c.wav',     NULL,  45, 1, 1, 178),
+   (12, 'Jazz Café',         NULL,  95, 'Bb', '카페에서 듣기 좋은 재즈',             'tracks/audio/track02_synth_high.wav',  NULL, 120, 1, 1, 203),
+   (13, 'Future Bass',       NULL, 150, 'F',  '미래적 느낌의 베이스 뮤직',            'tracks/audio/track03_bass_low.wav',    NULL,  60, 1, 1, 156),
+   (14, 'Rainy Day',         NULL,  70, 'Em', '비 오는 날의 감성 피아노',             'tracks/audio/track04_ambient_g.wav',   NULL,  90, 1, 1, 289),
+   (15, 'Punk Energy',       NULL, 160, 'A',  '펑크 에너지 넘치는 기타 사운드',        'tracks/audio/track05_lofi_mid.wav',    NULL,  30, 1, 1, 134),
+   (16, 'Dreamy Flute',      NULL,  80, 'G',  '꿈결 같은 플루트 선율',               'tracks/audio/track06_edm_d.wav',       NULL,  60, 1, 1, 97),
+   (17, 'House Party',       NULL, 126, 'C',  '파티용 하우스 뮤직',                  'tracks/audio/track07_acoustic_f.wav',  NULL,  45, 1, 1, 312),
+   (18, 'Cello Serenade',    NULL,  88, 'D',  '첼로의 세레나데',                     'tracks/audio/track08_cinematic_bb.wav', NULL, 120, 1, 1, 167),
+   (19, 'Ukulele Summer',    NULL, 110, 'C',  '여름 느낌 우쿨렐레',                  'tracks/audio/track09_hiphop_d.wav',    NULL,  30, 1, 1, 245),
+   (20, 'Dark Ambient',      NULL,  65, 'Fm', '어둡고 신비로운 앰비언트',              'tracks/audio/track10_rnb_ab.wav',      NULL, 180, 1, 1, 78),
+   (21, 'Trumpet Fanfare',   NULL, 130, 'Bb', '트럼펫 팡파르',                       'tracks/audio/track01_piano_c.wav',     NULL,  30, 1, 1, 112),
+   (22, 'Pop Dance',         NULL, 118, 'G',  '댄스 팝 비트',                       'tracks/audio/track02_synth_high.wav',  NULL,  60, 1, 1, 398),
+   (23, 'Meditation Bell',   NULL,  60, 'C',  '명상용 벨 사운드',                    'tracks/audio/track03_bass_low.wav',    NULL, 300, 1, 1, 56),
+   (24, 'Rock Anthem',       NULL, 135, 'E',  '록 앤썸',                            'tracks/audio/track04_ambient_g.wav',   NULL,  60, 1, 1, 276),
+   (25, 'Lofi Rain',         NULL,  72, 'Am', '비 소리가 섞인 로파이',                'tracks/audio/track05_lofi_mid.wav',    NULL, 120, 1, 1, 445),
+   (26, 'Funky Groove',      NULL, 108, 'Dm', '펑키한 그루브 베이스',                 'tracks/audio/track06_edm_d.wav',       NULL,  45, 1, 1, 189),
+   (27, 'Violin Romance',    NULL,  92, 'F',  '바이올린 로맨스',                     'tracks/audio/track07_acoustic_f.wav',  NULL,  90, 1, 1, 234),
+   (28, 'Chiptune Quest',    NULL, 140, 'C',  '레트로 칩튠 게임 사운드',              'tracks/audio/track08_cinematic_bb.wav', NULL,  30, 1, 1, 167),
+   (29, 'Blues Highway',     NULL,  82, 'G',  '블루스 하이웨이 기타',                 'tracks/audio/track09_hiphop_d.wav',    NULL, 120, 1, 1, 143),
+   (30, 'K-Pop Beat',        NULL, 125, 'D',  'K-Pop 스타일 비트',                  'tracks/audio/track10_rnb_ab.wav',      NULL,  45, 1, 1, 521),
    -- Batch 2: tracks 31-60 (reuse audio files for testing)
    (31, 'Morning Coffee',     NULL,  88, 'C',  '모닝 커피와 함께하는 재즈',           'tracks/audio/track01_piano_c.wav',     NULL,  60, 1, 1, 312),
    (32, 'Neon City',           NULL, 132, 'Em', '네온 도시의 밤거리',                  'tracks/audio/track02_synth_high.wav',  NULL,  45, 1, 1, 189),
@@ -500,6 +500,21 @@ UPDATE notices SET
     created_at = DATE_SUB(NOW(), INTERVAL (11 - id) * 5 DAY),
     updated_at = DATE_SUB(NOW(), INTERVAL (11 - id) * 5 DAY)
     WHERE created_at IS NULL AND id > 0;
+
+-- ─────────────────────────────────────────────
+-- PATCH: Fix audio_file for tracks 11-30 (map to existing 10 WAV files)
+-- Run this if seed data was already loaded with non-existent file names.
+-- ─────────────────────────────────────────────
+UPDATE tracks SET audio_file = 'tracks/audio/track01_piano_c.wav'      WHERE id IN (11, 21) AND audio_file NOT LIKE '%track0%';
+UPDATE tracks SET audio_file = 'tracks/audio/track02_synth_high.wav'   WHERE id IN (12, 22) AND audio_file NOT LIKE '%track0%';
+UPDATE tracks SET audio_file = 'tracks/audio/track03_bass_low.wav'     WHERE id IN (13, 23) AND audio_file NOT LIKE '%track0%';
+UPDATE tracks SET audio_file = 'tracks/audio/track04_ambient_g.wav'    WHERE id IN (14, 24) AND audio_file NOT LIKE '%track0%';
+UPDATE tracks SET audio_file = 'tracks/audio/track05_lofi_mid.wav'     WHERE id IN (15, 25) AND audio_file NOT LIKE '%track0%';
+UPDATE tracks SET audio_file = 'tracks/audio/track06_edm_d.wav'        WHERE id IN (16, 26) AND audio_file NOT LIKE '%track0%';
+UPDATE tracks SET audio_file = 'tracks/audio/track07_acoustic_f.wav'   WHERE id IN (17, 27) AND audio_file NOT LIKE '%track0%';
+UPDATE tracks SET audio_file = 'tracks/audio/track08_cinematic_bb.wav' WHERE id IN (18, 28) AND audio_file NOT LIKE '%track0%';
+UPDATE tracks SET audio_file = 'tracks/audio/track09_hiphop_d.wav'     WHERE id IN (19, 29) AND audio_file NOT LIKE '%track0%';
+UPDATE tracks SET audio_file = 'tracks/audio/track10_rnb_ab.wav'       WHERE id IN (20, 30) AND audio_file NOT LIKE '%track0%';
 
 -- =============================================================================
 -- END OF SEED DATA
