@@ -7,10 +7,10 @@ category: template
 status: stable
 related_work_item: WI-20251230-001
 dependencies:
-  - path: ../guides/operation-process.md
-    reason: Operation process reference
-  - path: ../guides/traceability.md
-    reason: Traceability system reference
+  - path: ../architecture/system-design.md
+    reason: Orchestration and work management process reference
+  - path: ../standards/core-principles.md
+    reason: Work tracking and traceability rules
 ---
 # ADR-20251230-001: Reuse-first + Registry + ADR for Operational Traceability
 

@@ -6,8 +6,6 @@ owner: MA
 category: template
 status: stable
 dependencies:
-  - path: ../guides/request-intake.md
-    reason: Request intake guide reference
   - path: ../registry/project-registry.md
     reason: Project registry reference
   - path: ../standards/glossary.md

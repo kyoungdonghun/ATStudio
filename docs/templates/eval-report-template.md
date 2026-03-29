@@ -6,8 +6,6 @@ owner: RE
 category: template
 status: stable
 dependencies:
-  - path: ../guides/agent-evaluation.md
-    reason: Evaluation guide reference
   - path: ../policies/quality-gates.md
     reason: Quality gate reference
   - path: ../standards/glossary.md
@@ -16,7 +14,7 @@ dependencies:
 # Eval Report (Post-work Evaluation Report)
 
 > Purpose: Fix "what went well/what was problematic/what to improve" within 10-20 minutes after work completion.
-> Reference: `docs/guides/agent-evaluation.md`
+> Reference: see agent definitions in `.claude/agents/` for role-specific evaluation criteria
 
 ## Metadata
 
@@ -54,6 +52,6 @@ dependencies:
 ## 4) Regression Lock (regression prevention fix)
 
 - **Golden Set update needed?**: Yes / No
-  - If Yes: Add case to `docs/guides/eval-golden-set.md` (ID: G-XXX-###)
+  - If Yes: Document regression case in `docs/retrospective/kick.md` (ID: G-XXX-###)
 - **Policy/template modification needed?**: Yes / No
   - If Yes: Target files and summary of changes

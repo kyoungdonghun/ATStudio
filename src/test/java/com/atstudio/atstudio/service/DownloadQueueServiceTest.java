@@ -88,7 +88,7 @@ class DownloadQueueServiceTest {
     }
 
     @Test
-    @DisplayName("addToQueue() 실패 - 이미 큐에 있음 → DATA_INTEGRITY_VIOLATION 예외(409)")
+    @DisplayName("addToQueue() 실패 - 이미 큐에 있음 → RESOURCE_DUPLICATE 예외(409)")
     void addToQueue_duplicate() {
         User user = buildUser(1L);
         Track track = buildTrack(2L, true);
@@ -99,7 +99,7 @@ class DownloadQueueServiceTest {
         assertThatThrownBy(() -> downloadQueueService.addToQueue(2L, buildUserDetails(1L)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
-                        .isEqualTo(BUSINESS_ERROR.DATA_INTEGRITY_VIOLATION));
+                        .isEqualTo(BUSINESS_ERROR.RESOURCE_DUPLICATE));
     }
 
     @Test

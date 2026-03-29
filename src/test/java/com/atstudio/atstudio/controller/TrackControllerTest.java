@@ -61,7 +61,7 @@ class TrackControllerTest {
     @DisplayName("POST /api/tracks - ADMIN → 보안 통과 (201)")
     void createTrack_adminRole_returns201() throws Exception {
         TrackResponse mockResponse = new TrackResponse(1L, "Track", "Artist", 0, 120, "C", null,
-                "tracks/audio/test.mp3", null, false, 0L, List.of(), null, null);
+                "tracks/audio/test.mp3", null, false, 0L, 0L, 0L, List.of(), null, null);
         given(trackService.createTrack(any(), any(), any(), any())).willReturn(mockResponse);
 
         mockMvc.perform(multipart("/api/tracks")

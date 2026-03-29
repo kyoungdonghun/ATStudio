@@ -6,8 +6,8 @@ owner: RE
 category: template
 status: stable
 dependencies:
-  - path: ../guides/runbook-and-postmortem.md
-    reason: Post-analysis guide reference
+  - path: ../retrospective/kick.md
+    reason: Post-analysis and lessons learned reference
   - path: ../standards/glossary.md
     reason: Standard term usage criteria
 ---

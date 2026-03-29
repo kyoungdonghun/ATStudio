@@ -6,8 +6,8 @@ owner: SA
 category: template
 status: stable
 dependencies:
-  - path: ../guides/traceability.md
-    reason: ADR writing guide reference
+  - path: ../standards/core-principles.md
+    reason: Work tracking and traceability rules (ADR for MEDIUM/HIGH changes)
   - path: ../standards/glossary.md
     reason: Standard term usage criteria
 ---

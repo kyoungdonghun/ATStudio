@@ -6,8 +6,6 @@ owner: MA
 category: template
 status: stable
 dependencies:
-  - path: ../guides/request-intake.md
-    reason: Request intake guide reference
   - path: impact-analysis-template.md
     reason: Impact analysis template reference
   - path: ../standards/glossary.md

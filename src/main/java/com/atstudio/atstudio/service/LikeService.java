@@ -36,7 +36,7 @@ public class LikeService {
 
         LikeId likeId = new LikeId(user.getId(), track.getId());
         if (likeRepository.existsById(likeId)) {
-            throw new BusinessException(BUSINESS_ERROR.DATA_INTEGRITY_VIOLATION);
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_DUPLICATE);
         }
 
         Like like = Like.builder()

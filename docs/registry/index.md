@@ -29,5 +29,5 @@ status: stable
 
 ## Related Guides
 
-- Asset registration: See `docs/guides/traceability.md`
-- Project creation: See `docs/guides/request-intake.md`
+- Asset registration and traceability rules: See Work Tracking section in `CLAUDE.md`
+- Project creation and request intake: See REQ-Based Single Gate section in `CLAUDE.md`

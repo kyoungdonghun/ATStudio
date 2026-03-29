@@ -118,7 +118,7 @@ public class PlaylistService {
 
         PlaylistTrackId id = new PlaylistTrackId(playlistId, request.trackId());
         if (playlistTrackRepository.existsById(id)) {
-            throw new BusinessException(BUSINESS_ERROR.DATA_INTEGRITY_VIOLATION);
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_DUPLICATE);
         }
 
         int nextOrder = (int) playlistTrackRepository.countByIdPlaylistId(playlistId);

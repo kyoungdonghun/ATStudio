@@ -6,8 +6,8 @@ owner: PS
 category: template
 status: stable
 dependencies:
-  - path: ../guides/scope-and-domain.md
-    reason: Scope & Domain guide reference
+  - path: ../standards/core-principles.md
+    reason: Domain scope and invariant principles
   - path: ../work-items/examples/project-domain-context-example.md
     reason: Example reference
   - path: ../standards/glossary.md

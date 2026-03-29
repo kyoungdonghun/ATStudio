@@ -141,5 +141,5 @@ related_wi: WI-YYYYMMDD-###
 
 ### Reference Documents
 
-- [Agent-facing Documentation Guide](../guides/agent-facing-docs.md): Overall structure including Evidence Pack
+- [System Design](../architecture/system-design.md): Overall agent-facing documentation structure including Evidence Pack
 - [Workboard (Work Dashboard)](../registry/workboard.md): Location where Evidence Pack pointers connect

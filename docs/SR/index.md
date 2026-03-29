@@ -46,4 +46,4 @@
 | SR-C-01 | DATA_INTEGRITY_VIOLATION 오용 (4개 서비스) | OPEN |
 | SR-C-02 | router/index.tsx 화면 수 주석 불일치 | OPEN |
 | SR-C-03 | application.yml JWT secret fallback 미제거 (CR-P-004) | DEFERRED |
-| SR-C-04 | docs/guides/ 미존재 — 30+ broken internal links (meta-only docs) | OPEN |
+| SR-C-04 | docs/guides/ 미존재 — 30+ broken internal links (meta-only docs) | DONE |

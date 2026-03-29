@@ -84,7 +84,7 @@ function adminOnly(element: ReactNode): ReactNode {
   return <ProtectedRoute minRole="ADMIN">{element}</ProtectedRoute>;
 }
 
-/* ── Route definitions (48 screens) ── */
+/* ── Route definitions (49 screens + 2 error pages) ── */
 
 const routes: RouteObject[] = [
   {

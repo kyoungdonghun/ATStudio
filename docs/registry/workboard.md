@@ -10,10 +10,6 @@ dependencies:
     reason: Project registry reference
   - path: context-registry.md
     reason: Context registry reference
-  - path: ../guides/request-intake.md
-    reason: Request intake guide reference
-  - path: ../guides/operation-process.md
-    reason: Work management process reference
   - path: ../templates/impact-analysis-template.md
     reason: Impact analysis template reference
   - path: ../standards/glossary.md
@@ -104,10 +100,10 @@ Recommended operation:
 
 ## 6) Connected Documents
 
-- Request starting point: `docs/guides/request-intake.md`
-- Work management/change management (including orchestration): `docs/guides/operation-process.md`
+- Request starting point: `CLAUDE.md` (REQ-Based Single Gate section)
+- Work management/change management (including orchestration): `CLAUDE.md` (Orchestration Gates section)
 - Impact/parallel/trigger notation: `docs/templates/impact-analysis-template.md`
-- Agent-facing documents guide: `docs/guides/agent-facing-docs.md`
+- Agent system structure: `docs/architecture/system-design.md`
 - Evidence Pack standard: `docs/standards/evidence-pack-standard.md`
 - Context instance list: `docs/registry/context-registry.md`
 - Project list: `docs/registry/project-registry.md`

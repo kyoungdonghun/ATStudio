@@ -57,7 +57,7 @@ class LikeServiceTest {
     }
 
     @Test
-    @DisplayName("addLike() 실패 - 이미 좋아요 → DATA_INTEGRITY_VIOLATION 예외(409)")
+    @DisplayName("addLike() 실패 - 이미 좋아요 → RESOURCE_DUPLICATE 예외(409)")
     void addLike_duplicate() {
         User user = buildUser(1L);
         Track track = buildTrack(2L, true);
@@ -68,7 +68,7 @@ class LikeServiceTest {
         assertThatThrownBy(() -> likeService.addLike(2L, buildUserDetails(1L)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
-                        .isEqualTo(BUSINESS_ERROR.DATA_INTEGRITY_VIOLATION));
+                        .isEqualTo(BUSINESS_ERROR.RESOURCE_DUPLICATE));
     }
 
     @Test

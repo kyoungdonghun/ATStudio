@@ -29,7 +29,7 @@ class NoticeControllerTest {
     @MockitoBean CustomUserDetailsService customUserDetailsService;
 
     private static final NoticeResponse MOCK_NOTICE =
-            new NoticeResponse(1L, "공지제목", "공지내용", false, null, null);
+            new NoticeResponse(1L, "공지제목", "공지내용", false, 0L, null, null, null);
 
     // ── POST /api/notices (ADMIN 전용) ────────────────────────────────────────
 
@@ -69,7 +69,7 @@ class NoticeControllerTest {
     @Test
     @DisplayName("GET /api/notices - 비인증도 접근 가능 (PUBLIC) → 200")
     void getNotices_unauthenticated_returns200() throws Exception {
-        given(noticeService.getNotices(anyInt(), anyInt())).willReturn(null);
+        given(noticeService.getNotices(anyInt(), anyInt(), any())).willReturn(null);
 
         mockMvc.perform(get("/api/notices"))
                 .andExpect(status().isOk());

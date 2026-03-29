@@ -36,7 +36,7 @@ public class DownloadQueueService {
 
         DownloadQueueId queueId = new DownloadQueueId(user.getId(), track.getId());
         if (downloadQueueRepository.existsById(queueId)) {
-            throw new BusinessException(BUSINESS_ERROR.DATA_INTEGRITY_VIOLATION);
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_DUPLICATE);
         }
 
         DownloadQueue downloadQueue = DownloadQueue.builder()

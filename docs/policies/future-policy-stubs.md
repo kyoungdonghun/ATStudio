@@ -22,7 +22,7 @@ dependencies:
 ## 1. Backup / DR Policy
 
 - **RTO/RPO**: Defined per project in `domain-context-template.md`
-- **Recovery Procedures**: Use runbook in `docs/guides/runbook-postmortem.md`
+- **Recovery Procedures**: Use runbook in `docs/retrospective/kick.md`
 - **Current Operation**: git revert / snapshots are sufficient. Backup retention/rehearsal deferred to Phase 2+
 
 ## 2. Log Retention Policy

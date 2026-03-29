@@ -252,7 +252,7 @@ class PlaylistServiceTest {
     }
 
     @Test
-    @DisplayName("addTrack() 실패 - 중복 트랙 → DATA_INTEGRITY_VIOLATION 예외")
+    @DisplayName("addTrack() 실패 - 중복 트랙 → RESOURCE_DUPLICATE 예외")
     void addTrack_duplicate() {
         User user = buildUser(1L);
         Playlist playlist = buildPlaylist(1L, user, "My Playlist");
@@ -267,7 +267,7 @@ class PlaylistServiceTest {
         assertThatThrownBy(() -> playlistService.addTrack(1L, request, buildUserDetails(1L)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
-                        .isEqualTo(BUSINESS_ERROR.DATA_INTEGRITY_VIOLATION));
+                        .isEqualTo(BUSINESS_ERROR.RESOURCE_DUPLICATE));
     }
 
     // ── updatePlaylist() ──────────────────────────────────────────────────────

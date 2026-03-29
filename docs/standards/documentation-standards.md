@@ -125,7 +125,7 @@ Project identifiers are centrally managed in the system project. When a new proj
 1. **New Project Request**: Create request using `project-request-template.md`
 
    - Template: `docs/templates/project-request-template.md`
-   - Guide: See `docs/guides/request-intake.md`
+   - Guide: See `CLAUDE.md` (REQ-Based Single Gate section)
 
 2. **Project Identifier Issuance**: EO issues Project ID
 
@@ -209,7 +209,7 @@ Project identifiers (three-letter codes, e.g., `AMS`) are used for:
 
 - Project Registry: `docs/registry/project-registry.md`
 - Project Creation Template: `docs/templates/project-request-template.md`
-- Request Intake Guide: `docs/guides/request-intake.md`
+- Request Intake: `CLAUDE.md` (REQ-Based Single Gate section)
 
 **Notes:**
 
@@ -301,7 +301,7 @@ Explain additional information or precautions.
 ### 2.2 Format Rules
 
 - **Code blocks**: Specify language (e.g., ` ```typescript`, ` ```yaml`)
-- **Links**: Use relative paths (e.g., `[Document Name](../guides/operation-process.md)`)
+- **Links**: Use relative paths (e.g., `[Document Name](../architecture/system-design.md)`)
 - **Tables**: Use Markdown table format
 - **Emojis**: Prohibited (for consistency)
 - **Emphasis**: Use `**bold**` or `*italic*`
@@ -314,7 +314,7 @@ Explain additional information or precautions.
 const example = "code";
 ```
 
-[Related Document](../guides/operation-process.md)
+[Related Document](../architecture/system-design.md)
 ````
 
 ---
@@ -344,9 +344,9 @@ const example = "code";
 **Example:**
 
 ```markdown
-✅ Good: [Process Guide](../guides/operation-process.md)
-❌ Bad: [here](../guides/operation-process.md)
-❌ Bad: https://github.com/.../docs/guides/operation-process.md
+✅ Good: [System Design](../architecture/system-design.md)
+❌ Bad: [here](../architecture/system-design.md)
+❌ Bad: https://github.com/.../docs/architecture/system-design.md
 ```
 
 ---
@@ -394,7 +394,6 @@ All documents should include a "Related Documents" section at the bottom:
 Documents are classified into the following categories:
 
 - **architecture/**: Design/roadmap documents
-- **guides/**: Practical guide documents
 - **policies/**: Operational policy documents
 - **standards/**: Standard documents
 - **templates/**: Template documents
@@ -419,7 +418,7 @@ Documents are classified into the following categories:
 | Category     | Purpose                              | Metadata `project` field rule       | Example                                       |
 | ------------ | ------------------------------------ | ----------------------------------- | --------------------------------------------- |
 | architecture | Overall design and roadmap           | Project-specific: `PRJ-...` required | system-design.md                              |
-| guide        | Practical guides and procedures      | System-wide: `system` or omitted    | operation-process.md, traceability.md         |
+| guide        | Practical guides and procedures      | System-wide: `system` or omitted    | development-workflow.md (see CLAUDE.md)       |
 | policy       | Operational policies and rules       | System-wide: `system` or omitted    | quality-gates.md, execution-policy.md         |
 | standard     | Standards and specifications         | System-wide: `system` or omitted    | glossary.md, documentation-standards.md       |
 | template     | Document/artifact templates          | System-wide: `system` or omitted    | adr-template.md, impact-analysis-template.md  |
@@ -500,7 +499,6 @@ To reduce duplicate management burden, separate roles of main index and category
 | Category     | Document Count | Index File                                     | Description          |
 | ------------ | -------------- | ---------------------------------------------- | -------------------- |
 | Architecture | 5              | [architecture/index.md](../architecture/index.md) | Design/roadmap docs  |
-| Guides       | 11             | [guides/index.md](../guides/index.md)             | Practical guide docs |
 | Policies     | 11             | [policies/index.md](../policies/index.md)         | Operational policy docs |
 
 ...
@@ -509,9 +507,8 @@ To reduce duplicate management burden, separate roles of main index and category
 
 ### MA (Main Agent)
 
-- Required: [request-intake.md](../guides/request-intake.md), [operation-process.md](../guides/operation-process.md)
+- Required: `CLAUDE.md` (REQ-Based Single Gate, Orchestration Gates)
 - Reference: [system-design.md](../architecture/system-design.md)
-- Detailed list: See [guides/index.md](../guides/index.md)
 
 ### SE (Software Engineer)
 
@@ -538,7 +535,7 @@ To reduce duplicate management burden, separate roles of main index and category
 
 #### 4.3.2 Category Index (Required)
 
-**Location:** `index.md` in each category folder (e.g., `docs/guides/index.md`)
+**Location:** `index.md` in each category folder (e.g., `docs/policies/index.md`)
 
 **Purpose:** List **all documents** in the category without omission and provide 1-line summaries to aid navigation.
 
@@ -689,8 +686,8 @@ Provide templates for each document type:
 ```yaml
 ---
 dependencies:
-  - path: docs/guides/operation-process.md
-    reason: Reference work process
+  - path: docs/architecture/system-design.md
+    reason: Reference work process and orchestration
   - path: docs/policies/quality-gates.md
     reason: Reference quality gate standards
 ---
@@ -781,7 +778,7 @@ Main roles creating documents:
 
 **Role-specific Additional Checklists:**
 
-- **MA**: Process documents should reference operation-process.md
+- **MA**: Process documents should reference `CLAUDE.md` (Orchestration Gates)
 - **SE**: Development standards should reference development-standards.md
 - **EO**: Policy documents should reference template-governance.md
 
@@ -832,7 +829,7 @@ Document integrity is fundamentally about "building it right from the start", bu
 
 ### Reference Documents
 
-- [Process Guide](../guides/operation-process.md): Document creation process
+- [System Design](../architecture/system-design.md): Orchestration process and work management
 - [Registry](../registry/asset-registry.md): Document search and reuse
 
 ---

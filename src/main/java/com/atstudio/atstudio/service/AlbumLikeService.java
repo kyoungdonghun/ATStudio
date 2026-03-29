@@ -39,7 +39,7 @@ public class AlbumLikeService {
 
         AlbumLikeId likeId = new AlbumLikeId(user.getId(), album.getId());
         if (albumLikeRepository.existsById(likeId)) {
-            throw new BusinessException(BUSINESS_ERROR.DATA_INTEGRITY_VIOLATION);
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_DUPLICATE);
         }
 
         AlbumLike albumLike = AlbumLike.builder()

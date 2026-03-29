@@ -48,7 +48,10 @@ class NoticeServiceTest {
     @DisplayName("createNotice() 성공 - 공지사항 생성 후 응답 반환")
     void createNotice_success() {
         User user = buildUser(1L);
-        NoticeCreateRequest request = new NoticeCreateRequest("제목", "내용", false);
+        NoticeCreateRequest request = new NoticeCreateRequest();
+        request.setTitle("제목");
+        request.setContent("내용");
+        request.setIsPinned(false);
         Notice saved = buildNotice(1L, user, "제목", "내용", false);
 
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
@@ -68,7 +71,7 @@ class NoticeServiceTest {
         Page<Notice> page = new PageImpl<>(List.of());
         given(noticeRepository.findAllByOrderByIsPinnedDescCreatedAtDesc(any())).willReturn(page);
 
-        ResponseDTO<NoticeListItemResponse> result = noticeService.getNotices(1, 20);
+        ResponseDTO<NoticeListItemResponse> result = noticeService.getNotices(1, 20, "latest");
 
         assertThat(result).isNotNull();
         assertThat(result.getDataList()).isEmpty();
@@ -107,7 +110,7 @@ class NoticeServiceTest {
     void updateNotice_success() {
         User user = buildUser(1L);
         Notice notice = buildNotice(1L, user, "구제목", "구내용", false);
-        NoticeUpdateRequest request = new NoticeUpdateRequest("새제목", "새내용", true);
+        NoticeUpdateRequest request = buildUpdateRequest("새제목", "새내용", true);
         given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
 
         NoticeResponse result = noticeService.updateNotice(1L, request, buildAdminDetails(1L));
@@ -121,7 +124,7 @@ class NoticeServiceTest {
     void updateNotice_adminCanUpdateOtherNotice() {
         User author = buildUser(2L);
         Notice notice = buildNotice(1L, author, "구제목", "구내용", false);
-        NoticeUpdateRequest request = new NoticeUpdateRequest("새제목", "새내용", true);
+        NoticeUpdateRequest request = buildUpdateRequest("새제목", "새내용", true);
         given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
 
         NoticeResponse result = noticeService.updateNotice(1L, request, buildAdminDetails(1L));
@@ -137,7 +140,7 @@ class NoticeServiceTest {
         given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
 
         assertThatThrownBy(() -> noticeService.updateNotice(1L,
-                new NoticeUpdateRequest("t", "c", false), buildUserDetails(1L)))
+                buildUpdateRequest("t", "c", false), buildUserDetails(1L)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_ACCESS));
@@ -149,7 +152,7 @@ class NoticeServiceTest {
         given(noticeRepository.findById(99L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> noticeService.updateNotice(99L,
-                new NoticeUpdateRequest("t", "c", false), buildAdminDetails(1L)))
+                buildUpdateRequest("t", "c", false), buildAdminDetails(1L)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
@@ -233,5 +236,13 @@ class NoticeServiceTest {
                 .id(id).email("user@test.com").password("pw")
                 .role(UserRole.USER).isDeleted(false).isProfileComplete(true)
                 .build();
+    }
+
+    private NoticeUpdateRequest buildUpdateRequest(String title, String content, boolean isPinned) {
+        NoticeUpdateRequest req = new NoticeUpdateRequest();
+        req.setTitle(title);
+        req.setContent(content);
+        req.setIsPinned(isPinned);
+        return req;
     }
 }
