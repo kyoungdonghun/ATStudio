@@ -183,7 +183,7 @@ instrument: String (optional, instrument tag filter)
 bpmMin: Integer (optional)
 bpmMax: Integer (optional)
 tonality: String (optional)
-sort: String (optional, "latest"|"popular", default: "latest")
+sort: String (optional, "latest"|"popular"|"likes"|"downloads", default: "latest")
 ```
 
 **Response** `200 OK`
@@ -1266,6 +1266,7 @@ mine: Boolean (optional, if true returns my inquiries only)
   "title": "서비스 점검 안내",
   "content": "2월 20일 오전 2시~4시 점검 예정입니다.",
   "isPinned": true,
+  "viewCount": 0,
   "attachments": [
     { "id": 1, "originalName": "schedule.pdf", "fileSize": 204800 }
   ],
@@ -1283,9 +1284,25 @@ mine: Boolean (optional, if true returns my inquiries only)
 ```
 page: Integer (default: 1)
 size: Integer (default: 20)
+sort: String (optional, "latest"|"views", default: "latest")
 ```
 
-**Response** `200 OK` — Pagination + notice list (pinned notices first)
+> Pinned notices always appear first regardless of sort order.
+
+**Response** `200 OK`
+```json
+{
+  "dataList": [
+    {
+      "id": 1,
+      "title": "서비스 점검 안내",
+      "isPinned": true,
+      "viewCount": 245,
+      "createdAt": "2026-02-19T10:00:00"
+    }
+  ],
+  "pageInfo": { "page": 1, "size": 20, "total": 10, "start": 1, "end": 1, "prev": false, "next": false }
+}
 
 ## 9.3 Get Notice
 | Field | Value |
@@ -1300,10 +1317,16 @@ size: Integer (default: 20)
   "title": "서비스 점검 안내",
   "content": "2월 20일 오전 2시~4시 점검 예정입니다.",
   "isPinned": true,
+  "viewCount": 245,
+  "attachments": [
+    { "id": 1, "originalName": "schedule.pdf", "fileSize": 204800 }
+  ],
   "createdAt": "2026-02-19T10:00:00",
   "updatedAt": "2026-02-19T10:00:00"
 }
 ```
+
+> `viewCount` is incremented on each call to this endpoint.
 
 ## 9.4 Update Notice
 | Field | Value |
@@ -1393,6 +1416,55 @@ size: Integer (default: 20)
 **Error Cases**
 ```json
 { "status": 404, "error": "Not Found", "errorCode": "TRACK_NOT_IN_LIKES", "message": "좋아요 목록에 없는 트랙입니다." }
+```
+
+## 10.4 Add Album Like
+| Field | Value |
+|-------|-------|
+| **URL** | `POST /api/likes/albums/{albumId}` |
+| **Auth** | auth required |
+
+**Response** `201 Created`
+
+**Error Cases**
+```json
+{ "status": 409, "error": "Conflict", "errorCode": "ALBUM_ALREADY_IN_LIKES", "message": "이미 좋아요한 앨범입니다." }
+```
+
+## 10.5 Remove Album Like
+| Field | Value |
+|-------|-------|
+| **URL** | `DELETE /api/likes/albums/{albumId}` |
+| **Auth** | auth required |
+
+**Response** `204 No Content`
+
+**Error Cases**
+```json
+{ "status": 404, "error": "Not Found", "errorCode": "ALBUM_NOT_IN_LIKES", "message": "좋아요 목록에 없는 앨범입니다." }
+```
+
+## 10.6 List My Album Likes
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/likes/albums` |
+| **Auth** | auth required |
+
+**Response** `200 OK`
+```json
+{
+  "dataList": [
+    {
+      "albumId": 3,
+      "title": "Summer Collection",
+      "description": "Summer-themed shorts music",
+      "thumbnailUrl": "/albums/thumbnail/summer.jpg",
+      "trackCount": 12,
+      "likeCount": 58,
+      "createdAt": "2026-02-19T10:00:00"
+    }
+  ]
+}
 ```
 
 ---
@@ -1882,15 +1954,21 @@ token: String (required — UUID token from email link)
 - Method: GET
 - URL: /api/albums
 - Auth: none
+- Query Parameters:
+  - page: Integer (default: 1)
+  - size: Integer (default: 20)
+  - sort: String (optional, "latest"|"trackCount", default: "latest")
+    - "latest": ordered by createdAt DESC
+    - "trackCount": ordered by track count DESC (computed in-memory)
 - Response: 200 OK
-  - dataList: [ { id, title, thumbnailUrl, trackCount } ]
+  - dataList: [ { id, title, description, thumbnailUrl, trackCount, likeCount, createdAt } ]
 
 ### 15.3 Get Album
 - Method: GET
 - URL: /api/albums/{id}
 - Auth: none
 - Response: 200 OK
-  - id, title, description, thumbnailUrl, tracks: [ { trackId, title, artistName, thumbnailUrl, order } ], createdAt
+  - id, title, description, thumbnailUrl, likeCount, tracks: [ { trackId, title, artistName, thumbnailUrl, order } ], createdAt
 - Errors: 404 RESOURCE_NOT_FOUND
 
 ### 15.4 Update Album
@@ -1977,7 +2055,7 @@ token: String (required — UUID token from email link)
 
 ---
 
-# Full API Summary (96)
+# Full API Summary (99)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -1990,11 +2068,11 @@ token: String (required — UUID token from email link)
 | 7 | License | 4 |
 | 8 | Question (Inquiry/Answer) | 7 |
 | 9 | Notice | 6 |
-| 10 | Likes (Favorites) | 3 |
+| 10 | Likes (Favorites) | 6 |
 | 11 | Download Queue | 3 |
 | 12 | Whitelist Channels | 4 |
 | 13 | Company Certification | 5 |
 | 14 | Utility / Auth | 11 |
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
-| | **Total** | **96** |
+| | **Total** | **99** |

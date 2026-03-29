@@ -1,6 +1,6 @@
 ---
 version: 1.0
-last_updated: 2026-02-12
+last_updated: 2026-03-29
 project: ATS
 owner: EO
 category: standard
@@ -79,6 +79,12 @@ task_types:
 | company-certification | Company Certification | Document review process for BUSINESS-type members to unlock subscription | corporate review | personal license (different) | - | DB table `company_certifications`; required before BUSINESS subscription |
 | royalty | Royalty | Revenue share paid to creator per sale | commission, revenue share | profit (broader) | - | Platform takes commission % |
 | playlist | Playlist | Curated collection of tracks for subscribers | collection, mix | album (different) | - | DB table `playlists`; subscriber-only feature |
+| album-like | AlbumLike | A user's like action on an album; persisted as a composite-PK entity | album favorite | track like (different entity) | - | DB table `album_likes`; managed by `useAlbumLikeStore` on frontend |
+| track-like | TrackLike | A user's like action on a track; persisted as a composite-PK entity | like, favorite | — | - | DB table `likes`; managed by `useLikeStore` on frontend; triggers `incrementLikeCount()` on Track entity |
+| view-count | viewCount | Number of times a Notice has been viewed; incremented on each detail fetch | views | hits (too casual) | - | Field on `notices.view_count`; incremented by `notice.incrementViewCount()` in service layer |
+| like-count | likeCount | Denormalized count of likes on a Track or Album; kept in sync via domain methods | likes | — | - | Fields `tracks.like_count`, `albums.like_count`; updated by `incrementLikeCount()` / `decrementLikeCount()` |
+| download-count | downloadCount | Denormalized count of times a Track has been downloaded | downloads | — | - | Field `tracks.download_count`; updated by `incrementDownloadCount()` in service layer |
+| subscriber-route | SubscriberRoute | A React route guard that verifies the user has an active subscription before rendering | subscription guard | ProtectedRoute (different — role-based) | - | `frontend/src/router/SubscriberRoute.tsx`; redirects inactive users to `/subscriptions` |
 
 ### External Standard Ref Format (Recommended)
 

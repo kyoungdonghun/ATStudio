@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-03-07
+version: 1.3
+last_updated: 2026-03-29
 project: ATS
 owner: MA
 category: guide
@@ -61,11 +61,21 @@ dependencies:
   │  이메일 링크 클릭 → [A-6 비밀번호 재설정] (token 파라미터)
   │  새 비밀번호 입력 → 14.11 POST → "변경 완료" + [A-1 로그인] 이동 링크
 
-[로그아웃]  클라이언트 측 토큰 삭제 (서버 무효화 엔드포인트 없음 — 초기 버전) → [1 메인] (비로그인 상태)
+[로그아웃]  클라이언트 측 토큰 삭제 (서버 무효화 엔드포인트 없음 — 초기 버전)
+  → playerStore 초기화 (재생 중지, 큐 클리어, shuffle/repeat 리셋) (SR-33)
+  → authStore 초기화 (role = GUEST, token = null)
+  → [1 메인] (비로그인 상태)
 
 [로그인 필요 화면 접근]
   → [A-1 로그인] 리다이렉트 (returnUrl 보존)
   → 로그인 성공 후 원래 접근하려던 경로로 복귀
+
+[구독 필요 화면 접근 — SubscriberRoute] (SR-24/SR-25)
+  대상: /playlists*, /download-queue, /whitelist-channels
+  비로그인 → [A-1 로그인] 리다이렉트
+  로그인 + 구독 없음(status ≠ ACTIVE) → [16-1 구독 플랜] 리다이렉트
+  로그인 + 구독 ACTIVE → 정상 진입
+  (구독 상태 확인: GET /api/user-subscriptions/me 비동기 호출, 로딩 중 화면 블랭크)
 ```
 
 > 자동 로그인(소셜): 클라이언트 의견 수렴 후 결정 예정.
@@ -253,6 +263,10 @@ dependencies:
 
 ```
 [13 문의글 목록]  ← GET /api/questions
+  [ADMIN 접근] /questions 진입 시 → redirect /admin/questions (loader 처리, SR-29)
+  탭 구성 (SR-30):
+    "전체" 탭: 자신이 작성한 문의 전체 목록
+    "내 문의" 탭: 미해결 문의 또는 추가 필터 (구현 기준 참고)
   ├── "문의하기" 클릭 ─────────────────────────── [14 문의글 작성]
   │    파일 첨부 → [M-16 FileUploadModal]
   │    "제출" → POST /api/questions → [15 내 문의 상세]
@@ -306,6 +320,19 @@ dependencies:
 [7 음원 수정]
   태그 수정 → [M-04 SelectModal]
   성공 → [B-1 음원 상세]
+```
+
+---
+
+## 10-1. 큐바 플레이어 구매하기 버튼 (SR-27)
+
+```
+[큐바 플레이어 하단]
+  현재 재생 중인 트랙에 "구매하기" 버튼 표시
+  비로그인 상태 → [A-1 로그인] 리다이렉트
+  로그인 상태 → 11.1 POST /api/download-queue/{trackId} (장바구니 담기)
+    성공 → 토스트: "{트랙명} 장바구니에 추가됨"
+    이미 담긴 경우(409) → 토스트: "이미 장바구니에 담긴 음원입니다."
 ```
 
 ---
@@ -365,5 +392,8 @@ dependencies:
 
 ---
 
-> v1.2 확정 | 총 **50개** 화면 (48 + ERR-1 + ERR-2)
+> v1.3 (2026-03-29) | 총 **51개** 화면 (49 + ERR-1 + ERR-2)
+> SR-24/25: SubscriberRoute 리다이렉트 추가 | SR-27: 큐바 구매하기 버튼 흐름 추가
+> SR-29: /questions ADMIN redirect 추가 | SR-30: 문의 목록 탭 추가
+> SR-33: 로그아웃 플레이어+전역 상태 초기화 추가
 > 관련 문서: [atstudio-front-list.md](atstudio-front-list.md) · [modal-list.md](modal-list.md)

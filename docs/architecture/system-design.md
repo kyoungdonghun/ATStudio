@@ -1,6 +1,6 @@
 ---
-version: 2.0
-last_updated: 2026-01-26
+version: 2.1
+last_updated: 2026-03-29
 project: system
 owner: MA
 category: architecture
@@ -8,8 +8,6 @@ status: stable
 dependencies:
   - path: ../standards/core-principles.md
     reason: System constitution (Tier 0)
-  - path: ../guides/development-workflow.md
-    reason: Standard execution flow (REQ→WI→iteration→completion/cleanup)
 tier: 1
 target_agents:
   - sa
@@ -21,9 +19,9 @@ task_types:
   - implementation
 ---
 
-# System Design: MA + Subagents + Skills (Cursor-native)
+# System Design: MA + Subagents + Skills
 
-This document does not implement the "agent team" as a separate framework, but instead **assumes Cursor editor's Subagents/Skills features** to ensure solo development operates **quickly, according to principles, and reusably**.
+This document does not implement the "agent team" as a separate framework, but instead **assumes Claude Code's Subagents/Skills features** to ensure solo development operates **quickly, according to principles, and reusably**.
 
 ---
 
@@ -68,7 +66,7 @@ MA is a **unified role** integrating the traditional **planning/coordination/orc
   - **Escalation**: Proceed only after user approval for scope/risk/hard-to-revert changes
   - **Session termination/cleanup**: Create output index + reusable context packet before termination notice
 
-### 2.2 Subagents (Cursor Subagents)
+### 2.2 Subagents (Claude Code Subagents)
 Subagents operate in **isolated contexts** and return summarized results to MA.
 
 - **When to use**
@@ -80,7 +78,7 @@ Subagents operate in **isolated contexts** and return summarized results to MA.
   - Subagent final outputs are **renormalized by MA from REQ perspective** before reporting to user.
   - Subagents have "expert opinion/output production" role, not "decision authority" (final judgment is MA's).
 
-### 2.3 Skills (Cursor Agent Skills)
+### 2.3 Skills (Claude Code Agent Skills)
 Skills **package repetitive work procedures**. (knowledge + optionally scripts/templates)
 
 - **When to use**
@@ -96,7 +94,7 @@ Skills **package repetitive work procedures**. (knowledge + optionally scripts/t
 
 ## 2.4 Subagent Candidates (Role List) — "Pre-identified/registered"
 
-Previously identified roles (PS/EO/SA/SE/RE/PG/TR/PE/UV/DocOps) are **not for disposal**, but **Subagent candidates (specialized workers)** that MA invokes as needed.
+Previously identified roles (PS/EO/SA/SE/RE/PG/TR/UV/DocOps/QA/QA-FE/QA-INTEG/CR) are **not for disposal**, but **Subagent candidates (specialized workers)** that MA invokes as needed.
 
 > Principle: "Maintain roles, but converge user touchpoint/decision authority to MA."
 
@@ -109,9 +107,14 @@ Previously identified roles (PS/EO/SA/SE/RE/PG/TR/PE/UV/DocOps) are **not for di
 | **RE** | Testing/independent verification | `.claude/agents/re.md` |
 | **PG** | Security/sensitive information check | `.claude/agents/pg.md` |
 | **TR** | Technology research/alternative comparison | `.claude/agents/tr.md` |
-| **PE** | Context/prompt design support | (Operated as Skill) |
 | **UV** | Design system operations/UX gate | `.claude/agents/uv.md` |
 | **DocOps** | Documentation operations (injection/drift/index) | `.claude/agents/docops.md` |
+| **QA** | Backend build/test quality verification | `.claude/agents/qa.md` |
+| **QA-FE** | React/TS typecheck, role×screen, component patterns | `.claude/agents/qa-fe.md` |
+| **QA-INTEG** | API contract, 3-way verification, cross-layer consistency | `.claude/agents/qa-integ.md` |
+| **CR** | Code review, OWASP mapping, best practices | `.claude/agents/cr.md` |
+
+> **Note:** PE (Prompt Engineer) has been consolidated into the `/pe` skill and is no longer a standalone agent.
 
 ---
 
@@ -147,16 +150,18 @@ However, session-specific outputs like "approval/decision reports" are separated
 
 - **standards/**: Constitution/standards (absolute reference)
 - **architecture/**: System structure/principles (design reference)
-- **guides/**: Flow/operations (procedures)
 - **policies/**: Prohibitions/permissions/gates (policies)
 - **templates/**: Output formats (REQ/WI/ADR, etc.)
 - **registry/**: Directory/indexes (assets/contexts/projects)
+- **design/**: Domain-specific design documents (api-spec, db-schema, usecase)
+- **SR/**: Screen Review items and code confirmation reports
+- **retrospective/**: Engineering lessons, domain design learnings
 
 ---
 
 ## 4. Standard Execution Model (REQ→WI Loop)
 
-Standard workflow follows `docs/guides/development-workflow.md`.
+Standard workflow follows `CLAUDE.md` (Orchestration Gates, REQ→WI→Delegation Flow sections).
 What this document fixes is only "who owns what, and what units convert to what".
 
 - **Input**: User utterance

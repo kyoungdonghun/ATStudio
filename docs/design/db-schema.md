@@ -215,6 +215,8 @@
 | Copyright holder | `user_id` | BIGINT | NOT NULL | FK(users.id) | | Currently only a single admin (artist) uses this |
 | Active flag | `is_active` | TINYINT(1) | NOT NULL | | 0 | Published after review (admin activates) |
 | Play count | `play_count` | BIGINT | NOT NULL | | 0 | Used for popularity sorting, etc. |
+| Like count | `like_count` | BIGINT | NOT NULL | | 0 | Incremented/decremented by like add/remove |
+| Download count | `download_count` | BIGINT | NOT NULL | | 0 | Incremented on each successful download |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
@@ -440,6 +442,7 @@
 | Title | `title` | VARCHAR(200) | NOT NULL | | | |
 | Content | `content` | TEXT | NOT NULL | | | |
 | Pinned flag | `is_pinned` | TINYINT(1) | NOT NULL | | 0 | Pinned to top |
+| View count | `view_count` | BIGINT | NOT NULL | | 0 | Incremented on each detail view |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
@@ -498,6 +501,7 @@
 | Thumbnail | `thumbnail` | VARCHAR(500) | | | | URL |
 | Created by | `created_by` | BIGINT | NOT NULL | FK(users.id) | | ADMIN |
 | Active flag | `is_active` | TINYINT(1) | NOT NULL | | 1 | Soft delete |
+| Like count | `like_count` | BIGINT | NOT NULL | | 0 | Incremented/decremented by album like add/remove |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
@@ -510,6 +514,19 @@
 | Track order | `track_order` | INT | NOT NULL | | 0 | |
 
 - Composite PK: (`album_id`, `track_id`)
+
+## 14.3 Album Likes (`album_likes`)
+
+> User likes on albums. Mirrors the `likes` table but targets albums instead of tracks.
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| User | `user_id` | BIGINT | NOT NULL | PK, FK(users.id) | | |
+| Album | `album_id` | BIGINT | NOT NULL | PK, FK(albums.id) | | |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+- Composite PK: (`user_id`, `album_id`)
+- On add: `albums.like_count` incremented. On remove: `albums.like_count` decremented (floor 0).
 
 ---
 
@@ -555,6 +572,7 @@ users ─┬─< social_accounts
        ├─< track_downloads ──> tracks
        ├─< play_histories ──> tracks
        ├─< likes ──> tracks
+       ├─< album_likes ──> albums
        ├─< download_queue ──> tracks
        ├─< whitelist_channels
        ├─< licenses ──> tracks
@@ -571,7 +589,7 @@ tracks ─< track_tags ──> tags
 
 ---
 
-# Complete Table List (25 Tables)
+# Complete Table List (26 Tables)
 
 | # | Table Name | Description | Type |
 |---|------------|-------------|------|
@@ -588,18 +606,19 @@ tracks ─< track_tags ──> tags
 | 11 | `track_downloads` | Download history | Log |
 | 12 | `play_histories` | Play history | Log |
 | 13 | `subscription_payments` | Subscription payment records | Transaction |
-| 14 | `likes` | Likes | Mapping |
-| 15 | `download_queue` | Download queue | Mapping |
-| 16 | `whitelist_channels` | Whitelist channels | Master |
-| 17 | `questions` | Inquiries | Transaction |
-| 18 | `answers` | Inquiry answers | Transaction |
-| 19 | `licenses` | Track usage licenses | Transaction |
-| 20 | `notices` | Notices | Master |
-| 21 | `question_attachments` | Inquiry attachments | Transaction |
-| 22 | `notice_attachments` | Notice attachments | Transaction |
-| 22 | `albums` | Curated albums | Master |
-| 23 | `album_tracks` | Album-track mapping | Mapping |
-| 24 | `email_verification_tokens` | Email verification tokens | Transaction |
-| 25 | `password_reset_tokens` | Password reset tokens | Transaction |
+| 14 | `likes` | Track likes | Mapping |
+| 15 | `album_likes` | Album likes | Mapping |
+| 16 | `download_queue` | Download queue | Mapping |
+| 17 | `whitelist_channels` | Whitelist channels | Master |
+| 18 | `questions` | Inquiries | Transaction |
+| 19 | `answers` | Inquiry answers | Transaction |
+| 20 | `licenses` | Track usage licenses | Transaction |
+| 21 | `notices` | Notices | Master |
+| 22 | `question_attachments` | Inquiry attachments | Transaction |
+| 23 | `notice_attachments` | Notice attachments | Transaction |
+| 24 | `albums` | Curated albums | Master |
+| 25 | `album_tracks` | Album-track mapping | Mapping |
+| 26 | `email_verification_tokens` | Email verification tokens | Transaction |
+| 27 | `password_reset_tokens` | Password reset tokens | Transaction |
 
-Total **25 tables**
+Total **27 tables**

@@ -1,6 +1,6 @@
 # ATStudio 화면 목록 (Frontend)
 
-> API Spec v6 기준 | v4 2026-03-07
+> API Spec v6 기준 | v5 2026-03-29
 > `[PUBLIC]` = 인증 불필요 / `auth required` = 로그인 필요 / `[ADMIN]` = 관리자 전용 / `⚠️` = API 미정의
 
 > `🗑️ 삭제` = 상세/목록 페이지에서 `confirm()` 처리 / 회원탈퇴만 비밀번호 재확인 모달
@@ -61,7 +61,7 @@
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
 | 10 | 개인정보 페이지 (비밀번호 변경 모달 포함) | `5.4 GET /api/users/me` `5.7 PUT /api/users/me` `5.9 DELETE /api/users/me` `5.11 PUT /api/users/me/password` | auth required |
-| D-1 | 좋아요 목록 | `10.1~10.3 /api/likes` | auth required |
+| D-1 | 좋아요 목록 (음원 탭 + 앨범 탭) | `10.1~10.3 /api/likes` `10.4~10.6 /api/likes/albums` (SR-34) | auth required |
 | E-1 | 재생 기록 | `4.2 GET /api/play-histories` `4.3 DELETE /api/play-histories` | auth required |
 | F-1 | 내 라이선스 목록 | `7.1 GET /api/licenses/me` | auth required |
 | F-2 | 라이선스 상세 | `7.3 GET /api/licenses/{licenseId}` | auth required |
@@ -107,7 +107,7 @@
 
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
-| 13 | 문의글 목록 | `8.3 GET /api/questions` | auth required |
+| 13 | 문의글 목록 (전체/내 문의 탭) | `8.3 GET /api/questions` | auth required |
 | 14 | 문의글 작성 | `8.1 POST /api/questions` | auth required |
 | 15 | 문의글 보기 | `8.4 GET /api/questions/{id}` `8.2 POST (답변 작성)` `8.5 GET (첨부파일)` `8.7 DELETE /api/questions/{id}` | auth required |
 
@@ -130,7 +130,8 @@
 |----|--------|---------|------|
 | 18 | 통계 대시보드 | ⚠️ API 미정의 — 별도 설계 필요 | [ADMIN] |
 | K-1 | 회원 목록 / 상세 / 권한 수정 | `5.5 GET /api/users` `5.6 GET /api/users/{id}` `5.8 PUT /api/users/{id}` | [ADMIN] |
-| K-2 | 구독 목록 / 상세 / 강제 취소 | `6.5 GET /api/user-subscriptions` `6.6 GET` `6.8 PUT` `6.9 DELETE` | [ADMIN] |
+| K-2 | 구독 플랜 관리 (읽기 전용) | `6.1 GET /api/subscriptions/admin` | [ADMIN] |
+| K-2b | 사용자 구독 목록 / 강제 취소 (SR-14) | `6.5 GET /api/user-subscriptions` `6.6 GET` `6.8 PUT` `6.9 DELETE` | [ADMIN] |
 | K-3 | 라이선스 조회 (회원별) | `7.2 GET /api/users/{userId}/licenses` `7.4 GET /api/users/{userId}/licenses/{licenseId}` | [ADMIN] |
 | K-4 | 문의 관리 (상태 변경) | `8.3 GET /api/questions` `8.6 PUT /api/questions/{id}/status` | [ADMIN] |
 | K-5 | 기업 인증 목록 / 심사 처리 | `13.3 GET /api/company-certifications` `13.4 GET` `13.5 PUT` | [ADMIN] |
@@ -150,4 +151,8 @@
 
 ---
 
-> 총 **48개** 화면 (관리자 전용 포함)
+> 총 **49개** 화면 (관리자 전용 포함)
+>
+> **변경 이력**
+> - v5 (2026-03-29): K-2 분리 → K-2(구독 플랜 관리) + K-2b(사용자 구독 관리, SR-14); D-1 좋아요 목록 탭 분리(SR-34); 문의 목록 탭 추가(SR-30)
+> - v4 (2026-03-07): 초기 확정 (48개)

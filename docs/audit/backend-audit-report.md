@@ -32,6 +32,23 @@ task_types:
 
 ---
 
+## Remediation Status (as of 2026-03-29)
+
+This report was produced at `last_updated: 2026-02-28`. Since then, the 3-layer exhaustive audit (HIGH/MEDIUM fixes) was completed. The table below reflects the known resolution state. **This report itself is not rewritten** — it remains the canonical audit record. Consult `docs/SR/` and the git log for individual fix evidence.
+
+| Severity | Total | Resolved (confirmed) | Deferred / Open |
+|----------|-------|---------------------|-----------------|
+| CRITICAL (5) | CR-P-001, CR-P-004, CR-C-001, CR-C-002, CR-A-001 | CR-P-001 ✅ CR-C-001 ✅ CR-C-002 ✅ CR-A-001 ✅ | CR-P-004 ⏸ (dev fallback intentional — prod env var required) |
+| MAJOR (15) | See report | Majority resolved in HIGH/MEDIUM fix pass | CR-B-003 verify pending PG integration |
+| MINOR (10) | See report | Partially addressed | Remainder deferred to maintenance |
+| SUGGESTION (5) | See report | Deferred | — |
+
+**Note:** CR-P-004 (JWT secret hardcoded fallback) is retained by design for local development convenience. It must be removed before any public or production deployment.
+
+---
+
+---
+
 ## Executive Summary
 
 | Metric | Value |

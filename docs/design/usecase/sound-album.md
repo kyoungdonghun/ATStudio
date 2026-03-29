@@ -37,16 +37,26 @@
 | Field | Value |
 |-------|-------|
 | **Code** | ALBUM-002 |
-| **Version** | 26-03-04 |
-| **Description** | Any user (including unauthenticated) views the list of active albums. |
+| **Version** | 26-03-29 |
+| **Description** | Any user (including unauthenticated) views the list of active albums. Supports sort parameter. |
 | **Actor** | Anyone, Backend |
 | **Preconditions** | None. |
 | **Trigger** | User navigates to the album list screen. |
 | **Related UC** | ALBUM-003 (view detail) |
 
 **Main Flow**
-1. Frontend sends a list request to the backend.
-2. Backend returns active albums (is_active=true) ordered by creation date (id, title, thumbnail, track count).
+1. Frontend sends a list request with optional `sort` parameter to the backend.
+2. Backend retrieves active albums (is_active=true) and applies sort ordering.
+3. Backend returns the album list with track counts and likeCount per album.
+
+**Sort Parameter**
+| Value | Sort behavior |
+|-------|--------------|
+| `latest` (default) | `createdAt DESC` (DB-level ordering) |
+| `trackCount` | Track count DESC (in-memory sort on computed field) |
+
+**Response Fields (AlbumListItemResponse)**
+Includes `likeCount` field (from `albums.like_count`) in addition to id, title, thumbnail, and trackCount.
 
 **Postconditions**
 - Active album list displayed on screen.
@@ -203,3 +213,30 @@
 
 **Postconditions**
 - track_order updated in album_tracks. Album detail reflects new order.
+
+---
+
+## ALBUM-009: Album Likes [Cross-reference]
+
+| Field | Value |
+|-------|-------|
+| **Code** | ALBUM-009 |
+| **Version** | 26-03-29 |
+| **Description** | Logged-in members can like or unlike an album and view their liked albums list. The `albums.likeCount` field reflects the aggregate count. Canonical definitions are in `likes.md`. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. |
+| **Trigger** | User clicks the 'Like' / 'Unlike' button on an album. |
+| **Related UC** | LIKE-004 (add album like), LIKE-005 (list album likes), LIKE-006 (remove album like) |
+
+**Summary**
+| Operation | Endpoint | Response |
+|-----------|----------|----------|
+| Add like | `POST /api/likes/albums/{albumId}` | 201 Created |
+| List liked albums | `GET /api/likes/albums` | 200 OK, dataList of AlbumLikeResponse |
+| Remove like | `DELETE /api/likes/albums/{albumId}` | 204 No Content |
+
+**Album Entity: likeCount Field**
+- `albums.like_count` (BIGINT, default 0) is incremented on every successful like add and decremented (floor 0) on every like removal.
+- `likeCount` is included in all album list and detail responses.
+
+> **Canonical definition**: `docs/design/usecase/likes.md` — LIKE-004, LIKE-005, LIKE-006.

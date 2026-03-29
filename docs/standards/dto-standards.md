@@ -1,6 +1,6 @@
 ---
 version: 1.0
-last_updated: 2026-02-13
+last_updated: 2026-03-29
 project: ATS
 owner: SA
 category: standard
@@ -48,7 +48,9 @@ Entities and DTOs serve fundamentally different purposes and must never be inter
 @Entity
 @Table(name = "music")
 @Getter
+@Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Music extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

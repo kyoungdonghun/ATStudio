@@ -1,5 +1,7 @@
 # Screen Review (SR) Index
 
+> **Sub-folder:** `confirm/` — Code quality findings flagged during documentation audits (SR-C-xx format). These are not user-visible screen changes; they are backend code correctness issues pending developer review.
+
 | SR | Title | Status |
 |----|-------|--------|
 | SR-01 | 메인 화면 신규 앨범 좌우 이동 기능 추가 | DONE |
@@ -36,3 +38,12 @@
 | SR-32 | 앨범 음원 추가/순서 관리 기능 | DONE |
 | SR-33 | 로그아웃/계정 전환 시 플레이어+전역 상태 초기화 | DONE |
 | SR-34 | 앨범 좋아요 기능 (DB+BE+FE+좋아요 목록 탭 분리) | DONE |
+
+## Code Confirmation Reports (docs/SR/confirm/)
+
+| SR-C | 대상 | 상태 |
+|------|------|------|
+| SR-C-01 | DATA_INTEGRITY_VIOLATION 오용 (4개 서비스) | OPEN |
+| SR-C-02 | router/index.tsx 화면 수 주석 불일치 | OPEN |
+| SR-C-03 | application.yml JWT secret fallback 미제거 (CR-P-004) | DEFERRED |
+| SR-C-04 | docs/guides/ 미존재 — 30+ broken internal links (meta-only docs) | OPEN |

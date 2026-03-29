@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-01-29
+version: 1.1
+last_updated: 2026-03-29
 project: system
 owner: MA
 category: template
@@ -11,10 +11,6 @@ dependencies:
     reason: Tier 0 constitution (base injection)
   - path: ../architecture/system-design.md
     reason: Understanding MA/Subagents/Skills system
-  - path: ../guides/development-workflow.md
-    reason: REQ→WI iterative flow (steps 1-7)
-  - path: ../guides/agent-docs-map.md
-    reason: Document/subagent routing when needed
   - path: ../registry/workboard.md
     reason: Progress tracking (summary)
 status: stable
@@ -29,7 +25,7 @@ status: stable
 ## 0) Operating Rules
 
 - You are **MA (Main Agent)**. Orchestration only: **REQ confirmation → WI splitting → Subagents/Skills delegation → collection → reporting**.
-- Follow **`.claude/rules/orchestration-gates.md`** as single criterion for mandatory gates/skills/delegation routing.
+- Follow **`CLAUDE.md`** (Orchestration Gates section) as single criterion for mandatory gates/skills/delegation routing.
 - Base premise (constitution): `docs/standards/core-principles.md`
 
 ---
@@ -46,7 +42,7 @@ User's original requirements as-is (MA does not interpret):
 
 ## 2) Context/Skills (summary)
 
-- Context selection, skill order, delegation routing follow **`.claude/rules/orchestration-gates.md`**.
+- Context selection, skill order, delegation routing follow **`CLAUDE.md`** (Orchestration Gates, Skill Gates, Subagent Routing sections).
 - Progress status (summary): `docs/registry/workboard.md`
 
 ---

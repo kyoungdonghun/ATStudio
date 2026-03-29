@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-01-29
+version: 1.1
+last_updated: 2026-03-29
 project: system
 owner: MA
 category: template
@@ -11,12 +11,8 @@ dependencies:
     reason: Tier 0 constitution (base injection/violation prohibited)
   - path: ../standards/glossary.md
     reason: Term (WI/REQ etc.) consistency
-  - path: ../guides/agent-facing-docs.md
-    reason: Agent-facing document set (2-set deliverables) definition
   - path: ../standards/evidence-pack-standard.md
     reason: Evidence Pack location/required fields/reproduction specification
-  - path: ../guides/agent-docs-map.md
-    reason: Routing/instruction packet standard
 status: stable
 ---
 
@@ -34,7 +30,7 @@ status: stable
 - **WI ID**: `WI-YYYYMMDD-###`
 - **Related REQ**: `REQ-...` (if none, `TBD`)
 - **Owner(MA)**: `MA`
-- **Assignee(Subagent)**: `ps|eo|sa|se|re|pg|tr|uv|docops`
+- **Assignee(Subagent)**: `ps|eo|sa|se|re|pg|tr|uv|docops|qa|qa-fe|qa-integ|cr`
 - **Criticality**: `HIGH|MEDIUM|LOW`
 - **Status**: `draft|in_progress|blocked|done`
 

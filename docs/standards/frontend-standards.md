@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-02-13
+version: 2.0
+last_updated: 2026-03-29
 project: ATS
 owner: SA
 category: standard
@@ -24,55 +24,68 @@ task_types:
   - design
 ---
 
-# Frontend Standards (Phase 2: React + TypeScript)
+# Frontend Standards (React + TypeScript)
 
-> **Purpose:** Define the frontend architecture, coding standards, and patterns for ATStudio's React SPA. This document applies when the project transitions from Thymeleaf SSR to React SPA (Phase 2).
->
-> **Status:** Active — React SPA is implemented and running.
+> **Purpose:** Define the frontend architecture, coding standards, and patterns for ATStudio's React SPA. This document reflects the **actual implemented** state as of 2026-03-29.
 
 ---
 
 ## 1. Technology Stack
 
-| Category | Technology | Purpose |
-|----------|-----------|---------|
-| Language | TypeScript 5.6 | Type safety from day one |
-| Framework | React 18 | UI rendering |
-| Routing | React Router v6 | Client-side routing |
-| State | Zustand | Global auth, player, like, theme state |
-| HTTP Client | Axios (custom wrapper) | API communication |
-| Build | Vite 6 | Fast dev server and build |
-| Styling | CSS Modules + CSS Variables | Component-scoped styles with design tokens |
-| Lint/Format | ESLint + Prettier | Code quality and formatting (planned) |
+| Category | Technology | Version | Notes |
+|----------|-----------|---------|-------|
+| Language | TypeScript | ~5.6.3 | Strict mode via tsconfig |
+| Framework | React | ^18.3.1 | |
+| Routing | React Router v6 | ^6.28.0 | `createBrowserRouter` API |
+| State | Zustand | ^5.0.2 | All global state; no React Context for state |
+| HTTP Client | Axios | ^1.7.9 | Single `client.ts` instance with interceptors |
+| Build | Vite | ^6.0.5 | |
+| Styling | CSS Modules + CSS Variables | — | Design tokens in `tokens.css` |
+| Lint/Format | ESLint + Prettier | active | `npm run lint`, `npm run format` |
+
+**Not in use:** TanStack Query, Zod, React Context for state management, `httpOnly` cookies.
 
 ---
 
 ## 2. Directory Structure
 
-Feature-based organization groups related code by domain.
-
 ```
-src/
-├── api/                  # Axios instance, React Query setup
-│   ├── axiosInstance.ts
-│   ├── apiClient.ts      # HTTP method wrappers (axiosGet, axiosPost, etc.)
-│   └── queryClient.ts    # TanStack Query configuration
-├── components/           # Shared UI components (Button, Modal, Toast, etc.)
-├── contexts/             # Global contexts (AuthContext, ToastContext)
-├── features/             # Domain-based feature modules
-│   ├── auth/             # Login, signup (pages + components + hooks)
-│   ├── music/            # Upload, search, playback
-│   ├── payment/          # Purchase, settlement
-│   └── admin/            # Admin dashboard
-├── hooks/                # Shared custom hooks
-├── layouts/              # Layout, Header, Sidebar, Footer
-├── routes/               # Router definition, ProtectedRoute
-├── schemas/              # Zod validation schemas
+frontend/src/
+├── api/                  # Axios client + domain API functions
+│   ├── client.ts         # Single Axios instance (JWT interceptor, refresh logic, toUploadUrl)
+│   ├── likes.ts
+│   ├── playHistory.ts
+│   ├── userSubscriptions.ts
+│   └── ...               # One file per API domain
+├── components/           # Shared UI components (DataTable, Pagination, Toast, TrackRow, etc.)
+├── layouts/              # MainLayout, AdminLayout
+├── pages/                # Route-level page components, grouped by role
+│   ├── public/           # Unauthenticated pages (HomePage, TrackListPage, etc.)
+│   ├── auth/             # Auth pages (LoginPage, SignupPage, etc.)
+│   ├── subscriber/       # Subscriber-only pages (PlaylistListPage, etc.)
+│   ├── creator/          # Creator/admin upload and management pages
+│   ├── admin/            # Admin-only pages (DashboardPage, UserManagePage, etc.)
+│   └── error/            # Error pages (NotFoundPage, ServerErrorPage)
+├── router/               # Router definition and route guards
+│   ├── index.tsx         # createBrowserRouter with all 48 routes
+│   ├── ProtectedRoute.tsx
+│   └── SubscriberRoute.tsx
+├── store/                # Zustand stores
+│   ├── authStore.ts
+│   ├── playerStore.ts
+│   ├── likeStore.ts
+│   ├── albumLikeStore.ts
+│   ├── toastStore.ts
+│   └── themeStore.ts
+├── styles/               # Global CSS
+│   └── tokens.css        # CSS Variables (design tokens, dark/light theme)
 ├── types/                # TypeScript type definitions
-└── utils/                # Pure utility functions
-    ├── inputProcessing.ts
-    └── object.ts         # flattenObject, unflattenObject
+│   └── index.ts          # All shared types (ApiResponse, PagedResponse, User, Track, etc.)
+├── App.tsx               # Root: <RouterProvider router={router} />
+└── main.tsx              # Entry point
 ```
+
+**No `contexts/`, `features/`, `schemas/`, `hooks/` directories.** Pages contain their own local state (useState/useEffect). Shared logic lives in stores or api files.
 
 ---
 
@@ -80,405 +93,324 @@ src/
 
 ### 3.1 Decision Matrix
 
-| State Type | Solution | Rationale |
-|-----------|----------|-----------|
-| Authentication (user, token) | `AuthContext` | Changes infrequently, needed everywhere |
-| Global UI (toast, modal) | `ToastContext` | Cross-cutting UI concerns |
-| Server data (music list, search) | TanStack Query | Automatic caching, refetch, loading/error |
-| Form input | Component local state | Scoped to single form |
+| State Type | Solution | Location |
+|-----------|----------|----------|
+| Authentication (user, token, role) | `useAuthStore` (Zustand) | `store/authStore.ts` |
+| Global player (queue, playback) | `usePlayerStore` (Zustand) | `store/playerStore.ts` |
+| Track likes | `useLikeStore` (Zustand) | `store/likeStore.ts` |
+| Album likes | `useAlbumLikeStore` (Zustand) | `store/albumLikeStore.ts` |
+| Toast notifications | `useToastStore` (Zustand) | `store/toastStore.ts` |
+| Theme (dark/light) | `useThemeStore` (Zustand) | `store/themeStore.ts` |
+| Server data (lists, search results) | Component local state (`useState` + `useEffect`) | Inside each page component |
+| Form input | Component local state | Inside each form component |
 
-### 3.2 AuthContext
+**Rule:** Do not create new React Context for state. Use Zustand for any global or cross-component state.
 
-```tsx
-interface AuthContextValue {
-    user: UserInfo | null;
-    login: (email: string, password: string) => Promise<void>;
-    logout: () => void;
-    isAuthenticated: boolean;
-    isAdmin: boolean;
-    initializing: boolean;
+### 3.2 authStore
+
+```typescript
+interface AuthState {
+  user: User | null;
+  accessToken: string | null;
+  role: UserRole;  // 'GUEST' | 'USER' | 'ADMIN'
+  login: (token: string, user: User) => void;
+  logout: () => void;
+  isAuthenticated: () => boolean;
 }
 ```
 
-- AccessToken stored **in memory only** (not localStorage — XSS protection).
-- RefreshToken stored as **httpOnly + Secure + SameSite cookie** (JS cannot access).
+- `accessToken` and `user` are stored in **localStorage** (persisted across page refreshes).
+- `role` defaults to `'GUEST'` when unauthenticated.
+- On `logout()`, the store also resets `playerStore`, `likeStore`, and `albumLikeStore`.
 
-### 3.3 ToastContext (Replaces alert())
+### 3.3 toastStore (Replaces alert())
 
-```tsx
-interface ToastContextValue {
-    showToast: (message: string, type: "success" | "error" | "info") => void;
+```typescript
+interface ToastState {
+  toasts: Toast[];                                        // Toast = { id, type, message }
+  show: (type: 'success' | 'error', message: string) => void;
+  dismiss: (id: number) => void;
 }
 
 // Usage
-const { showToast } = useToast();
-showToast("Music uploaded successfully", "success");
+const { show } = useToastStore();
+show('success', 'Music uploaded successfully');
+show('error', '오류가 발생했습니다.');
 ```
 
-**Rule:** Never override `window.alert`. Never use `alert()` in production code.
+**Rule:** Never use `window.alert()` or `window.confirm()` in production code. Toast only supports `'success'` and `'error'` types.
+
+### 3.4 playerStore
+
+Manages a singleton `Audio` element. Key state:
+
+- `currentTrack`, `isPlaying`, `currentTime`, `duration`, `volume`, `muted`
+- `queue: Track[]` — ordered play queue
+- `shuffle: boolean`, `repeat: 'off' | 'all' | 'one'`
+
+Key methods: `play(track)`, `pause()`, `resume()`, `next()`, `prev()`, `addToQueue(track)`, `reorderQueue(from, to)`, `clearQueue()`.
+
+- `play()` auto-records play history (fire-and-forget) if the user is logged in.
+- `volume` is persisted in `localStorage` under key `'playerVolume'`.
 
 ---
 
 ## 4. API Client
 
-### 4.1 Axios Instance
+### 4.1 Single Axios Instance (`api/client.ts`)
 
 ```typescript
-const axiosInstance = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL,
-    headers: { "Content-Type": "application/json" },
-    withCredentials: true, // Send httpOnly cookies
+const client = axios.create({
+  baseURL: '/api',
+  timeout: 15_000,
+  headers: { 'Content-Type': 'application/json' },
 });
 ```
 
-- Base URL from environment variable (no hardcoding).
-- `withCredentials: true` for cookie-based refresh token.
+- Base URL is `/api` (no environment variable) — proxied by Vite to `http://localhost:8080` in development.
+- No `withCredentials: true` — cookies are not used.
 
-### 4.2 HTTP Method Wrappers
+### 4.2 Request Interceptor
 
-```typescript
-interface RequestOptions<T = unknown> {
-    endpoint: string;
-    body?: T;
-    params?: Record<string, string | number>;
-    handle?: HandleConfig;
-}
+Reads `accessToken` from `localStorage` and attaches it as `Authorization: Bearer <token>`.
 
-interface HandleConfig {
-    success?: { message?: string; navigate?: string };
-    failure?: { message?: string; navigate?: string };
-}
-
-export const apiGet = <T>(opts: RequestOptions): Promise<T> =>
-    fetchData({ ...opts, method: "GET" });
-
-export const apiPost = <T>(opts: RequestOptions): Promise<T> =>
-    fetchData({ ...opts, method: "POST" });
-
-export const apiPut = <T>(opts: RequestOptions): Promise<T> =>
-    fetchData({ ...opts, method: "PUT" });
-
-export const apiPatch = <T>(opts: RequestOptions): Promise<T> =>
-    fetchData({ ...opts, method: "PATCH" });
-
-export const apiDelete = <T>(opts: RequestOptions): Promise<T> =>
-    fetchData({ ...opts, method: "DELETE" });
-```
-
-### 4.3 Response Handling (Range-Based)
-
-```typescript
-const handleResponse = (status: number, data: any, handle?: HandleConfig) => {
-    if (status >= 200 && status < 300) {
-        // Success
-        if (handle?.success?.message) showToast(handle.success.message, "success");
-        if (handle?.success?.navigate) router.navigate(handle.success.navigate);
-        return data;
-    } else {
-        // Failure (4xx, 5xx)
-        const message = handle?.failure?.message ?? data.message ?? "오류가 발생했습니다.";
-        showToast(message, "error");
-        if (handle?.failure?.navigate) router.navigate(handle.failure.navigate);
-        return null;
-    }
-};
-```
-
-**Key decisions:**
-- Range-based (`>= 200 && < 300`) instead of individual `case` statements.
-- Toast notifications instead of `alert()`.
-- No hardcoded default navigation path.
-
-### 4.4 Token Management
+### 4.3 Token Storage (localStorage)
 
 ```
-Login → Server sets RefreshToken as httpOnly cookie
-      → Server returns AccessToken in response body → stored in memory variable
+Login → Server returns { accessToken, refreshToken } in response body
+      → Both stored in localStorage
 
-API Request → Attach AccessToken from memory to Authorization header
+API Request → Read accessToken from localStorage → Authorization header
 
-401 Response → POST /api/auth/refresh (cookie sent automatically)
-            → Receive new AccessToken → update memory → retry original request
+401 Response → Read refreshToken from localStorage
+             → POST /api/auth/refresh { refreshToken }
+             → Receive new tokens → update localStorage → retry original request
+             → If refresh fails → clear localStorage → redirect to /login
 ```
 
-**Race Condition Prevention:**
+**No httpOnly cookies.** Both tokens are stored in `localStorage`.
 
-```typescript
-let refreshPromise: Promise<string> | null = null;
+### 4.4 Concurrent 401 Race Condition Prevention
 
-const refreshToken = async (): Promise<string> => {
-    if (!refreshPromise) {
-        refreshPromise = callRefresh().finally(() => {
-            refreshPromise = null;
-        });
-    }
-    return refreshPromise;
-};
-```
-
-All concurrent 401 responses share the same refresh Promise — prevents multiple refresh calls.
+Uses a queue pattern (`failedQueue`) — all concurrent 401 responses wait for a single refresh call to complete, then replay with the new token.
 
 ### 4.5 FormData Handling
 
-When uploading files, the `Content-Type` header is removed to let the browser set the multipart boundary automatically.
+Pages that upload files send `FormData` directly to `client` (Axios). The `Content-Type` header must not be set manually — Axios sets the multipart boundary automatically when the body is `FormData`.
+
+### 4.6 Upload URL Helper
 
 ```typescript
-if (body instanceof FormData) {
-    delete options.headers["Content-Type"];
-}
+export function toUploadUrl(path: string | null | undefined): string | null
 ```
+
+Converts a relative backend storage path to a full frontend URL by prepending `/uploads/`. E.g., `"playlists/thumbnails/abc.jpg"` → `"/uploads/playlists/thumbnails/abc.jpg"`.
+
+### 4.7 Direct API Calls (No Wrapper Functions)
+
+Pages call `client.get(...)`, `client.post(...)`, etc. directly, or via thin domain API files (e.g., `api/likes.ts`, `api/playHistory.ts`). There are no generic `apiGet`/`apiPost`/`apiPatch` wrapper functions with `HandleConfig`.
 
 ---
 
 ## 5. Input Handling
 
-### 5.1 Pipeline
+### 5.1 Validation Approach
 
-```
-User Input (Controlled Component state)
-    ↓
-Processing (trim, normalize — inputProcessing.ts)
-    ↓
-Validation (Zod schema — type-safe)
-    ↓ Fail → Inline error display per field
-    ↓ Pass → API submission
-```
-
-### 5.2 Zod Schema Validation
-
-Schemas define rules, types, and error messages in one place.
+Validation is done with inline checks in component code — no Zod schemas or external validation library.
 
 ```typescript
-import { z } from "zod";
-
-export const musicCreateSchema = z.object({
-    title: z.string()
-        .min(2, "제목은 2자 이상이어야 합니다.")
-        .max(100, "제목은 100자 이하여야 합니다.")
-        .regex(/^[a-zA-Z0-9가-힣\s]+$/, "제목에 특수문자를 사용할 수 없습니다."),
-    description: z.string()
-        .max(500, "설명은 500자 이하여야 합니다.")
-        .optional(),
-    genre: z.array(z.string()).min(1, "장르를 하나 이상 선택해주세요."),
-    bpm: z.number().min(40).max(300).optional(),
-});
-
-// Auto-inferred TypeScript type
-type MusicCreateForm = z.infer<typeof musicCreateSchema>;
-```
-
-**Advantages over manual validation:**
-- Rules + validation logic + TypeScript type = one source of truth.
-- Native nested object support (no flatten/unflatten needed for validation).
-- Korean error messages specified directly in schema.
-
-### 5.3 Input Processing (Pre-validation)
-
-Processing rules remain as a custom utility since Zod handles validation only.
-
-```typescript
-type ProcessingRule = "trim" | "trimMiddle" | "toLowerCase";
-
-const processors: Record<ProcessingRule, (v: string) => string> = {
-    trim: (v) => v.trim(),
-    trimMiddle: (v) => v.replace(/\s+/g, " "),
-    toLowerCase: (v) => v.toLowerCase(),
-};
-
-export function processInput<T extends Record<string, unknown>>(
-    data: T,
-    rules: Partial<Record<keyof T, ProcessingRule[]>>
-): T {
-    const result = { ...data };
-    for (const [key, ruleList] of Object.entries(rules)) {
-        const value = result[key as keyof T];
-        if (typeof value === "string" && ruleList) {
-            let processed = value;
-            for (const rule of ruleList as ProcessingRule[]) {
-                processed = processors[rule](processed);
-            }
-            (result as Record<string, unknown>)[key] = processed;
-        }
-    }
-    return result;
+// Example: inline validation
+if (!title.trim()) {
+  setError('제목을 입력해주세요.');
+  return;
+}
+if (title.length > 100) {
+  setError('제목은 100자 이하여야 합니다.');
+  return;
 }
 ```
 
-### 5.4 Error Display
+### 5.2 Error Display
 
-Inline error messages below each field, not `alert()`.
+Inline error messages below each field.
 
 ```tsx
-interface FieldProps {
-    name: string;
-    value: string;
-    error?: string;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}
-
-const FormField = ({ name, value, error, onChange }: FieldProps) => (
-    <div>
-        <input name={name} value={value} onChange={onChange} />
-        {error && <span className="field-error">{error}</span>}
-    </div>
-);
+<input value={title} onChange={(e) => setTitle(e.target.value)} />
+{error && <span className={styles.fieldError}>{error}</span>}
 ```
 
-### 5.5 Flatten / Unflatten Utilities
-
-For nested DTO structures that need field-level processing.
-
-```typescript
-// src/utils/object.ts
-export function flattenObject(
-    obj: Record<string, unknown>,
-    parentKey = "",
-    result: Record<string, unknown> = {}
-): Record<string, unknown> {
-    for (const key in obj) {
-        const newKey = parentKey ? `${parentKey}.${key}` : key;
-        const value = obj[key];
-        if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-            flattenObject(value as Record<string, unknown>, newKey, result);
-        } else {
-            result[newKey] = value;
-        }
-    }
-    return result;
-}
-
-export function unflattenObject(
-    flatObj: Record<string, unknown>
-): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    for (const flatKey in flatObj) {
-        const keys = flatKey.split(".");
-        let current = result;
-        keys.forEach((k, index) => {
-            if (index === keys.length - 1) {
-                current[k] = flatObj[flatKey];
-            } else {
-                current[k] = current[k] || {};
-                current = current[k] as Record<string, unknown>;
-            }
-        });
-    }
-    return result;
-}
-```
+**Rule:** Use CSS Modules classes for error styles, not global class names.
 
 ---
 
 ## 6. Routing
 
-### 6.1 Router Setup (React Router 7)
+### 6.1 Router Setup (React Router v6)
 
 ```tsx
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { createBrowserRouter } from 'react-router-dom';
 
-const router = createBrowserRouter([
-    {
-        path: "/",
-        element: <Layout />,
-        children: [
-            { index: true, element: <Navigate to="/music" replace /> },
-            // Public routes
-            { path: "music/*", element: <MusicRoutes /> },
-            // Authenticated routes
-            { path: "me/*", element: <ProtectedRoute><UserRoutes /></ProtectedRoute> },
-            // Admin routes
-            { path: "admin/*", element: <ProtectedRoute roles={["ADMIN"]}><AdminRoutes /></ProtectedRoute> },
-            // Catch-all
-            { path: "*", element: <Navigate to="/" replace /> },
-        ],
-    },
-]);
+export const router = createBrowserRouter(routes);
 
-function App() {
-    return (
-        <AuthProvider>
-            <ToastProvider>
-                <RouterProvider router={router} />
-            </ToastProvider>
-        </AuthProvider>
-    );
+// App.tsx
+export default function App() {
+  return <RouterProvider router={router} />;
 }
 ```
 
-### 6.2 ProtectedRoute
+No `AuthProvider` or `ToastProvider` wrappers — all state is Zustand-based and available globally without React Context.
 
-```tsx
+### 6.2 Route Guard: ProtectedRoute
+
+```typescript
 interface ProtectedRouteProps {
-    children: React.ReactNode;
-    roles?: string[];
+  children: ReactNode;
+  minRole: UserRole;  // 'USER' | 'ADMIN'
+}
+```
+
+Role hierarchy: `GUEST (0) < USER (1) < ADMIN (2)`. Redirects to `/login` if not authenticated, or to `/` if role level is insufficient.
+
+Usage in router:
+```tsx
+// Requires USER or higher
+function authRequired(element: ReactNode): ReactNode {
+  return <ProtectedRoute minRole="USER">{element}</ProtectedRoute>;
 }
 
-const ProtectedRoute = ({ children, roles }: ProtectedRouteProps) => {
-    const { user, isAuthenticated, initializing } = useAuth();
-
-    if (initializing) return <LoadingSpinner />;
-    if (!isAuthenticated) return <Navigate to="/login" replace />;
-    if (roles && !roles.some(role => user?.roles?.includes(role))) {
-        return <Navigate to="/" replace />;
-    }
-
-    return <>{children}</>;
-};
+// Requires ADMIN
+function adminOnly(element: ReactNode): ReactNode {
+  return <ProtectedRoute minRole="ADMIN">{element}</ProtectedRoute>;
+}
 ```
+
+### 6.3 Route Guard: SubscriberRoute
+
+Checks for an active subscription via `fetchMySubscription()`. Redirects unauthenticated users to `/login`; redirects users without an active subscription to `/subscriptions`.
+
+```tsx
+function subscriberOnly(element: ReactNode): ReactNode {
+  return <SubscriberRoute>{element}</SubscriberRoute>;
+}
+```
+
+### 6.4 Route Categories (49 screens)
+
+| Guard | Count | Example paths |
+|-------|-------|---------------|
+| Public (no guard) | 9 | `/`, `/tracks`, `/albums`, `/notices` |
+| Auth (no guard, page handles redirect) | 6 | `/login`, `/signup` |
+| `authRequired` (`minRole="USER"`) | ~13 | `/profile`, `/likes`, `/licenses` |
+| `subscriberOnly` | ~6 | `/playlists`, `/download-queue` |
+| `adminOnly` (`minRole="ADMIN"`) | Admin layout + children | `/admin/*` |
+
+### 6.5 Layouts
+
+- `MainLayout` — public+subscriber routes: includes Header, PlayerBar
+- `AdminLayout` — admin routes: sidebar + topbar, no PlayerBar
 
 ---
 
-## 7. Component Design Principles
+## 7. TypeScript Types
 
-### 7.1 Single Responsibility
+All shared types live in `frontend/src/types/index.ts`. Key types:
 
-Each component has one purpose. Separate state logic from UI rendering.
+| Type | Purpose |
+|------|---------|
+| `ApiResponse<T>` | Generic wrapper: `{ message: string; data: T }` |
+| `PagedResponse<T>` | Paginated wrapper: `{ dataList: T[]; pageInfo: PageInfo }` |
+| `UserRole` | `'GUEST' \| 'USER' \| 'ADMIN'` (GUEST is frontend-only) |
+| `User` | Auth user object stored in localStorage |
+| `Track` | Track detail response |
+| `TrackListItem` | Track list item (lighter than Track) |
+| `Album` | Album with `likeCount` |
+| `AlbumLikeItem` | Album like list item |
+| `LikeItem` | Track like list item |
+| `UserSubscription` | User subscription with `status: 'ACTIVE' \| 'CANCELLED' \| 'EXPIRED'` |
+| `Notice` | Notice with `viewCount` and optional `attachments` |
+
+**Rule:** Do not duplicate type definitions. All API response shapes are defined once in `types/index.ts`.
+
+---
+
+## 8. Styling
+
+### 8.1 CSS Modules
+
+Every component has a co-located `.module.css` file. No global class names in component files.
 
 ```tsx
-// State logic — hook
-const useMusicSearch = (query: string) => {
-    return useQuery({
-        queryKey: ["music", "search", query],
-        queryFn: () => apiGet({ endpoint: `/api/music/search`, params: { q: query } }),
-        enabled: query.length > 0,
-    });
-};
-
-// UI rendering — component
-const MusicSearchResults = ({ query }: { query: string }) => {
-    const { data, isLoading, error } = useMusicSearch(query);
-
-    if (isLoading) return <LoadingSpinner />;
-    if (error) return <ErrorMessage error={error} />;
-    return <MusicList items={data?.dataList ?? []} />;
-};
+import styles from './TrackCard.module.css';
+<div className={styles.card}>...</div>
 ```
 
-### 7.2 Global Components at Root
+### 8.2 CSS Variables (Design Tokens)
 
-Toast and loading components are placed at the application root.
+All color, spacing, and layout values come from `styles/tokens.css`. Use CSS variables in `.module.css` files.
 
-```tsx
-function App() {
-    return (
-        <AuthProvider>
-            <ToastProvider>
-                <GlobalToast />
-                <RouterProvider router={router} />
-            </ToastProvider>
-        </AuthProvider>
-    );
+```css
+/* tokens.css — dark (default) */
+:root {
+  --bg0: #121826;
+  --text0: #F9FAFB;
+  --accent: #19B981;
+  --header-h: 58px;
+  --player-h: 72px;
+  --page-px: 48px;
+  --page-max-w: 1280px;
+}
+
+/* Light theme override */
+[data-theme="light"] {
+  --bg0: #FFFFFF;
+  --text0: #111827;
+  --accent: #16A34A;
 }
 ```
 
-### 7.3 Naming Conventions
+Theme is toggled by `useThemeStore.toggle()` which sets/removes the `data-theme="light"` attribute on `document.documentElement`.
+
+### 8.3 Breakpoints
+
+```css
+/* Mobile:  max-width: 767px */
+/* Tablet:  min-width: 768px  AND  max-width: 1023px */
+/* Desktop: min-width: 1024px (default) */
+```
+
+**Rule:** No Tailwind CSS or styled-components. CSS Modules only.
+
+---
+
+## 9. Component Design Principles
+
+### 9.1 Page Components
+
+Page components manage their own data fetching via `useState` + `useEffect`.
+
+```tsx
+const TrackListPage = () => {
+  const [tracks, setTracks] = useState<TrackListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    client.get('/tracks').then((res) => {
+      setTracks(res.data.dataList);
+    }).finally(() => setLoading(false));
+  }, []);
+  // ...
+};
+```
+
+### 9.2 Naming Conventions
 
 | Element | Convention | Example |
 |---------|-----------|---------|
-| Component | PascalCase | `MusicCard`, `LoginForm` |
-| Hook | camelCase with `use` prefix | `useAuth`, `useMusicSearch` |
-| Utility | camelCase | `formatDate`, `processInput` |
-| Type/Interface | PascalCase | `MusicResponse`, `HandleConfig` |
-| File (component) | PascalCase.tsx | `MusicCard.tsx` |
-| File (utility) | camelCase.ts | `inputProcessing.ts` |
-| Schema | camelCase + `Schema` suffix | `musicCreateSchema` |
+| Component | PascalCase | `TrackCard`, `LoginPage` |
+| Hook | camelCase with `use` prefix | `useAuthStore`, `usePlayerStore` |
+| Store file | camelCase + `Store` suffix | `authStore.ts`, `playerStore.ts` |
+| Utility | camelCase | `toUploadUrl` |
+| Type/Interface | PascalCase | `Track`, `ApiResponse`, `UserRole` |
+| File (component) | PascalCase.tsx | `TrackCard.tsx` |
+| CSS Module | PascalCase.module.css | `TrackCard.module.css` |
+| File (utility/api) | camelCase.ts | `client.ts`, `likes.ts` |

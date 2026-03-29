@@ -43,7 +43,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-005 |
-| **Version** | 26-02-20 |
+| **Version** | 26-03-29 |
 | **Description** | User (including non-members) views the track list. Only tracks with is_active=1 are returned. |
 | **Actor** | User (including non-members), Backend |
 | **Preconditions** | - |
@@ -56,11 +56,35 @@
 3. Backend returns a paginated list of tracks matching the criteria where is_active=1.
 4. Frontend displays the track list on screen.
 
+**Sort Parameter**
+| Value | Sort behavior |
+|-------|--------------|
+| `latest` (default) | `createdAt DESC` |
+| `popular` | `playCount DESC` |
+| `likes` | `likeCount DESC` |
+| `downloads` | `downloadCount DESC` |
+
+**Response Fields (TrackListItemResponse)**
+| Field | Type | Description |
+|-------|------|-------------|
+| id | Long | Track ID |
+| title | String | Track title |
+| artistName | String | Uploader nickname |
+| duration | Integer | Duration in seconds |
+| bpm | Integer | BPM value |
+| tonality | String | Key/tonality |
+| thumbnail | String | Thumbnail file path |
+| playCount | Long | Total play count |
+| likeCount | Long | Total like count |
+| downloadCount | Long | Total download count |
+| tags | List\<TagResponse\> | Associated tags |
+| createdAt | LocalDateTime | Track creation timestamp |
+
 **Exception / Alternative Flow**
 - No search results: returns an empty content array.
 
 **Postconditions**
-- Track list matching criteria (title, BPM, key, thumbnail, playCount, tags) and pageInfo displayed on screen.
+- Track list matching criteria (title, BPM, key, thumbnail, playCount, likeCount, downloadCount, tags) and pageInfo displayed on screen.
 
 ---
 

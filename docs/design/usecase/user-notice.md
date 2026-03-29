@@ -33,19 +33,28 @@
 | Field | Value |
 |-------|-------|
 | **Code** | ANNOUNCE-002 |
-| **Version** | 26-02-20 |
-| **Description** | User (including non-members) views the notice list. Pinned notices (is_pinned=1) appear at the top. |
+| **Version** | 26-03-29 |
+| **Description** | User (including non-members) views the notice list. Pinned notices (is_pinned=1) appear at the top. Supports sort parameter. |
 | **Actor** | User (including non-members), Backend |
 | **Preconditions** | - |
 | **Trigger** | User navigates to the notice list screen. |
 | **Related UC** | ANNOUNCE-003 (view detail) |
 
 **Main Flow**
-1. Frontend sends a request including page parameters to the backend.
-2. Backend returns the notice list. (is_pinned=1 notices sorted to top, then by most recent)
+1. Frontend sends a request including page parameters and optional `sort` to the backend.
+2. Backend applies sort ordering and returns the notice list.
+
+**Sort Parameter**
+| Value | Sort behavior |
+|-------|--------------|
+| `latest` (default) | `isPinned DESC`, `createdAt DESC` |
+| `views` | `isPinned DESC`, `viewCount DESC` |
+
+**Response Fields (NoticeListItemResponse)**
+Includes `viewCount` field in addition to title, pinned status, and created date.
 
 **Postconditions**
-- Notice list (title, pinned status, created date) displayed on screen.
+- Notice list (title, pinned status, viewCount, created date) displayed on screen.
 
 ---
 
@@ -54,19 +63,24 @@
 | Field | Value |
 |-------|-------|
 | **Code** | ANNOUNCE-003 |
-| **Version** | 26-02-20 |
-| **Description** | User (including non-members) views the full text of a specific notice. |
+| **Version** | 26-03-29 |
+| **Description** | User (including non-members) views the full text of a specific notice. Each access increments the notice viewCount. |
 | **Actor** | User (including non-members), Backend |
 | **Preconditions** | Target notice exists in DB. |
 | **Trigger** | User clicks a specific notice in the notice list. |
 | **Related UC** | - |
 
 **Main Flow**
-1. Frontend sends a request including noticeId to the backend.
-2. Backend returns the notice detail (title, content, pinned status, created date, updated date).
+1. Frontend sends `GET /api/notices/{id}` to the backend.
+2. Backend retrieves the notice record and increments `notices.viewCount` (within the same transaction).
+3. Backend returns the notice detail including all attachments.
+
+**Response Fields**
+Includes `viewCount` field in addition to title, content, isPinned, createdAt, and updatedAt.
 
 **Postconditions**
 - Full notice text displayed on screen.
+- `notices.viewCount` incremented by 1 on every access.
 
 ---
 

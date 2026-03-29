@@ -1,6 +1,6 @@
 ---
 version: 1.1
-last_updated: 2026-02-20
+last_updated: 2026-03-29
 project: ATS
 owner: SE
 category: standard
@@ -90,10 +90,15 @@ Each exception carries an ENUM value that defines HTTP status, client message, a
 > **Note:** Client messages for TechnicException must never expose internal technical terms (e.g., "무결성 위반", "SQL", "데이터베이스"). Use generic safe messages.
 > **Classification rule:** 4xx responses (client-caused errors) belong to BusinessException. 5xx responses (system-level failures) belong to TechnicException.
 
-### 2.3 ATStudio Domain Extensions (Add as Needed)
+### 2.3 ATStudio Domain Error Codes (Active Enum: `BUSINESS_ERROR`)
+
+The following codes are all defined in `src/main/java/com/atstudio/atstudio/common/exception/BUSINESS_ERROR.java`.
+
+**General / Domain:**
 
 | Code | HTTP Status | Client Message | Developer Message |
 |------|------------|----------------|-------------------|
+| `INVALID_STATE_TRANSITION` | 400 BAD_REQUEST | 유효하지 않은 상태 전이입니다. | 현재 상태에서 해당 상태로 전이할 수 없습니다. |
 | `UNAUTHORIZED_ACTION` | 401 UNAUTHORIZED | 인증이 필요합니다. 다시 로그인해주세요. | JWT 토큰 만료 또는 무효. |
 | `PAYMENT_FAILED` | 400 BAD_REQUEST | 결제 처리에 실패했습니다. | 결제 게이트웨이 오류. |
 | `FILE_FORMAT_INVALID` | 400 BAD_REQUEST | 지원하지 않는 파일 형식입니다. | 허용되지 않은 음악 파일 포맷. |
@@ -104,6 +109,31 @@ Each exception carries an ENUM value that defines HTTP status, client message, a
 | `WHITELIST_CHANNEL_LIMIT_EXCEEDED` | 403 FORBIDDEN | 채널 등록 한도를 초과했습니다. | 구독 플랜 최대 채널 수 초과. |
 | `COMPANY_CERTIFICATION_REQUIRED` | 403 FORBIDDEN | 기업 인증 심사 승인 후 이용 가능합니다. | 기업회원 Company Certification 미승인 상태. |
 | `SUBSCRIPTION_NOT_FOUND` | 404 NOT_FOUND | 구독 정보를 찾을 수 없습니다. | 활성 구독 레코드가 존재하지 않습니다. |
+| `SUBSCRIPTION_ALREADY_EXISTS` | 409 CONFLICT | 이미 활성 구독이 존재합니다. | 중복 구독 시도. |
+| `PLAYLIST_LIMIT_EXCEEDED` | 409 CONFLICT | 플레이리스트는 최대 3개까지 생성할 수 있습니다. | 활성 플레이리스트 3개 초과 시도. |
+
+**Auth:**
+
+| Code | HTTP Status | Client Message | Developer Message |
+|------|------------|----------------|-------------------|
+| `INVALID_CREDENTIALS` | 401 UNAUTHORIZED | 이메일 또는 비밀번호가 올바르지 않습니다. | 로그인 인증 실패. |
+| `TOKEN_EXPIRED` | 401 UNAUTHORIZED | 인증이 만료되었습니다. 다시 로그인해주세요. | JWT Access Token 만료. |
+| `REFRESH_TOKEN_EXPIRED` | 401 UNAUTHORIZED | 세션이 만료되었습니다. 다시 로그인해주세요. | Refresh Token 만료. 재로그인 필요. |
+| `REFRESH_TOKEN_INVALID` | 401 UNAUTHORIZED | 세션이 만료되었습니다. 다시 로그인해주세요. | Refresh Token이 유효하지 않거나 DB 불일치. |
+| `INVALID_TOKEN` | 400 BAD_REQUEST | 유효하지 않은 인증 링크입니다. | 토큰이 존재하지 않거나 이미 사용됨. |
+| `SOCIAL_AUTH_FAILED` | 401 UNAUTHORIZED | 소셜 로그인에 실패했습니다. 다시 시도해주세요. | 소셜 프로바이더 인증 코드 교환 실패. |
+| `PROFILE_ALREADY_COMPLETE` | 400 BAD_REQUEST | 이미 프로필이 완성된 계정입니다. | isProfileComplete=true인 사용자가 complete-profile 호출. |
+| `ACCOUNT_DEACTIVATED` | 401 UNAUTHORIZED | 탈퇴한 계정입니다. | isDeleted=true인 사용자 로그인 시도. |
+| `EMAIL_ALREADY_REGISTERED` | 409 CONFLICT | 이미 가입된 이메일입니다. | 회원가입 시 이메일 중복. |
+
+**Track / Tag / Album:**
+
+| Code | HTTP Status | Client Message | Developer Message |
+|------|------------|----------------|-------------------|
+| `TRACK_NOT_FOUND` | 404 NOT_FOUND | 트랙 정보를 찾을 수 없습니다. | trackId에 해당하는 Track이 존재하지 않습니다. |
+| `TAG_NOT_FOUND` | 404 NOT_FOUND | 태그 정보를 찾을 수 없습니다. | tagId에 해당하는 Tag가 존재하지 않습니다. |
+| `TAG_NAME_DUPLICATED` | 409 CONFLICT | 이미 존재하는 태그 이름입니다. | 태그 이름 중복. |
+| `ALBUM_NOT_FOUND` | 404 NOT_FOUND | 앨범 정보를 찾을 수 없습니다. | albumId에 해당하는 Album이 존재하지 않습니다. |
 
 ---
 

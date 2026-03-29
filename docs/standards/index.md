@@ -26,7 +26,7 @@ status: stable
 | [Evidence Pack Standard](evidence-pack-standard.md) | system | Evidence Pack format standard | stable |
 | [DTO Standards](dto-standards.md) | ATS | Entity/DTO separation, ResponseDTO, RequestDTO | stable |
 | [Exception Handling Standards](exception-handling.md) | ATS | Business/Technic exceptions, GlobalExceptionHandler | stable |
-| [Frontend Standards](frontend-standards.md) | ATS | React + TypeScript architecture (Phase 2) | draft |
+| [Frontend Standards](frontend-standards.md) | ATS | React + TypeScript architecture (Phase 2 — active) | active |
 
 ## Document Dependencies
 

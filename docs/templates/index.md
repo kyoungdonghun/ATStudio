@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-01-29
+version: 1.2
+last_updated: 2026-03-29
 project: system
 owner: EO
 category: registry
@@ -36,6 +36,6 @@ status: stable
 
 ## Template Usage Guide
 
-- **Request Templates**: See `docs/guides/request-intake.md`
-- **ADR Template**: Use for MEDIUM/HIGH changes, see `docs/guides/traceability.md`
-- **Project Templates**: See `docs/guides/project-onboarding.md`
+- **Request Templates**: See `CLAUDE.md` (Skills Reference — `/create-req`, `/create-wi-handoff-packet`)
+- **ADR Template**: Use for MEDIUM/HIGH changes; traceability: see `docs/registry/asset-registry.md` §0
+- **WI Handoff Template**: Always generate via `/create-wi-handoff-packet` skill (manual writing prohibited)

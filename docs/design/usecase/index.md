@@ -1,7 +1,7 @@
 # Use Case Specification Index
 
-> **Version**: v7 (Confirmed)
-> **Confirmed date**: 2026-03-14
+> **Version**: v8
+> **Confirmed date**: 2026-03-29
 > **Reference documents**: `docs/design/db-schema.md` (v4), `docs/design/api-spec.md` (v6)
 > **Source**: `docs/check/usecase-spec csv/`
 
@@ -19,15 +19,15 @@
 | `user-subscription.md` | Subscription (subscribe/list/change/cancel/admin management/admin plan list) | 11 |
 | `user-license.md` | Track usage license (view) | 4 |
 | `user-question.md` | Inquiry (create/list/answer/delete/attachment/admin status change) | 7 |
-| `user-notice.md` | Notice (create/list/update/delete) | 5 |
-| `likes.md` | Likes (add/list/remove) | 3 |
+| `user-notice.md` | Notice (create/list/detail/update/delete) | 5 |
+| `likes.md` | Likes (add/list/remove, track + album) | 6 |
 | `download-queue.md` | Download queue (add/list/remove) | 3 |
 | `whitelist.md` | Whitelist channel (register/list/update/delete) | 4 |
 | `company-certification.md` | Company certification (apply/view status/admin management) | 5 |
 | `util.md` | Utility (duplicate check/token/subscription status/download count/email verify/password reset, etc.) | 11 |
-| `sound-album.md` | Album (create/list/detail/update/delete/add track/remove track/reorder) | 8 |
+| `sound-album.md` | Album (create/list/detail/update/delete/add track/remove track/reorder/likes cross-ref) | 9 |
 
-**Total UC count: 95** (net +6 vs v6: UTIL-014~016, PAYMENT-002A, INFO-016 added; UTIL-013 indexed)
+**Total UC count: 100** (net +5 vs v7: LIKE-004~006, ALBUM-009 added; SOUND-005/ANNOUNCE-002/003 updated in-place)
 
 ---
 
@@ -117,9 +117,12 @@
 
 | Code | Title | File |
 |------|-------|------|
-| LIKE-001 | Add to likes | `likes.md` |
-| LIKE-002 | List likes | `likes.md` |
-| LIKE-003 | Remove from likes | `likes.md` |
+| LIKE-001 | Add track to likes | `likes.md` |
+| LIKE-002 | List track likes | `likes.md` |
+| LIKE-003 | Remove track from likes | `likes.md` |
+| LIKE-004 | Add album to likes | `likes.md` |
+| LIKE-005 | List album likes | `likes.md` |
+| LIKE-006 | Remove album from likes | `likes.md` |
 | DLQ-001 | Add to download queue | `download-queue.md` |
 | DLQ-002 | View download queue | `download-queue.md` |
 | DLQ-003 | Remove from download queue | `download-queue.md` |
@@ -150,6 +153,7 @@
 | ALBUM-006 | Add track to album | `sound-album.md` |
 | ALBUM-007 | Remove track from album | `sound-album.md` |
 | ALBUM-008 | Reorder album tracks | `sound-album.md` |
+| ALBUM-009 | Album likes (cross-reference) | `sound-album.md` |
 
 ### Util
 
@@ -169,6 +173,23 @@
 
 > New in v3 (vs original)
 > New in v4 (cross-review additions)
+
+---
+
+## Change History (v7 to v8)
+
+### UC v8 Modifications (2026-03-29)
+
+| # | UC | Change |
+|---|----|--------|
+| 1 | LIKE-004 | **New** — Add Album to Likes. `POST /api/likes/albums/{albumId}`. 201 Created; 409 if already liked; increments `albums.likeCount`. |
+| 2 | LIKE-005 | **New** — List Album Likes. `GET /api/likes/albums`. Returns `dataList` of `AlbumLikeResponse` (albumId, title, description, thumbnailUrl, trackCount, likeCount, createdAt). |
+| 3 | LIKE-006 | **New** — Remove Album from Likes. `DELETE /api/likes/albums/{albumId}`. 204 No Content; decrements `albums.likeCount` (floor 0). |
+| 4 | SOUND-005 | **Updated** — Sort parameter documented: `latest` (createdAt DESC, default), `popular` (playCount DESC), `likes` (likeCount DESC), `downloads` (downloadCount DESC). Response now includes `likeCount` and `downloadCount` fields. |
+| 5 | ANNOUNCE-002 | **Updated** — Sort parameter documented: `latest` (isPinned DESC + createdAt DESC, default), `views` (isPinned DESC + viewCount DESC). Response includes `viewCount` field. |
+| 6 | ANNOUNCE-003 | **Updated** — Detail access increments `notices.viewCount` (same transaction). Response includes `viewCount` field. |
+| 7 | ALBUM-002 | **Updated** — Sort parameter documented: `latest` (DB-level createdAt DESC, default), `trackCount` (in-memory DESC). Response includes `likeCount` field from `albums.like_count`. |
+| 8 | ALBUM-009 | **New** — Album Likes cross-reference entry. `albums.likeCount` field documented. Canonical definitions at LIKE-004/005/006. |
 
 ---
 

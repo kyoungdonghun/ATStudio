@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-02-12
+version: 1.1
+last_updated: 2026-03-29
 project: ATS
 owner: PG
 category: policy
@@ -92,9 +92,29 @@ task_types:
 
 ### 6.3 Spring Security Configuration
 
-- CSRF: Disabled for REST API endpoints (JWT-based), enabled for Thymeleaf form pages.
+- CSRF: Disabled for all endpoints (REST API + JWT-based; Thymeleaf pages are legacy dev-only scaffolding).
 - CORS: Explicitly configured per environment (dev/staging/prod).
 - Password encoding: BCryptPasswordEncoder (strength 10+).
+
+**`/api/users/me` rule ordering (SecurityConfig.java):**
+- `GET /api/users/me`, `PUT /api/users/me`, `DELETE /api/users/me`, `PUT /api/users/me/*` are declared with `authenticated()` **before** the `hasRole("ADMIN")` wildcard `/api/users/*` entries. This order was fixed as part of CR-P-001 remediation.
+
+**Public endpoints (permitAll) — current state:**
+- `POST /api/users` (registration)
+- `POST /api/auth/*` (login, social, refresh, forgot/reset password)
+- `GET /api/auth/verify-email`
+- `GET /api/utils/check-email`, `check-phone`, `check-nickname`
+- `GET /api/tracks`, `GET /api/tracks/*`, `GET /api/tracks/*/stream`
+- `GET /api/tags`
+- `GET /api/subscriptions`, `GET /api/subscriptions/*`
+- `GET /api/notices`, `GET /api/notices/*`
+- `GET /api/notices/*/attachments/*` (notice attachment download — INT-002)
+- `GET /api/albums`, `GET /api/albums/*`
+- Swagger UI (`/swagger-ui/**`, `/v3/api-docs/**`) — controlled by `SWAGGER_ENABLED` env var
+
+**Token storage:** JWT access token and refresh token are stored in **browser localStorage** (not httpOnly cookie). Frontend reads token from `localStorage` and sends as `Authorization: Bearer <token>` header via Axios interceptor.
+
+**Known deferred item:** `JWT_SECRET` still has a Base64 fallback default in `application.yml` (CR-P-004). Acceptable for local development. Production deployment must set `JWT_SECRET` as an environment variable with no fallback.
 
 ---
 

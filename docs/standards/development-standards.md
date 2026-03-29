@@ -1,6 +1,6 @@
 ---
 version: 2.1
-last_updated: 2026-03-08
+last_updated: 2026-03-29
 project: ATS
 owner: SE
 category: standard
@@ -43,7 +43,7 @@ Our agents are defined by **documents (Context/Persona)**, not **classes**.
 |-------|----------|----------|---------|
 | **Application** | Java 17 + Spring Boot 4.x | `src/main/java/` | ATStudio business logic |
 | **System Scripts** | Python 3.10+ | `.claude/scripts/` | Agent tooling, automation |
-| **Frontend (Planned)** | React + TypeScript | TBD | SPA frontend (Phase 2) |
+| **Frontend (Active)** | React + TypeScript | `frontend/` | SPA frontend (Phase 2 — implemented) |
 
 **Application Code (Java):**
 - Framework: Spring Boot 4.x with Gradle
@@ -213,7 +213,9 @@ public class MusicService {
 @Entity
 @Table(name = "music")
 @Getter
+@Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Music extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -223,10 +225,17 @@ public class Music extends BaseEntity {
     private String title;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "creator_id")
-    private User creator;
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    // Domain methods for state changes (no public setters)
+    public void update(String title) {
+        if (title != null) this.title = title;
+    }
 }
 ```
+
+> **Entity construction pattern:** Use `@Builder` for creation, `@AllArgsConstructor(access = AccessLevel.PRIVATE)` to keep the all-args constructor private (Builder only). State changes after creation are handled through explicit domain methods (`update()`, `deactivate()`, `incrementXxxCount()`, etc.), never through setters.
 
 **DTO (Record preferred):**
 ```java

@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-03-07
+version: 1.3
+last_updated: 2026-03-29
 project: ATS
 owner: docops
 category: guide
@@ -97,6 +97,7 @@ dependencies:
 | M-26 | PAYMENT-001 | Screen 16-2 (구독 결제) | "결제하기" 클릭 | PG 결제 창 **[보류]** | ⚠️ PG 보류 | `6.3 POST /api/user-subscriptions` |
 | M-27 | PAYMENT-007 | M-09 (PlanCompareModal 내) | 업그레이드 결제 확인 | PG 결제 창 **[보류]** | ⚠️ PG 보류 | `6.7 PUT /api/user-subscriptions/me` |
 | M-28 | - | K-6 (태그 관리) | "태그 삭제" 클릭 | "태그를 삭제하시겠습니까?" | ConfirmModal | `2.4 DELETE /api/tags/{tagId}` |
+| M-29 | SR-34 | D-1 (좋아요 목록 > 앨범 탭) | "좋아요 취소" 클릭 | "좋아요를 취소하시겠습니까?" | ConfirmModal | `DELETE /api/likes/albums/{albumId}` |
 
 ---
 
@@ -254,11 +255,12 @@ dependencies:
 
 ---
 
-> 총 **28개** 모달 (M-01 ~ M-28)
+> 총 **29개** 모달 (M-01 ~ M-29)
 > - 1차 (화면 목록 기반): M-01 ~ M-10 (10개)
 > - 2차 (유스케이스 추가): M-11 ~ M-28 (18개)
+> - 3차 (SR-34 앨범 좋아요): M-29 (1개)
 > - 보류: M-15, M-26, M-27 (3개)
-> v1.2 2026-03-07
+> v1.2 2026-03-07 → v1.3 2026-03-29
 
 ## Related Documents
 

@@ -1,6 +1,6 @@
 ---
 version: 2.0
-last_updated: 2026-01-29
+last_updated: 2026-03-29
 project: ATS
 owner: EO (Ensemble Overseer)
 category: standard
@@ -206,12 +206,12 @@ ATStudio is a **Shorts Music Marketplace** — a platform where music creators u
 
 | Phase | Stack | Description |
 |-------|-------|-------------|
-| Phase 1 (Current) | Java 17 + Spring Boot 4.x + Thymeleaf | Backend-first, SSR UI |
-| Phase 2 (Planned) | + React + TypeScript | Frontend SPA migration |
+| Phase 1 | Java 17 + Spring Boot 4.x + Thymeleaf | Backend-first, SSR UI (complete) |
+| Phase 2 (Current) | + React 18 + TypeScript + Vite | Frontend SPA — implemented and active |
 
-- Phase 1 focuses on core backend APIs, data model, and basic Thymeleaf UI.
-- Phase 2 migrates the frontend to React SPA while the backend serves as a REST API.
-- **Rule:** Backend APIs must be designed REST-first from Phase 1 to enable smooth React migration.
+- Phase 1 delivered core backend APIs and data model. Thymeleaf templates are superseded.
+- Phase 2 is the active frontend: React SPA served by Vite, communicating with the Spring Boot REST API.
+- **Rule:** Backend APIs must remain REST-first; no server-side rendering assumptions in new endpoints.
 
 ---
 

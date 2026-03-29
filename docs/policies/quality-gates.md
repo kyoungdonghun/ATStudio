@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-01-06
+version: 1.1
+last_updated: 2026-03-29
 project: system
 owner: EO
 category: policy
@@ -44,18 +44,17 @@ task_types:
 - [ ] Impact/rollback/validation organized at `docs/templates/impact-analysis-template.md` level
 - [ ] Minimum regression verification (test/scenario) exists
 - [ ] Registry Consumers updated (required when modifying assets, responsibility: worker→MA confirm→EO approve)
-- [ ] **Post-evaluation (recommended→operational mandatory)**: Performed 10~20 minute evaluation based on `docs/guides/agent-evaluation.md` after work completion (simple report or comment is OK)
+- [ ] **Post-evaluation (recommended→operational mandatory)**: After work completion, verify DoD criteria are met and document 1-3 lessons in `docs/retrospective/` if reusable.
 
 ### HIGH
 
 - [ ] ADR required (including alternatives/risks/rollback)
 - [ ] PG/RE perspective review recorded (security/reliability)
 - [ ] If contract change, backward compatibility/versioning policy specified
-- [ ] **Post-evaluation (required)**: Performed evaluation based on `docs/guides/agent-evaluation.md` and recorded 1~3 improvement actions
+- [ ] **Post-evaluation (required)**: Verify DoD, record lessons in `docs/retrospective/engineering.md` or `kick.md`, create evidence pack.
 
 > Reference policies:
 > - Versioning/deprecation: `docs/policies/versioning-policy.md`
 > - Sensitive info: `docs/policies/security-policy.md`
-> - Regression baseline: `docs/guides/eval-golden-set.md`
 
 
