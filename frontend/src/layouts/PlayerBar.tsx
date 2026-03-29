@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toUploadUrl } from '@/api/client';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
@@ -44,6 +45,7 @@ export default function PlayerBar() {
   const [showPlModal, setShowPlModal] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (isAuthenticated && !likeStore.loaded) {
@@ -198,8 +200,13 @@ export default function PlayerBar() {
           >
             {'\uC7AC\uC0DD\uBAA9\uB85D'}
           </button>
+          {!isAuthenticated && (
+            <button className={styles.buyBtn} onClick={() => navigate('/login')}>
+              {'\uAD6C\uB9E4\uD558\uAE30'}
+            </button>
+          )}
           {isAuthenticated && role === 'USER' && (
-            <button className={styles.buyBtn}>
+            <button className={styles.buyBtn} onClick={() => navigate('/subscriptions')}>
               {'\uAD6C\uB9E4\uD558\uAE30'}
             </button>
           )}
@@ -316,7 +323,12 @@ export default function PlayerBar() {
             >
               {'재생목록'}
             </button>
-            <button className={styles.buyBtn}>{'구매하기'}</button>
+            {!isAuthenticated && (
+              <button className={styles.buyBtn} onClick={() => navigate('/login')}>{'구매하기'}</button>
+            )}
+            {isAuthenticated && role === 'USER' && (
+              <button className={styles.buyBtn} onClick={() => navigate('/subscriptions')}>{'구매하기'}</button>
+            )}
           </div>
         </div>
       </div>

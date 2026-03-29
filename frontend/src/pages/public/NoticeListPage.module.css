@@ -14,10 +14,32 @@
   font-size: 15px;
 }
 
+.pageHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
 .title {
   font-size: 24px;
   font-weight: 700;
-  margin-bottom: 28px;
+}
+
+.sortBar {
+  display: flex;
+  align-items: center;
+}
+
+.sortSelect {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  color: var(--text1);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 5px 8px;
+  cursor: pointer;
 }
 
 /* ── Table ── */

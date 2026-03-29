@@ -32,6 +32,41 @@
   object-fit: cover;
 }
 
+/* ── Like button overlay ── */
+
+.likeBtn {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  border: none;
+  color: var(--text1);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.card:hover .likeBtn {
+  opacity: 1;
+}
+
+.likeBtnActive {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.likeCount {
+  color: var(--text2);
+  font-size: 11px;
+}
+
 /* ── Text ── */
 
 .name {

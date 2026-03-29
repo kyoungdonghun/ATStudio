@@ -55,6 +55,7 @@ export default function QuestionListPage() {
   const currentPage = Number(searchParams.get('page')) || 1;
   const categoryFilter = searchParams.get('category') ?? '';
   const statusFilter = searchParams.get('status') ?? '';
+  const tab = searchParams.get('tab') === 'mine' ? 'mine' : 'all';
 
   const [items, setItems] = useState<QuestionListItem[]>([]);
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
@@ -65,7 +66,8 @@ export default function QuestionListPage() {
     try {
       setLoading(true);
       setError(null);
-      const params: Record<string, unknown> = { page: currentPage, size: 20, mine: true };
+      const params: Record<string, unknown> = { page: currentPage, size: 20 };
+      if (tab === 'mine') params.mine = true;
       if (categoryFilter) params.category = categoryFilter;
       if (statusFilter) params.status = statusFilter;
       const result = await fetchQuestions(params as Parameters<typeof fetchQuestions>[0]);
@@ -76,7 +78,7 @@ export default function QuestionListPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, categoryFilter, statusFilter]);
+  }, [currentPage, categoryFilter, statusFilter, tab]);
 
   useEffect(() => {
     load();
@@ -98,12 +100,24 @@ export default function QuestionListPage() {
       {/* Header */}
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>
-          {'내 문의'}
+          {'문의 게시판'}
           {pageInfo && <span className={styles.count}>{pageInfo.total}건</span>}
         </h1>
         <Link to="/questions/new">
           <Button variant="primary" size="sm">{'새 문의'}</Button>
         </Link>
+      </div>
+
+      {/* Tabs */}
+      <div className={styles.tabs}>
+        <button
+          className={`${styles.tab} ${tab === 'all' ? styles.tabActive : ''}`}
+          onClick={() => updateParam('tab', '')}
+        >{'전체 문의'}</button>
+        <button
+          className={`${styles.tab} ${tab === 'mine' ? styles.tabActive : ''}`}
+          onClick={() => updateParam('tab', 'mine')}
+        >{'내 문의'}</button>
       </div>
 
       {/* Filter Bar */}

@@ -13,6 +13,7 @@ public record AlbumDetailResponse(
         String description,
         String thumbnailUrl,
         List<AlbumTrackItemResponse> tracks,
+        long likeCount,
         LocalDateTime createdAt
 ) {
     public static AlbumDetailResponse from(Album album, List<AlbumTrackItemResponse> tracks) {
@@ -22,6 +23,7 @@ public record AlbumDetailResponse(
                 album.getDescription(),
                 album.getThumbnail(),
                 tracks,
+                album.getLikeCount(),
                 album.getCreatedAt()
         );
     }

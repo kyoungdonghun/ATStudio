@@ -2,7 +2,7 @@
 
 .page {
   padding: 32px var(--page-px);
-  max-width: 720px;
+  max-width: 960px;
   margin: 0 auto;
 }
 
@@ -13,7 +13,71 @@
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--text0);
-  margin-bottom: 32px;
+  margin-bottom: 28px;
+}
+
+/* ── Layout: Sidebar + Content ── */
+
+.layout {
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
+}
+
+/* ── Sidebar ── */
+
+.sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  position: sticky;
+  top: calc(var(--header-h) + 24px);
+}
+
+.menuGroup {
+  margin-bottom: 20px;
+}
+
+.menuGroupTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0 12px;
+  margin-bottom: 6px;
+}
+
+.menuItem {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text1);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+
+.menuItem:hover {
+  background: var(--bg2);
+  color: var(--text0);
+}
+
+.menuItemActive {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* ── Content ── */
+
+.content {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ── Section Card ── */
@@ -174,4 +238,55 @@
   font-size: 13px;
   color: var(--text2);
   margin-bottom: 16px;
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .layout {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .sidebar {
+    width: 100%;
+    position: static;
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+  }
+
+  .menuGroup {
+    display: flex;
+    gap: 0;
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+
+  .menuGroupTitle {
+    display: none;
+  }
+
+  .menuItem {
+    white-space: nowrap;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+  }
+
+  .pageTitle {
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+
+  .section {
+    padding: 18px;
+  }
+
+  .infoLabel {
+    width: 90px;
+  }
 }

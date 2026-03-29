@@ -4,6 +4,8 @@ import { fetchAlbums } from '@/api/albums';
 import type { Album, PageInfo } from '@/types';
 import AlbumCard from '@/components/album/AlbumCard';
 import Pagination from '@/components/ui/Pagination';
+import { useAuthStore } from '@/store/authStore';
+import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import styles from './AlbumListImagePage.module.css';
 
 const PAGE_SIZE = 24;
@@ -18,7 +20,11 @@ export default function AlbumListImagePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const albumLikeStore = useAlbumLikeStore();
+
   const currentPage = Number(searchParams.get('page') ?? '1');
+  const sortValue = (searchParams.get('sort') ?? 'latest') as 'latest' | 'trackCount';
 
   /* ── Data fetch ── */
   const loadAlbums = useCallback(async () => {
@@ -26,7 +32,7 @@ export default function AlbumListImagePage() {
     setError(null);
 
     try {
-      const res = await fetchAlbums({ page: currentPage, size: PAGE_SIZE });
+      const res = await fetchAlbums({ page: currentPage, size: PAGE_SIZE, sort: sortValue });
       setAlbums(res.dataList);
       setPageInfo(res.pageInfo ?? null);
     } catch (err) {
@@ -34,16 +40,29 @@ export default function AlbumListImagePage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage]);
+  }, [currentPage, sortValue]);
 
   useEffect(() => {
     loadAlbums();
   }, [loadAlbums]);
 
+  useEffect(() => {
+    if (isAuthenticated && !albumLikeStore.loaded) {
+      albumLikeStore.load();
+    }
+  }, [isAuthenticated, albumLikeStore.loaded]);
+
   /* ── Pagination ── */
   function goToPage(page: number) {
     const next = new URLSearchParams(searchParams);
     next.set('page', String(page));
+    setSearchParams(next);
+  }
+
+  function handleSortChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const next = new URLSearchParams(searchParams);
+    next.set('sort', e.target.value);
+    next.set('page', '1');
     setSearchParams(next);
   }
 
@@ -63,13 +82,25 @@ export default function AlbumListImagePage() {
             </span>
           )}
         </div>
-        <div className={styles.viewToggle}>
-          <span className={`${styles.viewBtn} ${styles.viewBtnActive}`}>
-            {'카드'}
-          </span>
-          <Link to="/albums/list" className={styles.viewBtn}>
-            {'리스트'}
-          </Link>
+        <div className={styles.headerRight}>
+          <div className={styles.sortBar}>
+            <select
+              className={styles.sortSelect}
+              value={sortValue}
+              onChange={handleSortChange}
+            >
+              <option value="latest">{'최신순'}</option>
+              <option value="trackCount">{'곡 수순'}</option>
+            </select>
+          </div>
+          <div className={styles.viewToggle}>
+            <span className={`${styles.viewBtn} ${styles.viewBtnActive}`}>
+              {'카드'}
+            </span>
+            <Link to="/albums/list" className={styles.viewBtn}>
+              {'리스트'}
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -96,6 +127,8 @@ export default function AlbumListImagePage() {
                 key={album.id}
                 album={album}
                 onClick={handleAlbumClick}
+                isLiked={albumLikeStore.likedAlbumIds.has(album.id)}
+                onToggleLike={isAuthenticated ? (id) => albumLikeStore.toggle(id) : undefined}
               />
             ))}
           </div>

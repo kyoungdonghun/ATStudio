@@ -17,6 +17,7 @@ export interface AlbumDetail {
   description: string | null;
   thumbnailUrl: string | null;
   tracks: AlbumTrack[];
+  likeCount: number;
   createdAt: string;
 }
 
@@ -25,7 +26,7 @@ export interface AlbumDetail {
 export interface AlbumListParams {
   page?: number;
   size?: number;
-  sort?: 'latest' | 'popular';
+  sort?: 'latest' | 'popular' | 'trackCount';
 }
 
 /* ── API functions ── */

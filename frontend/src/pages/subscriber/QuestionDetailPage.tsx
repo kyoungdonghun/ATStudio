@@ -5,6 +5,7 @@ import {
   fetchQuestionDetail,
   deleteQuestion,
   downloadAttachment,
+  createAnswer,
   type QuestionDetail,
 } from '@/api/questions';
 import { formatDate } from '@/utils/format';
@@ -51,12 +52,17 @@ export default function QuestionDetailPage() {
   const navigate = useNavigate();
 
   const currentUser = useAuthStore((s) => s.user);
+  const role = useAuthStore((s) => s.role);
   const [question, setQuestion] = useState<QuestionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  const [answerContent, setAnswerContent] = useState('');
+  const [answerSubmitting, setAnswerSubmitting] = useState(false);
+  const [answerError, setAnswerError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -87,6 +93,22 @@ export default function QuestionDetailPage() {
       setDeleteOpen(false);
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleAnswerSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!id || !answerContent.trim()) return;
+    try {
+      setAnswerSubmitting(true);
+      setAnswerError(null);
+      await createAnswer(Number(id), answerContent.trim());
+      setAnswerContent('');
+      await load();
+    } catch {
+      setAnswerError('답변 등록에 실패했습니다.');
+    } finally {
+      setAnswerSubmitting(false);
     }
   }
 
@@ -176,6 +198,39 @@ export default function QuestionDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Answer Form — ADMIN or question owner, not CLOSED */}
+      {question.status !== 'CLOSED' &&
+        currentUser &&
+        (role === 'ADMIN' || question.user?.id === currentUser.id) && (
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>{'답변 작성'}</h2>
+            <form className={styles.answerForm} onSubmit={handleAnswerSubmit}>
+              <textarea
+                className={styles.answerTextarea}
+                value={answerContent}
+                onChange={(e) => setAnswerContent(e.target.value)}
+                placeholder="답변 내용을 입력하세요"
+                rows={4}
+                required
+                disabled={answerSubmitting}
+              />
+              {answerError && (
+                <p className={styles.answerFormError}>{answerError}</p>
+              )}
+              <div className={styles.answerFormActions}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  loading={answerSubmitting}
+                  disabled={!answerContent.trim()}
+                >
+                  {'답변 등록'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
 
       {/* Actions — owner only */}
       {question.user && currentUser && question.user.id === currentUser.id && (

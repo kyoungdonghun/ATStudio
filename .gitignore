@@ -49,6 +49,15 @@ application-secret.yml
 *.lnk
 gen.py
 
+### User uploads (runtime data, never commit) ###
+uploads/
+
+### Certificates / Keys ###
+*.pem
+*.key
+*.p12
+*.jks
+
 ### Frontend ###
 frontend/node_modules/
 frontend/dist/

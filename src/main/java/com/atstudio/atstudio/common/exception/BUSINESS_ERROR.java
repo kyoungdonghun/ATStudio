@@ -190,7 +190,12 @@ public enum BUSINESS_ERROR {
     TAG_NAME_DUPLICATED(
             HttpStatus.CONFLICT,
             "이미 존재하는 태그 이름입니다.",
-            "태그 이름 중복.");
+            "태그 이름 중복."),
+
+    ALBUM_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "앨범 정보를 찾을 수 없습니다.",
+            "albumId에 해당하는 Album이 존재하지 않습니다.");
 
     private final HttpStatus status;
     private final String clientMessage;

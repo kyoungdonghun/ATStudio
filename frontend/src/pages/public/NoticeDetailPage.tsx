@@ -68,6 +68,8 @@ export default function NoticeDetailPage() {
         </div>
         <div className={styles.meta}>
           <span>{formatDate(notice.createdAt)}</span>
+          <span className={styles.metaDivider}>{'|'}</span>
+          <span>{`조회 ${notice.viewCount.toLocaleString()}`}</span>
         </div>
       </header>
 

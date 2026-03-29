@@ -169,9 +169,11 @@ CREATE TABLE IF NOT EXISTS tracks
     duration     INT          NOT NULL DEFAULT 0 COMMENT 'Duration in seconds, auto-extracted from audio file.',
     user_id      BIGINT       NOT NULL COMMENT 'Copyright holder (currently admin/artist only).',
     is_active    TINYINT(1)   NOT NULL DEFAULT 0 COMMENT 'Published after admin review.',
-    play_count   BIGINT       NOT NULL DEFAULT 0,
-    created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    play_count     BIGINT       NOT NULL DEFAULT 0,
+    like_count     BIGINT       NOT NULL DEFAULT 0,
+    download_count BIGINT       NOT NULL DEFAULT 0,
+    created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     CONSTRAINT fk_tracks_user FOREIGN KEY (user_id) REFERENCES users (id)
 ) ENGINE = InnoDB
@@ -243,9 +245,10 @@ CREATE TABLE IF NOT EXISTS notices
     user_id    BIGINT       NOT NULL COMMENT 'ADMIN author.',
     title      VARCHAR(200) NOT NULL,
     content    TEXT         NOT NULL,
-    is_pinned  TINYINT(1)   NOT NULL DEFAULT 0,
-    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_pinned   TINYINT(1)   NOT NULL DEFAULT 0,
+    view_count  BIGINT       NOT NULL DEFAULT 0,
+    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     CONSTRAINT fk_notices_user FOREIGN KEY (user_id) REFERENCES users (id)
 ) ENGINE = InnoDB
@@ -460,6 +463,7 @@ CREATE TABLE IF NOT EXISTS albums
     thumbnail   VARCHAR(500) NULL     COMMENT 'Album cover image URL.',
     created_by  BIGINT       NOT NULL COMMENT 'ADMIN user who created this album.',
     is_active   TINYINT(1)   NOT NULL DEFAULT 1 COMMENT 'Soft delete flag.',
+    like_count  BIGINT       NOT NULL DEFAULT 0,
     created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -483,6 +487,21 @@ CREATE TABLE IF NOT EXISTS album_tracks
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
+
+-- ─────────────────────────────────────────────
+-- 3.12b  album_likes  (→ users, albums)
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS album_likes
+(
+    user_id    BIGINT   NOT NULL,
+    album_id   BIGINT   NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, album_id),
+    CONSTRAINT fk_album_likes_user  FOREIGN KEY (user_id)  REFERENCES users  (id),
+    CONSTRAINT fk_album_likes_album FOREIGN KEY (album_id) REFERENCES albums (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
 -- 3.13  email_verification_tokens  (→ users)

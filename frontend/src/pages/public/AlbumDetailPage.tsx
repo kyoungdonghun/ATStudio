@@ -5,6 +5,7 @@ import { fetchAlbumDetail, type AlbumDetail } from '@/api/albums';
 import { toUploadUrl } from '@/api/client';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
+import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import { useAuthStore } from '@/store/authStore';
 import { formatDate } from '@/utils/format';
 import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
@@ -40,12 +41,19 @@ export default function AlbumDetailPage() {
   const playAll = usePlayerStore((s) => s.playAll);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const likeStore = useLikeStore();
+  const albumLikeStore = useAlbumLikeStore();
 
   useEffect(() => {
     if (isAuthenticated && !likeStore.loaded) {
       likeStore.load();
     }
   }, [isAuthenticated, likeStore.loaded]);
+
+  useEffect(() => {
+    if (isAuthenticated && !albumLikeStore.loaded) {
+      albumLikeStore.load();
+    }
+  }, [isAuthenticated, albumLikeStore.loaded]);
 
   if (loading) {
     return (
@@ -101,6 +109,9 @@ export default function AlbumDetailPage() {
               {'\uD83C\uDFB5'} {album.tracks.length}곡
             </span>
             <span className={styles.metaItem}>
+              {'\u2665'} {album.likeCount ?? 0}
+            </span>
+            <span className={styles.metaItem}>
               {'\uD83D\uDCC5'} {formatDate(album.createdAt)}
             </span>
           </div>
@@ -124,6 +135,8 @@ export default function AlbumDetailPage() {
                   tags: [],
                   isActive: true,
                   playCount: 0,
+                  likeCount: 0,
+                  downloadCount: 0,
                   createdAt: '',
                   updatedAt: '',
                 }));
@@ -134,20 +147,17 @@ export default function AlbumDetailPage() {
             </button>
             {isAuthenticated && (
               <button
-                className={`${styles.btnLike} ${album.tracks.every((t) => likeStore.likedIds.has(t.trackId)) ? styles.btnLikeActive : ''}`}
-                onClick={async () => {
-                  const allLiked = album.tracks.every((t) => likeStore.likedIds.has(t.trackId));
-                  for (const t of album.tracks) {
-                    const isLiked = likeStore.likedIds.has(t.trackId);
-                    if (allLiked ? isLiked : !isLiked) {
-                      await likeStore.toggle(t.trackId);
-                    }
-                  }
-                  toast('success', allLiked ? '전체 좋아요가 해제되었습니다.' : '전체 수록곡을 좋아요했습니다.');
+                className={`${styles.btnLike} ${albumLikeStore.likedAlbumIds.has(album.id) ? styles.btnLikeActive : ''}`}
+                onClick={() => {
+                  albumLikeStore.toggle(album.id);
+                  toast(
+                    'success',
+                    albumLikeStore.likedAlbumIds.has(album.id) ? '앨범 좋아요가 해제되었습니다.' : '앨범을 좋아요했습니다.',
+                  );
                 }}
-                title={album.tracks.every((t) => likeStore.likedIds.has(t.trackId)) ? '전체 좋아요 해제' : '전체 수록곡 좋아요'}
+                title={albumLikeStore.likedAlbumIds.has(album.id) ? '앨범 좋아요 해제' : '앨범 좋아요'}
               >
-                {album.tracks.every((t) => likeStore.likedIds.has(t.trackId)) ? '\u2665' : '\u2661'}&nbsp;&nbsp;좋아요
+                {albumLikeStore.likedAlbumIds.has(album.id) ? '\u2665' : '\u2661'}&nbsp;&nbsp;좋아요
               </button>
             )}
           </div>
@@ -197,6 +207,8 @@ export default function AlbumDetailPage() {
                           tags: [],
                           isActive: true,
                           playCount: 0,
+                          likeCount: 0,
+                          downloadCount: 0,
                           createdAt: '',
                           updatedAt: '',
                         });

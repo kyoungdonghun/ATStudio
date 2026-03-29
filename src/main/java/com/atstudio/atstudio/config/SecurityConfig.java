@@ -70,6 +70,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/subscriptions/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/notices").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/notices/*").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/notices/*/attachments/*").permitAll()
                 // Swagger (dev only -- SEC-15: checked at application level via profile)
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 // USER — /api/users/me must precede ADMIN wildcard /api/users/*

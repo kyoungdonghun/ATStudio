@@ -29,6 +29,28 @@
   margin-left: 10px;
 }
 
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sortBar {
+  display: flex;
+  align-items: center;
+}
+
+.sortSelect {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  color: var(--text1);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
 .viewToggle {
   display: flex;
   gap: 6px;
@@ -73,6 +95,11 @@
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   text-align: left;
+}
+
+.albumTable thead .thRight {
+  text-align: right;
+  width: 100px;
 }
 
 .thRight {
@@ -141,6 +168,37 @@
   font-size: 12px;
   color: var(--text2);
   text-align: right;
+}
+
+/* ── Like ── */
+
+.albumTable thead .thCenter {
+  text-align: center;
+  width: 50px;
+}
+
+.cellLike {
+  padding: 10px 12px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.likeBtn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.15s;
+}
+
+.likeBtn:hover {
+  color: var(--accent);
+}
+
+.likeBtnActive {
+  color: var(--accent);
 }
 
 /* ── Pagination ── */

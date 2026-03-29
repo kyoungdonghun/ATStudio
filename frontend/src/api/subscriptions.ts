@@ -1,4 +1,5 @@
 import client from '@/api/client';
+import type { ApiResponse } from '@/types';
 
 export interface SubscriptionPlan {
   id: number;
@@ -30,7 +31,7 @@ export async function fetchSubscriptionPlans(
 export async function fetchSubscriptionPlanDetail(
   subscriptionId: number,
 ): Promise<SubscriptionPlan> {
-  const { data } = await client.get<{ data: SubscriptionPlan }>(
+  const { data } = await client.get<ApiResponse<SubscriptionPlan>>(
     `/subscriptions/${subscriptionId}`,
   );
   return data.data;

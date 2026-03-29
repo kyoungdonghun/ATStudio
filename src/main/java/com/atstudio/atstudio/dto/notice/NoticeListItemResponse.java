@@ -10,6 +10,7 @@ public record NoticeListItemResponse(
         Long id,
         String title,
         Boolean isPinned,
+        long viewCount,
         LocalDateTime createdAt
 ) {
     public static NoticeListItemResponse from(Notice notice) {
@@ -17,6 +18,7 @@ public record NoticeListItemResponse(
                 notice.getId(),
                 notice.getTitle(),
                 notice.isPinned(),
+                notice.getViewCount(),
                 notice.getCreatedAt()
         );
     }

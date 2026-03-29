@@ -16,6 +16,8 @@ public record AdminTrackListItemResponse(
         String tonality,
         String thumbnail,
         long playCount,
+        long likeCount,
+        long downloadCount,
         boolean isActive,
         List<TagResponse> tags,
         LocalDateTime createdAt
@@ -30,6 +32,8 @@ public record AdminTrackListItemResponse(
                 track.getTonality(),
                 track.getThumbnail(),
                 track.getPlayCount(),
+                track.getLikeCount(),
+                track.getDownloadCount(),
                 track.isActive(),
                 tags.stream().map(TagResponse::from).toList(),
                 track.getCreatedAt()

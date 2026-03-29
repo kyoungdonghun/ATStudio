@@ -4,7 +4,7 @@
   left: 0;
   right: 0;
   height: var(--player-h);
-  background: rgba(17, 24, 39, 0.97);
+  background: var(--player-bg);
   backdrop-filter: blur(16px);
   border-top: 1px solid var(--border);
   display: flex;
@@ -60,11 +60,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--player-text);
 }
 
 .trackArtist {
   font-size: 11px;
-  color: var(--text1);
+  color: var(--player-text2);
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
@@ -72,7 +73,7 @@
 }
 
 .heartBtn {
-  color: var(--text2);
+  color: var(--player-text2);
   font-size: 14px;
   cursor: pointer;
   flex-shrink: 0;
@@ -91,7 +92,7 @@
 }
 
 .addToPlBtn {
-  color: var(--text2);
+  color: var(--player-text2);
   font-size: 14px;
   cursor: pointer;
   flex-shrink: 0;
@@ -124,7 +125,7 @@
 .ctrlBtn {
   background: none;
   border: none;
-  color: var(--text1);
+  color: var(--player-text);
   font-size: 13px;
   cursor: pointer;
   padding: 4px;
@@ -132,7 +133,8 @@
 }
 
 .ctrlBtn:hover {
-  color: var(--text0);
+  color: var(--player-text);
+  opacity: 0.8;
 }
 
 .ctrlBtnActive {
@@ -171,7 +173,7 @@
 
 .time {
   font-size: 11px;
-  color: var(--text2);
+  color: var(--player-text2);
   width: 32px;
   text-align: right;
   flex-shrink: 0;
@@ -209,7 +211,7 @@
 .volumeBtn {
   background: none;
   border: none;
-  color: var(--text1);
+  color: var(--player-text);
   font-size: 16px;
   cursor: pointer;
   padding: 2px;
@@ -218,7 +220,8 @@
 }
 
 .volumeBtn:hover {
-  color: var(--text0);
+  color: var(--player-text);
+  opacity: 0.8;
 }
 
 .volumeSlider {
@@ -265,13 +268,14 @@
 .actionBtn {
   background: var(--bg2);
   border: 1px solid var(--border2);
-  color: var(--text1);
+  color: var(--player-text);
   border-radius: 5px;
   padding: 5px 11px;
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
   transition: color 0.15s;
+  white-space: nowrap;
 }
 
 .actionBtn:hover {
@@ -341,7 +345,7 @@
     bottom: 0;
     left: 0;
     right: 0;
-    background: rgba(17, 24, 39, 0.97);
+    background: var(--player-bg);
     backdrop-filter: blur(16px);
     border-top: 1px solid var(--border);
     z-index: 200;

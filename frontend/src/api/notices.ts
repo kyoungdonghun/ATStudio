@@ -4,6 +4,7 @@ import type { ApiResponse, Notice, PagedResponse } from '@/types';
 interface NoticeListParams {
   page?: number;
   size?: number;
+  sort?: 'latest' | 'views';
 }
 
 export async function fetchNotices(

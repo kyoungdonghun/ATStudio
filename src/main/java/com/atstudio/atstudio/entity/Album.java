@@ -36,6 +36,10 @@ public class Album extends BaseEntity {
     @Column(nullable = false)
     private boolean isActive = true;
 
+    @Builder.Default
+    @Column(nullable = false)
+    private long likeCount = 0;
+
     @OneToMany(mappedBy = "album", fetch = FetchType.LAZY)
     @Builder.Default
     private List<AlbumTrack> albumTracks = new ArrayList<>();
@@ -48,5 +52,13 @@ public class Album extends BaseEntity {
 
     public void softDelete() {
         this.isActive = false;
+    }
+
+    public void incrementLikeCount() {
+        this.likeCount++;
+    }
+
+    public void decrementLikeCount() {
+        if (this.likeCount > 0) this.likeCount--;
     }
 }

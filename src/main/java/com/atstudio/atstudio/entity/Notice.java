@@ -30,6 +30,14 @@ public class Notice extends BaseEntity {
     @Column(nullable = false)
     private boolean isPinned = false;
 
+    @Builder.Default
+    @Column(nullable = false)
+    private long viewCount = 0L;
+
+    public void incrementViewCount() {
+        this.viewCount++;
+    }
+
     public void update(String title, String content, Boolean isPinned) {
         if (title != null) this.title = title;
         if (content != null) this.content = content;

@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import type { User, UserRole } from '@/types';
+import { usePlayerStore } from '@/store/playerStore';
+import { useLikeStore } from '@/store/likeStore';
+import { useAlbumLikeStore } from '@/store/albumLikeStore';
 
 function loadUser(): User | null {
   try {
@@ -40,6 +43,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     set({ accessToken: null, user: null, role: 'GUEST' });
+
+    // Reset all user-dependent stores on session change
+    usePlayerStore.getState().clearQueue();
+    useLikeStore.setState({ likedIds: new Set(), loaded: false });
+    useAlbumLikeStore.setState({ likedAlbumIds: new Set(), loaded: false });
   },
 
   isAuthenticated: () => get().accessToken !== null,

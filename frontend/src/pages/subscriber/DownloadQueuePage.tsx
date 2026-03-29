@@ -113,6 +113,8 @@ export default function DownloadQueuePage() {
       tags: [],
       isActive: true,
       playCount: 0,
+      likeCount: 0,
+      downloadCount: 0,
       createdAt: item.createdAt,
       updatedAt: item.createdAt,
     });

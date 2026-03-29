@@ -2,7 +2,7 @@
 
 .hero {
   height: 360px;
-  background: linear-gradient(135deg, #162236 0%, var(--bg0) 65%);
+  background: linear-gradient(135deg, var(--hero-gradient-start) 0%, var(--bg0) 65%);
   display: flex;
   align-items: center;
   padding: 0 64px;

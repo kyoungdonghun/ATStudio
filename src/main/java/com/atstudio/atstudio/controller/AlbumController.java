@@ -44,8 +44,9 @@ public class AlbumController {
     @GetMapping
     public ResponseEntity<ResponseDTO<AlbumListItemResponse>> getAlbums(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(albumService.getAlbumsPaged(page, size));
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "latest") String sort) {
+        return ResponseEntity.ok(albumService.getAlbumsPaged(page, size, sort));
     }
 
     // -- 15.3 GET /api/albums/{id} --------------------------------------------

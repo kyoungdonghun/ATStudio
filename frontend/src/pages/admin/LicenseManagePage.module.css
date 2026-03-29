@@ -23,14 +23,18 @@
 /* ── Search Bar ── */
 
 .searchBar {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.searchGroup {
   display: flex;
   gap: 10px;
-  margin-bottom: 24px;
 }
 
 .searchInput {
   flex: 1;
-  max-width: 240px;
+  max-width: 320px;
   background: var(--bg2);
   border: 1px solid var(--border2);
   border-radius: 6px;
@@ -58,6 +62,95 @@
 
 .searchInput[type='number'] {
   -moz-appearance: textfield;
+}
+
+/* ── Search dropdown ── */
+
+.dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 320px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  margin-top: 4px;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.dropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text0);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dropdownItem:hover {
+  background: var(--bg3);
+}
+
+.dropdownItem:last-child {
+  border-bottom: none;
+}
+
+.dropdownNickname {
+  font-weight: 500;
+}
+
+.dropdownEmail {
+  color: var(--text1);
+  flex: 1;
+}
+
+.dropdownRole {
+  font-size: 11px;
+  color: var(--text2);
+  text-transform: uppercase;
+}
+
+.dropdownEmpty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text2);
+  font-size: 13px;
+}
+
+/* ── Selected user ── */
+
+.selectedUser {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text0);
+}
+
+.selectedEmail {
+  color: var(--text1);
+}
+
+.selectedId {
+  font-size: 11px;
+  color: var(--text2);
+  margin-left: auto;
 }
 
 /* ── Table ── */

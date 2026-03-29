@@ -136,3 +136,252 @@
   padding: 60px 0;
   font-size: 14px;
 }
+
+/* ── Track Management Section ── */
+
+.trackSection {
+  margin-top: 40px;
+  border-top: 1px solid var(--border2);
+  padding-top: 28px;
+}
+
+.trackSectionTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text0);
+  margin-bottom: 16px;
+}
+
+/* ── Track Search ── */
+
+.trackSearch {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.trackSearchRow {
+  display: flex;
+  gap: 8px;
+}
+
+.trackSearchRow .input {
+  flex: 1;
+}
+
+.searchDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background: var(--bg1);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  margin-top: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+  list-style: none;
+  padding: 0;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+}
+
+.searchItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  gap: 12px;
+  border-bottom: 1px solid var(--border1);
+  transition: background 0.12s;
+}
+
+.searchItem:last-child {
+  border-bottom: none;
+}
+
+.searchItem:hover {
+  background: var(--bg2);
+}
+
+.searchItemInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.searchItemTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.searchItemArtist {
+  font-size: 12px;
+  color: var(--text2);
+}
+
+.addBtn {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.addBtn:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--bg0);
+}
+
+.addBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.searchEmpty {
+  margin-top: 4px;
+  padding: 12px;
+  font-size: 13px;
+  color: var(--text2);
+  background: var(--bg1);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  text-align: center;
+}
+
+/* ── Track List ── */
+
+.trackEmpty {
+  font-size: 13px;
+  color: var(--text2);
+  padding: 20px 0;
+  text-align: center;
+}
+
+.trackList {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.trackRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--border1);
+  transition: background 0.12s;
+}
+
+.trackRow:last-child {
+  border-bottom: none;
+}
+
+.trackRow:hover {
+  background: var(--bg2);
+}
+
+.trackOrder {
+  flex-shrink: 0;
+  width: 28px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text2);
+}
+
+.trackInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.trackTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trackArtist {
+  font-size: 12px;
+  color: var(--text2);
+}
+
+.trackActions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.moveBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 10px;
+  color: var(--text2);
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.moveBtn:hover:not(:disabled) {
+  color: var(--text0);
+  border-color: var(--accent-border);
+}
+
+.moveBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.removeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+  color: var(--text2);
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.removeBtn:hover:not(:disabled) {
+  color: var(--error);
+  border-color: var(--error-border);
+  background: var(--error-dim);
+}
+
+.removeBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}

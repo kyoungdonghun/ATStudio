@@ -52,11 +52,6 @@ export interface User {
   createdAt: string;
 }
 
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
-}
-
 /* ── Track ── */
 
 /** Track list item (from GET /api/tracks) */
@@ -69,6 +64,8 @@ export interface TrackListItem {
   tonality: string;
   thumbnail: string | null;
   playCount: number;
+  likeCount: number;
+  downloadCount: number;
   tags: TagItem[];
   createdAt: string;
 }
@@ -87,6 +84,8 @@ export interface Track {
   tags: TagItem[];
   isActive: boolean;
   playCount: number;
+  likeCount: number;
+  downloadCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -110,6 +109,7 @@ export interface Album {
   description: string | null;
   thumbnailUrl: string | null;
   trackCount: number;
+  likeCount: number;
   createdAt: string;
 }
 
@@ -171,6 +171,7 @@ export interface Notice {
   title: string;
   content: string;
   isPinned: boolean;
+  viewCount: number;
   attachments?: NoticeAttachmentInfo[] | null;
   createdAt: string;
   updatedAt: string;
@@ -203,6 +204,16 @@ export interface LikeItem {
   bpm: number;
   tonality: string;
   thumbnail: string | null;
+  createdAt: string;
+}
+
+export interface AlbumLikeItem {
+  albumId: number;
+  title: string;
+  description: string | null;
+  thumbnailUrl: string | null;
+  trackCount: number;
+  likeCount: number;
   createdAt: string;
 }
 

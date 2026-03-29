@@ -16,6 +16,8 @@ public record TrackListItemResponse(
         String tonality,
         String thumbnail,
         long playCount,
+        long likeCount,
+        long downloadCount,
         List<TagResponse> tags,
         LocalDateTime createdAt
 ) {
@@ -29,6 +31,8 @@ public record TrackListItemResponse(
                 track.getTonality(),
                 track.getThumbnail(),
                 track.getPlayCount(),
+                track.getLikeCount(),
+                track.getDownloadCount(),
                 tags.stream().map(TagResponse::from).toList(),
                 track.getCreatedAt()
         );

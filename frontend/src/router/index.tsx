@@ -1,6 +1,7 @@
-import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom';
+import { createBrowserRouter, Navigate, redirect, type RouteObject } from 'react-router-dom';
 import { type ReactNode } from 'react';
 import ProtectedRoute from '@/router/ProtectedRoute';
+import SubscriberRoute from '@/router/SubscriberRoute';
 import MainLayout from '@/layouts/MainLayout';
 import AdminLayout from '@/layouts/AdminLayout';
 
@@ -75,6 +76,10 @@ function authRequired(element: ReactNode): ReactNode {
   return <ProtectedRoute minRole="USER">{element}</ProtectedRoute>;
 }
 
+function subscriberOnly(element: ReactNode): ReactNode {
+  return <SubscriberRoute>{element}</SubscriberRoute>;
+}
+
 function adminOnly(element: ReactNode): ReactNode {
   return <ProtectedRoute minRole="ADMIN">{element}</ProtectedRoute>;
 }
@@ -105,22 +110,29 @@ const routes: RouteObject[] = [
       { path: '/complete-profile', element: authRequired(<SocialCompleteProfilePage />) },
 
       /* ── Subscriber / auth-required (19 routes) ── */
-      { path: '/playlists', element: authRequired(<PlaylistListPage />) },
-      { path: '/playlists/:playlistId', element: authRequired(<PlaylistDetailPage />) },
-      { path: '/playlists/new', element: authRequired(<PlaylistCreatePage />) },
-      { path: '/playlists/:playlistId/edit', element: authRequired(<PlaylistEditPage />) },
+      { path: '/playlists', element: subscriberOnly(<PlaylistListPage />) },
+      { path: '/playlists/:playlistId', element: subscriberOnly(<PlaylistDetailPage />) },
+      { path: '/playlists/new', element: subscriberOnly(<PlaylistCreatePage />) },
+      { path: '/playlists/:playlistId/edit', element: subscriberOnly(<PlaylistEditPage />) },
       { path: '/profile', element: authRequired(<ProfilePage />) },
       { path: '/likes', element: authRequired(<LikeListPage />) },
       { path: '/play-history', element: authRequired(<PlayHistoryPage />) },
       { path: '/licenses', element: authRequired(<LicenseListPage />) },
       { path: '/licenses/:licenseId', element: authRequired(<LicenseDetailPage />) },
-      { path: '/download-queue', element: authRequired(<DownloadQueuePage />) },
+      { path: '/download-queue', element: subscriberOnly(<DownloadQueuePage />) },
       { path: '/subscriptions/payment', element: authRequired(<SubscriptionPaymentPage />) },
       { path: '/subscriptions/manage', element: authRequired(<SubscriptionManagePage />) },
-      { path: '/whitelist-channels', element: authRequired(<WhitelistChannelPage />) },
+      { path: '/whitelist-channels', element: subscriberOnly(<WhitelistChannelPage />) },
       { path: '/company-certification/apply', element: authRequired(<CompanyCertApplyPage />) },
       { path: '/company-certification/status', element: authRequired(<CompanyCertStatusPage />) },
-      { path: '/questions', element: authRequired(<QuestionListPage />) },
+      { path: '/questions', element: authRequired(<QuestionListPage />), loader: () => {
+        try {
+          const raw = localStorage.getItem('user');
+          const user = raw ? JSON.parse(raw) : null;
+          if (user?.role === 'ADMIN') return redirect('/admin/questions');
+        } catch { /* ignore */ }
+        return null;
+      } },
       { path: '/questions/new', element: authRequired(<QuestionCreatePage />) },
       { path: '/questions/:questionId', element: authRequired(<QuestionDetailPage />) },
 

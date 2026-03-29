@@ -1,5 +1,5 @@
 import client from './client';
-import type { PageInfo, QuestionCategory, QuestionStatus } from '@/types';
+import type { ApiResponse, PageInfo, QuestionCategory, QuestionStatus } from '@/types';
 
 /* ── Types ── */
 
@@ -59,7 +59,7 @@ export async function fetchQuestions(params: {
 
 /** 8.4 GET /api/questions/{id} — detail */
 export async function fetchQuestionDetail(id: number): Promise<QuestionDetail> {
-  const { data } = await client.get<{ data: QuestionDetail }>(`/questions/${id}`);
+  const { data } = await client.get<ApiResponse<QuestionDetail>>(`/questions/${id}`);
   return data.data;
 }
 
@@ -79,7 +79,7 @@ export async function createQuestion(body: {
   if (body.attachments) {
     body.attachments.forEach((file) => form.append('attachments', file));
   }
-  const { data } = await client.post<{ data: QuestionDetail }>('/questions', form, {
+  const { data } = await client.post<ApiResponse<QuestionDetail>>('/questions', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return data.data;
@@ -95,7 +95,7 @@ export async function updateQuestionStatus(
   id: number,
   status: QuestionStatus,
 ): Promise<QuestionDetail> {
-  const { data } = await client.put<{ data: QuestionDetail }>(`/questions/${id}/status`, { status });
+  const { data } = await client.put<ApiResponse<QuestionDetail>>(`/questions/${id}/status`, { status });
   return data.data;
 }
 
@@ -104,7 +104,7 @@ export async function createAnswer(
   questionId: number,
   content: string,
 ): Promise<AnswerInfo> {
-  const { data } = await client.post<{ data: AnswerInfo }>(`/questions/${questionId}/answers`, { content });
+  const { data } = await client.post<ApiResponse<AnswerInfo>>(`/questions/${questionId}/answers`, { content });
   return data.data;
 }
 

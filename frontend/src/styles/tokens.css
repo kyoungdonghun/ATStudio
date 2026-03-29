@@ -33,6 +33,10 @@
   --warning: #f97316;
   --warning-dim: rgba(251, 146, 60, 0.15);
   --backdrop: rgba(0, 0, 0, 0.6);
+  --player-bg: rgba(17, 24, 39, 0.97);
+  --player-text: #F9FAFB;
+  --player-text2: #9CA3AF;
+  --hero-gradient-start: #162236;
 
   /* Layout */
   --header-h: 58px;
@@ -65,6 +69,10 @@
   --warning: #ea580c;
   --warning-dim: rgba(234, 88, 12, 0.1);
   --backdrop: rgba(0, 0, 0, 0.5);
+  --player-bg: rgba(255, 255, 255, 0.97);
+  --player-text: #111827;
+  --player-text2: #6B7280;
+  --hero-gradient-start: #E8EDF3;
 }
 
 *,

@@ -45,6 +45,7 @@ public class LikeService {
                 .track(track)
                 .build();
         likeRepository.save(like);
+        track.incrementLikeCount();
     }
 
     public List<LikeResponse> getMyLikes(CustomUserDetails userDetails) {
@@ -60,6 +61,9 @@ public class LikeService {
         Like like = likeRepository.findByUserAndTrack_Id(user, trackId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         likeRepository.delete(like);
+        Track track = trackRepository.findById(trackId)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND));
+        track.decrementLikeCount();
     }
 
     private User getUser(CustomUserDetails userDetails) {

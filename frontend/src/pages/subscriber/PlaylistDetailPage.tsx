@@ -91,6 +91,8 @@ export default function PlaylistDetailPage() {
       tags: [],
       isActive: true,
       playCount: 0,
+      likeCount: 0,
+      downloadCount: 0,
       createdAt: '',
       updatedAt: '',
     });

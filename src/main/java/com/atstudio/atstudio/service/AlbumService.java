@@ -71,7 +71,7 @@ public class AlbumService {
                 .toList();
     }
 
-    public ResponseDTO<AlbumListItemResponse> getAlbumsPaged(int page, int size) {
+    public ResponseDTO<AlbumListItemResponse> getAlbumsPaged(int page, int size, String sort) {
         Page<Album> albumPage = albumRepository.findAllByIsActiveTrueOrderByCreatedAtDesc(
                 PageRequest.of(page - 1, size));
         List<Album> albums = albumPage.getContent();
@@ -79,6 +79,14 @@ public class AlbumService {
         List<AlbumListItemResponse> dataList = albums.stream()
                 .map(album -> AlbumListItemResponse.from(album, countMap.getOrDefault(album.getId(), 0)))
                 .toList();
+
+        // Sort by trackCount in-memory (computed field, not in DB)
+        if ("trackCount".equals(sort)) {
+            dataList = dataList.stream()
+                    .sorted((a, b) -> Integer.compare(b.trackCount(), a.trackCount()))
+                    .toList();
+        }
+
         return ResponseDTO.<AlbumListItemResponse>builder()
                 .message("Albums retrieved")
                 .dataList(dataList)

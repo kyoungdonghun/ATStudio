@@ -22,6 +22,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -58,9 +59,12 @@ public class NoticeService {
         return NoticeResponse.from(notice, attachments);
     }
 
-    public ResponseDTO<NoticeListItemResponse> getNotices(int page, int size) {
-        Pageable pageable = PageRequest.of(Math.max(0, page - 1), Math.max(1, size));
-        Page<Notice> result = noticeRepository.findAllByOrderByIsPinnedDescCreatedAtDesc(pageable);
+    public ResponseDTO<NoticeListItemResponse> getNotices(int page, int size, String sort) {
+        Sort ordering = "views".equals(sort)
+                ? Sort.by(Sort.Order.desc("isPinned"), Sort.Order.desc("viewCount"))
+                : Sort.by(Sort.Order.desc("isPinned"), Sort.Order.desc("createdAt"));
+        Pageable pageable = PageRequest.of(Math.max(0, page - 1), Math.max(1, size), ordering);
+        Page<Notice> result = noticeRepository.findAll(pageable);
 
         List<NoticeListItemResponse> dataList = result.getContent().stream()
                 .map(NoticeListItemResponse::from)
@@ -73,9 +77,12 @@ public class NoticeService {
                 .build();
     }
 
+    @Transactional
     public NoticeResponse getNotice(Long noticeId) {
         Notice notice = noticeRepository.findById(noticeId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+
+        notice.incrementViewCount();
 
         List<NoticeAttachment> attachments = attachmentRepository.findAllByNoticeId(noticeId);
 

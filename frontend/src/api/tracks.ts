@@ -15,6 +15,8 @@ export interface TrackDetail {
   thumbnail: string | null;
   isActive: boolean;
   playCount: number;
+  likeCount: number;
+  downloadCount: number;
   tags: TagItem[];
   createdAt: string;
   updatedAt: string;
@@ -32,7 +34,7 @@ export interface TrackListParams {
   bpmMin?: number;
   bpmMax?: number;
   tonality?: string;
-  sort?: 'latest' | 'popular';
+  sort?: 'latest' | 'popular' | 'likes' | 'downloads';
 }
 
 /* ── API functions ── */
@@ -77,6 +79,8 @@ export interface AdminTrackListItem {
   tonality: string;
   thumbnail: string | null;
   playCount: number;
+  likeCount: number;
+  downloadCount: number;
   isActive: boolean;
   tags: TagItem[];
   createdAt: string;

@@ -7,6 +7,8 @@ interface AlbumCardProps {
   genre?: string;
   onClick?: (album: Album) => void;
   className?: string;
+  isLiked?: boolean;
+  onToggleLike?: (albumId: number) => void;
 }
 
 export default function AlbumCard({
@@ -14,6 +16,8 @@ export default function AlbumCard({
   genre,
   onClick,
   className,
+  isLiked,
+  onToggleLike,
 }: AlbumCardProps) {
   const classes = [styles.card, className ?? ''].filter(Boolean).join(' ');
 
@@ -25,10 +29,25 @@ export default function AlbumCard({
         ) : (
           '\u266A'
         )}
+        {onToggleLike && (
+          <button
+            className={`${styles.likeBtn} ${isLiked ? styles.likeBtnActive : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleLike(album.id);
+            }}
+            aria-label={isLiked ? '좋아요 해제' : '좋아요'}
+          >
+            {isLiked ? '\u2665' : '\u2661'}
+          </button>
+        )}
       </div>
       <div className={styles.name}>{album.title}</div>
       <div className={styles.meta}>
         {genre ?? ''}{genre && album.trackCount ? ' \u00B7 ' : ''}{album.trackCount ? `${album.trackCount}곡` : ''}
+        {album.likeCount > 0 && (
+          <span className={styles.likeCount}>{` \u2665 ${album.likeCount}`}</span>
+        )}
       </div>
     </div>
   );

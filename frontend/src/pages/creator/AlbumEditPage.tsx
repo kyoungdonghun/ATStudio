@@ -1,7 +1,17 @@
-import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchAlbumDetail, updateAlbum } from '@/api/albums';
+import {
+  fetchAlbumDetail,
+  updateAlbum,
+  addTrackToAlbum,
+  removeTrackFromAlbum,
+  reorderAlbumTracks,
+  type AlbumTrack,
+} from '@/api/albums';
+import { fetchTracks } from '@/api/tracks';
 import { toUploadUrl } from '@/api/client';
+import { useToastStore } from '@/store/toastStore';
+import type { TrackListItem } from '@/types';
 import Button from '@/components/ui/Button';
 import styles from './AlbumEditPage.module.css';
 
@@ -9,6 +19,7 @@ import styles from './AlbumEditPage.module.css';
 export default function AlbumEditPage() {
   const { albumId: id } = useParams<{ albumId: string }>();
   const navigate = useNavigate();
+  const toast = useToastStore((s) => s.show);
 
   /* ── Form state ── */
   const [title, setTitle] = useState('');
@@ -18,6 +29,17 @@ export default function AlbumEditPage() {
 
   /* ── Existing data ── */
   const [currentThumbUrl, setCurrentThumbUrl] = useState<string | null>(null);
+
+  /* ── Track management state ── */
+  const [tracks, setTracks] = useState<AlbumTrack[]>([]);
+  const [trackBusy, setTrackBusy] = useState(false);
+
+  /* ── Track search state ── */
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchResults, setSearchResults] = useState<TrackListItem[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   /* ── UI state ── */
   const [pageLoading, setPageLoading] = useState(true);
@@ -38,6 +60,7 @@ export default function AlbumEditPage() {
         setTitle(album.title);
         setDescription(album.description ?? '');
         setCurrentThumbUrl(toUploadUrl(album.thumbnailUrl));
+        setTracks([...album.tracks].sort((a, b) => a.order - b.order));
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -52,6 +75,110 @@ export default function AlbumEditPage() {
     loadAlbum();
     return () => { cancelled = true; };
   }, [id]);
+
+  /* ── Close search dropdown on outside click ── */
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  /* ── Refetch album tracks ── */
+  async function refetchTracks() {
+    if (!id) return;
+    try {
+      const album = await fetchAlbumDetail(Number(id));
+      setTracks([...album.tracks].sort((a, b) => a.order - b.order));
+    } catch {
+      /* silent — list will be stale but non-critical */
+    }
+  }
+
+  /* ── Track search handler ── */
+  async function handleTrackSearch() {
+    const kw = searchKeyword.trim();
+    if (!kw) return;
+
+    setSearching(true);
+    try {
+      const res = await fetchTracks({ keyword: kw, size: 10 });
+      setSearchResults(res.dataList);
+      setSearchOpen(true);
+    } catch {
+      toast('error', '트랙 검색에 실패했습니다.');
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  /* ── Add track ── */
+  async function handleAddTrack(trackId: number) {
+    if (!id) return;
+    if (tracks.some((t) => t.trackId === trackId)) {
+      toast('error', '이미 앨범에 포함된 트랙입니다.');
+      return;
+    }
+    setTrackBusy(true);
+    try {
+      await addTrackToAlbum(Number(id), trackId);
+      await refetchTracks();
+      toast('success', '트랙이 추가되었습니다.');
+      setSearchOpen(false);
+      setSearchKeyword('');
+      setSearchResults([]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '트랙 추가에 실패했습니다.';
+      toast('error', msg);
+    } finally {
+      setTrackBusy(false);
+    }
+  }
+
+  /* ── Remove track ── */
+  async function handleRemoveTrack(trackId: number) {
+    if (!id) return;
+    setTrackBusy(true);
+    try {
+      await removeTrackFromAlbum(Number(id), trackId);
+      await refetchTracks();
+      toast('success', '트랙이 제거되었습니다.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '트랙 제거에 실패했습니다.';
+      toast('error', msg);
+    } finally {
+      setTrackBusy(false);
+    }
+  }
+
+  /* ── Reorder tracks (move up / down) ── */
+  async function handleMoveTrack(index: number, direction: 'up' | 'down') {
+    if (!id) return;
+    const swapIdx = direction === 'up' ? index - 1 : index + 1;
+    if (swapIdx < 0 || swapIdx >= tracks.length) return;
+
+    const reordered = [...tracks];
+    [reordered[index], reordered[swapIdx]] = [reordered[swapIdx], reordered[index]];
+
+    const trackOrders = reordered.map((t, i) => ({ trackId: t.trackId, order: i + 1 }));
+
+    /* Optimistic update */
+    setTracks(reordered);
+    setTrackBusy(true);
+    try {
+      await reorderAlbumTracks(Number(id), trackOrders);
+      await refetchTracks();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '순서 변경에 실패했습니다.';
+      toast('error', msg);
+      await refetchTracks();
+    } finally {
+      setTrackBusy(false);
+    }
+  }
 
   /* ── Thumbnail handler ── */
   function handleThumbnailChange(e: ChangeEvent<HTMLInputElement>) {
@@ -181,6 +308,105 @@ export default function AlbumEditPage() {
           </Button>
         </div>
       </form>
+
+      {/* ── Track management (separate from form) ── */}
+      <section className={styles.trackSection}>
+        <h2 className={styles.trackSectionTitle}>{'앨범 트랙'}</h2>
+
+        {/* Search */}
+        <div className={styles.trackSearch} ref={searchRef}>
+          <div className={styles.trackSearchRow}>
+            <input
+              className={styles.input}
+              type="text"
+              placeholder="트랙 검색 (제목 또는 아티스트)"
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleTrackSearch(); }}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleTrackSearch}
+              loading={searching}
+              disabled={trackBusy}
+            >
+              {'검색'}
+            </Button>
+          </div>
+
+          {searchOpen && searchResults.length > 0 && (
+            <ul className={styles.searchDropdown}>
+              {searchResults.map((t) => (
+                <li key={t.id} className={styles.searchItem}>
+                  <span className={styles.searchItemInfo}>
+                    <span className={styles.searchItemTitle}>{t.title}</span>
+                    <span className={styles.searchItemArtist}>{t.artistName}</span>
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.addBtn}
+                    disabled={trackBusy || tracks.some((at) => at.trackId === t.id)}
+                    onClick={() => handleAddTrack(t.id)}
+                  >
+                    {tracks.some((at) => at.trackId === t.id) ? '추가됨' : '+ 추가'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {searchOpen && searchResults.length === 0 && !searching && (
+            <div className={styles.searchEmpty}>{'검색 결과가 없습니다.'}</div>
+          )}
+        </div>
+
+        {/* Track list */}
+        {tracks.length === 0 ? (
+          <p className={styles.trackEmpty}>{'앨범에 트랙이 없습니다.'}</p>
+        ) : (
+          <ul className={styles.trackList}>
+            {tracks.map((t, idx) => (
+              <li key={t.trackId} className={styles.trackRow}>
+                <span className={styles.trackOrder}>{idx + 1}</span>
+                <span className={styles.trackInfo}>
+                  <span className={styles.trackTitle}>{t.title}</span>
+                  <span className={styles.trackArtist}>{t.artistName}</span>
+                </span>
+                <div className={styles.trackActions}>
+                  <button
+                    type="button"
+                    className={styles.moveBtn}
+                    disabled={idx === 0 || trackBusy}
+                    onClick={() => handleMoveTrack(idx, 'up')}
+                    title="위로"
+                  >
+                    {'\u25B2'}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.moveBtn}
+                    disabled={idx === tracks.length - 1 || trackBusy}
+                    onClick={() => handleMoveTrack(idx, 'down')}
+                    title="아래로"
+                  >
+                    {'\u25BC'}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.removeBtn}
+                    disabled={trackBusy}
+                    onClick={() => handleRemoveTrack(t.trackId)}
+                    title="제거"
+                  >
+                    {'\u2715'}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

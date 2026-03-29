@@ -132,6 +132,8 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
       tags: [],
       isActive: true,
       playCount: 0,
+      likeCount: 0,
+      downloadCount: 0,
       createdAt: '',
       updatedAt: '',
     });
@@ -199,6 +201,8 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
       tags: [],
       isActive: true,
       playCount: 0,
+      likeCount: 0,
+      downloadCount: 0,
       createdAt: '',
       updatedAt: '',
     });

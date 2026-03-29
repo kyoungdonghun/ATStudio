@@ -149,6 +149,8 @@ export default function TrackDetailPage() {
                     tags: track.tags,
                     isActive: track.isActive,
                     playCount: track.playCount,
+                    likeCount: track.likeCount,
+                    downloadCount: track.downloadCount,
                     createdAt: track.createdAt,
                     updatedAt: track.updatedAt,
                   });

@@ -29,6 +29,28 @@
   margin-left: 10px;
 }
 
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sortBar {
+  display: flex;
+  align-items: center;
+}
+
+.sortSelect {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  color: var(--text1);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
 .viewToggle {
   display: flex;
   gap: 6px;

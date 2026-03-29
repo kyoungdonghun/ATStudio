@@ -50,7 +50,7 @@ export default function TrackListPage() {
   const activeGenres = searchParams.getAll('genre');
   const activeMood = searchParams.get('mood') ?? '';
   const activeBpmLabel = searchParams.get('bpm') ?? '';
-  const sortValue = (searchParams.get('sort') ?? 'latest') as 'latest' | 'popular';
+  const sortValue = (searchParams.get('sort') ?? 'latest') as 'latest' | 'popular' | 'likes' | 'downloads';
 
   /* Player store for playing state */
   const currentTrack = usePlayerStore((s) => s.currentTrack);
@@ -227,6 +227,8 @@ export default function TrackListPage() {
           >
             <option value="latest">{'최신순'}</option>
             <option value="popular">{'인기순'}</option>
+            <option value="likes">{'좋아요순'}</option>
+            <option value="downloads">{'다운로드순'}</option>
           </select>
         </div>
       </div>
@@ -376,6 +378,8 @@ export default function TrackListPage() {
                         tags: t.tags,
                         isActive: true,
                         playCount: t.playCount,
+                        likeCount: t.likeCount,
+                        downloadCount: t.downloadCount,
                         createdAt: t.createdAt,
                         updatedAt: t.createdAt,
                       });

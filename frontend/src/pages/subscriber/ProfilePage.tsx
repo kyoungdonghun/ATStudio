@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchMe, type MeResponse } from '@/api/auth';
 import { fetchMySubscription, type MySubscription } from '@/api/userSubscriptions';
 import client from '@/api/client';
@@ -19,8 +19,30 @@ const PLAN_NAME_LABELS: Record<string, string> = {
   PREMIUM: 'Business',
 };
 
+type TabKey = 'account' | 'subscription' | 'edit' | 'password' | 'likes' | 'downloads' | 'playlists' | 'history' | 'licenses';
+
+interface MenuItem {
+  key: TabKey;
+  label: string;
+  group: string;
+}
+
+const MENU_ITEMS: MenuItem[] = [
+  { key: 'account', label: '계정 정보', group: '계정 관리' },
+  { key: 'edit', label: '프로필 수정', group: '계정 관리' },
+  { key: 'password', label: '비밀번호 변경', group: '계정 관리' },
+  { key: 'subscription', label: '구독 관리', group: '구독' },
+  { key: 'likes', label: '좋아요', group: '내 활동' },
+  { key: 'downloads', label: '다운로드', group: '내 활동' },
+  { key: 'playlists', label: '재생목록', group: '내 활동' },
+  { key: 'history', label: '재생기록', group: '내 활동' },
+  { key: 'licenses', label: '라이선스', group: '내 활동' },
+];
+
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get('tab') as TabKey) || 'account';
 
   /* ── Profile State ── */
   const [profile, setProfile] = useState<MeResponse | null>(null);
@@ -135,6 +157,19 @@ export default function ProfilePage() {
     }
   }
 
+  function switchTab(key: TabKey) {
+    setSearchParams({ tab: key }, { replace: true });
+  }
+
+  /* ── Navigation shortcuts for activity tabs ── */
+  const ACTIVITY_ROUTES: Record<string, string> = {
+    likes: '/likes',
+    downloads: '/download-queue',
+    playlists: '/playlists',
+    history: '/play-history',
+    licenses: '/licenses',
+  };
+
   /* ── Render ── */
 
   if (loading) {
@@ -153,154 +188,193 @@ export default function ProfilePage() {
     );
   }
 
+  /* ── Sidebar menu grouped ── */
+  const groups = MENU_ITEMS.reduce<Record<string, MenuItem[]>>((acc, item) => {
+    (acc[item.group] ??= []).push(item);
+    return acc;
+  }, {});
+
   return (
     <div className={styles.page}>
       <h1 className={styles.pageTitle}>{'내 계정'}</h1>
 
-      {/* ── Account Info (read-only) ── */}
-      <div className={styles.section}>
-        <div className={styles.sectionTitle}>{'계정 정보'}</div>
-        <div className={styles.infoRow}>
-          <span className={styles.infoLabel}>{'이메일'}</span>
-          <span className={styles.infoValue}>{profile.email}</span>
-        </div>
-        <div className={styles.infoRow}>
-          <span className={styles.infoLabel}>{'유형'}</span>
-          <span className={styles.infoValue}>{profile.userType}</span>
-        </div>
-        <div className={styles.infoRow}>
-          <span className={styles.infoLabel}>{'직업'}</span>
-          <span className={styles.infoValue}>{profile.job}</span>
-        </div>
-        <div className={styles.infoRow}>
-          <span className={styles.infoLabel}>{'가입일'}</span>
-          <span className={styles.infoValue}>
-            {formatDate(profile.createdAt)}
-          </span>
-        </div>
-      </div>
+      <div className={styles.layout}>
+        {/* ── Sidebar ── */}
+        <nav className={styles.sidebar}>
+          {Object.entries(groups).map(([group, items]) => (
+            <div key={group} className={styles.menuGroup}>
+              <div className={styles.menuGroupTitle}>{group}</div>
+              {items.map((item) => (
+                <button
+                  key={item.key}
+                  className={`${styles.menuItem} ${activeTab === item.key ? styles.menuItemActive : ''}`}
+                  onClick={() => {
+                    if (ACTIVITY_ROUTES[item.key]) {
+                      navigate(ACTIVITY_ROUTES[item.key]);
+                    } else {
+                      switchTab(item.key);
+                    }
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
 
-      {/* ── Subscription Info ── */}
-      <div className={styles.section}>
-        <div className={styles.sectionTitle}>{'구독 정보'}</div>
-        {mySub ? (
-          <>
-            <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>{'현재 플랜'}</span>
-              <span className={styles.infoValue}>
-                {PLAN_NAME_LABELS[mySub.subscription.name] ?? mySub.subscription.name}
-              </span>
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>{'결제 주기'}</span>
-              <span className={styles.infoValue}>
-                {mySub.billingCycle === 'YEARLY' ? '연간' : '월간'}
-              </span>
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>{'상태'}</span>
-              <span className={styles.infoValue}>
-                <span className={mySub.status === 'ACTIVE' ? styles.statusActive : styles.statusInactive}>
-                  {SUB_STATUS_LABELS[mySub.status] ?? mySub.status}
+        {/* ── Content ── */}
+        <div className={styles.content}>
+          {activeTab === 'account' && (
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>{'계정 정보'}</div>
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>{'이메일'}</span>
+                <span className={styles.infoValue}>{profile.email}</span>
+              </div>
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>{'유형'}</span>
+                <span className={styles.infoValue}>{profile.userType}</span>
+              </div>
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>{'직업'}</span>
+                <span className={styles.infoValue}>{profile.job}</span>
+              </div>
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>{'가입일'}</span>
+                <span className={styles.infoValue}>
+                  {formatDate(profile.createdAt)}
                 </span>
-              </span>
+              </div>
             </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoLabel}>{'만료일'}</span>
-              <span className={styles.infoValue}>{formatDate(mySub.expiresAt)}</span>
-            </div>
-            <div className={styles.buttonRow}>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/subscriptions/manage')}>
-                {'구독 관리'}
-              </Button>
-            </div>
-          </>
-        ) : (
-          <div className={styles.noSub}>
-            <p>{'현재 구독 중인 플랜이 없습니다.'}</p>
-            {profile.role !== 'ADMIN' && (
-              <Button variant="primary" size="sm" onClick={() => navigate('/subscriptions')}>
-                {'구독 시작하기'}
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* ── Edit Nickname ── */}
-      <div className={styles.section}>
-        <div className={styles.sectionTitle}>{'프로필 수정'}</div>
-        <div className={styles.formGroup}>
-          <label className={styles.formLabel}>{'닉네임'}</label>
-          <input
-            className={styles.formInput}
-            type="text"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            maxLength={30}
-          />
-        </div>
-        <div className={styles.buttonRow}>
-          <Button
-            variant="primary"
-            onClick={handleSaveProfile}
-            loading={savingProfile}
-            disabled={!nickname.trim() || nickname === profile.nickname}
-          >
-            {'저장'}
-          </Button>
-        </div>
-        {profileMsg && (
-          <div className={styles.successMsg}>{profileMsg}</div>
-        )}
-      </div>
+          {activeTab === 'subscription' && (
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>{'구독 정보'}</div>
+              {mySub ? (
+                <>
+                  <div className={styles.infoRow}>
+                    <span className={styles.infoLabel}>{'현재 플랜'}</span>
+                    <span className={styles.infoValue}>
+                      {PLAN_NAME_LABELS[mySub.subscription.name] ?? mySub.subscription.name}
+                    </span>
+                  </div>
+                  <div className={styles.infoRow}>
+                    <span className={styles.infoLabel}>{'결제 주기'}</span>
+                    <span className={styles.infoValue}>
+                      {mySub.billingCycle === 'YEARLY' ? '연간' : '월간'}
+                    </span>
+                  </div>
+                  <div className={styles.infoRow}>
+                    <span className={styles.infoLabel}>{'상태'}</span>
+                    <span className={styles.infoValue}>
+                      <span className={mySub.status === 'ACTIVE' ? styles.statusActive : styles.statusInactive}>
+                        {SUB_STATUS_LABELS[mySub.status] ?? mySub.status}
+                      </span>
+                    </span>
+                  </div>
+                  <div className={styles.infoRow}>
+                    <span className={styles.infoLabel}>{'만료일'}</span>
+                    <span className={styles.infoValue}>{formatDate(mySub.expiresAt)}</span>
+                  </div>
+                  <div className={styles.buttonRow}>
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/subscriptions/manage')}>
+                      {'구독 관리'}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className={styles.noSub}>
+                  <p>{'현재 구독 중인 플랜이 없습니다.'}</p>
+                  {profile.role !== 'ADMIN' && (
+                    <Button variant="primary" size="sm" onClick={() => navigate('/subscriptions')}>
+                      {'구독 시작하기'}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
-      {/* ── Change Password ── */}
-      <div className={styles.section}>
-        <div className={styles.sectionTitle}>{'비밀번호 변경'}</div>
-        <div className={styles.formGroup}>
-          <label className={styles.formLabel}>{'현재 비밀번호'}</label>
-          <input
-            className={styles.formInput}
-            type="password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-          />
+          {activeTab === 'edit' && (
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>{'프로필 수정'}</div>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>{'닉네임'}</label>
+                <input
+                  className={styles.formInput}
+                  type="text"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  maxLength={30}
+                />
+              </div>
+              <div className={styles.buttonRow}>
+                <Button
+                  variant="primary"
+                  onClick={handleSaveProfile}
+                  loading={savingProfile}
+                  disabled={!nickname.trim() || nickname === profile.nickname}
+                >
+                  {'저장'}
+                </Button>
+              </div>
+              {profileMsg && (
+                <div className={styles.successMsg}>{profileMsg}</div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'password' && (
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>{'비밀번호 변경'}</div>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>{'현재 비밀번호'}</label>
+                <input
+                  className={styles.formInput}
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>{'새 비밀번호'}</label>
+                <input
+                  className={styles.formInput}
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>{'새 비밀번호 확인'}</label>
+                <input
+                  className={styles.formInput}
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+              <div className={styles.buttonRow}>
+                <Button
+                  variant="primary"
+                  onClick={handleChangePassword}
+                  loading={savingPassword}
+                  disabled={!currentPassword || !newPassword}
+                >
+                  {'비밀번호 변경'}
+                </Button>
+              </div>
+              {passwordMsg && (
+                <div className={styles.successMsg}>{passwordMsg}</div>
+              )}
+              {passwordError && (
+                <div className={styles.errorMsg}>{passwordError}</div>
+              )}
+            </div>
+          )}
         </div>
-        <div className={styles.formGroup}>
-          <label className={styles.formLabel}>{'새 비밀번호'}</label>
-          <input
-            className={styles.formInput}
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-          />
-        </div>
-        <div className={styles.formGroup}>
-          <label className={styles.formLabel}>{'새 비밀번호 확인'}</label>
-          <input
-            className={styles.formInput}
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-          />
-        </div>
-        <div className={styles.buttonRow}>
-          <Button
-            variant="primary"
-            onClick={handleChangePassword}
-            loading={savingPassword}
-            disabled={!currentPassword || !newPassword}
-          >
-            {'비밀번호 변경'}
-          </Button>
-        </div>
-        {passwordMsg && (
-          <div className={styles.successMsg}>{passwordMsg}</div>
-        )}
-        {passwordError && (
-          <div className={styles.errorMsg}>{passwordError}</div>
-        )}
       </div>
     </div>
   );

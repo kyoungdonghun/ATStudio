@@ -57,6 +57,14 @@ public class Track extends BaseEntity {
     @Column(nullable = false)
     private long playCount = 0L;
 
+    @Builder.Default
+    @Column(nullable = false)
+    private long likeCount = 0L;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private long downloadCount = 0L;
+
     @OneToMany(mappedBy = "track", fetch = FetchType.LAZY)
     @Builder.Default
     private List<TrackTag> trackTags = new ArrayList<>();
@@ -82,5 +90,17 @@ public class Track extends BaseEntity {
 
     public void deactivate() {
         this.isActive = false;
+    }
+
+    public void incrementLikeCount() {
+        this.likeCount++;
+    }
+
+    public void decrementLikeCount() {
+        if (this.likeCount > 0) this.likeCount--;
+    }
+
+    public void incrementDownloadCount() {
+        this.downloadCount++;
     }
 }

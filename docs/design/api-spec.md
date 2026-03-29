@@ -193,6 +193,8 @@ sort: String (optional, "latest"|"popular", default: "latest")
     {
       "id": 1,
       "title": "Summer Vibes",
+      "artistName": "NickName",
+      "duration": 180,
       "bpm": 120,
       "tonality": "C",
       "thumbnail": "/tracks/thumbnail/summer-vibes.jpg",
@@ -219,6 +221,8 @@ sort: String (optional, "latest"|"popular", default: "latest")
 {
   "id": 1,
   "title": "Summer Vibes",
+  "artistName": "NickName",
+  "duration": 180,
   "bpm": 120,
   "tonality": "C",
   "description": "A happy summer track for shorts",
@@ -373,10 +377,12 @@ type: String (optional, "MOOD"|"GENRE"|"INSTRUMENT")
 
 **Response** `200 OK`
 ```json
-[
-  { "id": 1, "name": "Happy", "type": "MOOD" },
-  { "id": 2, "name": "Pop", "type": "GENRE" }
-]
+{
+  "dataList": [
+    { "id": 1, "name": "Happy", "type": "MOOD", "createdAt": "2026-02-19T10:00:00" },
+    { "id": 2, "name": "Pop", "type": "GENRE", "createdAt": "2026-02-19T10:00:00" }
+  ]
+}
 ```
 
 ## 2.3 Update Tag
@@ -417,7 +423,7 @@ type: String (optional, "MOOD"|"GENRE"|"INSTRUMENT")
 ```
 title: String (required, max 50)
 description: String (optional)
-thumbnailFile: File (optional)
+thumbnail: File (optional)
 ```
 
 **Response** `201 Created`
@@ -513,7 +519,7 @@ thumbnailFile: File (optional)
 ```
 title: String (optional)
 description: String (optional)
-thumbnailFile: File (optional)
+thumbnail: File (optional)
 ```
 
 **Response** `200 OK`
@@ -591,7 +597,7 @@ size: Integer (default: 50)
   "dataList": [
     {
       "id": 100,
-      "track": { "id": 10, "title": "Summer Vibes", "thumbnail": "..." },
+      "track": { "id": 10, "title": "Summer Vibes", "artistName": "NickName", "thumbnail": "..." },
       "playedAt": "2026-02-19T14:30:00"
     }
   ],
@@ -936,7 +942,8 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
   "billingCycle": "MONTHLY",
   "status": "ACTIVE",
   "startedAt": "2026-02-19",
-  "expiresAt": "2026-03-19"
+  "expiresAt": "2026-03-19",
+  "createdAt": "2026-02-19T10:00:00"
 }
 ```
 
@@ -1866,7 +1873,7 @@ token: String (required — UUID token from email link)
 - Request: multipart/form-data
   - title: string (required)
   - description: string (optional)
-  - thumbnailFile: file (optional)
+  - thumbnail: file (optional)
 - Response: 201 Created
   - id, title, description, thumbnailUrl, trackCount, createdAt
 - Errors: 400 INVALID_ARGUMENT
@@ -1890,7 +1897,7 @@ token: String (required — UUID token from email link)
 - Method: PUT
 - URL: /api/albums/{id}
 - Auth: ADMIN
-- Request: multipart/form-data (title, description, thumbnailFile -- all optional)
+- Request: multipart/form-data (title, description, thumbnail -- all optional)
 - Response: 200 OK
   - id, title, description, thumbnailUrl, trackCount, createdAt
 - Errors: 404 RESOURCE_NOT_FOUND

@@ -66,6 +66,8 @@ public class DownloadService {
                     .track(track)
                     .licenseCode(UUID.randomUUID().toString())
                     .build());
+
+            track.incrementDownloadCount();
         }
 
         String audioFile = track.getAudioFile();

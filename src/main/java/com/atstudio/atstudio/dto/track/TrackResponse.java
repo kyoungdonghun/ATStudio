@@ -19,6 +19,8 @@ public record TrackResponse(
         String thumbnail,
         boolean isActive,
         long playCount,
+        long likeCount,
+        long downloadCount,
         List<TagResponse> tags,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -36,6 +38,8 @@ public record TrackResponse(
                 track.getThumbnail(),
                 track.isActive(),
                 track.getPlayCount(),
+                track.getLikeCount(),
+                track.getDownloadCount(),
                 tags.stream().map(TagResponse::from).toList(),
                 track.getCreatedAt(),
                 track.getUpdatedAt()

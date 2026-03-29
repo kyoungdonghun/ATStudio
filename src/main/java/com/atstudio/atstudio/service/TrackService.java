@@ -84,9 +84,12 @@ public class TrackService {
     }
 
     public ResponseDTO<TrackListItemResponse> getTracks(TrackSearchRequest request) {
-        Sort sort = "popular".equals(request.getSort())
-                ? Sort.by(Sort.Direction.DESC, "playCount")
-                : Sort.by(Sort.Direction.DESC, "createdAt");
+        Sort sort = switch (request.getSort() != null ? request.getSort() : "latest") {
+            case "popular" -> Sort.by(Sort.Direction.DESC, "playCount");
+            case "likes" -> Sort.by(Sort.Direction.DESC, "likeCount");
+            case "downloads" -> Sort.by(Sort.Direction.DESC, "downloadCount");
+            default -> Sort.by(Sort.Direction.DESC, "createdAt");
+        };
         Pageable pageable = PageRequest.of(Math.max(0, request.getPage() - 1), request.getSize(), sort);
 
         Specification<Track> spec = TrackSpecification.isActive();

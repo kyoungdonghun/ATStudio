@@ -10,7 +10,7 @@ interface NavItem {
   path: string;
 }
 
-const NAV_ITEMS: NavItem[] = [
+const BASE_NAV_ITEMS: NavItem[] = [
   { label: '홈', path: '/' },
   { label: '음원', path: '/tracks' },
   { label: '앨범', path: '/albums' },
@@ -80,6 +80,9 @@ export default function Header() {
   const role = useAuthStore((s) => s.role);
   const logout = useAuthStore((s) => s.logout);
   const isAdmin = role === 'ADMIN';
+  const navItems = isAdmin
+    ? BASE_NAV_ITEMS.filter((item) => item.path !== '/subscriptions')
+    : BASE_NAV_ITEMS;
   const roleNavItems = isAdmin ? ADMIN_NAV_ITEMS : SUBSCRIBER_NAV_ITEMS;
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -124,7 +127,7 @@ export default function Header() {
 
         {/* Desktop/Tablet: inline nav */}
         <nav className={styles.navTabs}>
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
@@ -219,7 +222,7 @@ export default function Header() {
 
         {/* Nav links */}
         <nav className={styles.mobileNav}>
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}

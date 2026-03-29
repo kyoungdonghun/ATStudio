@@ -247,6 +247,51 @@
   word-break: break-word;
 }
 
+/* ── Answer Form ── */
+
+.answerForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.answerTextarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text0);
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  resize: vertical;
+  font-family: inherit;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+
+.answerTextarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.answerTextarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.answerFormError {
+  margin: 0;
+  font-size: 13px;
+  color: var(--error);
+}
+
+.answerFormActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* ── Actions ── */
 
 .actions {

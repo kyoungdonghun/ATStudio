@@ -5,6 +5,8 @@ import { toUploadUrl } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import type { Album, PageInfo } from '@/types';
 import Pagination from '@/components/ui/Pagination';
+import { useAuthStore } from '@/store/authStore';
+import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import styles from './AlbumListPage.module.css';
 
 const PAGE_SIZE = 20;
@@ -19,7 +21,11 @@ export default function AlbumListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const albumLikeStore = useAlbumLikeStore();
+
   const currentPage = Number(searchParams.get('page') ?? '1');
+  const sortValue = (searchParams.get('sort') ?? 'latest') as 'latest' | 'trackCount';
 
   /* ── Data fetch ── */
   const loadAlbums = useCallback(async () => {
@@ -27,7 +33,7 @@ export default function AlbumListPage() {
     setError(null);
 
     try {
-      const res = await fetchAlbums({ page: currentPage, size: PAGE_SIZE });
+      const res = await fetchAlbums({ page: currentPage, size: PAGE_SIZE, sort: sortValue });
       setAlbums(res.dataList);
       setPageInfo(res.pageInfo ?? null);
     } catch (err) {
@@ -35,16 +41,29 @@ export default function AlbumListPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage]);
+  }, [currentPage, sortValue]);
 
   useEffect(() => {
     loadAlbums();
   }, [loadAlbums]);
 
+  useEffect(() => {
+    if (isAuthenticated && !albumLikeStore.loaded) {
+      albumLikeStore.load();
+    }
+  }, [isAuthenticated, albumLikeStore.loaded]);
+
   /* ── Pagination ── */
   function goToPage(page: number) {
     const next = new URLSearchParams(searchParams);
     next.set('page', String(page));
+    setSearchParams(next);
+  }
+
+  function handleSortChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const next = new URLSearchParams(searchParams);
+    next.set('sort', e.target.value);
+    next.set('page', '1');
     setSearchParams(next);
   }
 
@@ -60,13 +79,25 @@ export default function AlbumListPage() {
             </span>
           )}
         </div>
-        <div className={styles.viewToggle}>
-          <Link to="/albums" className={styles.viewBtn}>
-            {'카드'}
-          </Link>
-          <span className={`${styles.viewBtn} ${styles.viewBtnActive}`}>
-            {'리스트'}
-          </span>
+        <div className={styles.headerRight}>
+          <div className={styles.sortBar}>
+            <select
+              className={styles.sortSelect}
+              value={sortValue}
+              onChange={handleSortChange}
+            >
+              <option value="latest">{'최신순'}</option>
+              <option value="trackCount">{'곡 수순'}</option>
+            </select>
+          </div>
+          <div className={styles.viewToggle}>
+            <Link to="/albums" className={styles.viewBtn}>
+              {'카드'}
+            </Link>
+            <span className={`${styles.viewBtn} ${styles.viewBtnActive}`}>
+              {'리스트'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -85,6 +116,7 @@ export default function AlbumListPage() {
                 <th>{'앨범'}</th>
                 <th className={styles.thRight}>{'곡 수'}</th>
                 <th className={styles.thRight}>{'등록일'}</th>
+                {isAuthenticated && <th className={styles.thCenter}>{''}</th>}
               </tr>
             </thead>
             <tbody>
@@ -119,6 +151,20 @@ export default function AlbumListPage() {
                   <td className={styles.cellDate}>
                     {formatDate(album.createdAt)}
                   </td>
+                  {isAuthenticated && (
+                    <td className={styles.cellLike}>
+                      <button
+                        className={`${styles.likeBtn} ${albumLikeStore.likedAlbumIds.has(album.id) ? styles.likeBtnActive : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          albumLikeStore.toggle(album.id);
+                        }}
+                        aria-label={albumLikeStore.likedAlbumIds.has(album.id) ? '좋아요 해제' : '좋아요'}
+                      >
+                        {albumLikeStore.likedAlbumIds.has(album.id) ? '\u2665' : '\u2661'}
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

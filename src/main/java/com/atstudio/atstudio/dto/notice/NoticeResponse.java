@@ -13,6 +13,7 @@ public record NoticeResponse(
         String title,
         String content,
         Boolean isPinned,
+        long viewCount,
         List<NoticeAttachmentResponse> attachments,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -24,6 +25,7 @@ public record NoticeResponse(
                 notice.getTitle(),
                 notice.getContent(),
                 notice.isPinned(),
+                notice.getViewCount(),
                 null,
                 notice.getCreatedAt(),
                 notice.getUpdatedAt()
@@ -37,6 +39,7 @@ public record NoticeResponse(
                 notice.getTitle(),
                 notice.getContent(),
                 notice.isPinned(),
+                notice.getViewCount(),
                 attachments.stream().map(NoticeAttachmentResponse::from).toList(),
                 notice.getCreatedAt(),
                 notice.getUpdatedAt()
