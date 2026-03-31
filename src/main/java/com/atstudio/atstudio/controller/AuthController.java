@@ -33,7 +33,7 @@ public class AuthController {
             @Valid @RequestBody SocialLoginRequest request) {
         return ResponseEntity.ok(ResponseDTO.<SocialAuthResponse>withSingleData()
                 .message("Social login successful")
-                .data(authService.socialLogin(provider, request.getAuthorizationCode()))
+                .data(authService.socialLogin(provider, request.getAuthorizationCode(), request.getCodeVerifier()))
                 .build());
     }
 

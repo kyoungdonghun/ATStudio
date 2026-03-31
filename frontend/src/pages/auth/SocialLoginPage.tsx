@@ -11,6 +11,7 @@ export default function SocialLoginPage() {
   const { provider } = useParams<{ provider: string }>();
   const [searchParams] = useSearchParams();
   const code = searchParams.get('code');
+  const returnedState = searchParams.get('state');
   const authLogin = useAuthStore((s) => s.login);
 
   const [error, setError] = useState('');
@@ -21,11 +22,23 @@ export default function SocialLoginPage() {
       return;
     }
 
+    // CSRF: verify state parameter
+    const savedState = sessionStorage.getItem('oauth_state');
+    sessionStorage.removeItem('oauth_state');
+    if (!savedState || savedState !== returnedState) {
+      setError('보안 검증에 실패했습니다. 다시 로그인해주세요.');
+      return;
+    }
+
+    // PKCE: retrieve code_verifier
+    const codeVerifier = sessionStorage.getItem('oauth_code_verifier');
+    sessionStorage.removeItem('oauth_code_verifier');
+
     let cancelled = false;
 
     (async () => {
       try {
-        const res = await socialLogin(provider, code);
+        const res = await socialLogin(provider, code, codeVerifier);
 
         localStorage.setItem('accessToken', res.accessToken);
         localStorage.setItem('refreshToken', res.refreshToken);
@@ -64,7 +77,7 @@ export default function SocialLoginPage() {
     return () => {
       cancelled = true;
     };
-  }, [provider, code, navigate, authLogin]);
+  }, [provider, code, returnedState, navigate, authLogin]);
 
   return (
     <div className={styles.page}>

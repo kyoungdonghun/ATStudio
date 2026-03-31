@@ -55,8 +55,8 @@ public class AuthService {
     }
 
     @Transactional
-    public SocialAuthResponse socialLogin(SocialProvider provider, String authorizationCode) {
-        User user = oAuth2Service.processSocialLogin(provider, authorizationCode);
+    public SocialAuthResponse socialLogin(SocialProvider provider, String authorizationCode, String codeVerifier) {
+        User user = oAuth2Service.processSocialLogin(provider, authorizationCode, codeVerifier);
 
         String accessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());

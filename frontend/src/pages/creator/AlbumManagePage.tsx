@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, type FormEvent, type ChangeEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   fetchAlbums,
   createAlbum,
@@ -133,6 +134,8 @@ export default function AlbumManagePage() {
     }
   }
 
+  const navigate = useNavigate();
+
   /* ── Thumbnail file handler ── */
   function handleThumbnailChange(e: ChangeEvent<HTMLInputElement>) {
     setFormThumbnail(e.target.files?.[0] ?? null);
@@ -179,6 +182,12 @@ export default function AlbumManagePage() {
                   {album.trackCount > 0 ? `${album.trackCount}곡` : '트랙 없음'}
                 </div>
                 <div className={styles.albumActions}>
+                  <button
+                    className={styles.albumActBtn}
+                    onClick={() => navigate(`/admin/albums/${album.id}/edit`)}
+                  >
+                    {'음원 관리'}
+                  </button>
                   <button
                     className={styles.albumActBtn}
                     onClick={() => openEditModal(album)}

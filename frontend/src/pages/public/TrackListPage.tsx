@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { fetchTracks, type TrackListParams } from '@/api/tracks';
 import { fetchTags } from '@/api/tags';
@@ -60,6 +60,57 @@ export default function TrackListPage() {
   const playTrack = usePlayerStore((s) => s.play);
   const pauseTrack = usePlayerStore((s) => s.pause);
   const resumeTrack = usePlayerStore((s) => s.resume);
+
+  /* ── Keyboard ↑↓ navigation ── */
+  const tracksRef = useRef(tracks);
+  tracksRef.current = tracks;
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      const list = tracksRef.current;
+      if (list.length === 0) return;
+
+      const cur = usePlayerStore.getState().currentTrack;
+      const curIdx = cur ? list.findIndex((t) => t.id === cur.id) : -1;
+
+      let nextIdx: number;
+      if (e.key === 'ArrowDown') {
+        nextIdx = curIdx < 0 ? 0 : Math.min(curIdx + 1, list.length - 1);
+      } else {
+        nextIdx = curIdx <= 0 ? 0 : curIdx - 1;
+      }
+
+      if (nextIdx === curIdx && curIdx >= 0) return;
+      e.preventDefault();
+
+      const t = list[nextIdx];
+      usePlayerStore.getState().play({
+        id: t.id,
+        title: t.title,
+        artistName: t.artistName ?? '',
+        duration: t.duration ?? 0,
+        bpm: t.bpm,
+        tonality: t.tonality,
+        description: null,
+        audioFile: null,
+        thumbnail: t.thumbnail,
+        tags: t.tags,
+        isActive: true,
+        playCount: t.playCount,
+        likeCount: t.likeCount,
+        downloadCount: t.downloadCount,
+        createdAt: t.createdAt,
+        updatedAt: t.createdAt,
+      });
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   /* Like store */
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());

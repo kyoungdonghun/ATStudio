@@ -89,14 +89,17 @@ export async function checkNicknameAvailability(nickname: string): Promise<Check
   return data.data;
 }
 
-/** POST /api/auth/social/{provider} -- social login */
+/** POST /api/auth/social/{provider} -- social login with PKCE */
 export async function socialLogin(
   provider: string,
   authorizationCode: string,
+  codeVerifier?: string | null,
 ): Promise<LoginResponse & { isProfileComplete: boolean }> {
+  const body: Record<string, string> = { authorizationCode };
+  if (codeVerifier) body.codeVerifier = codeVerifier;
   const { data } = await client.post<
     ApiResponse<LoginResponse & { isProfileComplete: boolean }>
-  >(`/auth/social/${provider}`, { authorizationCode });
+  >(`/auth/social/${provider}`, body);
   return data.data;
 }
 

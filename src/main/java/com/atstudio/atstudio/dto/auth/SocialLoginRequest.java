@@ -12,4 +12,6 @@ public class SocialLoginRequest {
 
     @NotBlank
     private String authorizationCode;
+
+    private String codeVerifier;
 }

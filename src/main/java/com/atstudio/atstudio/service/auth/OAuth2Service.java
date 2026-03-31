@@ -57,9 +57,9 @@ public class OAuth2Service {
     private String naverRedirectUri;
 
     @Transactional
-    public User processSocialLogin(SocialProvider provider, String authorizationCode) {
-        // 1. Authorization Code -> Provider Access Token 교환
-        String socialAccessToken = exchangeCodeForToken(provider, authorizationCode);
+    public User processSocialLogin(SocialProvider provider, String authorizationCode, String codeVerifier) {
+        // 1. Authorization Code -> Provider Access Token 교환 (with PKCE)
+        String socialAccessToken = exchangeCodeForToken(provider, authorizationCode, codeVerifier);
 
         // 2. Provider User Info 조회
         SocialUserInfo userInfo = fetchUserInfo(provider, socialAccessToken);
@@ -108,20 +108,20 @@ public class OAuth2Service {
         return provider.name().substring(0, 1) + "_" + hash.substring(0, Math.min(6, hash.length()));
     }
 
-    private String exchangeCodeForToken(SocialProvider provider, String code) {
+    private String exchangeCodeForToken(SocialProvider provider, String code, String codeVerifier) {
         return switch (provider) {
-            case GOOGLE -> exchangeGoogleToken(code);
-            case KAKAO -> exchangeKakaoToken(code);
-            case NAVER -> exchangeNaverToken(code);
+            case GOOGLE -> exchangeGoogleToken(code, codeVerifier);
+            case KAKAO -> exchangeKakaoToken(code, codeVerifier);
+            case NAVER -> exchangeNaverToken(code, codeVerifier);
         };
     }
 
     @SuppressWarnings("unchecked")
-    private String exchangeGoogleToken(String code) {
+    private String exchangeGoogleToken(String code, String codeVerifier) {
         Map<String, Object> response = restClient.post()
                 .uri("https://oauth2.googleapis.com/token")
                 .header("Content-Type", "application/x-www-form-urlencoded")
-                .body(buildTokenRequestBody(code, googleClientId, googleClientSecret, googleRedirectUri))
+                .body(buildTokenRequestBody(code, googleClientId, googleClientSecret, googleRedirectUri, codeVerifier))
                 .retrieve()
                 .body(Map.class);
         if (response == null) {
@@ -131,11 +131,11 @@ public class OAuth2Service {
     }
 
     @SuppressWarnings("unchecked")
-    private String exchangeKakaoToken(String code) {
+    private String exchangeKakaoToken(String code, String codeVerifier) {
         Map<String, Object> response = restClient.post()
                 .uri("https://kauth.kakao.com/oauth/token")
                 .header("Content-Type", "application/x-www-form-urlencoded")
-                .body(buildTokenRequestBody(code, kakaoClientId, kakaoClientSecret, kakaoRedirectUri))
+                .body(buildTokenRequestBody(code, kakaoClientId, kakaoClientSecret, kakaoRedirectUri, codeVerifier))
                 .retrieve()
                 .body(Map.class);
         if (response == null) {
@@ -145,11 +145,11 @@ public class OAuth2Service {
     }
 
     @SuppressWarnings("unchecked")
-    private String exchangeNaverToken(String code) {
+    private String exchangeNaverToken(String code, String codeVerifier) {
         Map<String, Object> response = restClient.post()
                 .uri("https://nid.naver.com/oauth2.0/token")
                 .header("Content-Type", "application/x-www-form-urlencoded")
-                .body(buildTokenRequestBody(code, naverClientId, naverClientSecret, naverRedirectUri))
+                .body(buildTokenRequestBody(code, naverClientId, naverClientSecret, naverRedirectUri, codeVerifier))
                 .retrieve()
                 .body(Map.class);
         if (response == null) {
@@ -158,16 +158,18 @@ public class OAuth2Service {
         return (String) response.get("access_token");
     }
 
-    private String buildTokenRequestBody(String code, String clientId, String clientSecret, String redirectUri) {
-        return UriComponentsBuilder.newInstance()
+    private String buildTokenRequestBody(String code, String clientId, String clientSecret,
+                                         String redirectUri, String codeVerifier) {
+        var builder = UriComponentsBuilder.newInstance()
                 .queryParam("grant_type", "authorization_code")
                 .queryParam("client_id", clientId)
                 .queryParam("client_secret", clientSecret)
                 .queryParam("redirect_uri", redirectUri)
-                .queryParam("code", code)
-                .build()
-                .encode()
-                .getQuery();
+                .queryParam("code", code);
+        if (codeVerifier != null && !codeVerifier.isBlank()) {
+            builder.queryParam("code_verifier", codeVerifier);
+        }
+        return builder.build().encode().getQuery();
     }
 
     private SocialUserInfo fetchUserInfo(SocialProvider provider, String accessToken) {

@@ -6,6 +6,44 @@ import type { MeResponse } from '@/api/auth';
 import Button from '@/components/ui/Button';
 import styles from './LoginPage.module.css';
 
+/* ── PKCE helpers ── */
+
+function generateRandomString(length: number): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  const arr = new Uint8Array(length);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (v) => chars[v % chars.length]).join('');
+}
+
+async function generateCodeChallenge(verifier: string): Promise<string> {
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+/* ── Provider config ── */
+
+const PROVIDER_CONFIG: Record<string, { authUrl: string; clientId: string; scope: string }> = {
+  GOOGLE: {
+    authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+    clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '',
+    scope: 'email profile',
+  },
+  KAKAO: {
+    authUrl: 'https://kauth.kakao.com/oauth/authorize',
+    clientId: import.meta.env.VITE_KAKAO_CLIENT_ID ?? '',
+    scope: 'profile_nickname account_email',
+  },
+  NAVER: {
+    authUrl: 'https://nid.naver.com/oauth2.0/authorize',
+    clientId: import.meta.env.VITE_NAVER_CLIENT_ID ?? '',
+    scope: '',
+  },
+};
+
 /** Screen A-1: Login */
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -80,6 +118,38 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleSocialLogin(provider: string) {
+    const config = PROVIDER_CONFIG[provider];
+    if (!config) return;
+
+    if (!config.clientId) {
+      setError(`${provider} 로그인이 설정되지 않았습니다.`);
+      return;
+    }
+
+    // CSRF: generate state
+    const state = generateRandomString(32);
+    sessionStorage.setItem('oauth_state', state);
+
+    // PKCE: generate code_verifier + code_challenge
+    const codeVerifier = generateRandomString(64);
+    sessionStorage.setItem('oauth_code_verifier', codeVerifier);
+    const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+    const redirectUri = `${window.location.origin}/social-login/${provider.toLowerCase()}`;
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: config.clientId,
+      redirect_uri: redirectUri,
+      scope: config.scope,
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+    });
+
+    window.location.href = `${config.authUrl}?${params.toString()}`;
   }
 
   return (
@@ -171,34 +241,4 @@ export default function LoginPage() {
       </div>
     </div>
   );
-
-  function handleSocialLogin(provider: string) {
-    const providerConfig: Record<string, { authUrl: string; clientIdKey: string }> = {
-      GOOGLE: {
-        authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
-        clientIdKey: 'google',
-      },
-      KAKAO: {
-        authUrl: 'https://kauth.kakao.com/oauth/authorize',
-        clientIdKey: 'kakao',
-      },
-      NAVER: {
-        authUrl: 'https://nid.naver.com/oauth2.0/authorize',
-        clientIdKey: 'naver',
-      },
-    };
-
-    const config = providerConfig[provider];
-    if (!config) return;
-
-    const redirectUri = `${window.location.origin}/social-login/${provider.toLowerCase()}`;
-    const params = new URLSearchParams({
-      response_type: 'code',
-      redirect_uri: redirectUri,
-      scope: provider === 'GOOGLE' ? 'email profile' : '',
-    });
-
-    // Client IDs should be injected via environment — placeholder alert for unconfigured
-    window.location.href = `${config.authUrl}?${params.toString()}`;
-  }
 }
