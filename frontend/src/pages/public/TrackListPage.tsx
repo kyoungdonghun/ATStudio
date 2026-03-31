@@ -4,6 +4,8 @@ import { fetchTracks, type TrackListParams } from '@/api/tracks';
 import { fetchTags } from '@/api/tags';
 import { addToDownloadQueue } from '@/api/downloadQueue';
 import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
+import { isSubscriptionRequired, getApiErrorCode } from '@/api/client';
+import { fetchDownloadCount } from '@/api/downloads';
 import type { TrackListItem, TagItem, PageInfo } from '@/types';
 import TrackRow from '@/components/track/TrackRow';
 import FilterChip from '@/components/ui/FilterChip';
@@ -40,8 +42,8 @@ export default function TrackListPage() {
   const navigate = useNavigate();
 
   function handleGuestAction() {
-    const goLogin = window.confirm('로그인이 필요한 기능입니다. 로그인 페이지로 이동하시겠습니까?');
-    if (goLogin) navigate('/login');
+    toast('warning', '로그인이 필요한 기능입니다.');
+    navigate('/login');
   }
 
   /* ── Derive filters from URL ── */
@@ -391,8 +393,22 @@ export default function TrackListPage() {
                     try {
                       const blob = await downloadTrack(t.id);
                       triggerBlobDownload(blob, `${t.title}.mp3`);
-                    } catch {
-                      toast('error', '다운로드에 실패했습니다.');
+                      try {
+                        const count = await fetchDownloadCount();
+                        toast('success', `다운로드 완료! 오늘 남은 횟수: ${count.remaining}/${count.dailyLimit}`);
+                      } catch {
+                        toast('success', '다운로드가 완료되었습니다.');
+                      }
+                    } catch (err) {
+                      const code = await getApiErrorCode(err);
+                      if (code === 'NO_ACTIVE_SUBSCRIPTION') {
+                        toast('warning', '구독이 필요한 기능입니다.');
+                        navigate('/subscriptions');
+                      } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
+                        toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
+                      } else {
+                        toast('error', '다운로드에 실패했습니다.');
+                      }
                     }
                   }}
                   onBuy={async (t) => {
@@ -400,11 +416,16 @@ export default function TrackListPage() {
                       await addToDownloadQueue(t.id);
                       toast('success', '다운로드 대기열에 추가되었습니다.');
                     } catch (err: unknown) {
-                      const axErr = err as { response?: { status?: number } };
-                      if (axErr.response?.status === 409) {
-                        toast('error', '이미 대기열에 있는 음원입니다.');
+                      if (isSubscriptionRequired(err)) {
+                        toast('warning', '구독이 필요한 기능입니다.');
+                        navigate('/subscriptions');
                       } else {
-                        toast('error', '대기열 추가에 실패했습니다.');
+                        const axErr = err as { response?: { status?: number } };
+                        if (axErr.response?.status === 409) {
+                          toast('error', '이미 대기열에 있는 음원입니다.');
+                        } else {
+                          toast('error', '대기열 추가에 실패했습니다.');
+                        }
                       }
                     }
                   }}
@@ -424,6 +445,11 @@ export default function TrackListPage() {
         open={addToPlTrackId !== null}
         trackId={addToPlTrackId}
         onClose={() => setAddToPlTrackId(null)}
+        onSubscriptionRequired={() => {
+          setAddToPlTrackId(null);
+          toast('warning', '구독이 필요한 기능입니다.');
+          navigate('/subscriptions');
+        }}
       />
     </div>
   );

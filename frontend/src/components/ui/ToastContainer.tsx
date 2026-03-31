@@ -1,5 +1,13 @@
 import { useToastStore } from '@/store/toastStore';
+import type { ToastType } from '@/store/toastStore';
 import styles from './ToastContainer.module.css';
+
+const TYPE_CLASS: Record<ToastType, string> = {
+  success: styles.success,
+  error: styles.error,
+  warning: styles.warning,
+  info: styles.info,
+};
 
 export default function ToastContainer() {
   const toasts = useToastStore((s) => s.toasts);
@@ -12,7 +20,7 @@ export default function ToastContainer() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`${styles.toast} ${t.type === 'success' ? styles.success : styles.error}`}
+          className={`${styles.toast} ${TYPE_CLASS[t.type]}`}
           onClick={() => dismiss(t.id)}
         >
           {t.message}

@@ -12,6 +12,7 @@ import com.atstudio.atstudio.entity.key.DownloadQueueId;
 import com.atstudio.atstudio.repository.DownloadQueueRepository;
 import com.atstudio.atstudio.repository.TrackRepository;
 import com.atstudio.atstudio.repository.UserRepository;
+import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -38,6 +41,7 @@ class DownloadQueueServiceTest {
     @Mock DownloadQueueRepository downloadQueueRepository;
     @Mock UserRepository userRepository;
     @Mock TrackRepository trackRepository;
+    @Mock UserSubscriptionRepository userSubscriptionRepository;
 
     @InjectMocks DownloadQueueService downloadQueueService;
 
@@ -79,10 +83,45 @@ class DownloadQueueServiceTest {
         User user = buildUser(1L);
         Track track = buildTrack(2L, true);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userSubscriptionRepository.findActiveByUser(any(), any(LocalDate.class)))
+                .willReturn(Optional.of(mock(com.atstudio.atstudio.entity.UserSubscription.class)));
         given(trackRepository.findById(2L)).willReturn(Optional.of(track));
         given(downloadQueueRepository.existsById(any(DownloadQueueId.class))).willReturn(false);
 
         downloadQueueService.addToQueue(2L, buildUserDetails(1L));
+
+        verify(downloadQueueRepository).save(any(DownloadQueue.class));
+    }
+
+    @Test
+    @DisplayName("addToQueue() 실패 - 활성 구독 없음 → NO_ACTIVE_SUBSCRIPTION")
+    void addToQueue_noSubscription() {
+        User user = buildUser(1L);
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userSubscriptionRepository.findActiveByUser(any(), any(LocalDate.class)))
+                .willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> downloadQueueService.addToQueue(2L, buildUserDetails(1L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+    }
+
+    @Test
+    @DisplayName("addToQueue() 성공 - ADMIN은 구독 없이도 추가 가능")
+    void addToQueue_adminBypass() {
+        User admin = buildUser(1L);
+        ReflectionTestUtils.setField(admin, "role", UserRole.ADMIN);
+        Track track = buildTrack(2L, true);
+        given(userRepository.findById(1L)).willReturn(Optional.of(admin));
+        given(trackRepository.findById(2L)).willReturn(Optional.of(track));
+        given(downloadQueueRepository.existsById(any(DownloadQueueId.class))).willReturn(false);
+
+        CustomUserDetails adminDetails = CustomUserDetails.builder()
+                .id(1L).email("admin@test.com").password("pw")
+                .role(UserRole.ADMIN).isDeleted(false).isProfileComplete(true)
+                .build();
+        downloadQueueService.addToQueue(2L, adminDetails);
 
         verify(downloadQueueRepository).save(any(DownloadQueue.class));
     }
@@ -93,6 +132,8 @@ class DownloadQueueServiceTest {
         User user = buildUser(1L);
         Track track = buildTrack(2L, true);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userSubscriptionRepository.findActiveByUser(any(), any(LocalDate.class)))
+                .willReturn(Optional.of(mock(com.atstudio.atstudio.entity.UserSubscription.class)));
         given(trackRepository.findById(2L)).willReturn(Optional.of(track));
         given(downloadQueueRepository.existsById(any(DownloadQueueId.class))).willReturn(true);
 
@@ -107,6 +148,8 @@ class DownloadQueueServiceTest {
     void addToQueue_trackNotFound() {
         User user = buildUser(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userSubscriptionRepository.findActiveByUser(any(), any(LocalDate.class)))
+                .willReturn(Optional.of(mock(com.atstudio.atstudio.entity.UserSubscription.class)));
         given(trackRepository.findById(2L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> downloadQueueService.addToQueue(2L, buildUserDetails(1L)))

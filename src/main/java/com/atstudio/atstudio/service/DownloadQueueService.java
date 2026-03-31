@@ -6,15 +6,18 @@ import com.atstudio.atstudio.dto.downloadqueue.DownloadQueueResponse;
 import com.atstudio.atstudio.entity.DownloadQueue;
 import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.key.DownloadQueueId;
 import com.atstudio.atstudio.repository.DownloadQueueRepository;
 import com.atstudio.atstudio.repository.TrackRepository;
 import com.atstudio.atstudio.repository.UserRepository;
+import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -25,10 +28,17 @@ public class DownloadQueueService {
     private final DownloadQueueRepository downloadQueueRepository;
     private final UserRepository userRepository;
     private final TrackRepository trackRepository;
+    private final UserSubscriptionRepository userSubscriptionRepository;
 
     @Transactional
     public void addToQueue(Long trackId, CustomUserDetails userDetails) {
         User user = getUser(userDetails);
+
+        // ADMIN bypasses subscription check
+        if (user.getRole() != UserRole.ADMIN) {
+            userSubscriptionRepository.findActiveByUser(user, LocalDate.now())
+                    .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+        }
 
         Track track = trackRepository.findById(trackId)
                 .filter(Track::isActive)

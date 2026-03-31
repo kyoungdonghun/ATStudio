@@ -255,6 +255,18 @@
   text-align: right;
 }
 
+.thNum {
+  width: 42px;
+}
+
+.thOrder {
+  width: 66px;
+}
+
+.thActions {
+  width: 140px;
+}
+
 .trackRow {
   border-bottom: 1px solid var(--border);
   cursor: pointer;
@@ -321,10 +333,10 @@
 }
 
 .trThumb {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   background: var(--bg3);
-  border-radius: 4px;
+  border-radius: 5px;
   border: 1px solid var(--border2);
   flex-shrink: 0;
   display: flex;
@@ -366,67 +378,59 @@
   white-space: nowrap;
 }
 
-.trLikeBtn {
+.tdActionsInner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.trackRow:hover .tdActionsInner {
+  opacity: 1;
+}
+
+.trActBtn {
   background: none;
   border: none;
   color: var(--text2);
-  font-size: 14px;
   cursor: pointer;
-  padding: 4px;
-  transition: color 0.15s;
-}
-
-.trLikeBtn:hover {
-  color: var(--accent);
-}
-
-.trLikeBtnActive {
-  color: var(--accent);
-}
-
-.trAddPlBtn {
-  background: none;
-  border: none;
-  color: var(--text2);
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 14px;
-  cursor: pointer;
-  padding: 4px;
-  margin-left: 4px;
-  transition: color 0.15s;
+  transition: color 0.15s, background 0.15s;
 }
 
-.trAddPlBtn:hover {
-  color: var(--accent);
+.trActBtn:hover {
+  color: var(--text0);
+  background: var(--bg3);
 }
 
-.trDlBtn {
-  background: none;
-  border: none;
-  color: var(--text2);
-  font-size: 14px;
-  cursor: pointer;
-  padding: 4px;
-  margin-left: 4px;
-  transition: color 0.15s;
-}
-
-.trDlBtn:hover {
+.trActBtnActive {
   color: var(--accent);
 }
 
 .trQueueBtn {
-  background: none;
-  border: none;
-  color: var(--text2);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  border-radius: 4px;
+  padding: 3px 10px;
   font-size: 11px;
+  font-family: inherit;
+  font-weight: 500;
   cursor: pointer;
-  padding: 4px 6px;
-  margin-left: 4px;
-  transition: color 0.15s;
+  white-space: nowrap;
+  transition: background 0.15s;
 }
 
 .trQueueBtn:hover {
-  color: var(--accent);
+  background: rgba(198, 167, 94, 0.22);
 }
 
 .btnLikeActive {
@@ -503,7 +507,32 @@
     flex-wrap: wrap;
   }
 
-  .trackTable {
-    min-width: 400px;
+  .thOrder,
+  .tdOrder {
+    display: none;
+  }
+
+  .thActions {
+    width: 100px;
+  }
+
+  .trThumb {
+    width: 32px;
+    height: 32px;
+  }
+
+  .trActBtn {
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+  }
+
+  .trQueueBtn {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+
+  .tdActionsInner {
+    opacity: 1;
   }
 }

@@ -1,14 +1,14 @@
 /** Screen L-3: Album detail */
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { fetchAlbumDetail, type AlbumDetail } from '@/api/albums';
-import { toUploadUrl } from '@/api/client';
+import { toUploadUrl, isSubscriptionRequired, getApiErrorCode } from '@/api/client';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import { useAuthStore } from '@/store/authStore';
 import { formatDate } from '@/utils/format';
-import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
+import { downloadTrack, triggerBlobDownload, fetchDownloadCount } from '@/api/downloads';
 import { useToastStore } from '@/store/toastStore';
 import { addToDownloadQueue } from '@/api/downloadQueue';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
@@ -21,6 +21,7 @@ export default function AlbumDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [addToPlTrackId, setAddToPlTrackId] = useState<number | null>(null);
   const toast = useToastStore((s) => s.show);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!albumId) return;
@@ -171,14 +172,10 @@ export default function AlbumDetailPage() {
         <table className={styles.trackTable}>
           <thead>
             <tr>
-              <th className={styles.thCenter} style={{ width: 42 }}>
-                #
-              </th>
+              <th className={`${styles.thCenter} ${styles.thNum}`}>#</th>
               <th>음원</th>
-              <th style={{ width: 66 }} className={styles.thRight}>
-                순서
-              </th>
-              <th style={{ width: 140 }} />
+              <th className={`${styles.thRight} ${styles.thOrder}`}>순서</th>
+              <th className={styles.thActions} />
             </tr>
           </thead>
           <tbody>
@@ -239,62 +236,90 @@ export default function AlbumDetailPage() {
                 </td>
                 <td className={styles.tdOrder}>{t.order}</td>
                 <td className={styles.tdActions}>
-                  {isAuthenticated && (
-                    <>
-                      <button
-                        className={`${styles.trLikeBtn} ${likeStore.likedIds.has(t.trackId) ? styles.trLikeBtnActive : ''}`}
-                        onClick={() => likeStore.toggle(t.trackId)}
-                        aria-label="Like"
-                      >
-                        {likeStore.likedIds.has(t.trackId) ? '\u2665' : '\u2661'}
-                      </button>
-                      <button
-                        className={styles.trAddPlBtn}
-                        onClick={() => setAddToPlTrackId(t.trackId)}
-                        aria-label="Add to playlist"
-                        title="재생목록에 추가"
-                      >
-                        +
-                      </button>
-                      <button
-                        className={styles.trDlBtn}
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          try {
-                            const blob = await downloadTrack(t.trackId);
-                            triggerBlobDownload(blob, `${t.title}.mp3`);
-                          } catch {
-                            toast('error', '다운로드에 실패했습니다.');
-                          }
-                        }}
-                        aria-label="Download"
-                        title="다운로드"
-                      >
-                        &#8595;
-                      </button>
-                      <button
-                        className={styles.trQueueBtn}
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          try {
-                            await addToDownloadQueue(t.trackId);
-                            toast('success', '다운로드 대기열에 추가되었습니다.');
-                          } catch (err: unknown) {
-                            const axErr = err as { response?: { status?: number } };
-                            if (axErr.response?.status === 409) {
-                              toast('error', '이미 대기열에 있는 음원입니다.');
-                            } else {
-                              toast('error', '대기열 추가에 실패했습니다.');
+                  <div className={styles.tdActionsInner}>
+                    {isAuthenticated ? (
+                      <>
+                        <button
+                          className={`${styles.trActBtn} ${likeStore.likedIds.has(t.trackId) ? styles.trActBtnActive : ''}`}
+                          onClick={() => likeStore.toggle(t.trackId)}
+                          aria-label="Like"
+                        >
+                          {likeStore.likedIds.has(t.trackId) ? '\u2665' : '\u2661'}
+                        </button>
+                        <button
+                          className={styles.trActBtn}
+                          onClick={() => setAddToPlTrackId(t.trackId)}
+                          aria-label="Add to playlist"
+                          title="재생목록에 추가"
+                        >
+                          +
+                        </button>
+                        <button
+                          className={styles.trActBtn}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              const blob = await downloadTrack(t.trackId);
+                              triggerBlobDownload(blob, `${t.title}.mp3`);
+                              try {
+                                const count = await fetchDownloadCount();
+                                toast('success', `다운로드 완료! 오늘 남은 횟수: ${count.remaining}/${count.dailyLimit}`);
+                              } catch {
+                                toast('success', '다운로드가 완료되었습니다.');
+                              }
+                            } catch (err) {
+                              const code = await getApiErrorCode(err);
+                              if (code === 'NO_ACTIVE_SUBSCRIPTION') {
+                                toast('warning', '구독이 필요한 기능입니다.');
+                                navigate('/subscriptions');
+                              } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
+                                toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
+                              } else {
+                                toast('error', '다운로드에 실패했습니다.');
+                              }
                             }
-                          }
-                        }}
-                        aria-label="Add to download queue"
-                        title="대기열에 추가"
-                      >
-                        대기열
-                      </button>
-                    </>
-                  )}
+                          }}
+                          aria-label="Download"
+                          title="다운로드"
+                        >
+                          &#8595;
+                        </button>
+                        <button
+                          className={styles.trQueueBtn}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              await addToDownloadQueue(t.trackId);
+                              toast('success', '다운로드 대기열에 추가되었습니다.');
+                            } catch (err: unknown) {
+                              if (isSubscriptionRequired(err)) {
+                                toast('warning', '구독이 필요한 기능입니다.');
+                                navigate('/subscriptions');
+                              } else {
+                                const axErr = err as { response?: { status?: number } };
+                                if (axErr.response?.status === 409) {
+                                  toast('error', '이미 대기열에 있는 음원입니다.');
+                                } else {
+                                  toast('error', '대기열 추가에 실패했습니다.');
+                                }
+                              }
+                            }
+                          }}
+                          aria-label="Add to download queue"
+                          title="대기열에 추가"
+                        >
+                          Buy
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button className={styles.trActBtn} onClick={() => { toast('warning', '로그인이 필요한 기능입니다.'); navigate('/login'); }} title="Like">{'\u2661'}</button>
+                        <button className={styles.trActBtn} onClick={() => { toast('warning', '로그인이 필요한 기능입니다.'); navigate('/login'); }} title="Add to playlist">+</button>
+                        <button className={styles.trActBtn} onClick={() => { toast('warning', '로그인이 필요한 기능입니다.'); navigate('/login'); }} title="Download">&#8595;</button>
+                        <button className={styles.trQueueBtn} onClick={() => { toast('warning', '로그인이 필요한 기능입니다.'); navigate('/login'); }}>Buy</button>
+                      </>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -307,6 +332,11 @@ export default function AlbumDetailPage() {
         open={addToPlTrackId !== null}
         trackId={addToPlTrackId}
         onClose={() => setAddToPlTrackId(null)}
+        onSubscriptionRequired={() => {
+          setAddToPlTrackId(null);
+          toast('warning', '구독이 필요한 기능입니다.');
+          navigate('/subscriptions');
+        }}
       />
     </div>
   );

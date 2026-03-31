@@ -4,6 +4,7 @@ import { toUploadUrl } from '@/api/client';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
+import { useToastStore } from '@/store/toastStore';
 import QueueModal from '@/components/player/QueueModal';
 import PlaylistDrawer from '@/components/player/PlaylistDrawer';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
@@ -35,6 +36,7 @@ export default function PlayerBar() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const role = useAuthStore((s) => s.role);
   const likeStore = useLikeStore();
+  const toast = useToastStore((s) => s.show);
 
   const shuffle = usePlayerStore((s) => s.shuffle);
   const repeat = usePlayerStore((s) => s.repeat);
@@ -98,14 +100,28 @@ export default function PlayerBar() {
           <button
             className={`${styles.heartBtn} ${likeStore.likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
             aria-label="Like"
-            onClick={() => likeStore.toggle(currentTrack.id)}
+            onClick={() => {
+              if (!isAuthenticated) {
+                toast('warning', '로그인 후 이용 가능합니다.');
+                navigate('/login');
+                return;
+              }
+              likeStore.toggle(currentTrack.id);
+            }}
           >
             {likeStore.likedIds.has(currentTrack.id) ? '\u2665' : '\u2661'}
           </button>
           <button
             className={styles.addToPlBtn}
             aria-label="Add to playlist"
-            onClick={() => setShowPlModal(true)}
+            onClick={() => {
+              if (!isAuthenticated) {
+                toast('warning', '로그인 후 이용 가능합니다.');
+                navigate('/login');
+                return;
+              }
+              setShowPlModal(true);
+            }}
             title="재생목록에 추가"
           >
             +
@@ -240,7 +256,14 @@ export default function PlayerBar() {
                 <button
                   className={`${styles.heartBtn} ${likeStore.likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
                   aria-label="Like"
-                  onClick={() => likeStore.toggle(currentTrack.id)}
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      toast('warning', '로그인 후 이용 가능합니다.');
+                      navigate('/login');
+                      return;
+                    }
+                    likeStore.toggle(currentTrack.id);
+                  }}
                 >
                   {likeStore.likedIds.has(currentTrack.id) ? '\u2665' : '\u2661'}
                 </button>
@@ -310,7 +333,14 @@ export default function PlayerBar() {
 
           {/* Action buttons */}
           <div className={styles.mobileActions}>
-            <button className={styles.addToPlBtn} onClick={() => setShowPlModal(true)}>+ 재생목록</button>
+            <button className={styles.addToPlBtn} onClick={() => {
+              if (!isAuthenticated) {
+                toast('warning', '로그인 후 이용 가능합니다.');
+                navigate('/login');
+                return;
+              }
+              setShowPlModal(true);
+            }}>+ 재생목록</button>
             <button
               className={`${styles.actionBtn} ${queueOpen ? styles.actionBtnActive : ''}`}
               onClick={() => { setQueueOpen((v) => !v); setPlaylistOpen(false); }}
@@ -340,6 +370,11 @@ export default function PlayerBar() {
         open={showPlModal}
         trackId={currentTrack?.id ?? null}
         onClose={() => setShowPlModal(false)}
+        onSubscriptionRequired={() => {
+          setShowPlModal(false);
+          toast('warning', '구독이 필요한 기능입니다.');
+          navigate('/subscriptions');
+        }}
       />
     </>
   );

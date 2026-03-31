@@ -1,10 +1,10 @@
 /** Screen B-1: Track detail */
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { fetchTrackDetail, type TrackDetail } from '@/api/tracks';
-import { toUploadUrl } from '@/api/client';
+import { toUploadUrl, isSubscriptionRequired, getApiErrorCode } from '@/api/client';
 import { addToDownloadQueue } from '@/api/downloadQueue';
-import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
+import { downloadTrack, triggerBlobDownload, fetchDownloadCount } from '@/api/downloads';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
@@ -29,6 +29,7 @@ export default function TrackDetailPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const likeStore = useLikeStore();
   const toast = useToastStore((s) => s.show);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!trackId) return;
@@ -55,6 +56,11 @@ export default function TrackDetailPage() {
       await addToDownloadQueue(track.id);
       toast('success', '다운로드 대기열에 추가되었습니다.');
     } catch (err: unknown) {
+      if (isSubscriptionRequired(err)) {
+        toast('warning', '구독이 필요한 기능입니다.');
+        navigate('/subscriptions');
+        return;
+      }
       const axErr = err as { response?: { status?: number } };
       if (axErr.response?.status === 409) {
         toast('error', '이미 대기열에 있는 음원입니다.');
@@ -73,9 +79,24 @@ export default function TrackDetailPage() {
       setError(null);
       const blob = await downloadTrack(track.id);
       triggerBlobDownload(blob, `${track.title}.mp3`);
+      try {
+        const count = await fetchDownloadCount();
+        toast('success', `다운로드 완료! 오늘 남은 횟수: ${count.remaining}/${count.dailyLimit}`);
+      } catch {
+        toast('success', '다운로드가 완료되었습니다.');
+      }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '다운로드에 실패했습니다.';
-      setError(msg);
+      const code = await getApiErrorCode(err);
+      if (code === 'NO_ACTIVE_SUBSCRIPTION') {
+        toast('warning', '구독이 필요한 기능입니다.');
+        navigate('/subscriptions');
+        return;
+      }
+      if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
+        toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
+        return;
+      }
+      setError('다운로드에 실패했습니다.');
     } finally {
       setDlStatus('idle');
     }
@@ -267,6 +288,11 @@ export default function TrackDetailPage() {
         open={showPlModal}
         trackId={track.id}
         onClose={() => setShowPlModal(false)}
+        onSubscriptionRequired={() => {
+          setShowPlModal(false);
+          toast('warning', '구독이 필요한 기능입니다.');
+          navigate('/subscriptions');
+        }}
       />
     </div>
   );

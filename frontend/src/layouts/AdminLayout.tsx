@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
+import ToastContainer from '@/components/ui/ToastContainer';
 import styles from './AdminLayout.module.css';
 
 interface MenuItem {
@@ -130,6 +131,8 @@ export default function AdminLayout() {
       <main className={styles.content}>
         <Outlet />
       </main>
+
+      <ToastContainer />
     </div>
   );
 }

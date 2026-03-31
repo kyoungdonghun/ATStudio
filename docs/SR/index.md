@@ -38,12 +38,15 @@
 | SR-32 | 앨범 음원 추가/순서 관리 기능 | DONE |
 | SR-33 | 로그아웃/계정 전환 시 플레이어+전역 상태 초기화 | DONE |
 | SR-34 | 앨범 좋아요 기능 (DB+BE+FE+좋아요 목록 탭 분리) | DONE |
+| SR-35 | RESOURCE_DUPLICATE 에러코드 정정 (SR-C-01) | DONE |
+| SR-36 | 라우터 주석 화면 수 불일치 수정 (SR-C-02) | DONE |
+| SR-37 | 문서 깨진 링크 30건 수정 (SR-C-04) | DONE |
+| SR-38 | 권한·인증 알림 시스템 전수조사 및 구축 | OPEN |
+| SR-39 | 앨범 상세 음원 리스트 테이블 스타일 통일 | OPEN |
 
 ## Code Confirmation Reports (docs/SR/confirm/)
 
 | SR-C | 대상 | 상태 |
 |------|------|------|
 | SR-C-01 | DATA_INTEGRITY_VIOLATION 오용 (4개 서비스) | OPEN |
-| SR-C-02 | router/index.tsx 화면 수 주석 불일치 | OPEN |
-| SR-C-03 | application.yml JWT secret fallback 미제거 (CR-P-004) | DEFERRED |
-| SR-C-04 | docs/guides/ 미존재 — 30+ broken internal links (meta-only docs) | DONE |
+| SR-C-02 | router/index.tsx 화�

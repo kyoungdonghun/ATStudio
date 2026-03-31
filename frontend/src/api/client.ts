@@ -1,4 +1,6 @@
 import axios, { type InternalAxiosRequestConfig, type AxiosResponse } from 'axios';
+import { router } from '@/router';
+import { useToastStore } from '@/store/toastStore';
 
 const client = axios.create({
   baseURL: '/api',
@@ -74,7 +76,8 @@ client.interceptors.response.use(
       processQueue(refreshError, null);
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
-      window.location.href = '/login';
+      useToastStore.getState().show('error', '세션이 만료되었습니다. 다시 로그인해주세요.');
+      router.navigate('/login');
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;
@@ -83,6 +86,46 @@ client.interceptors.response.use(
 );
 
 export default client;
+
+/**
+ * Check if an API error is a "subscription required" error (JSON responses only).
+ * For blob responses (download API), use getApiErrorCode() instead.
+ */
+export function isSubscriptionRequired(err: unknown): boolean {
+  const axErr = err as { response?: { data?: { errorCode?: string } } };
+  const data = axErr?.response?.data;
+  if (data && typeof data === 'object' && !(data instanceof Blob) && 'errorCode' in data) {
+    return data.errorCode === 'NO_ACTIVE_SUBSCRIPTION';
+  }
+  return false;
+}
+
+/**
+ * Extract errorCode from an API error, handling both JSON and blob responses.
+ */
+export async function getApiErrorCode(err: unknown): Promise<string | null> {
+  const axErr = err as { response?: { data?: unknown } };
+  const data = axErr?.response?.data;
+  if (!data) return null;
+
+  // Blob response (e.g. download API with responseType: 'blob')
+  if (data instanceof Blob) {
+    try {
+      const text = await data.text();
+      const json = JSON.parse(text);
+      return json.errorCode ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  // JSON response
+  if (typeof data === 'object' && data !== null && 'errorCode' in data) {
+    return (data as { errorCode: string }).errorCode;
+  }
+
+  return null;
+}
 
 /**
  * Convert a relative upload path from the backend to a full URL.

@@ -7,6 +7,7 @@ import {
 } from '@/api/subscriptions';
 import { fetchMySubscription, type MySubscription } from '@/api/userSubscriptions';
 import { useAuthStore } from '@/store/authStore';
+import { useToastStore } from '@/store/toastStore';
 import { formatPrice } from '@/utils/format';
 import styles from './SubscriptionPlanPage.module.css';
 
@@ -157,8 +158,11 @@ export default function SubscriptionPlanPage() {
     loadAll();
   }, [isAuthenticated]);
 
+  const toastShow = useToastStore((s) => s.show);
+
   const handleSubscribe = (planKey: string) => {
     if (!isAuthenticated) {
+      toastShow('warning', '로그인 후 구독을 진행할 수 있습니다.');
       navigate('/login');
       return;
     }
