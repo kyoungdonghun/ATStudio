@@ -60,7 +60,7 @@ status: stable
 | Config | `.claude/config/workspace.json` | ATStudio routing, tech_stack |
 
 - **Tech Stack**: Java 17, Spring Boot 4.x, MySQL 8.x + React 18, TypeScript 5.6, Vite 6 (Phase 2 — active)
-- **Project Stats**: 99 APIs, 27 DB tables, 49 screens, 13 agents, 34 SRs completed
+- **Project Stats**: 101 APIs, 28 DB tables, 49 screens, 13 agents, 40 SRs completed
 - **Project Registry**: See [Project Registry](registry/project-registry.md)
 
 ## Starting Point Guides

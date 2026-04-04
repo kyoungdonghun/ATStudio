@@ -1,8 +1,18 @@
-# ATStudio API Specification v6 (Confirmed)
+# ATStudio API Specification v7 (Confirmed)
 
-> **Status**: 6th confirmed — subscription change semantics, admin track API, playlist limit error
-> **Base**: v5 + WI-20260307-ATS-013 patch
-> **Date**: 2026-03-07
+> **Status**: 7th confirmed — SiteSettings API, ValidationConstants centralization
+> **Base**: v6 + 2026-04-04 patch
+> **Date**: 2026-04-04
+
+---
+
+## v6 → v7 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| X1 | §17 new section | Added §17 Site Settings: GET /api/settings/{key} [PUBLIC] + PUT /api/admin/settings/{key} [ADMIN] |
+| X2 | Input validation | ValidationConstants centralized: 15 DTOs now enforce @Pattern/@Size/@Max constraints on backend; frontend validation.ts mirrors constraints |
+| X3 | Full API Summary | Updated total count from 99 → 101 |
 
 ---
 
@@ -2055,7 +2065,77 @@ token: String (required — UUID token from email link)
 
 ---
 
-# Full API Summary (99)
+## 17. Site Settings
+
+### 17.1 Get Site Setting
+
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/settings/{key}` |
+| **Auth** | `[PUBLIC]` |
+| **Description** | Retrieve a single site configuration value by key. Used by frontend to load dynamic content (e.g., company certification guide text). |
+
+**Path Parameters**
+```
+key: String (required) — setting key name
+```
+
+**Response** `200 OK`
+```json
+{
+  "message": "Success",
+  "data": {
+    "key": "company_cert_guide",
+    "value": "Please submit the following documents..."
+  }
+}
+```
+
+**Errors**
+- `404 Not Found` — `RESOURCE_NOT_FOUND`: key does not exist
+
+---
+
+### 17.2 Update Site Setting (Admin)
+
+| Field | Value |
+|-------|-------|
+| **URL** | `PUT /api/admin/settings/{key}` |
+| **Auth** | `[ADMIN]` |
+| **Description** | Create or update a site configuration value by key (upsert). |
+
+**Path Parameters**
+```
+key: String (required) — setting key name
+```
+
+**Request Body** (application/json)
+```json
+{
+  "value": "Updated guide text content..."
+}
+```
+
+**Validation**
+- `value`: required, max 5000 characters
+
+**Response** `200 OK`
+```json
+{
+  "message": "Success",
+  "data": {
+    "key": "company_cert_guide",
+    "value": "Updated guide text content..."
+  }
+}
+```
+
+**Errors**
+- `400 Bad Request` — `INVALID_ARGUMENT`: value exceeds max length or is blank
+
+---
+
+# Full API Summary (101)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -2075,4 +2155,5 @@ token: String (required — UUID token from email link)
 | 14 | Utility / Auth | 11 |
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
-| | **Total** | **99** |
+| 17 | Site Settings | 2 |
+| | **Total** | **101** |

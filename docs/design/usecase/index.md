@@ -1,8 +1,8 @@
 # Use Case Specification Index
 
-> **Version**: v8
-> **Confirmed date**: 2026-03-29
-> **Reference documents**: `docs/design/db-schema.md` (v4), `docs/design/api-spec.md` (v6)
+> **Version**: v9
+> **Confirmed date**: 2026-04-04
+> **Reference documents**: `docs/design/db-schema.md` (v5), `docs/design/api-spec.md` (v7)
 > **Source**: `docs/check/usecase-spec csv/`
 
 ---
@@ -24,10 +24,10 @@
 | `download-queue.md` | Download queue (add/list/remove) | 3 |
 | `whitelist.md` | Whitelist channel (register/list/update/delete) | 4 |
 | `company-certification.md` | Company certification (apply/view status/admin management) | 5 |
-| `util.md` | Utility (duplicate check/token/subscription status/download count/email verify/password reset, etc.) | 11 |
+| `util.md` | Utility (duplicate check/token/subscription status/download count/email verify/password reset/site settings) | 13 |
 | `sound-album.md` | Album (create/list/detail/update/delete/add track/remove track/reorder/likes cross-ref) | 9 |
 
-**Total UC count: 100** (net +5 vs v7: LIKE-004~006, ALBUM-009 added; SOUND-005/ANNOUNCE-002/003 updated in-place)
+**Total UC count: 102** (net +2 vs v8: UTIL-017, UTIL-018 added)
 
 ---
 
@@ -170,9 +170,22 @@
 | UTIL-014 | Verify email | `util.md` |
 | UTIL-015 | Request password reset | `util.md` |
 | UTIL-016 | Reset password | `util.md` |
+| UTIL-017 | Get site setting | `util.md` |
+| UTIL-018 | Update site setting (Admin) | `util.md` |
 
 > New in v3 (vs original)
 > New in v4 (cross-review additions)
+
+---
+
+## Change History (v8 to v9)
+
+### UC v9 Modifications (2026-04-04)
+
+| # | UC | Change |
+|---|----|--------|
+| 1 | UTIL-017 | **New** — Get site setting. `GET /api/settings/{key}` [PUBLIC]. Returns key-value config entry. 404 if key not found. `util.md` updated. |
+| 2 | UTIL-018 | **New** — Update site setting (Admin). `PUT /api/admin/settings/{key}` [ADMIN]. Upsert operation. `util.md` updated. |
 
 ---
 

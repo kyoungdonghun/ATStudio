@@ -1,8 +1,16 @@
-# ATStudio DB Schema Definition v4 (Confirmed)
+# ATStudio DB Schema Definition v5 (Confirmed)
 
-> **Status**: v4 Confirmed — Mutual review reflected
-> **Base**: v3 + 8 mutual review items confirmed
-> **Date**: 2026-02-20
+> **Status**: v5 Confirmed — site_settings table added
+> **Base**: v4 + 2026-04-04 patch
+> **Date**: 2026-04-04
+
+---
+
+## v4 to v5 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| 1 | `site_settings` table | **Added** — Key-value store for admin-managed site configuration (e.g., company certification guide text). Entity: `SiteSetting`. API: §17.1/17.2. |
 
 ---
 
@@ -562,6 +570,26 @@
 
 ---
 
+# 16. Site Configuration
+
+## 16.1 Site Settings (`site_settings`)
+
+> Admin-managed key-value configuration store. Used for dynamic content that must be editable without code deployment (e.g., company certification guide text).
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Setting key | `setting_key` | VARCHAR(100) | NOT NULL | UNIQUE | | Logical identifier (e.g., `company_cert_guide`) |
+| Setting value | `setting_value` | TEXT | NOT NULL | | | Content up to ~65 535 bytes |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | |
+
+- Upsert pattern: backend uses `save()` after `findBySettingKey()` (or `saveAndFlush` with UNIQUE key conflict).
+- No FK references to other tables; standalone configuration store.
+- API: `GET /api/settings/{key}` [PUBLIC], `PUT /api/admin/settings/{key}` [ADMIN].
+
+---
+
 # Table Relationship Diagram
 
 ```
@@ -585,11 +613,13 @@ users ─┬─< social_accounts
        └─< notices (ADMIN only)
 
 tracks ─< track_tags ──> tags
+
+site_settings (standalone — no FK)
 ```
 
 ---
 
-# Complete Table List (26 Tables)
+# Complete Table List (28 Tables)
 
 | # | Table Name | Description | Type |
 |---|------------|-------------|------|
@@ -620,5 +650,6 @@ tracks ─< track_tags ──> tags
 | 25 | `album_tracks` | Album-track mapping | Mapping |
 | 26 | `email_verification_tokens` | Email verification tokens | Transaction |
 | 27 | `password_reset_tokens` | Password reset tokens | Transaction |
+| 28 | `site_settings` | Site configuration key-value store | Master |
 
-Total **27 tables**
+Total **28 tables**

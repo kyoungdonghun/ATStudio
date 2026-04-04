@@ -133,7 +133,7 @@ public class EmailService {
             helper.setText(htmlBody, true);
             mailSender.send(message);
             log.info("Email sent to {} — subject: {}", to, subject);
-        } catch (MessagingException e) {
+        } catch (Exception e) {
             // SMTP 미설정 시 콘솔 fallback
             log.warn("Failed to send email to {}. Falling back to console output.", to);
             log.info("═══ EMAIL FALLBACK ═══");

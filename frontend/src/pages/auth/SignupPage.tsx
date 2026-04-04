@@ -279,6 +279,12 @@ export default function SignupPage() {
 
           <p className={styles.errorText}>{error}</p>
 
+          {window.location.hostname !== 'localhost' && (
+            <p className={styles.label} style={{ textAlign: 'center', marginBottom: 8 }}>
+              {'* 외부 테스트 환경에서는 이메일 인증이 자동으로 건너뛰어집니다.'}
+            </p>
+          )}
+
           <Button
             type="submit"
             variant="primary"

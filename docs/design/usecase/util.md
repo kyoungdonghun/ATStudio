@@ -305,3 +305,55 @@
 
 **Postconditions**
 - `users.password` updated with new BCrypt hash. Token marked as used. User can log in with the new password.
+
+---
+
+## UTIL-017: Get Site Setting [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | UTIL-017 |
+| **Version** | 26-04-04 |
+| **Description** | Retrieves a single site configuration value by key. Used by frontend to load dynamic content without code redeployment (e.g., company certification guide text). |
+| **Actor** | User (any), Backend |
+| **Preconditions** | - |
+| **Trigger** | Frontend page loads and requires dynamic content (e.g., CompanyCertApplyPage mounts). |
+| **Related UC** | UTIL-018 (update site setting), CC-001 (company certification) |
+
+**Main Flow**
+1. Frontend sends `GET /api/settings/{key}` with the desired setting key.
+2. Backend looks up the `site_settings` record by `setting_key`.
+3. Backend returns the key and value.
+
+**Exception / Alternative Flow**
+- Key not found: 404 `RESOURCE_NOT_FOUND`.
+
+**Postconditions**
+- No state changes. Setting value returned to frontend.
+
+---
+
+## UTIL-018: Update Site Setting (Admin) [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | UTIL-018 |
+| **Version** | 26-04-04 |
+| **Description** | Admin creates or updates a site configuration value by key (upsert). Allows changing dynamic content (guide texts, notices) without code deployment. |
+| **Actor** | Admin, Backend |
+| **Preconditions** | Logged in as ADMIN. |
+| **Trigger** | Admin navigates to site settings management page and submits updated content. |
+| **Related UC** | UTIL-017 (get site setting) |
+
+**Main Flow**
+1. Admin enters the setting key and new value.
+2. Frontend sends `PUT /api/admin/settings/{key}` with the value in the request body.
+3. Backend performs upsert: creates a new `site_settings` record if key does not exist, otherwise updates the existing value.
+4. Backend returns the updated key-value pair.
+
+**Exception / Alternative Flow**
+- Value is blank or exceeds max length (5000 chars): 400 `INVALID_ARGUMENT`.
+- Not authenticated as ADMIN: 403 Forbidden.
+
+**Postconditions**
+- `site_settings` record created or updated. Change takes effect immediately on next frontend fetch.
