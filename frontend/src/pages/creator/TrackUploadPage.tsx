@@ -3,6 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { createTrack } from '@/api/tracks';
 import { fetchTags } from '@/api/tags';
 import type { TagItem } from '@/types';
+import {
+  TITLE_TRACK_MAX,
+  BPM_MIN,
+  BPM_MAX,
+  DESCRIPTION_MAX,
+  AUDIO_MAX_SIZE_MB,
+  IMAGE_MAX_SIZE_MB,
+  TRACK_UPLOAD_MAX_COUNT,
+  isFileSizeOk,
+} from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import Tag from '@/components/ui/Tag';
 import styles from './TrackUploadPage.module.css';
@@ -11,8 +21,6 @@ const TONALITIES = [
   'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
   'Cm', 'C#m', 'Dm', 'D#m', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'A#m', 'Bm',
 ];
-
-const MAX_TRACKS = 20;
 
 interface TrackEntry {
   id: string; // client-side key
@@ -81,15 +89,23 @@ export default function TrackUploadPage() {
     if (!selected) return;
 
     const newFiles = Array.from(selected);
-    const remaining = MAX_TRACKS - tracks.length;
+
+    // File size check
+    const oversized = newFiles.filter((f) => !isFileSizeOk(f, AUDIO_MAX_SIZE_MB));
+    if (oversized.length > 0) {
+      setError(`오디오 파일은 ${AUDIO_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다. (초과: ${oversized.map((f) => f.name).join(', ')})`);
+      return;
+    }
+
+    const remaining = TRACK_UPLOAD_MAX_COUNT - tracks.length;
     if (remaining <= 0) {
-      setError(`최대 ${MAX_TRACKS}곡까지 업로드할 수 있습니다.`);
+      setError(`최대 ${TRACK_UPLOAD_MAX_COUNT}곡까지 업로드할 수 있습니다.`);
       return;
     }
 
     const filesToAdd = newFiles.slice(0, remaining);
     if (newFiles.length > remaining) {
-      setError(`최대 ${MAX_TRACKS}곡 제한으로 ${newFiles.length - remaining}개 파일이 제외되었습니다.`);
+      setError(`최대 ${TRACK_UPLOAD_MAX_COUNT}곡 제한으로 ${newFiles.length - remaining}개 파일이 제외되었습니다.`);
     }
 
     const newEntries: TrackEntry[] = filesToAdd.map((file) => ({
@@ -314,7 +330,7 @@ export default function TrackUploadPage() {
                         <input
                           className={styles.input}
                           type="text"
-                          maxLength={100}
+                          maxLength={TITLE_TRACK_MAX}
                           value={track.title}
                           onChange={(e) => updateTrack(idx, { title: e.target.value })}
                           placeholder="음원 제목"
@@ -328,8 +344,8 @@ export default function TrackUploadPage() {
                           <input
                             className={styles.input}
                             type="number"
-                            min={1}
-                            max={999}
+                            min={BPM_MIN}
+                            max={BPM_MAX}
                             value={track.bpm}
                             onChange={(e) => updateTrack(idx, { bpm: e.target.value })}
                             placeholder="120"
@@ -362,6 +378,10 @@ export default function TrackUploadPage() {
                             className={styles.fileHidden}
                             onChange={(e) => {
                               const file = e.target.files?.[0] ?? null;
+                              if (file && !isFileSizeOk(file, IMAGE_MAX_SIZE_MB)) {
+                                setError(`썸네일 이미지는 ${IMAGE_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`);
+                                return;
+                              }
                               updateTrack(idx, { thumbnail: file });
                             }}
                           />
@@ -374,6 +394,7 @@ export default function TrackUploadPage() {
                         <label className={styles.label}>{'설명'}</label>
                         <textarea
                           className={styles.textarea}
+                          maxLength={DESCRIPTION_MAX}
                           value={track.description}
                           onChange={(e) => updateTrack(idx, { description: e.target.value })}
                           placeholder="음원에 대한 설명 (선택사항)"

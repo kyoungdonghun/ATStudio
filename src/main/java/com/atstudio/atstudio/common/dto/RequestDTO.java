@@ -1,9 +1,12 @@
 package com.atstudio.atstudio.common.dto;
 
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+
+import static com.atstudio.atstudio.common.validation.ValidationConstants.*;
 
 @Getter
 @Setter
@@ -11,6 +14,8 @@ public class RequestDTO {
 
     private int page = 1;
     private int size = 10;
+
+    @Size(max = SEARCH_KEYWORD_MAX)
     private String keyword;
     private String type;
 

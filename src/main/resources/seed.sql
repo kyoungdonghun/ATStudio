@@ -516,6 +516,12 @@ UPDATE tracks SET audio_file = 'tracks/audio/track08_cinematic_bb.wav' WHERE id 
 UPDATE tracks SET audio_file = 'tracks/audio/track09_hiphop_d.wav'     WHERE id IN (19, 29) AND audio_file NOT LIKE '%track0%';
 UPDATE tracks SET audio_file = 'tracks/audio/track10_rnb_ab.wav'       WHERE id IN (20, 30) AND audio_file NOT LIKE '%track0%';
 
+-- ─────────────────────────────────────────────
+-- 9. Site Settings
+-- ─────────────────────────────────────────────
+INSERT IGNORE INTO site_settings (setting_key, setting_value, created_at, updated_at) VALUES
+('COMPANY_CERT_GUIDE', '1. 사업자등록증 사본\n2. 법인인감증명서 또는 사용인감계\n3. 대표자 신분증 사본', NOW(), NOW());
+
 -- =============================================================================
 -- END OF SEED DATA
 -- =============================================================================

@@ -6,6 +6,7 @@ import { fetchMe, checkNicknameAvailability, checkPhoneAvailability } from '@/ap
 import type { MeResponse } from '@/api/auth';
 import type { UserJob, UserType } from '@/types';
 import client from '@/api/client';
+import { formatPhone, isValidNickname, isValidPhone, NICKNAME_MAX } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './SignupPage.module.css';
 
@@ -44,8 +45,16 @@ export default function SocialCompleteProfilePage() {
       setError('닉네임을 입력해주세요.');
       return false;
     }
+    if (!isValidNickname(nickname)) {
+      setError('닉네임은 2~20자의 한글, 영문, 숫자, 밑줄(_)만 사용할 수 있습니다.');
+      return false;
+    }
     if (!phonePersonal.trim()) {
       setError('연락처를 입력해주세요.');
+      return false;
+    }
+    if (!isValidPhone(phonePersonal)) {
+      setError('올바른 전화번호 형식을 입력해주세요.');
       return false;
     }
     if (!job) {
@@ -132,17 +141,17 @@ export default function SocialCompleteProfilePage() {
           {/* User type */}
           <div className={styles.fieldGroup}>
             <label className={styles.label}>회원 유형</label>
-            <div className={styles.typeSelector}>
+            <div className={styles.roleToggle}>
               <button
                 type="button"
-                className={`${styles.typeButton} ${userType === 'INDIVIDUAL' ? styles.typeActive : ''}`}
+                className={userType === 'INDIVIDUAL' ? styles.roleOptionActive : styles.roleOption}
                 onClick={() => setUserType('INDIVIDUAL')}
               >
                 개인
               </button>
               <button
                 type="button"
-                className={`${styles.typeButton} ${userType === 'BUSINESS' ? styles.typeActive : ''}`}
+                className={userType === 'BUSINESS' ? styles.roleOptionActive : styles.roleOption}
                 onClick={() => setUserType('BUSINESS')}
               >
                 기업
@@ -160,6 +169,7 @@ export default function SocialCompleteProfilePage() {
               placeholder="닉네임"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
+              maxLength={NICKNAME_MAX}
             />
           </div>
 
@@ -172,7 +182,7 @@ export default function SocialCompleteProfilePage() {
               type="tel"
               placeholder="010-0000-0000"
               value={phonePersonal}
-              onChange={(e) => setPhonePersonal(e.target.value)}
+              onChange={(e) => setPhonePersonal(formatPhone(e.target.value))}
             />
           </div>
 
@@ -188,7 +198,7 @@ export default function SocialCompleteProfilePage() {
                 type="tel"
                 placeholder="02-0000-0000"
                 value={phoneCompany}
-                onChange={(e) => setPhoneCompany(e.target.value)}
+                onChange={(e) => setPhoneCompany(formatPhone(e.target.value))}
               />
             </div>
           )}

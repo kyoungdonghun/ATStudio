@@ -2,6 +2,14 @@ import { type FormEvent, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { register, checkEmailAvailability, checkNicknameAvailability } from '@/api/auth';
+import {
+  formatPhone,
+  isValidEmail,
+  isValidNickname,
+  isValidPhone,
+  PASSWORD_MIN,
+  NICKNAME_MAX,
+} from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './SignupPage.module.css';
 
@@ -29,6 +37,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [phonePersonal, setPhonePersonal] = useState('');
+  const [phoneCompany, setPhoneCompany] = useState('');
   const [job, setJob] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,11 +47,15 @@ export default function SignupPage() {
       setError('닉네임을 입력해주세요.');
       return false;
     }
+    if (!isValidNickname(nickname)) {
+      setError('닉네임은 2~20자의 한글, 영문, 숫자, 밑줄(_)만 사용할 수 있습니다.');
+      return false;
+    }
     if (!email.trim()) {
       setError('이메일을 입력해주세요.');
       return false;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!isValidEmail(email)) {
       setError('올바른 이메일 형식을 입력해주세요.');
       return false;
     }
@@ -50,8 +63,8 @@ export default function SignupPage() {
       setError('비밀번호를 입력해주세요.');
       return false;
     }
-    if (password.length < 8) {
-      setError('비밀번호는 8자 이상이어야 합니다.');
+    if (password.length < PASSWORD_MIN) {
+      setError(`비밀번호는 ${PASSWORD_MIN}자 이상이어야 합니다.`);
       return false;
     }
     if (password !== passwordConfirm) {
@@ -60,6 +73,10 @@ export default function SignupPage() {
     }
     if (!phonePersonal.trim()) {
       setError('연락처를 입력해주세요.');
+      return false;
+    }
+    if (!isValidPhone(phonePersonal)) {
+      setError('올바른 전화번호 형식을 입력해주세요.');
       return false;
     }
     if (!job) {
@@ -97,7 +114,7 @@ export default function SignupPage() {
         email,
         password,
         phonePersonal,
-        phoneCompany: null,
+        phoneCompany: phoneCompany.trim() || null,
         job,
         userType,
       });
@@ -155,6 +172,7 @@ export default function SignupPage() {
               placeholder="닉네임"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
+              maxLength={NICKNAME_MAX}
               autoComplete="nickname"
             />
           </div>
@@ -218,10 +236,27 @@ export default function SignupPage() {
               type="tel"
               placeholder="010-1234-5678"
               value={phonePersonal}
-              onChange={(e) => setPhonePersonal(e.target.value)}
+              onChange={(e) => setPhonePersonal(formatPhone(e.target.value))}
               autoComplete="tel"
             />
           </div>
+
+          {/* Company phone (business only) */}
+          {userType === 'BUSINESS' && (
+            <div className={styles.fieldGroup}>
+              <label className={styles.label} htmlFor="signup-company-phone">
+                회사 연락처 (선택)
+              </label>
+              <input
+                id="signup-company-phone"
+                className={styles.input}
+                type="tel"
+                placeholder="02-0000-0000"
+                value={phoneCompany}
+                onChange={(e) => setPhoneCompany(formatPhone(e.target.value))}
+              />
+            </div>
+          )}
 
           {/* Job */}
           <div className={styles.fieldGroup}>

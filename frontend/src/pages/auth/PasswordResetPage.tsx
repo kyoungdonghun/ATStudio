@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { requestPasswordReset, resetPassword } from '@/api/auth';
+import { isValidEmail, PASSWORD_MIN } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './PasswordResetPage.module.css';
 
@@ -26,7 +27,7 @@ function ForgotForm() {
       setError('이메일을 입력해주세요.');
       return false;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!isValidEmail(email)) {
       setError('올바른 이메일 형식을 입력해주세요.');
       return false;
     }
@@ -115,8 +116,8 @@ function ResetForm({ token }: { token: string }) {
       setError('새 비밀번호를 입력해주세요.');
       return false;
     }
-    if (password.length < 8) {
-      setError('비밀번호는 8자 이상이어야 합니다.');
+    if (password.length < PASSWORD_MIN) {
+      setError(`비밀번호는 ${PASSWORD_MIN}자 이상이어야 합니다.`);
       return false;
     }
     if (password !== confirmPassword) {

@@ -1,0 +1,95 @@
+/* ── Page ── */
+
+.page {
+  padding: 36px var(--page-px);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.loading,
+.error {
+  text-align: center;
+  padding: 80px 0;
+  color: var(--text1);
+  font-size: 15px;
+}
+
+/* ── Settings Card ── */
+
+.card {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.cardTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text0);
+  margin-bottom: 4px;
+}
+
+.cardDesc {
+  font-size: 13px;
+  color: var(--text2);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 200px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 12px 14px;
+  color: var(--text0);
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.textarea::placeholder {
+  color: var(--text2);
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent-border);
+}
+
+/* ── Actions ── */
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+/* ── Success message ── */
+
+.success {
+  color: var(--success);
+  font-size: 13px;
+  padding: 10px 14px;
+  background: var(--success-dim, rgba(34, 197, 94, 0.08));
+  border-radius: 6px;
+  border: 1px solid var(--success-border, rgba(34, 197, 94, 0.2));
+  margin-bottom: 16px;
+}

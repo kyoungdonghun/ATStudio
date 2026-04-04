@@ -4,6 +4,7 @@ import { fetchMyPlaylists, createPlaylist, deletePlaylist } from '@/api/playlist
 import { toUploadUrl } from '@/api/client';
 import { useAuthStore } from '@/store/authStore';
 import type { Playlist } from '@/types';
+import { TITLE_PLAYLIST_MAX } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import styles from './PlaylistListPage.module.css';
@@ -252,7 +253,7 @@ export default function PlaylistListPage() {
               placeholder="재생목록 이름"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              maxLength={50}
+              maxLength={TITLE_PLAYLIST_MAX}
             />
           </div>
           <div className={styles.formGroup}>

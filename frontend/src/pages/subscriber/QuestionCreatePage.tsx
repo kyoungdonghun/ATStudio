@@ -2,6 +2,12 @@
 import { useState, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createQuestion } from '@/api/questions';
+import {
+  TITLE_QUESTION_MAX,
+  ATTACHMENT_MAX_COUNT,
+  ATTACHMENT_MAX_SIZE_MB,
+  isFileSizeOk,
+} from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './QuestionCreatePage.module.css';
 
@@ -37,6 +43,23 @@ export default function QuestionCreatePage() {
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     if (!e.target.files) return;
     const added = Array.from(e.target.files);
+
+    // File count check
+    const totalCount = files.length + added.length;
+    if (totalCount > ATTACHMENT_MAX_COUNT) {
+      setError(`첨부파일은 최대 ${ATTACHMENT_MAX_COUNT}개까지 첨부할 수 있습니다.`);
+      e.target.value = '';
+      return;
+    }
+
+    // File size check
+    const oversized = added.filter((f) => !isFileSizeOk(f, ATTACHMENT_MAX_SIZE_MB));
+    if (oversized.length > 0) {
+      setError(`첨부파일은 ${ATTACHMENT_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다. (초과: ${oversized.map((f) => f.name).join(', ')})`);
+      e.target.value = '';
+      return;
+    }
+
     setFiles((prev) => [...prev, ...added]);
     // Reset input so same file can be added again if removed
     e.target.value = '';
@@ -94,12 +117,12 @@ export default function QuestionCreatePage() {
             id="q-title"
             className={styles.input}
             type="text"
-            maxLength={200}
+            maxLength={TITLE_QUESTION_MAX}
             placeholder="문의 제목을 입력하세요"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
-          <span className={styles.charCount}>{title.length}/200</span>
+          <span className={styles.charCount}>{title.length}/{TITLE_QUESTION_MAX}</span>
         </div>
 
         {/* Category */}

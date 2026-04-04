@@ -9,15 +9,18 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+import static com.atstudio.atstudio.common.validation.ValidationConstants.*;
+
 @Getter
 @Setter
 public class NoticeCreateRequest {
 
     @NotBlank
-    @Size(max = 200)
+    @Size(max = TITLE_NOTICE_MAX)
     private String title;
 
     @NotBlank
+    @Size(max = DESCRIPTION_MAX)
     private String content;
 
     @NotNull

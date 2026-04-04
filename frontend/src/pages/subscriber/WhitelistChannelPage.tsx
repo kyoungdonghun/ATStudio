@@ -9,6 +9,7 @@ import {
 } from '@/api/whitelistChannels';
 import { formatDate } from '@/utils/format';
 import type { WhitelistChannel } from '@/types';
+import { CHANNEL_NAME_MAX, CHANNEL_URL_PATTERN } from '@/utils/validation';
 import styles from './WhitelistChannelPage.module.css';
 
 export default function WhitelistChannelPage() {
@@ -49,6 +50,11 @@ export default function WhitelistChannelPage() {
     const name = newName.trim();
     if (!url || !name) return;
 
+    if (!CHANNEL_URL_PATTERN.test(url)) {
+      setError('올바른 URL 형식을 입력해주세요. (https://...)');
+      return;
+    }
+
     try {
       setAdding(true);
       setError(null);
@@ -78,6 +84,11 @@ export default function WhitelistChannelPage() {
     const url = editUrl.trim();
     const name = editName.trim();
     if (!url || !name) return;
+
+    if (!CHANNEL_URL_PATTERN.test(url)) {
+      setError('올바른 URL 형식을 입력해주세요. (https://...)');
+      return;
+    }
 
     try {
       setError(null);
@@ -128,6 +139,7 @@ export default function WhitelistChannelPage() {
             className={styles.input}
             type="text"
             placeholder="채널 이름"
+            maxLength={CHANNEL_NAME_MAX}
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             required

@@ -65,6 +65,7 @@ import TrackManagePage from '@/pages/admin/TrackManagePage';
 import NoticeCreatePage from '@/pages/admin/NoticeCreatePage';
 import NoticeEditPage from '@/pages/admin/NoticeEditPage';
 import UserSubscriptionManagePage from '@/pages/admin/UserSubscriptionManagePage';
+import SiteSettingsPage from '@/pages/admin/SiteSettingsPage';
 
 // Error
 import NotFoundPage from '@/pages/error/NotFoundPage';
@@ -167,6 +168,7 @@ const routes: RouteObject[] = [
       { path: 'user-subscriptions', element: <UserSubscriptionManagePage /> },
       { path: 'notices/new', element: <NoticeCreatePage /> },
       { path: 'notices/:noticeId/edit', element: <NoticeEditPage /> },
+      { path: 'settings', element: <SiteSettingsPage /> },
     ],
   },
 ];

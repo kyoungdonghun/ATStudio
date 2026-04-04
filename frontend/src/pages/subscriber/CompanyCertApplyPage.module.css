@@ -18,6 +18,39 @@
   line-height: 1.5;
 }
 
+/* ── Guide Box ── */
+
+.guideBox {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+}
+
+.guideLoading {
+  color: var(--text2);
+  font-size: 13px;
+  text-align: center;
+  padding: 8px 0;
+}
+
+.guideList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guideItem {
+  font-size: 14px;
+  color: var(--text1);
+  line-height: 1.5;
+  padding-left: 4px;
+}
+
 /* ── Form ── */
 
 .form {
@@ -67,6 +100,12 @@
 
 .fileHidden {
   display: none;
+}
+
+.fileHint {
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 4px;
 }
 
 /* ── File list ── */

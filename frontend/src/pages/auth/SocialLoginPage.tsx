@@ -1,5 +1,5 @@
 /** Screen A-3: Social login callback — processes OAuth authorization code */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { socialLogin, fetchMe, type MeResponse } from '@/api/auth';
 import { useAuthStore } from '@/store/authStore';
@@ -15,8 +15,12 @@ export default function SocialLoginPage() {
   const authLogin = useAuthStore((s) => s.login);
 
   const [error, setError] = useState('');
+  const processed = useRef(false);
 
   useEffect(() => {
+    if (processed.current) return;
+    processed.current = true;
+
     if (!provider || !code) {
       setError('잘못된 접근입니다.');
       return;
@@ -34,8 +38,6 @@ export default function SocialLoginPage() {
     const codeVerifier = sessionStorage.getItem('oauth_code_verifier');
     sessionStorage.removeItem('oauth_code_verifier');
 
-    let cancelled = false;
-
     (async () => {
       try {
         const res = await socialLogin(provider, code, codeVerifier);
@@ -43,13 +45,7 @@ export default function SocialLoginPage() {
         localStorage.setItem('accessToken', res.accessToken);
         localStorage.setItem('refreshToken', res.refreshToken);
 
-        if (!res.isProfileComplete) {
-          navigate('/complete-profile', { replace: true });
-          return;
-        }
-
         const me: MeResponse = await fetchMe();
-        if (cancelled) return;
 
         authLogin(res.accessToken, {
           id: me.id,
@@ -64,19 +60,19 @@ export default function SocialLoginPage() {
           createdAt: me.createdAt,
         });
 
+        if (!res.isProfileComplete) {
+          navigate('/complete-profile', { replace: true });
+          return;
+        }
+
         navigate('/', { replace: true });
       } catch (err: unknown) {
-        if (cancelled) return;
         const msg =
           (err as { response?: { data?: { message?: string } } })?.response
             ?.data?.message ?? '소셜 로그인에 실패했습니다.';
         setError(msg);
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
   }, [provider, code, returnedState, navigate, authLogin]);
 
   return (

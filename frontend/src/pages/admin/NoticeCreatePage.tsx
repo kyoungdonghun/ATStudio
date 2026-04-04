@@ -2,6 +2,12 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createNotice } from '@/api/notices';
+import {
+  TITLE_NOTICE_MAX,
+  ATTACHMENT_MAX_COUNT,
+  ATTACHMENT_MAX_SIZE_MB,
+  isFileSizeOk,
+} from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './NoticeCreatePage.module.css';
 
@@ -25,7 +31,24 @@ export default function NoticeCreatePage() {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files;
     if (!selected) return;
-    setFiles((prev) => [...prev, ...Array.from(selected)]);
+    const added = Array.from(selected);
+
+    // File count check
+    if (files.length + added.length > ATTACHMENT_MAX_COUNT) {
+      setError(`첨부파일은 최대 ${ATTACHMENT_MAX_COUNT}개까지 첨부할 수 있습니다.`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    // File size check
+    const oversized = added.filter((f) => !isFileSizeOk(f, ATTACHMENT_MAX_SIZE_MB));
+    if (oversized.length > 0) {
+      setError(`첨부파일은 ${ATTACHMENT_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다. (초과: ${oversized.map((f) => f.name).join(', ')})`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setFiles((prev) => [...prev, ...added]);
     // Reset so same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
@@ -67,6 +90,7 @@ export default function NoticeCreatePage() {
           <input
             className={styles.formInput}
             placeholder="Notice title"
+            maxLength={TITLE_NOTICE_MAX}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required

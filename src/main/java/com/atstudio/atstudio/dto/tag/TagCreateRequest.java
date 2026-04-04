@@ -8,13 +8,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import static com.atstudio.atstudio.common.validation.ValidationConstants.*;
+
 @Getter
 @Setter
 @NoArgsConstructor
 public class TagCreateRequest {
 
     @NotBlank
-    @Size(max = 50)
+    @Size(max = TAG_NAME_MAX)
     private String name;
 
     @NotNull

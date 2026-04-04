@@ -3,6 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { fetchTrackDetail, updateTrack } from '@/api/tracks';
 import { fetchTags } from '@/api/tags';
 import type { TagItem } from '@/types';
+import {
+  TITLE_TRACK_MAX,
+  BPM_MIN,
+  BPM_MAX,
+  DESCRIPTION_MAX,
+  AUDIO_MAX_SIZE_MB,
+  IMAGE_MAX_SIZE_MB,
+  isFileSizeOk,
+} from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import Tag from '@/components/ui/Tag';
 import styles from './TrackEditPage.module.css';
@@ -92,11 +101,21 @@ export default function TrackEditPage() {
 
   /* ── File handlers ── */
   function handleAudioChange(e: ChangeEvent<HTMLInputElement>) {
-    setAudioFile(e.target.files?.[0] ?? null);
+    const file = e.target.files?.[0] ?? null;
+    if (file && !isFileSizeOk(file, AUDIO_MAX_SIZE_MB)) {
+      setError(`오디오 파일은 ${AUDIO_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`);
+      return;
+    }
+    setAudioFile(file);
   }
 
   function handleThumbnailChange(e: ChangeEvent<HTMLInputElement>) {
-    setThumbnail(e.target.files?.[0] ?? null);
+    const file = e.target.files?.[0] ?? null;
+    if (file && !isFileSizeOk(file, IMAGE_MAX_SIZE_MB)) {
+      setError(`썸네일 이미지는 ${IMAGE_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`);
+      return;
+    }
+    setThumbnail(file);
   }
 
   /* ── Submit ── */
@@ -204,7 +223,7 @@ export default function TrackEditPage() {
           <input
             className={styles.input}
             type="text"
-            maxLength={100}
+            maxLength={TITLE_TRACK_MAX}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
@@ -217,8 +236,8 @@ export default function TrackEditPage() {
             <input
               className={styles.input}
               type="number"
-              min={1}
-              max={999}
+              min={BPM_MIN}
+              max={BPM_MAX}
               value={bpm}
               onChange={(e) => setBpm(e.target.value)}
             />
@@ -243,6 +262,7 @@ export default function TrackEditPage() {
           <label className={styles.label}>{'설명'}</label>
           <textarea
             className={styles.textarea}
+            maxLength={DESCRIPTION_MAX}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />

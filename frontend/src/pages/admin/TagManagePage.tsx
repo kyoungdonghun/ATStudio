@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { fetchTags, createTag, updateTag, deleteTag } from '@/api/tags';
 import type { TagItem, TagType } from '@/types';
+import { TAG_NAME_MAX } from '@/utils/validation';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import styles from './TagManagePage.module.css';
@@ -180,6 +181,7 @@ export default function TagManagePage() {
             <input
               className={styles.formInput}
               placeholder="Tag name"
+              maxLength={TAG_NAME_MAX}
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
             />

@@ -1,5 +1,6 @@
 package com.atstudio.atstudio.service;
 
+import com.atstudio.atstudio.common.validation.ValidationConstants;
 import com.atstudio.atstudio.common.dto.PageInfo;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
@@ -55,6 +56,7 @@ public class CompanyCertificationService {
             throw new BusinessException(BUSINESS_ERROR.RESOURCE_DUPLICATE);
         }
 
+        validateDocuments(documents);
         String documentPath = storeDocuments(user.getId(), documents);
 
         CompanyCertification certification = CompanyCertification.builder()
@@ -140,6 +142,30 @@ public class CompanyCertificationService {
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    private void validateDocuments(List<MultipartFile> documents) {
+        if (documents == null || documents.isEmpty()) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+        }
+        if (documents.size() > ValidationConstants.CERT_DOC_MAX_COUNT) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+        }
+        for (MultipartFile doc : documents) {
+            if (doc.isEmpty()) continue;
+            // 확장자 검증
+            String originalName = doc.getOriginalFilename();
+            if (originalName != null) {
+                String ext = originalName.substring(originalName.lastIndexOf('.') + 1).toLowerCase();
+                if (!ValidationConstants.CERT_DOC_ALLOWED_EXTENSIONS.contains(ext)) {
+                    throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+                }
+            }
+            // 크기 검증
+            if (doc.getSize() > ValidationConstants.CERT_DOC_MAX_SIZE_BYTES) {
+                throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+            }
+        }
+    }
 
     private String storeDocuments(Long userId, List<MultipartFile> documents) {
         String directory = "company-docs/" + userId;

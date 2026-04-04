@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchMe, type MeResponse } from '@/api/auth';
 import { fetchMySubscription, type MySubscription } from '@/api/userSubscriptions';
 import client from '@/api/client';
 import { formatDate } from '@/utils/format';
+import { NICKNAME_MAX, PASSWORD_MIN } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './ProfilePage.module.css';
 
@@ -134,8 +135,8 @@ export default function ProfilePage() {
       setPasswordError('새 비밀번호가 일치하지 않습니다.');
       return;
     }
-    if (newPassword.length < 8) {
-      setPasswordError('비밀번호는 최소 8자 이상이어야 합니다.');
+    if (newPassword.length < PASSWORD_MIN) {
+      setPasswordError(`비밀번호는 최소 ${PASSWORD_MIN}자 이상이어야 합니다.`);
       return;
     }
 
@@ -246,6 +247,20 @@ export default function ProfilePage() {
                   {formatDate(profile.createdAt)}
                 </span>
               </div>
+
+              {/* 기업 회원 전용: 기업 인증 */}
+              {profile.userType === 'BUSINESS' && (
+                <div className={styles.infoRow}>
+                  <span className={styles.infoLabel}>{'기업 인증'}</span>
+                  <span className={styles.infoValue}>
+                    <Link to="/company-certification/status">
+                      <Button variant="ghost" size="sm">
+                        {'기업 인증 관리'}
+                      </Button>
+                    </Link>
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -307,7 +322,7 @@ export default function ProfilePage() {
                   type="text"
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
-                  maxLength={30}
+                  maxLength={NICKNAME_MAX}
                 />
               </div>
               <div className={styles.buttonRow}>

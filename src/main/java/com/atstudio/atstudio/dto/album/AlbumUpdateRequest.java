@@ -5,13 +5,16 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import static com.atstudio.atstudio.common.validation.ValidationConstants.*;
+
 @Getter
 @Setter
 @NoArgsConstructor
 public class AlbumUpdateRequest {
 
-    @Size(max = 100)
+    @Size(max = TITLE_ALBUM_MAX)
     private String title;
 
+    @Size(max = DESCRIPTION_MAX)
     private String description;
 }

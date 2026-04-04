@@ -22,6 +22,7 @@ const MENU_ITEMS: MenuItem[] = [
   { label: '기업 인증', path: '/admin/company-certifications' },
   { label: '태그 관리', path: '/admin/tags' },
   { label: '공지사항', path: '/admin/notices/new' },
+  { label: '사이트 설정', path: '/admin/settings' },
 ];
 
 function isActive(currentPath: string, menuPath: string): boolean {

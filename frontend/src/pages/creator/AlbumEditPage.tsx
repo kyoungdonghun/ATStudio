@@ -12,6 +12,7 @@ import { fetchTracks } from '@/api/tracks';
 import { toUploadUrl } from '@/api/client';
 import { useToastStore } from '@/store/toastStore';
 import type { TrackListItem } from '@/types';
+import { TITLE_ALBUM_MAX, DESCRIPTION_MAX, IMAGE_MAX_SIZE_MB, isFileSizeOk } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './AlbumEditPage.module.css';
 
@@ -183,6 +184,10 @@ export default function AlbumEditPage() {
   /* ── Thumbnail handler ── */
   function handleThumbnailChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
+    if (file && !isFileSizeOk(file, IMAGE_MAX_SIZE_MB)) {
+      setError(`썸네일 이미지는 ${IMAGE_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`);
+      return;
+    }
     setThumbnail(file);
 
     if (thumbPreview) {
@@ -247,7 +252,7 @@ export default function AlbumEditPage() {
           <input
             className={styles.input}
             type="text"
-            maxLength={100}
+            maxLength={TITLE_ALBUM_MAX}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
@@ -258,6 +263,7 @@ export default function AlbumEditPage() {
           <label className={styles.label}>{'설명'}</label>
           <textarea
             className={styles.textarea}
+            maxLength={DESCRIPTION_MAX}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />

@@ -11,6 +11,7 @@ import {
   type PlaylistTrack,
 } from '@/api/playlists';
 import { toUploadUrl } from '@/api/client';
+import { TITLE_PLAYLIST_MAX } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import styles from './PlaylistEditPage.module.css';
@@ -216,7 +217,7 @@ export default function PlaylistEditPage() {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            maxLength={50}
+            maxLength={TITLE_PLAYLIST_MAX}
             placeholder="재생목록 이름"
           />
         </div>

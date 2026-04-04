@@ -44,6 +44,7 @@
 | SR-38 | 권한·인증 알림 시스템 전수조사 및 구축 | OPEN |
 | SR-39 | 앨범 상세 음원 리스트 테이블 스타일 통일 | OPEN |
 | SR-40 | 음원 목록 키보드 방향키(↑↓) 곡 이동 재생 | OPEN |
+| SR-41 | 입력값 Validation 정책 전수조사 및 적용 | OPEN |
 
 ## Code Confirmation Reports (docs/SR/confirm/)
 

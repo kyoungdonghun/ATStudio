@@ -542,9 +542,26 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens
   COLLATE = utf8mb4_unicode_ci;
 
 
+-- ─────────────────────────────────────────────
+-- 1.x  site_settings
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS site_settings
+(
+    id            BIGINT       NOT NULL AUTO_INCREMENT,
+    setting_key   VARCHAR(100) NOT NULL,
+    setting_value TEXT         NULL,
+    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_site_settings_key (setting_key)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- =============================================================================
 -- END OF SCHEMA
--- Total: 25 tables
+-- Total: 26 tables
 -- =============================================================================

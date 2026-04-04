@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
+import { SEARCH_KEYWORD_MAX } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './Header.module.css';
 
@@ -120,6 +121,7 @@ export default function Header() {
             className={styles.searchInput}
             type="text"
             placeholder="음원, 앨범 검색"
+            maxLength={SEARCH_KEYWORD_MAX}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -215,6 +217,7 @@ export default function Header() {
             className={styles.searchInput}
             type="text"
             placeholder="음원, 앨범 검색"
+            maxLength={SEARCH_KEYWORD_MAX}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />

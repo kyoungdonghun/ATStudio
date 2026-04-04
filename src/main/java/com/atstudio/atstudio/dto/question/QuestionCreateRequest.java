@@ -11,16 +11,19 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+import static com.atstudio.atstudio.common.validation.ValidationConstants.*;
+
 @Getter
 @Setter
 @NoArgsConstructor
 public class QuestionCreateRequest {
 
     @NotBlank
-    @Size(max = 200)
+    @Size(max = TITLE_QUESTION_MAX)
     private String title;
 
     @NotBlank
+    @Size(max = DESCRIPTION_MAX)
     private String content;
 
     @NotNull
