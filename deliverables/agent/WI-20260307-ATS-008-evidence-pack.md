@@ -20,9 +20,9 @@ batch: Phase1-Batch2 (Track/Tag)
 | `docs/design/api-spec.md` | §1 (1.1~1.7), §2 (2.1~2.4) |
 | `docs/design/usecase/sound-track.md` | 전체 (SOUND-001, 005, 006, 010, 011, 012, 016) |
 | `docs/design/usecase/sound-tag.md` | 전체 (SOUND-003, Tag List Query, SOUND-014, SOUND-018) |
-| `docs/check/atstudio-front-list.md` | Screen 1, 3, 6, 7, B-1, K-6, K-7 항목 |
-| `docs/check/modal-list.md` | M-03, M-04, M-11, M-12 항목 |
-| `docs/check/screen-flow.md` | §3 음원 탐색 흐름 |
+| `docs/ui/atstudio-front-list.md` | Screen 1, 3, 6, 7, B-1, K-6, K-7 항목 |
+| `docs/ui/modal-list.md` | M-03, M-04, M-11, M-12 항목 |
+| `docs/ui/screen-flow.md` | §3 음원 탐색 흐름 |
 
 ---
 
@@ -33,7 +33,7 @@ batch: Phase1-Batch2 (Track/Tag)
 ---
 
 **[CONFLICT] CRITICAL: C-01**
-- 파일A: `docs/check/atstudio-front-list.md` — K-7 행: `1.2 GET /api/tracks` (비활성 포함)
+- 파일A: `docs/ui/atstudio-front-list.md` — K-7 행: `1.2 GET /api/tracks` (비활성 포함)
 - 파일B: `docs/design/api-spec.md` §1.2 — "Returns only active (is_active=1) tracks"
 - 설명: front-list K-7 (트랙 관리) 화면은 비활성 트랙까지 포함하여 조회해야 한다고 주석 기재하고 있음. 그러나 api-spec 1.2는 PUBLIC 공개 API로서 is_active=1 필터가 고정되어 있음. 어드민이 비활성 포함 목록을 볼 수 있는 별도 API가 §1에 정의되어 있지 않음.
 - 영향: 구현 시 1.2 API를 어드민용으로 분기 처리하거나 신규 Admin-only API를 추가해야 함 — 방향 미정이면 K-7 구현 불가.
@@ -60,7 +60,7 @@ batch: Phase1-Batch2 (Track/Tag)
 
 **[GAP] MAJOR: M-02**
 - 파일A: `docs/design/usecase/sound-track.md` SOUND-010 Main Flow Step 6 — "If member: frontend simultaneously calls SOUND-004 (save play history) when QueBar playback starts."
-- 파일B: `docs/check/atstudio-front-list.md` B-1 행 관련 API — `1.3 GET /api/tracks/{trackId}` `1.4 GET /api/tracks/{trackId}/stream` 만 기재
+- 파일B: `docs/ui/atstudio-front-list.md` B-1 행 관련 API — `1.3 GET /api/tracks/{trackId}` `1.4 GET /api/tracks/{trackId}/stream` 만 기재
 - 설명: SOUND-010 UC는 재생 시작 시 프론트엔드가 `4.1 POST /api/play-histories`를 호출해야 함을 명시. front-list B-1 화면의 관련 API 목록에 이 API가 누락되어 있음.
 - 영향: 프론트 구현 시 B-1 화면 스펙만 보면 재생 기록 API 호출 누락 위험. QA 시 재생 기록 미저장 버그로 이어질 수 있음.
 - 권고: front-list B-1 관련 API에 `4.1 POST /api/play-histories` (재생 시 호출, 회원만) 추가 필요.
@@ -68,9 +68,9 @@ batch: Phase1-Batch2 (Track/Tag)
 ---
 
 **[GAP] MAJOR: M-03**
-- 파일A: `docs/check/screen-flow.md` §3 음원 탐색 흐름 — Screen 1/3 인라인 버튼: "좋아요 클릭 → 10.1 POST /api/likes/{trackId}", "장바구니 담기 클릭 → 11.1 POST /api/download-queue"
-- 파일B: `docs/check/atstudio-front-list.md` Screen 1 행 — `1.2 GET /api/tracks` `2.2 GET /api/tags` 만 기재
-- 파일B: `docs/check/atstudio-front-list.md` Screen 3 행 — `1.2 GET /api/tracks` 만 기재
+- 파일A: `docs/ui/screen-flow.md` §3 음원 탐색 흐름 — Screen 1/3 인라인 버튼: "좋아요 클릭 → 10.1 POST /api/likes/{trackId}", "장바구니 담기 클릭 → 11.1 POST /api/download-queue"
+- 파일B: `docs/ui/atstudio-front-list.md` Screen 1 행 — `1.2 GET /api/tracks` `2.2 GET /api/tags` 만 기재
+- 파일B: `docs/ui/atstudio-front-list.md` Screen 3 행 — `1.2 GET /api/tracks` 만 기재
 - 설명: screen-flow는 Screen 1과 Screen 3에서 좋아요 및 장바구니 인라인 액션이 동작함을 정의. 그러나 front-list의 Screen 1, 3 API 참조 컬럼에 두 API 모두 미기재.
 - 영향: front-list 기준으로 화면 구현 시 좋아요/장바구니 기능 누락 위험.
 - 권고: front-list Screen 1 관련 API에 `10.1~10.3 /api/likes`, `11.1 POST /api/download-queue` 추가. Screen 3에도 동일 액션 API 기재 필요.
@@ -78,7 +78,7 @@ batch: Phase1-Batch2 (Track/Tag)
 ---
 
 **[GAP] MAJOR: M-04**
-- 파일A: `docs/check/modal-list.md` M-12 UC 컬럼 — `SOUND-019`
+- 파일A: `docs/ui/modal-list.md` M-12 UC 컬럼 — `SOUND-019`
 - 파일B: `docs/design/usecase/sound-track.md` — SOUND-019 정의 없음 (파일 내 정의된 UC: SOUND-001, 005, 006, 010, 011, 012, 016)
 - 설명: modal-list M-12가 발생 근거 UC로 SOUND-019를 참조하나, sound-track.md에 해당 코드가 없음. SOUND-019가 다른 usecase 파일에 정의되어 있을 가능성 있으나 이 배치 범위 내에서는 확인 불가.
 - 영향: M-12의 UC 추적 불가. SOUND-019가 미정의 또는 잘못된 파일 참조일 경우 감사 추적 단절.
@@ -119,7 +119,7 @@ batch: Phase1-Batch2 (Track/Tag)
 
 **[OMISSION] MINOR: N-04**
 - API/UC: `docs/design/api-spec.md` §1.1, §1.6 — 비동기 preview_file 생성 / 재생성 동작 정의
-- 화면: `docs/check/atstudio-front-list.md` Screen 6 (음원 업로드), Screen 7 (음원 수정)
+- 화면: `docs/ui/atstudio-front-list.md` Screen 6 (음원 업로드), Screen 7 (음원 수정)
 - 설명: api-spec 1.1/1.6은 업로드/수정 후 비동기로 preview_file이 생성됨을 명시. 생성 실패 시 preview_file=NULL 상태로 유지됨. 그러나 front-list Screen 6/7에는 이 비동기 처리에 대한 UI 고려사항(로딩 표시, 실패 안내, 재시도 등)이 기재되어 있지 않음.
 - 영향: 프론트 구현 시 업로드 완료 후 preview_file 미생성 상태에 대한 UX 처리 누락 위험. 경미하나 품질 영향 있음.
 - 권고: front-list Screen 6/7 비고란에 "비동기 preview 생성 — 완료 전 재생 시 audio_file fallback" 안내 문구 추가 권장.
@@ -127,8 +127,8 @@ batch: Phase1-Batch2 (Track/Tag)
 ---
 
 **[OMISSION] MINOR: N-05**
-- 파일A: `docs/check/screen-flow.md` §3 — "태그 필터: 인라인 CHIP/SELECT 형태 (모달 전환 가능성 열어둠)"
-- 파일B: `docs/check/modal-list.md` — M-03 (Screen 6 업로드 태그 선택), M-04 (Screen 7 수정 태그 선택) 만 정의. 메인화면/목록화면 태그 필터용 모달은 미정의.
+- 파일A: `docs/ui/screen-flow.md` §3 — "태그 필터: 인라인 CHIP/SELECT 형태 (모달 전환 가능성 열어둠)"
+- 파일B: `docs/ui/modal-list.md` — M-03 (Screen 6 업로드 태그 선택), M-04 (Screen 7 수정 태그 선택) 만 정의. 메인화면/목록화면 태그 필터용 모달은 미정의.
 - 설명: screen-flow는 메인(Screen 1) 및 음원 목록(Screen 3)의 태그 필터가 향후 모달로 전환될 수 있음을 열어두나, 해당 경우에 대한 모달 항목이 modal-list에 정의되어 있지 않음.
 - 영향: 모달 전환 결정 시 modal-list 업데이트 필요함을 추적할 포인터 없음. 경미한 문서 불완전성.
 - 권고: modal-list Deferred Items 또는 screen-flow §3에 "모달 전환 시 M-XX 추가 필요" 주석 추가 권장.

@@ -105,5 +105,5 @@ npm run dev         # Start dev server, navigate to subscriber pages
 | REQ | REQ-20260308-ATS-012 |
 | WI | WI-20260308-ATS-040 |
 | API Spec | docs/design/api-spec.md (Section 3, 5, 6, 7, 14.8) |
-| Mockup | docs/check/mockup/playlist.html |
+| Mockup | docs/ui/mockup/playlist.html |
 | Rollback | Delete created/modified files; stubs can be restored from git |

@@ -33,6 +33,6 @@
 
 ## MINOR-001 (수정 완료)
 
-- **위치**: `docs/check/atstudio-front-list.md` L-5
+- **위치**: `docs/ui/atstudio-front-list.md` L-5
 - **내용**: `15.5 DELETE /api/albums/{id}` (앨범 삭제) API 참조 누락
 - **조치**: L-5 API 참조 컬럼에 `15.5 DELETE /api/albums/{id}` 추가

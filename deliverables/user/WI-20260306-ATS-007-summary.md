@@ -6,7 +6,7 @@
 
 ## 작업 결과
 
-`docs/check/modal-list.md` 신규 작성 완료.
+`docs/ui/modal-list.md` 신규 작성 완료.
 
 ---
 
@@ -59,4 +59,4 @@
 
 ## 생성 파일
 
-- `docs/check/modal-list.md`
+- `docs/ui/modal-list.md`

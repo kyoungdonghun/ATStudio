@@ -86,10 +86,10 @@ REQ:
 - deliverables/user/REQ-20260308-ATS-012.md
 
 참조 (수정 금지):
-- docs/check/mockup/main.html          ← Header/PlayerBar/TrackRow/AlbumCard 디자인 상세
-- docs/check/mockup/track-list.html    ← TrackRow, FilterChip, Tag 패턴
-- docs/check/mockup/album-detail.html  ← AlbumCard, TrackRow in album context
-- docs/check/mockup/playlist.html      ← AlbumCard grid 패턴
+- docs/ui/mockup/main.html          ← Header/PlayerBar/TrackRow/AlbumCard 디자인 상세
+- docs/ui/mockup/track-list.html    ← TrackRow, FilterChip, Tag 패턴
+- docs/ui/mockup/album-detail.html  ← AlbumCard, TrackRow in album context
+- docs/ui/mockup/playlist.html      ← AlbumCard grid 패턴
 
 기존 파일 (읽기 전용):
 - frontend/src/styles/tokens.css       ← CSS 변수 (반드시 이것만 사용)

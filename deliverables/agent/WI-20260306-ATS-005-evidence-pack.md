@@ -9,7 +9,7 @@ Status: COMPLETE
 
 ## 1. Scope Summary
 
-Target file: `docs/check/atstudio-front-list.md`
+Target file: `docs/ui/atstudio-front-list.md`
 Change type: Content update (v1 → v2)
 Backend changes: None
 API Spec changes: None
@@ -148,11 +148,11 @@ Note: v1 section header was `## 💿 플레이리스트 (Playlist)`. This was co
 
 | File | Change |
 |------|--------|
-| `docs/check/atstudio-front-list.md` | v1 → v2 (7 change items applied) |
+| `docs/ui/atstudio-front-list.md` | v1 → v2 (7 change items applied) |
 
 ---
 
 ## 7. Blocks
 
 WI-20260306-ATS-006 (문서 정확성 리뷰 by cr) is now unblocked.
-Input: `docs/check/atstudio-front-list.md` v2
+Input: `docs/ui/atstudio-front-list.md` v2

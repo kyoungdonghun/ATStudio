@@ -2,7 +2,7 @@
 
 > **WI**: WI-20260307-ATS-011
 > **Date**: 2026-03-07
-> **Scope**: docs/design/api-spec.md §8/§9/§13/§14, usecase files (company-certification, user-question, user-notice, business-license), docs/check/atstudio-front-list.md, docs/check/modal-list.md, docs/check/screen-flow.md
+> **Scope**: docs/design/api-spec.md §8/§9/§13/§14, usecase files (company-certification, user-question, user-notice, business-license), docs/ui/atstudio-front-list.md, docs/ui/modal-list.md, docs/ui/screen-flow.md
 > **Result**: 7 findings (1 CRITICAL, 3 MAJOR, 2 MINOR, 1 SUGGESTION)
 
 ---

@@ -62,10 +62,10 @@ Files (검증 대상 — 이 목록 외 탐색 금지):
 - docs/design/api-spec.md  ← §3 Playlists, §15 Albums 섹션만
 - docs/design/usecase/sound-album.md
 - docs/design/usecase/sound-playlist.md
-- docs/check/atstudio-front-list.md  ← L-1~5, Screen 4, 5, 8, 9, C-1 항목만
-- docs/check/modal-list.md  ← M-05, M-06, M-07, M-08, M-12, M-13, M-14 항목만
-- docs/check/modal-list.md (Playlist 3-Item Limit Handling 섹션)
-- docs/check/screen-flow.md  ← §4 재생목록 흐름, §5 앨범 흐름만
+- docs/ui/atstudio-front-list.md  ← L-1~5, Screen 4, 5, 8, 9, C-1 항목만
+- docs/ui/modal-list.md  ← M-05, M-06, M-07, M-08, M-12, M-13, M-14 항목만
+- docs/ui/modal-list.md (Playlist 3-Item Limit Handling 섹션)
+- docs/ui/screen-flow.md  ← §4 재생목록 흐름, §5 앨범 흐름만
 
 ---
 

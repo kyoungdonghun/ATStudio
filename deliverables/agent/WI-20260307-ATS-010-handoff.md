@@ -64,9 +64,9 @@ Files (검증 대상 — 이 목록 외 탐색 금지):
 - docs/design/usecase/user-subscription.md
 - docs/design/usecase/download-queue.md
 - docs/design/usecase/util.md
-- docs/check/atstudio-front-list.md  ← Screen 11, 16-1, 16-2, 16-3 항목만
-- docs/check/modal-list.md  ← M-09, M-10, M-22, M-24, M-26, M-27, Backend Supplement 섹션
-- docs/check/screen-flow.md  ← §6 장바구니/다운로드 흐름, §7 구독 흐름만
+- docs/ui/atstudio-front-list.md  ← Screen 11, 16-1, 16-2, 16-3 항목만
+- docs/ui/modal-list.md  ← M-09, M-10, M-22, M-24, M-26, M-27, Backend Supplement 섹션
+- docs/ui/screen-flow.md  ← §6 장바구니/다운로드 흐름, §7 구독 흐름만
 
 ---
 

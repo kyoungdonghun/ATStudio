@@ -16,9 +16,9 @@
 | `docs/design/usecase/user-subscription.md` | PAYMENT-001 ~ PAYMENT-010 |
 | `docs/design/usecase/download-queue.md` | DLQ-001 ~ DLQ-003 |
 | `docs/design/usecase/util.md` | UTIL-002 ~ UTIL-007, UTIL-012 |
-| `docs/check/atstudio-front-list.md` | Screen 11, 16-1, 16-2, 16-3 |
-| `docs/check/modal-list.md` | M-09, M-10, M-22, M-24, M-26, M-27, Backend Supplement |
-| `docs/check/screen-flow.md` | §6 장바구니/다운로드 흐름, §7 구독 흐름 |
+| `docs/ui/atstudio-front-list.md` | Screen 11, 16-1, 16-2, 16-3 |
+| `docs/ui/modal-list.md` | M-09, M-10, M-22, M-24, M-26, M-27, Backend Supplement |
+| `docs/ui/screen-flow.md` | §6 장바구니/다운로드 흐름, §7 구독 흐름 |
 
 ---
 
@@ -42,19 +42,19 @@
 **Severity**: CRITICAL
 
 **Evidence — Documents that INCLUDE `nextResetAt`:**
-- `docs/check/screen-flow.md §6` line 152–153:
+- `docs/ui/screen-flow.md §6` line 152–153:
   ```
   상단: 오늘 잔여 다운로드 횟수 + nextResetAt 표시
   ```
-- `docs/check/screen-flow.md §6` line 159:
+- `docs/ui/screen-flow.md §6` line 159:
   ```
   한도 초과 → 토스트: "오늘 다운로드 한도 초과. {nextResetAt} 초기화"
   ```
-- `docs/check/screen-flow.md §13` (토스트 기준) line 353:
+- `docs/ui/screen-flow.md §13` (토스트 기준) line 353:
   ```
   한도 초과: "다운로드 한도 초과. {nextResetAt} 초기화"
   ```
-- `docs/check/modal-list.md` Backend Supplement table:
+- `docs/ui/modal-list.md` Backend Supplement table:
   ```
   T-1 | nextResetAt 필드 (GET /api/utils/download-count) | ✅ 완료
   ```
@@ -87,11 +87,11 @@
 **Severity**: CRITICAL
 
 **Evidence — Documents that REFERENCE the endpoint:**
-- `docs/check/screen-flow.md §7` line 185:
+- `docs/ui/screen-flow.md §7` line 185:
   ```
   GET /api/utils/subscription-change-preview → proratedAmount 표시
   ```
-- `docs/check/modal-list.md` Flow 2 (PlanCompareModal):
+- `docs/ui/modal-list.md` Flow 2 (PlanCompareModal):
   ```
   GET /api/utils/subscription-change-preview (TODO T-2)
     → proratedAmount = (newDailyRate - oldDailyRate) x 남은 일수
@@ -117,17 +117,17 @@
 **Severity**: MAJOR
 
 **Evidence — Documents that DEFINE DOWNGRADE pending:**
-- `docs/check/screen-flow.md §7` lines 187–189:
+- `docs/ui/screen-flow.md §7` lines 187–189:
   ```
   다운그레이드:
     "다음 결제일({expiresAt})부터 적용 · 추가 결제 없음" 안내
     → [변경 예약] → PUT 6.7 → 화면 갱신 (pending 표시)
   ```
-- `docs/check/screen-flow.md §7` line 181:
+- `docs/ui/screen-flow.md §7` line 181:
   ```
   pending 구독 있을 시: "예약된 변경: {플랜명} ({expiresAt}부터)" 표시
   ```
-- `docs/check/modal-list.md` Backend Supplement:
+- `docs/ui/modal-list.md` Backend Supplement:
   ```
   T-3 | user_subscriptions pending 컬럼 + DOWNGRADE 예약 | ✅ 완료 (스케줄러 적용은 별도 REQ)
   ```
@@ -153,11 +153,11 @@
 - `docs/design/usecase/user-subscription.md PAYMENT-010` Postconditions: "user_subscriptions.status=CANCELLED updated. Subscription benefits (downloads, channel registration, playlists) no longer available."
 
 **Evidence — "Grace period until expiry" position:**
-- `docs/check/screen-flow.md §7` line 192:
+- `docs/ui/screen-flow.md §7` line 192:
   ```
   "취소 후 {expiresAt}까지 이용 가능" 안내
   ```
-- `docs/check/modal-list.md M-10`: Content column states "취소 후 유예 안내 + 확인" (component: StatusModal).
+- `docs/ui/modal-list.md M-10`: Content column states "취소 후 유예 안내 + 확인" (component: StatusModal).
 
 **Impact**: The cancellation business policy is undefined at the authoritative layer (api-spec/usecase). If implemented per api-spec, benefits are lost immediately upon cancellation. If implemented per screen-flow, benefits continue until `expiresAt`. These are materially different UX and business outcomes. A business decision is required before implementation.
 
@@ -173,7 +173,7 @@
 **Evidence:**
 - `docs/design/api-spec.md §11.1` (line 1283): `POST /api/download-queue/{trackId}`
 - `docs/design/api-spec.md §11.3` (line 1313): `DELETE /api/download-queue/{trackId}`
-- `docs/check/modal-list.md M-22` (line 91): `11.3 DELETE /api/download-queue/{id}`
+- `docs/ui/modal-list.md M-22` (line 91): `11.3 DELETE /api/download-queue/{id}`
 
 **Impact**: `{trackId}` and `{id}` carry different semantic meaning. `{trackId}` is the track's PK; `{id}` could be interpreted as the download_queue record's own PK (which exists as a composite key). Frontend developer reading modal-list.md may implement with wrong parameter. Additionally, `docs/design/usecase/download-queue.md DLQ-003` (line 74) states "Frontend sends a delete request with trackId" — consistent with api-spec, inconsistent with modal-list.
 
@@ -187,11 +187,11 @@
 **Severity**: MINOR
 
 **Evidence:**
-- `docs/check/screen-flow.md §7` line 156 (downgrade path):
+- `docs/ui/screen-flow.md §7` line 156 (downgrade path):
   ```
   → PUT 6.7 /api/user-subscriptions/me (pendingSubscriptionId TODO T-3)
   ```
-- `docs/check/modal-list.md` Backend Supplement:
+- `docs/ui/modal-list.md` Backend Supplement:
   ```
   T-3 | user_subscriptions pending 컬럼 + DOWNGRADE 예약 | ✅ 완료
   ```
@@ -216,9 +216,9 @@
   Response 200 OK — My current subscription status
   ```
   No response body JSON example is provided.
-- `docs/check/screen-flow.md §7` line 181: Uses `pending 구독` info from this endpoint.
-- `docs/check/screen-flow.md §7` line 188: Uses `expiresAt` from this endpoint.
-- `docs/check/screen-flow.md §7` line 192: Uses `expiresAt` again in cancellation flow.
+- `docs/ui/screen-flow.md §7` line 181: Uses `pending 구독` info from this endpoint.
+- `docs/ui/screen-flow.md §7` line 188: Uses `expiresAt` from this endpoint.
+- `docs/ui/screen-flow.md §7` line 192: Uses `expiresAt` again in cancellation flow.
 
 **Impact**: Frontend developers cannot confirm whether `expiresAt`, `pendingSubscriptionId`, or `pending` fields are included in the response. This is particularly critical if MA-1 is resolved and DOWNGRADE pending is added.
 
@@ -260,9 +260,9 @@ Legend: OK = consistent, MISSING = field/endpoint absent, CONFLICT = contradicts
 | `docs/design/usecase/user-subscription.md` | Full (242 lines) |
 | `docs/design/usecase/download-queue.md` | Full (83 lines) |
 | `docs/design/usecase/util.md` | Full (178 lines) |
-| `docs/check/atstudio-front-list.md` | Full (152 lines) — Screen 11, 16-1, 16-2, 16-3 |
-| `docs/check/modal-list.md` | Full (274 lines) — M-09, M-10, M-22, M-24, M-26, M-27, Backend Supplement |
-| `docs/check/screen-flow.md` | Full (359 lines) — §6, §7 |
+| `docs/ui/atstudio-front-list.md` | Full (152 lines) — Screen 11, 16-1, 16-2, 16-3 |
+| `docs/ui/modal-list.md` | Full (274 lines) — M-09, M-10, M-22, M-24, M-26, M-27, Backend Supplement |
+| `docs/ui/screen-flow.md` | Full (359 lines) — §6, §7 |
 
 ---
 

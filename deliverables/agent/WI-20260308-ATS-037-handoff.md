@@ -66,10 +66,10 @@ REQ:
 - deliverables/user/REQ-20260308-ATS-012.md
 
 참조 (수정 금지):
-- docs/check/mockup/main.html               ← HomePage 디자인 상세
-- docs/check/mockup/track-list.html         ← TrackListPage 디자인 상세
+- docs/ui/mockup/main.html               ← HomePage 디자인 상세
+- docs/ui/mockup/track-list.html         ← TrackListPage 디자인 상세
 - docs/design/api-spec.md (§1 Track, §2 Tag, §3 Album)  ← API 엔드포인트/파라미터
-- docs/check/atstudio-front-list.md         ← 화면별 URL 경로 확인
+- docs/ui/atstudio-front-list.md         ← 화면별 URL 경로 확인
 
 기존 파일 (읽기):
 - frontend/src/api/client.ts

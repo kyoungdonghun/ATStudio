@@ -22,9 +22,10 @@ status: stable
 | Standards | 12 | [Standards Index](standards/index.md) | Standard documents |
 | Templates | 18 | [Templates Index](templates/index.md) | Document/artifact templates |
 | Registry | 4 | [Registry Index](registry/index.md) | Asset/context/project registries |
-| SR | 34 | [SR Index](SR/index.md) | Screen Review items (SR-01~34, + confirm/) |
+| SR | 42 | [SR Index](SR/index.md) | Screen Review items (SR-01~42) |
 | Retrospective | 4 | [Retrospective Index](retrospective/index.md) | Engineering lessons, domain design, kick.md, process |
 | ADR | 1 | [ADR (Decision Records)](adr/) | Decision records |
+| UI | 4 | [UI Documents](ui/) | Screen list, screen flow, modal list, mockups |
 | Eval | 0 | [Eval Index](eval/index.md) | Evaluation documents |
 
 **Total Document Count**: Managed based on "Document Count" column above (excluding index files).

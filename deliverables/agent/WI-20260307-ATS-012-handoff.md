@@ -65,9 +65,9 @@ REQ:
 - deliverables/user/REQ-20260307-ATS-008.md
 
 Files (검증 대상 — 이 3종 외 탐색 금지):
-- docs/check/atstudio-front-list.md  ← 전체
-- docs/check/modal-list.md  ← 전체
-- docs/check/screen-flow.md  ← 전체
+- docs/ui/atstudio-front-list.md  ← 전체
+- docs/ui/modal-list.md  ← 전체
+- docs/ui/screen-flow.md  ← 전체
 
 ---
 

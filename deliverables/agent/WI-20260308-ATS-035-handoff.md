@@ -14,7 +14,7 @@ Scope (in):
   - frontend/ 디렉토리 신규 생성 (ATStudio 루트 하위)
   - Vite + React 18 + TypeScript 설정 (vite.config.ts, tsconfig.json)
   - ESLint + Prettier 설정 (.eslintrc.cjs, .prettierrc)
-  - CSS 디자인 토큰 (src/styles/tokens.css) — docs/check/mockup/main.html :root 변수 그대로
+  - CSS 디자인 토큰 (src/styles/tokens.css) — docs/ui/mockup/main.html :root 변수 그대로
   - 폴더 구조 scaffolding (components/, layouts/, pages/, features/, api/, hooks/, store/, styles/, types/, router/)
   - React Router v6 — 48개 라우트 stub + Protected Route (GUEST/USER/CREATOR/ADMIN 4단계 guard)
   - Axios 인스턴스 (src/api/client.ts) + JWT 인터셉터 (401 자동 refresh 처리)
@@ -80,8 +80,8 @@ REQ:
 - deliverables/user/REQ-20260308-ATS-012.md
 
 참조 (수정 금지):
-- docs/check/mockup/main.html                ← 디자인 토큰 :root 변수 그대로 복사
-- docs/check/atstudio-front-list.md          ← 48개 화면 URL 경로 (라우트 stub 기준)
+- docs/ui/mockup/main.html                ← 디자인 토큰 :root 변수 그대로 복사
+- docs/ui/atstudio-front-list.md          ← 48개 화면 URL 경로 (라우트 stub 기준)
 - docs/design/api-spec.md                    ← TypeScript 타입 정의 참고 (§1~15 응답 구조)
 
 수정 대상:

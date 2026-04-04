@@ -69,9 +69,9 @@ REQ:
 - deliverables/user/REQ-20260308-ATS-012.md
 
 참조 (수정 금지):
-- docs/check/mockup/playlist.html              ← PlaylistListPage 디자인 (카드 그리드, 3개 제한)
+- docs/ui/mockup/playlist.html              ← PlaylistListPage 디자인 (카드 그리드, 3개 제한)
 - docs/design/api-spec.md (§5 Playlist, §7 License, §8 UserSubscription, §10 User)
-- docs/check/atstudio-front-list.md
+- docs/ui/atstudio-front-list.md
 
 기존 파일 (읽기):
 - frontend/src/api/client.ts

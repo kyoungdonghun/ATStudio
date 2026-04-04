@@ -40,7 +40,7 @@
 
 | 항목 | 내용 |
 |------|------|
-| 파일:라인 | `docs/check/atstudio-front-list.md` line 25 (Screen 1), line 26 (Screen 3) |
+| 파일:라인 | `docs/ui/atstudio-front-list.md` line 25 (Screen 1), line 26 (Screen 3) |
 | 현재 기재 | `11.1 POST /api/download-queue` |
 | 실제 api-spec | `POST /api/download-queue/{trackId}` (api-spec §11.1) |
 | 영향 | 프론트 구현 시 path parameter 누락으로 API 호출 실패 유발 가능. Screen 1과 3 모두 해당. |
@@ -51,7 +51,7 @@
 
 | 항목 | 내용 |
 |------|------|
-| 파일:라인 | `docs/check/screen-flow.md` line 282 |
+| 파일:라인 | `docs/ui/screen-flow.md` line 282 |
 | 현재 기재 | `[K-5 기업인증 심사] "심사 처리" → [M-17 StatusModal]` |
 | 실제 modal-list | M-17 컴포넌트 = `ReviewModal` (modal-list.md line 88) |
 | 영향 | StatusModal(안내 텍스트 + 확인 버튼 1개)과 ReviewModal(상태 드롭다운 + adminNote 입력 + 취소/처리 버튼)은 완전히 다른 구조. 잘못된 컴포넌트 구현 가능. |

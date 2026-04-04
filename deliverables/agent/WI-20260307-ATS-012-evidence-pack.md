@@ -10,9 +10,9 @@ Status: COMPLETE
 ## Scope Summary
 
 검증 대상 파일:
-- docs/check/atstudio-front-list.md (v3, 2026-03-07)
-- docs/check/modal-list.md (v1.1, 2026-03-07)
-- docs/check/screen-flow.md (v1.1, 2026-03-07)
+- docs/ui/atstudio-front-list.md (v3, 2026-03-07)
+- docs/ui/modal-list.md (v1.1, 2026-03-07)
+- docs/ui/screen-flow.md (v1.1, 2026-03-07)
 
 검증 관점: 도메인 WI-007~011에서 커버하기 어려운 cross-cutting 정합성 이슈.
 
@@ -191,13 +191,13 @@ front-list (라인 146~147):
 modal-list.md frontmatter (라인 8~11):
 ```yaml
 dependencies:
-  - path: docs/check/atstudio-front-list.md
+  - path: docs/ui/atstudio-front-list.md
     reason: Screen number system and screen names (primary source)
 ```
 버전 명시 없음.
 
 modal-list.md 본문 상단 (라인 38):
-> 관련 화면 목록: [docs/check/atstudio-front-list.md](atstudio-front-list.md) v3
+> 관련 화면 목록: [docs/ui/atstudio-front-list.md](atstudio-front-list.md) v3
 
 본문에 v3 참조 있음 ✓. frontmatter에는 버전 미기재 → SUGGESTION S-1 참조.
 
@@ -208,7 +208,7 @@ modal-list.md 본문 상단 (라인 38):
 ### MINOR (5건)
 
 ```
-[CONFLICT] MINOR: (docs/check/modal-list.md:88) vs (docs/check/screen-flow.md:254)
+[CONFLICT] MINOR: (docs/ui/modal-list.md:88) vs (docs/ui/screen-flow.md:254)
   M-19 발생 화면 불일치.
   modal-list: "Screen 21/22 (공지 조회)" — 21(공지 작성)과 22(공지 조회) 모두 기재.
   screen-flow §9: "[22]에서 [ADMIN] 삭제 → [M-19 ConfirmModal]" — 22 단독 기재.
@@ -217,7 +217,7 @@ modal-list.md 본문 상단 (라인 38):
 ```
 
 ```
-[CONFLICT] MINOR: (docs/check/screen-flow.md:19) vs (docs/check/modal-list.md:3)
+[CONFLICT] MINOR: (docs/ui/screen-flow.md:19) vs (docs/ui/modal-list.md:3)
   screen-flow 헤더 참조 버전 오기.
   screen-flow: "atstudio-front-list.md v3 / modal-list.md v1 기준" — modal-list를 v1로 참조.
   modal-list 실제 버전: v1.1 (frontmatter 라인 3).
@@ -225,7 +225,7 @@ modal-list.md 본문 상단 (라인 38):
 ```
 
 ```
-[OMISSION] MINOR: (docs/check/screen-flow.md:311-312) — ERR-1/ERR-2 식별자 미사용.
+[OMISSION] MINOR: (docs/ui/screen-flow.md:311-312) — ERR-1/ERR-2 식별자 미사용.
   screen-flow §11 전역 패턴에서 "API 에러 404 → [404 에러 페이지]", "500 → [500 에러 페이지]"로 기재.
   front-list에서 화면 식별자 ERR-1, ERR-2로 정의됨 (라인 146~147).
   screen-flow 내 다른 화면은 식별자([A-1], [16-3] 등)로 참조하나 에러 페이지만 설명 텍스트 사용.
@@ -233,7 +233,7 @@ modal-list.md 본문 상단 (라인 38):
 ```
 
 ```
-[GAP] MINOR: (docs/check/screen-flow.md:30) — [관리자] GNB에 앨범 접근 경로 미기재.
+[GAP] MINOR: (docs/ui/screen-flow.md:30) — [관리자] GNB에 앨범 접근 경로 미기재.
   screen-flow §1 [관리자] GNB: "메인 / 앨범 / 음원관리 / 관리자대시보드 / 로그아웃"
   주석: 실제 screen-flow 라인 30을 재확인하면 [관리자] GNB에 "앨범"이 없음.
   front-list에서 L-4(앨범 생성), L-5(앨범 수정+트랙 관리)는 [ADMIN] 전용.
@@ -245,7 +245,7 @@ modal-list.md 본문 상단 (라인 38):
 ```
 
 ```
-[CONFLICT] MINOR: (docs/check/modal-list.md:96) — M-27 "발생 화면" 컬럼에 화면번호 아닌 모달번호 기재.
+[CONFLICT] MINOR: (docs/ui/modal-list.md:96) — M-27 "발생 화면" 컬럼에 화면번호 아닌 모달번호 기재.
   modal-list Section 2 테이블 컬럼 스키마: "발생 화면"은 front-list 화면 ID를 기재하는 컬럼.
   M-27의 "발생 화면": "M-09 (PlanCompareModal 내)" — 화면번호가 아닌 모달번호.
   M-27은 M-09(PlanCompareModal) 내에서만 발생하는 2차 모달이므로 화면번호 직접 기재 불가.
@@ -258,7 +258,7 @@ modal-list.md 본문 상단 (라인 38):
 ### SUGGESTION (1건)
 
 ```
-[SUGGESTION]: (docs/check/modal-list.md:8-11) — frontmatter dependencies에 버전 명시 권장.
+[SUGGESTION]: (docs/ui/modal-list.md:8-11) — frontmatter dependencies에 버전 명시 권장.
   현재: dependencies path만 있고 버전 미기재.
   본문(라인 38)에는 "atstudio-front-list.md v3" 참조 있음.
   표준상 frontmatter의 dependencies에 버전 명시 시 의존 추적이 명확해짐.
@@ -285,14 +285,14 @@ modal-list.md 본문 상단 (라인 38):
 
 | 항목 | 포인터 |
 |------|--------|
-| front-list 총계 | docs/check/atstudio-front-list.md:151 |
-| modal-list 총계 | docs/check/modal-list.md:255 |
-| screen-flow 총계 | docs/check/screen-flow.md:357 |
-| GNB 구조 | docs/check/screen-flow.md:28-30 |
-| §11 전역 패턴 | docs/check/screen-flow.md:303-316 |
-| M-19 발생 화면 | docs/check/modal-list.md:88 |
-| screen-flow 헤더 버전 | docs/check/screen-flow.md:19 |
-| ERR-1/ERR-2 정의 | docs/check/atstudio-front-list.md:146-147 |
-| 관리자 GNB | docs/check/screen-flow.md:30 |
-| M-27 발생 화면 | docs/check/modal-list.md:96 |
-| Deferred Items | docs/check/modal-list.md:248-251 |
+| front-list 총계 | docs/ui/atstudio-front-list.md:151 |
+| modal-list 총계 | docs/ui/modal-list.md:255 |
+| screen-flow 총계 | docs/ui/screen-flow.md:357 |
+| GNB 구조 | docs/ui/screen-flow.md:28-30 |
+| §11 전역 패턴 | docs/ui/screen-flow.md:303-316 |
+| M-19 발생 화면 | docs/ui/modal-list.md:88 |
+| screen-flow 헤더 버전 | docs/ui/screen-flow.md:19 |
+| ERR-1/ERR-2 정의 | docs/ui/atstudio-front-list.md:146-147 |
+| 관리자 GNB | docs/ui/screen-flow.md:30 |
+| M-27 발생 화면 | docs/ui/modal-list.md:96 |
+| Deferred Items | docs/ui/modal-list.md:248-251 |

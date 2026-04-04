@@ -42,4 +42,4 @@ Agent: docops
 
 ## 대상 파일
 
-- `docs/check/atstudio-front-list.md` (v1 → v2)
+- `docs/ui/atstudio-front-list.md` (v1 → v2)

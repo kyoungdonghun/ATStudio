@@ -62,7 +62,7 @@ REQ:
 
 참조 (수정 금지):
 - docs/design/api-spec.md (§1 Track CRUD, §3 Album CRUD)
-- docs/check/atstudio-front-list.md
+- docs/ui/atstudio-front-list.md
 
 기존 파일 (읽기):
 - frontend/src/api/client.ts

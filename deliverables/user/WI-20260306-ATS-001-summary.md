@@ -12,7 +12,7 @@
 
 | File | Changes | Result |
 |------|---------|--------|
-| `docs/check/atstudio-front-list.md` | 4 screen names corrected | Done |
+| `docs/ui/atstudio-front-list.md` | 4 screen names corrected | Done |
 | `docs/design/api-spec.md` | 0 — no "앨범" present in Section 3 | No change needed |
 | `docs/design/usecase/sound-playlist.md` | 0 — no "앨범" present | No change needed |
 | `docs/design/usecase/index.md` | 0 — no "앨범" present | No change needed |

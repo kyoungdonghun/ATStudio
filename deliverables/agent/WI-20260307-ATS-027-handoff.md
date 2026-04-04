@@ -10,9 +10,9 @@ Blocks: -
 [WI SUMMARY]
 Why: Track 3 — 프론트 준비 문서 내부 교차 검증 + api-spec 참조 유효성 확인 (read-only)
 Scope (in):
-  - docs/check/atstudio-front-list.md (v4, 48개 화면)
-  - docs/check/modal-list.md (v1.2, 28개 모달)
-  - docs/check/screen-flow.md (v1.2, 48개 화면 흐름도)
+  - docs/ui/atstudio-front-list.md (v4, 48개 화면)
+  - docs/ui/modal-list.md (v1.2, 28개 모달)
+  - docs/ui/screen-flow.md (v1.2, 48개 화면 흐름도)
   - docs/design/api-spec.md (API 참조 유효성 기준)
   - 검증 항목:
     1. front-list ↔ screen-flow: 화면 ID(A-1, B-1, ...) 및 화면명 일치
@@ -67,9 +67,9 @@ REQ:
 - deliverables/user/REQ-20260307-ATS-009.md
 
 Check Documents (검증 대상):
-- docs/check/atstudio-front-list.md
-- docs/check/modal-list.md
-- docs/check/screen-flow.md
+- docs/ui/atstudio-front-list.md
+- docs/ui/modal-list.md
+- docs/ui/screen-flow.md
 
 API Spec (참조 유효성 기준):
 - docs/design/api-spec.md

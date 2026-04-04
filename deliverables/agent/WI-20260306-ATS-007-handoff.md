@@ -14,7 +14,7 @@ Why:
 - 세션 내 사용자 구두 승인 확보 (2026-03-06 "오케이. 잘부탁해.")
 
 Scope:
-- In: `docs/check/modal-list.md` 신규 작성
+- In: `docs/ui/modal-list.md` 신규 작성
 - Out: api-spec.md 수정 없음, 백엔드 코드 변경 없음
 
 DoD:
@@ -121,7 +121,7 @@ REQ/Context Docs:
 - deliverables/agent/WI-20260306-ATS-007-handoff.md (이 파일 — Confirmed Design Decisions 참조)
 
 Files (1차 소스 — 화면 목록):
-- docs/check/atstudio-front-list.md
+- docs/ui/atstudio-front-list.md
 
 Files (2차 소스 — 유스케이스):
 - docs/design/usecase/sound-track.md
@@ -157,9 +157,9 @@ Handoff Packet → deliverables/agent/WI-20260306-ATS-007-handoff.md:
 [TRACEABILITY REQUIREMENTS]
 
 Evidence pointers:
-- 생성 파일: `docs/check/modal-list.md`
-- 1차 소스: `docs/check/atstudio-front-list.md`
+- 생성 파일: `docs/ui/modal-list.md`
+- 1차 소스: `docs/ui/atstudio-front-list.md`
 - 2차 소스: `docs/design/usecase/*.md`
 
 Tests: N/A
-Rollback: git checkout -- docs/check/modal-list.md
+Rollback: git checkout -- docs/ui/modal-list.md

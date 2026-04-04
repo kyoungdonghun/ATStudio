@@ -61,7 +61,7 @@ REQ:
 참조 문서 (코드와 대조 기준):
 - docs/design/api-spec.md  ← §8 (Questions), §8.7 (DELETE /api/questions/{questionId}), §9 (Notices), §13 (CompanyCertifications), §13.5 (PUT /api/company-certifications/{certificationId})
 - docs/design/usecase/company-certification.md  ← CC-001 (기업인증 신청, 재신청 정책)
-- docs/check/modal-list.md  ← M-17 (ReviewModal), M-20 (문의 삭제)
+- docs/ui/modal-list.md  ← M-17 (ReviewModal), M-20 (문의 삭제)
 
 Files (검사 대상):
 - src/main/java/com/atstudio/atstudio/controller/CompanyCertificationController.java

@@ -21,7 +21,7 @@
 | `frontend/index.html` | Entry HTML with Pretendard font CDN |
 | `frontend/.eslintrc.cjs` | ESLint: recommended + TS + react-hooks + prettier |
 | `frontend/.prettierrc` | Prettier: single quotes, trailing commas, 100 width |
-| `frontend/src/styles/tokens.css` | CSS variables from `docs/check/mockup/main.html` `:root` |
+| `frontend/src/styles/tokens.css` | CSS variables from `docs/ui/mockup/main.html` `:root` |
 | `frontend/src/types/index.ts` | 18 type/interface definitions (User, Track, Album, Playlist, Subscription, etc.) |
 | `frontend/src/api/client.ts` | Axios instance + JWT request interceptor + 401 refresh response interceptor |
 | `frontend/src/store/authStore.ts` | Zustand: user, accessToken, role, login(), logout(), isAuthenticated() |

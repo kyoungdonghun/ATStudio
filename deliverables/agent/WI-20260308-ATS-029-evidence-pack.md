@@ -76,7 +76,7 @@
 | User Info UC 목록 | (INFO-014 다음 행) | (없음) | `INFO-015 \| Change password \| user-info.md` |
 | Change History | (v5 섹션 앞) | (없음) | v6 change history 블록 추가 |
 
-### docs/check/atstudio-front-list.md
+### docs/ui/atstudio-front-list.md
 
 | Change | Line | Before | After |
 |--------|------|--------|-------|
@@ -85,7 +85,7 @@
 
 **Scope note**: Line 73 (`11.1~11.3 /api/download-queue`) — range notation, not a path-param error. Per WI constraint, not modified.
 
-### docs/check/screen-flow.md
+### docs/ui/screen-flow.md
 
 | Change | Line | Before | After |
 |--------|------|--------|-------|

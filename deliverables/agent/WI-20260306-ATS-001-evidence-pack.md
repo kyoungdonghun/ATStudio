@@ -13,7 +13,7 @@ Files scanned for "앨범" occurrence (before change):
 
 | File | Match Count | Context |
 |------|-------------|---------|
-| `docs/check/atstudio-front-list.md` | 4 | Playlist section (lines 36–39) |
+| `docs/ui/atstudio-front-list.md` | 4 | Playlist section (lines 36–39) |
 | `docs/design/api-spec.md` | 0 | — |
 | `docs/design/usecase/sound-playlist.md` | 0 | — |
 | `docs/design/usecase/index.md` | 0 | — |
@@ -24,7 +24,7 @@ Only one file required changes.
 
 ---
 
-[CHANGE DIFF — docs/check/atstudio-front-list.md]
+[CHANGE DIFF — docs/ui/atstudio-front-list.md]
 
 Lines 36–39 (inside section `## 💿 플레이리스트 (Playlist)`, all rows reference `GET /api/playlists` or `POST /api/playlists`):
 
@@ -54,11 +54,11 @@ Context discrimination rationale:
 
 [POST-CHANGE GREP VERIFICATION]
 
-Command: grep "앨범" docs/check/atstudio-front-list.md
+Command: grep "앨범" docs/ui/atstudio-front-list.md
 Result: No matches found
 Status: PASS — 0 Playlist-context "앨범" remaining
 
-Command: grep "재생목록" docs/check/atstudio-front-list.md
+Command: grep "재생목록" docs/ui/atstudio-front-list.md
 Result:
   Line 36: | 4 | 재생목록 목록 (이미지 타입) | `3.2 GET /api/playlists` | auth required |
   Line 37: | 5 | 재생목록 목록 (리스트 타입) | `3.2 GET /api/playlists` | auth required |
@@ -107,7 +107,7 @@ Files inspected for Album domain "앨범" (to confirm no unintended change):
 
 [ACCEPTANCE CRITERIA CHECKLIST]
 
-- [x] `docs/check/atstudio-front-list.md`: Screen names corrected to "재생목록 목록(이미지)", "재생목록 목록(리스트)", "재생목록 생성", "재생목록 수정"
+- [x] `docs/ui/atstudio-front-list.md`: Screen names corrected to "재생목록 목록(이미지)", "재생목록 목록(리스트)", "재생목록 생성", "재생목록 수정"
 - [x] `docs/design/api-spec.md`: No "앨범" present in Section 3 — confirmed no action needed
 - [x] `docs/design/usecase/sound-playlist.md`: No "앨범" present — confirmed no action needed
 - [x] `docs/design/usecase/index.md`: No "앨범" present — confirmed no action needed
@@ -122,6 +122,6 @@ Files inspected for Album domain "앨범" (to confirm no unintended change):
 
 [ROLLBACK POINTER]
 
-git checkout -- docs/check/atstudio-front-list.md
+git checkout -- docs/ui/atstudio-front-list.md
 
 Reversal restores lines 36–39 to prior "앨범" labels.

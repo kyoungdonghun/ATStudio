@@ -17,9 +17,9 @@
 | `docs/design/usecase/user-question.md` | QUESTION-001 through QUESTION-007 (lines 1–191) |
 | `docs/design/usecase/user-notice.md` | ANNOUNCE-001 through ANNOUNCE-005 (lines 1–113) |
 | `docs/design/usecase/business-license.md` | Full (line 1–3: redirect stub to company-certification.md) |
-| `docs/check/atstudio-front-list.md` | I-1, I-2, Screen 13~15, 20~22, K-1~K-7, Screen 18 (lines 95–151) |
-| `docs/check/modal-list.md` | M-15~M-20, M-25, M-28 (lines 84–97) |
-| `docs/check/screen-flow.md` | §8 I-1/I-2 (lines 223–237), §9 문의/공지 (lines 241–261), §10 관리자 (lines 265–297) |
+| `docs/ui/atstudio-front-list.md` | I-1, I-2, Screen 13~15, 20~22, K-1~K-7, Screen 18 (lines 95–151) |
+| `docs/ui/modal-list.md` | M-15~M-20, M-25, M-28 (lines 84–97) |
+| `docs/ui/screen-flow.md` | §8 I-1/I-2 (lines 223–237), §9 문의/공지 (lines 241–261), §10 관리자 (lines 265–297) |
 
 ---
 
@@ -30,7 +30,7 @@
 ### [CONFLICT] CRITICAL C-01: CC-001 reapplication preconditions vs screen-flow I-2 policy
 
 **File A**: `docs/design/usecase/company-certification.md` — CC-001, Preconditions field
-**File B**: `docs/check/screen-flow.md` — §8, I-2 block
+**File B**: `docs/ui/screen-flow.md` — §8, I-2 block
 
 **File A text** (company-certification.md, CC-001 Preconditions):
 > "Reapplication allowed after REJECTED or REVISION_REQUESTED."
@@ -52,7 +52,7 @@ And the policy note immediately below I-2:
 
 ### [CONFLICT] MAJOR M-01: modal-list M-20 cites wrong API section number and HTTP method
 
-**File A**: `docs/check/modal-list.md` — M-20, API column
+**File A**: `docs/ui/modal-list.md` — M-20, API column
 **File B**: `docs/design/api-spec.md` — §8
 
 **File A text** (modal-list.md, line 89):
@@ -74,7 +74,7 @@ And the policy note immediately below I-2:
 
 ### [CONFLICT] MAJOR M-02: modal-list M-17 URL has /review suffix absent from api-spec
 
-**File A**: `docs/check/modal-list.md` — M-17, API column
+**File A**: `docs/ui/modal-list.md` — M-17, API column
 **File B**: `docs/design/api-spec.md` — §13.5
 
 **File A text** (modal-list.md, line 86):
@@ -97,8 +97,8 @@ And the policy note immediately below I-2:
 
 ### [CONFLICT] MAJOR M-03: modal-list M-17 assigns StatusModal to a multi-option form interaction
 
-**File A**: `docs/check/modal-list.md` — M-17 Component column and modal-list Component Classification table
-**File B**: `docs/check/modal-list.md` — Component Classification (lines 44–52)
+**File A**: `docs/ui/modal-list.md` — M-17 Component column and modal-list Component Classification table
+**File B**: `docs/ui/modal-list.md` — Component Classification (lines 44–52)
 
 **Component Classification definition** (modal-list.md, lines 44–52):
 > `StatusModal` = "상태 안내/확인 (안내 텍스트 + [확인])" — 1-button modal, text-only.
@@ -114,9 +114,9 @@ And the policy note immediately below I-2:
 
 ### [CONFLICT] MINOR Mi-01: modal-list M-19 trigger screen includes Screen 21 incorrectly
 
-**File A**: `docs/check/modal-list.md` — M-19, 발생 화면 column
-**File B**: `docs/check/screen-flow.md` — §9 공지 흐름
-**File C**: `docs/check/atstudio-front-list.md` — Screen 21 definition
+**File A**: `docs/ui/modal-list.md` — M-19, 발생 화면 column
+**File B**: `docs/ui/screen-flow.md` — §9 공지 흐름
+**File C**: `docs/ui/atstudio-front-list.md` — Screen 21 definition
 
 **File A text** (modal-list.md, line 88):
 ```
@@ -142,9 +142,9 @@ And the policy note immediately below I-2:
 
 ### [GAP] MINOR Mi-02: front-list Screen 15 omits 8.7 DELETE from API reference column
 
-**File A**: `docs/check/atstudio-front-list.md` — Screen 15 row
-**File B**: `docs/check/screen-flow.md` — §9, Screen 15 flow
-**File C**: `docs/check/modal-list.md` — M-20
+**File A**: `docs/ui/atstudio-front-list.md` — Screen 15 row
+**File B**: `docs/ui/screen-flow.md` — §9, Screen 15 flow
+**File C**: `docs/ui/modal-list.md` — M-20
 
 **File A text** (atstudio-front-list.md, line 110):
 ```
@@ -185,7 +185,7 @@ And the policy note immediately below I-2:
 
 ### K-7 (WI-008 CRITICAL C-01) — Confirmed unresolved
 
-**File**: `docs/check/atstudio-front-list.md` — K-7 row (line 136)
+**File**: `docs/ui/atstudio-front-list.md` — K-7 row (line 136)
 **Reference**: WI-008 CRITICAL C-01
 
 **Text**:
@@ -235,11 +235,11 @@ And the policy note immediately below I-2:
 | Priority | Finding | File to Fix | Change |
 |----------|---------|-------------|--------|
 | 1 (CRITICAL) | C-01 | `docs/design/usecase/company-certification.md` | CC-001 Preconditions — remove reapplication allowance, replace with no-UI-reapplication policy |
-| 2 (MAJOR) | M-01 | `docs/check/modal-list.md` | M-20 API column: `8.4 DELETE` → `8.7 DELETE` |
-| 3 (MAJOR) | M-02 | `docs/check/modal-list.md` OR `docs/design/api-spec.md` | M-17 URL: verify against implementation; correct non-matching doc |
-| 4 (MAJOR) | M-03 | `docs/check/modal-list.md` | M-17 Component: replace StatusModal with appropriate component type |
-| 5 (MINOR) | Mi-01 | `docs/check/modal-list.md` | M-19 screen: "Screen 21/22" → "Screen 22" |
-| 6 (MINOR) | Mi-02 | `docs/check/atstudio-front-list.md` | Screen 15 API column: add `8.7 DELETE /api/questions/{id}` |
+| 2 (MAJOR) | M-01 | `docs/ui/modal-list.md` | M-20 API column: `8.4 DELETE` → `8.7 DELETE` |
+| 3 (MAJOR) | M-02 | `docs/ui/modal-list.md` OR `docs/design/api-spec.md` | M-17 URL: verify against implementation; correct non-matching doc |
+| 4 (MAJOR) | M-03 | `docs/ui/modal-list.md` | M-17 Component: replace StatusModal with appropriate component type |
+| 5 (MINOR) | Mi-01 | `docs/ui/modal-list.md` | M-19 screen: "Screen 21/22" → "Screen 22" |
+| 6 (MINOR) | Mi-02 | `docs/ui/atstudio-front-list.md` | Screen 15 API column: add `8.7 DELETE /api/questions/{id}` |
 | 7 (SUGGESTION) | S-01 | `docs/design/api-spec.md` | v3→v4 history item 7: update UC/API numbers to current |
 
 ---

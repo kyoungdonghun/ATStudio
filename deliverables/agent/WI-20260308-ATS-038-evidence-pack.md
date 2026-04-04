@@ -55,8 +55,8 @@ Public pages B implementation: 5 pages + 5 CSS modules + 2 API modules (+ 2 supp
 
 | Page | Mockup Reference | Compliance |
 |------|-----------------|------------|
-| AlbumDetailPage | `docs/check/mockup/album-detail.html` | Vinyl CSS, hero layout, track table structure matched |
-| SubscriptionPlanPage | `docs/check/mockup/subscription.html` | 3-column cards, popular badge, billing toggle, compare table, FAQ matched |
+| AlbumDetailPage | `docs/ui/mockup/album-detail.html` | Vinyl CSS, hero layout, track table structure matched |
+| SubscriptionPlanPage | `docs/ui/mockup/subscription.html` | 3-column cards, popular badge, billing toggle, compare table, FAQ matched |
 | TrackDetailPage | No dedicated mockup | Two-column layout following album-detail pattern |
 | NoticeListPage | No mockup | Standard table with pagination |
 | NoticeDetailPage | No mockup | Standard article view |

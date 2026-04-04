@@ -60,7 +60,7 @@ REQ:
 
 참조 (수정 금지):
 - docs/design/api-spec.md (§2 Tag, §6 Notice, §10 User admin, §12 CompanyCert, §15 Stats)
-- docs/check/atstudio-front-list.md
+- docs/ui/atstudio-front-list.md
 
 기존 파일 (읽기):
 - frontend/src/api/client.ts

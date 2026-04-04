@@ -10,9 +10,9 @@ Blocks: -
 [WI SUMMARY]
 Why: MINOR — 프론트 준비 문서 path param 단축 기재({id}) → api-spec 실제 파라미터명 일괄 정리 + 기타 소규모 수정
 Scope (in):
-  - docs/check/atstudio-front-list.md — {id} → api-spec 실제 파라미터명 전면 교체 + 헤더 버전 수정
-  - docs/check/modal-list.md — {id} → api-spec 실제 파라미터명 전면 교체
-  - docs/check/screen-flow.md — Screen 8 ID 레이블 추가 + K-5 화면명 통일
+  - docs/ui/atstudio-front-list.md — {id} → api-spec 실제 파라미터명 전면 교체 + 헤더 버전 수정
+  - docs/ui/modal-list.md — {id} → api-spec 실제 파라미터명 전면 교체
+  - docs/ui/screen-flow.md — Screen 8 ID 레이블 추가 + K-5 화면명 통일
 Scope (out):
   - api-spec.md 수정 금지
   - 백엔드 코드 수정 금지
@@ -73,9 +73,9 @@ api-spec (참조용, 수정 금지):
 - docs/design/api-spec.md  ← path param명 확인용
 
 Files (수정 대상):
-- docs/check/atstudio-front-list.md
-- docs/check/modal-list.md
-- docs/check/screen-flow.md
+- docs/ui/atstudio-front-list.md
+- docs/ui/modal-list.md
+- docs/ui/screen-flow.md
 
 ---
 

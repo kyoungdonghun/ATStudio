@@ -11,7 +11,7 @@ Date: 2026-03-06
 
 | 파일 | 변경 여부 | "앨범" 잔존 | 판정 |
 |------|----------|------------|------|
-| docs/check/atstudio-front-list.md | 변경됨 (4건) | 0건 | ✅ |
+| docs/ui/atstudio-front-list.md | 변경됨 (4건) | 0건 | ✅ |
 | docs/design/api-spec.md | 미변경 | 0건 | ✅ |
 | docs/design/usecase/sound-playlist.md | 미변경 | 0건 | ✅ |
 | docs/design/usecase/index.md | 미변경 | 0건 | ✅ |

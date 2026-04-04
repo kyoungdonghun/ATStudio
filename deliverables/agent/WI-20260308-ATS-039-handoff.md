@@ -65,7 +65,7 @@ REQ:
 
 참조 (수정 금지):
 - docs/design/api-spec.md (§4 Auth)      ← 인증 API 엔드포인트/요청·응답 구조
-- docs/check/atstudio-front-list.md       ← 인증 화면 URL 경로
+- docs/ui/atstudio-front-list.md       ← 인증 화면 URL 경로
 
 기존 파일 (읽기):
 - frontend/src/api/client.ts

@@ -10,11 +10,11 @@ Blocks: WI-20260306-ATS-006
 [WI SUMMARY]
 
 Why:
-- `docs/check/atstudio-front-list.md` v1은 2026-02-20 작성 초본으로 Album 도메인 누락 및 여러 컨펌 포인트 미반영
+- `docs/ui/atstudio-front-list.md` v1은 2026-02-20 작성 초본으로 Album 도메인 누락 및 여러 컨펌 포인트 미반영
 - 확정된 7개 변경 항목을 반영하여 v2로 갱신
 
 Scope:
-- In: `docs/check/atstudio-front-list.md` 단일 파일 전면 재작성 (v2)
+- In: `docs/ui/atstudio-front-list.md` 단일 파일 전면 재작성 (v2)
 - Out: 다른 문서 변경 없음, 백엔드 코드 변경 없음
 
 DoD:
@@ -65,7 +65,7 @@ REQ/Context Docs:
 - deliverables/user/REQ-20260306-ATS-004.md (명칭 확정 참고)
 
 Files (참고 — 현재 파일):
-- docs/check/atstudio-front-list.md (v1 현재 내용)
+- docs/ui/atstudio-front-list.md (v1 현재 내용)
 
 Files (API 참고):
 - docs/design/api-spec.md (섹션 1~15 전체, 특히 Section 3 Playlist, Section 15 Album)
@@ -95,4 +95,4 @@ Evidence pointers:
 - 총 화면 수 카운트 (섹션별 소계 + 합계)
 
 Tests: N/A
-Rollback: git checkout -- docs/check/atstudio-front-list.md
+Rollback: git checkout -- docs/ui/atstudio-front-list.md

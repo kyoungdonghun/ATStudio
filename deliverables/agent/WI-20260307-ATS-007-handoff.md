@@ -65,9 +65,9 @@ Files (검증 대상 — 이 목록 외 탐색 금지):
 - docs/design/usecase/likes.md
 - docs/design/usecase/user-license.md
 - docs/design/usecase/whitelist.md
-- docs/check/atstudio-front-list.md  ← A-1~A-4, Screen 10, D-1, E-1, F-1, F-2, H-1 항목만
-- docs/check/modal-list.md  ← M-01, M-02, M-21, M-23 항목만
-- docs/check/screen-flow.md  ← §2 인증 흐름, §8 개인 페이지 흐름만
+- docs/ui/atstudio-front-list.md  ← A-1~A-4, Screen 10, D-1, E-1, F-1, F-2, H-1 항목만
+- docs/ui/modal-list.md  ← M-01, M-02, M-21, M-23 항목만
+- docs/ui/screen-flow.md  ← §2 인증 흐름, §8 개인 페이지 흐름만
 
 ---
 

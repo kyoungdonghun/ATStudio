@@ -12,8 +12,8 @@ Why: Phase 2 — MAJOR 문서 수정 4건 (M-1, M-2, M-6, M-7)
 Scope (in):
   - M-1: docs/design/usecase/sound-track.md — §1.8 admin 트랙 목록 UC 신규 추가
   - M-2: docs/design/usecase/user-info.md — §5.11 비밀번호 변경 UC 신규 추가
-  - M-6: docs/check/atstudio-front-list.md + screen-flow.md — POST /api/download-queue/{trackId} 경로 파라미터 수정
-  - M-7: docs/check/screen-flow.md — M-17 컴포넌트명 StatusModal → ReviewModal 수정
+  - M-6: docs/ui/atstudio-front-list.md + screen-flow.md — POST /api/download-queue/{trackId} 경로 파라미터 수정
+  - M-7: docs/ui/screen-flow.md — M-17 컴포넌트명 StatusModal → ReviewModal 수정
   - docs/design/usecase/index.md — UC 카운트 갱신 (M-1, M-2 추가 시)
 Scope (out):
   - MINOR/SUGGESTION 항목 수정 금지
@@ -77,8 +77,8 @@ Files (수정 대상):
 - docs/design/usecase/sound-track.md
 - docs/design/usecase/user-info.md
 - docs/design/usecase/index.md
-- docs/check/atstudio-front-list.md
-- docs/check/screen-flow.md
+- docs/ui/atstudio-front-list.md
+- docs/ui/screen-flow.md
 
 API Spec (참조용, 수정 금지):
 - docs/design/api-spec.md  ← §1.8, §5.11 참조

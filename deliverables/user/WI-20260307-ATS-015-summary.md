@@ -12,7 +12,7 @@
 
 Three check documents updated for API reference accuracy and version consistency.
 
-### docs/check/atstudio-front-list.md (v3 → v4)
+### docs/ui/atstudio-front-list.md (v3 → v4)
 
 | Screen | Change |
 |--------|--------|
@@ -23,7 +23,7 @@ Three check documents updated for API reference accuracy and version consistency
 | K-7 (트랙 관리) | API 교체: `1.2 GET /api/tracks` (비활성 포함) → `1.8 GET /api/tracks/admin` |
 | 버전 | v3 → v4 |
 
-### docs/check/modal-list.md (v1.1 → v1.2)
+### docs/ui/modal-list.md (v1.1 → v1.2)
 
 | Item | Change |
 |------|--------|
@@ -38,7 +38,7 @@ Three check documents updated for API reference accuracy and version consistency
 | dependencies | atstudio-front-list.md version v3 → v4 |
 | 버전 | v1.1 → v1.2 |
 
-### docs/check/screen-flow.md (v1.1 → v1.2)
+### docs/ui/screen-flow.md (v1.1 → v1.2)
 
 | Item | Change |
 |------|--------|

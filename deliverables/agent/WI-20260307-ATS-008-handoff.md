@@ -62,9 +62,9 @@ Files (검증 대상 — 이 목록 외 탐색 금지):
 - docs/design/api-spec.md  ← §1 Tracks, §2 Tags 섹션만
 - docs/design/usecase/sound-track.md
 - docs/design/usecase/sound-tag.md
-- docs/check/atstudio-front-list.md  ← Screen 1, 3, 6, 7, B-1 항목만
-- docs/check/modal-list.md  ← M-03, M-04, M-11, M-12 항목만
-- docs/check/screen-flow.md  ← §3 음원 탐색 흐름만
+- docs/ui/atstudio-front-list.md  ← Screen 1, 3, 6, 7, B-1 항목만
+- docs/ui/modal-list.md  ← M-03, M-04, M-11, M-12 항목만
+- docs/ui/screen-flow.md  ← §3 음원 탐색 흐름만
 
 ---
 

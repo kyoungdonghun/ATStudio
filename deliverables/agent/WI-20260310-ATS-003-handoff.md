@@ -54,12 +54,12 @@ Tier 2 (REQ & Context):
 
 Source Files (읽고 합성할 파일들):
   화면 목록 소스:
-  - docs/check/atstudio-front-list.md          ← 48개 화면 목록 v4 (핵심 소스)
+  - docs/ui/atstudio-front-list.md          ← 48개 화면 목록 v4 (핵심 소스)
   - frontend/src/router/index.tsx               ← 실제 라우터 경로 확인
   - frontend/src/pages/ (폴더 구조)             ← 실제 구현된 페이지 파일 경로
 
   화면 흐름 소스:
-  - docs/check/screen-flow.md                  ← 화면 흐름도 v1.2 (핵심 소스)
+  - docs/ui/screen-flow.md                  ← 화면 흐름도 v1.2 (핵심 소스)
   - frontend/src/router/ProtectedRoute.tsx      ← 인증 분기 로직
 
   DB 스키마 소스:

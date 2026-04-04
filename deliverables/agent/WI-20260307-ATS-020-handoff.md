@@ -69,7 +69,7 @@ REQ:
 참조 문서 (코드와 대조 기준):
 - docs/design/api-spec.md  ← §4 (PlayHistory), §5 (Users/Auth), §5.11 (비밀번호 변경), §7 (Licenses), §10 (Likes), §12 (Whitelist)
 - docs/design/usecase/user-info.md  ← INFO-008 (로그인), INFO-007 (회원탈퇴)
-- docs/check/screen-flow.md  ← §2 인증 흐름 (로그아웃 client-side 명시)
+- docs/ui/screen-flow.md  ← §2 인증 흐름 (로그아웃 client-side 명시)
 
 Files (검사 대상):
 - src/main/java/com/atstudio/atstudio/controller/UserController.java

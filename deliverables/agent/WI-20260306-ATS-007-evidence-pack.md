@@ -10,7 +10,7 @@ Completed: 2026-03-06
 
 | File | Action | Lines |
 |------|--------|-------|
-| `docs/check/modal-list.md` | Created | ~230 |
+| `docs/ui/modal-list.md` | Created | ~230 |
 | `deliverables/user/WI-20260306-ATS-007-summary.md` | Created | ~55 |
 | `deliverables/agent/WI-20260306-ATS-007-evidence-pack.md` | Created (this file) | - |
 
@@ -60,7 +60,7 @@ Completed: 2026-03-06
 [SOURCE TRACEABILITY]
 
 1차 소스 (화면 목록):
-- `docs/check/atstudio-front-list.md` v2
+- `docs/ui/atstudio-front-list.md` v2
   - M-01~M-10 화면 번호 체계 및 API 참조 사용
 
 2차 소스 (유스케이스):
@@ -103,7 +103,7 @@ Confirmed Design Decisions 소스:
 
 [ROLLBACK]
 
-git checkout -- docs/check/modal-list.md
+git checkout -- docs/ui/modal-list.md
 
 ---
 

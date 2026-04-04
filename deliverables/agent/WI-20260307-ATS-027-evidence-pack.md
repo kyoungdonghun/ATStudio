@@ -10,9 +10,9 @@
 
 | Document | Version | Lines Read | Status |
 |----------|---------|------------|--------|
-| `docs/check/atstudio-front-list.md` | v4 | 152 | Read complete |
-| `docs/check/modal-list.md` | v1.2 | 277 | Read complete |
-| `docs/check/screen-flow.md` | v1.2 | 359 | Read complete |
+| `docs/ui/atstudio-front-list.md` | v4 | 152 | Read complete |
+| `docs/ui/modal-list.md` | v1.2 | 277 | Read complete |
+| `docs/ui/screen-flow.md` | v1.2 | 359 | Read complete |
 | `docs/design/api-spec.md` | v6 | 1815 | Read complete |
 
 Validation method: Manual systematic cross-reference. No files were modified.
@@ -43,15 +43,15 @@ Validation method: Manual systematic cross-reference. No files were modified.
 
 **MINOR-001 — Screen 8 (재생목록 생성): ID block not labeled in screen-flow**
 
-- `docs/check/atstudio-front-list.md:52` — Screen 8 = "재생목록 생성"
-- `docs/check/screen-flow.md:98-101` — Section 4 describes the creation action ("새 재생목록 만들기" button → form submit → 3.1 POST → return to previous) but never labels the destination as `[8 재생목록 생성]`
+- `docs/ui/atstudio-front-list.md:52` — Screen 8 = "재생목록 생성"
+- `docs/ui/screen-flow.md:98-101` — Section 4 describes the creation action ("새 재생목록 만들기" button → form submit → 3.1 POST → return to previous) but never labels the destination as `[8 재생목록 생성]`
 - All other 47 screens appear as `[ID 화면명]` format in screen-flow. Screen 8 is the sole exception.
 - Impact: Low. The screen exists implicitly but lacks the traceable ID reference.
 
 **MINOR-002 — K-5 screen name inconsistency between front-list and screen-flow**
 
-- `docs/check/atstudio-front-list.md:134` — K-5 name: `기업 인증 목록 / 심사 처리`
-- `docs/check/screen-flow.md:282` — K-5 labeled as: `[K-5 기업인증 심사]`
+- `docs/ui/atstudio-front-list.md:134` — K-5 name: `기업 인증 목록 / 심사 처리`
+- `docs/ui/screen-flow.md:282` — K-5 labeled as: `[K-5 기업인증 심사]`
 - Differences: (1) spacing "기업 인증" vs "기업인증", (2) description truncated
 - front-list is the primary source per modal-list.md dependencies metadata.
 
@@ -83,8 +83,8 @@ Note: M-27 references "M-09 (PlanCompareModal 내)" as the trigger context — t
 
 **MAJOR-001 — 11.1 POST /api/download-queue missing /{trackId} path parameter**
 
-- `docs/check/atstudio-front-list.md:25` — Screen 1 (메인화면): `11.1 POST /api/download-queue`
-- `docs/check/atstudio-front-list.md:26` — Screen 3 (음원 목록): `11.1 POST /api/download-queue`
+- `docs/ui/atstudio-front-list.md:25` — Screen 1 (메인화면): `11.1 POST /api/download-queue`
+- `docs/ui/atstudio-front-list.md:26` — Screen 3 (음원 목록): `11.1 POST /api/download-queue`
 - `docs/design/api-spec.md:1343-1348` — §11.1 actual URL: `POST /api/download-queue/{trackId}`
 - The `{trackId}` path parameter is absent in front-list entries for Screens 1 and 3.
 - Same error propagated to screen-flow.md lines 81 and 87.
@@ -94,29 +94,29 @@ Note: M-27 references "M-09 (PlanCompareModal 내)" as the trigger context — t
 
 **MINOR-003 — Screen 11: {id} vs {trackId} (api-spec §1.5)**
 
-- `docs/check/atstudio-front-list.md:73` — `1.5 GET /api/tracks/{id}/download`
+- `docs/ui/atstudio-front-list.md:73` — `1.5 GET /api/tracks/{id}/download`
 - `docs/design/api-spec.md:247-253` — §1.5 URL: `GET /api/tracks/{trackId}/download`
 - Path param name: `{id}` vs `{trackId}`
 
 **MINOR-004 — C-1: {id} vs {playlistId} (api-spec §3.3)**
 
-- `docs/check/atstudio-front-list.md:51` — `3.3 GET /api/playlists/{id}`
+- `docs/ui/atstudio-front-list.md:51` — `3.3 GET /api/playlists/{id}`
 - `docs/design/api-spec.md:461-481` — §3.3 URL: `GET /api/playlists/{playlistId}`
 
 **MINOR-005 — Screen 9: {id} vs {playlistId} (api-spec §3.5, §3.8)**
 
-- `docs/check/atstudio-front-list.md:53` — `3.5 PUT /api/playlists/{id}` and `3.8 DELETE /api/playlists/{id}`
+- `docs/ui/atstudio-front-list.md:53` — `3.5 PUT /api/playlists/{id}` and `3.8 DELETE /api/playlists/{id}`
 - `docs/design/api-spec.md:506-552` — §3.5 URL: `PUT /api/playlists/{playlistId}`, §3.8 URL: `DELETE /api/playlists/{playlistId}`
 
 **MINOR-006 — K-3: {id}/{id} vs {userId}/{licenseId} (api-spec §7.4)**
 
-- `docs/check/atstudio-front-list.md:132` — `7.4 GET /api/users/{id}/licenses/{id}`
+- `docs/ui/atstudio-front-list.md:132` — `7.4 GET /api/users/{id}/licenses/{id}`
 - `docs/design/api-spec.md:1057-1062` — §7.4 URL: `GET /api/users/{userId}/licenses/{licenseId}`
 - Both path params use `{id}`, losing semantic distinction between user and license identifiers.
 
 **Additional metadata note:**
 
-- `docs/check/atstudio-front-list.md:3` — Header reads "API Spec v5 기준"
+- `docs/ui/atstudio-front-list.md:3` — Header reads "API Spec v5 기준"
 - `docs/design/api-spec.md:1` — Current version is v6
 - Not a functional issue but should be updated for accuracy.
 
@@ -147,9 +147,9 @@ All M-xx IDs confirmed within M-01~M-28 range, all exist in modal-list.
 
 **MAJOR-002 — M-17 component name: StatusModal in screen-flow vs ReviewModal in modal-list**
 
-- `docs/check/screen-flow.md:282` — `[K-5 기업인증 심사]  "심사 처리" → [M-17 StatusModal] → 화면 갱신`
-- `docs/check/modal-list.md:88` — M-17 row: Component = `ReviewModal`
-- Component definitions in modal-list header (`docs/check/modal-list.md:46-54`):
+- `docs/ui/screen-flow.md:282` — `[K-5 기업인증 심사]  "심사 처리" → [M-17 StatusModal] → 화면 갱신`
+- `docs/ui/modal-list.md:88` — M-17 row: Component = `ReviewModal`
+- Component definitions in modal-list header (`docs/ui/modal-list.md:46-54`):
   - `StatusModal`: 안내 텍스트 + `[확인]` 1-button (informational only)
   - `ReviewModal`: 상태 드롭다운 + adminNote 텍스트입력 + `[취소]` `[처리]` 2-button
 - These are structurally different UI components. StatusModal cannot perform APPROVED/REVISION_REQUESTED/REJECTED state selection plus adminNote input.
@@ -163,19 +163,19 @@ All M-xx IDs confirmed within M-01~M-28 range, all exist in modal-list.
 
 **MINOR-007 — M-05, M-12: {id} vs {playlistId} (api-spec §3.4)**
 
-- `docs/check/modal-list.md:68` (M-05) — `3.4 POST /api/playlists/{id}/tracks`
-- `docs/check/modal-list.md:83` (M-12) — `3.4 POST /api/playlists/{id}/tracks`
+- `docs/ui/modal-list.md:68` (M-05) — `3.4 POST /api/playlists/{id}/tracks`
+- `docs/ui/modal-list.md:83` (M-12) — `3.4 POST /api/playlists/{id}/tracks`
 - `docs/design/api-spec.md:484-498` — §3.4 URL: `POST /api/playlists/{playlistId}/tracks`
 
 **MINOR-008 — M-07, M-13: {id} vs {playlistId} (api-spec §3.8)**
 
-- `docs/check/modal-list.md:69` (M-07) — `3.8 DELETE /api/playlists/{id}`
-- `docs/check/modal-list.md:84` (M-13) — `3.8 DELETE /api/playlists/{id}`
+- `docs/ui/modal-list.md:69` (M-07) — `3.8 DELETE /api/playlists/{id}`
+- `docs/ui/modal-list.md:84` (M-13) — `3.8 DELETE /api/playlists/{id}`
 - `docs/design/api-spec.md:546-552` — §3.8 URL: `DELETE /api/playlists/{playlistId}`
 
 **MINOR-009 — M-11: {id} vs {trackId} (api-spec §1.7)**
 
-- `docs/check/modal-list.md:82` — `1.7 DELETE /api/tracks/{id}`
+- `docs/ui/modal-list.md:82` — `1.7 DELETE /api/tracks/{id}`
 - `docs/design/api-spec.md:282-289` — §1.7 URL: `DELETE /api/tracks/{trackId}`
 
 **MINOR-010 — M-18, M-21, M-24, M-25, M-28: {id} vs semantic param names**
@@ -221,9 +221,9 @@ M-01, M-02, M-03, M-04, M-06, M-08, M-09, M-10, M-14, M-15, M-16, M-17, M-19, M-
 
 ### Immediate (before frontend kickoff)
 
-1. `docs/check/atstudio-front-list.md` lines 25–26: `POST /api/download-queue` → `POST /api/download-queue/{trackId}`
-2. `docs/check/screen-flow.md` lines 81, 87: Same URL correction
-3. `docs/check/screen-flow.md` line 282: `[M-17 StatusModal]` → `[M-17 ReviewModal]`
+1. `docs/ui/atstudio-front-list.md` lines 25–26: `POST /api/download-queue` → `POST /api/download-queue/{trackId}`
+2. `docs/ui/screen-flow.md` lines 81, 87: Same URL correction
+3. `docs/ui/screen-flow.md` line 282: `[M-17 StatusModal]` → `[M-17 ReviewModal]`
 
 ### Deferred (single cleanup WI after kickoff)
 
@@ -238,9 +238,9 @@ Group MINOR-001~010 as one cleanup WI. Primary action: align all `{id}` shorthan
 | WI | WI-20260307-ATS-027 |
 | REQ | REQ-20260307-ATS-009 |
 | api-spec version verified | v6 (`docs/design/api-spec.md` line 1) |
-| front-list version | v4 (`docs/check/atstudio-front-list.md` line 3) |
-| modal-list version | v1.2 (`docs/check/modal-list.md` line 3) |
-| screen-flow version | v1.2 (`docs/check/screen-flow.md` line 19) |
+| front-list version | v4 (`docs/ui/atstudio-front-list.md` line 3) |
+| modal-list version | v1.2 (`docs/ui/modal-list.md` line 3) |
+| screen-flow version | v1.2 (`docs/ui/screen-flow.md` line 19) |
 | Validation date | 2026-03-08 |
 | Agent | docops (claude-sonnet-4-6) |
 | Files modified | 0 (read-only task) |

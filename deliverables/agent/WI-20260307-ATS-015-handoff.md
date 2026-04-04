@@ -10,9 +10,9 @@ Blocks: -
 [WI SUMMARY]
 Why: Phase 3 — check 파일들 정합성 보완 (front-list, modal-list, screen-flow)
 Scope (in):
-  - docs/check/atstudio-front-list.md
-  - docs/check/modal-list.md
-  - docs/check/screen-flow.md
+  - docs/ui/atstudio-front-list.md
+  - docs/ui/modal-list.md
+  - docs/ui/screen-flow.md
   (이 3개 파일만)
 Scope (out):
   - api-spec.md, usecase 파일 수정 금지 (WI-013/014 담당)
@@ -73,9 +73,9 @@ REQ:
 - deliverables/user/REQ-20260307-ATS-008.md
 
 Files (수정 대상 — 이 목록만):
-- docs/check/atstudio-front-list.md
-- docs/check/modal-list.md
-- docs/check/screen-flow.md
+- docs/ui/atstudio-front-list.md
+- docs/ui/modal-list.md
+- docs/ui/screen-flow.md
 
 ---
 

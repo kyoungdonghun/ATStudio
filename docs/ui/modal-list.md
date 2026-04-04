@@ -6,7 +6,7 @@ owner: docops
 category: guide
 status: stable
 dependencies:
-  - path: docs/check/atstudio-front-list.md
+  - path: docs/ui/atstudio-front-list.md
     version: v4
     reason: Screen number system and screen names (primary source)
   - path: docs/design/usecase/sound-track.md
@@ -36,7 +36,7 @@ dependencies:
 # ATStudio Modal/Popup Interaction List
 
 > API Spec v5 / Usecase v5 기준 | v1.2 2026-03-07
-> 관련 화면 목록: [docs/check/atstudio-front-list.md](atstudio-front-list.md) v4
+> 관련 화면 목록: [docs/ui/atstudio-front-list.md](atstudio-front-list.md) v4
 
 ---
 
@@ -56,7 +56,7 @@ dependencies:
 
 ## Section 1: Screen-Based Modals (M-01 ~ M-10)
 
-> 소스: `docs/check/atstudio-front-list.md`
+> 소스: `docs/ui/atstudio-front-list.md`
 
 | ID | 화면 | 트리거 | 내용 | 컴포넌트 | API |
 |----|------|--------|------|----------|-----|

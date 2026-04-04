@@ -16,7 +16,7 @@ Why:
 
 Scope:
 - In:
-  - `docs/check/atstudio-front-list.md` — 💿 플레이리스트 섹션 내 화면명 "앨범 목록/생성/수정" → "재생목록 목록/생성/수정", 섹션 설명 내 "앨범" 오기입
+  - `docs/ui/atstudio-front-list.md` — 💿 플레이리스트 섹션 내 화면명 "앨범 목록/생성/수정" → "재생목록 목록/생성/수정", 섹션 설명 내 "앨범" 오기입
   - `docs/design/api-spec.md` — Section 3 (Playlist) 내 "앨범" 오기입 표기
   - `docs/design/usecase/sound-playlist.md` — 문서 내 "앨범" 오기입 표기 전체
   - `docs/design/usecase/index.md` — Playlist 관련 행 설명 내 "앨범" 오기입
@@ -46,7 +46,7 @@ Constraints/Forbidden:
 [ACCEPTANCE CRITERIA]
 
 Functional:
-- [ ] `docs/check/atstudio-front-list.md`: 💿 섹션 화면명 "재생목록 목록(이미지)", "재생목록 목록(리스트)", "재생목록 생성", "재생목록 수정"으로 정정
+- [ ] `docs/ui/atstudio-front-list.md`: 💿 섹션 화면명 "재생목록 목록(이미지)", "재생목록 목록(리스트)", "재생목록 생성", "재생목록 수정"으로 정정
 - [ ] `docs/design/api-spec.md`: Section 3 제목·설명에서 Playlist 지칭 "앨범" 표기 정정
 - [ ] `docs/design/usecase/sound-playlist.md`: 문서 전체 Playlist 지칭 "앨범" 표기 정정
 - [ ] `docs/design/usecase/index.md`: Playlist 행 설명 정정
@@ -73,7 +73,7 @@ REQ/Context Docs:
 - deliverables/user/REQ-20260306-ATS-004.md
 
 Files (대상):
-- docs/check/atstudio-front-list.md
+- docs/ui/atstudio-front-list.md
 - docs/design/api-spec.md (Section 3 집중)
 - docs/design/usecase/sound-playlist.md
 - docs/design/usecase/index.md
@@ -106,7 +106,7 @@ Handoff Packet → deliverables/agent/WI-20260306-ATS-001-handoff.md:
 
 Evidence pointers:
 - 파일별 수정 라인 번호 및 before/after 기록
-- Grep 명령어: `grep -n "앨범" docs/check/atstudio-front-list.md docs/design/api-spec.md docs/design/usecase/sound-playlist.md docs/design/usecase/index.md docs/design/db-schema.md docs/standards/glossary.md` 결과 (변경 전/후 각 1회)
+- Grep 명령어: `grep -n "앨범" docs/ui/atstudio-front-list.md docs/design/api-spec.md docs/design/usecase/sound-playlist.md docs/design/usecase/index.md docs/design/db-schema.md docs/standards/glossary.md` 결과 (변경 전/후 각 1회)
 
 Tests:
 - N/A (문서 변경 작업)

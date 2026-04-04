@@ -65,9 +65,9 @@ Files (검증 대상 — 이 목록 외 탐색 금지):
 - docs/design/usecase/user-question.md
 - docs/design/usecase/user-notice.md
 - docs/design/usecase/business-license.md
-- docs/check/atstudio-front-list.md  ← I-1/2, Screen 13~15, 20~22, K-1~7, Screen 18 항목만
-- docs/check/modal-list.md  ← M-15, M-16, M-17, M-18, M-19, M-20, M-25, M-28 항목만
-- docs/check/screen-flow.md  ← §8 중 I-1/I-2 기업인증, §9 문의/공지 흐름, §10 관리자 페이지 흐름만
+- docs/ui/atstudio-front-list.md  ← I-1/2, Screen 13~15, 20~22, K-1~7, Screen 18 항목만
+- docs/ui/modal-list.md  ← M-15, M-16, M-17, M-18, M-19, M-20, M-25, M-28 항목만
+- docs/ui/screen-flow.md  ← §8 중 I-1/I-2 기업인증, §9 문의/공지 흐름, §10 관리자 페이지 흐름만
 
 ---
 

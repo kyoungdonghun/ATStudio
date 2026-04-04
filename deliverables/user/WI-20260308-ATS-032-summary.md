@@ -5,7 +5,7 @@ Status: Completed
 
 ## 수정 내역
 
-### docs/check/atstudio-front-list.md
+### docs/ui/atstudio-front-list.md
 
 | # | 항목 | 위치 |
 |---|------|------|
@@ -15,7 +15,7 @@ Status: Completed
 | 4 | `playlists/{id}` → `playlists/{playlistId}` (§3.5, §3.8 Screen 9 화면) | line 53 |
 | 5 | `users/{id}/licenses/{id}` → `users/{userId}/licenses/{licenseId}` (§7.4 K-3 화면) | line 132 |
 
-### docs/check/modal-list.md
+### docs/ui/modal-list.md
 
 | # | 항목 | 위치 |
 |---|------|------|
@@ -32,7 +32,7 @@ Status: Completed
 | 16 | Flow 1 다이어그램: `playlists/{id}` → `playlists/{playlistId}` | Section 3 Flow 1 |
 | 17 | Flow 3 다이어그램: `playlists/{id}/tracks` → `playlists/{playlistId}/tracks` | Section 3 Flow 3 |
 
-### docs/check/screen-flow.md
+### docs/ui/screen-flow.md
 
 | # | 항목 | 위치 |
 |---|------|------|

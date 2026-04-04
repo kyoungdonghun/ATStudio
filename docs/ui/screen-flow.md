@@ -6,9 +6,9 @@ owner: MA
 category: guide
 status: confirmed
 dependencies:
-  - path: docs/check/atstudio-front-list.md
+  - path: docs/ui/atstudio-front-list.md
     reason: Screen number system (primary source)
-  - path: docs/check/modal-list.md
+  - path: docs/ui/modal-list.md
     reason: Modal trigger points
   - path: docs/design/api-spec.md
     reason: API references

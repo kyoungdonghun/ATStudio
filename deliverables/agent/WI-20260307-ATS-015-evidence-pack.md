@@ -14,46 +14,46 @@
 
 | # | Criterion | File:Line | Result |
 |---|-----------|-----------|--------|
-| 1 | B-1 API에 `4.1 POST /api/play-histories` 추가 | `docs/check/atstudio-front-list.md:27` | PASS |
-| 2 | Screen 1 API에 `10.1 POST /api/likes/{trackId}`, `11.1 POST /api/download-queue` 추가 | `docs/check/atstudio-front-list.md:25` | PASS |
-| 3 | Screen 3 API에 `10.1 POST /api/likes/{trackId}`, `11.1 POST /api/download-queue` 추가 | `docs/check/atstudio-front-list.md:26` | PASS |
-| 4 | Screen 15 API에 `8.7 DELETE /api/questions/{id}` 추가 | `docs/check/atstudio-front-list.md:110` | PASS |
-| 5 | K-7 API에 `1.8 GET /api/tracks/admin` 추가 (기존 `1.2 GET /api/tracks` 교체) | `docs/check/atstudio-front-list.md:136` | PASS |
-| 6 | 버전 v3 → v4, 날짜 2026-03-07 | `docs/check/atstudio-front-list.md:3` | PASS |
+| 1 | B-1 API에 `4.1 POST /api/play-histories` 추가 | `docs/ui/atstudio-front-list.md:27` | PASS |
+| 2 | Screen 1 API에 `10.1 POST /api/likes/{trackId}`, `11.1 POST /api/download-queue` 추가 | `docs/ui/atstudio-front-list.md:25` | PASS |
+| 3 | Screen 3 API에 `10.1 POST /api/likes/{trackId}`, `11.1 POST /api/download-queue` 추가 | `docs/ui/atstudio-front-list.md:26` | PASS |
+| 4 | Screen 15 API에 `8.7 DELETE /api/questions/{id}` 추가 | `docs/ui/atstudio-front-list.md:110` | PASS |
+| 5 | K-7 API에 `1.8 GET /api/tracks/admin` 추가 (기존 `1.2 GET /api/tracks` 교체) | `docs/ui/atstudio-front-list.md:136` | PASS |
+| 6 | 버전 v3 → v4, 날짜 2026-03-07 | `docs/ui/atstudio-front-list.md:3` | PASS |
 
 ### [modal-list.md]
 
 | # | Criterion | File:Line | Result |
 |---|-----------|-----------|--------|
-| 7 | Component Classification에 ReviewModal 행 추가 | `docs/check/modal-list.md:52` | PASS |
-| 8 | M-17 API: `{id}/review` suffix 제거 → `{certificationId}` | `docs/check/modal-list.md:86` | PASS |
-| 9 | M-17 컴포넌트: StatusModal → ReviewModal | `docs/check/modal-list.md:86` | PASS |
-| 10 | M-19 발생 화면: "Screen 21/22" → "Screen 22" | `docs/check/modal-list.md:88` | PASS |
-| 11 | M-20 API: `8.4 DELETE` → `8.7 DELETE /api/questions/{questionId}` | `docs/check/modal-list.md:89` | PASS |
-| 12 | M-22 API: `{id}` → `{trackId}` | `docs/check/modal-list.md:91` | PASS |
-| 13 | Flow 4 성공 응답: `200 OK` → `204 No Content` | `docs/check/modal-list.md:213` | PASS |
-| 14 | frontmatter version: 1.1 → 1.2 | `docs/check/modal-list.md:2` | PASS |
-| 15 | frontmatter dependencies atstudio-front-list.md version: v3 → v4 | `docs/check/modal-list.md:10` | PASS |
-| 16 | 헤더 텍스트 v3 → v4 | `docs/check/modal-list.md:38` | PASS |
-| 17 | 하단 요약 v1.2 2026-03-07 | `docs/check/modal-list.md:261` | PASS |
-| (bonus) | Flow 2 `pendingSubscriptionId TODO T-3` → `pendingSubscriptionId` | `docs/check/modal-list.md:158` | PASS |
+| 7 | Component Classification에 ReviewModal 행 추가 | `docs/ui/modal-list.md:52` | PASS |
+| 8 | M-17 API: `{id}/review` suffix 제거 → `{certificationId}` | `docs/ui/modal-list.md:86` | PASS |
+| 9 | M-17 컴포넌트: StatusModal → ReviewModal | `docs/ui/modal-list.md:86` | PASS |
+| 10 | M-19 발생 화면: "Screen 21/22" → "Screen 22" | `docs/ui/modal-list.md:88` | PASS |
+| 11 | M-20 API: `8.4 DELETE` → `8.7 DELETE /api/questions/{questionId}` | `docs/ui/modal-list.md:89` | PASS |
+| 12 | M-22 API: `{id}` → `{trackId}` | `docs/ui/modal-list.md:91` | PASS |
+| 13 | Flow 4 성공 응답: `200 OK` → `204 No Content` | `docs/ui/modal-list.md:213` | PASS |
+| 14 | frontmatter version: 1.1 → 1.2 | `docs/ui/modal-list.md:2` | PASS |
+| 15 | frontmatter dependencies atstudio-front-list.md version: v3 → v4 | `docs/ui/modal-list.md:10` | PASS |
+| 16 | 헤더 텍스트 v3 → v4 | `docs/ui/modal-list.md:38` | PASS |
+| 17 | 하단 요약 v1.2 2026-03-07 | `docs/ui/modal-list.md:261` | PASS |
+| (bonus) | Flow 2 `pendingSubscriptionId TODO T-3` → `pendingSubscriptionId` | `docs/ui/modal-list.md:158` | PASS |
 
 ### [screen-flow.md]
 
 | # | Criterion | File:Line | Result |
 |---|-----------|-----------|--------|
-| 18 | §1 관리자 GNB에 앨범관리 항목 추가 | `docs/check/screen-flow.md:30` | PASS |
-| 19 | §2 로그아웃 방식 명시 | `docs/check/screen-flow.md:53` | PASS |
+| 18 | §1 관리자 GNB에 앨범관리 항목 추가 | `docs/ui/screen-flow.md:30` | PASS |
+| 19 | §2 로그아웃 방식 명시 | `docs/ui/screen-flow.md:53` | PASS |
 | 20 | §7 `pendingSubscriptionId TODO T-3` 레이블 제거 | Already absent in screen-flow.md; applied to modal-list.md:158 where text resided | PASS |
-| 21 | §11 404/500 에러 → ERR-1/ERR-2 레이블 포함 | `docs/check/screen-flow.md:311-312` | PASS |
-| 22 | 헤더 의존 문서: v4 / v1.2 | `docs/check/screen-flow.md:19` | PASS |
-| 23 | 버전 v1.1 → v1.2, 날짜 2026-03-07 | `docs/check/screen-flow.md:2,19,357` | PASS |
+| 21 | §11 404/500 에러 → ERR-1/ERR-2 레이블 포함 | `docs/ui/screen-flow.md:311-312` | PASS |
+| 22 | 헤더 의존 문서: v4 / v1.2 | `docs/ui/screen-flow.md:19` | PASS |
+| 23 | 버전 v1.1 → v1.2, 날짜 2026-03-07 | `docs/ui/screen-flow.md:2,19,357` | PASS |
 
 ---
 
 ## Change Details
 
-### docs/check/atstudio-front-list.md
+### docs/ui/atstudio-front-list.md
 
 **Before → After (version header)**
 ```
@@ -92,7 +92,7 @@ Before: `1.2 GET /api/tracks` (비활성 포함) `1.6 PUT /api/tracks/{id}` `1.7
 After:  `1.8 GET /api/tracks/admin` `1.6 PUT /api/tracks/{id}` `1.7 DELETE /api/tracks/{id}`
 ```
 
-### docs/check/modal-list.md
+### docs/ui/modal-list.md
 
 **Component Classification — ReviewModal 추가 (line 52)**
 ```
@@ -135,7 +135,7 @@ Before: → PUT 6.7 /api/user-subscriptions/me (pendingSubscriptionId TODO T-3)
 After:  → PUT 6.7 /api/user-subscriptions/me (pendingSubscriptionId)
 ```
 
-### docs/check/screen-flow.md
+### docs/ui/screen-flow.md
 
 **§1 관리자 GNB (line 30)**
 ```

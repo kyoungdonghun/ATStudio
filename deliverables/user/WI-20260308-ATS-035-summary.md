@@ -6,7 +6,7 @@ React frontend infrastructure for ATStudio has been created from scratch under `
 ### Key Deliverables
 1. **Vite + React 18 + TypeScript project** -- fully configured with build, lint, and typecheck scripts
 2. **ESLint + Prettier** -- zero-error configuration with `@typescript-eslint`, `react-hooks`, `react-refresh` plugins
-3. **CSS design tokens** (`src/styles/tokens.css`) -- all `:root` variables from `docs/check/mockup/main.html` transferred verbatim
+3. **CSS design tokens** (`src/styles/tokens.css`) -- all `:root` variables from `docs/ui/mockup/main.html` transferred verbatim
 4. **React Router v6 with 48 route stubs** -- matching all screens in `atstudio-front-list.md`
 5. **Protected Route guard** -- 4-tier role hierarchy (GUEST / USER / CREATOR / ADMIN)
 6. **Axios client** (`src/api/client.ts`) -- JWT auto-attach, 401 refresh with queue, Vite proxy to `localhost:8080`

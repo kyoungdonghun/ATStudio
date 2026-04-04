@@ -56,7 +56,7 @@ REQ:
 
 참조 문서 (코드와 대조 기준):
 - docs/design/api-spec.md  ← §1 (Tracks), §1.8 (GET /api/tracks/admin), §2 (Tags)
-- docs/check/atstudio-front-list.md  ← K-7 (트랙 관리 화면)
+- docs/ui/atstudio-front-list.md  ← K-7 (트랙 관리 화면)
 
 Files (검사 대상):
 - src/main/java/com/atstudio/atstudio/controller/TrackController.java

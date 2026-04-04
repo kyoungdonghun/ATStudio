@@ -77,9 +77,9 @@
 | MEDIUM | 04 - API 명세 요약 | docs/design/api-spec.md (87개 API) |
 | MEDIUM | 08 - DB 스키마 요약 | docs/design/db-schema.md (23개 테이블) |
 | MEDIUM | 10 - Claude 에이전트 가이드 | .claude/agents/, .claude/skills/, docs/architecture/system-design.md |
-| LOW | 05 - 유스케이스 요약 | docs/check/screen-flow.md |
-| LOW | 06 - 화면 목록 | docs/check/atstudio-front-list.md |
-| LOW | 07 - 화면 흐름도 | docs/check/screen-flow.md |
+| LOW | 05 - 유스케이스 요약 | docs/ui/screen-flow.md |
+| LOW | 06 - 화면 목록 | docs/ui/atstudio-front-list.md |
+| LOW | 07 - 화면 흐름도 | docs/ui/screen-flow.md |
 
 ### 드리프트 탐지 메모
 

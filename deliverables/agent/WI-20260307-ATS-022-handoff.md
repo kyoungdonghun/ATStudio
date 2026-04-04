@@ -67,7 +67,7 @@ Phase 4 체크 결과 (발견 근거):
 
 API 스펙 (수정 기준):
 - docs/design/api-spec.md  ← §1.8 (GET /api/tracks/admin)
-- docs/check/atstudio-front-list.md  ← K-7 (트랙 관리 화면)
+- docs/ui/atstudio-front-list.md  ← K-7 (트랙 관리 화면)
 
 Files (수정 대상):
 - src/main/java/com/atstudio/atstudio/controller/TrackController.java

@@ -63,10 +63,10 @@ REQ:
 - deliverables/user/REQ-20260308-ATS-012.md
 
 참조 (수정 금지):
-- docs/check/mockup/album-detail.html       ← AlbumDetailPage 디자인 (바이닐 CSS)
-- docs/check/mockup/subscription.html       ← SubscriptionPage 디자인 (3플랜 카드, FAQ)
+- docs/ui/mockup/album-detail.html       ← AlbumDetailPage 디자인 (바이닐 CSS)
+- docs/ui/mockup/subscription.html       ← SubscriptionPage 디자인 (3플랜 카드, FAQ)
 - docs/design/api-spec.md (§1 Track, §3 Album, §6 Notice, §9 Subscription)
-- docs/check/atstudio-front-list.md         ← URL 경로
+- docs/ui/atstudio-front-list.md         ← URL 경로
 
 기존 파일 (읽기):
 - frontend/src/api/client.ts

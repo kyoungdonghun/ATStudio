@@ -23,7 +23,7 @@ Date: 2026-03-06
 
 ## MINOR-001 상세
 
-- **File**: docs/check/atstudio-front-list.md, line 42
+- **File**: docs/ui/atstudio-front-list.md, line 42
 - **내용**: L-5에 `15.5 DELETE /api/albums/{id}` 누락
 - **근거**: api-spec.md:1661-1666 Section 15.5 존재 확인, Playlist Screen 9의 `3.8 DELETE` 대칭 패턴
 - **수정**: MA가 직접 수정 완료 (15.5 참조 추가)

@@ -134,7 +134,7 @@ Version: v5 → v6
 Per WI constraints, the following were not touched:
 
 - `docs/design/usecase/` — WI-014/015 scope
-- `docs/check/atstudio-front-list.md` — WI-014/015 scope
+- `docs/ui/atstudio-front-list.md` — WI-014/015 scope
 - Any backend Java source files
 
 ---

@@ -55,7 +55,7 @@ REQ/Context Docs:
 - deliverables/agent/WI-20260306-ATS-003-evidence-pack.md
 
 Files (리뷰 대상):
-- docs/check/atstudio-front-list.md
+- docs/ui/atstudio-front-list.md
 - docs/design/api-spec.md (Section 3)
 - docs/design/usecase/sound-playlist.md
 - docs/design/usecase/index.md

@@ -14,7 +14,7 @@ Why:
 - API 참조 누락, 명칭 혼용, 화면 수 오류 등 검출
 
 Scope:
-- In: `docs/check/atstudio-front-list.md` v2 전체 리뷰
+- In: `docs/ui/atstudio-front-list.md` v2 전체 리뷰
 - Out: 문서 직접 수정 없음 (리뷰 및 피드백만)
 
 DoD:
@@ -53,7 +53,7 @@ REQ/Context Docs:
 - deliverables/agent/WI-20260306-ATS-005-evidence-pack.md
 
 Files (리뷰 대상):
-- docs/check/atstudio-front-list.md
+- docs/ui/atstudio-front-list.md
 
 Files (검증 기준):
 - docs/design/api-spec.md (Section 3, 15 집중)
