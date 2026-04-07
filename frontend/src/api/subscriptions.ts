@@ -10,6 +10,7 @@ export interface SubscriptionPlan {
   priceYearly: number;
   downloadPerDay: number;
   maxWhitelistChannels: number;
+  maxPlaylists: number;
   isActive: boolean;
 }
 

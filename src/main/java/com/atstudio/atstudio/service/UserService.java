@@ -30,6 +30,7 @@ public class UserService {
     private final TrackDownloadRepository trackDownloadRepository;
     private final LicenseRepository licenseRepository;
     private final WhitelistChannelRepository whitelistChannelRepository;
+    private final PlaylistService playlistService;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -47,11 +48,13 @@ public class UserService {
                 .phonePersonal(request.getPhonePersonal())
                 .phoneCompany(request.getPhoneCompany())
                 .job(request.getJob())
+                .companyName(request.getCompanyName())
                 .userType(request.getUserType())
                 .role(UserRole.USER)
                 .build();
 
         user = userRepository.save(user);
+        playlistService.createDefaultPlaylist(user);
         emailService.sendVerificationEmail(user);
         return toResponse(user);
     }
@@ -74,7 +77,7 @@ public class UserService {
         }
 
         user.updateProfile(request.getNickname(), request.getPhonePersonal(),
-                request.getPhoneCompany(), request.getJob());
+                request.getPhoneCompany(), request.getJob(), request.getCompanyName());
         return toResponse(user);
     }
 
@@ -115,7 +118,7 @@ public class UserService {
         }
 
         user.completeProfile(request.getNickname(), request.getPhonePersonal(),
-                request.getPhoneCompany(), request.getJob(), request.getUserType());
+                request.getPhoneCompany(), request.getJob(), request.getUserType(), request.getCompanyName());
         return toResponse(user);
     }
 
@@ -176,6 +179,7 @@ public class UserService {
                 user.getPhonePersonal(),
                 user.getPhoneCompany(),
                 user.getJob() != null ? user.getJob().name() : null,
+                user.getCompanyName(),
                 user.getUserType().name(),
                 user.getRole().name(),
                 user.isVerified(),

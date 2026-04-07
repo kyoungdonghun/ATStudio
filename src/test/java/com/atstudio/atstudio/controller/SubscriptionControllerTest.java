@@ -34,7 +34,7 @@ class SubscriptionControllerTest {
     private static final SubscriptionResponse MOCK_SUB = new SubscriptionResponse(
             1L, "Basic", "Basic plan", "INDIVIDUAL",
             BigDecimal.valueOf(9900), BigDecimal.valueOf(99000),
-            10, 3, true);
+            10, 3, 3, true);
 
     // -- 6.1 GET /api/subscriptions (PUBLIC) ---------------------------------
 

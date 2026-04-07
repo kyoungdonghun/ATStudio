@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createAlbum } from '@/api/albums';
-import { TITLE_ALBUM_MAX, DESCRIPTION_MAX, IMAGE_MAX_SIZE_MB, isFileSizeOk } from '@/utils/validation';
+import { TITLE_ALBUM_MAX, DESCRIPTION_MAX, IMAGE_MAX_SIZE_MB, isFileSizeOk, validateImageDimensions } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './AlbumCreatePage.module.css';
 
@@ -20,18 +20,35 @@ export default function AlbumCreatePage() {
   const [error, setError] = useState<string | null>(null);
 
   /* ── Thumbnail handler ── */
-  function handleThumbnailChange(e: ChangeEvent<HTMLInputElement>) {
+  async function handleThumbnailChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
-    if (file && !isFileSizeOk(file, IMAGE_MAX_SIZE_MB)) {
-      setError(`썸네일 이미지는 ${IMAGE_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`);
+    if (!file) {
+      setThumbnail(null);
+      if (thumbPreview) URL.revokeObjectURL(thumbPreview);
+      setThumbPreview(null);
       return;
     }
+
+    if (!isFileSizeOk(file, IMAGE_MAX_SIZE_MB)) {
+      setError(`썸네일 이미지는 ${IMAGE_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`);
+      e.target.value = '';
+      return;
+    }
+
+    const dimError = await validateImageDimensions(file);
+    if (dimError) {
+      setError(dimError);
+      e.target.value = '';
+      return;
+    }
+
+    setError(null);
     setThumbnail(file);
 
     if (thumbPreview) {
       URL.revokeObjectURL(thumbPreview);
     }
-    setThumbPreview(file ? URL.createObjectURL(file) : null);
+    setThumbPreview(URL.createObjectURL(file));
   }
 
   /* ── Submit ── */

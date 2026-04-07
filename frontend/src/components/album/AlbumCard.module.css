@@ -49,17 +49,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
   transition: opacity 0.15s, color 0.15s;
-}
-
-.card:hover .likeBtn {
-  opacity: 1;
 }
 
 .likeBtnActive {
   color: var(--accent);
-  opacity: 1;
 }
 
 .likeCount {

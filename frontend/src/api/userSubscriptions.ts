@@ -8,7 +8,7 @@ export interface MySubscription {
   id: number;
   userId?: number;
   userNickname?: string;
-  subscription: Pick<SubscriptionPlan, 'id' | 'name'>;
+  subscription: SubscriptionPlan;
   billingCycle: 'MONTHLY' | 'YEARLY';
   status: 'ACTIVE' | 'CANCELLED' | 'EXPIRED';
   startedAt: string;

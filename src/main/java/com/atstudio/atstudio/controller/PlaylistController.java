@@ -73,6 +73,21 @@ public class PlaylistController {
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
+    // ── 3.4b POST /api/playlists/{id}/tracks/batch ─────────────────────────
+
+    @PostMapping("/{playlistId}/tracks/batch")
+    public ResponseEntity<ResponseDTO<Integer>> addTracksBatch(
+            @PathVariable Long playlistId,
+            @Valid @RequestBody PlaylistBatchAddTrackRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        int added = playlistService.addTracksBatch(playlistId, request, userDetails);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ResponseDTO.<Integer>withSingleData()
+                        .message(added + " tracks added")
+                        .data(added)
+                        .build());
+    }
+
     // ── 3.5 PUT /api/playlists/{id} ──────────────────────────────────────────
 
     @PutMapping(value = "/{playlistId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

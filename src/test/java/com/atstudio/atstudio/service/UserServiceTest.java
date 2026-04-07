@@ -36,12 +36,14 @@ class UserServiceTest {
 
     @Mock UserRepository userRepository;
     @Mock PasswordEncoder passwordEncoder;
+    @Mock EmailService emailService;
     @Mock LikeRepository likeRepository;
     @Mock DownloadQueueRepository downloadQueueRepository;
     @Mock PlayHistoryRepository playHistoryRepository;
     @Mock TrackDownloadRepository trackDownloadRepository;
     @Mock LicenseRepository licenseRepository;
     @Mock WhitelistChannelRepository whitelistChannelRepository;
+    @Mock PlaylistService playlistService;
 
     @InjectMocks UserService userService;
 

@@ -73,6 +73,7 @@
   border-bottom: 1px solid var(--border);
   overflow: hidden;
   max-height: 42px;
+  overflow-x: auto;
 }
 
 .filterRow:last-child {
@@ -94,9 +95,10 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  overflow: hidden;
+  overflow-x: auto;
   flex: 1;
   min-width: 0;
+  flex-wrap: nowrap;
 }
 
 .filterSpacer {

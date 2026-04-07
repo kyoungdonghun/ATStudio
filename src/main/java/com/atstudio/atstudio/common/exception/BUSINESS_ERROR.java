@@ -127,8 +127,8 @@ public enum BUSINESS_ERROR {
 
     PLAYLIST_LIMIT_EXCEEDED(
             HttpStatus.CONFLICT,
-            "플레이리스트는 최대 3개까지 생성할 수 있습니다.",
-            "활성 플레이리스트 3개 초과 시도."),
+            "구독 플랜의 재생목록 한도를 초과했습니다.",
+            "구독 플랜 maxPlaylists 초과 시도."),
 
     // ── Auth ──────────────────────────────────────────────────────────────────
     INVALID_CREDENTIALS(

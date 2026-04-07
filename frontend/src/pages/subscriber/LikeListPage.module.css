@@ -290,12 +290,6 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  opacity: 0;
-  transition: opacity 0.12s;
-}
-
-.row:hover .hoverActions {
-  opacity: 1;
 }
 
 /* ── Add to playlist ── */

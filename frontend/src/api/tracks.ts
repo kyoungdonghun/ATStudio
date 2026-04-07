@@ -68,6 +68,12 @@ export async function fetchTrackDetail(trackId: number): Promise<TrackDetail> {
   return data.data;
 }
 
+/** GET /api/tracks/admin/{trackId} -- admin track detail (includes inactive) */
+export async function fetchTrackDetailForAdmin(trackId: number): Promise<TrackDetail> {
+  const { data } = await client.get<ApiResponse<TrackDetail>>(`/tracks/admin/${trackId}`);
+  return data.data;
+}
+
 /* ── Admin track list item (includes isActive) ── */
 
 export interface AdminTrackListItem {

@@ -34,6 +34,9 @@ public class CompleteProfileRequest {
     @NotNull
     private UserJob job;
 
+    @Size(max = 100)
+    private String companyName;
+
     @NotNull
     private UserType userType;
 }

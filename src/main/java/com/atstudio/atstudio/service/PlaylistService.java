@@ -44,8 +44,13 @@ public class PlaylistService {
         User user = validateSubscriber(userDetails);
 
         boolean isAdmin = userDetails.getRole() == UserRole.ADMIN;
-        if (!isAdmin && playlistRepository.countByUserAndIsActiveTrue(user) >= 3) {
-            throw new BusinessException(BUSINESS_ERROR.PLAYLIST_LIMIT_EXCEEDED);
+        if (!isAdmin) {
+            int maxPlaylists = userSubscriptionRepository.findActiveByUser(user, LocalDate.now())
+                    .map(us -> us.getSubscription().getMaxPlaylists())
+                    .orElse(3);
+            if (playlistRepository.countByUserAndIsActiveTrue(user) >= maxPlaylists) {
+                throw new BusinessException(BUSINESS_ERROR.PLAYLIST_LIMIT_EXCEEDED);
+            }
         }
 
         String thumbnailUrl = (thumbnailFile != null && !thumbnailFile.isEmpty())
@@ -133,6 +138,45 @@ public class PlaylistService {
         playlistTrackRepository.save(playlistTrack);
     }
 
+    // ── 3.4b POST /api/playlists/{id}/tracks/batch ─────────────────────────
+
+    @Transactional
+    public int addTracksBatch(Long playlistId,
+                              PlaylistBatchAddTrackRequest request,
+                              CustomUserDetails userDetails) {
+        validateSubscriber(userDetails);
+        Playlist playlist = getOwnedPlaylist(playlistId, userDetails.getId());
+
+        int currentOrder = (int) playlistTrackRepository.countByIdPlaylistId(playlistId);
+        int added = 0;
+
+        for (Long trackId : request.trackIds()) {
+            PlaylistTrackId id = new PlaylistTrackId(playlistId, trackId);
+            if (playlistTrackRepository.existsById(id)) {
+                continue; // skip duplicates silently
+            }
+
+            Track track = trackRepository.findById(trackId)
+                    .filter(Track::isActive)
+                    .orElse(null);
+            if (track == null) {
+                continue; // skip invalid tracks
+            }
+
+            PlaylistTrack playlistTrack = PlaylistTrack.builder()
+                    .id(id)
+                    .playlist(playlist)
+                    .track(track)
+                    .trackOrder(currentOrder + added)
+                    .build();
+
+            playlistTrackRepository.save(playlistTrack);
+            added++;
+        }
+
+        return added;
+    }
+
     // ── 3.5 PUT /api/playlists/{id} ──────────────────────────────────────────
 
     @Transactional
@@ -200,6 +244,21 @@ public class PlaylistService {
         Playlist playlist = getOwnedPlaylist(playlistId, userDetails.getId());
         playlistTrackRepository.deleteAllByIdPlaylistId(playlistId);
         playlist.deactivate();
+    }
+
+    // ── Default playlist on signup ──────────────────────────────────────────
+
+    /**
+     * Creates a default playlist for a newly registered user.
+     * Bypasses subscription validation and playlist count limit.
+     */
+    @Transactional
+    public void createDefaultPlaylist(User user) {
+        Playlist playlist = Playlist.builder()
+                .title("내 재생목록")
+                .user(user)
+                .build();
+        playlistRepository.save(playlist);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

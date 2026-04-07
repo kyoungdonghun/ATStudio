@@ -106,7 +106,7 @@ class SecurityFilterChainTest {
         CustomUserDetails userDetails = buildUserDetails(1L);
         when(customUserDetailsService.loadUserById(1L)).thenReturn(userDetails);
         when(userService.getMyProfile(1L)).thenReturn(
-                new UserResponse(1L, "nick", "user@test.com", null, null, null, "INDIVIDUAL", "USER", false, null));
+                new UserResponse(1L, "nick", "user@test.com", null, null, null, null, "INDIVIDUAL", "USER", false, null));
 
         mockMvc.perform(get("/api/users/me")
                         .header("Authorization", "Bearer " + token))
@@ -120,7 +120,7 @@ class SecurityFilterChainTest {
         CustomUserDetails userDetails = buildUserDetails(1L);
         when(customUserDetailsService.loadUserById(1L)).thenReturn(userDetails);
         when(userService.updateMyProfile(anyLong(), any())).thenReturn(
-                new UserResponse(1L, "nick", "user@test.com", null, null, null, "INDIVIDUAL", "USER", false, null));
+                new UserResponse(1L, "nick", "user@test.com", null, null, null, null, "INDIVIDUAL", "USER", false, null));
 
         mockMvc.perform(put("/api/users/me")
                         .header("Authorization", "Bearer " + token)

@@ -152,6 +152,21 @@
   color: var(--accent);
 }
 
+/* ── Password hints ── */
+
+.pwHints {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.pwValid {
+  color: var(--accent);
+}
+
+.pwInvalid {
+  color: var(--error);
+}
+
 /* ══ Mobile ══ */
 @media (max-width: 767px) {
   .page {

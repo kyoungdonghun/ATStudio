@@ -47,6 +47,9 @@ public class User extends BaseEntity {
     @Column(length = 20)
     private UserJob job;
 
+    @Column(name = "company_name", length = 100)
+    private String companyName;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "user_type", nullable = false, length = 20)
     @Builder.Default
@@ -67,11 +70,12 @@ public class User extends BaseEntity {
         this.refreshToken = null;
     }
 
-    public void updateProfile(String nickname, String phonePersonal, String phoneCompany, UserJob job) {
+    public void updateProfile(String nickname, String phonePersonal, String phoneCompany, UserJob job, String companyName) {
         if (nickname != null) this.nickname = nickname;
         if (phonePersonal != null) this.phonePersonal = phonePersonal;
         if (phoneCompany != null) this.phoneCompany = phoneCompany;
         if (job != null) this.job = job;
+        this.companyName = companyName;
     }
 
     public void withdraw() {
@@ -96,11 +100,12 @@ public class User extends BaseEntity {
         this.isVerified = true;
     }
 
-    public void completeProfile(String nickname, String phonePersonal, String phoneCompany, UserJob job, UserType userType) {
+    public void completeProfile(String nickname, String phonePersonal, String phoneCompany, UserJob job, UserType userType, String companyName) {
         this.nickname = nickname;
         this.phonePersonal = phonePersonal;
         if (phoneCompany != null) this.phoneCompany = phoneCompany;
         this.job = job;
         this.userType = userType;
+        this.companyName = companyName;
     }
 }

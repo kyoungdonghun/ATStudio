@@ -29,7 +29,7 @@ export interface PlaylistCreateRequest {
 
 /* ── API functions ── */
 
-/** GET /api/playlists -- my playlists (no pagination, max 3) */
+/** GET /api/playlists -- my playlists (no pagination, limit per subscription tier) */
 export async function fetchMyPlaylists(): Promise<{ dataList: Playlist[] }> {
   const { data } = await client.get<{ dataList: Playlist[] }>('/playlists');
   return data;
@@ -92,6 +92,18 @@ export async function reorderTracks(
   tracks: { trackId: number; trackOrder: number }[],
 ): Promise<void> {
   await client.put(`/playlists/${playlistId}/tracks`, { tracks });
+}
+
+/** POST /api/playlists/{playlistId}/tracks/batch -- add multiple tracks */
+export async function addTracksToPlaylistBatch(
+  playlistId: number,
+  trackIds: number[],
+): Promise<number> {
+  const { data } = await client.post<ApiResponse<number>>(
+    `/playlists/${playlistId}/tracks/batch`,
+    { trackIds },
+  );
+  return data.data;
 }
 
 /** DELETE /api/playlists/{playlistId}/tracks/{trackId} -- remove track */

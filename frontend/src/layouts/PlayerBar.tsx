@@ -47,6 +47,8 @@ export default function PlayerBar() {
   const [showPlModal, setShowPlModal] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
+  const mobileMiniProgressRef = useRef<HTMLDivElement>(null);
+  const mobileSeekRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -73,8 +75,49 @@ export default function PlayerBar() {
     [duration, seek],
   );
 
+  const handleMobileMiniProgressClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!mobileMiniProgressRef.current || !duration) return;
+      const rect = mobileMiniProgressRef.current.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      seek(ratio * duration);
+    },
+    [duration, seek],
+  );
+
+  const handleMobileSeekClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!mobileSeekRef.current || !duration) return;
+      const rect = mobileSeekRef.current.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      seek(ratio * duration);
+    },
+    [duration, seek],
+  );
+
   if (!currentTrack) {
-    return null;
+    return (
+      <>
+        <div className={styles.player}>
+          <div className={styles.trackInfo}>
+            <div className={styles.thumb}>{'\u266B'}</div>
+            <div className={styles.trackMeta}>
+              <span className={styles.trackName}>재생할 곡을 선택하세요</span>
+            </div>
+          </div>
+        </div>
+        <div className={styles.mobilePlayer}>
+          <div className={styles.mobileBar}>
+            <div className={styles.mobileInfo}>
+              <div className={styles.thumb}>{'\u266B'}</div>
+              <div className={styles.trackMeta}>
+                <span className={styles.trackName}>재생할 곡을 선택하세요</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
   }
 
   const trackDuration = duration || currentTrack.duration || 0;
@@ -184,7 +227,24 @@ export default function PlayerBar() {
               aria-label={muted ? 'Unmute' : 'Mute'}
               title={muted ? '음소거 해제' : '음소거'}
             >
-              {muted || volume === 0 ? '\uD83D\uDD07' : volume < 0.5 ? '\uD83D\uDD09' : '\uD83D\uDD0A'}
+              {muted || volume === 0 ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <line x1="23" y1="9" x2="17" y2="15" />
+                  <line x1="17" y1="9" x2="23" y2="15" />
+                </svg>
+              ) : volume < 0.5 ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                </svg>
+              )}
             </button>
             <input
               type="range"
@@ -232,7 +292,7 @@ export default function PlayerBar() {
       {/* ── Mobile: mini bar ── */}
       <div className={styles.mobilePlayer}>
         {/* Mini progress bar on top */}
-        <div className={styles.mobileProgressTrack} onClick={handleProgressClick} ref={progressRef}>
+        <div className={styles.mobileProgressTrack} onClick={handleMobileMiniProgressClick} ref={mobileMiniProgressRef}>
           <div className={styles.mobileProgressFill} style={{ width: `${progressPercent}%` }} />
         </div>
 
@@ -309,26 +369,44 @@ export default function PlayerBar() {
             </button>
           </div>
 
-          {/* Time */}
-          <div className={styles.mobileTime}>
-            <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(trackDuration)}</span>
+          {/* Progress / Seek bar */}
+          <div className={styles.mobileSeek}>
+            <span className={styles.mobileSeekTime}>{formatTime(currentTime)}</span>
+            <div
+              className={styles.mobileSeekTrack}
+              onClick={handleMobileSeekClick}
+              ref={mobileSeekRef}
+            >
+              <div
+                className={styles.mobileSeekFill}
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <span className={styles.mobileSeekTime}>{formatTime(trackDuration)}</span>
           </div>
 
-          {/* Volume */}
-          <div className={styles.mobileVolume}>
-            <button className={styles.volumeBtn} onClick={toggleMute}>
-              {muted || volume === 0 ? '\uD83D\uDD07' : volume < 0.5 ? '\uD83D\uDD09' : '\uD83D\uDD0A'}
+          {/* Volume toggle (icon only, no slider) */}
+          <div className={styles.mobileVolumeToggle}>
+            <button className={styles.volumeBtn} onClick={toggleMute} aria-label={muted ? '음소거 해제' : '음소거'}>
+              {muted || volume === 0 ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <line x1="23" y1="9" x2="17" y2="15" />
+                  <line x1="17" y1="9" x2="23" y2="15" />
+                </svg>
+              ) : volume < 0.5 ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                </svg>
+              )}
             </button>
-            <input
-              type="range"
-              className={styles.volumeSlider}
-              min={0}
-              max={1}
-              step={0.01}
-              value={muted ? 0 : volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-            />
           </div>
 
           {/* Action buttons */}

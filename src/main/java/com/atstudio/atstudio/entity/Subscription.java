@@ -41,6 +41,10 @@ public class Subscription extends BaseEntity {
     @Column(name = "max_whitelist_channels", nullable = false)
     private int maxWhitelistChannels;
 
+    @Column(name = "max_playlists", nullable = false)
+    @Builder.Default
+    private int maxPlaylists = 3;
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private boolean isActive = true;

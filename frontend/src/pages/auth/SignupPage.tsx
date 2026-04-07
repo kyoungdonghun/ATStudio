@@ -39,6 +39,7 @@ export default function SignupPage() {
   const [phonePersonal, setPhonePersonal] = useState('');
   const [phoneCompany, setPhoneCompany] = useState('');
   const [job, setJob] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -79,9 +80,16 @@ export default function SignupPage() {
       setError('올바른 전화번호 형식을 입력해주세요.');
       return false;
     }
-    if (!job) {
-      setError('직업을 선택해주세요.');
-      return false;
+    if (userType === 'BUSINESS') {
+      if (!companyName.trim()) {
+        setError('회사명을 입력해주세요.');
+        return false;
+      }
+    } else {
+      if (!job) {
+        setError('직업을 선택해주세요.');
+        return false;
+      }
     }
     return true;
   }
@@ -115,7 +123,8 @@ export default function SignupPage() {
         password,
         phonePersonal,
         phoneCompany: phoneCompany.trim() || null,
-        job,
+        job: userType === 'BUSINESS' ? '' : job,
+        companyName: userType === 'BUSINESS' ? companyName.trim() : undefined,
         userType,
       });
 
@@ -207,6 +216,13 @@ export default function SignupPage() {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
             />
+            {password.length > 0 && (
+              <div className={styles.pwHints}>
+                <span className={password.length >= PASSWORD_MIN ? styles.pwValid : styles.pwInvalid}>
+                  {`${PASSWORD_MIN}자 이상`}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Password Confirm */}
@@ -258,24 +274,41 @@ export default function SignupPage() {
             </div>
           )}
 
-          {/* Job */}
-          <div className={styles.fieldGroup}>
-            <label className={styles.label} htmlFor="signup-job">
-              직업
-            </label>
-            <select
-              id="signup-job"
-              className={styles.select}
-              value={job}
-              onChange={(e) => setJob(e.target.value)}
-            >
-              {JOB_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Job (INDIVIDUAL) / Company Name (BUSINESS) */}
+          {userType === 'BUSINESS' ? (
+            <div className={styles.fieldGroup}>
+              <label className={styles.label} htmlFor="signup-company-name">
+                회사명
+              </label>
+              <input
+                id="signup-company-name"
+                className={styles.input}
+                type="text"
+                placeholder="회사명을 입력하세요"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                maxLength={100}
+              />
+            </div>
+          ) : (
+            <div className={styles.fieldGroup}>
+              <label className={styles.label} htmlFor="signup-job">
+                직업
+              </label>
+              <select
+                id="signup-job"
+                className={styles.select}
+                value={job}
+                onChange={(e) => setJob(e.target.value)}
+              >
+                {JOB_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <p className={styles.errorText}>{error}</p>
 

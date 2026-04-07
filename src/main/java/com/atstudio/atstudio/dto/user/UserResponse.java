@@ -9,6 +9,7 @@ public record UserResponse(
         String phonePersonal,
         String phoneCompany,
         String job,
+        String companyName,
         String userType,
         String role,
         boolean isVerified,

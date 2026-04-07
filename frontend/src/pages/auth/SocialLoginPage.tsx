@@ -55,6 +55,7 @@ export default function SocialLoginPage() {
           phonePersonal: me.phonePersonal,
           phoneCompany: me.phoneCompany,
           job: me.job as UserJob | null,
+          companyName: me.companyName,
           userType: me.userType as UserType,
           isVerified: me.isVerified,
           createdAt: me.createdAt,

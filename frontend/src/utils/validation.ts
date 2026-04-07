@@ -13,6 +13,8 @@ export const PHONE_MAX_DIGITS = 11;
 
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+export const COMPANY_NAME_MAX = 100;
+
 // ── Content ──
 export const TITLE_TRACK_MAX = 100;
 export const TITLE_ALBUM_MAX = 100;
@@ -82,4 +84,29 @@ export function isValidPassword(v: string): boolean {
 
 export function isFileSizeOk(file: File, maxMb: number): boolean {
   return file.size <= maxMb * 1024 * 1024;
+}
+
+/** Validate image dimensions: min 200x200, aspect ratio within 1:3 ~ 3:1 */
+export function validateImageDimensions(file: File): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      if (img.width < 200 || img.height < 200) {
+        resolve('이미지는 최소 200x200px 이상이어야 합니다.');
+        return;
+      }
+      const ratio = img.width / img.height;
+      if (ratio > 3 || ratio < 1 / 3) {
+        resolve('이미지 비율이 너무 극단적입니다. 정사각형에 가까운 이미지를 사용해주세요.');
+        return;
+      }
+      resolve(null);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(img.src);
+      resolve('이미지 파일을 읽을 수 없습니다.');
+    };
+    img.src = URL.createObjectURL(file);
+  });
 }

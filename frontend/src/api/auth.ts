@@ -15,6 +15,7 @@ export interface RegisterRequest {
   phonePersonal: string;
   phoneCompany: string | null;
   job: string;
+  companyName?: string;
   userType: 'INDIVIDUAL' | 'BUSINESS';
 }
 
@@ -48,6 +49,7 @@ export interface MeResponse {
   phonePersonal: string;
   phoneCompany: string | null;
   job: string;
+  companyName: string | null;
   userType: string;
   role: 'USER' | 'ADMIN';
   isVerified: boolean;

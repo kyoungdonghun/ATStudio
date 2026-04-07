@@ -190,6 +190,13 @@ public class TrackService {
         track.deactivate();
     }
 
+    public TrackResponse getTrackForAdmin(Long trackId) {
+        Track track = trackRepository.findByIdWithTags(trackId)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND));
+        List<Tag> tags = track.getTrackTags().stream().map(TrackTag::getTag).toList();
+        return TrackResponse.from(track, tags);
+    }
+
     public ResponseDTO<AdminTrackListItemResponse> getTracksForAdmin(Boolean isActive, int page, int size) {
         Pageable pageable = PageRequest.of(Math.max(0, page - 1), size, Sort.by(Sort.Direction.DESC, "createdAt"));
 

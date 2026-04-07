@@ -19,6 +19,8 @@ public final class ValidationConstants {
     public static final String PHONE_PATTERN = "^\\d{2,3}-\\d{3,4}-\\d{4}$";
     public static final int PHONE_MAX = 20;
 
+    public static final int COMPANY_NAME_MAX = 100;
+
     // ── Content ──
     public static final int TITLE_TRACK_MAX = 100;
     public static final int TITLE_ALBUM_MAX = 100;

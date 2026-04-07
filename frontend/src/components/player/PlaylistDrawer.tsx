@@ -12,10 +12,14 @@ import {
   type PlaylistTrack,
 } from '@/api/playlists';
 import { fetchPlayHistory, deletePlayHistory } from '@/api/playHistory';
-import type { Playlist, PlayHistory } from '@/types';
+import { fetchMySubscription } from '@/api/userSubscriptions';
+import { fetchLikes } from '@/api/likes';
+import type { Playlist, PlayHistory, LikeItem } from '@/types';
 import styles from './PlaylistDrawer.module.css';
 
-type Tab = 'playlists' | 'history';
+const DEFAULT_MAX_PLAYLISTS = 3;
+
+type Tab = 'playlists' | 'history' | 'likes';
 
 interface PlaylistDrawerProps {
   open: boolean;
@@ -30,6 +34,7 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
 
   /* ── Playlist state ── */
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [maxPlaylists, setMaxPlaylists] = useState(DEFAULT_MAX_PLAYLISTS);
   const [selectedPl, setSelectedPl] = useState<PlaylistDetail | null>(null);
   const [plLoading, setPlLoading] = useState(false);
 
@@ -42,6 +47,10 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
   const [history, setHistory] = useState<PlayHistory[]>([]);
   const [histLoading, setHistLoading] = useState(false);
 
+  /* ── Likes state ── */
+  const [likes, setLikes] = useState<LikeItem[]>([]);
+  const [likesLoading, setLikesLoading] = useState(false);
+
   /* ── Drag state ── */
   const dragIdx = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -51,8 +60,19 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
     if (!isAuthenticated) return;
     setPlLoading(true);
     try {
-      const res = await fetchMyPlaylists();
-      setPlaylists(res.dataList ?? []);
+      const [plRes, subRes] = await Promise.allSettled([
+        fetchMyPlaylists(),
+        fetchMySubscription(),
+      ]);
+      if (plRes.status === 'fulfilled') {
+        setPlaylists(plRes.value.dataList ?? []);
+      }
+      if (subRes.status === 'fulfilled') {
+        const sub = subRes.value;
+        if (sub.subscription?.maxPlaylists) {
+          setMaxPlaylists(sub.subscription.maxPlaylists);
+        }
+      }
     } catch { /* ignore */ }
     setPlLoading(false);
   }, [isAuthenticated]);
@@ -68,15 +88,28 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
     setHistLoading(false);
   }, [isAuthenticated]);
 
+  /* ── Load likes ── */
+  const loadLikes = useCallback(async () => {
+    if (!isAuthenticated) return;
+    setLikesLoading(true);
+    try {
+      const res = await fetchLikes();
+      setLikes(res.dataList ?? []);
+    } catch { /* ignore */ }
+    setLikesLoading(false);
+  }, [isAuthenticated]);
+
   useEffect(() => {
     if (!open) return;
     if (tab === 'playlists') {
       loadPlaylists();
       setSelectedPl(null);
-    } else {
+    } else if (tab === 'history') {
       loadHistory();
+    } else {
+      loadLikes();
     }
-  }, [open, tab, loadPlaylists, loadHistory]);
+  }, [open, tab, loadPlaylists, loadHistory, loadLikes]);
 
   if (!open) return null;
 
@@ -185,6 +218,29 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
     setDragOverIdx(null);
   }
 
+  /* ── Like handlers ── */
+
+  function handlePlayLike(item: LikeItem) {
+    playTrack({
+      id: item.trackId,
+      title: item.title,
+      artistName: '',
+      duration: 0,
+      bpm: item.bpm,
+      tonality: item.tonality,
+      description: null,
+      audioFile: null,
+      thumbnail: item.thumbnail,
+      tags: [],
+      isActive: true,
+      playCount: 0,
+      likeCount: 0,
+      downloadCount: 0,
+      createdAt: '',
+      updatedAt: '',
+    });
+  }
+
   /* ── History handlers ── */
 
   function handlePlayHistory(h: PlayHistory) {
@@ -240,6 +296,12 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
             onClick={() => setTab('history')}
           >
             재생기록
+          </button>
+          <button
+            className={`${styles.tab} ${tab === 'likes' ? styles.tabActive : ''}`}
+            onClick={() => setTab('likes')}
+          >
+            좋아요
           </button>
         </div>
         <button className={styles.closeBtn} onClick={onClose}>
@@ -344,7 +406,7 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
                 </ul>
 
                 {/* Create new */}
-                {playlists.length < 3 && !showCreate && (
+                {playlists.length < maxPlaylists && !showCreate && (
                   <button
                     className={styles.createBtn}
                     onClick={() => setShowCreate(true)}
@@ -389,7 +451,7 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
             )}
           </div>
         )
-      ) : (
+      ) : tab === 'history' ? (
         /* ── History Tab ── */
         <div className={styles.body}>
           {histLoading ? (
@@ -437,6 +499,36 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
                 ))}
               </ul>
             </>
+          )}
+        </div>
+      ) : (
+        /* ── Likes Tab ── */
+        <div className={styles.body}>
+          {likesLoading ? (
+            <div className={styles.empty}>Loading...</div>
+          ) : likes.length === 0 ? (
+            <div className={styles.empty}>{'좋아요한 곡이 없습니다.'}</div>
+          ) : (
+            <ul className={styles.histList}>
+              {likes.map((item) => (
+                <li key={item.trackId} className={styles.histItem}>
+                  <button
+                    className={styles.histPlayBtn}
+                    onClick={() => handlePlayLike(item)}
+                  >
+                    {'\u25B6'}
+                  </button>
+                  <div className={styles.histInfo}>
+                    <div className={styles.histTitle}>{item.title}</div>
+                    <div className={styles.histTime}>
+                      {item.bpm ? `${item.bpm} BPM` : ''}
+                      {item.bpm && item.tonality ? ' \u00B7 ' : ''}
+                      {item.tonality ?? ''}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       )}

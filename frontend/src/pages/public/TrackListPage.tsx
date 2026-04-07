@@ -50,7 +50,7 @@ export default function TrackListPage() {
   const currentPage = Number(searchParams.get('page') ?? '1');
   const activeKeyword = searchParams.get('keyword') ?? '';
   const activeGenres = searchParams.getAll('genre');
-  const activeMood = searchParams.get('mood') ?? '';
+  const activeMoods = searchParams.getAll('mood');
   const activeBpmLabel = searchParams.get('bpm') ?? '';
   const sortValue = (searchParams.get('sort') ?? 'latest') as 'latest' | 'popular' | 'likes' | 'downloads';
 
@@ -163,7 +163,7 @@ export default function TrackListPage() {
 
     if (activeKeyword) params.keyword = activeKeyword;
     if (activeGenres.length > 0) params.genre = activeGenres.join(',');
-    if (activeMood) params.mood = activeMood;
+    if (activeMoods.length > 0) params.mood = activeMoods.join(',');
 
     const bpmPreset = BPM_PRESETS.find((p) => p.label === activeBpmLabel);
     if (bpmPreset) {
@@ -180,7 +180,7 @@ export default function TrackListPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, sortValue, activeKeyword, activeGenres.join(','), activeMood, activeBpmLabel]);
+  }, [currentPage, sortValue, activeKeyword, activeGenres.join(','), activeMoods.join(','), activeBpmLabel]);
 
   useEffect(() => {
     loadTracks();
@@ -210,7 +210,15 @@ export default function TrackListPage() {
   }
 
   function toggleMood(name: string) {
-    setFilter('mood', activeMood === name ? '' : name);
+    const next = new URLSearchParams(searchParams);
+    next.delete('mood');
+    next.delete('page');
+    const updated = activeMoods.includes(name)
+      ? activeMoods.filter((m) => m !== name)
+      : [...activeMoods, name];
+    updated.forEach((m) => next.append('mood', m));
+    next.set('page', '1');
+    setSearchParams(next);
   }
 
   function toggleBpm(label: string) {
@@ -221,15 +229,12 @@ export default function TrackListPage() {
     setFilter('sort', e.target.value);
   }
 
-  function handleFilterApply(genres: string[], mood: string, bpm: string) {
+  function handleFilterApply(genres: string[], moods: string[], bpm: string) {
     const next = new URLSearchParams(searchParams);
     next.delete('genre');
     genres.forEach((g) => next.append('genre', g));
-    if (mood) {
-      next.set('mood', mood);
-    } else {
-      next.delete('mood');
-    }
+    next.delete('mood');
+    moods.forEach((m) => next.append('mood', m));
     if (bpm) {
       next.set('bpm', bpm);
     } else {
@@ -247,8 +252,8 @@ export default function TrackListPage() {
   });
 
   const sortedMoodTags = [...moodTags].sort((a, b) => {
-    const aActive = activeMood === a.name ? 0 : 1;
-    const bActive = activeMood === b.name ? 0 : 1;
+    const aActive = activeMoods.includes(a.name) ? 0 : 1;
+    const bActive = activeMoods.includes(b.name) ? 0 : 1;
     return aActive - bActive;
   });
 
@@ -339,7 +344,7 @@ export default function TrackListPage() {
               <FilterChip
                 key={tag.id}
                 label={tag.name}
-                active={activeMood === tag.name}
+                active={activeMoods.includes(tag.name)}
                 onClick={() => toggleMood(tag.name)}
               />
             ))}
@@ -375,7 +380,7 @@ export default function TrackListPage() {
         genreTags={genreTags}
         moodTags={moodTags}
         activeGenres={activeGenres}
-        activeMood={activeMood}
+        activeMoods={activeMoods}
         activeBpmLabel={activeBpmLabel}
         bpmPresets={BPM_PRESETS}
         onApply={handleFilterApply}

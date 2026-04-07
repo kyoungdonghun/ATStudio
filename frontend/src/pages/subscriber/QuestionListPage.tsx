@@ -103,9 +103,6 @@ export default function QuestionListPage() {
           {'문의 게시판'}
           {pageInfo && <span className={styles.count}>{pageInfo.total}건</span>}
         </h1>
-        <Link to="/questions/new">
-          <Button variant="primary" size="sm">{'새 문의'}</Button>
-        </Link>
       </div>
 
       {/* Tabs */}
@@ -196,6 +193,11 @@ export default function QuestionListPage() {
           )}
         </>
       )}
+
+      {/* Floating action button */}
+      <Link to="/questions/new" className={styles.fabButton}>
+        <Button variant="primary">{'새 문의'}</Button>
+      </Link>
     </div>
   );
 }

@@ -21,6 +21,9 @@ export default function TagManagePage() {
   const [formType, setFormType] = useState<TagType>('GENRE');
   const [formLoading, setFormLoading] = useState(false);
 
+  /* Type filter tab */
+  const [activeType, setActiveType] = useState<string>('ALL');
+
   /* Delete modal */
   const [deleteTarget, setDeleteTarget] = useState<TagItem | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -111,6 +114,7 @@ export default function TagManagePage() {
   }
 
   const formModalOpen = isCreateMode || editTag !== null;
+  const filteredTags = activeType === 'ALL' ? tags : tags.filter((t) => t.type === activeType);
 
   return (
     <div className={styles.page}>
@@ -119,6 +123,22 @@ export default function TagManagePage() {
         <Button size="sm" onClick={openCreate}>
           + New Tag
         </Button>
+      </div>
+
+      {/* Type filter tabs */}
+      <div className={styles.typeTabs}>
+        {['ALL', ...TAG_TYPES].map((t) => (
+          <button
+            key={t}
+            className={`${styles.typeTab} ${activeType === t ? styles.typeTabActive : ''}`}
+            onClick={() => setActiveType(t)}
+          >
+            {t === 'ALL' ? '전체' : t}
+            <span className={styles.typeTabCount}>
+              {t === 'ALL' ? tags.length : tags.filter((tag) => tag.type === t).length}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Table */}
@@ -132,14 +152,14 @@ export default function TagManagePage() {
           </tr>
         </thead>
         <tbody>
-          {tags.length === 0 && (
+          {filteredTags.length === 0 && (
             <tr>
               <td colSpan={4} className={styles.empty}>
                 No tags found.
               </td>
             </tr>
           )}
-          {tags.map((tag) => (
+          {filteredTags.map((tag) => (
             <tr key={tag.id} className={styles.row}>
               <td>{tag.id}</td>
               <td>{tag.name}</td>

@@ -80,7 +80,7 @@ class UserControllerTest {
     @DisplayName("GET /api/users/{id} - ADMIN → 200")
     void getUser_adminRole_returns200() throws Exception {
         given(userService.getUser(anyLong())).willReturn(
-                new UserDetailResponse(1L, "nick", "user@test.com", null, null, null, "INDIVIDUAL", "USER", false, null));
+                new UserDetailResponse(1L, "nick", "user@test.com", null, null, null, null, "INDIVIDUAL", "USER", false, null));
 
         mockMvc.perform(get("/api/users/1")).andExpect(status().isOk());
     }
@@ -111,7 +111,7 @@ class UserControllerTest {
     @DisplayName("PUT /api/users/{id} - ADMIN → 200")
     void updateUser_adminRole_returns200() throws Exception {
         given(userService.updateUserByAdmin(anyLong(), any())).willReturn(
-                new UserDetailResponse(1L, "nick", "user@test.com", null, null, null, "INDIVIDUAL", "USER", true, null));
+                new UserDetailResponse(1L, "nick", "user@test.com", null, null, null, null, "INDIVIDUAL", "USER", true, null));
 
         mockMvc.perform(put("/api/users/1")
                         .contentType(MediaType.APPLICATION_JSON)

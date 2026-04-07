@@ -41,7 +41,7 @@ class UserSubscriptionControllerTest {
     private static final SubscriptionResponse MOCK_SUB_RESPONSE = new SubscriptionResponse(
             1L, "Basic", "Basic plan", "INDIVIDUAL",
             BigDecimal.valueOf(9900), BigDecimal.valueOf(99000),
-            10, 3, true);
+            10, 3, 3, true);
 
     private static final UserSubscriptionResponse MOCK_RESPONSE = new UserSubscriptionResponse(
             100L, 1L, "user1", MOCK_SUB_RESPONSE,

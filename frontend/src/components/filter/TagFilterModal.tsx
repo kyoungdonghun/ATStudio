@@ -10,10 +10,10 @@ interface TagFilterModalProps {
   genreTags: TagItem[];
   moodTags: TagItem[];
   activeGenres: string[];
-  activeMood: string;
+  activeMoods: string[];
   activeBpmLabel: string;
   bpmPresets: readonly { label: string }[];
-  onApply: (genres: string[], mood: string, bpm: string) => void;
+  onApply: (genres: string[], moods: string[], bpm: string) => void;
 }
 
 export default function TagFilterModal({
@@ -22,13 +22,13 @@ export default function TagFilterModal({
   genreTags,
   moodTags,
   activeGenres,
-  activeMood,
+  activeMoods,
   activeBpmLabel,
   bpmPresets,
   onApply,
 }: TagFilterModalProps) {
   const [selectedGenres, setSelectedGenres] = useState<string[]>(activeGenres);
-  const [selectedMood, setSelectedMood] = useState(activeMood);
+  const [selectedMoods, setSelectedMoods] = useState<string[]>(activeMoods);
   const [selectedBpm, setSelectedBpm] = useState(activeBpmLabel);
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,12 +37,12 @@ export default function TagFilterModal({
   useEffect(() => {
     if (open) {
       setSelectedGenres(activeGenres);
-      setSelectedMood(activeMood);
+      setSelectedMoods(activeMoods);
       setSelectedBpm(activeBpmLabel);
       setQuery('');
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [open, activeGenres, activeMood, activeBpmLabel]);
+  }, [open, activeGenres, activeMoods, activeBpmLabel]);
 
   const q = query.trim().toLowerCase();
 
@@ -62,19 +62,25 @@ export default function TagFilterModal({
     );
   }
 
+  function toggleMood(name: string) {
+    setSelectedMoods((prev) =>
+      prev.includes(name) ? prev.filter((m) => m !== name) : [...prev, name],
+    );
+  }
+
   function handleApply() {
-    onApply(selectedGenres, selectedMood, selectedBpm);
+    onApply(selectedGenres, selectedMoods, selectedBpm);
     onClose();
   }
 
   function handleClear() {
     setSelectedGenres([]);
-    setSelectedMood('');
+    setSelectedMoods([]);
     setSelectedBpm('');
   }
 
   const totalSelected =
-    selectedGenres.length + (selectedMood ? 1 : 0) + (selectedBpm ? 1 : 0);
+    selectedGenres.length + selectedMoods.length + (selectedBpm ? 1 : 0);
   const noResults =
     filteredGenres.length === 0 &&
     filteredMoods.length === 0 &&
@@ -135,12 +141,8 @@ export default function TagFilterModal({
                     <FilterChip
                       key={tag.id}
                       label={tag.name}
-                      active={selectedMood === tag.name}
-                      onClick={() =>
-                        setSelectedMood((prev) =>
-                          prev === tag.name ? '' : tag.name,
-                        )
-                      }
+                      active={selectedMoods.includes(tag.name)}
+                      onClick={() => toggleMood(tag.name)}
                     />
                   ))}
                 </div>

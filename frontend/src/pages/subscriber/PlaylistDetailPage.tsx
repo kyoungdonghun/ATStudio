@@ -28,6 +28,7 @@ export default function PlaylistDetailPage() {
   const playTrack = usePlayerStore((s) => s.play);
   const pauseTrack = usePlayerStore((s) => s.pause);
   const resumeTrack = usePlayerStore((s) => s.resume);
+  const addToPlayerQueue = usePlayerStore((s) => s.addToQueue);
   const likeStore = useLikeStore();
   const user = useAuthStore((s) => s.user);
   const toast = useToastStore((s) => s.show);
@@ -142,6 +143,32 @@ export default function PlaylistDetailPage() {
     }
   }
 
+  /* ── Add all tracks to player queue ── */
+  function handleAddAllToQueue() {
+    if (!detail || detail.tracks.length === 0) return;
+    for (const track of detail.tracks) {
+      addToPlayerQueue({
+        id: track.trackId,
+        title: track.title,
+        artistName: '',
+        duration: 0,
+        bpm: track.bpm,
+        tonality: track.tonality,
+        description: null,
+        audioFile: null,
+        thumbnail: null,
+        tags: [],
+        isActive: true,
+        playCount: 0,
+        likeCount: 0,
+        downloadCount: 0,
+        createdAt: '',
+        updatedAt: '',
+      });
+    }
+    toast('success', '전체 곡이 대기열에 추가되었습니다.');
+  }
+
   /* ── Render ── */
 
   if (loading) {
@@ -184,6 +211,15 @@ export default function PlaylistDetailPage() {
           </span>
         </div>
         <div className={styles.headerActions}>
+          {detail.tracks.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleAddAllToQueue}
+            >
+              {'전체 대기열 추가'}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"

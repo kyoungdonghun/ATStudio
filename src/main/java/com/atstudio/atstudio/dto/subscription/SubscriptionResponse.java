@@ -13,6 +13,7 @@ public record SubscriptionResponse(
         BigDecimal priceYearly,
         int downloadPerDay,
         int maxWhitelistChannels,
+        int maxPlaylists,
         boolean isActive
 ) {
     public static SubscriptionResponse from(Subscription subscription) {
@@ -25,6 +26,7 @@ public record SubscriptionResponse(
                 subscription.getPriceYearly(),
                 subscription.getDownloadPerDay(),
                 subscription.getMaxWhitelistChannels(),
+                subscription.getMaxPlaylists(),
                 subscription.isActive()
         );
     }

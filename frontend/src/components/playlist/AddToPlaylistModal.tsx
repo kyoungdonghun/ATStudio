@@ -22,7 +22,7 @@ export default function AddToPlaylistModal({
   const [ready, setReady] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
-  const [result, setResult] = useState<'success' | 'error' | null>(null);
+  const [result, setResult] = useState<'success' | 'error' | 'duplicate' | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -61,9 +61,15 @@ export default function AddToPlaylistModal({
         onSubscriptionRequired?.();
         return;
       }
+      const axErr = err as import('axios').AxiosError<{ errorCode?: string }>;
+      if (axErr.response?.status === 409) {
+        setResult('duplicate');
+        return;
+      }
       setResult('error');
+    } finally {
+      setAdding(false);
     }
-    setAdding(false);
   }
 
   // Don't render anything until subscription check passes
@@ -79,6 +85,8 @@ export default function AddToPlaylistModal({
         </div>
       ) : result === 'success' ? (
         <div className={styles.success}>추가되었습니다!</div>
+      ) : result === 'duplicate' ? (
+        <div className={styles.errorMsg}>이미 재생목록에 추가된 트랙입니다.</div>
       ) : (
         <>
           <ul className={styles.list}>

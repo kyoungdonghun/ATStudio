@@ -167,7 +167,7 @@
 
 .popular {
   border-color: var(--accent);
-  background: #131e30;
+  background: var(--bg2);
   transform: translateY(-6px);
   box-shadow: 0 12px 40px rgba(198, 167, 94, 0.12);
 }

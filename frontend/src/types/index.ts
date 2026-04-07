@@ -47,6 +47,7 @@ export interface User {
   phonePersonal: string | null;
   phoneCompany: string | null;
   job: UserJob | null;
+  companyName: string | null;
   userType: UserType;
   isVerified: boolean;
   createdAt: string;
@@ -135,6 +136,7 @@ export interface Subscription {
   priceYearly: number;
   downloadPerDay: number;
   maxWhitelistChannels: number;
+  maxPlaylists: number;
   isActive: boolean;
 }
 

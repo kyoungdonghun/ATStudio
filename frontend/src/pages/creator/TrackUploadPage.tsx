@@ -348,7 +348,7 @@ export default function TrackUploadPage() {
                             max={BPM_MAX}
                             value={track.bpm}
                             onChange={(e) => updateTrack(idx, { bpm: e.target.value })}
-                            placeholder="120"
+                            placeholder="BPM을 입력해주세요"
                           />
                         </div>
                         <div className={styles.field}>

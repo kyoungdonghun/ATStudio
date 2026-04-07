@@ -27,4 +27,7 @@ public class UpdateProfileRequest {
     private String phoneCompany;
 
     private UserJob job;
+
+    @Size(max = 100)
+    private String companyName;
 }

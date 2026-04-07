@@ -9,6 +9,7 @@ import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.SocialAccountRepository;
 import com.atstudio.atstudio.repository.UserRepository;
+import com.atstudio.atstudio.service.PlaylistService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ public class OAuth2Service {
 
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
+    private final PlaylistService playlistService;
     private final RestClient restClient;
 
     @Value("${oauth2.google.client-id:}")
@@ -99,6 +101,9 @@ public class OAuth2Service {
                 .providerId(userInfo.providerId())
                 .build();
         socialAccountRepository.save(socialAccount);
+
+        // 7. 기본 재생목록 생성 (신규 소셜 가입)
+        playlistService.createDefaultPlaylist(user);
 
         return user;
     }

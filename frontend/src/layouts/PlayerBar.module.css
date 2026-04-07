@@ -141,6 +141,10 @@
   color: var(--accent);
 }
 
+.ctrlBtnActive:hover {
+  color: var(--accent);
+}
+
 .playBtn {
   width: 30px;
   height: 30px;
@@ -445,24 +449,46 @@
     padding: 6px;
   }
 
-  .mobileTime {
-    display: flex;
-    justify-content: space-between;
-    padding: 4px var(--page-px);
-    font-size: 11px;
-    color: var(--text2);
-  }
-
-  .mobileVolume {
+  /* Seek / progress bar in expanded mobile panel */
+  .mobileSeek {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px var(--page-px);
+    padding: 8px var(--page-px) 4px;
   }
 
-  .mobileVolume .volumeSlider {
+  .mobileSeekTrack {
     flex: 1;
-    width: auto;
+    height: 4px;
+    background: var(--border2);
+    border-radius: 2px;
+    position: relative;
+    cursor: pointer;
+  }
+
+  .mobileSeekFill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.1s linear;
+  }
+
+  .mobileSeekTime {
+    font-size: 11px;
+    color: var(--text2);
+    width: 32px;
+    flex-shrink: 0;
+  }
+
+  .mobileSeekTime:last-child {
+    text-align: right;
+  }
+
+  /* Volume toggle icon (no slider on mobile) */
+  .mobileVolumeToggle {
+    display: flex;
+    align-items: center;
+    padding: 4px var(--page-px) 0;
   }
 
   .mobileActions {

@@ -1,6 +1,7 @@
 import axios, { type InternalAxiosRequestConfig, type AxiosResponse } from 'axios';
 import { router } from '@/router';
 import { useToastStore } from '@/store/toastStore';
+import { useAuthStore } from '@/store/authStore';
 
 const client = axios.create({
   baseURL: '/api',
@@ -76,6 +77,7 @@ client.interceptors.response.use(
       processQueue(refreshError, null);
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
+      useAuthStore.getState().logout();
       useToastStore.getState().show('error', '세션이 만료되었습니다. 다시 로그인해주세요.');
       router.navigate('/login');
       return Promise.reject(refreshError);

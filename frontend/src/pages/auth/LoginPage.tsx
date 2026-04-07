@@ -103,6 +103,7 @@ export default function LoginPage() {
         phonePersonal: me.phonePersonal,
         phoneCompany: me.phoneCompany,
         job: me.job as import('@/types').UserJob | null,
+        companyName: me.companyName,
         userType: me.userType as import('@/types').UserType,
         isVerified: me.isVerified,
         createdAt: me.createdAt,

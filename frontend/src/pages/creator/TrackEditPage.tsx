@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchTrackDetail, updateTrack } from '@/api/tracks';
+import { fetchTrackDetailForAdmin, updateTrack } from '@/api/tracks';
 import { fetchTags } from '@/api/tags';
 import type { TagItem } from '@/types';
 import {
@@ -59,7 +59,7 @@ export default function TrackEditPage() {
 
       try {
         const [track, genres, moods, instruments] = await Promise.all([
-          fetchTrackDetail(Number(trackId)),
+          fetchTrackDetailForAdmin(Number(trackId)),
           fetchTags('GENRE'),
           fetchTags('MOOD'),
           fetchTags('INSTRUMENT'),

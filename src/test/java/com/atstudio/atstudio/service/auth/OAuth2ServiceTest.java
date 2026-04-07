@@ -32,6 +32,7 @@ class OAuth2ServiceTest {
 
     @Mock UserRepository userRepository;
     @Mock SocialAccountRepository socialAccountRepository;
+    @Mock com.atstudio.atstudio.service.PlaylistService playlistService;
     @Mock RestClient restClient;
 
     @InjectMocks OAuth2Service oAuth2Service;
@@ -55,7 +56,7 @@ class OAuth2ServiceTest {
         void exchangeGoogleToken_nullResponse_throwsSocialAuthFailed() {
             mockTokenExchangeReturningNull();
 
-            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.GOOGLE, "auth-code"))
+            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.GOOGLE, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.SOCIAL_AUTH_FAILED));
@@ -66,7 +67,7 @@ class OAuth2ServiceTest {
         void exchangeKakaoToken_nullResponse_throwsSocialAuthFailed() {
             mockTokenExchangeReturningNull();
 
-            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.KAKAO, "auth-code"))
+            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.KAKAO, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.SOCIAL_AUTH_FAILED));
@@ -77,7 +78,7 @@ class OAuth2ServiceTest {
         void exchangeNaverToken_nullResponse_throwsSocialAuthFailed() {
             mockTokenExchangeReturningNull();
 
-            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.NAVER, "auth-code"))
+            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.NAVER, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.SOCIAL_AUTH_FAILED));
@@ -105,7 +106,7 @@ class OAuth2ServiceTest {
             mockTokenExchangeReturningValidToken();
             mockUserInfoReturningNull();
 
-            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.GOOGLE, "auth-code"))
+            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.GOOGLE, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.SOCIAL_AUTH_FAILED));
@@ -117,7 +118,7 @@ class OAuth2ServiceTest {
             mockTokenExchangeReturningValidToken();
             mockUserInfoReturningNull();
 
-            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.KAKAO, "auth-code"))
+            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.KAKAO, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.SOCIAL_AUTH_FAILED));
@@ -129,7 +130,7 @@ class OAuth2ServiceTest {
             mockTokenExchangeReturningValidToken();
             mockUserInfoReturningNull();
 
-            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.NAVER, "auth-code"))
+            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.NAVER, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.SOCIAL_AUTH_FAILED));
@@ -142,7 +143,7 @@ class OAuth2ServiceTest {
             // userInfo 응답은 있지만 kakao_account가 null
             mockUserInfoReturning(Map.of("id", "12345"));
 
-            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.KAKAO, "auth-code"))
+            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.KAKAO, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.SOCIAL_AUTH_FAILED));
@@ -155,7 +156,7 @@ class OAuth2ServiceTest {
             // body는 있지만 response 키가 없음
             mockUserInfoReturning(Map.of("result", "success"));
 
-            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.NAVER, "auth-code"))
+            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.NAVER, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.SOCIAL_AUTH_FAILED));
@@ -212,7 +213,7 @@ class OAuth2ServiceTest {
             when(userInfoResponseSpec.body(Map.class)).thenReturn(
                     Map.of("id", "12345", "kakao_account", new java.util.HashMap<>(Map.of("email", "user@kakao.com"))));
 
-            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.KAKAO, "auth-code"))
+            assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.KAKAO, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.SOCIAL_AUTH_FAILED));
@@ -250,7 +251,7 @@ class OAuth2ServiceTest {
         when(socialAccountRepository.findByProviderAndProviderId(SocialProvider.GOOGLE, "google-123"))
                 .thenReturn(Optional.of(socialAccount));
 
-        User result = oAuth2Service.processSocialLogin(SocialProvider.GOOGLE, "auth-code");
+        User result = oAuth2Service.processSocialLogin(SocialProvider.GOOGLE, "auth-code", null);
 
         assertThat(result).isEqualTo(existingUser);
         verify(userRepository, never()).save(any());

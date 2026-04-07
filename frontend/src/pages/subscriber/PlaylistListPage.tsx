@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchMyPlaylists, createPlaylist, deletePlaylist } from '@/api/playlists';
+import { fetchMySubscription } from '@/api/userSubscriptions';
 import { toUploadUrl } from '@/api/client';
 import { useAuthStore } from '@/store/authStore';
 import type { Playlist } from '@/types';
@@ -9,8 +10,8 @@ import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import styles from './PlaylistListPage.module.css';
 
-/** Maximum number of playlists a subscriber can create */
-const MAX_PLAYLISTS_SUBSCRIBER = 3;
+/** Fallback maximum when subscription info is unavailable */
+const DEFAULT_MAX_PLAYLISTS = 3;
 
 /** Placeholder notes for the 4-cell mosaic thumb */
 const NOTES = ['\u266A', '\u266B', '\u2669', '\u266C'];
@@ -19,12 +20,13 @@ export default function PlaylistListPage() {
   const navigate = useNavigate();
   const role = useAuthStore((s) => s.role);
   const isAdmin = role === 'ADMIN';
-  const MAX_PLAYLISTS = isAdmin ? Infinity : MAX_PLAYLISTS_SUBSCRIBER;
 
   /* ── State ── */
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [maxPlaylists, setMaxPlaylists] = useState(DEFAULT_MAX_PLAYLISTS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const MAX_PLAYLISTS = isAdmin ? Infinity : maxPlaylists;
 
   /* ── Create modal ── */
   const [showCreate, setShowCreate] = useState(false);
@@ -38,19 +40,30 @@ export default function PlaylistListPage() {
   const [deleteTarget, setDeleteTarget] = useState<Playlist | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  /* ── Fetch playlists ── */
+  /* ── Fetch playlists + subscription info ── */
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetchMyPlaylists();
-      setPlaylists(res.dataList);
+      const [playlistRes, subRes] = await Promise.allSettled([
+        fetchMyPlaylists(),
+        isAdmin ? Promise.reject('skip') : fetchMySubscription(),
+      ]);
+      if (playlistRes.status === 'fulfilled') {
+        setPlaylists(playlistRes.value.dataList);
+      }
+      if (subRes.status === 'fulfilled') {
+        const sub = subRes.value;
+        if (sub.subscription?.maxPlaylists) {
+          setMaxPlaylists(sub.subscription.maxPlaylists);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '재생목록을 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     load();
@@ -127,7 +140,7 @@ export default function PlaylistListPage() {
         <div className={styles.pageTitle}>
           {'내 재생목록 '}
           <span className={styles.pageTitleCount}>
-            {isAdmin ? `${count}개` : `${count} / ${MAX_PLAYLISTS_SUBSCRIBER}개`}
+            {isAdmin ? `${count}개` : `${count} / ${maxPlaylists}개`}
           </span>
         </div>
         {canCreate && (
@@ -148,7 +161,7 @@ export default function PlaylistListPage() {
             <div className={styles.pnText}>
               <span className={styles.pnStrong}>{'구독 플랜'}</span>
               {' \u2014 재생목록은 최대 '}
-              {MAX_PLAYLISTS_SUBSCRIBER}
+              {maxPlaylists}
               {'개까지 만들 수 있어요.'}
             </div>
           </div>
@@ -160,7 +173,7 @@ export default function PlaylistListPage() {
               />
             </div>
             <span className={styles.pnCount}>
-              {count} / {MAX_PLAYLISTS_SUBSCRIBER}
+              {count} / {maxPlaylists}
             </span>
           </div>
         </div>
@@ -303,7 +316,7 @@ export default function PlaylistListPage() {
             variant="primary"
             onClick={handleCreate}
             loading={creating}
-            disabled={!newTitle.trim()}
+            disabled={!newTitle.trim() || creating}
           >
             {'만들기'}
           </Button>

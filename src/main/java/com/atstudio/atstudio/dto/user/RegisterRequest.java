@@ -41,6 +41,9 @@ public class RegisterRequest {
 
     private UserJob job;
 
+    @Size(max = 100)
+    private String companyName;
+
     @NotNull
     private UserType userType;
 }

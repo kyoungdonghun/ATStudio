@@ -46,6 +46,16 @@ public class TrackController {
         return ResponseEntity.ok(trackService.getTracks(request));
     }
 
+    @GetMapping("/admin/{trackId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<TrackResponse>> getTrackForAdmin(
+            @PathVariable Long trackId) {
+        return ResponseEntity.ok(ResponseDTO.<TrackResponse>withSingleData()
+                .message("Track retrieved")
+                .data(trackService.getTrackForAdmin(trackId))
+                .build());
+    }
+
     @GetMapping("/admin")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<AdminTrackListItemResponse>> getTracksForAdmin(
