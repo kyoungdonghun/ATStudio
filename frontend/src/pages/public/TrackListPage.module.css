@@ -74,6 +74,12 @@
   overflow: hidden;
   max-height: 42px;
   overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.filterRow::-webkit-scrollbar {
+  display: none;
 }
 
 .filterRow:last-child {
@@ -99,6 +105,12 @@
   flex: 1;
   min-width: 0;
   flex-wrap: nowrap;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.filterChips::-webkit-scrollbar {
+  display: none;
 }
 
 .filterSpacer {

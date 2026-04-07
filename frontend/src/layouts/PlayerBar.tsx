@@ -105,6 +105,21 @@ export default function PlayerBar() {
               <span className={styles.trackName}>재생할 곡을 선택하세요</span>
             </div>
           </div>
+          <div className={styles.controls} />
+          <div className={styles.rightActions}>
+            <button
+              className={`${styles.actionBtn} ${queueOpen ? styles.actionBtnActive : ''}`}
+              onClick={() => { setQueueOpen((v) => !v); setPlaylistOpen(false); }}
+            >
+              {'대기열'}
+            </button>
+            <button
+              className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
+              onClick={() => { setPlaylistOpen((v) => !v); setQueueOpen(false); }}
+            >
+              {'재생목록'}
+            </button>
+          </div>
         </div>
         <div className={styles.mobilePlayer}>
           <div className={styles.mobileBar}>
@@ -116,6 +131,8 @@ export default function PlayerBar() {
             </div>
           </div>
         </div>
+        {queueOpen && <QueueModal open={queueOpen} onClose={() => setQueueOpen(false)} />}
+        {playlistOpen && <PlaylistDrawer open={playlistOpen} onClose={() => setPlaylistOpen(false)} />}
       </>
     );
   }

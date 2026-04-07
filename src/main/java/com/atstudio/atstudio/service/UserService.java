@@ -30,7 +30,6 @@ public class UserService {
     private final TrackDownloadRepository trackDownloadRepository;
     private final LicenseRepository licenseRepository;
     private final WhitelistChannelRepository whitelistChannelRepository;
-    private final PlaylistService playlistService;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -54,7 +53,6 @@ public class UserService {
                 .build();
 
         user = userRepository.save(user);
-        playlistService.createDefaultPlaylist(user);
         emailService.sendVerificationEmail(user);
         return toResponse(user);
     }

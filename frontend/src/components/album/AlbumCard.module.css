@@ -1,6 +1,7 @@
 .card {
   flex-shrink: 0;
   cursor: pointer;
+  min-width: 0;
 }
 
 .card:hover .thumb {
@@ -12,6 +13,8 @@
 
 .thumb {
   width: 100%;
+  min-width: 80px;
+  min-height: 80px;
   aspect-ratio: 1;
   background: var(--bg3);
   border-radius: 8px;
