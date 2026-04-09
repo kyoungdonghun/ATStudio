@@ -308,8 +308,50 @@
   line-height: 1.6;
 }
 
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .modalActions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+/* ── Mobile ── */
+
+@media (max-width: 767px) {
+  .page {
+    padding: 16px 12px 40px;
+  }
+
+  .pageTitle {
+    font-size: 18px;
+  }
+
+  .filterBar {
+    flex-wrap: wrap;
+  }
+
+  .trackTable {
+    min-width: 360px;
+  }
+
+  .trackTitle {
+    max-width: 120px;
+  }
+
+  /* Hide BPM(3), 조성(4), 재생수(5), 등록일(7) on mobile */
+  .trackTable th:nth-child(3),
+  .trackTable td:nth-child(3),
+  .trackTable th:nth-child(4),
+  .trackTable td:nth-child(4),
+  .trackTable th:nth-child(5),
+  .trackTable td:nth-child(5),
+  .trackTable th:nth-child(7),
+  .trackTable td:nth-child(7) {
+    display: none;
+  }
 }

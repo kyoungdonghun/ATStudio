@@ -47,7 +47,7 @@ export async function createNotice(body: NoticeCreateBody): Promise<Notice> {
     body.attachments.forEach((file) => form.append('attachments', file));
   }
   const { data } = await client.post<ApiResponse<Notice>>('/notices', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60_000, // 1 minute for attachment upload
   });
   return data.data;
 }
@@ -67,7 +67,7 @@ export async function updateNotice(
     body.newAttachments.forEach((file) => form.append('newAttachments', file));
   }
   const { data } = await client.put<ApiResponse<Notice>>(`/notices/${noticeId}`, form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60_000,
   });
   return data.data;
 }

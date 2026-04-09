@@ -80,7 +80,7 @@ export async function createQuestion(body: {
     body.attachments.forEach((file) => form.append('attachments', file));
   }
   const { data } = await client.post<ApiResponse<QuestionDetail>>('/questions', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60_000, // 1 minute for attachment upload
   });
   return data.data;
 }

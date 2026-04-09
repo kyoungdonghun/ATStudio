@@ -125,6 +125,7 @@ export default function CompanyCertManagePage() {
       </div>
 
       {/* Table */}
+      <div className={styles.tableWrap}>
       <table className={styles.table}>
         <thead>
           <tr>
@@ -176,6 +177,7 @@ export default function CompanyCertManagePage() {
           ))}
         </tbody>
       </table>
+      </div>
 
       {pageInfo && pageInfo.total > pageInfo.size && (
         <Pagination pageInfo={pageInfo} currentPage={page} onPageChange={setPage} />

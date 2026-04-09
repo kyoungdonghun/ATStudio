@@ -177,9 +177,41 @@
   padding: 12px 20px;
 }
 
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .deleteText {
   padding: 16px 20px;
   font-size: 14px;
   color: var(--text0);
   line-height: 1.6;
+}
+
+/* ── Mobile ── */
+
+@media (max-width: 767px) {
+  .page {
+    padding: 16px;
+  }
+
+  .pageHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .title {
+    font-size: 20px;
+  }
+
+  .typeTabs {
+    flex-wrap: wrap;
+  }
+
+  .table {
+    min-width: 360px;
+  }
 }

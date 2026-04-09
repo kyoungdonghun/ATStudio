@@ -23,8 +23,10 @@ export default function SubscriberRoute({ children }: SubscriberRouteProps) {
       return;
     }
     fetchMySubscription()
-      .then((sub) => {
-        setStatus(sub.status === 'ACTIVE' ? 'active' : 'inactive');
+      .then(() => {
+        // API returns subscription only if status IN ('ACTIVE','CANCELLED') AND expiresAt >= today
+        // So any successful response means the user has access (including grace period)
+        setStatus('active');
       })
       .catch(() => {
         setStatus('inactive');

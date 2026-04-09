@@ -56,7 +56,7 @@ export async function fetchAlbumDetail(albumId: number): Promise<AlbumDetail> {
 /** POST /api/albums -- create album (multipart/form-data) */
 export async function createAlbum(formData: FormData): Promise<Album> {
   const { data } = await client.post<ApiResponse<Album>>('/albums', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60_000, // 1 minute for image upload
   });
   return data.data;
 }
@@ -67,7 +67,7 @@ export async function updateAlbum(
   formData: FormData,
 ): Promise<Album> {
   const { data } = await client.put<ApiResponse<Album>>(`/albums/${albumId}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60_000,
   });
   return data.data;
 }

@@ -108,6 +108,14 @@
   }
 
   .table {
-    min-width: 560px;
+    min-width: 360px;
+  }
+
+  /* Hide 연요금(3), 채널한도(5) on mobile */
+  .table th:nth-child(3),
+  .table td:nth-child(3),
+  .table th:nth-child(5),
+  .table td:nth-child(5) {
+    display: none;
   }
 }

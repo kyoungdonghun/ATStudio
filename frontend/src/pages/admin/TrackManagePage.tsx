@@ -141,6 +141,7 @@ export default function TrackManagePage() {
         <div className={styles.empty}>{'등록된 음원이 없습니다.'}</div>
       ) : (
         <>
+          <div className={styles.tableWrap}>
           <table className={styles.trackTable}>
             <thead>
               <tr>
@@ -204,6 +205,7 @@ export default function TrackManagePage() {
               ))}
             </tbody>
           </table>
+          </div>
 
           {pageInfo && (
             <Pagination pageInfo={pageInfo} currentPage={currentPage} onPageChange={goToPage} />

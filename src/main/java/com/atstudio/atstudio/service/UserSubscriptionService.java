@@ -41,6 +41,7 @@ public class UserSubscriptionService {
     private final UserRepository userRepository;
     private final CompanyCertificationRepository companyCertificationRepository;
     private final PaymentService paymentService;
+    private final PlaylistService playlistService;
 
     // -- 6.3 POST /api/user-subscriptions ------------------------------------
 
@@ -90,6 +91,8 @@ public class UserSubscriptionService {
 
         paymentService.processPayment(user, userSubscription, subscription,
                 request.billingCycle(), amount);
+
+        playlistService.createDefaultPlaylist(user);
 
         return UserSubscriptionResponse.from(userSubscription);
     }

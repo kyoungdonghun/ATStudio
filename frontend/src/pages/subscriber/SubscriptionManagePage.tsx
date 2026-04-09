@@ -26,7 +26,7 @@ function formatAmount(amount: number): string {
 /** Plan display name mapping */
 function getDisplayName(name: string): string {
   switch (name) {
-    case 'STANDARD': return '스탠더드';
+    case 'STANDARD': return '스탠다드';
     case 'DELUXE': return '\uB514\uB7ED\uC2A4';
     case 'PREMIUM': return '\uD504\uB9AC\uBBF8\uC5C4';
     default: return name;

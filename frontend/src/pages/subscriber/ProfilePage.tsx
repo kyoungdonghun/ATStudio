@@ -15,9 +15,9 @@ const SUB_STATUS_LABELS: Record<string, string> = {
 };
 
 const PLAN_NAME_LABELS: Record<string, string> = {
-  STANDARD: 'Starter',
-  PRO: 'Pro',
-  PREMIUM: 'Business',
+  STANDARD: '스탠다드',
+  DELUXE: '디럭스',
+  PREMIUM: '프리미엄',
 };
 
 type TabKey = 'account' | 'subscription' | 'edit' | 'password' | 'likes' | 'downloads' | 'playlists' | 'history' | 'licenses';
@@ -284,7 +284,7 @@ export default function ProfilePage() {
                   <div className={styles.infoRow}>
                     <span className={styles.infoLabel}>{'상태'}</span>
                     <span className={styles.infoValue}>
-                      <span className={mySub.status === 'ACTIVE' ? styles.statusActive : styles.statusInactive}>
+                      <span className={(mySub.status === 'ACTIVE' || mySub.status === 'CANCELLED') ? styles.statusActive : styles.statusInactive}>
                         {SUB_STATUS_LABELS[mySub.status] ?? mySub.status}
                       </span>
                     </span>

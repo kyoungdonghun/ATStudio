@@ -118,7 +118,7 @@ export async function fetchAdminTracks(
 /** POST /api/tracks -- create track (multipart/form-data) */
 export async function createTrack(formData: FormData): Promise<TrackDetail> {
   const { data } = await client.post<ApiResponse<TrackDetail>>('/tracks', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 300_000, // 5 minutes for file upload
   });
   return data.data;
 }
@@ -131,7 +131,7 @@ export async function updateTrack(
   const { data } = await client.put<ApiResponse<TrackDetail>>(
     `/tracks/${trackId}`,
     formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
+    { timeout: 300_000 },
   );
   return data.data;
 }

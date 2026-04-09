@@ -196,9 +196,35 @@
   border-color: var(--accent-border);
 }
 
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .modalActions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
   padding: 12px 20px;
+}
+
+/* ── Mobile ── */
+
+@media (max-width: 767px) {
+  .page {
+    padding: 16px;
+  }
+
+  .title {
+    font-size: 20px;
+  }
+
+  .filterBar {
+    flex-wrap: wrap;
+  }
+
+  .table {
+    min-width: 360px;
+  }
 }

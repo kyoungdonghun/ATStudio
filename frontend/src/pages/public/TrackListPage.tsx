@@ -117,6 +117,9 @@ export default function TrackListPage() {
   const likeStore = useLikeStore();
   const [addToPlTrackId, setAddToPlTrackId] = useState<number | null>(null);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [genreExpanded, setGenreExpanded] = useState(false);
+  const [moodExpanded, setMoodExpanded] = useState(false);
+  const hasActiveFilters = activeGenres.length > 0 || activeMoods.length > 0 || activeBpmLabel !== '';
 
   useEffect(() => {
     if (isAuthenticated && !likeStore.loaded) {
@@ -312,7 +315,7 @@ export default function TrackListPage() {
       {/* Filter Bar */}
       <div className={styles.filterBar}>
         {/* Genre row */}
-        <div className={styles.filterRow}>
+        <div className={`${styles.filterRow} ${genreExpanded ? styles.filterRowExpanded : ''}`}>
           <span className={styles.filterLabel}>{'장르'}</span>
           <div className={styles.filterChips}>
             <FilterChip
@@ -334,10 +337,15 @@ export default function TrackListPage() {
               />
             ))}
           </div>
+          {genreTags.length > 6 && (
+            <button className={styles.expandBtn} onClick={() => setGenreExpanded((v) => !v)}>
+              {genreExpanded ? '\u25B2 접기' : '\u25BC 펼치기'}
+            </button>
+          )}
         </div>
 
         {/* Mood row */}
-        <div className={styles.filterRow}>
+        <div className={`${styles.filterRow} ${moodExpanded ? styles.filterRowExpanded : ''}`}>
           <span className={styles.filterLabel}>{'분위기'}</span>
           <div className={styles.filterChips}>
             {sortedMoodTags.map((tag) => (
@@ -349,9 +357,14 @@ export default function TrackListPage() {
               />
             ))}
           </div>
+          {moodTags.length > 6 && (
+            <button className={styles.expandBtn} onClick={() => setMoodExpanded((v) => !v)}>
+              {moodExpanded ? '\u25B2 접기' : '\u25BC 펼치기'}
+            </button>
+          )}
         </div>
 
-        {/* BPM row + search */}
+        {/* BPM row + reset */}
         <div className={styles.filterRow}>
           <span className={styles.filterLabel}>BPM</span>
           <div className={styles.filterChips}>
@@ -364,12 +377,21 @@ export default function TrackListPage() {
               />
             ))}
           </div>
-          <button
-            className={styles.filterSearchBtn}
-            onClick={() => setFilterModalOpen(true)}
-          >
-            {'추가 옵션'}
-          </button>
+          {hasActiveFilters && (
+            <button
+              className={styles.resetBtn}
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete('genre');
+                next.delete('mood');
+                next.delete('bpm');
+                next.set('page', '1');
+                setSearchParams(next);
+              }}
+            >
+              {'초기화'}
+            </button>
+          )}
         </div>
       </div>
 

@@ -186,6 +186,14 @@
   }
 
   .table {
-    min-width: 500px;
+    min-width: 360px;
+  }
+
+  /* Hide ID(1), Joined(6) on mobile */
+  .table th:nth-child(1),
+  .table td:nth-child(1),
+  .table th:nth-child(6),
+  .table td:nth-child(6) {
+    display: none;
   }
 }

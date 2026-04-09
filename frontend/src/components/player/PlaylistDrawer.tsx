@@ -55,6 +55,10 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
   const dragIdx = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
+  /* ── Touch DnD refs ── */
+  const touchDragIdx = useRef<number | null>(null);
+  const trackListRef = useRef<HTMLUListElement>(null);
+
   /* ── Load playlists ── */
   const loadPlaylists = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -218,6 +222,39 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
     setDragOverIdx(null);
   }
 
+  /* ── Touch DnD handlers ── */
+
+  function handleTouchStart(idx: number) {
+    touchDragIdx.current = idx;
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (touchDragIdx.current === null) return;
+    e.preventDefault();
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchDragIdx.current === null || !trackListRef.current) return;
+    const touch = e.changedTouches[0];
+    const items = trackListRef.current.children;
+    let targetIdx = touchDragIdx.current;
+
+    for (let i = 0; i < items.length; i++) {
+      const rect = items[i].getBoundingClientRect();
+      if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+        targetIdx = i;
+        break;
+      }
+    }
+
+    if (targetIdx !== touchDragIdx.current) {
+      // handleDrop reads dragIdx.current as the source index
+      dragIdx.current = touchDragIdx.current;
+      handleDrop(targetIdx);
+    }
+    touchDragIdx.current = null;
+  }
+
   /* ── Like handlers ── */
 
   function handlePlayLike(item: LikeItem) {
@@ -338,7 +375,7 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
             {selectedPl.tracks.length === 0 ? (
               <div className={styles.empty}>곡이 없습니다.</div>
             ) : (
-              <ul className={styles.trackList}>
+              <ul className={styles.trackList} ref={trackListRef} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
                 {selectedPl.tracks.map((t, idx) => (
                   <li
                     key={t.trackId}
@@ -349,7 +386,12 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
                     onDrop={() => handleDrop(idx)}
                     onDragEnd={handleDragEnd}
                   >
-                    <span className={styles.dragHandle} title="드래그하여 순서 변경">
+                    <span
+                      className={styles.dragHandle}
+                      title="드래그하여 순서 변경"
+                      onTouchStart={() => handleTouchStart(idx)}
+                      style={{ touchAction: 'none' }}
+                    >
                       {'\u2630'}
                     </span>
                     <button

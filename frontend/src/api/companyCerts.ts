@@ -8,7 +8,7 @@ export async function applyCompanyCert(documents: File[]): Promise<CompanyCertif
   const form = new FormData();
   documents.forEach((file) => form.append('documents', file));
   const { data } = await client.post<ApiResponse<CompanyCertification>>('/company-certifications', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60_000, // 1 minute for document upload
   });
   return data.data;
 }

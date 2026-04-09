@@ -117,6 +117,32 @@
   flex: 1;
 }
 
+.filterRowExpanded {
+  max-height: none !important;
+  flex-wrap: wrap;
+}
+
+.filterRowExpanded .filterChips {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+
+.expandBtn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 4px 8px;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.expandBtn:hover {
+  color: var(--text1);
+}
+
 .filterSearchBtn {
   background: var(--accent-dim);
   border: 1px solid var(--accent-border);
@@ -135,6 +161,27 @@
 
 .filterSearchBtn:hover {
   background: rgba(198, 167, 94, 0.22);
+}
+
+.resetBtn {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  border-radius: 100px;
+  padding: 4px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+  margin-left: auto;
+}
+
+.resetBtn:hover {
+  color: var(--error);
+  border-color: var(--error);
 }
 
 /* ── Track Table ── */

@@ -54,7 +54,7 @@ export async function createPlaylist(
   if (req.description) formData.append('description', req.description);
   if (req.thumbnail) formData.append('thumbnail', req.thumbnail);
   const { data } = await client.post<ApiResponse<Playlist>>('/playlists', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60_000, // 1 minute for image upload
   });
   return data.data;
 }
@@ -69,7 +69,7 @@ export async function updatePlaylist(
   if (req.description) formData.append('description', req.description);
   if (req.thumbnail) formData.append('thumbnail', req.thumbnail);
   await client.put(`/playlists/${playlistId}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60_000,
   });
 }
 

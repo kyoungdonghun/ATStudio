@@ -30,7 +30,7 @@ export const BPM_MIN = 1;
 export const BPM_MAX = 999;
 
 // ── File ──
-export const AUDIO_MAX_SIZE_MB = 50;
+export const AUDIO_MAX_SIZE_MB = 30;
 export const IMAGE_MAX_SIZE_MB = 10;
 export const ATTACHMENT_MAX_SIZE_MB = 20;
 export const ATTACHMENT_MAX_COUNT = 5;

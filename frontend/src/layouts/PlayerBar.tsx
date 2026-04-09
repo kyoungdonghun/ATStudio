@@ -5,6 +5,8 @@ import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
+import { fetchMySubscription } from '@/api/userSubscriptions';
+import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import QueueModal from '@/components/player/QueueModal';
 import PlaylistDrawer from '@/components/player/PlaylistDrawer';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
@@ -46,6 +48,8 @@ export default function PlayerBar() {
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [showPlModal, setShowPlModal] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [hasSubscription, setHasSubscription] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
   const mobileMiniProgressRef = useRef<HTMLDivElement>(null);
   const mobileSeekRef = useRef<HTMLDivElement>(null);
@@ -56,6 +60,49 @@ export default function PlayerBar() {
       likeStore.load();
     }
   }, [isAuthenticated, likeStore.loaded]);
+
+  // Check subscription status for buy/download button
+  useEffect(() => {
+    if (!isAuthenticated || role === 'ADMIN') {
+      setHasSubscription(false);
+      return;
+    }
+    fetchMySubscription()
+      .then(() => setHasSubscription(true))
+      .catch(() => setHasSubscription(false));
+  }, [isAuthenticated, role]);
+
+  const handleDownload = useCallback(async () => {
+    if (!currentTrack) return;
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const blob = await downloadTrack(currentTrack.id);
+      const ext = currentTrack.title.includes('.') ? '' : '.mp3';
+      triggerBlobDownload(blob, `${currentTrack.title}${ext}`);
+      toast('success', '다운로드가 시작되었습니다.');
+    } catch (err: unknown) {
+      // Handle blob error response
+      if (err && typeof err === 'object' && 'response' in err) {
+        const resp = (err as { response?: { data?: Blob; status?: number } }).response;
+        if (resp?.data instanceof Blob) {
+          try {
+            const text = await resp.data.text();
+            const json = JSON.parse(text);
+            toast('error', json.message || '다운로드에 실패했습니다.');
+          } catch {
+            toast('error', '다운로드에 실패했습니다.');
+          }
+        } else {
+          toast('error', '다운로드에 실패했습니다.');
+        }
+      } else {
+        toast('error', '다운로드에 실패했습니다.');
+      }
+    } finally {
+      setDownloading(false);
+    }
+  }, [currentTrack, downloading, toast]);
 
   const handlePlayPause = useCallback(() => {
     if (isPlaying) {
@@ -154,7 +201,13 @@ export default function PlayerBar() {
             )}
           </div>
           <div className={styles.trackMeta}>
-            <div className={styles.trackName}>{currentTrack.title}</div>
+            <div
+              className={styles.trackName}
+              onClick={() => navigate(`/tracks/${currentTrack.id}`)}
+              style={{ cursor: 'pointer' }}
+            >
+              {currentTrack.title}
+            </div>
             <div className={styles.trackArtist}>{currentTrack.artistName}</div>
           </div>
           <button
@@ -216,7 +269,22 @@ export default function PlayerBar() {
               onClick={cycleRepeat}
               title={repeat === 'one' ? 'Repeat One' : repeat === 'all' ? 'Repeat All' : 'Repeat'}
             >
-              {repeat === 'one' ? '\uD83D\uDD02' : '\u21BA'}
+              {repeat === 'one' ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="17 1 21 5 17 9" />
+                  <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                  <polyline points="7 23 3 19 7 15" />
+                  <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+                  <text x="12" y="14.5" textAnchor="middle" fontSize="8" fill="currentColor" stroke="none" fontWeight="bold">1</text>
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="17 1 21 5 17 9" />
+                  <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                  <polyline points="7 23 3 19 7 15" />
+                  <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+                </svg>
+              )}
             </button>
           </div>
           <div className={styles.progressBar}>
@@ -298,9 +366,14 @@ export default function PlayerBar() {
               {'\uAD6C\uB9E4\uD558\uAE30'}
             </button>
           )}
-          {isAuthenticated && role === 'USER' && (
+          {isAuthenticated && role === 'USER' && !hasSubscription && (
             <button className={styles.buyBtn} onClick={() => navigate('/subscriptions')}>
-              {'\uAD6C\uB9E4\uD558\uAE30'}
+              {'\uAD6C\uB3C5\uD558\uAE30'}
+            </button>
+          )}
+          {isAuthenticated && role === 'USER' && hasSubscription && (
+            <button className={styles.buyBtn} onClick={handleDownload} disabled={downloading}>
+              {downloading ? '\uB2E4\uC6B4\uB85C\uB4DC \uC911...' : '\uB2E4\uC6B4\uB85C\uB4DC'}
             </button>
           )}
         </div>
@@ -323,7 +396,13 @@ export default function PlayerBar() {
               )}
             </div>
             <div className={styles.trackMeta}>
-              <div className={styles.trackName}>{currentTrack.title}</div>
+              <div
+                className={styles.trackName}
+                onClick={(e) => { e.stopPropagation(); navigate(`/tracks/${currentTrack.id}`); }}
+                style={{ cursor: 'pointer' }}
+              >
+                {currentTrack.title}
+              </div>
               <div className={styles.trackArtist}>{currentTrack.artistName}</div>
             </div>
           </div>
@@ -382,7 +461,22 @@ export default function PlayerBar() {
               className={`${styles.ctrlBtn} ${repeat !== 'off' ? styles.ctrlBtnActive : ''}`}
               onClick={cycleRepeat}
             >
-              {repeat === 'one' ? '\uD83D\uDD02' : '\u21BA'}
+              {repeat === 'one' ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="17 1 21 5 17 9" />
+                  <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                  <polyline points="7 23 3 19 7 15" />
+                  <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+                  <text x="12" y="14.5" textAnchor="middle" fontSize="8" fill="currentColor" stroke="none" fontWeight="bold">1</text>
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="17 1 21 5 17 9" />
+                  <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                  <polyline points="7 23 3 19 7 15" />
+                  <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+                </svg>
+              )}
             </button>
           </div>
 
@@ -451,8 +545,13 @@ export default function PlayerBar() {
             {!isAuthenticated && (
               <button className={styles.buyBtn} onClick={() => navigate('/login')}>{'구매하기'}</button>
             )}
-            {isAuthenticated && role === 'USER' && (
-              <button className={styles.buyBtn} onClick={() => navigate('/subscriptions')}>{'구매하기'}</button>
+            {isAuthenticated && role === 'USER' && !hasSubscription && (
+              <button className={styles.buyBtn} onClick={() => navigate('/subscriptions')}>{'구독하기'}</button>
+            )}
+            {isAuthenticated && role === 'USER' && hasSubscription && (
+              <button className={styles.buyBtn} onClick={handleDownload} disabled={downloading}>
+                {downloading ? '다운로드 중...' : '다운로드'}
+              </button>
             )}
           </div>
         </div>

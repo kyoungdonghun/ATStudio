@@ -36,7 +36,7 @@ public final class ValidationConstants {
     public static final int BPM_MAX = 999;
 
     // ── File ──
-    public static final long AUDIO_MAX_SIZE_BYTES = 50L * 1024 * 1024;
+    public static final long AUDIO_MAX_SIZE_BYTES = 30L * 1024 * 1024;
     public static final long IMAGE_MAX_SIZE_BYTES = 10L * 1024 * 1024;
     public static final long ATTACHMENT_MAX_SIZE_BYTES = 20L * 1024 * 1024;
     public static final int ATTACHMENT_MAX_COUNT = 5;

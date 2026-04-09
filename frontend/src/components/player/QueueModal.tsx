@@ -18,6 +18,10 @@ export default function QueueModal({ open, onClose }: QueueModalProps) {
   const dragIdx = useRef<number | null>(null);
   const dragOverIdx = useRef<number | null>(null);
 
+  /* ── Touch DnD refs ── */
+  const touchDragIdx = useRef<number | null>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+
   function handleDragStart(idx: number) {
     dragIdx.current = idx;
   }
@@ -35,12 +39,43 @@ export default function QueueModal({ open, onClose }: QueueModalProps) {
     dragOverIdx.current = null;
   }
 
+  /* ── Touch DnD handlers ── */
+
+  function handleTouchStart(idx: number) {
+    touchDragIdx.current = idx;
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (touchDragIdx.current === null) return;
+    e.preventDefault();
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchDragIdx.current === null || !listRef.current) return;
+    const touch = e.changedTouches[0];
+    const items = listRef.current.children;
+    let targetIdx = touchDragIdx.current;
+
+    for (let i = 0; i < items.length; i++) {
+      const rect = items[i].getBoundingClientRect();
+      if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+        targetIdx = i;
+        break;
+      }
+    }
+
+    if (targetIdx !== touchDragIdx.current) {
+      reorderQueue(touchDragIdx.current, targetIdx);
+    }
+    touchDragIdx.current = null;
+  }
+
   return (
     <Modal open={open} onClose={onClose} title="대기열">
       {queue.length === 0 ? (
         <div className={styles.empty}>대기열이 비어 있습니다.</div>
       ) : (
-        <ul className={styles.list}>
+        <ul className={styles.list} ref={listRef} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
           {queue.map((track, idx) => (
             <li
               key={track.id}
@@ -50,7 +85,12 @@ export default function QueueModal({ open, onClose }: QueueModalProps) {
               onDragOver={(e) => handleDragOver(e, idx)}
               onDrop={handleDrop}
             >
-              <span className={styles.dragHandle} title="Drag to reorder">
+              <span
+                className={styles.dragHandle}
+                title="Drag to reorder"
+                onTouchStart={() => handleTouchStart(idx)}
+                style={{ touchAction: 'none' }}
+              >
                 {'\u2630'}
               </span>
               <button

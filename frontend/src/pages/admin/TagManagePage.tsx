@@ -142,6 +142,7 @@ export default function TagManagePage() {
       </div>
 
       {/* Table */}
+      <div className={styles.tableWrap}>
       <table className={styles.table}>
         <thead>
           <tr>
@@ -188,6 +189,7 @@ export default function TagManagePage() {
           ))}
         </tbody>
       </table>
+      </div>
 
       {/* Create / Edit Modal */}
       <Modal

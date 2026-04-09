@@ -16,7 +16,7 @@ import styles from './SubscriptionPlanPage.module.css';
 
 function getDisplayName(name: string): string {
   switch (name) {
-    case 'STANDARD': return '스탠더드';
+    case 'STANDARD': return '스탠다드';
     case 'DELUXE': return '\uB514\uB7ED\uC2A4';
     case 'PREMIUM': return '\uD504\uB9AC\uBBF8\uC5C4';
     default: return name;
@@ -171,7 +171,7 @@ export default function SubscriptionPlanPage() {
       return;
     }
     const cycle = isYearly ? 'YEARLY' : 'MONTHLY';
-    if (mySub && mySub.status === 'ACTIVE') {
+    if (mySub && (mySub.status === 'ACTIVE' || mySub.status === 'CANCELLED')) {
       navigate(`/subscriptions/manage?plan=${planName}&cycle=${cycle}`);
     } else {
       navigate(`/subscriptions/payment?plan=${planName}&cycle=${cycle}`);
@@ -291,7 +291,7 @@ export default function SubscriptionPlanPage() {
       </div>
 
       {/* Current subscription banner */}
-      {mySub && mySub.status === 'ACTIVE' && (
+      {mySub && (mySub.status === 'ACTIVE' || mySub.status === 'CANCELLED') && (
         <div className={styles.currentSubBanner}>
           {'\uD604\uC7AC '}
           <strong>{getDisplayName(mySub.subscription.name)}</strong>
@@ -311,7 +311,7 @@ export default function SubscriptionPlanPage() {
           const isMiddle = plan.name === 'DELUXE';
           const tier = getTierFeatures(plan.name, plan);
           const isCurrentPlan =
-            mySub?.status === 'ACTIVE' &&
+            (mySub?.status === 'ACTIVE' || mySub?.status === 'CANCELLED') &&
             mySub.subscription.name.toUpperCase() === plan.name.toUpperCase();
 
           const cardClass = [
