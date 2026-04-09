@@ -96,6 +96,7 @@ export interface AdminTrackListParams {
   page?: number;
   size?: number;
   is_active?: boolean;
+  keyword?: string;
 }
 
 /** GET /api/tracks/admin -- admin-only full track list */
@@ -107,6 +108,7 @@ export async function fetchAdminTracks(
   if (params.page !== undefined) query.page = params.page;
   if (params.size !== undefined) query.size = params.size;
   if (params.is_active !== undefined) query.is_active = params.is_active;
+  if (params.keyword) query.keyword = params.keyword;
 
   const { data } = await client.get<PagedResponse<AdminTrackListItem>>(
     '/tracks/admin',

@@ -171,7 +171,7 @@
   }
 
   .table {
-    min-width: 360px;
+    min-width: 320px;
   }
 
   /* Hide ID(1), 주기(4), 시작일(6), 만료일(7), 대기플랜(8) on mobile */

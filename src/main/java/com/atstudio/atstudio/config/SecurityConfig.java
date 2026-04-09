@@ -64,6 +64,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/tracks/admin").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/tracks/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/tracks/*/stream").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/tags/available").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/tags").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/subscriptions").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/subscriptions/admin").hasRole("ADMIN")

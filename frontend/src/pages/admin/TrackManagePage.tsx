@@ -34,19 +34,22 @@ export default function TrackManagePage() {
   /* ── Filters from URL ── */
   const currentPage = Number(searchParams.get('page') ?? '1');
   const activeFilter = searchParams.get('filter') ?? 'all';
+  const activeKeyword = searchParams.get('keyword') ?? '';
+  const [searchInput, setSearchInput] = useState(activeKeyword);
 
   /* ── Load ── */
   const loadTracks = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    const params: { page: number; size: number; is_active?: boolean } = {
+    const params: { page: number; size: number; is_active?: boolean; keyword?: string } = {
       page: currentPage,
       size: PAGE_SIZE,
     };
 
     if (activeFilter === 'active') params.is_active = true;
     if (activeFilter === 'inactive') params.is_active = false;
+    if (activeKeyword) params.keyword = activeKeyword;
 
     try {
       const res = await fetchAdminTracks(params);
@@ -57,7 +60,7 @@ export default function TrackManagePage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, activeFilter]);
+  }, [currentPage, activeFilter, activeKeyword]);
 
   useEffect(() => {
     loadTracks();
@@ -130,6 +133,25 @@ export default function TrackManagePage() {
           <option value="active">{'활성'}</option>
           <option value="inactive">{'비활성'}</option>
         </select>
+        <input
+          className={styles.searchInput}
+          type="text"
+          placeholder="곡 제목 검색"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              const next = new URLSearchParams(searchParams);
+              if (searchInput.trim()) {
+                next.set('keyword', searchInput.trim());
+              } else {
+                next.delete('keyword');
+              }
+              next.set('page', '1');
+              setSearchParams(next);
+            }
+          }}
+        />
       </div>
 
       {/* Table */}

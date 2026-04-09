@@ -63,6 +63,23 @@
   background-position: right 8px center;
 }
 
+.searchInput {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-size: 13px;
+  color: var(--text0);
+  font-family: inherit;
+  outline: none;
+  flex: 1;
+  max-width: 240px;
+}
+
+.searchInput::placeholder {
+  color: var(--text2);
+}
+
 /* ── Table ── */
 
 .trackTable {
@@ -336,7 +353,7 @@
   }
 
   .trackTable {
-    min-width: 360px;
+    min-width: 320px;
   }
 
   .trackTitle {

@@ -9,12 +9,16 @@ const client = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-/* ── Request Interceptor: attach JWT ── */
+/* ── Request Interceptor: attach JWT + fix FormData Content-Type ── */
 client.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('accessToken');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // Let Axios auto-set Content-Type with boundary for FormData
+    if (config.data instanceof FormData && config.headers) {
+      delete config.headers['Content-Type'];
     }
     return config;
   },

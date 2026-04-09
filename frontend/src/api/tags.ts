@@ -10,6 +10,22 @@ export async function fetchTags(type?: string): Promise<TagItem[]> {
   return data.dataList;
 }
 
+/** GET /api/tags/available -- tags from tracks matching current filters */
+export async function fetchAvailableTags(params: {
+  genre?: string;
+  mood?: string;
+  bpmMin?: number;
+  bpmMax?: number;
+}): Promise<TagItem[]> {
+  const query: Record<string, string | number> = {};
+  if (params.genre) query.genre = params.genre;
+  if (params.mood) query.mood = params.mood;
+  if (params.bpmMin !== undefined) query.bpmMin = params.bpmMin;
+  if (params.bpmMax !== undefined) query.bpmMax = params.bpmMax;
+  const { data } = await client.get<{ dataList: TagItem[] }>('/tags/available', { params: query });
+  return data.dataList;
+}
+
 /* ── Admin Tag CRUD ── */
 
 interface TagCreateRequest {

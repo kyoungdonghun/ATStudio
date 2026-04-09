@@ -60,9 +60,10 @@ public class TrackController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<AdminTrackListItemResponse>> getTracksForAdmin(
             @RequestParam(name = "is_active", required = false) Boolean isActive,
+            @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(trackService.getTracksForAdmin(isActive, page, size));
+        return ResponseEntity.ok(trackService.getTracksForAdmin(isActive, keyword, page, size));
     }
 
     @GetMapping("/{trackId}")

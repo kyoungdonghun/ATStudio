@@ -3,6 +3,9 @@ package com.atstudio.atstudio.repository.spec;
 import com.atstudio.atstudio.entity.Track;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
+
+import java.text.Normalizer;
+import java.util.List;
 import org.springframework.data.jpa.domain.Specification;
 
 public class TrackSpecification {
@@ -20,7 +23,8 @@ public class TrackSpecification {
 
     public static Specification<Track> titleContains(String keyword) {
         if (keyword == null || keyword.isBlank()) return null;
-        return (root, query, cb) -> cb.like(cb.lower(root.get("title")), "%" + keyword.toLowerCase() + "%");
+        String normalized = Normalizer.normalize(keyword.toLowerCase(), Normalizer.Form.NFC);
+        return (root, query, cb) -> cb.like(cb.lower(root.get("title")), "%" + normalized + "%");
     }
 
     public static Specification<Track> hasBpmMin(Integer bpmMin) {
@@ -49,5 +53,20 @@ public class TrackSpecification {
                     cb.equal(tag.get("type").as(String.class), tagType)
             );
         };
+    }
+
+    /**
+     * AND logic: track must have ALL of the given tag names (not just any one).
+     * Each name becomes a separate EXISTS subquery.
+     */
+    public static Specification<Track> hasAllTagsWithType(List<String> names, String tagType) {
+        if (names == null || names.isEmpty()) return null;
+        // Chain: for each name, add a spec that requires that tag
+        Specification<Track> combined = null;
+        for (String name : names) {
+            Specification<Track> single = hasTagWithNameAndType(name, tagType);
+            combined = (combined == null) ? single : combined.and(single);
+        }
+        return combined;
     }
 }

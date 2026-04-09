@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { fetchTracks, type TrackListParams } from '@/api/tracks';
-import { fetchTags } from '@/api/tags';
+import { fetchTags, fetchAvailableTags } from '@/api/tags';
 import { addToDownloadQueue } from '@/api/downloadQueue';
 import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import { isSubscriptionRequired, getApiErrorCode } from '@/api/client';
@@ -120,6 +120,8 @@ export default function TrackListPage() {
   const [genreExpanded, setGenreExpanded] = useState(false);
   const [moodExpanded, setMoodExpanded] = useState(false);
   const hasActiveFilters = activeGenres.length > 0 || activeMoods.length > 0 || activeBpmLabel !== '';
+  const [availableGenres, setAvailableGenres] = useState<Set<string>>(new Set());
+  const [availableMoods, setAvailableMoods] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isAuthenticated && !likeStore.loaded) {
@@ -188,6 +190,25 @@ export default function TrackListPage() {
   useEffect(() => {
     loadTracks();
   }, [loadTracks]);
+
+  /* ── Tag recombination: fetch available tags when filters change ── */
+  useEffect(() => {
+    if (!hasActiveFilters) {
+      setAvailableGenres(new Set());
+      setAvailableMoods(new Set());
+      return;
+    }
+    const bpmPreset = BPM_PRESETS.find((p) => p.label === activeBpmLabel);
+    fetchAvailableTags({
+      genre: activeGenres.length > 0 ? activeGenres.join(',') : undefined,
+      mood: activeMoods.length > 0 ? activeMoods.join(',') : undefined,
+      bpmMin: bpmPreset?.min,
+      bpmMax: bpmPreset?.max,
+    }).then((tags) => {
+      setAvailableGenres(new Set(tags.filter((t) => t.type === 'GENRE').map((t) => t.name)));
+      setAvailableMoods(new Set(tags.filter((t) => t.type === 'MOOD').map((t) => t.name)));
+    }).catch(() => { /* ignore */ });
+  }, [activeGenres.join(','), activeMoods.join(','), activeBpmLabel, hasActiveFilters]);
 
   /* ── Filter helpers ── */
   function setFilter(key: string, value: string) {
@@ -328,14 +349,20 @@ export default function TrackListPage() {
                 setSearchParams(next);
               }}
             />
-            {sortedGenreTags.map((tag) => (
-              <FilterChip
-                key={tag.id}
-                label={tag.name}
-                active={activeGenres.includes(tag.name)}
-                onClick={() => toggleGenre(tag.name)}
-              />
-            ))}
+            {sortedGenreTags
+              .filter((tag) =>
+                activeGenres.includes(tag.name) ||
+                availableGenres.size === 0 ||
+                availableGenres.has(tag.name)
+              )
+              .map((tag) => (
+                <FilterChip
+                  key={tag.id}
+                  label={tag.name}
+                  active={activeGenres.includes(tag.name)}
+                  onClick={() => toggleGenre(tag.name)}
+                />
+              ))}
           </div>
           {genreTags.length > 6 && (
             <button className={styles.expandBtn} onClick={() => setGenreExpanded((v) => !v)}>
@@ -348,14 +375,20 @@ export default function TrackListPage() {
         <div className={`${styles.filterRow} ${moodExpanded ? styles.filterRowExpanded : ''}`}>
           <span className={styles.filterLabel}>{'분위기'}</span>
           <div className={styles.filterChips}>
-            {sortedMoodTags.map((tag) => (
-              <FilterChip
-                key={tag.id}
-                label={tag.name}
-                active={activeMoods.includes(tag.name)}
-                onClick={() => toggleMood(tag.name)}
-              />
-            ))}
+            {sortedMoodTags
+              .filter((tag) =>
+                activeMoods.includes(tag.name) ||
+                availableMoods.size === 0 ||
+                availableMoods.has(tag.name)
+              )
+              .map((tag) => (
+                <FilterChip
+                  key={tag.id}
+                  label={tag.name}
+                  active={activeMoods.includes(tag.name)}
+                  onClick={() => toggleMood(tag.name)}
+                />
+              ))}
           </div>
           {moodTags.length > 6 && (
             <button className={styles.expandBtn} onClick={() => setMoodExpanded((v) => !v)}>

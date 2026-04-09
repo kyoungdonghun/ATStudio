@@ -67,7 +67,7 @@ public class TrackService {
         int duration = extractDuration(audioFile);
 
         Track track = Track.builder()
-                .title(request.getTitle())
+                .title(java.text.Normalizer.normalize(request.getTitle(), java.text.Normalizer.Form.NFC))
                 .bpm(request.getBpm())
                 .tonality(request.getTonality())
                 .description(request.getDescription())
@@ -97,9 +97,9 @@ public class TrackService {
         spec = addSpec(spec, TrackSpecification.hasBpmMin(request.getBpmMin()));
         spec = addSpec(spec, TrackSpecification.hasBpmMax(request.getBpmMax()));
         spec = addSpec(spec, TrackSpecification.hasTonality(request.getTonality()));
-        spec = addSpec(spec, TrackSpecification.hasTagWithNameAndType(request.getGenre(), "GENRE"));
-        spec = addSpec(spec, TrackSpecification.hasTagWithNameAndType(request.getMood(), "MOOD"));
-        spec = addSpec(spec, TrackSpecification.hasTagWithNameAndType(request.getInstrument(), "INSTRUMENT"));
+        spec = addSpec(spec, parseMultiTagSpec(request.getGenre(), "GENRE"));
+        spec = addSpec(spec, parseMultiTagSpec(request.getMood(), "MOOD"));
+        spec = addSpec(spec, parseMultiTagSpec(request.getInstrument(), "INSTRUMENT"));
 
         Page<Track> page = trackRepository.findAll(spec, pageable);
 
@@ -197,10 +197,11 @@ public class TrackService {
         return TrackResponse.from(track, tags);
     }
 
-    public ResponseDTO<AdminTrackListItemResponse> getTracksForAdmin(Boolean isActive, int page, int size) {
+    public ResponseDTO<AdminTrackListItemResponse> getTracksForAdmin(Boolean isActive, String keyword, int page, int size) {
         Pageable pageable = PageRequest.of(Math.max(0, page - 1), size, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         Specification<Track> spec = Specification.where(TrackSpecification.hasIsActive(isActive));
+        spec = addSpec(spec, TrackSpecification.titleContains(keyword));
 
         Page<Track> trackPage = trackRepository.findAll(spec, pageable);
 
@@ -288,4 +289,12 @@ public class TrackService {
         }
     }
 
+    private Specification<Track> parseMultiTagSpec(String csv, String tagType) {
+        if (csv == null || csv.isBlank()) return null;
+        List<String> names = java.util.Arrays.stream(csv.split(","))
+                .map(String::trim).filter(s -> !s.isEmpty()).toList();
+        if (names.isEmpty()) return null;
+        if (names.size() == 1) return TrackSpecification.hasTagWithNameAndType(names.get(0), tagType);
+        return TrackSpecification.hasAllTagsWithType(names, tagType);
+    }
 }
