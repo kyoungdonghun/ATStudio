@@ -123,7 +123,7 @@ export default function SignupPage() {
         password,
         phonePersonal,
         phoneCompany: phoneCompany.trim() || null,
-        job: userType === 'BUSINESS' ? '' : job,
+        job: userType === 'BUSINESS' ? null : job,
         companyName: userType === 'BUSINESS' ? companyName.trim() : undefined,
         userType,
       });

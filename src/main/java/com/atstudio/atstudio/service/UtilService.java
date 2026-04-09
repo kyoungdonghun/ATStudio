@@ -112,6 +112,10 @@ public class UtilService {
         Subscription newPlan = subscriptionRepository.findById(subscriptionId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_NOT_FOUND));
 
+        if (newPlan.getUserType() != user.getUserType()) {
+            throw new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_USER_TYPE_MISMATCH);
+        }
+
         BigDecimal currentPriceMonthly = current.getSubscription().getPriceMonthly();
         BigDecimal newPriceMonthly = newPlan.getPriceMonthly();
 

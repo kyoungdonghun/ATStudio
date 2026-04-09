@@ -23,6 +23,16 @@ function formatAmount(amount: number): string {
   return amount.toLocaleString('ko-KR');
 }
 
+/** Plan display name mapping */
+function getDisplayName(name: string): string {
+  switch (name) {
+    case 'STANDARD': return '스탠더드';
+    case 'DELUXE': return '\uB514\uB7ED\uC2A4';
+    case 'PREMIUM': return '\uD504\uB9AC\uBBF8\uC5C4';
+    default: return name;
+  }
+}
+
 export default function SubscriptionManagePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -56,9 +66,10 @@ export default function SubscriptionManagePage() {
     try {
       setLoading(true);
       setError(null);
+      const userType = useAuthStore.getState().user?.userType ?? 'INDIVIDUAL';
       const [subRes, plansRes] = await Promise.all([
         fetchMySubscription(),
-        fetchSubscriptionPlans(),
+        fetchSubscriptionPlans(userType),
       ]);
       setSub(subRes);
       setPlans(plansRes);
@@ -133,11 +144,11 @@ export default function SubscriptionManagePage() {
       });
       if (res.changeType === 'UPGRADE') {
         setChangeMsg(
-          `${res.subscription.name} 플랜으로 업그레이드되었습니다. 비례 요금: ${formatAmount(res.proratedAmount)}원`,
+          `${getDisplayName(res.subscription.name)} 플랜으로 업그레이드되었습니다. 비례 요금: ${formatAmount(res.proratedAmount)}원`,
         );
       } else {
         setChangeMsg(
-          `다운그레이드가 예약되었습니다. 현재 구독 만료 후 ${res.subscription.name} 플랜이 적용됩니다.`,
+          `다운그레이드가 예약되었습니다. 현재 구독 만료 후 ${getDisplayName(res.subscription.name)} 플랜이 적용됩니다.`,
         );
       }
       setSelectedPlan(null);
@@ -230,7 +241,7 @@ export default function SubscriptionManagePage() {
       {/* ── Current Plan Card ── */}
       <div className={styles.planCard}>
         <div className={styles.planHeader}>
-          <div className={styles.planName}>{sub.subscription.name}</div>
+          <div className={styles.planName}>{getDisplayName(sub.subscription.name)}</div>
           <span className={getStatusClass(sub.status)}>
             {getStatusLabel(sub.status)}
           </span>
@@ -289,7 +300,7 @@ export default function SubscriptionManagePage() {
                   }
                   onClick={() => setSelectedPlan(plan)}
                 >
-                  <div className={styles.planOptionName}>{plan.name}</div>
+                  <div className={styles.planOptionName}>{getDisplayName(plan.name)}</div>
                   <div className={styles.planOptionPrice}>
                     {'\u20A9'}
                     {formatAmount(plan.priceMonthly)}

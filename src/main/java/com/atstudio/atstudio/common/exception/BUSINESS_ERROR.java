@@ -125,6 +125,11 @@ public enum BUSINESS_ERROR {
             "이미 활성 구독이 존재합니다.",
             "중복 구독 시도."),
 
+    SUBSCRIPTION_USER_TYPE_MISMATCH(
+            HttpStatus.BAD_REQUEST,
+            "회원 유형에 맞지 않는 구독 플랜입니다.",
+            "개인/기업 회원 유형과 구독 플랜의 user_type이 불일치합니다."),
+
     PLAYLIST_LIMIT_EXCEEDED(
             HttpStatus.CONFLICT,
             "구독 플랜의 재생목록 한도를 초과했습니다.",

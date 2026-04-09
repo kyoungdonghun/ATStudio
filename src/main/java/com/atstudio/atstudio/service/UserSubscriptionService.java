@@ -68,6 +68,10 @@ public class UserSubscriptionService {
         Subscription subscription = subscriptionRepository.findById(request.subscriptionId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_NOT_FOUND));
 
+        if (subscription.getUserType() != user.getUserType()) {
+            throw new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_USER_TYPE_MISMATCH);
+        }
+
         LocalDate startedAt = LocalDate.now();
         LocalDate expiresAt = request.billingCycle() == BillingCycle.MONTHLY
                 ? startedAt.plusMonths(1) : startedAt.plusYears(1);
@@ -145,6 +149,10 @@ public class UserSubscriptionService {
 
         Subscription newPlan = subscriptionRepository.findById(request.subscriptionId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_NOT_FOUND));
+
+        if (newPlan.getUserType() != user.getUserType()) {
+            throw new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_USER_TYPE_MISMATCH);
+        }
 
         // UPGRADE vs DOWNGRADE 판정: 월간 가격 기준
         boolean isUpgrade = newPlan.getPriceMonthly().compareTo(

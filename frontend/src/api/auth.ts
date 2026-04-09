@@ -14,7 +14,7 @@ export interface RegisterRequest {
   password: string;
   phonePersonal: string;
   phoneCompany: string | null;
-  job: string;
+  job: string | null;
   companyName?: string;
   userType: 'INDIVIDUAL' | 'BUSINESS';
 }
