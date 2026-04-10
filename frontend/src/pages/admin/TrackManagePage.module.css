@@ -127,7 +127,6 @@
 }
 
 .cellInfo {
-  min-width: 200px;
 }
 
 .info {
@@ -353,11 +352,23 @@
   }
 
   .trackTable {
-    min-width: 320px;
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  /* Mobile cell width overrides */
+  .cellId { width: 36px; }
+  .cellActions { width: 76px; }
+
+  .trackTable th,
+  .trackTable td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
   }
 
   .trackTitle {
-    max-width: 120px;
+    max-width: none;
   }
 
   /* Hide BPM(3), 조성(4), 재생수(5), 등록일(7) on mobile */

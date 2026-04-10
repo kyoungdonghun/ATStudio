@@ -2,6 +2,7 @@ import axios, { type InternalAxiosRequestConfig, type AxiosResponse } from 'axio
 import { router } from '@/router';
 import { useToastStore } from '@/store/toastStore';
 import { useAuthStore } from '@/store/authStore';
+import { safeStorage } from '@/utils/safeStorage';
 
 const client = axios.create({
   baseURL: '/api',
@@ -12,7 +13,7 @@ const client = axios.create({
 /* ── Request Interceptor: attach JWT + fix FormData Content-Type ── */
 client.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('accessToken');
+    const token = safeStorage.getItem('accessToken');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -65,13 +66,13 @@ client.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const refreshToken = localStorage.getItem('refreshToken');
+      const refreshToken = safeStorage.getItem('refreshToken');
       const { data } = await axios.post('/api/auth/refresh', { refreshToken });
       const newAccessToken: string = data.data.accessToken;
 
-      localStorage.setItem('accessToken', newAccessToken);
+      safeStorage.setItem('accessToken', newAccessToken);
       if (data.data.refreshToken) {
-        localStorage.setItem('refreshToken', data.data.refreshToken);
+        safeStorage.setItem('refreshToken', data.data.refreshToken);
       }
 
       processQueue(null, newAccessToken);
@@ -79,8 +80,8 @@ client.interceptors.response.use(
       return client(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError, null);
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
+      safeStorage.removeItem('accessToken');
+      safeStorage.removeItem('refreshToken');
       useAuthStore.getState().logout();
       useToastStore.getState().show('error', '세션이 만료되었습니다. 다시 로그인해주세요.');
       router.navigate('/login');

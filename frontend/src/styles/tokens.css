@@ -122,6 +122,18 @@ body {
   }
 }
 
+/* ── iOS Safari: prevent input auto-zoom on focus ──
+ *  Inputs with font-size < 16px cause iOS to auto-zoom on focus.
+ *  Force minimum 16px on mobile so focus never triggers zoom.
+ * ─────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 /* ── Utility: visually hidden (sr-only) ── */
 .srOnly {
   position: absolute;

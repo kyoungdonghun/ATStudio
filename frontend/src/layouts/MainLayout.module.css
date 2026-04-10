@@ -5,7 +5,7 @@
 }
 
 .main {
-  margin-top: var(--header-h);
-  padding-bottom: var(--player-h);
+  margin-top: calc(var(--header-h) + env(safe-area-inset-top));
+  padding-bottom: calc(var(--player-h) + env(safe-area-inset-bottom));
   flex: 1;
 }

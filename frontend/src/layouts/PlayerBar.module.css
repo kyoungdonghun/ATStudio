@@ -10,6 +10,7 @@
   display: flex;
   align-items: center;
   padding: 0 24px;
+  padding-bottom: env(safe-area-inset-bottom);
   gap: 20px;
   z-index: 200;
 }
@@ -352,6 +353,7 @@
     background: var(--player-bg);
     backdrop-filter: blur(16px);
     border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom);
     z-index: 200;
   }
 

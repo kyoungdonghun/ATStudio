@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { socialLogin, fetchMe, type MeResponse } from '@/api/auth';
 import { useAuthStore } from '@/store/authStore';
+import { safeStorage, safeSessionStorage } from '@/utils/safeStorage';
 import type { UserJob, UserType } from '@/types';
 import styles from './LoginPage.module.css';
 
@@ -27,23 +28,23 @@ export default function SocialLoginPage() {
     }
 
     // CSRF: verify state parameter
-    const savedState = sessionStorage.getItem('oauth_state');
-    sessionStorage.removeItem('oauth_state');
+    const savedState = safeSessionStorage.getItem('oauth_state');
+    safeSessionStorage.removeItem('oauth_state');
     if (!savedState || savedState !== returnedState) {
       setError('보안 검증에 실패했습니다. 다시 로그인해주세요.');
       return;
     }
 
     // PKCE: retrieve code_verifier
-    const codeVerifier = sessionStorage.getItem('oauth_code_verifier');
-    sessionStorage.removeItem('oauth_code_verifier');
+    const codeVerifier = safeSessionStorage.getItem('oauth_code_verifier');
+    safeSessionStorage.removeItem('oauth_code_verifier');
 
     (async () => {
       try {
         const res = await socialLogin(provider, code, codeVerifier);
 
-        localStorage.setItem('accessToken', res.accessToken);
-        localStorage.setItem('refreshToken', res.refreshToken);
+        safeStorage.setItem('accessToken', res.accessToken);
+        safeStorage.setItem('refreshToken', res.refreshToken);
 
         const me: MeResponse = await fetchMe();
 

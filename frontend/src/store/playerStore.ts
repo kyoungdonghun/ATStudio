@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Track } from '@/types';
 import { recordPlay } from '@/api/playHistory';
+import { safeStorage } from '@/utils/safeStorage';
 
 const audio = new Audio();
 const STREAM_BASE = '/api/tracks';
@@ -32,13 +33,13 @@ function persistState(state: {
       queueIndex: Math.max(0, idx),
       currentTime: state.currentTime,
     };
-    localStorage.setItem('playerState', JSON.stringify(saved));
+    safeStorage.setItem('playerState', JSON.stringify(saved));
   } catch { /* quota exceeded — silently ignore */ }
 }
 
 function loadPersistedState(): PersistedPlayerState | null {
   try {
-    const raw = localStorage.getItem('playerState');
+    const raw = safeStorage.getItem('playerState');
     return raw ? JSON.parse(raw) as PersistedPlayerState : null;
   } catch {
     return null;
@@ -98,7 +99,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
   });
 
   // Initialize volume from localStorage
-  const savedVolume = parseFloat(localStorage.getItem('playerVolume') ?? '1');
+  const savedVolume = parseFloat(safeStorage.getItem('playerVolume') ?? '1');
   audio.volume = isNaN(savedVolume) ? 1 : savedVolume;
 
   return {
@@ -129,7 +130,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       persistState({ currentTrack: track, queue: newQueue, currentTime: 0 });
 
       // Record play history (fire-and-forget, only if logged in)
-      if (localStorage.getItem('accessToken')) {
+      if (safeStorage.getItem('accessToken')) {
         recordPlay(track.id).catch(() => {});
       }
     },
@@ -205,7 +206,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       const v = Math.max(0, Math.min(1, volume));
       audio.volume = v;
       audio.muted = false;
-      localStorage.setItem('playerVolume', String(v));
+      safeStorage.setItem('playerVolume', String(v));
       set({ volume: v, muted: false });
     },
 
@@ -216,7 +217,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       if (!muted && volume === 0) {
         // Unmuting with 0 volume → set to default
         audio.volume = 0.5;
-        localStorage.setItem('playerVolume', '0.5');
+        safeStorage.setItem('playerVolume', '0.5');
         set({ volume: 0.5 });
       }
     },

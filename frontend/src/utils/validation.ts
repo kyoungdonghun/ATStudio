@@ -86,6 +86,33 @@ export function isFileSizeOk(file: File, maxMb: number): boolean {
   return file.size <= maxMb * 1024 * 1024;
 }
 
+/**
+ * Detect iOS Safari.
+ * iOS Safari has a known bug where audio file inputs with specific `accept` values
+ * incorrectly grey out valid MP3 files (UTI mismatch). On iOS we omit `accept` and
+ * rely on JS extension validation instead.
+ */
+export function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+/** Audio file extensions allowed for upload */
+export const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg'];
+
+/** accept string for <input type="file"> — empty on iOS to avoid MP3 grey-out bug */
+export const AUDIO_ACCEPT = isIOS()
+  ? undefined
+  : '.mp3,.wav,.m4a,.aac,.flac,.ogg,audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/aac,audio/flac,audio/ogg';
+
+/** Check if file has an allowed audio extension */
+export function hasValidAudioExtension(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  const ext = lower.slice(lower.lastIndexOf('.'));
+  return AUDIO_EXTENSIONS.includes(ext);
+}
+
 /** Validate image dimensions: min 200x200, aspect ratio within 1:3 ~ 3:1 */
 export function validateImageDimensions(file: File): Promise<string | null> {
   return new Promise((resolve) => {

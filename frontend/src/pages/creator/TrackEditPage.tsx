@@ -11,6 +11,8 @@ import {
   AUDIO_MAX_SIZE_MB,
   IMAGE_MAX_SIZE_MB,
   isFileSizeOk,
+  AUDIO_ACCEPT,
+  hasValidAudioExtension,
 } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import Tag from '@/components/ui/Tag';
@@ -102,9 +104,16 @@ export default function TrackEditPage() {
   /* ── File handlers ── */
   function handleAudioChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
-    if (file && !isFileSizeOk(file, AUDIO_MAX_SIZE_MB)) {
-      setError(`오디오 파일은 ${AUDIO_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`);
-      return;
+    if (file) {
+      if (!hasValidAudioExtension(file.name)) {
+        setError(`지원하지 않는 파일 형식입니다. (MP3, WAV, M4A, AAC, FLAC, OGG만 업로드 가능)`);
+        e.target.value = '';
+        return;
+      }
+      if (!isFileSizeOk(file, AUDIO_MAX_SIZE_MB)) {
+        setError(`오디오 파일은 ${AUDIO_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`);
+        return;
+      }
     }
     setAudioFile(file);
   }
@@ -180,7 +189,7 @@ export default function TrackEditPage() {
               >
                 <input
                   type="file"
-                  accept="audio/*"
+                  {...(AUDIO_ACCEPT && { accept: AUDIO_ACCEPT })}
                   className={styles.fileHidden}
                   onChange={handleAudioChange}
                 />

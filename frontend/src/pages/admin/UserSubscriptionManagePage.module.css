@@ -42,7 +42,6 @@
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   text-align: left;
-  white-space: nowrap;
 }
 
 .table tbody td {
@@ -50,7 +49,6 @@
   vertical-align: middle;
   border-bottom: 1px solid var(--border);
   font-size: 13px;
-  white-space: nowrap;
 }
 
 .row {
@@ -166,12 +164,29 @@
 
 /* ══ Mobile ══ */
 @media (max-width: 767px) {
+  .page {
+    padding: 0; /* AdminLayout .content padding: 16px 으로 충분 */
+  }
+
   .title {
     font-size: 20px;
   }
 
   .table {
-    min-width: 320px;
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .table th,
+  .table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .actionBtns {
+    flex-wrap: wrap; /* 버튼 2개가 가로로 붙어 셀 최소폭 초과하는 것 방지 */
+    gap: 4px;
   }
 
   /* Hide ID(1), 주기(4), 시작일(6), 만료일(7), 대기플랜(8) on mobile */

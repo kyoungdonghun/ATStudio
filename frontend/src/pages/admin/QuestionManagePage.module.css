@@ -215,9 +215,30 @@
     font-size: 18px;
   }
 
+  .filterBar {
+    flex-wrap: wrap;
+  }
+
+  .table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
   .table thead th,
   .table tbody td {
     padding: 8px 8px;
     font-size: 13px;
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+  }
+
+  /* Hide 카테고리(2), 등록일(4) on mobile */
+  .table th:nth-child(2),
+  .table td:nth-child(2),
+  .table th:nth-child(4),
+  .table td:nth-child(4) {
+    display: none;
   }
 }

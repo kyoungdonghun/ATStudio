@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/authStore';
 import { login, fetchMe } from '@/api/auth';
 import type { MeResponse } from '@/api/auth';
 import { isValidEmail, PASSWORD_MIN } from '@/utils/validation';
+import { safeStorage, safeSessionStorage } from '@/utils/safeStorage';
 import Button from '@/components/ui/Button';
 import styles from './LoginPage.module.css';
 
@@ -90,8 +91,8 @@ export default function LoginPage() {
     try {
       const tokens = await login({ email, password });
 
-      localStorage.setItem('accessToken', tokens.accessToken);
-      localStorage.setItem('refreshToken', tokens.refreshToken);
+      safeStorage.setItem('accessToken', tokens.accessToken);
+      safeStorage.setItem('refreshToken', tokens.refreshToken);
 
       const me: MeResponse = await fetchMe();
 
@@ -133,11 +134,11 @@ export default function LoginPage() {
 
     // CSRF: generate state
     const state = generateRandomString(32);
-    sessionStorage.setItem('oauth_state', state);
+    safeSessionStorage.setItem('oauth_state', state);
 
     // PKCE: generate code_verifier + code_challenge
     const codeVerifier = generateRandomString(64);
-    sessionStorage.setItem('oauth_code_verifier', codeVerifier);
+    safeSessionStorage.setItem('oauth_code_verifier', codeVerifier);
     const codeChallenge = await generateCodeChallenge(codeVerifier);
 
     const redirectUri = `${window.location.origin}/social-login/${provider.toLowerCase()}`;

@@ -18,7 +18,10 @@ public class CorsConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(allowedOriginsRaw.split(",")));
+        List<String> origins = List.of(allowedOriginsRaw.split(","));
+        config.setAllowedOrigins(origins);
+        // Allow all trycloudflare.com subdomains (URL changes on every restart)
+        config.addAllowedOriginPattern("https://*.trycloudflare.com");
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of(
                 "Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));

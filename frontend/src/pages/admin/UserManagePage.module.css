@@ -177,21 +177,40 @@
 
 /* ══ Mobile ══ */
 @media (max-width: 767px) {
+  .page {
+    padding: 0; /* AdminLayout .content padding: 16px 으로 충분 */
+  }
+
   .title {
     font-size: 20px;
   }
 
+  .searchBar {
+    flex-wrap: wrap;
+  }
+
   .searchInput {
     max-width: none;
+    min-width: 0;
   }
 
   .table {
-    min-width: 320px;
+    table-layout: fixed;
+    width: 100%;
   }
 
-  /* Hide ID(1), Joined(6) on mobile */
+  .table th,
+  .table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Hide ID(1), Change Role(5), Joined(6) on mobile — <select> 최소폭이 레이아웃 깨뜨림 */
   .table th:nth-child(1),
   .table td:nth-child(1),
+  .table th:nth-child(5),
+  .table td:nth-child(5),
   .table th:nth-child(6),
   .table td:nth-child(6) {
     display: none;

@@ -3,6 +3,7 @@
 .layout {
   display: flex;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 /* ── Sidebar ── */
@@ -22,7 +23,7 @@
 }
 
 .sidebarHeader {
-  padding: 20px 16px 12px;
+  padding: calc(20px + env(safe-area-inset-top)) 16px 12px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -156,6 +157,8 @@
   margin-left: 220px;
   margin-top: var(--header-h);
   flex: 1;
+  min-width: 0;        /* flex 아이템이 콘텐츠 최소 너비 이하로 줄어들 수 있게 */
+  overflow-x: hidden;  /* 자식 요소의 가로 overflow 봉쇄 */
   padding: 24px 32px;
   min-height: calc(100vh - var(--header-h));
 }

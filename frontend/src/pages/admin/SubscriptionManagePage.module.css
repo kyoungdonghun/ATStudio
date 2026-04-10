@@ -108,7 +108,15 @@
   }
 
   .table {
-    min-width: 320px;
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .table th,
+  .table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
   }
 
   /* Hide 연요금(3), 채널한도(5) on mobile */

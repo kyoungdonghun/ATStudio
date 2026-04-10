@@ -12,6 +12,8 @@ import {
   IMAGE_MAX_SIZE_MB,
   TRACK_UPLOAD_MAX_COUNT,
   isFileSizeOk,
+  AUDIO_ACCEPT,
+  hasValidAudioExtension,
 } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import Tag from '@/components/ui/Tag';
@@ -89,6 +91,14 @@ export default function TrackUploadPage() {
     if (!selected) return;
 
     const newFiles = Array.from(selected);
+
+    // File extension check (iOS Safari workaround — accept 속성으로 걸러지지 않는 케이스 대응)
+    const invalidType = newFiles.filter((f) => !hasValidAudioExtension(f.name));
+    if (invalidType.length > 0) {
+      setError(`지원하지 않는 파일 형식입니다: ${invalidType.map((f) => f.name).join(', ')} (MP3, WAV, M4A, AAC, FLAC, OGG만 업로드 가능)`);
+      if (audioInputRef.current) audioInputRef.current.value = '';
+      return;
+    }
 
     // File size check
     const oversized = newFiles.filter((f) => !isFileSizeOk(f, AUDIO_MAX_SIZE_MB));
@@ -259,7 +269,7 @@ export default function TrackUploadPage() {
             <input
               ref={audioInputRef}
               type="file"
-              accept="audio/*"
+              {...(AUDIO_ACCEPT && { accept: AUDIO_ACCEPT })}
               multiple
               className={styles.fileHidden}
               onChange={handleAudioSelect}

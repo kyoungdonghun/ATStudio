@@ -95,6 +95,7 @@
 /* ── File attachments ── */
 
 .fileLabel {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -114,7 +115,13 @@
 }
 
 .fileHidden {
-  display: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .fileList {

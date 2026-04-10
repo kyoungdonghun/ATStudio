@@ -6,6 +6,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   animation: fadeIn 0.15s ease-out;
 }
 
@@ -14,7 +15,6 @@
   border: 1px solid var(--border2);
   border-radius: 10px;
   padding: 28px;
-  min-width: 360px;
   max-width: 540px;
   max-height: 80vh;
   overflow-y: auto;

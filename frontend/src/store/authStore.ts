@@ -3,10 +3,11 @@ import type { User, UserRole } from '@/types';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAlbumLikeStore } from '@/store/albumLikeStore';
+import { safeStorage } from '@/utils/safeStorage';
 
 function loadUser(): User | null {
   try {
-    const raw = localStorage.getItem('user');
+    const raw = safeStorage.getItem('user');
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -29,19 +30,19 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: loadUser(),
-  accessToken: localStorage.getItem('accessToken'),
+  accessToken: safeStorage.getItem('accessToken'),
   role: loadRole(),
 
   login: (token: string, user: User) => {
-    localStorage.setItem('accessToken', token);
-    localStorage.setItem('user', JSON.stringify(user));
+    safeStorage.setItem('accessToken', token);
+    safeStorage.setItem('user', JSON.stringify(user));
     set({ accessToken: token, user, role: user.role });
   },
 
   logout: () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+    safeStorage.removeItem('accessToken');
+    safeStorage.removeItem('refreshToken');
+    safeStorage.removeItem('user');
     set({ accessToken: null, user: null, role: 'GUEST' });
 
     // Reset all user-dependent stores on session change

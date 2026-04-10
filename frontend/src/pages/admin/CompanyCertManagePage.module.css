@@ -213,7 +213,7 @@
 
 @media (max-width: 767px) {
   .page {
-    padding: 16px;
+    padding: 0; /* AdminLayout .content padding: 16px 으로 충분 */
   }
 
   .title {
@@ -225,6 +225,27 @@
   }
 
   .table {
-    min-width: 320px;
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .table th,
+  .table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .actionBtns {
+    flex-wrap: wrap; /* 버튼 2개가 가로로 붙어 셀 최소폭 초과하는 것 방지 */
+    gap: 4px;
+  }
+
+  /* Hide ID(1), Applied(4) on mobile */
+  .table th:nth-child(1),
+  .table td:nth-child(1),
+  .table th:nth-child(4),
+  .table td:nth-child(4) {
+    display: none;
   }
 }

@@ -4,6 +4,7 @@ import ProtectedRoute from '@/router/ProtectedRoute';
 import SubscriberRoute from '@/router/SubscriberRoute';
 import MainLayout from '@/layouts/MainLayout';
 import AdminLayout from '@/layouts/AdminLayout';
+import { safeStorage } from '@/utils/safeStorage';
 
 /* ── Page imports ── */
 
@@ -128,7 +129,7 @@ const routes: RouteObject[] = [
       { path: '/company-certification/status', element: authRequired(<CompanyCertStatusPage />) },
       { path: '/questions', element: authRequired(<QuestionListPage />), loader: () => {
         try {
-          const raw = localStorage.getItem('user');
+          const raw = safeStorage.getItem('user');
           const user = raw ? JSON.parse(raw) : null;
           if (user?.role === 'ADMIN') return redirect('/admin/questions');
         } catch { /* ignore */ }

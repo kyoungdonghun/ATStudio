@@ -71,6 +71,7 @@
   top: 100%;
   left: 0;
   width: 320px;
+  max-width: calc(100vw - 32px); /* 모바일에서 뷰포트 초과 방지 */
   max-height: 240px;
   overflow-y: auto;
   background: var(--bg2);
@@ -208,15 +209,44 @@
 
 /* ══ Mobile ══ */
 @media (max-width: 767px) {
+  .page {
+    padding: 0; /* AdminLayout .content padding: 16px 으로 충분 */
+  }
+
   .title {
     font-size: 20px;
   }
 
+  .searchGroup {
+    flex-wrap: wrap; /* 검색 input + 버튼 줄바꿈 허용 */
+  }
+
   .searchInput {
     max-width: none;
+    min-width: 0;
+  }
+
+  .dropdown {
+    width: 100%; /* 모바일에서 부모 너비에 맞춤 */
   }
 
   .table {
-    min-width: 320px;
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .table th,
+  .table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Hide ID(1), 발급일(4) on mobile */
+  .table th:nth-child(1),
+  .table td:nth-child(1),
+  .table th:nth-child(4),
+  .table td:nth-child(4) {
+    display: none;
   }
 }
