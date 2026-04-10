@@ -61,7 +61,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/utils/check-phone").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/utils/check-nickname").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/tracks").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/tracks/admin").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/tracks/admin", "/api/tracks/admin/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/tracks/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/tracks/*/stream").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/tags/available").permitAll()
@@ -73,6 +73,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/notices/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/notices/*/attachments/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/settings/*").permitAll()
+                .requestMatchers(HttpMethod.PUT, "/api/settings/*").hasRole("ADMIN")
                 // Swagger (dev only -- SEC-15: checked at application level via profile)
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 // USER — /api/users/me must precede ADMIN wildcard /api/users/*
@@ -83,6 +84,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/api/users/me/password").authenticated()
                 // ADMIN
                 .requestMatchers(HttpMethod.GET, "/api/users").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/users/*/licenses", "/api/users/*/licenses/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/users/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/users/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/tracks").hasRole("ADMIN")

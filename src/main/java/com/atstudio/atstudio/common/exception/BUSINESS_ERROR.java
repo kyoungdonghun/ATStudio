@@ -49,11 +49,6 @@ public enum BUSINESS_ERROR {
             "입력값이 유효하지 않습니다. 필수 항목을 확인하거나 형식을 맞춰주세요.",
             "@ModelAttribute, @RequestParam 유효성 검사 실패."),
 
-    UNEXPECTED_BIND(
-            HttpStatus.BAD_REQUEST,
-            "입력값을 처리할 수 없습니다. 필드 형식이 맞는지 확인해주세요.",
-            "바인딩 유효성 검사 실패."),
-
     IO_LARGE(
             HttpStatus.CONTENT_TOO_LARGE,
             "파일 크기가 너무 큽니다. 제한된 크기를 확인해주세요.",
@@ -70,26 +65,6 @@ public enum BUSINESS_ERROR {
             "데이터 무결성 제약 위반 (DataIntegrityViolationException fallback)."),
 
     // ── ATStudio Domain ───────────────────────────────────────────────────────
-    UNAUTHORIZED_ACTION(
-            HttpStatus.UNAUTHORIZED,
-            "인증이 필요합니다. 다시 로그인해주세요.",
-            "JWT 토큰 만료 또는 무효."),
-
-    PAYMENT_FAILED(
-            HttpStatus.BAD_REQUEST,
-            "결제 처리에 실패했습니다.",
-            "결제 게이트웨이 오류."),
-
-    FILE_FORMAT_INVALID(
-            HttpStatus.BAD_REQUEST,
-            "지원하지 않는 파일 형식입니다.",
-            "허용되지 않은 음악 파일 포맷."),
-
-    STORAGE_LIMIT_EXCEEDED(
-            HttpStatus.FORBIDDEN,
-            "업로드 용량을 초과했습니다.",
-            "사용자 스토리지 한도 초과."),
-
     NO_ACTIVE_SUBSCRIPTION(
             HttpStatus.FORBIDDEN,
             "구독이 필요한 서비스입니다.",

@@ -14,6 +14,8 @@ import {
 import { fetchPlayHistory, deletePlayHistory } from '@/api/playHistory';
 import { fetchMySubscription } from '@/api/userSubscriptions';
 import { fetchLikes } from '@/api/likes';
+import { getApiErrorCode } from '@/api/client';
+import { useToastStore } from '@/store/toastStore';
 import type { Playlist, PlayHistory, LikeItem } from '@/types';
 import styles from './PlaylistDrawer.module.css';
 
@@ -29,6 +31,7 @@ interface PlaylistDrawerProps {
 export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const playTrack = usePlayerStore((s) => s.play);
+  const showToast = useToastStore((s) => s.show);
 
   const [tab, setTab] = useState<Tab>('playlists');
 
@@ -134,7 +137,14 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
       setNewTitle('');
       setShowCreate(false);
       await loadPlaylists();
-    } catch { /* ignore */ }
+    } catch (err) {
+      const code = await getApiErrorCode(err);
+      if (code === 'PLAYLIST_LIMIT_EXCEEDED') {
+        showToast('error', '구독 플랜의 재생목록 한도를 초과했습니다. 플랜을 업그레이드해주세요.');
+      } else {
+        showToast('error', '재생목록 생성에 실패했습니다.');
+      }
+    }
     setCreating(false);
   }
 

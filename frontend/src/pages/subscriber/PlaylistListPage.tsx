@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchMyPlaylists, createPlaylist, deletePlaylist } from '@/api/playlists';
 import { fetchMySubscription } from '@/api/userSubscriptions';
-import { toUploadUrl } from '@/api/client';
+import { toUploadUrl, getApiErrorCode } from '@/api/client';
 import { useAuthStore } from '@/store/authStore';
+import { useToastStore } from '@/store/toastStore';
 import type { Playlist } from '@/types';
 import { TITLE_PLAYLIST_MAX } from '@/utils/validation';
 import Button from '@/components/ui/Button';
@@ -20,6 +21,7 @@ export default function PlaylistListPage() {
   const navigate = useNavigate();
   const role = useAuthStore((s) => s.role);
   const isAdmin = role === 'ADMIN';
+  const showToast = useToastStore((s) => s.show);
 
   /* ── State ── */
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -107,6 +109,11 @@ export default function PlaylistListPage() {
       setShowCreate(false);
       await load();
     } catch (err) {
+      const code = await getApiErrorCode(err);
+      if (code === 'PLAYLIST_LIMIT_EXCEEDED') {
+        showToast('error', '구독 플랜의 재생목록 한도를 초과했습니다. 플랜을 업그레이드해주세요.');
+        return;
+      }
       setError(err instanceof Error ? err.message : '재생목록 생성에 실패했습니다.');
     } finally {
       setCreating(false);

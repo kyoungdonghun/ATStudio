@@ -1,8 +1,18 @@
-# ATStudio DB Schema Definition v5 (Confirmed)
+# ATStudio DB Schema Definition v6 (Confirmed)
 
-> **Status**: v5 Confirmed — site_settings table added
-> **Base**: v4 + 2026-04-04 patch
-> **Date**: 2026-04-04
+> **Status**: v6 Confirmed — users.company_name (SR-47), subscriptions.max_playlists (SR-55), subscription seed prices finalized
+> **Base**: v5 + 2026-04-10 patch
+> **Date**: 2026-04-10
+
+---
+
+## v5 to v6 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| 1 | `users.company_name` | **Added** — VARCHAR(100) NULL. Manually entered company name for BUSINESS members (SR-47). Independent of company_certifications.company_name (which is on the certification document). |
+| 2 | `subscriptions.max_playlists` | **Added** — INT NOT NULL DEFAULT 3. Tier-based limit on the number of active playlists a subscriber may hold (SR-55). |
+| 3 | `subscriptions` seed data | **Finalized** — Replaced all `[TBD]` prices with confirmed values. Added new `STANDARD/BUSINESS` row. Populated `max_playlists` per tier. |
 
 ---
 
@@ -89,6 +99,7 @@
 | Role | `role` | ENUM('USER','ADMIN') | NOT NULL | | 'USER' | |
 | Job | `job` | ENUM('EDITOR','ARTIST','FREELANCER') | NULL | | NULL | NULL on social login registration. Entered during profile completion step. |
 | User type | `user_type` | ENUM('INDIVIDUAL','BUSINESS') | NOT NULL | | 'INDIVIDUAL' | Individual / Business member |
+| Company name | `company_name` | VARCHAR(100) | NULL | | NULL | Company name for BUSINESS members (manual input, SR-47). Independent of company_certifications document field. |
 | Soft delete flag | `is_deleted` | TINYINT(1) | NOT NULL | | 0 | Account deactivation |
 | Refresh token | `refresh_token` | VARCHAR(512) | NULL | | | BCrypt-hashed refresh token. NULL when logged out. |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
@@ -135,6 +146,7 @@
 | Yearly price | `price_yearly` | DECIMAL(10,2) | NOT NULL | | | |
 | Daily download limit | `download_per_day` | INT | NOT NULL | | | -1 = unlimited |
 | Max whitelist channels | `max_whitelist_channels` | INT | NOT NULL | | | Channel limit per tier |
+| Max active playlists | `max_playlists` | INT | NOT NULL | | 3 | Maximum active playlists per subscriber (tier-based limit, SR-55) |
 | Active flag | `is_active` | TINYINT(1) | NOT NULL | | 1 | Whether selectable by users |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
@@ -143,13 +155,14 @@
 
 ### Subscription Plan Seed Data
 
-| name | user_type | price_monthly | price_yearly | download_per_day | max_whitelist_channels |
-|------|-----------|---------------|--------------|------------------|----------------------|
-| STANDARD | INDIVIDUAL | [TBD] | [TBD] | 5 | 1 |
-| DELUXE | INDIVIDUAL | [TBD] | [TBD] | 20 | 2 |
-| PREMIUM | INDIVIDUAL | [TBD] | [TBD] | -1 | 2 |
-| DELUXE | BUSINESS | [TBD] | [TBD] | 50 | 2 |
-| PREMIUM | BUSINESS | [TBD] | [TBD] | -1 | 2 |
+| name | user_type | price_monthly | price_yearly | download_per_day | max_whitelist_channels | max_playlists |
+|------|-----------|---------------|--------------|------------------|------------------------|---------------|
+| STANDARD | INDIVIDUAL | 9,900 | 99,000 | 5 | 1 | 3 |
+| DELUXE | INDIVIDUAL | 19,900 | 199,000 | 20 | 2 | 10 |
+| PREMIUM | INDIVIDUAL | 29,900 | 299,000 | -1 | 2 | 10 |
+| STANDARD | BUSINESS | 19,900 | 199,000 | 10 | 1 | 3 |
+| DELUXE | BUSINESS | 49,900 | 499,000 | 50 | 2 | 10 |
+| PREMIUM | BUSINESS | 99,900 | 999,000 | -1 | 2 | 10 |
 
 ## 2.2 User Subscription Status (`user_subscriptions`)
 

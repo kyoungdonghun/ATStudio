@@ -1,8 +1,22 @@
-# ATStudio API Specification v7 (Confirmed)
+# ATStudio API Specification v8 (Confirmed)
 
-> **Status**: 7th confirmed — SiteSettings API, ValidationConstants centralization
-> **Base**: v6 + 2026-04-04 patch
-> **Date**: 2026-04-04
+> **Status**: 8th confirmed — SR-47/52/55/60/70 sync (tag recombination, admin track detail, bulk playlist add, PKCE social login)
+> **Base**: v7 + 2026-04-10 patch
+> **Date**: 2026-04-10
+
+---
+
+## v7 → v8 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| Y1 | §2 new entry | Added §2.5 GET /api/tags/available (tag recombination, SR-70) — returns tags present on active tracks matching current filters |
+| Y2 | §1 new entry | Added §1.9 GET /api/tracks/admin/{trackId} (SR-60) — admin-only track detail including inactive tracks |
+| Y3 | §1.8 GET /api/tracks/admin | Added `keyword` query parameter (NFC-normalized title search) |
+| Y4 | §3 new entry | Added §3.9 POST /api/playlists/{playlistId}/tracks/batch (SR-52) — bulk add tracks (max 50), duplicates/inactive skipped silently |
+| Y5 | §5.3 POST /api/auth/social/{provider} | Added `codeVerifier` field (PKCE, required) |
+| Y6 | §10 Likes / §11 Download Queue | Replaced obsolete errorCodes (TRACK_ALREADY_IN_LIKES etc.) with actual backend codes: RESOURCE_DUPLICATE (409) / RESOURCE_NOT_FOUND (404) |
+| Y7 | Full API Summary | Updated total count from 101 → 104 |
 
 ---
 
@@ -315,6 +329,7 @@ isActive: Boolean (optional)
 page: Integer (default: 1)
 size: Integer (default: 20)
 is_active: Boolean (optional — if omitted, all tracks returned; true = active only, false = inactive only)
+keyword: String (optional, track title keyword search — NFC-normalized)
 ```
 
 **Response** `200 OK`
@@ -343,6 +358,21 @@ is_active: Boolean (optional — if omitted, all tracks returned; true = active 
 ```json
 { "status": 401, "error": "Unauthorized", "message": "인증이 필요합니다." }
 { "status": 403, "error": "Forbidden", "message": "관리자 권한이 필요합니다." }
+```
+
+## 1.9 Get Track Detail (Admin)
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/tracks/admin/{trackId}` |
+| **Auth** | `[ADMIN]` |
+| **Description** | Admin-only track detail endpoint. Unlike `GET /api/tracks/{trackId}`, this returns tracks regardless of `is_active` status, enabling admins to edit soft-deleted (deactivated) tracks. (SR-60) |
+
+**Response** `200 OK` — Same shape as `GET /api/tracks/{trackId}` (TrackResponse)
+
+**Error Cases**
+```json
+{ "status": 403, "error": "Forbidden", "message": "관리자 권한이 필요합니다." }
+{ "status": 404, "error": "Not Found", "errorCode": "RESOURCE_NOT_FOUND", "message": "트랙을 찾을 수 없습니다." }
 ```
 
 ---
@@ -418,6 +448,31 @@ type: String (optional, "MOOD"|"GENRE"|"INSTRUMENT")
 | **Auth** | `[ADMIN]` |
 
 **Response** `204 No Content`
+
+## 2.5 List Available Tags (Tag Recombination)
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/tags/available` |
+| **Auth** | `[PUBLIC]` |
+| **Description** | Returns tags that appear on at least one active track matching the current filter set. Used for narrow-down tag recombination search (SR-70): as the user selects tags, only the remaining tags present on still-matching tracks are shown, guaranteeing that any further selection yields a non-empty result set. |
+
+**Query Parameters**
+```
+genre: String (optional, comma-separated genre tag names)
+mood: String (optional, comma-separated mood tag names)
+bpmMin: Integer (optional)
+bpmMax: Integer (optional)
+```
+
+**Response** `200 OK`
+```json
+{
+  "dataList": [
+    { "id": 1, "name": "Happy", "type": "MOOD", "createdAt": "2026-02-19T10:00:00" },
+    { "id": 2, "name": "Pop", "type": "GENRE", "createdAt": "2026-02-19T10:00:00" }
+  ]
+}
+```
 
 ---
 
@@ -568,6 +623,36 @@ thumbnail: File (optional)
 
 **Response** `204 No Content`
 
+## 3.9 Bulk Add Tracks to Playlist
+| Field | Value |
+|-------|-------|
+| **URL** | `POST /api/playlists/{playlistId}/tracks/batch` |
+| **Auth** | auth required (subscribers only, owner only) |
+| **Description** | Bulk add multiple tracks to a playlist in one request (SR-52). Silently skips tracks already in the playlist and inactive tracks; returns the count of newly added tracks. Max 50 track IDs per request. |
+
+**Request**
+```json
+{
+  "trackIds": [10, 22, 35, 47]
+}
+```
+
+**Response** `200 OK`
+```json
+{
+  "message": "Success",
+  "data": 3
+}
+```
+> `data` is the number of tracks actually added (duplicates and inactive tracks skipped).
+
+**Error Cases**
+```json
+{ "status": 400, "error": "Bad Request", "errorCode": "INVALID_ARGUMENT", "message": "trackIds는 최대 50개까지 가능합니다." }
+{ "status": 403, "error": "Forbidden", "message": "본인의 재생목록만 수정할 수 있습니다." }
+{ "status": 404, "error": "Not Found", "errorCode": "RESOURCE_NOT_FOUND", "message": "재생목록을 찾을 수 없습니다." }
+```
+
 ---
 
 # 4. Sound — Play History
@@ -697,14 +782,16 @@ size: Integer (default: 50)
 |-------|-------|
 | **URL** | `POST /api/auth/social/{provider}` |
 | **Auth** | `[PUBLIC]` |
-| **Description** | OAuth2.0 social login (GOOGLE/KAKAO/NAVER). On first signup, creates a users record with minimal info and returns `isProfileComplete: false`. Frontend detects this and navigates to 5.10 Profile Completion screen. |
+| **Description** | OAuth2.0 social login (GOOGLE/KAKAO/NAVER) with PKCE. On first signup, creates a users record with minimal info and returns `isProfileComplete: false`. Frontend detects this and navigates to 5.10 Profile Completion screen. |
 
 **Request**
 ```json
 {
-  "authorizationCode": "4/0AX4XfWh..."
+  "authorizationCode": "4/0AX4XfWh...",
+  "codeVerifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
 }
 ```
+> `codeVerifier` (required): PKCE code verifier generated by the frontend and paired with the `code_challenge` sent during the authorization request.
 
 **Response** `200 OK`
 ```json
@@ -1390,7 +1477,7 @@ sort: String (optional, "latest"|"views", default: "latest")
 
 **Error Cases**
 ```json
-{ "status": 409, "error": "Conflict", "errorCode": "TRACK_ALREADY_IN_LIKES", "message": "이미 좋아요한 트랙입니다." }
+{ "status": 409, "error": "Conflict", "errorCode": "RESOURCE_DUPLICATE", "message": "이미 좋아요한 트랙입니다." }
 ```
 
 ## 10.2 List Likes
@@ -1425,7 +1512,7 @@ sort: String (optional, "latest"|"views", default: "latest")
 
 **Error Cases**
 ```json
-{ "status": 404, "error": "Not Found", "errorCode": "TRACK_NOT_IN_LIKES", "message": "좋아요 목록에 없는 트랙입니다." }
+{ "status": 404, "error": "Not Found", "errorCode": "RESOURCE_NOT_FOUND", "message": "좋아요 목록에 없는 트랙입니다." }
 ```
 
 ## 10.4 Add Album Like
@@ -1438,7 +1525,7 @@ sort: String (optional, "latest"|"views", default: "latest")
 
 **Error Cases**
 ```json
-{ "status": 409, "error": "Conflict", "errorCode": "ALBUM_ALREADY_IN_LIKES", "message": "이미 좋아요한 앨범입니다." }
+{ "status": 409, "error": "Conflict", "errorCode": "RESOURCE_DUPLICATE", "message": "이미 좋아요한 앨범입니다." }
 ```
 
 ## 10.5 Remove Album Like
@@ -1451,7 +1538,7 @@ sort: String (optional, "latest"|"views", default: "latest")
 
 **Error Cases**
 ```json
-{ "status": 404, "error": "Not Found", "errorCode": "ALBUM_NOT_IN_LIKES", "message": "좋아요 목록에 없는 앨범입니다." }
+{ "status": 404, "error": "Not Found", "errorCode": "RESOURCE_NOT_FOUND", "message": "좋아요 목록에 없는 앨범입니다." }
 ```
 
 ## 10.6 List My Album Likes
@@ -1494,7 +1581,7 @@ sort: String (optional, "latest"|"views", default: "latest")
 
 **Error Cases**
 ```json
-{ "status": 409, "error": "Conflict", "errorCode": "TRACK_ALREADY_IN_QUEUE", "message": "이미 다운로드 큐에 있는 트랙입니다." }
+{ "status": 409, "error": "Conflict", "errorCode": "RESOURCE_DUPLICATE", "message": "이미 다운로드 큐에 있는 트랙입니다." }
 ```
 
 ## 11.2 List Queue
@@ -1529,7 +1616,7 @@ sort: String (optional, "latest"|"views", default: "latest")
 
 **Error Cases**
 ```json
-{ "status": 404, "error": "Not Found", "errorCode": "TRACK_NOT_IN_QUEUE", "message": "다운로드 큐에 없는 트랙입니다." }
+{ "status": 404, "error": "Not Found", "errorCode": "RESOURCE_NOT_FOUND", "message": "다운로드 큐에 없는 트랙입니다." }
 ```
 
 ---
@@ -2135,13 +2222,13 @@ key: String (required) — setting key name
 
 ---
 
-# Full API Summary (101)
+# Full API Summary (104)
 
 | # | Section | API Count |
 |---|---------|-----------|
-| 1 | Track | 8 |
-| 2 | Tag | 4 |
-| 3 | Playlist | 8 |
+| 1 | Track | 9 |
+| 2 | Tag | 5 |
+| 3 | Playlist | 9 |
 | 4 | Play History | 3 |
 | 5 | User Info | 11 |
 | 6 | Subscription | 11 |
@@ -2156,4 +2243,4 @@ key: String (required) — setting key name
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
-| | **Total** | **101** |
+| | **Total** | **104** |
