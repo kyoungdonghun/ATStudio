@@ -2,9 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { fetchTracks, type TrackListParams } from '@/api/tracks';
 import { fetchTags, fetchAvailableTags } from '@/api/tags';
-import { addToDownloadQueue } from '@/api/downloadQueue';
 import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
-import { isSubscriptionRequired, getApiErrorCode } from '@/api/client';
+import { getApiErrorCode } from '@/api/client';
 import { fetchDownloadCount } from '@/api/downloads';
 import type { TrackListItem, TagItem, PageInfo } from '@/types';
 import TrackRow from '@/components/track/TrackRow';
@@ -454,7 +453,7 @@ export default function TrackListPage() {
           <table className={styles.trackTable}>
             <thead>
               <tr>
-                <th className={styles.thCenter}>#</th>
+                <th className={`${styles.thCenter} ${styles.thNum}`}>#</th>
                 <th>{'음원'}</th>
                 <th className={styles.thTag}>{'장르 / 태그'}</th>
                 <th className={`${styles.thRight} ${styles.thBpm}`}>BPM</th>
@@ -519,24 +518,6 @@ export default function TrackListPage() {
                         toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
                       } else {
                         toast('error', '다운로드에 실패했습니다.');
-                      }
-                    }
-                  }}
-                  onBuy={async (t) => {
-                    try {
-                      await addToDownloadQueue(t.id);
-                      toast('success', '다운로드 대기열에 추가되었습니다.');
-                    } catch (err: unknown) {
-                      if (isSubscriptionRequired(err)) {
-                        toast('warning', '구독이 필요한 기능입니다.');
-                        navigate('/subscriptions');
-                      } else {
-                        const axErr = err as { response?: { status?: number } };
-                        if (axErr.response?.status === 409) {
-                          toast('error', '이미 대기열에 있는 음원입니다.');
-                        } else {
-                          toast('error', '대기열 추가에 실패했습니다.');
-                        }
                       }
                     }
                   }}

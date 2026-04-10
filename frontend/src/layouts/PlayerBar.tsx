@@ -6,8 +6,7 @@ import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
 import { fetchMySubscription } from '@/api/userSubscriptions';
-import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
-import QueueModal from '@/components/player/QueueModal';
+import HistoryModal from '@/components/player/HistoryModal';
 import PlaylistDrawer from '@/components/player/PlaylistDrawer';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import styles from './PlayerBar.module.css';
@@ -44,12 +43,11 @@ export default function PlayerBar() {
   const repeat = usePlayerStore((s) => s.repeat);
   const toggleShuffle = usePlayerStore((s) => s.toggleShuffle);
   const cycleRepeat = usePlayerStore((s) => s.cycleRepeat);
-  const [queueOpen, setQueueOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [showPlModal, setShowPlModal] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [hasSubscription, setHasSubscription] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
   const mobileMiniProgressRef = useRef<HTMLDivElement>(null);
   const mobileSeekRef = useRef<HTMLDivElement>(null);
@@ -71,38 +69,6 @@ export default function PlayerBar() {
       .then(() => setHasSubscription(true))
       .catch(() => setHasSubscription(false));
   }, [isAuthenticated, role]);
-
-  const handleDownload = useCallback(async () => {
-    if (!currentTrack) return;
-    if (downloading) return;
-    setDownloading(true);
-    try {
-      const blob = await downloadTrack(currentTrack.id);
-      const ext = currentTrack.title.includes('.') ? '' : '.mp3';
-      triggerBlobDownload(blob, `${currentTrack.title}${ext}`);
-      toast('success', '다운로드가 시작되었습니다.');
-    } catch (err: unknown) {
-      // Handle blob error response
-      if (err && typeof err === 'object' && 'response' in err) {
-        const resp = (err as { response?: { data?: Blob; status?: number } }).response;
-        if (resp?.data instanceof Blob) {
-          try {
-            const text = await resp.data.text();
-            const json = JSON.parse(text);
-            toast('error', json.message || '다운로드에 실패했습니다.');
-          } catch {
-            toast('error', '다운로드에 실패했습니다.');
-          }
-        } else {
-          toast('error', '다운로드에 실패했습니다.');
-        }
-      } else {
-        toast('error', '다운로드에 실패했습니다.');
-      }
-    } finally {
-      setDownloading(false);
-    }
-  }, [currentTrack, downloading, toast]);
 
   const handlePlayPause = useCallback(() => {
     if (isPlaying) {
@@ -155,14 +121,14 @@ export default function PlayerBar() {
           <div className={styles.controls} />
           <div className={styles.rightActions}>
             <button
-              className={`${styles.actionBtn} ${queueOpen ? styles.actionBtnActive : ''}`}
-              onClick={() => { setQueueOpen((v) => !v); setPlaylistOpen(false); }}
+              className={`${styles.actionBtn} ${historyOpen ? styles.actionBtnActive : ''}`}
+              onClick={() => { setHistoryOpen((v) => !v); setPlaylistOpen(false); }}
             >
-              {'대기열'}
+              {'재생기록'}
             </button>
             <button
               className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
-              onClick={() => { setPlaylistOpen((v) => !v); setQueueOpen(false); }}
+              onClick={() => { setPlaylistOpen((v) => !v); setHistoryOpen(false); }}
             >
               {'재생목록'}
             </button>
@@ -178,7 +144,7 @@ export default function PlayerBar() {
             </div>
           </div>
         </div>
-        {queueOpen && <QueueModal open={queueOpen} onClose={() => setQueueOpen(false)} />}
+        {historyOpen && <HistoryModal open={historyOpen} onClose={() => setHistoryOpen(false)} />}
         {playlistOpen && <PlaylistDrawer open={playlistOpen} onClose={() => setPlaylistOpen(false)} />}
       </>
     );
@@ -193,7 +159,13 @@ export default function PlayerBar() {
       <div className={styles.player}>
         {/* Left: Track info */}
         <div className={styles.trackInfo}>
-          <div className={styles.thumb}>
+          <div
+            className={styles.thumb}
+            onClick={() => navigate(`/tracks/${currentTrack.id}`)}
+            style={{ cursor: 'pointer' }}
+            role="button"
+            aria-label="트랙 상세 보기"
+          >
             {currentTrack.thumbnail ? (
               <img src={toUploadUrl(currentTrack.thumbnail)!} alt={currentTrack.title} />
             ) : (
@@ -208,7 +180,6 @@ export default function PlayerBar() {
             >
               {currentTrack.title}
             </div>
-            <div className={styles.trackArtist}>{currentTrack.artistName}</div>
           </div>
           <button
             className={`${styles.heartBtn} ${likeStore.likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
@@ -344,19 +315,19 @@ export default function PlayerBar() {
           </div>
 
           <button
-            className={`${styles.actionBtn} ${queueOpen ? styles.actionBtnActive : ''}`}
+            className={`${styles.actionBtn} ${historyOpen ? styles.actionBtnActive : ''}`}
             onClick={() => {
-              setQueueOpen((v) => !v);
+              setHistoryOpen((v) => !v);
               setPlaylistOpen(false);
             }}
           >
-            {'\uB300\uAE30\uC5F4'}
+            {'\uC7AC\uC0DD\uAE30\uB85D'}
           </button>
           <button
             className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
             onClick={() => {
               setPlaylistOpen((v) => !v);
-              setQueueOpen(false);
+              setHistoryOpen(false);
             }}
           >
             {'\uC7AC\uC0DD\uBAA9\uB85D'}
@@ -371,11 +342,6 @@ export default function PlayerBar() {
               {'\uAD6C\uB3C5\uD558\uAE30'}
             </button>
           )}
-          {isAuthenticated && role === 'USER' && hasSubscription && (
-            <button className={styles.buyBtn} onClick={handleDownload} disabled={downloading}>
-              {downloading ? '\uB2E4\uC6B4\uB85C\uB4DC \uC911...' : '\uB2E4\uC6B4\uB85C\uB4DC'}
-            </button>
-          )}
         </div>
       </div>
 
@@ -388,7 +354,13 @@ export default function PlayerBar() {
 
         <div className={styles.mobileBar}>
           <div className={styles.mobileInfo} onClick={() => setExpanded((v) => !v)}>
-            <div className={styles.thumb}>
+            <div
+              className={styles.thumb}
+              onClick={(e) => { e.stopPropagation(); navigate(`/tracks/${currentTrack.id}`); }}
+              style={{ cursor: 'pointer' }}
+              role="button"
+              aria-label="트랙 상세 보기"
+            >
               {currentTrack.thumbnail ? (
                 <img src={toUploadUrl(currentTrack.thumbnail)!} alt={currentTrack.title} />
               ) : (
@@ -403,8 +375,7 @@ export default function PlayerBar() {
               >
                 {currentTrack.title}
               </div>
-              <div className={styles.trackArtist}>{currentTrack.artistName}</div>
-            </div>
+              </div>
           </div>
           <div className={styles.mobileControls}>
             {!expanded && (
@@ -531,14 +502,14 @@ export default function PlayerBar() {
               setShowPlModal(true);
             }}>+ 재생목록</button>
             <button
-              className={`${styles.actionBtn} ${queueOpen ? styles.actionBtnActive : ''}`}
-              onClick={() => { setQueueOpen((v) => !v); setPlaylistOpen(false); }}
+              className={`${styles.actionBtn} ${historyOpen ? styles.actionBtnActive : ''}`}
+              onClick={() => { setHistoryOpen((v) => !v); setPlaylistOpen(false); }}
             >
-              {'대기열'}
+              {'재생기록'}
             </button>
             <button
               className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
-              onClick={() => { setPlaylistOpen((v) => !v); setQueueOpen(false); }}
+              onClick={() => { setPlaylistOpen((v) => !v); setHistoryOpen(false); }}
             >
               {'재생목록'}
             </button>
@@ -548,17 +519,12 @@ export default function PlayerBar() {
             {isAuthenticated && role === 'USER' && !hasSubscription && (
               <button className={styles.buyBtn} onClick={() => navigate('/subscriptions')}>{'구독하기'}</button>
             )}
-            {isAuthenticated && role === 'USER' && hasSubscription && (
-              <button className={styles.buyBtn} onClick={handleDownload} disabled={downloading}>
-                {downloading ? '다운로드 중...' : '다운로드'}
-              </button>
-            )}
           </div>
         </div>
       </div>
 
       {/* Modals / Drawers */}
-      <QueueModal open={queueOpen} onClose={() => setQueueOpen(false)} />
+      <HistoryModal open={historyOpen} onClose={() => setHistoryOpen(false)} />
       <PlaylistDrawer open={playlistOpen} onClose={() => setPlaylistOpen(false)} />
       <AddToPlaylistModal
         open={showPlModal}

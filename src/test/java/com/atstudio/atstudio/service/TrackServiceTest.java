@@ -177,7 +177,7 @@ class TrackServiceTest {
         Page<Track> page = new PageImpl<>(List.of(active, inactive), PageRequest.of(0, 20), 2);
         given(trackRepository.findAll(any(Specification.class), any(Pageable.class))).willReturn(page);
 
-        ResponseDTO<AdminTrackListItemResponse> result = trackService.getTracksForAdmin(null, 1, 20);
+        ResponseDTO<AdminTrackListItemResponse> result = trackService.getTracksForAdmin(null, null, 1, 20);
 
         assertThat(result.getDataList()).hasSize(2);
         assertThat(result.getPageInfo().getTotal()).isEqualTo(2);
@@ -191,7 +191,7 @@ class TrackServiceTest {
         Page<Track> page = new PageImpl<>(List.of(active), PageRequest.of(0, 20), 1);
         given(trackRepository.findAll(any(Specification.class), any(Pageable.class))).willReturn(page);
 
-        ResponseDTO<AdminTrackListItemResponse> result = trackService.getTracksForAdmin(true, 1, 20);
+        ResponseDTO<AdminTrackListItemResponse> result = trackService.getTracksForAdmin(true, null, 1, 20);
 
         assertThat(result.getDataList()).hasSize(1);
         assertThat(result.getDataList().get(0).isActive()).isTrue();
@@ -205,7 +205,7 @@ class TrackServiceTest {
         Page<Track> page = new PageImpl<>(List.of(inactive), PageRequest.of(0, 20), 1);
         given(trackRepository.findAll(any(Specification.class), any(Pageable.class))).willReturn(page);
 
-        ResponseDTO<AdminTrackListItemResponse> result = trackService.getTracksForAdmin(false, 1, 20);
+        ResponseDTO<AdminTrackListItemResponse> result = trackService.getTracksForAdmin(false, null, 1, 20);
 
         assertThat(result.getDataList()).hasSize(1);
         assertThat(result.getDataList().get(0).isActive()).isFalse();
@@ -218,7 +218,7 @@ class TrackServiceTest {
         Page<Track> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 20), 0);
         given(trackRepository.findAll(any(Specification.class), any(Pageable.class))).willReturn(emptyPage);
 
-        ResponseDTO<AdminTrackListItemResponse> result = trackService.getTracksForAdmin(null, 1, 20);
+        ResponseDTO<AdminTrackListItemResponse> result = trackService.getTracksForAdmin(null, null, 1, 20);
 
         assertThat(result.getDataList()).isEmpty();
         assertThat(result.getPageInfo().getTotal()).isZero();

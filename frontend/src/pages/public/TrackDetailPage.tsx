@@ -2,8 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { fetchTrackDetail, type TrackDetail } from '@/api/tracks';
-import { toUploadUrl, isSubscriptionRequired, getApiErrorCode } from '@/api/client';
-import { addToDownloadQueue } from '@/api/downloadQueue';
+import { toUploadUrl, getApiErrorCode } from '@/api/client';
 import { downloadTrack, triggerBlobDownload, fetchDownloadCount } from '@/api/downloads';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
@@ -19,7 +18,7 @@ export default function TrackDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showPlModal, setShowPlModal] = useState(false);
-  const [dlStatus, setDlStatus] = useState<'idle' | 'adding' | 'downloading'>('idle');
+  const [dlStatus, setDlStatus] = useState<'idle' | 'downloading'>('idle');
 
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlayerPlaying = usePlayerStore((s) => s.isPlaying);
@@ -47,30 +46,6 @@ export default function TrackDetailPage() {
       likeStore.load();
     }
   }, [isAuthenticated, likeStore.loaded]);
-
-  async function handleAddToQueue() {
-    if (!track) return;
-    try {
-      setDlStatus('adding');
-      setError(null);
-      await addToDownloadQueue(track.id);
-      toast('success', '다운로드 대기열에 추가되었습니다.');
-    } catch (err: unknown) {
-      if (isSubscriptionRequired(err)) {
-        toast('warning', '구독이 필요한 기능입니다.');
-        navigate('/subscriptions');
-        return;
-      }
-      const axErr = err as { response?: { status?: number } };
-      if (axErr.response?.status === 409) {
-        toast('error', '이미 대기열에 있는 음원입니다.');
-      } else {
-        setError('대기열 추가에 실패했습니다.');
-      }
-    } finally {
-      setDlStatus('idle');
-    }
-  }
 
   async function handleDownload() {
     if (!track) return;
@@ -205,13 +180,6 @@ export default function TrackDetailPage() {
                 onClick={() => setShowPlModal(true)}
               >
                 +&nbsp;&nbsp;재생목록에 추가
-              </button>
-              <button
-                className={styles.btnSubAction}
-                onClick={handleAddToQueue}
-                disabled={dlStatus === 'adding'}
-              >
-                {dlStatus === 'adding' ? '추가 중...' : '\u2B07\u00A0\u00A0대기열에 추가'}
               </button>
             </div>
           )}

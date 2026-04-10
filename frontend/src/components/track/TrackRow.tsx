@@ -15,7 +15,6 @@ interface TrackRowProps {
   onLike?: (track: TrackListItem) => void;
   onAddToPlaylist?: (track: TrackListItem) => void;
   onDownload?: (track: TrackListItem) => void;
-  onBuy?: (track: TrackListItem) => void;
   onGuestAction?: () => void;
 }
 
@@ -30,7 +29,6 @@ export default function TrackRow({
   onLike,
   onAddToPlaylist,
   onDownload,
-  onBuy,
   onGuestAction,
 }: TrackRowProps) {
   const rowClass = [styles.row, playing ? styles.playing : '']
@@ -81,9 +79,6 @@ export default function TrackRow({
                   <Badge variant="hot">HOT</Badge>
                 </>
               )}
-            </div>
-            <div className={styles.artist}>
-              {track.artistName ?? genreTags[0]?.name ?? ''}
             </div>
           </div>
         </div>
@@ -138,12 +133,6 @@ export default function TrackRow({
               >
                 &#8595;
               </button>
-              <button
-                className={styles.buyBtn}
-                onClick={() => onBuy?.(track)}
-              >
-                Buy
-              </button>
             </>
           ) : (
             <>
@@ -167,12 +156,6 @@ export default function TrackRow({
                 title="Download"
               >
                 &#8595;
-              </button>
-              <button
-                className={styles.buyBtn}
-                onClick={() => onGuestAction?.()}
-              >
-                Buy
               </button>
             </>
           )}

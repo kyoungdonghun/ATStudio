@@ -9,11 +9,14 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface PlayHistoryRepository extends JpaRepository<PlayHistory, Long> {
 
     @EntityGraph(attributePaths = {"track", "track.user"})
     Page<PlayHistory> findAllByUserOrderByPlayedAtDesc(User user, Pageable pageable);
+
+    Optional<PlayHistory> findByUserAndTrack(User user, Track track);
 
     void deleteByIdInAndUser(List<Long> ids, User user);
 

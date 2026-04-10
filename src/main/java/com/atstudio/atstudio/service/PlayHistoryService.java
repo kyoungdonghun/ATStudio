@@ -20,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -40,7 +41,12 @@ public class PlayHistoryService {
                 .filter(Track::isActive)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND));
 
-        playHistoryRepository.save(PlayHistory.builder().user(user).track(track).build());
+        playHistoryRepository.findByUserAndTrack(user, track)
+                .ifPresentOrElse(
+                        existing -> existing.updatePlayedAt(LocalDateTime.now()),
+                        () -> playHistoryRepository.save(PlayHistory.builder().user(user).track(track).build())
+                );
+
         trackRepository.incrementPlayCount(trackId);
     }
 

@@ -55,6 +55,7 @@ class PlayHistoryServiceTest {
 
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(2L)).willReturn(Optional.of(track));
+        given(playHistoryRepository.findByUserAndTrack(user, track)).willReturn(Optional.empty());
         given(playHistoryRepository.save(any(PlayHistory.class))).willReturn(
                 PlayHistory.builder().user(user).track(track).build());
 
@@ -73,6 +74,7 @@ class PlayHistoryServiceTest {
 
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(2L)).willReturn(Optional.of(track));
+        given(playHistoryRepository.findByUserAndTrack(user, track)).willReturn(Optional.empty());
         given(playHistoryRepository.save(any(PlayHistory.class))).willReturn(
                 PlayHistory.builder().user(user).track(track).build());
 

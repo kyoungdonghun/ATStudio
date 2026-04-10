@@ -57,6 +57,110 @@
   opacity: 0.88;
 }
 
+/* ── Filter bar (SR-79) ── */
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.searchForm {
+  display: flex;
+  gap: 6px;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg1);
+  color: var(--text0);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.searchBtn {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text0);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.searchBtn:hover {
+  background: var(--bg3);
+}
+
+.sortSelect {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg1);
+  color: var(--text0);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.bulkActions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.bulkBtn,
+.bulkBtnPrimary {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.bulkBtn {
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text0);
+}
+
+.bulkBtn:hover:not(:disabled) {
+  background: var(--bg3);
+}
+
+.bulkBtnPrimary {
+  border: none;
+  background: var(--accent);
+  color: var(--bg0);
+  font-weight: 600;
+}
+
+.bulkBtnPrimary:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.bulkBtn:disabled,
+.bulkBtnPrimary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* ── States ── */
 
 .loading,
@@ -114,6 +218,11 @@
   text-align: center;
 }
 
+.table thead .thCheck {
+  width: 40px;
+  text-align: center;
+}
+
 .table thead .thRight {
   text-align: right;
 }
@@ -128,8 +237,19 @@
 }
 
 .table thead .thActs {
-  width: 90px;
+  width: 72px;
   text-align: center;
+}
+
+/* SR-79: tags column — match TrackRow.module.css .cellTag sizing */
+.table thead .thTags {
+  min-width: 132px;
+  max-width: 242px;
+}
+
+.table thead .thDate {
+  width: 160px;
+  white-space: nowrap;
 }
 
 .table tbody td {
@@ -176,9 +296,60 @@
 }
 
 .cellActs {
-  width: 90px;
+  width: 72px;
   text-align: center;
   white-space: nowrap;
+}
+
+.cellCheck {
+  width: 40px;
+  text-align: center;
+}
+
+/* ── Tags cell (SR-79) — match TrackRow .cellTag ── */
+.cellTags {
+  min-width: 132px;
+  max-width: 242px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tagList {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.tagChip {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  background: var(--bg2);
+  color: var(--text1);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tagEmpty {
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.cellDate {
+  width: 160px;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.paginationWrap {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
 }
 
 /* ── Status badges ── */
@@ -297,6 +468,19 @@
   .cellStatus {
     display: none;
   }
+
+  /* Match TrackRow tablet sizing */
+  .cellTags,
+  .table thead .thTags {
+    min-width: 88px;
+    max-width: 132px;
+  }
+
+  .thDate,
+  .cellDate {
+    width: auto;
+    font-size: 11px;
+  }
 }
 
 /* ══ Mobile ══ */
@@ -318,9 +502,20 @@
     display: none;
   }
 
+  /* Hide tags column on mobile, matching TrackRow */
+  .thTags,
+  .cellTags {
+    display: none;
+  }
+
   .table thead th,
   .table tbody td {
     padding: 8px 8px;
+  }
+
+  .tagChip {
+    padding: 1px 5px;
+    font-size: 10px;
   }
 
   .thumb {

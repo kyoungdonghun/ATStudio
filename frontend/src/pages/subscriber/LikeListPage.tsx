@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchLikes, removeLike, fetchAlbumLikes, removeAlbumLike } from '@/api/likes';
 import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
-import { addToDownloadQueue } from '@/api/downloadQueue';
 import { toUploadUrl } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import { usePlayerStore } from '@/store/playerStore';
@@ -90,20 +89,6 @@ export default function LikeListPage() {
       triggerBlobDownload(blob, `${item.title}.mp3`);
     } catch {
       toast('error', '다운로드에 실패했습니다.');
-    }
-  }
-
-  async function handleAddToQueue(item: LikeItem) {
-    try {
-      await addToDownloadQueue(item.trackId);
-      toast('success', '다운로드 대기열에 추가되었습니다.');
-    } catch (err: unknown) {
-      const axErr = err as { response?: { status?: number } };
-      if (axErr.response?.status === 409) {
-        toast('error', '이미 대기열에 있는 음원입니다.');
-      } else {
-        toast('error', '대기열 추가에 실패했습니다.');
-      }
     }
   }
 
@@ -254,13 +239,6 @@ export default function LikeListPage() {
                           title="다운로드"
                         >
                           {'\u2193'}
-                        </button>
-                        <button
-                          className={styles.queueBtn}
-                          onClick={() => handleAddToQueue(item)}
-                          title="대기열에 추가"
-                        >
-                          {'대기열'}
                         </button>
                       </span>
                       <button

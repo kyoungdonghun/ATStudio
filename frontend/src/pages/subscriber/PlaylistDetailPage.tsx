@@ -7,7 +7,6 @@ import {
   type PlaylistTrack,
 } from '@/api/playlists';
 import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
-import { addToDownloadQueue } from '@/api/downloadQueue';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
@@ -109,20 +108,6 @@ export default function PlaylistDetailPage() {
       triggerBlobDownload(blob, `${track.title}.mp3`);
     } catch {
       toast('error', '다운로드에 실패했습니다.');
-    }
-  }
-
-  async function handleAddToQueue(track: PlaylistTrack) {
-    try {
-      await addToDownloadQueue(track.trackId);
-      toast('success', '다운로드 대기열에 추가되었습니다.');
-    } catch (err: unknown) {
-      const axErr = err as { response?: { status?: number } };
-      if (axErr.response?.status === 409) {
-        toast('error', '이미 대기열에 있는 음원입니다.');
-      } else {
-        toast('error', '대기열 추가에 실패했습니다.');
-      }
     }
   }
 
@@ -292,13 +277,6 @@ export default function PlaylistDetailPage() {
                       title="다운로드"
                     >
                       {'\u2193'}
-                    </button>
-                    <button
-                      className={styles.queueBtn}
-                      onClick={() => handleAddToQueue(track)}
-                      title="대기열에 추가"
-                    >
-                      {'대기열'}
                     </button>
                   </span>
                   <button

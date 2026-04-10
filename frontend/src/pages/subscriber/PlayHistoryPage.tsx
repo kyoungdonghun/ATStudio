@@ -134,7 +134,6 @@ export default function PlayHistoryPage() {
                   </th>
                   <th className={styles.thCenter}>#</th>
                   <th>{'음원'}</th>
-                  <th>{'아티스트'}</th>
                   <th className={styles.thRight}>{'재생일시'}</th>
                 </tr>
               </thead>
@@ -172,9 +171,6 @@ export default function PlayHistoryPage() {
                           </Link>
                         </div>
                       </div>
-                    </td>
-                    <td className={styles.cellArtist}>
-                      {item.track.artistName}
                     </td>
                     <td className={styles.cellDate}>
                       {formatDateTime(item.playedAt)}

@@ -2,15 +2,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { fetchAlbumDetail, type AlbumDetail } from '@/api/albums';
-import { toUploadUrl, isSubscriptionRequired, getApiErrorCode } from '@/api/client';
+import { toUploadUrl } from '@/api/client';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import { useAuthStore } from '@/store/authStore';
 import { formatDate } from '@/utils/format';
-import { downloadTrack, triggerBlobDownload, fetchDownloadCount } from '@/api/downloads';
 import { useToastStore } from '@/store/toastStore';
-import { addToDownloadQueue } from '@/api/downloadQueue';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import styles from './AlbumDetailPage.module.css';
 
@@ -230,7 +228,6 @@ export default function AlbumDetailPage() {
                     </div>
                     <div>
                       <div className={styles.trTitle}>{t.title}</div>
-                      <div className={styles.trArtist}>{t.artistName}</div>
                     </div>
                   </Link>
                 </td>
@@ -254,69 +251,11 @@ export default function AlbumDetailPage() {
                         >
                           +
                         </button>
-                        <button
-                          className={styles.trActBtn}
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            try {
-                              const blob = await downloadTrack(t.trackId);
-                              triggerBlobDownload(blob, `${t.title}.mp3`);
-                              try {
-                                const count = await fetchDownloadCount();
-                                toast('success', `다운로드 완료! 오늘 남은 횟수: ${count.remaining}/${count.dailyLimit}`);
-                              } catch {
-                                toast('success', '다운로드가 완료되었습니다.');
-                              }
-                            } catch (err) {
-                              const code = await getApiErrorCode(err);
-                              if (code === 'NO_ACTIVE_SUBSCRIPTION') {
-                                toast('warning', '구독이 필요한 기능입니다.');
-                                navigate('/subscriptions');
-                              } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
-                                toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
-                              } else {
-                                toast('error', '다운로드에 실패했습니다.');
-                              }
-                            }
-                          }}
-                          aria-label="Download"
-                          title="다운로드"
-                        >
-                          &#8595;
-                        </button>
-                        <button
-                          className={styles.trQueueBtn}
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            try {
-                              await addToDownloadQueue(t.trackId);
-                              toast('success', '다운로드 대기열에 추가되었습니다.');
-                            } catch (err: unknown) {
-                              if (isSubscriptionRequired(err)) {
-                                toast('warning', '구독이 필요한 기능입니다.');
-                                navigate('/subscriptions');
-                              } else {
-                                const axErr = err as { response?: { status?: number } };
-                                if (axErr.response?.status === 409) {
-                                  toast('error', '이미 대기열에 있는 음원입니다.');
-                                } else {
-                                  toast('error', '대기열 추가에 실패했습니다.');
-                                }
-                              }
-                            }
-                          }}
-                          aria-label="Add to download queue"
-                          title="대기열에 추가"
-                        >
-                          Buy
-                        </button>
                       </>
                     ) : (
                       <>
                         <button className={styles.trActBtn} onClick={() => { toast('warning', '로그인이 필요한 기능입니다.'); navigate('/login'); }} title="Like">{'\u2661'}</button>
                         <button className={styles.trActBtn} onClick={() => { toast('warning', '로그인이 필요한 기능입니다.'); navigate('/login'); }} title="Add to playlist">+</button>
-                        <button className={styles.trActBtn} onClick={() => { toast('warning', '로그인이 필요한 기능입니다.'); navigate('/login'); }} title="Download">&#8595;</button>
-                        <button className={styles.trQueueBtn} onClick={() => { toast('warning', '로그인이 필요한 기능입니다.'); navigate('/login'); }}>Buy</button>
                       </>
                     )}
                   </div>

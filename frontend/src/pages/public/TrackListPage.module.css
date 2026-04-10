@@ -195,7 +195,17 @@
 .trackTable {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
+
+/* Column widths — drive table-layout:fixed from thead */
+.trackTable thead .thNum { width: 42px; }
+.trackTable thead .thTag { width: 450px; }
+.trackTable thead .thBpm { width: 70px; }
+.trackTable thead .thKey { width: 70px; }
+.trackTable thead .thDur { width: 66px; }
+.trackTable thead .thActs { width: 120px; }
+/* '음원' th has no width → gets remaining space */
 
 .trackTable thead th {
   font-size: 11px;
@@ -345,6 +355,11 @@
 .keywordClear:hover {
   color: var(--text0);
   border-color: var(--text2);
+}
+
+/* ══ Mid-desktop (narrow desktop) ══ */
+@media (max-width: 1200px) {
+  .trackTable thead .thTag { width: 350px; }
 }
 
 /* ══ Tablet ══ */
