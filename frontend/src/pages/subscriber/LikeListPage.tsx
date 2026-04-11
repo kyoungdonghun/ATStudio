@@ -34,6 +34,7 @@ export default function LikeListPage() {
   const playTrack = usePlayerStore((s) => s.play);
   const pauseTrack = usePlayerStore((s) => s.pause);
   const resumeTrack = usePlayerStore((s) => s.resume);
+  const setTrackListContext = usePlayerStore((s) => s.setTrackListContext);
   const likeStore = useLikeStore();
   const albumLikeStore = useAlbumLikeStore();
   const toast = useToastStore((s) => s.show);
@@ -71,6 +72,30 @@ export default function LikeListPage() {
     if (tab === 'tracks') loadTracks();
     else loadAlbums();
   }, [tab, loadTracks, loadAlbums]);
+
+  /* SR-83: Publish liked tracks as player context so Next/Prev traverses them. */
+  useEffect(() => {
+    if (tab !== 'tracks') return;
+    const tracks = items.map((item) => ({
+      id: item.trackId,
+      title: item.title,
+      artistName: '',
+      duration: 0,
+      bpm: item.bpm,
+      tonality: item.tonality,
+      description: null,
+      audioFile: null,
+      thumbnail: item.thumbnail,
+      tags: [],
+      isActive: true,
+      playCount: 0,
+      likeCount: 0,
+      downloadCount: 0,
+      createdAt: item.createdAt,
+      updatedAt: item.createdAt,
+    }));
+    setTrackListContext(tracks);
+  }, [tab, items, setTrackListContext]);
 
   /* ── Track handlers ── */
   async function handleUnlike(trackId: number) {

@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type { Track } from '@/types';
-import { recordPlay } from '@/api/playHistory';
 import { safeStorage } from '@/utils/safeStorage';
 
 const audio = new Audio();
@@ -48,6 +47,56 @@ function loadPersistedState(): PersistedPlayerState | null {
 
 const savedState = loadPersistedState();
 
+/* ── Play history (localStorage, SR-89) ── */
+
+export interface LocalPlayEntry {
+  trackId: number;
+  title: string;
+  thumbnail: string | null;
+  playedAt: string;
+}
+
+const HISTORY_KEY = 'playHistory';
+const HISTORY_MAX = 100;
+
+export function savePlayHistory(track: Track): void {
+  try {
+    const raw = safeStorage.getItem(HISTORY_KEY);
+    const list: LocalPlayEntry[] = raw ? (JSON.parse(raw) as LocalPlayEntry[]) : [];
+    const entry: LocalPlayEntry = {
+      trackId: track.id,
+      title: track.title,
+      thumbnail: track.thumbnail ?? null,
+      playedAt: new Date().toISOString(),
+    };
+    // Upsert: remove previous entry for same track, prepend latest
+    const updated = [entry, ...list.filter((e) => e.trackId !== track.id)].slice(0, HISTORY_MAX);
+    safeStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+  } catch { /* quota exceeded — ignore */ }
+}
+
+export function loadPlayHistory(): LocalPlayEntry[] {
+  try {
+    const raw = safeStorage.getItem(HISTORY_KEY);
+    return raw ? (JSON.parse(raw) as LocalPlayEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function removePlayHistoryEntry(trackId: number): void {
+  try {
+    const list = loadPlayHistory().filter((e) => e.trackId !== trackId);
+    safeStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+  } catch { /* ignore */ }
+}
+
+export function clearPlayHistory(): void {
+  try {
+    safeStorage.removeItem(HISTORY_KEY);
+  } catch { /* ignore */ }
+}
+
 /* ── Store interface ── */
 
 interface PlayerState {
@@ -60,6 +109,12 @@ interface PlayerState {
   queue: Track[];
   shuffle: boolean;
   repeat: RepeatMode;
+  /**
+   * SR-83: The currently visible track list on the active page.
+   * When set, next()/prev() navigates through this list instead of the queue.
+   * Falls back to queue-based navigation (shuffle/repeat) when empty.
+   */
+  trackListContext: Track[];
   play: (track: Track) => void;
   pause: () => void;
   resume: () => void;
@@ -75,6 +130,7 @@ interface PlayerState {
   removeFromQueue: (trackId: number) => void;
   reorderQueue: (fromIndex: number, toIndex: number) => void;
   clearQueue: () => void;
+  setTrackListContext: (tracks: Track[]) => void;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => {
@@ -112,6 +168,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     queue: savedState?.queue ?? [],
     shuffle: false,
     repeat: 'off' as RepeatMode,
+    trackListContext: [],
 
     play: (track: Track) => {
       audio.src = `${STREAM_BASE}/${track.id}/stream`;
@@ -129,10 +186,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       });
       persistState({ currentTrack: track, queue: newQueue, currentTime: 0 });
 
-      // Record play history (fire-and-forget, only if logged in)
-      if (safeStorage.getItem('accessToken')) {
-        recordPlay(track.id).catch(() => {});
-      }
+      // SR-89: Record play history in localStorage (no auth required)
+      savePlayHistory(track);
     },
 
     pause: () => {
@@ -146,6 +201,24 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     next: () => {
+      // SR-83: Prefer the currently visible track list (like keyboard ↓)
+      const ctx = get().trackListContext;
+      const curForCtx = get().currentTrack;
+      if (ctx.length > 0 && curForCtx) {
+        const idx = ctx.findIndex((t) => t.id === curForCtx.id);
+        if (idx >= 0) {
+          if (idx < ctx.length - 1) {
+            get().play(ctx[idx + 1]);
+            return;
+          }
+          // End of list: stop (mirrors TrackListPage keyboard behavior)
+          audio.pause();
+          set({ isPlaying: false });
+          return;
+        }
+        // Current track not in visible list → fall through to queue logic
+      }
+
       const { queue, currentTrack, play, shuffle, repeat } = get();
       if (queue.length === 0) {
         audio.pause();
@@ -185,6 +258,24 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         audio.currentTime = 0;
         return;
       }
+
+      // SR-83: Prefer the currently visible track list (like keyboard ↑)
+      const ctx = get().trackListContext;
+      const curForCtx = get().currentTrack;
+      if (ctx.length > 0 && curForCtx) {
+        const idx = ctx.findIndex((t) => t.id === curForCtx.id);
+        if (idx > 0) {
+          get().play(ctx[idx - 1]);
+          return;
+        }
+        if (idx === 0) {
+          // Already at first: restart current track
+          audio.currentTime = 0;
+          return;
+        }
+        // Current track not in visible list → fall through to queue logic
+      }
+
       const { queue, currentTrack, play } = get();
       if (queue.length === 0) return;
       const currentIndex = currentTrack
@@ -268,6 +359,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         persistState({ ...state, queue: next });
         return { queue: next };
       });
+    },
+
+    setTrackListContext: (tracks: Track[]) => {
+      set({ trackListContext: tracks });
     },
 
     clearQueue: () => {

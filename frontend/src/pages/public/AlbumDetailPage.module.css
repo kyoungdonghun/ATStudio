@@ -312,11 +312,13 @@
   cursor: pointer;
 }
 
-.trackRow:hover .trNum {
+.trackRow:hover .trNum,
+.trackRowActive .trNum {
   display: none;
 }
 
-.trackRow:hover .trPlayBtn {
+.trackRow:hover .trPlayBtn,
+.trackRowActive .trPlayBtn {
   display: flex;
 }
 

@@ -28,6 +28,7 @@ export default function PlaylistDetailPage() {
   const pauseTrack = usePlayerStore((s) => s.pause);
   const resumeTrack = usePlayerStore((s) => s.resume);
   const addToPlayerQueue = usePlayerStore((s) => s.addToQueue);
+  const setTrackListContext = usePlayerStore((s) => s.setTrackListContext);
   const likeStore = useLikeStore();
   const user = useAuthStore((s) => s.user);
   const toast = useToastStore((s) => s.show);
@@ -70,6 +71,30 @@ export default function PlaylistDetailPage() {
     if (user) likeStore.load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  /* SR-83: Publish playlist tracks as player context so Next/Prev traverses them. */
+  useEffect(() => {
+    if (!detail) return;
+    const tracks = detail.tracks.map((track) => ({
+      id: track.trackId,
+      title: track.title,
+      artistName: '',
+      duration: 0,
+      bpm: track.bpm,
+      tonality: track.tonality,
+      description: null,
+      audioFile: null,
+      thumbnail: null,
+      tags: [],
+      isActive: true,
+      playCount: 0,
+      likeCount: 0,
+      downloadCount: 0,
+      createdAt: '',
+      updatedAt: '',
+    }));
+    setTrackListContext(tracks);
+  }, [detail, setTrackListContext]);
 
   /* ── Track action handlers ── */
   function handlePlay(track: PlaylistTrack) {

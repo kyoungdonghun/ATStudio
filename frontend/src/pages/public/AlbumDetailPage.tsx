@@ -38,6 +38,7 @@ export default function AlbumDetailPage() {
   const pauseTrack = usePlayerStore((s) => s.pause);
   const resumeTrack = usePlayerStore((s) => s.resume);
   const playAll = usePlayerStore((s) => s.playAll);
+  const setTrackListContext = usePlayerStore((s) => s.setTrackListContext);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const likeStore = useLikeStore();
   const albumLikeStore = useAlbumLikeStore();
@@ -53,6 +54,30 @@ export default function AlbumDetailPage() {
       albumLikeStore.load();
     }
   }, [isAuthenticated, albumLikeStore.loaded]);
+
+  /* SR-83: Publish album tracks as player context so Next/Prev traverses them. */
+  useEffect(() => {
+    if (!album) return;
+    const tracks = album.tracks.map((t) => ({
+      id: t.trackId,
+      title: t.title,
+      artistName: t.artistName ?? '',
+      duration: 0,
+      bpm: 0,
+      tonality: '',
+      description: null,
+      audioFile: null,
+      thumbnail: t.thumbnailUrl ?? null,
+      tags: [],
+      isActive: true,
+      playCount: 0,
+      likeCount: 0,
+      downloadCount: 0,
+      createdAt: '',
+      updatedAt: '',
+    }));
+    setTrackListContext(tracks);
+  }, [album, setTrackListContext]);
 
   if (loading) {
     return (
@@ -178,7 +203,10 @@ export default function AlbumDetailPage() {
           </thead>
           <tbody>
             {album.tracks.map((t, idx) => (
-              <tr key={t.trackId} className={styles.trackRow}>
+              <tr
+                key={t.trackId}
+                className={`${styles.trackRow} ${currentTrack?.id === t.trackId ? styles.trackRowActive : ''}`}
+              >
                 <td className={styles.tdNum}>
                   <span className={styles.trNum}>{idx + 1}</span>
                   <button

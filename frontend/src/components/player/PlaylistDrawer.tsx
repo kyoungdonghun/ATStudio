@@ -11,17 +11,16 @@ import {
   type PlaylistDetail,
   type PlaylistTrack,
 } from '@/api/playlists';
-import { fetchPlayHistory, deletePlayHistory } from '@/api/playHistory';
 import { fetchMySubscription } from '@/api/userSubscriptions';
 import { fetchLikes } from '@/api/likes';
 import { getApiErrorCode } from '@/api/client';
 import { useToastStore } from '@/store/toastStore';
-import type { Playlist, PlayHistory, LikeItem } from '@/types';
+import type { Playlist, LikeItem } from '@/types';
 import styles from './PlaylistDrawer.module.css';
 
 const DEFAULT_MAX_PLAYLISTS = 3;
 
-type Tab = 'playlists' | 'history' | 'likes';
+type Tab = 'playlists' | 'likes';
 
 interface PlaylistDrawerProps {
   open: boolean;
@@ -45,10 +44,6 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [creating, setCreating] = useState(false);
-
-  /* ── History state ── */
-  const [history, setHistory] = useState<PlayHistory[]>([]);
-  const [histLoading, setHistLoading] = useState(false);
 
   /* ── Likes state ── */
   const [likes, setLikes] = useState<LikeItem[]>([]);
@@ -84,17 +79,6 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
     setPlLoading(false);
   }, [isAuthenticated]);
 
-  /* ── Load history ── */
-  const loadHistory = useCallback(async () => {
-    if (!isAuthenticated) return;
-    setHistLoading(true);
-    try {
-      const res = await fetchPlayHistory({ page: 1, size: 50 });
-      setHistory(res.dataList ?? []);
-    } catch { /* ignore */ }
-    setHistLoading(false);
-  }, [isAuthenticated]);
-
   /* ── Load likes ── */
   const loadLikes = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -111,12 +95,10 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
     if (tab === 'playlists') {
       loadPlaylists();
       setSelectedPl(null);
-    } else if (tab === 'history') {
-      loadHistory();
     } else {
       loadLikes();
     }
-  }, [open, tab, loadPlaylists, loadHistory, loadLikes]);
+  }, [open, tab, loadPlaylists, loadLikes]);
 
   if (!open) return null;
 
@@ -288,42 +270,7 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
     });
   }
 
-  /* ── History handlers ── */
-
-  function handlePlayHistory(h: PlayHistory) {
-    playTrack({
-      id: h.track.id,
-      title: h.track.title,
-      artistName: '',
-      duration: 0,
-      bpm: 0,
-      tonality: '',
-      description: null,
-      audioFile: null,
-      thumbnail: h.track.thumbnail,
-      tags: [],
-      isActive: true,
-      playCount: 0,
-      likeCount: 0,
-      downloadCount: 0,
-      createdAt: '',
-      updatedAt: '',
-    });
-  }
-
-  async function handleDeleteHistoryItem(id: number) {
-    try {
-      await deletePlayHistory([id]);
-      setHistory((prev) => prev.filter((h) => h.id !== id));
-    } catch { /* ignore */ }
-  }
-
-  async function handleClearHistory() {
-    try {
-      await deletePlayHistory([]);
-      setHistory([]);
-    } catch { /* ignore */ }
-  }
+  /* ── History handlers (SR-89: localStorage) ── */
 
   /* ── Render ── */
 
@@ -337,12 +284,6 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
             onClick={() => { setTab('playlists'); setSelectedPl(null); }}
           >
             재생목록
-          </button>
-          <button
-            className={`${styles.tab} ${tab === 'history' ? styles.tabActive : ''}`}
-            onClick={() => setTab('history')}
-          >
-            재생기록
           </button>
           <button
             className={`${styles.tab} ${tab === 'likes' ? styles.tabActive : ''}`}
@@ -503,56 +444,6 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
             )}
           </div>
         )
-      ) : tab === 'history' ? (
-        /* ── History Tab ── */
-        <div className={styles.body}>
-          {histLoading ? (
-            <div className={styles.empty}>Loading...</div>
-          ) : history.length === 0 ? (
-            <div className={styles.empty}>재생 기록이 없습니다.</div>
-          ) : (
-            <>
-              <div className={styles.histHeader}>
-                <button
-                  className={styles.clearHistBtn}
-                  onClick={handleClearHistory}
-                >
-                  전체 삭제
-                </button>
-              </div>
-              <ul className={styles.histList}>
-                {history.map((h) => (
-                  <li key={h.id} className={styles.histItem}>
-                    <button
-                      className={styles.histPlayBtn}
-                      onClick={() => handlePlayHistory(h)}
-                    >
-                      {'\u25B6'}
-                    </button>
-                    <div className={styles.histInfo}>
-                      <div className={styles.histTitle}>{h.track.title}</div>
-                      <div className={styles.histTime}>
-                        {new Date(h.playedAt).toLocaleString('ko-KR', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </div>
-                    </div>
-                    <button
-                      className={styles.histRemoveBtn}
-                      onClick={() => handleDeleteHistoryItem(h.id)}
-                      title="삭제"
-                    >
-                      &times;
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
       ) : (
         /* ── Likes Tab ── */
         <div className={styles.body}>

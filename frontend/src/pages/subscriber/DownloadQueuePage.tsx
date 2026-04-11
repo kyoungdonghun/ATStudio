@@ -54,6 +54,7 @@ export default function DownloadQueuePage() {
   const playTrack = usePlayerStore((s) => s.play);
   const pauseTrack = usePlayerStore((s) => s.pause);
   const resumeTrack = usePlayerStore((s) => s.resume);
+  const setTrackListContext = usePlayerStore((s) => s.setTrackListContext);
   const role = useAuthStore((s) => s.role);
   const isAdmin = role === 'ADMIN';
   const toast = useToastStore((s) => s.show);
@@ -90,6 +91,38 @@ export default function DownloadQueuePage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  /* SR-83: Publish downloaded tracks as player context so Next/Prev traverses them.
+     Note: download history can contain duplicates (same track downloaded multiple times),
+     so we de-duplicate by trackId, keeping the first occurrence. */
+  useEffect(() => {
+    const seen = new Set<number>();
+    const tracks = items
+      .filter((item) => {
+        if (seen.has(item.trackId)) return false;
+        seen.add(item.trackId);
+        return true;
+      })
+      .map((item) => ({
+        id: item.trackId,
+        title: item.title,
+        artistName: item.artistName ?? '',
+        duration: item.duration,
+        bpm: item.bpm,
+        tonality: item.tonality,
+        description: null,
+        audioFile: `/api/tracks/${item.trackId}/stream`,
+        thumbnail: toUploadUrl(item.thumbnail),
+        tags: item.tags,
+        isActive: true,
+        playCount: 0,
+        likeCount: 0,
+        downloadCount: 0,
+        createdAt: item.downloadedAt,
+        updatedAt: item.downloadedAt,
+      }));
+    setTrackListContext(tracks);
+  }, [items, setTrackListContext]);
 
   function updateParams(patch: Record<string, string | null>) {
     const next = new URLSearchParams(searchParams);
