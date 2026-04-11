@@ -51,8 +51,22 @@ export default function PlayerBar() {
   const [expanded, setExpanded] = useState(false);
   const [hasSubscription, setHasSubscription] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [volumeOpen, setVolumeOpen] = useState(false);
   const mobileMiniProgressRef = useRef<HTMLDivElement>(null);
+  const volumeRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  // Close volume popup when clicking outside
+  useEffect(() => {
+    if (!volumeOpen) return;
+    function onOutside(e: MouseEvent) {
+      if (volumeRef.current && !volumeRef.current.contains(e.target as Node)) {
+        setVolumeOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, [volumeOpen]);
 
   useEffect(() => {
     if (isAuthenticated && !likeStore.loaded) {
@@ -171,6 +185,69 @@ export default function PlayerBar() {
 
   /* ── Empty state (no track loaded) ── */
   if (!currentTrack) {
+    const isFullUser = role === 'ADMIN' || hasSubscription;
+
+    /* 비로그인 / 비구독 회원: 미니멀 바 */
+    if (!isFullUser) {
+      return (
+        <>
+          {/* Desktop */}
+          <div className={styles.player}>
+            <div className={styles.trackInfo}>
+              <div className={styles.thumb}>{'\u266B'}</div>
+              <div className={styles.trackMeta}>
+                <span className={styles.trackName}>재생할 곡을 선택하세요</span>
+              </div>
+            </div>
+            <div style={{ flex: 1 }} />
+            <div className={styles.rightActions}>
+              <div className={styles.volumeGroup} ref={volumeRef}>
+                <button
+                  className={`${styles.volumeBtn} ${volumeOpen ? styles.volumeBtnActive : ''}`}
+                  onClick={() => setVolumeOpen((v) => !v)}
+                  aria-label="Volume"
+                >{volumeIcon}</button>
+                {volumeOpen && (
+                  <div className={styles.volumePopup}>
+                    <span className={styles.volumePercent}>{Math.round((muted ? 0 : volume) * 100)}</span>
+                    <div className={styles.volumeSliderWrap}>
+                      <input
+                        type="range" className={styles.volumeSliderVertical}
+                        min={0} max={1} step={0.01}
+                        value={muted ? 0 : volume}
+                        onChange={(e) => setVolume(parseFloat(e.target.value))}
+                        aria-label="Volume"
+                      />
+                    </div>
+                    <button className={styles.volumeMuteSmall} onClick={toggleMute}>
+                      {muted ? '\uD83D\uDD07' : '\uD83D\uDD0A'}
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button className={styles.buyBtn} onClick={() => navigate('/subscriptions')}>{'구독하기'}</button>
+            </div>
+          </div>
+
+          {/* Mobile */}
+          <div className={styles.mobilePlayer}>
+            <div className={styles.mobileBar}>
+              <div className={styles.mobileInfo}>
+                <div className={styles.thumb}>{'\u266B'}</div>
+                <div className={styles.trackMeta}>
+                  <span className={styles.trackName}>재생할 곡을 선택하세요</span>
+                </div>
+              </div>
+              <div className={styles.mobileControls}>
+                <button className={styles.buyBtn} onClick={() => navigate('/subscriptions')}>{'구독하기'}</button>
+              </div>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    /* ADMIN / 구독 회원: 풀 빈 상태 바 */
     return (
       <>
         <div className={styles.player}>
@@ -180,11 +257,10 @@ export default function PlayerBar() {
               <span className={styles.trackName}>재생할 곡을 선택하세요</span>
             </div>
           </div>
-          {/* center: flat waveform placeholder */}
           <div className={styles.controls}>
-            <button className={styles.playBtn} disabled style={{ opacity: 0.4 }}>
-              {'\u25B6'}
-            </button>
+            <button className={styles.ctrlBtn} disabled style={{ opacity: 0.3 }}>{'\u23EE'}</button>
+            <button className={styles.playBtn} disabled style={{ opacity: 0.4 }}>{'\u25B6'}</button>
+            <button className={styles.ctrlBtn} disabled style={{ opacity: 0.3 }}>{'\u23ED'}</button>
             <div className={styles.waveformWrap}>
               <WaveformCanvas peaks={[]} progress={0} onSeek={() => {}} />
             </div>
@@ -195,31 +271,41 @@ export default function PlayerBar() {
             </div>
           </div>
           <div className={styles.rightActions}>
-            <div className={styles.navGroup}>
-              <button className={styles.ctrlBtn} disabled style={{ opacity: 0.3 }}>{'\u23EE'}</button>
-              <button className={styles.ctrlBtn} disabled style={{ opacity: 0.3 }}>{'\u23ED'}</button>
-            </div>
             <div className={styles.modeGroup}>
               <button className={styles.ctrlBtn} disabled style={{ opacity: 0.3 }}>{'\u21CC'}</button>
               <button className={styles.ctrlBtn} disabled style={{ opacity: 0.3 }}>{repeatIcon}</button>
             </div>
-            <div className={styles.volumeGroup}>
-              <button className={styles.volumeBtn} onClick={toggleMute}>{volumeIcon}</button>
-              <input type="range" className={styles.volumeSlider} min={0} max={1} step={0.01}
-                value={muted ? 0 : volume} onChange={(e) => setVolume(parseFloat(e.target.value))} />
+            <div className={styles.volumeGroup} ref={volumeRef}>
+              <button
+                className={`${styles.volumeBtn} ${volumeOpen ? styles.volumeBtnActive : ''}`}
+                onClick={() => setVolumeOpen((v) => !v)}
+              >{volumeIcon}</button>
+              {volumeOpen && (
+                <div className={styles.volumePopup}>
+                  <span className={styles.volumePercent}>{Math.round((muted ? 0 : volume) * 100)}</span>
+                  <div className={styles.volumeSliderWrap}>
+                    <input
+                      type="range" className={styles.volumeSliderVertical}
+                      min={0} max={1} step={0.01}
+                      value={muted ? 0 : volume}
+                      onChange={(e) => setVolume(parseFloat(e.target.value))}
+                      aria-label="Volume"
+                    />
+                  </div>
+                  <button className={styles.volumeMuteSmall} onClick={toggleMute}>
+                    {muted ? '\uD83D\uDD07' : '\uD83D\uDD0A'}
+                  </button>
+                </div>
+              )}
             </div>
-            {(role === 'ADMIN' || hasSubscription) && (
-              <>
-                <button
-                  className={`${styles.actionBtn} ${historyOpen ? styles.actionBtnActive : ''}`}
-                  onClick={() => { setHistoryOpen((v) => !v); setPlaylistOpen(false); }}
-                >{'재생기록'}</button>
-                <button
-                  className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
-                  onClick={() => { setPlaylistOpen((v) => !v); setHistoryOpen(false); }}
-                >{'재생목록'}</button>
-              </>
-            )}
+            <button
+              className={`${styles.actionBtn} ${historyOpen ? styles.actionBtnActive : ''}`}
+              onClick={() => { setHistoryOpen((v) => !v); setPlaylistOpen(false); }}
+            >{'재생기록'}</button>
+            <button
+              className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
+              onClick={() => { setPlaylistOpen((v) => !v); setHistoryOpen(false); }}
+            >{'재생목록'}</button>
           </div>
         </div>
 
@@ -232,24 +318,20 @@ export default function PlayerBar() {
                 <span className={styles.trackName}>재생할 곡을 선택하세요</span>
               </div>
             </div>
-            {(role === 'ADMIN' || hasSubscription) && (
-              <div className={styles.mobileControls}>
-                <button className={styles.mobileExpandBtn} onClick={() => setExpanded((v) => !v)}>
-                  {expanded ? '\u25BC' : '\u25B2'}
-                </button>
-              </div>
-            )}
-          </div>
-          {(role === 'ADMIN' || hasSubscription) && (
-            <div className={`${styles.mobileExpanded} ${expanded ? styles.mobileExpandedOpen : ''}`}>
-              <div className={styles.mobileActions}>
-                <button className={`${styles.actionBtn} ${historyOpen ? styles.actionBtnActive : ''}`}
-                  onClick={() => { setHistoryOpen((v) => !v); setPlaylistOpen(false); }}>{'재생기록'}</button>
-                <button className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
-                  onClick={() => { setPlaylistOpen((v) => !v); setHistoryOpen(false); }}>{'재생목록'}</button>
-              </div>
+            <div className={styles.mobileControls}>
+              <button className={styles.mobileExpandBtn} onClick={() => setExpanded((v) => !v)}>
+                {expanded ? '\u25BC' : '\u25B2'}
+              </button>
             </div>
-          )}
+          </div>
+          <div className={`${styles.mobileExpanded} ${expanded ? styles.mobileExpandedOpen : ''}`}>
+            <div className={styles.mobileActions}>
+              <button className={`${styles.actionBtn} ${historyOpen ? styles.actionBtnActive : ''}`}
+                onClick={() => { setHistoryOpen((v) => !v); setPlaylistOpen(false); }}>{'재생기록'}</button>
+              <button className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
+                onClick={() => { setPlaylistOpen((v) => !v); setHistoryOpen(false); }}>{'재생목록'}</button>
+            </div>
+          </div>
         </div>
 
         {historyOpen && <HistoryModal open={historyOpen} onClose={() => setHistoryOpen(false)} />}
@@ -310,8 +392,9 @@ export default function PlayerBar() {
           >+</button>
         </div>
 
-        {/* Center: Play button + Waveform + Time */}
+        {/* Center: Prev + Play + Next + Waveform + Time */}
         <div className={styles.controls}>
+          <button className={styles.ctrlBtn} onClick={prev} title="Previous">{'\u23EE'}</button>
           <button
             className={styles.playBtn}
             onClick={handlePlayPause}
@@ -319,6 +402,7 @@ export default function PlayerBar() {
           >
             {isPlaying ? '\u275A\u275A' : '\u25B6'}
           </button>
+          <button className={styles.ctrlBtn} onClick={next} title="Next">{'\u23ED'}</button>
           <div className={styles.waveformWrap}>
             <WaveformCanvas
               peaks={parsedPeaks}
@@ -333,12 +417,8 @@ export default function PlayerBar() {
           </div>
         </div>
 
-        {/* Right: Nav + Mode + Volume + Actions */}
+        {/* Right: Mode + Volume(popup) + Actions */}
         <div className={styles.rightActions}>
-          <div className={styles.navGroup}>
-            <button className={styles.ctrlBtn} onClick={prev} title="Previous">{'\u23EE'}</button>
-            <button className={styles.ctrlBtn} onClick={next} title="Next">{'\u23ED'}</button>
-          </div>
           <div className={styles.modeGroup}>
             <button
               className={`${styles.ctrlBtn} ${shuffle ? styles.ctrlBtnActive : ''}`}
@@ -350,16 +430,30 @@ export default function PlayerBar() {
               title={repeat === 'one' ? 'Repeat One' : repeat === 'all' ? 'Repeat All' : 'Repeat'}
             >{repeatIcon}</button>
           </div>
-          <div className={styles.volumeGroup}>
-            <button className={styles.volumeBtn} onClick={toggleMute}
-              aria-label={muted ? 'Unmute' : 'Mute'}>{volumeIcon}</button>
-            <input
-              type="range" className={styles.volumeSlider}
-              min={0} max={1} step={0.01}
-              value={muted ? 0 : volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-              aria-label="Volume"
-            />
+          <div className={styles.volumeGroup} ref={volumeRef}>
+            <button
+              className={`${styles.volumeBtn} ${volumeOpen ? styles.volumeBtnActive : ''}`}
+              onClick={() => setVolumeOpen((v) => !v)}
+              aria-label={muted ? 'Unmute' : 'Mute'}
+            >{volumeIcon}</button>
+            {volumeOpen && (
+              <div className={styles.volumePopup}>
+                <span className={styles.volumePercent}>{Math.round((muted ? 0 : volume) * 100)}</span>
+                <div className={styles.volumeSliderWrap}>
+                  <input
+                    type="range"
+                    className={styles.volumeSliderVertical}
+                    min={0} max={1} step={0.01}
+                    value={muted ? 0 : volume}
+                    onChange={(e) => setVolume(parseFloat(e.target.value))}
+                    aria-label="Volume"
+                  />
+                </div>
+                <button className={styles.volumeMuteSmall} onClick={toggleMute}>
+                  {muted ? '\uD83D\uDD07' : '\uD83D\uDD0A'}
+                </button>
+              </div>
+            )}
           </div>
           <button
             className={`${styles.actionBtn} ${historyOpen ? styles.actionBtnActive : ''}`}
@@ -376,11 +470,11 @@ export default function PlayerBar() {
               disabled={downloading}
               title="음원 다운로드"
             >
-              {downloading ? '...' : '\u2193'}
+              {downloading ? '...' : '다운로드'}
             </button>
           )}
           {!isAuthenticated && (
-            <button className={styles.buyBtn} onClick={() => navigate('/login')}>{'구매하기'}</button>
+            <button className={styles.buyBtn} onClick={() => navigate('/login')}>{'구독하기'}</button>
           )}
           {isAuthenticated && role === 'USER' && !hasSubscription && (
             <button className={styles.buyBtn} onClick={() => navigate('/subscriptions')}>{'구독하기'}</button>
@@ -461,19 +555,23 @@ export default function PlayerBar() {
             <span className={styles.mobileSeekTime}>{formatTime(trackDuration)}</span>
           </div>
 
-          {/* Volume toggle */}
+          {/* Volume */}
           <div className={styles.mobileVolumeToggle}>
             <button className={styles.volumeBtn} onClick={toggleMute} aria-label={muted ? '음소거 해제' : '음소거'}>
               {volumeIcon}
             </button>
+            <input
+              type="range"
+              className={styles.mobileVolumeSlider}
+              min={0} max={1} step={0.01}
+              value={muted ? 0 : volume}
+              onChange={(e) => setVolume(parseFloat(e.target.value))}
+              aria-label="Volume"
+            />
           </div>
 
           {/* Action buttons */}
           <div className={styles.mobileActions}>
-            <button className={styles.addToPlBtn} onClick={() => {
-              if (!isAuthenticated) { toast('warning', '로그인 후 이용 가능합니다.'); navigate('/login'); return; }
-              setShowPlModal(true);
-            }}>+ 재생목록</button>
             <button className={`${styles.actionBtn} ${historyOpen ? styles.actionBtnActive : ''}`}
               onClick={() => { setHistoryOpen((v) => !v); setPlaylistOpen(false); }}>{'재생기록'}</button>
             <button className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
@@ -484,11 +582,8 @@ export default function PlayerBar() {
                 {downloading ? '...' : '\u2193 다운로드'}
               </button>
             )}
-            {!isAuthenticated && (
-              <button className={styles.buyBtn} onClick={() => navigate('/login')}>{'구매하기'}</button>
-            )}
-            {isAuthenticated && role === 'USER' && !hasSubscription && (
-              <button className={styles.buyBtn} onClick={() => navigate('/subscriptions')}>{'구독하기'}</button>
+            {(!isAuthenticated || (isAuthenticated && role === 'USER' && !hasSubscription)) && (
+              <button className={styles.buyBtn} onClick={() => navigate(isAuthenticated ? '/subscriptions' : '/login')}>{'구독하기'}</button>
             )}
           </div>
         </div>

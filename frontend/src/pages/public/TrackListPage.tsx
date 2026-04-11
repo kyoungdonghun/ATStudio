@@ -459,24 +459,7 @@ export default function TrackListPage() {
                       if (isPlaying) pauseTrack();
                       else resumeTrack();
                     } else {
-                      playTrack({
-                        id: t.id,
-                        title: t.title,
-                        artistName: t.artistName ?? '',
-                        duration: t.duration ?? 0,
-                        bpm: t.bpm,
-                        tonality: t.tonality,
-                        description: null,
-                        audioFile: null,
-                        thumbnail: t.thumbnail,
-                        tags: t.tags,
-                        isActive: true,
-                        playCount: t.playCount,
-                        likeCount: t.likeCount,
-                        downloadCount: t.downloadCount,
-                        createdAt: t.createdAt,
-                        updatedAt: t.createdAt,
-                      });
+                      playTrack(trackListItemToTrack(t));
                     }
                   }}
                   onLike={(t) => likeStore.toggle(t.id)}

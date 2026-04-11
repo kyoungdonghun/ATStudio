@@ -189,9 +189,9 @@
 /* ── Volume control ── */
 
 .volumeGroup {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
 }
 
 .volumeBtn {
@@ -200,17 +200,58 @@
   color: var(--player-text);
   font-size: 16px;
   cursor: pointer;
-  padding: 2px;
+  padding: 4px;
   flex-shrink: 0;
   line-height: 1;
+  border-radius: 4px;
+  transition: color 0.15s;
 }
 
 .volumeBtn:hover {
-  color: var(--player-text);
   opacity: 0.8;
 }
 
-.volumeSlider {
+.volumeBtnActive {
+  color: var(--accent);
+}
+
+/* ── Volume popup (vertical) ── */
+
+.volumePopup {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 10px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  z-index: 300;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  min-width: 36px;
+}
+
+.volumePercent {
+  font-size: 10px;
+  color: var(--player-text2);
+  min-width: 24px;
+  text-align: center;
+}
+
+.volumeSliderWrap {
+  height: 80px;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+.volumeSliderVertical {
   -webkit-appearance: none;
   appearance: none;
   width: 80px;
@@ -219,25 +260,40 @@
   border-radius: 2px;
   outline: none;
   cursor: pointer;
+  transform: rotate(-90deg);
 }
 
-.volumeSlider::-webkit-slider-thumb {
+.volumeSliderVertical::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   background: var(--text0);
   border-radius: 50%;
   cursor: pointer;
 }
 
-.volumeSlider::-moz-range-thumb {
-  width: 10px;
-  height: 10px;
+.volumeSliderVertical::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
   background: var(--text0);
   border-radius: 50%;
   border: none;
   cursor: pointer;
+}
+
+.volumeMuteSmall {
+  background: none;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.7;
+  line-height: 1;
+}
+
+.volumeMuteSmall:hover {
+  opacity: 1;
 }
 
 /* ── Nav/Mode groups (in right actions) ── */
@@ -482,11 +538,42 @@
     text-align: right;
   }
 
-  /* Volume toggle icon (no slider on mobile) */
+  /* Volume row on mobile: icon + horizontal slider */
   .mobileVolumeToggle {
     display: flex;
     align-items: center;
+    gap: 8px;
     padding: 4px var(--page-px) 0;
+  }
+
+  .mobileVolumeSlider {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 3px;
+    background: var(--border2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .mobileVolumeSlider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--text0);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .mobileVolumeSlider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--text0);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
   }
 
   .mobileActions {

@@ -282,56 +282,162 @@ public class TrackService {
     }
 
     /**
-     * Extract 200-point waveform peak data from an audio file (WAV or MP3).
-     * Returns a JSON float array string "[0.12,0.45,...]" or null on failure.
-     * Uses Java Sound SPI + mp3spi for decoding. O(1) memory — streaming only.
+     * Extract 200-point waveform peak data from an audio file.
+     * WAV → pure Java RIFF parser (no external lib).
+     * MP3/other → Java Sound SPI + mp3spi.
+     * Returns "[0.12,0.45,...]" or null on failure.
      */
     private String extractWaveformPeaks(MultipartFile file) {
         if (file == null || file.isEmpty()) return null;
+        String name = file.getOriginalFilename();
+        if (name == null) return null;
         try {
-            AudioInputStream ais = AudioSystem.getAudioInputStream(
-                    new java.io.BufferedInputStream(file.getInputStream()));
-
-            AudioFormat src = ais.getFormat();
-            float sr = src.getSampleRate() > 0 ? src.getSampleRate() : 44100f;
-            AudioFormat pcm = new AudioFormat(
-                    AudioFormat.Encoding.PCM_SIGNED, sr, 16, 1, 2, sr, false);
-            AudioInputStream pcmAis = AudioSystem.getAudioInputStream(pcm, ais);
-
-            final int PEAKS = 200;
-            long frames = pcmAis.getFrameLength();
-            if (frames <= 0) {
-                // Estimate from compressed file size (128 kbps baseline)
-                frames = (long) (file.getSize() * sr / (128L * 1024 / 8));
+            if (name.toLowerCase().endsWith(".wav")) {
+                return extractWavPeaks(file);
+            } else {
+                return extractAudioSystemPeaks(file);
             }
-            long perBin = Math.max(1, frames / PEAKS);
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(TrackService.class)
+                    .warn("[waveform] extraction failed for '{}': {}", name, e.toString());
+            return null;
+        }
+    }
 
-            double[] bins = new double[PEAKS];
-            byte[] buf = new byte[4096];
-            int n;
-            long idx = 0;
+    /**
+     * Pure Java WAV peak extractor — no external dependencies.
+     * Handles PCM 8/16/24-bit, mono/stereo, and arbitrary chunk order.
+     */
+    private String extractWavPeaks(MultipartFile file) throws IOException {
+        try (InputStream is = new java.io.BufferedInputStream(file.getInputStream())) {
+            byte[] riff = new byte[12];
+            if (is.read(riff) < 12) return null;
+            if (!"RIFF".equals(new String(riff, 0, 4)) || !"WAVE".equals(new String(riff, 8, 4))) return null;
 
-            while ((n = pcmAis.read(buf)) != -1) {
-                for (int i = 0; i + 1 < n; i += 2, idx++) {
-                    short s = (short) ((buf[i] & 0xFF) | (buf[i + 1] << 8));
-                    int b = (int) Math.min(idx / perBin, PEAKS - 1);
-                    double a = Math.abs(s) / 32768.0;
-                    if (a > bins[b]) bins[b] = a;
+            int numChannels = 1;
+            int bitsPerSample = 16;
+
+            // Scan chunks until "data"
+            byte[] chunkHdr = new byte[8];
+            while (is.read(chunkHdr) == 8) {
+                String id = new String(chunkHdr, 0, 4);
+                int size = ByteBuffer.wrap(chunkHdr, 4, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+                if ("fmt ".equals(id) && size >= 16) {
+                    byte[] fmt = new byte[size];
+                    is.read(fmt);
+                    numChannels   = ByteBuffer.wrap(fmt, 2, 2).order(ByteOrder.LITTLE_ENDIAN).getShort() & 0xFFFF;
+                    bitsPerSample = ByteBuffer.wrap(fmt, 14, 2).order(ByteOrder.LITTLE_ENDIAN).getShort() & 0xFFFF;
+                } else if ("data".equals(id)) {
+                    // PCM bytes follow immediately
+                    long dataSize  = Integer.toUnsignedLong(size);
+                    int  bytesPerSample = Math.max(1, bitsPerSample / 8);
+                    int  frameSize = bytesPerSample * Math.max(1, numChannels);
+                    long totalFrames = dataSize / frameSize;
+                    return peaksFromPcmStream(is, totalFrames, numChannels, bitsPerSample, frameSize);
+                } else {
+                    // skip unknown / extra fmt bytes (word-aligned)
+                    long skip = size + (size % 2 != 0 ? 1 : 0);
+                    is.skip(skip);
                 }
             }
-            pcmAis.close();
-
-            StringBuilder sb = new StringBuilder("[");
-            for (int i = 0; i < PEAKS; i++) {
-                if (i > 0) sb.append(",");
-                sb.append(String.format("%.3f", bins[i]));
-            }
-            sb.append("]");
-            return sb.toString();
-
-        } catch (Exception e) {
-            return null; // graceful fallback — player shows flat line
         }
+        return null;
+    }
+
+    /**
+     * Java Sound SPI path for MP3 and other formats.
+     * Keeps source channel count to avoid conversion providers that don't support downmix.
+     */
+    private String extractAudioSystemPeaks(MultipartFile file) throws Exception {
+        AudioInputStream ais = AudioSystem.getAudioInputStream(
+                new java.io.BufferedInputStream(file.getInputStream(), 65536));
+
+        AudioFormat src = ais.getFormat();
+        float sr       = src.getSampleRate() > 0 ? src.getSampleRate() : 44100f;
+        int channels   = src.getChannels() > 0 ? src.getChannels() : 2; // keep source channels
+
+        AudioFormat pcm = new AudioFormat(
+                AudioFormat.Encoding.PCM_SIGNED, sr, 16,
+                channels, 2 * channels, sr, false);
+        AudioInputStream pcmAis = AudioSystem.getAudioInputStream(pcm, ais);
+
+        long frames = pcmAis.getFrameLength();
+        if (frames <= 0) {
+            frames = (long) (file.getSize() * sr / (128L * 1024 / 8));
+        }
+        int frameSize = 2 * channels;
+        String result = peaksFromPcmStream(pcmAis, frames, channels, 16, frameSize);
+        pcmAis.close();
+        return result;
+    }
+
+    /**
+     * Shared peak-bin extraction over a raw PCM stream.
+     * Uses chunk-based approach — does NOT rely on totalFrames estimation.
+     * Reads the entire stream, accumulates max peak per CHUNK frames,
+     * then resamples the chunks into exactly PEAKS output bins.
+     * This avoids the "half-filled" artifact when bitrate estimation is wrong.
+     */
+    private String peaksFromPcmStream(InputStream is, long ignoredTotalFrames,
+                                      int channels, int bitsPerSample, int frameSize) throws IOException {
+        final int PEAKS  = 200;
+        final int CHUNK  = 1000; // frames per accumulation chunk
+        final java.util.List<Double> chunkPeaks = new java.util.ArrayList<>(10000);
+
+        byte[] buf       = new byte[4096];
+        int    n;
+        int    bytesPerSample = Math.max(1, bitsPerSample / 8);
+        int    chunkFrameIdx  = 0;
+        double chunkMax       = 0.0;
+
+        while ((n = is.read(buf)) != -1) {
+            int i = 0;
+            while (i + frameSize <= n) {
+                double peak = 0;
+                for (int ch = 0; ch < channels; ch++) {
+                    int off = i + ch * bytesPerSample;
+                    double sample;
+                    if (bitsPerSample == 16) {
+                        short s = (short) ((buf[off] & 0xFF) | (buf[off + 1] << 8));
+                        sample = Math.abs(s) / 32768.0;
+                    } else if (bitsPerSample == 24) {
+                        int s = (buf[off] & 0xFF) | ((buf[off+1] & 0xFF) << 8) | (buf[off+2] << 16);
+                        sample = Math.abs(s) / 8388608.0;
+                    } else { // 8-bit unsigned
+                        sample = Math.abs((buf[off] & 0xFF) - 128) / 128.0;
+                    }
+                    peak = Math.max(peak, sample);
+                }
+                chunkMax = Math.max(chunkMax, peak);
+                i += frameSize;
+                if (++chunkFrameIdx >= CHUNK) {
+                    chunkPeaks.add(chunkMax);
+                    chunkMax = 0.0;
+                    chunkFrameIdx = 0;
+                }
+            }
+        }
+        if (chunkFrameIdx > 0) chunkPeaks.add(chunkMax); // last partial chunk
+
+        int total = chunkPeaks.size();
+
+        // Resample chunks → PEAKS output bins (max-pool within each range)
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < PEAKS; i++) {
+            if (i > 0) sb.append(",");
+            double val = 0.0;
+            if (total > 0) {
+                int start = (int) ((long) i       * total / PEAKS);
+                int end   = (int) ((long) (i + 1) * total / PEAKS);
+                if (end <= start) end = start + 1;
+                for (int c = start; c < end && c < total; c++) {
+                    val = Math.max(val, chunkPeaks.get(c));
+                }
+            }
+            sb.append(String.format("%.3f", val));
+        }
+        sb.append("]");
+        return sb.toString();
     }
 
     private int extractWavDuration(MultipartFile file) {

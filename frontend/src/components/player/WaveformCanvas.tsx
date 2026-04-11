@@ -55,7 +55,7 @@ export default function WaveformCanvas({ peaks, progress, onSeek, height = 48 }:
 
       ctx.fillStyle = x < progressX ? accent : dim;
       ctx.beginPath();
-      if (barActualW >= 2) {
+      if (barActualW >= 2 && typeof ctx.roundRect === 'function') {
         ctx.roundRect(x, y, barActualW, barH, Math.min(2, barActualW / 2));
       } else {
         ctx.rect(x, y, barActualW, barH);
