@@ -21,6 +21,7 @@ public record TrackResponse(
         long playCount,
         long likeCount,
         long downloadCount,
+        String waveformData,
         List<TagResponse> tags,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -40,6 +41,7 @@ public record TrackResponse(
                 track.getPlayCount(),
                 track.getLikeCount(),
                 track.getDownloadCount(),
+                track.getWaveformData(),
                 tags.stream().map(TagResponse::from).toList(),
                 track.getCreatedAt(),
                 track.getUpdatedAt()

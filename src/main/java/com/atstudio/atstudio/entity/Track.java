@@ -45,6 +45,10 @@ public class Track extends BaseEntity {
     @Column(nullable = false)
     private int duration = 0;
 
+    /** Waveform peak data (JSON array of 200 floats 0.0–1.0) — extracted on upload (SR-90) */
+    @Column(columnDefinition = "TEXT")
+    private String waveformData;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -78,6 +82,10 @@ public class Track extends BaseEntity {
 
     public void updateAudioFile(String audioFile) {
         this.audioFile = audioFile;
+    }
+
+    public void updateWaveformData(String waveformData) {
+        this.waveformData = waveformData;
     }
 
     public void updateThumbnail(String thumbnail) {

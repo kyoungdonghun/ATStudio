@@ -112,15 +112,31 @@
 .controls {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
+  min-width: 0;
 }
 
-.buttons {
+.waveformWrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.timeDisplay {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--player-text2);
+  white-space: nowrap;
+  flex-shrink: 0;
+  width: 76px;
+  justify-content: center;
+}
+
+.timeSep {
+  opacity: 0.5;
 }
 
 .ctrlBtn {
@@ -131,6 +147,9 @@
   cursor: pointer;
   padding: 4px;
   transition: color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .ctrlBtn:hover {
@@ -160,49 +179,11 @@
   border: none;
   transition: opacity 0.15s;
   padding-left: 2px;
+  flex-shrink: 0;
 }
 
 .playBtn:hover {
   opacity: 0.88;
-}
-
-/* ── Progress bar ── */
-
-.progressBar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  max-width: 440px;
-}
-
-.time {
-  font-size: 11px;
-  color: var(--player-text2);
-  width: 32px;
-  text-align: right;
-  flex-shrink: 0;
-}
-
-.timeLeft {
-  composes: time;
-  text-align: left;
-}
-
-.progressTrack {
-  flex: 1;
-  height: 3px;
-  background: var(--border2);
-  border-radius: 2px;
-  position: relative;
-  cursor: pointer;
-}
-
-.progressFill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
-  transition: width 0.1s linear;
 }
 
 /* ── Volume control ── */
@@ -259,15 +240,28 @@
   cursor: pointer;
 }
 
+/* ── Nav/Mode groups (in right actions) ── */
+
+.navGroup {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.modeGroup {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
 /* ── Right actions ── */
 
 .rightActions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 280px;
-  justify-content: flex-end;
+  gap: 8px;
   flex-shrink: 0;
+  justify-content: flex-end;
 }
 
 .actionBtn {
@@ -311,25 +305,25 @@
 @media (max-width: 1023px) {
   .player {
     padding: 0 16px;
-    gap: 14px;
+    gap: 12px;
   }
 
   .trackInfo {
-    width: 180px;
+    width: 160px;
     gap: 8px;
   }
 
   .rightActions {
-    width: auto;
-    gap: 8px;
+    gap: 6px;
   }
 
   .volumeSlider {
     width: 60px;
   }
 
-  .progressBar {
-    max-width: 320px;
+  .timeDisplay {
+    width: 68px;
+    font-size: 10px;
   }
 }
 
@@ -451,28 +445,17 @@
     padding: 6px;
   }
 
-  /* Seek / progress bar in expanded mobile panel */
-  .mobileSeek {
+  /* Waveform seek in expanded mobile panel */
+  .mobileWaveform {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 8px var(--page-px) 4px;
   }
 
-  .mobileSeekTrack {
+  .mobileWaveformWrap {
     flex: 1;
-    height: 4px;
-    background: var(--border2);
-    border-radius: 2px;
-    position: relative;
-    cursor: pointer;
-  }
-
-  .mobileSeekFill {
-    height: 100%;
-    background: var(--accent);
-    border-radius: 2px;
-    transition: width 0.1s linear;
+    min-width: 0;
   }
 
   .mobileSeekTime {

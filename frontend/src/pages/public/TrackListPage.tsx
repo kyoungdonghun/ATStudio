@@ -41,6 +41,7 @@ function trackListItemToTrack(t: TrackListItem): Track {
     description: null,
     audioFile: null,
     thumbnail: t.thumbnail,
+    waveformData: t.waveformData,
     tags: t.tags,
     isActive: true,
     playCount: t.playCount,

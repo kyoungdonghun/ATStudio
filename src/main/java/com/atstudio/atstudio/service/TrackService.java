@@ -26,6 +26,10 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -65,6 +69,7 @@ public class TrackService {
                 : null;
 
         int duration = extractDuration(audioFile);
+        String waveformData = extractWaveformPeaks(audioFile);
 
         Track track = Track.builder()
                 .title(java.text.Normalizer.normalize(request.getTitle(), java.text.Normalizer.Form.NFC))
@@ -74,6 +79,7 @@ public class TrackService {
                 .audioFile(audioFilePath)
                 .thumbnail(thumbnailPath)
                 .duration(duration)
+                .waveformData(waveformData)
                 .user(user)
                 .build();
 
@@ -149,6 +155,7 @@ public class TrackService {
             String oldAudioFile = track.getAudioFile();
             track.updateAudioFile(storageService.store(audioFile, "tracks/audio"));
             storageService.delete(oldAudioFile);
+            track.updateWaveformData(extractWaveformPeaks(audioFile));
         }
         if (thumbnail != null && !thumbnail.isEmpty()) {
             String oldThumbnail = track.getThumbnail();
@@ -272,6 +279,59 @@ public class TrackService {
             return (int) (file.getSize() / (128 * 1024 / 8));
         }
         return 0;
+    }
+
+    /**
+     * Extract 200-point waveform peak data from an audio file (WAV or MP3).
+     * Returns a JSON float array string "[0.12,0.45,...]" or null on failure.
+     * Uses Java Sound SPI + mp3spi for decoding. O(1) memory — streaming only.
+     */
+    private String extractWaveformPeaks(MultipartFile file) {
+        if (file == null || file.isEmpty()) return null;
+        try {
+            AudioInputStream ais = AudioSystem.getAudioInputStream(
+                    new java.io.BufferedInputStream(file.getInputStream()));
+
+            AudioFormat src = ais.getFormat();
+            float sr = src.getSampleRate() > 0 ? src.getSampleRate() : 44100f;
+            AudioFormat pcm = new AudioFormat(
+                    AudioFormat.Encoding.PCM_SIGNED, sr, 16, 1, 2, sr, false);
+            AudioInputStream pcmAis = AudioSystem.getAudioInputStream(pcm, ais);
+
+            final int PEAKS = 200;
+            long frames = pcmAis.getFrameLength();
+            if (frames <= 0) {
+                // Estimate from compressed file size (128 kbps baseline)
+                frames = (long) (file.getSize() * sr / (128L * 1024 / 8));
+            }
+            long perBin = Math.max(1, frames / PEAKS);
+
+            double[] bins = new double[PEAKS];
+            byte[] buf = new byte[4096];
+            int n;
+            long idx = 0;
+
+            while ((n = pcmAis.read(buf)) != -1) {
+                for (int i = 0; i + 1 < n; i += 2, idx++) {
+                    short s = (short) ((buf[i] & 0xFF) | (buf[i + 1] << 8));
+                    int b = (int) Math.min(idx / perBin, PEAKS - 1);
+                    double a = Math.abs(s) / 32768.0;
+                    if (a > bins[b]) bins[b] = a;
+                }
+            }
+            pcmAis.close();
+
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < PEAKS; i++) {
+                if (i > 0) sb.append(",");
+                sb.append(String.format("%.3f", bins[i]));
+            }
+            sb.append("]");
+            return sb.toString();
+
+        } catch (Exception e) {
+            return null; // graceful fallback — player shows flat line
+        }
     }
 
     private int extractWavDuration(MultipartFile file) {

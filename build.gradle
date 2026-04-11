@@ -57,6 +57,10 @@ dependencies {
 
     // Mail (이메일 인증 / 비밀번호 재설정)
     implementation 'org.springframework.boot:spring-boot-starter-mail'
+
+    // Audio: waveform peak extraction (SR-90)
+    implementation 'com.googlecode.soundlibs:mp3spi:1.9.5.4'
+    implementation 'com.googlecode.soundlibs:tritonus-share:0.3.7.4'
 }
 
 tasks.named('test') {

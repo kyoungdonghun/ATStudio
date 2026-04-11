@@ -13,6 +13,7 @@ export interface TrackDetail {
   description: string | null;
   audioFile: string;
   thumbnail: string | null;
+  waveformData?: string | null;
   isActive: boolean;
   playCount: number;
   likeCount: number;

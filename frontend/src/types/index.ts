@@ -67,6 +67,7 @@ export interface TrackListItem {
   playCount: number;
   likeCount: number;
   downloadCount: number;
+  waveformData?: string | null;
   tags: TagItem[];
   createdAt: string;
 }
@@ -82,6 +83,7 @@ export interface Track {
   description: string | null;
   audioFile: string | null;
   thumbnail: string | null;
+  waveformData?: string | null;
   tags: TagItem[];
   isActive: boolean;
   playCount: number;
