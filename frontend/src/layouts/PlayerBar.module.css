@@ -292,6 +292,19 @@
   color: var(--accent);
 }
 
+.downloadBtn {
+  composes: actionBtn;
+  border-color: var(--accent-border);
+  color: var(--accent);
+  font-size: 14px;
+  padding: 5px 13px;
+}
+
+.downloadBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* ── Mobile player (hidden on desktop) ── */
 
 .mobilePlayer {

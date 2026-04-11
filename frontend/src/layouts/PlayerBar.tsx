@@ -6,6 +6,7 @@ import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
 import { fetchMySubscription } from '@/api/userSubscriptions';
+import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import HistoryModal from '@/components/player/HistoryModal';
 import PlaylistDrawer from '@/components/player/PlaylistDrawer';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
@@ -49,6 +50,7 @@ export default function PlayerBar() {
   const [showPlModal, setShowPlModal] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [hasSubscription, setHasSubscription] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const mobileMiniProgressRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -92,6 +94,31 @@ export default function PlayerBar() {
     },
     [seek, trackDuration],
   );
+
+  const handleDownload = useCallback(async () => {
+    if (!currentTrack || downloading) return;
+    setDownloading(true);
+    try {
+      const blob = await downloadTrack(currentTrack.id);
+      triggerBlobDownload(blob, `${currentTrack.title}.mp3`);
+      toast('success', '다운로드가 완료되었습니다.');
+    } catch (err: unknown) {
+      try {
+        const errObj = err as { response?: { data?: Blob } };
+        if (errObj?.response?.data instanceof Blob) {
+          const text = await errObj.response.data.text();
+          const json = JSON.parse(text);
+          if (json?.message?.includes('초과') || json?.code === 'DOWNLOAD_LIMIT_EXCEEDED') {
+            toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
+            setDownloading(false);
+            return;
+          }
+        }
+      } catch { /* ignore parse error */ }
+      toast('error', '다운로드에 실패했습니다.');
+    }
+    setDownloading(false);
+  }, [currentTrack, downloading, toast]);
 
   const handleMobileMiniProgressClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -342,6 +369,16 @@ export default function PlayerBar() {
             className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
             onClick={() => { setPlaylistOpen((v) => !v); setHistoryOpen(false); }}
           >{'재생목록'}</button>
+          {(role === 'ADMIN' || (isAuthenticated && hasSubscription)) && (
+            <button
+              className={styles.downloadBtn}
+              onClick={handleDownload}
+              disabled={downloading}
+              title="음원 다운로드"
+            >
+              {downloading ? '...' : '\u2193'}
+            </button>
+          )}
           {!isAuthenticated && (
             <button className={styles.buyBtn} onClick={() => navigate('/login')}>{'구매하기'}</button>
           )}
@@ -441,6 +478,12 @@ export default function PlayerBar() {
               onClick={() => { setHistoryOpen((v) => !v); setPlaylistOpen(false); }}>{'재생기록'}</button>
             <button className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
               onClick={() => { setPlaylistOpen((v) => !v); setHistoryOpen(false); }}>{'재생목록'}</button>
+            {(role === 'ADMIN' || (isAuthenticated && hasSubscription)) && (
+              <button className={styles.downloadBtn} onClick={handleDownload}
+                disabled={downloading} title="음원 다운로드">
+                {downloading ? '...' : '\u2193 다운로드'}
+              </button>
+            )}
             {!isAuthenticated && (
               <button className={styles.buyBtn} onClick={() => navigate('/login')}>{'구매하기'}</button>
             )}
