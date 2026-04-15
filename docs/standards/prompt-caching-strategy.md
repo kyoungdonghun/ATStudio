@@ -1,6 +1,6 @@
 ---
-version: 2.0
-last_updated: 2026-02-07
+version: 2.1
+last_updated: 2026-04-15
 project: system
 owner: SA
 category: standard
@@ -55,7 +55,7 @@ To maximize prefix consistency and cache hit rates, the system enforces strict o
 - **Tier 2 third**: Task-specific context (standards, guides, ADRs)
 - **Snapshot last**: Dynamic, changes per task
 
-**Reference:** See `CLAUDE.md` Section "Tier 0 Required Documents" and "Injection Order (Prompt Caching)".
+**Reference:** See `AGENTS.md` for the current Tier 0 Required Documents and injection-order guidance in Codex sessions. `CLAUDE.md` remains a transitional compatibility reference.
 
 ## 4. Cost Awareness
 
@@ -108,4 +108,5 @@ Violations of context ordering are treated as **constitutional violations** per 
 
 - [Core Principles](core-principles.md): Article 12 - Context Injection Efficiency
 - [Development Standards](development-standards.md): Section 1.3 - Context Injection & Safety
-- [CLAUDE.md](../../CLAUDE.md): Tier 0 Required Documents, Injection Order
+- [AGENTS.md](../../AGENTS.md): Primary Tier 0 Required Documents and injection-order guidance for Codex sessions
+- [CLAUDE.md](../../CLAUDE.md): Transitional compatibility reference for legacy Claude-era injection guidance

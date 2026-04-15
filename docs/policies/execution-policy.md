@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-03-29
+version: 1.2
+last_updated: 2026-04-15
 project: system
 owner: MA
 category: policy
@@ -27,7 +27,7 @@ task_types:
 - **Non-destructive First**: Start with read/analysis (read-only), get approval for write/changes later.
 
 > **Note: Distinction from Business Approval (Milestone)**
-> This document addresses the safety of "command execution." For approving project phase direction (planning/design/implementation), follow **REQ-Based Approval** (Section 4.1 below) and the Orchestration Gates in `CLAUDE.md`.
+> This document addresses the safety of "command execution." For approving project phase direction (planning/design/implementation), follow **REQ-Based Approval** (Section 4.1 below) and the Orchestration Gates in `AGENTS.md` as the primary rules source for Codex sessions. `CLAUDE.md` remains a transitional compatibility reference.
 
 ### 1.1 Pre-flight Check (Required Before Script/Tool Execution)
 Perform **integrity checks** before all script or tool execution to prevent failures.

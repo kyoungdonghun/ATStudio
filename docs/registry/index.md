@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-01-06
+version: 1.2
+last_updated: 2026-04-15
 project: system
 owner: EO
 category: registry
@@ -29,5 +29,5 @@ status: stable
 
 ## Related Guides
 
-- Asset registration and traceability rules: See Work Tracking section in `CLAUDE.md`
-- Project creation and request intake: See REQ-Based Single Gate section in `CLAUDE.md`
+- Asset registration and traceability rules: See Work Tracking section in `AGENTS.md` (primary for Codex sessions; `CLAUDE.md` compatibility)
+- Project creation and request intake: See REQ-Based Single Gate section in `AGENTS.md` (primary for Codex sessions; `CLAUDE.md` compatibility)

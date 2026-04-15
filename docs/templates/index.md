@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-03-29
+version: 1.3
+last_updated: 2026-04-15
 project: system
 owner: EO
 category: registry
@@ -36,6 +36,6 @@ status: stable
 
 ## Template Usage Guide
 
-- **Request Templates**: See `CLAUDE.md` (Skills Reference — `/create-req`, `/create-wi-handoff-packet`)
+- **Request Templates**: See `AGENTS.md` (primary for Codex sessions; `CLAUDE.md` compatibility) for `/create-req`, `/create-wi-handoff-packet`
 - **ADR Template**: Use for MEDIUM/HIGH changes; traceability: see `docs/registry/asset-registry.md` §0
 - **WI Handoff Template**: Always generate via `/create-wi-handoff-packet` skill (manual writing prohibited)

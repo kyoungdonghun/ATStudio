@@ -17,10 +17,11 @@
     "docs/policies/*": 1,
     "docs/architecture/*": 1,
     "docs/adr/*": 1,
-    "docs/guides/*": 2,
+    "docs/ui/*": 2,
     "docs/design/*": 2,
     "docs/templates/*": 2,
     "docs/registry/*": 2,
+    "docs/retrospective/*": 2,
     "docs/projects/*": 2,
     "docs/eval/*": 3,
     "docs/analysis/*": 3,
@@ -31,17 +32,17 @@
     "_comment": "Document category to agent groups mapping. '*' means all agents.",
 
     "standards": ["*"],
-    "policies": ["eo", "pg", "sa", "cr"],
-    "architecture": ["sa", "se", "eo", "cr"],
+    "policies": ["eo", "pg", "sa", "cr", "qa-integ"],
+    "architecture": ["sa", "se", "eo", "cr", "qa-integ"],
     "adr": ["sa", "se", "eo", "cr"],
-    "guides": ["se", "re", "docops", "qa"],
-    "design": ["uv", "se", "sa"],
+    "guides": ["se", "re", "docops", "qa", "qa-fe", "qa-integ"],
+    "design": ["uv", "se", "sa", "qa-fe", "qa-integ"],
     "templates": ["se", "sa", "docops", "uv", "ps"],
     "registry": ["eo", "docops", "sa"],
     "projects": ["sa", "se", "ps", "eo"],
     "eval": ["re", "qa"],
     "analysis": ["tr", "sa", "ps"],
-    "deliverables": ["se", "re", "qa", "eo", "cr"]
+    "deliverables": ["se", "re", "qa", "eo", "cr", "qa-fe", "qa-integ"]
   },
 
   "agent_required_tiers": {
@@ -57,6 +58,8 @@
     "uv": [0],
     "docops": [0, 1],
     "qa": [0],
+    "qa-fe": [0],
+    "qa-integ": [0, 1],
     "cr": [0, 1]
   },
 
@@ -92,8 +95,8 @@
         "id": "testing-qa",
         "description": "Testing, validation, quality assurance, evaluation tasks",
         "keywords": ["테스트", "test", "검증", "validation", "QA", "품질", "quality", "regression", "회귀", "E2E", "평가", "evaluation", "골든셋", "golden"],
-        "documents": ["docs/guides/agent-evaluation.md", "docs/guides/eval-golden-set.md", "docs/policies/quality-gates.md"],
-        "tier": [1, 2]
+        "documents": ["docs/policies/quality-gates.md", "docs/standards/evidence-pack-standard.md", "docs/templates/eval-report-template.md"],
+        "tier": [0, 1, 2]
       },
       {
         "id": "security",
@@ -113,8 +116,8 @@
         "id": "workflow",
         "description": "Development workflow, process, operation tasks",
         "keywords": ["워크플로우", "workflow", "프로세스", "process", "운영", "operation", "절차", "procedure", "REQ", "WI", "handoff", "핸드오프"],
-        "documents": ["docs/guides/development-workflow.md", "docs/guides/operation-process.md", "docs/guides/traceability.md"],
-        "tier": 2
+        "documents": ["docs/architecture/system-design.md", "docs/templates/requirements-request-template.md", "docs/templates/wi-subagent-handoff-template.md"],
+        "tier": [1, 2]
       },
       {
         "id": "documentation",
@@ -127,14 +130,14 @@
         "id": "onboarding",
         "description": "Project onboarding, setup, initialization tasks",
         "keywords": ["온보딩", "onboarding", "셋업", "setup", "초기화", "init", "프로젝트 생성", "project creation", "환경설정", "configuration"],
-        "documents": ["docs/guides/project-onboarding.md", "docs/guides/request-intake.md"],
+        "documents": ["docs/index.md", "docs/templates/ma-session-kickoff-prompt.md"],
         "tier": 2
       }
     ],
 
     "llm_inference_config": {
       "_comment": "Phase 2: LLM semantic analysis runs alongside Phase 1 keyword matching.",
-      "search_scope": ["docs/guides/*", "docs/design/*", "docs/analysis/*", "docs/policies/*", "docs/architecture/*", "docs/adr/*", "docs/templates/*"],
+      "search_scope": ["docs/design/*", "docs/ui/*", "docs/analysis/*", "docs/policies/*", "docs/architecture/*", "docs/adr/*", "docs/templates/*", "docs/retrospective/*"],
       "exclude_from_inference": ["docs/standards/*", "docs/registry/*", "docs/eval/*"],
       "max_additional_docs": 5,
       "instruction": "Analyze the WI content semantically. Identify relevant documents from search_scope based on task context. Note: docs/design/ contains agent/system design, not UI design. Return document paths that would help the assignee complete the task."
@@ -181,7 +184,7 @@
     },
     "re": {
       "required": ["docs/standards/core-principles.md"],
-      "optional": ["docs/guides/*"]
+      "optional": ["docs/policies/quality-gates.md", "docs/standards/evidence-pack-standard.md"]
     },
     "pg": {
       "required": [
@@ -211,7 +214,21 @@
         "docs/standards/core-principles.md",
         "docs/standards/development-standards.md"
       ],
-      "optional": ["docs/projects/*/lint-config.md", "docs/projects/*/test-config.md"]
+      "optional": ["docs/policies/quality-gates.md"]
+    },
+    "qa-fe": {
+      "required": [
+        "docs/standards/core-principles.md",
+        "docs/standards/development-standards.md"
+      ],
+      "optional": ["docs/standards/frontend-standards.md", ".agents/skills/react-best-practices/AGENTS.md"]
+    },
+    "qa-integ": {
+      "required": [
+        "docs/standards/core-principles.md",
+        "docs/standards/development-standards.md"
+      ],
+      "optional": ["docs/design/api-spec.md", "docs/policies/security-policy.md"]
     },
     "cr": {
       "required": [
@@ -226,8 +243,8 @@
     "_comment": "Tech-stack-based conditional document injection. Resolved from workspace.json domain_projects[].tech_stack. When project's tech_stack includes a key below AND assignee is in applicable_agents, the documents are auto-injected.",
 
     "react": {
-      "documents": [".claude/skills/react-best-practices/AGENTS.md"],
-      "applicable_agents": ["se", "qa", "cr", "uv"],
+      "documents": [".agents/skills/react-best-practices/AGENTS.md", "docs/standards/frontend-standards.md"],
+      "applicable_agents": ["se", "qa", "qa-fe", "qa-integ", "cr", "uv"],
       "tier": 2,
       "phase_gate": "phase-2",
       "enabled": true,

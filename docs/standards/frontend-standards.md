@@ -1,6 +1,6 @@
 ---
-version: 2.0
-last_updated: 2026-03-29
+version: 2.1
+last_updated: 2026-04-15
 project: ATS
 owner: SA
 category: standard
@@ -26,7 +26,7 @@ task_types:
 
 # Frontend Standards (React + TypeScript)
 
-> **Purpose:** Define the frontend architecture, coding standards, and patterns for ATStudio's React SPA. This document reflects the **actual implemented** state as of 2026-03-29.
+> **Purpose:** Define the frontend architecture, coding standards, and patterns for ATStudio's React SPA. This document reflects the **actual implemented** state as of 2026-04-15.
 
 ---
 
@@ -58,6 +58,8 @@ frontend/src/
 │   ├── userSubscriptions.ts
 │   └── ...               # One file per API domain
 ├── components/           # Shared UI components (DataTable, Pagination, Toast, TrackRow, etc.)
+├── features/             # Reserved for feature-local composition (currently placeholder only)
+├── hooks/                # Reserved for shared hooks (currently placeholder only)
 ├── layouts/              # MainLayout, AdminLayout
 ├── pages/                # Route-level page components, grouped by role
 │   ├── public/           # Unauthenticated pages (HomePage, TrackListPage, etc.)
@@ -67,7 +69,7 @@ frontend/src/
 │   ├── admin/            # Admin-only pages (DashboardPage, UserManagePage, etc.)
 │   └── error/            # Error pages (NotFoundPage, ServerErrorPage)
 ├── router/               # Router definition and route guards
-│   ├── index.tsx         # createBrowserRouter with all 48 routes
+│   ├── index.tsx         # createBrowserRouter with current app route table
 │   ├── ProtectedRoute.tsx
 │   └── SubscriberRoute.tsx
 ├── store/                # Zustand stores
@@ -81,11 +83,12 @@ frontend/src/
 │   └── tokens.css        # CSS Variables (design tokens, dark/light theme)
 ├── types/                # TypeScript type definitions
 │   └── index.ts          # All shared types (ApiResponse, PagedResponse, User, Track, etc.)
+├── utils/                # Shared helpers (validation, formatting, safeStorage)
 ├── App.tsx               # Root: <RouterProvider router={router} />
 └── main.tsx              # Entry point
 ```
 
-**No `contexts/`, `features/`, `schemas/`, `hooks/` directories.** Pages contain their own local state (useState/useEffect). Shared logic lives in stores or api files.
+**No `contexts/` or `schemas/` directories.** `features/` and `hooks/` currently exist as placeholders, while reusable frontend helpers live in `store/`, `api/`, and `utils/`.
 
 ---
 

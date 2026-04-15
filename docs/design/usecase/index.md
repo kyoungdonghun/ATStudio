@@ -24,6 +24,7 @@
 | `download-queue.md` | Download queue (add/list/remove) | 3 |
 | `whitelist.md` | Whitelist channel (register/list/update/delete) | 4 |
 | `company-certification.md` | Company certification (apply/view status/admin management) | 5 |
+| `business-license.md` | Legacy redirect stub (moved to `company-certification.md`) | - |
 | `util.md` | Utility (duplicate check/token/subscription status/download count/email verify/password reset/site settings) | 13 |
 | `sound-album.md` | Album (create/list/detail/update/delete/add track/remove track/reorder/likes cross-ref) | 9 |
 

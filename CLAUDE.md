@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Compatibility Notice:** This file is kept as a transitional compatibility reference during the Claude → Codex migration.
+> For current Codex sessions, use `AGENTS.md` as the primary entry point.
+
 ## Project Overview
 
 **ATStudio** - 쇼츠 음악 판매 웹 애플리케이션
@@ -24,18 +27,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Test | JUnit5 + Mockito |
 | Utility | Lombok, ModelMapper |
 | API Docs | Springdoc OpenAPI / Swagger |
-| Template | Thymeleaf (React 전환 전 초기 UI) |
+| Template | Thymeleaf (legacy SSR / compatibility) |
 
-### Frontend (계획)
+### Frontend (활성)
 
 | Category | Technology |
 |----------|-----------|
-| Framework | React |
+| Framework | React 18 |
 | Language | TypeScript |
+| Build | Vite 6.x |
+| State | Zustand |
+| HTTP | Axios |
 | Lint/Format | ESLint, Prettier |
 
-> **로드맵:** 초기에는 Thymeleaf SSR로 개발 → 추후 React SPA로 프론트엔드 전환 예정.
-> React 전환 시 ESLint/Prettier/TypeScript 스킬이 활성화됨.
+> **현재 상태:** Phase 2 React SPA가 `frontend/`에서 활성 운영 중이며, 기존 Thymeleaf UI는 레거시/호환 맥락으로만 간주한다.
+> React/TypeScript/ESLint/Prettier 관련 스킬은 현재 활성 상태다.
 
 ## Package Structure
 
@@ -56,6 +62,13 @@ com.atstudio.atstudio
 ./gradlew build          # Linux/Mac
 gradlew.bat build        # Windows
 
+# 프론트엔드 설치/검증
+cd frontend
+npm install
+npm run build
+npm run lint
+npm run typecheck
+
 # 테스트
 ./gradlew test
 
@@ -69,7 +82,7 @@ gradlew.bat build        # Windows
 ./gradlew build -x test
 ```
 
-**주의:** TypeScript/npm/ESLint/Prettier 관련 스킬은 현재 백엔드 단계에서는 적용 안 함. React 프론트엔드 전환 시 활성화.
+**주의:** 현재 저장소는 Spring Boot 백엔드 + React/Vite 프론트엔드가 함께 운영된다. 이 파일은 Claude 호환 문서로 유지되지만, 실제 최신 운영 규칙은 `AGENTS.md`를 우선한다.
 
 ## Core Principles (Tier 0)
 
@@ -272,11 +285,15 @@ public class Music {
 ```
 ATStudio/
 ├── .claude/
-│   ├── agents/                  ← 11개 에이전트 정의 (ps, eo, sa, se, re, pg, tr, uv, docops, qa, cr)
-│   ├── skills/                  ← 18개 스킬 정의
+│   ├── agents/                  ← 13개 에이전트 정의 (ps, eo, sa, se, re, pg, tr, uv, docops, qa, qa-fe, qa-integ, cr)
+│   ├── skills/                  ← Claude-era skill 자산
 │   ├── config/                  ← workspace.json, context-injection-rules.json
 │   └── scripts/                 ← 시스템 자동화 스크립트 (Python)
+├── .agents/
+│   └── skills/                  ← Codex에서 직접 노출되는 프로젝트 스킬
+├── AGENTS.md                    ← Codex 세션의 1차 진입점
 ├── CLAUDE.md                    ← 이 파일 (프로젝트 지침서)
+├── frontend/                    ← React/Vite SPA
 ├── src/
 │   ├── main/java/com/atstudio/atstudio/   ← Spring Boot 소스
 │   ├── main/resources/          ← application.yml, templates/
@@ -369,6 +386,6 @@ ATStudio/
 | `docs/standards/development-standards.md` | Java/Spring Boot 코딩 표준 (Section 2A) | 0 |
 | `docs/standards/glossary.md` | 용어 사전 + ATStudio 도메인 용어 | 0 |
 | `docs/policies/security-policy.md` | JWT/MySQL 시크릿 관리 정책 | 1 |
-| `docs/guides/development-workflow.md` | 표준 7단계 워크플로우 | 2 |
+| `docs/templates/ma-session-kickoff-prompt.md` | 새 세션 킥오프/REQ 시작 템플릿 | 2 |
 | `docs/architecture/system-design.md` | 멀티에이전트 시스템 설계 원칙 | 1 |
 | `docs/index.md` | 전체 문서 인덱스 | - |

@@ -16,6 +16,8 @@
       "uv",
       "docops",
       "qa",
+      "qa-fe",
+      "qa-integ",
       "cr"
     ],
     "skills": [

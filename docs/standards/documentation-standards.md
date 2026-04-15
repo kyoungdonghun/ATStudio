@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-02-01
+version: 1.4
+last_updated: 2026-04-15
 project: system
 owner: EO
 category: standard
@@ -52,8 +52,8 @@ version: 1.0
 last_updated: YYYY-MM-DD
 project: [PRJ-...] | system | (optional, required for project-related docs)
 owner: [role or assignee]
-category: plan | guide | policy | standard | template | registry | agent
-status: draft | stable | deprecated
+category: architecture | design | guide | policy | standard | template | registry | adr | eval | audit | agent
+status: draft | stable | deprecated | archived
 dependencies:
   - path: [relative path]
     reason: [dependency reason]
@@ -78,7 +78,7 @@ task_types:                # Task types that require this document
   - `system`: System-wide document (standards, policies, guides, etc.)
 - **owner**: Document owner/assignee (role or name)
 - **category**: Document category (see classification below)
-- **status**: Document status (`draft` / `stable` / `deprecated`)
+- **status**: Document status (`draft` / `stable` / `deprecated` / `archived`)
 - **dependencies**: List of documents this document depends on
 
 **Optional Fields (3 fields for dynamic context injection):**
@@ -97,6 +97,14 @@ task_types:                # Task types that require this document
   - Valid values: `security`, `architecture`, `testing`, `documentation`, `implementation`, `review`, `research`, `design`
   - Default: Empty array (no task type association)
   - Purpose: Automatically injects document when matching task type is detected
+
+**Conditional Archive Fields (recommended when `status: archived`):**
+
+- **archived_date**: Date the document was retired from active operational use
+- **archive_reason**: Why the document was archived instead of deleted
+- **replacement_path**: Current replacement document/path when one exists
+
+For live/historical classification rules, see `docs/policies/archive-policy.md`.
 
 **Phase 2+ Optional Extended Fields:**
 
@@ -125,7 +133,7 @@ Project identifiers are centrally managed in the system project. When a new proj
 1. **New Project Request**: Create request using `project-request-template.md`
 
    - Template: `docs/templates/project-request-template.md`
-   - Guide: See `CLAUDE.md` (REQ-Based Single Gate section)
+   - Guide: See `AGENTS.md` for Codex sessions (`CLAUDE.md` compatibility)
 
 2. **Project Identifier Issuance**: EO issues Project ID
 
@@ -209,7 +217,7 @@ Project identifiers (three-letter codes, e.g., `AMS`) are used for:
 
 - Project Registry: `docs/registry/project-registry.md`
 - Project Creation Template: `docs/templates/project-request-template.md`
-- Request Intake: `CLAUDE.md` (REQ-Based Single Gate section)
+- Request Intake: `AGENTS.md` (REQ-Based Single Gate section; `CLAUDE.md` compatibility)
 
 **Notes:**
 
@@ -418,7 +426,7 @@ Documents are classified into the following categories:
 | Category     | Purpose                              | Metadata `project` field rule       | Example                                       |
 | ------------ | ------------------------------------ | ----------------------------------- | --------------------------------------------- |
 | architecture | Overall design and roadmap           | Project-specific: `PRJ-...` required | system-design.md                              |
-| guide        | Practical guides and procedures      | System-wide: `system` or omitted    | development-workflow.md (see CLAUDE.md)       |
+| guide        | Practical guides and procedures      | System-wide: `system` or omitted    | ma-session-kickoff-prompt.md (see `AGENTS.md`; `CLAUDE.md` compatibility) |
 | policy       | Operational policies and rules       | System-wide: `system` or omitted    | quality-gates.md, execution-policy.md         |
 | standard     | Standards and specifications         | System-wide: `system` or omitted    | glossary.md, documentation-standards.md       |
 | template     | Document/artifact templates          | System-wide: `system` or omitted    | adr-template.md, impact-analysis-template.md  |
@@ -507,7 +515,7 @@ To reduce duplicate management burden, separate roles of main index and category
 
 ### MA (Main Agent)
 
-- Required: `CLAUDE.md` (REQ-Based Single Gate, Orchestration Gates)
+- Required: `AGENTS.md` (REQ-Based Single Gate, Orchestration Gates; `CLAUDE.md` compatibility)
 - Reference: [system-design.md](../architecture/system-design.md)
 
 ### SE (Software Engineer)
@@ -550,7 +558,7 @@ To reduce duplicate management burden, separate roles of main index and category
 
 | Document Name | Description | Status |
 | :--- | :--- | :--- |
-| **[file-name.md](file-name.md)** | 1-line summary of core purpose | stable |
+| **`file-name.md`** | 1-line summary of core purpose | stable |
 | ... | ... | ... |
 
 ## 2. Document Map (Guidelines)
@@ -601,6 +609,7 @@ Follow Semantic Versioning:
 - **Change history document**: Record major decision/change history
   - Example: `design-history.md`, `CHANGELOG.md`
 - **In-document change history**: Add change history section in document for Major changes (optional)
+- **Historical/archive documents**: Preserve time-bound context instead of rewriting old content to match the current state; see `docs/policies/archive-policy.md`
 
 **Change History Example:**
 
@@ -778,7 +787,7 @@ Main roles creating documents:
 
 **Role-specific Additional Checklists:**
 
-- **MA**: Process documents should reference `CLAUDE.md` (Orchestration Gates)
+- **MA**: Process documents should reference `AGENTS.md` first (`CLAUDE.md` compatibility)
 - **SE**: Development standards should reference development-standards.md
 - **EO**: Policy documents should reference template-governance.md
 

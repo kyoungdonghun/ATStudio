@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-03-29
+version: 1.1
+last_updated: 2026-04-15
 project: ATS
 owner: EO
 category: standard
@@ -58,8 +58,9 @@ task_types:
 | asset       | Asset                              | Reusable unit (policy/template/code/tool)       | resource                 | Resource (umbrella) | TBD                   | Identified by ID like "AST-POL-001"                |
 | reuse       | Reuse-first                        | Principle of prioritizing reuse review before creating new | reuse priority           | Copy-paste          | TBD                   | Search→reuse/extend→promote sequence               |
 | domain-fit  | Domain Fit                         | Whether reuse asset has no conflict with domain invariants/terms | domain suitability       | -                   | TBD                   | Verified in PROJECT_DOMAIN_CONTEXT.md              |
-| deprecated  | Deprecated                         | Scheduled for deprecation (provide alternative path, migration needed) | scheduled for deprecation, end-of-life | Deleted (immediate deletion) | TBD                   | Follow VERSIONING_AND_DEPRECATION.md procedure     |
-| stable      | Stable                             | Interface/behavior stabilized, backward compatibility guaranteed | stable, Production-ready | Final (change prohibited) | TBD                   | Draft → Stable → Deprecated sequence               |
+| deprecated  | Deprecated                         | Scheduled for deprecation (provide alternative path, migration needed) | scheduled for deprecation, end-of-life | Deleted (immediate deletion) | TBD                   | Follow `docs/policies/versioning-policy.md` procedure |
+| archived    | Archived                           | Preserved for historical/reference value only; not current SoT | historical, reference-only | deleted, current | TBD                   | Use with `archived_date` / `archive_reason`; see archive policy |
+| stable      | Stable                             | Interface/behavior stabilized, backward compatibility guaranteed | stable, Production-ready | Final (change prohibited) | TBD                   | Draft → Stable → Deprecated → Archived sequence    |
 
 ## 3-A) ATStudio Domain Terms
 

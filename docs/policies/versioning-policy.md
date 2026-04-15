@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-01-06
+version: 1.1
+last_updated: 2026-04-15
 project: system
 owner: EO
 category: policy
@@ -13,7 +13,7 @@ dependencies:
 ---
 # Versioning/Release/Deprecation Operating Rules
 
-> Purpose: As reusable assets (policies/templates/tools/code) grow, "when/who/how" versions increase and get deprecated must be clear to avoid operational breakage.
+> Purpose: As reusable assets (policies/templates/tools/code) grow, "when/who/how" versions increase, get deprecated, and move into archive state must be clear to avoid operational breakage.
 
 ## 1) Target Scope
 
@@ -28,6 +28,7 @@ dependencies:
 - **Draft**: Experimental/frequently changing. Consumers use with limitations.
 - **Stable**: Interface/behavior stabilized. Backward compatibility principle applies.
 - **Deprecated**: Replacement path provided. Deprecation schedule/migration plan required.
+- **Archived**: Preserved for historical/reference value only. Not part of active operational SoT.
 - **Debt**: Technical debt identified. Future refactoring target.
 
 ## 3) Responsibilities (Roles)
@@ -43,9 +44,9 @@ dependencies:
 
 - Default is to **fix the name** and **evolve the content** (prevent template proliferation).
 - If "breaking change" is necessary:
-  - (1) First convert to **Deprecated**
+  - (1) First convert to **Deprecated** or **Archived** depending on whether active migration is still expected
   - (2) Provide replacement path
-  - (3) Remove after schedule
+  - (3) Remove after schedule or preserve as archive if historical value remains
 
 ### 4.2 Version Notation (Recommended)
 
@@ -71,6 +72,16 @@ When converting to Deprecated, must record the following.
 - **Deprecation schedule**: "Maintain until when, remove when"
 - **Consumer impact**: Affected targets (update registry Consumers)
 
+### 6.1 Archived Procedure (Required when preserving historical value)
+
+When converting to Archived, must record the following.
+
+- **Archive notice**: State clearly that the document is no longer an active SoT
+- **Archived date**: When it left active operational use
+- **Archive reason**: Why it is being preserved
+- **Replacement path**: Current document/path if one exists
+- **Validation scope**: Whether the file remains in live validation or moves to archive-only storage
+
 ## 7) Example (Template Change)
 
 Example: Need to change field semantics in a template.
@@ -88,7 +99,7 @@ For system stability, periodically manage external libraries and security vulner
 - **Patch principles**:
   - **Security Patch**: Apply immediately (treat as Criticality HIGH).
   - **Minor/Patch Update**: Apply in batch during regular checks, then perform regression testing (`Golden Set`).
-  - **Major Update**: Issue WI, analyze impact, then gradually transition (follow Deprecated procedure).
+  - **Major Update**: Issue WI, analyze impact, then gradually transition (follow Deprecated/Archived procedure).
 
 ### 8.2 Vulnerability Management
 - Vulnerabilities identified through external tools (GitHub Dependabot, etc.) or manual checks are immediately registered as **WI (Incident)**.

@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-01-06
+version: 1.1
+last_updated: 2026-04-15
 project: system
 owner: EO
 category: registry
@@ -29,7 +29,7 @@ Minimum rules:
 - **Create ADR for MEDIUM/HIGH**
 - **Register in registry with Asset ID for new/reused assets, and update Consumers**
 
-For practical flow, see the Work Tracking section in `CLAUDE.md`.
+For practical flow, see the Work Tracking section in `AGENTS.md` as the primary operational guide for Codex sessions. `CLAUDE.md` remains a transitional compatibility reference.
 
 ## 1) Rules (Required)
 
@@ -48,17 +48,17 @@ For practical flow, see the Work Tracking section in `CLAUDE.md`.
 | CAP-005 | Glossary Maintenance | EO | All work | `docs/standards/glossary.md` | v1.0 | Stable |
 | CAP-006 | Execution Policy | EO | All work | `docs/policies/execution-policy.md` | v1.0 | Stable |
 | CAP-007 | Quality Gates | EO | All work | `docs/policies/quality-gates.md` | v1.0 | Stable |
-| CAP-008 | Reuse-first Decision | MA | All change work | `CLAUDE.md` (Orchestration Gates) | v1.0 | Stable |
+| CAP-008 | Reuse-first Decision | MA | All change work | `AGENTS.md` (Orchestration Gates; `CLAUDE.md` compatibility) | v1.0 | Stable |
 | CAP-009 | Domain Fit Gate | PS/SA | When judging reuse | `docs/standards/core-principles.md` | v1.0 | Stable |
 | CAP-010 | Secrets Management | PG | When handling sensitive information | `docs/policies/security-policy.md` | v1.0 | Stable |
 | CAP-011 | Version/Deprecation Management | EO | When changing assets | `docs/policies/versioning-policy.md` | v1.0 | Stable |
 | CAP-012 | Golden Set Operation | RE | During regression testing | see agent definitions in `.claude/agents/` | v1.0 | Stable |
-| CAP-013 | Project Onboarding | MA | When starting project | `CLAUDE.md` | v1.0 | Stable |
+| CAP-013 | Project Onboarding | MA | When starting project | `AGENTS.md` (`CLAUDE.md` compatibility) | v1.0 | Stable |
 | CAP-014 | Agent Evaluation Operation | RE | All work (especially MEDIUM/HIGH) | see agent definitions in `.claude/agents/` | v1.0 | Stable |
 | CAP-015 | Phase 2+ Reserved Policy | EO | Operational metrics/backup/release/log/remote request definition | `docs/policies/future-policy-stubs.md` | v0.5 | Draft |
 | CAP-016 | Runbook/Postmortem Operation | RE | During incident/accident response | `docs/retrospective/kick.md` | v0.5 | Draft |
 | CAP-019 | Access Control Operation | PG | When authority/approval needed | `docs/policies/access-control-policy.md` | v0.5 | Draft |
-| CAP-022 | Request Intake | MA | All work (starting point) | `CLAUDE.md` (REQ-Based Single Gate) | v0.5 | Draft |
+| CAP-022 | Request Intake | MA | All work (starting point) | `AGENTS.md` (REQ-Based Single Gate; `CLAUDE.md` compatibility) | v0.5 | Draft |
 | CAP-023 | Project List Maintenance | EO | When project selection/mapping needed | `docs/registry/project-registry.md` | v0.5 | Draft |
 | CAP-024 | Context Instance Maintenance | EO | When parallel processing/work session needed | `docs/registry/context-registry.md` | v0.5 | Draft |
 
@@ -68,9 +68,9 @@ For practical flow, see the Work Tracking section in `CLAUDE.md`.
 
 | Asset ID | Name | Scope | Boundary/Purpose | Owner(A) | Location | Consumers | Version | Status |
 | :---------- | :------------------------ | :------------- | :---------------------------------------------------- | :------- | :----------------------------------------------- | :-------- | :--- | ------ |
-| AST-POL-001 | Reuse-first Process | System(Global) | Reuse/change management procedure | EO | `CLAUDE.md` (Orchestration Gates) | All work | v1.0 | Stable |
+| AST-POL-001 | Reuse-first Process | System(Global) | Reuse/change management procedure | EO | `AGENTS.md` (Orchestration Gates; `CLAUDE.md` compatibility) | All work | v1.0 | Stable |
 | AST-POL-002 | Agent Plan | System(Global) | Overall design/roadmap | EO | `docs/architecture/system-design.md` | All actors | v1.0 | Living |
-| AST-POL-003 | Traceability Guide | System(Global) | WI/ADR/Asset linking rules | EO | `CLAUDE.md` (Work Tracking section) | All work | v1.0 | Stable |
+| AST-POL-003 | Traceability Guide | System(Global) | WI/ADR/Asset linking rules | EO | `AGENTS.md` (Work Tracking section; `CLAUDE.md` compatibility) | All work | v1.0 | Stable |
 | AST-POL-004 | Scope & Domain Model | System(Global) | Project↔system scope/domain gate | SA/PS | `docs/standards/core-principles.md` | MA/SA/PS | v1.0 | Stable |
 | AST-POL-005 | Template Governance | System(Global) | Template proliferation prevention/reuse principle | EO | `docs/policies/template-governance.md` | All work | v1.0 | Stable |
 | AST-POL-006 | Glossary | System(Global) | Common glossary (synonym/forbidden term management) | EO | `docs/standards/glossary.md` | All work | v1.0 | Stable |
@@ -80,7 +80,7 @@ For practical flow, see the Work Tracking section in `CLAUDE.md`.
 | AST-POL-011 | Versioning & Deprecation | System(Global) | Version/release/deprecation operational rules | EO | `docs/policies/versioning-policy.md` | All work | v1.0 | Stable |
 | AST-POL-012 | Secrets & Privacy Policy | System(Global) | Secret/sensitive information handling policy | PG | `docs/policies/security-policy.md` | All work | v1.0 | Stable |
 | AST-POL-013 | Eval Golden Set | System(Global) | Eval/regression (golden set) criteria | RE | see agent definitions in `.claude/agents/` | All work | v1.0 | Stable |
-| AST-POL-014 | Project Onboarding | System(Global) | Project startup checklist | MA | `CLAUDE.md` | All work | v1.0 | Stable |
+| AST-POL-014 | Project Onboarding | System(Global) | Project startup checklist | MA | `AGENTS.md` (`CLAUDE.md` compatibility) | All work | v1.0 | Stable |
 | AST-POL-015 | Agent Evaluation | System(Global) | Agent activity evaluation (improvement/regression prevention) | RE | see agent definitions in `.claude/agents/` | All work | v1.0 | Stable |
 | AST-POL-016 | Future Policy Stubs | System(Global) | Observability/Backup/Release/log/remote request definition (Phase 2+ implementation reserved) | EO | `docs/policies/future-policy-stubs.md` | All work | v0.5 | Draft |
 | AST-POL-017 | Runbook & Postmortem | System(Global) | Runbook/postmortem operational definition (lower priority implementation) | RE | `docs/retrospective/kick.md` | All work | v0.5 | Draft |
@@ -110,6 +110,7 @@ For practical flow, see the Work Tracking section in `CLAUDE.md`.
 - **Draft**: Experimental/frequent changes, consumers use with limitations
 - **Stable**: Interface/behavior stabilized, backward compatibility principle applied
 - **Deprecated**: Alternative path provided, deprecation schedule/migration plan required
+- **Archived**: Preserved for historical/reference value only and removed from active SoT
 - **Debt**: Technical debt identified, refactoring priority management needed
 
 ## 5) Technical Debt Registry (Technical Debt Management)
@@ -129,5 +130,6 @@ For practical flow, see the Work Tracking section in `CLAUDE.md`.
 
 ### Reference Documents
 
-- [CLAUDE.md](../CLAUDE.md): Overall workflow, Orchestration Gates, and Work Tracking rules
+- [AGENTS.md](../../AGENTS.md): Primary workflow, Orchestration Gates, and Work Tracking rules for Codex sessions
+- [CLAUDE.md](../../CLAUDE.md): Transitional compatibility reference for legacy Claude-era workflow notes
 - [Asset Promotion Checklist](../templates/asset-promotion-checklist.md): Template used for asset promotion

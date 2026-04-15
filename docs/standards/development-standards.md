@@ -1,6 +1,6 @@
 ---
-version: 2.1
-last_updated: 2026-03-29
+version: 2.2
+last_updated: 2026-04-15
 project: ATS
 owner: SE
 category: standard
@@ -80,15 +80,20 @@ ATStudio is a single-project workspace. Agent system and application code coexis
 
 ```
 ATStudio/
-├── .claude/                          # System: Agent tools and runtime
+├── .claude/                          # Project runtime assets and compatibility layer
 │   ├── agents/                       # Subagent persona definitions
-│   ├── skills/                       # Skill definitions
+│   ├── skills/                       # Legacy compatibility skill assets
 │   └── config/                       # workspace.json, injection rules
+├── .agents/
+│   └── skills/                       # Codex-exposed project skills
+├── AGENTS.md                         # Primary Codex session instructions
+├── CLAUDE.md                         # Transitional compatibility instructions
 ├── docs/                             # System: Standards, policies, guides
 │   └── standards/                    # Tier 0 documents
 ├── deliverables/                     # REQ/WI artifacts
 │   ├── user/                         # User-facing deliverables
 │   └── agent/                        # Agent-facing deliverables
+├── frontend/                         # React/Vite SPA frontend
 ├── src/
 │   ├── main/java/com/atstudio/atstudio/
 │   │   ├── config/                   # Spring configuration
@@ -99,8 +104,7 @@ ATStudio/
 │   │   └── service/                  # Business logic
 │   ├── main/resources/               # application.yml, templates/
 │   └── test/java/                    # JUnit5 tests
-├── build.gradle                      # Gradle build config
-└── CLAUDE.md                         # Project instructions
+└── build.gradle                      # Gradle build config
 ```
 
 ---

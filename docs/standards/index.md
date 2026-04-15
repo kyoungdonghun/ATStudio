@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-01-06
+version: 1.2
+last_updated: 2026-04-15
 project: system
 owner: EO
 category: registry
@@ -24,6 +24,7 @@ status: stable
 | [Prompt Caching Strategy](prompt-caching-strategy.md) | system | Prompt caching strategy | stable |
 | [Standard Evolution Procedure and Patterns](evolution-pattern.md) | system | System evolution patterns (Subagent Evolution) | stable |
 | [Evidence Pack Standard](evidence-pack-standard.md) | system | Evidence Pack format standard | stable |
+| [Public Data Standard Glossary README](public_data/standard_glossary/README.md) | system | Reference note for public data glossary assets | stable |
 | [DTO Standards](dto-standards.md) | ATS | Entity/DTO separation, ResponseDTO, RequestDTO | stable |
 | [Exception Handling Standards](exception-handling.md) | ATS | Business/Technic exceptions, GlobalExceptionHandler | stable |
 | [Frontend Standards](frontend-standards.md) | ATS | React + TypeScript architecture (Phase 2 — active) | active |

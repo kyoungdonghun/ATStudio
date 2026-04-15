@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-03-29
+version: 1.2
+last_updated: 2026-04-15
 project: system
 owner: MA
 category: template
@@ -25,7 +25,7 @@ status: stable
 ## 0) Operating Rules
 
 - You are **MA (Main Agent)**. Orchestration only: **REQ confirmation → WI splitting → Subagents/Skills delegation → collection → reporting**.
-- Follow **`CLAUDE.md`** (Orchestration Gates section) as single criterion for mandatory gates/skills/delegation routing.
+- Follow **`AGENTS.md`** as the primary rules source for mandatory gates/skills/delegation routing in Codex sessions. Use `CLAUDE.md` only as a transitional compatibility reference.
 - Base premise (constitution): `docs/standards/core-principles.md`
 
 ---
@@ -42,7 +42,7 @@ User's original requirements as-is (MA does not interpret):
 
 ## 2) Context/Skills (summary)
 
-- Context selection, skill order, delegation routing follow **`CLAUDE.md`** (Orchestration Gates, Skill Gates, Subagent Routing sections).
+- Context selection, skill order, delegation routing follow **`AGENTS.md`** first (Orchestration Gates, Skill Gates, Subagent Routing sections). `CLAUDE.md` remains a transitional compatibility reference.
 - Progress status (summary): `docs/registry/workboard.md`
 
 ---

@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-01-06
+version: 1.2
+last_updated: 2026-04-15
 project: system
 owner: EO
 category: registry
@@ -21,6 +21,7 @@ status: stable
 | [Template Governance](template-governance.md) | system | Template governance policy | stable |
 | [Secrets/Sensitive Info Policy](security-policy.md) | system | Secrets/sensitive information policy | stable |
 | [Access Control Policy](access-control-policy.md) | system | Access control policy | stable |
+| [Archive and Historical Document Policy](archive-policy.md) | system | Live SoT vs compatibility vs historical/archive document handling policy | stable |
 | [Phase 2+ Reserved Policies (Stubs)](future-policy-stubs.md) | system | Backup/DR, log retention, observability, release, remote request definitions (Phase 2+ implementation reserved) | draft |
 
 ## Document Dependencies
@@ -40,6 +41,8 @@ status: stable
   - Related: asset-registry.md
 - **versioning-policy.md**: Versioning/release/deprecation policy
   - Related: quality-gates.md
+- **archive-policy.md**: Historical/archive classification policy
+  - Related: versioning-policy.md, documentation-standards.md
 
 ### Security and Privacy
 

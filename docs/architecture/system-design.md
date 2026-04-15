@@ -1,6 +1,6 @@
 ---
-version: 2.1
-last_updated: 2026-03-29
+version: 2.2
+last_updated: 2026-04-15
 project: system
 owner: MA
 category: architecture
@@ -21,7 +21,7 @@ task_types:
 
 # System Design: MA + Subagents + Skills
 
-This document does not implement the "agent team" as a separate framework, but instead **assumes Claude Code's Subagents/Skills features** to ensure solo development operates **quickly, according to principles, and reusably**.
+This document does not implement the "agent team" as a separate framework, but instead describes the **project-level MA + Subagents + Skills model** used during the Claude → Codex migration. In the current workspace, **Codex sessions use `AGENTS.md` and `.agents/skills/` as entry points**, while project agent/config assets still live in `.claude/`.
 
 ---
 
@@ -66,7 +66,7 @@ MA is a **unified role** integrating the traditional **planning/coordination/orc
   - **Escalation**: Proceed only after user approval for scope/risk/hard-to-revert changes
   - **Session termination/cleanup**: Create output index + reusable context packet before termination notice
 
-### 2.2 Subagents (Claude Code Subagents)
+### 2.2 Subagents
 Subagents operate in **isolated contexts** and return summarized results to MA.
 
 - **When to use**
@@ -78,7 +78,7 @@ Subagents operate in **isolated contexts** and return summarized results to MA.
   - Subagent final outputs are **renormalized by MA from REQ perspective** before reporting to user.
   - Subagents have "expert opinion/output production" role, not "decision authority" (final judgment is MA's).
 
-### 2.3 Skills (Claude Code Agent Skills)
+### 2.3 Skills
 Skills **package repetitive work procedures**. (knowledge + optionally scripts/templates)
 
 - **When to use**
@@ -141,7 +141,10 @@ Previously identified roles (PS/EO/SA/SE/RE/PG/TR/UV/DocOps/QA/QA-FE/QA-INTEG/CR
    - If needed, expand "design reference document" in external/separate location.
 
 ### 3.2 Skills Definition Location
-- **Project Skills**: `.claude/skills/<skill-name>/SKILL.md`
+- **Codex-exposed project skills**: `.agents/skills/<skill-name>/SKILL.md`
+  - Current Codex runtime loads project skills from here
+- **Legacy compatibility skill assets**: `.claude/skills/<skill-name>/`
+  - Older handoffs/docs may still point here during migration
   - May include `scripts/`, `references/`, `assets/` as needed
 
 ### 3.3 Role of Documents (`docs/`)
@@ -161,7 +164,7 @@ However, session-specific outputs like "approval/decision reports" are separated
 
 ## 4. Standard Execution Model (REQ→WI Loop)
 
-Standard workflow follows `CLAUDE.md` (Orchestration Gates, REQ→WI→Delegation Flow sections).
+Standard workflow follows `AGENTS.md` (primary) and `CLAUDE.md` (transitional compatibility) for Orchestration Gates and REQ→WI→Delegation Flow.
 What this document fixes is only "who owns what, and what units convert to what".
 
 - **Input**: User utterance

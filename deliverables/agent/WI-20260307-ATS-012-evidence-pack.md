@@ -197,7 +197,7 @@ dependencies:
 버전 명시 없음.
 
 modal-list.md 본문 상단 (라인 38):
-> 관련 화면 목록: [docs/ui/atstudio-front-list.md](atstudio-front-list.md) v3
+> 관련 화면 목록: [docs/ui/atstudio-front-list.md](../../docs/ui/atstudio-front-list.md) v3
 
 본문에 v3 참조 있음 ✓. frontmatter에는 버전 미기재 → SUGGESTION S-1 참조.
 
