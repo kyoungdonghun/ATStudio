@@ -44,10 +44,14 @@ application-secret.yml
 
 ### Claude Code (local per-user) ###
 .claude/settings.local.json
+.claude/worktrees/
 
 ### Personal / Temp files ###
 *.lnk
 gen.py
+bootRun*.log
+bootrun*.log
+server*.log
 
 ### User uploads (runtime data, never commit) ###
 uploads/
@@ -61,3 +65,6 @@ uploads/
 ### Frontend ###
 frontend/node_modules/
 frontend/dist/
+
+### Runtime / Generated output ###
+src/main/resources/static/
