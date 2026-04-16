@@ -1,6 +1,6 @@
 ---
 version: 2.2
-last_updated: 2026-04-15
+last_updated: 2026-04-16
 project: system
 owner: MA
 category: architecture
@@ -21,7 +21,7 @@ task_types:
 
 # System Design: MA + Subagents + Skills
 
-This document does not implement the "agent team" as a separate framework, but instead describes the **project-level MA + Subagents + Skills model** used during the Claude → Codex migration. In the current workspace, **Codex sessions use `AGENTS.md` and `.agents/skills/` as entry points**, while project agent/config assets still live in `.claude/`.
+This document does not implement the "agent team" as a separate framework, but instead describes the **project-level MA + Subagents + Skills model** used in the current hybrid workspace. In the current workspace, **Codex sessions use `AGENTS.md` and `.agents/skills/` as entry points**, **Claude sessions use `CLAUDE.md` and `.claude/skills/`**, and shared agent/config assets live in `.claude/`.
 
 ---
 
@@ -132,7 +132,7 @@ Previously identified roles (PS/EO/SA/SE/RE/PG/TR/UV/DocOps/QA/QA-FE/QA-INTEG/CR
 - **Reference (design/reference)**: (optional) Role description documents (external/separate location)
   - Not required for operations, referenced only when needed.
 
-**Migration Rules (Operational Standard):**
+**Operational Rules (Current Standard):**
 1. Roles actually invoked in operations **must have** `.claude/agents/<role>.md` file.
 2. Even if role description document (reference) exists, operational norms/behavior follows `.claude/agents/<role>.md`.
 3. Role description documents (reference) are not required for operations (not SoT). Storage can be managed in external/separate location.
@@ -143,8 +143,9 @@ Previously identified roles (PS/EO/SA/SE/RE/PG/TR/UV/DocOps/QA/QA-FE/QA-INTEG/CR
 ### 3.2 Skills Definition Location
 - **Codex-exposed project skills**: `.agents/skills/<skill-name>/SKILL.md`
   - Current Codex runtime loads project skills from here
-- **Legacy compatibility skill assets**: `.claude/skills/<skill-name>/`
-  - Older handoffs/docs may still point here during migration
+- **Claude-facing skill assets**: `.claude/skills/<skill-name>/`
+  - Current Claude runtime loads project skills from here
+  - Older handoffs/docs may also point here
   - May include `scripts/`, `references/`, `assets/` as needed
 
 ### 3.3 Role of Documents (`docs/`)
@@ -164,7 +165,7 @@ However, session-specific outputs like "approval/decision reports" are separated
 
 ## 4. Standard Execution Model (REQ→WI Loop)
 
-Standard workflow follows `AGENTS.md` (primary) and `CLAUDE.md` (transitional compatibility) for Orchestration Gates and REQ→WI→Delegation Flow.
+Standard workflow follows `AGENTS.md` (Codex entry point) and `CLAUDE.md` (Claude entry point) as aligned operational sources for Orchestration Gates and REQ→WI→Delegation Flow.
 What this document fixes is only "who owns what, and what units convert to what".
 
 - **Input**: User utterance

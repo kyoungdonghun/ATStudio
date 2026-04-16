@@ -80,14 +80,14 @@ ATStudio is a single-project workspace. Agent system and application code coexis
 
 ```
 ATStudio/
-├── .claude/                          # Project runtime assets and compatibility layer
+├── .claude/                          # Project runtime assets and Claude-facing operation layer
 │   ├── agents/                       # Subagent persona definitions
-│   ├── skills/                       # Legacy compatibility skill assets
+│   ├── skills/                       # Claude-facing skill/reference assets
 │   └── config/                       # workspace.json, injection rules
 ├── .agents/
 │   └── skills/                       # Codex-exposed project skills
 ├── AGENTS.md                         # Primary Codex session instructions
-├── CLAUDE.md                         # Transitional compatibility instructions
+├── CLAUDE.md                         # Active Claude Code session instructions
 ├── docs/                             # System: Standards, policies, guides
 │   └── standards/                    # Tier 0 documents
 ├── deliverables/                     # REQ/WI artifacts

@@ -85,7 +85,7 @@ Consider a new agent when:
 
 After creating an agent:
 
-1. **AGENTS.md**: Add to routing matrix table (`CLAUDE.md` compatibility if still required)
+1. **AGENTS.md** and **CLAUDE.md**: Add to routing matrix tables
 2. **.claude/config/workspace.json**: Add to `agents` array
 3. **This document**: Update routing matrix
 4. **Existing docs category**: Add workflow guidance under `docs/templates/`, `docs/architecture/`, `docs/registry/`, or another live category if complexity warrants it

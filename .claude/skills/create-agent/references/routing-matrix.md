@@ -14,6 +14,8 @@
 | `uv` | UX/UI Virtuoso | sonnet | Design system, UX patterns |
 | `docops` | Documentation Ops | sonnet | Doc management, drift detection |
 | `qa` | Quality Assurance | sonnet | Integrated quality verification |
+| `qa-fe` | QA Frontend | sonnet | React/TypeScript quality verification |
+| `qa-integ` | QA Integration | opus | Cross-layer API contract verification |
 | `cr` | Code Reviewer | opus | Code review, best practices |
 
 ## Routing Decision Tree
@@ -40,6 +42,10 @@ User Request
     ├─ Documentation? → docops (maintain)
     │
     ├─ Quality check? → qa (verify)
+    │
+    ├─ Frontend quality/type check? → qa-fe (verify)
+    │
+    ├─ API contract/integration concern? → qa-integ (integrate)
     │
     └─ Code review? → cr (review)
 ```
@@ -79,7 +85,7 @@ Consider a new agent when:
 
 After creating an agent:
 
-1. **CLAUDE.md**: Add to routing matrix table
-2. **workspace.json**: Add to `agents` array
+1. **AGENTS.md** and **CLAUDE.md**: Add to routing matrix table
+2. **.claude/config/workspace.json**: Add to `agents` array
 3. **This document**: Update routing matrix
-4. **docs/guides/**: Add workflow guide if complex
+4. **Existing docs category**: Add workflow guidance under `docs/templates/`, `docs/architecture/`, `docs/registry/`, or another live category if complexity warrants it

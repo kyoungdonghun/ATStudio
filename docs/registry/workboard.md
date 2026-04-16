@@ -100,8 +100,8 @@ Recommended operation:
 
 ## 6) Connected Documents
 
-- Request starting point: `AGENTS.md` (REQ-Based Single Gate section; `CLAUDE.md` compatibility)
-- Work management/change management (including orchestration): `AGENTS.md` (Orchestration Gates section; `CLAUDE.md` compatibility)
+- Request starting point: `AGENTS.md` / `CLAUDE.md` (REQ-Based Single Gate section)
+- Work management/change management (including orchestration): `AGENTS.md` / `CLAUDE.md` (Orchestration Gates section)
 - Impact/parallel/trigger notation: `docs/templates/impact-analysis-template.md`
 - Agent system structure: `docs/architecture/system-design.md`
 - Evidence Pack standard: `docs/standards/evidence-pack-standard.md`

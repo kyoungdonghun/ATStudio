@@ -52,18 +52,20 @@ Documentation Index Sync Check
 | Category | Index Count | Actual Count | Status |
 |----------|-------------|--------------|--------|
 | Architecture | 1 | 1 | Match |
-| Design | 2 | 2 | Match |
-| Guides | 11 | 12 | Mismatch |
-| Policies | 7 | 7 | Match |
-| Standards | 9 | 9 | Match |
+| Design | 20 | 20 | Match |
+| Policies | 8 | 8 | Match |
+| Standards | 13 | 13 | Match |
 | Templates | 18 | 18 | Match |
 | Registry | 4 | 4 | Match |
+| Audit | 2 | 2 | Match |
+| SR | 90 | 90 | Match |
+| Retrospective | 4 | 4 | Match |
 | ADR | 1 | 1 | Match |
-| Analysis | 2 | 2 | Match |
+| UI | 3 | 3 | Match |
 | Eval | 0 | 0 | Match |
 
-Result: 1 mismatch found
-Action Required: Run with --fix flag to update docs/index.md
+Result: All counts match
+Action Required: None
 ```
 
 ### Fix Mode (Write)
@@ -99,7 +101,8 @@ Documentation Index Sync Check
 Applying fixes...
 
 Updated counts:
-- Guides: 11 → 12
+- Audit: 1 → 2
+- SR: 89 → 90
 
 Changes applied to docs/index.md
 Verification: All counts now match actual file counts
@@ -113,13 +116,15 @@ The skill counts markdown files in the following directories:
 |----------|---------------|-------------|
 | Architecture | `docs/architecture/` | Exclude `index.md` |
 | Design | `docs/design/` | Recursive (includes subdirectories like `protocols/`) |
-| Guides | `docs/guides/` | Exclude `index.md` |
 | Policies | `docs/policies/` | Exclude `index.md` |
 | Standards | `docs/standards/` | Exclude `index.md` |
 | Templates | `docs/templates/` | Exclude `index.md` |
 | Registry | `docs/registry/` | Exclude `index.md` |
+| Audit | `docs/audit/` | Exclude `index.md` |
+| SR | `docs/SR/` | Exclude `index.md` |
+| Retrospective | `docs/retrospective/` | Exclude `index.md` |
 | ADR | `docs/adr/` | Exclude `index.md` |
-| Analysis | `docs/analysis/` | Exclude `index.md` |
+| UI | `docs/ui/` | Exclude `index.md` |
 | Eval | `docs/eval/` | Exclude `index.md` |
 
 ## Counting Rules
@@ -142,9 +147,9 @@ The skill counts markdown files in the following directories:
 
 ## Example Workflow
 
-1. Developer adds a new guide: `docs/guides/new-workflow.md`
+1. Developer adds a new audit report: `docs/audit/frontend-audit-report.md`
 2. Run `/sync-docs-index` to check status
-3. See mismatch: Guides shows 11 in index but 12 actual files
+3. See mismatch: Audit shows 1 in index but 2 actual files
 4. Run `/sync-docs-index --fix` to update
-5. Verify: Index now shows 12 for Guides category
+5. Verify: Index now shows 2 for Audit category
 6. Proceed with `/validate-docs` for full documentation validation

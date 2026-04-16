@@ -2,8 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **Compatibility Notice:** This file is kept as a transitional compatibility reference during the Claude → Codex migration.
-> For current Codex sessions, use `AGENTS.md` as the primary entry point.
+> **Operational Notice:** `CLAUDE.md` is the active entry point for Claude Code sessions.
+> Use `AGENTS.md` for Codex sessions, and keep shared operational rules aligned across both files.
 
 ## Project Overview
 
@@ -82,7 +82,7 @@ npm run typecheck
 ./gradlew build -x test
 ```
 
-**주의:** 현재 저장소는 Spring Boot 백엔드 + React/Vite 프론트엔드가 함께 운영된다. 이 파일은 Claude 호환 문서로 유지되지만, 실제 최신 운영 규칙은 `AGENTS.md`를 우선한다.
+**주의:** 현재 저장소는 Spring Boot 백엔드 + React/Vite 프론트엔드가 함께 운영된다. 이 파일은 Claude Code 세션의 활성 운영 문서이며, `AGENTS.md`와 공통 규칙을 동일하게 유지해야 한다.
 
 ## Core Principles (Tier 0)
 
@@ -286,7 +286,7 @@ public class Music {
 ATStudio/
 ├── .claude/
 │   ├── agents/                  ← 13개 에이전트 정의 (ps, eo, sa, se, re, pg, tr, uv, docops, qa, qa-fe, qa-integ, cr)
-│   ├── skills/                  ← Claude-era skill 자산
+│   ├── skills/                  ← Claude 세션용 스킬/참조 자산
 │   ├── config/                  ← workspace.json, context-injection-rules.json
 │   └── scripts/                 ← 시스템 자동화 스크립트 (Python)
 ├── .agents/

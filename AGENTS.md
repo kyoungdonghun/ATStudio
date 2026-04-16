@@ -283,13 +283,13 @@ public class Music {
 ATStudio/
 ├── .claude/                     ← 프로젝트 실자산 (agents/config/scripts/legacy skills)
 │   ├── agents/                  ← 13개 에이전트 정의 (ps, eo, sa, se, re, pg, tr, uv, docops, qa, qa-fe, qa-integ, cr)
-│   ├── skills/                  ← Claude-era skill 자산
+│   ├── skills/                  ← Claude 세션용 스킬/참조 자산
 │   ├── config/                  ← workspace.json, context-injection-rules.json
 │   └── scripts/                 ← 시스템 자동화 스크립트 (Python)
 ├── .agents/
 │   └── skills/                  ← Codex에서 직접 노출되는 프로젝트 스킬
 ├── AGENTS.md                    ← 이 파일 (프로젝트 지침서)
-├── CLAUDE.md                    ← 과도기 호환용 프로젝트 지침서
+├── CLAUDE.md                    ← Claude 세션의 1차 진입점
 ├── frontend/                    ← React/Vite SPA
 ├── src/
 │   ├── main/java/com/atstudio/atstudio/   ← Spring Boot 소스
@@ -382,7 +382,7 @@ ATStudio/
 - SR/문서 작업 시 추가 확인: `docs/SR/`, `docs/templates/`, `docs/design/`, `docs/ui/`, 관련 `deliverables/user/`, `deliverables/agent/`
 - UI/프론트엔드 작업 시 추가 확인: `docs/ui/`, `docs/design/`, 필요한 `docs/templates/`, 대응되는 `frontend/` 구현 파일
 - 아키텍처/오케스트레이션/정책 작업 시 추가 확인: `docs/architecture/`, `docs/policies/`, `docs/registry/`, 관련 설정 파일
-- 프로젝트 문서가 여전히 `CLAUDE.md` 또는 `.claude/` 경로를 참조하는 경우, workspace 통합이 끝날 때까지 해당 참조를 유효한 프로젝트 컨텍스트로 간주한다.
+- 프로젝트 문서가 `CLAUDE.md` 또는 `.claude/` 경로를 참조하는 경우, 이를 현재도 유효한 Claude 운영 컨텍스트로 간주한다.
 - 어떤 폴더도 "자동으로 이미 다 읽었다"고 가정하지 말고, 현재 작업의 근거가 되는 문서만 단계적으로 확장해서 읽는다.
 
 ## Documentation Entry Points

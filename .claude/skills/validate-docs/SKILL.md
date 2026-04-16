@@ -43,23 +43,24 @@ python3 .claude/skills/validate-docs/scripts/validate_docs.py
      - `docs/standards/core-principles.md`
      - `docs/standards/documentation-standards.md`
      - `docs/standards/development-standards.md`
-     - `docs/standards/prompt-caching-strategy.md`
+     - `docs/standards/glossary.md`
 
 3. **Traceability IDs**
    - Validate ID format compliance:
      - `REQ-YYYYMMDD-<PRJ>-###` (Requirements, e.g., `REQ-20260211-ATS-001`)
      - `WI-YYYYMMDD-<PRJ>-###` (Work Items, e.g., `WI-20260211-ATS-001`)
      - `STD-###` (Standards)
-   - Detect duplicate IDs across documents
+   - For REQ/WI, repeated references across summary/handoff/evidence documents are expected; validation focuses on supported ID format matching
 
 4. **Document Index**
-   - Verify `docs/index.md` link validity
-   - Detect orphaned documents (not listed in index)
+   - Verify `docs/index.md` and category index link validity
+   - Detect orphaned documents that are not covered by a root or category index
+   - Exclude snapshot/archive-only locations such as `.claude/worktrees/` and future `docs/archive/`
 
 ### Handling Results
 
 **Error Types:**
-- **Error**: Broken links, missing Tier 0 docs, duplicate IDs
+- **Error**: Broken links, missing Tier 0 docs
 - **Warning**: Orphaned documents, non-standard formatting
 
 **Example Output:**
@@ -70,10 +71,10 @@ python3 .claude/skills/validate-docs/scripts/validate_docs.py
 ✓ Tier 0 Documents: All required files exist
 
 ✗ Internal Links: 2 broken links found
-  - docs/guides/workflow.md:15 → docs/missing.md (file not found)
+  - docs/templates/impact-analysis-template.md:34 → docs/missing.md (file not found)
   - README.md:23 → docs/old-path.md (file not found)
 
-✓ Traceability IDs: No duplicates, format valid
+✓ Traceability IDs: Supported formats matched
 
 ⚠ Document Index: 1 orphan document
   - docs/experimental/draft.md (not listed in docs/index.md)
@@ -86,5 +87,5 @@ Action Required: Fix broken links
 ## Exit Codes
 
 - `0`: All validations passed
-- `1`: Errors found (broken links, missing docs, duplicate IDs)
+- `1`: Errors found (broken links, missing docs)
 - `2`: Warnings only (orphaned documents)

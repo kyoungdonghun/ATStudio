@@ -133,7 +133,7 @@ Project identifiers are centrally managed in the system project. When a new proj
 1. **New Project Request**: Create request using `project-request-template.md`
 
    - Template: `docs/templates/project-request-template.md`
-   - Guide: See `AGENTS.md` for Codex sessions (`CLAUDE.md` compatibility)
+   - Guide: See `AGENTS.md` for Codex sessions and `CLAUDE.md` for Claude sessions
 
 2. **Project Identifier Issuance**: EO issues Project ID
 
@@ -217,7 +217,7 @@ Project identifiers (three-letter codes, e.g., `AMS`) are used for:
 
 - Project Registry: `docs/registry/project-registry.md`
 - Project Creation Template: `docs/templates/project-request-template.md`
-- Request Intake: `AGENTS.md` (REQ-Based Single Gate section; `CLAUDE.md` compatibility)
+- Request Intake: `AGENTS.md` / `CLAUDE.md` (REQ-Based Single Gate section)
 
 **Notes:**
 
@@ -426,7 +426,7 @@ Documents are classified into the following categories:
 | Category     | Purpose                              | Metadata `project` field rule       | Example                                       |
 | ------------ | ------------------------------------ | ----------------------------------- | --------------------------------------------- |
 | architecture | Overall design and roadmap           | Project-specific: `PRJ-...` required | system-design.md                              |
-| guide        | Practical guides and procedures      | System-wide: `system` or omitted    | ma-session-kickoff-prompt.md (see `AGENTS.md`; `CLAUDE.md` compatibility) |
+| guide        | Practical guides and procedures      | System-wide: `system` or omitted    | ma-session-kickoff-prompt.md (see `AGENTS.md` / `CLAUDE.md`) |
 | policy       | Operational policies and rules       | System-wide: `system` or omitted    | quality-gates.md, execution-policy.md         |
 | standard     | Standards and specifications         | System-wide: `system` or omitted    | glossary.md, documentation-standards.md       |
 | template     | Document/artifact templates          | System-wide: `system` or omitted    | adr-template.md, impact-analysis-template.md  |
@@ -515,7 +515,7 @@ To reduce duplicate management burden, separate roles of main index and category
 
 ### MA (Main Agent)
 
-- Required: `AGENTS.md` (REQ-Based Single Gate, Orchestration Gates; `CLAUDE.md` compatibility)
+- Required: `AGENTS.md` / `CLAUDE.md` (REQ-Based Single Gate, Orchestration Gates)
 - Reference: [system-design.md](../architecture/system-design.md)
 
 ### SE (Software Engineer)
@@ -787,7 +787,7 @@ Main roles creating documents:
 
 **Role-specific Additional Checklists:**
 
-- **MA**: Process documents should reference `AGENTS.md` first (`CLAUDE.md` compatibility)
+- **MA**: Process documents should reference `AGENTS.md` and `CLAUDE.md` according to the active runtime
 - **SE**: Development standards should reference development-standards.md
 - **EO**: Policy documents should reference template-governance.md
 

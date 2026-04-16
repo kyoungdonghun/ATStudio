@@ -31,16 +31,15 @@ Use the following document classes when deciding how a file should be maintained
 
 | Class | Meaning | Currentness Requirement | Typical Examples |
 |-------|---------|-------------------------|------------------|
-| **Live Operational** | Current SoT or active working reference | Must match current implementation and routing rules | `AGENTS.md`, `docs/standards/`, `docs/policies/`, `docs/architecture/`, `docs/design/`, `docs/templates/`, `docs/registry/`, `docs/ui/`, `docs/adr/`, `.agents/skills/`, `.claude/config/` |
-| **Compatibility** | Transitional bridge kept so older workflows still resolve correctly | Must clearly point to the primary SoT | `CLAUDE.md` |
+| **Live Operational** | Current SoT or active working reference | Must match current implementation and routing rules | `AGENTS.md`, `CLAUDE.md`, `docs/standards/`, `docs/policies/`, `docs/architecture/`, `docs/design/`, `docs/templates/`, `docs/registry/`, `docs/ui/`, `docs/adr/`, `.agents/skills/`, `.claude/config/`, `.claude/skills/` |
+| **Compatibility** | Transitional bridge kept so older workflows still resolve correctly | Must clearly point to the primary SoT | Future migration bridge documents when needed |
 | **Historical Record** | Time-bound record of work, findings, or decisions | Preserve original context/date; do not normalize into present tense | `docs/SR/`, `docs/audit/`, `docs/retrospective/`, `deliverables/` |
 | **Archived Reference** | Superseded document retained only for background/reference value | Not a current SoT; must carry archive notice and replacement path when available | `docs/design/base-agent.md` |
 | **Snapshot / Generated Workspace** | Temporary or copied workspace state | Excluded from live governance and validation | `.claude/worktrees/` |
 
 ## 2. Current ATStudio Baseline
 
-- **Primary live operational SoT**: `AGENTS.md`
-- **Compatibility bridge**: `CLAUDE.md`
+- **Primary live operational entry points**: `AGENTS.md` (Codex), `CLAUDE.md` (Claude)
 - **Historical record zones**: `docs/SR/`, `docs/audit/`, `docs/retrospective/`, `deliverables/`
 - **Archived reference example**: `docs/design/base-agent.md`
 - **Excluded snapshot zone**: `.claude/worktrees/`

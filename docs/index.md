@@ -37,7 +37,7 @@ status: stable
 
 - **Required (design)**: [System Design](architecture/system-design.md)
 - **Required (rules)**: `AGENTS.md` (root, primary) — Orchestration gates, routing rules, Tier 0, workspace structure
-- **Compatibility**: `CLAUDE.md` (root, transitional) — Legacy Claude-oriented instructions still referenced by older docs/deliverables
+- **Claude Entry Point**: `CLAUDE.md` (root, active) — Active operating instructions for Claude Code sessions; must stay aligned with `AGENTS.md`
 - **Policies**: [Policy Documents](policies/)
 - **Standards (including Tier 0)**: [Standards Documents](standards/)
 
@@ -45,7 +45,7 @@ status: stable
 
 - **Subagents (Source of Truth)**: `.claude/agents/` — Context provided via WI handoff packets
 - **Skills (Codex-exposed)**: `.agents/skills/`
-- **Skills (Legacy compatibility assets)**: `.claude/skills/`
+- **Skills (Claude-facing assets)**: `.claude/skills/`
 
 ## Project-specific Document Overview
 
@@ -74,7 +74,7 @@ status: stable
 1. **`AGENTS.md`** (root): Current Codex work workflow, orchestration gates, routing — **start here** ⭐
 2. **[System Design](architecture/system-design.md)**: Big picture/principles and migration-state architecture
 3. **[Kickoff Prompt Template](templates/ma-session-kickoff-prompt.md)**: Copy-paste for new sessions
-4. **`CLAUDE.md`** (root): Transitional compatibility reference for older Claude-era docs and deliverables
+4. **`CLAUDE.md`** (root): Active entry point for Claude Code sessions and Claude-oriented handoffs
 
 ### Document Authors
 

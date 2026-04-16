@@ -29,5 +29,5 @@ status: stable
 
 ## Related Guides
 
-- Asset registration and traceability rules: See Work Tracking section in `AGENTS.md` (primary for Codex sessions; `CLAUDE.md` compatibility)
-- Project creation and request intake: See REQ-Based Single Gate section in `AGENTS.md` (primary for Codex sessions; `CLAUDE.md` compatibility)
+- Asset registration and traceability rules: See Work Tracking section in `AGENTS.md` / `CLAUDE.md` according to the active runtime
+- Project creation and request intake: See REQ-Based Single Gate section in `AGENTS.md` / `CLAUDE.md` according to the active runtime

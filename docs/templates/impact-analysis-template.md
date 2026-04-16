@@ -31,7 +31,7 @@ dependencies:
 
 ## Reference Context
 
-> Purpose: Record related documents explored according to the Subagent Context Injection Rules in `AGENTS.md` before work. `CLAUDE.md` remains a transitional compatibility reference.
+> Purpose: Record related documents explored according to the Subagent Context Injection Rules in `AGENTS.md` or `CLAUDE.md` before work, depending on the active runtime.
 
 - **Essential Standards/Guides**: (e.g., `development-standards.md`, `execution-policy.md`)
 - **Related ADRs**: (e.g., `ADR-20251230-001`)

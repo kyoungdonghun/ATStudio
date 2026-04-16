@@ -98,9 +98,9 @@ Based on agent complexity, add:
 
 After creating the agent file, update framework registration:
 
-1. Add to CLAUDE.md routing matrix
+1. Add to `AGENTS.md` and `CLAUDE.md` routing matrices
 2. Add to `.claude/config/workspace.json` agents array
-3. Document in `docs/guides/` if specialized workflow needed
+3. Document in an existing docs category (`docs/templates/`, `docs/architecture/`, `docs/registry/`, etc.) if specialized workflow guidance is needed; do not assume a separate guides directory exists
 
 ## Agent Naming Conventions
 
@@ -134,7 +134,7 @@ Before finalizing an agent, verify:
 - [ ] Mandatory Rules includes constitution reference
 - [ ] Two-set deliverable rule is included
 - [ ] Output specification defines minimum outputs
-- [ ] Agent is registered in CLAUDE.md routing matrix
+- [ ] Agent is registered in `AGENTS.md` and `CLAUDE.md` routing matrices
 - [ ] Agent is added to workspace.json
 
 ## Resources
