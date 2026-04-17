@@ -108,6 +108,7 @@ class LikeServiceTest {
         Like like = Like.builder().id(new LikeId(1L, 2L)).user(user).track(track).build();
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(likeRepository.findByUserAndTrack_Id(user, 2L)).willReturn(Optional.of(like));
+        given(trackRepository.findById(2L)).willReturn(Optional.of(track));
 
         likeService.removeLike(2L, buildUserDetails(1L));
 

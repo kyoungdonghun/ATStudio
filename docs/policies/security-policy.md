@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-03-29
+version: 1.2
+last_updated: 2026-04-16
 project: ATS
 owner: PG
 category: policy
@@ -87,7 +87,8 @@ task_types:
 
 **Rules:**
 - Production DB credentials must never appear in committed files.
-- Use `application-local.yml` (gitignored) for local development.
+- Use `application-local.yml` (gitignored, repository root) for local development.
+- `src/main/resources/application.yml` imports `optional:file:./application-local.yml`, so the local override is applied automatically when present.
 - Production uses environment variables or external secret store.
 
 ### 6.3 Spring Security Configuration
@@ -112,9 +113,36 @@ task_types:
 - `GET /api/albums`, `GET /api/albums/*`
 - Swagger UI (`/swagger-ui/**`, `/v3/api-docs/**`) — controlled by `SWAGGER_ENABLED` env var
 
+**Public auth endpoint rate limits (server-side, IP + path):**
+- `POST /api/auth/login`: 10 requests / 60 seconds
+- `POST /api/auth/forgot-password`: 5 requests / 15 minutes
+- `POST /api/auth/reset-password`: 5 requests / 15 minutes
+- `POST /api/auth/refresh`: 30 requests / 60 seconds
+- Exceeded requests return `429 Too Many Requests` with `Retry-After` header and `RATE_LIMIT_EXCEEDED`.
+
 **Token storage:** JWT access token and refresh token are stored in **browser localStorage** (not httpOnly cookie). Frontend reads token from `localStorage` and sends as `Authorization: Bearer <token>` header via Axios interceptor.
 
-**Known deferred item:** `JWT_SECRET` still has a Base64 fallback default in `application.yml` (CR-P-004). Acceptable for local development. Production deployment must set `JWT_SECRET` as an environment variable with no fallback.
+**Current state:** `application.yml` no longer carries a fallback JWT secret, and local-only conveniences (DDL auto-update, SQL logging, localhost mail/OAuth redirects) belong in the gitignored root `application-local.yml`.
+
+### 6.4 Environment Baseline
+
+Use the committed `application.yml` as the safe shared baseline, and override per environment through environment variables or the gitignored root `application-local.yml`.
+
+| Setting | Local | Stage | Production | Notes |
+|--------|-------|-------|------------|-------|
+| `SPRING_JPA_HIBERNATE_DDL_AUTO` | `update` allowed | `validate` | `validate` | Non-local environments must not auto-mutate schema |
+| `SPRING_JPA_SHOW_SQL` | `true` optional | `false` | `false` | SQL logs increase noise and leakage risk |
+| `SWAGGER_ENABLED` | `true` allowed | `false` by default | `false` | If temporarily enabled outside local, protect separately |
+| `MAIL_HOST` | `localhost` / MailHog | stage SMTP | production SMTP | Do not rely on localhost outside local dev |
+| `APP_BASE_URL` | `http://localhost:5173` | stage frontend URL | production frontend URL | Email links and redirects must match deployed frontend |
+| `GOOGLE_REDIRECT_URI`, `KAKAO_REDIRECT_URI`, `NAVER_REDIRECT_URI` | local SPA callback | stage SPA callback | production SPA callback | Must match provider console exactly |
+| `APP_SECURITY_RATE_LIMIT_ENABLED` | `true` | `true` | `true` | Local may relax limits in `application-local.yml` only |
+| `APP_SECURITY_RATE_LIMIT_LOGIN_LIMIT` | `30` recommended | `10` | `10` | Stage/prod should stay aligned unless capacity review says otherwise |
+| `APP_SECURITY_RATE_LIMIT_FORGOT_PASSWORD_LIMIT` | `10` recommended | `5` | `5` | Password-reset endpoints are abuse targets |
+| `APP_SECURITY_RATE_LIMIT_RESET_PASSWORD_LIMIT` | `10` recommended | `5` | `5` | Match forgot-password policy |
+| `APP_SECURITY_RATE_LIMIT_REFRESH_LIMIT` | `60` recommended | `30` | `30` | Keep refresh higher than login to avoid false positives |
+
+**Operational rule:** The committed [application-local.example.yml](../../application-local.example.yml) is a developer bootstrap example only. Stage and production must use environment-variable driven values managed outside the repository.
 
 ---
 

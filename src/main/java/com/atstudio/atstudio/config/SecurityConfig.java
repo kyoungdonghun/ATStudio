@@ -1,5 +1,6 @@
 package com.atstudio.atstudio.config;
 
+import com.atstudio.atstudio.security.AuthRateLimitFilter;
 import com.atstudio.atstudio.security.JwtAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AuthRateLimitFilter authRateLimitFilter;
     private final CorsConfigurationSource corsConfigurationSource;
 
     @Bean
@@ -124,6 +126,7 @@ public class SecurityConfig {
                 // Static resources
                 .anyRequest().permitAll()
             )
+            .addFilterBefore(authRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

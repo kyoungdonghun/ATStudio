@@ -12,11 +12,13 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doNothing;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -36,9 +38,10 @@ class NoticeControllerTest {
     @Test
     @DisplayName("POST /api/notices - 비인증 → 401")
     void createNotice_unauthenticated_returns401() throws Exception {
-        mockMvc.perform(post("/api/notices")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"공지\",\"content\":\"내용\",\"isPinned\":false}"))
+        mockMvc.perform(multipart("/api/notices")
+                        .param("title", "공지")
+                        .param("content", "내용")
+                        .param("isPinned", "false"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -46,9 +49,10 @@ class NoticeControllerTest {
     @WithMockUser(roles = "USER")
     @DisplayName("POST /api/notices - 일반 유저 → 403")
     void createNotice_userRole_returns403() throws Exception {
-        mockMvc.perform(post("/api/notices")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"공지\",\"content\":\"내용\",\"isPinned\":false}"))
+        mockMvc.perform(multipart("/api/notices")
+                        .param("title", "공지")
+                        .param("content", "내용")
+                        .param("isPinned", "false"))
                 .andExpect(status().isForbidden());
     }
 
@@ -58,9 +62,10 @@ class NoticeControllerTest {
     void createNotice_adminRole_returns201() throws Exception {
         given(noticeService.createNotice(any(), any())).willReturn(MOCK_NOTICE);
 
-        mockMvc.perform(post("/api/notices")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"공지\",\"content\":\"내용\",\"isPinned\":false}"))
+        mockMvc.perform(multipart("/api/notices")
+                        .param("title", "공지")
+                        .param("content", "내용")
+                        .param("isPinned", "false"))
                 .andExpect(status().isCreated());
     }
 
@@ -91,9 +96,10 @@ class NoticeControllerTest {
     @Test
     @DisplayName("PUT /api/notices/{id} - 비인증 → 401")
     void updateNotice_unauthenticated_returns401() throws Exception {
-        mockMvc.perform(put("/api/notices/1")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"수정\",\"content\":\"내용\",\"isPinned\":false}"))
+        mockMvc.perform(multipartPut("/api/notices/1")
+                        .param("title", "수정")
+                        .param("content", "내용")
+                        .param("isPinned", "false"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -101,9 +107,10 @@ class NoticeControllerTest {
     @WithMockUser(roles = "USER")
     @DisplayName("PUT /api/notices/{id} - 일반 유저 → 403")
     void updateNotice_userRole_returns403() throws Exception {
-        mockMvc.perform(put("/api/notices/1")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"수정\",\"content\":\"내용\",\"isPinned\":false}"))
+        mockMvc.perform(multipartPut("/api/notices/1")
+                        .param("title", "수정")
+                        .param("content", "내용")
+                        .param("isPinned", "false"))
                 .andExpect(status().isForbidden());
     }
 
@@ -113,9 +120,10 @@ class NoticeControllerTest {
     void updateNotice_adminRole_returns200() throws Exception {
         given(noticeService.updateNotice(anyLong(), any(), any())).willReturn(MOCK_NOTICE);
 
-        mockMvc.perform(put("/api/notices/1")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"수정\",\"content\":\"내용\",\"isPinned\":false}"))
+        mockMvc.perform(multipartPut("/api/notices/1")
+                        .param("title", "수정")
+                        .param("content", "내용")
+                        .param("isPinned", "false"))
                 .andExpect(status().isOk());
     }
 
@@ -144,5 +152,13 @@ class NoticeControllerTest {
 
         mockMvc.perform(delete("/api/notices/1"))
                 .andExpect(status().isNoContent());
+    }
+
+    private MockMultipartHttpServletRequestBuilder multipartPut(String urlTemplate, Object... uriVars) {
+        return multipart(urlTemplate, uriVars)
+                .with(request -> {
+                    request.setMethod("PUT");
+                    return request;
+                });
     }
 }

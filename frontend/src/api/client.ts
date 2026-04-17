@@ -33,6 +33,13 @@ let failedQueue: Array<{
   reject: (err: unknown) => void;
 }> = [];
 
+const AUTH_REFRESH_EXCLUDED_PATHS = ['/auth/login', '/auth/refresh', '/auth/social/'];
+
+export function shouldSkipRefresh(config?: { url?: string | undefined }): boolean {
+  const url = config?.url ?? '';
+  return AUTH_REFRESH_EXCLUDED_PATHS.some((path) => url === path || url.startsWith(path));
+}
+
 function processQueue(error: unknown, token: string | null) {
   failedQueue.forEach((prom) => {
     if (error) {
@@ -47,9 +54,20 @@ function processQueue(error: unknown, token: string | null) {
 client.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
 
-    if (error.response?.status !== 401 || originalRequest._retry) {
+    if (
+      !originalRequest ||
+      error.response?.status !== 401 ||
+      originalRequest._retry ||
+      shouldSkipRefresh(originalRequest)
+    ) {
+      return Promise.reject(error);
+    }
+
+    const refreshToken = safeStorage.getItem('refreshToken');
+    if (!refreshToken) {
+      useAuthStore.getState().logout();
       return Promise.reject(error);
     }
 
@@ -57,7 +75,9 @@ client.interceptors.response.use(
       return new Promise<string>((resolve, reject) => {
         failedQueue.push({ resolve, reject });
       }).then((token) => {
-        originalRequest.headers.Authorization = `Bearer ${token}`;
+        if (originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+        }
         return client(originalRequest);
       });
     }
@@ -66,7 +86,6 @@ client.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const refreshToken = safeStorage.getItem('refreshToken');
       const { data } = await axios.post('/api/auth/refresh', { refreshToken });
       const newAccessToken: string = data.data.accessToken;
 
@@ -76,7 +95,9 @@ client.interceptors.response.use(
       }
 
       processQueue(null, newAccessToken);
-      originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+      if (originalRequest.headers) {
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+      }
       return client(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError, null);

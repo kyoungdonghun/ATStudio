@@ -1,76 +1,102 @@
 import { createBrowserRouter, Navigate, redirect, type RouteObject } from 'react-router-dom';
-import { type ReactNode } from 'react';
+import { lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 import ProtectedRoute from '@/router/ProtectedRoute';
 import SubscriberRoute from '@/router/SubscriberRoute';
 import MainLayout from '@/layouts/MainLayout';
 import AdminLayout from '@/layouts/AdminLayout';
 import { safeStorage } from '@/utils/safeStorage';
 
-/* ── Page imports ── */
+type PageModule = { default: ComponentType };
+
+const routeFallback = (
+  <div
+    style={{
+      minHeight: '40vh',
+      display: 'grid',
+      placeItems: 'center',
+      color: 'var(--text1, #6b7280)',
+    }}
+  >
+    로딩 중...
+  </div>
+);
+
+function lazyPage(loader: () => Promise<PageModule>): ComponentType {
+  const Component = lazy(loader);
+  return function LazyPage() {
+    return (
+      <Suspense fallback={routeFallback}>
+        <Component />
+      </Suspense>
+    );
+  };
+}
+
+/* ── Lazy-loaded pages ── */
 
 // Public
-import HomePage from '@/pages/public/HomePage';
-import TrackListPage from '@/pages/public/TrackListPage';
-import TrackDetailPage from '@/pages/public/TrackDetailPage';
-import AlbumListImagePage from '@/pages/public/AlbumListImagePage';
-import AlbumListPage from '@/pages/public/AlbumListPage';
-import AlbumDetailPage from '@/pages/public/AlbumDetailPage';
-import SubscriptionPlanPage from '@/pages/public/SubscriptionPlanPage';
-import NoticeListPage from '@/pages/public/NoticeListPage';
-import NoticeDetailPage from '@/pages/public/NoticeDetailPage';
+const HomePage = lazyPage(() => import('@/pages/public/HomePage'));
+const TrackListPage = lazyPage(() => import('@/pages/public/TrackListPage'));
+const TrackDetailPage = lazyPage(() => import('@/pages/public/TrackDetailPage'));
+const AlbumListImagePage = lazyPage(() => import('@/pages/public/AlbumListImagePage'));
+const AlbumListPage = lazyPage(() => import('@/pages/public/AlbumListPage'));
+const AlbumDetailPage = lazyPage(() => import('@/pages/public/AlbumDetailPage'));
+const SubscriptionPlanPage = lazyPage(() => import('@/pages/public/SubscriptionPlanPage'));
+const NoticeListPage = lazyPage(() => import('@/pages/public/NoticeListPage'));
+const NoticeDetailPage = lazyPage(() => import('@/pages/public/NoticeDetailPage'));
 
 // Auth
-import LoginPage from '@/pages/auth/LoginPage';
-import SignupPage from '@/pages/auth/SignupPage';
-import EmailVerifyPage from '@/pages/auth/EmailVerifyPage';
-import PasswordResetPage from '@/pages/auth/PasswordResetPage';
-import SocialLoginPage from '@/pages/auth/SocialLoginPage';
-import SocialCompleteProfilePage from '@/pages/auth/SocialCompleteProfilePage';
+const LoginPage = lazyPage(() => import('@/pages/auth/LoginPage'));
+const SignupPage = lazyPage(() => import('@/pages/auth/SignupPage'));
+const EmailVerifyPage = lazyPage(() => import('@/pages/auth/EmailVerifyPage'));
+const PasswordResetPage = lazyPage(() => import('@/pages/auth/PasswordResetPage'));
+const SocialLoginPage = lazyPage(() => import('@/pages/auth/SocialLoginPage'));
+const SocialCompleteProfilePage = lazyPage(() => import('@/pages/auth/SocialCompleteProfilePage'));
 
 // Subscriber
-import PlaylistListPage from '@/pages/subscriber/PlaylistListPage';
-import PlaylistDetailPage from '@/pages/subscriber/PlaylistDetailPage';
-import PlaylistCreatePage from '@/pages/subscriber/PlaylistCreatePage';
-import PlaylistEditPage from '@/pages/subscriber/PlaylistEditPage';
-import ProfilePage from '@/pages/subscriber/ProfilePage';
-import LikeListPage from '@/pages/subscriber/LikeListPage';
-import PlayHistoryPage from '@/pages/subscriber/PlayHistoryPage';
-import LicenseListPage from '@/pages/subscriber/LicenseListPage';
-import LicenseDetailPage from '@/pages/subscriber/LicenseDetailPage';
-import DownloadQueuePage from '@/pages/subscriber/DownloadQueuePage';
-import SubscriptionPaymentPage from '@/pages/subscriber/SubscriptionPaymentPage';
-import SubscriptionManagePage from '@/pages/subscriber/SubscriptionManagePage';
-import WhitelistChannelPage from '@/pages/subscriber/WhitelistChannelPage';
-import CompanyCertApplyPage from '@/pages/subscriber/CompanyCertApplyPage';
-import CompanyCertStatusPage from '@/pages/subscriber/CompanyCertStatusPage';
-import QuestionListPage from '@/pages/subscriber/QuestionListPage';
-import QuestionCreatePage from '@/pages/subscriber/QuestionCreatePage';
-import QuestionDetailPage from '@/pages/subscriber/QuestionDetailPage';
+const PlaylistListPage = lazyPage(() => import('@/pages/subscriber/PlaylistListPage'));
+const PlaylistDetailPage = lazyPage(() => import('@/pages/subscriber/PlaylistDetailPage'));
+const PlaylistCreatePage = lazyPage(() => import('@/pages/subscriber/PlaylistCreatePage'));
+const PlaylistEditPage = lazyPage(() => import('@/pages/subscriber/PlaylistEditPage'));
+const ProfilePage = lazyPage(() => import('@/pages/subscriber/ProfilePage'));
+const LikeListPage = lazyPage(() => import('@/pages/subscriber/LikeListPage'));
+const PlayHistoryPage = lazyPage(() => import('@/pages/subscriber/PlayHistoryPage'));
+const LicenseListPage = lazyPage(() => import('@/pages/subscriber/LicenseListPage'));
+const LicenseDetailPage = lazyPage(() => import('@/pages/subscriber/LicenseDetailPage'));
+const DownloadQueuePage = lazyPage(() => import('@/pages/subscriber/DownloadQueuePage'));
+const SubscriptionPaymentPage = lazyPage(() => import('@/pages/subscriber/SubscriptionPaymentPage'));
+const SubscriptionManagePage = lazyPage(() => import('@/pages/subscriber/SubscriptionManagePage'));
+const WhitelistChannelPage = lazyPage(() => import('@/pages/subscriber/WhitelistChannelPage'));
+const CompanyCertApplyPage = lazyPage(() => import('@/pages/subscriber/CompanyCertApplyPage'));
+const CompanyCertStatusPage = lazyPage(() => import('@/pages/subscriber/CompanyCertStatusPage'));
+const QuestionListPage = lazyPage(() => import('@/pages/subscriber/QuestionListPage'));
+const QuestionCreatePage = lazyPage(() => import('@/pages/subscriber/QuestionCreatePage'));
+const QuestionDetailPage = lazyPage(() => import('@/pages/subscriber/QuestionDetailPage'));
 
 // Creator (ADMIN-only in current spec)
-import TrackUploadPage from '@/pages/creator/TrackUploadPage';
-import TrackEditPage from '@/pages/creator/TrackEditPage';
-import AlbumCreatePage from '@/pages/creator/AlbumCreatePage';
-import AlbumEditPage from '@/pages/creator/AlbumEditPage';
-import AlbumManagePage from '@/pages/creator/AlbumManagePage';
+const TrackUploadPage = lazyPage(() => import('@/pages/creator/TrackUploadPage'));
+const TrackEditPage = lazyPage(() => import('@/pages/creator/TrackEditPage'));
+const AlbumCreatePage = lazyPage(() => import('@/pages/creator/AlbumCreatePage'));
+const AlbumEditPage = lazyPage(() => import('@/pages/creator/AlbumEditPage'));
+const AlbumManagePage = lazyPage(() => import('@/pages/creator/AlbumManagePage'));
 
 // Admin
-import DashboardPage from '@/pages/admin/DashboardPage';
-import UserManagePage from '@/pages/admin/UserManagePage';
-import AdminSubscriptionManagePage from '@/pages/admin/SubscriptionManagePage';
-import LicenseManagePage from '@/pages/admin/LicenseManagePage';
-import QuestionManagePage from '@/pages/admin/QuestionManagePage';
-import CompanyCertManagePage from '@/pages/admin/CompanyCertManagePage';
-import TagManagePage from '@/pages/admin/TagManagePage';
-import TrackManagePage from '@/pages/admin/TrackManagePage';
-import NoticeCreatePage from '@/pages/admin/NoticeCreatePage';
-import NoticeEditPage from '@/pages/admin/NoticeEditPage';
-import UserSubscriptionManagePage from '@/pages/admin/UserSubscriptionManagePage';
-import SiteSettingsPage from '@/pages/admin/SiteSettingsPage';
+const DashboardPage = lazyPage(() => import('@/pages/admin/DashboardPage'));
+const UserManagePage = lazyPage(() => import('@/pages/admin/UserManagePage'));
+const AdminSubscriptionManagePage = lazyPage(() => import('@/pages/admin/SubscriptionManagePage'));
+const LicenseManagePage = lazyPage(() => import('@/pages/admin/LicenseManagePage'));
+const QuestionManagePage = lazyPage(() => import('@/pages/admin/QuestionManagePage'));
+const CompanyCertManagePage = lazyPage(() => import('@/pages/admin/CompanyCertManagePage'));
+const TagManagePage = lazyPage(() => import('@/pages/admin/TagManagePage'));
+const TrackManagePage = lazyPage(() => import('@/pages/admin/TrackManagePage'));
+const NoticeCreatePage = lazyPage(() => import('@/pages/admin/NoticeCreatePage'));
+const NoticeEditPage = lazyPage(() => import('@/pages/admin/NoticeEditPage'));
+const UserSubscriptionManagePage = lazyPage(() => import('@/pages/admin/UserSubscriptionManagePage'));
+const SiteSettingsPage = lazyPage(() => import('@/pages/admin/SiteSettingsPage'));
 
 // Error
-import NotFoundPage from '@/pages/error/NotFoundPage';
-import ServerErrorPage from '@/pages/error/ServerErrorPage';
+const NotFoundPage = lazyPage(() => import('@/pages/error/NotFoundPage'));
+const ServerErrorPage = lazyPage(() => import('@/pages/error/ServerErrorPage'));
 
 /* ── Guard helpers ── */
 

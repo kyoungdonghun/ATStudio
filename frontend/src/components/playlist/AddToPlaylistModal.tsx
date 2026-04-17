@@ -46,7 +46,7 @@ export default function AddToPlaylistModal({
         setPlaylists([]);
         setReady(true);
       });
-  }, [open]);
+  }, [open, onClose, onSubscriptionRequired]);
 
   async function handleAdd() {
     if (!selectedId || !trackId) return;

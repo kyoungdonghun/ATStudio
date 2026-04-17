@@ -26,7 +26,10 @@ export default function TrackDetailPage() {
   const pauseTrack = usePlayerStore((s) => s.pause);
   const resumeTrack = usePlayerStore((s) => s.resume);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
-  const likeStore = useLikeStore();
+  const likeLoaded = useLikeStore((s) => s.loaded);
+  const loadLikes = useLikeStore((s) => s.load);
+  const likedIds = useLikeStore((s) => s.likedIds);
+  const toggleLike = useLikeStore((s) => s.toggle);
   const toast = useToastStore((s) => s.show);
   const navigate = useNavigate();
 
@@ -42,10 +45,10 @@ export default function TrackDetailPage() {
   }, [trackId]);
 
   useEffect(() => {
-    if (isAuthenticated && !likeStore.loaded) {
-      likeStore.load();
+    if (isAuthenticated && !likeLoaded) {
+      void loadLikes();
     }
-  }, [isAuthenticated, likeStore.loaded]);
+  }, [isAuthenticated, likeLoaded, loadLikes]);
 
   async function handleDownload() {
     if (!track) return;
@@ -95,7 +98,7 @@ export default function TrackDetailPage() {
 
   const genreTags = track.tags.filter((t) => t.type === 'GENRE');
   const moodTags = track.tags.filter((t) => t.type === 'MOOD');
-  const liked = likeStore.likedIds.has(track.id);
+  const liked = likedIds.has(track.id);
 
   return (
     <div className={styles.page}>
@@ -171,7 +174,9 @@ export default function TrackDetailPage() {
             <div className={styles.coverSubActions}>
               <button
                 className={`${styles.btnSubAction} ${liked ? styles.btnSubActionActive : ''}`}
-                onClick={() => likeStore.toggle(track.id)}
+                onClick={() => {
+                  void toggleLike(track.id);
+                }}
               >
                 {liked ? '\u2665' : '\u2661'}&nbsp;&nbsp;좋아요
               </button>

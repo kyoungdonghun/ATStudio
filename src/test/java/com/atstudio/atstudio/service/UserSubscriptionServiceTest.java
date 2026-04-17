@@ -47,6 +47,7 @@ class UserSubscriptionServiceTest {
     @Mock UserRepository userRepository;
     @Mock CompanyCertificationRepository companyCertificationRepository;
     @Mock PaymentService paymentService;
+    @Mock PlaylistService playlistService;
 
     @InjectMocks UserSubscriptionService userSubscriptionService;
 
@@ -79,6 +80,7 @@ class UserSubscriptionServiceTest {
             assertThat(result.status()).isEqualTo("ACTIVE");
             verify(paymentService).processPayment(eq(user), eq(saved), eq(sub),
                     eq(BillingCycle.MONTHLY), eq(BigDecimal.valueOf(9900)));
+            verify(playlistService).createDefaultPlaylist(user);
         }
 
         @Test
@@ -105,6 +107,7 @@ class UserSubscriptionServiceTest {
             assertThat(result.id()).isEqualTo(101L);
             verify(paymentService).processPayment(eq(user), eq(saved), eq(sub),
                     eq(BillingCycle.YEARLY), eq(BigDecimal.valueOf(99000)));
+            verify(playlistService).createDefaultPlaylist(user);
         }
 
         @Test

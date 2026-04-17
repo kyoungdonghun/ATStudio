@@ -11,9 +11,11 @@ import com.atstudio.atstudio.entity.Notice;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
+import com.atstudio.atstudio.repository.NoticeAttachmentRepository;
 import com.atstudio.atstudio.repository.NoticeRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.storage.StorageService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,7 +40,9 @@ import static org.mockito.Mockito.verify;
 class NoticeServiceTest {
 
     @Mock NoticeRepository noticeRepository;
+    @Mock NoticeAttachmentRepository attachmentRepository;
     @Mock UserRepository userRepository;
+    @Mock StorageService storageService;
 
     @InjectMocks NoticeService noticeService;
 
@@ -69,7 +73,7 @@ class NoticeServiceTest {
     @DisplayName("getNotices() 성공 - 페이지네이션된 공지 목록 반환")
     void getNotices_success() {
         Page<Notice> page = new PageImpl<>(List.of());
-        given(noticeRepository.findAllByOrderByIsPinnedDescCreatedAtDesc(any())).willReturn(page);
+        given(noticeRepository.findAll(any(org.springframework.data.domain.Pageable.class))).willReturn(page);
 
         ResponseDTO<NoticeListItemResponse> result = noticeService.getNotices(1, 20, "latest");
 
@@ -85,6 +89,7 @@ class NoticeServiceTest {
         User user = buildUser(1L);
         Notice notice = buildNotice(1L, user, "제목", "내용", false);
         given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
+        given(attachmentRepository.findAllByNoticeId(1L)).willReturn(List.of());
 
         NoticeResponse result = noticeService.getNotice(1L);
 
@@ -112,6 +117,7 @@ class NoticeServiceTest {
         Notice notice = buildNotice(1L, user, "구제목", "구내용", false);
         NoticeUpdateRequest request = buildUpdateRequest("새제목", "새내용", true);
         given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
+        given(attachmentRepository.findAllByNoticeId(1L)).willReturn(List.of());
 
         NoticeResponse result = noticeService.updateNotice(1L, request, buildAdminDetails(1L));
 
@@ -126,6 +132,7 @@ class NoticeServiceTest {
         Notice notice = buildNotice(1L, author, "구제목", "구내용", false);
         NoticeUpdateRequest request = buildUpdateRequest("새제목", "새내용", true);
         given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
+        given(attachmentRepository.findAllByNoticeId(1L)).willReturn(List.of());
 
         NoticeResponse result = noticeService.updateNotice(1L, request, buildAdminDetails(1L));
 
@@ -166,9 +173,11 @@ class NoticeServiceTest {
         User user = buildUser(1L);
         Notice notice = buildNotice(1L, user, "제목", "내용", false);
         given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
+        given(attachmentRepository.findAllByNoticeId(1L)).willReturn(List.of());
 
         noticeService.deleteNotice(1L, buildAdminDetails(1L));
 
+        verify(attachmentRepository).deleteAllByNotice(notice);
         verify(noticeRepository).delete(notice);
     }
 
@@ -178,9 +187,11 @@ class NoticeServiceTest {
         User author = buildUser(2L);
         Notice notice = buildNotice(1L, author, "제목", "내용", false);
         given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
+        given(attachmentRepository.findAllByNoticeId(1L)).willReturn(List.of());
 
         noticeService.deleteNotice(1L, buildAdminDetails(1L));
 
+        verify(attachmentRepository).deleteAllByNotice(notice);
         verify(noticeRepository).delete(notice);
     }
 

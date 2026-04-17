@@ -38,7 +38,10 @@ export default function PlayerBar() {
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const role = useAuthStore((s) => s.role);
-  const likeStore = useLikeStore();
+  const likeLoaded = useLikeStore((s) => s.loaded);
+  const loadLikes = useLikeStore((s) => s.load);
+  const likedIds = useLikeStore((s) => s.likedIds);
+  const toggleLike = useLikeStore((s) => s.toggle);
   const toast = useToastStore((s) => s.show);
 
   const shuffle = usePlayerStore((s) => s.shuffle);
@@ -69,10 +72,10 @@ export default function PlayerBar() {
   }, [volumeOpen]);
 
   useEffect(() => {
-    if (isAuthenticated && !likeStore.loaded) {
-      likeStore.load();
+    if (isAuthenticated && !likeLoaded) {
+      void loadLikes();
     }
-  }, [isAuthenticated, likeStore.loaded]);
+  }, [isAuthenticated, likeLoaded, loadLikes]);
 
   useEffect(() => {
     if (!isAuthenticated || role === 'ADMIN') {
@@ -372,14 +375,14 @@ export default function PlayerBar() {
             </div>
           </div>
           <button
-            className={`${styles.heartBtn} ${likeStore.likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
+            className={`${styles.heartBtn} ${likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
             aria-label="Like"
             onClick={() => {
               if (!isAuthenticated) { toast('warning', '로그인 후 이용 가능합니다.'); navigate('/login'); return; }
-              likeStore.toggle(currentTrack.id);
+              void toggleLike(currentTrack.id);
             }}
           >
-            {likeStore.likedIds.has(currentTrack.id) ? '\u2665' : '\u2661'}
+            {likedIds.has(currentTrack.id) ? '\u2665' : '\u2661'}
           </button>
           <button
             className={styles.addToPlBtn}
@@ -510,14 +513,14 @@ export default function PlayerBar() {
             {!expanded && (
               <>
                 <button
-                  className={`${styles.heartBtn} ${likeStore.likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
+                  className={`${styles.heartBtn} ${likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
                   aria-label="Like"
                   onClick={() => {
                     if (!isAuthenticated) { toast('warning', '로그인 후 이용 가능합니다.'); navigate('/login'); return; }
-                    likeStore.toggle(currentTrack.id);
+                    void toggleLike(currentTrack.id);
                   }}
                 >
-                  {likeStore.likedIds.has(currentTrack.id) ? '\u2665' : '\u2661'}
+                  {likedIds.has(currentTrack.id) ? '\u2665' : '\u2661'}
                 </button>
                 <button className={styles.playBtn} onClick={handlePlayPause} aria-label={isPlaying ? 'Pause' : 'Play'}>
                   {isPlaying ? '\u275A\u275A' : '\u25B6'}

@@ -218,6 +218,31 @@
     background: var(--bg2);
   }
 
+  .mobileAuthButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 120px;
+    height: 36px;
+    padding: 0 12px;
+    background: none;
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    color: var(--text0);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobileAuthButton:hover {
+    background: var(--bg2);
+  }
+
   /* Overlay */
   .mobileOverlay {
     display: block;

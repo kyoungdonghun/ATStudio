@@ -116,14 +116,16 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   role: UserRole;  // 'GUEST' | 'USER' | 'ADMIN'
-  login: (token: string, user: User) => void;
+  login: (accessToken: string, user: User, refreshToken?: string | null) => void;
   logout: () => void;
   isAuthenticated: () => boolean;
 }
 ```
 
 - `accessToken` and `user` are stored in **localStorage** (persisted across page refreshes).
+- `refreshToken` is also stored in `localStorage` when the login flow provides one.
 - `role` defaults to `'GUEST'` when unauthenticated.
+- Login pages only commit tokens to the store **after** `fetchMe()` succeeds, to avoid half-authenticated state.
 - On `logout()`, the store also resets `playerStore`, `likeStore`, and `albumLikeStore`.
 
 ### 3.3 toastStore (Replaces alert())
@@ -131,7 +133,7 @@ interface AuthState {
 ```typescript
 interface ToastState {
   toasts: Toast[];                                        // Toast = { id, type, message }
-  show: (type: 'success' | 'error', message: string) => void;
+  show: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
   dismiss: (id: number) => void;
 }
 
@@ -139,9 +141,10 @@ interface ToastState {
 const { show } = useToastStore();
 show('success', 'Music uploaded successfully');
 show('error', '오류가 발생했습니다.');
+show('warning', '로그인이 필요한 기능입니다.');
 ```
 
-**Rule:** Never use `window.alert()` or `window.confirm()` in production code. Toast only supports `'success'` and `'error'` types.
+**Rule:** Never use `window.alert()` or `window.confirm()` in production code. Use toast for passive feedback and a dedicated confirm dialog component for destructive or bulk-confirm actions.
 
 ### 3.4 playerStore
 
@@ -192,6 +195,7 @@ API Request → Read accessToken from localStorage → Authorization header
 ```
 
 **No httpOnly cookies.** Both tokens are stored in `localStorage`.
+Refresh is skipped for login / social-login / refresh endpoints themselves, so credential errors are not misclassified as session expiry.
 
 ### 4.4 Concurrent 401 Race Condition Prevention
 
@@ -262,6 +266,7 @@ export default function App() {
 ```
 
 No `AuthProvider` or `ToastProvider` wrappers — all state is Zustand-based and available globally without React Context.
+Route pages are loaded with `React.lazy()` + `Suspense` at the route level; layouts remain eagerly loaded.
 
 ### 6.2 Route Guard: ProtectedRoute
 

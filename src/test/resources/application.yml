@@ -5,6 +5,14 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+  mail:
+    host: localhost
+    port: 1025
+    username:
+    password:
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
 
 # JWT 테스트용 설정 (main application.yml이 test classpath에서 대체되므로 명시 필요)
 jwt:

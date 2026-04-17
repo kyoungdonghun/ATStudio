@@ -79,15 +79,12 @@ class DownloadServiceTest {
         given(userDetails.getId()).willReturn(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                .willReturn(Optional.of(buildSubscription(5)));
-        given(trackDownloadRepository.countByUserAndDownloadedAtBetween(eq(user), any(), any())).willReturn(0L);
-        given(trackDownloadRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
         given(licenseRepository.findByUserAndTrack(user, track)).willReturn(Optional.of(buildLicense(user, track)));
         given(storageService.loadAsResource(anyString())).willReturn(mock(Resource.class));
 
         downloadService.download(1L, userDetails);
 
+        verify(trackDownloadRepository, never()).save(any());
         verify(licenseRepository, never()).save(any());
     }
 

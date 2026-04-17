@@ -23,7 +23,7 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   role: UserRole;
-  login: (token: string, user: User) => void;
+  login: (accessToken: string, user: User, refreshToken?: string | null) => void;
   logout: () => void;
   isAuthenticated: () => boolean;
 }
@@ -33,10 +33,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   accessToken: safeStorage.getItem('accessToken'),
   role: loadRole(),
 
-  login: (token: string, user: User) => {
-    safeStorage.setItem('accessToken', token);
+  login: (accessToken: string, user: User, refreshToken) => {
+    safeStorage.setItem('accessToken', accessToken);
+    if (refreshToken !== undefined) {
+      if (refreshToken) {
+        safeStorage.setItem('refreshToken', refreshToken);
+      } else {
+        safeStorage.removeItem('refreshToken');
+      }
+    }
     safeStorage.setItem('user', JSON.stringify(user));
-    set({ accessToken: token, user, role: user.role });
+    set({ accessToken, user, role: user.role });
   },
 
   logout: () => {

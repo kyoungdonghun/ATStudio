@@ -40,20 +40,26 @@ export default function AlbumDetailPage() {
   const playAll = usePlayerStore((s) => s.playAll);
   const setTrackListContext = usePlayerStore((s) => s.setTrackListContext);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
-  const likeStore = useLikeStore();
-  const albumLikeStore = useAlbumLikeStore();
+  const likeLoaded = useLikeStore((s) => s.loaded);
+  const loadLikes = useLikeStore((s) => s.load);
+  const likedIds = useLikeStore((s) => s.likedIds);
+  const toggleLike = useLikeStore((s) => s.toggle);
+  const albumLikeLoaded = useAlbumLikeStore((s) => s.loaded);
+  const loadAlbumLikes = useAlbumLikeStore((s) => s.load);
+  const likedAlbumIds = useAlbumLikeStore((s) => s.likedAlbumIds);
+  const toggleAlbumLike = useAlbumLikeStore((s) => s.toggle);
 
   useEffect(() => {
-    if (isAuthenticated && !likeStore.loaded) {
-      likeStore.load();
+    if (isAuthenticated && !likeLoaded) {
+      void loadLikes();
     }
-  }, [isAuthenticated, likeStore.loaded]);
+  }, [isAuthenticated, likeLoaded, loadLikes]);
 
   useEffect(() => {
-    if (isAuthenticated && !albumLikeStore.loaded) {
-      albumLikeStore.load();
+    if (isAuthenticated && !albumLikeLoaded) {
+      void loadAlbumLikes();
     }
-  }, [isAuthenticated, albumLikeStore.loaded]);
+  }, [isAuthenticated, albumLikeLoaded, loadAlbumLikes]);
 
   /* SR-83: Publish album tracks as player context so Next/Prev traverses them. */
   useEffect(() => {
@@ -173,17 +179,17 @@ export default function AlbumDetailPage() {
             </button>
             {isAuthenticated && (
               <button
-                className={`${styles.btnLike} ${albumLikeStore.likedAlbumIds.has(album.id) ? styles.btnLikeActive : ''}`}
+                className={`${styles.btnLike} ${likedAlbumIds.has(album.id) ? styles.btnLikeActive : ''}`}
                 onClick={() => {
-                  albumLikeStore.toggle(album.id);
+                  void toggleAlbumLike(album.id);
                   toast(
                     'success',
-                    albumLikeStore.likedAlbumIds.has(album.id) ? '앨범 좋아요가 해제되었습니다.' : '앨범을 좋아요했습니다.',
+                    likedAlbumIds.has(album.id) ? '앨범 좋아요가 해제되었습니다.' : '앨범을 좋아요했습니다.',
                   );
                 }}
-                title={albumLikeStore.likedAlbumIds.has(album.id) ? '앨범 좋아요 해제' : '앨범 좋아요'}
+                title={likedAlbumIds.has(album.id) ? '앨범 좋아요 해제' : '앨범 좋아요'}
               >
-                {albumLikeStore.likedAlbumIds.has(album.id) ? '\u2665' : '\u2661'}&nbsp;&nbsp;좋아요
+                {likedAlbumIds.has(album.id) ? '\u2665' : '\u2661'}&nbsp;&nbsp;좋아요
               </button>
             )}
           </div>
@@ -268,11 +274,13 @@ export default function AlbumDetailPage() {
                     {isAuthenticated ? (
                       <>
                         <button
-                          className={`${styles.trActBtn} ${likeStore.likedIds.has(t.trackId) ? styles.trActBtnActive : ''}`}
-                          onClick={() => likeStore.toggle(t.trackId)}
+                          className={`${styles.trActBtn} ${likedIds.has(t.trackId) ? styles.trActBtnActive : ''}`}
+                          onClick={() => {
+                            void toggleLike(t.trackId);
+                          }}
                           aria-label="Like"
                         >
-                          {likeStore.likedIds.has(t.trackId) ? '\u2665' : '\u2661'}
+                          {likedIds.has(t.trackId) ? '\u2665' : '\u2661'}
                         </button>
                         <button
                           className={styles.trActBtn}

@@ -168,17 +168,18 @@ class CompanyCertificationServiceTest {
         }
 
         @Test
-        @DisplayName("성공 - 신청 미존재 시 null 반환")
+        @DisplayName("실패 - 신청 미존재 시 RESOURCE_NOT_FOUND")
         void getMyStatus_notFound() {
             User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(certificationRepository.findTopByUserOrderByCreatedAtDesc(user)).willReturn(Optional.empty());
 
-            CompanyCertificationResponse result = certificationService.getMyStatus(
-                    buildUserDetails(1L, UserRole.USER));
-
-            assertThat(result).isNull();
+            assertThatThrownBy(() -> certificationService.getMyStatus(
+                    buildUserDetails(1L, UserRole.USER)))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         }
     }
 

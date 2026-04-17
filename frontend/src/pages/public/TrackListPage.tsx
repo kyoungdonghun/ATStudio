@@ -76,6 +76,8 @@ export default function TrackListPage() {
   const activeKeyword = searchParams.get('keyword') ?? '';
   const activeGenres = searchParams.getAll('genre');
   const activeMoods = searchParams.getAll('mood');
+  const activeGenresKey = activeGenres.join(',');
+  const activeMoodsKey = activeMoods.join(',');
   const activeBpmLabel = searchParams.get('bpm') ?? '';
   const sortValue = (searchParams.get('sort') ?? 'latest') as 'latest' | 'popular' | 'likes' | 'downloads';
 
@@ -95,20 +97,23 @@ export default function TrackListPage() {
 
   /* Like store */
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
-  const likeStore = useLikeStore();
+  const likeLoaded = useLikeStore((s) => s.loaded);
+  const loadLikes = useLikeStore((s) => s.load);
+  const likedIds = useLikeStore((s) => s.likedIds);
+  const toggleLike = useLikeStore((s) => s.toggle);
   const [addToPlTrackId, setAddToPlTrackId] = useState<number | null>(null);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [genreExpanded, setGenreExpanded] = useState(false);
   const [moodExpanded, setMoodExpanded] = useState(false);
-  const hasActiveFilters = activeGenres.length > 0 || activeMoods.length > 0 || activeBpmLabel !== '';
+  const hasActiveFilters = activeGenresKey !== '' || activeMoodsKey !== '' || activeBpmLabel !== '';
   const [availableGenres, setAvailableGenres] = useState<Set<string>>(new Set());
   const [availableMoods, setAvailableMoods] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (isAuthenticated && !likeStore.loaded) {
-      likeStore.load();
+    if (isAuthenticated && !likeLoaded) {
+      void loadLikes();
     }
-  }, [isAuthenticated, likeStore.loaded]);
+  }, [isAuthenticated, likeLoaded, loadLikes]);
 
 
   /* ── Load tags once ── */
@@ -148,8 +153,8 @@ export default function TrackListPage() {
     };
 
     if (activeKeyword) params.keyword = activeKeyword;
-    if (activeGenres.length > 0) params.genre = activeGenres.join(',');
-    if (activeMoods.length > 0) params.mood = activeMoods.join(',');
+    if (activeGenresKey) params.genre = activeGenresKey;
+    if (activeMoodsKey) params.mood = activeMoodsKey;
 
     const bpmPreset = BPM_PRESETS.find((p) => p.label === activeBpmLabel);
     if (bpmPreset) {
@@ -166,7 +171,7 @@ export default function TrackListPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, sortValue, activeKeyword, activeGenres.join(','), activeMoods.join(','), activeBpmLabel]);
+  }, [currentPage, sortValue, activeKeyword, activeGenresKey, activeMoodsKey, activeBpmLabel]);
 
   useEffect(() => {
     loadTracks();
@@ -181,15 +186,15 @@ export default function TrackListPage() {
     }
     const bpmPreset = BPM_PRESETS.find((p) => p.label === activeBpmLabel);
     fetchAvailableTags({
-      genre: activeGenres.length > 0 ? activeGenres.join(',') : undefined,
-      mood: activeMoods.length > 0 ? activeMoods.join(',') : undefined,
+      genre: activeGenresKey || undefined,
+      mood: activeMoodsKey || undefined,
       bpmMin: bpmPreset?.min,
       bpmMax: bpmPreset?.max,
     }).then((tags) => {
       setAvailableGenres(new Set(tags.filter((t) => t.type === 'GENRE').map((t) => t.name)));
       setAvailableMoods(new Set(tags.filter((t) => t.type === 'MOOD').map((t) => t.name)));
     }).catch(() => { /* ignore */ });
-  }, [activeGenres.join(','), activeMoods.join(','), activeBpmLabel, hasActiveFilters]);
+  }, [activeGenresKey, activeMoodsKey, activeBpmLabel, hasActiveFilters]);
 
   /* ── Filter helpers ── */
   function setFilter(key: string, value: string) {
@@ -451,7 +456,7 @@ export default function TrackListPage() {
                   index={(currentPage - 1) * PAGE_SIZE + idx + 1}
                   track={track}
                   playing={currentTrack?.id === track.id && isPlaying}
-                  liked={likeStore.likedIds.has(track.id)}
+                  liked={likedIds.has(track.id)}
                   showAuthActions={isAuthenticated}
                   onGuestAction={handleGuestAction}
                   onPlay={(t) => {
@@ -462,7 +467,7 @@ export default function TrackListPage() {
                       playTrack(trackListItemToTrack(t));
                     }
                   }}
-                  onLike={(t) => likeStore.toggle(t.id)}
+                  onLike={(t) => toggleLike(t.id)}
                   onAddToPlaylist={(t) => setAddToPlTrackId(t.id)}
                   onDownload={async (t) => {
                     try {

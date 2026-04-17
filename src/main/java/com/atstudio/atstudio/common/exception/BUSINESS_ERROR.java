@@ -151,6 +151,11 @@ public enum BUSINESS_ERROR {
             "탈퇴한 계정입니다.",
             "isDeleted=true인 사용자 로그인 시도."),
 
+    RATE_LIMIT_EXCEEDED(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "짧은 시간에 너무 많은 요청이 발생했습니다. 잠시 후 다시 시도해주세요.",
+            "Public auth endpoint rate limit exceeded."),
+
     EMAIL_ALREADY_REGISTERED(
             HttpStatus.CONFLICT,
             "이미 가입된 이메일입니다.",

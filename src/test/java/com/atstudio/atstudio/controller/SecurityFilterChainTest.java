@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import com.atstudio.atstudio.dto.user.UserResponse;
 
@@ -72,6 +73,30 @@ class SecurityFilterChainTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"user@test.com\",\"password\":\"password123\"}"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("POST /api/auth/login - repeated attempts from same IP => 429 Too Many Requests")
+    void login_rateLimitExceeded_returns429() throws Exception {
+        when(authService.login(any()))
+                .thenReturn(new AuthResponse("access", "refresh", "Bearer", 3600L));
+
+        for (int i = 0; i < 10; i++) {
+            mockMvc.perform(post("/api/auth/login")
+                            .with(remoteAddr("10.0.0.25"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"email\":\"user@test.com\",\"password\":\"password123\"}"))
+                    .andExpect(status().isOk());
+        }
+
+        mockMvc.perform(post("/api/auth/login")
+                        .with(remoteAddr("10.0.0.25"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"user@test.com\",\"password\":\"password123\"}"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.errorCode").value("RATE_LIMIT_EXCEEDED"));
     }
 
     @Test
@@ -169,7 +194,7 @@ class SecurityFilterChainTest {
         mockMvc.perform(put("/api/users/me/password")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"currentPassword\":\"old\",\"newPassword\":\"new123\"}"))
+                        .content("{\"currentPassword\":\"old\",\"newPassword\":\"new12345\"}"))
                 .andExpect(status().isNoContent());
     }
 
@@ -178,7 +203,7 @@ class SecurityFilterChainTest {
     void putUsersMePassword_noToken_returns401() throws Exception {
         mockMvc.perform(put("/api/users/me/password")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"currentPassword\":\"old\",\"newPassword\":\"new123\"}"))
+                        .content("{\"currentPassword\":\"old\",\"newPassword\":\"new12345\"}"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -215,5 +240,12 @@ class SecurityFilterChainTest {
         if (status == 403) {
             throw new AssertionError("Expected status NOT to be 403, but was 403");
         }
+    }
+
+    private RequestPostProcessor remoteAddr(String remoteAddr) {
+        return request -> {
+            request.setRemoteAddr(remoteAddr);
+            return request;
+        };
     }
 }

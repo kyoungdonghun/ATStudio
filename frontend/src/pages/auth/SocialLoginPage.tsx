@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { socialLogin, fetchMe, type MeResponse } from '@/api/auth';
 import { useAuthStore } from '@/store/authStore';
-import { safeStorage, safeSessionStorage } from '@/utils/safeStorage';
+import { safeSessionStorage } from '@/utils/safeStorage';
 import type { UserJob, UserType } from '@/types';
 import styles from './LoginPage.module.css';
 
@@ -42,10 +42,6 @@ export default function SocialLoginPage() {
     (async () => {
       try {
         const res = await socialLogin(provider, code, codeVerifier);
-
-        safeStorage.setItem('accessToken', res.accessToken);
-        safeStorage.setItem('refreshToken', res.refreshToken);
-
         const me: MeResponse = await fetchMe();
 
         authLogin(res.accessToken, {
@@ -60,7 +56,7 @@ export default function SocialLoginPage() {
           userType: me.userType as UserType,
           isVerified: me.isVerified,
           createdAt: me.createdAt,
-        });
+        }, res.refreshToken);
 
         if (!res.isProfileComplete) {
           navigate('/complete-profile', { replace: true });

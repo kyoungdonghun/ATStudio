@@ -21,7 +21,10 @@ export default function AlbumListImagePage() {
   const [error, setError] = useState<string | null>(null);
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
-  const albumLikeStore = useAlbumLikeStore();
+  const albumLikeLoaded = useAlbumLikeStore((s) => s.loaded);
+  const loadAlbumLikes = useAlbumLikeStore((s) => s.load);
+  const likedAlbumIds = useAlbumLikeStore((s) => s.likedAlbumIds);
+  const toggleAlbumLike = useAlbumLikeStore((s) => s.toggle);
 
   const currentPage = Number(searchParams.get('page') ?? '1');
   const sortValue = (searchParams.get('sort') ?? 'latest') as 'latest' | 'trackCount';
@@ -47,10 +50,10 @@ export default function AlbumListImagePage() {
   }, [loadAlbums]);
 
   useEffect(() => {
-    if (isAuthenticated && !albumLikeStore.loaded) {
-      albumLikeStore.load();
+    if (isAuthenticated && !albumLikeLoaded) {
+      void loadAlbumLikes();
     }
-  }, [isAuthenticated, albumLikeStore.loaded]);
+  }, [isAuthenticated, albumLikeLoaded, loadAlbumLikes]);
 
   /* ── Pagination ── */
   function goToPage(page: number) {
@@ -123,13 +126,13 @@ export default function AlbumListImagePage() {
         <>
           <div className={styles.albumGrid}>
             {albums.map((album) => (
-              <AlbumCard
-                key={album.id}
-                album={album}
-                onClick={handleAlbumClick}
-                isLiked={albumLikeStore.likedAlbumIds.has(album.id)}
-                onToggleLike={isAuthenticated ? (id) => albumLikeStore.toggle(id) : undefined}
-              />
+                <AlbumCard
+                  key={album.id}
+                  album={album}
+                  onClick={handleAlbumClick}
+                  isLiked={likedAlbumIds.has(album.id)}
+                  onToggleLike={isAuthenticated ? (id) => toggleAlbumLike(id) : undefined}
+                />
             ))}
           </div>
 

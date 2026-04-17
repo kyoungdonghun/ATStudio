@@ -4,7 +4,7 @@ import { useAuthStore } from '@/store/authStore';
 import { login, fetchMe } from '@/api/auth';
 import type { MeResponse } from '@/api/auth';
 import { isValidEmail, PASSWORD_MIN } from '@/utils/validation';
-import { safeStorage, safeSessionStorage } from '@/utils/safeStorage';
+import { safeSessionStorage } from '@/utils/safeStorage';
 import Button from '@/components/ui/Button';
 import styles from './LoginPage.module.css';
 
@@ -90,10 +90,6 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const tokens = await login({ email, password });
-
-      safeStorage.setItem('accessToken', tokens.accessToken);
-      safeStorage.setItem('refreshToken', tokens.refreshToken);
-
       const me: MeResponse = await fetchMe();
 
       authLogin(tokens.accessToken, {
@@ -108,7 +104,7 @@ export default function LoginPage() {
         userType: me.userType as import('@/types').UserType,
         isVerified: me.isVerified,
         createdAt: me.createdAt,
-      });
+      }, tokens.refreshToken);
 
       navigate('/', { replace: true });
     } catch (err: unknown) {

@@ -15,6 +15,7 @@ import { formatDateTime } from '@/utils/format';
 import { usePlayerStore } from '@/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Pagination from '@/components/ui/Pagination';
 import type { PageInfo } from '@/types';
 import styles from './DownloadQueuePage.module.css';
@@ -48,6 +49,7 @@ export default function DownloadQueuePage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [keywordInput, setKeywordInput] = useState(urlKeyword);
+  const [confirmDownloadAllIds, setConfirmDownloadAllIds] = useState<number[] | null>(null);
 
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlayerPlaying = usePlayerStore((s) => s.isPlaying);
@@ -206,17 +208,17 @@ export default function DownloadQueuePage() {
         toast('error', '다운로드할 항목이 없습니다.');
         return;
       }
-      if (
-        !window.confirm(
-          `${ids.length}곡을 다운로드합니다. 계속하시겠습니까?`,
-        )
-      ) {
-        return;
-      }
-      await downloadByTrackIds(ids);
+      setConfirmDownloadAllIds(ids);
     } catch {
       toast('error', '전체 재다운로드에 실패했습니다.');
     }
+  }
+
+  async function confirmDownloadAll() {
+    if (!confirmDownloadAllIds || confirmDownloadAllIds.length === 0) return;
+    const ids = confirmDownloadAllIds;
+    setConfirmDownloadAllIds(null);
+    await downloadByTrackIds(ids);
   }
 
   function toggleSelectAll(checked: boolean) {
@@ -462,6 +464,18 @@ export default function DownloadQueuePage() {
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={confirmDownloadAllIds !== null}
+        title="전체 재다운로드"
+        message={`${confirmDownloadAllIds?.length ?? 0}곡을 다운로드합니다. 계속하시겠습니까?`}
+        confirmLabel="다운로드"
+        busy={bulkBusy}
+        onConfirm={() => {
+          void confirmDownloadAll();
+        }}
+        onCancel={() => setConfirmDownloadAllIds(null)}
+      />
     </div>
   );
 }

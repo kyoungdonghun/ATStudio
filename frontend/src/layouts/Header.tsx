@@ -11,16 +11,16 @@ interface NavItem {
   path: string;
 }
 
-const BASE_NAV_ITEMS: NavItem[] = [
+const PUBLIC_NAV_ITEMS: NavItem[] = [
   { label: '홈', path: '/' },
   { label: '음원', path: '/tracks' },
   { label: '앨범', path: '/albums' },
   { label: '구독', path: '/subscriptions' },
   { label: '공지', path: '/notices' },
-  { label: '문의', path: '/questions' },
 ];
 
-const SUBSCRIBER_NAV_ITEMS: NavItem[] = [
+const USER_NAV_ITEMS: NavItem[] = [
+  { label: '문의', path: '/questions' },
   { label: '좋아요', path: '/likes' },
   { label: '재생목록', path: '/playlists' },
   { label: '다운로드', path: '/download-queue' },
@@ -28,6 +28,7 @@ const SUBSCRIBER_NAV_ITEMS: NavItem[] = [
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
+  { label: '문의', path: '/admin/questions' },
   { label: '관리자', path: '/admin/dashboard' },
 ];
 
@@ -82,9 +83,13 @@ export default function Header() {
   const logout = useAuthStore((s) => s.logout);
   const isAdmin = role === 'ADMIN';
   const navItems = isAdmin
-    ? BASE_NAV_ITEMS.filter((item) => item.path !== '/subscriptions')
-    : BASE_NAV_ITEMS;
-  const roleNavItems = isAdmin ? ADMIN_NAV_ITEMS : SUBSCRIBER_NAV_ITEMS;
+    ? PUBLIC_NAV_ITEMS.filter((item) => item.path !== '/subscriptions')
+    : PUBLIC_NAV_ITEMS;
+  const roleNavItems = !isAuthenticated
+    ? []
+    : isAdmin
+      ? ADMIN_NAV_ITEMS
+      : USER_NAV_ITEMS;
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -138,7 +143,7 @@ export default function Header() {
               {item.label}
             </Link>
           ))}
-          {isAuthenticated && roleNavItems.map((item) => (
+          {roleNavItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
@@ -195,6 +200,20 @@ export default function Header() {
         {/* Mobile: hamburger button */}
         <div className={styles.mobileRight}>
           <ThemeToggle />
+          {isAuthenticated && user ? (
+            <button
+              className={styles.mobileAuthButton}
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label="계정 메뉴"
+              title={user.nickname}
+            >
+              {user.nickname}
+            </button>
+          ) : !isAuthenticated ? (
+            <Link to="/login" className={styles.mobileAuthButton}>
+              {'로그인'}
+            </Link>
+          ) : null}
           <button
             className={styles.hamburger}
             onClick={() => setMenuOpen((v) => !v)}
@@ -234,7 +253,7 @@ export default function Header() {
               {item.label}
             </Link>
           ))}
-          {isAuthenticated && roleNavItems.map((item) => (
+          {roleNavItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}

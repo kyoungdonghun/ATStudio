@@ -22,7 +22,10 @@ export default function AlbumListPage() {
   const [error, setError] = useState<string | null>(null);
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
-  const albumLikeStore = useAlbumLikeStore();
+  const albumLikeLoaded = useAlbumLikeStore((s) => s.loaded);
+  const loadAlbumLikes = useAlbumLikeStore((s) => s.load);
+  const likedAlbumIds = useAlbumLikeStore((s) => s.likedAlbumIds);
+  const toggleAlbumLike = useAlbumLikeStore((s) => s.toggle);
 
   const currentPage = Number(searchParams.get('page') ?? '1');
   const sortValue = (searchParams.get('sort') ?? 'latest') as 'latest' | 'trackCount';
@@ -48,10 +51,10 @@ export default function AlbumListPage() {
   }, [loadAlbums]);
 
   useEffect(() => {
-    if (isAuthenticated && !albumLikeStore.loaded) {
-      albumLikeStore.load();
+    if (isAuthenticated && !albumLikeLoaded) {
+      void loadAlbumLikes();
     }
-  }, [isAuthenticated, albumLikeStore.loaded]);
+  }, [isAuthenticated, albumLikeLoaded, loadAlbumLikes]);
 
   /* ── Pagination ── */
   function goToPage(page: number) {
@@ -154,14 +157,14 @@ export default function AlbumListPage() {
                   {isAuthenticated && (
                     <td className={styles.cellLike}>
                       <button
-                        className={`${styles.likeBtn} ${albumLikeStore.likedAlbumIds.has(album.id) ? styles.likeBtnActive : ''}`}
+                        className={`${styles.likeBtn} ${likedAlbumIds.has(album.id) ? styles.likeBtnActive : ''}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          albumLikeStore.toggle(album.id);
+                          void toggleAlbumLike(album.id);
                         }}
-                        aria-label={albumLikeStore.likedAlbumIds.has(album.id) ? '좋아요 해제' : '좋아요'}
+                        aria-label={likedAlbumIds.has(album.id) ? '좋아요 해제' : '좋아요'}
                       >
-                        {albumLikeStore.likedAlbumIds.has(album.id) ? '\u2665' : '\u2661'}
+                        {likedAlbumIds.has(album.id) ? '\u2665' : '\u2661'}
                       </button>
                     </td>
                   )}

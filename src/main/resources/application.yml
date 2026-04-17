@@ -2,19 +2,22 @@ spring:
   application:
     name: ATStudio
 
+  config:
+    import: optional:file:./application-local.yml
+
   # 데이터베이스 설정
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/atstudio?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&zeroDateTimeBehavior=convertToNull
-    username: ${SPRING_DATASOURCE_USERNAME:root}
-    password: ${SPRING_DATASOURCE_PASSWORD:1234}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/atstudio?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&zeroDateTimeBehavior=convertToNull}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
 
   # JPA/Hibernate 설정
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
     open-in-view: false
-    show-sql: true
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
     properties:
       hibernate:
         format_sql: true
@@ -44,7 +47,7 @@ spring:
 
 # JWT 설정
 jwt:
-  secret: ${JWT_SECRET:YXRzdHVkaW8tc2VjcmV0LWtleS1mb3ItZGV2ZWxvcG1lbnQtb25seS0yMDI2}
+  secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:3600000}
   refresh-expiration: ${JWT_REFRESH_EXPIRATION:1209600000}
 
@@ -70,9 +73,9 @@ oauth2:
 # Swagger/OpenAPI 설정 (SEC-15: 프로덕션에서는 SWAGGER_ENABLED=false 설정)
 springdoc:
   api-docs:
-    enabled: ${SWAGGER_ENABLED:true}
+    enabled: ${SWAGGER_ENABLED:false}
   swagger-ui:
-    enabled: ${SWAGGER_ENABLED:true}
+    enabled: ${SWAGGER_ENABLED:false}
 
 # 파일 저장소 설정
 app:
@@ -81,9 +84,24 @@ app:
   mail:
     from: ${MAIL_FROM:noreply@atstudio.com}
     base-url: ${APP_BASE_URL:http://localhost:5173}
+  security:
+    rate-limit:
+      enabled: ${APP_SECURITY_RATE_LIMIT_ENABLED:true}
+      login:
+        limit: ${APP_SECURITY_RATE_LIMIT_LOGIN_LIMIT:10}
+        window-seconds: ${APP_SECURITY_RATE_LIMIT_LOGIN_WINDOW_SECONDS:60}
+      forgot-password:
+        limit: ${APP_SECURITY_RATE_LIMIT_FORGOT_PASSWORD_LIMIT:5}
+        window-seconds: ${APP_SECURITY_RATE_LIMIT_FORGOT_PASSWORD_WINDOW_SECONDS:900}
+      reset-password:
+        limit: ${APP_SECURITY_RATE_LIMIT_RESET_PASSWORD_LIMIT:5}
+        window-seconds: ${APP_SECURITY_RATE_LIMIT_RESET_PASSWORD_WINDOW_SECONDS:900}
+      refresh:
+        limit: ${APP_SECURITY_RATE_LIMIT_REFRESH_LIMIT:30}
+        window-seconds: ${APP_SECURITY_RATE_LIMIT_REFRESH_WINDOW_SECONDS:60}
 
 # 로깅 설정
 logging:
   level:
-    org.hibernate.SQL: debug
-    org.hibernate.type.descriptor.sql.BasicBinder: trace
+    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:warn}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_LEVEL_HIBERNATE_BINDER:warn}
