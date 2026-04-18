@@ -2,7 +2,9 @@ package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.bootstrap.TestUserBootstrapProperties;
 import com.atstudio.atstudio.dto.util.DownloadCountResponse;
+import com.atstudio.atstudio.dto.util.PublicCapabilitiesResponse;
 import com.atstudio.atstudio.dto.util.SubscriptionChangePreviewResponse;
 import com.atstudio.atstudio.dto.util.SubscriptionStatusResponse;
 import com.atstudio.atstudio.dto.util.UserTypeResponse;
@@ -15,9 +17,12 @@ import com.atstudio.atstudio.repository.TrackDownloadRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.auth.PasswordLoginPolicy;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -25,6 +30,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Locale;
 import java.util.Optional;
 
 @Service
@@ -32,10 +38,68 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class UtilService {
 
+    private static final String UNCONFIGURED = "UNCONFIGURED";
+    private static final String LOCAL_SMTP = "LOCAL_SMTP";
+    private static final String REMOTE_SMTP = "REMOTE_SMTP";
+
     private final UserRepository userRepository;
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final TrackDownloadRepository trackDownloadRepository;
+    private final TestUserBootstrapProperties testUserBootstrapProperties;
+    private final PasswordLoginPolicy passwordLoginPolicy;
+
+    @Value("${spring.mail.host:}")
+    private String mailHost;
+
+    @Value("${oauth2.google.client-id:}")
+    private String googleClientId;
+
+    @Value("${oauth2.google.client-secret:}")
+    private String googleClientSecret;
+
+    @Value("${oauth2.google.redirect-uri:}")
+    private String googleRedirectUri;
+
+    @Value("${oauth2.kakao.client-id:}")
+    private String kakaoClientId;
+
+    @Value("${oauth2.kakao.client-secret:}")
+    private String kakaoClientSecret;
+
+    @Value("${oauth2.kakao.redirect-uri:}")
+    private String kakaoRedirectUri;
+
+    @Value("${oauth2.naver.client-id:}")
+    private String naverClientId;
+
+    @Value("${oauth2.naver.client-secret:}")
+    private String naverClientSecret;
+
+    @Value("${oauth2.naver.redirect-uri:}")
+    private String naverRedirectUri;
+
+    public PublicCapabilitiesResponse getPublicCapabilities() {
+        boolean passwordLoginEnabled = passwordLoginPolicy.isEnabled();
+        String mailDeliveryMode = resolveMailDeliveryMode();
+        PublicCapabilitiesResponse.MailCapability mailCapability =
+                new PublicCapabilitiesResponse.MailCapability(
+                        passwordLoginEnabled && !UNCONFIGURED.equals(mailDeliveryMode),
+                        mailDeliveryMode
+                );
+
+        return new PublicCapabilitiesResponse(
+                passwordLoginEnabled,
+                mailCapability,
+                mailCapability,
+                new PublicCapabilitiesResponse.SocialLoginCapability(
+                        buildProviderCapability(googleClientId, googleClientSecret, googleRedirectUri),
+                        buildProviderCapability(kakaoClientId, kakaoClientSecret, kakaoRedirectUri),
+                        buildProviderCapability(naverClientId, naverClientSecret, naverRedirectUri)
+                ),
+                testUserBootstrapProperties.isEnabled()
+        );
+    }
 
     public SubscriptionStatusResponse getSubscriptionStatus(CustomUserDetails userDetails) {
         User user = findUser(userDetails.getId());
@@ -163,5 +227,34 @@ public class UtilService {
     private User findUser(Long userID) {
         return userRepository.findById(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+    }
+
+    private PublicCapabilitiesResponse.ProviderCapability buildProviderCapability(
+            String clientId,
+            String clientSecret,
+            String redirectUri
+    ) {
+        if (!StringUtils.hasText(clientId)
+                || !StringUtils.hasText(clientSecret)
+                || !StringUtils.hasText(redirectUri)) {
+            return PublicCapabilitiesResponse.ProviderCapability.disabled();
+        }
+
+        return PublicCapabilitiesResponse.ProviderCapability.enabled(clientId, redirectUri);
+    }
+
+    private String resolveMailDeliveryMode() {
+        if (!StringUtils.hasText(mailHost)) {
+            return UNCONFIGURED;
+        }
+
+        String normalizedHost = mailHost.trim().toLowerCase(Locale.ROOT);
+        if (normalizedHost.equals("localhost")
+                || normalizedHost.equals("127.0.0.1")
+                || normalizedHost.equals("::1")) {
+            return LOCAL_SMTP;
+        }
+
+        return REMOTE_SMTP;
     }
 }

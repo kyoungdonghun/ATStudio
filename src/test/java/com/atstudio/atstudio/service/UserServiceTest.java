@@ -10,6 +10,7 @@ import com.atstudio.atstudio.entity.enums.UserJob;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.*;
+import com.atstudio.atstudio.service.auth.PasswordLoginPolicy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +45,7 @@ class UserServiceTest {
     @Mock LicenseRepository licenseRepository;
     @Mock WhitelistChannelRepository whitelistChannelRepository;
     @Mock PlaylistService playlistService;
+    @Mock PasswordLoginPolicy passwordLoginPolicy;
 
     @InjectMocks UserService userService;
 
@@ -53,10 +55,11 @@ class UserServiceTest {
     @DisplayName("register() 성공 - 저장 후 UserResponse 반환")
     void register_success_returnsUserResponse() {
         RegisterRequest request = buildRegisterRequest("new@test.com", "newNick");
-        User savedUser = buildUser(1L, "new@test.com", "newNick", null, null);
+        User savedUser = buildUser(1L, "new@test.com", "newNick", "010-1111-2222", UserJob.EDITOR);
 
         when(userRepository.findByEmail("new@test.com")).thenReturn(Optional.empty());
         when(userRepository.findByNickname("newNick")).thenReturn(Optional.empty());
+        when(userRepository.findByPhonePersonal("010-1111-2222")).thenReturn(Optional.empty());
         when(passwordEncoder.encode(anyString())).thenReturn("encoded-pw");
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
@@ -92,6 +95,105 @@ class UserServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.NICKNAME_DUPLICATED));
+    }
+
+    @Test
+    @DisplayName("register() 실패 - 전화번호 중복 → PHONE_ALREADY_REGISTERED 예외")
+    void register_duplicatePhone_throwsException() {
+        RegisterRequest request = buildRegisterRequest("new@test.com", "newNick");
+        request.setPhonePersonal("010-1234-5678");
+
+        when(userRepository.findByEmail("new@test.com")).thenReturn(Optional.empty());
+        when(userRepository.findByNickname("newNick")).thenReturn(Optional.empty());
+        when(userRepository.findByPhonePersonal("010-1234-5678"))
+                .thenReturn(Optional.of(buildUser(3L, "other@test.com", "otherNick", "010-1234-5678", null)));
+
+        assertThatThrownBy(() -> userService.register(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PHONE_ALREADY_REGISTERED));
+    }
+
+    @Test
+    @DisplayName("register() 실패 - 연락처 누락 → INVALID_ARGUMENT 예외")
+    void register_missingPhone_throwsInvalidArgument() {
+        RegisterRequest request = buildRegisterRequest("new@test.com", "newNick");
+        request.setPhonePersonal(null);
+
+        assertThatThrownBy(() -> userService.register(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+    }
+
+    @Test
+    @DisplayName("register() 실패 - 개인 회원 직업 누락 → INVALID_ARGUMENT 예외")
+    void register_individualMissingJob_throwsInvalidArgument() {
+        RegisterRequest request = buildRegisterRequest("new@test.com", "newNick");
+        request.setJob(null);
+
+        assertThatThrownBy(() -> userService.register(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+    }
+
+    @Test
+    @DisplayName("register() 실패 - 기업 회원 회사명 누락 → INVALID_ARGUMENT 예외")
+    void register_businessMissingCompanyName_throwsInvalidArgument() {
+        RegisterRequest request = buildRegisterRequest("biz@test.com", "bizNick");
+        request.setUserType(UserType.BUSINESS);
+        request.setJob(null);
+        request.setCompanyName(null);
+
+        assertThatThrownBy(() -> userService.register(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+    }
+
+    @Test
+    @DisplayName("register() 성공 - 기업 회원은 직업 없이 회사명으로 가입 가능")
+    void register_businessWithoutJob_succeeds() {
+        RegisterRequest request = buildRegisterRequest("biz@test.com", "bizNick");
+        request.setUserType(UserType.BUSINESS);
+        request.setJob(null);
+        request.setCompanyName("ATStudio Biz");
+        User savedUser = User.builder()
+                .email("biz@test.com")
+                .nickname("bizNick")
+                .password("encoded")
+                .phonePersonal("010-1111-2222")
+                .job(null)
+                .companyName("ATStudio Biz")
+                .role(UserRole.USER)
+                .userType(UserType.BUSINESS)
+                .build();
+        ReflectionTestUtils.setField(savedUser, "id", 9L);
+
+        when(userRepository.findByEmail("biz@test.com")).thenReturn(Optional.empty());
+        when(userRepository.findByNickname("bizNick")).thenReturn(Optional.empty());
+        when(userRepository.findByPhonePersonal("010-1111-2222")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(anyString())).thenReturn("encoded-pw");
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+
+        UserResponse response = userService.register(request);
+
+        assertThat(response.userType()).isEqualTo("BUSINESS");
+        assertThat(response.companyName()).isEqualTo("ATStudio Biz");
+    }
+
+    @Test
+    @DisplayName("register() 실패 - 이메일 로그인 비활성화 시 PASSWORD_LOGIN_DISABLED 예외")
+    void register_disabled_throwsPasswordLoginDisabled() {
+        RegisterRequest request = buildRegisterRequest("new@test.com", "newNick");
+        org.mockito.Mockito.doThrow(new BusinessException(BUSINESS_ERROR.PASSWORD_LOGIN_DISABLED))
+                .when(passwordLoginPolicy).ensureEnabled();
+
+        assertThatThrownBy(() -> userService.register(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PASSWORD_LOGIN_DISABLED));
     }
 
     // ── updatePassword() ──────────────────────────────────────────────────────
@@ -188,6 +290,159 @@ class UserServiceTest {
                         .isEqualTo(BUSINESS_ERROR.PROFILE_ALREADY_COMPLETE));
     }
 
+    @Test
+    @DisplayName("completeProfile() 실패 - 전화번호 중복 → PHONE_ALREADY_REGISTERED 예외")
+    void completeProfile_duplicatePhone_throwsException() {
+        User incompleteUser = buildUser(1L, "user@test.com", "nick", null, null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(incompleteUser));
+        when(userRepository.findByNickname("nick")).thenReturn(Optional.of(incompleteUser));
+        when(userRepository.findByPhonePersonal("010-1234-5678"))
+                .thenReturn(Optional.of(buildUser(2L, "other@test.com", "otherNick", "010-1234-5678", UserJob.EDITOR)));
+
+        CompleteProfileRequest request = new CompleteProfileRequest();
+        request.setNickname("nick");
+        request.setPhonePersonal("010-1234-5678");
+        request.setJob(UserJob.ARTIST);
+        request.setUserType(UserType.INDIVIDUAL);
+
+        assertThatThrownBy(() -> userService.completeProfile(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PHONE_ALREADY_REGISTERED));
+    }
+
+    @Test
+    @DisplayName("completeProfile() 실패 - 기업 회원 회사명 누락 → INVALID_ARGUMENT 예외")
+    void completeProfile_businessWithoutCompanyName_throwsInvalidArgument() {
+        User incompleteUser = buildUser(1L, "user@test.com", "nick", null, null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(incompleteUser));
+
+        CompleteProfileRequest request = new CompleteProfileRequest();
+        request.setNickname("biznick");
+        request.setPhonePersonal("010-1234-5678");
+        request.setJob(null);
+        request.setUserType(UserType.BUSINESS);
+        request.setCompanyName(null);
+
+        assertThatThrownBy(() -> userService.completeProfile(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+    }
+
+    @Test
+    @DisplayName("completeProfile() 성공 - 기업 회원은 회사명으로 프로필 완성 가능")
+    void completeProfile_businessWithCompanyName_succeeds() {
+        User incompleteUser = buildUser(1L, "user@test.com", "nick", null, null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(incompleteUser));
+        when(userRepository.findByNickname("biznick")).thenReturn(Optional.empty());
+        when(userRepository.findByPhonePersonal("010-1234-5678")).thenReturn(Optional.empty());
+
+        CompleteProfileRequest request = new CompleteProfileRequest();
+        request.setNickname("biznick");
+        request.setPhonePersonal("010-1234-5678");
+        request.setJob(null);
+        request.setUserType(UserType.BUSINESS);
+        request.setCompanyName("ATStudio Biz");
+
+        UserResponse response = userService.completeProfile(1L, request);
+
+        assertThat(response.userType()).isEqualTo("BUSINESS");
+        assertThat(response.companyName()).isEqualTo("ATStudio Biz");
+    }
+
+    // ── updateMyProfile() ────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("updateMyProfile() 실패 - 전화번호 중복 → PHONE_ALREADY_REGISTERED 예외")
+    void updateMyProfile_duplicatePhone_throwsException() {
+        User currentUser = buildUser(1L, "user@test.com", "nick", "010-1111-2222", UserJob.EDITOR);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(currentUser));
+        when(userRepository.findByPhonePersonal("010-1234-5678"))
+                .thenReturn(Optional.of(buildUser(2L, "other@test.com", "otherNick", "010-1234-5678", UserJob.ARTIST)));
+
+        UpdateProfileRequest request = new UpdateProfileRequest();
+        request.setNickname("nick");
+        request.setPhonePersonal("010-1234-5678");
+        request.setJob(UserJob.EDITOR);
+
+        assertThatThrownBy(() -> userService.updateMyProfile(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PHONE_ALREADY_REGISTERED));
+    }
+
+    @Test
+    @DisplayName("updateMyProfile() 실패 - 기업 회원이 회사명을 빈값으로 덮어쓰면 INVALID_ARGUMENT 예외")
+    void updateMyProfile_businessBlankCompanyName_throwsInvalidArgument() {
+        User businessUser = User.builder()
+                .email("biz@test.com")
+                .nickname("bizNick")
+                .password("encoded")
+                .phonePersonal("010-1111-2222")
+                .job(null)
+                .companyName("ATStudio Biz")
+                .role(UserRole.USER)
+                .userType(UserType.BUSINESS)
+                .build();
+        ReflectionTestUtils.setField(businessUser, "id", 1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(businessUser));
+
+        UpdateProfileRequest request = new UpdateProfileRequest();
+        request.setNickname("bizNick");
+        request.setPhonePersonal("010-1111-2222");
+        request.setCompanyName("   ");
+
+        assertThatThrownBy(() -> userService.updateMyProfile(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+    }
+
+    @Test
+    @DisplayName("updateMyProfile() 실패 - 개인 회원의 최종 직업이 없으면 INVALID_ARGUMENT 예외")
+    void updateMyProfile_individualWithoutEffectiveJob_throwsInvalidArgument() {
+        User incompleteIndividual = buildUser(1L, "user@test.com", "nick", "010-1111-2222", null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(incompleteIndividual));
+
+        UpdateProfileRequest request = new UpdateProfileRequest();
+        request.setNickname("nick2");
+        request.setPhonePersonal("010-1111-2222");
+
+        assertThatThrownBy(() -> userService.updateMyProfile(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+    }
+
+    @Test
+    @DisplayName("updateMyProfile() 성공 - 회사명 미전달 시 기존 회사명 유지")
+    void updateMyProfile_omittedCompanyName_preservesExistingValue() {
+        User businessUser = User.builder()
+                .email("biz@test.com")
+                .nickname("bizNick")
+                .password("encoded")
+                .phonePersonal("010-1111-2222")
+                .job(null)
+                .companyName("ATStudio Biz")
+                .role(UserRole.USER)
+                .userType(UserType.BUSINESS)
+                .build();
+        ReflectionTestUtils.setField(businessUser, "id", 1L);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(businessUser));
+
+        UpdateProfileRequest request = new UpdateProfileRequest();
+        request.setNickname("bizNick2");
+        request.setPhonePersonal("010-1111-2222");
+        request.setPhoneCompany("02-1234-5678");
+
+        UserResponse response = userService.updateMyProfile(1L, request);
+
+        assertThat(response.nickname()).isEqualTo("bizNick2");
+        assertThat(response.companyName()).isEqualTo("ATStudio Biz");
+    }
+
     // ── getUsers() (Admin) ────────────────────────────────────────────────────
 
     @Test
@@ -267,6 +522,8 @@ class UserServiceTest {
         req.setEmail(email);
         req.setNickname(nickname);
         req.setPassword("password123");
+        req.setPhonePersonal("010-1111-2222");
+        req.setJob(UserJob.EDITOR);
         req.setUserType(UserType.INDIVIDUAL);
         return req;
     }

@@ -1,8 +1,19 @@
-# ATStudio API Specification v8 (Confirmed)
+# ATStudio API Specification v9 (Confirmed)
 
-> **Status**: 8th confirmed — SR-47/52/55/60/70 sync (tag recombination, admin track detail, bulk playlist add, PKCE social login)
-> **Base**: v7 + 2026-04-10 patch
-> **Date**: 2026-04-10
+> **Status**: 9th confirmed — live contract sync (download history, public capabilities, auth/profile conflict cleanup)
+> **Base**: v8 + 2026-04-18 patch
+> **Date**: 2026-04-18
+
+---
+
+## v8 → v9 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| Z1 | §11 new entries | Added §11.4 GET /api/downloads/history and §11.5 GET /api/downloads/history/track-ids (SR-79/80 live download history APIs) |
+| Z2 | §14 new entry | Added §14.12 GET /api/utils/public-capabilities (runtime auth/environment capability hints) |
+| Z3 | §5 user flows | Added actual 409 conflict cases for email/nickname/phone duplication across register/profile flows |
+| Z4 | Full API Summary | Updated total count from 104 → 107 |
 
 ---
 
@@ -753,6 +764,13 @@ size: Integer (default: 50)
 }
 ```
 
+**Error Cases**
+```json
+{ "status": 409, "error": "Conflict", "errorCode": "EMAIL_ALREADY_REGISTERED", "message": "이미 가입된 이메일입니다." }
+{ "status": 409, "error": "Conflict", "errorCode": "NICKNAME_DUPLICATED", "message": "이미 사용 중인 닉네임입니다." }
+{ "status": 409, "error": "Conflict", "errorCode": "PHONE_ALREADY_REGISTERED", "message": "이미 등록된 전화번호입니다." }
+```
+
 ## 5.2 Login
 | Field | Value |
 |-------|-------|
@@ -776,6 +794,10 @@ size: Integer (default: 50)
   "expiresIn": 3600
 }
 ```
+
+**Storage Notes**
+- Frontend stores both `accessToken` and `refreshToken` in browser storage.
+- `POST /api/auth/refresh` reads the stored refresh token and rotates both tokens on success.
 
 ## 5.3 Social Login
 | Field | Value |
@@ -810,7 +832,7 @@ size: Integer (default: 50)
 |-------|-------|
 | **URL** | `PUT /api/users/me/complete-profile` |
 | **Auth** | auth required (only members with isProfileComplete=false) |
-| **Description** | After initial social login signup, completes the profile by entering additional info (nickname, phone, job, user type). userType can only be set at this step. |
+| **Description** | After initial social login signup, completes the profile by entering additional info. `INDIVIDUAL` members send `job`; `BUSINESS` members send `companyName`. userType can only be set at this step. |
 
 **Request**
 ```json
@@ -823,11 +845,24 @@ size: Integer (default: 50)
 }
 ```
 
+**Business Example**
+```json
+{
+  "nickname": "bizcreator",
+  "phonePersonal": "010-1234-5678",
+  "phoneCompany": "02-1234-5678",
+  "job": null,
+  "companyName": "ATStudio Biz",
+  "userType": "BUSINESS"
+}
+```
+
 **Response** `200 OK` — Same format as 5.4 My Profile response
 
 **Error Cases**
 ```json
 { "status": 409, "error": "Conflict", "errorCode": "NICKNAME_DUPLICATED", "message": "이미 사용 중인 닉네임입니다." }
+{ "status": 409, "error": "Conflict", "errorCode": "PHONE_ALREADY_REGISTERED", "message": "이미 등록된 전화번호입니다." }
 ```
 
 ## 5.4 My Profile
@@ -888,11 +923,21 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
   "nickname": "newNickname",
   "phonePersonal": "010-9999-8888",
   "phoneCompany": "02-1234-5678",
-  "job": "FREELANCER"
+  "job": "FREELANCER",
+  "companyName": "ATStudio Biz"
 }
 ```
 
 **Response** `200 OK` — Updated profile
+
+**Error Cases**
+```json
+{ "status": 409, "error": "Conflict", "errorCode": "NICKNAME_DUPLICATED", "message": "이미 사용 중인 닉네임입니다." }
+{ "status": 409, "error": "Conflict", "errorCode": "PHONE_ALREADY_REGISTERED", "message": "이미 등록된 전화번호입니다." }
+{ "status": 400, "error": "Bad Request", "errorCode": "INVALID_ARGUMENT", "message": "입력값이 올바르지 않습니다. 다시 확인해주세요." }
+```
+
+> `userType` is not part of the request body. The backend validates the effective final profile state using the authenticated member's stored `userType`, and omitted fields keep their existing values.
 
 ## 5.8 Update User (Admin)
 | Field | Value |
@@ -1056,6 +1101,9 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 | **Auth** | auth required |
 
 **Response** `200 OK` — My current subscription status
+
+**Error Cases**
+- `403 Forbidden` — `NO_ACTIVE_SUBSCRIPTION` when the member has no current service-enabled subscription (neither `ACTIVE` nor `CANCELLED` within grace period)
 
 ## 6.5 List User Subscriptions (Admin)
 | Field | Value |
@@ -1619,6 +1667,69 @@ sort: String (optional, "latest"|"views", default: "latest")
 { "status": 404, "error": "Not Found", "errorCode": "RESOURCE_NOT_FOUND", "message": "다운로드 큐에 없는 트랙입니다." }
 ```
 
+## 11.4 Download History
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/downloads/history` |
+| **Auth** | auth required |
+| **Description** | Returns the current member's download history from `track_downloads`. Used by the live "다운로드 기록" page served on the legacy `/download-queue` route. |
+
+**Query Parameters**
+```
+keyword: String (optional)
+sort: String (optional, "latest"|"oldest", default: "latest")
+page: Integer (default: 1)
+size: Integer (default: 20)
+```
+
+**Response** `200 OK`
+```json
+{
+  "dataList": [
+    {
+      "downloadId": 101,
+      "trackId": 10,
+      "title": "Summer Vibes",
+      "artistName": "creator01",
+      "thumbnail": "/tracks/thumbnail/summer-vibes.jpg",
+      "bpm": 120,
+      "tonality": "C",
+      "duration": 95,
+      "tags": [{ "id": 1, "name": "Vlog", "type": "GENRE" }],
+      "downloadedAt": "2026-04-18T10:00:00"
+    }
+  ],
+  "pageInfo": {
+    "page": 1,
+    "size": 20,
+    "total": 1,
+    "start": 1,
+    "end": 1,
+    "prev": false,
+    "next": false
+  }
+}
+```
+
+## 11.5 Download History Track IDs
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/downloads/history/track-ids` |
+| **Auth** | auth required |
+| **Description** | Returns distinct track IDs matching the current download history filter. Used by the "전체 재다운로드" action. |
+
+**Query Parameters**
+```
+keyword: String (optional)
+```
+
+**Response** `200 OK`
+```json
+{
+  "dataList": [10, 11, 15]
+}
+```
+
 ---
 
 # 12. Whitelist Channels
@@ -2019,6 +2130,49 @@ token: String (required — UUID token from email link)
 { "status": 401, "error": "Unauthorized", "errorCode": "TOKEN_EXPIRED", "message": "인증이 만료되었습니다. 다시 로그인해주세요." }
 ```
 
+## 14.12 Public Capabilities
+
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/utils/public-capabilities` |
+| **Auth** | `[PUBLIC]` |
+| **Description** | Returns runtime capability hints used by login/signup/password reset screens. This endpoint describes whether password login is enabled, whether email-based flows are available, and which social providers are configured. |
+
+**Response** `200 OK`
+```json
+{
+  "passwordLoginEnabled": true,
+  "emailVerification": {
+    "enabled": true,
+    "deliveryMode": "REMOTE_SMTP"
+  },
+  "passwordReset": {
+    "enabled": true,
+    "deliveryMode": "REMOTE_SMTP"
+  },
+  "socialLogin": {
+    "google": {
+      "enabled": true,
+      "clientId": "google-client-id",
+      "redirectUri": "https://app.example.com/login/social/google"
+    },
+    "kakao": {
+      "enabled": false,
+      "clientId": null,
+      "redirectUri": null
+    },
+    "naver": {
+      "enabled": false,
+      "clientId": null,
+      "redirectUri": null
+    }
+  },
+  "testUsersEnabled": false
+}
+```
+
+> `deliveryMode`: `UNCONFIGURED` | `LOCAL_SMTP` | `REMOTE_SMTP`
+
 ### Removed Items
 
 | Original Item | Reason |
@@ -2222,7 +2376,7 @@ key: String (required) — setting key name
 
 ---
 
-# Full API Summary (104)
+# Full API Summary (107)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -2236,11 +2390,11 @@ key: String (required) — setting key name
 | 8 | Question (Inquiry/Answer) | 7 |
 | 9 | Notice | 6 |
 | 10 | Likes (Favorites) | 6 |
-| 11 | Download Queue | 3 |
+| 11 | Download Queue / History | 5 |
 | 12 | Whitelist Channels | 4 |
 | 13 | Company Certification | 5 |
-| 14 | Utility / Auth | 11 |
+| 14 | Utility / Auth | 12 |
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
-| | **Total** | **104** |
+| | **Total** | **107** |

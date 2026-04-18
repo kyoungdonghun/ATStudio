@@ -1,5 +1,6 @@
 package com.atstudio.atstudio.dto.user;
 
+import com.atstudio.atstudio.common.validation.ValidCompleteProfile;
 import com.atstudio.atstudio.entity.enums.UserJob;
 import com.atstudio.atstudio.entity.enums.UserType;
 import jakarta.validation.constraints.NotBlank;
@@ -15,6 +16,7 @@ import static com.atstudio.atstudio.common.validation.ValidationConstants.*;
 @Getter
 @Setter
 @NoArgsConstructor
+@ValidCompleteProfile
 public class CompleteProfileRequest {
 
     @NotBlank
@@ -31,7 +33,6 @@ public class CompleteProfileRequest {
     @Pattern(regexp = PHONE_PATTERN)
     private String phoneCompany;
 
-    @NotNull
     private UserJob job;
 
     @Size(max = 100)

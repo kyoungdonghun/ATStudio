@@ -59,6 +59,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/auth/verify-email").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/forgot-password").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/reset-password").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/utils/public-capabilities").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/utils/check-email").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/utils/check-phone").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/utils/check-nickname").permitAll()

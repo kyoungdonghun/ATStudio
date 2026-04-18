@@ -63,7 +63,7 @@ const LikeListPage = lazyPage(() => import('@/pages/subscriber/LikeListPage'));
 const PlayHistoryPage = lazyPage(() => import('@/pages/subscriber/PlayHistoryPage'));
 const LicenseListPage = lazyPage(() => import('@/pages/subscriber/LicenseListPage'));
 const LicenseDetailPage = lazyPage(() => import('@/pages/subscriber/LicenseDetailPage'));
-const DownloadQueuePage = lazyPage(() => import('@/pages/subscriber/DownloadQueuePage'));
+const DownloadHistoryPage = lazyPage(() => import('@/pages/subscriber/DownloadQueuePage'));
 const SubscriptionPaymentPage = lazyPage(() => import('@/pages/subscriber/SubscriptionPaymentPage'));
 const SubscriptionManagePage = lazyPage(() => import('@/pages/subscriber/SubscriptionManagePage'));
 const WhitelistChannelPage = lazyPage(() => import('@/pages/subscriber/WhitelistChannelPage'));
@@ -147,7 +147,7 @@ const routes: RouteObject[] = [
       { path: '/play-history', element: authRequired(<PlayHistoryPage />) },
       { path: '/licenses', element: authRequired(<LicenseListPage />) },
       { path: '/licenses/:licenseId', element: authRequired(<LicenseDetailPage />) },
-      { path: '/download-queue', element: subscriberOnly(<DownloadQueuePage />) },
+      { path: '/download-queue', element: subscriberOnly(<DownloadHistoryPage />) },
       { path: '/subscriptions/payment', element: authRequired(<SubscriptionPaymentPage />) },
       { path: '/subscriptions/manage', element: authRequired(<SubscriptionManagePage />) },
       { path: '/whitelist-channels', element: subscriberOnly(<WhitelistChannelPage />) },

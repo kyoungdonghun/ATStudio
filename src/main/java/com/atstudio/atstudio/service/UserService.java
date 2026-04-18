@@ -9,6 +9,7 @@ import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.*;
+import com.atstudio.atstudio.service.auth.PasswordLoginPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -30,15 +31,23 @@ public class UserService {
     private final TrackDownloadRepository trackDownloadRepository;
     private final LicenseRepository licenseRepository;
     private final WhitelistChannelRepository whitelistChannelRepository;
+    private final PasswordLoginPolicy passwordLoginPolicy;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
+        passwordLoginPolicy.ensureEnabled();
+        validateRegisterProfileFields(
+                request.getPhonePersonal(),
+                request.getJob(),
+                request.getUserType(),
+                request.getCompanyName()
+        );
+
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new BusinessException(BUSINESS_ERROR.EMAIL_ALREADY_REGISTERED);
         }
-        if (userRepository.findByNickname(request.getNickname()).isPresent()) {
-            throw new BusinessException(BUSINESS_ERROR.NICKNAME_DUPLICATED);
-        }
+        ensureNicknameAvailable(request.getNickname(), null);
+        ensurePhoneAvailable(request.getPhonePersonal(), null);
 
         User user = User.builder()
                 .nickname(request.getNickname())
@@ -69,13 +78,26 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
         if (request.getNickname() != null && !request.getNickname().equals(user.getNickname())) {
-            if (userRepository.findByNickname(request.getNickname()).isPresent()) {
-                throw new BusinessException(BUSINESS_ERROR.NICKNAME_DUPLICATED);
-            }
+            ensureNicknameAvailable(request.getNickname(), userID);
+        }
+        if (request.getPhonePersonal() != null && !request.getPhonePersonal().equals(user.getPhonePersonal())) {
+            ensurePhoneAvailable(request.getPhonePersonal(), userID);
         }
 
+        String companyName = request.getCompanyName() != null
+                ? request.getCompanyName()
+                : user.getCompanyName();
+        String phonePersonal = request.getPhonePersonal() != null
+                ? request.getPhonePersonal()
+                : user.getPhonePersonal();
+        var job = request.getJob() != null
+                ? request.getJob()
+                : user.getJob();
+
+        validateUpdateProfileFields(phonePersonal, job, user.getUserType(), companyName);
+
         user.updateProfile(request.getNickname(), request.getPhonePersonal(),
-                request.getPhoneCompany(), request.getJob(), request.getCompanyName());
+                request.getPhoneCompany(), request.getJob(), companyName);
         return toResponse(user);
     }
 
@@ -109,11 +131,14 @@ public class UserService {
             throw new BusinessException(BUSINESS_ERROR.PROFILE_ALREADY_COMPLETE);
         }
 
-        if (!request.getNickname().equals(user.getNickname())) {
-            if (userRepository.findByNickname(request.getNickname()).isPresent()) {
-                throw new BusinessException(BUSINESS_ERROR.NICKNAME_DUPLICATED);
-            }
-        }
+        validateCompleteProfileFields(
+                request.getPhonePersonal(),
+                request.getJob(),
+                request.getUserType(),
+                request.getCompanyName()
+        );
+        ensureNicknameAvailable(request.getNickname(), userID);
+        ensurePhoneAvailable(request.getPhonePersonal(), userID);
 
         user.completeProfile(request.getNickname(), request.getPhonePersonal(),
                 request.getPhoneCompany(), request.getJob(), request.getUserType(), request.getCompanyName());
@@ -167,6 +192,73 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         user.updateByAdmin(request.getRole(), request.getIsVerified());
         return UserDetailResponse.from(user);
+    }
+
+    private void ensureNicknameAvailable(String nickname, Long currentUserId) {
+        userRepository.findByNickname(nickname)
+                .filter(existing -> currentUserId == null || !existing.getId().equals(currentUserId))
+                .ifPresent(existing -> {
+                    throw new BusinessException(BUSINESS_ERROR.NICKNAME_DUPLICATED);
+                });
+    }
+
+    private void ensurePhoneAvailable(String phonePersonal, Long currentUserId) {
+        if (phonePersonal == null || phonePersonal.isBlank()) {
+            return;
+        }
+
+        userRepository.findByPhonePersonal(phonePersonal)
+                .filter(existing -> currentUserId == null || !existing.getId().equals(currentUserId))
+                .ifPresent(existing -> {
+                    throw new BusinessException(BUSINESS_ERROR.PHONE_ALREADY_REGISTERED);
+                });
+    }
+
+    private void validateRegisterProfileFields(String phonePersonal, com.atstudio.atstudio.entity.enums.UserJob job,
+                                               UserType userType, String companyName) {
+        if (phonePersonal == null || phonePersonal.isBlank()) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
+        if (userType == UserType.INDIVIDUAL && job == null) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
+        if (userType == UserType.BUSINESS && (companyName == null || companyName.isBlank())) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+    }
+
+    private void validateCompleteProfileFields(String phonePersonal,
+                                               com.atstudio.atstudio.entity.enums.UserJob job,
+                                               UserType userType,
+                                               String companyName) {
+        if (phonePersonal == null || phonePersonal.isBlank()) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
+        if (userType == UserType.INDIVIDUAL && job == null) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
+        if (userType == UserType.BUSINESS && (companyName == null || companyName.isBlank())) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+    }
+
+    private void validateUpdateProfileFields(String phonePersonal, com.atstudio.atstudio.entity.enums.UserJob job,
+                                             UserType userType, String companyName) {
+        if (phonePersonal == null || phonePersonal.isBlank()) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
+        if (userType == UserType.INDIVIDUAL && job == null) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
+        if (userType == UserType.BUSINESS && (companyName == null || companyName.isBlank())) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
     }
 
     private UserResponse toResponse(User user) {

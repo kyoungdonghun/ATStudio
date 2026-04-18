@@ -104,6 +104,22 @@ class PlaylistServiceTest {
     }
 
     @Test
+    @DisplayName("createPlaylist() 실패 - 현재 플랜 maxPlaylists를 초과하면 제한한다")
+    void createPlaylist_respectsTierMaxPlaylists() {
+        User user = buildUser(1L);
+        PlaylistCreateRequest request = new PlaylistCreateRequest();
+        request.setTitle("Third Playlist");
+
+        setupSubscriberMocks(user, 2);
+        given(playlistRepository.countByUserAndIsActiveTrue(user)).willReturn(2);
+
+        assertThatThrownBy(() -> playlistService.createPlaylist(request, null, buildUserDetails(1L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PLAYLIST_LIMIT_EXCEEDED));
+    }
+
+    @Test
     @DisplayName("createPlaylist() 실패 - 비구독자 → NO_ACTIVE_SUBSCRIPTION 예외")
     void createPlaylist_notSubscribed() {
         User user = buildUser(1L);
@@ -401,6 +417,13 @@ class PlaylistServiceTest {
                 .willReturn(Optional.of(sub));
     }
 
+    private void setupSubscriberMocks(User user, int maxPlaylists) {
+        UserSubscription sub = buildSubscription(user, maxPlaylists);
+        given(userRepository.findById(user.getId())).willReturn(Optional.of(user));
+        given(userSubscriptionRepository.findActiveByUser(any(User.class), any(LocalDate.class)))
+                .willReturn(Optional.of(sub));
+    }
+
     private User buildUser(Long id) {
         User user = User.builder()
                 .email("test@test.com").nickname("nick").password("pw")
@@ -410,10 +433,15 @@ class PlaylistServiceTest {
     }
 
     private UserSubscription buildSubscription(User user) {
+        return buildSubscription(user, 3);
+    }
+
+    private UserSubscription buildSubscription(User user, int maxPlaylists) {
         Subscription plan = Subscription.builder()
                 .name("Basic").userType(UserType.INDIVIDUAL)
                 .priceMonthly(new BigDecimal("9.99")).priceYearly(new BigDecimal("99.99"))
-                .downloadPerDay(10).maxWhitelistChannels(3).build();
+                .downloadPerDay(10).maxWhitelistChannels(3)
+                .maxPlaylists(maxPlaylists).build();
         return UserSubscription.builder()
                 .user(user).subscription(plan).billingCycle(BillingCycle.MONTHLY)
                 .startedAt(LocalDate.now()).expiresAt(LocalDate.now().plusMonths(1))

@@ -189,8 +189,9 @@ export interface PlayHistory {
   playedAt: string;
 }
 
-/* ── Download Queue ── */
+/* ── Legacy Download Queue (pre-SR-79) ── */
 
+/** @deprecated Legacy queue item. Subscriber-facing page uses download history items. */
 export interface DownloadQueueItem {
   trackId: number;
   title: string;

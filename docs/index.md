@@ -23,13 +23,14 @@ status: stable
 | Templates | 18 | [Templates Index](templates/index.md) | Document/artifact templates |
 | Registry | 4 | [Registry Index](registry/index.md) | Asset/context/project registries |
 | Audit | 2 | [Audit Index](audit/index.md) | Audit reports and remediation baselines |
+| Client | 7 | [Client Index](client/index.md) | External testing guides and client SR intake references |
 | SR | 90 | [SR Index](SR/index.md) | Screen Review items (SR-01~90) |
 | Retrospective | 4 | [Retrospective Index](retrospective/index.md) | Engineering lessons, domain design, kick.md, process |
 | ADR | 1 | [ADR Index](adr/index.md) | Decision records |
 | UI | 3 | [UI Index](ui/index.md) | Screen inventory, flow, and modal planning documents |
 | Eval | 0 | [Eval Index](eval/index.md) | Evaluation documents |
 
-**Total Document Count**: Managed based on "Document Count" column above (excluding index files).
+**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **171**.
 
 ## Required Documents Mapping by Role
 
@@ -61,6 +62,7 @@ status: stable
 | Standards | [glossary.md](standards/glossary.md) | Section 3-A: ATStudio Domain Terms |
 | Policies | [security-policy.md](policies/security-policy.md) | Section 6: JWT/MySQL Secrets Management |
 | Registry | [project-registry.md](registry/project-registry.md) | PRJ-ATS-001 registration |
+| Client | [testing-guide.md](client/testing-guide.md) | External testing guide and SR intake reference set |
 | Config | `.claude/config/workspace.json`, `.claude/config/context-injection-rules.json` | ATStudio routing, tech_stack, context injection |
 
 - **Tech Stack**: Java 17, Spring Boot 4.x, MySQL 8.x + React 18, TypeScript 5.6, Vite 6 (Phase 2 — active)
@@ -75,6 +77,11 @@ status: stable
 2. **[System Design](architecture/system-design.md)**: Big picture/principles and migration-state architecture
 3. **[Kickoff Prompt Template](templates/ma-session-kickoff-prompt.md)**: Copy-paste for new sessions
 4. **`CLAUDE.md`** (root): Active entry point for Claude Code sessions and Claude-oriented handoffs
+
+### External Testers / Client Review
+
+1. **[Client Testing Guide](client/testing-guide.md)**: External tester entry point and shared account baseline
+2. **[Client Index](client/index.md)**: Scenario, test-case, methodology, and SR-writing references
 
 ### Document Authors
 

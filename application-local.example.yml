@@ -47,6 +47,13 @@ oauth2:
     redirect-uri: http://localhost:5173/social-login/naver
 
 app:
+  auth:
+    password-login:
+      enabled: true
+  bootstrap:
+    test-users:
+      enabled: true
+      default-password: Test1234!
   mail:
     base-url: http://localhost:5173
   security:
@@ -64,3 +71,10 @@ app:
       refresh:
         limit: 60
         window-seconds: 60
+
+# When app.bootstrap.test-users.enabled=true, these non-prod QA accounts are created/reset on boot:
+# - qa.admin@atstudio.local      (ADMIN, no subscription)
+# - qa.user@atstudio.local       (USER, no subscription)
+# - qa.subscriber@atstudio.local (USER, active DELUXE)
+# - qa.grace@atstudio.local      (USER, CANCELLED grace-period subscription)
+# - qa.business@atstudio.local   (BUSINESS USER, approved certification, active PREMIUM)

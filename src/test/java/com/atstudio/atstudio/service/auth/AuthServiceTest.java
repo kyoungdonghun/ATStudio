@@ -11,6 +11,7 @@ import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.security.JwtTokenProvider;
 import com.atstudio.atstudio.security.TokenValidationResult;
+import com.atstudio.atstudio.service.auth.PasswordLoginPolicy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,6 +41,7 @@ class AuthServiceTest {
     @Mock JwtTokenProvider jwtTokenProvider;
     @Mock UserRepository userRepository;
     @Mock OAuth2Service oAuth2Service;
+    @Mock PasswordLoginPolicy passwordLoginPolicy;
 
     @InjectMocks AuthService authService;
 
@@ -81,6 +83,24 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(BadCredentialsException.class);
+    }
+
+    @Test
+    @DisplayName("login() 실패 - 이메일 로그인 비활성화 시 PASSWORD_LOGIN_DISABLED 예외")
+    void login_disabled_throwsPasswordLoginDisabled() {
+        doThrow(new BusinessException(BUSINESS_ERROR.PASSWORD_LOGIN_DISABLED))
+                .when(passwordLoginPolicy).ensureEnabled();
+
+        LoginRequest request = new LoginRequest();
+        request.setEmail("user@test.com");
+        request.setPassword("password");
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PASSWORD_LOGIN_DISABLED));
+
+        verifyNoInteractions(authenticationManager);
     }
 
     // ── refresh() ─────────────────────────────────────────────────────────────

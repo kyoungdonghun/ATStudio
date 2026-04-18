@@ -8,6 +8,7 @@ import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.repository.EmailVerificationTokenRepository;
 import com.atstudio.atstudio.repository.PasswordResetTokenRepository;
 import com.atstudio.atstudio.repository.UserRepository;
+import com.atstudio.atstudio.service.auth.PasswordLoginPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,6 +33,7 @@ public class EmailService {
     private final PasswordResetTokenRepository resetTokenRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PasswordLoginPolicy passwordLoginPolicy;
 
     @Value("${app.mail.from:noreply@atstudio.com}")
     private String fromAddress;
@@ -43,6 +45,8 @@ public class EmailService {
 
     @Transactional
     public void sendVerificationEmail(User user) {
+        passwordLoginPolicy.ensureEnabled();
+
         // 기존 토큰 삭제 (재발송 대응)
         emailTokenRepository.deleteAllByUser(user);
 
@@ -83,6 +87,8 @@ public class EmailService {
 
     @Transactional
     public void sendPasswordResetEmail(String email) {
+        passwordLoginPolicy.ensureEnabled();
+
         // 존재하지 않는 이메일도 동일 응답 (계정 탐색 방지)
         userRepository.findByEmail(email).ifPresent(user -> {
             resetTokenRepository.deleteAllByUser(user);
@@ -105,6 +111,8 @@ public class EmailService {
 
     @Transactional
     public void resetPassword(String token, String newPassword) {
+        passwordLoginPolicy.ensureEnabled();
+
         PasswordResetToken resetToken = resetTokenRepository.findByToken(token)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.INVALID_TOKEN));
 

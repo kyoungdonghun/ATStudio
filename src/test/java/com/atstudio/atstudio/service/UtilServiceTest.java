@@ -2,7 +2,9 @@ package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.bootstrap.TestUserBootstrapProperties;
 import com.atstudio.atstudio.dto.util.DownloadCountResponse;
+import com.atstudio.atstudio.dto.util.PublicCapabilitiesResponse;
 import com.atstudio.atstudio.dto.util.SubscriptionChangePreviewResponse;
 import com.atstudio.atstudio.dto.util.SubscriptionStatusResponse;
 import com.atstudio.atstudio.dto.util.UserTypeResponse;
@@ -18,6 +20,7 @@ import com.atstudio.atstudio.repository.TrackDownloadRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.auth.PasswordLoginPolicy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +49,8 @@ class UtilServiceTest {
     @Mock UserSubscriptionRepository userSubscriptionRepository;
     @Mock SubscriptionRepository subscriptionRepository;
     @Mock TrackDownloadRepository trackDownloadRepository;
+    @Mock TestUserBootstrapProperties testUserBootstrapProperties;
+    @Mock PasswordLoginPolicy passwordLoginPolicy;
 
     @InjectMocks UtilService utilService;
 
@@ -164,6 +169,83 @@ class UtilServiceTest {
 
         assertThat(result.userType()).isEqualTo("BUSINESS");
         assertThat(result.job()).isEqualTo("EDITOR");
+    }
+
+    // ── getPublicCapabilities() ──────────────────────────────────────────────
+
+    @Test
+    @DisplayName("getPublicCapabilities() 설정된 OAuth/원격 SMTP 기준 capability 반환")
+    void getPublicCapabilities_withConfiguredProviders() {
+        given(testUserBootstrapProperties.isEnabled()).willReturn(true);
+        given(passwordLoginPolicy.isEnabled()).willReturn(true);
+        configureCapabilities(
+                "smtp.atstudio.com",
+                "google-client", "google-secret", "https://app.atstudio.com/social-login/google",
+                "", "", "",
+                "naver-client", "naver-secret", "https://app.atstudio.com/social-login/naver"
+        );
+
+        PublicCapabilitiesResponse result = utilService.getPublicCapabilities();
+
+        assertThat(result.passwordLoginEnabled()).isTrue();
+        assertThat(result.emailVerification().enabled()).isTrue();
+        assertThat(result.emailVerification().deliveryMode()).isEqualTo("REMOTE_SMTP");
+        assertThat(result.passwordReset().enabled()).isTrue();
+        assertThat(result.passwordReset().deliveryMode()).isEqualTo("REMOTE_SMTP");
+        assertThat(result.socialLogin().google().enabled()).isTrue();
+        assertThat(result.socialLogin().google().clientId()).isEqualTo("google-client");
+        assertThat(result.socialLogin().google().redirectUri())
+                .isEqualTo("https://app.atstudio.com/social-login/google");
+        assertThat(result.socialLogin().kakao().enabled()).isFalse();
+        assertThat(result.socialLogin().kakao().clientId()).isNull();
+        assertThat(result.socialLogin().naver().enabled()).isTrue();
+        assertThat(result.testUsersEnabled()).isTrue();
+    }
+
+    @Test
+    @DisplayName("getPublicCapabilities() 메일 host 미설정 시 password reset 비활성화")
+    void getPublicCapabilities_withoutMailHost() {
+        given(testUserBootstrapProperties.isEnabled()).willReturn(false);
+        given(passwordLoginPolicy.isEnabled()).willReturn(true);
+        configureCapabilities(
+                " ",
+                "", "", "",
+                "", "", "",
+                "", "", ""
+        );
+
+        PublicCapabilitiesResponse result = utilService.getPublicCapabilities();
+
+        assertThat(result.emailVerification().enabled()).isFalse();
+        assertThat(result.emailVerification().deliveryMode()).isEqualTo("UNCONFIGURED");
+        assertThat(result.passwordReset().enabled()).isFalse();
+        assertThat(result.passwordReset().deliveryMode()).isEqualTo("UNCONFIGURED");
+        assertThat(result.socialLogin().google().enabled()).isFalse();
+        assertThat(result.socialLogin().kakao().enabled()).isFalse();
+        assertThat(result.socialLogin().naver().enabled()).isFalse();
+        assertThat(result.testUsersEnabled()).isFalse();
+    }
+
+    @Test
+    @DisplayName("getPublicCapabilities() 이메일 로그인 비활성화 시 password/login mail capability 모두 false")
+    void getPublicCapabilities_passwordLoginDisabled() {
+        given(testUserBootstrapProperties.isEnabled()).willReturn(true);
+        given(passwordLoginPolicy.isEnabled()).willReturn(false);
+        configureCapabilities(
+                "smtp.atstudio.com",
+                "google-client", "google-secret", "https://app.atstudio.com/social-login/google",
+                "", "", "",
+                "", "", ""
+        );
+
+        PublicCapabilitiesResponse result = utilService.getPublicCapabilities();
+
+        assertThat(result.passwordLoginEnabled()).isFalse();
+        assertThat(result.emailVerification().enabled()).isFalse();
+        assertThat(result.passwordReset().enabled()).isFalse();
+        assertThat(result.emailVerification().deliveryMode()).isEqualTo("REMOTE_SMTP");
+        assertThat(result.socialLogin().google().enabled()).isTrue();
+        assertThat(result.testUsersEnabled()).isTrue();
     }
 
     // ── previewSubscriptionChange() ────────────────────────────────────────────
@@ -302,5 +384,29 @@ class UtilServiceTest {
                 .id(id).email("test@test.com").password("pw")
                 .role(UserRole.USER).isDeleted(false).isProfileComplete(true)
                 .build();
+    }
+
+    private void configureCapabilities(
+            String mailHost,
+            String googleClientId,
+            String googleClientSecret,
+            String googleRedirectUri,
+            String kakaoClientId,
+            String kakaoClientSecret,
+            String kakaoRedirectUri,
+            String naverClientId,
+            String naverClientSecret,
+            String naverRedirectUri
+    ) {
+        ReflectionTestUtils.setField(utilService, "mailHost", mailHost);
+        ReflectionTestUtils.setField(utilService, "googleClientId", googleClientId);
+        ReflectionTestUtils.setField(utilService, "googleClientSecret", googleClientSecret);
+        ReflectionTestUtils.setField(utilService, "googleRedirectUri", googleRedirectUri);
+        ReflectionTestUtils.setField(utilService, "kakaoClientId", kakaoClientId);
+        ReflectionTestUtils.setField(utilService, "kakaoClientSecret", kakaoClientSecret);
+        ReflectionTestUtils.setField(utilService, "kakaoRedirectUri", kakaoRedirectUri);
+        ReflectionTestUtils.setField(utilService, "naverClientId", naverClientId);
+        ReflectionTestUtils.setField(utilService, "naverClientSecret", naverClientSecret);
+        ReflectionTestUtils.setField(utilService, "naverRedirectUri", naverRedirectUri);
     }
 }

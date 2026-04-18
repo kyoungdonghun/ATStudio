@@ -1,7 +1,13 @@
 import { type FormEvent, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
-import { register, checkEmailAvailability, checkNicknameAvailability } from '@/api/auth';
+import {
+  register,
+  checkEmailAvailability,
+  checkNicknameAvailability,
+  checkPhoneAvailability,
+} from '@/api/auth';
+import { usePublicCapabilities } from '@/hooks/usePublicCapabilities';
 import {
   formatPhone,
   isValidEmail,
@@ -26,6 +32,8 @@ const JOB_OPTIONS = [
 export default function SignupPage() {
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const { capabilities, loading: capabilitiesLoading, error: capabilitiesError } =
+    usePublicCapabilities();
 
   useEffect(() => {
     if (isAuthenticated) navigate('/', { replace: true });
@@ -42,6 +50,10 @@ export default function SignupPage() {
   const [companyName, setCompanyName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const isPasswordLoginEnabled = capabilities?.passwordLoginEnabled ?? true;
+  const isEmailVerificationAvailable = capabilities?.emailVerification.enabled ?? true;
+  const isSignupEnabled = isPasswordLoginEnabled && isEmailVerificationAvailable;
+  const isLocalMailMode = capabilities?.emailVerification.deliveryMode === 'LOCAL_SMTP';
 
   function validate(): boolean {
     if (!nickname.trim()) {
@@ -98,14 +110,25 @@ export default function SignupPage() {
     e.preventDefault();
     setError('');
 
+    if (!isPasswordLoginEnabled) {
+      setError('현재 이 환경에서는 이메일 회원가입이 비활성화되어 있습니다.');
+      return;
+    }
+
+    if (!isEmailVerificationAvailable) {
+      setError('현재 이 환경에서는 이메일 인증 메일이 비활성화되어 가입을 진행할 수 없습니다.');
+      return;
+    }
+
     if (!validate()) return;
 
     setLoading(true);
     try {
       /* Parallel availability checks */
-      const [emailCheck, nicknameCheck] = await Promise.all([
+      const [emailCheck, nicknameCheck, phoneCheck] = await Promise.all([
         checkEmailAvailability(email),
         checkNicknameAvailability(nickname),
+        checkPhoneAvailability(phonePersonal),
       ]);
 
       if (!emailCheck.available) {
@@ -114,6 +137,10 @@ export default function SignupPage() {
       }
       if (!nicknameCheck.available) {
         setError('이미 사용 중인 닉네임입니다.');
+        return;
+      }
+      if (!phoneCheck.available) {
+        setError('이미 등록된 전화번호입니다.');
         return;
       }
 
@@ -312,16 +339,36 @@ export default function SignupPage() {
 
           <p className={styles.errorText}>{error}</p>
 
-          {window.location.hostname !== 'localhost' && (
-            <p className={styles.label} style={{ textAlign: 'center', marginBottom: 8 }}>
-              {'* 외부 테스트 환경에서는 이메일 인증이 자동으로 건너뛰어집니다.'}
+          {!capabilitiesLoading && capabilities && !isPasswordLoginEnabled ? (
+            <p className={styles.noticeText}>
+              현재 이 환경에서는 이메일 로그인과 회원가입이 비활성화되어 있습니다. 운영자에게 소셜 로그인 또는 테스트 계정을 확인해주세요.
             </p>
-          )}
+          ) : null}
+
+          {!capabilitiesLoading && capabilities && isPasswordLoginEnabled && !isEmailVerificationAvailable ? (
+            <p className={styles.noticeText}>
+              현재 이 환경에서는 이메일 인증 메일이 비활성화되어 있습니다. 가입 전에 운영자에게 메일
+              설정을 요청해주세요.
+            </p>
+          ) : null}
+
+          {isPasswordLoginEnabled && isLocalMailMode ? (
+            <p className={styles.noticeText}>
+              현재 이 환경에서는 로컬 메일 수신 환경(MailHog 등)에서만 인증 링크를 확인할 수 있습니다.
+            </p>
+          ) : null}
+
+          {capabilitiesError ? (
+            <p className={styles.noticeText}>
+              이메일 인증 환경을 확인하지 못했습니다. 메일 수신 여부는 현재 운영 환경 기준으로 확인해주세요.
+            </p>
+          ) : null}
 
           <Button
             type="submit"
             variant="primary"
             size="lg"
+            disabled={!isSignupEnabled}
             loading={loading}
             className={styles.submitButton}
           >

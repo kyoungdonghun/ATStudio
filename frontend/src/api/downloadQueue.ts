@@ -1,6 +1,7 @@
 import client from '@/api/client';
 
-/* ── Response type (matches backend DTO) ── */
+/* ── Legacy queue API (pre-SR-79) ── */
+/* Retained for backend compatibility. Subscriber-facing download history uses /api/downloads/history. */
 
 export interface QueueListItem {
   trackId: number;
@@ -13,18 +14,18 @@ export interface QueueListItem {
 
 /* ── API functions ── */
 
-/** POST /api/download-queue/{trackId} -- add track to queue */
+/** @deprecated Legacy queue API. Prefer direct download + download history flow. */
 export async function addToDownloadQueue(trackId: number): Promise<void> {
   await client.post(`/download-queue/${trackId}`);
 }
 
-/** GET /api/download-queue -- list queued tracks */
+/** @deprecated Legacy queue API. Prefer /api/downloads/history for subscriber-facing history. */
 export async function fetchDownloadQueue(): Promise<{ dataList: QueueListItem[] }> {
   const { data } = await client.get<{ dataList: QueueListItem[] }>('/download-queue');
   return data;
 }
 
-/** DELETE /api/download-queue/{trackId} -- remove from queue */
+/** @deprecated Legacy queue API. Prefer direct download + download history flow. */
 export async function removeFromDownloadQueue(trackId: number): Promise<void> {
   await client.delete(`/download-queue/${trackId}`);
 }

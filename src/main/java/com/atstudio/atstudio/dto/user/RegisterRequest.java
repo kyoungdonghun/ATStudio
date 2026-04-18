@@ -1,5 +1,6 @@
 package com.atstudio.atstudio.dto.user;
 
+import com.atstudio.atstudio.common.validation.ValidRegisterProfile;
 import com.atstudio.atstudio.entity.enums.UserJob;
 import com.atstudio.atstudio.entity.enums.UserType;
 import jakarta.validation.constraints.Email;
@@ -16,6 +17,7 @@ import static com.atstudio.atstudio.common.validation.ValidationConstants.*;
 @Getter
 @Setter
 @NoArgsConstructor
+@ValidRegisterProfile
 public class RegisterRequest {
 
     @NotBlank
@@ -31,6 +33,7 @@ public class RegisterRequest {
     @Size(min = PASSWORD_MIN, max = PASSWORD_MAX)
     private String password;
 
+    @NotBlank
     @Size(max = PHONE_MAX)
     @Pattern(regexp = PHONE_PATTERN)
     private String phonePersonal;

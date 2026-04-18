@@ -1,5 +1,5 @@
 import client from '@/api/client';
-import type { ApiResponse } from '@/types';
+import type { ApiResponse, UserJob, UserRole, UserType } from '@/types';
 
 /* ── Request Types ── */
 
@@ -46,18 +46,42 @@ export interface MeResponse {
   id: number;
   nickname: string;
   email: string;
-  phonePersonal: string;
+  phonePersonal: string | null;
   phoneCompany: string | null;
-  job: string;
+  job: UserJob | null;
   companyName: string | null;
-  userType: string;
-  role: 'USER' | 'ADMIN';
+  userType: UserType;
+  role: Exclude<UserRole, 'GUEST'>;
   isVerified: boolean;
   createdAt: string;
 }
 
 export interface CheckAvailabilityResponse {
   available: boolean;
+}
+
+export interface OAuthProviderCapability {
+  enabled: boolean;
+  clientId: string | null;
+  redirectUri: string | null;
+}
+
+export interface PublicCapabilitiesResponse {
+  passwordLoginEnabled: boolean;
+  emailVerification: {
+    enabled: boolean;
+    deliveryMode: 'UNCONFIGURED' | 'LOCAL_SMTP' | 'REMOTE_SMTP';
+  };
+  passwordReset: {
+    enabled: boolean;
+    deliveryMode: 'UNCONFIGURED' | 'LOCAL_SMTP' | 'REMOTE_SMTP';
+  };
+  socialLogin: {
+    google: OAuthProviderCapability;
+    kakao: OAuthProviderCapability;
+    naver: OAuthProviderCapability;
+  };
+  testUsersEnabled: boolean;
 }
 
 /* ── API Functions ── */
@@ -129,4 +153,12 @@ export async function resetPassword(token: string, newPassword: string): Promise
 /** GET /api/auth/verify-email?token=... */
 export async function verifyEmail(token: string): Promise<void> {
   await client.get('/auth/verify-email', { params: { token } });
+}
+
+/** GET /api/utils/public-capabilities -- public auth/runtime capability hints */
+export async function fetchPublicCapabilities(): Promise<PublicCapabilitiesResponse> {
+  const { data } = await client.get<ApiResponse<PublicCapabilitiesResponse>>(
+    '/utils/public-capabilities',
+  );
+  return data.data;
 }

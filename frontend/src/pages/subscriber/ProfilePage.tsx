@@ -1,10 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { fetchMe, type MeResponse } from '@/api/auth';
+import {
+  checkNicknameAvailability,
+  checkPhoneAvailability,
+  fetchMe,
+  type MeResponse,
+} from '@/api/auth';
 import { fetchMySubscription, type MySubscription } from '@/api/userSubscriptions';
 import client from '@/api/client';
 import { formatDate } from '@/utils/format';
-import { NICKNAME_MAX, PASSWORD_MIN } from '@/utils/validation';
+import type { ApiResponse, UserJob } from '@/types';
+import {
+  COMPANY_NAME_MAX,
+  formatPhone,
+  isValidNickname,
+  isValidPhone,
+  NICKNAME_MAX,
+  PASSWORD_MIN,
+} from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './ProfilePage.module.css';
 
@@ -20,6 +33,23 @@ const PLAN_NAME_LABELS: Record<string, string> = {
   PREMIUM: '프리미엄',
 };
 
+const USER_TYPE_LABELS: Record<string, string> = {
+  INDIVIDUAL: '개인',
+  BUSINESS: '기업',
+};
+
+const JOB_LABELS: Record<string, string> = {
+  EDITOR: '편집자',
+  ARTIST: '아티스트',
+  FREELANCER: '프리랜서',
+};
+
+const JOB_OPTIONS: Array<{ value: UserJob; label: string }> = [
+  { value: 'EDITOR', label: '편집자' },
+  { value: 'ARTIST', label: '아티스트' },
+  { value: 'FREELANCER', label: '프리랜서' },
+];
+
 type TabKey = 'account' | 'subscription' | 'edit' | 'password' | 'likes' | 'downloads' | 'playlists' | 'history' | 'licenses';
 
 interface MenuItem {
@@ -34,7 +64,7 @@ const MENU_ITEMS: MenuItem[] = [
   { key: 'password', label: '비밀번호 변경', group: '계정 관리' },
   { key: 'subscription', label: '구독 관리', group: '구독' },
   { key: 'likes', label: '좋아요', group: '내 활동' },
-  { key: 'downloads', label: '다운로드', group: '내 활동' },
+  { key: 'downloads', label: '다운로드 기록', group: '내 활동' },
   { key: 'playlists', label: '재생목록', group: '내 활동' },
   { key: 'history', label: '재생기록', group: '내 활동' },
   { key: 'licenses', label: '라이선스', group: '내 활동' },
@@ -51,10 +81,15 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  /* ── Edit Nickname ── */
+  /* ── Edit Profile ── */
   const [nickname, setNickname] = useState('');
+  const [phonePersonal, setPhonePersonal] = useState('');
+  const [phoneCompany, setPhoneCompany] = useState('');
+  const [job, setJob] = useState<UserJob | ''>('');
+  const [companyName, setCompanyName] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   /* ── Change Password ── */
   const [currentPassword, setCurrentPassword] = useState('');
@@ -100,23 +135,98 @@ export default function ProfilePage() {
     };
   }, []);
 
-  /* ── Save profile (nickname) ── */
+  useEffect(() => {
+    if (!profile) return;
+    setNickname(profile.nickname);
+    setPhonePersonal(profile.phonePersonal ?? '');
+    setPhoneCompany(profile.phoneCompany ?? '');
+    setJob(profile.job ?? '');
+    setCompanyName(profile.companyName ?? '');
+  }, [profile]);
+
+  const isBusinessUser = profile?.userType === 'BUSINESS';
+  const normalizedNickname = nickname.trim();
+  const normalizedPhoneCompany = phoneCompany.trim();
+  const normalizedCompanyName = companyName.trim();
+  const originalPhonePersonal = profile?.phonePersonal ?? '';
+  const originalPhoneCompany = profile?.phoneCompany ?? '';
+  const originalCompanyName = profile?.companyName ?? '';
+  const originalJob = profile?.job ?? '';
+  const isProfileDirty = profile
+    ? normalizedNickname !== profile.nickname
+      || phonePersonal !== originalPhonePersonal
+      || normalizedPhoneCompany !== originalPhoneCompany
+      || job !== originalJob
+      || normalizedCompanyName !== originalCompanyName
+    : false;
+
+  /* ── Save profile ── */
   async function handleSaveProfile() {
-    if (!nickname.trim()) return;
+    if (!profile) {
+      setProfileError('프로필을 다시 불러온 뒤 시도해주세요.');
+      return;
+    }
+
+    setProfileMsg(null);
+    setProfileError(null);
+
+    if (!normalizedNickname) {
+      setProfileError('닉네임을 입력해주세요.');
+      return;
+    }
+    if (!isValidNickname(normalizedNickname)) {
+      setProfileError('닉네임은 2~20자의 한글, 영문, 숫자, 밑줄(_)만 사용할 수 있습니다.');
+      return;
+    }
+    if (!phonePersonal.trim()) {
+      setProfileError('연락처를 입력해주세요.');
+      return;
+    }
+    if (!isValidPhone(phonePersonal)) {
+      setProfileError('올바른 전화번호 형식을 입력해주세요.');
+      return;
+    }
+    if (isBusinessUser) {
+      if (!normalizedCompanyName) {
+        setProfileError('기업 회원은 회사명을 입력해주세요.');
+        return;
+      }
+    } else if (!job) {
+      setProfileError('개인 회원은 직업을 선택해주세요.');
+      return;
+    }
+
     try {
       setSavingProfile(true);
-      setProfileMsg(null);
-      await client.put('/users/me', {
-        nickname: nickname.trim(),
-        phonePersonal: profile?.phonePersonal,
-        phoneCompany: profile?.phoneCompany,
-        job: profile?.job,
+      if (normalizedNickname !== profile.nickname) {
+        const nicknameCheck = await checkNicknameAvailability(normalizedNickname);
+        if (!nicknameCheck.available) {
+          setProfileError('이미 사용 중인 닉네임입니다.');
+          return;
+        }
+      }
+      if (phonePersonal !== originalPhonePersonal) {
+        const phoneCheck = await checkPhoneAvailability(phonePersonal);
+        if (!phoneCheck.available) {
+          setProfileError('이미 등록된 전화번호입니다.');
+          return;
+        }
+      }
+
+      const response = await client.put<ApiResponse<MeResponse>>('/users/me', {
+        nickname: normalizedNickname,
+        phonePersonal,
+        phoneCompany: isBusinessUser ? (normalizedPhoneCompany || null) : null,
+        job: isBusinessUser ? null : job,
+        companyName: isBusinessUser ? normalizedCompanyName : null,
       });
+      setProfile(response.data.data);
       setProfileMsg('프로필이 저장되었습니다.');
     } catch (err) {
-      setProfileMsg(
-        err instanceof Error ? err.message : '프로필 저장에 실패했습니다.',
-      );
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? (err instanceof Error ? err.message : '프로필 저장에 실패했습니다.');
+      setProfileError(msg);
     } finally {
       setSavingProfile(false);
     }
@@ -235,11 +345,36 @@ export default function ProfilePage() {
               </div>
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>{'유형'}</span>
-                <span className={styles.infoValue}>{profile.userType}</span>
+                <span className={styles.infoValue}>
+                  {USER_TYPE_LABELS[profile.userType] ?? profile.userType}
+                </span>
               </div>
               <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>{'직업'}</span>
-                <span className={styles.infoValue}>{profile.job}</span>
+                <span className={styles.infoLabel}>{'연락처'}</span>
+                <span className={styles.infoValue}>{profile.phonePersonal ?? '-'}</span>
+              </div>
+              {profile.userType === 'BUSINESS' ? (
+                <>
+                  <div className={styles.infoRow}>
+                    <span className={styles.infoLabel}>{'회사명'}</span>
+                    <span className={styles.infoValue}>{profile.companyName ?? '-'}</span>
+                  </div>
+                  <div className={styles.infoRow}>
+                    <span className={styles.infoLabel}>{'회사 연락처'}</span>
+                    <span className={styles.infoValue}>{profile.phoneCompany ?? '-'}</span>
+                  </div>
+                </>
+              ) : (
+                <div className={styles.infoRow}>
+                  <span className={styles.infoLabel}>{'직업'}</span>
+                  <span className={styles.infoValue}>
+                    {profile.job ? (JOB_LABELS[profile.job] ?? profile.job) : '-'}
+                  </span>
+                </div>
+              )}
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>{'권한'}</span>
+                <span className={styles.infoValue}>{profile.role}</span>
               </div>
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>{'가입일'}</span>
@@ -315,29 +450,119 @@ export default function ProfilePage() {
           {activeTab === 'edit' && (
             <div className={styles.section}>
               <div className={styles.sectionTitle}>{'프로필 수정'}</div>
+              <div className={styles.formGrid}>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel} htmlFor="profile-user-type">
+                    {'회원 유형'}
+                  </label>
+                  <input
+                    id="profile-user-type"
+                    className={styles.formInput}
+                    type="text"
+                    value={USER_TYPE_LABELS[profile.userType] ?? profile.userType}
+                    disabled
+                  />
+                  <div className={styles.formHint}>
+                    {'회원 유형은 변경할 수 없습니다.'}
+                  </div>
+                </div>
+              </div>
               <div className={styles.formGroup}>
-                <label className={styles.formLabel}>{'닉네임'}</label>
+                <label className={styles.formLabel} htmlFor="profile-nickname">
+                  {'닉네임'}
+                </label>
                 <input
+                  id="profile-nickname"
                   className={styles.formInput}
                   type="text"
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
                   maxLength={NICKNAME_MAX}
                 />
+                <div className={styles.formHint}>
+                  {'닉네임을 변경하면 저장 전에 중복 확인이 수행됩니다.'}
+                </div>
               </div>
+              <div className={styles.formGrid}>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel} htmlFor="profile-phone-personal">
+                    {'연락처'}
+                  </label>
+                  <input
+                    id="profile-phone-personal"
+                    className={styles.formInput}
+                    type="tel"
+                    value={phonePersonal}
+                    onChange={(e) => setPhonePersonal(formatPhone(e.target.value))}
+                    placeholder="010-0000-0000"
+                  />
+                </div>
+                {isBusinessUser && (
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel} htmlFor="profile-phone-company">
+                      {'회사 연락처'}
+                    </label>
+                    <input
+                      id="profile-phone-company"
+                      className={styles.formInput}
+                      type="tel"
+                      value={phoneCompany}
+                      onChange={(e) => setPhoneCompany(formatPhone(e.target.value))}
+                      placeholder="02-0000-0000"
+                    />
+                  </div>
+                )}
+              </div>
+              {isBusinessUser ? (
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel} htmlFor="profile-company-name">
+                    {'회사명'}
+                  </label>
+                  <input
+                    id="profile-company-name"
+                    className={styles.formInput}
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    maxLength={COMPANY_NAME_MAX}
+                    placeholder="회사명"
+                  />
+                  <div className={styles.formHint}>
+                    {'기업 회원은 회사명이 비어 있으면 저장할 수 없습니다.'}
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel} htmlFor="profile-job">
+                    {'직업'}
+                  </label>
+                  <select
+                    id="profile-job"
+                    className={styles.formInput}
+                    value={job}
+                    onChange={(e) => setJob(e.target.value as UserJob | '')}
+                  >
+                    <option value="">{'직업을 선택하세요'}</option>
+                    {JOB_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className={styles.buttonRow}>
                 <Button
                   variant="primary"
                   onClick={handleSaveProfile}
                   loading={savingProfile}
-                  disabled={!nickname.trim() || nickname === profile.nickname}
+                  disabled={!isProfileDirty}
                 >
                   {'저장'}
                 </Button>
               </div>
-              {profileMsg && (
-                <div className={styles.successMsg}>{profileMsg}</div>
-              )}
+              {profileMsg && <div className={styles.successMsg}>{profileMsg}</div>}
+              {profileError && <div className={styles.errorMsg}>{profileError}</div>}
             </div>
           )}
 

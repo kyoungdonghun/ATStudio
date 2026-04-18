@@ -11,12 +11,12 @@
 
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
-| A-1 | 로그인 | `5.2 POST /api/auth/login` | [PUBLIC] |
-| A-2 | 일반 회원가입 | `5.1 POST /api/users` | [PUBLIC] |
+| A-1 | 로그인 | `14.12 GET /api/utils/public-capabilities` `5.2 POST /api/auth/login` | [PUBLIC] |
+| A-2 | 일반 회원가입 | `14.2 GET /api/utils/check-email` `14.3 GET /api/utils/check-phone` `14.7 GET /api/utils/check-nickname` `14.12 GET /api/utils/public-capabilities` `5.1 POST /api/users` | [PUBLIC] |
 | A-3 | 소셜 로그인 (Google/Kakao/Naver) | `5.3 POST /api/auth/social/{provider}` | [PUBLIC] |
 | A-4 | 소셜 회원 추가정보 입력 | `5.10 PUT /api/users/me/complete-profile` | auth required |
 | A-5 | 이메일 인증 | `14.9 GET /api/auth/verify-email` | [PUBLIC] |
-| A-6 | 비밀번호 찾기 / 재설정 | `14.10 POST /api/auth/forgot-password` `14.11 POST /api/auth/reset-password` | [PUBLIC] |
+| A-6 | 비밀번호 찾기 / 재설정 | `14.12 GET /api/utils/public-capabilities` `14.10 POST /api/auth/forgot-password` `14.11 POST /api/auth/reset-password` | [PUBLIC] |
 
 ---
 
@@ -24,8 +24,8 @@
 
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
-| 1 | 메인화면 | `1.2 GET /api/tracks` `2.2 GET /api/tags` `10.1 POST /api/likes/{trackId}` `11.1 POST /api/download-queue/{trackId}` | [PUBLIC] |
-| 3 | 음원 목록 (리스트 타입) | `1.2 GET /api/tracks` `10.1 POST /api/likes/{trackId}` `11.1 POST /api/download-queue/{trackId}` | [PUBLIC] |
+| 1 | 메인화면 | `1.2 GET /api/tracks` `2.2 GET /api/tags` `10.1 POST /api/likes/{trackId}` `1.5 GET /api/tracks/{trackId}/download` | [PUBLIC] |
+| 3 | 음원 목록 (리스트 타입) | `1.2 GET /api/tracks` `10.1 POST /api/likes/{trackId}` `1.5 GET /api/tracks/{trackId}/download` | [PUBLIC] |
 | B-1 | 음원 상세 | `1.3 GET /api/tracks/{trackId}` `1.4 GET /api/tracks/{trackId}/stream` `4.1 POST /api/play-histories` | [PUBLIC] |
 | 6 | 음원 업로드 (단일/다수) | `1.1 POST /api/tracks` `2.2 GET /api/tags` | [ADMIN] |
 | 7 | 음원 수정 | `1.6 PUT /api/tracks/{trackId}` `1.3 GET /api/tracks/{trackId}` | [ADMIN] |
@@ -48,11 +48,11 @@
 
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
-| 4 | 재생목록 목록 (이미지 타입) | `3.2 GET /api/playlists` | auth required |
-| 5 | 재생목록 목록 (리스트 타입) | `3.2 GET /api/playlists` | auth required |
-| C-1 | 재생목록 상세 | `3.3 GET /api/playlists/{playlistId}` | auth required |
-| 8 | 재생목록 생성 | `3.1 POST /api/playlists` | auth required |
-| 9 | 재생목록 수정 | `3.5 PUT /api/playlists/{playlistId}` `3.6 PUT (트랙 순서)` `3.7 DELETE (트랙 삭제)` `3.4 POST (트랙 추가)` `3.8 DELETE /api/playlists/{playlistId}` | auth required |
+| 4 | 재생목록 목록 (이미지 타입) | `3.2 GET /api/playlists` | subscriber required |
+| 5 | 재생목록 목록 (리스트 타입) | `3.2 GET /api/playlists` | subscriber required |
+| C-1 | 재생목록 상세 | `3.3 GET /api/playlists/{playlistId}` | subscriber required |
+| 8 | 재생목록 생성 | `3.1 POST /api/playlists` | subscriber required |
+| 9 | 재생목록 수정 | `3.5 PUT /api/playlists/{playlistId}` `3.6 PUT (트랙 순서)` `3.7 DELETE (트랙 삭제)` `3.4 POST (트랙 추가)` `3.8 DELETE /api/playlists/{playlistId}` | subscriber required |
 
 ---
 
@@ -68,11 +68,11 @@
 
 ---
 
-## 🛒 장바구니 (다운로드 큐)
+## ⬇️ 다운로드 기록
 
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
-| 11 | 장바구니 (다운로드 큐) | `11.1~11.3 /api/download-queue` `1.5 GET /api/tracks/{trackId}/download` | auth required |
+| 11 | 다운로드 기록 (legacy route: `/download-queue`) | `11.4 GET /api/downloads/history` `11.5 GET /api/downloads/history/track-ids` `14.5 GET /api/utils/download-count` `1.5 GET /api/tracks/{trackId}/download` | auth required |
 
 ---
 

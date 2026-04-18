@@ -23,18 +23,21 @@ export default function AddToPlaylistModal({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   const [result, setResult] = useState<'success' | 'error' | 'duplicate' | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
       setReady(false);
       setSelectedId(null);
       setResult(null);
+      setLoadError(null);
       return;
     }
 
     fetchMyPlaylists()
       .then((res) => {
         setPlaylists(res.dataList ?? []);
+        setLoadError(null);
         setReady(true);
       })
       .catch((err) => {
@@ -44,6 +47,7 @@ export default function AddToPlaylistModal({
           return;
         }
         setPlaylists([]);
+        setLoadError('재생목록을 불러오지 못했습니다.');
         setReady(true);
       });
   }, [open, onClose, onSubscriptionRequired]);
@@ -77,7 +81,9 @@ export default function AddToPlaylistModal({
 
   return (
     <Modal open={open} onClose={onClose} title="재생목록에 추가">
-      {playlists.length === 0 ? (
+      {loadError ? (
+        <div className={styles.errorMsg}>{loadError}</div>
+      ) : playlists.length === 0 ? (
         <div className={styles.empty}>
           재생목록이 없습니다.
           <br />

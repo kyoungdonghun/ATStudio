@@ -3,6 +3,7 @@ package com.atstudio.atstudio.controller;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.util.CheckResponse;
 import com.atstudio.atstudio.dto.util.DownloadCountResponse;
+import com.atstudio.atstudio.dto.util.PublicCapabilitiesResponse;
 import com.atstudio.atstudio.dto.util.SubscriptionChangePreviewResponse;
 import com.atstudio.atstudio.dto.util.SubscriptionStatusResponse;
 import com.atstudio.atstudio.dto.util.UserTypeResponse;
@@ -24,6 +25,13 @@ public class UtilController {
 
     private final UserService userService;
     private final UtilService utilService;
+
+    @GetMapping("/public-capabilities")
+    public ResponseEntity<ResponseDTO<PublicCapabilitiesResponse>> getPublicCapabilities() {
+        return ResponseEntity.ok(ResponseDTO.<PublicCapabilitiesResponse>withSingleData()
+                .data(utilService.getPublicCapabilities())
+                .build());
+    }
 
     @GetMapping("/check-email")
     public ResponseEntity<ResponseDTO<CheckResponse>> checkEmail(

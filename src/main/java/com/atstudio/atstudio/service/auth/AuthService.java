@@ -33,9 +33,12 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
     private final OAuth2Service oAuth2Service;
+    private final PasswordLoginPolicy passwordLoginPolicy;
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
+        passwordLoginPolicy.ensureEnabled();
+
         // 1. Spring Security 인증 (BadCredentialsException 자동 발생)
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));

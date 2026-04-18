@@ -116,6 +116,11 @@ public enum BUSINESS_ERROR {
             "이메일 또는 비밀번호가 올바르지 않습니다.",
             "로그인 인증 실패."),
 
+    PASSWORD_LOGIN_DISABLED(
+            HttpStatus.FORBIDDEN,
+            "현재 이 환경에서는 이메일 로그인과 회원가입이 비활성화되어 있습니다.",
+            "Password login mode is disabled for this environment."),
+
     TOKEN_EXPIRED(
             HttpStatus.UNAUTHORIZED,
             "인증이 만료되었습니다. 다시 로그인해주세요.",
@@ -160,6 +165,11 @@ public enum BUSINESS_ERROR {
             HttpStatus.CONFLICT,
             "이미 가입된 이메일입니다.",
             "회원가입 시 이메일 중복."),
+
+    PHONE_ALREADY_REGISTERED(
+            HttpStatus.CONFLICT,
+            "이미 등록된 전화번호입니다.",
+            "회원가입/프로필 수정 시 전화번호 중복."),
 
     // ── Track / Tag ───────────────────────────────────────────────────────────
     TRACK_NOT_FOUND(

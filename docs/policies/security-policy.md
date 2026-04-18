@@ -104,6 +104,7 @@ task_types:
 - `POST /api/users` (registration)
 - `POST /api/auth/*` (login, social, refresh, forgot/reset password)
 - `GET /api/auth/verify-email`
+- `GET /api/utils/public-capabilities`
 - `GET /api/utils/check-email`, `check-phone`, `check-nickname`
 - `GET /api/tracks`, `GET /api/tracks/*`, `GET /api/tracks/*/stream`
 - `GET /api/tags`
@@ -123,6 +124,7 @@ task_types:
 **Token storage:** JWT access token and refresh token are stored in **browser localStorage** (not httpOnly cookie). Frontend reads token from `localStorage` and sends as `Authorization: Bearer <token>` header via Axios interceptor.
 
 **Current state:** `application.yml` no longer carries a fallback JWT secret, and local-only conveniences (DDL auto-update, SQL logging, localhost mail/OAuth redirects) belong in the gitignored root `application-local.yml`.
+Local password auth availability is controlled by `APP_AUTH_PASSWORD_LOGIN_ENABLED` / `app.auth.password-login.enabled`. When disabled, `/api/utils/public-capabilities` reports `passwordLoginEnabled=false`, and local email/password login, signup, verification mail, and password reset must be treated as unavailable.
 
 ### 6.4 Environment Baseline
 
@@ -135,6 +137,7 @@ Use the committed `application.yml` as the safe shared baseline, and override pe
 | `SWAGGER_ENABLED` | `true` allowed | `false` by default | `false` | If temporarily enabled outside local, protect separately |
 | `MAIL_HOST` | `localhost` / MailHog | stage SMTP | production SMTP | Do not rely on localhost outside local dev |
 | `APP_BASE_URL` | `http://localhost:5173` | stage frontend URL | production frontend URL | Email links and redirects must match deployed frontend |
+| `APP_AUTH_PASSWORD_LOGIN_ENABLED` | `true` | `true` or `false` per environment | `true` unless explicitly social-only | Disables local email/password login, signup, and reset flows when false |
 | `GOOGLE_REDIRECT_URI`, `KAKAO_REDIRECT_URI`, `NAVER_REDIRECT_URI` | local SPA callback | stage SPA callback | production SPA callback | Must match provider console exactly |
 | `APP_SECURITY_RATE_LIMIT_ENABLED` | `true` | `true` | `true` | Local may relax limits in `application-local.yml` only |
 | `APP_SECURITY_RATE_LIMIT_LOGIN_LIMIT` | `30` recommended | `10` | `10` | Stage/prod should stay aligned unless capacity review says otherwise |

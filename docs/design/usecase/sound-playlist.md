@@ -13,7 +13,7 @@
 | **Version** | 26-02-20 |
 | **Description** | Member creates a new playlist. |
 | **Actor** | User (Member), Backend |
-| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
+| **Preconditions** | Logged in. Has a service-enabled subscription (`user_subscriptions.status=ACTIVE`, or `status=CANCELLED` with `expiresAt` still in the future). |
 | **Trigger** | User clicks the 'Create Playlist' button. |
 | **Related UC** | SOUND-019 (add track), SOUND-008 (view detail) |
 
@@ -26,7 +26,7 @@
 6. Backend creates a playlists record (is_active=1) and returns a 201 response.
 
 **Exception / Alternative Flow**
-- Active playlist count already at 3: 409 `PLAYLIST_LIMIT_EXCEEDED`. Frontend pre-empts this by hiding the 'Create Playlist' button when 3 active playlists exist (client-side guard before API call).
+- Active playlist count already at the current plan's `subscriptions.max_playlists`: 409 `PLAYLIST_LIMIT_EXCEEDED`. Frontend pre-empts this by hiding the 'Create Playlist' button when the active playlist count reaches the subscribed tier limit (client-side guard before API call).
 
 **Postconditions**
 - playlists record created. No tracks yet (empty playlist).
@@ -41,7 +41,7 @@
 | **Version** | 26-02-20 |
 | **Description** | Logged-in user views their own playlist list. |
 | **Actor** | User (Member), Backend |
-| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
+| **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). |
 | **Trigger** | User navigates to the playlist list screen. |
 | **Related UC** | SOUND-008 (view detail) |
 
@@ -62,7 +62,7 @@
 | **Version** | 26-02-20 |
 | **Description** | Logged-in user views playlist detail (included tracks + track order). |
 | **Actor** | User (Member), Backend |
-| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). Owns the playlist. |
+| **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). Owns the playlist. |
 | **Trigger** | User clicks a playlist. |
 | **Related UC** | SOUND-013 (update), SOUND-020 (remove track) |
 
@@ -86,7 +86,7 @@
 | **Version** | 26-02-20 |
 | **Description** | User adds a track to an existing playlist. |
 | **Actor** | User (Member), Backend |
-| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). Must own the playlist. |
+| **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). Must own the playlist. |
 | **Trigger** | User clicks the 'Add to Playlist' button on a track. |
 | **Related UC** | SOUND-008 (view detail), SOUND-020 (remove track) |
 
@@ -113,7 +113,7 @@
 | **Version** | 26-02-20 |
 | **Description** | User updates playlist metadata (title/description/thumbnail) or changes track order. |
 | **Actor** | User (Member), Backend |
-| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). Owns the playlist. |
+| **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). Owns the playlist. |
 | **Trigger** | User clicks the playlist 'Edit' button. |
 | **Related UC** | SOUND-008 (view detail) |
 
@@ -140,7 +140,7 @@
 | **Version** | 26-02-20 |
 | **Description** | User removes a specific track from a playlist. |
 | **Actor** | User (Member), Backend |
-| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). Owns the playlist. The track must be in the playlist. |
+| **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). Owns the playlist. The track must be in the playlist. |
 | **Trigger** | User clicks the 'Remove' button on a track in the playlist detail screen. |
 | **Related UC** | SOUND-008 (view detail) |
 
@@ -163,7 +163,7 @@
 | **Version** | 26-02-20 |
 | **Description** | User deletes their own playlist. |
 | **Actor** | User (Member), Backend |
-| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). Owns the playlist. |
+| **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). Owns the playlist. |
 | **Trigger** | User clicks the playlist 'Delete' button. |
 | **Related UC** | - |
 

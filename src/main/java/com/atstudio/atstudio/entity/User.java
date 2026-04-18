@@ -84,7 +84,15 @@ public class User extends BaseEntity {
     }
 
     public boolean isProfileComplete() {
-        return phonePersonal != null && job != null;
+        if (phonePersonal == null || phonePersonal.isBlank()) {
+            return false;
+        }
+
+        if (userType == UserType.BUSINESS) {
+            return companyName != null && !companyName.isBlank();
+        }
+
+        return job != null;
     }
 
     public void updateByAdmin(UserRole role, Boolean isVerified) {
@@ -107,5 +115,33 @@ public class User extends BaseEntity {
         this.job = job;
         this.userType = userType;
         this.companyName = companyName;
+    }
+
+    /**
+     * Non-production fixture synchronization helper.
+     * Keeps a known QA account usable across repeated local/stage boots.
+     */
+    public void applyBootstrapFixture(
+            String nickname,
+            String encodedPassword,
+            String phonePersonal,
+            String phoneCompany,
+            boolean verified,
+            UserRole role,
+            UserJob job,
+            UserType userType,
+            String companyName
+    ) {
+        this.nickname = nickname;
+        this.password = encodedPassword;
+        this.phonePersonal = phonePersonal;
+        this.phoneCompany = phoneCompany;
+        this.isVerified = verified;
+        this.role = role;
+        this.job = job;
+        this.userType = userType;
+        this.companyName = companyName;
+        this.isDeleted = false;
+        this.refreshToken = null;
     }
 }

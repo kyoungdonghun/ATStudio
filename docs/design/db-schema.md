@@ -101,7 +101,7 @@
 | User type | `user_type` | ENUM('INDIVIDUAL','BUSINESS') | NOT NULL | | 'INDIVIDUAL' | Individual / Business member |
 | Company name | `company_name` | VARCHAR(100) | NULL | | NULL | Company name for BUSINESS members (manual input, SR-47). Independent of company_certifications document field. |
 | Soft delete flag | `is_deleted` | TINYINT(1) | NOT NULL | | 0 | Account deactivation |
-| Refresh token | `refresh_token` | VARCHAR(512) | NULL | | | BCrypt-hashed refresh token. NULL when logged out. |
+| Refresh token | `refresh_token` | VARCHAR(512) | NULL | | | SHA-256 hashed refresh token. NULL when logged out. |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 

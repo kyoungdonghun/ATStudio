@@ -13,6 +13,7 @@ import {
   fetchSubscriptionPlans,
   type SubscriptionPlan,
 } from '@/api/subscriptions';
+import { isSubscriptionRequired } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -67,12 +68,18 @@ export default function SubscriptionManagePage() {
       setLoading(true);
       setError(null);
       const userType = useAuthStore.getState().user?.userType ?? 'INDIVIDUAL';
-      const [subRes, plansRes] = await Promise.all([
-        fetchMySubscription(),
-        fetchSubscriptionPlans(userType),
-      ]);
-      setSub(subRes);
+      const plansRes = await fetchSubscriptionPlans(userType);
       setPlans(plansRes);
+      try {
+        const subRes = await fetchMySubscription();
+        setSub(subRes);
+      } catch (err) {
+        if (isSubscriptionRequired(err)) {
+          setSub(null);
+          return;
+        }
+        throw err;
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : '구독 정보를 불러오지 못했습니다.',

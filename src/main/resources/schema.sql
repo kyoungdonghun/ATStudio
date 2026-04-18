@@ -6,7 +6,8 @@
 -- Charset : utf8mb4 / utf8mb4_unicode_ci
 -- DB      : atstudio  (see application.yml)
 --
--- NOTE: ddl-auto=update is set in application.yml.
+-- NOTE: Base application.yml uses ddl-auto=validate.
+--       Local development may override this via application-local.yml.
 --       This file is for MANUAL setup / reference only.
 --       Spring Boot does NOT auto-execute this for external DBs by default.
 --
@@ -37,7 +38,7 @@ CREATE TABLE IF NOT EXISTS users
     company_name   VARCHAR(100)                               NULL                                COMMENT 'Company name for BUSINESS members.',
     user_type      ENUM ('INDIVIDUAL', 'BUSINESS')            NOT NULL DEFAULT 'INDIVIDUAL',
     is_deleted     TINYINT(1)                                 NOT NULL DEFAULT 0                  COMMENT 'Soft delete flag.',
-    refresh_token  VARCHAR(512)                               NULL                                COMMENT 'BCrypt-hashed refresh token. NULL when logged out.',
+    refresh_token  VARCHAR(512)                               NULL                                COMMENT 'SHA-256 hashed refresh token. NULL when logged out.',
     created_at     DATETIME                                   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at     DATETIME                                   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),

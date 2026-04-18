@@ -90,7 +90,7 @@ dependencies:
 | M-19 | ANNOUNCE-005 | Screen 22 (공지 조회) | "공지 삭제" 클릭 | "공지를 삭제하시겠습니까?" | ConfirmModal | `9.5 DELETE /api/notices/{noticeId}` |
 | M-20 | QUESTION-006 | Screen 15 (문의 보기) | "문의 삭제" 클릭 | "문의를 삭제하시겠습니까?" | ConfirmModal | `8.7 DELETE /api/questions/{questionId}` |
 | M-21 | WL-004 | H-1 (채널 등록/목록/수정) | "채널 삭제" 클릭 | "채널을 삭제하시겠습니까?" | ConfirmModal | `12.4 DELETE /api/whitelist-channels/{channelId}` |
-| M-22 | DLQ-003 | Screen 11 (장바구니) | "항목 제거" 클릭 | "장바구니에서 제거하시겠습니까?" | ConfirmModal | `11.3 DELETE /api/download-queue/{trackId}` |
+| M-22 | DLQ-003 | Legacy Screen 11 (pre-SR-79) | "항목 제거" 클릭 | "장바구니에서 제거하시겠습니까?" | ConfirmModal | `11.3 DELETE /api/download-queue/{trackId}` |
 | M-23 | LIKE-003 | D-1 (좋아요 목록) | "좋아요 취소" 클릭 | "좋아요를 취소하시겠습니까?" | ConfirmModal | `10.3 DELETE /api/likes/{trackId}` |
 | M-24 | PAYMENT-009 | K-2 (구독 목록/상세) | "구독 강제 취소" 클릭 | "구독을 강제 취소하시겠습니까?" | ConfirmModal | `6.9 DELETE /api/user-subscriptions/{userSubscriptionId}` |
 | M-25 | INFO-006 | K-1 (회원 목록/상세) | "권한 수정 저장" 클릭 | "회원 권한을 변경하시겠습니까?" | ConfirmModal | `5.8 PUT /api/users/{userId}` |
@@ -98,6 +98,7 @@ dependencies:
 | M-27 | PAYMENT-007 | M-09 (PlanCompareModal 내) | 업그레이드 결제 확인 | PG 결제 창 **[보류]** | ⚠️ PG 보류 | `6.7 PUT /api/user-subscriptions/me` |
 | M-28 | - | K-6 (태그 관리) | "태그 삭제" 클릭 | "태그를 삭제하시겠습니까?" | ConfirmModal | `2.4 DELETE /api/tags/{tagId}` |
 | M-29 | SR-34 | D-1 (좋아요 목록 > 앨범 탭) | "좋아요 취소" 클릭 | "좋아요를 취소하시겠습니까?" | ConfirmModal | `DELETE /api/likes/albums/{albumId}` |
+| M-30 | SR-79 | Screen 11 (다운로드 기록) | "전체 재다운로드" 클릭 | "{N}곡을 다운로드합니다. 계속하시겠습니까?" | ConfirmDialog | `GET /api/downloads/history/track-ids` + `GET /api/tracks/{trackId}/download` |
 
 ---
 
@@ -219,7 +220,9 @@ dependencies:
 
 ---
 
-## Playlist 3-Item Limit Handling
+## Playlist Tier Limit Handling
+> **Updated baseline (2026-04-18)**: playlist creation limit follows the current subscription tier's `subscriptions.max_playlists`, not a fixed 3 items.
+> Frontend and backend both use the same tier limit, and admin has no playlist-specific bypass.
 
 활성 재생목록 개수 기준: `GET /api/playlists` 응답에서 `is_active=true` 항목 수.
 

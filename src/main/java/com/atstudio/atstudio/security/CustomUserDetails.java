@@ -53,6 +53,6 @@ public class CustomUserDetails implements UserDetails {
     }
 
     private static boolean determineProfileComplete(User user) {
-        return user.getPhonePersonal() != null && user.getJob() != null;
+        return user.isProfileComplete();
     }
 }

@@ -20,15 +20,13 @@
 **Main Flow**
 1. User navigates to the registration screen.
 2. User enters metadata (nickname, email, password, personal phone number, job, user type).
-3. Frontend performs real-time input validation.
-4. User clicks the 'Check Duplicate' button for email, phone number, and nickname respectively.
+3. Frontend performs input validation and availability checks for email, phone number, and nickname before submit.
    - Email: UTIL-002, Phone: UTIL-003, Nickname: UTIL-012 called
-5. Once all duplicate checks pass, the 'Register' button is enabled.
-6. User clicks the 'Register' button.
-7. Frontend sends the input data to the backend.
-8. Backend performs server-side validation.
-9. Backend hashes the password with BCrypt and saves to the users table (is_verified=0).
-10. Backend returns a success response (201 Created), and the frontend navigates to the login screen.
+4. User clicks the 'Register' button.
+5. Frontend sends the input data to the backend.
+6. Backend performs server-side validation and repeats the same uniqueness checks for email, phone number, and nickname.
+7. Backend hashes the password with BCrypt and saves to the users table (is_verified=0).
+8. Backend returns a success response (201 Created), and the frontend navigates to the login screen.
 
 **Exception / Alternative Flow**
 - Social login: see INFO-013.
@@ -56,7 +54,7 @@
 3. Backend looks up the user by email and verifies the BCrypt password.
 4. Backend issues an Access Token (short-lived) and Refresh Token (long-lived).
 5. Backend returns token information (accessToken, refreshToken, tokenType, expiresIn).
-6. Frontend stores the Access Token in memory and the Refresh Token in an httpOnly cookie.
+6. Frontend stores both the Access Token and Refresh Token in browser storage.
 
 **Exception / Alternative Flow**
 - Email not found or password mismatch: 401 response.
@@ -106,7 +104,7 @@
 |-------|-------|
 | **Code** | INFO-014 |
 | **Version** | 26-02-20 |
-| **Description** | A member who first signed up via social login enters required profile information (nickname, phone number, job, user type) to complete their profile. |
+| **Description** | A member who first signed up via social login enters required profile information to complete their profile. `INDIVIDUAL` members provide job, while `BUSINESS` members provide companyName. |
 | **Actor** | User (new social sign-up), Backend |
 | **Preconditions** | Logged in. users record exists with isProfileComplete=false. |
 | **Trigger** | After receiving isProfileComplete=false response from INFO-013, frontend automatically navigates to the profile completion screen. |
@@ -114,18 +112,21 @@
 
 **Main Flow**
 1. Frontend displays the profile completion screen.
-2. User enters nickname (required), personal phone number (required), job (required), and user type (INDIVIDUAL/BUSINESS, required).
-3. Frontend performs UTIL-003 (phone duplicate) and UTIL-012 (nickname duplicate) checks.
+2. User enters nickname (required), personal phone number (required), user type (INDIVIDUAL/BUSINESS, required), and the user-type-specific profile field.
+   - `INDIVIDUAL`: job (required)
+   - `BUSINESS`: companyName (required)
+3. Frontend performs UTIL-003 (phone duplicate) and UTIL-012 (nickname duplicate) checks before submit.
 4. User clicks the 'Complete' button.
 5. Frontend sends auth token and profile information to `PUT /api/users/me/complete-profile`.
-6. Backend verifies isProfileComplete=false.
-7. Backend updates the users record (nickname, phonePersonal, job, userType).
+6. Backend verifies isProfileComplete=false and repeats the uniqueness checks for nickname and phone number.
+7. Backend updates the users record (nickname, phonePersonal, userType, and either job or companyName depending on member type).
 8. Backend returns the updated user information (same format as 5.4 view my info).
 9. Frontend navigates to the main screen.
 
 **Exception / Alternative Flow**
 - Nickname duplicate: UTIL-012 returns available=false. Prompts re-entry.
 - Phone duplicate: UTIL-003 returns available=false. Prompts re-entry.
+- Required profile field missing for the selected user type: backend returns `INVALID_VALID`.
 
 **Postconditions**
 - Required profile information saved in the users record. isProfileComplete=true going forward.
@@ -202,28 +203,34 @@
 |-------|-------|
 | **Code** | INFO-005 |
 | **Version** | 26-02-20 |
-| **Description** | Member updates their own information. Editable fields: nickname, phonePersonal, phoneCompany, job. |
+| **Description** | Member updates their own information. Editable fields: nickname, phonePersonal, phoneCompany, job, companyName (BUSINESS only). |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. |
 | **Trigger** | User clicks the 'Edit Info' button on the 'My Info' screen. |
 | **Related UC** | UTIL-012 (nickname duplicate check) |
 
 **Main Flow**
-1. User modifies editable fields (nickname, phonePersonal, phoneCompany, job).
+1. User modifies editable fields (nickname, phonePersonal, phoneCompany, job, companyName when applicable).
 2. Frontend performs real-time validation.
 3. If nickname is changed, performs duplicate check via UTIL-012 (nickname duplicate check).
 4. User clicks the 'Save' button.
 5. Frontend sends the changed data to the backend.
-6. Backend performs validation and updates the users record.
-7. Returns and displays the updated info on screen.
+6. Backend resolves the effective final state by combining omitted fields with the current stored profile.
+7. Backend validates the effective state against the current member type (`userType` from the authenticated user):
+   - `phonePersonal` must remain present
+   - `INDIVIDUAL` members must retain `job`
+   - `BUSINESS` members must retain non-blank `companyName`
+8. Backend updates the users record.
+9. Returns and displays the updated info on screen.
 
 **Exception / Alternative Flow**
 - Nickname duplicate: UTIL-012 returns available=false.
+- Effective profile state invalid for the current member type: backend returns `INVALID_ARGUMENT`.
 
 **Postconditions**
 - Updated information reflected in DB. Updated info displayed on screen.
 
-> **Note**: email and userType are not editable.
+> **Note**: email and userType are not editable. `userType` is inferred from the authenticated user, not sent by the update request.
 
 ---
 

@@ -7,7 +7,6 @@ import com.atstudio.atstudio.entity.Playlist;
 import com.atstudio.atstudio.entity.PlaylistTrack;
 import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.User;
-import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.key.PlaylistTrackId;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.security.CustomUserDetails;
@@ -43,14 +42,11 @@ public class PlaylistService {
                                            CustomUserDetails userDetails) {
         User user = validateSubscriber(userDetails);
 
-        boolean isAdmin = userDetails.getRole() == UserRole.ADMIN;
-        if (!isAdmin) {
-            int maxPlaylists = userSubscriptionRepository.findActiveByUser(user, LocalDate.now())
-                    .map(us -> us.getSubscription().getMaxPlaylists())
-                    .orElse(3);
-            if (playlistRepository.countByUserAndIsActiveTrue(user) >= maxPlaylists) {
-                throw new BusinessException(BUSINESS_ERROR.PLAYLIST_LIMIT_EXCEEDED);
-            }
+        int maxPlaylists = userSubscriptionRepository.findActiveByUser(user, LocalDate.now())
+                .map(us -> us.getSubscription().getMaxPlaylists())
+                .orElse(3);
+        if (playlistRepository.countByUserAndIsActiveTrue(user) >= maxPlaylists) {
+            throw new BusinessException(BUSINESS_ERROR.PLAYLIST_LIMIT_EXCEEDED);
         }
 
         String thumbnailUrl = (thumbnailFile != null && !thumbnailFile.isEmpty())

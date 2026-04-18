@@ -39,6 +39,7 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
   const [maxPlaylists, setMaxPlaylists] = useState(DEFAULT_MAX_PLAYLISTS);
   const [selectedPl, setSelectedPl] = useState<PlaylistDetail | null>(null);
   const [plLoading, setPlLoading] = useState(false);
+  const [playlistError, setPlaylistError] = useState<string | null>(null);
 
   /* ── Create form ── */
   const [showCreate, setShowCreate] = useState(false);
@@ -61,21 +62,26 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
   const loadPlaylists = useCallback(async () => {
     if (!isAuthenticated) return;
     setPlLoading(true);
+    setPlaylistError(null);
     try {
       const [plRes, subRes] = await Promise.allSettled([
         fetchMyPlaylists(),
         fetchMySubscription(),
       ]);
-      if (plRes.status === 'fulfilled') {
-        setPlaylists(plRes.value.dataList ?? []);
+      if (plRes.status === 'rejected') {
+        throw plRes.reason;
       }
+      setPlaylists(plRes.value.dataList ?? []);
       if (subRes.status === 'fulfilled') {
         const sub = subRes.value;
         if (sub.subscription?.maxPlaylists) {
           setMaxPlaylists(sub.subscription.maxPlaylists);
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      setPlaylists([]);
+      setPlaylistError('재생목록을 불러오지 못했습니다.');
+    }
     setPlLoading(false);
   }, [isAuthenticated]);
 
@@ -376,6 +382,8 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
           <div className={styles.body}>
             {plLoading ? (
               <div className={styles.empty}>Loading...</div>
+            ) : playlistError ? (
+              <div className={styles.empty}>{playlistError}</div>
             ) : (
               <>
                 <ul className={styles.plList}>

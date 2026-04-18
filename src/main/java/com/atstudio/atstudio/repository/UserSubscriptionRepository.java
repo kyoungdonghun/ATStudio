@@ -15,6 +15,8 @@ import java.util.Optional;
 
 public interface UserSubscriptionRepository extends JpaRepository<UserSubscription, Long> {
 
+    Optional<UserSubscription> findByUser(User user);
+
     /**
      * ACTIVE 또는 CANCELLED 상태이면서 expiresAt이 아직 지나지 않은 구독을 조회한다.
      * CANCELLED 상태라도 expiresAt까지는 서비스 이용이 가능하다 (BD-1 유예 기간).

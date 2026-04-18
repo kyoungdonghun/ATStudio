@@ -76,6 +76,16 @@ class SecurityFilterChainTest {
     }
 
     @Test
+    @DisplayName("GET /api/utils/public-capabilities - 토큰 없이 접근 가능 (PUBLIC)")
+    void publicCapabilities_publicEndpoint_notBlocked() throws Exception {
+        mockMvc.perform(get("/api/utils/public-capabilities"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.passwordLoginEnabled").value(true))
+                .andExpect(jsonPath("$.data.passwordReset.enabled").value(true))
+                .andExpect(jsonPath("$.data.socialLogin.google.enabled").value(false));
+    }
+
+    @Test
     @DisplayName("POST /api/auth/login - repeated attempts from same IP => 429 Too Many Requests")
     void login_rateLimitExceeded_returns429() throws Exception {
         when(authService.login(any()))

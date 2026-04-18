@@ -76,6 +76,14 @@
   min-height: 16px;
 }
 
+.helperText {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text2);
+  text-align: center;
+}
+
 .submitButton {
   width: 100%;
   margin-top: 8px;
@@ -97,6 +105,12 @@
 
 .link:hover {
   color: var(--accent);
+}
+
+.linkDisabled,
+.linkDisabled:hover {
+  color: var(--text2);
+  cursor: default;
 }
 
 /* ── Social login ── */

@@ -2,7 +2,8 @@ import { type FormEvent, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { login, fetchMe } from '@/api/auth';
-import type { MeResponse } from '@/api/auth';
+import type { MeResponse, PublicCapabilitiesResponse } from '@/api/auth';
+import { usePublicCapabilities } from '@/hooks/usePublicCapabilities';
 import { isValidEmail, PASSWORD_MIN } from '@/utils/validation';
 import { safeSessionStorage } from '@/utils/safeStorage';
 import Button from '@/components/ui/Button';
@@ -28,29 +29,50 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
 
 /* ── Provider config ── */
 
-const PROVIDER_CONFIG: Record<string, { authUrl: string; clientId: string; scope: string }> = {
+const PROVIDER_CONFIG = {
   GOOGLE: {
     authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
-    clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '',
     scope: 'email profile',
   },
   KAKAO: {
     authUrl: 'https://kauth.kakao.com/oauth/authorize',
-    clientId: import.meta.env.VITE_KAKAO_CLIENT_ID ?? '',
     scope: 'profile_nickname account_email',
   },
   NAVER: {
     authUrl: 'https://nid.naver.com/oauth2.0/authorize',
-    clientId: import.meta.env.VITE_NAVER_CLIENT_ID ?? '',
     scope: '',
   },
-};
+} as const;
+
+const PROVIDER_LABELS = {
+  GOOGLE: 'Google',
+  KAKAO: 'Kakao',
+  NAVER: 'Naver',
+} as const;
+
+const PROVIDER_KEYS = {
+  GOOGLE: 'google',
+  KAKAO: 'kakao',
+  NAVER: 'naver',
+} as const;
+
+type SocialProvider = keyof typeof PROVIDER_CONFIG;
+
+function getProviderCapability(
+  capabilities: PublicCapabilitiesResponse | null,
+  provider: SocialProvider,
+) {
+  if (!capabilities) return null;
+  return capabilities.socialLogin[PROVIDER_KEYS[provider]];
+}
 
 /** Screen A-1: Login */
 export default function LoginPage() {
   const navigate = useNavigate();
   const authLogin = useAuthStore((s) => s.login);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const { capabilities, loading: capabilitiesLoading, error: capabilitiesError } =
+    usePublicCapabilities();
 
   useEffect(() => {
     if (isAuthenticated) navigate('/', { replace: true });
@@ -60,6 +82,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const enabledSocialProviders = (Object.keys(PROVIDER_CONFIG) as SocialProvider[]).filter(
+    (provider) => getProviderCapability(capabilities, provider)?.enabled,
+  );
+  const isPasswordLoginEnabled = capabilities?.passwordLoginEnabled ?? true;
+  const isQaBootstrapEnabled = capabilities?.testUsersEnabled ?? false;
+  const isPasswordResetAvailable = capabilities?.passwordReset.enabled ?? true;
+  const isLocalMailMode = capabilities?.passwordReset.deliveryMode === 'LOCAL_SMTP';
 
   function validate(): boolean {
     if (!email.trim()) {
@@ -84,6 +114,11 @@ export default function LoginPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
+
+    if (!isPasswordLoginEnabled) {
+      setError('현재 이 환경에서는 이메일 로그인이 비활성화되어 있습니다.');
+      return;
+    }
 
     if (!validate()) return;
 
@@ -119,12 +154,14 @@ export default function LoginPage() {
     }
   }
 
-  async function handleSocialLogin(provider: string) {
+  async function handleSocialLogin(provider: SocialProvider) {
     const config = PROVIDER_CONFIG[provider];
+    const providerCapability = getProviderCapability(capabilities, provider);
+
     if (!config) return;
 
-    if (!config.clientId) {
-      setError(`${provider} 로그인이 설정되지 않았습니다.`);
+    if (!providerCapability?.enabled || !providerCapability.clientId || !providerCapability.redirectUri) {
+      setError(`${PROVIDER_LABELS[provider]} 로그인이 현재 이 환경에서 비활성화되어 있습니다.`);
       return;
     }
 
@@ -137,11 +174,10 @@ export default function LoginPage() {
     safeSessionStorage.setItem('oauth_code_verifier', codeVerifier);
     const codeChallenge = await generateCodeChallenge(codeVerifier);
 
-    const redirectUri = `${window.location.origin}/social-login/${provider.toLowerCase()}`;
     const params = new URLSearchParams({
       response_type: 'code',
-      client_id: config.clientId,
-      redirect_uri: redirectUri,
+      client_id: providerCapability.clientId,
+      redirect_uri: providerCapability.redirectUri,
       scope: config.scope,
       state,
       code_challenge: codeChallenge,
@@ -170,6 +206,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
+              disabled={!isPasswordLoginEnabled}
             />
           </div>
 
@@ -185,6 +222,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
+              disabled={!isPasswordLoginEnabled}
             />
           </div>
 
@@ -194,6 +232,7 @@ export default function LoginPage() {
             type="submit"
             variant="primary"
             size="lg"
+            disabled={!isPasswordLoginEnabled}
             loading={loading}
             className={styles.submitButton}
           >
@@ -205,38 +244,65 @@ export default function LoginPage() {
           <span className={styles.dividerText}>또는</span>
         </div>
 
-        <div className={styles.socialButtons}>
-          <button
-            type="button"
-            className={styles.socialBtn}
-            onClick={() => handleSocialLogin('GOOGLE')}
-          >
-            Google 로그인
-          </button>
-          <button
-            type="button"
-            className={styles.socialBtn}
-            onClick={() => handleSocialLogin('KAKAO')}
-          >
-            Kakao 로그인
-          </button>
-          <button
-            type="button"
-            className={styles.socialBtn}
-            onClick={() => handleSocialLogin('NAVER')}
-          >
-            Naver 로그인
-          </button>
-        </div>
+        {enabledSocialProviders.length > 0 ? (
+          <div className={styles.socialButtons}>
+            {enabledSocialProviders.map((provider) => (
+              <button
+                key={provider}
+                type="button"
+                className={styles.socialBtn}
+                onClick={() => handleSocialLogin(provider)}
+              >
+                {PROVIDER_LABELS[provider]} 로그인
+              </button>
+            ))}
+          </div>
+        ) : !capabilitiesLoading ? (
+          <p className={styles.helperText}>이 환경에서는 소셜 로그인이 비활성화되어 있습니다.</p>
+        ) : null}
+
+        {capabilitiesError ? (
+          <p className={styles.helperText}>
+            {capabilitiesError} 이메일 로그인만 사용할 수 있습니다.
+          </p>
+        ) : null}
+
+        {!isPasswordLoginEnabled && !capabilitiesLoading ? (
+          <p className={styles.helperText}>
+            현재 이 환경에서는 이메일 로그인과 회원가입이 비활성화되어 있습니다.
+          </p>
+        ) : null}
+
+        {isQaBootstrapEnabled && !capabilitiesLoading ? (
+          <p className={styles.helperText}>
+            이 환경에서는 QA 테스트 계정이 활성화되어 있습니다. 계정은 운영자가 별도로 제공합니다.
+          </p>
+        ) : null}
 
         <div className={styles.links}>
-          <Link to="/signup" className={styles.link}>
+          {isPasswordLoginEnabled ? (
+            <Link to="/signup" className={styles.link}>
             회원가입
           </Link>
-          <Link to="/password-reset" className={styles.link}>
-            비밀번호 찾기
-          </Link>
+          ) : (
+            <span className={`${styles.link} ${styles.linkDisabled}`}>회원가입 비활성화</span>
+          )}
+          {isPasswordResetAvailable ? (
+            <Link to="/password-reset" className={styles.link}>
+              비밀번호 찾기
+            </Link>
+          ) : (
+            <span className={`${styles.link} ${styles.linkDisabled}`}>
+              비밀번호 찾기 비활성화
+            </span>
+          )}
         </div>
+
+        {isPasswordLoginEnabled && isLocalMailMode ? (
+          <p className={styles.helperText}>
+            비밀번호 재설정 메일은 현재 로컬 메일 환경에서만 확인할 수 있습니다.
+          </p>
+        ) : null}
       </div>
     </div>
   );

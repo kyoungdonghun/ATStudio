@@ -1,8 +1,8 @@
 # Use Case Specification Index
 
-> **Version**: v9
-> **Confirmed date**: 2026-04-04
-> **Reference documents**: `docs/design/db-schema.md` (v5), `docs/design/api-spec.md` (v7)
+> **Version**: v10
+> **Confirmed date**: 2026-04-18
+> **Reference documents**: `docs/design/db-schema.md` (v5), `docs/design/api-spec.md` (v9)
 > **Source**: `docs/ui/usecase-spec csv/`
 
 ---
@@ -25,10 +25,10 @@
 | `whitelist.md` | Whitelist channel (register/list/update/delete) | 4 |
 | `company-certification.md` | Company certification (apply/view status/admin management) | 5 |
 | `business-license.md` | Legacy redirect stub (moved to `company-certification.md`) | - |
-| `util.md` | Utility (duplicate check/token/subscription status/download count/email verify/password reset/site settings) | 13 |
+| `util.md` | Utility (duplicate check/token/subscription status/download count/email verify/password reset/public capabilities/site settings) | 14 |
 | `sound-album.md` | Album (create/list/detail/update/delete/add track/remove track/reorder/likes cross-ref) | 9 |
 
-**Total UC count: 102** (net +2 vs v8: UTIL-017, UTIL-018 added)
+**Total UC count: 103** (net +1 vs v9: UTIL-019 added)
 
 ---
 
@@ -173,9 +173,20 @@
 | UTIL-016 | Reset password | `util.md` |
 | UTIL-017 | Get site setting | `util.md` |
 | UTIL-018 | Update site setting (Admin) | `util.md` |
+| UTIL-019 | Get public capabilities | `util.md` |
 
 > New in v3 (vs original)
 > New in v4 (cross-review additions)
+
+---
+
+## Change History (v9 to v10)
+
+### UC v10 Modifications (2026-04-18)
+
+| # | UC | Change |
+|---|----|--------|
+| 1 | UTIL-019 | **New** — Get public auth/runtime capabilities. `GET /api/utils/public-capabilities` [PUBLIC]. Returns password-login toggle, mail delivery modes, social provider capability, and QA bootstrap exposure. |
 
 ---
 

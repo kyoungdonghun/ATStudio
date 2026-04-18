@@ -28,7 +28,7 @@
 | **Description** | Checks whether an email is already in use during registration. |
 | **Actor** | User (non-member), Backend |
 | **Preconditions** | - |
-| **Trigger** | User clicks the 'Check Email' button on the registration screen. |
+| **Trigger** | Frontend validates the email before allowing registration submit. |
 | **Related UC** | INFO-001 (register) |
 
 **Main Flow**
@@ -50,13 +50,14 @@
 | **Description** | Checks whether a phone number is already in use during registration. |
 | **Actor** | User (non-member), Backend |
 | **Preconditions** | - |
-| **Trigger** | User clicks the 'Check Phone Number' button on the registration screen. |
-| **Related UC** | INFO-001 (register) |
+| **Trigger** | Frontend validates the phone number before registration or social profile completion submit. |
+| **Related UC** | INFO-001 (register), INFO-014 (complete social profile) |
 
 **Main Flow**
 1. Frontend sends a request with the phone parameter to the backend. (`GET /api/utils/check-phone?phone=xxx`)
 2. Backend queries the users table to check if the phone number exists.
 3. Backend returns the result. (`{ "available": true/false }`)
+4. Backend registration/profile APIs perform the same uniqueness check again on submit.
 
 **Postconditions**
 - available=true means the phone number is available. available=false means it is already in use.
@@ -71,12 +72,12 @@
 | **Version** | 26-02-20 |
 | **Description** | Reissues an expired Access Token using a Refresh Token. |
 | **Actor** | User (Member), Backend |
-| **Preconditions** | Holds a valid Refresh Token. |
+| **Preconditions** | Holds a valid Refresh Token in browser storage. |
 | **Trigger** | Frontend automatically sends a reissue request when the Access Token expires. |
 | **Related UC** | INFO-008 (login) |
 
 **Main Flow**
-1. Frontend sends a request with the Refresh Token from the httpOnly cookie to the backend. (`POST /api/auth/refresh`)
+1. Frontend reads the Refresh Token from browser storage and sends it to the backend. (`POST /api/auth/refresh`)
 2. Backend validates the Refresh Token (signature and expiry).
 3. Backend issues a new Access Token and a new Refresh Token.
 4. Backend returns the token info (accessToken, refreshToken, tokenType, expiresIn).
@@ -85,7 +86,7 @@
 - Refresh Token expired or invalid: 401 response. Frontend logs the user out and navigates to the login screen.
 
 **Postconditions**
-- New Access Token issued. Frontend stores the new Access Token in memory.
+- New Access Token and Refresh Token issued. Frontend rotates both tokens in browser storage.
 
 ---
 
@@ -166,7 +167,7 @@
 | **Description** | Checks whether a nickname is already in use during registration or profile update. |
 | **Actor** | User, Backend |
 | **Preconditions** | - |
-| **Trigger** | User clicks the 'Check Nickname' button on the registration or profile update screen. |
+| **Trigger** | Frontend validates the nickname before registration or profile submit. |
 | **Related UC** | INFO-001 (register), INFO-005 (update my info) |
 
 **Main Flow**
@@ -357,3 +358,32 @@
 
 **Postconditions**
 - `site_settings` record created or updated. Change takes effect immediately on next frontend fetch.
+
+---
+
+## UTIL-019: Get Public Capabilities [New]
+
+| Field | Value |
+|-------|-------|
+| **Code** | UTIL-019 |
+| **Version** | 26-04-18 |
+| **Description** | Returns runtime capability hints for public auth screens, including whether password login is enabled, whether email-based flows are available, which social providers are configured, and whether QA bootstrap accounts are exposed. |
+| **Actor** | User (any), Backend |
+| **Preconditions** | - |
+| **Trigger** | Login, signup, and password-reset related screens load. |
+| **Related UC** | INFO-001 (register), INFO-008 (login), INFO-013 (social login), UTIL-015 (request password reset), UTIL-016 (reset password) |
+
+**Main Flow**
+1. Frontend sends `GET /api/utils/public-capabilities`.
+2. Backend reads the current runtime configuration (password login toggle, mail delivery mode, OAuth client configuration, QA bootstrap flag).
+3. Backend returns the capability snapshot.
+
+**Response Fields**
+- `passwordLoginEnabled`: Whether email/password login and signup are enabled in this environment.
+- `emailVerification`: Whether registration email verification is currently usable and which delivery mode is active.
+- `passwordReset`: Whether password reset mail is currently usable and which delivery mode is active.
+- `socialLogin`: Per-provider capability (`google`, `kakao`, `naver`) including `enabled`, `clientId`, `redirectUri`.
+- `testUsersEnabled`: Whether non-production bootstrap test accounts are exposed.
+
+**Postconditions**
+- No state changes. Frontend uses the response to hide or disable unsupported auth flows for the current environment.

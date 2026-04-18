@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { requestPasswordReset, resetPassword } from '@/api/auth';
+import { usePublicCapabilities } from '@/hooks/usePublicCapabilities';
 import { isValidEmail, PASSWORD_MIN } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './PasswordResetPage.module.css';
@@ -21,6 +22,11 @@ function ForgotForm() {
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { capabilities, loading: capabilitiesLoading, error: capabilitiesError } =
+    usePublicCapabilities();
+
+  const isPasswordResetAvailable = capabilities?.passwordReset.enabled ?? true;
+  const isLocalMailMode = capabilities?.passwordReset.deliveryMode === 'LOCAL_SMTP';
 
   function validate(): boolean {
     if (!email.trim()) {
@@ -67,6 +73,22 @@ function ForgotForm() {
           </div>
         </div>
       </div>
+      );
+  }
+
+  if (!capabilitiesLoading && capabilities && !isPasswordResetAvailable) {
+    return (
+      <div className={styles.page}>
+        <div className={`${styles.card} ${styles.noticeCard}`}>
+          <h1 className={styles.title}>비밀번호 찾기</h1>
+          <p className={styles.description}>
+            현재 이 환경에서는 비밀번호 재설정 메일이 비활성화되어 있습니다.
+          </p>
+          <div className={styles.links}>
+            <Link to="/login" className={styles.link}>로그인으로 돌아가기</Link>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -77,6 +99,16 @@ function ForgotForm() {
         <p className={styles.description}>
           가입하신 이메일 주소를 입력하시면<br />비밀번호 재설정 링크를 보내드립니다.
         </p>
+        {isLocalMailMode ? (
+          <p className={styles.noticeText}>
+            현재 이 환경에서는 로컬 메일 수신 환경(MailHog 등)에서만 재설정 링크를 확인할 수 있습니다.
+          </p>
+        ) : null}
+        {capabilitiesError ? (
+          <p className={styles.noticeText}>
+            메일 설정 상태를 확인하지 못했습니다. 수신 여부는 현재 운영 환경 기준으로 확인해주세요.
+          </p>
+        ) : null}
         <form className={styles.form} onSubmit={handleSubmit} noValidate>
           <div className={styles.fieldGroup}>
             <label className={styles.label} htmlFor="reset-email">이메일</label>

@@ -1,4 +1,4 @@
-/** SR-79: 다운로드 기록 (download history) */
+/** SR-79: 다운로드 기록 (download history), served on the legacy /download-queue route. */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
@@ -34,7 +34,7 @@ const defaultPageInfo: PageInfo = {
 
 type SortMode = 'latest' | 'oldest';
 
-export default function DownloadQueuePage() {
+export default function DownloadHistoryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const currentPage = Number(searchParams.get('page') ?? '1') || 1;
   const urlKeyword = searchParams.get('keyword') ?? '';

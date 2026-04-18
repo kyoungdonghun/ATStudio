@@ -6,11 +6,15 @@ import { fetchMe, checkNicknameAvailability, checkPhoneAvailability } from '@/ap
 import type { MeResponse } from '@/api/auth';
 import type { UserJob, UserType } from '@/types';
 import client from '@/api/client';
-import { formatPhone, isValidNickname, isValidPhone, NICKNAME_MAX } from '@/utils/validation';
+import {
+  COMPANY_NAME_MAX,
+  formatPhone,
+  isValidNickname,
+  isValidPhone,
+  NICKNAME_MAX,
+} from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './SignupPage.module.css';
-
-type UserTypeOption = 'INDIVIDUAL' | 'BUSINESS';
 
 const JOB_OPTIONS = [
   { value: '', label: '직업을 선택하세요' },
@@ -23,8 +27,9 @@ interface CompleteProfileRequest {
   nickname: string;
   phonePersonal: string;
   phoneCompany: string | null;
-  job: string;
-  userType: UserTypeOption;
+  job: UserJob | null;
+  companyName: string | null;
+  userType: UserType;
 }
 
 export default function SocialCompleteProfilePage() {
@@ -32,20 +37,24 @@ export default function SocialCompleteProfilePage() {
   const authLogin = useAuthStore((s) => s.login);
   const accessToken = useAuthStore((s) => s.accessToken);
 
-  const [userType, setUserType] = useState<UserTypeOption>('INDIVIDUAL');
+  const [userType, setUserType] = useState<UserType>('INDIVIDUAL');
   const [nickname, setNickname] = useState('');
   const [phonePersonal, setPhonePersonal] = useState('');
   const [phoneCompany, setPhoneCompany] = useState('');
-  const [job, setJob] = useState('');
+  const [job, setJob] = useState<UserJob | ''>('');
+  const [companyName, setCompanyName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const normalizedNickname = nickname.trim();
+  const normalizedCompanyName = companyName.trim();
+  const isBusinessUser = userType === 'BUSINESS';
 
   async function validate(): Promise<boolean> {
-    if (!nickname.trim()) {
+    if (!normalizedNickname) {
       setError('닉네임을 입력해주세요.');
       return false;
     }
-    if (!isValidNickname(nickname)) {
+    if (!isValidNickname(normalizedNickname)) {
       setError('닉네임은 2~20자의 한글, 영문, 숫자, 밑줄(_)만 사용할 수 있습니다.');
       return false;
     }
@@ -57,13 +66,18 @@ export default function SocialCompleteProfilePage() {
       setError('올바른 전화번호 형식을 입력해주세요.');
       return false;
     }
-    if (!job) {
-      setError('직업을 선택해주세요.');
+    if (isBusinessUser) {
+      if (!normalizedCompanyName) {
+        setError('기업 회원은 회사명을 입력해주세요.');
+        return false;
+      }
+    } else if (!job) {
+      setError('개인 회원은 직업을 선택해주세요.');
       return false;
     }
 
     try {
-      const nicknameRes = await checkNicknameAvailability(nickname);
+      const nicknameRes = await checkNicknameAvailability(normalizedNickname);
       if (!nicknameRes.available) {
         setError('이미 사용 중인 닉네임입니다.');
         return false;
@@ -96,11 +110,13 @@ export default function SocialCompleteProfilePage() {
 
     setLoading(true);
     try {
+      const submitJob: UserJob | null = isBusinessUser ? null : (job || null);
       const body: CompleteProfileRequest = {
-        nickname,
+        nickname: normalizedNickname,
         phonePersonal,
         phoneCompany: phoneCompany.trim() || null,
-        job,
+        job: submitJob,
+        companyName: isBusinessUser ? normalizedCompanyName : null,
         userType,
       };
 
@@ -114,9 +130,9 @@ export default function SocialCompleteProfilePage() {
         role: me.role,
         phonePersonal: me.phonePersonal,
         phoneCompany: me.phoneCompany,
-        job: me.job as UserJob | null,
+        job: me.job,
         companyName: me.companyName,
-        userType: me.userType as UserType,
+        userType: me.userType,
         isVerified: me.isVerified,
         createdAt: me.createdAt,
       });
@@ -204,22 +220,36 @@ export default function SocialCompleteProfilePage() {
             </div>
           )}
 
-          {/* Job */}
-          <div className={styles.fieldGroup}>
-            <label className={styles.label} htmlFor="cp-job">직업</label>
-            <select
-              id="cp-job"
-              className={styles.input}
-              value={job}
-              onChange={(e) => setJob(e.target.value)}
-            >
-              {JOB_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isBusinessUser ? (
+            <div className={styles.fieldGroup}>
+              <label className={styles.label} htmlFor="cp-company-name">회사명</label>
+              <input
+                id="cp-company-name"
+                className={styles.input}
+                type="text"
+                placeholder="회사명을 입력하세요"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                maxLength={COMPANY_NAME_MAX}
+              />
+            </div>
+          ) : (
+            <div className={styles.fieldGroup}>
+              <label className={styles.label} htmlFor="cp-job">직업</label>
+              <select
+                id="cp-job"
+                className={styles.input}
+                value={job}
+                onChange={(e) => setJob(e.target.value as UserJob | '')}
+              >
+                {JOB_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <p className={styles.errorText}>{error}</p>
 

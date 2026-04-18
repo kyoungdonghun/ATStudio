@@ -155,10 +155,14 @@
 
 **Main Flow**
 1. Frontend sends a request including auth token to the backend.
-2. Backend returns the user's user_subscriptions record.
+2. Backend returns the user's current `user_subscriptions` record when the subscription is service-enabled.
+   - Service-enabled means `status=ACTIVE`, or `status=CANCELLED` while `expiresAt` is still in the future (grace period).
+
+**Exception / Alternative Flow**
+- No active / grace-period subscription: backend returns 403 `NO_ACTIVE_SUBSCRIPTION`. The frontend may interpret this as "no current subscription" and show a CTA back to the subscription plan page.
 
 **Postconditions**
-- Current subscription plan, billing cycle, status, expiration date, etc. displayed on screen. Returns null if no subscription.
+- Current subscription plan, billing cycle, status, expiration date, etc. displayed on screen when a service-enabled subscription exists.
 
 ---
 
