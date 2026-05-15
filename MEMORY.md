@@ -19,6 +19,8 @@
 - Auth flows are hardened across backend contracts, frontend UI, and regression tests.
 - Public capability flags drive login/signup/reset availability by environment.
 - Playlist and subscription flows now use tier-based limits and consistent subscriber-only rules.
+- Local backend boot requires gitignored `application-local.yml`; committed `application-local.example.yml` is the shared bootstrap template.
+- Login must pass the freshly issued access token into the immediate `/api/users/me` call before auth state persists it to localStorage.
 
 # Recent Decisions
 
@@ -38,4 +40,5 @@
 
 - Run Gradle tests sequentially only; avoid overlapping runs because Gradle test result files can contend.
 - `frontend/tsconfig.tsbuildinfo` is generated noise and should not be committed as a meaningful change.
+- When `/api/auth/login` returns 200 but `/api/users/me` returns 401, first check whether the request includes `Authorization: Bearer ...`.
 - If future work removes reusable process lessons from memory, move those lessons to `docs/retrospective/kick.md` first.

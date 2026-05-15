@@ -96,8 +96,10 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
   return res.data.data;
 }
 
-export async function fetchMe(): Promise<MeResponse> {
-  const { data } = await client.get<ApiResponse<MeResponse>>('/users/me');
+export async function fetchMe(accessToken?: string): Promise<MeResponse> {
+  const { data } = await client.get<ApiResponse<MeResponse>>('/users/me', {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+  });
   return data.data;
 }
 

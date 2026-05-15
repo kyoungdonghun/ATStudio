@@ -125,7 +125,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const tokens = await login({ email, password });
-      const me: MeResponse = await fetchMe();
+      const me: MeResponse = await fetchMe(tokens.accessToken);
 
       authLogin(tokens.accessToken, {
         id: me.id,

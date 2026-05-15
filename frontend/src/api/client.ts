@@ -14,7 +14,7 @@ const client = axios.create({
 client.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = safeStorage.getItem('accessToken');
-    if (token && config.headers) {
+    if (token && config.headers && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     // Let Axios auto-set Content-Type with boundary for FormData
