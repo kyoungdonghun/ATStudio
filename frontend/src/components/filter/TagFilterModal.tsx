@@ -9,11 +9,13 @@ interface TagFilterModalProps {
   onClose: () => void;
   genreTags: TagItem[];
   moodTags: TagItem[];
+  instrumentTags: TagItem[];
   activeGenres: string[];
   activeMoods: string[];
+  activeInstruments: string[];
   activeBpmLabel: string;
   bpmPresets: readonly { label: string }[];
-  onApply: (genres: string[], moods: string[], bpm: string) => void;
+  onApply: (genres: string[], moods: string[], instruments: string[], bpm: string) => void;
 }
 
 export default function TagFilterModal({
@@ -21,14 +23,17 @@ export default function TagFilterModal({
   onClose,
   genreTags,
   moodTags,
+  instrumentTags,
   activeGenres,
   activeMoods,
+  activeInstruments,
   activeBpmLabel,
   bpmPresets,
   onApply,
 }: TagFilterModalProps) {
   const [selectedGenres, setSelectedGenres] = useState<string[]>(activeGenres);
   const [selectedMoods, setSelectedMoods] = useState<string[]>(activeMoods);
+  const [selectedInstruments, setSelectedInstruments] = useState<string[]>(activeInstruments);
   const [selectedBpm, setSelectedBpm] = useState(activeBpmLabel);
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,23 +43,21 @@ export default function TagFilterModal({
     if (open) {
       setSelectedGenres(activeGenres);
       setSelectedMoods(activeMoods);
+      setSelectedInstruments(activeInstruments);
       setSelectedBpm(activeBpmLabel);
       setQuery('');
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [open, activeGenres, activeMoods, activeBpmLabel]);
+  }, [open, activeGenres, activeMoods, activeInstruments, activeBpmLabel]);
 
   const q = query.trim().toLowerCase();
 
-  const filteredGenres = q
-    ? genreTags.filter((t) => t.name.toLowerCase().includes(q))
-    : genreTags;
-  const filteredMoods = q
-    ? moodTags.filter((t) => t.name.toLowerCase().includes(q))
-    : moodTags;
-  const filteredBpm = q
-    ? bpmPresets.filter((p) => p.label.toLowerCase().includes(q))
-    : bpmPresets;
+  const filteredGenres = q ? genreTags.filter((t) => t.name.toLowerCase().includes(q)) : genreTags;
+  const filteredMoods = q ? moodTags.filter((t) => t.name.toLowerCase().includes(q)) : moodTags;
+  const filteredInstruments = q
+    ? instrumentTags.filter((t) => t.name.toLowerCase().includes(q))
+    : instrumentTags;
+  const filteredBpm = q ? bpmPresets.filter((p) => p.label.toLowerCase().includes(q)) : bpmPresets;
 
   function toggleGenre(name: string) {
     setSelectedGenres((prev) =>
@@ -68,22 +71,33 @@ export default function TagFilterModal({
     );
   }
 
+  function toggleInstrument(name: string) {
+    setSelectedInstruments((prev) =>
+      prev.includes(name) ? prev.filter((i) => i !== name) : [...prev, name],
+    );
+  }
+
   function handleApply() {
-    onApply(selectedGenres, selectedMoods, selectedBpm);
+    onApply(selectedGenres, selectedMoods, selectedInstruments, selectedBpm);
     onClose();
   }
 
   function handleClear() {
     setSelectedGenres([]);
     setSelectedMoods([]);
+    setSelectedInstruments([]);
     setSelectedBpm('');
   }
 
   const totalSelected =
-    selectedGenres.length + selectedMoods.length + (selectedBpm ? 1 : 0);
+    selectedGenres.length +
+    selectedMoods.length +
+    selectedInstruments.length +
+    (selectedBpm ? 1 : 0);
   const noResults =
     filteredGenres.length === 0 &&
     filteredMoods.length === 0 &&
+    filteredInstruments.length === 0 &&
     filteredBpm.length === 0;
 
   return (
@@ -100,19 +114,14 @@ export default function TagFilterModal({
             onChange={(e) => setQuery(e.target.value)}
           />
           {query && (
-            <button
-              className={styles.searchClear}
-              onClick={() => setQuery('')}
-            >
+            <button className={styles.searchClear} onClick={() => setQuery('')}>
               {'\u2715'}
             </button>
           )}
         </div>
 
         {noResults ? (
-          <div className={styles.noResults}>
-            {`"${query}"에 해당하는 태그가 없습니다.`}
-          </div>
+          <div className={styles.noResults}>{`"${query}"에 해당하는 태그가 없습니다.`}</div>
         ) : (
           <>
             {/* Genre */}
@@ -126,6 +135,23 @@ export default function TagFilterModal({
                       label={tag.name}
                       active={selectedGenres.includes(tag.name)}
                       onClick={() => toggleGenre(tag.name)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Instrument */}
+            {filteredInstruments.length > 0 && (
+              <div className={styles.section}>
+                <span className={styles.sectionLabel}>{'악기'}</span>
+                <div className={styles.chips}>
+                  {filteredInstruments.map((tag) => (
+                    <FilterChip
+                      key={tag.id}
+                      label={tag.name}
+                      active={selectedInstruments.includes(tag.name)}
+                      onClick={() => toggleInstrument(tag.name)}
                     />
                   ))}
                 </div>
@@ -160,9 +186,7 @@ export default function TagFilterModal({
                       label={preset.label}
                       active={selectedBpm === preset.label}
                       onClick={() =>
-                        setSelectedBpm((prev) =>
-                          prev === preset.label ? '' : preset.label,
-                        )
+                        setSelectedBpm((prev) => (prev === preset.label ? '' : preset.label))
                       }
                     />
                   ))}
@@ -175,9 +199,7 @@ export default function TagFilterModal({
         {/* Footer */}
         <div className={styles.footer}>
           {totalSelected > 0 && (
-            <span className={styles.selectedCount}>
-              {`${totalSelected}개 선택됨`}
-            </span>
+            <span className={styles.selectedCount}>{`${totalSelected}개 선택됨`}</span>
           )}
           <button className={styles.clearBtn} onClick={handleClear}>
             {'초기화'}

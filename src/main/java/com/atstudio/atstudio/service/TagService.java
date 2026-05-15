@@ -60,9 +60,15 @@ public class TagService {
     }
 
     @SuppressWarnings("unchecked")
-    public List<TagResponse> getAvailableTags(String genre, String mood, Integer bpmMin, Integer bpmMax) {
+    public List<TagResponse> getAvailableTags(
+            String genre,
+            String mood,
+            String instrument,
+            Integer bpmMin,
+            Integer bpmMax) {
         List<String> genreNames = splitCsv(genre);
         List<String> moodNames = splitCsv(mood);
+        List<String> instrumentNames = splitCsv(instrument);
 
         // Build dynamic native SQL with AND logic: track must have ALL selected tags
         StringBuilder sql = new StringBuilder("""
@@ -75,25 +81,9 @@ public class TagService {
         List<Object> params = new ArrayList<>();
         int paramIdx = 1;
 
-        // Each genre name = separate EXISTS (AND)
-        for (String g : genreNames) {
-            sql.append(" AND tr.id IN (SELECT tt").append(paramIdx).append(".track_id FROM track_tags tt")
-               .append(paramIdx).append(" JOIN tags tg").append(paramIdx).append(" ON tg").append(paramIdx)
-               .append(".id = tt").append(paramIdx).append(".tag_id WHERE tg").append(paramIdx)
-               .append(".type = 'GENRE' AND tg").append(paramIdx).append(".name = ?)");
-            params.add(g);
-            paramIdx++;
-        }
-
-        // Each mood name = separate EXISTS (AND)
-        for (String m : moodNames) {
-            sql.append(" AND tr.id IN (SELECT tt").append(paramIdx).append(".track_id FROM track_tags tt")
-               .append(paramIdx).append(" JOIN tags tg").append(paramIdx).append(" ON tg").append(paramIdx)
-               .append(".id = tt").append(paramIdx).append(".tag_id WHERE tg").append(paramIdx)
-               .append(".type = 'MOOD' AND tg").append(paramIdx).append(".name = ?)");
-            params.add(m);
-            paramIdx++;
-        }
+        paramIdx = appendTagFilters(sql, params, paramIdx, genreNames, "GENRE");
+        paramIdx = appendTagFilters(sql, params, paramIdx, moodNames, "MOOD");
+        paramIdx = appendTagFilters(sql, params, paramIdx, instrumentNames, "INSTRUMENT");
 
         if (bpmMin != null) {
             sql.append(" AND tr.bpm >= ?");
@@ -111,6 +101,25 @@ public class TagService {
 
         List<Tag> tags = query.getResultList();
         return tags.stream().map(TagResponse::from).toList();
+    }
+
+    private int appendTagFilters(
+            StringBuilder sql,
+            List<Object> params,
+            int startParamIdx,
+            List<String> names,
+            String type) {
+        int paramIdx = startParamIdx;
+        for (String name : names) {
+            sql.append(" AND tr.id IN (SELECT tt").append(paramIdx).append(".track_id FROM track_tags tt")
+                    .append(paramIdx).append(" JOIN tags tg").append(paramIdx).append(" ON tg")
+                    .append(paramIdx).append(".id = tt").append(paramIdx)
+                    .append(".tag_id WHERE tg").append(paramIdx).append(".type = '")
+                    .append(type).append("' AND tg").append(paramIdx).append(".name = ?)");
+            params.add(name);
+            paramIdx++;
+        }
+        return paramIdx;
     }
 
     private List<String> splitCsv(String csv) {

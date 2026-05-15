@@ -24,13 +24,13 @@ status: stable
 | Registry | 4 | [Registry Index](registry/index.md) | Asset/context/project registries |
 | Audit | 2 | [Audit Index](audit/index.md) | Audit reports and remediation baselines |
 | Client | 7 | [Client Index](client/index.md) | External testing guides and client SR intake references |
-| SR | 90 | [SR Index](SR/index.md) | Screen Review items (SR-01~90) |
+| SR | 91 | [SR Index](SR/index.md) | Screen Review items (SR-01~91) |
 | Retrospective | 4 | [Retrospective Index](retrospective/index.md) | Engineering lessons, domain design, kick.md, process |
 | ADR | 1 | [ADR Index](adr/index.md) | Decision records |
 | UI | 3 | [UI Index](ui/index.md) | Screen inventory, flow, and modal planning documents |
 | Eval | 0 | [Eval Index](eval/index.md) | Evaluation documents |
 
-**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **171**.
+**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **172**.
 
 ## Required Documents Mapping by Role
 

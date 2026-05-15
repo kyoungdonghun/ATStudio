@@ -8,9 +8,12 @@ import com.atstudio.atstudio.entity.Tag;
 import com.atstudio.atstudio.entity.enums.TagType;
 import com.atstudio.atstudio.repository.TagRepository;
 import com.atstudio.atstudio.repository.TrackTagRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -22,6 +25,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -31,6 +36,8 @@ class TagServiceTest {
 
     @Mock TagRepository tagRepository;
     @Mock TrackTagRepository trackTagRepository;
+    @Mock EntityManager em;
+    @Mock Query query;
 
     @InjectMocks TagService tagService;
 
@@ -96,6 +103,32 @@ class TagServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).type()).isEqualTo(TagType.GENRE);
         verify(tagRepository).findAllByType(TagType.GENRE);
+    }
+
+    @Test
+    @DisplayName("getAvailableTags() - 악기 필터를 native query 조건에 포함")
+    void getAvailableTags_withInstrumentFilter() {
+        Tag tag = buildTag(3L, "Piano", TagType.INSTRUMENT);
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        given(em.createNativeQuery(anyString(), eq(Tag.class))).willReturn(query);
+        given(query.getResultList()).willReturn(List.of(tag));
+
+        List<TagResponse> result = tagService.getAvailableTags(
+                "Pop",
+                "Happy",
+                "Piano",
+                60,
+                120);
+
+        verify(em).createNativeQuery(sqlCaptor.capture(), eq(Tag.class));
+        verify(query).setParameter(1, "Pop");
+        verify(query).setParameter(2, "Happy");
+        verify(query).setParameter(3, "Piano");
+        verify(query).setParameter(4, 60);
+        verify(query).setParameter(5, 120);
+        assertThat(sqlCaptor.getValue()).contains("INSTRUMENT");
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).type()).isEqualTo(TagType.INSTRUMENT);
     }
 
     // ── updateTag() ───────────────────────────────────────────────────────────

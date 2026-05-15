@@ -31,12 +31,19 @@ export default function TrackRow({
   onDownload,
   onGuestAction,
 }: TrackRowProps) {
-  const rowClass = [styles.row, playing ? styles.playing : '']
-    .filter(Boolean)
-    .join(' ');
+  const rowClass = [styles.row, playing ? styles.playing : ''].filter(Boolean).join(' ');
 
   const genreTags = track.tags.filter((t) => t.type === 'GENRE');
+  const instrumentTags = track.tags.filter((t) => t.type === 'INSTRUMENT');
   const moodTags = track.tags.filter((t) => t.type === 'MOOD');
+
+  function renderTags(tags: typeof track.tags) {
+    return tags.map((t) => (
+      <span key={t.id} className={styles.tagChip}>
+        {t.name}
+      </span>
+    ));
+  }
 
   return (
     <tr className={rowClass}>
@@ -84,15 +91,14 @@ export default function TrackRow({
         </div>
       </td>
 
-      {/* Tags */}
-      <td className={styles.cellTag}>
-        {genreTags.map((t) => (
-          <span key={t.id} className={styles.tagChip}>{t.name}</span>
-        ))}
-        {moodTags.map((t) => (
-          <span key={t.id} className={styles.tagChip}>{t.name}</span>
-        ))}
-      </td>
+      {/* Genre */}
+      <td className={styles.cellTag}>{renderTags(genreTags)}</td>
+
+      {/* Instrument */}
+      <td className={styles.cellTag}>{renderTags(instrumentTags)}</td>
+
+      {/* Mood */}
+      <td className={styles.cellTag}>{renderTags(moodTags)}</td>
 
       {/* BPM */}
       <td className={styles.cellBpm}>{track.bpm ?? '-'}</td>
@@ -136,11 +142,7 @@ export default function TrackRow({
             </>
           ) : (
             <>
-              <button
-                className={styles.actBtn}
-                onClick={() => onGuestAction?.()}
-                title="Like"
-              >
+              <button className={styles.actBtn} onClick={() => onGuestAction?.()} title="Like">
                 {'\u2661'}
               </button>
               <button
@@ -150,11 +152,7 @@ export default function TrackRow({
               >
                 +
               </button>
-              <button
-                className={styles.actBtn}
-                onClick={() => onGuestAction?.()}
-                title="Download"
-              >
+              <button className={styles.actBtn} onClick={() => onGuestAction?.()} title="Download">
                 &#8595;
               </button>
             </>

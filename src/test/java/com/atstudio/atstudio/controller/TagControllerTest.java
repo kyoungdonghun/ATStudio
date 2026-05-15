@@ -14,10 +14,13 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -74,6 +77,23 @@ class TagControllerTest {
 
         mockMvc.perform(get("/api/tags"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("GET /api/tags/available - 악기 필터 파라미터 전달")
+    void getAvailableTags_withInstrumentFilter_passesParamsToService() throws Exception {
+        given(tagService.getAvailableTags("Pop", "Happy", "Piano", 60, 120))
+                .willReturn(List.of());
+
+        mockMvc.perform(get("/api/tags/available")
+                        .param("genre", "Pop")
+                        .param("mood", "Happy")
+                        .param("instrument", "Piano")
+                        .param("bpmMin", "60")
+                        .param("bpmMax", "120"))
+                .andExpect(status().isOk());
+
+        verify(tagService).getAvailableTags("Pop", "Happy", "Piano", 60, 120);
     }
 
     // ── PUT /api/tags/{id} (ADMIN 전용) ───────────────────────────────────────

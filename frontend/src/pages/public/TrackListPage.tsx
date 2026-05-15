@@ -18,14 +18,15 @@ import { useToastStore } from '@/store/toastStore';
 import styles from './TrackListPage.module.css';
 
 /* ── BPM filter presets ── */
-const BPM_PRESETS: readonly { label: string; min: number | undefined; max: number | undefined }[] = [
-  { label: '~ 59', min: undefined, max: 59 },
-  { label: '60 \u2013 79', min: 60, max: 79 },
-  { label: '80 \u2013 99', min: 80, max: 99 },
-  { label: '100 \u2013 119', min: 100, max: 119 },
-  { label: '120 \u2013 139', min: 120, max: 139 },
-  { label: '140 ~', min: 140, max: undefined },
-];
+const BPM_PRESETS: readonly { label: string; min: number | undefined; max: number | undefined }[] =
+  [
+    { label: '~ 59', min: undefined, max: 59 },
+    { label: '60 \u2013 79', min: 60, max: 79 },
+    { label: '80 \u2013 99', min: 80, max: 99 },
+    { label: '100 \u2013 119', min: 100, max: 119 },
+    { label: '120 \u2013 139', min: 120, max: 139 },
+    { label: '140 ~', min: 140, max: undefined },
+  ];
 
 const PAGE_SIZE = 20;
 
@@ -60,6 +61,7 @@ export default function TrackListPage() {
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
   const [genreTags, setGenreTags] = useState<TagItem[]>([]);
   const [moodTags, setMoodTags] = useState<TagItem[]>([]);
+  const [instrumentTags, setInstrumentTags] = useState<TagItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,10 +78,16 @@ export default function TrackListPage() {
   const activeKeyword = searchParams.get('keyword') ?? '';
   const activeGenres = searchParams.getAll('genre');
   const activeMoods = searchParams.getAll('mood');
+  const activeInstruments = searchParams.getAll('instrument');
   const activeGenresKey = activeGenres.join(',');
   const activeMoodsKey = activeMoods.join(',');
+  const activeInstrumentsKey = activeInstruments.join(',');
   const activeBpmLabel = searchParams.get('bpm') ?? '';
-  const sortValue = (searchParams.get('sort') ?? 'latest') as 'latest' | 'popular' | 'likes' | 'downloads';
+  const sortValue = (searchParams.get('sort') ?? 'latest') as
+    | 'latest'
+    | 'popular'
+    | 'likes'
+    | 'downloads';
 
   /* Player store for playing state */
   const currentTrack = usePlayerStore((s) => s.currentTrack);
@@ -104,10 +112,16 @@ export default function TrackListPage() {
   const [addToPlTrackId, setAddToPlTrackId] = useState<number | null>(null);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [genreExpanded, setGenreExpanded] = useState(false);
+  const [instrumentExpanded, setInstrumentExpanded] = useState(false);
   const [moodExpanded, setMoodExpanded] = useState(false);
-  const hasActiveFilters = activeGenresKey !== '' || activeMoodsKey !== '' || activeBpmLabel !== '';
+  const hasActiveFilters =
+    activeGenresKey !== '' ||
+    activeMoodsKey !== '' ||
+    activeInstrumentsKey !== '' ||
+    activeBpmLabel !== '';
   const [availableGenres, setAvailableGenres] = useState<Set<string>>(new Set());
   const [availableMoods, setAvailableMoods] = useState<Set<string>>(new Set());
+  const [availableInstruments, setAvailableInstruments] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isAuthenticated && !likeLoaded) {
@@ -115,20 +129,21 @@ export default function TrackListPage() {
     }
   }, [isAuthenticated, likeLoaded, loadLikes]);
 
-
   /* ── Load tags once ── */
   useEffect(() => {
     let cancelled = false;
 
     async function loadTags() {
       try {
-        const [genres, moods] = await Promise.all([
+        const [genres, moods, instruments] = await Promise.all([
           fetchTags('GENRE'),
           fetchTags('MOOD'),
+          fetchTags('INSTRUMENT'),
         ]);
         if (!cancelled) {
           setGenreTags(genres);
           setMoodTags(moods);
+          setInstrumentTags(instruments);
         }
       } catch {
         /* tags are supplementary, ignore errors */
@@ -155,6 +170,7 @@ export default function TrackListPage() {
     if (activeKeyword) params.keyword = activeKeyword;
     if (activeGenresKey) params.genre = activeGenresKey;
     if (activeMoodsKey) params.mood = activeMoodsKey;
+    if (activeInstrumentsKey) params.instrument = activeInstrumentsKey;
 
     const bpmPreset = BPM_PRESETS.find((p) => p.label === activeBpmLabel);
     if (bpmPreset) {
@@ -171,7 +187,15 @@ export default function TrackListPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, sortValue, activeKeyword, activeGenresKey, activeMoodsKey, activeBpmLabel]);
+  }, [
+    currentPage,
+    sortValue,
+    activeKeyword,
+    activeGenresKey,
+    activeMoodsKey,
+    activeInstrumentsKey,
+    activeBpmLabel,
+  ]);
 
   useEffect(() => {
     loadTracks();
@@ -182,19 +206,28 @@ export default function TrackListPage() {
     if (!hasActiveFilters) {
       setAvailableGenres(new Set());
       setAvailableMoods(new Set());
+      setAvailableInstruments(new Set());
       return;
     }
     const bpmPreset = BPM_PRESETS.find((p) => p.label === activeBpmLabel);
     fetchAvailableTags({
       genre: activeGenresKey || undefined,
       mood: activeMoodsKey || undefined,
+      instrument: activeInstrumentsKey || undefined,
       bpmMin: bpmPreset?.min,
       bpmMax: bpmPreset?.max,
-    }).then((tags) => {
-      setAvailableGenres(new Set(tags.filter((t) => t.type === 'GENRE').map((t) => t.name)));
-      setAvailableMoods(new Set(tags.filter((t) => t.type === 'MOOD').map((t) => t.name)));
-    }).catch(() => { /* ignore */ });
-  }, [activeGenresKey, activeMoodsKey, activeBpmLabel, hasActiveFilters]);
+    })
+      .then((tags) => {
+        setAvailableGenres(new Set(tags.filter((t) => t.type === 'GENRE').map((t) => t.name)));
+        setAvailableMoods(new Set(tags.filter((t) => t.type === 'MOOD').map((t) => t.name)));
+        setAvailableInstruments(
+          new Set(tags.filter((t) => t.type === 'INSTRUMENT').map((t) => t.name)),
+        );
+      })
+      .catch(() => {
+        /* ignore */
+      });
+  }, [activeGenresKey, activeMoodsKey, activeInstrumentsKey, activeBpmLabel, hasActiveFilters]);
 
   /* ── Filter helpers ── */
   function setFilter(key: string, value: string) {
@@ -222,11 +255,21 @@ export default function TrackListPage() {
   function toggleMood(name: string) {
     const next = new URLSearchParams(searchParams);
     next.delete('mood');
-    next.delete('page');
     const updated = activeMoods.includes(name)
       ? activeMoods.filter((m) => m !== name)
       : [...activeMoods, name];
     updated.forEach((m) => next.append('mood', m));
+    next.set('page', '1');
+    setSearchParams(next);
+  }
+
+  function toggleInstrument(name: string) {
+    const next = new URLSearchParams(searchParams);
+    next.delete('instrument');
+    const updated = activeInstruments.includes(name)
+      ? activeInstruments.filter((i) => i !== name)
+      : [...activeInstruments, name];
+    updated.forEach((i) => next.append('instrument', i));
     next.set('page', '1');
     setSearchParams(next);
   }
@@ -239,12 +282,19 @@ export default function TrackListPage() {
     setFilter('sort', e.target.value);
   }
 
-  function handleFilterApply(genres: string[], moods: string[], bpm: string) {
+  function handleFilterApply(
+    genres: string[],
+    moods: string[],
+    instruments: string[],
+    bpm: string,
+  ) {
     const next = new URLSearchParams(searchParams);
     next.delete('genre');
     genres.forEach((g) => next.append('genre', g));
     next.delete('mood');
     moods.forEach((m) => next.append('mood', m));
+    next.delete('instrument');
+    instruments.forEach((i) => next.append('instrument', i));
     if (bpm) {
       next.set('bpm', bpm);
     } else {
@@ -264,6 +314,12 @@ export default function TrackListPage() {
   const sortedMoodTags = [...moodTags].sort((a, b) => {
     const aActive = activeMoods.includes(a.name) ? 0 : 1;
     const bActive = activeMoods.includes(b.name) ? 0 : 1;
+    return aActive - bActive;
+  });
+
+  const sortedInstrumentTags = [...instrumentTags].sort((a, b) => {
+    const aActive = activeInstruments.includes(a.name) ? 0 : 1;
+    const bActive = activeInstruments.includes(b.name) ? 0 : 1;
     return aActive - bActive;
   });
 
@@ -288,11 +344,7 @@ export default function TrackListPage() {
         </div>
         <div className={styles.sortBar}>
           <span className={styles.sortLabel}>{'정렬'}</span>
-          <select
-            className={styles.sortSelect}
-            value={sortValue}
-            onChange={handleSortChange}
-          >
+          <select className={styles.sortSelect} value={sortValue} onChange={handleSortChange}>
             <option value="latest">{'최신순'}</option>
             <option value="popular">{'인기순'}</option>
             <option value="likes">{'좋아요순'}</option>
@@ -336,10 +388,11 @@ export default function TrackListPage() {
               }}
             />
             {sortedGenreTags
-              .filter((tag) =>
-                activeGenres.includes(tag.name) ||
-                availableGenres.size === 0 ||
-                availableGenres.has(tag.name)
+              .filter(
+                (tag) =>
+                  activeGenres.includes(tag.name) ||
+                  availableGenres.size === 0 ||
+                  availableGenres.has(tag.name),
               )
               .map((tag) => (
                 <FilterChip
@@ -357,15 +410,45 @@ export default function TrackListPage() {
           )}
         </div>
 
+        {/* Instrument row */}
+        <div
+          className={`${styles.filterRow} ${instrumentExpanded ? styles.filterRowExpanded : ''}`}
+        >
+          <span className={styles.filterLabel}>{'악기'}</span>
+          <div className={styles.filterChips}>
+            {sortedInstrumentTags
+              .filter(
+                (tag) =>
+                  activeInstruments.includes(tag.name) ||
+                  availableInstruments.size === 0 ||
+                  availableInstruments.has(tag.name),
+              )
+              .map((tag) => (
+                <FilterChip
+                  key={tag.id}
+                  label={tag.name}
+                  active={activeInstruments.includes(tag.name)}
+                  onClick={() => toggleInstrument(tag.name)}
+                />
+              ))}
+          </div>
+          {instrumentTags.length > 6 && (
+            <button className={styles.expandBtn} onClick={() => setInstrumentExpanded((v) => !v)}>
+              {instrumentExpanded ? '\u25B2 접기' : '\u25BC 펼치기'}
+            </button>
+          )}
+        </div>
+
         {/* Mood row */}
         <div className={`${styles.filterRow} ${moodExpanded ? styles.filterRowExpanded : ''}`}>
           <span className={styles.filterLabel}>{'분위기'}</span>
           <div className={styles.filterChips}>
             {sortedMoodTags
-              .filter((tag) =>
-                activeMoods.includes(tag.name) ||
-                availableMoods.size === 0 ||
-                availableMoods.has(tag.name)
+              .filter(
+                (tag) =>
+                  activeMoods.includes(tag.name) ||
+                  availableMoods.size === 0 ||
+                  availableMoods.has(tag.name),
               )
               .map((tag) => (
                 <FilterChip
@@ -403,6 +486,7 @@ export default function TrackListPage() {
                 const next = new URLSearchParams(searchParams);
                 next.delete('genre');
                 next.delete('mood');
+                next.delete('instrument');
                 next.delete('bpm');
                 next.set('page', '1');
                 setSearchParams(next);
@@ -420,8 +504,10 @@ export default function TrackListPage() {
         onClose={() => setFilterModalOpen(false)}
         genreTags={genreTags}
         moodTags={moodTags}
+        instrumentTags={instrumentTags}
         activeGenres={activeGenres}
         activeMoods={activeMoods}
+        activeInstruments={activeInstruments}
         activeBpmLabel={activeBpmLabel}
         bpmPresets={BPM_PRESETS}
         onApply={handleFilterApply}
@@ -437,64 +523,69 @@ export default function TrackListPage() {
       ) : (
         <>
           <div className={styles.tableWrap}>
-          <table className={styles.trackTable}>
-            <thead>
-              <tr>
-                <th className={`${styles.thCenter} ${styles.thNum}`}>#</th>
-                <th>{'음원'}</th>
-                <th className={styles.thTag}>{'장르 / 태그'}</th>
-                <th className={`${styles.thRight} ${styles.thBpm}`}>BPM</th>
-                <th className={`${styles.thCenter} ${styles.thKey}`}>{'조성'}</th>
-                <th className={`${styles.thRight} ${styles.thDur}`}>{'길이'}</th>
-                <th className={`${styles.thRight} ${styles.thActs}`}>{'액션'}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tracks.map((track, idx) => (
-                <TrackRow
-                  key={track.id}
-                  index={(currentPage - 1) * PAGE_SIZE + idx + 1}
-                  track={track}
-                  playing={currentTrack?.id === track.id && isPlaying}
-                  liked={likedIds.has(track.id)}
-                  showAuthActions={isAuthenticated}
-                  onGuestAction={handleGuestAction}
-                  onPlay={(t) => {
-                    if (currentTrack?.id === t.id) {
-                      if (isPlaying) pauseTrack();
-                      else resumeTrack();
-                    } else {
-                      playTrack(trackListItemToTrack(t));
-                    }
-                  }}
-                  onLike={(t) => toggleLike(t.id)}
-                  onAddToPlaylist={(t) => setAddToPlTrackId(t.id)}
-                  onDownload={async (t) => {
-                    try {
-                      const blob = await downloadTrack(t.id);
-                      triggerBlobDownload(blob, `${t.title}.mp3`);
-                      try {
-                        const count = await fetchDownloadCount();
-                        toast('success', `다운로드 완료! 오늘 남은 횟수: ${count.remaining}/${count.dailyLimit}`);
-                      } catch {
-                        toast('success', '다운로드가 완료되었습니다.');
-                      }
-                    } catch (err) {
-                      const code = await getApiErrorCode(err);
-                      if (code === 'NO_ACTIVE_SUBSCRIPTION') {
-                        toast('warning', '구독이 필요한 기능입니다.');
-                        navigate('/subscriptions');
-                      } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
-                        toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
+            <table className={styles.trackTable}>
+              <thead>
+                <tr>
+                  <th className={`${styles.thCenter} ${styles.thNum}`}>#</th>
+                  <th>{'음원'}</th>
+                  <th className={styles.thTag}>{'장르'}</th>
+                  <th className={styles.thTag}>{'악기'}</th>
+                  <th className={styles.thTag}>{'분위기'}</th>
+                  <th className={`${styles.thRight} ${styles.thBpm}`}>BPM</th>
+                  <th className={`${styles.thCenter} ${styles.thKey}`}>{'조성'}</th>
+                  <th className={`${styles.thRight} ${styles.thDur}`}>{'길이'}</th>
+                  <th className={`${styles.thRight} ${styles.thActs}`}>{'액션'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tracks.map((track, idx) => (
+                  <TrackRow
+                    key={track.id}
+                    index={(currentPage - 1) * PAGE_SIZE + idx + 1}
+                    track={track}
+                    playing={currentTrack?.id === track.id && isPlaying}
+                    liked={likedIds.has(track.id)}
+                    showAuthActions={isAuthenticated}
+                    onGuestAction={handleGuestAction}
+                    onPlay={(t) => {
+                      if (currentTrack?.id === t.id) {
+                        if (isPlaying) pauseTrack();
+                        else resumeTrack();
                       } else {
-                        toast('error', '다운로드에 실패했습니다.');
+                        playTrack(trackListItemToTrack(t));
                       }
-                    }
-                  }}
-                />
-              ))}
-            </tbody>
-          </table>
+                    }}
+                    onLike={(t) => toggleLike(t.id)}
+                    onAddToPlaylist={(t) => setAddToPlTrackId(t.id)}
+                    onDownload={async (t) => {
+                      try {
+                        const blob = await downloadTrack(t.id);
+                        triggerBlobDownload(blob, `${t.title}.mp3`);
+                        try {
+                          const count = await fetchDownloadCount();
+                          toast(
+                            'success',
+                            `다운로드 완료! 오늘 남은 횟수: ${count.remaining}/${count.dailyLimit}`,
+                          );
+                        } catch {
+                          toast('success', '다운로드가 완료되었습니다.');
+                        }
+                      } catch (err) {
+                        const code = await getApiErrorCode(err);
+                        if (code === 'NO_ACTIVE_SUBSCRIPTION') {
+                          toast('warning', '구독이 필요한 기능입니다.');
+                          navigate('/subscriptions');
+                        } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
+                          toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
+                        } else {
+                          toast('error', '다운로드에 실패했습니다.');
+                        }
+                      }
+                    }}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {pageInfo && (
