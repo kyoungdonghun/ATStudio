@@ -149,6 +149,8 @@ const routes: RouteObject[] = [
       { path: '/licenses/:licenseId', element: authRequired(<LicenseDetailPage />) },
       { path: '/download-queue', element: subscriberOnly(<DownloadHistoryPage />) },
       { path: '/subscriptions/payment', element: authRequired(<SubscriptionPaymentPage />) },
+      { path: '/subscriptions/payment/success', element: authRequired(<SubscriptionPaymentPage />) },
+      { path: '/subscriptions/payment/fail', element: authRequired(<SubscriptionPaymentPage />) },
       { path: '/subscriptions/manage', element: authRequired(<SubscriptionManagePage />) },
       { path: '/whitelist-channels', element: subscriberOnly(<WhitelistChannelPage />) },
       { path: '/company-certification/apply', element: authRequired(<CompanyCertApplyPage />) },

@@ -15,6 +15,11 @@ export type PaymentOrderStatus =
 export interface PaymentCheckout {
   type: 'MOCK' | string;
   confirmToken?: string;
+  clientKey?: string;
+  customerKey?: string;
+  orderName?: string;
+  successUrl?: string;
+  failUrl?: string;
 }
 
 export interface PaymentPrepareRequest {
@@ -38,6 +43,7 @@ export interface PaymentConfirmRequest {
   amount: number;
   provider: PaymentProvider;
   providerToken?: string;
+  paymentKey?: string;
 }
 
 export interface PaymentConfirmResponse {

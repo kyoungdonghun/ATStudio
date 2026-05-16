@@ -201,7 +201,9 @@ dependencies:
        비로그인 → "로그인이 필요합니다" 안내 + [A-1 로그인] 이동 제안
        BUSINESS + 기업인증 없음 → "기업인증이 필요합니다" 안내 + [I-1] 이동 제안
                                                    │
-                                             "결제하기" → Mock payment prepare/confirm
+                                             "결제하기" → payment prepare
+                                                   │  MOCK → confirm
+                                                   │  TOSS → Toss widget → success redirect → confirm
                                                    │  성공 → [16-3 내 구독]
                                                    ├── 실패 → 결제 실패 상태 표시, 구독 미생성
                                                    └── "취소" → [16-1], 구독 미생성
@@ -212,7 +214,7 @@ dependencies:
   ├── "플랜 변경" → [M-09 PlanCompareModal]
   │    업그레이드:
   │      GET /api/utils/subscription-change-preview → proratedAmount 표시
-  │      → Mock payment prepare/confirm → 화면 갱신
+  │      → [16-2 구독 결제?purpose=UPGRADE] → Mock/Toss payment confirm → 화면 갱신
   │    다운그레이드:
   │      "다음 결제일({expiresAt})부터 적용 · 추가 결제 없음" 안내
   │      → [변경 예약] → PUT 6.7 → 화면 갱신 (pending 표시)

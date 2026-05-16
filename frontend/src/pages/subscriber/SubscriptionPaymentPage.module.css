@@ -189,6 +189,16 @@
   color: var(--error);
 }
 
+.tossWidget {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.tossWidgetSection {
+  min-height: 56px;
+}
+
 @media (max-width: 560px) {
   .btnGroup,
   .mockMeta {

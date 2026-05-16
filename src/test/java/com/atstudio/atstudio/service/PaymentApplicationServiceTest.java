@@ -2,6 +2,7 @@ package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.config.PaymentProperties;
 import com.atstudio.atstudio.dto.payment.PaymentCancelRequest;
 import com.atstudio.atstudio.dto.payment.PaymentConfirmRequest;
 import com.atstudio.atstudio.dto.payment.PaymentConfirmResponse;
@@ -28,6 +29,7 @@ import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.payment.provider.MockPaymentProvider;
+import com.atstudio.atstudio.service.payment.provider.TossPaymentProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,9 +66,11 @@ class PaymentApplicationServiceTest {
     @Mock PlaylistService playlistService;
 
     PaymentApplicationService service;
+    PaymentProperties paymentProperties;
 
     @BeforeEach
     void setUp() {
+        paymentProperties = new PaymentProperties();
         service = new PaymentApplicationService(
                 paymentOrderRepository,
                 userRepository,
@@ -75,7 +79,8 @@ class PaymentApplicationServiceTest {
                 subscriptionPaymentRepository,
                 companyCertificationRepository,
                 playlistService,
-                List.of(new MockPaymentProvider())
+                paymentProperties,
+                List.of(new MockPaymentProvider(), new TossPaymentProvider(paymentProperties))
         );
     }
 
@@ -102,6 +107,37 @@ class PaymentApplicationServiceTest {
         assertThat(response.amount()).isEqualByComparingTo(BigDecimal.valueOf(9900));
         assertThat(response.checkout().type()).isEqualTo("MOCK");
         assertThat(response.checkout().confirmToken()).isEqualTo("mock-" + response.orderId());
+        verify(userSubscriptionRepository, never()).save(any(UserSubscription.class));
+    }
+
+    @Test
+    @DisplayName("prepare can return Toss checkout metadata when provider is TOSS")
+    void prepareSubscribe_tossProvider() {
+        paymentProperties.setProvider(PaymentProviderType.TOSS);
+        paymentProperties.getToss().setClientKey("test_ck_sample");
+        paymentProperties.getToss().setSecretKey("test_sk_sample");
+        paymentProperties.getToss().setSuccessUrl("http://localhost:5173/success");
+        paymentProperties.getToss().setFailUrl("http://localhost:5173/fail");
+        User user = buildUser(1L, UserType.INDIVIDUAL);
+        Subscription subscription = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(subscriptionRepository.findById(10L)).willReturn(Optional.of(subscription));
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                .willReturn(Optional.empty());
+        given(paymentOrderRepository.existsByOrderId(anyString())).willReturn(false);
+        given(paymentOrderRepository.save(any(PaymentOrder.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        PaymentPrepareResponse response = service.prepareSubscriptionPayment(
+                buildUserDetails(1L),
+                new PaymentPrepareRequest(PaymentPurpose.SUBSCRIBE, 10L, BillingCycle.MONTHLY));
+
+        assertThat(response.provider()).isEqualTo(PaymentProviderType.TOSS);
+        assertThat(response.checkout().type()).isEqualTo("TOSS_WIDGET");
+        assertThat(response.checkout().clientKey()).isEqualTo("test_ck_sample");
+        assertThat(response.checkout().customerKey()).isEqualTo("ats_user_1");
+        assertThat(response.checkout().successUrl()).isEqualTo("http://localhost:5173/success");
         verify(userSubscriptionRepository, never()).save(any(UserSubscription.class));
     }
 

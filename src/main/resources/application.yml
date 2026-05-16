@@ -91,6 +91,16 @@ app:
   mail:
     from: ${MAIL_FROM:noreply@atstudio.com}
     base-url: ${APP_BASE_URL:http://localhost:5173}
+  payment:
+    provider: ${APP_PAYMENT_PROVIDER:MOCK}
+    toss:
+      client-key: ${TOSS_CLIENT_KEY:}
+      secret-key: ${TOSS_SECRET_KEY:}
+      success-url: ${TOSS_SUCCESS_URL:http://localhost:5173/subscriptions/payment/success}
+      fail-url: ${TOSS_FAIL_URL:http://localhost:5173/subscriptions/payment/fail}
+      confirm-url: ${TOSS_CONFIRM_URL:https://api.tosspayments.com/v1/payments/confirm}
+      connect-timeout-millis: ${TOSS_CONNECT_TIMEOUT_MILLIS:3000}
+      read-timeout-millis: ${TOSS_READ_TIMEOUT_MILLIS:10000}
   security:
     rate-limit:
       enabled: ${APP_SECURITY_RATE_LIMIT_ENABLED:true}
