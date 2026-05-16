@@ -201,9 +201,10 @@ dependencies:
        비로그인 → "로그인이 필요합니다" 안내 + [A-1 로그인] 이동 제안
        BUSINESS + 기업인증 없음 → "기업인증이 필요합니다" 안내 + [I-1] 이동 제안
                                                    │
-                                             "결제하기" → [M-26 PG 보류]
+                                             "결제하기" → Mock payment prepare/confirm
                                                    │  성공 → [16-3 내 구독]
-                                                   └── "취소" → [16-1]
+                                                   ├── 실패 → 결제 실패 상태 표시, 구독 미생성
+                                                   └── "취소" → [16-1], 구독 미생성
 
 [16-3 내 구독 현황]  ← GET /api/user-subscriptions/me
   │  pending 구독 있을 시: "예약된 변경: {플랜명} ({expiresAt}부터)" 표시
@@ -211,7 +212,7 @@ dependencies:
   ├── "플랜 변경" → [M-09 PlanCompareModal]
   │    업그레이드:
   │      GET /api/utils/subscription-change-preview → proratedAmount 표시
-  │      → [M-27 PG 보류] → PUT 6.7 → 화면 갱신
+  │      → Mock payment prepare/confirm → 화면 갱신
   │    다운그레이드:
   │      "다음 결제일({expiresAt})부터 적용 · 추가 결제 없음" 안내
   │      → [변경 예약] → PUT 6.7 → 화면 갱신 (pending 표시)
@@ -370,8 +371,8 @@ dependencies:
 | R-01 | 자동 로그인 (소셜) | 클라이언트 의견 수렴 후 결정 |
 | R-02 | GNB 추가 IA 조정 | 현재 baseline 구현 완료, 필요 시 후속 UX 개선으로 조정 |
 | R-03 | 태그 필터 — 인라인 vs 모달 전환 용이성 | 인라인 우선, 전환 어려우면 재논의 |
-| R-04 | 18 통계 대시보드 API 설계 | 사이트 완성 후 |
-| R-05 | PG 결제 연동 (M-26/M-27) | PG 결정 후 |
+| R-04 | 18 통계 대시보드 지표 확장 설계 | 필요 시 후속 정의 |
+| R-05 | Real PG 결제 연동 (Toss one-time / billing key) | Mock-first contract implemented; Toss integration remains 후속 |
 | R-06 | M-15 기업인증 서류 파일 제한 | 업로드 정책 미확정 |
 
 ---
