@@ -28,4 +28,5 @@ status: stable
 | **[API Specification](api-spec.md)** | REST API spec v7 — 101 endpoints | stable |
 | **[DB Schema](db-schema.md)** | Database schema v5 — 28 tables | stable |
 | **[Use Case Index](usecase/index.md)** | Domain use case documents | stable |
+| **[Payment Integration Design](payment-integration-design.md)** | Mock, Toss one-time payment, and recurring billing provider architecture | draft |
 
