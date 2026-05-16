@@ -379,13 +379,46 @@ CREATE TABLE IF NOT EXISTS licenses
 -- ─────────────────────────────────────────────
 -- 3.8  subscription_payments  (→ users, user_subscriptions, subscriptions)
 -- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS payment_orders
+(
+    id                   BIGINT                                                               NOT NULL AUTO_INCREMENT,
+    order_id             VARCHAR(64)                                                          NOT NULL,
+    user_id              BIGINT                                                               NOT NULL,
+    purpose              ENUM ('SUBSCRIBE', 'UPGRADE', 'RENEWAL', 'BILLING_AGREEMENT')         NOT NULL,
+    provider             ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY')                     NOT NULL,
+    status               ENUM ('READY', 'IN_PROGRESS', 'DONE', 'FAILED', 'CANCELLED', 'EXPIRED') NOT NULL DEFAULT 'READY',
+    subscription_id      BIGINT                                                               NOT NULL,
+    user_subscription_id BIGINT                                                               NULL,
+    billing_cycle        ENUM ('MONTHLY', 'YEARLY')                                           NOT NULL,
+    amount               DECIMAL(10, 2)                                                       NOT NULL,
+    currency             VARCHAR(3)                                                           NOT NULL DEFAULT 'KRW',
+    pg_transaction_id    VARCHAR(200)                                                         NULL,
+    provider_payload     TEXT                                                                 NULL,
+    failure_code         VARCHAR(100)                                                         NULL,
+    failure_message      VARCHAR(500)                                                         NULL,
+    expires_at           DATETIME                                                             NOT NULL,
+    confirmed_at         DATETIME                                                             NULL,
+    created_at           DATETIME                                                             NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at           DATETIME                                                             NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_payment_orders_order_id (order_id),
+    KEY idx_payment_orders_user_status (user_id, status),
+    CONSTRAINT fk_payment_orders_user              FOREIGN KEY (user_id)              REFERENCES users              (id),
+    CONSTRAINT fk_payment_orders_subscription      FOREIGN KEY (subscription_id)      REFERENCES subscriptions      (id),
+    CONSTRAINT fk_payment_orders_user_subscription FOREIGN KEY (user_subscription_id) REFERENCES user_subscriptions (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS subscription_payments
 (
     id                   BIGINT                          NOT NULL AUTO_INCREMENT,
     user_id              BIGINT                          NOT NULL,
     user_subscription_id BIGINT                          NOT NULL COMMENT 'Links payment to a specific subscription session.',
     subscription_id      BIGINT                          NOT NULL,
+    payment_order_id     BIGINT                          NULL,
     billing_cycle        ENUM ('MONTHLY', 'YEARLY')      NOT NULL,
+    provider             ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NULL,
     amount               DECIMAL(10, 2)                  NOT NULL COMMENT 'Prorated amount for upgrades.',
     payment_status       ENUM ('READY', 'DONE', 'REFUND') NOT NULL DEFAULT 'READY',
     pg_transaction_id    VARCHAR(100)                    NULL     COMMENT 'PG provider transaction ID.',
@@ -394,7 +427,8 @@ CREATE TABLE IF NOT EXISTS subscription_payments
     PRIMARY KEY (id),
     CONSTRAINT fk_subscription_payments_user         FOREIGN KEY (user_id)              REFERENCES users              (id),
     CONSTRAINT fk_subscription_payments_user_sub     FOREIGN KEY (user_subscription_id) REFERENCES user_subscriptions (id),
-    CONSTRAINT fk_subscription_payments_subscription FOREIGN KEY (subscription_id)      REFERENCES subscriptions      (id)
+    CONSTRAINT fk_subscription_payments_subscription FOREIGN KEY (subscription_id)      REFERENCES subscriptions      (id),
+    CONSTRAINT fk_subscription_payments_order        FOREIGN KEY (payment_order_id)     REFERENCES payment_orders     (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;

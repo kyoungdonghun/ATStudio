@@ -14,6 +14,8 @@
 | Z2 | §14 new entry | Added §14.12 GET /api/utils/public-capabilities (runtime auth/environment capability hints) |
 | Z3 | §5 user flows | Added actual 409 conflict cases for email/nickname/phone duplication across register/profile flows |
 | Z4 | Full API Summary | Updated total count from 104 → 107 |
+| Z5 | §6 new entries | Added mock-first payment contract: §6.3.1 prepare, §6.3.2 confirm, §6.3.3 cancel/fail |
+| Z6 | Full API Summary | Updated total count from 107 → 110 |
 
 ---
 
@@ -1066,7 +1068,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 |-------|-------|
 | **URL** | `POST /api/user-subscriptions` |
 | **Auth** | auth required |
-| **Description** | Subscribe to a plan (includes payment). Business members (over 100 employees) require license approval |
+| **Description** | Legacy compatibility subscription path. User-facing payment flow should use §6.3.1 → §6.3.2 instead. Business members require license approval. |
 
 **Request**
 ```json
@@ -1092,6 +1094,102 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 **Error Cases**
 ```json
 { "status": 403, "error": "Forbidden", "errorCode": "COMPANY_CERTIFICATION_REQUIRED", "message": "기업 인증 심사 승인 후 이용 가능합니다." }
+```
+
+## 6.3.1 Prepare Subscription Payment
+| Field | Value |
+|-------|-------|
+| **URL** | `POST /api/payments/subscriptions/prepare` |
+| **Auth** | auth required |
+| **Description** | Creates an internal payment order for SUBSCRIBE or UPGRADE. Phase A uses the MOCK provider only. |
+
+**Request**
+```json
+{
+  "purpose": "SUBSCRIBE",
+  "subscriptionId": 1,
+  "billingCycle": "MONTHLY"
+}
+```
+
+**Response** `201 Created`
+```json
+{
+  "orderId": "ATS-20260516-ABC123",
+  "provider": "MOCK",
+  "purpose": "SUBSCRIBE",
+  "amount": 9900,
+  "currency": "KRW",
+  "expiresAt": "2026-05-16T23:10:00",
+  "checkout": {
+    "type": "MOCK",
+    "confirmToken": "mock-ATS-20260516-ABC123"
+  }
+}
+```
+
+## 6.3.2 Confirm Payment
+| Field | Value |
+|-------|-------|
+| **URL** | `POST /api/payments/confirm` |
+| **Auth** | auth required |
+| **Description** | Confirms a prepared payment order. Subscription creation or upgrade is applied only after successful confirmation. |
+
+**Request**
+```json
+{
+  "orderId": "ATS-20260516-ABC123",
+  "amount": 9900,
+  "provider": "MOCK",
+  "providerToken": "mock-ATS-20260516-ABC123"
+}
+```
+
+**Response** `200 OK`
+```json
+{
+  "orderId": "ATS-20260516-ABC123",
+  "status": "DONE",
+  "purpose": "SUBSCRIBE",
+  "subscription": {
+    "id": 1,
+    "subscription": { "id": 1, "name": "STANDARD" },
+    "billingCycle": "MONTHLY",
+    "status": "ACTIVE",
+    "startedAt": "2026-05-16",
+    "expiresAt": "2026-06-16"
+  }
+}
+```
+
+**Error Cases**
+- `400 Bad Request` — `PAYMENT_AMOUNT_MISMATCH`, `PAYMENT_ORDER_INVALID_STATE`, `PAYMENT_ORDER_EXPIRED`, `PAYMENT_CONFIRM_FAILED`
+- `403 Forbidden` — `RESOURCE_NOT_ACCESS` when the authenticated user does not own the order
+- `404 Not Found` — `PAYMENT_ORDER_NOT_FOUND`
+
+## 6.3.3 Cancel or Fail Payment
+| Field | Value |
+|-------|-------|
+| **URL** | `POST /api/payments/cancel` |
+| **Auth** | auth required |
+| **Description** | Closes a prepared mock payment order as CANCELLED or FAILED without mutating subscription state. |
+
+**Request**
+```json
+{
+  "orderId": "ATS-20260516-ABC123",
+  "status": "CANCELLED",
+  "reason": "User cancelled checkout"
+}
+```
+
+**Response** `200 OK`
+```json
+{
+  "orderId": "ATS-20260516-ABC123",
+  "status": "CANCELLED",
+  "purpose": "SUBSCRIBE"
+}
 ```
 
 ## 6.4 My Subscription
@@ -2376,7 +2474,7 @@ key: String (required) — setting key name
 
 ---
 
-# Full API Summary (107)
+# Full API Summary (110)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -2385,7 +2483,7 @@ key: String (required) — setting key name
 | 3 | Playlist | 9 |
 | 4 | Play History | 3 |
 | 5 | User Info | 11 |
-| 6 | Subscription | 11 |
+| 6 | Subscription | 14 |
 | 7 | License | 4 |
 | 8 | Question (Inquiry/Answer) | 7 |
 | 9 | Notice | 6 |
@@ -2397,4 +2495,4 @@ key: String (required) — setting key name
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
-| | **Total** | **107** |
+| | **Total** | **110** |

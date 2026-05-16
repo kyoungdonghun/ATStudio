@@ -3,6 +3,7 @@ package com.atstudio.atstudio.entity;
 import com.atstudio.atstudio.common.entity.BaseEntity;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
 import com.atstudio.atstudio.entity.enums.PaymentStatus;
+import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -32,9 +33,17 @@ public class SubscriptionPayment extends BaseEntity {
     @JoinColumn(name = "subscription_id", nullable = false)
     private Subscription subscription;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "payment_order_id")
+    private PaymentOrder paymentOrder;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private BillingCycle billingCycle;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private PaymentProviderType provider;
 
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal amount;

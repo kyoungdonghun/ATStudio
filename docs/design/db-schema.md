@@ -13,6 +13,7 @@
 | 1 | `users.company_name` | **Added** — VARCHAR(100) NULL. Manually entered company name for BUSINESS members (SR-47). Independent of company_certifications.company_name (which is on the certification document). |
 | 2 | `subscriptions.max_playlists` | **Added** — INT NOT NULL DEFAULT 3. Tier-based limit on the number of active playlists a subscriber may hold (SR-55). |
 | 3 | `subscriptions` seed data | **Finalized** — Replaced all `[TBD]` prices with confirmed values. Added new `STANDARD/BUSINESS` row. Populated `max_playlists` per tier. |
+| 4 | `payment_orders` | **Added** — Mock-first payment attempt ledger for subscription prepare/confirm/cancel flow. |
 
 ---
 
@@ -319,7 +320,31 @@
 - Record created when played from the Que bar
 - Linked with `tracks.play_count` increment (app-level)
 
-## 6.3 Subscription Payment Records (`subscription_payments`)
+## 6.3 Payment Orders (`payment_orders`)
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Merchant order ID | `order_id` | VARCHAR(64) | NOT NULL | UNIQUE | | Sent to provider-facing checkout/confirm flow |
+| User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | Authenticated order owner |
+| Purpose | `purpose` | ENUM('SUBSCRIBE','UPGRADE','RENEWAL','BILLING_AGREEMENT') | NOT NULL | | | Phase A uses SUBSCRIBE/UPGRADE |
+| Provider | `provider` | ENUM('MOCK','TOSS','TOSS_BILLING','KAKAOPAY') | NOT NULL | | | Phase A uses MOCK |
+| Status | `status` | ENUM('READY','IN_PROGRESS','DONE','FAILED','CANCELLED','EXPIRED') | NOT NULL | | 'READY' | Attempt lifecycle |
+| Subscription plan | `subscription_id` | BIGINT | NOT NULL | FK(subscriptions.id) | | Target plan |
+| User subscription | `user_subscription_id` | BIGINT | NULL | FK(user_subscriptions.id) | | Set for upgrade or after confirm |
+| Billing cycle | `billing_cycle` | ENUM('MONTHLY','YEARLY') | NOT NULL | | | |
+| Amount | `amount` | DECIMAL(10,2) | NOT NULL | | | Server-calculated charge amount |
+| Currency | `currency` | VARCHAR(3) | NOT NULL | | 'KRW' | |
+| PG transaction ID | `pg_transaction_id` | VARCHAR(200) | NULL | | | Provider transaction key after confirmation |
+| Provider payload | `provider_payload` | TEXT | NULL | | | Sanitized metadata only |
+| Failure code | `failure_code` | VARCHAR(100) | NULL | | | |
+| Failure message | `failure_message` | VARCHAR(500) | NULL | | | |
+| Expires at | `expires_at` | DATETIME | NOT NULL | | | Prevents stale confirmation |
+| Confirmed at | `confirmed_at` | DATETIME | NULL | | | |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+## 6.4 Subscription Payment Records (`subscription_payments`)
 
 | Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
 |-------------|--------|------|------|-------------|---------|-------|
@@ -327,7 +352,9 @@
 | User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
 | Subscription record | `user_subscription_id` | BIGINT | NOT NULL | FK(user_subscriptions.id) | | Links to which subscription session this payment belongs to |
 | Subscription plan | `subscription_id` | BIGINT | NOT NULL | FK(subscriptions.id) | | |
+| Payment order | `payment_order_id` | BIGINT | NULL | FK(payment_orders.id) | | Links finalized payment to attempted order |
 | Billing cycle | `billing_cycle` | ENUM('MONTHLY','YEARLY') | NOT NULL | | | |
+| Provider | `provider` | ENUM('MOCK','TOSS','TOSS_BILLING','KAKAOPAY') | NULL | | | Null for legacy direct records |
 | Payment amount | `amount` | DECIMAL(10,2) | NOT NULL | | | Prorated amount for upgrades |
 | Payment status | `payment_status` | ENUM('READY','DONE','REFUND') | NOT NULL | | 'READY' | |
 | PG transaction ID | `pg_transaction_id` | VARCHAR(100) | NULL | | | Used for PG provider integration |
@@ -608,6 +635,7 @@
 ```
 users ─┬─< social_accounts
        ├─< user_subscriptions ──> subscriptions
+       ├─< payment_orders ──> subscriptions
        ├─< subscription_payments ──> subscriptions
        ├─< company_certifications
        ├─< track_downloads ──> tracks
@@ -632,7 +660,7 @@ site_settings (standalone — no FK)
 
 ---
 
-# Complete Table List (28 Tables)
+# Complete Table List (29 Tables)
 
 | # | Table Name | Description | Type |
 |---|------------|-------------|------|
@@ -648,21 +676,22 @@ site_settings (standalone — no FK)
 | 10 | `playlist_tracks` | Playlist-track mapping | Mapping |
 | 11 | `track_downloads` | Download history | Log |
 | 12 | `play_histories` | Play history | Log |
-| 13 | `subscription_payments` | Subscription payment records | Transaction |
-| 14 | `likes` | Track likes | Mapping |
-| 15 | `album_likes` | Album likes | Mapping |
-| 16 | `download_queue` | Download queue | Mapping |
-| 17 | `whitelist_channels` | Whitelist channels | Master |
-| 18 | `questions` | Inquiries | Transaction |
-| 19 | `answers` | Inquiry answers | Transaction |
-| 20 | `licenses` | Track usage licenses | Transaction |
-| 21 | `notices` | Notices | Master |
-| 22 | `question_attachments` | Inquiry attachments | Transaction |
-| 23 | `notice_attachments` | Notice attachments | Transaction |
-| 24 | `albums` | Curated albums | Master |
-| 25 | `album_tracks` | Album-track mapping | Mapping |
-| 26 | `email_verification_tokens` | Email verification tokens | Transaction |
-| 27 | `password_reset_tokens` | Password reset tokens | Transaction |
-| 28 | `site_settings` | Site configuration key-value store | Master |
+| 13 | `payment_orders` | Payment attempt ledger | Transaction |
+| 14 | `subscription_payments` | Subscription payment records | Transaction |
+| 15 | `likes` | Track likes | Mapping |
+| 16 | `album_likes` | Album likes | Mapping |
+| 17 | `download_queue` | Download queue | Mapping |
+| 18 | `whitelist_channels` | Whitelist channels | Master |
+| 19 | `questions` | Inquiries | Transaction |
+| 20 | `answers` | Inquiry answers | Transaction |
+| 21 | `licenses` | Track usage licenses | Transaction |
+| 22 | `notices` | Notices | Master |
+| 23 | `question_attachments` | Inquiry attachments | Transaction |
+| 24 | `notice_attachments` | Notice attachments | Transaction |
+| 25 | `albums` | Curated albums | Master |
+| 26 | `album_tracks` | Album-track mapping | Mapping |
+| 27 | `email_verification_tokens` | Email verification tokens | Transaction |
+| 28 | `password_reset_tokens` | Password reset tokens | Transaction |
+| 29 | `site_settings` | Site configuration key-value store | Master |
 
-Total **28 tables**
+Total **29 tables**

@@ -94,8 +94,8 @@ dependencies:
 | M-23 | LIKE-003 | D-1 (좋아요 목록) | "좋아요 취소" 클릭 | "좋아요를 취소하시겠습니까?" | ConfirmModal | `10.3 DELETE /api/likes/{trackId}` |
 | M-24 | PAYMENT-009 | K-2 (구독 목록/상세) | "구독 강제 취소" 클릭 | "구독을 강제 취소하시겠습니까?" | ConfirmModal | `6.9 DELETE /api/user-subscriptions/{userSubscriptionId}` |
 | M-25 | INFO-006 | K-1 (회원 목록/상세) | "권한 수정 저장" 클릭 | "회원 권한을 변경하시겠습니까?" | ConfirmModal | `5.8 PUT /api/users/{userId}` |
-| M-26 | PAYMENT-001 | Screen 16-2 (구독 결제) | "결제하기" 클릭 | PG 결제 창 **[보류]** | ⚠️ PG 보류 | `6.3 POST /api/user-subscriptions` |
-| M-27 | PAYMENT-007 | M-09 (PlanCompareModal 내) | 업그레이드 결제 확인 | PG 결제 창 **[보류]** | ⚠️ PG 보류 | `6.7 PUT /api/user-subscriptions/me` |
+| M-26 | PAYMENT-001 | Screen 16-2 (구독 결제) | "결제 확인" 클릭 | Mock payment confirm | Inline Mock payment panel | `6.3.1 POST /api/payments/subscriptions/prepare` + `6.3.2 POST /api/payments/confirm` |
+| M-27 | PAYMENT-007 | M-09 (PlanCompareModal 내) | 업그레이드 결제 확인 | Mock payment confirm | Inline Mock payment step | `6.3.1 POST /api/payments/subscriptions/prepare` + `6.3.2 POST /api/payments/confirm` |
 | M-28 | - | K-6 (태그 관리) | "태그 삭제" 클릭 | "태그를 삭제하시겠습니까?" | ConfirmModal | `2.4 DELETE /api/tags/{tagId}` |
 | M-29 | SR-34 | D-1 (좋아요 목록 > 앨범 탭) | "좋아요 취소" 클릭 | "좋아요를 취소하시겠습니까?" | ConfirmModal | `DELETE /api/likes/albums/{albumId}` |
 | M-30 | SR-79 | Screen 11 (다운로드 기록) | "전체 재다운로드" 클릭 | "{N}곡을 다운로드합니다. 계속하시겠습니까?" | ConfirmDialog | `GET /api/downloads/history/track-ids` + `GET /api/tracks/{trackId}/download` |
@@ -145,14 +145,14 @@ dependencies:
   |  proratedAmount 표시     "추가 결제 없음" 안내           |
   |  (preview API reflected)  다음 결제일: {expires_at}      |
   |                                                       |
-  |  [취소]   [결제하기 ▶ PG 보류 M-27]   [변경 예약]       |
+  |  [취소]   [결제 확인 ▶ Mock confirm]   [변경 예약]      |
   +-------------------------------------------------------+
 
   업그레이드 경로:
     GET /api/utils/subscription-change-preview
       → proratedAmount = (newDailyRate - oldDailyRate) x 남은 일수
-      → PG 결제 [M-27 보류]
-      → PUT 6.7 /api/user-subscriptions/me
+      → POST /api/payments/subscriptions/prepare
+      → POST /api/payments/confirm
 
   다운그레이드 경로:
     "다음 결제일({expires_at})부터 변경 · 추가 결제 없음" 안내
@@ -252,8 +252,8 @@ dependencies:
 
 | # | 항목 | 사유 |
 |---|------|------|
-| M-26 | PG 결제 모달 — 구독 최초 결제 (Screen 16-2) | PG(Payment Gateway) 연동 미결정. 결제 모달 사양 별도 정의 필요. |
-| M-27 | PG 결제 모달 — 업그레이드 결제 (M-09 내) | 동일. T-2 API 구현 이후 연동 설계 진행. |
+| M-26 | Real PG 결제 모달 — 구독 최초 결제 (Screen 16-2) | Mock-first inline panel implemented. Toss PG UI remains a future provider-specific extension. |
+| M-27 | Real PG 결제 모달 — 업그레이드 결제 (M-09 내) | Mock-first confirm implemented. Toss PG UI remains a future provider-specific extension. |
 | M-15 | 기업인증 서류 파일 제한 (I-1) | 업로드 허용 파일 확장자 및 최대 크기 정책 미확정. FileUploadModal 구현 시 별도 정의 필요. |
 
 ---
@@ -262,7 +262,7 @@ dependencies:
 > - 1차 (화면 목록 기반): M-01 ~ M-10 (10개)
 > - 2차 (유스케이스 추가): M-11 ~ M-28 (18개)
 > - 3차 (SR-34 앨범 좋아요): M-29 (1개)
-> - 보류: M-15, M-26, M-27 (3개)
+> - 보류: M-15, real PG extension for M-26/M-27 (3개)
 > v1.2 2026-03-07 → v1.3 2026-03-29 → v1.4 2026-05-16
 
 ## Related Documents

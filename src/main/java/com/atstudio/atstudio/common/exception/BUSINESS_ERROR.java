@@ -110,6 +110,31 @@ public enum BUSINESS_ERROR {
             "구독 플랜의 재생목록 한도를 초과했습니다.",
             "구독 플랜 maxPlaylists 초과 시도."),
 
+    PAYMENT_ORDER_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "결제 정보를 찾을 수 없습니다.",
+            "payment order가 존재하지 않습니다."),
+
+    PAYMENT_ORDER_INVALID_STATE(
+            HttpStatus.BAD_REQUEST,
+            "현재 결제 상태에서는 처리할 수 없습니다.",
+            "payment order 상태 전이가 유효하지 않습니다."),
+
+    PAYMENT_ORDER_EXPIRED(
+            HttpStatus.BAD_REQUEST,
+            "결제 시간이 만료되었습니다. 다시 시도해주세요.",
+            "payment order가 만료되었습니다."),
+
+    PAYMENT_AMOUNT_MISMATCH(
+            HttpStatus.BAD_REQUEST,
+            "결제 금액이 일치하지 않습니다.",
+            "클라이언트 결제 금액과 서버 결제 주문 금액이 일치하지 않습니다."),
+
+    PAYMENT_CONFIRM_FAILED(
+            HttpStatus.BAD_REQUEST,
+            "결제 승인에 실패했습니다. 다시 시도해주세요.",
+            "payment provider confirm 실패."),
+
     // ── Auth ──────────────────────────────────────────────────────────────────
     INVALID_CREDENTIALS(
             HttpStatus.UNAUTHORIZED,

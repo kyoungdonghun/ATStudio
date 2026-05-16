@@ -9,10 +9,8 @@ import {
   type MySubscription,
   type SubscriptionChangePreview,
 } from '@/api/userSubscriptions';
-import {
-  fetchSubscriptionPlans,
-  type SubscriptionPlan,
-} from '@/api/subscriptions';
+import { fetchSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
+import { confirmPayment, prepareSubscriptionPayment } from '@/api/payments';
 import { isSubscriptionRequired } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import Button from '@/components/ui/Button';
@@ -27,10 +25,14 @@ function formatAmount(amount: number): string {
 /** Plan display name mapping */
 function getDisplayName(name: string): string {
   switch (name) {
-    case 'STANDARD': return '스탠다드';
-    case 'DELUXE': return '\uB514\uB7ED\uC2A4';
-    case 'PREMIUM': return '\uD504\uB9AC\uBBF8\uC5C4';
-    default: return name;
+    case 'STANDARD':
+      return '스탠다드';
+    case 'DELUXE':
+      return '\uB514\uB7ED\uC2A4';
+    case 'PREMIUM':
+      return '\uD504\uB9AC\uBBF8\uC5C4';
+    default:
+      return name;
   }
 }
 
@@ -81,9 +83,7 @@ export default function SubscriptionManagePage() {
         throw err;
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : '구독 정보를 불러오지 못했습니다.',
-      );
+      setError(err instanceof Error ? err.message : '구독 정보를 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
@@ -120,10 +120,7 @@ export default function SubscriptionManagePage() {
     async function loadPreview() {
       try {
         setLoadingPreview(true);
-        const res = await fetchSubscriptionChangePreview(
-          selectedPlan!.id,
-          selectedCycle,
-        );
+        const res = await fetchSubscriptionChangePreview(selectedPlan!.id, selectedCycle);
         if (!cancelled) setPreview(res);
       } catch {
         if (!cancelled) setPreview(null);
@@ -140,20 +137,32 @@ export default function SubscriptionManagePage() {
 
   /* ── Change subscription ── */
   async function handleChangePlan() {
-    if (!selectedPlan) return;
+    if (!selectedPlan || !preview) return;
     try {
       setChangingPlan(true);
       setChangeError(null);
       setChangeMsg(null);
-      const res = await changeMySubscription({
-        subscriptionId: selectedPlan.id,
-        billingCycle: selectedCycle,
-      });
-      if (res.changeType === 'UPGRADE') {
+
+      if (preview.changeType === 'UPGRADE') {
+        const prepared = await prepareSubscriptionPayment({
+          purpose: 'UPGRADE',
+          subscriptionId: selectedPlan.id,
+          billingCycle: selectedCycle,
+        });
+        const confirmed = await confirmPayment({
+          orderId: prepared.orderId,
+          amount: prepared.amount,
+          provider: prepared.provider,
+          providerToken: prepared.checkout.confirmToken,
+        });
         setChangeMsg(
-          `${getDisplayName(res.subscription.name)} 플랜으로 업그레이드되었습니다. 비례 요금: ${formatAmount(res.proratedAmount)}원`,
+          `${getDisplayName(confirmed.subscription?.subscription.name ?? selectedPlan.name)} 플랜으로 업그레이드되었습니다. 비례 요금: ${formatAmount(prepared.amount)}원`,
         );
       } else {
+        const res = await changeMySubscription({
+          subscriptionId: selectedPlan.id,
+          billingCycle: selectedCycle,
+        });
         setChangeMsg(
           `다운그레이드가 예약되었습니다. 현재 구독 만료 후 ${getDisplayName(res.subscription.name)} 플랜이 적용됩니다.`,
         );
@@ -162,9 +171,7 @@ export default function SubscriptionManagePage() {
       setPreview(null);
       await load();
     } catch (err) {
-      setChangeError(
-        err instanceof Error ? err.message : '플랜 변경에 실패했습니다.',
-      );
+      setChangeError(err instanceof Error ? err.message : '플랜 변경에 실패했습니다.');
     } finally {
       setChangingPlan(false);
     }
@@ -178,9 +185,7 @@ export default function SubscriptionManagePage() {
       setShowCancelModal(false);
       await load();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : '구독 취소에 실패했습니다.',
-      );
+      setError(err instanceof Error ? err.message : '구독 취소에 실패했습니다.');
     } finally {
       setCancelling(false);
     }
@@ -249,9 +254,7 @@ export default function SubscriptionManagePage() {
       <div className={styles.planCard}>
         <div className={styles.planHeader}>
           <div className={styles.planName}>{getDisplayName(sub.subscription.name)}</div>
-          <span className={getStatusClass(sub.status)}>
-            {getStatusLabel(sub.status)}
-          </span>
+          <span className={getStatusClass(sub.status)}>{getStatusLabel(sub.status)}</span>
         </div>
         <div className={styles.planInfo}>
           <div className={styles.infoItem}>
@@ -262,15 +265,11 @@ export default function SubscriptionManagePage() {
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>{'시작일'}</span>
-            <span className={styles.infoValue}>
-              {formatDate(sub.startedAt)}
-            </span>
+            <span className={styles.infoValue}>{formatDate(sub.startedAt)}</span>
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>{'만료일'}</span>
-            <span className={styles.infoValue}>
-              {formatDate(sub.expiresAt)}
-            </span>
+            <span className={styles.infoValue}>{formatDate(sub.expiresAt)}</span>
           </div>
         </div>
 
@@ -290,7 +289,9 @@ export default function SubscriptionManagePage() {
         <div className={styles.actionSection}>
           <div className={styles.actionTitle}>{'플랜 변경'}</div>
           <div className={styles.actionDesc}>
-            {'업그레이드는 즉시 적용되며 비례 요금이 청구됩니다. 다운그레이드는 현재 구독 만료 후 적용됩니다.'}
+            {
+              '업그레이드는 즉시 적용되며 비례 요금이 청구됩니다. 다운그레이드는 현재 구독 만료 후 적용됩니다.'
+            }
           </div>
 
           {/* Plan options */}
@@ -301,9 +302,7 @@ export default function SubscriptionManagePage() {
                 <div
                   key={plan.id}
                   className={
-                    selectedPlan?.id === plan.id
-                      ? styles.planOptionSelected
-                      : styles.planOption
+                    selectedPlan?.id === plan.id ? styles.planOptionSelected : styles.planOption
                   }
                   onClick={() => setSelectedPlan(plan)}
                 >
@@ -338,9 +337,7 @@ export default function SubscriptionManagePage() {
           )}
 
           {/* Preview */}
-          {loadingPreview && (
-            <div className={styles.loading}>{'변경 내역을 미리 보는 중...'}</div>
-          )}
+          {loadingPreview && <div className={styles.loading}>{'변경 내역을 미리 보는 중...'}</div>}
           {preview && !loadingPreview && (
             <div className={styles.previewBox}>
               <div className={styles.previewRow}>
@@ -372,9 +369,7 @@ export default function SubscriptionManagePage() {
               </div>
               <div className={styles.previewRow}>
                 <span className={styles.previewLabel}>{'적용일'}</span>
-                <span className={styles.previewValue}>
-                  {formatDate(preview.effectiveDate)}
-                </span>
+                <span className={styles.previewValue}>{formatDate(preview.effectiveDate)}</span>
               </div>
             </div>
           )}
@@ -391,22 +386,14 @@ export default function SubscriptionManagePage() {
               >
                 {'취소'}
               </Button>
-              <Button
-                variant="primary"
-                onClick={handleChangePlan}
-                loading={changingPlan}
-              >
+              <Button variant="primary" onClick={handleChangePlan} loading={changingPlan}>
                 {'플랜 변경 확인'}
               </Button>
             </div>
           )}
 
-          {changeMsg && (
-            <div className={styles.successMsg}>{changeMsg}</div>
-          )}
-          {changeError && (
-            <div className={styles.errorMsg}>{changeError}</div>
-          )}
+          {changeMsg && <div className={styles.successMsg}>{changeMsg}</div>}
+          {changeError && <div className={styles.errorMsg}>{changeError}</div>}
         </div>
       )}
 
@@ -419,10 +406,7 @@ export default function SubscriptionManagePage() {
             {formatDate(sub.expiresAt)}
             {')까지는 서비스를 계속 이용할 수 있습니다. 이후 자동으로 만료됩니다.'}
           </div>
-          <Button
-            variant="danger"
-            onClick={() => setShowCancelModal(true)}
-          >
+          <Button variant="danger" onClick={() => setShowCancelModal(true)}>
             {'구독 취소'}
           </Button>
         </div>
@@ -435,9 +419,7 @@ export default function SubscriptionManagePage() {
         title="구독 취소 확인"
       >
         <div className={styles.modalBody}>
-          <p>
-            {'정말 구독을 취소하시겠습니까?'}
-          </p>
+          <p>{'정말 구독을 취소하시겠습니까?'}</p>
           <p style={{ marginTop: 8, fontSize: 13, color: 'var(--text2)' }}>
             {'만료일('}
             {sub ? formatDate(sub.expiresAt) : ''}
@@ -448,11 +430,7 @@ export default function SubscriptionManagePage() {
           <Button variant="ghost" onClick={() => setShowCancelModal(false)}>
             {'돌아가기'}
           </Button>
-          <Button
-            variant="danger"
-            onClick={handleCancel}
-            loading={cancelling}
-          >
+          <Button variant="danger" onClick={handleCancel} loading={cancelling}>
             {'취소 확정'}
           </Button>
         </div>
