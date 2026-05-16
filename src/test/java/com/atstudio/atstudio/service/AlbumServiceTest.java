@@ -4,9 +4,11 @@ import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.album.*;
 import com.atstudio.atstudio.entity.*;
+import com.atstudio.atstudio.entity.enums.TagType;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.entity.key.AlbumTrackId;
+import com.atstudio.atstudio.entity.key.TrackTagId;
 import com.atstudio.atstudio.repository.AlbumRepository;
 import com.atstudio.atstudio.repository.AlbumTrackRepository;
 import com.atstudio.atstudio.repository.TrackRepository;
@@ -94,6 +96,34 @@ class AlbumServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("getAlbum() 성공 - 수록곡 태그와 음원 메타데이터 포함")
+    void getAlbum_includesTrackTagsAndMetadata() {
+        User user = buildUser(1L);
+        Album album = buildAlbum(1L, user, "Tagged Album");
+        Track track = buildTrack(5L, true);
+        Tag tag = buildTag(10L, "Piano", TagType.INSTRUMENT);
+        track.getTrackTags().add(buildTrackTag(track, tag));
+        AlbumTrackId atId = new AlbumTrackId(1L, 5L);
+        AlbumTrack albumTrack = AlbumTrack.builder()
+                .id(atId).album(album).track(track).trackOrder(0).build();
+
+        given(albumRepository.findById(1L)).willReturn(Optional.of(album));
+        given(albumTrackRepository.findAllByAlbumOrderByTrackOrder(album))
+                .willReturn(List.of(albumTrack));
+
+        AlbumDetailResponse result = albumService.getAlbum(1L);
+
+        assertThat(result.tracks()).hasSize(1);
+        AlbumTrackItemResponse trackResponse = result.tracks().get(0);
+        assertThat(trackResponse.trackId()).isEqualTo(5L);
+        assertThat(trackResponse.bpm()).isEqualTo(120);
+        assertThat(trackResponse.tonality()).isEqualTo("C");
+        assertThat(trackResponse.tags()).hasSize(1);
+        assertThat(trackResponse.tags().get(0).name()).isEqualTo("Piano");
+        assertThat(trackResponse.tags().get(0).type()).isEqualTo(TagType.INSTRUMENT);
     }
 
     @Test
@@ -258,6 +288,20 @@ class AlbumServiceTest {
                 .isActive(active).build();
         ReflectionTestUtils.setField(track, "id", id);
         return track;
+    }
+
+    private Tag buildTag(Long id, String name, TagType type) {
+        Tag tag = Tag.builder().name(name).type(type).build();
+        ReflectionTestUtils.setField(tag, "id", id);
+        return tag;
+    }
+
+    private TrackTag buildTrackTag(Track track, Tag tag) {
+        return TrackTag.builder()
+                .id(new TrackTagId(track.getId(), tag.getId()))
+                .track(track)
+                .tag(tag)
+                .build();
     }
 
     private CustomUserDetails buildAdminDetails(Long id) {

@@ -89,14 +89,7 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    #888 30%,
-    #555 31%,
-    #666 50%,
-    #555 51%,
-    #444 100%
-  );
+  background: radial-gradient(circle, #888 30%, #555 31%, #666 50%, #555 51%, #444 100%);
 }
 
 .cover {
@@ -233,6 +226,7 @@
 .trackTable {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .trackTable thead th {
@@ -259,174 +253,24 @@
   width: 42px;
 }
 
-.thOrder {
+.thTag {
+  width: 150px;
+}
+
+.thBpm {
+  width: 70px;
+}
+
+.thKey {
+  width: 70px;
+}
+
+.thDur {
   width: 66px;
 }
 
-.thActions {
-  width: 140px;
-}
-
-.trackRow {
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-  transition: background 0.12s;
-}
-
-.trackRow:hover {
-  background: var(--bg1);
-}
-
-.trackTable tbody td {
-  padding: 10px 12px;
-  vertical-align: middle;
-}
-
-.tdNum {
-  text-align: center;
-}
-
-.trNum {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin: 0 auto;
-  font-size: 13px;
-  color: var(--text2);
-}
-
-.trPlayBtn {
-  display: none;
-  width: 24px;
-  height: 24px;
-  background: var(--accent);
-  border-radius: 50%;
-  align-items: center;
-  justify-content: center;
-  color: var(--bg0);
-  font-size: 10px;
-  margin: 0 auto;
-  border: none;
-  cursor: pointer;
-}
-
-.trackRow:hover .trNum,
-.trackRowActive .trNum {
-  display: none;
-}
-
-.trackRow:hover .trPlayBtn,
-.trackRowActive .trPlayBtn {
-  display: flex;
-}
-
-.tdInfo {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  text-decoration: none;
-  color: inherit;
-}
-
-.tdInfo:hover .trTitle {
-  color: var(--accent);
-}
-
-.trThumb {
-  width: 40px;
-  height: 40px;
-  background: var(--bg3);
-  border-radius: 5px;
-  border: 1px solid var(--border2);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  color: var(--border2);
-  overflow: hidden;
-}
-
-.trThumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.trTitle {
-  font-size: 13px;
-  font-weight: 500;
-  transition: color 0.15s;
-}
-
-.trArtist {
-  font-size: 12px;
-  color: var(--text1);
-  margin-top: 1px;
-}
-
-.tdOrder {
-  font-size: 13px;
-  color: var(--text2);
-  text-align: right;
-}
-
-/* ── Track row actions ── */
-
-.tdActions {
-  text-align: right;
-  white-space: nowrap;
-}
-
-.tdActionsInner {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-}
-
-.trActBtn {
-  background: none;
-  border: none;
-  color: var(--text2);
-  cursor: pointer;
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  transition: color 0.15s, background 0.15s;
-}
-
-.trActBtn:hover {
-  color: var(--text0);
-  background: var(--bg3);
-}
-
-.trActBtnActive {
-  color: var(--accent);
-}
-
-.trQueueBtn {
-  background: var(--accent-dim);
-  border: 1px solid var(--accent-border);
-  color: var(--accent);
-  border-radius: 4px;
-  padding: 3px 10px;
-  font-size: 11px;
-  font-family: inherit;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s;
-}
-
-.trQueueBtn:hover {
-  background: rgba(198, 167, 94, 0.22);
+.thActs {
+  width: 120px;
 }
 
 .btnLikeActive {
@@ -503,29 +347,14 @@
     flex-wrap: wrap;
   }
 
-  .thOrder,
-  .tdOrder {
+  .thBpm,
+  .thKey,
+  .thDur,
+  .thTag {
     display: none;
   }
 
-  .thActions {
-    width: 100px;
+  .thActs {
+    width: 70px;
   }
-
-  .trThumb {
-    width: 32px;
-    height: 32px;
-  }
-
-  .trActBtn {
-    width: 24px;
-    height: 24px;
-    font-size: 12px;
-  }
-
-  .trQueueBtn {
-    padding: 2px 6px;
-    font-size: 10px;
-  }
-
 }

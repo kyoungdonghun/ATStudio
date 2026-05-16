@@ -1,5 +1,5 @@
 import client from '@/api/client';
-import type { Album, ApiResponse, PagedResponse } from '@/types';
+import type { Album, ApiResponse, PagedResponse, TagItem } from '@/types';
 
 /* ── Detail types ── */
 
@@ -9,6 +9,15 @@ export interface AlbumTrack {
   artistName: string;
   thumbnailUrl: string | null;
   order: number;
+  duration: number;
+  bpm: number;
+  tonality: string;
+  playCount: number;
+  likeCount: number;
+  downloadCount: number;
+  waveformData?: string | null;
+  tags: TagItem[];
+  createdAt: string;
 }
 
 export interface AlbumDetail {
@@ -32,9 +41,7 @@ export interface AlbumListParams {
 /* ── API functions ── */
 
 /** GET /api/albums -- public album list */
-export async function fetchAlbums(
-  params: AlbumListParams = {},
-): Promise<PagedResponse<Album>> {
+export async function fetchAlbums(params: AlbumListParams = {}): Promise<PagedResponse<Album>> {
   const query: Record<string, string | number> = {};
 
   if (params.page !== undefined) query.page = params.page;
@@ -62,10 +69,7 @@ export async function createAlbum(formData: FormData): Promise<Album> {
 }
 
 /** PUT /api/albums/{id} -- update album (multipart/form-data) */
-export async function updateAlbum(
-  albumId: number,
-  formData: FormData,
-): Promise<Album> {
+export async function updateAlbum(albumId: number, formData: FormData): Promise<Album> {
   const { data } = await client.put<ApiResponse<Album>>(`/albums/${albumId}`, formData, {
     timeout: 60_000,
   });
@@ -78,14 +82,10 @@ export async function deleteAlbum(albumId: number): Promise<void> {
 }
 
 /** POST /api/albums/{id}/tracks -- add track to album */
-export async function addTrackToAlbum(
-  albumId: number,
-  trackId: number,
-): Promise<AlbumDetail> {
-  const { data } = await client.post<ApiResponse<AlbumDetail>>(
-    `/albums/${albumId}/tracks`,
-    { trackId },
-  );
+export async function addTrackToAlbum(albumId: number, trackId: number): Promise<AlbumDetail> {
+  const { data } = await client.post<ApiResponse<AlbumDetail>>(`/albums/${albumId}/tracks`, {
+    trackId,
+  });
   return data.data;
 }
 
@@ -94,17 +94,13 @@ export async function reorderAlbumTracks(
   albumId: number,
   trackOrders: { trackId: number; order: number }[],
 ): Promise<AlbumDetail> {
-  const { data } = await client.put<ApiResponse<AlbumDetail>>(
-    `/albums/${albumId}/tracks`,
-    { trackOrders },
-  );
+  const { data } = await client.put<ApiResponse<AlbumDetail>>(`/albums/${albumId}/tracks`, {
+    trackOrders,
+  });
   return data.data;
 }
 
 /** DELETE /api/albums/{id}/tracks/{trackId} -- remove track from album */
-export async function removeTrackFromAlbum(
-  albumId: number,
-  trackId: number,
-): Promise<void> {
+export async function removeTrackFromAlbum(albumId: number, trackId: number): Promise<void> {
   await client.delete(`/albums/${albumId}/tracks/${trackId}`);
 }

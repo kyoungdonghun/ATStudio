@@ -4,7 +4,6 @@ import com.atstudio.atstudio.entity.Album;
 import com.atstudio.atstudio.entity.AlbumTrack;
 import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.key.AlbumTrackId;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -16,7 +15,16 @@ public interface AlbumTrackRepository extends JpaRepository<AlbumTrack, AlbumTra
 
     void deleteAllByAlbum(Album album);
 
-    @EntityGraph(attributePaths = {"track", "track.user"})
+    @Query("""
+            SELECT DISTINCT at
+            FROM AlbumTrack at
+            JOIN FETCH at.track t
+            LEFT JOIN FETCH t.user
+            LEFT JOIN FETCH t.trackTags tt
+            LEFT JOIN FETCH tt.tag
+            WHERE at.album = ?1
+            ORDER BY at.trackOrder
+            """)
     List<AlbumTrack> findAllByAlbumOrderByTrackOrder(Album album);
 
     boolean existsByAlbumAndTrack(Album album, Track track);
