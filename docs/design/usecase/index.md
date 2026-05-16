@@ -264,7 +264,7 @@
 | 2 | INFO-014 Social profile completion | **New** -- `PUT /api/users/me/complete-profile`. Required profile input for first-time social sign-ups. |
 | 3 | SOUND-010 Play track | Removed play_histories recording from stream API. Changed to frontend calling SOUND-004 separately. |
 | 4 | SOUND-004 Save play history | Trigger changed: "automatic inside SOUND-010" to "frontend explicitly calls when QueBar playback starts". |
-| 5 | SOUND-002/007/008/013/017/019/020 | Added "has active subscription (ACTIVE)" to preconditions. All playlist features confirmed subscriber-only. |
+| 5 | SOUND-002/007/008/013/017/019/020 | Added service-enabled subscription preconditions. Playlist features remain subscriber-only, and current implementation also allows `CANCELLED` subscriptions during the remaining grace period. |
 | 6 | QUESTION-006 edit removed | Inquiry edit feature removed. No-edit policy -- guide users to delete and rewrite. |
 | 7 | QUESTION-006 delete (renumbered) | Former QUESTION-007 (delete) renumbered to QUESTION-006 (delete). |
 | 8 | QUESTION-007 status change | **New** -- Admin inquiry status change UC (maps to existing API 8.7 to v4 API 8.6). |

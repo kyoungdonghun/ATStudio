@@ -1,13 +1,13 @@
 ---
-version: 1.3
-last_updated: 2026-03-29
+version: 1.4
+last_updated: 2026-05-16
 project: ATS
 owner: docops
 category: guide
 status: stable
 dependencies:
   - path: docs/ui/atstudio-front-list.md
-    version: v4
+    version: v6
     reason: Screen number system and screen names (primary source)
   - path: docs/design/usecase/sound-track.md
     reason: SOUND-016 Track deletion modal
@@ -35,8 +35,8 @@ dependencies:
 
 # ATStudio Modal/Popup Interaction List
 
-> API Spec v5 / Usecase v5 기준 | v1.2 2026-03-07
-> 관련 화면 목록: [docs/ui/atstudio-front-list.md](atstudio-front-list.md) v4
+> API Spec v9 / Usecase latest 기준 | v1.4 2026-05-16 현행화
+> 관련 화면 목록: [docs/ui/atstudio-front-list.md](atstudio-front-list.md) v6
 
 ---
 
@@ -143,13 +143,13 @@ dependencies:
   |  [업그레이드 분기]        [다운그레이드 분기]            |
   |  즉시 적용               다음 결제일부터 적용             |
   |  proratedAmount 표시     "추가 결제 없음" 안내           |
-  |  (TODO T-2 API)          다음 결제일: {expires_at}      |
+  |  (preview API reflected)  다음 결제일: {expires_at}      |
   |                                                       |
   |  [취소]   [결제하기 ▶ PG 보류 M-27]   [변경 예약]       |
   +-------------------------------------------------------+
 
   업그레이드 경로:
-    GET /api/utils/subscription-change-preview (TODO T-2)
+    GET /api/utils/subscription-change-preview
       → proratedAmount = (newDailyRate - oldDailyRate) x 남은 일수
       → PG 결제 [M-27 보류]
       → PUT 6.7 /api/user-subscriptions/me
@@ -228,11 +228,11 @@ dependencies:
 
 | 조건 | UI 처리 |
 |------|---------|
-| 활성 재생목록 >= 3개 | "새 재생목록 만들기" 버튼 **비노출(차단)** |
+| 활성 재생목록 >= 현재 플랜 `maxPlaylists` | "새 재생목록 만들기" 버튼 **비노출(차단)** |
 | 활성 재생목록 0개 (M-12 SelectModal 내) | "재생목록을 먼저 만들어주세요" 안내 텍스트 표시 |
 | 활성 재생목록 1~2개 | 버튼 정상 노출 |
 
-> **근거**: `PlaylistService.java:46-48` — `countByUserAndIsActiveTrue >= 3` 시 `PLAYLIST_LIMIT_EXCEEDED` (409) 반환. 프론트엔드는 API 호출 전 버튼 비노출로 UX 차단.
+> **근거**: `PlaylistService.java:45-49` — `countByUserAndIsActiveTrue >= currentSubscription.maxPlaylists` 시 `PLAYLIST_LIMIT_EXCEEDED` (409) 반환. 프론트엔드는 현재 구독 응답의 `subscription.maxPlaylists`를 읽어 버튼 비노출로 UX 차단.
 
 ---
 
@@ -258,12 +258,12 @@ dependencies:
 
 ---
 
-> 총 **29개** 모달 (M-01 ~ M-29)
+> 총 **30개** 모달 (M-01 ~ M-30)
 > - 1차 (화면 목록 기반): M-01 ~ M-10 (10개)
 > - 2차 (유스케이스 추가): M-11 ~ M-28 (18개)
 > - 3차 (SR-34 앨범 좋아요): M-29 (1개)
 > - 보류: M-15, M-26, M-27 (3개)
-> v1.2 2026-03-07 → v1.3 2026-03-29
+> v1.2 2026-03-07 → v1.3 2026-03-29 → v1.4 2026-05-16
 
 ## Related Documents
 

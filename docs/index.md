@@ -1,6 +1,6 @@
 ---
-version: 1.6
-last_updated: 2026-04-15
+version: 1.7
+last_updated: 2026-05-16
 project: ATS
 owner: EO
 category: registry
@@ -66,7 +66,7 @@ status: stable
 | Config | `.claude/config/workspace.json`, `.claude/config/context-injection-rules.json` | ATStudio routing, tech_stack, context injection |
 
 - **Tech Stack**: Java 17, Spring Boot 4.x, MySQL 8.x + React 18, TypeScript 5.6, Vite 6 (Phase 2 — active)
-- **Project Stats**: 104 APIs, 28 DB tables, 49 screens, 13 agents
+- **Project Stats**: 107 APIs, 28 DB tables, 51 screens, 13 agents
 - **Project Registry**: See [Project Registry](registry/project-registry.md)
 
 ## Starting Point Guides

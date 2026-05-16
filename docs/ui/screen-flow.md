@@ -1,6 +1,6 @@
 ---
-version: 1.3
-last_updated: 2026-03-29
+version: 1.4
+last_updated: 2026-05-16
 project: ATS
 owner: MA
 category: guide
@@ -16,7 +16,7 @@ dependencies:
 
 # ATStudio 화면 흐름도 (Screen Flow)
 
-> atstudio-front-list.md v4 / modal-list.md v1.2 기준 | v1.2 2026-03-07 확정
+> atstudio-front-list.md v6 / modal-list.md v1.4 기준 | v1.4 2026-05-16 현행화
 > `[PUBLIC]` = 비인증 접근 가능 / `[AUTH]` = 로그인 필요 / `[ADMIN]` = 관리자 전용
 > `M-##` = modal-list.md 참조
 
@@ -75,9 +75,9 @@ dependencies:
 [구독 필요 화면 접근 — SubscriberRoute] (SR-24/SR-25)
   대상: /playlists*, /download-queue, /whitelist-channels
   비로그인 → [A-1 로그인] 리다이렉트
-  로그인 + 구독 없음(status ≠ ACTIVE) → [16-1 구독 플랜] 리다이렉트
-  로그인 + 구독 ACTIVE → 정상 진입
-  (구독 상태 확인: GET /api/user-subscriptions/me 비동기 호출, 로딩 중 화면 블랭크)
+  로그인 + 접근 가능한 구독 없음 → [16-1 구독 플랜] 리다이렉트
+  로그인 + 접근 가능한 구독 있음 → 정상 진입
+  (구독 상태 확인: GET /api/user-subscriptions/me 비동기 호출. 현재 구현상 성공 응답은 ACTIVE 또는 유예기간이 남은 CANCELLED 구독을 포함한다.)
 ```
 
 > 자동 로그인(소셜): 클라이언트 의견 수렴 후 결정 예정.
@@ -297,7 +297,7 @@ dependencies:
 ## 10. 관리자 페이지 흐름 (Admin)
 
 ```
-[18 통계 대시보드]  API 미정의 — 사이트 완성 후 설계 예정
+[18 통계 대시보드]  GET /api/admin/stats 기반 관리자 요약 지표 화면
 
 [K-1 회원 목록 / 상세 / 권한 수정]
   ├── 회원 클릭 → [K-1 상세] (별도 페이지)
@@ -370,7 +370,7 @@ dependencies:
 | R-01 | 자동 로그인 (소셜) | 클라이언트 의견 수렴 후 결정 |
 | R-02 | GNB 추가 IA 조정 | 현재 baseline 구현 완료, 필요 시 후속 UX 개선으로 조정 |
 | R-03 | 태그 필터 — 인라인 vs 모달 전환 용이성 | 인라인 우선, 전환 어려우면 재논의 |
-| R-04 | 18 통계 대시보드 API 설계 | 사이트 완성 후 |
+| R-04 | 18 통계 대시보드 지표 확장 설계 | 필요 시 후속 정의 |
 | R-05 | PG 결제 연동 (M-26/M-27) | PG 결정 후 |
 | R-06 | M-15 기업인증 서류 파일 제한 | 업로드 정책 미확정 |
 
@@ -399,8 +399,9 @@ dependencies:
 
 ---
 
-> v1.3 (2026-03-29) | 총 **51개** 화면 (49 + ERR-1 + ERR-2)
+> v1.4 (2026-05-16) | 총 **51개** 화면 (49 + ERR-1 + ERR-2)
 > SR-24/25: SubscriberRoute 리다이렉트 추가 | SR-27: 큐바 구매하기 버튼 흐름 추가
 > SR-29: /questions ADMIN redirect 추가 | SR-30: 문의 목록 탭 추가
 > SR-33: 로그아웃 플레이어+전역 상태 초기화 추가
+> 현행화: front-list v6 기준 반영 | 다운로드 기록/화이트리스트 subscriber route 정책과 관리자 대시보드 API 반영
 > 관련 문서: [atstudio-front-list.md](atstudio-front-list.md) · [modal-list.md](modal-list.md)

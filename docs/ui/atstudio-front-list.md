@@ -1,6 +1,6 @@
 # ATStudio 화면 목록 (Frontend)
 
-> API Spec v6 기준 | v5 2026-03-29
+> API Spec v9 기준 | v6 2026-05-16
 > `[PUBLIC]` = 인증 불필요 / `auth required` = 로그인 필요 / `[ADMIN]` = 관리자 전용 / `⚠️` = API 미정의
 
 > `🗑️ 삭제` = 상세/목록 페이지에서 `confirm()` 처리 / 회원탈퇴만 비밀번호 재확인 모달
@@ -72,7 +72,7 @@
 
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
-| 11 | 다운로드 기록 (legacy route: `/download-queue`) | `11.4 GET /api/downloads/history` `11.5 GET /api/downloads/history/track-ids` `14.5 GET /api/utils/download-count` `1.5 GET /api/tracks/{trackId}/download` | auth required |
+| 11 | 다운로드 기록 (legacy route: `/download-queue`) | `11.4 GET /api/downloads/history` `11.5 GET /api/downloads/history/track-ids` `14.5 GET /api/utils/download-count` `1.5 GET /api/tracks/{trackId}/download` | subscriber required |
 
 ---
 
@@ -90,7 +90,7 @@
 
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
-| H-1 | 채널 등록/목록/수정 | `12.1~12.4 /api/whitelist-channels` | auth required |
+| H-1 | 채널 등록/목록/수정 | `12.1~12.4 /api/whitelist-channels` | subscriber required |
 
 ---
 
@@ -128,7 +128,7 @@
 
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
-| 18 | 통계 대시보드 | ⚠️ API 미정의 — 별도 설계 필요 | [ADMIN] |
+| 18 | 통계 대시보드 | `16.1 GET /api/admin/stats` | [ADMIN] |
 | K-1 | 회원 목록 / 상세 / 권한 수정 | `5.5 GET /api/users` `5.6 GET /api/users/{id}` `5.8 PUT /api/users/{id}` | [ADMIN] |
 | K-2 | 구독 플랜 관리 (읽기 전용) | `6.1 GET /api/subscriptions/admin` | [ADMIN] |
 | K-2b | 사용자 구독 목록 / 강제 취소 (SR-14) | `6.5 GET /api/user-subscriptions` `6.6 GET` `6.8 PUT` `6.9 DELETE` | [ADMIN] |
@@ -151,8 +151,9 @@
 
 ---
 
-> 총 **49개** 화면 (관리자 전용 포함)
+> 총 **51개** 화면 (관리자 전용 포함, 에러 페이지 2개 포함)
 >
 > **변경 이력**
+> - v6 (2026-05-16): API Spec 기준 v9로 갱신; H-1 권한을 subscriber required로 정정; 18 통계 대시보드 API 반영; 총 화면 수를 에러 페이지 포함 51개로 정정
 > - v5 (2026-03-29): K-2 분리 → K-2(구독 플랜 관리) + K-2b(사용자 구독 관리, SR-14); D-1 좋아요 목록 탭 분리(SR-34); 문의 목록 탭 추가(SR-30)
 > - v4 (2026-03-07): 초기 확정 (48개)

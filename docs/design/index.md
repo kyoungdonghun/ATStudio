@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-04-04
+version: 1.2
+last_updated: 2026-05-16
 project: system
 owner: SA
 category: registry
@@ -25,7 +25,7 @@ status: stable
 
 | Document | Description | Status |
 |---|---|---|
-| **[API Specification](api-spec.md)** | REST API spec v7 — 101 endpoints | stable |
-| **[DB Schema](db-schema.md)** | Database schema v5 — 28 tables | stable |
+| **[API Specification](api-spec.md)** | REST API spec v9 — 107 endpoints | stable |
+| **[DB Schema](db-schema.md)** | Database schema v6 — 28 tables | stable |
 | **[Use Case Index](usecase/index.md)** | Domain use case documents | stable |
 

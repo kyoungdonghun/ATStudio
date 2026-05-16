@@ -188,7 +188,7 @@
 | **Version** | 26-03-07 |
 | **Description** | Returns a preview of the financial and scheduling impact before the member confirms a subscription plan change. Used by the frontend to display proratedAmount (UPGRADE) or effectiveDate (DOWNGRADE) before initiating payment. |
 | **Actor** | User (subscriber), Backend |
-| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
+| **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). |
 | **Trigger** | Frontend calls this automatically when the user selects a new plan on the subscription change screen. |
 | **Related UC** | PAYMENT-007 (change my subscription) |
 

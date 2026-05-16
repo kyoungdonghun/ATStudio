@@ -15,7 +15,7 @@
 | **Version** | 26-02-20 |
 | **Description** | A logged-in subscriber registers a YouTube channel to the whitelist. |
 | **Actor** | User (subscriber), Backend |
-| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). Current registered channel count < max_whitelist_channels. |
+| **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). Current registered channel count < max_whitelist_channels. |
 | **Trigger** | User clicks the 'Register Channel' button. |
 | **Related UC** | WL-002 (list), PAYMENT-006 (my subscription) |
 

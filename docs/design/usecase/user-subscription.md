@@ -174,7 +174,7 @@
 | **Version** | 26-03-07 |
 | **Description** | Member changes their current subscription plan to a different plan. UPGRADE is applied immediately with prorated amount payment. DOWNGRADE is deferred to the end of the current billing period. |
 | **Actor** | User (Member), Backend, Payment Gateway (PG) |
-| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
+| **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). |
 | **Trigger** | User clicks the 'Change Subscription' button. |
 | **Related UC** | PAYMENT-006 (view my subscription), UTIL-013 (subscription change preview) |
 
@@ -259,7 +259,7 @@
 | **Version** | 26-03-07 |
 | **Description** | Member directly cancels their own active subscription. Status is set to CANCELLED immediately, but service remains available until expiresAt (grace period). Benefits terminate automatically at expiresAt. |
 | **Actor** | User (Member), Backend |
-| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
+| **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). |
 | **Trigger** | User clicks the 'Cancel Subscription' button on the 'My Subscription' screen. |
 | **Related UC** | PAYMENT-006 (view my subscription) |
 

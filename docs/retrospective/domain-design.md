@@ -155,11 +155,11 @@ ATStudio initially returned 400 for duplicate resources — fixed to 409 during 
 
 ### Business Limits as API Rules
 
-When a business rule limits a resource count (e.g., max 3 playlists), enforce it at the API level and expose a meaningful error:
+When a business rule limits a resource count (e.g., plan-based playlist limits), enforce it at the API level and expose a meaningful error:
 
 ```java
 // ✅ Named error code with HTTP 409
-PLAYLIST_LIMIT_EXCEEDED(409, "PLAYLIST_LIMIT_EXCEEDED", "최대 3개의 재생목록만 생성 가능합니다.")
+PLAYLIST_LIMIT_EXCEEDED(409, "PLAYLIST_LIMIT_EXCEEDED", "구독 플랜의 재생목록 한도를 초과했습니다.")
 ```
 
 The frontend should pre-check the limit (e.g., hide the "create" button) but the API must enforce it independently.
@@ -172,7 +172,7 @@ ATStudio's download flow solved a common e-commerce problem cleanly:
 
 ```
 User clicks Download
-  → Check subscription status (ACTIVE required)
+  → Check subscription access state (service-enabled subscription required)
   → Count today's downloads (< plan.downloadPerDay)
   → Retrieve audio_file from storage
   → Insert track_downloads record

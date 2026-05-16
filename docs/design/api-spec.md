@@ -516,7 +516,7 @@ thumbnail: File (optional)
 
 **Error Cases**
 ```json
-{ "status": 409, "error": "Conflict", "errorCode": "PLAYLIST_LIMIT_EXCEEDED", "message": "활성 재생목록은 최대 3개까지 생성할 수 있습니다." }
+{ "status": 409, "error": "Conflict", "errorCode": "PLAYLIST_LIMIT_EXCEEDED", "message": "구독 플랜의 재생목록 한도를 초과했습니다." }
 ```
 
 ## 3.2 List Playlists

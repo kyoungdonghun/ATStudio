@@ -34,7 +34,7 @@
 | 4 | `whitelist_channels.is_active` | **Column removed** — Deletion confirmed as physical delete. No use case for is_active. |
 | 5 | `licenses.issued_at` | **Column removed** — Semantically duplicates created_at. Map created_at to issuedAt in API response. |
 | 6 | `subscription_payments.user_subscription_id` | **FK added** — Links payment record to a specific subscription session. |
-| 7 | Playlist subscription-only | **Only members with an active subscription (ACTIVE)** can use playlist features. No DB changes (app-level permission check). |
+| 7 | Playlist subscription-only | **Only members with an accessible subscription state returned by the app-level active-subscription check** can use playlist features. No DB changes (app-level permission check). |
 | 8 | `users.userType` DEFAULT specified | **DEFAULT 'INDIVIDUAL'** confirmed |
 
 ---
