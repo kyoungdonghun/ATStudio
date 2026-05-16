@@ -1,6 +1,6 @@
 ---
-version: 0.2
-last_updated: 2026-05-16
+version: 0.3
+last_updated: 2026-05-17
 project: ATS
 owner: SA
 category: design
@@ -547,13 +547,21 @@ Mock UI states:
 | Fail mock payment | Marks order failed and shows retry |
 | Cancel mock payment | Marks order cancelled and returns to plan page |
 
+Toss UI states:
+
+| Action | Result |
+|---|---|
+| Open Toss payment | Loads Toss V2 widget with server-issued order metadata |
+| Toss success redirect | Calls confirm endpoint with `paymentKey`, `orderId`, and `amount` |
+| Toss fail redirect | Marks order failed when `orderId` is available and shows a retry path |
+
 ### 13.2 Subscription Manage Page
 
 For upgrades:
 
 1. Keep preview flow.
-2. If `changeType = UPGRADE`, prepare and confirm payment before calling subscription mutation.
-3. The old direct `changeMySubscription()` call should become an internal action behind payment confirmation.
+2. If `changeType = UPGRADE`, route to the subscription payment page with `purpose=UPGRADE`.
+3. The payment page prepares and confirms the order; subscription mutation remains behind payment confirmation.
 
 For downgrades:
 
@@ -570,6 +578,8 @@ For recurring billing:
 
 ### Phase A: Mock-first Payment Contract
 
+Status: Implemented.
+
 - Add `payment_orders` table and entity.
 - Add `PaymentController`.
 - Implement `MockPaymentProvider`.
@@ -577,6 +587,8 @@ For recurring billing:
 - Keep current `POST /api/user-subscriptions` temporarily as a compatibility path or mark it deprecated.
 
 ### Phase B: Toss One-time Payment Integration
+
+Status: Implemented for the direct checkout/confirm path with Toss test-key friendly configuration. Webhook, refund, reconciliation, and transaction compensation remain Phase D hardening items.
 
 - Add Toss configuration:
   - `app.payment.provider=TOSS`
@@ -620,8 +632,8 @@ For recurring billing:
 
 ## 16. Implementation Risk Notes
 
-- Current `UserSubscriptionService` performs subscription mutation inside the same method that records mock payment. This must be split before real PG integration.
-- Real PG HTTP calls must not be hidden inside a database transaction without a failure compensation strategy.
+- Legacy `UserSubscriptionService` compatibility endpoints still perform subscription mutation directly and should remain outside user-facing real-PG checkout.
+- Current Toss confirm calls the PG before local subscription mutation, but full compensation/refund automation is still Phase D work.
 - `proratedAmount` must mean "amount to charge" for PG integration. Negative values should not be sent to PG.
 - Test mode safety must be explicit in configuration, not implied by class names.
 - KakaoPay and TossPay test behavior differs by integration path. Provider-specific docs must be checked again before implementation.

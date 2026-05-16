@@ -2,6 +2,7 @@ package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.config.PaymentProperties;
 import com.atstudio.atstudio.dto.payment.PaymentCancelRequest;
 import com.atstudio.atstudio.dto.payment.PaymentCheckoutResponse;
 import com.atstudio.atstudio.dto.payment.PaymentConfirmRequest;
@@ -62,6 +63,7 @@ public class PaymentApplicationService {
     private final SubscriptionPaymentRepository subscriptionPaymentRepository;
     private final CompanyCertificationRepository companyCertificationRepository;
     private final PlaylistService playlistService;
+    private final PaymentProperties paymentProperties;
     private final Map<PaymentProviderType, PaymentProvider> providers;
 
     public PaymentApplicationService(
@@ -72,6 +74,7 @@ public class PaymentApplicationService {
             SubscriptionPaymentRepository subscriptionPaymentRepository,
             CompanyCertificationRepository companyCertificationRepository,
             PlaylistService playlistService,
+            PaymentProperties paymentProperties,
             List<PaymentProvider> providers) {
         this.paymentOrderRepository = paymentOrderRepository;
         this.userRepository = userRepository;
@@ -80,6 +83,7 @@ public class PaymentApplicationService {
         this.subscriptionPaymentRepository = subscriptionPaymentRepository;
         this.companyCertificationRepository = companyCertificationRepository;
         this.playlistService = playlistService;
+        this.paymentProperties = paymentProperties;
         this.providers = providers.stream()
                 .collect(Collectors.toUnmodifiableMap(PaymentProvider::getProviderType, Function.identity()));
     }
@@ -110,7 +114,10 @@ public class PaymentApplicationService {
             amount = calculateProratedUpgradeAmount(current, subscription, request.billingCycle());
         }
 
-        PaymentProviderType providerType = PaymentProviderType.MOCK;
+        PaymentProviderType providerType = paymentProperties.getProvider();
+        if (providerType != PaymentProviderType.MOCK && providerType != PaymentProviderType.TOSS) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
         PaymentOrder order = paymentOrderRepository.save(PaymentOrder.builder()
                 .orderId(generateOrderId())
                 .user(user)
@@ -125,6 +132,7 @@ public class PaymentApplicationService {
                 .build());
 
         PaymentProviderPrepareResult providerResult = provider(providerType).prepare(order);
+        order.markInProgress(providerResult.providerPayload());
 
         return new PaymentPrepareResponse(
                 order.getOrderId(),
@@ -133,7 +141,7 @@ public class PaymentApplicationService {
                 order.getAmount(),
                 order.getCurrency(),
                 order.getExpiresAt(),
-                new PaymentCheckoutResponse(providerResult.checkoutType(), providerResult.confirmToken())
+                toCheckoutResponse(providerResult)
         );
     }
 
@@ -337,6 +345,19 @@ public class PaymentApplicationService {
             throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
         return paymentProvider;
+    }
+
+    private PaymentCheckoutResponse toCheckoutResponse(PaymentProviderPrepareResult providerResult) {
+        Map<String, String> metadata = providerResult.checkoutMetadata();
+        return new PaymentCheckoutResponse(
+                providerResult.checkoutType(),
+                providerResult.confirmToken(),
+                metadata.get("clientKey"),
+                metadata.get("customerKey"),
+                metadata.get("orderName"),
+                metadata.get("successUrl"),
+                metadata.get("failUrl")
+        );
     }
 
     private String generateOrderId() {

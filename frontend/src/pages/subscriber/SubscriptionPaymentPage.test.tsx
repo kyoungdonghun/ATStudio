@@ -9,6 +9,10 @@ const fetchSubscriptionPlansMock = vi.hoisted(() => vi.fn());
 const prepareSubscriptionPaymentMock = vi.hoisted(() => vi.fn());
 const confirmPaymentMock = vi.hoisted(() => vi.fn());
 const cancelPaymentMock = vi.hoisted(() => vi.fn());
+const requestPaymentMock = vi.hoisted(() => vi.fn());
+const renderPaymentMethodsMock = vi.hoisted(() => vi.fn());
+const renderAgreementMock = vi.hoisted(() => vi.fn());
+const setAmountMock = vi.hoisted(() => vi.fn());
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
@@ -49,6 +53,22 @@ describe('SubscriptionPaymentPage', () => {
     prepareSubscriptionPaymentMock.mockReset();
     confirmPaymentMock.mockReset();
     cancelPaymentMock.mockReset();
+    requestPaymentMock.mockReset();
+    renderPaymentMethodsMock.mockReset();
+    renderAgreementMock.mockReset();
+    setAmountMock.mockReset();
+    renderPaymentMethodsMock.mockResolvedValue(undefined);
+    renderAgreementMock.mockResolvedValue(undefined);
+    setAmountMock.mockResolvedValue(undefined);
+    requestPaymentMock.mockResolvedValue(undefined);
+    window.TossPayments = vi.fn(() => ({
+      widgets: () => ({
+        setAmount: setAmountMock,
+        renderPaymentMethods: renderPaymentMethodsMock,
+        renderAgreement: renderAgreementMock,
+        requestPayment: requestPaymentMock,
+      }),
+    }));
 
     fetchSubscriptionPlansMock.mockResolvedValue([
       {
@@ -135,5 +155,64 @@ describe('SubscriptionPaymentPage', () => {
       });
     });
     expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('renders Toss widget checkout and requests payment without local confirm first', async () => {
+    prepareSubscriptionPaymentMock.mockResolvedValue({
+      orderId: 'ATS-TOSS-1',
+      provider: 'TOSS',
+      purpose: 'SUBSCRIBE',
+      amount: 9900,
+      currency: 'KRW',
+      expiresAt: '2026-05-16T23:10:00',
+      checkout: {
+        type: 'TOSS_WIDGET',
+        clientKey: 'test_ck_sample',
+        customerKey: 'ats_user_1',
+        orderName: 'ATStudio STANDARD Subscription',
+        successUrl: 'http://localhost:5173/subscriptions/payment/success',
+        failUrl: 'http://localhost:5173/subscriptions/payment/fail',
+      },
+    });
+
+    renderPage();
+
+    await screen.findByText('ATS-TOSS-1');
+    await waitFor(() => {
+      expect(setAmountMock).toHaveBeenCalledWith({ value: 9900, currency: 'KRW' });
+    });
+    fireEvent.click(screen.getByRole('button', { name: '토스 결제창 열기' }));
+
+    await waitFor(() => {
+      expect(requestPaymentMock).toHaveBeenCalledWith({
+        orderId: 'ATS-TOSS-1',
+        orderName: 'ATStudio STANDARD Subscription',
+        successUrl: 'http://localhost:5173/subscriptions/payment/success',
+        failUrl: 'http://localhost:5173/subscriptions/payment/fail',
+      });
+    });
+    expect(confirmPaymentMock).not.toHaveBeenCalled();
+  });
+
+  it('confirms Toss success redirect with paymentKey', async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          '/subscriptions/payment/success?paymentKey=toss-key&orderId=ATS-TOSS-1&amount=9900',
+        ]}
+      >
+        <SubscriptionPaymentPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(confirmPaymentMock).toHaveBeenCalledWith({
+        orderId: 'ATS-TOSS-1',
+        amount: 9900,
+        provider: 'TOSS',
+        paymentKey: 'toss-key',
+      });
+    });
+    expect(navigateMock).toHaveBeenCalledWith('/subscriptions/manage');
   });
 });

@@ -3,6 +3,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SubscriptionManagePage from '@/pages/subscriber/SubscriptionManagePage';
 
+const navigateMock = vi.hoisted(() => vi.fn());
+
 const authState = {
   role: 'USER',
   user: { userType: 'INDIVIDUAL' as const },
@@ -13,8 +15,13 @@ const fetchSubscriptionPlansMock = vi.fn();
 const fetchSubscriptionChangePreviewMock = vi.fn();
 const changeMySubscriptionMock = vi.fn();
 const cancelMySubscriptionMock = vi.fn();
-const prepareSubscriptionPaymentMock = vi.fn();
-const confirmPaymentMock = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => navigateMock,
+  };
+});
 
 vi.mock('@/store/authStore', () => ({
   useAuthStore: Object.assign(
@@ -35,11 +42,6 @@ vi.mock('@/api/userSubscriptions', () => ({
 
 vi.mock('@/api/subscriptions', () => ({
   fetchSubscriptionPlans: (...args: unknown[]) => fetchSubscriptionPlansMock(...args),
-}));
-
-vi.mock('@/api/payments', () => ({
-  prepareSubscriptionPayment: (...args: unknown[]) => prepareSubscriptionPaymentMock(...args),
-  confirmPayment: (...args: unknown[]) => confirmPaymentMock(...args),
 }));
 
 vi.mock('@/api/client', () => ({
@@ -65,8 +67,7 @@ describe('SubscriptionManagePage', () => {
     fetchSubscriptionChangePreviewMock.mockReset();
     changeMySubscriptionMock.mockReset();
     cancelMySubscriptionMock.mockReset();
-    prepareSubscriptionPaymentMock.mockReset();
-    confirmPaymentMock.mockReset();
+    navigateMock.mockReset();
 
     fetchSubscriptionPlansMock.mockResolvedValue([
       {
@@ -114,7 +115,7 @@ describe('SubscriptionManagePage', () => {
     });
   });
 
-  it('uses payment confirm flow for upgrades instead of direct subscription change', async () => {
+  it('routes upgrades through the payment page instead of direct subscription change', async () => {
     fetchSubscriptionPlansMock.mockResolvedValue([
       {
         id: 1,
@@ -169,31 +170,6 @@ describe('SubscriptionManagePage', () => {
       newPlanName: 'DELUXE',
       newBillingCycle: 'MONTHLY',
     });
-    prepareSubscriptionPaymentMock.mockResolvedValue({
-      orderId: 'ATS-UPGRADE-1',
-      provider: 'MOCK',
-      purpose: 'UPGRADE',
-      amount: 14950,
-      currency: 'KRW',
-      expiresAt: '2026-05-16T23:10:00',
-      checkout: {
-        type: 'MOCK',
-        confirmToken: 'mock-ATS-UPGRADE-1',
-      },
-    });
-    confirmPaymentMock.mockResolvedValue({
-      orderId: 'ATS-UPGRADE-1',
-      status: 'DONE',
-      purpose: 'UPGRADE',
-      subscription: {
-        id: 100,
-        subscription: {
-          id: 2,
-          name: 'DELUXE',
-        },
-      },
-    });
-
     renderPage();
 
     fireEvent.click(await screen.findByText('디럭스'));
@@ -201,17 +177,9 @@ describe('SubscriptionManagePage', () => {
     fireEvent.click(screen.getByRole('button', { name: '플랜 변경 확인' }));
 
     await waitFor(() => {
-      expect(prepareSubscriptionPaymentMock).toHaveBeenCalledWith({
-        purpose: 'UPGRADE',
-        subscriptionId: 2,
-        billingCycle: 'MONTHLY',
-      });
-    });
-    expect(confirmPaymentMock).toHaveBeenCalledWith({
-      orderId: 'ATS-UPGRADE-1',
-      amount: 14950,
-      provider: 'MOCK',
-      providerToken: 'mock-ATS-UPGRADE-1',
+      expect(navigateMock).toHaveBeenCalledWith(
+        '/subscriptions/payment?plan=DELUXE&cycle=MONTHLY&purpose=UPGRADE',
+      );
     });
     expect(changeMySubscriptionMock).not.toHaveBeenCalled();
   });

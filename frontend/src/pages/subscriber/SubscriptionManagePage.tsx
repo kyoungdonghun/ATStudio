@@ -10,7 +10,6 @@ import {
   type SubscriptionChangePreview,
 } from '@/api/userSubscriptions';
 import { fetchSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
-import { confirmPayment, prepareSubscriptionPayment } from '@/api/payments';
 import { isSubscriptionRequired } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import Button from '@/components/ui/Button';
@@ -144,20 +143,10 @@ export default function SubscriptionManagePage() {
       setChangeMsg(null);
 
       if (preview.changeType === 'UPGRADE') {
-        const prepared = await prepareSubscriptionPayment({
-          purpose: 'UPGRADE',
-          subscriptionId: selectedPlan.id,
-          billingCycle: selectedCycle,
-        });
-        const confirmed = await confirmPayment({
-          orderId: prepared.orderId,
-          amount: prepared.amount,
-          provider: prepared.provider,
-          providerToken: prepared.checkout.confirmToken,
-        });
-        setChangeMsg(
-          `${getDisplayName(confirmed.subscription?.subscription.name ?? selectedPlan.name)} 플랜으로 업그레이드되었습니다. 비례 요금: ${formatAmount(prepared.amount)}원`,
+        navigate(
+          `/subscriptions/payment?plan=${selectedPlan.name}&cycle=${selectedCycle}&purpose=UPGRADE`,
         );
+        return;
       } else {
         const res = await changeMySubscription({
           subscriptionId: selectedPlan.id,

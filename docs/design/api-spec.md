@@ -16,6 +16,7 @@
 | Z4 | Full API Summary | Updated total count from 104 → 107 |
 | Z5 | §6 new entries | Added mock-first payment contract: §6.3.1 prepare, §6.3.2 confirm, §6.3.3 cancel/fail |
 | Z6 | Full API Summary | Updated total count from 107 → 110 |
+| Z7 | §6.3 payment entries | Added Toss one-time payment provider fields and redirect confirm contract |
 
 ---
 
@@ -1101,7 +1102,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 |-------|-------|
 | **URL** | `POST /api/payments/subscriptions/prepare` |
 | **Auth** | auth required |
-| **Description** | Creates an internal payment order for SUBSCRIBE or UPGRADE. Phase A uses the MOCK provider only. |
+| **Description** | Creates an internal payment order for SUBSCRIBE or UPGRADE. Provider is selected by server configuration (`MOCK` default, `TOSS` for Toss one-time payment). |
 
 **Request**
 ```json
@@ -1109,6 +1110,26 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
   "purpose": "SUBSCRIBE",
   "subscriptionId": 1,
   "billingCycle": "MONTHLY"
+}
+```
+
+**Toss Response Shape**
+```json
+{
+  "orderId": "ATS-20260517-ABC123",
+  "provider": "TOSS",
+  "purpose": "SUBSCRIBE",
+  "amount": 9900,
+  "currency": "KRW",
+  "expiresAt": "2026-05-17T23:10:00",
+  "checkout": {
+    "type": "TOSS_WIDGET",
+    "clientKey": "test_ck_...",
+    "customerKey": "ats_user_1",
+    "orderName": "ATStudio STANDARD Subscription",
+    "successUrl": "http://localhost:5173/subscriptions/payment/success",
+    "failUrl": "http://localhost:5173/subscriptions/payment/fail"
+  }
 }
 ```
 
@@ -1145,6 +1166,18 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 }
 ```
 
+**Toss Request**
+```json
+{
+  "orderId": "ATS-20260517-ABC123",
+  "amount": 9900,
+  "provider": "TOSS",
+  "paymentKey": "toss-payment-key"
+}
+```
+
+For Toss, the frontend receives `paymentKey`, `orderId`, and `amount` from the Toss success redirect. The backend must use the stored payment order amount as the authoritative amount when calling Toss confirm.
+
 **Response** `200 OK`
 ```json
 {
@@ -1166,13 +1199,14 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 - `400 Bad Request` — `PAYMENT_AMOUNT_MISMATCH`, `PAYMENT_ORDER_INVALID_STATE`, `PAYMENT_ORDER_EXPIRED`, `PAYMENT_CONFIRM_FAILED`
 - `403 Forbidden` — `RESOURCE_NOT_ACCESS` when the authenticated user does not own the order
 - `404 Not Found` — `PAYMENT_ORDER_NOT_FOUND`
+- `400 Bad Request` — `PAYMENT_PROVIDER_NOT_CONFIGURED` when Toss provider is selected without required environment variables
 
 ## 6.3.3 Cancel or Fail Payment
 | Field | Value |
 |-------|-------|
 | **URL** | `POST /api/payments/cancel` |
 | **Auth** | auth required |
-| **Description** | Closes a prepared mock payment order as CANCELLED or FAILED without mutating subscription state. |
+| **Description** | Closes a prepared payment order as CANCELLED or FAILED without mutating subscription state. Used by Mock controls and Toss fail redirect handling. |
 
 **Request**
 ```json

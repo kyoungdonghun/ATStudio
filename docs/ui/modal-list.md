@@ -94,8 +94,8 @@ dependencies:
 | M-23 | LIKE-003 | D-1 (좋아요 목록) | "좋아요 취소" 클릭 | "좋아요를 취소하시겠습니까?" | ConfirmModal | `10.3 DELETE /api/likes/{trackId}` |
 | M-24 | PAYMENT-009 | K-2 (구독 목록/상세) | "구독 강제 취소" 클릭 | "구독을 강제 취소하시겠습니까?" | ConfirmModal | `6.9 DELETE /api/user-subscriptions/{userSubscriptionId}` |
 | M-25 | INFO-006 | K-1 (회원 목록/상세) | "권한 수정 저장" 클릭 | "회원 권한을 변경하시겠습니까?" | ConfirmModal | `5.8 PUT /api/users/{userId}` |
-| M-26 | PAYMENT-001 | Screen 16-2 (구독 결제) | "결제 확인" 클릭 | Mock payment confirm | Inline Mock payment panel | `6.3.1 POST /api/payments/subscriptions/prepare` + `6.3.2 POST /api/payments/confirm` |
-| M-27 | PAYMENT-007 | M-09 (PlanCompareModal 내) | 업그레이드 결제 확인 | Mock payment confirm | Inline Mock payment step | `6.3.1 POST /api/payments/subscriptions/prepare` + `6.3.2 POST /api/payments/confirm` |
+| M-26 | PAYMENT-001 | Screen 16-2 (구독 결제) | "결제 확인" 또는 "토스 결제창 열기" 클릭 | Mock confirm or Toss widget redirect confirm | Inline payment panel | `6.3.1 POST /api/payments/subscriptions/prepare` + `6.3.2 POST /api/payments/confirm` |
+| M-27 | PAYMENT-007 | M-09 (PlanCompareModal 내) | 업그레이드 결제 확인 | 업그레이드 결제 페이지 이동 | Route transition to Screen 16-2 with `purpose=UPGRADE` | `6.3.1 POST /api/payments/subscriptions/prepare` + `6.3.2 POST /api/payments/confirm` |
 | M-28 | - | K-6 (태그 관리) | "태그 삭제" 클릭 | "태그를 삭제하시겠습니까?" | ConfirmModal | `2.4 DELETE /api/tags/{tagId}` |
 | M-29 | SR-34 | D-1 (좋아요 목록 > 앨범 탭) | "좋아요 취소" 클릭 | "좋아요를 취소하시겠습니까?" | ConfirmModal | `DELETE /api/likes/albums/{albumId}` |
 | M-30 | SR-79 | Screen 11 (다운로드 기록) | "전체 재다운로드" 클릭 | "{N}곡을 다운로드합니다. 계속하시겠습니까?" | ConfirmDialog | `GET /api/downloads/history/track-ids` + `GET /api/tracks/{trackId}/download` |
@@ -145,14 +145,16 @@ dependencies:
   |  proratedAmount 표시     "추가 결제 없음" 안내           |
   |  (TODO T-2 API)          다음 결제일: {expires_at}      |
   |                                                       |
-  |  [취소]   [결제 확인 ▶ Mock confirm]   [변경 예약]      |
+  |  [취소]   [결제 페이지로 이동]   [변경 예약]             |
   +-------------------------------------------------------+
 
   업그레이드 경로:
     GET /api/utils/subscription-change-preview (TODO T-2)
       → proratedAmount = (newDailyRate - oldDailyRate) x 남은 일수
+      → /subscriptions/payment?purpose=UPGRADE
       → POST /api/payments/subscriptions/prepare
-      → POST /api/payments/confirm
+      → MOCK: POST /api/payments/confirm
+      → TOSS: Toss widget success redirect → POST /api/payments/confirm
 
   다운그레이드 경로:
     "다음 결제일({expires_at})부터 변경 · 추가 결제 없음" 안내

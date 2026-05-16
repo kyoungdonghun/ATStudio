@@ -10,5 +10,14 @@ public record PaymentConfirmRequest(
         @NotBlank String orderId,
         @NotNull BigDecimal amount,
         @NotNull PaymentProviderType provider,
-        String providerToken
-) {}
+        String providerToken,
+        String paymentKey
+) {
+    public PaymentConfirmRequest(
+            String orderId,
+            BigDecimal amount,
+            PaymentProviderType provider,
+            String providerToken) {
+        this(orderId, amount, provider, providerToken, null);
+    }
+}

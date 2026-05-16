@@ -135,6 +135,11 @@ public enum BUSINESS_ERROR {
             "결제 승인에 실패했습니다. 다시 시도해주세요.",
             "payment provider confirm 실패."),
 
+    PAYMENT_PROVIDER_NOT_CONFIGURED(
+            HttpStatus.BAD_REQUEST,
+            "결제 설정이 준비되지 않았습니다. 관리자에게 문의해주세요.",
+            "payment provider configuration is missing or invalid."),
+
     // ── Auth ──────────────────────────────────────────────────────────────────
     INVALID_CREDENTIALS(
             HttpStatus.UNAUTHORIZED,
