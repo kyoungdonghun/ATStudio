@@ -208,14 +208,24 @@ public class PaymentApplicationService {
             validateSubscriptionPreconditions(order.getUser());
 
             LocalDate startedAt = LocalDate.now();
-            UserSubscription userSubscription = userSubscriptionRepository.save(
-                    UserSubscription.builder()
-                            .user(order.getUser())
-                            .subscription(order.getSubscription())
-                            .billingCycle(order.getBillingCycle())
-                            .startedAt(startedAt)
-                            .expiresAt(expiresAt(startedAt, order.getBillingCycle()))
-                            .build());
+            LocalDate expiresAt = expiresAt(startedAt, order.getBillingCycle());
+            UserSubscription userSubscription = userSubscriptionRepository.findByUser(order.getUser())
+                    .map(existing -> {
+                        existing.startNewSubscription(
+                                order.getSubscription(),
+                                order.getBillingCycle(),
+                                startedAt,
+                                expiresAt);
+                        return existing;
+                    })
+                    .orElseGet(() -> userSubscriptionRepository.save(
+                            UserSubscription.builder()
+                                    .user(order.getUser())
+                                    .subscription(order.getSubscription())
+                                    .billingCycle(order.getBillingCycle())
+                                    .startedAt(startedAt)
+                                    .expiresAt(expiresAt)
+                                    .build()));
 
             playlistService.createDefaultPlaylist(order.getUser());
             return userSubscription;
