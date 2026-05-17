@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -69,6 +70,7 @@ class UserSubscriptionServiceTest {
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.empty());
             given(subscriptionRepository.findById(10L)).willReturn(Optional.of(sub));
+            given(userSubscriptionRepository.findByUser(user)).willReturn(Optional.empty());
             given(userSubscriptionRepository.save(any(UserSubscription.class))).willReturn(saved);
             given(paymentService.processPayment(any(), any(), any(), any(), any()))
                     .willReturn(buildPayment());
@@ -97,6 +99,7 @@ class UserSubscriptionServiceTest {
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.empty());
             given(subscriptionRepository.findById(10L)).willReturn(Optional.of(sub));
+            given(userSubscriptionRepository.findByUser(user)).willReturn(Optional.empty());
             given(userSubscriptionRepository.save(any(UserSubscription.class))).willReturn(saved);
             given(paymentService.processPayment(any(), any(), any(), any(), any()))
                     .willReturn(buildPayment());
@@ -107,6 +110,37 @@ class UserSubscriptionServiceTest {
             assertThat(result.id()).isEqualTo(101L);
             verify(paymentService).processPayment(eq(user), eq(saved), eq(sub),
                     eq(BillingCycle.YEARLY), eq(BigDecimal.valueOf(99000)));
+            verify(playlistService).createDefaultPlaylist(user);
+        }
+
+        @Test
+        @DisplayName("성공 - 만료된 기존 row 재사용")
+        void subscribe_reusesExpiredSubscriptionRow() {
+            User user = buildUser(1L, UserType.INDIVIDUAL);
+            Subscription oldSub = buildSubscription(9L, "Old", UserType.INDIVIDUAL);
+            Subscription newSub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
+            UserSubscription expired = buildUserSubscription(100L, user, oldSub,
+                    BillingCycle.YEARLY, SubscriptionStatus.EXPIRED);
+            ReflectionTestUtils.setField(expired, "expiresAt", LocalDate.now().minusDays(1));
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.empty());
+            given(subscriptionRepository.findById(10L)).willReturn(Optional.of(newSub));
+            given(userSubscriptionRepository.findByUser(user)).willReturn(Optional.of(expired));
+            given(paymentService.processPayment(any(), any(), any(), any(), any()))
+                    .willReturn(buildPayment());
+
+            UserSubscriptionResponse result = userSubscriptionService.subscribe(
+                    buildUserDetails(1L), new UserSubscriptionRequest(10L, BillingCycle.MONTHLY));
+
+            assertThat(result.id()).isEqualTo(100L);
+            assertThat(result.status()).isEqualTo("ACTIVE");
+            assertThat(expired.getSubscription()).isEqualTo(newSub);
+            assertThat(expired.getBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
+            verify(userSubscriptionRepository, never()).save(any(UserSubscription.class));
+            verify(paymentService).processPayment(eq(user), eq(expired), eq(newSub),
+                    eq(BillingCycle.MONTHLY), eq(BigDecimal.valueOf(9900)));
             verify(playlistService).createDefaultPlaylist(user);
         }
 

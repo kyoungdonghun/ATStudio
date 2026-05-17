@@ -77,14 +77,23 @@ public class UserSubscriptionService {
         LocalDate expiresAt = request.billingCycle() == BillingCycle.MONTHLY
                 ? startedAt.plusMonths(1) : startedAt.plusYears(1);
 
-        UserSubscription userSubscription = userSubscriptionRepository.save(
-                UserSubscription.builder()
-                        .user(user)
-                        .subscription(subscription)
-                        .billingCycle(request.billingCycle())
-                        .startedAt(startedAt)
-                        .expiresAt(expiresAt)
-                        .build());
+        UserSubscription userSubscription = userSubscriptionRepository.findByUser(user)
+                .map(existing -> {
+                    existing.startNewSubscription(
+                            subscription,
+                            request.billingCycle(),
+                            startedAt,
+                            expiresAt);
+                    return existing;
+                })
+                .orElseGet(() -> userSubscriptionRepository.save(
+                        UserSubscription.builder()
+                                .user(user)
+                                .subscription(subscription)
+                                .billingCycle(request.billingCycle())
+                                .startedAt(startedAt)
+                                .expiresAt(expiresAt)
+                                .build()));
 
         BigDecimal amount = request.billingCycle() == BillingCycle.MONTHLY
                 ? subscription.getPriceMonthly() : subscription.getPriceYearly();

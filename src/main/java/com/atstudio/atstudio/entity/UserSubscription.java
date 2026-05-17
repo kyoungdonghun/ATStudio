@@ -86,6 +86,20 @@ public class UserSubscription extends BaseEntity {
         this.pendingBillingCycle = null;
     }
 
+    public void startNewSubscription(
+            Subscription newSubscription,
+            BillingCycle newBillingCycle,
+            LocalDate newStartedAt,
+            LocalDate newExpiresAt) {
+        this.subscription = newSubscription;
+        this.billingCycle = newBillingCycle;
+        this.startedAt = newStartedAt;
+        this.expiresAt = newExpiresAt;
+        this.status = SubscriptionStatus.ACTIVE;
+        this.pendingSubscription = null;
+        this.pendingBillingCycle = null;
+    }
+
     public boolean hasPending() {
         return this.pendingSubscription != null;
     }

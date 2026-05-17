@@ -155,6 +155,7 @@ class PaymentApplicationServiceTest {
         given(paymentOrderRepository.findByOrderId("ORDER-1")).willReturn(Optional.of(order));
         given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.empty());
+        given(userSubscriptionRepository.findByUser(user)).willReturn(Optional.empty());
         given(userSubscriptionRepository.save(any(UserSubscription.class))).willReturn(saved);
         given(subscriptionPaymentRepository.save(any(SubscriptionPayment.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
@@ -168,6 +169,42 @@ class PaymentApplicationServiceTest {
         assertThat(response.subscription().id()).isEqualTo(100L);
         assertThat(order.getStatus()).isEqualTo(PaymentOrderStatus.DONE);
         verify(userSubscriptionRepository).save(any(UserSubscription.class));
+        verify(subscriptionPaymentRepository).save(any(SubscriptionPayment.class));
+        verify(playlistService).createDefaultPlaylist(user);
+    }
+
+    @Test
+    @DisplayName("confirm SUBSCRIBE reuses expired subscription row for resubscribe")
+    void confirmSubscribe_reusesExpiredSubscriptionRow() {
+        User user = buildUser(1L, UserType.INDIVIDUAL);
+        Subscription oldSubscription = buildSubscription(9L, "Old", UserType.INDIVIDUAL);
+        Subscription newSubscription = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
+        UserSubscription expired = buildUserSubscription(100L, user, oldSubscription,
+                BillingCycle.YEARLY, SubscriptionStatus.EXPIRED);
+        ReflectionTestUtils.setField(expired, "expiresAt", LocalDate.now().minusDays(1));
+        PaymentOrder order = buildOrder(user, newSubscription, PaymentPurpose.SUBSCRIBE, null,
+                BigDecimal.valueOf(9900));
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(paymentOrderRepository.findByOrderId("ORDER-1")).willReturn(Optional.of(order));
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                .willReturn(Optional.empty());
+        given(userSubscriptionRepository.findByUser(user)).willReturn(Optional.of(expired));
+        given(subscriptionPaymentRepository.save(any(SubscriptionPayment.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        PaymentConfirmResponse response = service.confirmPayment(
+                buildUserDetails(1L),
+                new PaymentConfirmRequest("ORDER-1", BigDecimal.valueOf(9900),
+                        PaymentProviderType.MOCK, "mock-ORDER-1"));
+
+        assertThat(response.status()).isEqualTo(PaymentOrderStatus.DONE);
+        assertThat(response.subscription().id()).isEqualTo(100L);
+        assertThat(expired.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(expired.getSubscription()).isEqualTo(newSubscription);
+        assertThat(expired.getBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
+        assertThat(order.getUserSubscription()).isEqualTo(expired);
+        verify(userSubscriptionRepository, never()).save(any(UserSubscription.class));
         verify(subscriptionPaymentRepository).save(any(SubscriptionPayment.class));
         verify(playlistService).createDefaultPlaylist(user);
     }
