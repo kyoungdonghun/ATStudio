@@ -600,6 +600,13 @@ Status: Implemented for the direct checkout/confirm path with Toss test-key frie
 - Validate `orderId` and `amount`.
 - Use Toss test keys only in non-production.
 
+Operational note:
+
+- The default provider is `MOCK`; restarting the backend without local config or environment variables will create mock payment orders.
+- For local Toss testing, set `app.payment.provider=TOSS` and Toss test keys in `application-local.yml` or equivalent environment variables before `bootRun`.
+- Use `http://localhost:5173` consistently for the frontend and Toss success/fail URLs unless CORS also explicitly allows the alternative origin.
+- Existing `IN_PROGRESS` payment orders from interrupted local tests are audit records. Start a new checkout attempt instead of reusing old Toss redirect URLs.
+
 ### Phase C: Toss Recurring Billing Design Implementation
 
 - Add `billing_agreements` table and entity.

@@ -56,6 +56,17 @@ app:
       default-password: Test1234!
   mail:
     base-url: http://localhost:5173
+  payment:
+    # Local default is MOCK. Use TOSS only when actively testing Toss Payments.
+    # Keep frontend, CORS, and Toss redirect URLs on the same localhost origin.
+    # Avoid http://127.0.0.1:5173 unless CORS_ALLOWED_ORIGINS also includes it.
+    provider: MOCK
+    toss:
+      client-key: REPLACE_WITH_TOSS_TEST_CLIENT_KEY
+      secret-key: REPLACE_WITH_TOSS_TEST_SECRET_KEY
+      success-url: http://localhost:5173/subscriptions/payment/success
+      fail-url: http://localhost:5173/subscriptions/payment/fail
+      confirm-url: https://api.tosspayments.com/v1/payments/confirm
   security:
     rate-limit:
       enabled: true
