@@ -609,18 +609,61 @@ Operational note:
 
 ### Phase C: Toss Recurring Billing Design Implementation
 
+Status: Implemented for the billing-key registration, immediate first charge, encrypted billing-key storage, renewal scheduler, and 3-day/3-retry failure policy.
+
 - Add `billing_agreements` table and entity.
 - Implement `RecurringPaymentProvider`.
 - Implement Toss billing-key registration.
 - Implement recurring renewal job.
 - Define past-due/grace behavior before enabling production recurring billing.
+- Keep billing keys server-only and encrypted at rest.
+- Cancel automatic renewal without removing already-paid access before `expiresAt`.
 
-### Phase D: Production Hardening
+### Phase D: Payment UX and Operations Stabilization
+
+Status: Design in progress under `REQ-20260518-ATS-001`.
+
+The current page-fixed Toss checkout/billing auth surface is an intentional debug-friendly intermediate state. Production UX should separate the PG surface from the main subscription page while preserving enough progress and recovery visibility for local testing.
+
+Recommended checkout surface:
+
+| Option | Recommendation | Rationale |
+|---|---|---|
+| Page-fixed Toss widget/auth surface | Keep only for local/debug visibility | It exposes order/provider/progress state clearly, but feels like the PG UI is embedded in the subscription page. |
+| Modal/drawer checkout | Acceptable for one-time Toss widget after iframe/mobile/z-index verification | Closest to the expected "payment window" feel, but needs viewport and fixed-player overlap checks. |
+| Dedicated checkout route | Preferred default for recurring billing auth and redirect-heavy recovery | Browser history, success/fail callback handling, mobile authentication return, and retry recovery are simpler. |
+
+User-facing state guidance:
+
+| State | User message direction | Backend state anchor |
+|---|---|---|
+| Preparing | Show that the order is being prepared; allow retry if preparation fails. | `payment_orders.READY` |
+| PG in progress | Prevent duplicate submissions and keep a clear return path. | `payment_orders.IN_PROGRESS` |
+| Success | Confirm server-side first, then move to subscription management. | `payment_orders.DONE`, `subscription_payments.DONE` |
+| User cancelled | No subscription mutation; provide a new checkout attempt. | `payment_orders.CANCELLED` |
+| Failed | Show safe user copy and a retry action; hide raw PG payloads. | `payment_orders.FAILED` |
+| Expired/interrupted | Treat old redirects as stale and start a fresh checkout. | `payment_orders.EXPIRED` or expired `expires_at` |
+| Billing past due | Show grace-period access and next retry guidance. | `billing_agreements.failure_count`, `next_billing_at`, `user_subscriptions.expiresAt` |
+
+Operator-facing minimum visibility:
+
+- Latest `payment_orders` for a user, including purpose, provider, status, amount, order ID, sanitized failure code/message, and timestamps.
+- Related `subscription_payments` for finalized charges.
+- Current `billing_agreements` status, masked method, next billing date, failure count, and cancellation date.
+- Read-only support view first. Refund, receipt, settlement, webhook reconciliation, and multi-PG operations remain separate follow-up scopes.
+
+Sensitive-data boundary:
+
+- Ordinary users must not see raw `authKey`, `customerKey`, `billingKey`, Toss secret key, or raw provider payload.
+- Operators may see internal `orderId`, sanitized failure code/message, provider, purpose, amount, timestamps, and masked payment method.
+- Billing keys remain encrypted server-side only; only fingerprint/masked method may appear in diagnostics.
+
+### Phase E: Production Hardening
 
 - Add webhook handling.
 - Add compensating cancel/refund handling.
 - Add payment order expiration job.
-- Add admin payment audit screen if needed.
+- Add admin payment audit screen based on Phase D requirements.
 - Add recurring billing failure alerts and retry policy.
 
 ## 15. Open Decisions
@@ -632,10 +675,11 @@ Operational note:
 | PAY-D03 | Keep direct `POST /api/user-subscriptions`? | Temporarily deprecated compatibility endpoint (accepted) |
 | PAY-D04 | Mock UI detail level | Include success/fail/cancel buttons |
 | PAY-D05 | One-time vs recurring implementation order | One-time first, recurring second |
-| PAY-D06 | Payment admin screen | Defer until first payment order data exists |
+| PAY-D06 | Payment admin screen | Design read-only support view first; defer mutation/refund operations |
 | PAY-D07 | Refund/cancel automation | Defer implementation, design compensation hook now |
-| PAY-D08 | Recurring billing failure grace period | Product decision required; recommended default is a short grace period before `EXPIRED` |
-| PAY-D09 | Initial recurring subscription charge | Decide whether billing-key registration and first charge are one combined UX or two explicit steps |
+| PAY-D08 | Recurring billing failure grace period | 3-day grace period with up to 3 retry attempts (accepted) |
+| PAY-D09 | Initial recurring subscription charge | Billing-key registration followed by immediate first charge (accepted) |
+| PAY-D10 | Production checkout surface | Dedicated checkout route preferred for recurring billing auth; modal/drawer acceptable for one-time Toss widget after UI verification |
 
 ## 16. Implementation Risk Notes
 

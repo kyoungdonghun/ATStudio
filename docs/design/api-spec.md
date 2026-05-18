@@ -1,8 +1,8 @@
 # ATStudio API Specification v9 (Confirmed)
 
-> **Status**: 9th confirmed — live contract sync (download history, public capabilities, auth/profile conflict cleanup)
-> **Base**: v8 + 2026-04-18 patch
-> **Date**: 2026-04-18
+> **Status**: 9th confirmed — live contract sync (download history, public capabilities, auth/profile conflict cleanup, payment billing sync)
+> **Base**: v8 + 2026-05-18 payment patch
+> **Date**: 2026-05-18
 
 ---
 
@@ -17,6 +17,8 @@
 | Z5 | §6 new entries | Added mock-first payment contract: §6.3.1 prepare, §6.3.2 confirm, §6.3.3 cancel/fail |
 | Z6 | Full API Summary | Updated total count from 107 → 110 |
 | Z7 | §6.3 payment entries | Added Toss one-time payment provider fields and redirect confirm contract |
+| Z8 | §6.3 new entries | Added Toss billing agreement APIs: prepare, confirm, read current, cancel current |
+| Z9 | Full API Summary | Updated total count from 110 → 114 |
 
 ---
 
@@ -1225,6 +1227,139 @@ For Toss, the frontend receives `paymentKey`, `orderId`, and `amount` from the T
   "purpose": "SUBSCRIBE"
 }
 ```
+
+## 6.3.4 Prepare Billing Agreement
+| Field | Value |
+|-------|-------|
+| **URL** | `POST /api/payments/billing-agreements/prepare` |
+| **Auth** | auth required |
+| **Description** | Creates an internal billing agreement registration order and returns Toss billing-auth metadata. Subscription activation does not occur at prepare time. |
+
+**Request**
+```json
+{
+  "subscriptionId": 1,
+  "billingCycle": "MONTHLY"
+}
+```
+
+**Response** `201 Created`
+```json
+{
+  "orderId": "ATS-BILL-20260518-ABC123",
+  "provider": "TOSS_BILLING",
+  "purpose": "BILLING_AGREEMENT",
+  "amount": 9900,
+  "currency": "KRW",
+  "expiresAt": "2026-05-18T23:10:00",
+  "checkout": {
+    "type": "TOSS_BILLING_WIDGET",
+    "clientKey": "test_ck_...",
+    "customerKey": "ats_user_1_xxxxx",
+    "method": "CARD",
+    "successUrl": "http://localhost:5173/subscriptions/billing/success",
+    "failUrl": "http://localhost:5173/subscriptions/billing/fail"
+  }
+}
+```
+
+## 6.3.5 Confirm Billing Agreement
+| Field | Value |
+|-------|-------|
+| **URL** | `POST /api/payments/billing-agreements/confirm` |
+| **Auth** | auth required |
+| **Description** | Exchanges Toss billing `authKey` for a server-side billing key, stores it encrypted, immediately performs the first subscription charge, then activates the subscription only after that charge succeeds. |
+
+**Request**
+```json
+{
+  "orderId": "ATS-BILL-20260518-ABC123",
+  "amount": 9900,
+  "customerKey": "ats_user_1_xxxxx",
+  "authKey": "toss-auth-key"
+}
+```
+
+**Response** `200 OK`
+```json
+{
+  "billingAgreement": {
+    "id": 10,
+    "provider": "TOSS_BILLING",
+    "status": "ACTIVE",
+    "payMethod": "CARD",
+    "maskedMethod": "****1234",
+    "nextBillingAt": "2026-06-18"
+  },
+  "subscription": {
+    "id": 1,
+    "subscription": { "id": 1, "name": "STANDARD" },
+    "billingCycle": "MONTHLY",
+    "status": "ACTIVE",
+    "startedAt": "2026-05-18",
+    "expiresAt": "2026-06-18"
+  }
+}
+```
+
+**Error Cases**
+- `400 Bad Request` — `BILLING_AGREEMENT_INVALID_STATE`, `BILLING_AGREEMENT_CONFIRM_FAILED`, `PAYMENT_AMOUNT_MISMATCH`, `PAYMENT_ORDER_EXPIRED`
+- `403 Forbidden` — `RESOURCE_NOT_ACCESS` when the authenticated user does not own the order
+- `404 Not Found` — `PAYMENT_ORDER_NOT_FOUND`, `BILLING_AGREEMENT_NOT_FOUND`
+
+## 6.3.6 My Billing Agreement
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/payments/billing-agreements/me` |
+| **Auth** | auth required |
+| **Description** | Returns the current user's billing agreement status for subscription management. Raw billing keys are never returned. |
+
+**Response** `200 OK`
+```json
+{
+  "id": 10,
+  "provider": "TOSS_BILLING",
+  "status": "ACTIVE",
+  "payMethod": "CARD",
+  "maskedMethod": "****1234",
+  "nextBillingAt": "2026-06-18",
+  "lastChargedAt": "2026-05-18T22:00:00",
+  "failureCount": 0,
+  "cancelledAt": null
+}
+```
+
+## 6.3.7 Cancel My Billing Agreement
+| Field | Value |
+|-------|-------|
+| **URL** | `DELETE /api/payments/billing-agreements/me` |
+| **Auth** | auth required |
+| **Description** | Cancels future automatic renewal. Already-paid subscription access remains available until `expiresAt`. |
+
+**Response** `200 OK`
+```json
+{
+  "id": 10,
+  "provider": "TOSS_BILLING",
+  "status": "CANCELLED",
+  "payMethod": "CARD",
+  "maskedMethod": "****1234",
+  "nextBillingAt": null,
+  "failureCount": 0,
+  "cancelledAt": "2026-05-18T22:10:00"
+}
+```
+
+## 6.3.8 Payment Operations Candidates (Not Implemented)
+
+These endpoints are design candidates for the next operations phase. They are not part of the current implemented API count.
+
+| Candidate | Purpose | Notes |
+|---|---|---|
+| `GET /api/admin/payments/orders` | Search payment attempts by user, status, provider, purpose, date range | Read-only support/audit view |
+| `GET /api/admin/payments/orders/{orderId}` | Inspect one payment order with sanitized provider metadata | No raw provider payload or secret values |
+| `GET /api/admin/payments/billing-agreements` | List billing agreements by status and next billing date | Show masked method and failure count only |
+| `GET /api/admin/payments/subscription-payments` | Search finalized subscription payment records | No refund/settlement mutation in this phase |
 
 ## 6.4 My Subscription
 | Field | Value |
@@ -2508,7 +2643,7 @@ key: String (required) — setting key name
 
 ---
 
-# Full API Summary (110)
+# Full API Summary (114)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -2517,7 +2652,7 @@ key: String (required) — setting key name
 | 3 | Playlist | 9 |
 | 4 | Play History | 3 |
 | 5 | User Info | 11 |
-| 6 | Subscription | 14 |
+| 6 | Subscription | 18 |
 | 7 | License | 4 |
 | 8 | Question (Inquiry/Answer) | 7 |
 | 9 | Notice | 6 |
@@ -2529,4 +2664,4 @@ key: String (required) — setting key name
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
-| | **Total** | **110** |
+| | **Total** | **114** |

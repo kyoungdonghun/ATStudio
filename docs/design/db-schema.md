@@ -1,8 +1,8 @@
 # ATStudio DB Schema Definition v6 (Confirmed)
 
-> **Status**: v6 Confirmed — users.company_name (SR-47), subscriptions.max_playlists (SR-55), subscription seed prices finalized
-> **Base**: v5 + 2026-04-10 patch
-> **Date**: 2026-04-10
+> **Status**: v6 Confirmed — users.company_name (SR-47), subscriptions.max_playlists (SR-55), subscription seed prices finalized, payment billing sync
+> **Base**: v5 + 2026-05-18 payment patch
+> **Date**: 2026-05-18
 
 ---
 
@@ -14,6 +14,8 @@
 | 2 | `subscriptions.max_playlists` | **Added** — INT NOT NULL DEFAULT 3. Tier-based limit on the number of active playlists a subscriber may hold (SR-55). |
 | 3 | `subscriptions` seed data | **Finalized** — Replaced all `[TBD]` prices with confirmed values. Added new `STANDARD/BUSINESS` row. Populated `max_playlists` per tier. |
 | 4 | `payment_orders` | **Added** — Mock-first payment attempt ledger for subscription prepare/confirm/cancel flow. |
+| 5 | `billing_agreements` | **Added** — Server-side recurring billing agreement and encrypted billing key metadata. |
+| 6 | Payment table billing links | **Added** — `payment_orders.billing_agreement_id` and `subscription_payments.billing_agreement_id` for recurring billing traceability. |
 
 ---
 
@@ -327,11 +329,12 @@
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
 | Merchant order ID | `order_id` | VARCHAR(64) | NOT NULL | UNIQUE | | Sent to provider-facing checkout/confirm flow |
 | User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | Authenticated order owner |
-| Purpose | `purpose` | ENUM('SUBSCRIBE','UPGRADE','RENEWAL','BILLING_AGREEMENT') | NOT NULL | | | Phase A uses SUBSCRIBE/UPGRADE |
-| Provider | `provider` | ENUM('MOCK','TOSS','TOSS_BILLING','KAKAOPAY') | NOT NULL | | | Phase A uses MOCK |
+| Purpose | `purpose` | ENUM('SUBSCRIBE','UPGRADE','RENEWAL','BILLING_AGREEMENT') | NOT NULL | | | SUBSCRIBE/UPGRADE for checkout, RENEWAL for automatic billing, BILLING_AGREEMENT for registration |
+| Provider | `provider` | ENUM('MOCK','TOSS','TOSS_BILLING','KAKAOPAY') | NOT NULL | | | MOCK local, TOSS one-time, TOSS_BILLING recurring |
 | Status | `status` | ENUM('READY','IN_PROGRESS','DONE','FAILED','CANCELLED','EXPIRED') | NOT NULL | | 'READY' | Attempt lifecycle |
 | Subscription plan | `subscription_id` | BIGINT | NOT NULL | FK(subscriptions.id) | | Target plan |
 | User subscription | `user_subscription_id` | BIGINT | NULL | FK(user_subscriptions.id) | | Set for upgrade or after confirm |
+| Billing agreement | `billing_agreement_id` | BIGINT | NULL | FK(billing_agreements.id) | | Set for billing registration and renewal orders |
 | Billing cycle | `billing_cycle` | ENUM('MONTHLY','YEARLY') | NOT NULL | | | |
 | Amount | `amount` | DECIMAL(10,2) | NOT NULL | | | Server-calculated charge amount |
 | Currency | `currency` | VARCHAR(3) | NOT NULL | | 'KRW' | |
@@ -353,6 +356,7 @@
 | Subscription record | `user_subscription_id` | BIGINT | NOT NULL | FK(user_subscriptions.id) | | Links to which subscription session this payment belongs to |
 | Subscription plan | `subscription_id` | BIGINT | NOT NULL | FK(subscriptions.id) | | |
 | Payment order | `payment_order_id` | BIGINT | NULL | FK(payment_orders.id) | | Links finalized payment to attempted order |
+| Billing agreement | `billing_agreement_id` | BIGINT | NULL | FK(billing_agreements.id) | | Links recurring billing charges to the agreement |
 | Billing cycle | `billing_cycle` | ENUM('MONTHLY','YEARLY') | NOT NULL | | | |
 | Provider | `provider` | ENUM('MOCK','TOSS','TOSS_BILLING','KAKAOPAY') | NULL | | | Null for legacy direct records |
 | Payment amount | `amount` | DECIMAL(10,2) | NOT NULL | | | Prorated amount for upgrades |
@@ -360,6 +364,31 @@
 | PG transaction ID | `pg_transaction_id` | VARCHAR(100) | NULL | | | Used for PG provider integration |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+## 6.5 Billing Agreements (`billing_agreements`)
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | Agreement owner |
+| Provider | `provider` | ENUM('TOSS_BILLING','KAKAOPAY') | NOT NULL | UNIQUE(user_id, provider) | | KAKAOPAY reserved for future expansion |
+| Status | `status` | ENUM('READY','ACTIVE','SUSPENDED','CANCELLED','EXPIRED') | NOT NULL | INDEX(status,next_billing_at) | 'READY' | Billing agreement lifecycle |
+| Provider customer key | `provider_customer_key` | VARCHAR(300) | NOT NULL | UNIQUE(provider, provider_customer_key) | | Server-generated customer key sent to provider |
+| Billing key ciphertext | `billing_key_ciphertext` | VARCHAR(1000) | NULL | | | Encrypted billing key; never store plain text |
+| Billing key fingerprint | `billing_key_fingerprint` | VARCHAR(128) | NULL | | | Non-secret fingerprint for diagnostics |
+| Pay method | `pay_method` | VARCHAR(50) | NULL | | | Example: CARD |
+| Masked method | `masked_method` | VARCHAR(100) | NULL | | | Safe display value only |
+| Next billing date | `next_billing_at` | DATE | NULL | | | Scheduler target date |
+| Last charged at | `last_charged_at` | DATETIME | NULL | | | Last successful automatic charge |
+| Failure count | `failure_count` | INT | NOT NULL | | 0 | Retry counter within grace policy |
+| Cancelled at | `cancelled_at` | DATETIME | NULL | | | Set when automatic renewal is cancelled |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+- Billing keys are server-only encrypted credentials.
+- User-facing and operator-facing UI may show `status`, `pay_method`, `masked_method`, `next_billing_at`, `failure_count`, and `cancelled_at`.
+- Raw billing key material and Toss secret keys must never appear in API responses, logs, screenshots, or documents.
+- Automatic renewal cancellation changes the agreement state but does not remove already-paid subscription access before `user_subscriptions.expires_at`.
 
 ---
 
@@ -635,6 +664,7 @@
 ```
 users ─┬─< social_accounts
        ├─< user_subscriptions ──> subscriptions
+       ├─< billing_agreements
        ├─< payment_orders ──> subscriptions
        ├─< subscription_payments ──> subscriptions
        ├─< company_certifications
@@ -660,7 +690,7 @@ site_settings (standalone — no FK)
 
 ---
 
-# Complete Table List (29 Tables)
+# Complete Table List (30 Tables)
 
 | # | Table Name | Description | Type |
 |---|------------|-------------|------|
@@ -676,22 +706,23 @@ site_settings (standalone — no FK)
 | 10 | `playlist_tracks` | Playlist-track mapping | Mapping |
 | 11 | `track_downloads` | Download history | Log |
 | 12 | `play_histories` | Play history | Log |
-| 13 | `payment_orders` | Payment attempt ledger | Transaction |
-| 14 | `subscription_payments` | Subscription payment records | Transaction |
-| 15 | `likes` | Track likes | Mapping |
-| 16 | `album_likes` | Album likes | Mapping |
-| 17 | `download_queue` | Download queue | Mapping |
-| 18 | `whitelist_channels` | Whitelist channels | Master |
-| 19 | `questions` | Inquiries | Transaction |
-| 20 | `answers` | Inquiry answers | Transaction |
-| 21 | `licenses` | Track usage licenses | Transaction |
-| 22 | `notices` | Notices | Master |
-| 23 | `question_attachments` | Inquiry attachments | Transaction |
-| 24 | `notice_attachments` | Notice attachments | Transaction |
-| 25 | `albums` | Curated albums | Master |
-| 26 | `album_tracks` | Album-track mapping | Mapping |
-| 27 | `email_verification_tokens` | Email verification tokens | Transaction |
-| 28 | `password_reset_tokens` | Password reset tokens | Transaction |
-| 29 | `site_settings` | Site configuration key-value store | Master |
+| 13 | `billing_agreements` | Recurring billing agreement credentials and state | Transaction |
+| 14 | `payment_orders` | Payment attempt ledger | Transaction |
+| 15 | `subscription_payments` | Subscription payment records | Transaction |
+| 16 | `likes` | Track likes | Mapping |
+| 17 | `album_likes` | Album likes | Mapping |
+| 18 | `download_queue` | Download queue | Mapping |
+| 19 | `whitelist_channels` | Whitelist channels | Master |
+| 20 | `questions` | Inquiries | Transaction |
+| 21 | `answers` | Inquiry answers | Transaction |
+| 22 | `licenses` | Track usage licenses | Transaction |
+| 23 | `notices` | Notices | Master |
+| 24 | `question_attachments` | Inquiry attachments | Transaction |
+| 25 | `notice_attachments` | Notice attachments | Transaction |
+| 26 | `albums` | Curated albums | Master |
+| 27 | `album_tracks` | Album-track mapping | Mapping |
+| 28 | `email_verification_tokens` | Email verification tokens | Transaction |
+| 29 | `password_reset_tokens` | Password reset tokens | Transaction |
+| 30 | `site_settings` | Site configuration key-value store | Master |
 
-Total **29 tables**
+Total **30 tables**

@@ -204,12 +204,24 @@ dependencies:
                                              "결제하기" → payment prepare
                                                    │  MOCK → confirm
                                                    │  TOSS → Toss widget → success redirect → confirm
+                                                   │  TOSS_BILLING → billing auth → success redirect → billing confirm + initial charge
                                                    │  성공 → [16-3 내 구독]
                                                    ├── 실패 → 결제 실패 상태 표시, 구독 미생성
                                                    └── "취소" → [16-1], 구독 미생성
 
+       UX target after REQ-20260518-ATS-001:
+         - Default payment page shows plan, amount, cycle, payment mode, and a single primary action.
+         - One-time Toss widget should move to a modal/drawer or checkout route after viewport verification.
+         - Recurring billing auth should prefer a dedicated checkout/callback route because mobile authentication return,
+           stale redirect recovery, and retry states are easier to explain there.
+         - Current inline/page-fixed Toss surface remains acceptable only as a local/debug-friendly intermediate state.
+         - User copy separates "payment failed" from "billing registration failed"; raw authKey, customerKey,
+           billingKey, and provider payloads are never shown to the user.
+
 [16-3 내 구독 현황]  ← GET /api/user-subscriptions/me
   │  pending 구독 있을 시: "예약된 변경: {플랜명} ({expiresAt}부터)" 표시
+  │  자동 갱신 있을 시: 상태(ACTIVE/SUSPENDED/CANCELLED), 결제수단(마스킹), 다음 결제일 표시
+  │  결제 실패 유예 중: "결제 재시도 중 · {expiresAt}까지 이용 가능" 표시
   │
   ├── "플랜 변경" → [M-09 PlanCompareModal]
   │    업그레이드:
@@ -219,9 +231,11 @@ dependencies:
   │      "다음 결제일({expiresAt})부터 적용 · 추가 결제 없음" 안내
   │      → [변경 예약] → PUT 6.7 → 화면 갱신 (pending 표시)
   │
-  └── "구독 취소" → [M-10 StatusModal]
+  ├── "구독 취소" → [M-10 StatusModal]
        "취소 후 {expiresAt}까지 이용 가능" 안내
        확인 → 6.10 DELETE → 화면 갱신
+  └── "자동 갱신 해지" → confirm → DELETE /api/payments/billing-agreements/me
+       "다음 결제부터 자동 갱신이 중지되며, 현재 이용 기간은 유지됩니다" 안내
 ```
 
 ---
@@ -374,8 +388,9 @@ dependencies:
 | R-02 | GNB 추가 IA 조정 | 현재 baseline 구현 완료, 필요 시 후속 UX 개선으로 조정 |
 | R-03 | 태그 필터 — 인라인 vs 모달 전환 용이성 | 인라인 우선, 전환 어려우면 재논의 |
 | R-04 | 18 통계 대시보드 지표 확장 설계 | 필요 시 후속 정의 |
-| R-05 | Real PG 결제 연동 (Toss one-time / billing key) | Mock-first contract implemented; Toss integration remains 후속 |
-| R-06 | M-15 기업인증 서류 파일 제한 | 업로드 정책 미확정 |
+| R-05 | 결제 UX 분리 (Toss one-time / billing key) | Core payment integration implemented; production checkout/modal UX remains SR-92 / REQ-20260518-ATS-001 follow-up |
+| R-06 | 결제 운영 화면 | Read-only payment order / billing agreement / subscription payment support view is a planned operations follow-up |
+| R-07 | M-15 기업인증 서류 파일 제한 | 업로드 정책 미확정 |
 
 ---
 
