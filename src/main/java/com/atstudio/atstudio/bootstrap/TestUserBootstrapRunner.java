@@ -13,6 +13,7 @@ import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.CompanyCertificationRepository;
 import com.atstudio.atstudio.repository.PlaylistRepository;
 import com.atstudio.atstudio.repository.SubscriptionRepository;
+import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.service.PlaylistService;
@@ -38,6 +39,7 @@ public class TestUserBootstrapRunner implements ApplicationRunner {
     private final TestUserBootstrapProperties properties;
     private final UserRepository userRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final SubscriptionPaymentRepository subscriptionPaymentRepository;
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final CompanyCertificationRepository companyCertificationRepository;
     private final PlaylistRepository playlistRepository;
@@ -166,6 +168,10 @@ public class TestUserBootstrapRunner implements ApplicationRunner {
     }
 
     private void ensureNoActiveSubscription(User user) {
+        if (hasPaymentHistory(user)) {
+            log.info("Skipping QA bootstrap subscription reset for {} because payment history exists.", user.getEmail());
+            return;
+        }
         userSubscriptionRepository.findByUser(user).ifPresent(existing ->
                 existing.adminUpdate(
                         SubscriptionStatus.EXPIRED,
@@ -182,6 +188,12 @@ public class TestUserBootstrapRunner implements ApplicationRunner {
             SubscriptionStatus desiredStatus,
             int expiresInDays
     ) {
+        if (hasPaymentHistory(user)) {
+            log.info("Skipping QA bootstrap subscription fixture alignment for {} because payment history exists.",
+                    user.getEmail());
+            return;
+        }
+
         Optional<Subscription> maybePlan = subscriptionRepository.findByNameAndUserTypeAndIsActiveTrue(planName, userType);
         if (maybePlan.isEmpty()) {
             log.warn("Skipping QA bootstrap subscription for {}: plan {} / {} not found", user.getEmail(), userType, planName);
@@ -223,6 +235,10 @@ public class TestUserBootstrapRunner implements ApplicationRunner {
             existing.cancel();
         }
         return existing;
+    }
+
+    private boolean hasPaymentHistory(User user) {
+        return subscriptionPaymentRepository.existsByUser(user);
     }
 
     private void ensureApprovedBusinessCertification(User user) {

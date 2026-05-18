@@ -9,6 +9,7 @@ import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.CompanyCertificationRepository;
 import com.atstudio.atstudio.repository.PlaylistRepository;
 import com.atstudio.atstudio.repository.SubscriptionRepository;
+import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.service.PlaylistService;
@@ -39,6 +40,7 @@ class TestUserBootstrapRunnerTest {
 
     @Mock UserRepository userRepository;
     @Mock SubscriptionRepository subscriptionRepository;
+    @Mock SubscriptionPaymentRepository subscriptionPaymentRepository;
     @Mock UserSubscriptionRepository userSubscriptionRepository;
     @Mock CompanyCertificationRepository companyCertificationRepository;
     @Mock PlaylistRepository playlistRepository;
@@ -131,6 +133,62 @@ class TestUserBootstrapRunnerTest {
 
         assertThat(existingSubscription.getStatus()).isEqualTo(SubscriptionStatus.EXPIRED);
         assertThat(existingSubscription.getExpiresAt()).isBefore(LocalDate.now());
+    }
+
+    @Test
+    @DisplayName("run() 성공 - 결제 이력이 있는 QA 계정의 구독은 보존한다")
+    void run_preservesPaymentManagedSubscriptionForBasicUser() throws Exception {
+        ReflectionTestUtils.setField(runner, "properties", properties);
+        given(passwordEncoder.encode("Test1234!")).willReturn("encoded");
+
+        User existingUser = User.builder()
+                .nickname("qa_user")
+                .email("qa.user@atstudio.local")
+                .password("old")
+                .role(UserRole.USER)
+                .userType(UserType.INDIVIDUAL)
+                .build();
+        ReflectionTestUtils.setField(existingUser, "id", 2L);
+
+        UserSubscription existingSubscription = UserSubscription.builder()
+                .user(existingUser)
+                .subscription(buildSubscription(11L, "STANDARD", UserType.INDIVIDUAL))
+                .status(SubscriptionStatus.ACTIVE)
+                .startedAt(LocalDate.now().minusDays(3))
+                .expiresAt(LocalDate.now().plusDays(7))
+                .build();
+
+        given(userRepository.findOneByEmail(any())).willAnswer(invocation -> {
+            String email = invocation.getArgument(0);
+            return "qa.user@atstudio.local".equals(email)
+                    ? Optional.of(existingUser)
+                    : Optional.empty();
+        });
+        given(userRepository.save(any(User.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(subscriptionPaymentRepository.existsByUser(any(User.class))).willAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            return "qa.user@atstudio.local".equals(user.getEmail());
+        });
+        given(userSubscriptionRepository.findByUser(any())).willAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            return "qa.user@atstudio.local".equals(user.getEmail())
+                    ? Optional.of(existingSubscription)
+                    : Optional.empty();
+        });
+        given(subscriptionRepository.findByNameAndUserTypeAndIsActiveTrue(eq("DELUXE"), eq(UserType.INDIVIDUAL)))
+                .willReturn(Optional.of(buildSubscription(10L, "DELUXE", UserType.INDIVIDUAL)));
+        given(subscriptionRepository.findByNameAndUserTypeAndIsActiveTrue(eq("STANDARD"), eq(UserType.INDIVIDUAL)))
+                .willReturn(Optional.of(buildSubscription(11L, "STANDARD", UserType.INDIVIDUAL)));
+        given(subscriptionRepository.findByNameAndUserTypeAndIsActiveTrue(eq("PREMIUM"), eq(UserType.BUSINESS)))
+                .willReturn(Optional.of(buildSubscription(12L, "PREMIUM", UserType.BUSINESS)));
+        given(userSubscriptionRepository.save(any(UserSubscription.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(playlistRepository.countByUserAndIsActiveTrue(any())).willReturn(0);
+        given(companyCertificationRepository.existsByUserAndStatusIn(any(), any())).willReturn(false);
+
+        runner.run(new DefaultApplicationArguments(new String[0]));
+
+        assertThat(existingSubscription.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(existingSubscription.getExpiresAt()).isAfter(LocalDate.now());
     }
 
     private Subscription buildSubscription(Long id, String name, UserType userType) {
