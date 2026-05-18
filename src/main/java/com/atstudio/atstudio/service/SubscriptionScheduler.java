@@ -17,13 +17,21 @@ import java.util.List;
 public class SubscriptionScheduler {
 
     private final UserSubscriptionRepository userSubscriptionRepository;
+    private final RecurringRenewalService recurringRenewalService;
+
+    @Scheduled(cron = "0 0 0 * * *")
+    @Transactional
+    public void processRecurringRenewals() {
+        recurringRenewalService.processDueRenewals();
+    }
 
     /**
-     * 매일 자정에 만료된 구독을 처리한다.
+     * 매일 00:30에 만료된 구독을 처리한다.
+     * recurring renewal job이 먼저 grace/renewal 상태를 정리한 뒤 만료 처리를 수행한다.
      * - pending 다운그레이드가 있으면 새 플랜으로 전환
      * - 없으면 EXPIRED 상태로 변경
      */
-    @Scheduled(cron = "0 0 0 * * *")
+    @Scheduled(cron = "0 30 0 * * *")
     @Transactional
     public void processExpiredSubscriptions() {
         LocalDate today = LocalDate.now();

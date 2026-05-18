@@ -10,6 +10,11 @@ import {
   type SubscriptionChangePreview,
 } from '@/api/userSubscriptions';
 import { fetchSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
+import {
+  cancelMyBillingAgreement,
+  fetchMyBillingAgreement,
+  type BillingAgreementResponse,
+} from '@/api/payments';
 import { isSubscriptionRequired } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import Button from '@/components/ui/Button';
@@ -49,6 +54,8 @@ export default function SubscriptionManagePage() {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [billingAgreement, setBillingAgreement] = useState<BillingAgreementResponse | null>(null);
+  const [cancellingBilling, setCancellingBilling] = useState(false);
 
   /* ── Change Plan ── */
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
@@ -74,9 +81,16 @@ export default function SubscriptionManagePage() {
       try {
         const subRes = await fetchMySubscription();
         setSub(subRes);
+        try {
+          const billingRes = await fetchMyBillingAgreement();
+          setBillingAgreement(billingRes);
+        } catch {
+          setBillingAgreement(null);
+        }
       } catch (err) {
         if (isSubscriptionRequired(err)) {
           setSub(null);
+          setBillingAgreement(null);
           return;
         }
         throw err;
@@ -180,6 +194,19 @@ export default function SubscriptionManagePage() {
     }
   }
 
+  async function handleCancelAutomaticRenewal() {
+    try {
+      setCancellingBilling(true);
+      const cancelled = await cancelMyBillingAgreement();
+      setBillingAgreement(cancelled);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '자동결제 해지에 실패했습니다.');
+    } finally {
+      setCancellingBilling(false);
+    }
+  }
+
   /* ── Status badge ── */
   function getStatusClass(status: string): string {
     switch (status) {
@@ -269,6 +296,52 @@ export default function SubscriptionManagePage() {
             <span className={styles.pendingText}>
               {'다운그레이드가 예약되어 있습니다. 만료일 이후 새 플랜이 적용됩니다.'}
             </span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Automatic Renewal ── */}
+      <div className={styles.actionSection}>
+        <div className={styles.actionTitle}>{'자동 갱신'}</div>
+        {billingAgreement ? (
+          <>
+            <div className={styles.planInfo}>
+              <div className={styles.infoItem}>
+                <span className={styles.infoLabel}>{'상태'}</span>
+                <span className={styles.infoValue}>{getBillingStatusLabel(billingAgreement.status)}</span>
+              </div>
+              <div className={styles.infoItem}>
+                <span className={styles.infoLabel}>{'결제수단'}</span>
+                <span className={styles.infoValue}>
+                  {billingAgreement.maskedMethod
+                    ? `${billingAgreement.payMethod ?? 'CARD'} ${billingAgreement.maskedMethod}`
+                    : billingAgreement.payMethod ?? '등록됨'}
+                </span>
+              </div>
+              <div className={styles.infoItem}>
+                <span className={styles.infoLabel}>{'다음 결제일'}</span>
+                <span className={styles.infoValue}>
+                  {billingAgreement.nextBillingAt
+                    ? formatDate(billingAgreement.nextBillingAt)
+                    : '-'}
+                </span>
+              </div>
+            </div>
+            {billingAgreement.status === 'ACTIVE' && (
+              <div className={styles.actionButtons}>
+                <Button
+                  variant="danger"
+                  onClick={handleCancelAutomaticRenewal}
+                  loading={cancellingBilling}
+                >
+                  {'자동 갱신 해지'}
+                </Button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className={styles.actionDesc}>
+            {'현재 자동 갱신 결제수단이 등록되어 있지 않습니다.'}
           </div>
         )}
       </div>
@@ -426,4 +499,21 @@ export default function SubscriptionManagePage() {
       </Modal>
     </div>
   );
+}
+
+function getBillingStatusLabel(status: BillingAgreementResponse['status']): string {
+  switch (status) {
+    case 'ACTIVE':
+      return '자동 갱신 중';
+    case 'READY':
+      return '등록 진행 중';
+    case 'SUSPENDED':
+      return '갱신 중지';
+    case 'CANCELLED':
+      return '자동 갱신 해지됨';
+    case 'EXPIRED':
+      return '만료';
+    default:
+      return status;
+  }
 }

@@ -67,6 +67,17 @@ app:
       success-url: http://localhost:5173/subscriptions/payment/success
       fail-url: http://localhost:5173/subscriptions/payment/fail
       confirm-url: https://api.tosspayments.com/v1/payments/confirm
+    billing:
+      # Generate a local-only 32+ byte random secret. Never commit the real local value.
+      encryption-secret: REPLACE_WITH_PAYMENT_BILLING_KEY_ENCRYPTION_SECRET
+      auth-success-url: http://localhost:5173/subscriptions/billing/success
+      auth-fail-url: http://localhost:5173/subscriptions/billing/fail
+      issue-url: https://api.tosspayments.com/v1/billing/authorizations/issue
+      charge-url: https://api.tosspayments.com/v1/billing/{billingKey}
+      delete-url: https://api.tosspayments.com/v1/billing/{billingKey}
+      connect-timeout-millis: 3000
+      # Toss automatic billing approval can take up to 60 seconds.
+      read-timeout-millis: 60000
   security:
     rate-limit:
       enabled: true

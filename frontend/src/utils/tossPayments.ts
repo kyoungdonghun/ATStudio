@@ -17,8 +17,17 @@ type TossWidgets = {
   }) => Promise<void>;
 };
 
+type TossPayment = {
+  requestBillingAuth: (options: {
+    method: string;
+    successUrl: string;
+    failUrl: string;
+  }) => Promise<void>;
+};
+
 type TossPaymentsInstance = {
   widgets: (options: { customerKey: string }) => TossWidgets;
+  payment: (options: { customerKey: string }) => TossPayment;
 };
 
 type TossPaymentsFactory = (clientKey: string) => TossPaymentsInstance;
@@ -31,7 +40,7 @@ declare global {
 
 let sdkPromise: Promise<TossPaymentsFactory> | null = null;
 
-export type { TossWidgets };
+export type { TossPayment, TossWidgets };
 
 export function loadTossPaymentsSdk(): Promise<TossPaymentsFactory> {
   if (window.TossPayments) {

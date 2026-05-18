@@ -7,9 +7,12 @@ const navigateMock = vi.hoisted(() => vi.fn());
 const toastShowMock = vi.hoisted(() => vi.fn());
 const fetchSubscriptionPlansMock = vi.hoisted(() => vi.fn());
 const prepareSubscriptionPaymentMock = vi.hoisted(() => vi.fn());
+const prepareBillingAgreementMock = vi.hoisted(() => vi.fn());
 const confirmPaymentMock = vi.hoisted(() => vi.fn());
+const confirmBillingAgreementMock = vi.hoisted(() => vi.fn());
 const cancelPaymentMock = vi.hoisted(() => vi.fn());
 const requestPaymentMock = vi.hoisted(() => vi.fn());
+const requestBillingAuthMock = vi.hoisted(() => vi.fn());
 const renderPaymentMethodsMock = vi.hoisted(() => vi.fn());
 const renderAgreementMock = vi.hoisted(() => vi.fn());
 const setAmountMock = vi.hoisted(() => vi.fn());
@@ -33,7 +36,9 @@ vi.mock('@/api/subscriptions', () => ({
 
 vi.mock('@/api/payments', () => ({
   prepareSubscriptionPayment: (...args: unknown[]) => prepareSubscriptionPaymentMock(...args),
+  prepareBillingAgreement: (...args: unknown[]) => prepareBillingAgreementMock(...args),
   confirmPayment: (...args: unknown[]) => confirmPaymentMock(...args),
+  confirmBillingAgreement: (...args: unknown[]) => confirmBillingAgreementMock(...args),
   cancelPayment: (...args: unknown[]) => cancelPaymentMock(...args),
 }));
 
@@ -51,9 +56,12 @@ describe('SubscriptionPaymentPage', () => {
     toastShowMock.mockReset();
     fetchSubscriptionPlansMock.mockReset();
     prepareSubscriptionPaymentMock.mockReset();
+    prepareBillingAgreementMock.mockReset();
     confirmPaymentMock.mockReset();
+    confirmBillingAgreementMock.mockReset();
     cancelPaymentMock.mockReset();
     requestPaymentMock.mockReset();
+    requestBillingAuthMock.mockReset();
     renderPaymentMethodsMock.mockReset();
     renderAgreementMock.mockReset();
     setAmountMock.mockReset();
@@ -61,12 +69,16 @@ describe('SubscriptionPaymentPage', () => {
     renderAgreementMock.mockResolvedValue(undefined);
     setAmountMock.mockResolvedValue(undefined);
     requestPaymentMock.mockResolvedValue(undefined);
+    requestBillingAuthMock.mockResolvedValue(undefined);
     window.TossPayments = vi.fn(() => ({
       widgets: () => ({
         setAmount: setAmountMock,
         renderPaymentMethods: renderPaymentMethodsMock,
         renderAgreement: renderAgreementMock,
         requestPayment: requestPaymentMock,
+      }),
+      payment: () => ({
+        requestBillingAuth: requestBillingAuthMock,
       }),
     }));
 
@@ -96,10 +108,36 @@ describe('SubscriptionPaymentPage', () => {
         confirmToken: 'mock-ATS-ORDER-1',
       },
     });
+    prepareBillingAgreementMock.mockResolvedValue({
+      orderId: 'ATS-BILL-1',
+      provider: 'TOSS_BILLING',
+      agreementStatus: 'READY',
+      subscriptionId: 1,
+      billingCycle: 'MONTHLY',
+      amount: 9900,
+      currency: 'KRW',
+      expiresAt: '2026-05-16T23:10:00',
+      checkout: {
+        type: 'TOSS_BILLING_WIDGET',
+        clientKey: 'test_ck_billing',
+        customerKey: 'ats_billing_customer_1',
+        successUrl: 'http://localhost:5173/subscriptions/billing/success',
+        failUrl: 'http://localhost:5173/subscriptions/billing/fail',
+        method: 'CARD',
+      },
+    });
     confirmPaymentMock.mockResolvedValue({
       orderId: 'ATS-ORDER-1',
       status: 'DONE',
       purpose: 'SUBSCRIBE',
+      subscription: null,
+    });
+    confirmBillingAgreementMock.mockResolvedValue({
+      orderId: 'ATS-BILL-1',
+      orderStatus: 'DONE',
+      provider: 'TOSS_BILLING',
+      agreementStatus: 'ACTIVE',
+      nextBillingAt: '2026-06-16',
       subscription: null,
     });
     cancelPaymentMock.mockResolvedValue({
@@ -211,6 +249,59 @@ describe('SubscriptionPaymentPage', () => {
         amount: 9900,
         provider: 'TOSS',
         paymentKey: 'toss-key',
+      });
+    });
+    expect(navigateMock).toHaveBeenCalledWith('/subscriptions/manage');
+  });
+
+  it('prepares recurring billing and opens Toss billing auth', async () => {
+    render(
+      <MemoryRouter
+        initialEntries={['/subscriptions/payment?plan=STANDARD&cycle=MONTHLY&mode=recurring']}
+      >
+        <SubscriptionPaymentPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(prepareBillingAgreementMock).toHaveBeenCalledWith({
+        subscriptionId: 1,
+        billingCycle: 'MONTHLY',
+      });
+    });
+
+    await screen.findByText('ATS-BILL-1');
+    fireEvent.click(screen.getByRole('button', { name: '카드 등록하기' }));
+
+    await waitFor(() => {
+      expect(requestBillingAuthMock).toHaveBeenCalledWith({
+        method: 'CARD',
+        successUrl:
+          'http://localhost:5173/subscriptions/billing/success?orderId=ATS-BILL-1&amount=9900',
+        failUrl:
+          'http://localhost:5173/subscriptions/billing/fail?orderId=ATS-BILL-1&amount=9900',
+      });
+    });
+    expect(confirmPaymentMock).not.toHaveBeenCalled();
+  });
+
+  it('confirms Toss billing success redirect with authKey', async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          '/subscriptions/billing/success?authKey=auth-key&customerKey=ats_billing_customer_1&orderId=ATS-BILL-1&amount=9900',
+        ]}
+      >
+        <SubscriptionPaymentPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(confirmBillingAgreementMock).toHaveBeenCalledWith({
+        orderId: 'ATS-BILL-1',
+        authKey: 'auth-key',
+        customerKey: 'ats_billing_customer_1',
+        amount: 9900,
       });
     });
     expect(navigateMock).toHaveBeenCalledWith('/subscriptions/manage');

@@ -4,8 +4,11 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
 import {
   cancelPayment,
+  confirmBillingAgreement,
   confirmPayment,
+  prepareBillingAgreement,
   prepareSubscriptionPayment,
+  type BillingAgreementPrepareResponse,
   type PaymentPrepareResponse,
 } from '@/api/payments';
 import { formatPrice } from '@/utils/format';
@@ -21,6 +24,8 @@ export default function SubscriptionPaymentPage() {
   const planKey = searchParams.get('plan') ?? '';
   const cycle = (searchParams.get('cycle') ?? 'MONTHLY') as 'MONTHLY' | 'YEARLY';
   const purpose = searchParams.get('purpose') === 'UPGRADE' ? 'UPGRADE' : 'SUBSCRIBE';
+  const isBillingMode = searchParams.get('mode') === 'recurring';
+  const isBillingRedirect = location.pathname.includes('/subscriptions/billing/');
   const isTossSuccess = location.pathname.endsWith('/success');
   const isTossFail = location.pathname.endsWith('/fail');
   const isTossRedirect = isTossSuccess || isTossFail;
@@ -28,7 +33,9 @@ export default function SubscriptionPaymentPage() {
   const tossWidgetsRef = useRef<TossWidgets | null>(null);
 
   const [plan, setPlan] = useState<SubscriptionPlan | null>(null);
-  const [paymentOrder, setPaymentOrder] = useState<PaymentPrepareResponse | null>(null);
+  const [paymentOrder, setPaymentOrder] = useState<
+    PaymentPrepareResponse | BillingAgreementPrepareResponse | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [orderStatus, setOrderStatus] = useState<'READY' | 'FAILED' | 'CANCELLED'>('READY');
@@ -47,7 +54,7 @@ export default function SubscriptionPaymentPage() {
       if (isTossFail) {
         const code = searchParams.get('code') ?? 'TOSS_PAYMENT_FAILED';
         const message = searchParams.get('message') ?? '토스 결제가 완료되지 않았습니다.';
-        if (orderId) {
+        if (orderId && !isBillingRedirect) {
           try {
             await cancelPayment({
               orderId,
@@ -61,6 +68,38 @@ export default function SubscriptionPaymentPage() {
         setErrorMessage(message);
         showToast('error', message);
         setLoading(false);
+        return;
+      }
+
+      if (isBillingRedirect) {
+        const authKey = searchParams.get('authKey');
+        const customerKey = searchParams.get('customerKey');
+        const amount = Number(searchParams.get('amount'));
+        if (!orderId || !authKey || !customerKey || !Number.isFinite(amount)) {
+          const message = '토스 자동결제 인증 정보가 올바르지 않습니다.';
+          setErrorMessage(message);
+          showToast('error', message);
+          setLoading(false);
+          return;
+        }
+
+        try {
+          await confirmBillingAgreement({
+            orderId,
+            authKey,
+            customerKey,
+            amount,
+          });
+          showToast('success', '자동결제가 등록되고 구독이 시작되었습니다.');
+          navigate('/subscriptions/manage');
+        } catch (err: unknown) {
+          const msg =
+            (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+            '자동결제 등록 확인 중 오류가 발생했습니다.';
+          setErrorMessage(msg);
+          showToast('error', msg);
+          setLoading(false);
+        }
         return;
       }
 
@@ -99,7 +138,7 @@ export default function SubscriptionPaymentPage() {
     }
 
     void handleTossRedirect();
-  }, [isTossFail, isTossRedirect, navigate, searchParams, showToast]);
+  }, [isBillingRedirect, isTossFail, isTossRedirect, navigate, searchParams, showToast]);
 
   useEffect(() => {
     if (isTossRedirect) return;
@@ -121,11 +160,17 @@ export default function SubscriptionPaymentPage() {
 
         if (!found) return;
 
-        const prepared = await prepareSubscriptionPayment({
-          purpose,
-          subscriptionId: found.id,
-          billingCycle: cycle,
-        });
+        const prepared =
+          isBillingMode && purpose === 'SUBSCRIBE'
+            ? await prepareBillingAgreement({
+                subscriptionId: found.id,
+                billingCycle: cycle,
+              })
+            : await prepareSubscriptionPayment({
+                purpose,
+                subscriptionId: found.id,
+                billingCycle: cycle,
+              });
         if (!active) return;
         setPaymentOrder(prepared);
       } catch (err: unknown) {
@@ -145,7 +190,7 @@ export default function SubscriptionPaymentPage() {
     return () => {
       active = false;
     };
-  }, [cycle, isTossRedirect, planKey, purpose, showToast]);
+  }, [cycle, isBillingMode, isTossRedirect, planKey, purpose, showToast]);
 
   useEffect(() => {
     if (!paymentOrder || paymentOrder.checkout.type !== 'TOSS_WIDGET') return;
@@ -218,6 +263,21 @@ export default function SubscriptionPaymentPage() {
         return;
       }
 
+      if (paymentOrder.checkout.type === 'TOSS_BILLING_WIDGET') {
+        const { clientKey, customerKey, successUrl, failUrl, method } = paymentOrder.checkout;
+        if (!clientKey || !customerKey || !successUrl || !failUrl) {
+          throw new Error('토스 자동결제 설정이 아직 준비되지 않았습니다.');
+        }
+        const TossPayments = await loadTossPaymentsSdk();
+        const payment = TossPayments(clientKey).payment({ customerKey });
+        await payment.requestBillingAuth({
+          method: method ?? 'CARD',
+          successUrl: withBillingQuery(successUrl, paymentOrder.orderId, paymentOrder.amount),
+          failUrl: withBillingQuery(failUrl, paymentOrder.orderId, paymentOrder.amount),
+        });
+        return;
+      }
+
       const confirmed = await confirmPayment({
         orderId: paymentOrder.orderId,
         amount: paymentOrder.amount,
@@ -268,7 +328,11 @@ export default function SubscriptionPaymentPage() {
     return (
       <div className={styles.page}>
         <div className={styles.loading}>
-          {isTossSuccess ? '토스 결제 승인을 확인하는 중...' : '로딩 중...'}
+          {isTossSuccess
+            ? isBillingRedirect
+              ? '토스 자동결제 등록을 확인하는 중...'
+              : '토스 결제 승인을 확인하는 중...'
+            : '로딩 중...'}
         </div>
       </div>
     );
@@ -277,7 +341,9 @@ export default function SubscriptionPaymentPage() {
   if (isTossRedirect) {
     return (
       <div className={styles.page}>
-        <h1 className={styles.pageTitle}>{isTossFail ? '결제 실패' : '결제 확인'}</h1>
+        <h1 className={styles.pageTitle}>
+          {isTossFail ? '결제 실패' : isBillingRedirect ? '자동결제 확인' : '결제 확인'}
+        </h1>
         <div className={styles.pgNotice}>
           <div className={styles.pgText}>
             {errorMessage ?? '결제 상태를 확인했습니다. 다시 시도할 수 있습니다.'}
@@ -310,12 +376,13 @@ export default function SubscriptionPaymentPage() {
   const paymentAmount = paymentOrder?.amount ?? price;
   const monthlyEquiv = cycle === 'YEARLY' ? formatPrice(Math.floor(plan.priceYearly / 12)) : null;
   const isTossCheckout = paymentOrder?.checkout.type === 'TOSS_WIDGET';
+  const isBillingCheckout = paymentOrder?.checkout.type === 'TOSS_BILLING_WIDGET';
   const canConfirm =
     Boolean(paymentOrder) &&
     orderStatus === 'READY' &&
     !submitting &&
     (!isTossCheckout || checkoutReady);
-  const checkoutTitle = isTossCheckout ? 'Toss 결제' : 'Mock 결제';
+  const checkoutTitle = isBillingCheckout ? 'Toss 자동결제' : isTossCheckout ? 'Toss 결제' : 'Mock 결제';
 
   return (
     <div className={styles.page}>
@@ -354,6 +421,8 @@ export default function SubscriptionPaymentPage() {
         <div className={styles.pgText}>
           {isTossCheckout
             ? '토스 테스트 키 환경에서는 실제 청구 없이 결제 승인 흐름을 확인합니다.'
+            : isBillingCheckout
+              ? '토스 테스트 키 환경에서는 실제 청구 없이 자동결제 등록과 최초 결제 흐름을 확인합니다.'
             : '현재 테스트 환경에서는 Mock 결제로 실제 청구 없이 결제 흐름을 확인합니다.'}
           <br />
           {'성공 확인 후에만 구독이 시작됩니다.'}
@@ -402,7 +471,7 @@ export default function SubscriptionPaymentPage() {
         <button className={styles.btnBack} onClick={() => navigate('/subscriptions')}>
           {'돌아가기'}
         </button>
-        {!isTossCheckout && (
+        {!isTossCheckout && !isBillingCheckout && (
           <>
             <button
               className={styles.btnBack}
@@ -421,9 +490,22 @@ export default function SubscriptionPaymentPage() {
           </>
         )}
         <button className={styles.btnPay} onClick={handleConfirm} disabled={!canConfirm}>
-          {submitting ? '처리 중...' : isTossCheckout ? '토스 결제창 열기' : '결제 확인'}
+          {submitting
+            ? '처리 중...'
+            : isBillingCheckout
+              ? '카드 등록하기'
+              : isTossCheckout
+                ? '토스 결제창 열기'
+                : '결제 확인'}
         </button>
       </div>
     </div>
   );
+}
+
+function withBillingQuery(url: string, orderId: string, amount: number): string {
+  const next = new URL(url, window.location.origin);
+  next.searchParams.set('orderId', orderId);
+  next.searchParams.set('amount', String(amount));
+  return next.toString();
 }

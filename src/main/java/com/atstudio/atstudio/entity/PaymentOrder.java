@@ -72,6 +72,10 @@ public class PaymentOrder extends BaseEntity {
     @JoinColumn(name = "user_subscription_id")
     private UserSubscription userSubscription;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "billing_agreement_id")
+    private BillingAgreement billingAgreement;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "billing_cycle", nullable = false, length = 10)
     private BillingCycle billingCycle;
