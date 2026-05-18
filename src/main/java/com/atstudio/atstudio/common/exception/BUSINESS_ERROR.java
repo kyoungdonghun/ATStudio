@@ -140,6 +140,31 @@ public enum BUSINESS_ERROR {
             "결제 설정이 준비되지 않았습니다. 관리자에게 문의해주세요.",
             "payment provider configuration is missing or invalid."),
 
+    BILLING_AGREEMENT_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "자동결제 등록 정보를 찾을 수 없습니다.",
+            "billing agreement가 존재하지 않습니다."),
+
+    BILLING_AGREEMENT_ALREADY_ACTIVE(
+            HttpStatus.CONFLICT,
+            "이미 자동결제가 등록되어 있습니다.",
+            "활성 billing agreement가 이미 존재합니다."),
+
+    BILLING_AGREEMENT_INVALID_STATE(
+            HttpStatus.BAD_REQUEST,
+            "현재 자동결제 상태에서는 처리할 수 없습니다.",
+            "billing agreement 상태 전이가 유효하지 않습니다."),
+
+    BILLING_AGREEMENT_CONFIRM_FAILED(
+            HttpStatus.BAD_REQUEST,
+            "자동결제 등록 또는 최초 결제에 실패했습니다. 다시 시도해주세요.",
+            "billing agreement confirm 또는 initial recurring charge 실패."),
+
+    BILLING_AGREEMENT_CANCEL_FAILED(
+            HttpStatus.BAD_REQUEST,
+            "자동결제 해지에 실패했습니다. 다시 시도해주세요.",
+            "billing agreement cancel/delete 실패."),
+
     // ── Auth ──────────────────────────────────────────────────────────────────
     INVALID_CREDENTIALS(
             HttpStatus.UNAUTHORIZED,

@@ -102,6 +102,18 @@ class EntityDefaultValueTest {
     }
 
     @Test
+    @DisplayName("BillingAgreement: status=READY, failureCount=0")
+    void billingAgreement_defaults() {
+        BillingAgreement agreement = BillingAgreement.builder()
+                .provider(PaymentProviderType.TOSS_BILLING)
+                .providerCustomerKey("ats_billing_random")
+                .build();
+
+        assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.READY);
+        assertThat(agreement.getFailureCount()).isZero();
+    }
+
+    @Test
     @DisplayName("CompanyCertification: status=PENDING")
     void companyCertification_defaults() {
         User mockUser = org.mockito.Mockito.mock(User.class);
