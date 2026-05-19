@@ -4,22 +4,32 @@ import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.subscription.*;
+import com.atstudio.atstudio.entity.BillingAgreement;
+import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.Subscription;
 import com.atstudio.atstudio.entity.SubscriptionPayment;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.enums.*;
+import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.repository.CompanyCertificationRepository;
+import com.atstudio.atstudio.repository.PaymentOrderRepository;
+import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
 import com.atstudio.atstudio.repository.SubscriptionRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.payment.PaymentService;
+import com.atstudio.atstudio.service.payment.billing.BillingKeyCrypto;
+import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeCommand;
+import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeResult;
+import com.atstudio.atstudio.service.payment.provider.recurring.RecurringPaymentProvider;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
@@ -49,8 +59,30 @@ class UserSubscriptionServiceTest {
     @Mock CompanyCertificationRepository companyCertificationRepository;
     @Mock PaymentService paymentService;
     @Mock PlaylistService playlistService;
+    @Mock BillingAgreementRepository billingAgreementRepository;
+    @Mock PaymentOrderRepository paymentOrderRepository;
+    @Mock SubscriptionPaymentRepository subscriptionPaymentRepository;
+    @Mock BillingKeyCrypto billingKeyCrypto;
+    @Mock RecurringPaymentProvider recurringPaymentProvider;
 
-    @InjectMocks UserSubscriptionService userSubscriptionService;
+    UserSubscriptionService userSubscriptionService;
+
+    @BeforeEach
+    void setUp() {
+        userSubscriptionService = new UserSubscriptionService(
+                userSubscriptionRepository,
+                subscriptionRepository,
+                userRepository,
+                companyCertificationRepository,
+                paymentService,
+                playlistService,
+                billingAgreementRepository,
+                paymentOrderRepository,
+                subscriptionPaymentRepository,
+                billingKeyCrypto,
+                List.of(recurringPaymentProvider)
+        );
+    }
 
     // -- 6.3 subscribe -------------------------------------------------------
 
@@ -303,7 +335,7 @@ class UserSubscriptionServiceTest {
     class ChangeSubscription {
 
         @Test
-        @DisplayName("성공 - UPGRADE 즉시 적용 + payment 호출")
+        @DisplayName("성공 - UPGRADE 빌링키 차액 결제 후 즉시 적용")
         void changeSubscription_upgrade_immediate() {
             User user = buildUser(1L, UserType.INDIVIDUAL);
             Subscription currentSub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
@@ -315,13 +347,27 @@ class UserSubscriptionServiceTest {
 
             Subscription newSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
             ReflectionTestUtils.setField(newSub, "priceMonthly", BigDecimal.valueOf(19900));
+            BillingAgreement agreement = buildActiveAgreement(user);
+            LocalDate originalExpiresAt = us.getExpiresAt();
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
-            given(paymentService.processPayment(any(), any(), any(), any(), any()))
-                    .willReturn(buildPayment());
+            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+                    .willReturn(Optional.of(agreement));
+            given(paymentOrderRepository.save(any(PaymentOrder.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("raw-billing-key");
+            given(recurringPaymentProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+            given(recurringPaymentProvider.charge(any()))
+                    .willReturn(BillingChargeResult.success(
+                            "tx_upgrade",
+                            "CARD",
+                            "1234",
+                            "{\"paymentKey\":\"pay_upgrade\"}"));
+            given(subscriptionPaymentRepository.save(any(SubscriptionPayment.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
 
             ChangeSubscriptionResponse result = userSubscriptionService.changeSubscription(
                     buildUserDetails(1L),
@@ -330,12 +376,48 @@ class UserSubscriptionServiceTest {
             assertThat(result.subscription().id()).isEqualTo(20L);
             assertThat(result.changeType()).isEqualTo("UPGRADE");
             assertThat(result.proratedAmount()).isNotNull();
-            // newPrice(19900) - refund(9900 * 15/30 = 4950) = 14950
-            assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.valueOf(14950));
-            verify(paymentService).processPayment(any(), any(), any(), any(), any());
+            assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.valueOf(5000));
+            assertThat(result.expiresAt()).isEqualTo(originalExpiresAt);
+            verify(paymentService, never()).processPayment(any(), any(), any(), any(), any());
+            verify(subscriptionPaymentRepository).save(any(SubscriptionPayment.class));
 
-            // upgrade()로 구독이 즉시 변경됨
             assertThat(us.getSubscription()).isEqualTo(newSub);
+            assertThat(us.getExpiresAt()).isEqualTo(originalExpiresAt);
+
+            ArgumentCaptor<BillingChargeCommand> chargeCaptor =
+                    ArgumentCaptor.forClass(BillingChargeCommand.class);
+            verify(recurringPaymentProvider).charge(chargeCaptor.capture());
+            assertThat(chargeCaptor.getValue().amount()).isEqualByComparingTo(BigDecimal.valueOf(5000));
+            assertThat(chargeCaptor.getValue().orderName()).contains("Premium");
+        }
+
+        @Test
+        @DisplayName("실패 - UPGRADE 자동결제 등록 없음 → 구독 변경 없음")
+        void changeSubscription_upgrade_requiresBillingAgreement() {
+            User user = buildUser(1L, UserType.INDIVIDUAL);
+            Subscription currentSub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
+            UserSubscription us = buildUserSubscription(100L, user, currentSub,
+                    BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
+            Subscription newSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
+            ReflectionTestUtils.setField(newSub, "priceMonthly", BigDecimal.valueOf(19900));
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.of(us));
+            given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
+            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+                    .willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> userSubscriptionService.changeSubscription(
+                    buildUserDetails(1L),
+                    new ChangeSubscriptionRequest(20L, BillingCycle.MONTHLY)))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.BILLING_AGREEMENT_NOT_FOUND));
+
+            assertThat(us.getSubscription()).isEqualTo(currentSub);
+            verify(recurringPaymentProvider, never()).charge(any());
+            verify(subscriptionPaymentRepository, never()).save(any());
         }
 
         @Test
@@ -636,6 +718,16 @@ class UserSubscriptionServiceTest {
                 .paymentStatus(PaymentStatus.DONE)
                 .pgTransactionId("MOCK-test")
                 .build();
+    }
+
+    private BillingAgreement buildActiveAgreement(User user) {
+        BillingAgreement agreement = BillingAgreement.builder()
+                .user(user)
+                .provider(PaymentProviderType.TOSS_BILLING)
+                .providerCustomerKey("ats_billing_customer_1")
+                .build();
+        agreement.activate("encrypted-key", "fingerprint", "CARD", "1234", LocalDate.now().plusDays(15));
+        return agreement;
     }
 
     private CustomUserDetails buildUserDetails(Long id) {

@@ -1,8 +1,8 @@
 # ATStudio API Specification v9 (Confirmed)
 
-> **Status**: 9th confirmed — live contract sync (download history, public capabilities, auth/profile conflict cleanup, payment billing sync)
-> **Base**: v8 + 2026-05-18 payment patch
-> **Date**: 2026-05-18
+> **Status**: 9th confirmed — live contract sync (download history, public capabilities, auth/profile conflict cleanup, payment billing sync, recurring-first subscription changes)
+> **Base**: v8 + 2026-05-19 payment change patch
+> **Date**: 2026-05-19
 
 ---
 
@@ -19,6 +19,7 @@
 | Z7 | §6.3 payment entries | Added Toss one-time payment provider fields and redirect confirm contract |
 | Z8 | §6.3 new entries | Added Toss billing agreement APIs: prepare, confirm, read current, cancel current |
 | Z9 | Full API Summary | Updated total count from 110 → 114 |
+| Z10 | §6.3/§6.7 payment policy | Subscription user flow is recurring-first; upgrade uses active billing agreement charge through §6.7, not one-time Toss Widget checkout |
 
 ---
 
@@ -1104,7 +1105,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 |-------|-------|
 | **URL** | `POST /api/payments/subscriptions/prepare` |
 | **Auth** | auth required |
-| **Description** | Creates an internal payment order for SUBSCRIBE or UPGRADE. Provider is selected by server configuration (`MOCK` default, `TOSS` for Toss one-time payment). |
+| **Description** | Legacy/test one-time payment preparation. User-facing recurring subscription purchase uses §6.3.4 → §6.3.5. User-facing upgrade uses §6.7 and must not route to this one-time Toss Widget path. |
 
 **Request**
 ```json
@@ -1253,7 +1254,7 @@ For Toss, the frontend receives `paymentKey`, `orderId`, and `amount` from the T
   "currency": "KRW",
   "expiresAt": "2026-05-18T23:10:00",
   "checkout": {
-    "type": "TOSS_BILLING_WIDGET",
+    "type": "TOSS_BILLING_AUTH",
     "clientKey": "test_ck_...",
     "customerKey": "ats_user_1_xxxxx",
     "method": "CARD",
@@ -1393,7 +1394,7 @@ These endpoints are design candidates for the next operations phase. They are no
 |-------|-------|
 | **URL** | `PUT /api/user-subscriptions/me` |
 | **Auth** | auth required |
-| **Description** | Change plan or billing cycle. Behavior differs by change type: **UPGRADE** is applied immediately with a prorated charge; **DOWNGRADE** is saved as pending (`pendingSubscriptionId`, `pendingBillingCycle`) and takes effect after the current period expires. Response includes `changeType` to indicate which branch was taken. |
+| **Description** | Change plan or billing cycle. Behavior differs by change type: **UPGRADE** requires an active billing agreement, immediately charges the remaining-period difference through recurring billing, then applies the higher plan while preserving the current next billing date. **DOWNGRADE** is saved as pending (`pendingSubscriptionId`, `pendingBillingCycle`) and takes effect after the current period expires. Response includes `changeType` to indicate which branch was taken. |
 
 **Request**
 ```json
@@ -1410,14 +1411,15 @@ These endpoints are design candidates for the next operations phase. They are no
   "billingCycle": "YEARLY",
   "status": "ACTIVE",
   "changeType": "UPGRADE",
-  "proratedAmount": 15000.00,
-  "startedAt": "2026-02-19",
-  "expiresAt": "2027-02-19"
+  "proratedAmount": 5000.00,
+  "startedAt": "2026-05-01",
+  "expiresAt": "2026-06-01"
 }
 ```
 
-> - `changeType`: `"UPGRADE"` — new plan applied immediately, `proratedAmount` charged.
+> - `changeType`: `"UPGRADE"` — active billing agreement is charged for `proratedAmount`; new plan applies immediately; current `expiresAt` remains the next billing date.
 > - `changeType`: `"DOWNGRADE"` — pending values (`pendingSubscriptionId`, `pendingBillingCycle`) stored; current plan remains active until `expiresAt`; new plan activates automatically after expiry.
+> - `billingCycle` in an UPGRADE response is the billing cycle to use on the next renewal charge.
 
 ## 6.8 Update User Subscription (Admin)
 | Field | Value |
@@ -2296,7 +2298,7 @@ nickname: String (required)
 |-------|-------|
 | **URL** | `GET /api/utils/subscription-change-preview` |
 | **Auth** | auth required (subscribers only) |
-| **Description** | Preview the financial and scheduling impact of a plan change before committing. Returns whether the change is an UPGRADE or DOWNGRADE, the prorated amount, and effective dates. |
+| **Description** | Preview the financial and scheduling impact of a plan change before committing. Returns whether the change is an UPGRADE or DOWNGRADE, the immediate upgrade charge amount, and effective dates. |
 
 **Query Parameters**
 ```
@@ -2308,7 +2310,7 @@ billingCycle: String (required — "MONTHLY" | "YEARLY")
 ```json
 {
   "changeType": "UPGRADE",
-  "proratedAmount": 15000.00,
+  "proratedAmount": 5000.00,
   "effectiveDate": "2026-03-07",
   "newPlanName": "DELUXE",
   "newBillingCycle": "YEARLY"
@@ -2316,7 +2318,7 @@ billingCycle: String (required — "MONTHLY" | "YEARLY")
 ```
 
 > - `changeType`: `"UPGRADE"` or `"DOWNGRADE"`
-> - `proratedAmount`: Charge (UPGRADE) or credit (DOWNGRADE) amount in KRW
+> - `proratedAmount`: Immediate charge amount for UPGRADE, `0` for DOWNGRADE
 > - `effectiveDate`: LocalDate (ISO-8601) — date the new plan takes effect
 > - `newPlanName`: Name of the target subscription plan
 > - `newBillingCycle`: `"MONTHLY"` or `"YEARLY"`

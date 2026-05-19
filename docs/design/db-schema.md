@@ -1,8 +1,8 @@
 # ATStudio DB Schema Definition v6 (Confirmed)
 
-> **Status**: v6 Confirmed — users.company_name (SR-47), subscriptions.max_playlists (SR-55), subscription seed prices finalized, payment billing sync
-> **Base**: v5 + 2026-05-18 payment patch
-> **Date**: 2026-05-18
+> **Status**: v6 Confirmed — users.company_name (SR-47), subscriptions.max_playlists (SR-55), subscription seed prices finalized, payment billing sync, recurring-first plan changes
+> **Base**: v5 + 2026-05-19 payment change patch
+> **Date**: 2026-05-19
 
 ---
 
@@ -16,6 +16,7 @@
 | 4 | `payment_orders` | **Added** — Mock-first payment attempt ledger for subscription prepare/confirm/cancel flow. |
 | 5 | `billing_agreements` | **Added** — Server-side recurring billing agreement and encrypted billing key metadata. |
 | 6 | Payment table billing links | **Added** — `payment_orders.billing_agreement_id` and `subscription_payments.billing_agreement_id` for recurring billing traceability. |
+| 7 | Subscription change policy | **Updated** — Upgrade charges remaining-period difference through `TOSS_BILLING`; downgrade remains pending for next renewal. |
 
 ---
 
@@ -184,7 +185,7 @@
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
 **Subscription change handling:**
-- **Upgrade** (higher or equal price): Changes take effect immediately. Payment amount = new plan price - prorated remaining amount of current plan. Detailed calculation logic handled at application level.
+- **Upgrade** (higher price): Changes take effect immediately only after charging the remaining-period price difference through the active billing agreement. The current `expires_at` is preserved as the next billing date; `billing_cycle` stores the cycle to use on the next renewal charge.
 - **Downgrade** (lower price): Change is **scheduled** (pending). Current subscription remains active until expiration. `pending_subscription_id` and `pending_billing_cycle` store the target plan. Actual switch happens at next billing cycle (handled by scheduled job).
 
 ---
@@ -329,7 +330,7 @@
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
 | Merchant order ID | `order_id` | VARCHAR(64) | NOT NULL | UNIQUE | | Sent to provider-facing checkout/confirm flow |
 | User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | Authenticated order owner |
-| Purpose | `purpose` | ENUM('SUBSCRIBE','UPGRADE','RENEWAL','BILLING_AGREEMENT') | NOT NULL | | | SUBSCRIBE/UPGRADE for checkout, RENEWAL for automatic billing, BILLING_AGREEMENT for registration |
+| Purpose | `purpose` | ENUM('SUBSCRIBE','UPGRADE','RENEWAL','BILLING_AGREEMENT') | NOT NULL | | | SUBSCRIBE/BILLING_AGREEMENT for initial registration, UPGRADE for billing-key plan change charge, RENEWAL for automatic billing |
 | Provider | `provider` | ENUM('MOCK','TOSS','TOSS_BILLING','KAKAOPAY') | NOT NULL | | | MOCK local, TOSS one-time, TOSS_BILLING recurring |
 | Status | `status` | ENUM('READY','IN_PROGRESS','DONE','FAILED','CANCELLED','EXPIRED') | NOT NULL | | 'READY' | Attempt lifecycle |
 | Subscription plan | `subscription_id` | BIGINT | NOT NULL | FK(subscriptions.id) | | Target plan |
@@ -359,7 +360,7 @@
 | Billing agreement | `billing_agreement_id` | BIGINT | NULL | FK(billing_agreements.id) | | Links recurring billing charges to the agreement |
 | Billing cycle | `billing_cycle` | ENUM('MONTHLY','YEARLY') | NOT NULL | | | |
 | Provider | `provider` | ENUM('MOCK','TOSS','TOSS_BILLING','KAKAOPAY') | NULL | | | Null for legacy direct records |
-| Payment amount | `amount` | DECIMAL(10,2) | NOT NULL | | | Prorated amount for upgrades |
+| Payment amount | `amount` | DECIMAL(10,2) | NOT NULL | | | Remaining-period difference for upgrades; full period amount for initial/renewal charges |
 | Payment status | `payment_status` | ENUM('READY','DONE','REFUND') | NOT NULL | | 'READY' | |
 | PG transaction ID | `pg_transaction_id` | VARCHAR(100) | NULL | | | Used for PG provider integration |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |

@@ -5,18 +5,32 @@ import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.subscription.*;
+import com.atstudio.atstudio.entity.BillingAgreement;
+import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.Subscription;
+import com.atstudio.atstudio.entity.SubscriptionPayment;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
+import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
 import com.atstudio.atstudio.entity.enums.CompanyCertificationStatus;
+import com.atstudio.atstudio.entity.enums.PaymentProviderType;
+import com.atstudio.atstudio.entity.enums.PaymentPurpose;
+import com.atstudio.atstudio.entity.enums.PaymentStatus;
 import com.atstudio.atstudio.entity.enums.UserType;
+import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.repository.CompanyCertificationRepository;
+import com.atstudio.atstudio.repository.PaymentOrderRepository;
+import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
 import com.atstudio.atstudio.repository.SubscriptionRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.payment.PaymentService;
+import com.atstudio.atstudio.service.payment.billing.BillingKeyCrypto;
+import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeCommand;
+import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeResult;
+import com.atstudio.atstudio.service.payment.provider.recurring.RecurringPaymentProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -28,13 +42,18 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class UserSubscriptionService {
+
+    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS_BILLING;
+    private static final int PAYMENT_EXPIRY_MINUTES = 10;
 
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final SubscriptionRepository subscriptionRepository;
@@ -42,6 +61,11 @@ public class UserSubscriptionService {
     private final CompanyCertificationRepository companyCertificationRepository;
     private final PaymentService paymentService;
     private final PlaylistService playlistService;
+    private final BillingAgreementRepository billingAgreementRepository;
+    private final PaymentOrderRepository paymentOrderRepository;
+    private final SubscriptionPaymentRepository subscriptionPaymentRepository;
+    private final BillingKeyCrypto billingKeyCrypto;
+    private final List<RecurringPaymentProvider> recurringProviders;
 
     // -- 6.3 POST /api/user-subscriptions ------------------------------------
 
@@ -171,32 +195,30 @@ public class UserSubscriptionService {
                 current.getSubscription().getPriceMonthly()) > 0;
 
         if (isUpgrade) {
-            // UPGRADE: 기존 즉시 적용 로직 유지
-            LocalDate today = LocalDate.now();
-            long remainingDays = ChronoUnit.DAYS.between(today, current.getExpiresAt());
-            long totalDays = ChronoUnit.DAYS.between(current.getStartedAt(), current.getExpiresAt());
+            BigDecimal proratedAmount = calculateProratedUpgradeAmount(current, newPlan);
+            BillingAgreement agreement = findActiveBillingAgreement(user);
+            PaymentOrder order = createUpgradeOrder(user, current, newPlan, request.billingCycle(), proratedAmount, agreement);
+            BillingChargeResult chargeResult = chargeUpgrade(order, agreement);
+            if (!chargeResult.success()) {
+                order.markFailed(chargeResult.failureCode(), chargeResult.failureMessage());
+                throw new BusinessException(BUSINESS_ERROR.PAYMENT_CONFIRM_FAILED);
+            }
 
-            BigDecimal currentPrice = current.getBillingCycle() == BillingCycle.MONTHLY
-                    ? current.getSubscription().getPriceMonthly()
-                    : current.getSubscription().getPriceYearly();
-
-            BigDecimal refundAmount = totalDays > 0
-                    ? currentPrice.multiply(BigDecimal.valueOf(remainingDays))
-                        .divide(BigDecimal.valueOf(totalDays), 2, RoundingMode.HALF_UP)
-                    : BigDecimal.ZERO;
-
-            BigDecimal newPrice = request.billingCycle() == BillingCycle.MONTHLY
-                    ? newPlan.getPriceMonthly() : newPlan.getPriceYearly();
-
-            BigDecimal proratedAmount = newPrice.subtract(refundAmount);
-
-            LocalDate newExpiresAt = request.billingCycle() == BillingCycle.MONTHLY
-                    ? today.plusMonths(1) : today.plusYears(1);
-
-            current.upgrade(newPlan, request.billingCycle(), newExpiresAt);
-
-            paymentService.processPayment(user, current, newPlan,
-                    request.billingCycle(), proratedAmount);
+            current.upgradeKeepingPeriod(newPlan, request.billingCycle());
+            subscriptionPaymentRepository.save(SubscriptionPayment.builder()
+                    .paymentOrder(order)
+                    .billingAgreement(agreement)
+                    .provider(order.getProvider())
+                    .user(user)
+                    .userSubscription(current)
+                    .subscription(newPlan)
+                    .billingCycle(request.billingCycle())
+                    .amount(proratedAmount)
+                    .paymentStatus(PaymentStatus.DONE)
+                    .pgTransactionId(chargeResult.transactionId())
+                    .build());
+            order.markDone(chargeResult.transactionId(), current, chargeResult.providerPayload());
+            agreement.recordSuccessfulCharge(agreement.getNextBillingAt());
 
             return new ChangeSubscriptionResponse(
                     SubscriptionResponse.from(newPlan),
@@ -221,6 +243,96 @@ public class UserSubscriptionService {
                     current.getExpiresAt()
             );
         }
+    }
+
+    private BillingAgreement findActiveBillingAgreement(User user) {
+        BillingAgreement agreement = billingAgreementRepository.findByUserAndProvider(user, RECURRING_PROVIDER)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_NOT_FOUND));
+        if (agreement.getStatus() != BillingAgreementStatus.ACTIVE || isBlank(agreement.getBillingKeyCiphertext())) {
+            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE);
+        }
+        return agreement;
+    }
+
+    private BigDecimal calculateProratedUpgradeAmount(UserSubscription current, Subscription newPlan) {
+        LocalDate today = LocalDate.now();
+        long remainingDays = Math.max(0, ChronoUnit.DAYS.between(today, current.getExpiresAt()));
+        long totalDays = ChronoUnit.DAYS.between(current.getStartedAt(), current.getExpiresAt());
+        if (remainingDays == 0 || totalDays <= 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        BigDecimal currentPrice = priceFor(current.getSubscription(), current.getBillingCycle());
+        BigDecimal newPrice = priceFor(newPlan, current.getBillingCycle());
+        BigDecimal difference = newPrice.subtract(currentPrice);
+        if (difference.signum() <= 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        return difference.multiply(BigDecimal.valueOf(remainingDays))
+                .divide(BigDecimal.valueOf(totalDays), 2, RoundingMode.HALF_UP);
+    }
+
+    private PaymentOrder createUpgradeOrder(
+            User user,
+            UserSubscription current,
+            Subscription newPlan,
+            BillingCycle nextBillingCycle,
+            BigDecimal amount,
+            BillingAgreement agreement) {
+        PaymentOrder order = paymentOrderRepository.save(PaymentOrder.builder()
+                .orderId(generateUpgradeOrderId())
+                .user(user)
+                .purpose(PaymentPurpose.UPGRADE)
+                .provider(RECURRING_PROVIDER)
+                .subscription(newPlan)
+                .userSubscription(current)
+                .billingAgreement(agreement)
+                .billingCycle(nextBillingCycle)
+                .amount(amount)
+                .currency("KRW")
+                .expiresAt(LocalDateTime.now().plusMinutes(PAYMENT_EXPIRY_MINUTES))
+                .build());
+        order.markInProgress("{\"source\":\"subscription-upgrade\"}");
+        return order;
+    }
+
+    private BillingChargeResult chargeUpgrade(PaymentOrder order, BillingAgreement agreement) {
+        return recurringProvider().charge(new BillingChargeCommand(
+                billingKeyCrypto.decrypt(agreement.getBillingKeyCiphertext()),
+                agreement.getProviderCustomerKey(),
+                order.getOrderId(),
+                orderName(order),
+                order.getAmount(),
+                order.getUser().getEmail(),
+                order.getUser().getNickname(),
+                "subscription-upgrade-" + order.getOrderId()
+        ));
+    }
+
+    private RecurringPaymentProvider recurringProvider() {
+        return recurringProviders.stream()
+                .filter(provider -> provider.getProviderType() == RECURRING_PROVIDER)
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.PAYMENT_PROVIDER_NOT_CONFIGURED));
+    }
+
+    private BigDecimal priceFor(Subscription subscription, BillingCycle billingCycle) {
+        return billingCycle == BillingCycle.MONTHLY
+                ? subscription.getPriceMonthly()
+                : subscription.getPriceYearly();
+    }
+
+    private String orderName(PaymentOrder order) {
+        return "ATStudio " + order.getSubscription().getName() + " Upgrade";
+    }
+
+    private String generateUpgradeOrderId() {
+        return "ATS-UPG-" + LocalDate.now().toString().replace("-", "") + "-"
+                + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     // -- 6.8 PUT /api/user-subscriptions/{id} --------------------------------

@@ -156,16 +156,16 @@ export default function SubscriptionManagePage() {
       setChangeError(null);
       setChangeMsg(null);
 
+      const res = await changeMySubscription({
+        subscriptionId: selectedPlan.id,
+        billingCycle: selectedCycle,
+      });
+
       if (preview.changeType === 'UPGRADE') {
-        navigate(
-          `/subscriptions/payment?plan=${selectedPlan.name}&cycle=${selectedCycle}&purpose=UPGRADE`,
+        setChangeMsg(
+          `업그레이드가 적용되었습니다. 차액 ${formatAmount(res.proratedAmount)}원이 등록된 결제수단으로 결제되었고, 다음 결제일(${formatDate(res.expiresAt)})은 유지됩니다.`,
         );
-        return;
       } else {
-        const res = await changeMySubscription({
-          subscriptionId: selectedPlan.id,
-          billingCycle: selectedCycle,
-        });
         setChangeMsg(
           `다운그레이드가 예약되었습니다. 현재 구독 만료 후 ${getDisplayName(res.subscription.name)} 플랜이 적용됩니다.`,
         );
@@ -352,7 +352,7 @@ export default function SubscriptionManagePage() {
           <div className={styles.actionTitle}>{'플랜 변경'}</div>
           <div className={styles.actionDesc}>
             {
-              '업그레이드는 즉시 적용되며 비례 요금이 청구됩니다. 다운그레이드는 현재 구독 만료 후 적용됩니다.'
+              '업그레이드는 등록된 결제수단으로 남은 기간 차액을 즉시 결제한 뒤 적용됩니다. 다운그레이드는 현재 구독 만료 후 적용됩니다.'
             }
           </div>
 
@@ -422,11 +422,12 @@ export default function SubscriptionManagePage() {
               </div>
               <div className={styles.previewRow}>
                 <span className={styles.previewLabel}>
-                  {preview.changeType === 'UPGRADE' ? '비례 요금' : '크레딧'}
+                  {preview.changeType === 'UPGRADE' ? '즉시 결제 차액' : '즉시 결제'}
                 </span>
                 <span className={styles.previewValue}>
-                  {'\u20A9'}
-                  {formatAmount(preview.proratedAmount)}
+                  {preview.changeType === 'UPGRADE'
+                    ? `\u20A9${formatAmount(preview.proratedAmount)}`
+                    : '없음'}
                 </span>
               </div>
               <div className={styles.previewRow}>

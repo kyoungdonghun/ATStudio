@@ -81,8 +81,8 @@
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
 | 16-1 | 구독 플랜 비교/선택 | `6.1 GET /api/subscriptions` | [PUBLIC] |
-| 16-2 | 구독 결제 | `6.3 POST /api/user-subscriptions` | auth required |
-| 16-3 | 내 구독 현황 (업그레이드·해지) | `6.4 GET /api/user-subscriptions/me` `6.7 PUT` `6.10 DELETE` | auth required |
+| 16-2 | 구독 결제 | `6.3.4 POST /api/payments/billing-agreements/prepare` `6.3.5 POST /api/payments/billing-agreements/confirm` | auth required |
+| 16-3 | 내 구독 현황 (업그레이드·다운그레이드·해지) | `6.4 GET /api/user-subscriptions/me` `6.7 PUT` `6.10 DELETE` `6.3.6 GET` `6.3.7 DELETE` | auth required |
 
 ---
 

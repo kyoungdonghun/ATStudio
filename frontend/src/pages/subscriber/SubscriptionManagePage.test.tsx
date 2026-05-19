@@ -177,10 +177,19 @@ describe('SubscriptionManagePage', () => {
     });
     fetchSubscriptionChangePreviewMock.mockResolvedValue({
       changeType: 'UPGRADE',
-      proratedAmount: 14950,
+      proratedAmount: 5000,
       effectiveDate: '2026-05-16',
       newPlanName: 'DELUXE',
       newBillingCycle: 'MONTHLY',
+    });
+    changeMySubscriptionMock.mockResolvedValue({
+      subscription: { id: 2, name: 'DELUXE' },
+      billingCycle: 'MONTHLY',
+      status: 'ACTIVE',
+      changeType: 'UPGRADE',
+      proratedAmount: 5000,
+      startedAt: '2026-05-01',
+      expiresAt: '2026-06-01',
     });
     renderPage();
 
@@ -189,11 +198,12 @@ describe('SubscriptionManagePage', () => {
     fireEvent.click(screen.getByRole('button', { name: '플랜 변경 확인' }));
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith(
-        '/subscriptions/payment?plan=DELUXE&cycle=MONTHLY&purpose=UPGRADE',
-      );
+      expect(changeMySubscriptionMock).toHaveBeenCalledWith({
+        subscriptionId: 2,
+        billingCycle: 'MONTHLY',
+      });
     });
-    expect(changeMySubscriptionMock).not.toHaveBeenCalled();
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 
   it('shows billing agreement state and cancels automatic renewal', async () => {

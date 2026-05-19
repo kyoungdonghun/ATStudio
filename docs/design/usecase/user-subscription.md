@@ -19,12 +19,12 @@
 
 **Main Flow**
 1. User selects a subscription plan and billing cycle (MONTHLY/YEARLY).
-2. Frontend displays the payment screen and initiates PG payment.
-3. After payment completion, frontend sends a subscription request including subscriptionId and billingCycle to the backend.
-4. Backend verifies member type and company certification approval status.
-5. Backend creates a user_subscriptions record (status=ACTIVE, started_at, expires_at set).
-6. Backend saves the payment record in subscription_payments.
-7. Backend returns a success response (201 Created).
+2. Frontend displays the recurring subscription payment screen and initiates Toss billing auth.
+3. After billing auth success, frontend sends `orderId`, `authKey`, `customerKey`, and amount to the backend billing agreement confirm API.
+4. Backend verifies member type, company certification approval status, order ownership, amount, and billing agreement state.
+5. Backend issues/stores the billing key server-side, performs the first charge, then creates or updates `user_subscriptions` only after charge success.
+6. Backend saves the payment record in `subscription_payments`.
+7. Backend returns a success response.
 
 **Exception / Alternative Flow**
 - BUSINESS type member without certification approval: 403 `COMPANY_CERTIFICATION_REQUIRED`.
@@ -172,7 +172,7 @@
 |-------|-------|
 | **Code** | PAYMENT-007 |
 | **Version** | 26-03-07 |
-| **Description** | Member changes their current subscription plan to a different plan. UPGRADE is applied immediately with prorated amount payment. DOWNGRADE is deferred to the end of the current billing period. |
+| **Description** | Member changes their current subscription plan to a different plan. UPGRADE is applied immediately after billing-key prorated charge success. DOWNGRADE is deferred to the end of the current billing period. |
 | **Actor** | User (Member), Backend, Payment Gateway (PG) |
 | **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
 | **Trigger** | User clicks the 'Change Subscription' button. |
@@ -181,12 +181,15 @@
 **Main Flow — UPGRADE (new plan price > current plan price)**
 1. User selects the new subscription plan and billing cycle.
 2. Frontend calls UTIL-013 to calculate and display proratedAmount.
-3. Frontend initiates PG payment for proratedAmount.
-4. After payment completion, frontend sends a change request including subscriptionId and billingCycle to the backend.
-5. Backend immediately updates user_subscriptions (new plan, new billing cycle, new expiration date).
-6. Backend saves the prorated payment record in subscription_payments.
-7. Backend returns the updated subscription information (including proratedAmount).
-   - New plan services (downloadPerDay, maxWhitelistChannels) applied immediately.
+3. User confirms the preview.
+4. Frontend sends a change request including subscriptionId and billingCycle to the backend.
+5. Backend requires an active billing agreement and immediately charges `proratedAmount` with the stored billing key.
+6. After charge success, backend updates `user_subscriptions` to the new plan and selected billingCycle while preserving the current `expiresAt`.
+7. Backend saves the prorated payment record in `subscription_payments`.
+8. Backend returns the updated subscription information (including proratedAmount).
+   - New plan services (downloadPerDay, maxWhitelistChannels) are applied immediately.
+   - The next billing date remains the existing `expiresAt`.
+   - The selected billingCycle is used by the next renewal charge.
 
 **Main Flow — DOWNGRADE (new plan price <= current plan price)**
 1. User selects the new (lower-tier) subscription plan and billing cycle.
@@ -200,7 +203,7 @@
    - Current plan services remain until expiresAt.
 
 **Postconditions**
-- UPGRADE: user_subscriptions updated immediately. Payment record saved in subscription_payments. New plan benefits active.
+- UPGRADE: billing-key charge succeeds first, then `user_subscriptions` is updated immediately. Payment record saved in `subscription_payments`. New plan benefits active and next billing date preserved.
 - DOWNGRADE: pendingSubscriptionId and pendingBillingCycle saved. Current plan active until expiresAt. New plan applied automatically at expiresAt.
 
 > **Note**: Subscription changes do NOT affect track usage licenses (licenses table). Previously issued licenses are retained as-is.

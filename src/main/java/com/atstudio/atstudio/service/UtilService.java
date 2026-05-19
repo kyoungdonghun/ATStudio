@@ -186,24 +186,22 @@ public class UtilService {
         boolean isUpgrade = newPriceMonthly.compareTo(currentPriceMonthly) > 0;
 
         if (isUpgrade) {
-            // UPGRADE: prorated 계산 (UserSubscriptionService:150-167 로직 참조)
             LocalDate today = LocalDate.now();
-            long remainingDays = ChronoUnit.DAYS.between(today, current.getExpiresAt());
+            long remainingDays = Math.max(0, ChronoUnit.DAYS.between(today, current.getExpiresAt()));
             long totalDays = ChronoUnit.DAYS.between(current.getStartedAt(), current.getExpiresAt());
 
             BigDecimal currentPrice = current.getBillingCycle() == BillingCycle.MONTHLY
                     ? current.getSubscription().getPriceMonthly()
                     : current.getSubscription().getPriceYearly();
 
-            BigDecimal refundAmount = totalDays > 0
-                    ? currentPrice.multiply(BigDecimal.valueOf(remainingDays))
-                        .divide(BigDecimal.valueOf(totalDays), 2, RoundingMode.HALF_UP)
-                    : BigDecimal.ZERO;
-
-            BigDecimal newPrice = billingCycle == BillingCycle.MONTHLY
+            BigDecimal newPrice = current.getBillingCycle() == BillingCycle.MONTHLY
                     ? newPlan.getPriceMonthly() : newPlan.getPriceYearly();
 
-            BigDecimal proratedAmount = newPrice.subtract(refundAmount);
+            BigDecimal priceDifference = newPrice.subtract(currentPrice);
+            BigDecimal proratedAmount = totalDays > 0 && remainingDays > 0 && priceDifference.signum() > 0
+                    ? priceDifference.multiply(BigDecimal.valueOf(remainingDays))
+                        .divide(BigDecimal.valueOf(totalDays), 2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
             return new SubscriptionChangePreviewResponse(
                     "UPGRADE",

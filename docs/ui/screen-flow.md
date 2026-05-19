@@ -202,19 +202,18 @@ dependencies:
        BUSINESS + 기업인증 없음 → "기업인증이 필요합니다" 안내 + [I-1] 이동 제안
                                                    │
                                              "결제하기" → payment prepare
-                                                   │  MOCK → confirm
-                                                   │  TOSS → Toss widget → success redirect → confirm
-                                                   │  TOSS_BILLING → billing auth → success redirect → billing confirm + initial charge
+                                                    │  TOSS_BILLING → billing auth → success redirect → billing confirm + initial charge
+                                                    │  MOCK/TOSS one-time → legacy/test-only, not user-facing subscription flow
                                                    │  성공 → [16-3 내 구독]
                                                    ├── 실패 → 결제 실패 상태 표시, 구독 미생성
                                                    └── "취소" → [16-1], 구독 미생성
 
        UX target after REQ-20260518-ATS-001:
          - Default payment page shows plan, amount, cycle, payment mode, and a single primary action.
-         - One-time Toss widget should move to a modal/drawer or checkout route after viewport verification.
-         - Recurring billing auth should prefer a dedicated checkout/callback route because mobile authentication return,
-           stale redirect recovery, and retry states are easier to explain there.
-         - Current inline/page-fixed Toss surface remains acceptable only as a local/debug-friendly intermediate state.
+          - Recurring billing auth should prefer a dedicated checkout/callback route because mobile authentication return,
+            stale redirect recovery, and retry states are easier to explain there.
+          - The one-time Toss widget inline UX tracked by SR-92 is retired for subscription scope.
+          - Current inline/page-fixed billing auth state remains acceptable only as a local/debug-friendly intermediate state.
          - User copy separates "payment failed" from "billing registration failed"; raw authKey, customerKey,
            billingKey, and provider payloads are never shown to the user.
 
@@ -223,12 +222,14 @@ dependencies:
   │  자동 갱신 있을 시: 상태(ACTIVE/SUSPENDED/CANCELLED), 결제수단(마스킹), 다음 결제일 표시
   │  결제 실패 유예 중: "결제 재시도 중 · {expiresAt}까지 이용 가능" 표시
   │
-  ├── "플랜 변경" → [M-09 PlanCompareModal]
-  │    업그레이드:
-  │      GET /api/utils/subscription-change-preview → proratedAmount 표시
-  │      → [16-2 구독 결제?purpose=UPGRADE] → Mock/Toss payment confirm → 화면 갱신
-  │    다운그레이드:
-  │      "다음 결제일({expiresAt})부터 적용 · 추가 결제 없음" 안내
+   ├── "플랜 변경" → [M-09 PlanCompareModal]
+   │    업그레이드:
+   │      GET /api/utils/subscription-change-preview → proratedAmount 표시
+   │      → 사용자가 확인 → PUT 6.7
+   │      → 서버가 active billing agreement로 차액 즉시 결제
+   │      → 결제 성공 후 상위 플랜 즉시 적용, 다음 결제일은 유지
+   │    다운그레이드:
+   │      "다음 결제일({expiresAt})부터 적용 · 추가 결제 없음" 안내
   │      → [변경 예약] → PUT 6.7 → 화면 갱신 (pending 표시)
   │
   ├── "구독 취소" → [M-10 StatusModal]
@@ -388,7 +389,7 @@ dependencies:
 | R-02 | GNB 추가 IA 조정 | 현재 baseline 구현 완료, 필요 시 후속 UX 개선으로 조정 |
 | R-03 | 태그 필터 — 인라인 vs 모달 전환 용이성 | 인라인 우선, 전환 어려우면 재논의 |
 | R-04 | 18 통계 대시보드 지표 확장 설계 | 필요 시 후속 정의 |
-| R-05 | 결제 UX 분리 (Toss one-time / billing key) | Core payment integration implemented; production checkout/modal UX remains SR-92 / REQ-20260518-ATS-001 follow-up |
+| R-05 | 결제 운영 안정화 (billing auth / upgrade charge / renewal failure) | One-time Toss widget UX SR-92 is dropped; production hardening continues under SR-93 and follow-up REQ/SR items |
 | R-06 | 결제 운영 화면 | Read-only payment order / billing agreement / subscription payment support view is a planned operations follow-up |
 | R-07 | M-15 기업인증 서류 파일 제한 | 업로드 정책 미확정 |
 

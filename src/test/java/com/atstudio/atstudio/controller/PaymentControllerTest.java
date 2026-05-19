@@ -67,7 +67,7 @@ class PaymentControllerTest {
                         "KRW",
                         LocalDateTime.now().plusMinutes(15),
                         new BillingAgreementCheckoutResponse(
-                                "TOSS_BILLING_WIDGET",
+                                "TOSS_BILLING_AUTH",
                                 "test_ck",
                                 "ats_billing_customer_1",
                                 "http://localhost/success",

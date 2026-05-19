@@ -119,7 +119,7 @@ class BillingAgreementApplicationServiceTest {
         given(recurringPaymentProvider.prepareAgreement(any()))
                 .willReturn(new BillingAgreementPrepareResult(
                         PaymentProviderType.TOSS_BILLING,
-                        "TOSS_BILLING_WIDGET",
+                        "TOSS_BILLING_AUTH",
                         "{\"phase\":\"prepare\"}",
                         Map.of(
                                 "clientKey", "test_ck",

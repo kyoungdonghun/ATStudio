@@ -283,7 +283,7 @@ class UtilServiceTest {
                 buildUserDetails(1L), 2L, "MONTHLY");
 
         assertThat(result.changeType()).isEqualTo("UPGRADE");
-        assertThat(result.proratedAmount()).isGreaterThan(BigDecimal.ZERO);
+        assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.valueOf(10000));
         assertThat(result.effectiveDate()).isEqualTo(LocalDate.now());
         assertThat(result.newPlanName()).isEqualTo("Pro");
         assertThat(result.newBillingCycle()).isEqualTo("MONTHLY");

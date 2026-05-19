@@ -232,6 +232,20 @@ describe('SubscriptionPaymentPage', () => {
     expect(confirmPaymentMock).not.toHaveBeenCalled();
   });
 
+  it('does not prepare one-time checkout for upgrade route', async () => {
+    render(
+      <MemoryRouter
+        initialEntries={['/subscriptions/payment?plan=STANDARD&cycle=MONTHLY&purpose=UPGRADE']}
+      >
+        <SubscriptionPaymentPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText('플랜 변경은 내 구독 화면에서 변경 내역을 확인한 뒤 진행해주세요.');
+    expect(prepareSubscriptionPaymentMock).not.toHaveBeenCalled();
+    expect(prepareBillingAgreementMock).not.toHaveBeenCalled();
+  });
+
   it('confirms Toss success redirect with paymentKey', async () => {
     render(
       <MemoryRouter

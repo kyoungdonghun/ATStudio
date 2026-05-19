@@ -94,7 +94,8 @@
 | SR-88 | 재생기록 영역 스크롤바 시각적 숨김 | DONE |
 | SR-89 | 재생기록 localStorage 전환 | DONE |
 | SR-90 | 음원 플레이어바 파형(waveform) 디자인 전환 | OPEN |
-| SR-92 | Toss 결제위젯 인라인 렌더링 UX 분리 | OPEN |
+| SR-92 | Toss 결제위젯 인라인 렌더링 UX 분리 | DROPPED |
+| SR-93 | Toss 정기결제 운영 서버 체크포인트 및 개발 포인트 | OPEN |
 
 ## Code Confirmation Reports (docs/SR/confirm/)
 

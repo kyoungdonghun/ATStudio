@@ -65,6 +65,13 @@ public class UserSubscription extends BaseEntity {
         this.pendingBillingCycle = null;
     }
 
+    public void upgradeKeepingPeriod(Subscription newSubscription, BillingCycle nextBillingCycle) {
+        this.subscription = newSubscription;
+        this.billingCycle = nextBillingCycle;
+        this.pendingSubscription = null;
+        this.pendingBillingCycle = null;
+    }
+
     public void cancel() {
         this.status = SubscriptionStatus.CANCELLED;
     }

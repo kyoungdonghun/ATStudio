@@ -24,13 +24,13 @@ status: stable
 | Registry | 4 | [Registry Index](registry/index.md) | Asset/context/project registries |
 | Audit | 2 | [Audit Index](audit/index.md) | Audit reports and remediation baselines |
 | Client | 7 | [Client Index](client/index.md) | External testing guides and client SR intake references |
-| SR | 91 | [SR Index](SR/index.md) | Screen Review items (SR-01~90, SR-92) |
+| SR | 92 | [SR Index](SR/index.md) | Screen Review items (SR-01~90, SR-92~93) |
 | Retrospective | 4 | [Retrospective Index](retrospective/index.md) | Engineering lessons, domain design, kick.md, process |
 | ADR | 1 | [ADR Index](adr/index.md) | Decision records |
 | UI | 3 | [UI Index](ui/index.md) | Screen inventory, flow, and modal planning documents |
 | Eval | 0 | [Eval Index](eval/index.md) | Evaluation documents |
 
-**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **172**.
+**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **173**.
 
 ## Required Documents Mapping by Role
 
@@ -66,7 +66,7 @@ status: stable
 | Config | `.claude/config/workspace.json`, `.claude/config/context-injection-rules.json` | ATStudio routing, tech_stack, context injection |
 
 - **Tech Stack**: Java 17, Spring Boot 4.x, MySQL 8.x + React 18, TypeScript 5.6, Vite 6 (Phase 2 — active)
-- **Project Stats**: 104 APIs, 28 DB tables, 49 screens, 13 agents
+- **Project Stats**: 114 APIs, 30 DB tables, 51 screens, 13 agents
 - **Project Registry**: See [Project Registry](registry/project-registry.md)
 
 ## Starting Point Guides

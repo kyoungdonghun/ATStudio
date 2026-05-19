@@ -163,6 +163,11 @@ export default function SubscriptionPaymentPage() {
 
         if (!found) return;
 
+        if (purpose === 'UPGRADE') {
+          setErrorMessage('플랜 변경은 내 구독 화면에서 변경 내역을 확인한 뒤 진행해주세요.');
+          return;
+        }
+
         const prepared =
           isBillingMode && purpose === 'SUBSCRIBE'
             ? await prepareBillingAgreement({
