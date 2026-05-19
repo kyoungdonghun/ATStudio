@@ -118,7 +118,7 @@ describe('SubscriptionPaymentPage', () => {
       currency: 'KRW',
       expiresAt: '2026-05-16T23:10:00',
       checkout: {
-        type: 'TOSS_BILLING_WIDGET',
+        type: 'TOSS_BILLING_AUTH',
         clientKey: 'test_ck_billing',
         customerKey: 'ats_billing_customer_1',
         successUrl: 'http://localhost:5173/subscriptions/billing/success',

@@ -84,16 +84,15 @@ describe('SubscriptionPlanPage', () => {
     fetchMySubscriptionMock.mockRejectedValue(new Error('No active subscription'));
   });
 
-  it('starts new subscriptions through the provider-selected payment page by default', async () => {
+  it('starts new subscriptions through Toss recurring billing by default', async () => {
     renderPage();
 
     fireEvent.click(await screen.findByRole('button', { name: '지금 시작하기' }));
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith('/subscriptions/payment?plan=DELUXE&cycle=YEARLY');
+      expect(navigateMock).toHaveBeenCalledWith(
+        '/subscriptions/payment?plan=DELUXE&cycle=YEARLY&mode=recurring',
+      );
     });
-    expect(navigateMock).not.toHaveBeenCalledWith(
-      '/subscriptions/payment?plan=DELUXE&cycle=YEARLY&mode=recurring',
-    );
   });
 });

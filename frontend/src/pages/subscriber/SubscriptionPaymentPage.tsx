@@ -42,6 +42,9 @@ export default function SubscriptionPaymentPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [checkoutReady, setCheckoutReady] = useState(false);
 
+  const isBillingCheckoutType = (type?: string) =>
+    type === 'TOSS_BILLING_AUTH' || type === 'TOSS_BILLING_WIDGET';
+
   useEffect(() => {
     if (!isTossRedirect || redirectHandledRef.current) return;
     redirectHandledRef.current = true;
@@ -263,7 +266,7 @@ export default function SubscriptionPaymentPage() {
         return;
       }
 
-      if (paymentOrder.checkout.type === 'TOSS_BILLING_WIDGET') {
+      if (isBillingCheckoutType(paymentOrder.checkout.type)) {
         const { clientKey, customerKey, successUrl, failUrl, method } = paymentOrder.checkout;
         if (!clientKey || !customerKey || !successUrl || !failUrl) {
           throw new Error('토스 자동결제 설정이 아직 준비되지 않았습니다.');
@@ -376,7 +379,7 @@ export default function SubscriptionPaymentPage() {
   const paymentAmount = paymentOrder?.amount ?? price;
   const monthlyEquiv = cycle === 'YEARLY' ? formatPrice(Math.floor(plan.priceYearly / 12)) : null;
   const isTossCheckout = paymentOrder?.checkout.type === 'TOSS_WIDGET';
-  const isBillingCheckout = paymentOrder?.checkout.type === 'TOSS_BILLING_WIDGET';
+  const isBillingCheckout = isBillingCheckoutType(paymentOrder?.checkout.type);
   const canConfirm =
     Boolean(paymentOrder) &&
     orderStatus === 'READY' &&

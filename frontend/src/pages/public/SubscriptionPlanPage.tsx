@@ -174,7 +174,7 @@ export default function SubscriptionPlanPage() {
     if (mySub && (mySub.status === 'ACTIVE' || mySub.status === 'CANCELLED')) {
       navigate(`/subscriptions/manage?plan=${planName}&cycle=${cycle}`);
     } else {
-      navigate(`/subscriptions/payment?plan=${planName}&cycle=${cycle}`);
+      navigate(`/subscriptions/payment?plan=${planName}&cycle=${cycle}&mode=recurring`);
     }
   };
 
