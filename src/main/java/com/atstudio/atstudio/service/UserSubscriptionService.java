@@ -198,7 +198,8 @@ public class UserSubscriptionService {
             BigDecimal proratedAmount = calculateProratedUpgradeAmount(current, newPlan);
             BillingAgreement agreement = findActiveBillingAgreement(user);
             if (requiresImmediateCharge(proratedAmount)) {
-                PaymentOrder order = createUpgradeOrder(user, current, newPlan, request.billingCycle(), proratedAmount, agreement);
+                PaymentOrder order = createUpgradeOrder(
+                        user, current, newPlan, current.getBillingCycle(), proratedAmount, agreement);
                 BillingChargeResult chargeResult = chargeUpgrade(order, agreement);
                 if (!chargeResult.success()) {
                     order.markFailed(chargeResult.failureCode(), chargeResult.failureMessage());
@@ -212,7 +213,7 @@ public class UserSubscriptionService {
                         .user(user)
                         .userSubscription(current)
                         .subscription(newPlan)
-                        .billingCycle(request.billingCycle())
+                        .billingCycle(current.getBillingCycle())
                         .amount(proratedAmount)
                         .paymentStatus(PaymentStatus.DONE)
                         .pgTransactionId(chargeResult.transactionId())
@@ -280,7 +281,7 @@ public class UserSubscriptionService {
             User user,
             UserSubscription current,
             Subscription newPlan,
-            BillingCycle nextBillingCycle,
+            BillingCycle chargedBillingCycle,
             BigDecimal amount,
             BillingAgreement agreement) {
         PaymentOrder order = paymentOrderRepository.save(PaymentOrder.builder()
@@ -291,7 +292,7 @@ public class UserSubscriptionService {
                 .subscription(newPlan)
                 .userSubscription(current)
                 .billingAgreement(agreement)
-                .billingCycle(nextBillingCycle)
+                .billingCycle(chargedBillingCycle)
                 .amount(amount)
                 .currency("KRW")
                 .expiresAt(LocalDateTime.now().plusMinutes(PAYMENT_EXPIRY_MINUTES))

@@ -185,12 +185,12 @@
 4. Frontend sends a change request including subscriptionId and billingCycle to the backend.
 5. Backend requires an active billing agreement and immediately charges whole-KRW `proratedAmount` with the stored billing key when the amount is greater than `0`.
 6. If `proratedAmount = 0`, backend skips the provider charge but still keeps the active billing agreement requirement.
-7. After charge success or zero-amount skip, backend updates `user_subscriptions` to the new plan and selected billingCycle while preserving the current `expiresAt`.
+7. After charge success or zero-amount skip, backend updates `user_subscriptions` to the new plan while preserving the current `billingCycle` and `expiresAt`.
 8. Backend saves the prorated payment record in `subscription_payments` only when a provider charge is attempted and succeeds.
 9. Backend returns the updated subscription information (including proratedAmount).
    - New plan services (downloadPerDay, maxWhitelistChannels) are applied immediately.
-   - The next billing date remains the existing `expiresAt`.
-   - The selected billingCycle is used by the next renewal charge.
+   - The active period keeps its current billingCycle and existing `expiresAt`.
+   - The selected billingCycle is stored as pending when it differs from the current cycle and is used by the next renewal charge.
 
 **Main Flow — DOWNGRADE (new plan price <= current plan price)**
 1. User selects the new (lower-tier) subscription plan and billing cycle.

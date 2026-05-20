@@ -292,6 +292,47 @@ class UtilServiceTest {
     }
 
     @Test
+    @DisplayName("previewSubscriptionChange() UPGRADE - annual current cycle charges annual difference and previews monthly renewal")
+    void previewSubscriptionChange_upgradeAnnualToMonthly() {
+        User user = buildUser(1L);
+        Subscription currentPlan = Subscription.builder()
+                .name("Standard").userType(UserType.INDIVIDUAL)
+                .downloadPerDay(5).maxWhitelistChannels(3)
+                .priceMonthly(BigDecimal.valueOf(9900)).priceYearly(BigDecimal.valueOf(99000))
+                .build();
+        ReflectionTestUtils.setField(currentPlan, "id", 1L);
+
+        UserSubscription currentSub = UserSubscription.builder()
+                .user(user).subscription(currentPlan)
+                .billingCycle(BillingCycle.YEARLY)
+                .startedAt(LocalDate.now()).expiresAt(LocalDate.now().plusYears(1))
+                .build();
+
+        Subscription newPlan = Subscription.builder()
+                .name("Premium").userType(UserType.INDIVIDUAL)
+                .downloadPerDay(20).maxWhitelistChannels(10)
+                .priceMonthly(BigDecimal.valueOf(29900)).priceYearly(BigDecimal.valueOf(299000))
+                .build();
+        ReflectionTestUtils.setField(newPlan, "id", 2L);
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                .willReturn(Optional.of(currentSub));
+        given(subscriptionRepository.findById(2L)).willReturn(Optional.of(newPlan));
+
+        SubscriptionChangePreviewResponse result = utilService.previewSubscriptionChange(
+                buildUserDetails(1L), 2L, "MONTHLY");
+
+        assertThat(result.changeType()).isEqualTo("UPGRADE");
+        assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.valueOf(200000));
+        assertThat(result.effectiveDate()).isEqualTo(LocalDate.now());
+        assertThat(result.nextBillingDate()).isEqualTo(currentSub.getExpiresAt());
+        assertThat(result.nextBillingAmount()).isEqualByComparingTo(BigDecimal.valueOf(29900));
+        assertThat(result.newPlanName()).isEqualTo("Premium");
+        assertThat(result.newBillingCycle()).isEqualTo("MONTHLY");
+    }
+
+    @Test
     @DisplayName("previewSubscriptionChange() UPGRADE - 차액은 정수 원으로 반올림")
     void previewSubscriptionChange_upgradeRoundsProratedAmountToWholeWon() {
         User user = buildUser(1L);

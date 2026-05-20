@@ -477,9 +477,9 @@ sequenceDiagram
 6. If the rounded amount is greater than `0`, backend creates a `PaymentOrder` with `purpose = UPGRADE` and `provider = TOSS_BILLING`.
 7. Backend charges the stored billing key with `RecurringPaymentProvider.charge()`.
 8. If the rounded amount is `0`, backend skips the provider charge but still requires an active billing agreement for the next renewal.
-9. After charge success or a zero-amount skip, backend applies the higher plan immediately while preserving the current `expiresAt`.
+9. After charge success or a zero-amount skip, backend applies the higher plan immediately while preserving the current `billingCycle` and `expiresAt`.
 10. Backend saves `subscription_payments` only when a provider charge is attempted and succeeds.
-11. The next renewal date remains unchanged; the next renewal charge uses the upgraded plan and selected billing cycle.
+11. The next renewal date remains unchanged; the next renewal charge uses the upgraded plan and selected billing cycle through pending renewal settings when the selected cycle differs from the current cycle.
 
 ### 11.3 Downgrade
 
@@ -689,7 +689,7 @@ Sensitive-data boundary:
 | PAY-D08 | Recurring billing failure grace period | 3-day grace period with up to 3 retry attempts (accepted) |
 | PAY-D09 | Initial recurring subscription charge | Billing-key registration followed by immediate first charge (accepted) |
 | PAY-D10 | Production checkout surface | Dedicated checkout/callback route preferred for recurring billing auth |
-| PAY-D11 | Upgrade payment model | Use active billing agreement for immediate prorated charge; preserve next billing date |
+| PAY-D11 | Upgrade payment model | Use active billing agreement for immediate prorated charge; preserve current billing cycle and next billing date |
 | PAY-D12 | Downgrade payment model | Schedule pending plan/cycle and apply at next renewal with no immediate charge |
 
 ## 16. Implementation Risk Notes

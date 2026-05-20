@@ -210,6 +210,35 @@ describe('SubscriptionManagePage', () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
+  it('shows a pending next-renewal cycle change without offering another plan change', async () => {
+    fetchMySubscriptionMock.mockResolvedValue({
+      id: 100,
+      subscription: {
+        id: 2,
+        name: 'PREMIUM',
+        description: 'Premium',
+        userType: 'INDIVIDUAL',
+        priceMonthly: 29900,
+        priceYearly: 299000,
+        downloadPerDay: 50,
+        maxWhitelistChannels: 10,
+        maxPlaylists: 20,
+        isActive: true,
+      },
+      billingCycle: 'YEARLY',
+      status: 'ACTIVE',
+      startedAt: '2026-05-20',
+      expiresAt: '2027-05-20',
+      pendingSubscriptionId: 2,
+      pendingBillingCycle: 'MONTHLY',
+    });
+
+    renderPage();
+
+    await screen.findByText('다음 결제일부터 프리미엄 (월간)이 적용됩니다.');
+    expect(screen.queryByText('플랜 변경')).not.toBeInTheDocument();
+  });
+
   it('shows billing agreement state and cancels automatic renewal', async () => {
     fetchMySubscriptionMock.mockResolvedValue({
       id: 100,

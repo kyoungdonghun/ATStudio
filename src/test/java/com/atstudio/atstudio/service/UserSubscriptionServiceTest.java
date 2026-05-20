@@ -382,13 +382,77 @@ class UserSubscriptionServiceTest {
             verify(subscriptionPaymentRepository).save(any(SubscriptionPayment.class));
 
             assertThat(us.getSubscription()).isEqualTo(newSub);
+            assertThat(us.getBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
             assertThat(us.getExpiresAt()).isEqualTo(originalExpiresAt);
+            assertThat(us.getPendingSubscription()).isNull();
+            assertThat(us.getPendingBillingCycle()).isNull();
 
             ArgumentCaptor<BillingChargeCommand> chargeCaptor =
                     ArgumentCaptor.forClass(BillingChargeCommand.class);
             verify(recurringPaymentProvider).charge(chargeCaptor.capture());
             assertThat(chargeCaptor.getValue().amount()).isEqualByComparingTo(BigDecimal.valueOf(5000));
             assertThat(chargeCaptor.getValue().orderName()).contains("Premium");
+        }
+
+        @Test
+        @DisplayName("success - UPGRADE keeps current annual cycle and schedules requested monthly cycle")
+        void changeSubscription_upgradeKeepsCurrentCycleAndSchedulesNextCycle() {
+            User user = buildUser(1L, UserType.INDIVIDUAL);
+            Subscription currentSub = buildSubscription(10L, "Standard", UserType.INDIVIDUAL);
+            ReflectionTestUtils.setField(currentSub, "priceMonthly", BigDecimal.valueOf(9900));
+            ReflectionTestUtils.setField(currentSub, "priceYearly", BigDecimal.valueOf(99000));
+            UserSubscription us = buildUserSubscription(100L, user, currentSub,
+                    BillingCycle.YEARLY, SubscriptionStatus.ACTIVE);
+            ReflectionTestUtils.setField(us, "startedAt", LocalDate.now());
+            ReflectionTestUtils.setField(us, "expiresAt", LocalDate.now().plusYears(1));
+
+            Subscription newSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
+            ReflectionTestUtils.setField(newSub, "priceMonthly", BigDecimal.valueOf(29900));
+            ReflectionTestUtils.setField(newSub, "priceYearly", BigDecimal.valueOf(299000));
+            BillingAgreement agreement = buildActiveAgreement(user);
+            LocalDate originalExpiresAt = us.getExpiresAt();
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.of(us));
+            given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
+            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+                    .willReturn(Optional.of(agreement));
+            given(paymentOrderRepository.save(any(PaymentOrder.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("raw-billing-key");
+            given(recurringPaymentProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+            given(recurringPaymentProvider.charge(any()))
+                    .willReturn(BillingChargeResult.success(
+                            "tx_upgrade",
+                            "CARD",
+                            "1234",
+                            "{\"paymentKey\":\"pay_upgrade\"}"));
+            given(subscriptionPaymentRepository.save(any(SubscriptionPayment.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+
+            ChangeSubscriptionResponse result = userSubscriptionService.changeSubscription(
+                    buildUserDetails(1L),
+                    new ChangeSubscriptionRequest(20L, BillingCycle.MONTHLY));
+
+            assertThat(result.changeType()).isEqualTo("UPGRADE");
+            assertThat(result.billingCycle()).isEqualTo("MONTHLY");
+            assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.valueOf(200000));
+            assertThat(result.expiresAt()).isEqualTo(originalExpiresAt);
+            assertThat(us.getSubscription()).isEqualTo(newSub);
+            assertThat(us.getBillingCycle()).isEqualTo(BillingCycle.YEARLY);
+            assertThat(us.getExpiresAt()).isEqualTo(originalExpiresAt);
+            assertThat(us.getPendingSubscription()).isEqualTo(newSub);
+            assertThat(us.getPendingBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
+
+            ArgumentCaptor<PaymentOrder> orderCaptor = ArgumentCaptor.forClass(PaymentOrder.class);
+            verify(paymentOrderRepository).save(orderCaptor.capture());
+            assertThat(orderCaptor.getValue().getBillingCycle()).isEqualTo(BillingCycle.YEARLY);
+
+            ArgumentCaptor<SubscriptionPayment> paymentCaptor =
+                    ArgumentCaptor.forClass(SubscriptionPayment.class);
+            verify(subscriptionPaymentRepository).save(paymentCaptor.capture());
+            assertThat(paymentCaptor.getValue().getBillingCycle()).isEqualTo(BillingCycle.YEARLY);
         }
 
         @Test

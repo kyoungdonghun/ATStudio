@@ -21,6 +21,8 @@ import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import styles from './SubscriptionManagePage.module.css';
 
+type BillingCycle = 'MONTHLY' | 'YEARLY';
+
 /** Format amount with comma separator */
 function formatAmount(amount: number): string {
   return amount.toLocaleString('ko-KR');
@@ -38,6 +40,10 @@ function getDisplayName(name: string): string {
     default:
       return name;
   }
+}
+
+function getBillingCycleLabel(cycle: BillingCycle): string {
+  return cycle === 'MONTHLY' ? '월간' : '연간';
 }
 
 export default function SubscriptionManagePage() {
@@ -59,7 +65,7 @@ export default function SubscriptionManagePage() {
 
   /* ── Change Plan ── */
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
-  const [selectedCycle, setSelectedCycle] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
+  const [selectedCycle, setSelectedCycle] = useState<BillingCycle>('MONTHLY');
   const [preview, setPreview] = useState<SubscriptionChangePreview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [changingPlan, setChangingPlan] = useState(false);
@@ -116,6 +122,8 @@ export default function SubscriptionManagePage() {
         setSelectedPlan(found);
         if (urlCycle === 'MONTHLY' || urlCycle === 'YEARLY') {
           setSelectedCycle(urlCycle);
+        } else {
+          setSelectedCycle(sub.billingCycle);
         }
       }
     }
@@ -149,6 +157,11 @@ export default function SubscriptionManagePage() {
   }, [selectedPlan, selectedCycle, sub]);
 
   /* ── Change subscription ── */
+  function handleSelectPlan(plan: SubscriptionPlan) {
+    setSelectedPlan(plan);
+    setSelectedCycle(sub?.billingCycle ?? 'MONTHLY');
+  }
+
   async function handleChangePlan() {
     if (!selectedPlan || !preview) return;
     try {
@@ -166,8 +179,12 @@ export default function SubscriptionManagePage() {
           res.proratedAmount > 0
             ? `차액 ${formatAmount(res.proratedAmount)}원이 등록된 결제수단으로 결제되었고,`
             : '즉시 결제할 차액은 없고,';
+        const nextCycleMessage =
+          selectedCycle !== sub?.billingCycle
+            ? ` 다음 결제일부터 ${getBillingCycleLabel(selectedCycle)} 결제로 전환됩니다.`
+            : '';
         setChangeMsg(
-          `업그레이드가 적용되었습니다. ${chargeMessage} 다음 결제일(${formatDate(res.expiresAt)})은 유지됩니다.`,
+          `업그레이드가 적용되었습니다. ${chargeMessage} 다음 결제일(${formatDate(res.expiresAt)})은 유지됩니다.${nextCycleMessage}`,
         );
       } else {
         setChangeMsg(
@@ -266,6 +283,19 @@ export default function SubscriptionManagePage() {
     );
   }
 
+  const hasPendingChange = Boolean(sub.pendingSubscriptionId || sub.pendingBillingCycle);
+  const pendingPlan =
+    !sub.pendingSubscriptionId || sub.pendingSubscriptionId === sub.subscription.id
+      ? sub.subscription
+      : plans.find((plan) => plan.id === sub.pendingSubscriptionId);
+  const pendingPlanName = pendingPlan ? getDisplayName(pendingPlan.name) : '선택한 플랜';
+  const pendingCycleLabel = sub.pendingBillingCycle
+    ? getBillingCycleLabel(sub.pendingBillingCycle)
+    : null;
+  const pendingChangeText = pendingCycleLabel
+    ? `다음 결제일부터 ${pendingPlanName} (${pendingCycleLabel})이 적용됩니다.`
+    : `다음 결제일부터 ${pendingPlanName}이 적용됩니다.`;
+
   return (
     <div className={styles.page}>
       <h1 className={styles.pageTitle}>{'내 구독'}</h1>
@@ -279,9 +309,7 @@ export default function SubscriptionManagePage() {
         <div className={styles.planInfo}>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>{'결제 주기'}</span>
-            <span className={styles.infoValue}>
-              {sub.billingCycle === 'MONTHLY' ? '월간' : '연간'}
-            </span>
+            <span className={styles.infoValue}>{getBillingCycleLabel(sub.billingCycle)}</span>
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>{'시작일'}</span>
@@ -293,13 +321,11 @@ export default function SubscriptionManagePage() {
           </div>
         </div>
 
-        {/* Pending downgrade notice */}
-        {sub.pendingSubscriptionId && (
+        {/* Pending change notice */}
+        {hasPendingChange && (
           <div className={styles.pendingNotice}>
             <span className={styles.pendingIcon}>{'\u23F3'}</span>
-            <span className={styles.pendingText}>
-              {'다운그레이드가 예약되어 있습니다. 만료일 이후 새 플랜이 적용됩니다.'}
-            </span>
+            <span className={styles.pendingText}>{pendingChangeText}</span>
           </div>
         )}
       </div>
@@ -351,7 +377,7 @@ export default function SubscriptionManagePage() {
       </div>
 
       {/* ── Change Plan Section ── */}
-      {sub.status === 'ACTIVE' && !sub.pendingSubscriptionId && (
+      {sub.status === 'ACTIVE' && !hasPendingChange && (
         <div className={styles.actionSection}>
           <div className={styles.actionTitle}>{'플랜 변경'}</div>
           <div className={styles.actionDesc}>
@@ -370,7 +396,7 @@ export default function SubscriptionManagePage() {
                   className={
                     selectedPlan?.id === plan.id ? styles.planOptionSelected : styles.planOption
                   }
-                  onClick={() => setSelectedPlan(plan)}
+                  onClick={() => handleSelectPlan(plan)}
                 >
                   <div className={styles.planOptionName}>{getDisplayName(plan.name)}</div>
                   <div className={styles.planOptionPrice}>
@@ -390,14 +416,14 @@ export default function SubscriptionManagePage() {
                 size="sm"
                 onClick={() => setSelectedCycle('MONTHLY')}
               >
-                {'월간'}
+                {getBillingCycleLabel('MONTHLY')}
               </Button>
               <Button
                 variant={selectedCycle === 'YEARLY' ? 'primary' : 'ghost'}
                 size="sm"
                 onClick={() => setSelectedCycle('YEARLY')}
               >
-                {'연간'}
+                {getBillingCycleLabel('YEARLY')}
               </Button>
             </div>
           )}
@@ -420,8 +446,12 @@ export default function SubscriptionManagePage() {
               </div>
               <div className={styles.previewRow}>
                 <span className={styles.previewLabel}>{'새 플랜'}</span>
+                <span className={styles.previewValue}>{preview.newPlanName}</span>
+              </div>
+              <div className={styles.previewRow}>
+                <span className={styles.previewLabel}>{'다음 결제 주기'}</span>
                 <span className={styles.previewValue}>
-                  {preview.newPlanName} ({preview.newBillingCycle === 'MONTHLY' ? '월간' : '연간'})
+                  {getBillingCycleLabel(preview.newBillingCycle)}
                 </span>
               </div>
               <div className={styles.previewRow}>

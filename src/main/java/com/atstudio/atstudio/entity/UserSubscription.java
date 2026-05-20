@@ -67,9 +67,13 @@ public class UserSubscription extends BaseEntity {
 
     public void upgradeKeepingPeriod(Subscription newSubscription, BillingCycle nextBillingCycle) {
         this.subscription = newSubscription;
-        this.billingCycle = nextBillingCycle;
-        this.pendingSubscription = null;
-        this.pendingBillingCycle = null;
+        if (nextBillingCycle != null && nextBillingCycle != this.billingCycle) {
+            this.pendingSubscription = newSubscription;
+            this.pendingBillingCycle = nextBillingCycle;
+        } else {
+            this.pendingSubscription = null;
+            this.pendingBillingCycle = null;
+        }
     }
 
     public void cancel() {
@@ -108,7 +112,7 @@ public class UserSubscription extends BaseEntity {
     }
 
     public boolean hasPending() {
-        return this.pendingSubscription != null;
+        return this.pendingSubscription != null || this.pendingBillingCycle != null;
     }
 
     public void adminUpdate(SubscriptionStatus newStatus, BillingCycle newBillingCycle, LocalDate newExpiresAt) {

@@ -114,6 +114,48 @@ class RecurringRenewalServiceTest {
     }
 
     @Test
+    @DisplayName("pending billing cycle is used at renewal after an immediate upgrade")
+    void processDueRenewals_usesPendingBillingCycle() {
+        LocalDate due = LocalDate.of(2026, 5, 17);
+        User user = buildUser(1L);
+        Subscription subscription = buildSubscription(10L, "Premium");
+        UserSubscription userSubscription = buildUserSubscription(100L, user, subscription, due);
+        userSubscription.schedulePendingChange(subscription, BillingCycle.YEARLY);
+        BillingAgreement agreement = buildActiveAgreement(user, due);
+
+        given(billingAgreementRepository.findByStatusAndNextBillingAtLessThanEqual(
+                BillingAgreementStatus.ACTIVE, due)).willReturn(List.of(agreement));
+        given(userSubscriptionRepository.findActiveByUser(user, due)).willReturn(Optional.of(userSubscription));
+        given(paymentOrderRepository.findFirstByBillingAgreementAndPurposeAndStatusInOrderByCreatedAtDesc(
+                eq(agreement), eq(PaymentPurpose.RENEWAL), anyCollection())).willReturn(Optional.empty());
+        given(paymentOrderRepository.save(any(PaymentOrder.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+        given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("billing_raw_key");
+        given(recurringPaymentProvider.charge(any()))
+                .willReturn(BillingChargeResult.success(
+                        "tx_renewal",
+                        "CARD",
+                        "1234",
+                        "{\"paymentKey\":\"pay_renewal\"}"));
+        given(subscriptionPaymentRepository.save(any(SubscriptionPayment.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        RecurringRenewalService.RenewalRunResult result = service.processDueRenewals(due);
+
+        assertThat(result.succeeded()).isEqualTo(1);
+        assertThat(userSubscription.getBillingCycle()).isEqualTo(BillingCycle.YEARLY);
+        assertThat(userSubscription.getStartedAt()).isEqualTo(due);
+        assertThat(userSubscription.getExpiresAt()).isEqualTo(due.plusYears(1));
+        assertThat(userSubscription.getPendingSubscription()).isNull();
+        assertThat(userSubscription.getPendingBillingCycle()).isNull();
+        assertThat(agreement.getNextBillingAt()).isEqualTo(due.plusYears(1));
+
+        ArgumentCaptor<BillingChargeCommand> chargeCaptor = ArgumentCaptor.forClass(BillingChargeCommand.class);
+        verify(recurringPaymentProvider).charge(chargeCaptor.capture());
+        assertThat(chargeCaptor.getValue().amount()).isEqualByComparingTo(BigDecimal.valueOf(99000));
+    }
+
+    @Test
     @DisplayName("duplicate scheduler run skips an already done renewal order")
     void processDueRenewals_duplicateDoneOrder() {
         LocalDate due = LocalDate.of(2026, 5, 17);

@@ -14,7 +14,7 @@ export interface MySubscription {
   startedAt: string;
   expiresAt: string;
   pendingSubscriptionId: number | null;
-  pendingBillingCycle: string | null;
+  pendingBillingCycle: 'MONTHLY' | 'YEARLY' | null;
 }
 
 export interface SubscriptionChangeResponse {

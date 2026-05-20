@@ -1395,7 +1395,7 @@ These endpoints are design candidates for the next operations phase. They are no
 |-------|-------|
 | **URL** | `PUT /api/user-subscriptions/me` |
 | **Auth** | auth required |
-| **Description** | Change plan or billing cycle. Behavior differs by change type: **UPGRADE** requires an active billing agreement, immediately charges the remaining-period difference through recurring billing, then applies the higher plan while preserving the current next billing date. The immediate charge is rounded to whole KRW; if the rounded amount is `0`, no provider charge is attempted. **DOWNGRADE** is saved as pending (`pendingSubscriptionId`, `pendingBillingCycle`) and takes effect after the current period expires. Response includes `changeType` to indicate which branch was taken. |
+| **Description** | Change plan or billing cycle. Behavior differs by change type: **UPGRADE** requires an active billing agreement, immediately charges the remaining-period difference through recurring billing, then applies the higher plan while preserving the current billing cycle and next billing date. If the requested billing cycle differs from the current one, it is stored as pending and starts at the next renewal. The immediate charge is rounded to whole KRW; if the rounded amount is `0`, no provider charge is attempted. **DOWNGRADE** is saved as pending (`pendingSubscriptionId`, `pendingBillingCycle`) and takes effect after the current period expires. Response includes `changeType` to indicate which branch was taken. |
 
 **Request**
 ```json
@@ -1418,9 +1418,9 @@ These endpoints are design candidates for the next operations phase. They are no
 }
 ```
 
-> - `changeType`: `"UPGRADE"` — active billing agreement is charged for `proratedAmount` when the rounded amount is greater than `0`; new plan applies immediately; current `expiresAt` remains the next billing date.
+> - `changeType`: `"UPGRADE"` — active billing agreement is charged for `proratedAmount` when the rounded amount is greater than `0`; new plan applies immediately; current `billingCycle` and `expiresAt` remain the active period basis.
 > - `changeType`: `"DOWNGRADE"` — pending values (`pendingSubscriptionId`, `pendingBillingCycle`) stored; current plan remains active until `expiresAt`; new plan activates automatically after expiry.
-> - `billingCycle` in an UPGRADE response is the billing cycle to use on the next renewal charge.
+> - `billingCycle` in an UPGRADE response is the requested billing cycle to use on the next renewal charge; the current subscription response may still show the active period's current `billingCycle` until renewal.
 
 ## 6.8 Update User Subscription (Admin)
 | Field | Value |
@@ -2326,7 +2326,7 @@ billingCycle: String (required — "MONTHLY" | "YEARLY")
 > - `nextBillingDate`: LocalDate (ISO-8601) — date of the next recurring charge
 > - `nextBillingAmount`: Amount to charge on `nextBillingDate` for the selected target plan/cycle
 > - `newPlanName`: Name of the target subscription plan
-> - `newBillingCycle`: `"MONTHLY"` or `"YEARLY"`
+> - `newBillingCycle`: `"MONTHLY"` or `"YEARLY"`; for UPGRADE, this is the next-renewal billing cycle when it differs from the active period.
 
 **Error Cases**
 ```json
