@@ -16,7 +16,7 @@
 | 4 | `payment_orders` | **Added** — Mock-first payment attempt ledger for subscription prepare/confirm/cancel flow. |
 | 5 | `billing_agreements` | **Added** — Server-side recurring billing agreement and encrypted billing key metadata. |
 | 6 | Payment table billing links | **Added** — `payment_orders.billing_agreement_id` and `subscription_payments.billing_agreement_id` for recurring billing traceability. |
-| 7 | Subscription change policy | **Updated** — Upgrade charges remaining-period difference through `TOSS_BILLING`; downgrade remains pending for next renewal. |
+| 7 | Subscription change policy | **Updated** — Upgrade charges remaining-period difference through `TOSS_BILLING`, preserves the current billing cycle for the active period, and stores requested future cycle changes as pending; downgrade remains pending for next renewal. |
 
 ---
 
@@ -179,14 +179,14 @@
 | Subscription status | `status` | ENUM('ACTIVE','CANCELLED','EXPIRED') | NOT NULL | | 'ACTIVE' | |
 | Current period start date | `started_at` | DATE | NOT NULL | | | |
 | Current period end date | `expires_at` | DATE | NOT NULL | | | Next billing date = expiration date + 1 day |
-| Pending subscription plan | `pending_subscription_id` | BIGINT | NULL | FK(subscriptions.id) | | Downgrade scheduled plan (applied at next billing) |
-| Pending billing cycle | `pending_billing_cycle` | VARCHAR(10) | NULL | | | MONTHLY or YEARLY for pending change |
+| Pending subscription plan | `pending_subscription_id` | BIGINT | NULL | FK(subscriptions.id) | | Plan/cycle change scheduled for next renewal |
+| Pending billing cycle | `pending_billing_cycle` | VARCHAR(10) | NULL | | | MONTHLY or YEARLY for next-renewal change |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
 **Subscription change handling:**
-- **Upgrade** (higher price): Changes take effect immediately only after charging the remaining-period price difference through the active billing agreement. The current `expires_at` is preserved as the next billing date; `billing_cycle` stores the cycle to use on the next renewal charge.
-- **Downgrade** (lower price): Change is **scheduled** (pending). Current subscription remains active until expiration. `pending_subscription_id` and `pending_billing_cycle` store the target plan. Actual switch happens at next billing cycle (handled by scheduled job).
+- **Upgrade** (higher price): The higher plan takes effect immediately only after charging the remaining-period price difference through the active billing agreement. The active period keeps the current `billing_cycle` and `expires_at`. If the request changes billing cycle, `pending_subscription_id` and `pending_billing_cycle` store the next-renewal plan/cycle.
+- **Downgrade** (lower price): Change is **scheduled** (pending). Current subscription remains active until expiration. `pending_subscription_id` and `pending_billing_cycle` store the target plan/cycle. Actual switch happens at the next successful renewal.
 
 ---
 

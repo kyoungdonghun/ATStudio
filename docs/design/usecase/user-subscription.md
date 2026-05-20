@@ -204,8 +204,8 @@
    - Current plan services remain until expiresAt.
 
 **Postconditions**
-- UPGRADE: billing-key charge succeeds first when `proratedAmount > 0`, then `user_subscriptions` is updated immediately. Payment record is saved in `subscription_payments` only for a real charge. New plan benefits active and next billing date preserved.
-- DOWNGRADE: pendingSubscriptionId and pendingBillingCycle saved. Current plan active until expiresAt. New plan applied automatically at expiresAt.
+- UPGRADE: billing-key charge succeeds first when `proratedAmount > 0`, then `user_subscriptions.subscription_id` is updated immediately. Payment record is saved in `subscription_payments` only for a real charge. New plan benefits are active immediately, while current `billingCycle` and next billing date are preserved for the active period. If the requested billing cycle differs, pendingSubscriptionId and pendingBillingCycle are saved for the next renewal.
+- DOWNGRADE: pendingSubscriptionId and pendingBillingCycle saved. Current plan active until expiresAt. New plan/cycle applied automatically at the next successful renewal.
 
 > **Note**: Subscription changes do NOT affect track usage licenses (licenses table). Previously issued licenses are retained as-is.
 

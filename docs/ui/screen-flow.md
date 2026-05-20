@@ -224,10 +224,11 @@ dependencies:
   │
    ├── "플랜 변경" → [M-09 PlanCompareModal]
    │    업그레이드:
-   │      GET /api/utils/subscription-change-preview → 즉시 결제 차액, 적용일, 다음 결제일, 다음 결제 금액 표시
+   │      GET /api/utils/subscription-change-preview → 즉시 결제 차액, 적용일, 다음 결제일, 다음 결제 금액, 다음 결제 주기 표시
    │      → 사용자가 확인 → PUT 6.7
    │      → 서버가 active billing agreement로 정수 원 차액 즉시 결제
-   │      → 결제 성공 후 상위 플랜 즉시 적용, 다음 결제일은 유지
+   │      → 결제 성공 후 상위 플랜 즉시 적용, 현재 결제 주기와 다음 결제일은 유지
+   │      → 선택한 결제 주기가 다르면 다음 갱신용 pendingBillingCycle 표시
    │    다운그레이드:
    │      "다음 결제일({expiresAt})부터 적용 · 추가 결제 없음" 안내
   │      → [변경 예약] → PUT 6.7 → 화면 갱신 (pending 표시)

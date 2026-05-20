@@ -198,7 +198,7 @@
 3. Backend determines change type by comparing plan prices:
    - If new plan monthly price > current plan monthly price → changeType=UPGRADE
    - Otherwise → changeType=DOWNGRADE
-4. For UPGRADE: Backend calculates proratedAmount = (new period price - current period price) × remainingDays / totalDays, rounded to whole KRW.
+4. For UPGRADE: Backend calculates proratedAmount = (new period price - current period price) × remainingDays / totalDays using the active period's current billing cycle, rounded to whole KRW.
    For DOWNGRADE: proratedAmount = 0. effectiveDate = current expiresAt.
 5. Backend returns the preview response.
 
@@ -209,7 +209,7 @@
 - `nextBillingDate`: Date of the next recurring charge
 - `nextBillingAmount`: Amount to charge on nextBillingDate for the selected target plan/cycle
 - `newPlanName`: Display name of the target plan
-- `newBillingCycle`: Billing cycle selected (MONTHLY/YEARLY)
+- `newBillingCycle`: Billing cycle selected for the next renewal (MONTHLY/YEARLY). For UPGRADE, a cycle change is not applied to the active period immediately.
 
 **Exception / Alternative Flow**
 - No active subscription: 404 `SUBSCRIPTION_NOT_FOUND`.
