@@ -162,8 +162,12 @@ export default function SubscriptionManagePage() {
       });
 
       if (preview.changeType === 'UPGRADE') {
+        const chargeMessage =
+          res.proratedAmount > 0
+            ? `차액 ${formatAmount(res.proratedAmount)}원이 등록된 결제수단으로 결제되었고,`
+            : '즉시 결제할 차액은 없고,';
         setChangeMsg(
-          `업그레이드가 적용되었습니다. 차액 ${formatAmount(res.proratedAmount)}원이 등록된 결제수단으로 결제되었고, 다음 결제일(${formatDate(res.expiresAt)})은 유지됩니다.`,
+          `업그레이드가 적용되었습니다. ${chargeMessage} 다음 결제일(${formatDate(res.expiresAt)})은 유지됩니다.`,
         );
       } else {
         setChangeMsg(
@@ -433,6 +437,17 @@ export default function SubscriptionManagePage() {
               <div className={styles.previewRow}>
                 <span className={styles.previewLabel}>{'적용일'}</span>
                 <span className={styles.previewValue}>{formatDate(preview.effectiveDate)}</span>
+              </div>
+              <div className={styles.previewRow}>
+                <span className={styles.previewLabel}>{'다음 결제일'}</span>
+                <span className={styles.previewValue}>{formatDate(preview.nextBillingDate)}</span>
+              </div>
+              <div className={styles.previewRow}>
+                <span className={styles.previewLabel}>{'다음 결제 금액'}</span>
+                <span className={styles.previewValue}>
+                  {'\u20A9'}
+                  {formatAmount(preview.nextBillingAmount)}
+                </span>
               </div>
             </div>
           )}

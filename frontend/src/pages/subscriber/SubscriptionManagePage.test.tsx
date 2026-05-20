@@ -127,7 +127,7 @@ describe('SubscriptionManagePage', () => {
     });
   });
 
-  it('routes upgrades through the payment page instead of direct subscription change', async () => {
+  it('changes upgrades through the subscription API after preview confirmation', async () => {
     fetchSubscriptionPlansMock.mockResolvedValue([
       {
         id: 1,
@@ -179,6 +179,8 @@ describe('SubscriptionManagePage', () => {
       changeType: 'UPGRADE',
       proratedAmount: 5000,
       effectiveDate: '2026-05-16',
+      nextBillingDate: '2026-06-01',
+      nextBillingAmount: 19900,
       newPlanName: 'DELUXE',
       newBillingCycle: 'MONTHLY',
     });
@@ -195,6 +197,8 @@ describe('SubscriptionManagePage', () => {
 
     fireEvent.click(await screen.findByText('디럭스'));
     await screen.findByText('업그레이드');
+    await screen.findByText('다음 결제 금액');
+    await screen.findByText('₩19,900');
     fireEvent.click(screen.getByRole('button', { name: '플랜 변경 확인' }));
 
     await waitFor(() => {

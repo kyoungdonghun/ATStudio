@@ -180,13 +180,14 @@
 
 **Main Flow — UPGRADE (new plan price > current plan price)**
 1. User selects the new subscription plan and billing cycle.
-2. Frontend calls UTIL-013 to calculate and display proratedAmount.
+2. Frontend calls UTIL-013 to calculate and display `proratedAmount`, next billing date, and next billing amount.
 3. User confirms the preview.
 4. Frontend sends a change request including subscriptionId and billingCycle to the backend.
-5. Backend requires an active billing agreement and immediately charges `proratedAmount` with the stored billing key.
-6. After charge success, backend updates `user_subscriptions` to the new plan and selected billingCycle while preserving the current `expiresAt`.
-7. Backend saves the prorated payment record in `subscription_payments`.
-8. Backend returns the updated subscription information (including proratedAmount).
+5. Backend requires an active billing agreement and immediately charges whole-KRW `proratedAmount` with the stored billing key when the amount is greater than `0`.
+6. If `proratedAmount = 0`, backend skips the provider charge but still keeps the active billing agreement requirement.
+7. After charge success or zero-amount skip, backend updates `user_subscriptions` to the new plan and selected billingCycle while preserving the current `expiresAt`.
+8. Backend saves the prorated payment record in `subscription_payments` only when a provider charge is attempted and succeeds.
+9. Backend returns the updated subscription information (including proratedAmount).
    - New plan services (downloadPerDay, maxWhitelistChannels) are applied immediately.
    - The next billing date remains the existing `expiresAt`.
    - The selected billingCycle is used by the next renewal charge.
@@ -203,7 +204,7 @@
    - Current plan services remain until expiresAt.
 
 **Postconditions**
-- UPGRADE: billing-key charge succeeds first, then `user_subscriptions` is updated immediately. Payment record saved in `subscription_payments`. New plan benefits active and next billing date preserved.
+- UPGRADE: billing-key charge succeeds first when `proratedAmount > 0`, then `user_subscriptions` is updated immediately. Payment record is saved in `subscription_payments` only for a real charge. New plan benefits active and next billing date preserved.
 - DOWNGRADE: pendingSubscriptionId and pendingBillingCycle saved. Current plan active until expiresAt. New plan applied automatically at expiresAt.
 
 > **Note**: Subscription changes do NOT affect track usage licenses (licenses table). Previously issued licenses are retained as-is.

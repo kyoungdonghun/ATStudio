@@ -7,6 +7,8 @@ public record SubscriptionChangePreviewResponse(
         String changeType,
         BigDecimal proratedAmount,
         LocalDate effectiveDate,
+        LocalDate nextBillingDate,
+        BigDecimal nextBillingAmount,
         String newPlanName,
         String newBillingCycle
 ) {

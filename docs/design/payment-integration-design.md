@@ -1,6 +1,6 @@
 ---
-version: 0.4
-last_updated: 2026-05-19
+version: 0.5
+last_updated: 2026-05-20
 project: ATS
 owner: SA
 category: design
@@ -473,12 +473,13 @@ sequenceDiagram
 2. Frontend calls `GET /api/utils/subscription-change-preview`.
 3. User confirms the preview.
 4. Backend requires an active billing agreement.
-5. Backend recalculates the remaining-period price difference.
-6. Backend creates a `PaymentOrder` with `purpose = UPGRADE` and `provider = TOSS_BILLING`.
+5. Backend recalculates the remaining-period price difference and rounds the immediate amount to whole KRW.
+6. If the rounded amount is greater than `0`, backend creates a `PaymentOrder` with `purpose = UPGRADE` and `provider = TOSS_BILLING`.
 7. Backend charges the stored billing key with `RecurringPaymentProvider.charge()`.
-8. After charge success, backend applies the higher plan immediately while preserving the current `expiresAt`.
-9. Backend saves `subscription_payments` with the charged amount.
-10. The next renewal date remains unchanged; the next renewal charge uses the upgraded plan and selected billing cycle.
+8. If the rounded amount is `0`, backend skips the provider charge but still requires an active billing agreement for the next renewal.
+9. After charge success or a zero-amount skip, backend applies the higher plan immediately while preserving the current `expiresAt`.
+10. Backend saves `subscription_payments` only when a provider charge is attempted and succeeds.
+11. The next renewal date remains unchanged; the next renewal charge uses the upgraded plan and selected billing cycle.
 
 ### 11.3 Downgrade
 
@@ -695,7 +696,7 @@ Sensitive-data boundary:
 
 - Legacy `UserSubscriptionService.subscribe()` compatibility endpoint still performs direct mock-style subscription mutation and should remain outside user-facing real-PG checkout.
 - Current one-time Toss confirm calls the PG before local subscription mutation, but this path is no longer the subscription upgrade path.
-- `proratedAmount` must mean "amount to charge" for PG integration. Negative values must not be sent to PG.
+- `proratedAmount` must mean "amount to charge" for PG integration. Negative values must not be sent to PG; Toss billing charges must use whole-KRW amounts.
 - Test mode safety must be explicit in configuration, not implied by class names.
 - KakaoPay and TossPay test behavior differs by integration path. Provider-specific docs must be checked again before implementation.
 - Toss billing-key flow uses server-side API keys and billing keys. Treat them as sensitive payment credentials.

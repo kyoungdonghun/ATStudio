@@ -197,28 +197,31 @@ public class UserSubscriptionService {
         if (isUpgrade) {
             BigDecimal proratedAmount = calculateProratedUpgradeAmount(current, newPlan);
             BillingAgreement agreement = findActiveBillingAgreement(user);
-            PaymentOrder order = createUpgradeOrder(user, current, newPlan, request.billingCycle(), proratedAmount, agreement);
-            BillingChargeResult chargeResult = chargeUpgrade(order, agreement);
-            if (!chargeResult.success()) {
-                order.markFailed(chargeResult.failureCode(), chargeResult.failureMessage());
-                throw new BusinessException(BUSINESS_ERROR.PAYMENT_CONFIRM_FAILED);
+            if (requiresImmediateCharge(proratedAmount)) {
+                PaymentOrder order = createUpgradeOrder(user, current, newPlan, request.billingCycle(), proratedAmount, agreement);
+                BillingChargeResult chargeResult = chargeUpgrade(order, agreement);
+                if (!chargeResult.success()) {
+                    order.markFailed(chargeResult.failureCode(), chargeResult.failureMessage());
+                    throw new BusinessException(BUSINESS_ERROR.PAYMENT_CONFIRM_FAILED);
+                }
+
+                subscriptionPaymentRepository.save(SubscriptionPayment.builder()
+                        .paymentOrder(order)
+                        .billingAgreement(agreement)
+                        .provider(order.getProvider())
+                        .user(user)
+                        .userSubscription(current)
+                        .subscription(newPlan)
+                        .billingCycle(request.billingCycle())
+                        .amount(proratedAmount)
+                        .paymentStatus(PaymentStatus.DONE)
+                        .pgTransactionId(chargeResult.transactionId())
+                        .build());
+                order.markDone(chargeResult.transactionId(), current, chargeResult.providerPayload());
+                agreement.recordSuccessfulCharge(agreement.getNextBillingAt());
             }
 
             current.upgradeKeepingPeriod(newPlan, request.billingCycle());
-            subscriptionPaymentRepository.save(SubscriptionPayment.builder()
-                    .paymentOrder(order)
-                    .billingAgreement(agreement)
-                    .provider(order.getProvider())
-                    .user(user)
-                    .userSubscription(current)
-                    .subscription(newPlan)
-                    .billingCycle(request.billingCycle())
-                    .amount(proratedAmount)
-                    .paymentStatus(PaymentStatus.DONE)
-                    .pgTransactionId(chargeResult.transactionId())
-                    .build());
-            order.markDone(chargeResult.transactionId(), current, chargeResult.providerPayload());
-            agreement.recordSuccessfulCharge(agreement.getNextBillingAt());
 
             return new ChangeSubscriptionResponse(
                     SubscriptionResponse.from(newPlan),
@@ -269,7 +272,8 @@ public class UserSubscriptionService {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
         return difference.multiply(BigDecimal.valueOf(remainingDays))
-                .divide(BigDecimal.valueOf(totalDays), 2, RoundingMode.HALF_UP);
+                .divide(BigDecimal.valueOf(totalDays), 2, RoundingMode.HALF_UP)
+                .setScale(0, RoundingMode.HALF_UP);
     }
 
     private PaymentOrder createUpgradeOrder(
@@ -320,6 +324,10 @@ public class UserSubscriptionService {
         return billingCycle == BillingCycle.MONTHLY
                 ? subscription.getPriceMonthly()
                 : subscription.getPriceYearly();
+    }
+
+    private boolean requiresImmediateCharge(BigDecimal amount) {
+        return amount != null && amount.signum() > 0;
     }
 
     private String orderName(PaymentOrder order) {

@@ -57,4 +57,3 @@
 
 ## Follow-ups
 - Production UX can later improve the payment method missing case and recovery from billing charge failure.
-

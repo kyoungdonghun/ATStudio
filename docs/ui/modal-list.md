@@ -1,6 +1,6 @@
 ---
-version: 1.3
-last_updated: 2026-03-29
+version: 1.4
+last_updated: 2026-05-20
 project: ATS
 owner: docops
 category: guide
@@ -143,18 +143,19 @@ dependencies:
   |                                                       |
   |  [업그레이드 분기]        [다운그레이드 분기]            |
   |  즉시 적용               다음 결제일부터 적용             |
-  |  proratedAmount 표시     "추가 결제 없음" 안내           |
-  |  (TODO T-2 API)          다음 결제일: {expires_at}      |
+  |  즉시 결제 차액 표시      "추가 결제 없음" 안내           |
+  |  다음 결제일/금액 표시    다음 결제일: {expires_at}      |
   |                                                       |
   |  [취소]   [플랜 변경 확인]                               |
   +-------------------------------------------------------+
 
   업그레이드 경로:
     GET /api/utils/subscription-change-preview (T-2)
-      → proratedAmount = 남은 기간의 플랜 차액
+      → proratedAmount = 남은 기간의 정수 원 플랜 차액
       → [플랜 변경 확인] 클릭
       → PUT 6.7 /api/user-subscriptions/me
       → 서버가 active billing agreement로 차액 즉시 결제
+      → proratedAmount = 0이면 provider charge 없이 즉시 적용
       → 결제 성공 후 상위 플랜 즉시 적용
 
   다운그레이드 경로:
@@ -246,7 +247,7 @@ dependencies:
 | # | 항목 | 상태 |
 |---|------|------|
 | T-1 | `nextResetAt` 필드 (`GET /api/utils/download-count`) | ✅ 완료 |
-| T-2 | `GET /api/utils/subscription-change-preview` | ✅ 완료 (UPGRADE/DOWNGRADE 분기, proratedAmount) |
+| T-2 | `GET /api/utils/subscription-change-preview` | ✅ 완료 (UPGRADE/DOWNGRADE 분기, proratedAmount, nextBillingDate, nextBillingAmount) |
 | T-3 | `user_subscriptions` pending 컬럼 + DOWNGRADE 예약 | ✅ 완료 (스케줄러 적용은 별도 REQ) |
 
 ---

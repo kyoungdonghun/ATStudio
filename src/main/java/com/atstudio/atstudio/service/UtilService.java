@@ -201,12 +201,15 @@ public class UtilService {
             BigDecimal proratedAmount = totalDays > 0 && remainingDays > 0 && priceDifference.signum() > 0
                     ? priceDifference.multiply(BigDecimal.valueOf(remainingDays))
                         .divide(BigDecimal.valueOf(totalDays), 2, RoundingMode.HALF_UP)
+                        .setScale(0, RoundingMode.HALF_UP)
                     : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
             return new SubscriptionChangePreviewResponse(
                     "UPGRADE",
                     proratedAmount,
                     today,
+                    current.getExpiresAt(),
+                    priceFor(newPlan, billingCycle),
                     newPlan.getName(),
                     billingCycle.name()
             );
@@ -216,10 +219,18 @@ public class UtilService {
                     "DOWNGRADE",
                     BigDecimal.ZERO,
                     current.getExpiresAt(),
+                    current.getExpiresAt(),
+                    priceFor(newPlan, billingCycle),
                     newPlan.getName(),
                     billingCycle.name()
             );
         }
+    }
+
+    private BigDecimal priceFor(Subscription subscription, BillingCycle billingCycle) {
+        return billingCycle == BillingCycle.MONTHLY
+                ? subscription.getPriceMonthly()
+                : subscription.getPriceYearly();
     }
 
     private User findUser(Long userID) {

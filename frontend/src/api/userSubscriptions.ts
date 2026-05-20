@@ -31,6 +31,8 @@ export interface SubscriptionChangePreview {
   changeType: 'UPGRADE' | 'DOWNGRADE';
   proratedAmount: number;
   effectiveDate: string;
+  nextBillingDate: string;
+  nextBillingAmount: number;
   newPlanName: string;
   newBillingCycle: 'MONTHLY' | 'YEARLY';
 }

@@ -1,8 +1,8 @@
 # ATStudio API Specification v9 (Confirmed)
 
 > **Status**: 9th confirmed — live contract sync (download history, public capabilities, auth/profile conflict cleanup, payment billing sync, recurring-first subscription changes)
-> **Base**: v8 + 2026-05-19 payment change patch
-> **Date**: 2026-05-19
+> **Base**: v8 + 2026-05-20 payment preview/rounding patch
+> **Date**: 2026-05-20
 
 ---
 
@@ -20,6 +20,7 @@
 | Z8 | §6.3 new entries | Added Toss billing agreement APIs: prepare, confirm, read current, cancel current |
 | Z9 | Full API Summary | Updated total count from 110 → 114 |
 | Z10 | §6.3/§6.7 payment policy | Subscription user flow is recurring-first; upgrade uses active billing agreement charge through §6.7, not one-time Toss Widget checkout |
+| Z11 | §6.7/§14.8 payment preview | Upgrade charge amount is whole KRW; preview exposes nextBillingDate and nextBillingAmount |
 
 ---
 
@@ -1394,7 +1395,7 @@ These endpoints are design candidates for the next operations phase. They are no
 |-------|-------|
 | **URL** | `PUT /api/user-subscriptions/me` |
 | **Auth** | auth required |
-| **Description** | Change plan or billing cycle. Behavior differs by change type: **UPGRADE** requires an active billing agreement, immediately charges the remaining-period difference through recurring billing, then applies the higher plan while preserving the current next billing date. **DOWNGRADE** is saved as pending (`pendingSubscriptionId`, `pendingBillingCycle`) and takes effect after the current period expires. Response includes `changeType` to indicate which branch was taken. |
+| **Description** | Change plan or billing cycle. Behavior differs by change type: **UPGRADE** requires an active billing agreement, immediately charges the remaining-period difference through recurring billing, then applies the higher plan while preserving the current next billing date. The immediate charge is rounded to whole KRW; if the rounded amount is `0`, no provider charge is attempted. **DOWNGRADE** is saved as pending (`pendingSubscriptionId`, `pendingBillingCycle`) and takes effect after the current period expires. Response includes `changeType` to indicate which branch was taken. |
 
 **Request**
 ```json
@@ -1417,7 +1418,7 @@ These endpoints are design candidates for the next operations phase. They are no
 }
 ```
 
-> - `changeType`: `"UPGRADE"` — active billing agreement is charged for `proratedAmount`; new plan applies immediately; current `expiresAt` remains the next billing date.
+> - `changeType`: `"UPGRADE"` — active billing agreement is charged for `proratedAmount` when the rounded amount is greater than `0`; new plan applies immediately; current `expiresAt` remains the next billing date.
 > - `changeType`: `"DOWNGRADE"` — pending values (`pendingSubscriptionId`, `pendingBillingCycle`) stored; current plan remains active until `expiresAt`; new plan activates automatically after expiry.
 > - `billingCycle` in an UPGRADE response is the billing cycle to use on the next renewal charge.
 
@@ -2298,7 +2299,7 @@ nickname: String (required)
 |-------|-------|
 | **URL** | `GET /api/utils/subscription-change-preview` |
 | **Auth** | auth required (subscribers only) |
-| **Description** | Preview the financial and scheduling impact of a plan change before committing. Returns whether the change is an UPGRADE or DOWNGRADE, the immediate upgrade charge amount, and effective dates. |
+| **Description** | Preview the financial and scheduling impact of a plan change before committing. Returns whether the change is an UPGRADE or DOWNGRADE, the immediate upgrade charge amount, effective date, next billing date, and next billing amount. |
 
 **Query Parameters**
 ```
@@ -2310,16 +2311,20 @@ billingCycle: String (required — "MONTHLY" | "YEARLY")
 ```json
 {
   "changeType": "UPGRADE",
-  "proratedAmount": 5000.00,
+  "proratedAmount": 5000,
   "effectiveDate": "2026-03-07",
+  "nextBillingDate": "2026-04-01",
+  "nextBillingAmount": 199000.00,
   "newPlanName": "DELUXE",
   "newBillingCycle": "YEARLY"
 }
 ```
 
 > - `changeType`: `"UPGRADE"` or `"DOWNGRADE"`
-> - `proratedAmount`: Immediate charge amount for UPGRADE, `0` for DOWNGRADE
+> - `proratedAmount`: Immediate whole-KRW charge amount for UPGRADE, `0` for DOWNGRADE
 > - `effectiveDate`: LocalDate (ISO-8601) — date the new plan takes effect
+> - `nextBillingDate`: LocalDate (ISO-8601) — date of the next recurring charge
+> - `nextBillingAmount`: Amount to charge on `nextBillingDate` for the selected target plan/cycle
 > - `newPlanName`: Name of the target subscription plan
 > - `newBillingCycle`: `"MONTHLY"` or `"YEARLY"`
 

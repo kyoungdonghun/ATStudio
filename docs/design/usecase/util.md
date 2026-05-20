@@ -185,8 +185,8 @@
 | Field | Value |
 |-------|-------|
 | **Code** | UTIL-013 |
-| **Version** | 26-03-07 |
-| **Description** | Returns a preview of the financial and scheduling impact before the member confirms a subscription plan change. Used by the frontend to display proratedAmount (UPGRADE) or effectiveDate (DOWNGRADE) before initiating payment. |
+| **Version** | 26-05-20 |
+| **Description** | Returns a preview of the financial and scheduling impact before the member confirms a subscription plan change. Used by the frontend to display immediate charge amount, effective date, next billing date, and next billing amount. |
 | **Actor** | User (subscriber), Backend |
 | **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
 | **Trigger** | Frontend calls this automatically when the user selects a new plan on the subscription change screen. |
@@ -196,16 +196,18 @@
 1. Frontend sends a request with subscriptionId (target new plan) and billingCycle (MONTHLY/YEARLY) as query parameters. (`GET /api/utils/subscription-change-preview?subscriptionId=X&billingCycle=Y`)
 2. Backend retrieves the current user_subscriptions record and the target subscription plan.
 3. Backend determines change type by comparing plan prices:
-   - If new plan daily rate > current plan daily rate → changeType=UPGRADE
+   - If new plan monthly price > current plan monthly price → changeType=UPGRADE
    - Otherwise → changeType=DOWNGRADE
-4. For UPGRADE: Backend calculates proratedAmount = (newDailyRate - oldDailyRate) × remainingDays.
+4. For UPGRADE: Backend calculates proratedAmount = (new period price - current period price) × remainingDays / totalDays, rounded to whole KRW.
    For DOWNGRADE: proratedAmount = 0. effectiveDate = current expiresAt.
 5. Backend returns the preview response.
 
 **Response Fields**
 - `changeType`: UPGRADE or DOWNGRADE
-- `proratedAmount`: Amount to be charged now (UPGRADE) or 0 (DOWNGRADE)
+- `proratedAmount`: Whole-KRW amount to be charged now (UPGRADE) or 0 (DOWNGRADE)
 - `effectiveDate`: Date the new plan becomes active (UPGRADE: today, DOWNGRADE: current expiresAt)
+- `nextBillingDate`: Date of the next recurring charge
+- `nextBillingAmount`: Amount to charge on nextBillingDate for the selected target plan/cycle
 - `newPlanName`: Display name of the target plan
 - `newBillingCycle`: Billing cycle selected (MONTHLY/YEARLY)
 

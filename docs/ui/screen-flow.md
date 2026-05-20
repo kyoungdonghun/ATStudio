@@ -1,6 +1,6 @@
 ---
-version: 1.3
-last_updated: 2026-03-29
+version: 1.4
+last_updated: 2026-05-20
 project: ATS
 owner: MA
 category: guide
@@ -224,9 +224,9 @@ dependencies:
   │
    ├── "플랜 변경" → [M-09 PlanCompareModal]
    │    업그레이드:
-   │      GET /api/utils/subscription-change-preview → proratedAmount 표시
+   │      GET /api/utils/subscription-change-preview → 즉시 결제 차액, 적용일, 다음 결제일, 다음 결제 금액 표시
    │      → 사용자가 확인 → PUT 6.7
-   │      → 서버가 active billing agreement로 차액 즉시 결제
+   │      → 서버가 active billing agreement로 정수 원 차액 즉시 결제
    │      → 결제 성공 후 상위 플랜 즉시 적용, 다음 결제일은 유지
    │    다운그레이드:
    │      "다음 결제일({expiresAt})부터 적용 · 추가 결제 없음" 안내
