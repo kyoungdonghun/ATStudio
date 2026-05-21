@@ -218,7 +218,7 @@ dependencies:
            billingKey, and provider payloads are never shown to the user.
 
 [16-3 내 구독 현황]  ← GET /api/user-subscriptions/me
-  │  pending 구독 있을 시: "예약된 변경: {플랜명} ({expiresAt}부터)" 표시
+  │  pending 구독 있을 시: "예약된 변경: {플랜명} (다음 결제 성공 후 적용)" 표시
   │  자동 갱신 있을 시: 상태(ACTIVE/SUSPENDED/CANCELLED), 결제수단(마스킹), 다음 결제일 표시
   │  결제 실패 유예 중: "결제 재시도 중 · {expiresAt}까지 이용 가능" 표시
   │
@@ -230,7 +230,7 @@ dependencies:
    │      → 결제 성공 후 상위 플랜 즉시 적용, 현재 결제 주기와 다음 결제일은 유지
    │      → 선택한 결제 주기가 다르면 다음 갱신용 pendingBillingCycle 표시
    │    다운그레이드:
-   │      "다음 결제일({expiresAt})부터 적용 · 추가 결제 없음" 안내
+   │      "다음 결제일({expiresAt}) 결제 성공 후 적용 · 즉시 추가 결제 없음" 안내
   │      → [변경 예약] → PUT 6.7 → 화면 갱신 (pending 표시)
   │
   ├── "구독 취소" → [M-10 StatusModal]

@@ -690,7 +690,7 @@ Sensitive-data boundary:
 | PAY-D09 | Initial recurring subscription charge | Billing-key registration followed by immediate first charge (accepted) |
 | PAY-D10 | Production checkout surface | Dedicated checkout/callback route preferred for recurring billing auth |
 | PAY-D11 | Upgrade payment model | Use active billing agreement for immediate prorated charge; preserve current billing cycle and next billing date |
-| PAY-D12 | Downgrade payment model | Schedule pending plan/cycle and apply at next renewal with no immediate charge |
+| PAY-D12 | Downgrade payment model | Schedule pending plan/cycle and apply after the next successful renewal charge with no immediate charge |
 
 ## 16. Implementation Risk Notes
 

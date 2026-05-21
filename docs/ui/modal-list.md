@@ -142,7 +142,7 @@ dependencies:
   | 현재: BASIC MONTHLY  →  변경: PREMIUM MONTHLY          |
   |                                                       |
   |  [업그레이드 분기]        [다운그레이드 분기]            |
-  |  즉시 적용               다음 결제일부터 적용             |
+  |  즉시 적용               다음 결제 성공 후 적용             |
   |  즉시 결제 차액 표시      "추가 결제 없음" 안내           |
   |  다음 결제일/금액 표시    다음 결제일: {expires_at}      |
   |                                                       |
@@ -161,7 +161,7 @@ dependencies:
       → 선택한 결제 주기가 다르면 다음 갱신용 pendingBillingCycle로 저장
 
   다운그레이드 경로:
-    "다음 결제일({expires_at})부터 변경 · 추가 결제 없음" 안내
+    "다음 결제일({expires_at}) 결제 성공 후 변경 · 즉시 추가 결제 없음" 안내
       → [변경 예약] 클릭
       → PUT 6.7 /api/user-subscriptions/me (pendingSubscriptionId)
       → 200 OK → 화면 갱신

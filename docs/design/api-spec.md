@@ -1419,7 +1419,7 @@ These endpoints are design candidates for the next operations phase. They are no
 ```
 
 > - `changeType`: `"UPGRADE"` — active billing agreement is charged for `proratedAmount` when the rounded amount is greater than `0`; new plan applies immediately; current `billingCycle` and `expiresAt` remain the active period basis.
-> - `changeType`: `"DOWNGRADE"` — pending values (`pendingSubscriptionId`, `pendingBillingCycle`) stored; current plan remains active until `expiresAt`; new plan activates automatically after expiry.
+> - `changeType`: `"DOWNGRADE"` — pending values (`pendingSubscriptionId`, `pendingBillingCycle`) stored; current plan remains active until `expiresAt`; new plan/cycle activates after the next successful renewal charge.
 > - `billingCycle` in an UPGRADE response is the requested billing cycle to use on the next renewal charge; the current subscription response may still show the active period's current `billingCycle` until renewal.
 
 ## 6.8 Update User Subscription (Admin)

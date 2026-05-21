@@ -82,6 +82,8 @@ public class UserSubscription extends BaseEntity {
 
     public void expire() {
         this.status = SubscriptionStatus.EXPIRED;
+        this.pendingSubscription = null;
+        this.pendingBillingCycle = null;
     }
 
     public void applyPending() {

@@ -28,8 +28,7 @@ public class SubscriptionScheduler {
     /**
      * 매일 00:30에 만료된 구독을 처리한다.
      * recurring renewal job이 먼저 grace/renewal 상태를 정리한 뒤 만료 처리를 수행한다.
-     * - pending 다운그레이드가 있으면 새 플랜으로 전환
-     * - 없으면 EXPIRED 상태로 변경
+     * pending 변경은 결제 성공 갱신 경로에서만 적용하며, 결제 없이 만료된 구독은 EXPIRED로 닫는다.
      */
     @Scheduled(cron = "0 30 0 * * *")
     @Transactional
@@ -37,21 +36,15 @@ public class SubscriptionScheduler {
         LocalDate today = LocalDate.now();
         List<UserSubscription> expired = userSubscriptionRepository.findExpired(today);
 
-        int downgraded = 0;
         int expiredCount = 0;
 
         for (UserSubscription sub : expired) {
-            if (sub.hasPending()) {
-                sub.applyPending();
-                downgraded++;
-            } else {
-                sub.expire();
-                expiredCount++;
-            }
+            sub.expire();
+            expiredCount++;
         }
 
-        if (downgraded > 0 || expiredCount > 0) {
-            log.info("구독 스케줄러 처리 완료: 다운그레이드 {}건, 만료 {}건", downgraded, expiredCount);
+        if (expiredCount > 0) {
+            log.info("구독 스케줄러 처리 완료: 만료 {}건", expiredCount);
         }
     }
 }

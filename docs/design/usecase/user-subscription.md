@@ -199,13 +199,13 @@
 4. Frontend sends a change request including subscriptionId and billingCycle to the backend.
 5. Backend stores pendingSubscriptionId and pendingBillingCycle on the current user_subscriptions record.
 6. Backend does NOT change the current plan. No PG payment at this point.
-7. At expiresAt, the system automatically applies the pending plan (replaces subscriptionId/billingCycle, resets expiresAt).
+7. At the next successful renewal charge, the system applies the pending plan/cycle (replaces subscriptionId/billingCycle, resets expiresAt).
 8. Backend returns a 200 response confirming the scheduled change.
    - Current plan services remain until expiresAt.
 
 **Postconditions**
 - UPGRADE: billing-key charge succeeds first when `proratedAmount > 0`, then `user_subscriptions.subscription_id` is updated immediately. Payment record is saved in `subscription_payments` only for a real charge. New plan benefits are active immediately, while current `billingCycle` and next billing date are preserved for the active period. If the requested billing cycle differs, pendingSubscriptionId and pendingBillingCycle are saved for the next renewal.
-- DOWNGRADE: pendingSubscriptionId and pendingBillingCycle saved. Current plan active until expiresAt. New plan/cycle applied automatically at the next successful renewal.
+- DOWNGRADE: pendingSubscriptionId and pendingBillingCycle saved. Current plan active until expiresAt. New plan/cycle is applied only after the next successful renewal charge; if renewal is cancelled or fails through grace, the subscription expires without applying pending changes.
 
 > **Note**: Subscription changes do NOT affect track usage licenses (licenses table). Previously issued licenses are retained as-is.
 

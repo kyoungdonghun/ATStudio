@@ -68,6 +68,35 @@ class SubscriptionSchedulerTest {
         assertThat(expired.getStatus()).isEqualTo(SubscriptionStatus.EXPIRED);
     }
 
+    @Test
+    @DisplayName("processExpiredSubscriptions expires pending changes without applying them for free")
+    void processExpiredSubscriptions_expiresPendingWithoutApplying() {
+        SubscriptionScheduler scheduler = new SubscriptionScheduler(
+                userSubscriptionRepository,
+                recurringRenewalService);
+        User user = buildUser(1L);
+        Subscription currentPlan = buildSubscription(10L);
+        Subscription pendingPlan = buildSubscription(20L);
+        UserSubscription expired = UserSubscription.builder()
+                .user(user)
+                .subscription(currentPlan)
+                .billingCycle(BillingCycle.YEARLY)
+                .status(SubscriptionStatus.ACTIVE)
+                .startedAt(LocalDate.now().minusYears(1))
+                .expiresAt(LocalDate.now().minusDays(1))
+                .build();
+        expired.schedulePendingChange(pendingPlan, BillingCycle.MONTHLY);
+        given(userSubscriptionRepository.findExpired(any(LocalDate.class))).willReturn(List.of(expired));
+
+        scheduler.processExpiredSubscriptions();
+
+        assertThat(expired.getStatus()).isEqualTo(SubscriptionStatus.EXPIRED);
+        assertThat(expired.getSubscription()).isEqualTo(currentPlan);
+        assertThat(expired.getBillingCycle()).isEqualTo(BillingCycle.YEARLY);
+        assertThat(expired.getPendingSubscription()).isNull();
+        assertThat(expired.getPendingBillingCycle()).isNull();
+    }
+
     private User buildUser(Long id) {
         User user = User.builder()
                 .email("user" + id + "@test.com")
