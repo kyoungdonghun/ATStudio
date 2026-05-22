@@ -232,6 +232,7 @@ public class BillingAgreementApplicationService {
             if (!cancelResult.success()) {
                 throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_CANCEL_FAILED);
             }
+            agreement.clearIssuedKey();
         }
 
         agreement.cancel();

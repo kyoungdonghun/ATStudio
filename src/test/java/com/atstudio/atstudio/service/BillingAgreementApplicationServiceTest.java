@@ -342,6 +342,9 @@ class BillingAgreementApplicationServiceTest {
         BillingAgreementResponse response = service.cancelMyBillingAgreement(buildUserDetails(1L));
 
         assertThat(response.status()).isEqualTo(BillingAgreementStatus.CANCELLED);
+        assertThat(agreement.getBillingKeyCiphertext()).isNull();
+        assertThat(agreement.getBillingKeyFingerprint()).isNull();
+        assertThat(agreement.getNextBillingAt()).isNull();
         assertThat(subscriptionAccess.getStatus()).isEqualTo(SubscriptionStatus.CANCELLED);
         assertThat(response.toString()).doesNotContain("billing_raw_key");
         verify(recurringPaymentProvider).cancelAgreement(any());

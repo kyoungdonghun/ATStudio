@@ -218,7 +218,7 @@ dependencies:
 
 [16-3 내 구독 현황]  ← GET /api/user-subscriptions/me
   │  pending 구독 있을 시: "예약된 변경: {플랜명} (다음 결제 성공 후 적용)" 표시
-  │  자동 갱신 있을 시: 상태(ACTIVE/SUSPENDED/CANCELLED), 결제수단(마스킹), 다음 결제일 표시
+  │  결제 정보 있을 시: 상태(ACTIVE/SUSPENDED/CANCELLED), 결제수단(마스킹), 다음 결제일 표시
   │  결제 실패 유예 중: "결제 재시도 중 · {expiresAt}까지 이용 가능" 표시
   │
    ├── "플랜 변경" → [M-09 PlanCompareModal]
@@ -228,15 +228,17 @@ dependencies:
    │      → 서버가 active billing agreement로 정수 원 차액 즉시 결제
    │      → 결제 성공 후 상위 플랜 즉시 적용, 현재 결제 주기와 다음 결제일은 유지
    │      → 선택한 결제 주기가 다르면 다음 갱신용 pendingBillingCycle 표시
-   │    다운그레이드:
+   │    다음 결제일 변경:
    │      "다음 결제일({expiresAt}) 결제 성공 후 적용 · 즉시 추가 결제 없음" 안내
   │      → [변경 예약] → PUT 6.7 → 화면 갱신 (pending 표시)
+  │    현재 플랜/현재 주기:
+  │      pending 변경이 있으면 [예약 해제] → PUT 6.7 → 화면 갱신
   │
   ├── "구독 취소" → [M-10 StatusModal]
        "취소 후 {expiresAt}까지 이용 가능" 안내
        확인 → 6.10 DELETE → 화면 갱신
-  └── "자동 갱신 해지" → confirm → DELETE /api/payments/billing-agreements/me
-       "다음 결제부터 자동 갱신이 중지되며, 현재 이용 기간은 유지됩니다" 안내
+  └── 취소 유예 중 "구독 유지하기" → POST /api/user-subscriptions/me/reactivate
+       저장된 빌링키가 유효하면 다음 결제 예약을 복구하고 status=ACTIVE로 전환
 ```
 
 ---

@@ -188,24 +188,26 @@
 | **Version** | 26-05-20 |
 | **Description** | Returns a preview of the financial and scheduling impact before the member confirms a subscription plan change. Used by the frontend to display immediate charge amount, effective date, next billing date, and next billing amount. |
 | **Actor** | User (subscriber), Backend |
-| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
+| **Preconditions** | Logged in. Has active or grace-period subscription. |
 | **Trigger** | Frontend calls this automatically when the user selects a new plan on the subscription change screen. |
 | **Related UC** | PAYMENT-007 (change my subscription) |
 
 **Main Flow**
 1. Frontend sends a request with subscriptionId (target new plan) and billingCycle (MONTHLY/YEARLY) as query parameters. (`GET /api/utils/subscription-change-preview?subscriptionId=X&billingCycle=Y`)
 2. Backend retrieves the current user_subscriptions record and the target subscription plan.
-3. Backend determines change type by comparing plan prices:
+3. Backend determines change type:
+   - If target plan and billingCycle match the current active period → changeType=NO_CHANGE
    - If new plan monthly price > current plan monthly price → changeType=UPGRADE
-   - Otherwise → changeType=DOWNGRADE
+   - Otherwise → changeType=SCHEDULED_CHANGE
 4. For UPGRADE: Backend calculates proratedAmount = (new period price - current period price) × remainingDays / totalDays using the active period's current billing cycle, rounded to whole KRW.
-   For DOWNGRADE: proratedAmount = 0. effectiveDate = current expiresAt.
+   For SCHEDULED_CHANGE: proratedAmount = 0. effectiveDate = current expiresAt.
+   For NO_CHANGE: proratedAmount = 0. effectiveDate = today.
 5. Backend returns the preview response.
 
 **Response Fields**
-- `changeType`: UPGRADE or DOWNGRADE
-- `proratedAmount`: Whole-KRW amount to be charged now (UPGRADE) or 0 (DOWNGRADE)
-- `effectiveDate`: Date the new plan becomes active (UPGRADE: today, DOWNGRADE: current expiresAt)
+- `changeType`: UPGRADE, SCHEDULED_CHANGE, or NO_CHANGE
+- `proratedAmount`: Whole-KRW amount to be charged now (UPGRADE) or 0 (SCHEDULED_CHANGE/NO_CHANGE)
+- `effectiveDate`: Date the new plan becomes active (UPGRADE/NO_CHANGE: today, SCHEDULED_CHANGE: current expiresAt)
 - `nextBillingDate`: Date of the next recurring charge
 - `nextBillingAmount`: Amount to charge on nextBillingDate for the selected target plan/cycle
 - `newPlanName`: Display name of the target plan

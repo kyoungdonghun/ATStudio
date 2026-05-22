@@ -162,6 +162,17 @@ public class BillingAgreement extends BaseEntity {
         this.status = BillingAgreementStatus.ACTIVE;
     }
 
+    public void resume(LocalDate nextBillingAt) {
+        if (isBlank(billingKeyCiphertext) || isBlank(billingKeyFingerprint)) {
+            throw new IllegalArgumentException("Issued billing key is required to resume agreement.");
+        }
+
+        this.nextBillingAt = nextBillingAt;
+        this.failureCount = 0;
+        this.cancelledAt = null;
+        this.status = BillingAgreementStatus.ACTIVE;
+    }
+
     public void recordFailedCharge() {
         this.failureCount += 1;
     }

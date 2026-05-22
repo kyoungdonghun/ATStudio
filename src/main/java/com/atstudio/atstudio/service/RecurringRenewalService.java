@@ -14,6 +14,7 @@ import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.PaymentStatus;
+import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.repository.PaymentOrderRepository;
 import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
@@ -124,6 +125,10 @@ public class RecurringRenewalService {
         }
 
         UserSubscription subscription = activeSubscription.get();
+        if (subscription.getStatus() == SubscriptionStatus.CANCELLED) {
+            agreement.cancel();
+            return RenewalOutcome.skip();
+        }
         PaymentOrder order = findOrCreateRenewalOrder(agreement, subscription);
         if (order.getStatus() == PaymentOrderStatus.DONE) {
             return RenewalOutcome.skip();

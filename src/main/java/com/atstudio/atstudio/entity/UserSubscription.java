@@ -56,6 +56,11 @@ public class UserSubscription extends BaseEntity {
         this.pendingBillingCycle = cycle;
     }
 
+    public void clearPendingChange() {
+        this.pendingSubscription = null;
+        this.pendingBillingCycle = null;
+    }
+
     public void upgrade(Subscription newSubscription, BillingCycle newBillingCycle, LocalDate newExpiresAt) {
         this.subscription = newSubscription;
         this.billingCycle = newBillingCycle;
@@ -78,6 +83,12 @@ public class UserSubscription extends BaseEntity {
 
     public void cancel() {
         this.status = SubscriptionStatus.CANCELLED;
+    }
+
+    public void reactivate() {
+        if (this.status != SubscriptionStatus.EXPIRED) {
+            this.status = SubscriptionStatus.ACTIVE;
+        }
     }
 
     public void expire() {

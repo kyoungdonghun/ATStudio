@@ -370,7 +370,7 @@ class UtilServiceTest {
     }
 
     @Test
-    @DisplayName("previewSubscriptionChange() DOWNGRADE - 저렴한 플랜 변경 시 proratedAmount = 0, effectiveDate = expiresAt")
+    @DisplayName("previewSubscriptionChange() SCHEDULED_CHANGE - 저렴한 플랜 변경 시 proratedAmount = 0, effectiveDate = expiresAt")
     void previewSubscriptionChange_downgrade() {
         User user = buildUser(1L);
         Subscription currentPlan = Subscription.builder()
@@ -402,13 +402,47 @@ class UtilServiceTest {
         SubscriptionChangePreviewResponse result = utilService.previewSubscriptionChange(
                 buildUserDetails(1L), 1L, "MONTHLY");
 
-        assertThat(result.changeType()).isEqualTo("DOWNGRADE");
+        assertThat(result.changeType()).isEqualTo("SCHEDULED_CHANGE");
         assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(result.effectiveDate()).isEqualTo(expiresAt);
         assertThat(result.nextBillingDate()).isEqualTo(expiresAt);
         assertThat(result.nextBillingAmount()).isEqualByComparingTo(BigDecimal.valueOf(10000));
         assertThat(result.newPlanName()).isEqualTo("Basic");
         assertThat(result.newBillingCycle()).isEqualTo("MONTHLY");
+    }
+
+    @Test
+    @DisplayName("previewSubscriptionChange() NO_CHANGE - 현재 플랜과 현재 주기 선택 시 pending 해제 미리보기")
+    void previewSubscriptionChange_noChange() {
+        User user = buildUser(1L);
+        Subscription currentPlan = Subscription.builder()
+                .name("Pro").userType(UserType.INDIVIDUAL)
+                .downloadPerDay(20).maxWhitelistChannels(10)
+                .priceMonthly(BigDecimal.valueOf(30000)).priceYearly(BigDecimal.valueOf(300000))
+                .build();
+        ReflectionTestUtils.setField(currentPlan, "id", 2L);
+
+        UserSubscription currentSub = UserSubscription.builder()
+                .user(user).subscription(currentPlan)
+                .billingCycle(BillingCycle.YEARLY)
+                .startedAt(LocalDate.now()).expiresAt(LocalDate.now().plusYears(1))
+                .build();
+        currentSub.schedulePendingChange(currentPlan, BillingCycle.MONTHLY);
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                .willReturn(Optional.of(currentSub));
+        given(subscriptionRepository.findById(2L)).willReturn(Optional.of(currentPlan));
+
+        SubscriptionChangePreviewResponse result = utilService.previewSubscriptionChange(
+                buildUserDetails(1L), 2L, "YEARLY");
+
+        assertThat(result.changeType()).isEqualTo("NO_CHANGE");
+        assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(result.nextBillingDate()).isEqualTo(currentSub.getExpiresAt());
+        assertThat(result.nextBillingAmount()).isEqualByComparingTo(BigDecimal.valueOf(300000));
+        assertThat(result.newPlanName()).isEqualTo("Pro");
+        assertThat(result.newBillingCycle()).isEqualTo("YEARLY");
     }
 
     @Test

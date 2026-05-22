@@ -249,7 +249,7 @@ dependencies:
 | # | 항목 | 상태 |
 |---|------|------|
 | T-1 | `nextResetAt` 필드 (`GET /api/utils/download-count`) | ✅ 완료 |
-| T-2 | `GET /api/utils/subscription-change-preview` | ✅ 완료 (UPGRADE/DOWNGRADE 분기, proratedAmount, nextBillingDate, nextBillingAmount) |
+| T-2 | `GET /api/utils/subscription-change-preview` | ✅ 완료 (UPGRADE/SCHEDULED_CHANGE/NO_CHANGE 분기, proratedAmount, nextBillingDate, nextBillingAmount) |
 | T-3 | `user_subscriptions` pending 컬럼 + 다음 갱신 변경 예약 | ✅ 완료 (다운그레이드와 업그레이드 결제주기 변경 모두 next-renewal pending으로 처리) |
 
 ---

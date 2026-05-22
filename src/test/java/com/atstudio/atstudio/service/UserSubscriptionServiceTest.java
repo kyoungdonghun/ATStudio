@@ -420,7 +420,7 @@ class UserSubscriptionServiceTest {
         }
 
         @Test
-        @DisplayName("성공 - DOWNGRADE pending 저장 + payment 미호출")
+        @DisplayName("성공 - SCHEDULED_CHANGE pending 저장 + payment 미호출")
         void changeSubscription_downgrade_pending() {
             User user = buildUser(1L, UserType.INDIVIDUAL);
             Subscription currentSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
@@ -441,8 +441,8 @@ class UserSubscriptionServiceTest {
                     buildUserDetails(1L),
                     new ChangeSubscriptionRequest(10L, BillingCycle.MONTHLY));
 
-            // DOWNGRADE 확인
-            assertThat(result.changeType()).isEqualTo("DOWNGRADE");
+            // SCHEDULED_CHANGE 확인
+            assertThat(result.changeType()).isEqualTo("SCHEDULED_CHANGE");
             assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.ZERO);
 
             // pending 필드 설정됨
@@ -452,10 +452,63 @@ class UserSubscriptionServiceTest {
             // 현재 구독은 변경되지 않음 (Premium 유지)
             assertThat(us.getSubscription()).isEqualTo(currentSub);
 
-            // DOWNGRADE does not charge immediately.
+            // Scheduled changes do not charge immediately.
             verify(paymentOrderRepository, never()).save(any(PaymentOrder.class));
             verify(recurringPaymentProvider, never()).charge(any());
             verify(subscriptionPaymentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("성공 - pending 변경은 다시 다른 플랜으로 덮어쓸 수 있음")
+        void changeSubscription_overwritesPendingChange() {
+            User user = buildUser(1L, UserType.INDIVIDUAL);
+            Subscription currentSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
+            ReflectionTestUtils.setField(currentSub, "priceMonthly", BigDecimal.valueOf(29900));
+            UserSubscription us = buildUserSubscription(100L, user, currentSub,
+                    BillingCycle.YEARLY, SubscriptionStatus.ACTIVE);
+
+            Subscription pendingSub = buildSubscription(10L, "Standard", UserType.INDIVIDUAL);
+            Subscription newPendingSub = buildSubscription(30L, "Deluxe", UserType.INDIVIDUAL);
+            ReflectionTestUtils.setField(newPendingSub, "priceMonthly", BigDecimal.valueOf(19900));
+            us.schedulePendingChange(pendingSub, BillingCycle.MONTHLY);
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.of(us));
+            given(subscriptionRepository.findById(30L)).willReturn(Optional.of(newPendingSub));
+
+            ChangeSubscriptionResponse result = userSubscriptionService.changeSubscription(
+                    buildUserDetails(1L),
+                    new ChangeSubscriptionRequest(30L, BillingCycle.MONTHLY));
+
+            assertThat(result.changeType()).isEqualTo("SCHEDULED_CHANGE");
+            assertThat(us.getPendingSubscription()).isEqualTo(newPendingSub);
+            assertThat(us.getPendingBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
+        }
+
+        @Test
+        @DisplayName("성공 - 현재 플랜과 현재 주기를 선택하면 pending 변경이 해제됨")
+        void changeSubscription_samePlanAndCycleClearsPending() {
+            User user = buildUser(1L, UserType.INDIVIDUAL);
+            Subscription currentSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
+            UserSubscription us = buildUserSubscription(100L, user, currentSub,
+                    BillingCycle.YEARLY, SubscriptionStatus.ACTIVE);
+            us.schedulePendingChange(currentSub, BillingCycle.MONTHLY);
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.of(us));
+            given(subscriptionRepository.findById(20L)).willReturn(Optional.of(currentSub));
+
+            ChangeSubscriptionResponse result = userSubscriptionService.changeSubscription(
+                    buildUserDetails(1L),
+                    new ChangeSubscriptionRequest(20L, BillingCycle.YEARLY));
+
+            assertThat(result.changeType()).isEqualTo("NO_CHANGE");
+            assertThat(us.getPendingSubscription()).isNull();
+            assertThat(us.getPendingBillingCycle()).isNull();
+            verify(paymentOrderRepository, never()).save(any(PaymentOrder.class));
+            verify(recurringPaymentProvider, never()).charge(any());
         }
 
         @Test
@@ -578,14 +631,19 @@ class UserSubscriptionServiceTest {
             Subscription sub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
             UserSubscription us = buildUserSubscription(100L, user, sub,
                     BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
+            BillingAgreement agreement = buildActiveAgreement(user);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
+            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+                    .willReturn(Optional.of(agreement));
 
             userSubscriptionService.selfCancel(buildUserDetails(1L));
 
             assertThat(us.getStatus()).isEqualTo(SubscriptionStatus.CANCELLED);
+            assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.CANCELLED);
+            verify(recurringPaymentProvider, never()).charge(any());
         }
 
         @Test
@@ -601,6 +659,63 @@ class UserSubscriptionServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+        }
+    }
+
+    // -- 6.11 reactivate -----------------------------------------------------
+
+    @Nested
+    @DisplayName("reactivate()")
+    class Reactivate {
+
+        @Test
+        @DisplayName("성공 - 취소 유예 중인 구독과 빌링 약정을 재활성화")
+        void reactivate_cancelledGracePeriod() {
+            User user = buildUser(1L, UserType.INDIVIDUAL);
+            Subscription sub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
+            UserSubscription us = buildUserSubscription(100L, user, sub,
+                    BillingCycle.MONTHLY, SubscriptionStatus.CANCELLED);
+            BillingAgreement agreement = buildActiveAgreement(user);
+            agreement.cancel();
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.of(us));
+            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+                    .willReturn(Optional.of(agreement));
+
+            UserSubscriptionResponse result = userSubscriptionService.reactivate(buildUserDetails(1L));
+
+            assertThat(result.status()).isEqualTo("ACTIVE");
+            assertThat(us.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+            assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.ACTIVE);
+            assertThat(agreement.getNextBillingAt()).isEqualTo(us.getExpiresAt());
+        }
+
+        @Test
+        @DisplayName("실패 - 취소 철회 시 빌링키가 없으면 재등록 필요")
+        void reactivate_requiresStoredBillingKey() {
+            User user = buildUser(1L, UserType.INDIVIDUAL);
+            Subscription sub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
+            UserSubscription us = buildUserSubscription(100L, user, sub,
+                    BillingCycle.MONTHLY, SubscriptionStatus.CANCELLED);
+            BillingAgreement agreement = BillingAgreement.builder()
+                    .user(user)
+                    .provider(PaymentProviderType.TOSS_BILLING)
+                    .providerCustomerKey("ats_billing_customer_1")
+                    .build();
+            agreement.cancel();
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.of(us));
+            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+                    .willReturn(Optional.of(agreement));
+
+            assertThatThrownBy(() -> userSubscriptionService.reactivate(buildUserDetails(1L)))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE));
         }
     }
 

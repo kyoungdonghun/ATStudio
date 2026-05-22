@@ -41,6 +41,9 @@ public class UtilService {
     private static final String UNCONFIGURED = "UNCONFIGURED";
     private static final String LOCAL_SMTP = "LOCAL_SMTP";
     private static final String REMOTE_SMTP = "REMOTE_SMTP";
+    private static final String CHANGE_TYPE_UPGRADE = "UPGRADE";
+    private static final String CHANGE_TYPE_SCHEDULED_CHANGE = "SCHEDULED_CHANGE";
+    private static final String CHANGE_TYPE_NO_CHANGE = "NO_CHANGE";
 
     private final UserRepository userRepository;
     private final UserSubscriptionRepository userSubscriptionRepository;
@@ -183,6 +186,19 @@ public class UtilService {
         BigDecimal currentPriceMonthly = current.getSubscription().getPriceMonthly();
         BigDecimal newPriceMonthly = newPlan.getPriceMonthly();
 
+        if (current.getSubscription().getId().equals(newPlan.getId())
+                && current.getBillingCycle() == billingCycle) {
+            return new SubscriptionChangePreviewResponse(
+                    CHANGE_TYPE_NO_CHANGE,
+                    BigDecimal.ZERO,
+                    LocalDate.now(),
+                    current.getExpiresAt(),
+                    priceFor(current.getSubscription(), current.getBillingCycle()),
+                    current.getSubscription().getName(),
+                    current.getBillingCycle().name()
+            );
+        }
+
         boolean isUpgrade = newPriceMonthly.compareTo(currentPriceMonthly) > 0;
 
         if (isUpgrade) {
@@ -205,7 +221,7 @@ public class UtilService {
                     : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
             return new SubscriptionChangePreviewResponse(
-                    "UPGRADE",
+                    CHANGE_TYPE_UPGRADE,
                     proratedAmount,
                     today,
                     current.getExpiresAt(),
@@ -214,9 +230,9 @@ public class UtilService {
                     billingCycle.name()
             );
         } else {
-            // DOWNGRADE: proratedAmount = 0, effectiveDate = current expiresAt
+            // Deferred changes are payment-free until the next renewal.
             return new SubscriptionChangePreviewResponse(
-                    "DOWNGRADE",
+                    CHANGE_TYPE_SCHEDULED_CHANGE,
                     BigDecimal.ZERO,
                     current.getExpiresAt(),
                     current.getExpiresAt(),

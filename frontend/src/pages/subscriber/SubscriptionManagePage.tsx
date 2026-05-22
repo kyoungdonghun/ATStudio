@@ -4,17 +4,15 @@ import { useAuthStore } from '@/store/authStore';
 import {
   fetchMySubscription,
   cancelMySubscription,
+  reactivateMySubscription,
   changeMySubscription,
   fetchSubscriptionChangePreview,
   type MySubscription,
   type SubscriptionChangePreview,
+  type SubscriptionChangeType,
 } from '@/api/userSubscriptions';
 import { fetchSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
-import {
-  cancelMyBillingAgreement,
-  fetchMyBillingAgreement,
-  type BillingAgreementResponse,
-} from '@/api/payments';
+import { fetchMyBillingAgreement, type BillingAgreementResponse } from '@/api/payments';
 import { isSubscriptionRequired } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import Button from '@/components/ui/Button';
@@ -46,6 +44,32 @@ function getBillingCycleLabel(cycle: BillingCycle): string {
   return cycle === 'MONTHLY' ? '월간' : '연간';
 }
 
+function getChangeTypeLabel(type: SubscriptionChangeType): string {
+  switch (type) {
+    case 'UPGRADE':
+      return '업그레이드';
+    case 'NO_CHANGE':
+      return '예약 해제';
+    case 'SCHEDULED_CHANGE':
+    case 'DOWNGRADE':
+      return '다음 결제일 변경';
+    default:
+      return type;
+  }
+}
+
+function getConfirmButtonLabel(type: SubscriptionChangeType): string {
+  switch (type) {
+    case 'NO_CHANGE':
+      return '예약 해제 확인';
+    case 'SCHEDULED_CHANGE':
+    case 'DOWNGRADE':
+      return '변경 예약 확인';
+    default:
+      return '플랜 변경 확인';
+  }
+}
+
 export default function SubscriptionManagePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -61,7 +85,6 @@ export default function SubscriptionManagePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [billingAgreement, setBillingAgreement] = useState<BillingAgreementResponse | null>(null);
-  const [cancellingBilling, setCancellingBilling] = useState(false);
 
   /* ── Change Plan ── */
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
@@ -75,6 +98,7 @@ export default function SubscriptionManagePage() {
   /* ── Cancel ── */
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
 
   /* ── Fetch ── */
   const load = useCallback(async () => {
@@ -159,14 +183,25 @@ export default function SubscriptionManagePage() {
   /* ── Change subscription ── */
   function handleSelectPlan(plan: SubscriptionPlan) {
     setSelectedPlan(plan);
-    setSelectedCycle(sub?.billingCycle ?? 'MONTHLY');
+    if (sub && plan.id === sub.subscription.id) {
+      setSelectedCycle(sub.billingCycle);
+      return;
+    }
+    setSelectedCycle(
+      plan.id === sub?.pendingSubscriptionId && sub.pendingBillingCycle
+        ? sub.pendingBillingCycle
+        : (sub?.billingCycle ?? 'MONTHLY'),
+    );
   }
 
   async function handleChangePlan() {
     if (!selectedPlan || !preview) return;
-    if (preview.changeType === 'UPGRADE' && billingAgreement?.status !== 'ACTIVE') {
+    const hasReusableBillingAgreement =
+      billingAgreement?.status === 'ACTIVE' ||
+      (sub?.status === 'CANCELLED' && billingAgreement?.status === 'CANCELLED');
+    if (preview.changeType === 'UPGRADE' && !hasReusableBillingAgreement) {
       setChangeError(
-        '업그레이드는 등록된 자동결제 수단이 필요합니다. 현재 구독 만료 후 새 정기결제로 다시 가입하거나 관리자에게 문의해주세요.',
+        '업그레이드는 등록된 결제수단이 필요합니다. 현재 구독 만료 후 새 정기결제로 다시 가입하거나 관리자에게 문의해주세요.',
       );
       return;
     }
@@ -180,6 +215,8 @@ export default function SubscriptionManagePage() {
         billingCycle: selectedCycle,
       });
 
+      const reactivatedPrefix = sub?.status === 'CANCELLED' ? '구독 취소가 철회되었습니다. ' : '';
+
       if (preview.changeType === 'UPGRADE') {
         const chargeMessage =
           res.proratedAmount > 0
@@ -190,11 +227,17 @@ export default function SubscriptionManagePage() {
             ? ` 다음 결제일부터 ${getBillingCycleLabel(selectedCycle)} 결제로 전환됩니다.`
             : '';
         setChangeMsg(
-          `업그레이드가 적용되었습니다. ${chargeMessage} 다음 결제일(${formatDate(res.expiresAt)})은 유지됩니다.${nextCycleMessage}`,
+          `${reactivatedPrefix}업그레이드가 적용되었습니다. ${chargeMessage} 다음 결제일(${formatDate(res.expiresAt)})은 유지됩니다.${nextCycleMessage}`,
+        );
+      } else if (preview.changeType === 'NO_CHANGE') {
+        setChangeMsg(
+          hasPendingChange
+            ? `${reactivatedPrefix}예약된 플랜 변경이 해제되었습니다. 현재 플랜이 유지됩니다.`
+            : `${reactivatedPrefix}현재 플랜이 유지됩니다.`,
         );
       } else {
         setChangeMsg(
-          `다운그레이드가 예약되었습니다. 현재 구독 만료 후 ${getDisplayName(res.subscription.name)} 플랜이 적용됩니다.`,
+          `${reactivatedPrefix}변경이 예약되었습니다. 현재 구독 만료 후 ${getDisplayName(res.subscription.name)} 플랜이 적용됩니다.`,
         );
       }
       setSelectedPlan(null);
@@ -221,16 +264,17 @@ export default function SubscriptionManagePage() {
     }
   }
 
-  async function handleCancelAutomaticRenewal() {
+  async function handleReactivate() {
     try {
-      setCancellingBilling(true);
-      const cancelled = await cancelMyBillingAgreement();
-      setBillingAgreement(cancelled);
+      setReactivating(true);
+      setChangeError(null);
+      await reactivateMySubscription();
+      setChangeMsg('구독 취소가 철회되었습니다. 다음 결제일부터 자동 갱신이 다시 진행됩니다.');
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '자동결제 해지에 실패했습니다.');
+      setError(err instanceof Error ? err.message : '구독 취소 철회에 실패했습니다.');
     } finally {
-      setCancellingBilling(false);
+      setReactivating(false);
     }
   }
 
@@ -336,22 +380,24 @@ export default function SubscriptionManagePage() {
         )}
       </div>
 
-      {/* ── Automatic Renewal ── */}
+      {/* ── Payment Info ── */}
       <div className={styles.actionSection}>
-        <div className={styles.actionTitle}>{'자동 갱신'}</div>
+        <div className={styles.actionTitle}>{'결제 정보'}</div>
         {billingAgreement ? (
           <>
             <div className={styles.planInfo}>
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>{'상태'}</span>
-                <span className={styles.infoValue}>{getBillingStatusLabel(billingAgreement.status)}</span>
+                <span className={styles.infoValue}>
+                  {getBillingStatusLabel(billingAgreement.status)}
+                </span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>{'결제수단'}</span>
                 <span className={styles.infoValue}>
                   {billingAgreement.maskedMethod
                     ? `${billingAgreement.payMethod ?? 'CARD'} ${billingAgreement.maskedMethod}`
-                    : billingAgreement.payMethod ?? '등록됨'}
+                    : (billingAgreement.payMethod ?? '등록됨')}
                 </span>
               </div>
               <div className={styles.infoItem}>
@@ -363,39 +409,33 @@ export default function SubscriptionManagePage() {
                 </span>
               </div>
             </div>
-            {billingAgreement.status === 'ACTIVE' && (
-              <div className={styles.actionButtons}>
-                <Button
-                  variant="danger"
-                  onClick={handleCancelAutomaticRenewal}
-                  loading={cancellingBilling}
-                >
-                  {'자동 갱신 해지'}
-                </Button>
+            {sub.status === 'CANCELLED' && (
+              <div className={styles.actionDesc}>
+                {
+                  '구독 취소 상태입니다. 만료일까지 이용할 수 있고, 구독을 유지하면 다음 결제가 다시 예약됩니다.'
+                }
               </div>
             )}
           </>
         ) : (
-          <div className={styles.actionDesc}>
-            {'현재 자동 갱신 결제수단이 등록되어 있지 않습니다.'}
-          </div>
+          <div className={styles.actionDesc}>{'현재 등록된 정기결제 수단이 없습니다.'}</div>
         )}
       </div>
 
       {/* ── Change Plan Section ── */}
-      {sub.status === 'ACTIVE' && !hasPendingChange && (
+      {(sub.status === 'ACTIVE' || sub.status === 'CANCELLED') && (
         <div className={styles.actionSection}>
           <div className={styles.actionTitle}>{'플랜 변경'}</div>
           <div className={styles.actionDesc}>
-            {
-              '업그레이드는 등록된 결제수단으로 남은 기간 차액을 즉시 결제한 뒤 적용됩니다. 다운그레이드는 현재 구독 만료 후 적용됩니다.'
-            }
+            {sub.status === 'CANCELLED'
+              ? '플랜 변경을 확정하면 구독 취소가 철회됩니다. 업그레이드는 남은 기간 차액을 즉시 결제하고, 그 외 변경은 현재 구독 만료 후 적용됩니다.'
+              : '업그레이드는 등록된 결제수단으로 남은 기간 차액을 즉시 결제한 뒤 적용됩니다. 그 외 변경은 현재 구독 만료 후 적용되며, 예약된 변경은 다시 바꿀 수 있습니다.'}
           </div>
 
           {/* Plan options */}
           <div className={styles.planGrid}>
             {plans
-              .filter((p) => p.id !== sub.subscription.id && p.isActive)
+              .filter((p) => p.isActive)
               .map((plan) => (
                 <div
                   key={plan.id}
@@ -410,6 +450,9 @@ export default function SubscriptionManagePage() {
                     {formatAmount(plan.priceMonthly)}
                     {'/월'}
                   </div>
+                  {plan.id === sub.subscription.id && (
+                    <div className={styles.planOptionCurrent}>{'현재 플랜'}</div>
+                  )}
                 </div>
               ))}
           </div>
@@ -447,7 +490,7 @@ export default function SubscriptionManagePage() {
                       : styles.previewDowngrade
                   }
                 >
-                  {preview.changeType === 'UPGRADE' ? '업그레이드' : '다운그레이드'}
+                  {getChangeTypeLabel(preview.changeType)}
                 </span>
               </div>
               <div className={styles.previewRow}>
@@ -488,13 +531,15 @@ export default function SubscriptionManagePage() {
             </div>
           )}
 
-          {preview?.changeType === 'UPGRADE' && billingAgreement?.status !== 'ACTIVE' && (
-            <div className={styles.errorMsg}>
-              {
-                '업그레이드는 등록된 자동결제 수단이 필요합니다. 기존 단건 결제창으로는 진행하지 않습니다.'
-              }
-            </div>
-          )}
+          {preview?.changeType === 'UPGRADE' &&
+            billingAgreement?.status !== 'ACTIVE' &&
+            !(sub.status === 'CANCELLED' && billingAgreement?.status === 'CANCELLED') && (
+              <div className={styles.errorMsg}>
+                {
+                  '업그레이드는 등록된 결제수단이 필요합니다. 기존 단건 결제창으로는 진행하지 않습니다.'
+                }
+              </div>
+            )}
 
           {/* Confirm change button */}
           {selectedPlan && preview && !loadingPreview && (
@@ -509,7 +554,7 @@ export default function SubscriptionManagePage() {
                 {'취소'}
               </Button>
               <Button variant="primary" onClick={handleChangePlan} loading={changingPlan}>
-                {'플랜 변경 확인'}
+                {getConfirmButtonLabel(preview.changeType)}
               </Button>
             </div>
           )}
@@ -530,6 +575,20 @@ export default function SubscriptionManagePage() {
           </div>
           <Button variant="danger" onClick={() => setShowCancelModal(true)}>
             {'구독 취소'}
+          </Button>
+        </div>
+      )}
+
+      {sub.status === 'CANCELLED' && (
+        <div className={styles.actionSection}>
+          <div className={styles.actionTitle}>{'구독 취소됨'}</div>
+          <div className={styles.actionDesc}>
+            {'구독은 '}
+            {formatDate(sub.expiresAt)}
+            {'까지 유지됩니다. 구독을 계속 사용하려면 취소를 철회할 수 있습니다.'}
+          </div>
+          <Button variant="primary" onClick={handleReactivate} loading={reactivating}>
+            {'구독 유지하기'}
           </Button>
         </div>
       )}
@@ -570,7 +629,7 @@ function getBillingStatusLabel(status: BillingAgreementResponse['status']): stri
     case 'SUSPENDED':
       return '갱신 중지';
     case 'CANCELLED':
-      return '자동 갱신 해지됨';
+      return '다음 갱신 중지됨';
     case 'EXPIRED':
       return '만료';
     default:

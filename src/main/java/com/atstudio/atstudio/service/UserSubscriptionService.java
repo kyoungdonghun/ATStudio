@@ -21,6 +21,7 @@ import com.atstudio.atstudio.entity.enums.BillingCycle;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.PaymentStatus;
+import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.repository.PaymentOrderRepository;
 import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
@@ -55,6 +56,9 @@ public class UserSubscriptionService {
 
     private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS_BILLING;
     private static final int PAYMENT_EXPIRY_MINUTES = 10;
+    private static final String CHANGE_TYPE_UPGRADE = "UPGRADE";
+    private static final String CHANGE_TYPE_SCHEDULED_CHANGE = "SCHEDULED_CHANGE";
+    private static final String CHANGE_TYPE_NO_CHANGE = "NO_CHANGE";
 
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final SubscriptionRepository subscriptionRepository;
@@ -123,6 +127,21 @@ public class UserSubscriptionService {
             throw new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_USER_TYPE_MISMATCH);
         }
 
+        reactivateIfCancelled(user, current);
+
+        if (isSamePlanAndCycle(current, newPlan, request.billingCycle())) {
+            current.clearPendingChange();
+            return new ChangeSubscriptionResponse(
+                    SubscriptionResponse.from(current.getSubscription()),
+                    current.getBillingCycle().name(),
+                    current.getStatus().name(),
+                    CHANGE_TYPE_NO_CHANGE,
+                    BigDecimal.ZERO,
+                    current.getStartedAt(),
+                    current.getExpiresAt()
+            );
+        }
+
         boolean isUpgrade = newPlan.getPriceMonthly().compareTo(
                 current.getSubscription().getPriceMonthly()) > 0;
 
@@ -165,7 +184,7 @@ public class UserSubscriptionService {
                     SubscriptionResponse.from(newPlan),
                     request.billingCycle().name(),
                     current.getStatus().name(),
-                    "UPGRADE",
+                    CHANGE_TYPE_UPGRADE,
                     proratedAmount,
                     current.getStartedAt(),
                     current.getExpiresAt()
@@ -177,7 +196,7 @@ public class UserSubscriptionService {
                 SubscriptionResponse.from(newPlan),
                 request.billingCycle().name(),
                 current.getStatus().name(),
-                "DOWNGRADE",
+                CHANGE_TYPE_SCHEDULED_CHANGE,
                 BigDecimal.ZERO,
                 current.getStartedAt(),
                 current.getExpiresAt()
@@ -209,6 +228,21 @@ public class UserSubscriptionService {
                 .findActiveByUser(user, LocalDate.now())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
         userSubscription.cancel();
+        billingAgreementRepository.findByUserAndProvider(user, RECURRING_PROVIDER)
+                .filter(agreement -> agreement.getStatus() != BillingAgreementStatus.CANCELLED
+                        && agreement.getStatus() != BillingAgreementStatus.EXPIRED)
+                .ifPresent(BillingAgreement::cancel);
+    }
+
+    // 6.11 POST /api/user-subscriptions/me/reactivate
+    @Transactional
+    public UserSubscriptionResponse reactivate(CustomUserDetails userDetails) {
+        User user = findUser(userDetails);
+        UserSubscription userSubscription = userSubscriptionRepository
+                .findActiveByUser(user, LocalDate.now())
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+        reactivateIfCancelled(user, userSubscription);
+        return UserSubscriptionResponse.from(userSubscription);
     }
 
     private User findUser(CustomUserDetails userDetails) {
@@ -223,6 +257,33 @@ public class UserSubscriptionService {
             throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE);
         }
         return agreement;
+    }
+
+    private void reactivateIfCancelled(User user, UserSubscription subscription) {
+        if (subscription.getStatus() != SubscriptionStatus.CANCELLED) {
+            return;
+        }
+
+        BillingAgreement agreement = billingAgreementRepository.findByUserAndProvider(user, RECURRING_PROVIDER)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_NOT_FOUND));
+        if (agreement.getStatus() == BillingAgreementStatus.CANCELLED) {
+            try {
+                agreement.resume(subscription.getExpiresAt());
+            } catch (IllegalArgumentException e) {
+                throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE);
+            }
+        } else if (agreement.getStatus() != BillingAgreementStatus.ACTIVE) {
+            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE);
+        }
+        subscription.reactivate();
+    }
+
+    private boolean isSamePlanAndCycle(
+            UserSubscription current,
+            Subscription newPlan,
+            BillingCycle requestedBillingCycle) {
+        return current.getSubscription().getId().equals(newPlan.getId())
+                && current.getBillingCycle() == requestedBillingCycle;
     }
 
     private BigDecimal calculateProratedUpgradeAmount(UserSubscription current, Subscription newPlan) {

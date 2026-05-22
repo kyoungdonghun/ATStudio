@@ -115,4 +115,16 @@ public class UserSubscriptionController {
         userSubscriptionService.selfCancel(userDetails);
         return ResponseEntity.noContent().build();
     }
+
+    // -- 6.11 POST /api/user-subscriptions/me/reactivate ---------------------
+
+    @PostMapping("/me/reactivate")
+    public ResponseEntity<ResponseDTO<UserSubscriptionResponse>> reactivate(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        UserSubscriptionResponse response = userSubscriptionService.reactivate(userDetails);
+        return ResponseEntity.ok(ResponseDTO.<UserSubscriptionResponse>withSingleData()
+                .message("Subscription reactivated")
+                .data(response)
+                .build());
+    }
 }

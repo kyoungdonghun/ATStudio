@@ -4,6 +4,8 @@ import type { SubscriptionPlan } from '@/api/subscriptions';
 
 /* ── Response types ── */
 
+export type SubscriptionChangeType = 'UPGRADE' | 'DOWNGRADE' | 'SCHEDULED_CHANGE' | 'NO_CHANGE';
+
 export interface MySubscription {
   id: number;
   userId?: number;
@@ -21,14 +23,14 @@ export interface SubscriptionChangeResponse {
   subscription: Pick<SubscriptionPlan, 'id' | 'name'>;
   billingCycle: 'MONTHLY' | 'YEARLY';
   status: string;
-  changeType: 'UPGRADE' | 'DOWNGRADE';
+  changeType: SubscriptionChangeType;
   proratedAmount: number;
   startedAt: string;
   expiresAt: string;
 }
 
 export interface SubscriptionChangePreview {
-  changeType: 'UPGRADE' | 'DOWNGRADE';
+  changeType: SubscriptionChangeType;
   proratedAmount: number;
   effectiveDate: string;
   nextBillingDate: string;
@@ -46,9 +48,7 @@ export interface ChangeSubscriptionRequest {
 
 /** GET /api/user-subscriptions/me -- my current subscription */
 export async function fetchMySubscription(): Promise<MySubscription> {
-  const { data } = await client.get<ApiResponse<MySubscription>>(
-    '/user-subscriptions/me',
-  );
+  const { data } = await client.get<ApiResponse<MySubscription>>('/user-subscriptions/me');
   return data.data;
 }
 
@@ -68,6 +68,14 @@ export async function cancelMySubscription(): Promise<void> {
   await client.delete('/user-subscriptions/me');
 }
 
+/** POST /api/user-subscriptions/me/reactivate -- resume a cancelled subscription before expiry */
+export async function reactivateMySubscription(): Promise<MySubscription> {
+  const { data } = await client.post<ApiResponse<MySubscription>>(
+    '/user-subscriptions/me/reactivate',
+  );
+  return data.data;
+}
+
 /* ── Admin API functions ── */
 
 /** GET /api/user-subscriptions -- admin: list all user subscriptions */
@@ -75,20 +83,15 @@ export async function fetchAdminUserSubscriptions(
   page = 1,
   size = 20,
 ): Promise<PagedResponse<MySubscription>> {
-  const { data } = await client.get<PagedResponse<MySubscription>>(
-    '/user-subscriptions',
-    { params: { page, size } },
-  );
+  const { data } = await client.get<PagedResponse<MySubscription>>('/user-subscriptions', {
+    params: { page, size },
+  });
   return data;
 }
 
 /** GET /api/user-subscriptions/{id} -- admin: subscription detail */
-export async function fetchAdminUserSubscriptionDetail(
-  id: number,
-): Promise<MySubscription> {
-  const { data } = await client.get<ApiResponse<MySubscription>>(
-    `/user-subscriptions/${id}`,
-  );
+export async function fetchAdminUserSubscriptionDetail(id: number): Promise<MySubscription> {
+  const { data } = await client.get<ApiResponse<MySubscription>>(`/user-subscriptions/${id}`);
   return data.data;
 }
 
@@ -103,17 +106,12 @@ export async function updateAdminUserSubscription(
   id: number,
   req: AdminUpdateSubscriptionRequest,
 ): Promise<MySubscription> {
-  const { data } = await client.put<ApiResponse<MySubscription>>(
-    `/user-subscriptions/${id}`,
-    req,
-  );
+  const { data } = await client.put<ApiResponse<MySubscription>>(`/user-subscriptions/${id}`, req);
   return data.data;
 }
 
 /** DELETE /api/user-subscriptions/{id} -- admin: cancel subscription */
-export async function deleteAdminUserSubscription(
-  id: number,
-): Promise<void> {
+export async function deleteAdminUserSubscription(id: number): Promise<void> {
   await client.delete(`/user-subscriptions/${id}`);
 }
 

@@ -182,10 +182,11 @@ Recurring billing reuses the payment order ledger for initial charges, upgrade c
 | `SUBSCRIBE` | First subscription purchase | Create `user_subscriptions`, create default playlist |
 | `UPGRADE` | Immediate higher-tier change | Charge prorated difference through the active billing agreement, then apply upgrade immediately |
 | `RENEWAL` | Automatic recurring billing charge | Extend current subscription period |
-| `DOWNGRADE` | Lower-tier change | No payment; schedule pending change |
+| `SCHEDULED_CHANGE` | Lower-tier or next-cycle-only change | No payment; schedule or overwrite pending change |
+| `NO_CHANGE` | Current plan/current cycle selected | No payment; clear pending change |
 | `BILLING_AGREEMENT` | Billing key registration | Store or update billing agreement only |
 
-`DOWNGRADE` should not create a payment order unless future business policy requires paid downgrade handling.
+`SCHEDULED_CHANGE` and `NO_CHANGE` should not create a payment order unless future business policy requires paid downgrade or reservation-change handling.
 `BILLING_AGREEMENT` does not itself grant subscription access unless paired with a confirmed initial payment.
 
 ## 8. State Model
@@ -412,7 +413,9 @@ Stores the billing key after provider callback verification. This endpoint must 
 
 `DELETE /api/payments/billing-agreements/me`
 
-Cancels automatic future renewal. It must not immediately cancel already-paid subscription access.
+Provider-level billing agreement cancellation endpoint. Current subscriber UX does not expose this as a separate "cancel automatic renewal" action; the user-facing cancellation path is `DELETE /api/user-subscriptions/me`, which stops the next renewal while preserving already-paid access and retaining the encrypted billing key for possible reactivation before `expiresAt`.
+
+When this provider-level endpoint is used, the provider billing key is deleted and the local issued-key fields are cleared. Such a cancellation cannot be reactivated without a future payment-method re-registration flow.
 
 ### 10.7 Deprecated Compatibility Endpoint
 
@@ -468,14 +471,15 @@ sequenceDiagram
 10. Backend saves `subscription_payments` only when a provider charge is attempted and succeeds.
 11. The next renewal date remains unchanged; the next renewal charge uses the upgraded plan and selected billing cycle through pending renewal settings when the selected cycle differs from the current cycle.
 
-### 11.3 Downgrade
+### 11.3 Scheduled Change and Pending Clear
 
-Downgrade remains payment-free:
+Lower-tier and billing-cycle-only changes remain payment-free:
 
-1. User chooses a lower plan.
+1. User chooses a lower plan or a different next billing cycle.
 2. Frontend displays effective date from preview.
-3. Backend stores `pendingSubscriptionId` and `pendingBillingCycle`.
+3. Backend stores or overwrites `pendingSubscriptionId` and `pendingBillingCycle`.
 4. `RecurringRenewalService` applies the pending change when the next renewal charge succeeds.
+5. If the user chooses the current plan and current billing cycle, backend returns `NO_CHANGE` and clears pending values.
 
 ### 11.4 Recurring Billing Registration
 
@@ -520,7 +524,8 @@ sequenceDiagram
 7. Secrets such as Toss secret keys or KakaoPay admin keys must remain server-side only.
 8. Billing keys must be encrypted at rest and never returned to the frontend.
 9. Recurring renewal must be idempotent per subscription period.
-10. Cancelling recurring billing must stop future charges but must not remove already-paid access.
+10. User-facing subscription cancellation must stop future charges but must not remove already-paid access.
+11. Cancellation reactivation before `expiresAt` may reuse the stored encrypted billing key; raw card details are never stored or returned.
 
 ## 13. Frontend Design
 
@@ -550,16 +555,18 @@ For upgrades:
 3. The backend charges the active billing agreement and applies the upgrade only after charge success.
 4. Do not route user-facing upgrades to the one-time subscription payment page.
 
-For downgrades:
+For scheduled changes:
 
-1. Continue direct `changeMySubscription()` scheduling.
+1. Continue direct `changeMySubscription()` scheduling for lower-tier or next-cycle changes.
 2. Do not create a payment order.
+3. Keep plan choices available even when a pending change exists, so the user can overwrite or clear the reservation.
 
 For recurring billing:
 
 1. Show payment method registration status when `BillingAgreement` exists.
-2. Provide "change payment method" and "cancel automatic renewal" actions.
-3. Show next billing date separately from current access expiration date when both are available.
+2. Do not show a separate "cancel automatic renewal" action on the current subscription manage page; "cancel subscription" is the user-facing stop-renewal action.
+3. Show a "keep subscription" action while a CANCELLED grace-period subscription is still before `expiresAt`.
+4. Show next billing date separately from current access expiration date when both are available.
 
 ## 14. Migration Plan
 

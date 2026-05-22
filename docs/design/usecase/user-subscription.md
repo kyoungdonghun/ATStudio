@@ -167,15 +167,15 @@
 
 ---
 
-## PAYMENT-007: Change My Subscription (Upgrade/Downgrade)
+## PAYMENT-007: Change My Subscription
 
 | Field | Value |
 |-------|-------|
 | **Code** | PAYMENT-007 |
-| **Version** | 26-03-07 |
-| **Description** | Member changes their current subscription plan to a different plan. UPGRADE is applied immediately after billing-key prorated charge success. DOWNGRADE is deferred to the end of the current billing period. |
+| **Version** | 26-05-22 |
+| **Description** | Member changes their current subscription plan or billing cycle. UPGRADE is applied immediately after billing-key prorated charge success. Lower-tier and billing-cycle-only changes are deferred to the end of the current billing period. Selecting the current plan/current cycle clears a pending change. |
 | **Actor** | User (Member), Backend, Payment Gateway (PG) |
-| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
+| **Preconditions** | Logged in. Has active subscription, or a CANCELLED grace-period subscription before expiresAt. |
 | **Trigger** | User clicks the 'Change Subscription' button. |
 | **Related UC** | PAYMENT-006 (view my subscription), UTIL-013 (subscription change preview) |
 
@@ -193,7 +193,7 @@
    - The active period keeps its current billingCycle and existing `expiresAt`.
    - The selected billingCycle is stored as pending when it differs from the current cycle and is used by the next renewal charge.
 
-**Main Flow — DOWNGRADE (new plan price <= current plan price)**
+**Main Flow — SCHEDULED_CHANGE (new plan price <= current plan price, or billing-cycle-only change)**
 1. User selects the new (lower-tier) subscription plan and billing cycle.
 2. Frontend calls UTIL-013 to display effectiveDate (end of current billing period).
 3. User confirms the deferred change.
@@ -204,9 +204,21 @@
 8. Backend returns a 200 response confirming the scheduled change.
    - Current plan services remain until expiresAt.
 
+**Main Flow — NO_CHANGE (clear pending change)**
+1. User selects the current plan and current billing cycle while a pending change exists.
+2. Frontend calls UTIL-013 and shows that no immediate charge is required.
+3. User confirms clearing the reservation.
+4. Backend clears pendingSubscriptionId and pendingBillingCycle.
+5. Current plan, current billing cycle, and expiresAt remain unchanged.
+
+**Alternative Flow — CANCELLED grace-period subscription**
+- If the subscription is CANCELLED but still within expiresAt, a confirmed plan change reactivates the subscription first.
+- Reactivation reuses the stored billing key when available. If the billing agreement is missing or invalid, backend returns a billing agreement business error and no subscription change is applied.
+
 **Postconditions**
 - UPGRADE: billing-key charge succeeds first when `proratedAmount > 0`, then `user_subscriptions.subscription_id` is updated immediately. Payment record is saved in `subscription_payments` only for a real charge. New plan benefits are active immediately, while current `billingCycle` and next billing date are preserved for the active period. If the requested billing cycle differs, pendingSubscriptionId and pendingBillingCycle are saved for the next renewal.
-- DOWNGRADE: pendingSubscriptionId and pendingBillingCycle saved. Current plan active until expiresAt. New plan/cycle is applied only after the next successful renewal charge; if renewal is cancelled or fails through grace, the subscription expires without applying pending changes.
+- SCHEDULED_CHANGE: pendingSubscriptionId and pendingBillingCycle saved or overwritten. Current plan active until expiresAt. New plan/cycle is applied only after the next successful renewal charge; if renewal is cancelled or fails through grace, the subscription expires without applying pending changes.
+- NO_CHANGE: pendingSubscriptionId and pendingBillingCycle are cleared. Current plan remains active through the original expiresAt.
 
 > **Note**: Subscription changes do NOT affect track usage licenses (licenses table). Previously issued licenses are retained as-is.
 
@@ -261,8 +273,8 @@
 | Field | Value |
 |-------|-------|
 | **Code** | PAYMENT-010 |
-| **Version** | 26-03-07 |
-| **Description** | Member directly cancels their own active subscription. Status is set to CANCELLED immediately, but service remains available until expiresAt (grace period). Benefits terminate automatically at expiresAt. |
+| **Version** | 26-05-22 |
+| **Description** | Member directly cancels their own active subscription. This means "stop the next renewal": status is set to CANCELLED immediately, local billing agreement renewal is stopped, but service remains available until expiresAt. Benefits terminate automatically at expiresAt unless the member reactivates before then. |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). |
 | **Trigger** | User clicks the 'Cancel Subscription' button on the 'My Subscription' screen. |
@@ -274,7 +286,8 @@
 3. User clicks the 'Confirm' button.
 4. Frontend sends a cancellation request including auth token to the backend. (`DELETE /api/user-subscriptions/me`)
 5. Backend checks for an active subscription.
-6. Backend updates user_subscriptions.status to CANCELLED and returns 204 No Content.
+6. Backend updates user_subscriptions.status to CANCELLED and locally marks the recurring billing agreement as CANCELLED without clearing the encrypted billing key.
+7. Backend returns 204 No Content.
    - expiresAt is NOT changed. Service access continues until the original expiresAt.
 
 **Exception / Alternative Flow**
@@ -282,3 +295,31 @@
 
 **Postconditions**
 - user_subscriptions.status=CANCELLED. Service (downloads, channel registration, playlists) remains available until expiresAt. At expiresAt, subscription expires automatically and all benefits terminate.
+
+---
+
+## PAYMENT-011: Reactivate My Subscription
+
+| Field | Value |
+|-------|-------|
+| **Code** | PAYMENT-011 |
+| **Version** | 26-05-22 |
+| **Description** | Member reverses a previous subscription cancellation before expiresAt. The existing billing agreement is reactivated using the stored billing key, so the member does not need to register the card again when the key is still valid. |
+| **Actor** | User (Member), Backend |
+| **Preconditions** | Logged in. Has CANCELLED grace-period subscription before expiresAt. Billing agreement has a stored billing key. |
+| **Trigger** | User clicks the 'Keep subscription' button on the 'My Subscription' screen. |
+| **Related UC** | PAYMENT-006 (view my subscription), PAYMENT-010 (cancel my subscription) |
+
+**Main Flow**
+1. Frontend sends a reactivation request. (`POST /api/user-subscriptions/me/reactivate`)
+2. Backend finds the current grace-period subscription.
+3. Backend reactivates the billing agreement and sets nextBillingAt to the current subscription expiresAt.
+4. Backend updates user_subscriptions.status to ACTIVE.
+5. Backend returns the updated subscription response.
+
+**Exception / Alternative Flow**
+- No active/grace subscription: 404 `NO_ACTIVE_SUBSCRIPTION`.
+- Missing or invalid billing agreement: billing agreement business error. User must register a payment method again in a future billing-method replacement flow.
+
+**Postconditions**
+- user_subscriptions.status=ACTIVE. Automatic renewal resumes from the original expiresAt.

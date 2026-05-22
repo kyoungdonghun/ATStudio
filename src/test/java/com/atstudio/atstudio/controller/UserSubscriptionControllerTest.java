@@ -269,4 +269,24 @@ class UserSubscriptionControllerTest {
         mockMvc.perform(delete("/api/user-subscriptions/me"))
                 .andExpect(status().isNoContent());
     }
+
+    // -- 6.11 POST /api/user-subscriptions/me/reactivate ---------------------
+
+    @Test
+    @DisplayName("POST /api/user-subscriptions/me/reactivate - 비인증 -> 401")
+    void reactivate_unauthenticated() throws Exception {
+        mockMvc.perform(post("/api/user-subscriptions/me/reactivate"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("POST /api/user-subscriptions/me/reactivate - 인증 유저 -> 200")
+    void reactivate_success() throws Exception {
+        given(userSubscriptionService.reactivate(any())).willReturn(MOCK_RESPONSE);
+
+        mockMvc.perform(post("/api/user-subscriptions/me/reactivate"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(100));
+    }
 }

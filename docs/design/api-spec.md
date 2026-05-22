@@ -1,8 +1,19 @@
-# ATStudio API Specification v10 (Confirmed)
+# ATStudio API Specification v11 (Confirmed)
 
-> **Status**: 10th confirmed — payment operations hardening sync (recurring-only checkout, one-time subscription block, admin read-only payment APIs)
-> **Base**: v9 + 2026-05-21 payment operations hardening patch
-> **Date**: 2026-05-21
+> **Status**: 11th confirmed — subscription cancel/reactivate and change-reservation policy sync
+> **Base**: v10 + 2026-05-22 subscription management UX/policy patch
+> **Date**: 2026-05-22
+
+---
+
+## v10 → v11 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| AB1 | §6.7 change semantics | Added `SCHEDULED_CHANGE` and `NO_CHANGE`; pending plan/cycle changes can be overwritten, and selecting the current plan/current cycle clears pending changes. |
+| AB2 | §6.10/§6.11 cancel/reactivate | Subscription cancellation now means stop next renewal while keeping paid access; added reactivation before expiresAt using the stored billing key. |
+| AB3 | §14.8 preview semantics | Preview now returns `UPGRADE`, `SCHEDULED_CHANGE`, or `NO_CHANGE`. |
+| AB4 | Full API Summary | Updated total count from 117 → 118 |
 
 ---
 
@@ -1365,12 +1376,12 @@ These endpoints are implemented as read-only admin support/audit views. They mus
 
 **Response** `200 OK`
 
-## 6.7 Change My Subscription (Upgrade/Downgrade)
+## 6.7 Change My Subscription
 | Field | Value |
 |-------|-------|
 | **URL** | `PUT /api/user-subscriptions/me` |
 | **Auth** | auth required |
-| **Description** | Change plan or billing cycle. Behavior differs by change type: **UPGRADE** requires an active billing agreement, immediately charges the remaining-period difference through recurring billing, then applies the higher plan while preserving the current billing cycle and next billing date. If the requested billing cycle differs from the current one, it is stored as pending and starts at the next renewal. The immediate charge is rounded to whole KRW; if the rounded amount is `0`, no provider charge is attempted. **DOWNGRADE** is saved as pending (`pendingSubscriptionId`, `pendingBillingCycle`) and takes effect after the current period expires. Response includes `changeType` to indicate which branch was taken. |
+| **Description** | Change plan or billing cycle. Behavior differs by change type: **UPGRADE** requires a reusable billing agreement, immediately charges the remaining-period difference through recurring billing, then applies the higher plan while preserving the current paid period and next billing date. If the requested billing cycle differs from the current one, it is stored as pending and starts at the next renewal. The immediate charge is rounded to whole KRW; if the rounded amount is `0`, no provider charge is attempted. **SCHEDULED_CHANGE** saves or overwrites pending values (`pendingSubscriptionId`, `pendingBillingCycle`) and takes effect after the current period expires. **NO_CHANGE** clears a pending change when the user selects the current plan/current cycle. A CANCELLED grace-period subscription is reactivated before the change when a stored billing key is still usable. |
 
 **Request**
 ```json
@@ -1393,8 +1404,9 @@ These endpoints are implemented as read-only admin support/audit views. They mus
 }
 ```
 
-> - `changeType`: `"UPGRADE"` — active billing agreement is charged for `proratedAmount` when the rounded amount is greater than `0`; new plan applies immediately; current `billingCycle` and `expiresAt` remain the active period basis.
-> - `changeType`: `"DOWNGRADE"` — pending values (`pendingSubscriptionId`, `pendingBillingCycle`) stored; current plan remains active until `expiresAt`; new plan/cycle activates after the next successful renewal charge.
+> - `changeType`: `"UPGRADE"` — reusable billing agreement is charged for `proratedAmount` when the rounded amount is greater than `0`; new plan applies immediately; current `billingCycle` and `expiresAt` remain the active period basis.
+> - `changeType`: `"SCHEDULED_CHANGE"` — pending values (`pendingSubscriptionId`, `pendingBillingCycle`) are saved or overwritten; current plan remains active until `expiresAt`; new plan/cycle activates after the next successful renewal charge.
+> - `changeType`: `"NO_CHANGE"` — pending values are cleared; current plan/cycle and expiresAt remain unchanged.
 > - `billingCycle` in an UPGRADE response is the requested billing cycle to use on the next renewal charge; the current subscription response may still show the active period's current `billingCycle` until renewal.
 
 ## 6.8 Update User Subscription (Admin)
@@ -1418,13 +1430,40 @@ These endpoints are implemented as read-only admin support/audit views. They mus
 |-------|-------|
 | **URL** | `DELETE /api/user-subscriptions/me` |
 | **Auth** | auth required |
-| **Description** | Member cancels their own active subscription. status가 CANCELLED로 변경되나, expiresAt까지 서비스 이용 가능. expiresAt 이후 자동 만료. |
+| **Description** | Member cancels their own active subscription. This means stop the next renewal: `user_subscriptions.status` becomes `CANCELLED`, local billing agreement renewal is stopped, and paid access remains available until `expiresAt`. The encrypted billing key is retained so the user can reactivate before expiry. |
 
 **Response** `204 No Content`
 
 **Error**
 ```json
 { "status": 404, "error": "Not Found", "errorCode": "SUBSCRIPTION_NOT_FOUND", "message": "구독 정보를 찾을 수 없습니다." }
+```
+
+## 6.11 Reactivate My Subscription
+| Field | Value |
+|-------|-------|
+| **URL** | `POST /api/user-subscriptions/me/reactivate` |
+| **Auth** | auth required |
+| **Description** | Reactivate a CANCELLED grace-period subscription before `expiresAt`. The backend reuses the stored billing key, restores the billing agreement to `ACTIVE`, sets `nextBillingAt` to the current subscription `expiresAt`, and returns the updated subscription. |
+
+**Response** `200 OK`
+```json
+{
+  "message": "Subscription reactivated",
+  "data": {
+    "id": 100,
+    "billingCycle": "MONTHLY",
+    "status": "ACTIVE",
+    "expiresAt": "2026-06-01"
+  }
+}
+```
+
+**Error**
+```json
+{ "status": 403, "error": "Forbidden", "errorCode": "NO_ACTIVE_SUBSCRIPTION", "message": "구독이 필요한 서비스입니다." }
+{ "status": 404, "error": "Not Found", "errorCode": "BILLING_AGREEMENT_NOT_FOUND", "message": "등록된 정기결제 수단이 없습니다." }
+{ "status": 400, "error": "Bad Request", "errorCode": "BILLING_AGREEMENT_INVALID_STATE", "message": "현재 자동결제 상태에서는 처리할 수 없습니다." }
 ```
 
 ---
@@ -2274,7 +2313,7 @@ nickname: String (required)
 |-------|-------|
 | **URL** | `GET /api/utils/subscription-change-preview` |
 | **Auth** | auth required (subscribers only) |
-| **Description** | Preview the financial and scheduling impact of a plan change before committing. Returns whether the change is an UPGRADE or DOWNGRADE, the immediate upgrade charge amount, effective date, next billing date, and next billing amount. |
+| **Description** | Preview the financial and scheduling impact of a plan change before committing. Returns whether the change is an UPGRADE, SCHEDULED_CHANGE, or NO_CHANGE, the immediate upgrade charge amount, effective date, next billing date, and next billing amount. |
 
 **Query Parameters**
 ```
@@ -2295,8 +2334,8 @@ billingCycle: String (required — "MONTHLY" | "YEARLY")
 }
 ```
 
-> - `changeType`: `"UPGRADE"` or `"DOWNGRADE"`
-> - `proratedAmount`: Immediate whole-KRW charge amount for UPGRADE, `0` for DOWNGRADE
+> - `changeType`: `"UPGRADE"`, `"SCHEDULED_CHANGE"`, or `"NO_CHANGE"`
+> - `proratedAmount`: Immediate whole-KRW charge amount for UPGRADE, `0` for SCHEDULED_CHANGE/NO_CHANGE
 > - `effectiveDate`: LocalDate (ISO-8601) — date the new plan takes effect
 > - `nextBillingDate`: LocalDate (ISO-8601) — date of the next recurring charge
 > - `nextBillingAmount`: Amount to charge on `nextBillingDate` for the selected target plan/cycle
@@ -2625,7 +2664,7 @@ key: String (required) — setting key name
 
 ---
 
-# Full API Summary (117)
+# Full API Summary (118)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -2634,7 +2673,7 @@ key: String (required) — setting key name
 | 3 | Playlist | 9 |
 | 4 | Play History | 3 |
 | 5 | User Info | 11 |
-| 6 | Subscription | 18 |
+| 6 | Subscription | 19 |
 | 7 | License | 4 |
 | 8 | Question (Inquiry/Answer) | 7 |
 | 9 | Notice | 6 |
@@ -2647,4 +2686,4 @@ key: String (required) — setting key name
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
 | 18 | Admin Payment Operations | 3 |
-| | **Total** | **117** |
+| | **Total** | **118** |

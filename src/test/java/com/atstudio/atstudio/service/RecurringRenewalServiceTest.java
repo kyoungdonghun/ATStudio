@@ -261,6 +261,27 @@ class RecurringRenewalServiceTest {
     }
 
     @Test
+    @DisplayName("cancelled grace-period subscriptions are not renewed even if agreement is active")
+    void processDueRenewals_cancelledSubscriptionSkipped() {
+        LocalDate due = LocalDate.of(2026, 5, 17);
+        User user = buildUser(1L);
+        Subscription subscription = buildSubscription(10L, "Basic");
+        UserSubscription userSubscription = buildUserSubscription(100L, user, subscription, due);
+        userSubscription.cancel();
+        BillingAgreement agreement = buildActiveAgreement(user, due);
+
+        given(billingAgreementRepository.findByStatusAndNextBillingAtLessThanEqual(
+                BillingAgreementStatus.ACTIVE, due)).willReturn(List.of(agreement));
+        given(userSubscriptionRepository.findActiveByUser(user, due)).willReturn(Optional.of(userSubscription));
+
+        RecurringRenewalService.RenewalRunResult result = service.processDueRenewals(due);
+
+        assertThat(result.skipped()).isEqualTo(1);
+        assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.CANCELLED);
+        verify(recurringPaymentProvider, never()).charge(any());
+    }
+
+    @Test
     @DisplayName("no due agreements means no renewal attempt")
     void processDueRenewals_dueDateBoundary() {
         LocalDate today = LocalDate.of(2026, 5, 17);
