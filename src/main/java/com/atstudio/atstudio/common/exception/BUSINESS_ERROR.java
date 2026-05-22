@@ -105,6 +105,11 @@ public enum BUSINESS_ERROR {
             "회원 유형에 맞지 않는 구독 플랜입니다.",
             "개인/기업 회원 유형과 구독 플랜의 user_type이 불일치합니다."),
 
+    SUBSCRIPTION_CHECKOUT_REQUIRED(
+            HttpStatus.GONE,
+            "Subscription checkout is required.",
+            "Direct subscription creation is no longer supported. Use recurring billing checkout."),
+
     PLAYLIST_LIMIT_EXCEEDED(
             HttpStatus.CONFLICT,
             "구독 플랜의 재생목록 한도를 초과했습니다.",

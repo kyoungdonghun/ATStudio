@@ -92,57 +92,8 @@ public class PaymentApplicationService {
     public PaymentPrepareResponse prepareSubscriptionPayment(
             CustomUserDetails userDetails,
             PaymentPrepareRequest request) {
-        User user = findUser(userDetails);
-        Subscription subscription = findSubscription(request.subscriptionId());
-        validateSubscriptionUserType(user, subscription);
-
-        PaymentPurpose purpose = request.purpose();
-        if (purpose != PaymentPurpose.SUBSCRIBE && purpose != PaymentPurpose.UPGRADE) {
-            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
-        }
-
-        UserSubscription current = null;
-        BigDecimal amount;
-        if (purpose == PaymentPurpose.SUBSCRIBE) {
-            validateSubscriptionPreconditions(user);
-            amount = priceFor(subscription, request.billingCycle());
-        } else {
-            current = findActiveSubscription(user);
-            if (!isUpgrade(current, subscription)) {
-                throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
-            }
-            amount = calculateProratedUpgradeAmount(current, subscription, request.billingCycle());
-        }
-
-        PaymentProviderType providerType = paymentProperties.getProvider();
-        if (providerType != PaymentProviderType.MOCK && providerType != PaymentProviderType.TOSS) {
-            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
-        }
-        PaymentOrder order = paymentOrderRepository.save(PaymentOrder.builder()
-                .orderId(generateOrderId())
-                .user(user)
-                .purpose(purpose)
-                .provider(providerType)
-                .subscription(subscription)
-                .userSubscription(current)
-                .billingCycle(request.billingCycle())
-                .amount(amount)
-                .currency("KRW")
-                .expiresAt(LocalDateTime.now().plusMinutes(PAYMENT_EXPIRY_MINUTES))
-                .build());
-
-        PaymentProviderPrepareResult providerResult = provider(providerType).prepare(order);
-        order.markInProgress(providerResult.providerPayload());
-
-        return new PaymentPrepareResponse(
-                order.getOrderId(),
-                order.getProvider(),
-                order.getPurpose(),
-                order.getAmount(),
-                order.getCurrency(),
-                order.getExpiresAt(),
-                toCheckoutResponse(providerResult)
-        );
+        findUser(userDetails);
+        throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
     }
 
     @Transactional
@@ -163,6 +114,9 @@ public class PaymentApplicationService {
         if (order.isExpired(LocalDateTime.now())) {
             order.markExpired();
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_EXPIRED);
+        }
+        if (order.getPurpose() == PaymentPurpose.SUBSCRIBE || order.getPurpose() == PaymentPurpose.UPGRADE) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
         }
         if (order.getProvider() != request.provider()) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);

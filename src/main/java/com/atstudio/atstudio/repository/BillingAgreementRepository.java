@@ -4,6 +4,8 @@ import com.atstudio.atstudio.entity.BillingAgreement;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -25,4 +27,10 @@ public interface BillingAgreementRepository extends JpaRepository<BillingAgreeme
     List<BillingAgreement> findByStatusAndNextBillingAtLessThanEqual(
             BillingAgreementStatus status,
             LocalDate nextBillingAt);
+
+    @EntityGraph(attributePaths = {"user"})
+    Page<BillingAgreement> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"user"})
+    List<BillingAgreement> findByStatus(BillingAgreementStatus status);
 }

@@ -28,6 +28,7 @@
 
 **Exception / Alternative Flow**
 - BUSINESS type member without certification approval: 403 `COMPANY_CERTIFICATION_REQUIRED`.
+- Stale clients calling `POST /api/user-subscriptions` directly: 410 `SUBSCRIPTION_CHECKOUT_REQUIRED`. Subscription mutation is only allowed after recurring billing checkout confirmation and first charge success.
 
 **Postconditions**
 - user_subscriptions record created (status=ACTIVE). Payment record saved in subscription_payments.

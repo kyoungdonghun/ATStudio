@@ -7,7 +7,6 @@ import com.atstudio.atstudio.dto.payment.PaymentCancelRequest;
 import com.atstudio.atstudio.dto.payment.PaymentConfirmRequest;
 import com.atstudio.atstudio.dto.payment.PaymentConfirmResponse;
 import com.atstudio.atstudio.dto.payment.PaymentPrepareRequest;
-import com.atstudio.atstudio.dto.payment.PaymentPrepareResponse;
 import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.Subscription;
 import com.atstudio.atstudio.entity.SubscriptionPayment;
@@ -17,7 +16,6 @@ import com.atstudio.atstudio.entity.enums.BillingCycle;
 import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
-import com.atstudio.atstudio.entity.enums.PaymentStatus;
 import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
@@ -39,7 +37,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -47,8 +44,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -85,133 +80,40 @@ class PaymentApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("prepare SUBSCRIBE creates a mock payment order without creating subscription")
-    void prepareSubscribe_createsOrderOnly() {
+    @DisplayName("one-time SUBSCRIBE prepare is blocked for subscription scope")
+    void prepareSubscribe_blocked() {
         User user = buildUser(1L, UserType.INDIVIDUAL);
-        Subscription subscription = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
-
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(subscriptionRepository.findById(10L)).willReturn(Optional.of(subscription));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                .willReturn(Optional.empty());
-        given(paymentOrderRepository.existsByOrderId(anyString())).willReturn(false);
-        given(paymentOrderRepository.save(any(PaymentOrder.class)))
-                .willAnswer(invocation -> invocation.getArgument(0));
 
-        PaymentPrepareResponse response = service.prepareSubscriptionPayment(
+        assertThatThrownBy(() -> service.prepareSubscriptionPayment(
                 buildUserDetails(1L),
-                new PaymentPrepareRequest(PaymentPurpose.SUBSCRIBE, 10L, BillingCycle.MONTHLY));
+                new PaymentPrepareRequest(PaymentPurpose.SUBSCRIBE, 10L, BillingCycle.MONTHLY)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
 
-        assertThat(response.provider()).isEqualTo(PaymentProviderType.MOCK);
-        assertThat(response.purpose()).isEqualTo(PaymentPurpose.SUBSCRIBE);
-        assertThat(response.amount()).isEqualByComparingTo(BigDecimal.valueOf(9900));
-        assertThat(response.checkout().type()).isEqualTo("MOCK");
-        assertThat(response.checkout().confirmToken()).isEqualTo("mock-" + response.orderId());
-        verify(userSubscriptionRepository, never()).save(any(UserSubscription.class));
+        verify(paymentOrderRepository, never()).save(any(PaymentOrder.class));
     }
 
     @Test
-    @DisplayName("prepare can return Toss checkout metadata when provider is TOSS")
-    void prepareSubscribe_tossProvider() {
-        paymentProperties.setProvider(PaymentProviderType.TOSS);
-        paymentProperties.getToss().setClientKey("test_ck_sample");
-        paymentProperties.getToss().setSecretKey("test_sk_sample");
-        paymentProperties.getToss().setSuccessUrl("http://localhost:5173/success");
-        paymentProperties.getToss().setFailUrl("http://localhost:5173/fail");
+    @DisplayName("one-time UPGRADE prepare is blocked for subscription scope")
+    void prepareUpgrade_blocked() {
         User user = buildUser(1L, UserType.INDIVIDUAL);
-        Subscription subscription = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
-
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(subscriptionRepository.findById(10L)).willReturn(Optional.of(subscription));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                .willReturn(Optional.empty());
-        given(paymentOrderRepository.existsByOrderId(anyString())).willReturn(false);
-        given(paymentOrderRepository.save(any(PaymentOrder.class)))
-                .willAnswer(invocation -> invocation.getArgument(0));
 
-        PaymentPrepareResponse response = service.prepareSubscriptionPayment(
+        assertThatThrownBy(() -> service.prepareSubscriptionPayment(
                 buildUserDetails(1L),
-                new PaymentPrepareRequest(PaymentPurpose.SUBSCRIBE, 10L, BillingCycle.MONTHLY));
+                new PaymentPrepareRequest(PaymentPurpose.UPGRADE, 10L, BillingCycle.MONTHLY)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
 
-        assertThat(response.provider()).isEqualTo(PaymentProviderType.TOSS);
-        assertThat(response.checkout().type()).isEqualTo("TOSS_WIDGET");
-        assertThat(response.checkout().clientKey()).isEqualTo("test_ck_sample");
-        assertThat(response.checkout().customerKey()).isEqualTo("ats_user_1");
-        assertThat(response.checkout().successUrl()).isEqualTo("http://localhost:5173/success");
-        verify(userSubscriptionRepository, never()).save(any(UserSubscription.class));
+        verify(paymentOrderRepository, never()).save(any(PaymentOrder.class));
     }
 
     @Test
-    @DisplayName("confirm SUBSCRIBE success creates subscription, payment, and playlist")
-    void confirmSubscribe_success() {
-        User user = buildUser(1L, UserType.INDIVIDUAL);
-        Subscription subscription = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
-        PaymentOrder order = buildOrder(user, subscription, PaymentPurpose.SUBSCRIBE, null,
-                BigDecimal.valueOf(9900));
-        UserSubscription saved = buildUserSubscription(100L, user, subscription,
-                BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
-
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(paymentOrderRepository.findByOrderId("ORDER-1")).willReturn(Optional.of(order));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                .willReturn(Optional.empty());
-        given(userSubscriptionRepository.findByUser(user)).willReturn(Optional.empty());
-        given(userSubscriptionRepository.save(any(UserSubscription.class))).willReturn(saved);
-        given(subscriptionPaymentRepository.save(any(SubscriptionPayment.class)))
-                .willAnswer(invocation -> invocation.getArgument(0));
-
-        PaymentConfirmResponse response = service.confirmPayment(
-                buildUserDetails(1L),
-                new PaymentConfirmRequest("ORDER-1", BigDecimal.valueOf(9900),
-                        PaymentProviderType.MOCK, "mock-ORDER-1"));
-
-        assertThat(response.status()).isEqualTo(PaymentOrderStatus.DONE);
-        assertThat(response.subscription().id()).isEqualTo(100L);
-        assertThat(order.getStatus()).isEqualTo(PaymentOrderStatus.DONE);
-        verify(userSubscriptionRepository).save(any(UserSubscription.class));
-        verify(subscriptionPaymentRepository).save(any(SubscriptionPayment.class));
-        verify(playlistService).createDefaultPlaylist(user);
-    }
-
-    @Test
-    @DisplayName("confirm SUBSCRIBE reuses expired subscription row for resubscribe")
-    void confirmSubscribe_reusesExpiredSubscriptionRow() {
-        User user = buildUser(1L, UserType.INDIVIDUAL);
-        Subscription oldSubscription = buildSubscription(9L, "Old", UserType.INDIVIDUAL);
-        Subscription newSubscription = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
-        UserSubscription expired = buildUserSubscription(100L, user, oldSubscription,
-                BillingCycle.YEARLY, SubscriptionStatus.EXPIRED);
-        ReflectionTestUtils.setField(expired, "expiresAt", LocalDate.now().minusDays(1));
-        PaymentOrder order = buildOrder(user, newSubscription, PaymentPurpose.SUBSCRIBE, null,
-                BigDecimal.valueOf(9900));
-
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(paymentOrderRepository.findByOrderId("ORDER-1")).willReturn(Optional.of(order));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                .willReturn(Optional.empty());
-        given(userSubscriptionRepository.findByUser(user)).willReturn(Optional.of(expired));
-        given(subscriptionPaymentRepository.save(any(SubscriptionPayment.class)))
-                .willAnswer(invocation -> invocation.getArgument(0));
-
-        PaymentConfirmResponse response = service.confirmPayment(
-                buildUserDetails(1L),
-                new PaymentConfirmRequest("ORDER-1", BigDecimal.valueOf(9900),
-                        PaymentProviderType.MOCK, "mock-ORDER-1"));
-
-        assertThat(response.status()).isEqualTo(PaymentOrderStatus.DONE);
-        assertThat(response.subscription().id()).isEqualTo(100L);
-        assertThat(expired.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
-        assertThat(expired.getSubscription()).isEqualTo(newSubscription);
-        assertThat(expired.getBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
-        assertThat(order.getUserSubscription()).isEqualTo(expired);
-        verify(userSubscriptionRepository, never()).save(any(UserSubscription.class));
-        verify(subscriptionPaymentRepository).save(any(SubscriptionPayment.class));
-        verify(playlistService).createDefaultPlaylist(user);
-    }
-
-    @Test
-    @DisplayName("confirm failure records failed order and does not create subscription")
-    void confirmSubscribe_failureDoesNotMutateSubscription() {
+    @DisplayName("legacy one-time SUBSCRIBE confirm is rejected before subscription mutation")
+    void confirmSubscribe_rejected() {
         User user = buildUser(1L, UserType.INDIVIDUAL);
         Subscription subscription = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
         PaymentOrder order = buildOrder(user, subscription, PaymentPurpose.SUBSCRIBE, null,
@@ -223,18 +125,43 @@ class PaymentApplicationServiceTest {
         assertThatThrownBy(() -> service.confirmPayment(
                 buildUserDetails(1L),
                 new PaymentConfirmRequest("ORDER-1", BigDecimal.valueOf(9900),
-                        PaymentProviderType.MOCK, "bad-token")))
+                        PaymentProviderType.MOCK, "mock-ORDER-1")))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
-                        .isEqualTo(BUSINESS_ERROR.PAYMENT_CONFIRM_FAILED));
+                        .isEqualTo(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE));
 
-        assertThat(order.getStatus()).isEqualTo(PaymentOrderStatus.FAILED);
+        assertThat(order.getStatus()).isEqualTo(PaymentOrderStatus.READY);
         verify(userSubscriptionRepository, never()).save(any(UserSubscription.class));
         verify(subscriptionPaymentRepository, never()).save(any(SubscriptionPayment.class));
     }
 
     @Test
-    @DisplayName("confirm DONE order is idempotent")
+    @DisplayName("legacy one-time UPGRADE confirm is rejected before subscription mutation")
+    void confirmUpgrade_rejected() {
+        User user = buildUser(1L, UserType.INDIVIDUAL);
+        Subscription subscription = buildSubscription(10L, "Premium", UserType.INDIVIDUAL);
+        UserSubscription current = buildUserSubscription(100L, user, subscription,
+                BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
+        PaymentOrder order = buildOrder(user, subscription, PaymentPurpose.UPGRADE, current,
+                BigDecimal.valueOf(5000));
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(paymentOrderRepository.findByOrderId("ORDER-1")).willReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> service.confirmPayment(
+                buildUserDetails(1L),
+                new PaymentConfirmRequest("ORDER-1", BigDecimal.valueOf(5000),
+                        PaymentProviderType.MOCK, "mock-ORDER-1")))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE));
+
+        assertThat(order.getStatus()).isEqualTo(PaymentOrderStatus.READY);
+        verify(subscriptionPaymentRepository, never()).save(any(SubscriptionPayment.class));
+    }
+
+    @Test
+    @DisplayName("DONE order remains idempotent for legacy records")
     void confirmDone_isIdempotent() {
         User user = buildUser(1L, UserType.INDIVIDUAL);
         Subscription subscription = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
@@ -258,7 +185,7 @@ class PaymentApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("cancel can close a READY order as CANCELLED")
+    @DisplayName("cancel can close a READY legacy order as CANCELLED")
     void cancelPayment_cancelled() {
         User user = buildUser(1L, UserType.INDIVIDUAL);
         Subscription subscription = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
@@ -313,8 +240,8 @@ class PaymentApplicationServiceTest {
                 .subscription(subscription)
                 .billingCycle(billingCycle)
                 .status(status)
-                .startedAt(LocalDate.now())
-                .expiresAt(LocalDate.now().plusMonths(1))
+                .startedAt(java.time.LocalDate.now())
+                .expiresAt(java.time.LocalDate.now().plusMonths(1))
                 .build();
         ReflectionTestUtils.setField(userSubscription, "id", id);
         return userSubscription;

@@ -452,7 +452,6 @@ public class BillingAgreementApplicationService {
         return new BillingAgreementResponse(
                 agreement.getProvider(),
                 agreement.getStatus(),
-                agreement.getProviderCustomerKey(),
                 agreement.getPayMethod(),
                 agreement.getMaskedMethod(),
                 agreement.getNextBillingAt(),

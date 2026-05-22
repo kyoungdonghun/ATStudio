@@ -1,8 +1,19 @@
-# ATStudio API Specification v9 (Confirmed)
+# ATStudio API Specification v10 (Confirmed)
 
-> **Status**: 9th confirmed — live contract sync (download history, public capabilities, auth/profile conflict cleanup, payment billing sync, recurring-first subscription changes)
-> **Base**: v8 + 2026-05-20 payment preview/rounding patch
-> **Date**: 2026-05-20
+> **Status**: 10th confirmed — payment operations hardening sync (recurring-only checkout, one-time subscription block, admin read-only payment APIs)
+> **Base**: v9 + 2026-05-21 payment operations hardening patch
+> **Date**: 2026-05-21
+
+---
+
+## v9 → v10 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| AA1 | §6.3.1/§6.3.2 payment policy | One-time `SUBSCRIBE`/`UPGRADE` subscription prepare/confirm is blocked in backend; new subscription checkout uses billing agreement APIs only |
+| AA2 | §6.3.4 billing callback URLs | Default Toss billing auth callbacks moved to `/subscriptions/checkout/success` and `/subscriptions/checkout/fail` |
+| AA3 | §6.3.8 operations APIs | Added implemented read-only admin payment order, billing agreement, and subscription payment list APIs |
+| AA4 | Full API Summary | Updated total count from 114 → 117 |
 
 ---
 
@@ -1073,7 +1084,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 |-------|-------|
 | **URL** | `POST /api/user-subscriptions` |
 | **Auth** | auth required |
-| **Description** | Legacy compatibility subscription path. User-facing payment flow should use §6.3.1 → §6.3.2 instead. Business members require license approval. |
+| **Description** | Blocked legacy direct subscription creation path. User-facing subscription purchase must use §6.3.4 → §6.3.5 recurring billing checkout. This endpoint remains only so stale clients fail explicitly instead of creating a mock-style subscription. |
 
 **Request**
 ```json
@@ -1083,30 +1094,26 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 }
 ```
 
-**Response** `201 Created`
+**Response** `410 Gone`
 ```json
 {
-  "id": 1,
-  "subscription": { "id": 1, "name": "STANDARD" },
-  "billingCycle": "MONTHLY",
-  "status": "ACTIVE",
-  "startedAt": "2026-02-19",
-  "expiresAt": "2026-03-19",
-  "createdAt": "2026-02-19T10:00:00"
+  "status": 410,
+  "error": "Gone",
+  "errorCode": "SUBSCRIPTION_CHECKOUT_REQUIRED",
+  "message": "Subscription checkout is required."
 }
 ```
 
 **Error Cases**
-```json
-{ "status": 403, "error": "Forbidden", "errorCode": "COMPANY_CERTIFICATION_REQUIRED", "message": "기업 인증 심사 승인 후 이용 가능합니다." }
-```
+- `410 Gone` — `SUBSCRIPTION_CHECKOUT_REQUIRED`
+- New subscription validation, company-certification checks, billing-key issuance, first charge, and subscription mutation are handled by §6.3.4 → §6.3.5.
 
 ## 6.3.1 Prepare Subscription Payment
 | Field | Value |
 |-------|-------|
 | **URL** | `POST /api/payments/subscriptions/prepare` |
 | **Auth** | auth required |
-| **Description** | Legacy/test one-time payment preparation. User-facing recurring subscription purchase uses §6.3.4 → §6.3.5. User-facing upgrade uses §6.7 and must not route to this one-time Toss Widget path. |
+| **Description** | Blocked legacy one-time subscription payment preparation. User-facing recurring subscription purchase uses §6.3.4 → §6.3.5. User-facing upgrade uses §6.7 and must not route to this one-time Toss Widget path. |
 
 **Request**
 ```json
@@ -1117,48 +1124,24 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 }
 ```
 
-**Toss Response Shape**
+**Response** `400 Bad Request`
 ```json
 {
-  "orderId": "ATS-20260517-ABC123",
-  "provider": "TOSS",
-  "purpose": "SUBSCRIBE",
-  "amount": 9900,
-  "currency": "KRW",
-  "expiresAt": "2026-05-17T23:10:00",
-  "checkout": {
-    "type": "TOSS_WIDGET",
-    "clientKey": "test_ck_...",
-    "customerKey": "ats_user_1",
-    "orderName": "ATStudio STANDARD Subscription",
-    "successUrl": "http://localhost:5173/subscriptions/payment/success",
-    "failUrl": "http://localhost:5173/subscriptions/payment/fail"
-  }
+  "status": 400,
+  "error": "Bad Request",
+  "errorCode": "INVALID_ARGUMENT",
+  "message": "Invalid argument."
 }
 ```
 
-**Response** `201 Created`
-```json
-{
-  "orderId": "ATS-20260516-ABC123",
-  "provider": "MOCK",
-  "purpose": "SUBSCRIBE",
-  "amount": 9900,
-  "currency": "KRW",
-  "expiresAt": "2026-05-16T23:10:00",
-  "checkout": {
-    "type": "MOCK",
-    "confirmToken": "mock-ATS-20260516-ABC123"
-  }
-}
-```
+> Compatibility note: the endpoint remains present so stale clients fail explicitly instead of mutating subscriptions. It must not be used by current frontend subscription flows.
 
 ## 6.3.2 Confirm Payment
 | Field | Value |
 |-------|-------|
 | **URL** | `POST /api/payments/confirm` |
 | **Auth** | auth required |
-| **Description** | Confirms a prepared payment order. Subscription creation or upgrade is applied only after successful confirmation. |
+| **Description** | Confirms non-subscription payment orders only. One-time `SUBSCRIBE` and `UPGRADE` orders are rejected before provider confirmation; recurring subscription creation uses §6.3.5 and upgrades use §6.7. Already-`DONE` legacy orders remain idempotent. |
 
 **Request**
 ```json
@@ -1180,22 +1163,15 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 }
 ```
 
-For Toss, the frontend receives `paymentKey`, `orderId`, and `amount` from the Toss success redirect. The backend must use the stored payment order amount as the authoritative amount when calling Toss confirm.
+For current subscription flows, the frontend must not call this endpoint. Toss one-time success redirects under `/subscriptions/payment/success` are treated as stale legacy routes.
 
-**Response** `200 OK`
+**Blocked subscription response** `400 Bad Request`
 ```json
 {
-  "orderId": "ATS-20260516-ABC123",
-  "status": "DONE",
-  "purpose": "SUBSCRIBE",
-  "subscription": {
-    "id": 1,
-    "subscription": { "id": 1, "name": "STANDARD" },
-    "billingCycle": "MONTHLY",
-    "status": "ACTIVE",
-    "startedAt": "2026-05-16",
-    "expiresAt": "2026-06-16"
-  }
+  "status": 400,
+  "error": "Bad Request",
+  "errorCode": "PAYMENT_ORDER_INVALID_STATE",
+  "message": "Invalid payment order state."
 }
 ```
 
@@ -1259,8 +1235,8 @@ For Toss, the frontend receives `paymentKey`, `orderId`, and `amount` from the T
     "clientKey": "test_ck_...",
     "customerKey": "ats_user_1_xxxxx",
     "method": "CARD",
-    "successUrl": "http://localhost:5173/subscriptions/billing/success",
-    "failUrl": "http://localhost:5173/subscriptions/billing/fail"
+    "successUrl": "http://localhost:5173/subscriptions/checkout/success",
+    "failUrl": "http://localhost:5173/subscriptions/checkout/fail"
   }
 }
 ```
@@ -1352,16 +1328,15 @@ For Toss, the frontend receives `paymentKey`, `orderId`, and `amount` from the T
 }
 ```
 
-## 6.3.8 Payment Operations Candidates (Not Implemented)
+## 6.3.8 Payment Operations Read-only APIs
 
-These endpoints are design candidates for the next operations phase. They are not part of the current implemented API count.
+These endpoints are implemented as read-only admin support/audit views. They must not expose raw billing keys, auth keys, customer keys, Toss secret keys, or raw provider payloads.
 
-| Candidate | Purpose | Notes |
+| API | Purpose | Notes |
 |---|---|---|
-| `GET /api/admin/payments/orders` | Search payment attempts by user, status, provider, purpose, date range | Read-only support/audit view |
-| `GET /api/admin/payments/orders/{orderId}` | Inspect one payment order with sanitized provider metadata | No raw provider payload or secret values |
-| `GET /api/admin/payments/billing-agreements` | List billing agreements by status and next billing date | Show masked method and failure count only |
-| `GET /api/admin/payments/subscription-payments` | Search finalized subscription payment records | No refund/settlement mutation in this phase |
+| `GET /api/admin/payments/orders` | List payment attempts by latest created date | Read-only; includes status, purpose, provider, amount, sanitized failure code/message |
+| `GET /api/admin/payments/billing-agreements` | List billing agreements by latest created date | Shows masked method and failure count only |
+| `GET /api/admin/payments/subscription-payments` | List finalized subscription payment records | No refund/settlement mutation in this phase |
 
 ## 6.4 My Subscription
 | Field | Value |
@@ -2650,7 +2625,7 @@ key: String (required) — setting key name
 
 ---
 
-# Full API Summary (114)
+# Full API Summary (117)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -2671,4 +2646,5 @@ key: String (required) — setting key name
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
-| | **Total** | **114** |
+| 18 | Admin Payment Operations | 3 |
+| | **Total** | **117** |

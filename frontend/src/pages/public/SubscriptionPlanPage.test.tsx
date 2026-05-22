@@ -91,7 +91,7 @@ describe('SubscriptionPlanPage', () => {
 
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith(
-        '/subscriptions/payment?plan=DELUXE&cycle=YEARLY&mode=recurring',
+        '/subscriptions/checkout?plan=DELUXE&cycle=YEARLY',
       );
     });
   });

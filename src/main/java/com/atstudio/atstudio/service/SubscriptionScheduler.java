@@ -1,6 +1,9 @@
 package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.entity.UserSubscription;
+import com.atstudio.atstudio.entity.PaymentOrder;
+import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
+import com.atstudio.atstudio.repository.PaymentOrderRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -9,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -16,13 +20,35 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SubscriptionScheduler {
 
+    private static final List<PaymentOrderStatus> EXPIRABLE_ORDER_STATUSES = List.of(
+            PaymentOrderStatus.READY,
+            PaymentOrderStatus.IN_PROGRESS
+    );
+
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final RecurringRenewalService recurringRenewalService;
+    private final PaymentOrderRepository paymentOrderRepository;
 
     @Scheduled(cron = "0 0 0 * * *")
     @Transactional
     public void processRecurringRenewals() {
         recurringRenewalService.processDueRenewals();
+    }
+
+    @Scheduled(cron = "0 10 0 * * *")
+    @Transactional
+    public void processExpiredPaymentOrders() {
+        List<PaymentOrder> expiredOrders = paymentOrderRepository.findByStatusInAndExpiresAtBefore(
+                EXPIRABLE_ORDER_STATUSES,
+                LocalDateTime.now());
+
+        for (PaymentOrder order : expiredOrders) {
+            order.markExpired();
+        }
+
+        if (!expiredOrders.isEmpty()) {
+            log.info("Expired stale payment orders: count={}", expiredOrders.size());
+        }
     }
 
     /**

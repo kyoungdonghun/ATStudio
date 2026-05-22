@@ -12,14 +12,12 @@ import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.enums.*;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
-import com.atstudio.atstudio.repository.CompanyCertificationRepository;
 import com.atstudio.atstudio.repository.PaymentOrderRepository;
 import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
 import com.atstudio.atstudio.repository.SubscriptionRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
-import com.atstudio.atstudio.service.payment.PaymentService;
 import com.atstudio.atstudio.service.payment.billing.BillingKeyCrypto;
 import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeCommand;
 import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeResult;
@@ -56,9 +54,6 @@ class UserSubscriptionServiceTest {
     @Mock UserSubscriptionRepository userSubscriptionRepository;
     @Mock SubscriptionRepository subscriptionRepository;
     @Mock UserRepository userRepository;
-    @Mock CompanyCertificationRepository companyCertificationRepository;
-    @Mock PaymentService paymentService;
-    @Mock PlaylistService playlistService;
     @Mock BillingAgreementRepository billingAgreementRepository;
     @Mock PaymentOrderRepository paymentOrderRepository;
     @Mock SubscriptionPaymentRepository subscriptionPaymentRepository;
@@ -73,9 +68,6 @@ class UserSubscriptionServiceTest {
                 userSubscriptionRepository,
                 subscriptionRepository,
                 userRepository,
-                companyCertificationRepository,
-                paymentService,
-                playlistService,
                 billingAgreementRepository,
                 paymentOrderRepository,
                 subscriptionPaymentRepository,
@@ -86,147 +78,14 @@ class UserSubscriptionServiceTest {
 
     // -- 6.3 subscribe -------------------------------------------------------
 
-    @Nested
-    @DisplayName("subscribe()")
-    class Subscribe {
-
-        @Test
-        @DisplayName("성공 - INDIVIDUAL 회원 MONTHLY 구독")
-        void subscribe_individual_success() {
-            User user = buildUser(1L, UserType.INDIVIDUAL);
-            Subscription sub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
-            UserSubscription saved = buildUserSubscription(100L, user, sub,
-                    BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
-
-            given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                    .willReturn(Optional.empty());
-            given(subscriptionRepository.findById(10L)).willReturn(Optional.of(sub));
-            given(userSubscriptionRepository.findByUser(user)).willReturn(Optional.empty());
-            given(userSubscriptionRepository.save(any(UserSubscription.class))).willReturn(saved);
-            given(paymentService.processPayment(any(), any(), any(), any(), any()))
-                    .willReturn(buildPayment());
-
-            UserSubscriptionResponse result = userSubscriptionService.subscribe(
-                    buildUserDetails(1L), new UserSubscriptionRequest(10L, BillingCycle.MONTHLY));
-
-            assertThat(result.id()).isEqualTo(100L);
-            assertThat(result.status()).isEqualTo("ACTIVE");
-            verify(paymentService).processPayment(eq(user), eq(saved), eq(sub),
-                    eq(BillingCycle.MONTHLY), eq(BigDecimal.valueOf(9900)));
-            verify(playlistService).createDefaultPlaylist(user);
-        }
-
-        @Test
-        @DisplayName("성공 - BUSINESS 인증 완료 회원 구독")
-        void subscribe_business_certified_success() {
-            User user = buildUser(2L, UserType.BUSINESS);
-            Subscription sub = buildSubscription(10L, "BizPlan", UserType.BUSINESS);
-            UserSubscription saved = buildUserSubscription(101L, user, sub,
-                    BillingCycle.YEARLY, SubscriptionStatus.ACTIVE);
-
-            given(userRepository.findById(2L)).willReturn(Optional.of(user));
-            given(companyCertificationRepository.existsByUserAndStatusIn(eq(user), anyList()))
-                    .willReturn(true);
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                    .willReturn(Optional.empty());
-            given(subscriptionRepository.findById(10L)).willReturn(Optional.of(sub));
-            given(userSubscriptionRepository.findByUser(user)).willReturn(Optional.empty());
-            given(userSubscriptionRepository.save(any(UserSubscription.class))).willReturn(saved);
-            given(paymentService.processPayment(any(), any(), any(), any(), any()))
-                    .willReturn(buildPayment());
-
-            UserSubscriptionResponse result = userSubscriptionService.subscribe(
-                    buildUserDetails(2L), new UserSubscriptionRequest(10L, BillingCycle.YEARLY));
-
-            assertThat(result.id()).isEqualTo(101L);
-            verify(paymentService).processPayment(eq(user), eq(saved), eq(sub),
-                    eq(BillingCycle.YEARLY), eq(BigDecimal.valueOf(99000)));
-            verify(playlistService).createDefaultPlaylist(user);
-        }
-
-        @Test
-        @DisplayName("성공 - 만료된 기존 row 재사용")
-        void subscribe_reusesExpiredSubscriptionRow() {
-            User user = buildUser(1L, UserType.INDIVIDUAL);
-            Subscription oldSub = buildSubscription(9L, "Old", UserType.INDIVIDUAL);
-            Subscription newSub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
-            UserSubscription expired = buildUserSubscription(100L, user, oldSub,
-                    BillingCycle.YEARLY, SubscriptionStatus.EXPIRED);
-            ReflectionTestUtils.setField(expired, "expiresAt", LocalDate.now().minusDays(1));
-
-            given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                    .willReturn(Optional.empty());
-            given(subscriptionRepository.findById(10L)).willReturn(Optional.of(newSub));
-            given(userSubscriptionRepository.findByUser(user)).willReturn(Optional.of(expired));
-            given(paymentService.processPayment(any(), any(), any(), any(), any()))
-                    .willReturn(buildPayment());
-
-            UserSubscriptionResponse result = userSubscriptionService.subscribe(
-                    buildUserDetails(1L), new UserSubscriptionRequest(10L, BillingCycle.MONTHLY));
-
-            assertThat(result.id()).isEqualTo(100L);
-            assertThat(result.status()).isEqualTo("ACTIVE");
-            assertThat(expired.getSubscription()).isEqualTo(newSub);
-            assertThat(expired.getBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
-            verify(userSubscriptionRepository, never()).save(any(UserSubscription.class));
-            verify(paymentService).processPayment(eq(user), eq(expired), eq(newSub),
-                    eq(BillingCycle.MONTHLY), eq(BigDecimal.valueOf(9900)));
-            verify(playlistService).createDefaultPlaylist(user);
-        }
-
-        @Test
-        @DisplayName("실패 - BUSINESS 미인증 → COMPANY_CERTIFICATION_REQUIRED")
-        void subscribe_business_notCertified() {
-            User user = buildUser(2L, UserType.BUSINESS);
-
-            given(userRepository.findById(2L)).willReturn(Optional.of(user));
-            given(companyCertificationRepository.existsByUserAndStatusIn(eq(user), anyList()))
-                    .willReturn(false);
-
-            assertThatThrownBy(() -> userSubscriptionService.subscribe(
-                    buildUserDetails(2L), new UserSubscriptionRequest(10L, BillingCycle.MONTHLY)))
-                    .isInstanceOf(BusinessException.class)
-                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
-                            .isEqualTo(BUSINESS_ERROR.COMPANY_CERTIFICATION_REQUIRED));
-        }
-
-        @Test
-        @DisplayName("실패 - 중복 구독 → SUBSCRIPTION_ALREADY_EXISTS")
-        void subscribe_duplicate() {
-            User user = buildUser(1L, UserType.INDIVIDUAL);
-            Subscription sub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
-            UserSubscription existing = buildUserSubscription(100L, user, sub,
-                    BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
-
-            given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                    .willReturn(Optional.of(existing));
-
-            assertThatThrownBy(() -> userSubscriptionService.subscribe(
-                    buildUserDetails(1L), new UserSubscriptionRequest(10L, BillingCycle.MONTHLY)))
-                    .isInstanceOf(BusinessException.class)
-                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
-                            .isEqualTo(BUSINESS_ERROR.SUBSCRIPTION_ALREADY_EXISTS));
-        }
-
-        @Test
-        @DisplayName("실패 - 미존재 플랜 → SUBSCRIPTION_NOT_FOUND")
-        void subscribe_planNotFound() {
-            User user = buildUser(1L, UserType.INDIVIDUAL);
-
-            given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                    .willReturn(Optional.empty());
-            given(subscriptionRepository.findById(99L)).willReturn(Optional.empty());
-
-            assertThatThrownBy(() -> userSubscriptionService.subscribe(
-                    buildUserDetails(1L), new UserSubscriptionRequest(99L, BillingCycle.MONTHLY)))
-                    .isInstanceOf(BusinessException.class)
-                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
-                            .isEqualTo(BUSINESS_ERROR.SUBSCRIPTION_NOT_FOUND));
-        }
+    @Test
+    @DisplayName("subscribe() - legacy direct subscription creation is blocked")
+    void subscribe_blocked() {
+        assertThatThrownBy(() -> userSubscriptionService.subscribe(
+                buildUserDetails(1L), new UserSubscriptionRequest(10L, BillingCycle.MONTHLY)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.SUBSCRIPTION_CHECKOUT_REQUIRED));
     }
 
     // -- 6.4 getMySubscription -----------------------------------------------
@@ -378,7 +237,6 @@ class UserSubscriptionServiceTest {
             assertThat(result.proratedAmount()).isNotNull();
             assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.valueOf(5000));
             assertThat(result.expiresAt()).isEqualTo(originalExpiresAt);
-            verify(paymentService, never()).processPayment(any(), any(), any(), any(), any());
             verify(subscriptionPaymentRepository).save(any(SubscriptionPayment.class));
 
             assertThat(us.getSubscription()).isEqualTo(newSub);
@@ -594,9 +452,10 @@ class UserSubscriptionServiceTest {
             // 현재 구독은 변경되지 않음 (Premium 유지)
             assertThat(us.getSubscription()).isEqualTo(currentSub);
 
-            // payment 미호출 verify
-            verify(paymentService, org.mockito.Mockito.never())
-                    .processPayment(any(), any(), any(), any(), any());
+            // DOWNGRADE does not charge immediately.
+            verify(paymentOrderRepository, never()).save(any(PaymentOrder.class));
+            verify(recurringPaymentProvider, never()).charge(any());
+            verify(subscriptionPaymentRepository, never()).save(any());
         }
 
         @Test
@@ -850,15 +709,6 @@ class UserSubscriptionServiceTest {
                 .build();
         ReflectionTestUtils.setField(us, "id", id);
         return us;
-    }
-
-    private SubscriptionPayment buildPayment() {
-        return SubscriptionPayment.builder()
-                .amount(BigDecimal.ZERO)
-                .billingCycle(BillingCycle.MONTHLY)
-                .paymentStatus(PaymentStatus.DONE)
-                .pgTransactionId("MOCK-test")
-                .build();
     }
 
     private BillingAgreement buildActiveAgreement(User user) {

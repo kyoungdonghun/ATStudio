@@ -42,23 +42,7 @@ export interface ChangeSubscriptionRequest {
   billingCycle: 'MONTHLY' | 'YEARLY';
 }
 
-export interface SubscribeRequest {
-  subscriptionId: number;
-  billingCycle: 'MONTHLY' | 'YEARLY';
-}
-
 /* ── API functions ── */
-
-/** POST /api/user-subscriptions -- subscribe to a plan */
-export async function subscribe(
-  req: SubscribeRequest,
-): Promise<MySubscription> {
-  const { data } = await client.post<ApiResponse<MySubscription>>(
-    '/user-subscriptions',
-    req,
-  );
-  return data.data;
-}
 
 /** GET /api/user-subscriptions/me -- my current subscription */
 export async function fetchMySubscription(): Promise<MySubscription> {

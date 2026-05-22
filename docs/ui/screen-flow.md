@@ -197,23 +197,22 @@ dependencies:
 ```
 [16-1 구독 플랜 비교/선택]  ← [PUBLIC]
   │
-  └── "구독하기" 클릭 ──────────────────────────── [16-2 구독 결제]
+  └── "구독하기" 클릭 ──────────────────────────── [16-2 구독 결제: /subscriptions/checkout]
        비로그인 → "로그인이 필요합니다" 안내 + [A-1 로그인] 이동 제안
        BUSINESS + 기업인증 없음 → "기업인증이 필요합니다" 안내 + [I-1] 이동 제안
                                                    │
-                                             "결제하기" → payment prepare
-                                                    │  TOSS_BILLING → billing auth → success redirect → billing confirm + initial charge
-                                                    │  MOCK/TOSS one-time → legacy/test-only, not user-facing subscription flow
+                                             "카드 등록하기" → billing agreement prepare
+                                                    │  TOSS_BILLING → billing auth → /subscriptions/checkout/success → billing confirm + initial charge
+                                                    │  `/subscriptions/payment/*` legacy one-time redirect → blocked, no subscription mutation
                                                    │  성공 → [16-3 내 구독]
                                                    ├── 실패 → 결제 실패 상태 표시, 구독 미생성
                                                    └── "취소" → [16-1], 구독 미생성
 
-       UX target after REQ-20260518-ATS-001:
+       UX target after REQ-20260521-ATS-001:
          - Default payment page shows plan, amount, cycle, payment mode, and a single primary action.
-          - Recurring billing auth should prefer a dedicated checkout/callback route because mobile authentication return,
+          - Recurring billing auth uses a dedicated checkout/callback route because mobile authentication return,
             stale redirect recovery, and retry states are easier to explain there.
-          - The one-time Toss widget inline UX tracked by SR-92 is retired for subscription scope.
-          - Current inline/page-fixed billing auth state remains acceptable only as a local/debug-friendly intermediate state.
+          - The one-time Toss widget inline UX tracked by SR-92 is retired for subscription scope and is not user-facing.
          - User copy separates "payment failed" from "billing registration failed"; raw authKey, customerKey,
            billingKey, and provider payloads are never shown to the user.
 
@@ -391,7 +390,7 @@ dependencies:
 | R-03 | 태그 필터 — 인라인 vs 모달 전환 용이성 | 인라인 우선, 전환 어려우면 재논의 |
 | R-04 | 18 통계 대시보드 지표 확장 설계 | 필요 시 후속 정의 |
 | R-05 | 결제 운영 안정화 (billing auth / upgrade charge / renewal failure) | One-time Toss widget UX SR-92 is dropped; production hardening continues under SR-93 and follow-up REQ/SR items |
-| R-06 | 결제 운영 화면 | Read-only payment order / billing agreement / subscription payment support view is a planned operations follow-up |
+| R-06 | 결제 운영 화면 | Read-only payment order / billing agreement / subscription payment support view is implemented at `/admin/payments` |
 | R-07 | M-15 기업인증 서류 파일 제한 | 업로드 정책 미확정 |
 
 ---

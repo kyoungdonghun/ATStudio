@@ -99,7 +99,7 @@ dependencies:
 | M-28 | - | K-6 (태그 관리) | "태그 삭제" 클릭 | "태그를 삭제하시겠습니까?" | ConfirmModal | `2.4 DELETE /api/tags/{tagId}` |
 | M-29 | SR-34 | D-1 (좋아요 목록 > 앨범 탭) | "좋아요 취소" 클릭 | "좋아요를 취소하시겠습니까?" | ConfirmModal | `DELETE /api/likes/albums/{albumId}` |
 | M-30 | SR-79 | Screen 11 (다운로드 기록) | "전체 재다운로드" 클릭 | "{N}곡을 다운로드합니다. 계속하시겠습니까?" | ConfirmDialog | `GET /api/downloads/history/track-ids` + `GET /api/tracks/{trackId}/download` |
-| M-31 | REQ-20260518-ATS-001 | Screen 16-2 / billing callback | "카드 등록하기" 클릭 | Toss billing auth 진행 후 성공/실패/복귀/재시도 안내 | Target: dedicated checkout/callback route; local debug may keep inline state panel | `6.3.4 POST /api/payments/billing-agreements/prepare` + `6.3.5 POST /api/payments/billing-agreements/confirm` |
+| M-31 | REQ-20260521-ATS-001 | Screen 16-2 / billing callback | "카드 등록하기" 클릭 | Toss billing auth 진행 후 성공/실패/복귀/재시도 안내 | Implemented through `/subscriptions/checkout` and `/subscriptions/checkout/success|fail`; legacy `/subscriptions/payment/*` is blocked | `6.3.4 POST /api/payments/billing-agreements/prepare` + `6.3.5 POST /api/payments/billing-agreements/confirm` |
 
 ---
 
@@ -260,7 +260,7 @@ dependencies:
 |---|------|------|
 | M-26 | Toss billing auth checkout — 구독 최초 결제 (Screen 16-2) | One-time Toss widget UX work under SR-92 is retired. Production focus is billing auth return/retry recovery. |
 | M-27 | Billing-key upgrade charge — 업그레이드 결제 (M-09 내) | No checkout modal is needed. Server-side recurring charge, failure recovery, and user copy are the remaining hardening focus. |
-| M-31 | Toss billing auth checkout — 정기결제 등록 | Dedicated checkout/callback route is preferred for mobile auth return, stale redirect recovery, and retry messaging. |
+| M-31 | Toss billing auth checkout — 정기결제 등록 | Dedicated `/subscriptions/checkout` callback route is implemented for mobile auth return, stale redirect recovery, and retry messaging. |
 | M-15 | 기업인증 서류 파일 제한 (I-1) | 업로드 허용 파일 확장자 및 최대 크기 정책 미확정. FileUploadModal 구현 시 별도 정의 필요. |
 
 ---
@@ -268,7 +268,7 @@ dependencies:
 > 총 **31개** 모달 (M-01 ~ M-31)
 > - 1차 (화면 목록 기반): M-01 ~ M-10 (10개)
 > - 2차 (유스케이스 추가): M-11 ~ M-31 (21개)
-> - 보류/구현 후보: M-15, production checkout presentation for M-26/M-27/M-31
+> - 보류/구현 후보: M-15, provider webhook/reconciliation presentation, payment-method replacement flow
 > v1.2 2026-03-07 → v1.3 2026-03-29 → v1.4 2026-05-16
 
 ## Related Documents

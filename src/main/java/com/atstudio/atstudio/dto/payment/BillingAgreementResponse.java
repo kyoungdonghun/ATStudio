@@ -10,7 +10,6 @@ import java.time.LocalDateTime;
 public record BillingAgreementResponse(
         PaymentProviderType provider,
         BillingAgreementStatus status,
-        String customerKey,
         String payMethod,
         String maskedMethod,
         LocalDate nextBillingAt,

@@ -164,6 +164,12 @@ export default function SubscriptionManagePage() {
 
   async function handleChangePlan() {
     if (!selectedPlan || !preview) return;
+    if (preview.changeType === 'UPGRADE' && billingAgreement?.status !== 'ACTIVE') {
+      setChangeError(
+        '업그레이드는 등록된 자동결제 수단이 필요합니다. 현재 구독 만료 후 새 정기결제로 다시 가입하거나 관리자에게 문의해주세요.',
+      );
+      return;
+    }
     try {
       setChangingPlan(true);
       setChangeError(null);
@@ -479,6 +485,14 @@ export default function SubscriptionManagePage() {
                   {formatAmount(preview.nextBillingAmount)}
                 </span>
               </div>
+            </div>
+          )}
+
+          {preview?.changeType === 'UPGRADE' && billingAgreement?.status !== 'ACTIVE' && (
+            <div className={styles.errorMsg}>
+              {
+                '업그레이드는 등록된 자동결제 수단이 필요합니다. 기존 단건 결제창으로는 진행하지 않습니다.'
+              }
             </div>
           )}
 

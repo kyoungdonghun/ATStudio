@@ -1,6 +1,6 @@
 ---
-version: 0.5
-last_updated: 2026-05-20
+version: 0.6
+last_updated: 2026-05-21
 project: ATS
 owner: SA
 category: design
@@ -32,12 +32,15 @@ ATStudio subscription payment is now centered on Toss billing-key recurring paym
 
 Current implementation facts:
 
-- New subscription user flow enters Toss billing auth with `mode=recurring`.
+- New subscription user flow enters the dedicated `/subscriptions/checkout` route and opens Toss billing auth.
 - Billing-key confirmation immediately performs the first charge, then activates the subscription.
 - Renewal charges are executed by ATStudio's scheduler through `RecurringPaymentProvider.charge()`.
 - Upgrade uses the existing active billing agreement to charge the remaining-period price difference immediately.
 - Downgrade is scheduled as a pending change and applied at the next renewal charge.
-- Toss one-time checkout remains a legacy/test/provider capability, but it is no longer the user-facing subscription upgrade path.
+- Toss one-time checkout remains a provider capability, but subscription `SUBSCRIBE`/`UPGRADE` prepare and confirm are blocked for user-facing subscription scope.
+- Expired `READY`/`IN_PROGRESS` payment orders are closed by scheduler.
+- A local reconciliation job reports ledger mismatches such as `DONE` payment orders without finalized subscription payment rows.
+- Admins have a read-only payment operations view for payment orders, billing agreements, and finalized subscription payments.
 
 The payment layer separates:
 
@@ -96,34 +99,30 @@ External references:
 | ID | Decision | Status |
 |---|---|---|
 | PAY-D01 | Use Toss as the first real PG provider. | Accepted |
-| PAY-D02 | Use true recurring billing as the user-facing subscription payment model; keep one-time payment as legacy/test-only for subscription scope. | Accepted |
-| PAY-D03 | Keep `POST /api/user-subscriptions` temporarily as a deprecated compatibility endpoint, but remove it from user-facing payment flows. | Accepted |
-| PAY-D04 | Implement mock payment with the same prepare/confirm contract as real payment. | Proposed |
+| PAY-D02 | Use true recurring billing as the user-facing subscription payment model; block one-time subscription prepare/confirm for `SUBSCRIBE` and `UPGRADE`. | Accepted |
+| PAY-D03 | Keep `POST /api/user-subscriptions` only as a blocked legacy endpoint returning `SUBSCRIPTION_CHECKOUT_REQUIRED`; direct subscription mutation is removed from user-facing and backend paths. | Accepted |
+| PAY-D04 | Keep mock one-time subscription payment out of user-facing subscription flow. | Superseded |
 | PAY-D05 | Remove one-time checkout from user-facing subscription upgrade and route upgrades through recurring billing charge. | Accepted |
 
 ## 5. Core Architecture
 
 ```mermaid
 flowchart TD
-    A["Frontend: subscription payment page"] --> B["POST /api/payments/subscriptions/prepare"]
-    B --> C["PaymentApplicationService"]
-    C --> D["PaymentOrder READY"]
-    C --> E{"Payment provider"}
-    E --> F["MockPaymentProvider"]
-    E --> G["TossPaymentProvider"]
-    E --> H["TossBillingProvider"]
-    F --> I["Mock checkout token/result"]
-    G --> J["Toss checkout/widget metadata"]
-    H --> K["Billing key registration/auth"]
-    I --> L["POST /api/payments/confirm"]
-    J --> L
-    K --> L
-    L --> M["Verify orderId + amount + provider token"]
-    M --> N{"Confirmed?"}
-    N -- "Yes" --> O["Apply subscription action"]
-    N -- "No" --> P["Mark payment failed/cancelled"]
-    O --> Q["subscription_payments DONE"]
-    O --> R["user_subscriptions active/upgrade"]
+    A["Frontend: /subscriptions/checkout"] --> B["POST /api/payments/billing-agreements/prepare"]
+    B --> C["BillingAgreementApplicationService"]
+    C --> D["PaymentOrder SUBSCRIBE / TOSS_BILLING"]
+    C --> E["BillingAgreement READY"]
+    C --> F["TossBillingProvider.prepareAgreement"]
+    F --> G["Toss billing auth metadata"]
+    G --> H["Toss billing auth"]
+    H --> I["/subscriptions/checkout/success"]
+    I --> J["POST /api/payments/billing-agreements/confirm"]
+    J --> K["Issue billing key"]
+    K --> L["Charge first period"]
+    L --> M{"Charge success?"}
+    M -- "Yes" --> N["subscription_payments DONE"]
+    M -- "Yes" --> O["user_subscriptions ACTIVE"]
+    M -- "No" --> P["PaymentOrder FAILED; no subscription mutation"]
 ```
 
 ### 5.1 Backend Components
@@ -172,7 +171,7 @@ ATStudio subscription user flows should use recurring billing as the standard mo
 | Model | Description | First implementation priority |
 |---|---|---|
 | Recurring subscription billing | User registers a billing agreement, the system charges the first period immediately, and renewals are automatic. | Standard |
-| One-time subscription payment | Legacy/test adapter path. Not used for user-facing subscription purchase, upgrade, or renewal. | Compatibility only |
+| One-time subscription payment | Blocked for subscription `SUBSCRIBE` and `UPGRADE`; keep only as a future non-subscription provider capability if a separate product exists. | Not user-facing |
 
 Recurring billing reuses the payment order ledger for initial charges, upgrade charges, and renewal charges.
 
@@ -317,6 +316,8 @@ These additions can be deferred if `pg_transaction_id` and `payment_order_id` ar
 
 `POST /api/payments/subscriptions/prepare`
 
+Current policy: blocked for subscription scope.
+
 Request:
 
 ```json
@@ -331,19 +332,11 @@ Response:
 
 ```json
 {
-  "orderId": "ATS-20260516-ABC123",
-  "provider": "MOCK",
-  "amount": 9900,
-  "currency": "KRW",
-  "expiresAt": "2026-05-16T23:10:00",
-  "checkout": {
-    "type": "MOCK",
-    "confirmToken": "mock-token"
-  }
+  "errorCode": "INVALID_ARGUMENT"
 }
 ```
 
-For Toss, `checkout` should include client-safe fields only, such as client key, order name, customer info, success URL, fail URL, and amount.
+The endpoint remains present only to reject stale clients explicitly. Current frontend code does not call it.
 
 ### 10.2 Confirm Payment
 
@@ -371,17 +364,11 @@ For Toss:
 }
 ```
 
-Response:
+Subscription-purpose response:
 
 ```json
 {
-  "orderId": "ATS-20260516-ABC123",
-  "status": "DONE",
-  "purpose": "SUBSCRIBE",
-  "subscription": {
-    "id": 100,
-    "status": "ACTIVE"
-  }
+  "errorCode": "PAYMENT_ORDER_INVALID_STATE"
 }
 ```
 
@@ -431,12 +418,12 @@ Cancels automatic future renewal. It must not immediately cancel already-paid su
 
 `POST /api/user-subscriptions`
 
-Temporary policy:
+Blocked legacy policy:
 
-- Remains available only as a compatibility endpoint during migration.
-- Must be removed from all user-facing payment UI.
-- Must not be used for production real-PG checkout.
-- Recommended guard: `app.payment.legacy-subscribe-enabled`, enabled only for local/test until the new flow is stable.
+- Returns `410 Gone` / `SUBSCRIPTION_CHECKOUT_REQUIRED`.
+- Must not create subscriptions or payment rows.
+- Must not be used by production real-PG checkout or current frontend code.
+- Remove the endpoint entirely after stale clients and bookmarked callers are no longer a concern.
 
 ## 11. Process Flows
 
@@ -529,7 +516,7 @@ sequenceDiagram
 3. Client-provided amount is only a consistency check; server-calculated amount is authoritative.
 4. Payment confirmation must be idempotent by `orderId`.
 5. If PG confirmation succeeds but local subscription update fails, the system must record the failure and trigger a compensating cancellation/refund path.
-6. Mock mode must support success, failure, cancellation, and expiration so local tests can exercise real states.
+6. Legacy one-time mock mode is not user-facing for subscription scope. Recurring subscription tests must use Toss test billing configuration or provider test doubles that exercise success, failure, cancellation, and expiration states.
 7. Secrets such as Toss secret keys or KakaoPay admin keys must remain server-side only.
 8. Billing keys must be encrypted at rest and never returned to the frontend.
 9. Recurring renewal must be idempotent per subscription period.
@@ -537,31 +524,22 @@ sequenceDiagram
 
 ## 13. Frontend Design
 
-### 13.1 Subscription Payment Page
+### 13.1 Subscription Checkout Page
 
-Replace direct `subscribe()` execution with:
+Current user-facing checkout uses recurring billing only:
 
 1. Load selected plan and billing cycle.
-2. Call prepare endpoint.
-3. Render provider-specific checkout action.
-4. Confirm result.
-5. Navigate to `/subscriptions/manage` only after confirmation succeeds.
-
-Mock UI states:
+2. Call `POST /api/payments/billing-agreements/prepare`.
+3. Open Toss billing auth through `requestBillingAuth()`.
+4. Confirm the success callback with `POST /api/payments/billing-agreements/confirm`.
+5. Navigate to `/subscriptions/manage` only after billing-key issue and first charge both succeed.
 
 | Action | Result |
 |---|---|
-| Confirm mock payment | Calls confirm endpoint and activates subscription |
-| Fail mock payment | Marks order failed and shows retry |
-| Cancel mock payment | Marks order cancelled and returns to plan page |
-
-Toss UI states:
-
-| Action | Result |
-|---|---|
-| Open Toss payment | Loads Toss V2 widget with server-issued order metadata |
-| Toss success redirect | Calls confirm endpoint with `paymentKey`, `orderId`, and `amount` |
-| Toss fail redirect | Marks order failed when `orderId` is available and shows a retry path |
+| Open Toss billing auth | Uses server-issued client key and customer key |
+| Toss success redirect | Calls billing agreement confirm with `authKey`, `customerKey`, `orderId`, and `amount` |
+| Toss fail redirect | Shows safe retry guidance; stale order cleanup is handled by the payment-order expiration scheduler |
+| Legacy `/subscriptions/payment/success` redirect | Blocked with a safe message; no one-time confirm call |
 
 ### 13.2 Subscription Manage Page
 
@@ -593,7 +571,7 @@ Status: Implemented.
 - Add `PaymentController`.
 - Implement `MockPaymentProvider`.
 - Move subscription activation into confirm flow.
-- Keep current `POST /api/user-subscriptions` temporarily as a compatibility path or mark it deprecated.
+- Keep current `POST /api/user-subscriptions` as an explicit blocked legacy path until stale clients are no longer a concern.
 
 ### Phase B: Toss One-time Payment Integration
 
@@ -611,8 +589,8 @@ Status: Implemented for the direct checkout/confirm path with Toss test-key frie
 
 Operational note:
 
-- The default provider is `MOCK`; restarting the backend without local config or environment variables will create mock payment orders.
-- For local Toss testing, set `app.payment.provider=TOSS` and Toss test keys in `application-local.yml` or equivalent environment variables before `bootRun`.
+- The default one-time provider remains `MOCK` for legacy/non-subscription test paths, but recurring subscription checkout does not fall back to mock payment. If Toss billing keys are missing, checkout preparation fails with `PAYMENT_PROVIDER_NOT_CONFIGURED`.
+- For local Toss recurring testing, set Toss test `client-key` and `secret-key` in `application-local.yml` or equivalent environment variables before `bootRun`.
 - Use `http://localhost:5173` consistently for the frontend and Toss success/fail URLs unless CORS also explicitly allows the alternative origin.
 - Existing `IN_PROGRESS` payment orders from interrupted local tests are audit records. Start a new checkout attempt instead of reusing old Toss redirect URLs.
 
@@ -630,16 +608,16 @@ Status: Implemented for the billing-key registration, immediate first charge, en
 
 ### Phase D: Payment UX and Operations Stabilization
 
-Status: Superseded for one-time subscription checkout UX by `REQ-20260519-ATS-001`.
+Status: Implemented for the 2026-05-21 hardening slice.
 
-The one-time Toss Widget inline UX concern was retired because subscription purchase and upgrade now use recurring billing auth/charge instead of one-time checkout. Production hardening should focus on billing auth return handling, upgrade charge failure recovery, renewal failure visibility, and operator support views.
+The one-time Toss Widget inline UX concern was retired because subscription purchase and upgrade now use recurring billing auth/charge instead of one-time checkout. The 2026-05-21 hardening slice adds a dedicated checkout/callback route, backend one-time subscription blocking, stale order expiration, local ledger reconciliation logging, renewal failure email notices, and a read-only admin payment view.
 
 Recommended checkout surface:
 
 | Option | Recommendation | Rationale |
 |---|---|---|
-| Billing auth checkout/callback route | Preferred for recurring billing auth and redirect-heavy recovery | Browser history, success/fail callback handling, mobile authentication return, and retry recovery are simpler. |
-| Inline debug state panel | Acceptable for local/test progress visibility | Must not expose raw keys or raw provider payloads. |
+| Billing auth checkout/callback route | Implemented for recurring billing auth and redirect-heavy recovery | Browser history, success/fail callback handling, mobile authentication return, and retry recovery are simpler. |
+| Inline debug state panel | Retired for subscription checkout | Must not expose raw keys or raw provider payloads. |
 | One-time Toss widget modal/drawer | Retired for subscription scope | Keep only if a future non-subscription one-time product is designed. |
 
 User-facing state guidance:
@@ -667,35 +645,35 @@ Sensitive-data boundary:
 - Operators may see internal `orderId`, sanitized failure code/message, provider, purpose, amount, timestamps, and masked payment method.
 - Billing keys remain encrypted server-side only; only fingerprint/masked method may appear in diagnostics.
 
-### Phase E: Production Hardening
+### Phase E: Remaining Production Hardening
 
-- Add webhook handling.
-- Add compensating cancel/refund handling.
-- Add payment order expiration job.
-- Add admin payment audit screen based on Phase D requirements.
-- Add recurring billing failure alerts and retry policy.
+- Add provider-side webhook handling.
+- Add provider API-backed reconciliation beyond the current local ledger mismatch scan.
+- Add compensating cancel/refund handling for provider success plus local persistence failure.
+- Add receipt, settlement, tax invoice, and refund operations as separate REQ/SR items.
+- Add billing agreement replacement/payment-method re-registration for existing active subscriptions.
 
 ## 15. Open Decisions
 
 | ID | Decision | Recommended answer |
 |---|---|---|
 | PAY-D01 | First PG provider | Toss Payments first (accepted) |
-| PAY-D02 | Subscription model | Use recurring billing for user-facing subscription purchase/change; keep one-time payment outside subscription scope |
-| PAY-D03 | Keep direct `POST /api/user-subscriptions`? | Temporarily deprecated compatibility endpoint (accepted) |
+| PAY-D02 | Subscription model | Use recurring billing for user-facing subscription purchase/change; block one-time subscription prepare/confirm |
+| PAY-D03 | Keep direct `POST /api/user-subscriptions`? | Blocked legacy endpoint; no direct subscription mutation |
 | PAY-D04 | Mock UI detail level | Include success/fail/cancel buttons |
-| PAY-D05 | One-time checkout role | Legacy/test-only for subscription scope; do not use for upgrade |
+| PAY-D05 | One-time checkout role | Not user-facing for subscription scope; stale subscription routes are blocked |
 | PAY-D06 | Payment admin screen | Design read-only support view first; defer mutation/refund operations |
 | PAY-D07 | Refund/cancel automation | Defer implementation, design compensation hook now |
 | PAY-D08 | Recurring billing failure grace period | 3-day grace period with up to 3 retry attempts (accepted) |
 | PAY-D09 | Initial recurring subscription charge | Billing-key registration followed by immediate first charge (accepted) |
-| PAY-D10 | Production checkout surface | Dedicated checkout/callback route preferred for recurring billing auth |
+| PAY-D10 | Production checkout surface | Dedicated `/subscriptions/checkout` callback route implemented for recurring billing auth |
 | PAY-D11 | Upgrade payment model | Use active billing agreement for immediate prorated charge; preserve current billing cycle and next billing date |
 | PAY-D12 | Downgrade payment model | Schedule pending plan/cycle and apply after the next successful renewal charge with no immediate charge |
 
 ## 16. Implementation Risk Notes
 
-- Legacy `UserSubscriptionService.subscribe()` compatibility endpoint still performs direct mock-style subscription mutation and should remain outside user-facing real-PG checkout.
-- Current one-time Toss confirm calls the PG before local subscription mutation, but this path is no longer the subscription upgrade path.
+- Legacy `UserSubscriptionService.subscribe()` now fails with `SUBSCRIPTION_CHECKOUT_REQUIRED`; direct mock-style subscription mutation and its production implementation were removed.
+- One-time Toss confirm is blocked for subscription `SUBSCRIBE`/`UPGRADE` orders before provider confirmation.
 - `proratedAmount` must mean "amount to charge" for PG integration. Negative values must not be sent to PG; Toss billing charges must use whole-KRW amounts.
 - Test mode safety must be explicit in configuration, not implied by class names.
 - KakaoPay and TossPay test behavior differs by integration path. Provider-specific docs must be checked again before implementation.

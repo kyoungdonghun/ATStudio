@@ -92,6 +92,7 @@ const TrackManagePage = lazyPage(() => import('@/pages/admin/TrackManagePage'));
 const NoticeCreatePage = lazyPage(() => import('@/pages/admin/NoticeCreatePage'));
 const NoticeEditPage = lazyPage(() => import('@/pages/admin/NoticeEditPage'));
 const UserSubscriptionManagePage = lazyPage(() => import('@/pages/admin/UserSubscriptionManagePage'));
+const PaymentReadOnlyPage = lazyPage(() => import('@/pages/admin/PaymentReadOnlyPage'));
 const SiteSettingsPage = lazyPage(() => import('@/pages/admin/SiteSettingsPage'));
 
 // Error
@@ -148,6 +149,9 @@ const routes: RouteObject[] = [
       { path: '/licenses', element: authRequired(<LicenseListPage />) },
       { path: '/licenses/:licenseId', element: authRequired(<LicenseDetailPage />) },
       { path: '/download-queue', element: subscriberOnly(<DownloadHistoryPage />) },
+      { path: '/subscriptions/checkout', element: authRequired(<SubscriptionPaymentPage />) },
+      { path: '/subscriptions/checkout/success', element: authRequired(<SubscriptionPaymentPage />) },
+      { path: '/subscriptions/checkout/fail', element: authRequired(<SubscriptionPaymentPage />) },
       { path: '/subscriptions/payment', element: authRequired(<SubscriptionPaymentPage />) },
       { path: '/subscriptions/payment/success', element: authRequired(<SubscriptionPaymentPage />) },
       { path: '/subscriptions/payment/fail', element: authRequired(<SubscriptionPaymentPage />) },
@@ -197,6 +201,7 @@ const routes: RouteObject[] = [
       { path: 'tags', element: <TagManagePage /> },
       { path: 'track-manage', element: <TrackManagePage /> },
       { path: 'user-subscriptions', element: <UserSubscriptionManagePage /> },
+      { path: 'payments', element: <PaymentReadOnlyPage /> },
       { path: 'notices/new', element: <NoticeCreatePage /> },
       { path: 'notices/:noticeId/edit', element: <NoticeEditPage /> },
       { path: 'settings', element: <SiteSettingsPage /> },

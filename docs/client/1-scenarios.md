@@ -261,7 +261,7 @@ dependencies: []
 
 #### SC-S-01: 구독 가입 — 플랜 선택 및 결제
 1. 구독 페이지(`/subscriptions`) → 플랜 선택 → "시작하기"
-2. 결제 페이지(`/subscriptions/payment`)에서 결제 주기 선택 (월간/연간)
+2. 결제 페이지(`/subscriptions/checkout`)에서 결제 주기 확인 및 카드 등록 진행
 3. 연간 선택 시 월 환산 가격 표시 확인
 4. 결제 완료 → 구독 활성화
 

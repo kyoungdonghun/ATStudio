@@ -4,9 +4,14 @@ import com.atstudio.atstudio.entity.BillingAgreement;
 import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long> {
@@ -19,4 +24,11 @@ public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long
             BillingAgreement billingAgreement,
             PaymentPurpose purpose,
             Collection<PaymentOrderStatus> statuses);
+
+    List<PaymentOrder> findByStatusInAndExpiresAtBefore(
+            Collection<PaymentOrderStatus> statuses,
+            LocalDateTime expiresAt);
+
+    @EntityGraph(attributePaths = {"user", "subscription", "billingAgreement"})
+    Page<PaymentOrder> findAllByOrderByCreatedAtDesc(Pageable pageable);
 }

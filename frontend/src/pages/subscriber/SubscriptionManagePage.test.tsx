@@ -184,6 +184,16 @@ describe('SubscriptionManagePage', () => {
       newPlanName: 'DELUXE',
       newBillingCycle: 'MONTHLY',
     });
+    fetchMyBillingAgreementMock.mockResolvedValue({
+      provider: 'TOSS_BILLING',
+      status: 'ACTIVE',
+      payMethod: 'CARD',
+      maskedMethod: '1234',
+      nextBillingAt: '2026-06-01',
+      lastChargedAt: '2026-05-01T00:00:00',
+      cancelledAt: null,
+      subscription: null,
+    });
     changeMySubscriptionMock.mockResolvedValue({
       subscription: { id: 2, name: 'DELUXE' },
       billingCycle: 'MONTHLY',
@@ -264,7 +274,6 @@ describe('SubscriptionManagePage', () => {
     fetchMyBillingAgreementMock.mockResolvedValue({
       provider: 'TOSS_BILLING',
       status: 'ACTIVE',
-      customerKey: 'ats_billing_customer_1',
       payMethod: 'CARD',
       maskedMethod: '1234',
       nextBillingAt: '2026-06-01',
@@ -275,7 +284,6 @@ describe('SubscriptionManagePage', () => {
     cancelMyBillingAgreementMock.mockResolvedValue({
       provider: 'TOSS_BILLING',
       status: 'CANCELLED',
-      customerKey: 'ats_billing_customer_1',
       payMethod: 'CARD',
       maskedMethod: '1234',
       nextBillingAt: '2026-06-01',

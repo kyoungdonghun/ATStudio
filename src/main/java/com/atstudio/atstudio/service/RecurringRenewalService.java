@@ -56,6 +56,7 @@ public class RecurringRenewalService {
     private final PaymentOrderRepository paymentOrderRepository;
     private final SubscriptionPaymentRepository subscriptionPaymentRepository;
     private final BillingKeyCrypto billingKeyCrypto;
+    private final EmailService emailService;
     private final Map<PaymentProviderType, RecurringPaymentProvider> recurringProviders;
 
     public RecurringRenewalService(
@@ -64,12 +65,14 @@ public class RecurringRenewalService {
             PaymentOrderRepository paymentOrderRepository,
             SubscriptionPaymentRepository subscriptionPaymentRepository,
             BillingKeyCrypto billingKeyCrypto,
+            EmailService emailService,
             List<RecurringPaymentProvider> recurringProviders) {
         this.billingAgreementRepository = billingAgreementRepository;
         this.userSubscriptionRepository = userSubscriptionRepository;
         this.paymentOrderRepository = paymentOrderRepository;
         this.subscriptionPaymentRepository = subscriptionPaymentRepository;
         this.billingKeyCrypto = billingKeyCrypto;
+        this.emailService = emailService;
         this.recurringProviders = recurringProviders.stream()
                 .collect(Collectors.toUnmodifiableMap(RecurringPaymentProvider::getProviderType, Function.identity()));
     }
@@ -128,6 +131,7 @@ public class RecurringRenewalService {
 
         LocalDate graceEndsAt = graceEndsAt(order);
         if (today.isAfter(graceEndsAt)) {
+            notifyRenewalFailure(agreement, order, graceEndsAt, true);
             finalizeRenewalFailure(agreement, subscription, graceEndsAt, today);
             return RenewalOutcome.failedWithoutAttempt();
         }
@@ -227,8 +231,33 @@ public class RecurringRenewalService {
         if (subscription.getExpiresAt().isBefore(graceEndsAt)) {
             subscription.adminUpdate(null, null, graceEndsAt);
         }
-        if (agreement.getFailureCount() >= MAX_RETRY_COUNT || !today.isBefore(graceEndsAt)) {
+        boolean finalFailure = agreement.getFailureCount() >= MAX_RETRY_COUNT || !today.isBefore(graceEndsAt);
+        notifyRenewalFailure(agreement, order, graceEndsAt, finalFailure);
+        if (finalFailure) {
             finalizeRenewalFailure(agreement, subscription, graceEndsAt, today);
+        }
+    }
+
+    private void notifyRenewalFailure(
+            BillingAgreement agreement,
+            PaymentOrder order,
+            LocalDate graceEndsAt,
+            boolean finalFailure) {
+        String summary = finalFailure
+                ? "Your subscription renewal payment has failed repeatedly and automatic renewal is suspended."
+                : "Your subscription renewal payment could not be completed.";
+        String retryGuide = finalFailure
+                ? "Access remains available until the grace period ends on " + graceEndsAt
+                    + ". Please contact support or register a valid payment method."
+                : "We will retry automatically during the grace period until " + graceEndsAt
+                    + ". Please check your registered payment method.";
+        try {
+            emailService.sendSubscriptionPaymentFailureEmail(
+                    agreement.getUser(),
+                    summary + " Order: " + order.getOrderId(),
+                    retryGuide);
+        } catch (RuntimeException e) {
+            log.warn("Failed to send renewal failure email. orderId={}", order.getOrderId(), e);
         }
     }
 

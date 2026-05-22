@@ -109,6 +109,22 @@ public class EmailService {
         });
     }
 
+    public void sendSubscriptionPaymentFailureEmail(
+            User user,
+            String failureSummary,
+            String retryGuide) {
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            return;
+        }
+
+        String subject = "[ATStudio] Subscription payment notice";
+        String body = buildSubscriptionPaymentFailureEmailBody(
+                user.getNickname(),
+                failureSummary,
+                retryGuide);
+        sendEmail(user.getEmail(), subject, body);
+    }
+
     @Transactional
     public void resetPassword(String token, String newPassword) {
         passwordLoginPolicy.ensureEnabled();
@@ -186,5 +202,29 @@ public class EmailService {
                   <p style="color:#888;font-size:13px;">본인이 요청하지 않은 경우 이 이메일을 무시해주세요.</p>
                 </div>
                 """.formatted(nickname, resetUrl, resetUrl);
+    }
+
+    private String buildSubscriptionPaymentFailureEmailBody(
+            String nickname,
+            String failureSummary,
+            String retryGuide) {
+        return """
+                <div style="max-width:480px;margin:0 auto;font-family:'Apple SD Gothic Neo',sans-serif;">
+                  <h2 style="color:#333;">Subscription payment notice</h2>
+                  <p>Hello <strong>%s</strong>,</p>
+                  <p>%s</p>
+                  <p>%s</p>
+                  <p style="color:#888;font-size:13px;">
+                    This message never includes card numbers, billing keys, auth keys, or provider secrets.
+                  </p>
+                </div>
+                """.formatted(
+                defaultText(nickname, "ATStudio user"),
+                defaultText(failureSummary, "Your subscription renewal payment could not be completed."),
+                defaultText(retryGuide, "Please check your payment method and try again from My Subscription."));
+    }
+
+    private String defaultText(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 }

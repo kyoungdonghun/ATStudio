@@ -68,15 +68,15 @@ class UserSubscriptionControllerTest {
 
     @Test
     @WithMockUser(roles = "USER")
-    @DisplayName("POST /api/user-subscriptions - 인증 유저 -> 201")
-    void subscribe_success() throws Exception {
-        given(userSubscriptionService.subscribe(any(), any())).willReturn(MOCK_RESPONSE);
+    @DisplayName("POST /api/user-subscriptions - 인증 유저 -> 410")
+    void subscribe_blocked() throws Exception {
+        given(userSubscriptionService.subscribe(any(), any()))
+                .willThrow(new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_CHECKOUT_REQUIRED));
 
         mockMvc.perform(post("/api/user-subscriptions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"subscriptionId\":1,\"billingCycle\":\"MONTHLY\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.id").value(100));
+                .andExpect(status().isGone());
     }
 
     @Test

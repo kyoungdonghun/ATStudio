@@ -118,7 +118,6 @@ class PaymentControllerTest {
                 .willReturn(new BillingAgreementResponse(
                         PaymentProviderType.TOSS_BILLING,
                         BillingAgreementStatus.ACTIVE,
-                        "ats_billing_customer_1",
                         "CARD",
                         "1234",
                         LocalDate.now().plusMonths(1),
@@ -129,6 +128,7 @@ class PaymentControllerTest {
         mockMvc.perform(get("/api/payments/billing-agreements/me"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.customerKey").doesNotExist())
                 .andExpect(jsonPath("$.data.billingKey").doesNotExist());
     }
 
@@ -140,7 +140,6 @@ class PaymentControllerTest {
                 .willReturn(new BillingAgreementResponse(
                         PaymentProviderType.TOSS_BILLING,
                         BillingAgreementStatus.CANCELLED,
-                        "ats_billing_customer_1",
                         "CARD",
                         "1234",
                         LocalDate.now().plusMonths(1),

@@ -1,12 +1,17 @@
 package com.atstudio.atstudio.service;
 
+import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.Subscription;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
+import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
+import com.atstudio.atstudio.entity.enums.PaymentProviderType;
+import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
+import com.atstudio.atstudio.repository.PaymentOrderRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,6 +22,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,13 +36,15 @@ class SubscriptionSchedulerTest {
 
     @Mock UserSubscriptionRepository userSubscriptionRepository;
     @Mock RecurringRenewalService recurringRenewalService;
+    @Mock PaymentOrderRepository paymentOrderRepository;
 
     @Test
     @DisplayName("processRecurringRenewals delegates to recurring renewal service")
     void processRecurringRenewals_delegates() {
         SubscriptionScheduler scheduler = new SubscriptionScheduler(
                 userSubscriptionRepository,
-                recurringRenewalService);
+                recurringRenewalService,
+                paymentOrderRepository);
         given(recurringRenewalService.processDueRenewals())
                 .willReturn(new RecurringRenewalService.RenewalRunResult(0, 0, 0, 0));
 
@@ -46,11 +54,35 @@ class SubscriptionSchedulerTest {
     }
 
     @Test
+    @DisplayName("processExpiredPaymentOrders expires stale READY and IN_PROGRESS orders")
+    void processExpiredPaymentOrders_expiresStaleOrders() {
+        SubscriptionScheduler scheduler = new SubscriptionScheduler(
+                userSubscriptionRepository,
+                recurringRenewalService,
+                paymentOrderRepository);
+        User user = buildUser(1L);
+        Subscription subscription = buildSubscription(10L);
+        PaymentOrder ready = buildOrder("ATS-READY", user, subscription);
+        PaymentOrder inProgress = buildOrder("ATS-IN-PROGRESS", user, subscription);
+        inProgress.markInProgress("{}");
+        given(paymentOrderRepository.findByStatusInAndExpiresAtBefore(
+                any(),
+                any(LocalDateTime.class)))
+                .willReturn(List.of(ready, inProgress));
+
+        scheduler.processExpiredPaymentOrders();
+
+        assertThat(ready.getStatus()).isEqualTo(PaymentOrderStatus.EXPIRED);
+        assertThat(inProgress.getStatus()).isEqualTo(PaymentOrderStatus.EXPIRED);
+    }
+
+    @Test
     @DisplayName("processExpiredSubscriptions still expires subscriptions after renewal window")
     void processExpiredSubscriptions_expires() {
         SubscriptionScheduler scheduler = new SubscriptionScheduler(
                 userSubscriptionRepository,
-                recurringRenewalService);
+                recurringRenewalService,
+                paymentOrderRepository);
         User user = buildUser(1L);
         Subscription subscription = buildSubscription(10L);
         UserSubscription expired = UserSubscription.builder()
@@ -73,7 +105,8 @@ class SubscriptionSchedulerTest {
     void processExpiredSubscriptions_expiresPendingWithoutApplying() {
         SubscriptionScheduler scheduler = new SubscriptionScheduler(
                 userSubscriptionRepository,
-                recurringRenewalService);
+                recurringRenewalService,
+                paymentOrderRepository);
         User user = buildUser(1L);
         Subscription currentPlan = buildSubscription(10L);
         Subscription pendingPlan = buildSubscription(20L);
@@ -122,5 +155,19 @@ class SubscriptionSchedulerTest {
                 .build();
         ReflectionTestUtils.setField(subscription, "id", id);
         return subscription;
+    }
+
+    private PaymentOrder buildOrder(String orderId, User user, Subscription subscription) {
+        return PaymentOrder.builder()
+                .orderId(orderId)
+                .user(user)
+                .purpose(PaymentPurpose.SUBSCRIBE)
+                .provider(PaymentProviderType.TOSS_BILLING)
+                .subscription(subscription)
+                .billingCycle(BillingCycle.MONTHLY)
+                .amount(BigDecimal.valueOf(9900))
+                .currency("KRW")
+                .expiresAt(LocalDateTime.now().minusMinutes(1))
+                .build();
     }
 }

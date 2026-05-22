@@ -103,8 +103,8 @@ app:
       read-timeout-millis: ${TOSS_READ_TIMEOUT_MILLIS:10000}
     billing:
       encryption-secret: ${PAYMENT_BILLING_KEY_ENCRYPTION_SECRET:}
-      auth-success-url: ${TOSS_BILLING_AUTH_SUCCESS_URL:http://localhost:5173/subscriptions/billing/success}
-      auth-fail-url: ${TOSS_BILLING_AUTH_FAIL_URL:http://localhost:5173/subscriptions/billing/fail}
+      auth-success-url: ${TOSS_BILLING_AUTH_SUCCESS_URL:http://localhost:5173/subscriptions/checkout/success}
+      auth-fail-url: ${TOSS_BILLING_AUTH_FAIL_URL:http://localhost:5173/subscriptions/checkout/fail}
       issue-url: ${TOSS_BILLING_ISSUE_URL:https://api.tosspayments.com/v1/billing/authorizations/issue}
       charge-url: ${TOSS_BILLING_CHARGE_URL:https://api.tosspayments.com/v1/billing/{billingKey}}
       delete-url: ${TOSS_BILLING_DELETE_URL:https://api.tosspayments.com/v1/billing/{billingKey}}

@@ -70,8 +70,8 @@ app:
     billing:
       # Generate a local-only 32+ byte random secret. Never commit the real local value.
       encryption-secret: REPLACE_WITH_PAYMENT_BILLING_KEY_ENCRYPTION_SECRET
-      auth-success-url: http://localhost:5173/subscriptions/billing/success
-      auth-fail-url: http://localhost:5173/subscriptions/billing/fail
+      auth-success-url: http://localhost:5173/subscriptions/checkout/success
+      auth-fail-url: http://localhost:5173/subscriptions/checkout/fail
       issue-url: https://api.tosspayments.com/v1/billing/authorizations/issue
       charge-url: https://api.tosspayments.com/v1/billing/{billingKey}
       delete-url: https://api.tosspayments.com/v1/billing/{billingKey}

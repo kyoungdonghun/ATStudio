@@ -32,8 +32,8 @@ public class PaymentProperties {
     @Setter
     public static class Billing {
         private String encryptionSecret = "";
-        private String authSuccessUrl = "http://localhost:5173/subscriptions/billing/success";
-        private String authFailUrl = "http://localhost:5173/subscriptions/billing/fail";
+        private String authSuccessUrl = "http://localhost:5173/subscriptions/checkout/success";
+        private String authFailUrl = "http://localhost:5173/subscriptions/checkout/fail";
         private String issueUrl = "https://api.tosspayments.com/v1/billing/authorizations/issue";
         private String chargeUrl = "https://api.tosspayments.com/v1/billing/{billingKey}";
         private String deleteUrl = "https://api.tosspayments.com/v1/billing/{billingKey}";

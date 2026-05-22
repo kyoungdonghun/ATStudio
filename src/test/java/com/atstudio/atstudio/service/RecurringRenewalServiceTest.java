@@ -55,6 +55,7 @@ class RecurringRenewalServiceTest {
     @Mock PaymentOrderRepository paymentOrderRepository;
     @Mock SubscriptionPaymentRepository subscriptionPaymentRepository;
     @Mock BillingKeyCrypto billingKeyCrypto;
+    @Mock EmailService emailService;
     @Mock RecurringPaymentProvider recurringPaymentProvider;
 
     RecurringRenewalService service;
@@ -68,6 +69,7 @@ class RecurringRenewalServiceTest {
                 paymentOrderRepository,
                 subscriptionPaymentRepository,
                 billingKeyCrypto,
+                emailService,
                 List.of(recurringPaymentProvider)
         );
     }
