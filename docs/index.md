@@ -30,7 +30,7 @@ status: stable
 | UI | 3 | [UI Index](ui/index.md) | Screen inventory, flow, and modal planning documents |
 | Eval | 0 | [Eval Index](eval/index.md) | Evaluation documents |
 
-**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **173**.
+**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **174**.
 
 ## Required Documents Mapping by Role
 

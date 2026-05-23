@@ -30,7 +30,7 @@ dependencies:
 
 ## ATStudio Project Stats (PRJ-ATS-001)
 
-> Last verified: 2026-05-22
+> Last verified: 2026-05-23
 
 | Category | Count | Reference |
 | :-- | :-- | :-- |
@@ -38,4 +38,4 @@ dependencies:
 | DB Tables | 30 | `docs/design/db-schema.md` |
 | Frontend Screens | 52 | `docs/index.md` |
 | Agents | 13 | `docs/architecture/system-design.md` §2.4 |
-| SR Items completed | 34 | `docs/SR/index.md` |
+| SR Items completed | 82 | `docs/SR/index.md` |

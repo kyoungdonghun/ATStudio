@@ -1,6 +1,6 @@
 # ATStudio API Specification v11 (Confirmed)
 
-> **Status**: 11th confirmed — subscription cancel/reactivate, change-reservation, and billing-method recovery policy sync
+> **Status**: 11th confirmed — subscription cancel/reactivate, change-reservation, cycle-only pending UX, and billing-method recovery policy sync
 > **Base**: v10 + 2026-05-23 subscription billing recovery patch
 > **Date**: 2026-05-23
 
@@ -15,6 +15,7 @@
 | AB3 | §14.8 preview semantics | Preview now returns `UPGRADE`, `SCHEDULED_CHANGE`, or `NO_CHANGE`. |
 | AB4 | Full API Summary | Updated total count from 117 → 118 |
 | AB5 | §6.3.4/§6.3.5/§6.7 billing recovery | Active users with an expired/removed billing key can re-register a payment method through `BILLING_AGREEMENT` orders; removed provider billing keys return `BILLING_AGREEMENT_REAUTH_REQUIRED`. |
+| AB6 | §6.3.7/§6.7 cycle-only pending UX | Provider-level billing-agreement cancel is separated from user-facing subscription cancel; upgrade plus next-cycle changes must show the upgraded plan as active and only the billing cycle as pending. |
 
 ---
 
@@ -1327,7 +1328,7 @@ For payment-method re-registration on an existing active/grace-period subscripti
 |-------|-------|
 | **URL** | `DELETE /api/payments/billing-agreements/me` |
 | **Auth** | auth required |
-| **Description** | Cancels future automatic renewal. Already-paid subscription access remains available until `expiresAt`. |
+| **Description** | Provider-level billing agreement cancellation endpoint. This is not the primary user-facing subscription cancel UX. The user-facing stop-renewal path is §6.10 `DELETE /api/user-subscriptions/me`, which keeps the encrypted billing key for possible reactivation before `expiresAt`. This endpoint deletes/cancels the provider billing key when one exists, clears local issued-key display fields, marks the agreement `CANCELLED`, and also cancels the active subscription if one exists. Reactivation without payment-method re-registration may not be possible after this endpoint clears the issued key. Already-paid subscription access remains available until `expiresAt`. |
 
 **Response** `200 OK`
 ```json
@@ -1335,8 +1336,8 @@ For payment-method re-registration on an existing active/grace-period subscripti
   "id": 10,
   "provider": "TOSS_BILLING",
   "status": "CANCELLED",
-  "payMethod": "CARD",
-  "maskedMethod": "****1234",
+  "payMethod": null,
+  "maskedMethod": null,
   "nextBillingAt": null,
   "failureCount": 0,
   "cancelledAt": "2026-05-18T22:10:00"
@@ -1412,6 +1413,7 @@ These endpoints are implemented as read-only admin support/audit views. They mus
 > - `changeType`: `"SCHEDULED_CHANGE"` — pending values (`pendingSubscriptionId`, `pendingBillingCycle`) are saved or overwritten; current plan remains active until `expiresAt`; new plan/cycle activates after the next successful renewal charge.
 > - `changeType`: `"NO_CHANGE"` — pending values are cleared; current plan/cycle and expiresAt remain unchanged.
 > - `billingCycle` in an UPGRADE response is the requested billing cycle to use on the next renewal charge; the current subscription response may still show the active period's current `billingCycle` until renewal.
+> - If an UPGRADE applies the higher plan immediately and only the requested next-renewal billing cycle differs, the frontend must show the higher plan as currently active and label only the billing-cycle change as pending.
 
 **Error Cases**
 - `409 Conflict` — `BILLING_AGREEMENT_REAUTH_REQUIRED` when the provider reports the stored billing key is removed, not found, or invalid. The current subscription remains unchanged and the user should re-register a payment method.

@@ -218,6 +218,8 @@ dependencies:
 
 [16-3 내 구독 현황]  ← GET /api/user-subscriptions/me
   │  pending 구독 있을 시: "예약된 변경: {플랜명} (다음 결제 성공 후 적용)" 표시
+  │  업그레이드가 이미 적용되고 결제 주기만 pending이면 현재 플랜은 active/current로 표시하고,
+  │  pending 표시는 "{월간/연간} 예약" 같은 결제주기 예약으로만 분리 표시
   │  결제 정보 있을 시: 상태(ACTIVE/SUSPENDED/CANCELLED), 결제수단(마스킹), 다음 결제일 표시
   │  결제 실패 유예 중: "결제 재시도 중 · {expiresAt}까지 이용 가능" 표시
   │

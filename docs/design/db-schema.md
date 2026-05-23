@@ -389,7 +389,9 @@
 - Billing keys are server-only encrypted credentials.
 - User-facing and operator-facing UI may show `status`, `pay_method`, `masked_method`, `next_billing_at`, `failure_count`, and `cancelled_at`.
 - Raw billing key material and Toss secret keys must never appear in API responses, logs, screenshots, or documents.
-- Automatic renewal cancellation changes the agreement state but does not remove already-paid subscription access before `user_subscriptions.expires_at`.
+- User-facing subscription cancellation changes the agreement state but retains the encrypted billing key for possible reactivation before `user_subscriptions.expires_at`.
+- Provider-level billing agreement cancellation clears issued-key fields and requires payment-method re-registration before future automatic charges.
+- Neither cancellation path removes already-paid subscription access before `user_subscriptions.expires_at`.
 
 ---
 
