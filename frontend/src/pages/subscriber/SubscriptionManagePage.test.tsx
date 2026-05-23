@@ -395,6 +395,141 @@ describe('SubscriptionManagePage', () => {
     );
   });
 
+  it('treats an abandoned READY billing agreement as incomplete and restartable', async () => {
+    fetchMySubscriptionMock.mockResolvedValue({
+      id: 100,
+      subscription: {
+        id: 1,
+        name: 'STANDARD',
+        description: 'Starter',
+        userType: 'INDIVIDUAL',
+        priceMonthly: 9900,
+        priceYearly: 99000,
+        downloadPerDay: 5,
+        maxWhitelistChannels: 1,
+        maxPlaylists: 3,
+        isActive: true,
+      },
+      billingCycle: 'MONTHLY',
+      status: 'ACTIVE',
+      startedAt: '2026-05-01',
+      expiresAt: '2026-06-01',
+      pendingSubscriptionId: null,
+      pendingBillingCycle: null,
+    });
+    fetchMyBillingAgreementMock.mockResolvedValue({
+      provider: 'TOSS_BILLING',
+      status: 'READY',
+      payMethod: null,
+      maskedMethod: null,
+      nextBillingAt: null,
+      lastChargedAt: null,
+      cancelledAt: null,
+      subscription: null,
+    });
+
+    renderPage();
+
+    await screen.findByText(
+      '카드 등록이 완료되지 않았습니다. 결제수단 다시 등록을 눌러 Toss 카드 등록을 다시 시작해주세요.',
+    );
+    expect(screen.getAllByText('등록 미완료')).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole('button', { name: '결제수단 다시 등록' }));
+
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/subscriptions/checkout?plan=STANDARD&cycle=MONTHLY&purpose=BILLING_AGREEMENT',
+    );
+  });
+
+  it('routes upgrade users to payment-method registration when billing auth is incomplete', async () => {
+    fetchSubscriptionPlansMock.mockResolvedValue([
+      {
+        id: 1,
+        name: 'DELUXE',
+        description: 'Deluxe',
+        userType: 'INDIVIDUAL',
+        priceMonthly: 19900,
+        priceYearly: 199000,
+        downloadPerDay: 20,
+        maxWhitelistChannels: 5,
+        maxPlaylists: 10,
+        isActive: true,
+      },
+      {
+        id: 2,
+        name: 'PREMIUM',
+        description: 'Premium',
+        userType: 'INDIVIDUAL',
+        priceMonthly: 29900,
+        priceYearly: 299000,
+        downloadPerDay: 50,
+        maxWhitelistChannels: 10,
+        maxPlaylists: 20,
+        isActive: true,
+      },
+    ]);
+    fetchMySubscriptionMock.mockResolvedValue({
+      id: 100,
+      subscription: {
+        id: 1,
+        name: 'DELUXE',
+        description: 'Deluxe',
+        userType: 'INDIVIDUAL',
+        priceMonthly: 19900,
+        priceYearly: 199000,
+        downloadPerDay: 20,
+        maxWhitelistChannels: 5,
+        maxPlaylists: 10,
+        isActive: true,
+      },
+      billingCycle: 'YEARLY',
+      status: 'ACTIVE',
+      startedAt: '2026-05-22',
+      expiresAt: '2027-05-22',
+      pendingSubscriptionId: 1,
+      pendingBillingCycle: 'MONTHLY',
+    });
+    fetchSubscriptionChangePreviewMock.mockResolvedValue({
+      changeType: 'UPGRADE',
+      proratedAmount: 99726,
+      effectiveDate: '2026-05-23',
+      nextBillingDate: '2027-05-22',
+      nextBillingAmount: 29900,
+      newPlanName: 'PREMIUM',
+      newBillingCycle: 'MONTHLY',
+    });
+    fetchMyBillingAgreementMock.mockResolvedValue({
+      provider: 'TOSS_BILLING',
+      status: 'READY',
+      payMethod: null,
+      maskedMethod: null,
+      nextBillingAt: null,
+      lastChargedAt: null,
+      cancelledAt: null,
+      subscription: null,
+    });
+
+    renderPage();
+
+    fireEvent.click(await screen.findByText('프리미엄'));
+    await screen.findByText(
+      '업그레이드를 적용하려면 자동결제 수단 등록이 먼저 필요합니다. 결제수단을 다시 등록한 뒤 플랜 변경을 진행해주세요.',
+    );
+    expect(
+      screen.queryByText(
+        '업그레이드는 등록된 결제수단이 필요합니다. 기존 단건 결제창으로는 진행하지 않습니다.',
+      ),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '결제수단 등록하기' }));
+
+    expect(changeMySubscriptionMock).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/subscriptions/checkout?plan=DELUXE&cycle=YEARLY&purpose=BILLING_AGREEMENT',
+    );
+  });
+
   it('lets a cancelled grace-period subscription resume before expiry', async () => {
     fetchMySubscriptionMock.mockResolvedValue({
       id: 100,

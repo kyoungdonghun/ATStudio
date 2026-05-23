@@ -417,7 +417,7 @@ Stores the billing key after provider callback verification. This endpoint must 
 
 Provider-level billing agreement cancellation endpoint. Current subscriber UX does not expose this as a separate "cancel automatic renewal" action; the user-facing cancellation path is `DELETE /api/user-subscriptions/me`, which stops the next renewal while preserving already-paid access and retaining the encrypted billing key for possible reactivation before `expiresAt`.
 
-When this provider-level endpoint is used, the provider billing key is deleted and the local issued-key fields are cleared. Such a cancellation cannot be reactivated without a future payment-method re-registration flow.
+When this provider-level endpoint is used, the provider billing key is deleted and the local issued-key fields are cleared. Such a cancellation cannot be reactivated until the user completes the payment-method re-registration flow.
 
 ### 10.7 Deprecated Compatibility Endpoint
 
@@ -495,7 +495,7 @@ Lower-tier and billing-cycle-only changes remain payment-free:
 
 ### 11.4.1 Payment Method Re-registration
 
-1. Active or CANCELLED grace-period subscriber has no usable billing key because the local billing agreement is missing, `EXPIRED`, `SUSPENDED`, or has no issued-key metadata.
+1. Active or CANCELLED grace-period subscriber has no usable billing key because the local billing agreement is missing, still `READY` after an interrupted registration, `EXPIRED`, `SUSPENDED`, or has no issued-key metadata.
 2. Frontend opens `/subscriptions/checkout?purpose=BILLING_AGREEMENT` with the current subscription plan and billing cycle.
 3. Backend creates a zero-amount `PaymentOrder` with `purpose = BILLING_AGREEMENT`; this order does not grant or change subscription access by itself.
 4. User completes Toss billing auth.
@@ -580,7 +580,7 @@ For recurring billing:
 2. Do not show a separate "cancel automatic renewal" action on the current subscription manage page; "cancel subscription" is the user-facing stop-renewal action.
 3. Show a "keep subscription" action while a CANCELLED grace-period subscription is still before `expiresAt`.
 4. Show next billing date separately from current access expiration date when both are available.
-5. If the billing agreement is missing, `EXPIRED`, `SUSPENDED`, or cancelled without masked method metadata, show a payment-method re-registration action that routes to `purpose=BILLING_AGREEMENT`.
+5. If the billing agreement is missing, `READY`, `EXPIRED`, `SUSPENDED`, or cancelled without masked method metadata, show a payment-method re-registration action that routes to `purpose=BILLING_AGREEMENT`.
 
 ## 14. Migration Plan
 

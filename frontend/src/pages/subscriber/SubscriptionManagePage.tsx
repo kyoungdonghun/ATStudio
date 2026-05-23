@@ -109,6 +109,53 @@ function getApiErrorMessage(err: unknown, fallback: string): string {
   );
 }
 
+function isReusableBillingAgreement(
+  agreement: BillingAgreementResponse | null,
+  subscriptionStatus?: string,
+): boolean {
+  if (!agreement) return false;
+  if (agreement.status === 'ACTIVE') return true;
+  return (
+    subscriptionStatus === 'CANCELLED' &&
+    agreement.status === 'CANCELLED' &&
+    Boolean(agreement.maskedMethod)
+  );
+}
+
+function requiresPaymentMethodRegistration(
+  agreement: BillingAgreementResponse | null,
+  hasSubscription: boolean,
+): boolean {
+  if (!hasSubscription) return false;
+  if (!agreement) return true;
+  if (agreement.status === 'READY') return true;
+  if (agreement.status === 'EXPIRED' || agreement.status === 'SUSPENDED') return true;
+  return agreement.status === 'CANCELLED' && !agreement.maskedMethod;
+}
+
+function getPaymentMethodLabel(agreement: BillingAgreementResponse): string {
+  if (agreement.maskedMethod) {
+    return `${agreement.payMethod ?? 'CARD'} ${agreement.maskedMethod}`;
+  }
+  if (agreement.status === 'ACTIVE') {
+    return agreement.payMethod ?? '등록됨';
+  }
+  if (agreement.status === 'READY') {
+    return '등록 미완료';
+  }
+  return '미등록';
+}
+
+function getPaymentRegistrationMessage(agreement: BillingAgreementResponse | null): string {
+  if (!agreement) {
+    return '등록된 자동결제 수단이 없습니다. 업그레이드와 다음 갱신을 진행하려면 결제수단을 등록해야 합니다.';
+  }
+  if (agreement.status === 'READY') {
+    return '카드 등록이 완료되지 않았습니다. 결제수단 다시 등록을 눌러 Toss 카드 등록을 다시 시작해주세요.';
+  }
+  return '업그레이드와 다음 갱신을 진행하려면 Toss 자동결제 수단을 다시 등록해야 합니다. 현재 구독 기간과 플랜은 변경되지 않습니다.';
+}
+
 export default function SubscriptionManagePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -139,12 +186,9 @@ export default function SubscriptionManagePage() {
   const [cancelling, setCancelling] = useState(false);
   const [reactivating, setReactivating] = useState(false);
   const hasPendingChange = Boolean(sub?.pendingSubscriptionId || sub?.pendingBillingCycle);
-  const needsPaymentMethodRegistration = Boolean(
-    sub &&
-    (!billingAgreement ||
-      billingAgreement.status === 'EXPIRED' ||
-      billingAgreement.status === 'SUSPENDED' ||
-      (billingAgreement.status === 'CANCELLED' && !billingAgreement.maskedMethod)),
+  const needsPaymentMethodRegistration = requiresPaymentMethodRegistration(
+    billingAgreement,
+    Boolean(sub),
   );
 
   /* ── Fetch ── */
@@ -276,12 +320,10 @@ export default function SubscriptionManagePage() {
 
   async function handleChangePlan() {
     if (!selectedPlan || !preview) return;
-    const hasReusableBillingAgreement =
-      billingAgreement?.status === 'ACTIVE' ||
-      (sub?.status === 'CANCELLED' && billingAgreement?.status === 'CANCELLED');
-    if (preview.changeType === 'UPGRADE' && !hasReusableBillingAgreement) {
+    const hasReusablePaymentMethod = isReusableBillingAgreement(billingAgreement, sub?.status);
+    if (preview.changeType === 'UPGRADE' && !hasReusablePaymentMethod) {
       setChangeError(
-        '업그레이드는 등록된 결제수단이 필요합니다. 현재 구독 만료 후 새 정기결제로 다시 가입하거나 관리자에게 문의해주세요.',
+        '업그레이드를 적용하려면 자동결제 수단 등록이 먼저 필요합니다. 결제수단을 다시 등록한 뒤 플랜 변경을 진행해주세요.',
       );
       return;
     }
@@ -437,6 +479,9 @@ export default function SubscriptionManagePage() {
   const isCycleOnlyChange = Boolean(
     selectedPlan && selectedPlan.id === sub.subscription.id && selectedCycle !== sub.billingCycle,
   );
+  const upgradeRequiresPaymentMethodRegistration = Boolean(
+    preview?.changeType === 'UPGRADE' && !isReusableBillingAgreement(billingAgreement, sub.status),
+  );
 
   return (
     <div className={styles.page}>
@@ -486,11 +531,7 @@ export default function SubscriptionManagePage() {
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>{'결제수단'}</span>
-                <span className={styles.infoValue}>
-                  {billingAgreement.maskedMethod
-                    ? `${billingAgreement.payMethod ?? 'CARD'} ${billingAgreement.maskedMethod}`
-                    : (billingAgreement.payMethod ?? '등록됨')}
-                </span>
+                <span className={styles.infoValue}>{getPaymentMethodLabel(billingAgreement)}</span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>{'다음 결제일'}</span>
@@ -515,9 +556,7 @@ export default function SubscriptionManagePage() {
         {needsPaymentMethodRegistration && (
           <>
             <div className={styles.actionDesc}>
-              {
-                '업그레이드와 다음 갱신을 진행하려면 Toss 자동결제 수단을 다시 등록해야 합니다. 현재 구독 기간과 플랜은 변경되지 않습니다.'
-              }
+              {getPaymentRegistrationMessage(billingAgreement)}
             </div>
             <div className={styles.actionButtons}>
               <Button variant="primary" onClick={handleRegisterPaymentMethod}>
@@ -664,15 +703,13 @@ export default function SubscriptionManagePage() {
             </div>
           )}
 
-          {preview?.changeType === 'UPGRADE' &&
-            billingAgreement?.status !== 'ACTIVE' &&
-            !(sub.status === 'CANCELLED' && billingAgreement?.status === 'CANCELLED') && (
-              <div className={styles.errorMsg}>
-                {
-                  '업그레이드는 등록된 결제수단이 필요합니다. 기존 단건 결제창으로는 진행하지 않습니다.'
-                }
-              </div>
-            )}
+          {preview?.changeType === 'UPGRADE' && upgradeRequiresPaymentMethodRegistration && (
+            <div className={styles.errorMsg}>
+              {
+                '업그레이드를 적용하려면 자동결제 수단 등록이 먼저 필요합니다. 결제수단을 다시 등록한 뒤 플랜 변경을 진행해주세요.'
+              }
+            </div>
+          )}
 
           {/* Confirm change button */}
           {selectedPlan && preview && !loadingPreview && (
@@ -686,8 +723,18 @@ export default function SubscriptionManagePage() {
               >
                 {'취소'}
               </Button>
-              <Button variant="primary" onClick={handleChangePlan} loading={changingPlan}>
-                {getConfirmButtonLabel(preview.changeType, hasPendingChange, isCycleOnlyChange)}
+              <Button
+                variant="primary"
+                onClick={
+                  upgradeRequiresPaymentMethodRegistration
+                    ? handleRegisterPaymentMethod
+                    : handleChangePlan
+                }
+                loading={changingPlan}
+              >
+                {upgradeRequiresPaymentMethodRegistration
+                  ? '결제수단 등록하기'
+                  : getConfirmButtonLabel(preview.changeType, hasPendingChange, isCycleOnlyChange)}
               </Button>
             </div>
           )}
@@ -758,7 +805,7 @@ function getBillingStatusLabel(status: BillingAgreementResponse['status']): stri
     case 'ACTIVE':
       return '자동 갱신 중';
     case 'READY':
-      return '등록 진행 중';
+      return '등록 미완료';
     case 'SUSPENDED':
       return '갱신 중지';
     case 'CANCELLED':

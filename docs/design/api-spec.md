@@ -1223,7 +1223,7 @@ For current subscription flows, the frontend must not call this endpoint. Toss o
 |-------|-------|
 | **URL** | `POST /api/payments/billing-agreements/prepare` |
 | **Auth** | auth required |
-| **Description** | Creates an internal billing agreement registration order and returns Toss billing-auth metadata. For a new subscription, the order purpose is `SUBSCRIBE` and the first-period amount is charged during confirm. For an existing active/grace-period subscription that is re-registering an expired or missing payment method, the order purpose is `BILLING_AGREEMENT` and amount is `0`; subscription activation or plan change does not occur at prepare time. |
+| **Description** | Creates an internal billing agreement registration order and returns Toss billing-auth metadata. For a new subscription, the order purpose is `SUBSCRIBE` and the first-period amount is charged during confirm. For an existing active/grace-period subscription that is re-registering an interrupted, expired, or missing payment method, the order purpose is `BILLING_AGREEMENT` and amount is `0`; subscription activation or plan change does not occur at prepare time. |
 
 **Request**
 ```json

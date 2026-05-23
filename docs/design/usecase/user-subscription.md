@@ -218,6 +218,7 @@
 
 **Alternative Flow — billing key removed by provider**
 - If Toss returns `ALREADY_REMOVED_BILLING_KEY` or another removed/not-found/invalid billing-key failure, the backend expires the local billing agreement and asks the frontend to start payment-method re-registration.
+- If a previous payment-method registration was interrupted and the billing agreement remains `READY`, the frontend treats it as incomplete and offers the same re-registration action.
 - The user can re-register a payment method through the current plan/current cycle checkout with `purpose=BILLING_AGREEMENT`.
 - Re-registration stores a new encrypted billing key without charging the card or changing the current subscription period.
 
