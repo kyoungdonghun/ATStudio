@@ -473,6 +473,7 @@ sequenceDiagram
 10. After charge success or a zero-amount skip, backend applies the higher plan immediately while preserving the current `billingCycle` and `expiresAt`.
 11. Backend saves `subscription_payments` only when a provider charge is attempted and succeeds.
 12. The next renewal date remains unchanged; the next renewal charge uses the upgraded plan and selected billing cycle through pending renewal settings when the selected cycle differs from the current cycle.
+13. When only the billing cycle is pending after an upgrade, frontend must label it as a billing-cycle reservation, not as a pending plan upgrade.
 
 ### 11.3 Scheduled Change and Pending Clear
 
@@ -569,6 +570,7 @@ For upgrades:
 2. If `changeType = UPGRADE`, call the subscription change API after user confirmation.
 3. The backend charges the active billing agreement and applies the upgrade only after charge success.
 4. Do not route user-facing upgrades to the one-time subscription payment page.
+5. If an upgrade also schedules a different next renewal cycle, show the plan as already active and describe only the billing-cycle change as pending.
 
 For scheduled changes:
 

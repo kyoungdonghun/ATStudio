@@ -44,12 +44,15 @@ function getBillingCycleLabel(cycle: BillingCycle): string {
   return cycle === 'MONTHLY' ? '월간' : '연간';
 }
 
-function getChangeTypeLabel(type: SubscriptionChangeType): string {
+function getChangeTypeLabel(
+  type: SubscriptionChangeType,
+  isPendingCycleOnlyChange = false,
+): string {
   switch (type) {
     case 'UPGRADE':
       return '오늘 변경';
     case 'NO_CHANGE':
-      return '현재 플랜 유지';
+      return isPendingCycleOnlyChange ? '결제 주기 예약 취소' : '현재 플랜 유지';
     case 'SCHEDULED_CHANGE':
     case 'DOWNGRADE':
       return '다음 결제일 변경';
@@ -62,9 +65,11 @@ function getConfirmButtonLabel(
   type: SubscriptionChangeType,
   hasPendingChange: boolean,
   isCycleOnlyChange: boolean,
+  isPendingCycleOnlyChange: boolean,
 ): string {
   switch (type) {
     case 'NO_CHANGE':
+      if (isPendingCycleOnlyChange) return '결제 주기 예약 취소';
       return hasPendingChange ? '예약 취소하고 현재 플랜 유지' : '변경할 항목 없음';
     case 'SCHEDULED_CHANGE':
     case 'DOWNGRADE':
@@ -74,11 +79,16 @@ function getConfirmButtonLabel(
   }
 }
 
-function getPreviewSummary(type: SubscriptionChangeType, hasPendingChange: boolean): string {
+function getPreviewSummary(
+  type: SubscriptionChangeType,
+  hasPendingChange: boolean,
+  pendingCycleOnlySummary: string | null,
+): string {
   switch (type) {
     case 'UPGRADE':
       return '남은 기간 차액을 오늘 결제하고 플랜은 바로 변경됩니다.';
     case 'NO_CHANGE':
+      if (pendingCycleOnlySummary) return pendingCycleOnlySummary;
       return hasPendingChange
         ? '예약된 변경을 취소하고 현재 플랜과 결제 주기를 유지합니다.'
         : '현재 이용 중인 플랜과 결제 주기입니다.';
@@ -154,6 +164,14 @@ function getPaymentRegistrationMessage(agreement: BillingAgreementResponse | nul
     return '카드 등록이 완료되지 않았습니다. 결제수단 다시 등록을 눌러 Toss 카드 등록을 다시 시작해주세요.';
   }
   return '업그레이드와 다음 갱신을 진행하려면 Toss 자동결제 수단을 다시 등록해야 합니다. 현재 구독 기간과 플랜은 변경되지 않습니다.';
+}
+
+function isPendingCycleOnlyChange(sub: MySubscription | null): boolean {
+  if (!sub?.pendingBillingCycle || sub.pendingBillingCycle === sub.billingCycle) {
+    return false;
+  }
+  const pendingPlanId = sub.pendingSubscriptionId ?? sub.subscription.id;
+  return pendingPlanId === sub.subscription.id;
 }
 
 interface PaymentMethodRegistrationContext {
@@ -354,6 +372,8 @@ export default function SubscriptionManagePage() {
       });
 
       const reactivatedPrefix = sub?.status === 'CANCELLED' ? '구독 취소가 철회되었습니다. ' : '';
+      const isPendingCycleCancellation = isPendingCycleOnlyChange(sub);
+      const currentBillingCycleLabel = sub ? getBillingCycleLabel(sub.billingCycle) : '현재';
 
       if (preview.changeType === 'UPGRADE') {
         const chargeMessage =
@@ -362,16 +382,18 @@ export default function SubscriptionManagePage() {
             : '즉시 결제할 차액은 없고,';
         const nextCycleMessage =
           selectedCycle !== sub?.billingCycle
-            ? ` 다음 결제일부터 ${getBillingCycleLabel(selectedCycle)} 결제로 전환됩니다.`
+            ? ` 결제 주기 변경은 다음 결제일부터 ${getBillingCycleLabel(selectedCycle)} 결제로 예약됩니다.`
             : '';
         setChangeMsg(
-          `${reactivatedPrefix}업그레이드가 적용되었습니다. ${chargeMessage} 다음 결제일(${formatDate(res.expiresAt)})은 유지됩니다.${nextCycleMessage}`,
+          `${reactivatedPrefix}업그레이드가 바로 적용되었습니다. ${chargeMessage} 다음 결제일(${formatDate(res.expiresAt)})은 유지됩니다.${nextCycleMessage}`,
         );
       } else if (preview.changeType === 'NO_CHANGE') {
         setChangeMsg(
-          hasPendingChange
-            ? `${reactivatedPrefix}예약된 플랜 변경이 해제되었습니다. 현재 플랜이 유지됩니다.`
-            : `${reactivatedPrefix}현재 플랜이 유지됩니다.`,
+          isPendingCycleCancellation
+            ? `${reactivatedPrefix}다음 결제 주기 변경 예약이 해제되었습니다. 현재 ${currentBillingCycleLabel} 결제가 유지됩니다.`
+            : hasPendingChange
+              ? `${reactivatedPrefix}예약된 플랜 변경이 해제되었습니다. 현재 플랜이 유지됩니다.`
+              : `${reactivatedPrefix}현재 플랜이 유지됩니다.`,
         );
       } else {
         setChangeMsg(
@@ -486,15 +508,23 @@ export default function SubscriptionManagePage() {
   const pendingCycleLabel = sub.pendingBillingCycle
     ? getBillingCycleLabel(sub.pendingBillingCycle)
     : null;
-  const pendingChangeText = pendingCycleLabel
-    ? `다음 결제일부터 ${pendingPlanName} (${pendingCycleLabel})이 적용됩니다.`
-    : `다음 결제일부터 ${pendingPlanName}이 적용됩니다.`;
+  const hasPendingCycleOnlyChange = isPendingCycleOnlyChange(sub);
+  const pendingChangeText =
+    hasPendingCycleOnlyChange && pendingCycleLabel
+      ? `다음 결제일부터 결제 주기만 ${pendingCycleLabel}으로 전환됩니다. 플랜은 ${pendingPlanName}으로 유지됩니다.`
+      : pendingCycleLabel
+        ? `다음 결제일부터 ${pendingPlanName} (${pendingCycleLabel})이 적용됩니다.`
+        : `다음 결제일부터 ${pendingPlanName}이 적용됩니다.`;
   const activePlans = [...plans]
     .filter((p) => p.isActive)
     .sort((a, b) => a.priceMonthly - b.priceMonthly);
   const isCycleOnlyChange = Boolean(
     selectedPlan && selectedPlan.id === sub.subscription.id && selectedCycle !== sub.billingCycle,
   );
+  const pendingCycleOnlySummary =
+    hasPendingCycleOnlyChange && pendingCycleLabel
+      ? `예약된 ${pendingCycleLabel} 전환을 취소하고 현재 ${getBillingCycleLabel(sub.billingCycle)} 결제를 유지합니다.`
+      : null;
   const upgradeRequiresPaymentMethodRegistration = Boolean(
     preview?.changeType === 'UPGRADE' && !isReusableBillingAgreement(billingAgreement, sub.status),
   );
@@ -589,8 +619,8 @@ export default function SubscriptionManagePage() {
           <div className={styles.actionTitle}>{'플랜 변경'}</div>
           <div className={styles.actionDesc}>
             {sub.status === 'CANCELLED'
-              ? '플랜 변경을 확정하면 구독 취소가 철회됩니다. 업그레이드는 남은 기간 차액을 즉시 결제하고, 그 외 변경은 현재 구독 만료 후 적용됩니다.'
-              : '업그레이드는 등록된 결제수단으로 남은 기간 차액을 즉시 결제한 뒤 적용됩니다. 그 외 변경은 현재 구독 만료 후 적용되며, 예약된 변경은 다시 바꿀 수 있습니다.'}
+              ? '플랜 변경을 확정하면 구독 취소가 철회됩니다. 업그레이드는 남은 기간 차액을 즉시 결제하고, 결제 주기 변경은 다음 결제일부터 적용됩니다.'
+              : '업그레이드는 남은 기간 차액을 즉시 결제한 뒤 플랜이 바로 적용됩니다. 결제 주기 변경과 하위 플랜 변경은 다음 결제일부터 적용되며, 예약된 변경은 다시 바꿀 수 있습니다.'}
           </div>
 
           <div className={styles.cycleTabs} aria-label="결제 주기 선택">
@@ -644,7 +674,11 @@ export default function SubscriptionManagePage() {
                         <span className={styles.planOptionCurrent}>{'현재 이용 중'}</span>
                       )}
                       {isPendingTarget && (
-                        <span className={styles.planOptionPending}>{'예약됨'}</span>
+                        <span className={styles.planOptionPending}>
+                          {hasPendingCycleOnlyChange && isCurrentPlan && pendingCycleLabel
+                            ? `${pendingCycleLabel} 예약`
+                            : '예약됨'}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -673,12 +707,12 @@ export default function SubscriptionManagePage() {
                         : styles.previewDowngrade
                   }
                 >
-                  {getChangeTypeLabel(preview.changeType)}
+                  {getChangeTypeLabel(preview.changeType, hasPendingCycleOnlyChange)}
                 </span>
               </div>
 
               <div className={styles.previewSummary}>
-                {getPreviewSummary(preview.changeType, hasPendingChange)}
+                {getPreviewSummary(preview.changeType, hasPendingChange, pendingCycleOnlySummary)}
               </div>
 
               <div className={styles.previewGrid}>
@@ -755,7 +789,12 @@ export default function SubscriptionManagePage() {
               >
                 {upgradeRequiresPaymentMethodRegistration
                   ? '결제수단 등록하기'
-                  : getConfirmButtonLabel(preview.changeType, hasPendingChange, isCycleOnlyChange)}
+                  : getConfirmButtonLabel(
+                      preview.changeType,
+                      hasPendingChange,
+                      isCycleOnlyChange,
+                      hasPendingCycleOnlyChange,
+                    )}
               </Button>
             </div>
           )}

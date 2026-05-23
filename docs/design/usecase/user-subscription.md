@@ -225,6 +225,7 @@
 
 **Postconditions**
 - UPGRADE: billing-key charge succeeds first when `proratedAmount > 0`, then `user_subscriptions.subscription_id` is updated immediately. Payment record is saved in `subscription_payments` only for a real charge. New plan benefits are active immediately, while current `billingCycle` and next billing date are preserved for the active period. If the requested billing cycle differs, pendingSubscriptionId and pendingBillingCycle are saved for the next renewal.
+- When UPGRADE saves a pending billing-cycle change for the same newly active plan, the UI must describe it as a next-renewal billing-cycle reservation, not as a pending plan upgrade.
 - SCHEDULED_CHANGE: pendingSubscriptionId and pendingBillingCycle saved or overwritten. Current plan active until expiresAt. New plan/cycle is applied only after the next successful renewal charge; if renewal is cancelled or fails through grace, the subscription expires without applying pending changes.
 - NO_CHANGE: pendingSubscriptionId and pendingBillingCycle are cleared. Current plan remains active through the original expiresAt.
 

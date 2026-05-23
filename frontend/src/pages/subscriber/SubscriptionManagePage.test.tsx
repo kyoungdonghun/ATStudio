@@ -272,14 +272,35 @@ describe('SubscriptionManagePage', () => {
       pendingSubscriptionId: 2,
       pendingBillingCycle: 'MONTHLY',
     });
+    fetchSubscriptionChangePreviewMock.mockResolvedValue({
+      changeType: 'NO_CHANGE',
+      proratedAmount: 0,
+      effectiveDate: '2026-05-23',
+      nextBillingDate: '2027-05-20',
+      nextBillingAmount: 299000,
+      newPlanName: 'PREMIUM',
+      newBillingCycle: 'YEARLY',
+    });
 
     renderPage();
 
-    await screen.findByText('다음 결제일부터 프리미엄 (월간)이 적용됩니다.');
+    await screen.findByText(
+      '다음 결제일부터 결제 주기만 월간으로 전환됩니다. 플랜은 프리미엄으로 유지됩니다.',
+    );
     expect(screen.getByText('플랜 변경')).toBeInTheDocument();
     expect(screen.getByText('현재 이용 중')).toBeInTheDocument();
-    expect(screen.getByText('예약됨')).toBeInTheDocument();
+    expect(screen.getByText('월간 예약')).toBeInTheDocument();
     expect(screen.getByText('디럭스')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /프리미엄/ }));
+
+    const cancelPendingCycleButton = await screen.findByRole('button', {
+      name: '결제 주기 예약 취소',
+    });
+    expect(
+      screen.getByText('예약된 월간 전환을 취소하고 현재 연간 결제를 유지합니다.'),
+    ).toBeInTheDocument();
+    expect(cancelPendingCycleButton).toBeEnabled();
   });
 
   it('does not let the current plan and current cycle behave like a new change', async () => {
