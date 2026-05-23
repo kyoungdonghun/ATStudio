@@ -151,6 +151,12 @@
   gap: 10px;
 }
 
+.cycleTabs {
+  display: inline-flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
 /* ── Cancel Section (Danger) ── */
 
 .cancelSection {
@@ -181,22 +187,42 @@
 
 .planGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .planOption {
+  display: flex;
+  min-height: 116px;
+  flex-direction: column;
+  justify-content: space-between;
   background: var(--bg2);
   border: 1px solid var(--border2);
   border-radius: 8px;
   padding: 16px;
   cursor: pointer;
-  transition: border-color 0.15s;
+  text-align: left;
+  font-family: inherit;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    transform 0.15s;
 }
 
 .planOption:hover {
   border-color: var(--accent-border);
+  transform: translateY(-1px);
+}
+
+.planOption:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.planOption:disabled:hover {
+  border-color: var(--border2);
+  transform: none;
 }
 
 .planOptionSelected {
@@ -205,22 +231,64 @@
   background: var(--accent-dim);
 }
 
+.planOptionCurrentCard {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.planOptionPendingCard {
+  border-color: rgba(251, 191, 36, 0.28);
+}
+
+.planOptionTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .planOptionName {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text0);
-  margin-bottom: 6px;
+}
+
+.planOptionBadges {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
 .planOptionPrice {
-  font-size: 12px;
-  color: var(--text1);
+  font-size: 15px;
+  color: var(--text0);
+  font-weight: 600;
 }
 
 .planOptionCurrent {
+  display: inline-flex;
   font-size: 11px;
-  color: var(--accent);
-  margin-top: 6px;
+  color: var(--text1);
+  border: 1px solid var(--border2);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+
+.planOptionPending {
+  display: inline-flex;
+  font-size: 11px;
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.32);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+
+.planOptionMeta {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--text2);
 }
 
 /* ── Preview Box ── */
@@ -229,32 +297,70 @@
   background: var(--bg2);
   border: 1px solid var(--border2);
   border-radius: 8px;
-  padding: 16px;
+  padding: 18px;
   margin-bottom: 16px;
 }
 
-.previewRow {
+.previewHeader {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  padding: 6px 0;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.previewTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text0);
+}
+
+.previewSummary {
+  margin-bottom: 16px;
+  color: var(--text1);
   font-size: 13px;
+  line-height: 1.6;
+}
+
+.previewGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
+}
+
+.previewItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .previewLabel {
   color: var(--text2);
+  font-size: 12px;
 }
 
 .previewValue {
   color: var(--text0);
   font-weight: 500;
+  font-size: 14px;
 }
 
 .previewUpgrade {
   color: #4ade80;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .previewDowngrade {
   color: #fbbf24;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.previewNeutral {
+  color: var(--text1);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* ── Loading / Error ── */
@@ -341,5 +447,22 @@
 
   .actionButtons {
     flex-direction: column;
+  }
+
+  .cycleTabs {
+    display: flex;
+  }
+
+  .cycleTabs button {
+    flex: 1;
+  }
+
+  .planGrid,
+  .previewGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .planOption {
+    min-height: 104px;
   }
 }

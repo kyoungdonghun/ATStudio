@@ -55,6 +55,10 @@ vi.mock('@/api/client', () => ({
   isSubscriptionRequired: (err: unknown) =>
     (err as { response?: { data?: { errorCode?: string } } })?.response?.data?.errorCode ===
     'NO_ACTIVE_SUBSCRIPTION',
+  getApiErrorCode: (err: unknown) =>
+    Promise.resolve(
+      (err as { response?: { data?: { errorCode?: string } } })?.response?.data?.errorCode ?? null,
+    ),
 }));
 
 function renderPage() {
@@ -206,10 +210,10 @@ describe('SubscriptionManagePage', () => {
     renderPage();
 
     fireEvent.click(await screen.findByText('디럭스'));
-    await screen.findByText('업그레이드');
+    await screen.findByText('오늘 변경');
     await screen.findByText('다음 결제 금액');
-    await screen.findByText('₩19,900');
-    fireEvent.click(screen.getByRole('button', { name: '플랜 변경 확인' }));
+    await screen.findByText('₩19,900/월');
+    fireEvent.click(screen.getByRole('button', { name: '차액 결제 후 변경' }));
 
     await waitFor(() => {
       expect(changeMySubscriptionMock).toHaveBeenCalledWith({
@@ -273,8 +277,40 @@ describe('SubscriptionManagePage', () => {
 
     await screen.findByText('다음 결제일부터 프리미엄 (월간)이 적용됩니다.');
     expect(screen.getByText('플랜 변경')).toBeInTheDocument();
-    expect(screen.getByText('현재 플랜')).toBeInTheDocument();
+    expect(screen.getByText('현재 이용 중')).toBeInTheDocument();
+    expect(screen.getByText('예약됨')).toBeInTheDocument();
     expect(screen.getByText('디럭스')).toBeInTheDocument();
+  });
+
+  it('does not let the current plan and current cycle behave like a new change', async () => {
+    fetchMySubscriptionMock.mockResolvedValue({
+      id: 100,
+      subscription: {
+        id: 1,
+        name: 'STANDARD',
+        description: 'Starter',
+        userType: 'INDIVIDUAL',
+        priceMonthly: 9900,
+        priceYearly: 99000,
+        downloadPerDay: 5,
+        maxWhitelistChannels: 1,
+        maxPlaylists: 3,
+        isActive: true,
+      },
+      billingCycle: 'MONTHLY',
+      status: 'ACTIVE',
+      startedAt: '2026-05-01',
+      expiresAt: '2026-06-01',
+      pendingSubscriptionId: null,
+      pendingBillingCycle: null,
+    });
+
+    renderPage();
+
+    const currentPlanButton = await screen.findByRole('button', { name: /현재 이용 중/ });
+    expect(currentPlanButton).toBeDisabled();
+    expect(screen.queryByText('변경 미리보기')).not.toBeInTheDocument();
+    expect(fetchSubscriptionChangePreviewMock).not.toHaveBeenCalled();
   });
 
   it('shows billing agreement state without a separate automatic-renewal cancel action', async () => {
@@ -315,6 +351,48 @@ describe('SubscriptionManagePage', () => {
     await screen.findByText('자동 갱신 중');
     expect(screen.getByText('결제 정보')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '자동 갱신 해지' })).not.toBeInTheDocument();
+  });
+
+  it('offers payment-method re-registration when the billing agreement is expired', async () => {
+    fetchMySubscriptionMock.mockResolvedValue({
+      id: 100,
+      subscription: {
+        id: 1,
+        name: 'STANDARD',
+        description: 'Starter',
+        userType: 'INDIVIDUAL',
+        priceMonthly: 9900,
+        priceYearly: 99000,
+        downloadPerDay: 5,
+        maxWhitelistChannels: 1,
+        maxPlaylists: 3,
+        isActive: true,
+      },
+      billingCycle: 'MONTHLY',
+      status: 'ACTIVE',
+      startedAt: '2026-05-01',
+      expiresAt: '2026-06-01',
+      pendingSubscriptionId: null,
+      pendingBillingCycle: null,
+    });
+    fetchMyBillingAgreementMock.mockResolvedValue({
+      provider: 'TOSS_BILLING',
+      status: 'EXPIRED',
+      payMethod: null,
+      maskedMethod: null,
+      nextBillingAt: null,
+      lastChargedAt: '2026-05-01T00:00:00',
+      cancelledAt: null,
+      subscription: null,
+    });
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: '결제수단 다시 등록' }));
+
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/subscriptions/checkout?plan=STANDARD&cycle=MONTHLY&purpose=BILLING_AGREEMENT',
+    );
   });
 
   it('lets a cancelled grace-period subscription resume before expiry', async () => {

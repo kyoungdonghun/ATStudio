@@ -330,7 +330,7 @@
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
 | Merchant order ID | `order_id` | VARCHAR(64) | NOT NULL | UNIQUE | | Sent to provider-facing checkout/confirm flow |
 | User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | Authenticated order owner |
-| Purpose | `purpose` | ENUM('SUBSCRIBE','UPGRADE','RENEWAL','BILLING_AGREEMENT') | NOT NULL | | | SUBSCRIBE for initial recurring charge, UPGRADE for billing-key plan change charge, RENEWAL for automatic billing, BILLING_AGREEMENT reserved for registration-only future flow |
+| Purpose | `purpose` | ENUM('SUBSCRIBE','UPGRADE','RENEWAL','BILLING_AGREEMENT') | NOT NULL | | | SUBSCRIBE for initial recurring charge, UPGRADE for billing-key plan change charge, RENEWAL for automatic billing, BILLING_AGREEMENT for zero-amount payment method re-registration |
 | Provider | `provider` | ENUM('MOCK','TOSS','TOSS_BILLING','KAKAOPAY') | NOT NULL | | | TOSS_BILLING for subscription scope; MOCK/TOSS one-time are not user-facing subscription flows |
 | Status | `status` | ENUM('READY','IN_PROGRESS','DONE','FAILED','CANCELLED','EXPIRED') | NOT NULL | | 'READY' | Attempt lifecycle |
 | Subscription plan | `subscription_id` | BIGINT | NOT NULL | FK(subscriptions.id) | | Target plan |

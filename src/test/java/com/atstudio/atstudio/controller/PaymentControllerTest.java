@@ -8,6 +8,7 @@ import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
 import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
+import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.security.CustomUserDetailsService;
 import com.atstudio.atstudio.service.BillingAgreementApplicationService;
 import com.atstudio.atstudio.service.PaymentApplicationService;
@@ -60,6 +61,7 @@ class PaymentControllerTest {
                 .willReturn(new BillingAgreementPrepareResponse(
                         "ORDER-1",
                         PaymentProviderType.TOSS_BILLING,
+                        PaymentPurpose.SUBSCRIBE,
                         BillingAgreementStatus.READY,
                         10L,
                         BillingCycle.MONTHLY,
@@ -79,6 +81,7 @@ class PaymentControllerTest {
                         .content("{\"subscriptionId\":10,\"billingCycle\":\"MONTHLY\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.provider").value("TOSS_BILLING"))
+                .andExpect(jsonPath("$.data.purpose").value("SUBSCRIBE"))
                 .andExpect(jsonPath("$.data.checkout.customerKey").value("ats_billing_customer_1"));
     }
 

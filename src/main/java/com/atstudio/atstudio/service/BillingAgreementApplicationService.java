@@ -109,16 +109,27 @@ public class BillingAgreementApplicationService {
         User user = findUser(userDetails);
         Subscription subscription = findSubscription(request.subscriptionId());
         validateSubscriptionUserType(user, subscription);
-        validateSubscriptionPreconditions(user);
+        UserSubscription activeSubscription = findActiveSubscriptionOrNull(user);
+        PaymentPurpose purpose = activeSubscription == null
+                ? PaymentPurpose.SUBSCRIBE
+                : PaymentPurpose.BILLING_AGREEMENT;
+        if (activeSubscription == null) {
+            validateSubscriptionPreconditions(user);
+        } else {
+            validateBillingAgreementRegistrationRequest(activeSubscription, subscription, request.billingCycle());
+        }
 
         BillingAgreement agreement = prepareAgreement(user);
-        BigDecimal amount = priceFor(subscription, request.billingCycle());
+        BigDecimal amount = purpose == PaymentPurpose.SUBSCRIBE
+                ? priceFor(subscription, request.billingCycle())
+                : BigDecimal.ZERO;
         PaymentOrder order = paymentOrderRepository.save(PaymentOrder.builder()
                 .orderId(generateOrderId())
                 .user(user)
-                .purpose(PaymentPurpose.SUBSCRIBE)
+                .purpose(purpose)
                 .provider(RECURRING_PROVIDER)
                 .subscription(subscription)
+                .userSubscription(activeSubscription)
                 .billingAgreement(agreement)
                 .billingCycle(request.billingCycle())
                 .amount(amount)
@@ -133,6 +144,7 @@ public class BillingAgreementApplicationService {
         return new BillingAgreementPrepareResponse(
                 order.getOrderId(),
                 order.getProvider(),
+                order.getPurpose(),
                 agreement.getStatus(),
                 subscription.getId(),
                 order.getBillingCycle(),
@@ -174,6 +186,25 @@ public class BillingAgreementApplicationService {
                 protectedBillingKey.fingerprint(),
                 issueResult.payMethod(),
                 issueResult.maskedMethod());
+
+        if (order.getPurpose() == PaymentPurpose.BILLING_AGREEMENT) {
+            UserSubscription activeSubscription = findActiveSubscriptionOrNull(user);
+            if (activeSubscription == null) {
+                deleteIssuedKeyAfterFailedInitialCharge(issueResult.billingKey(), agreement);
+                throw new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION);
+            }
+            agreement.activate(
+                    protectedBillingKey.ciphertext(),
+                    protectedBillingKey.fingerprint(),
+                    issueResult.payMethod(),
+                    issueResult.maskedMethod(),
+                    activeSubscription.getExpiresAt());
+            order.markDone(
+                    "billing-agreement-" + order.getOrderId(),
+                    activeSubscription,
+                    issueResult.providerPayload());
+            return toConfirmResponse(order, agreement);
+        }
 
         BillingChargeResult chargeResult = recurringProvider().charge(new BillingChargeCommand(
                 issueResult.billingKey(),
@@ -251,9 +282,6 @@ public class BillingAgreementApplicationService {
             if (agreement.getStatus() == BillingAgreementStatus.ACTIVE) {
                 throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_ALREADY_ACTIVE);
             }
-            if (agreement.getStatus() == BillingAgreementStatus.SUSPENDED) {
-                throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE);
-            }
             if (agreement.getStatus() == BillingAgreementStatus.READY
                     && !isBlank(agreement.getBillingKeyCiphertext())) {
                 throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE);
@@ -298,7 +326,28 @@ public class BillingAgreementApplicationService {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_AMOUNT_MISMATCH);
         }
         validateSubscriptionUserType(order.getUser(), order.getSubscription());
-        validateSubscriptionPreconditions(order.getUser());
+        if (order.getPurpose() == PaymentPurpose.SUBSCRIBE) {
+            validateSubscriptionPreconditions(order.getUser());
+        } else {
+            UserSubscription activeSubscription = findActiveSubscriptionOrNull(order.getUser());
+            if (activeSubscription == null) {
+                throw new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION);
+            }
+            validateBillingAgreementRegistrationRequest(
+                    activeSubscription,
+                    order.getSubscription(),
+                    order.getBillingCycle());
+        }
+    }
+
+    private void validateBillingAgreementRegistrationRequest(
+            UserSubscription activeSubscription,
+            Subscription subscription,
+            BillingCycle billingCycle) {
+        if (!activeSubscription.getSubscription().getId().equals(subscription.getId())
+                || activeSubscription.getBillingCycle() != billingCycle) {
+            throw new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_ALREADY_EXISTS);
+        }
     }
 
     private void deleteIssuedKeyAfterFailedInitialCharge(String billingKey, BillingAgreement agreement) {
@@ -359,7 +408,9 @@ public class BillingAgreementApplicationService {
         if (!order.isOwnedBy(user)) {
             throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
         }
-        if (order.getProvider() != RECURRING_PROVIDER || order.getPurpose() != PaymentPurpose.SUBSCRIBE) {
+        if (order.getProvider() != RECURRING_PROVIDER
+                || (order.getPurpose() != PaymentPurpose.SUBSCRIBE
+                && order.getPurpose() != PaymentPurpose.BILLING_AGREEMENT)) {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
         }
         return order;

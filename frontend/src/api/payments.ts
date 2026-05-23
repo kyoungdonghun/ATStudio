@@ -30,6 +30,7 @@ export interface BillingAgreementPrepareRequest {
 export interface BillingAgreementPrepareResponse {
   orderId: string;
   provider: 'TOSS_BILLING';
+  purpose: 'SUBSCRIBE' | 'BILLING_AGREEMENT';
   agreementStatus: 'READY' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'EXPIRED';
   subscriptionId: number;
   billingCycle: 'MONTHLY' | 'YEARLY';

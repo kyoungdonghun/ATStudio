@@ -143,6 +143,54 @@ class BillingAgreementApplicationServiceTest {
     }
 
     @Test
+    @DisplayName("prepare creates zero-amount billing agreement order for active subscription re-registration")
+    void prepareBillingAgreement_activeSubscriptionReRegistration() {
+        User user = buildUser(1L);
+        Subscription subscription = buildSubscription(10L);
+        UserSubscription activeSubscription = buildUserSubscription(
+                100L,
+                user,
+                subscription,
+                SubscriptionStatus.ACTIVE);
+        BillingAgreement agreement = buildReadyAgreement(user);
+        agreement.expire();
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(subscriptionRepository.findById(10L)).willReturn(Optional.of(subscription));
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                .willReturn(Optional.of(activeSubscription));
+        given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+                .willReturn(Optional.of(agreement));
+        given(paymentOrderRepository.existsByOrderId(anyString())).willReturn(false);
+        given(paymentOrderRepository.save(any(PaymentOrder.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+        given(recurringPaymentProvider.prepareAgreement(any()))
+                .willReturn(new BillingAgreementPrepareResult(
+                        PaymentProviderType.TOSS_BILLING,
+                        "TOSS_BILLING_AUTH",
+                        "{\"phase\":\"prepare\"}",
+                        Map.of(
+                                "clientKey", "test_ck",
+                                "customerKey", "ats_billing_customer_1",
+                                "successUrl", "http://localhost/success",
+                                "failUrl", "http://localhost/fail",
+                                "method", "CARD"
+                        )));
+
+        BillingAgreementPrepareResponse response = service.prepareBillingAgreement(
+                buildUserDetails(1L),
+                new BillingAgreementPrepareRequest(10L, BillingCycle.MONTHLY));
+
+        assertThat(response.amount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.READY);
+
+        ArgumentCaptor<PaymentOrder> orderCaptor = ArgumentCaptor.forClass(PaymentOrder.class);
+        verify(paymentOrderRepository).save(orderCaptor.capture());
+        assertThat(orderCaptor.getValue().getPurpose()).isEqualTo(PaymentPurpose.BILLING_AGREEMENT);
+        assertThat(orderCaptor.getValue().getUserSubscription()).isEqualTo(activeSubscription);
+    }
+
+    @Test
     @DisplayName("confirm issues billing key, charges immediately, and activates subscription")
     void confirmBillingAgreement_success() {
         User user = buildUser(1L);
@@ -195,6 +243,62 @@ class BillingAgreementApplicationServiceTest {
         assertThat(chargeCaptor.getValue().idempotencyKey()).isEqualTo("billing-initial-ORDER-1");
         verify(subscriptionPaymentRepository).save(any(SubscriptionPayment.class));
         verify(playlistService).createDefaultPlaylist(user);
+    }
+
+    @Test
+    @DisplayName("confirm billing agreement re-registration stores key without an immediate charge")
+    void confirmBillingAgreement_reRegistrationOnly() {
+        User user = buildUser(1L);
+        Subscription subscription = buildSubscription(10L);
+        UserSubscription activeSubscription = buildUserSubscription(
+                100L,
+                user,
+                subscription,
+                SubscriptionStatus.ACTIVE);
+        BillingAgreement agreement = buildReadyAgreement(user);
+        PaymentOrder order = PaymentOrder.builder()
+                .orderId("ORDER-REAUTH")
+                .user(user)
+                .purpose(PaymentPurpose.BILLING_AGREEMENT)
+                .provider(PaymentProviderType.TOSS_BILLING)
+                .subscription(subscription)
+                .userSubscription(activeSubscription)
+                .billingAgreement(agreement)
+                .billingCycle(BillingCycle.MONTHLY)
+                .amount(BigDecimal.ZERO)
+                .currency("KRW")
+                .expiresAt(LocalDateTime.now().plusMinutes(10))
+                .build();
+        order.markInProgress("{\"phase\":\"prepare\"}");
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(paymentOrderRepository.findByOrderId("ORDER-REAUTH")).willReturn(Optional.of(order));
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                .willReturn(Optional.of(activeSubscription));
+        given(recurringPaymentProvider.confirmAgreement(any()))
+                .willReturn(BillingAgreementConfirmResult.success(
+                        "billing_raw_key",
+                        "CARD",
+                        "1234",
+                        "{\"method\":\"CARD\"}"));
+        given(billingKeyCrypto.encrypt("billing_raw_key"))
+                .willReturn(new BillingKeyCrypto.ProtectedBillingKey("encrypted-key", "fingerprint"));
+
+        BillingAgreementConfirmResponse response = service.confirmBillingAgreement(
+                buildUserDetails(1L),
+                new BillingAgreementConfirmRequest(
+                        "ORDER-REAUTH",
+                        "auth_key",
+                        "ats_billing_customer_1",
+                        BigDecimal.ZERO));
+
+        assertThat(response.orderStatus()).isEqualTo(PaymentOrderStatus.DONE);
+        assertThat(response.agreementStatus()).isEqualTo(BillingAgreementStatus.ACTIVE);
+        assertThat(response.nextBillingAt()).isEqualTo(activeSubscription.getExpiresAt());
+        assertThat(agreement.getBillingKeyCiphertext()).isEqualTo("encrypted-key");
+        verify(recurringPaymentProvider, never()).charge(any());
+        verify(subscriptionPaymentRepository, never()).save(any());
+        verify(playlistService, never()).createDefaultPlaylist(any());
     }
 
     @Test

@@ -34,6 +34,7 @@ import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeCom
 import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeResult;
 import com.atstudio.atstudio.service.payment.provider.recurring.RecurringPaymentProvider;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -47,11 +48,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
+@Slf4j
 public class UserSubscriptionService {
 
     private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS_BILLING;
@@ -111,7 +114,7 @@ public class UserSubscriptionService {
     }
 
     // 6.7 PUT /api/user-subscriptions/me
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public ChangeSubscriptionResponse changeSubscription(
             CustomUserDetails userDetails,
             ChangeSubscriptionRequest request) {
@@ -127,9 +130,8 @@ public class UserSubscriptionService {
             throw new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_USER_TYPE_MISMATCH);
         }
 
-        reactivateIfCancelled(user, current);
-
         if (isSamePlanAndCycle(current, newPlan, request.billingCycle())) {
+            reactivateIfCancelled(user, current);
             current.clearPendingChange();
             return new ChangeSubscriptionResponse(
                     SubscriptionResponse.from(current.getSubscription()),
@@ -147,7 +149,7 @@ public class UserSubscriptionService {
 
         if (isUpgrade) {
             BigDecimal proratedAmount = calculateProratedUpgradeAmount(current, newPlan);
-            BillingAgreement agreement = findActiveBillingAgreement(user);
+            BillingAgreement agreement = findReusableBillingAgreement(user, current);
             if (requiresImmediateCharge(proratedAmount)) {
                 PaymentOrder order = createUpgradeOrder(
                         user,
@@ -159,7 +161,22 @@ public class UserSubscriptionService {
                 BillingChargeResult chargeResult = chargeUpgrade(order, agreement);
                 if (!chargeResult.success()) {
                     order.markFailed(chargeResult.failureCode(), chargeResult.failureMessage());
-                    throw new BusinessException(BUSINESS_ERROR.PAYMENT_CONFIRM_FAILED);
+                    if (isRemovedBillingKeyFailure(chargeResult)) {
+                        expireRemovedBillingKey(agreement);
+                    } else {
+                        agreement.recordFailedCharge();
+                    }
+                    log.warn(
+                            "Subscription upgrade charge failed. userId={}, orderId={}, agreementId={}, failureCode={}, failureMessage={}",
+                            user.getId(),
+                            order.getOrderId(),
+                            agreement.getId(),
+                            chargeResult.failureCode(),
+                            chargeResult.failureMessage());
+                    if (isRemovedBillingKeyFailure(chargeResult)) {
+                        throw billingAgreementReauthRequired(chargeResult);
+                    }
+                    throw paymentConfirmFailed(chargeResult);
                 }
 
                 subscriptionPaymentRepository.save(SubscriptionPayment.builder()
@@ -178,6 +195,7 @@ public class UserSubscriptionService {
                 agreement.recordSuccessfulCharge(agreement.getNextBillingAt());
             }
 
+            reactivateIfCancelled(user, current);
             current.upgradeKeepingPeriod(newPlan, request.billingCycle());
 
             return new ChangeSubscriptionResponse(
@@ -191,6 +209,7 @@ public class UserSubscriptionService {
             );
         }
 
+        reactivateIfCancelled(user, current);
         current.schedulePendingChange(newPlan, request.billingCycle());
         return new ChangeSubscriptionResponse(
                 SubscriptionResponse.from(newPlan),
@@ -250,13 +269,20 @@ public class UserSubscriptionService {
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
     }
 
-    private BillingAgreement findActiveBillingAgreement(User user) {
+    private BillingAgreement findReusableBillingAgreement(User user, UserSubscription subscription) {
         BillingAgreement agreement = billingAgreementRepository.findByUserAndProvider(user, RECURRING_PROVIDER)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_NOT_FOUND));
-        if (agreement.getStatus() != BillingAgreementStatus.ACTIVE || isBlank(agreement.getBillingKeyCiphertext())) {
+        if (isBlank(agreement.getBillingKeyCiphertext())) {
             throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE);
         }
-        return agreement;
+        if (agreement.getStatus() == BillingAgreementStatus.ACTIVE) {
+            return agreement;
+        }
+        if (subscription.getStatus() == SubscriptionStatus.CANCELLED
+                && agreement.getStatus() == BillingAgreementStatus.CANCELLED) {
+            return agreement;
+        }
+        throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE);
     }
 
     private void reactivateIfCancelled(User user, UserSubscription subscription) {
@@ -342,6 +368,22 @@ public class UserSubscriptionService {
         ));
     }
 
+    private BusinessException paymentConfirmFailed(BillingChargeResult chargeResult) {
+        return new BusinessException(
+                BUSINESS_ERROR.PAYMENT_CONFIRM_FAILED,
+                new IllegalStateException(providerFailureDetail(
+                        chargeResult.failureCode(),
+                        chargeResult.failureMessage())));
+    }
+
+    private BusinessException billingAgreementReauthRequired(BillingChargeResult chargeResult) {
+        return new BusinessException(
+                BUSINESS_ERROR.BILLING_AGREEMENT_REAUTH_REQUIRED,
+                new IllegalStateException(providerFailureDetail(
+                        chargeResult.failureCode(),
+                        chargeResult.failureMessage())));
+    }
+
     private RecurringPaymentProvider recurringProvider() {
         return recurringProviders.stream()
                 .filter(provider -> provider.getProviderType() == RECURRING_PROVIDER)
@@ -370,5 +412,30 @@ public class UserSubscriptionService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private String providerFailureDetail(String failureCode, String failureMessage) {
+        return "providerFailureCode=" + nullToDash(failureCode)
+                + ", providerFailureMessage=" + nullToDash(failureMessage);
+    }
+
+    private boolean isRemovedBillingKeyFailure(BillingChargeResult chargeResult) {
+        String code = chargeResult.failureCode();
+        if (isBlank(code)) {
+            return false;
+        }
+        String normalized = code.toUpperCase(Locale.ROOT);
+        return normalized.contains("BILLING_KEY")
+                && (normalized.contains("REMOVED")
+                || normalized.contains("NOT_FOUND")
+                || normalized.contains("INVALID"));
+    }
+
+    private void expireRemovedBillingKey(BillingAgreement agreement) {
+        agreement.expireIssuedKey();
+    }
+
+    private String nullToDash(String value) {
+        return isBlank(value) ? "-" : value;
     }
 }

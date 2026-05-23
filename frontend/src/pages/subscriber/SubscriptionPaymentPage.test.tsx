@@ -73,6 +73,7 @@ describe('SubscriptionPaymentPage', () => {
     prepareBillingAgreementMock.mockResolvedValue({
       orderId: 'ATS-BILL-1',
       provider: 'TOSS_BILLING',
+      purpose: 'SUBSCRIBE',
       agreementStatus: 'READY',
       subscriptionId: 1,
       billingCycle: 'MONTHLY',
@@ -123,8 +124,46 @@ describe('SubscriptionPaymentPage', () => {
         method: 'CARD',
         successUrl:
           'http://localhost:5173/subscriptions/checkout/success?orderId=ATS-BILL-1&amount=9900',
+        failUrl: 'http://localhost:5173/subscriptions/checkout/fail?orderId=ATS-BILL-1&amount=9900',
+      });
+    });
+  });
+
+  it('prepares payment-method re-registration without an immediate charge label', async () => {
+    prepareBillingAgreementMock.mockResolvedValue({
+      orderId: 'ATS-BILL-REAUTH',
+      provider: 'TOSS_BILLING',
+      purpose: 'BILLING_AGREEMENT',
+      agreementStatus: 'READY',
+      subscriptionId: 1,
+      billingCycle: 'MONTHLY',
+      amount: 0,
+      currency: 'KRW',
+      expiresAt: '2026-05-16T23:10:00',
+      checkout: {
+        type: 'TOSS_BILLING_AUTH',
+        clientKey: 'test_ck_billing',
+        customerKey: 'ats_billing_customer_1',
+        successUrl: 'http://localhost:5173/subscriptions/checkout/success',
+        failUrl: 'http://localhost:5173/subscriptions/checkout/fail',
+        method: 'CARD',
+      },
+    });
+
+    renderPage('/subscriptions/checkout?plan=STANDARD&cycle=MONTHLY&purpose=BILLING_AGREEMENT');
+
+    await screen.findByText('결제수단 등록');
+    expect(screen.getByText('즉시 결제 없음')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '카드 등록하기' }));
+
+    await waitFor(() => {
+      expect(requestBillingAuthMock).toHaveBeenCalledWith({
+        method: 'CARD',
+        successUrl:
+          'http://localhost:5173/subscriptions/checkout/success?orderId=ATS-BILL-REAUTH&amount=0&purpose=BILLING_AGREEMENT',
         failUrl:
-          'http://localhost:5173/subscriptions/checkout/fail?orderId=ATS-BILL-1&amount=9900',
+          'http://localhost:5173/subscriptions/checkout/fail?orderId=ATS-BILL-REAUTH&amount=0&purpose=BILLING_AGREEMENT',
       });
     });
   });
@@ -155,7 +194,9 @@ describe('SubscriptionPaymentPage', () => {
   it('blocks legacy one-time payment redirect routes', async () => {
     renderPage('/subscriptions/payment/success?paymentKey=toss-key&orderId=ATS-TOSS-1&amount=9900');
 
-    await screen.findByText('지원이 종료된 구독 결제 경로입니다. 구독 페이지에서 새 결제를 시작해주세요.');
+    await screen.findByText(
+      '지원이 종료된 구독 결제 경로입니다. 구독 페이지에서 새 결제를 시작해주세요.',
+    );
     expect(confirmBillingAgreementMock).not.toHaveBeenCalled();
   });
 });

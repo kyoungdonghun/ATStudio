@@ -160,6 +160,11 @@ public enum BUSINESS_ERROR {
             "현재 자동결제 상태에서는 처리할 수 없습니다.",
             "billing agreement 상태 전이가 유효하지 않습니다."),
 
+    BILLING_AGREEMENT_REAUTH_REQUIRED(
+            HttpStatus.CONFLICT,
+            "자동결제 등록이 더 이상 유효하지 않습니다. 결제수단을 다시 등록해주세요.",
+            "provider billing key is removed or invalid; billing agreement must be re-registered."),
+
     BILLING_AGREEMENT_CONFIRM_FAILED(
             HttpStatus.BAD_REQUEST,
             "자동결제 등록 또는 최초 결제에 실패했습니다. 다시 시도해주세요.",

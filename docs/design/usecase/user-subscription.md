@@ -184,11 +184,12 @@
 2. Frontend calls UTIL-013 to calculate and display `proratedAmount`, next billing date, and next billing amount.
 3. User confirms the preview.
 4. Frontend sends a change request including subscriptionId and billingCycle to the backend.
-5. Backend requires an active billing agreement and immediately charges whole-KRW `proratedAmount` with the stored billing key when the amount is greater than `0`.
-6. If `proratedAmount = 0`, backend skips the provider charge but still keeps the active billing agreement requirement.
-7. After charge success or zero-amount skip, backend updates `user_subscriptions` to the new plan while preserving the current `billingCycle` and `expiresAt`.
-8. Backend saves the prorated payment record in `subscription_payments` only when a provider charge is attempted and succeeds.
-9. Backend returns the updated subscription information (including proratedAmount).
+5. Backend requires a reusable billing agreement and immediately charges whole-KRW `proratedAmount` with the stored billing key when the amount is greater than `0`.
+6. If the provider reports the stored billing key as removed, not found, or invalid, backend marks the local billing agreement `EXPIRED`, clears issued-key metadata, returns `BILLING_AGREEMENT_REAUTH_REQUIRED`, and leaves the subscription unchanged.
+7. If `proratedAmount = 0`, backend skips the provider charge but still keeps the reusable billing agreement requirement.
+8. After charge success or zero-amount skip, backend updates `user_subscriptions` to the new plan while preserving the current `billingCycle` and `expiresAt`.
+9. Backend saves the prorated payment record in `subscription_payments` only when a provider charge is attempted and succeeds.
+10. Backend returns the updated subscription information (including proratedAmount).
    - New plan services (downloadPerDay, maxWhitelistChannels) are applied immediately.
    - The active period keeps its current billingCycle and existing `expiresAt`.
    - The selected billingCycle is stored as pending when it differs from the current cycle and is used by the next renewal charge.
@@ -214,6 +215,11 @@
 **Alternative Flow — CANCELLED grace-period subscription**
 - If the subscription is CANCELLED but still within expiresAt, a confirmed plan change reactivates the subscription first.
 - Reactivation reuses the stored billing key when available. If the billing agreement is missing or invalid, backend returns a billing agreement business error and no subscription change is applied.
+
+**Alternative Flow — billing key removed by provider**
+- If Toss returns `ALREADY_REMOVED_BILLING_KEY` or another removed/not-found/invalid billing-key failure, the backend expires the local billing agreement and asks the frontend to start payment-method re-registration.
+- The user can re-register a payment method through the current plan/current cycle checkout with `purpose=BILLING_AGREEMENT`.
+- Re-registration stores a new encrypted billing key without charging the card or changing the current subscription period.
 
 **Postconditions**
 - UPGRADE: billing-key charge succeeds first when `proratedAmount > 0`, then `user_subscriptions.subscription_id` is updated immediately. Payment record is saved in `subscription_payments` only for a real charge. New plan benefits are active immediately, while current `billingCycle` and next billing date are preserved for the active period. If the requested billing cycle differs, pendingSubscriptionId and pendingBillingCycle are saved for the next renewal.

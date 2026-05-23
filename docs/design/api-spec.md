@@ -1,8 +1,8 @@
 # ATStudio API Specification v11 (Confirmed)
 
-> **Status**: 11th confirmed — subscription cancel/reactivate and change-reservation policy sync
-> **Base**: v10 + 2026-05-22 subscription management UX/policy patch
-> **Date**: 2026-05-22
+> **Status**: 11th confirmed — subscription cancel/reactivate, change-reservation, and billing-method recovery policy sync
+> **Base**: v10 + 2026-05-23 subscription billing recovery patch
+> **Date**: 2026-05-23
 
 ---
 
@@ -14,6 +14,7 @@
 | AB2 | §6.10/§6.11 cancel/reactivate | Subscription cancellation now means stop next renewal while keeping paid access; added reactivation before expiresAt using the stored billing key. |
 | AB3 | §14.8 preview semantics | Preview now returns `UPGRADE`, `SCHEDULED_CHANGE`, or `NO_CHANGE`. |
 | AB4 | Full API Summary | Updated total count from 117 → 118 |
+| AB5 | §6.3.4/§6.3.5/§6.7 billing recovery | Active users with an expired/removed billing key can re-register a payment method through `BILLING_AGREEMENT` orders; removed provider billing keys return `BILLING_AGREEMENT_REAUTH_REQUIRED`. |
 
 ---
 
@@ -1222,7 +1223,7 @@ For current subscription flows, the frontend must not call this endpoint. Toss o
 |-------|-------|
 | **URL** | `POST /api/payments/billing-agreements/prepare` |
 | **Auth** | auth required |
-| **Description** | Creates an internal billing agreement registration order and returns Toss billing-auth metadata. Subscription activation does not occur at prepare time. |
+| **Description** | Creates an internal billing agreement registration order and returns Toss billing-auth metadata. For a new subscription, the order purpose is `SUBSCRIBE` and the first-period amount is charged during confirm. For an existing active/grace-period subscription that is re-registering an expired or missing payment method, the order purpose is `BILLING_AGREEMENT` and amount is `0`; subscription activation or plan change does not occur at prepare time. |
 
 **Request**
 ```json
@@ -1252,12 +1253,14 @@ For current subscription flows, the frontend must not call this endpoint. Toss o
 }
 ```
 
+For payment-method re-registration on an existing active/grace-period subscription, `purpose` is `BILLING_AGREEMENT` and `amount` is `0`.
+
 ## 6.3.5 Confirm Billing Agreement
 | Field | Value |
 |-------|-------|
 | **URL** | `POST /api/payments/billing-agreements/confirm` |
 | **Auth** | auth required |
-| **Description** | Exchanges Toss billing `authKey` for a server-side billing key, stores it encrypted, immediately performs the first subscription charge, then activates the subscription only after that charge succeeds. |
+| **Description** | Exchanges Toss billing `authKey` for a server-side billing key and stores it encrypted. For `SUBSCRIBE` orders, the backend immediately performs the first subscription charge and activates the subscription only after that charge succeeds. For `BILLING_AGREEMENT` orders, the backend updates the stored payment method only, keeps the current subscription unchanged, and sets the next billing date to the current subscription `expiresAt`. |
 
 **Request**
 ```json
@@ -1293,6 +1296,7 @@ For current subscription flows, the frontend must not call this endpoint. Toss o
 
 **Error Cases**
 - `400 Bad Request` — `BILLING_AGREEMENT_INVALID_STATE`, `BILLING_AGREEMENT_CONFIRM_FAILED`, `PAYMENT_AMOUNT_MISMATCH`, `PAYMENT_ORDER_EXPIRED`
+- `409 Conflict` — `SUBSCRIPTION_ALREADY_EXISTS` when an active subscription user attempts a new-subscription checkout for a different plan/cycle instead of payment-method re-registration
 - `403 Forbidden` — `RESOURCE_NOT_ACCESS` when the authenticated user does not own the order
 - `404 Not Found` — `PAYMENT_ORDER_NOT_FOUND`, `BILLING_AGREEMENT_NOT_FOUND`
 
@@ -1381,7 +1385,7 @@ These endpoints are implemented as read-only admin support/audit views. They mus
 |-------|-------|
 | **URL** | `PUT /api/user-subscriptions/me` |
 | **Auth** | auth required |
-| **Description** | Change plan or billing cycle. Behavior differs by change type: **UPGRADE** requires a reusable billing agreement, immediately charges the remaining-period difference through recurring billing, then applies the higher plan while preserving the current paid period and next billing date. If the requested billing cycle differs from the current one, it is stored as pending and starts at the next renewal. The immediate charge is rounded to whole KRW; if the rounded amount is `0`, no provider charge is attempted. **SCHEDULED_CHANGE** saves or overwrites pending values (`pendingSubscriptionId`, `pendingBillingCycle`) and takes effect after the current period expires. **NO_CHANGE** clears a pending change when the user selects the current plan/current cycle. A CANCELLED grace-period subscription is reactivated before the change when a stored billing key is still usable. |
+| **Description** | Change plan or billing cycle. Behavior differs by change type: **UPGRADE** requires a reusable billing agreement, immediately charges the remaining-period difference through recurring billing, then applies the higher plan while preserving the current paid period and next billing date. If the provider reports the stored billing key as removed/invalid, the local billing agreement is marked `EXPIRED`, issued-key fields are cleared, and the API returns `BILLING_AGREEMENT_REAUTH_REQUIRED` without changing the subscription. If the requested billing cycle differs from the current one, it is stored as pending and starts at the next renewal. The immediate charge is rounded to whole KRW; if the rounded amount is `0`, no provider charge is attempted. **SCHEDULED_CHANGE** saves or overwrites pending values (`pendingSubscriptionId`, `pendingBillingCycle`) and takes effect after the current period expires. **NO_CHANGE** clears a pending change when the user selects the current plan/current cycle. A CANCELLED grace-period subscription is reactivated before the change when a stored billing key is still usable. |
 
 **Request**
 ```json
@@ -1408,6 +1412,10 @@ These endpoints are implemented as read-only admin support/audit views. They mus
 > - `changeType`: `"SCHEDULED_CHANGE"` — pending values (`pendingSubscriptionId`, `pendingBillingCycle`) are saved or overwritten; current plan remains active until `expiresAt`; new plan/cycle activates after the next successful renewal charge.
 > - `changeType`: `"NO_CHANGE"` — pending values are cleared; current plan/cycle and expiresAt remain unchanged.
 > - `billingCycle` in an UPGRADE response is the requested billing cycle to use on the next renewal charge; the current subscription response may still show the active period's current `billingCycle` until renewal.
+
+**Error Cases**
+- `409 Conflict` — `BILLING_AGREEMENT_REAUTH_REQUIRED` when the provider reports the stored billing key is removed, not found, or invalid. The current subscription remains unchanged and the user should re-register a payment method.
+- `400 Bad Request` — `BILLING_AGREEMENT_INVALID_STATE` when no reusable billing key is available for the requested upgrade.
 
 ## 6.8 Update User Subscription (Admin)
 | Field | Value |

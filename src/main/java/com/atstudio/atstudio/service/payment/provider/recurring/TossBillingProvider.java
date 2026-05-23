@@ -7,6 +7,7 @@ import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -24,6 +25,7 @@ import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class TossBillingProvider implements RecurringPaymentProvider {
 
     private static final String CHECKOUT_TYPE = "TOSS_BILLING_AUTH";
@@ -202,9 +204,16 @@ public class TossBillingProvider implements RecurringPaymentProvider {
     private BillingAgreementConfirmResult toAgreementConfirmResult(HttpResponse<String> response) throws IOException {
         JsonNode root = readJson(response.body());
         if (isFailure(response)) {
+            String code = text(root, "code", "TOSS_BILLING_ISSUE_FAILED");
+            String message = text(root, "message", "Toss billing key issue failed.");
+            log.warn(
+                    "Toss billing key issue failed. status={}, code={}, message={}",
+                    response.statusCode(),
+                    code,
+                    message);
             return BillingAgreementConfirmResult.failure(
-                    text(root, "code", "TOSS_BILLING_ISSUE_FAILED"),
-                    text(root, "message", "Toss billing key issue failed."));
+                    code,
+                    message);
         }
 
         String billingKey = text(root, "billingKey", "");
@@ -226,9 +235,17 @@ public class TossBillingProvider implements RecurringPaymentProvider {
             HttpResponse<String> response) throws IOException {
         JsonNode root = readJson(response.body());
         if (isFailure(response)) {
+            String code = text(root, "code", "TOSS_BILLING_CHARGE_FAILED");
+            String message = text(root, "message", "Toss recurring charge failed.");
+            log.warn(
+                    "Toss recurring charge failed. status={}, orderId={}, code={}, message={}",
+                    response.statusCode(),
+                    command.orderId(),
+                    code,
+                    message);
             return BillingChargeResult.failure(
-                    text(root, "code", "TOSS_BILLING_CHARGE_FAILED"),
-                    text(root, "message", "Toss recurring charge failed."));
+                    code,
+                    message);
         }
 
         String returnedOrderId = text(root, "orderId", "");
@@ -252,9 +269,16 @@ public class TossBillingProvider implements RecurringPaymentProvider {
         }
 
         JsonNode root = readJson(response.body());
+        String code = text(root, "code", "TOSS_BILLING_DELETE_FAILED");
+        String message = text(root, "message", "Toss billing key delete failed.");
+        log.warn(
+                "Toss billing key delete failed. status={}, code={}, message={}",
+                response.statusCode(),
+                code,
+                message);
         return BillingAgreementCancelResult.failure(
-                text(root, "code", "TOSS_BILLING_DELETE_FAILED"),
-                text(root, "message", "Toss billing key delete failed."));
+                code,
+                message);
     }
 
     private String sanitizedAgreementPayload(JsonNode root) throws IOException {

@@ -13,7 +13,7 @@ import {
 } from '@/api/userSubscriptions';
 import { fetchSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
 import { fetchMyBillingAgreement, type BillingAgreementResponse } from '@/api/payments';
-import { isSubscriptionRequired } from '@/api/client';
+import { getApiErrorCode, isSubscriptionRequired } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -47,9 +47,9 @@ function getBillingCycleLabel(cycle: BillingCycle): string {
 function getChangeTypeLabel(type: SubscriptionChangeType): string {
   switch (type) {
     case 'UPGRADE':
-      return '업그레이드';
+      return '오늘 변경';
     case 'NO_CHANGE':
-      return '예약 해제';
+      return '현재 플랜 유지';
     case 'SCHEDULED_CHANGE':
     case 'DOWNGRADE':
       return '다음 결제일 변경';
@@ -58,16 +58,55 @@ function getChangeTypeLabel(type: SubscriptionChangeType): string {
   }
 }
 
-function getConfirmButtonLabel(type: SubscriptionChangeType): string {
+function getConfirmButtonLabel(
+  type: SubscriptionChangeType,
+  hasPendingChange: boolean,
+  isCycleOnlyChange: boolean,
+): string {
   switch (type) {
     case 'NO_CHANGE':
-      return '예약 해제 확인';
+      return hasPendingChange ? '예약 취소하고 현재 플랜 유지' : '변경할 항목 없음';
     case 'SCHEDULED_CHANGE':
     case 'DOWNGRADE':
-      return '변경 예약 확인';
+      return isCycleOnlyChange ? '다음 결제일부터 주기 변경' : '다음 결제일부터 변경 예약';
     default:
-      return '플랜 변경 확인';
+      return '차액 결제 후 변경';
   }
+}
+
+function getPreviewSummary(type: SubscriptionChangeType, hasPendingChange: boolean): string {
+  switch (type) {
+    case 'UPGRADE':
+      return '남은 기간 차액을 오늘 결제하고 플랜은 바로 변경됩니다.';
+    case 'NO_CHANGE':
+      return hasPendingChange
+        ? '예약된 변경을 취소하고 현재 플랜과 결제 주기를 유지합니다.'
+        : '현재 이용 중인 플랜과 결제 주기입니다.';
+    case 'SCHEDULED_CHANGE':
+    case 'DOWNGRADE':
+      return '오늘 결제 없이 다음 결제일부터 변경됩니다.';
+    default:
+      return '변경 내용을 확인한 뒤 적용할 수 있습니다.';
+  }
+}
+
+function getPlanPrice(plan: SubscriptionPlan, cycle: BillingCycle): string {
+  const amount = cycle === 'MONTHLY' ? plan.priceMonthly : plan.priceYearly;
+  const suffix = cycle === 'MONTHLY' ? '/월' : '/년';
+  return `₩${formatAmount(amount)}${suffix}`;
+}
+
+function getPlanPriceNote(plan: SubscriptionPlan, cycle: BillingCycle): string | null {
+  if (cycle === 'MONTHLY') return null;
+  return `월 ₩${formatAmount(Math.floor(plan.priceYearly / 12))} 수준`;
+}
+
+function getApiErrorMessage(err: unknown, fallback: string): string {
+  return (
+    (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+    (err instanceof Error ? err.message : null) ??
+    fallback
+  );
 }
 
 export default function SubscriptionManagePage() {
@@ -99,6 +138,14 @@ export default function SubscriptionManagePage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [reactivating, setReactivating] = useState(false);
+  const hasPendingChange = Boolean(sub?.pendingSubscriptionId || sub?.pendingBillingCycle);
+  const needsPaymentMethodRegistration = Boolean(
+    sub &&
+    (!billingAgreement ||
+      billingAgreement.status === 'EXPIRED' ||
+      billingAgreement.status === 'SUSPENDED' ||
+      (billingAgreement.status === 'CANCELLED' && !billingAgreement.maskedMethod)),
+  );
 
   /* ── Fetch ── */
   const load = useCallback(async () => {
@@ -142,16 +189,22 @@ export default function SubscriptionManagePage() {
     const urlCycle = searchParams.get('cycle');
     if (urlPlan && plans.length > 0 && sub && !selectedPlan) {
       const found = plans.find((p) => p.name.toUpperCase() === urlPlan.toUpperCase());
-      if (found && found.id !== sub.subscription.id) {
+      const targetCycle =
+        urlCycle === 'MONTHLY' || urlCycle === 'YEARLY' ? urlCycle : sub.billingCycle;
+      const isCurrentCombination =
+        found?.id === sub.subscription.id && targetCycle === sub.billingCycle && !hasPendingChange;
+      if (found && !isCurrentCombination) {
         setSelectedPlan(found);
-        if (urlCycle === 'MONTHLY' || urlCycle === 'YEARLY') {
-          setSelectedCycle(urlCycle);
-        } else {
-          setSelectedCycle(sub.billingCycle);
-        }
+        setSelectedCycle(targetCycle);
       }
     }
-  }, [plans, sub, searchParams, selectedPlan]);
+  }, [plans, sub, searchParams, selectedPlan, hasPendingChange]);
+
+  useEffect(() => {
+    if (sub && !selectedPlan && !searchParams.get('plan')) {
+      setSelectedCycle(sub.billingCycle);
+    }
+  }, [sub, selectedPlan, searchParams]);
 
   /* ── Preview change when plan/cycle selected ── */
   useEffect(() => {
@@ -182,15 +235,42 @@ export default function SubscriptionManagePage() {
 
   /* ── Change subscription ── */
   function handleSelectPlan(plan: SubscriptionPlan) {
+    const isCurrentPlan = sub?.subscription.id === plan.id;
+    const isCurrentCombination =
+      isCurrentPlan && selectedCycle === sub?.billingCycle && !hasPendingChange;
+    if (isCurrentCombination) {
+      return;
+    }
+
+    setChangeMsg(null);
+    setChangeError(null);
     setSelectedPlan(plan);
-    if (sub && plan.id === sub.subscription.id) {
+    if (sub && isCurrentPlan && hasPendingChange) {
       setSelectedCycle(sub.billingCycle);
       return;
     }
-    setSelectedCycle(
-      plan.id === sub?.pendingSubscriptionId && sub.pendingBillingCycle
-        ? sub.pendingBillingCycle
-        : (sub?.billingCycle ?? 'MONTHLY'),
+    if (plan.id === sub?.pendingSubscriptionId && sub?.pendingBillingCycle) {
+      setSelectedCycle(sub.pendingBillingCycle);
+    }
+  }
+
+  function handleSelectCycle(cycle: BillingCycle) {
+    setSelectedCycle(cycle);
+    if (
+      sub &&
+      selectedPlan?.id === sub.subscription.id &&
+      cycle === sub.billingCycle &&
+      !hasPendingChange
+    ) {
+      setSelectedPlan(null);
+      setPreview(null);
+    }
+  }
+
+  function handleRegisterPaymentMethod() {
+    if (!sub) return;
+    navigate(
+      `/subscriptions/checkout?plan=${encodeURIComponent(sub.subscription.name)}&cycle=${sub.billingCycle}&purpose=BILLING_AGREEMENT`,
     );
   }
 
@@ -244,7 +324,14 @@ export default function SubscriptionManagePage() {
       setPreview(null);
       await load();
     } catch (err) {
-      setChangeError(err instanceof Error ? err.message : '플랜 변경에 실패했습니다.');
+      const errorCode = await getApiErrorCode(err);
+      const message = getApiErrorMessage(err, '플랜 변경에 실패했습니다.');
+      if (errorCode === 'BILLING_AGREEMENT_REAUTH_REQUIRED') {
+        setChangeError(`${message} 현재 구독은 그대로 유지됩니다.`);
+        await load();
+        return;
+      }
+      setChangeError(message);
     } finally {
       setChangingPlan(false);
     }
@@ -333,7 +420,6 @@ export default function SubscriptionManagePage() {
     );
   }
 
-  const hasPendingChange = Boolean(sub.pendingSubscriptionId || sub.pendingBillingCycle);
   const pendingPlan =
     !sub.pendingSubscriptionId || sub.pendingSubscriptionId === sub.subscription.id
       ? sub.subscription
@@ -345,6 +431,12 @@ export default function SubscriptionManagePage() {
   const pendingChangeText = pendingCycleLabel
     ? `다음 결제일부터 ${pendingPlanName} (${pendingCycleLabel})이 적용됩니다.`
     : `다음 결제일부터 ${pendingPlanName}이 적용됩니다.`;
+  const activePlans = [...plans]
+    .filter((p) => p.isActive)
+    .sort((a, b) => a.priceMonthly - b.priceMonthly);
+  const isCycleOnlyChange = Boolean(
+    selectedPlan && selectedPlan.id === sub.subscription.id && selectedCycle !== sub.billingCycle,
+  );
 
   return (
     <div className={styles.page}>
@@ -420,6 +512,20 @@ export default function SubscriptionManagePage() {
         ) : (
           <div className={styles.actionDesc}>{'현재 등록된 정기결제 수단이 없습니다.'}</div>
         )}
+        {needsPaymentMethodRegistration && (
+          <>
+            <div className={styles.actionDesc}>
+              {
+                '업그레이드와 다음 갱신을 진행하려면 Toss 자동결제 수단을 다시 등록해야 합니다. 현재 구독 기간과 플랜은 변경되지 않습니다.'
+              }
+            </div>
+            <div className={styles.actionButtons}>
+              <Button variant="primary" onClick={handleRegisterPaymentMethod}>
+                {'결제수단 다시 등록'}
+              </Button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Change Plan Section ── */}
@@ -432,101 +538,128 @@ export default function SubscriptionManagePage() {
               : '업그레이드는 등록된 결제수단으로 남은 기간 차액을 즉시 결제한 뒤 적용됩니다. 그 외 변경은 현재 구독 만료 후 적용되며, 예약된 변경은 다시 바꿀 수 있습니다.'}
           </div>
 
-          {/* Plan options */}
-          <div className={styles.planGrid}>
-            {plans
-              .filter((p) => p.isActive)
-              .map((plan) => (
-                <div
-                  key={plan.id}
-                  className={
-                    selectedPlan?.id === plan.id ? styles.planOptionSelected : styles.planOption
-                  }
-                  onClick={() => handleSelectPlan(plan)}
-                >
-                  <div className={styles.planOptionName}>{getDisplayName(plan.name)}</div>
-                  <div className={styles.planOptionPrice}>
-                    {'\u20A9'}
-                    {formatAmount(plan.priceMonthly)}
-                    {'/월'}
-                  </div>
-                  {plan.id === sub.subscription.id && (
-                    <div className={styles.planOptionCurrent}>{'현재 플랜'}</div>
-                  )}
-                </div>
-              ))}
+          <div className={styles.cycleTabs} aria-label="결제 주기 선택">
+            <Button
+              variant={selectedCycle === 'MONTHLY' ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => handleSelectCycle('MONTHLY')}
+            >
+              {getBillingCycleLabel('MONTHLY')}
+            </Button>
+            <Button
+              variant={selectedCycle === 'YEARLY' ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => handleSelectCycle('YEARLY')}
+            >
+              {getBillingCycleLabel('YEARLY')}
+            </Button>
           </div>
 
-          {/* Billing cycle */}
-          {selectedPlan && (
-            <div className={styles.actionButtons}>
-              <Button
-                variant={selectedCycle === 'MONTHLY' ? 'primary' : 'ghost'}
-                size="sm"
-                onClick={() => setSelectedCycle('MONTHLY')}
-              >
-                {getBillingCycleLabel('MONTHLY')}
-              </Button>
-              <Button
-                variant={selectedCycle === 'YEARLY' ? 'primary' : 'ghost'}
-                size="sm"
-                onClick={() => setSelectedCycle('YEARLY')}
-              >
-                {getBillingCycleLabel('YEARLY')}
-              </Button>
-            </div>
-          )}
+          {/* Plan options */}
+          <div className={styles.planGrid}>
+            {activePlans.map((plan) => {
+              const isCurrentPlan = plan.id === sub.subscription.id;
+              const isPendingTarget = hasPendingChange && pendingPlan?.id === plan.id;
+              const isSelected = selectedPlan?.id === plan.id;
+              const isDisabled =
+                isCurrentPlan && selectedCycle === sub.billingCycle && !hasPendingChange;
+              const priceNote = getPlanPriceNote(plan, selectedCycle);
+              const optionClass = [
+                styles.planOption,
+                isSelected ? styles.planOptionSelected : '',
+                isCurrentPlan ? styles.planOptionCurrentCard : '',
+                isPendingTarget ? styles.planOptionPendingCard : '',
+              ]
+                .filter(Boolean)
+                .join(' ');
+
+              return (
+                <button
+                  key={plan.id}
+                  type="button"
+                  className={optionClass}
+                  onClick={() => handleSelectPlan(plan)}
+                  disabled={isDisabled}
+                  aria-pressed={isSelected}
+                >
+                  <div className={styles.planOptionTop}>
+                    <div className={styles.planOptionName}>{getDisplayName(plan.name)}</div>
+                    <div className={styles.planOptionBadges}>
+                      {isCurrentPlan && (
+                        <span className={styles.planOptionCurrent}>{'현재 이용 중'}</span>
+                      )}
+                      {isPendingTarget && (
+                        <span className={styles.planOptionPending}>{'예약됨'}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className={styles.planOptionPrice}>{getPlanPrice(plan, selectedCycle)}</div>
+                  {priceNote && <div className={styles.planOptionMeta}>{priceNote}</div>}
+                  {isDisabled && (
+                    <div className={styles.planOptionMeta}>{'현재 조합이 유지됩니다.'}</div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
           {/* Preview */}
           {loadingPreview && <div className={styles.loading}>{'변경 내역을 미리 보는 중...'}</div>}
           {preview && !loadingPreview && (
             <div className={styles.previewBox}>
-              <div className={styles.previewRow}>
-                <span className={styles.previewLabel}>{'변경 유형'}</span>
+              <div className={styles.previewHeader}>
+                <span className={styles.previewTitle}>{'변경 미리보기'}</span>
                 <span
                   className={
                     preview.changeType === 'UPGRADE'
                       ? styles.previewUpgrade
-                      : styles.previewDowngrade
+                      : preview.changeType === 'NO_CHANGE'
+                        ? styles.previewNeutral
+                        : styles.previewDowngrade
                   }
                 >
                   {getChangeTypeLabel(preview.changeType)}
                 </span>
               </div>
-              <div className={styles.previewRow}>
-                <span className={styles.previewLabel}>{'새 플랜'}</span>
-                <span className={styles.previewValue}>{preview.newPlanName}</span>
+
+              <div className={styles.previewSummary}>
+                {getPreviewSummary(preview.changeType, hasPendingChange)}
               </div>
-              <div className={styles.previewRow}>
-                <span className={styles.previewLabel}>{'다음 결제 주기'}</span>
-                <span className={styles.previewValue}>
-                  {getBillingCycleLabel(preview.newBillingCycle)}
-                </span>
-              </div>
-              <div className={styles.previewRow}>
-                <span className={styles.previewLabel}>
-                  {preview.changeType === 'UPGRADE' ? '즉시 결제 차액' : '즉시 결제'}
-                </span>
-                <span className={styles.previewValue}>
-                  {preview.changeType === 'UPGRADE'
-                    ? `\u20A9${formatAmount(preview.proratedAmount)}`
-                    : '없음'}
-                </span>
-              </div>
-              <div className={styles.previewRow}>
-                <span className={styles.previewLabel}>{'적용일'}</span>
-                <span className={styles.previewValue}>{formatDate(preview.effectiveDate)}</span>
-              </div>
-              <div className={styles.previewRow}>
-                <span className={styles.previewLabel}>{'다음 결제일'}</span>
-                <span className={styles.previewValue}>{formatDate(preview.nextBillingDate)}</span>
-              </div>
-              <div className={styles.previewRow}>
-                <span className={styles.previewLabel}>{'다음 결제 금액'}</span>
-                <span className={styles.previewValue}>
-                  {'\u20A9'}
-                  {formatAmount(preview.nextBillingAmount)}
-                </span>
+
+              <div className={styles.previewGrid}>
+                <div className={styles.previewItem}>
+                  <span className={styles.previewLabel}>{'대상 플랜'}</span>
+                  <span className={styles.previewValue}>{getDisplayName(preview.newPlanName)}</span>
+                </div>
+                <div className={styles.previewItem}>
+                  <span className={styles.previewLabel}>{'결제 주기'}</span>
+                  <span className={styles.previewValue}>
+                    {getBillingCycleLabel(preview.newBillingCycle)}
+                  </span>
+                </div>
+                <div className={styles.previewItem}>
+                  <span className={styles.previewLabel}>{'오늘 결제'}</span>
+                  <span className={styles.previewValue}>
+                    {preview.changeType === 'UPGRADE'
+                      ? `\u20A9${formatAmount(preview.proratedAmount)}`
+                      : '없음'}
+                  </span>
+                </div>
+                <div className={styles.previewItem}>
+                  <span className={styles.previewLabel}>{'변경 적용일'}</span>
+                  <span className={styles.previewValue}>{formatDate(preview.effectiveDate)}</span>
+                </div>
+                <div className={styles.previewItem}>
+                  <span className={styles.previewLabel}>{'다음 결제일'}</span>
+                  <span className={styles.previewValue}>{formatDate(preview.nextBillingDate)}</span>
+                </div>
+                <div className={styles.previewItem}>
+                  <span className={styles.previewLabel}>{'다음 결제 금액'}</span>
+                  <span className={styles.previewValue}>
+                    {'\u20A9'}
+                    {formatAmount(preview.nextBillingAmount)}
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -554,7 +687,7 @@ export default function SubscriptionManagePage() {
                 {'취소'}
               </Button>
               <Button variant="primary" onClick={handleChangePlan} loading={changingPlan}>
-                {getConfirmButtonLabel(preview.changeType)}
+                {getConfirmButtonLabel(preview.changeType, hasPendingChange, isCycleOnlyChange)}
               </Button>
             </div>
           )}

@@ -110,6 +110,7 @@ The following codes are all defined in `src/main/java/com/atstudio/atstudio/comm
 | `COMPANY_CERTIFICATION_REQUIRED` | 403 FORBIDDEN | 기업 인증 심사 승인 후 이용 가능합니다. | 기업회원 Company Certification 미승인 상태. |
 | `SUBSCRIPTION_NOT_FOUND` | 404 NOT_FOUND | 구독 정보를 찾을 수 없습니다. | 활성 구독 레코드가 존재하지 않습니다. |
 | `SUBSCRIPTION_ALREADY_EXISTS` | 409 CONFLICT | 이미 활성 구독이 존재합니다. | 중복 구독 시도. |
+| `BILLING_AGREEMENT_REAUTH_REQUIRED` | 409 CONFLICT | 자동결제 등록이 더 이상 유효하지 않습니다. 결제수단을 다시 등록해주세요. | Provider billing key is removed or invalid; billing agreement must be re-registered. |
 | `PLAYLIST_LIMIT_EXCEEDED` | 409 CONFLICT | 플레이리스트는 최대 3개까지 생성할 수 있습니다. | 활성 플레이리스트 3개 초과 시도. |
 
 **Auth:**

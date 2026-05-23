@@ -1,6 +1,6 @@
 ---
-version: 0.6
-last_updated: 2026-05-21
+version: 0.7
+last_updated: 2026-05-23
 project: ATS
 owner: SA
 category: design
@@ -36,6 +36,8 @@ Current implementation facts:
 - Billing-key confirmation immediately performs the first charge, then activates the subscription.
 - Renewal charges are executed by ATStudio's scheduler through `RecurringPaymentProvider.charge()`.
 - Upgrade uses the existing active billing agreement to charge the remaining-period price difference immediately.
+- If Toss reports the stored billing key as removed/invalid during an upgrade charge, ATStudio marks the local billing agreement `EXPIRED`, clears issued-key fields, returns `BILLING_AGREEMENT_REAUTH_REQUIRED`, and keeps the current subscription unchanged.
+- Existing active/grace-period subscribers can re-register a payment method through a zero-amount `BILLING_AGREEMENT` order.
 - Downgrade is scheduled as a pending change and applied at the next renewal charge.
 - Toss one-time checkout remains a provider capability, but subscription `SUBSCRIBE`/`UPGRADE` prepare and confirm are blocked for user-facing subscription scope.
 - Expired `READY`/`IN_PROGRESS` payment orders are closed by scheduler.
@@ -466,10 +468,11 @@ sequenceDiagram
 5. Backend recalculates the remaining-period price difference and rounds the immediate amount to whole KRW.
 6. If the rounded amount is greater than `0`, backend creates a `PaymentOrder` with `purpose = UPGRADE` and `provider = TOSS_BILLING`.
 7. Backend charges the stored billing key with `RecurringPaymentProvider.charge()`.
-8. If the rounded amount is `0`, backend skips the provider charge but still requires an active billing agreement for the next renewal.
-9. After charge success or a zero-amount skip, backend applies the higher plan immediately while preserving the current `billingCycle` and `expiresAt`.
-10. Backend saves `subscription_payments` only when a provider charge is attempted and succeeds.
-11. The next renewal date remains unchanged; the next renewal charge uses the upgraded plan and selected billing cycle through pending renewal settings when the selected cycle differs from the current cycle.
+8. If the provider returns a removed/not-found/invalid billing-key failure, backend marks the local billing agreement `EXPIRED`, clears the issued-key metadata, stores the failed order, returns `BILLING_AGREEMENT_REAUTH_REQUIRED`, and does not change the subscription.
+9. If the rounded amount is `0`, backend skips the provider charge but still requires a reusable billing agreement for the next renewal.
+10. After charge success or a zero-amount skip, backend applies the higher plan immediately while preserving the current `billingCycle` and `expiresAt`.
+11. Backend saves `subscription_payments` only when a provider charge is attempted and succeeds.
+12. The next renewal date remains unchanged; the next renewal charge uses the upgraded plan and selected billing cycle through pending renewal settings when the selected cycle differs from the current cycle.
 
 ### 11.3 Scheduled Change and Pending Clear
 
@@ -489,6 +492,16 @@ Lower-tier and billing-cycle-only changes remain payment-free:
 4. Backend verifies callback and stores encrypted billing key.
 5. If initial payment is required immediately, backend creates and confirms a `SUBSCRIBE` payment order.
 6. Subscription becomes active only after the initial payment is confirmed.
+
+### 11.4.1 Payment Method Re-registration
+
+1. Active or CANCELLED grace-period subscriber has no usable billing key because the local billing agreement is missing, `EXPIRED`, `SUSPENDED`, or has no issued-key metadata.
+2. Frontend opens `/subscriptions/checkout?purpose=BILLING_AGREEMENT` with the current subscription plan and billing cycle.
+3. Backend creates a zero-amount `PaymentOrder` with `purpose = BILLING_AGREEMENT`; this order does not grant or change subscription access by itself.
+4. User completes Toss billing auth.
+5. Backend exchanges `authKey` for a new billing key, stores it encrypted, marks the billing agreement `ACTIVE`, and sets `nextBillingAt` to the current subscription `expiresAt`.
+6. Backend does not create `subscription_payments` and does not charge the card during re-registration.
+7. Future upgrades and renewals can use the new billing key.
 
 ### 11.5 Recurring Renewal
 
@@ -567,6 +580,7 @@ For recurring billing:
 2. Do not show a separate "cancel automatic renewal" action on the current subscription manage page; "cancel subscription" is the user-facing stop-renewal action.
 3. Show a "keep subscription" action while a CANCELLED grace-period subscription is still before `expiresAt`.
 4. Show next billing date separately from current access expiration date when both are available.
+5. If the billing agreement is missing, `EXPIRED`, `SUSPENDED`, or cancelled without masked method metadata, show a payment-method re-registration action that routes to `purpose=BILLING_AGREEMENT`.
 
 ## 14. Migration Plan
 
@@ -615,9 +629,9 @@ Status: Implemented for the billing-key registration, immediate first charge, en
 
 ### Phase D: Payment UX and Operations Stabilization
 
-Status: Implemented for the 2026-05-21 hardening slice.
+Status: Implemented for the 2026-05-21 hardening slice plus the 2026-05-23 billing-method recovery patch.
 
-The one-time Toss Widget inline UX concern was retired because subscription purchase and upgrade now use recurring billing auth/charge instead of one-time checkout. The 2026-05-21 hardening slice adds a dedicated checkout/callback route, backend one-time subscription blocking, stale order expiration, local ledger reconciliation logging, renewal failure email notices, and a read-only admin payment view.
+The one-time Toss Widget inline UX concern was retired because subscription purchase and upgrade now use recurring billing auth/charge instead of one-time checkout. The 2026-05-21 hardening slice adds a dedicated checkout/callback route, backend one-time subscription blocking, stale order expiration, local ledger reconciliation logging, renewal failure email notices, and a read-only admin payment view. The 2026-05-23 recovery patch adds removed billing-key detection and active-subscription payment-method re-registration.
 
 Recommended checkout surface:
 
@@ -658,7 +672,6 @@ Sensitive-data boundary:
 - Add provider API-backed reconciliation beyond the current local ledger mismatch scan.
 - Add compensating cancel/refund handling for provider success plus local persistence failure.
 - Add receipt, settlement, tax invoice, and refund operations as separate REQ/SR items.
-- Add billing agreement replacement/payment-method re-registration for existing active subscriptions.
 
 ## 15. Open Decisions
 
@@ -676,6 +689,7 @@ Sensitive-data boundary:
 | PAY-D10 | Production checkout surface | Dedicated `/subscriptions/checkout` callback route implemented for recurring billing auth |
 | PAY-D11 | Upgrade payment model | Use active billing agreement for immediate prorated charge; preserve current billing cycle and next billing date |
 | PAY-D12 | Downgrade payment model | Schedule pending plan/cycle and apply after the next successful renewal charge with no immediate charge |
+| PAY-D13 | Removed billing-key recovery | Mark local agreement `EXPIRED`, clear issued-key metadata, keep the subscription unchanged, and require zero-amount `BILLING_AGREEMENT` re-registration |
 
 ## 16. Implementation Risk Notes
 

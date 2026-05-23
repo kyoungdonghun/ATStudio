@@ -155,6 +155,15 @@ public class BillingAgreement extends BaseEntity {
         this.lastChargedAt = null;
     }
 
+    public void expireIssuedKey() {
+        this.billingKeyCiphertext = null;
+        this.billingKeyFingerprint = null;
+        this.payMethod = null;
+        this.maskedMethod = null;
+        this.nextBillingAt = null;
+        this.status = BillingAgreementStatus.EXPIRED;
+    }
+
     public void recordSuccessfulCharge(LocalDate nextBillingAt) {
         this.lastChargedAt = LocalDateTime.now();
         this.nextBillingAt = nextBillingAt;

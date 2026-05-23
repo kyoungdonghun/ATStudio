@@ -83,6 +83,27 @@ class BillingAgreementTest {
     }
 
     @Test
+    @DisplayName("expireIssuedKey clears only reusable key metadata")
+    void expireIssuedKey() {
+        BillingAgreement agreement = BillingAgreement.builder()
+                .provider(PaymentProviderType.TOSS_BILLING)
+                .providerCustomerKey("ats_billing_random")
+                .build();
+        agreement.activate("v1:nonce:ciphertext", "fingerprint", "CARD", "masked", LocalDate.now());
+        agreement.recordSuccessfulCharge(LocalDate.of(2026, 7, 17));
+
+        agreement.expireIssuedKey();
+
+        assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.EXPIRED);
+        assertThat(agreement.getBillingKeyCiphertext()).isNull();
+        assertThat(agreement.getBillingKeyFingerprint()).isNull();
+        assertThat(agreement.getPayMethod()).isNull();
+        assertThat(agreement.getMaskedMethod()).isNull();
+        assertThat(agreement.getNextBillingAt()).isNull();
+        assertThat(agreement.getLastChargedAt()).isNotNull();
+    }
+
+    @Test
     @DisplayName("cancel marks agreement non-chargeable")
     void cancel() {
         BillingAgreement agreement = BillingAgreement.builder()

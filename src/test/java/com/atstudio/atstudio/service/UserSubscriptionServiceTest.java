@@ -420,7 +420,47 @@ class UserSubscriptionServiceTest {
         }
 
         @Test
-        @DisplayName("성공 - SCHEDULED_CHANGE pending 저장 + payment 미호출")
+        @DisplayName("failure - removed billing key expires local agreement and preserves subscription")
+        void changeSubscription_upgrade_removedBillingKeyRequiresReauth() {
+            User user = buildUser(1L, UserType.INDIVIDUAL);
+            Subscription currentSub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
+            UserSubscription us = buildUserSubscription(100L, user, currentSub,
+                    BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
+            Subscription newSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
+            ReflectionTestUtils.setField(newSub, "priceMonthly", BigDecimal.valueOf(19900));
+            BillingAgreement agreement = buildActiveAgreement(user);
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.of(us));
+            given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
+            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+                    .willReturn(Optional.of(agreement));
+            given(paymentOrderRepository.save(any(PaymentOrder.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("removed-billing-key");
+            given(recurringPaymentProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+            given(recurringPaymentProvider.charge(any()))
+                    .willReturn(BillingChargeResult.failure(
+                            "ALREADY_REMOVED_BILLING_KEY",
+                            "이미 삭제된 빌링키입니다."));
+
+            assertThatThrownBy(() -> userSubscriptionService.changeSubscription(
+                    buildUserDetails(1L),
+                    new ChangeSubscriptionRequest(20L, BillingCycle.MONTHLY)))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.BILLING_AGREEMENT_REAUTH_REQUIRED));
+
+            assertThat(us.getSubscription()).isEqualTo(currentSub);
+            assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.EXPIRED);
+            assertThat(agreement.getBillingKeyCiphertext()).isNull();
+            assertThat(agreement.getBillingKeyFingerprint()).isNull();
+            verify(subscriptionPaymentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("success - SCHEDULED_CHANGE stores pending change without payment")
         void changeSubscription_downgrade_pending() {
             User user = buildUser(1L, UserType.INDIVIDUAL);
             Subscription currentSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
