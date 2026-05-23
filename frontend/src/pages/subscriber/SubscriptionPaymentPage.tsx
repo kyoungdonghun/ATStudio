@@ -23,6 +23,10 @@ export default function SubscriptionPaymentPage() {
   const purpose =
     purposeParam === 'UPGRADE' || purposeParam === 'BILLING_AGREEMENT' ? purposeParam : 'SUBSCRIBE';
   const isBillingAgreementOnly = purpose === 'BILLING_AGREEMENT';
+  const returnPlan = searchParams.get('returnPlan');
+  const returnCycle = toBillingCycle(searchParams.get('returnCycle'));
+  const returnAmount = toOptionalNumber(searchParams.get('returnAmount'));
+  const hasReturnContext = isBillingAgreementOnly && Boolean(returnPlan && returnCycle);
   const isSupportedRedirect =
     location.pathname.includes('/subscriptions/checkout/') ||
     location.pathname.includes('/subscriptions/billing/');
@@ -88,7 +92,7 @@ export default function SubscriptionPaymentPage() {
             ? '결제수단이 다시 등록되었습니다.'
             : '자동결제가 등록되고 구독이 시작되었습니다.',
         );
-        navigate('/subscriptions/manage');
+        navigate(buildReturnUrl(returnPlan, returnCycle) ?? '/subscriptions/manage');
       } catch (err: unknown) {
         const msg =
           (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -107,6 +111,8 @@ export default function SubscriptionPaymentPage() {
     isRedirect,
     isSupportedRedirect,
     navigate,
+    returnCycle,
+    returnPlan,
     searchParams,
     showToast,
   ]);
@@ -175,8 +181,13 @@ export default function SubscriptionPaymentPage() {
           paymentOrder.orderId,
           paymentOrder.amount,
           purpose,
+          { returnPlan, returnCycle, returnAmount },
         ),
-        failUrl: withBillingQuery(failUrl, paymentOrder.orderId, paymentOrder.amount, purpose),
+        failUrl: withBillingQuery(failUrl, paymentOrder.orderId, paymentOrder.amount, purpose, {
+          returnPlan,
+          returnCycle,
+          returnAmount,
+        }),
       });
     } catch (err: unknown) {
       const msg =
@@ -235,6 +246,7 @@ export default function SubscriptionPaymentPage() {
   const paymentAmount = paymentOrder?.amount ?? price;
   const monthlyEquiv = cycle === 'YEARLY' ? formatPrice(Math.floor(plan.priceYearly / 12)) : null;
   const canConfirm = Boolean(paymentOrder) && !submitting;
+  const returnCycleLabel = returnCycle ? getBillingCycleLabel(returnCycle) : '';
 
   return (
     <div className={styles.page}>
@@ -269,10 +281,30 @@ export default function SubscriptionPaymentPage() {
         </div>
       </div>
 
+      {hasReturnContext && (
+        <div className={styles.card}>
+          <div className={styles.cardTitle}>{'등록 후 이어갈 플랜 변경'}</div>
+          <div className={styles.row}>
+            <span className={styles.label}>{'변경 대상'}</span>
+            <span className={styles.value}>{returnPlan}</span>
+          </div>
+          <div className={styles.row}>
+            <span className={styles.label}>{'변경 결제 주기'}</span>
+            <span className={styles.value}>{returnCycleLabel}</span>
+          </div>
+          <div className={styles.row}>
+            <span className={styles.label}>{'등록 후 결제 예정 차액'}</span>
+            <span className={styles.value}>
+              {returnAmount === null ? '내 구독에서 다시 확인' : formatPrice(returnAmount)}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className={styles.pgNotice}>
         <div className={styles.pgText}>
           {isBillingAgreementOnly
-            ? 'Toss 테스트 환경에서 결제수단만 다시 등록합니다. 현재 구독 기간과 플랜은 이 단계에서 변경되지 않습니다.'
+            ? 'Toss 테스트 환경에서 결제수단만 다시 등록합니다. 이 단계에서는 플랜 변경 차액이 결제되지 않으며, 등록 후 내 구독 화면에서 변경을 확정합니다.'
             : 'Toss 테스트 환경에서 자동결제 수단을 등록하고, 서버가 빌링키 발급과 첫 결제를 확인한 뒤에만 구독이 시작됩니다.'}
           <br />
           {'authKey, customerKey, billingKey, 카드 원문 정보는 화면에 표시하지 않습니다.'}
@@ -307,12 +339,51 @@ export default function SubscriptionPaymentPage() {
   );
 }
 
-function withBillingQuery(url: string, orderId: string, amount: number, purpose: string): string {
+interface BillingReturnContext {
+  returnPlan: string | null;
+  returnCycle: 'MONTHLY' | 'YEARLY' | null;
+  returnAmount: number | null;
+}
+
+function withBillingQuery(
+  url: string,
+  orderId: string,
+  amount: number,
+  purpose: string,
+  context: BillingReturnContext,
+): string {
   const next = new URL(url, window.location.origin);
   next.searchParams.set('orderId', orderId);
   next.searchParams.set('amount', String(amount));
   if (purpose !== 'SUBSCRIBE') {
     next.searchParams.set('purpose', purpose);
   }
+  if (context.returnPlan && context.returnCycle) {
+    next.searchParams.set('returnPlan', context.returnPlan);
+    next.searchParams.set('returnCycle', context.returnCycle);
+    if (context.returnAmount !== null) {
+      next.searchParams.set('returnAmount', String(context.returnAmount));
+    }
+  }
   return next.toString();
+}
+
+function toBillingCycle(value: string | null): 'MONTHLY' | 'YEARLY' | null {
+  return value === 'MONTHLY' || value === 'YEARLY' ? value : null;
+}
+
+function toOptionalNumber(value: string | null): number | null {
+  if (value === null || value.trim() === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getBillingCycleLabel(cycle: 'MONTHLY' | 'YEARLY'): string {
+  return cycle === 'MONTHLY' ? '월간' : '연간';
+}
+
+function buildReturnUrl(plan: string | null, cycle: 'MONTHLY' | 'YEARLY' | null): string | null {
+  if (!plan || !cycle) return null;
+  const params = new URLSearchParams({ plan, cycle });
+  return `/subscriptions/manage?${params.toString()}`;
 }

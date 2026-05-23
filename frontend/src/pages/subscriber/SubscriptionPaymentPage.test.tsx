@@ -168,6 +168,50 @@ describe('SubscriptionPaymentPage', () => {
     });
   });
 
+  it('keeps upgrade context visible while re-registering a payment method', async () => {
+    prepareBillingAgreementMock.mockResolvedValue({
+      orderId: 'ATS-BILL-REAUTH',
+      provider: 'TOSS_BILLING',
+      purpose: 'BILLING_AGREEMENT',
+      agreementStatus: 'READY',
+      subscriptionId: 1,
+      billingCycle: 'MONTHLY',
+      amount: 0,
+      currency: 'KRW',
+      expiresAt: '2026-05-16T23:10:00',
+      checkout: {
+        type: 'TOSS_BILLING_AUTH',
+        clientKey: 'test_ck_billing',
+        customerKey: 'ats_billing_customer_1',
+        successUrl: 'http://localhost:5173/subscriptions/checkout/success',
+        failUrl: 'http://localhost:5173/subscriptions/checkout/fail',
+        method: 'CARD',
+      },
+    });
+
+    renderPage(
+      '/subscriptions/checkout?plan=STANDARD&cycle=MONTHLY&purpose=BILLING_AGREEMENT&returnPlan=PREMIUM&returnCycle=YEARLY&returnAmount=99726',
+    );
+
+    await screen.findByText('등록 후 이어갈 플랜 변경');
+    expect(screen.getByText('즉시 결제 없음')).toBeInTheDocument();
+    expect(screen.getByText('PREMIUM')).toBeInTheDocument();
+    expect(screen.getByText('연간')).toBeInTheDocument();
+    expect(screen.getByText('₩99,726')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '카드 등록하기' }));
+
+    await waitFor(() => {
+      expect(requestBillingAuthMock).toHaveBeenCalledWith({
+        method: 'CARD',
+        successUrl:
+          'http://localhost:5173/subscriptions/checkout/success?orderId=ATS-BILL-REAUTH&amount=0&purpose=BILLING_AGREEMENT&returnPlan=PREMIUM&returnCycle=YEARLY&returnAmount=99726',
+        failUrl:
+          'http://localhost:5173/subscriptions/checkout/fail?orderId=ATS-BILL-REAUTH&amount=0&purpose=BILLING_AGREEMENT&returnPlan=PREMIUM&returnCycle=YEARLY&returnAmount=99726',
+      });
+    });
+  });
+
   it('does not prepare checkout for upgrade route', async () => {
     renderPage('/subscriptions/checkout?plan=STANDARD&cycle=MONTHLY&purpose=UPGRADE');
 
@@ -189,6 +233,22 @@ describe('SubscriptionPaymentPage', () => {
       });
     });
     expect(navigateMock).toHaveBeenCalledWith('/subscriptions/manage');
+  });
+
+  it('returns to the selected upgrade preview after payment-method registration succeeds', async () => {
+    renderPage(
+      '/subscriptions/checkout/success?authKey=auth-key&customerKey=ats_billing_customer_1&orderId=ATS-BILL-1&amount=0&purpose=BILLING_AGREEMENT&returnPlan=PREMIUM&returnCycle=YEARLY&returnAmount=99726',
+    );
+
+    await waitFor(() => {
+      expect(confirmBillingAgreementMock).toHaveBeenCalledWith({
+        orderId: 'ATS-BILL-1',
+        authKey: 'auth-key',
+        customerKey: 'ats_billing_customer_1',
+        amount: 0,
+      });
+    });
+    expect(navigateMock).toHaveBeenCalledWith('/subscriptions/manage?plan=PREMIUM&cycle=YEARLY');
   });
 
   it('blocks legacy one-time payment redirect routes', async () => {

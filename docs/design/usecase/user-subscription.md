@@ -221,6 +221,7 @@
 - If a previous payment-method registration was interrupted and the billing agreement remains `READY`, the frontend treats it as incomplete and offers the same re-registration action.
 - The user can re-register a payment method through the current plan/current cycle checkout with `purpose=BILLING_AGREEMENT`.
 - Re-registration stores a new encrypted billing key without charging the card or changing the current subscription period.
+- When re-registration was started from an upgrade preview, frontend preserves the selected target plan/cycle and expected prorated amount as return context, then reopens the same preview after registration succeeds.
 
 **Postconditions**
 - UPGRADE: billing-key charge succeeds first when `proratedAmount > 0`, then `user_subscriptions.subscription_id` is updated immediately. Payment record is saved in `subscription_payments` only for a real charge. New plan benefits are active immediately, while current `billingCycle` and next billing date are preserved for the active period. If the requested billing cycle differs, pendingSubscriptionId and pendingBillingCycle are saved for the next renewal.

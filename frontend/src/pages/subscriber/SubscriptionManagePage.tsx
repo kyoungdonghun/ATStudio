@@ -156,6 +156,12 @@ function getPaymentRegistrationMessage(agreement: BillingAgreementResponse | nul
   return '업그레이드와 다음 갱신을 진행하려면 Toss 자동결제 수단을 다시 등록해야 합니다. 현재 구독 기간과 플랜은 변경되지 않습니다.';
 }
 
+interface PaymentMethodRegistrationContext {
+  returnPlanName?: string;
+  returnCycle?: BillingCycle;
+  returnAmount?: number;
+}
+
 export default function SubscriptionManagePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -311,11 +317,21 @@ export default function SubscriptionManagePage() {
     }
   }
 
-  function handleRegisterPaymentMethod() {
+  function handleRegisterPaymentMethod(context: PaymentMethodRegistrationContext = {}) {
     if (!sub) return;
-    navigate(
-      `/subscriptions/checkout?plan=${encodeURIComponent(sub.subscription.name)}&cycle=${sub.billingCycle}&purpose=BILLING_AGREEMENT`,
-    );
+    const params = new URLSearchParams({
+      plan: sub.subscription.name,
+      cycle: sub.billingCycle,
+      purpose: 'BILLING_AGREEMENT',
+    });
+    if (context.returnPlanName && context.returnCycle) {
+      params.set('returnPlan', context.returnPlanName);
+      params.set('returnCycle', context.returnCycle);
+      if (typeof context.returnAmount === 'number') {
+        params.set('returnAmount', String(context.returnAmount));
+      }
+    }
+    navigate(`/subscriptions/checkout?${params.toString()}`);
   }
 
   async function handleChangePlan() {
@@ -559,7 +575,7 @@ export default function SubscriptionManagePage() {
               {getPaymentRegistrationMessage(billingAgreement)}
             </div>
             <div className={styles.actionButtons}>
-              <Button variant="primary" onClick={handleRegisterPaymentMethod}>
+              <Button variant="primary" onClick={() => handleRegisterPaymentMethod()}>
                 {'결제수단 다시 등록'}
               </Button>
             </div>
@@ -727,7 +743,12 @@ export default function SubscriptionManagePage() {
                 variant="primary"
                 onClick={
                   upgradeRequiresPaymentMethodRegistration
-                    ? handleRegisterPaymentMethod
+                    ? () =>
+                        handleRegisterPaymentMethod({
+                          returnPlanName: selectedPlan.name,
+                          returnCycle: selectedCycle,
+                          returnAmount: preview.proratedAmount,
+                        })
                     : handleChangePlan
                 }
                 loading={changingPlan}

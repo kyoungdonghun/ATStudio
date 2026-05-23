@@ -526,7 +526,7 @@ describe('SubscriptionManagePage', () => {
 
     expect(changeMySubscriptionMock).not.toHaveBeenCalled();
     expect(navigateMock).toHaveBeenCalledWith(
-      '/subscriptions/checkout?plan=DELUXE&cycle=YEARLY&purpose=BILLING_AGREEMENT',
+      '/subscriptions/checkout?plan=DELUXE&cycle=YEARLY&purpose=BILLING_AGREEMENT&returnPlan=PREMIUM&returnCycle=YEARLY&returnAmount=99726',
     );
   });
 

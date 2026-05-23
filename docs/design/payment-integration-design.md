@@ -497,11 +497,13 @@ Lower-tier and billing-cycle-only changes remain payment-free:
 
 1. Active or CANCELLED grace-period subscriber has no usable billing key because the local billing agreement is missing, still `READY` after an interrupted registration, `EXPIRED`, `SUSPENDED`, or has no issued-key metadata.
 2. Frontend opens `/subscriptions/checkout?purpose=BILLING_AGREEMENT` with the current subscription plan and billing cycle.
+   - If the user came from an upgrade preview, the route also carries return context such as `returnPlan`, `returnCycle`, and `returnAmount`. This context is display/continuation metadata only; it is not used to charge during payment-method registration.
 3. Backend creates a zero-amount `PaymentOrder` with `purpose = BILLING_AGREEMENT`; this order does not grant or change subscription access by itself.
 4. User completes Toss billing auth.
 5. Backend exchanges `authKey` for a new billing key, stores it encrypted, marks the billing agreement `ACTIVE`, and sets `nextBillingAt` to the current subscription `expiresAt`.
 6. Backend does not create `subscription_payments` and does not charge the card during re-registration.
-7. Future upgrades and renewals can use the new billing key.
+7. If return context was present, frontend returns to the subscription management page with the selected plan/cycle preselected so the user can confirm the upgrade charge.
+8. Future upgrades and renewals can use the new billing key.
 
 ### 11.5 Recurring Renewal
 
