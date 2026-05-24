@@ -110,7 +110,7 @@ export async function processCompanyCert(
   return data.data;
 }
 
-/* ── Payment Read-only Operations ── */
+/* ── Payment Operations ── */
 
 export interface AdminPaymentOrder {
   id: number;
@@ -160,6 +160,43 @@ export interface AdminSubscriptionPayment {
   createdAt: string;
 }
 
+export type AdminPaymentReconciliationIncidentStatus =
+  | 'OPEN'
+  | 'ACKNOWLEDGED'
+  | 'RESOLVED'
+  | 'IGNORED';
+
+export type AdminPaymentReconciliationIncidentSeverity = 'WARNING' | 'CRITICAL';
+
+export interface AdminPaymentReconciliationIncident {
+  id: number;
+  dedupeKey: string;
+  issueType: string;
+  status: AdminPaymentReconciliationIncidentStatus;
+  severity: AdminPaymentReconciliationIncidentSeverity;
+  paymentOrderId: number | null;
+  billingAgreementId: number | null;
+  userId: number | null;
+  userNickname: string | null;
+  orderId: string | null;
+  provider: string | null;
+  purpose: string | null;
+  localStatus: string | null;
+  providerStatus: string | null;
+  localAmount: number | null;
+  providerAmount: number | null;
+  providerTransactionId: string | null;
+  failureCode: string | null;
+  failureMessage: string | null;
+  occurrenceCount: number;
+  firstDetectedAt: string;
+  lastDetectedAt: string;
+  notifiedAt: string | null;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+  createdAt: string;
+}
+
 export async function fetchAdminPaymentOrders(
   page = 1,
   size = 20,
@@ -169,6 +206,40 @@ export async function fetchAdminPaymentOrders(
     { params: { page, size } },
   );
   return data;
+}
+
+export async function fetchAdminPaymentReconciliationIncidents(
+  page = 1,
+  size = 20,
+  status?: AdminPaymentReconciliationIncidentStatus,
+): Promise<PagedResponse<AdminPaymentReconciliationIncident>> {
+  const params: { page: number; size: number; status?: AdminPaymentReconciliationIncidentStatus } =
+    { page, size };
+  if (status) {
+    params.status = status;
+  }
+
+  const { data } = await client.get<PagedResponse<AdminPaymentReconciliationIncident>>(
+    '/admin/payments/reconciliation-incidents',
+    { params },
+  );
+  return data;
+}
+
+interface UpdatePaymentReconciliationIncidentRequest {
+  status: AdminPaymentReconciliationIncidentStatus;
+  note?: string;
+}
+
+export async function updateAdminPaymentReconciliationIncidentStatus(
+  incidentId: number,
+  body: UpdatePaymentReconciliationIncidentRequest,
+): Promise<AdminPaymentReconciliationIncident> {
+  const { data } = await client.put<ApiResponse<AdminPaymentReconciliationIncident>>(
+    `/admin/payments/reconciliation-incidents/${incidentId}/status`,
+    body,
+  );
+  return data.data;
 }
 
 export async function fetchAdminBillingAgreements(

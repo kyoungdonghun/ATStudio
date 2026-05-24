@@ -394,7 +394,7 @@ dependencies:
 | R-03 | 태그 필터 — 인라인 vs 모달 전환 용이성 | 인라인 우선, 전환 어려우면 재논의 |
 | R-04 | 18 통계 대시보드 지표 확장 설계 | 필요 시 후속 정의 |
 | R-05 | 결제 운영 안정화 (billing auth / upgrade charge / renewal failure) | One-time Toss widget UX SR-92 is dropped; production hardening continues under SR-93 and follow-up REQ/SR items |
-| R-06 | 결제 운영 화면 | Read-only payment order / billing agreement / subscription payment support view is implemented at `/admin/payments` |
+| R-06 | 결제 운영 화면 | Payment order / billing agreement / subscription payment support tabs and reconciliation incident workflow are implemented at `/admin/payments` |
 | R-07 | M-15 기업인증 서류 파일 제한 | 업로드 정책 미확정 |
 
 ---

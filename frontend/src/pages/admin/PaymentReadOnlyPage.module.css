@@ -12,6 +12,7 @@
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 20px;
 }
@@ -32,6 +33,30 @@
   border-color: var(--accent-border);
   background: var(--accent-dim);
   color: var(--accent);
+}
+
+.filterBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.filterLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text2);
+}
+
+.filterSelect,
+.statusSelect {
+  min-height: 34px;
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  padding: 6px 10px;
+  background: var(--bg2);
+  color: var(--text1);
+  font-size: 13px;
 }
 
 .loading,
@@ -102,6 +127,32 @@
   border-color: rgba(52, 211, 153, 0.3);
 }
 
+.statusOPEN,
+.severityCRITICAL {
+  background: var(--error-dim);
+  color: var(--error);
+  border-color: var(--error-border);
+}
+
+.statusACKNOWLEDGED,
+.severityWARNING {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+.statusRESOLVED {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+.statusIGNORED {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text2);
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
 .statusREADY,
 .statusIN_PROGRESS {
   background: rgba(96, 165, 250, 0.12);
@@ -123,6 +174,71 @@
   border-color: var(--error-border);
 }
 
+.issueType {
+  max-width: 240px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+  color: var(--text1);
+}
+
+.subtle {
+  margin-top: 3px;
+  color: var(--text2);
+  font-size: 11px;
+}
+
+.incidentActions {
+  display: grid;
+  grid-template-columns: minmax(132px, 150px) minmax(180px, 240px) 62px;
+  align-items: start;
+  gap: 8px;
+  min-width: 390px;
+}
+
+.noteInput {
+  min-height: 34px;
+  max-height: 84px;
+  resize: vertical;
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  padding: 7px 9px;
+  background: var(--bg2);
+  color: var(--text1);
+  font: inherit;
+  font-size: 13px;
+}
+
+.noteInput::placeholder {
+  color: var(--text2);
+}
+
+.filterSelect:focus,
+.statusSelect:focus,
+.noteInput:focus {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.saveBtn {
+  min-height: 34px;
+  border: 1px solid var(--accent-border);
+  border-radius: 5px;
+  padding: 0 10px;
+  background: var(--accent);
+  color: #03130d;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.saveBtn:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 @media (max-width: 767px) {
   .page {
     padding: 0;
@@ -130,5 +246,19 @@
 
   .title {
     font-size: 20px;
+  }
+
+  .filterBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filterSelect {
+    width: 100%;
+  }
+
+  .incidentActions {
+    grid-template-columns: 1fr;
+    min-width: 240px;
   }
 }

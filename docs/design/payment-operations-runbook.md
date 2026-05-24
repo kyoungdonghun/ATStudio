@@ -112,7 +112,7 @@ Current automation is limited to detection, persistent incident visibility, and 
 | Admin read-only check | `GET /api/admin/payments/reconciliation` returns current mismatch counts and issue records. |
 | Persistent incident storage | Implemented through `payment_reconciliation_incidents`. |
 | Operator notification | Optional email notification when explicitly enabled and configured. |
-| Admin incident workflow | Implemented through incident list and status update APIs. |
+| Admin incident workflow | Implemented through incident list/status APIs and the `/admin/payments` incident tab. |
 | Auto refund/cancel/entitlement correction | Not implemented. |
 
 This means the system can detect, persist, and expose mismatches. Operator notification still depends on email configuration or external log monitoring; there is no Slack/SMS/in-app push channel yet.
@@ -138,7 +138,7 @@ Do not request or store raw card information, raw billing keys, `authKey`, or To
 
 ### 6.2 Decision Path
 
-1. Open `GET /api/admin/payments/reconciliation-incidents?status=OPEN` and acknowledge the incident if investigation starts.
+1. Open the `/admin/payments` incident tab or `GET /api/admin/payments/reconciliation-incidents?status=OPEN`, then acknowledge the incident if investigation starts.
 2. Confirm provider status from `GET /api/admin/payments/reconciliation` and the Toss dashboard.
 3. Confirm whether the user received the paid entitlement:
    - New subscription: active subscription exists for the paid plan and period.
@@ -172,6 +172,7 @@ Before enabling live Toss recurring billing:
 - Confirm WARN-level reconciliation logs are collected by the production log monitoring system.
 - Run `GET /api/admin/payments/reconciliation` after a staging payment rehearsal.
 - Run `GET /api/admin/payments/reconciliation-incidents?status=OPEN` after a staging payment rehearsal.
+- Keep the deployment on one application scheduler instance. Scheduler lock remains out of active scope unless more than one application instance will run.
 
 ## 8. Webhook Boundary
 
@@ -191,11 +192,9 @@ If webhook is introduced later:
 
 Separate REQ/SR items are still needed for:
 
-- Admin frontend UI for the reconciliation incident workflow.
 - Slack/SMS/in-app operator notification channels.
 - Refund automation.
 - Receipt, settlement, and tax invoice operations.
 - Admin payment mutation APIs.
-- Multi-server scheduler lock.
 - Legacy endpoint removal.
 - KakaoPay, NaverPay, or other PG adapters.
