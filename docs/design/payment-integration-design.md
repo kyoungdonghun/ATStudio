@@ -664,19 +664,22 @@ Operator-facing minimum visibility:
 - Latest `payment_orders` for a user, including purpose, provider, status, amount, order ID, sanitized failure code/message, and timestamps.
 - Related `subscription_payments` for finalized charges.
 - Current `billing_agreements` status, masked method, next billing date, failure count, and cancellation date.
-- Read-only support view first. Refund, receipt, settlement, webhook reconciliation, and multi-PG operations remain separate follow-up scopes.
+- Persisted `payment_reconciliation_incidents` for scheduled local/provider mismatch detection, including status, severity, dedupe key, occurrence count, safe order/provider fields, and resolution note.
+- Read-only payment support view first. Incident status changes are allowed for operations workflow only; refund, receipt, settlement, webhook reconciliation, and multi-PG operations remain separate follow-up scopes.
 
 Sensitive-data boundary:
 
 - Ordinary users must not see raw `authKey`, `customerKey`, `billingKey`, Toss secret key, or raw provider payload.
 - Operators may see internal `orderId`, sanitized failure code/message, provider, purpose, amount, timestamps, and masked payment method.
+- Operators may see reconciliation incident workflow metadata such as `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, `IGNORED`, occurrence count, and resolution note.
 - Billing keys remain encrypted server-side only; only fingerprint/masked method may appear in diagnostics.
 
 ### Phase E: Remaining Production Hardening
 
 - Provider API-backed reconciliation is implemented for recent Toss billing payment orders by `orderId`.
+- Scheduled reconciliation persists mismatch incidents and can send optional operator email when explicitly configured.
 - Provider success plus local persistence failure is covered by the payment operations runbook; actual refund automation remains separate.
-- Add persistent reconciliation incident storage and operator notifications as a follow-up before relying on passive monitoring alone.
+- Add admin incident frontend UI or external notification channels as follow-up work if API-only operations are insufficient.
 - Provider-side webhook handling remains optional auxiliary work and must not become the sole source of truth for recurring billing access.
 - Add receipt, settlement, tax invoice, and refund operations as separate REQ/SR items.
 

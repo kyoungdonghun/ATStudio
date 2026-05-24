@@ -3,14 +3,22 @@ package com.atstudio.atstudio.controller;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.payment.AdminBillingAgreementResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentOrderResponse;
+import com.atstudio.atstudio.dto.payment.AdminPaymentReconciliationIncidentResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentReconciliationResponse;
 import com.atstudio.atstudio.dto.payment.AdminSubscriptionPaymentResponse;
+import com.atstudio.atstudio.dto.payment.AdminUpdatePaymentReconciliationIncidentRequest;
+import com.atstudio.atstudio.entity.enums.PaymentReconciliationIncidentStatus;
+import com.atstudio.atstudio.service.AdminPaymentIncidentService;
 import com.atstudio.atstudio.service.AdminPaymentReadService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminPaymentController {
 
     private final AdminPaymentReadService adminPaymentReadService;
+    private final AdminPaymentIncidentService adminPaymentIncidentService;
 
     @GetMapping("/orders")
     @PreAuthorize("hasRole('ADMIN')")
@@ -49,5 +58,25 @@ public class AdminPaymentController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<AdminPaymentReconciliationResponse>> reconcilePayments() {
         return ResponseEntity.ok(adminPaymentReadService.reconcilePayments());
+    }
+
+    @GetMapping("/reconciliation-incidents")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentReconciliationIncidentResponse>> listReconciliationIncidents(
+            @RequestParam(required = false) PaymentReconciliationIncidentStatus status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(adminPaymentIncidentService.listIncidents(status, page, size));
+    }
+
+    @PutMapping("/reconciliation-incidents/{incidentId}/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentReconciliationIncidentResponse>> updateReconciliationIncidentStatus(
+            @PathVariable Long incidentId,
+            @Valid @RequestBody AdminUpdatePaymentReconciliationIncidentRequest request) {
+        return ResponseEntity.ok(adminPaymentIncidentService.updateIncidentStatus(
+                incidentId,
+                request.status(),
+                request.note()));
     }
 }

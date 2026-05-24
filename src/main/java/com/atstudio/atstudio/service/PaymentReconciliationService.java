@@ -5,7 +5,9 @@ import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
+import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
+import com.atstudio.atstudio.entity.enums.PaymentReconciliationIssueType;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.repository.PaymentOrderRepository;
 import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
@@ -41,12 +43,14 @@ public class PaymentReconciliationService {
     private final SubscriptionPaymentRepository subscriptionPaymentRepository;
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final List<PaymentStatusLookupProvider> paymentStatusLookupProviders;
+    private final PaymentReconciliationIncidentService paymentReconciliationIncidentService;
 
     @Scheduled(cron = "0 0 1 * * *")
-    @Transactional(readOnly = true)
+    @Transactional
     public void reconcilePaymentLedgersOnSchedule() {
-        reconcileLocalLedger();
-        reconcileProviderLedger();
+        ReconciliationResult local = reconcileLocalLedger();
+        ProviderReconciliationResult provider = reconcileProviderLedger();
+        paymentReconciliationIncidentService.recordIssues(local, provider);
     }
 
     @Transactional(readOnly = true)
@@ -55,12 +59,14 @@ public class PaymentReconciliationService {
                 .findAllByOrderByCreatedAtDesc(PageRequest.of(0, 100))
                 .getContent();
         int doneOrdersWithoutPayment = 0;
+        List<LocalReconciliationIssue> issues = new java.util.ArrayList<>();
 
         for (PaymentOrder order : recentOrders) {
             if (order.getStatus() == PaymentOrderStatus.DONE
                     && FINAL_PAYMENT_PURPOSES.contains(order.getPurpose())
                     && !subscriptionPaymentRepository.existsByPaymentOrder(order)) {
                 doneOrdersWithoutPayment++;
+                issues.add(localIssue(order, PaymentReconciliationIssueType.DONE_ORDER_WITHOUT_PAYMENT));
                 log.warn("Payment ledger mismatch: DONE order has no subscription payment. orderId={}",
                         order.getOrderId());
             }
@@ -78,6 +84,7 @@ public class PaymentReconciliationService {
                     .isPresent();
             if (!hasActiveSubscription) {
                 activeAgreementsWithoutSubscription++;
+                issues.add(localIssue(agreement));
                 log.warn("Payment ledger mismatch: ACTIVE billing agreement has no active subscription. agreementId={}",
                         agreement.getId());
             }
@@ -87,7 +94,8 @@ public class PaymentReconciliationService {
                 recentOrders.size(),
                 activeAgreements.size(),
                 doneOrdersWithoutPayment,
-                activeAgreementsWithoutSubscription);
+                activeAgreementsWithoutSubscription,
+                List.copyOf(issues));
         if (result.hasMismatch()) {
             log.warn("Payment reconciliation completed with mismatches: {}", result);
         } else {
@@ -125,11 +133,14 @@ public class PaymentReconciliationService {
             if (!providerResult.found()) {
                 if (providerResult.lookupFailure()) {
                     lookupFailures++;
-                    issues.add(issue(order, providerResult, "PROVIDER_LOOKUP_FAILED"));
+                    issues.add(issue(order, providerResult, PaymentReconciliationIssueType.PROVIDER_LOOKUP_FAILED));
                 } else {
                     providerNotFound++;
                     if (order.getStatus() == PaymentOrderStatus.DONE) {
-                        issues.add(issue(order, providerResult, "LOCAL_DONE_PROVIDER_NOT_FOUND"));
+                        issues.add(issue(
+                                order,
+                                providerResult,
+                                PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_FOUND));
                     }
                 }
                 continue;
@@ -137,12 +148,15 @@ public class PaymentReconciliationService {
 
             if (amountMismatch(order, providerResult)) {
                 amountMismatches++;
-                issues.add(issue(order, providerResult, "AMOUNT_MISMATCH"));
+                issues.add(issue(order, providerResult, PaymentReconciliationIssueType.AMOUNT_MISMATCH));
             }
 
             if (providerResult.providerDone() && order.getStatus() != PaymentOrderStatus.DONE) {
                 providerDoneWithoutLocalFinalization++;
-                issues.add(issue(order, providerResult, "PROVIDER_DONE_LOCAL_NOT_FINALIZED"));
+                issues.add(issue(
+                        order,
+                        providerResult,
+                        PaymentReconciliationIssueType.PROVIDER_DONE_LOCAL_NOT_FINALIZED));
                 log.warn(
                         "Payment provider mismatch: provider DONE but local order is not finalized. orderId={}, localStatus={}, providerStatus={}",
                         order.getOrderId(),
@@ -152,7 +166,10 @@ public class PaymentReconciliationService {
 
             if (!providerResult.providerDone() && order.getStatus() == PaymentOrderStatus.DONE) {
                 localDoneButProviderNotDone++;
-                issues.add(issue(order, providerResult, "LOCAL_DONE_PROVIDER_NOT_DONE"));
+                issues.add(issue(
+                        order,
+                        providerResult,
+                        PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_DONE));
                 log.warn(
                         "Payment provider mismatch: local DONE but provider is not DONE. orderId={}, providerStatus={}",
                         order.getOrderId(),
@@ -192,12 +209,15 @@ public class PaymentReconciliationService {
     private ProviderReconciliationIssue issue(
             PaymentOrder order,
             ProviderPaymentLookupResult providerResult,
-            String issueType) {
+            PaymentReconciliationIssueType issueType) {
         return new ProviderReconciliationIssue(
                 issueType,
+                order.getId(),
+                order.getUser().getId(),
+                order.getBillingAgreement() == null ? null : order.getBillingAgreement().getId(),
                 order.getOrderId(),
-                order.getProvider().name(),
-                order.getPurpose().name(),
+                order.getProvider(),
+                order.getPurpose(),
                 order.getStatus().name(),
                 providerResult.status(),
                 order.getAmount(),
@@ -207,11 +227,40 @@ public class PaymentReconciliationService {
                 providerResult.failureMessage());
     }
 
+    private LocalReconciliationIssue localIssue(
+            PaymentOrder order,
+            PaymentReconciliationIssueType issueType) {
+        return new LocalReconciliationIssue(
+                issueType,
+                order.getId(),
+                order.getUser().getId(),
+                order.getBillingAgreement() == null ? null : order.getBillingAgreement().getId(),
+                order.getOrderId(),
+                order.getProvider(),
+                order.getPurpose(),
+                order.getStatus().name(),
+                order.getAmount());
+    }
+
+    private LocalReconciliationIssue localIssue(BillingAgreement agreement) {
+        return new LocalReconciliationIssue(
+                PaymentReconciliationIssueType.ACTIVE_AGREEMENT_WITHOUT_SUBSCRIPTION,
+                null,
+                agreement.getUser().getId(),
+                agreement.getId(),
+                null,
+                agreement.getProvider(),
+                null,
+                agreement.getStatus().name(),
+                null);
+    }
+
     public record ReconciliationResult(
             int checkedOrders,
             int checkedBillingAgreements,
             int doneOrdersWithoutPayment,
-            int activeAgreementsWithoutSubscription) {
+            int activeAgreementsWithoutSubscription,
+            List<LocalReconciliationIssue> issues) {
         public boolean hasMismatch() {
             return doneOrdersWithoutPayment > 0 || activeAgreementsWithoutSubscription > 0;
         }
@@ -231,11 +280,26 @@ public class PaymentReconciliationService {
         }
     }
 
-    public record ProviderReconciliationIssue(
-            String issueType,
+    public record LocalReconciliationIssue(
+            PaymentReconciliationIssueType issueType,
+            Long paymentOrderId,
+            Long userId,
+            Long billingAgreementId,
             String orderId,
-            String provider,
-            String purpose,
+            PaymentProviderType provider,
+            PaymentPurpose purpose,
+            String localStatus,
+            BigDecimal localAmount) {
+    }
+
+    public record ProviderReconciliationIssue(
+            PaymentReconciliationIssueType issueType,
+            Long paymentOrderId,
+            Long userId,
+            Long billingAgreementId,
+            String orderId,
+            PaymentProviderType provider,
+            PaymentPurpose purpose,
             String localStatus,
             String providerStatus,
             BigDecimal localAmount,

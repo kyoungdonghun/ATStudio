@@ -8,6 +8,7 @@ import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
+import com.atstudio.atstudio.entity.enums.PaymentReconciliationIssueType;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
@@ -34,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("PaymentReconciliationService unit tests")
@@ -44,6 +46,27 @@ class PaymentReconciliationServiceTest {
     @Mock SubscriptionPaymentRepository subscriptionPaymentRepository;
     @Mock UserSubscriptionRepository userSubscriptionRepository;
     @Mock PaymentStatusLookupProvider paymentStatusLookupProvider;
+    @Mock PaymentReconciliationIncidentService paymentReconciliationIncidentService;
+
+    @Test
+    @DisplayName("scheduled reconciliation records detected issues into incident storage")
+    void reconcilePaymentLedgersOnSchedule_recordsIncidents() {
+        PaymentReconciliationService service = new PaymentReconciliationService(
+                paymentOrderRepository,
+                billingAgreementRepository,
+                subscriptionPaymentRepository,
+                userSubscriptionRepository,
+                List.of(),
+                paymentReconciliationIncidentService);
+
+        given(paymentOrderRepository.findAllByOrderByCreatedAtDesc(any()))
+                .willReturn(new PageImpl<>(List.of()));
+        given(billingAgreementRepository.findByStatus(BillingAgreementStatus.ACTIVE)).willReturn(List.of());
+
+        service.reconcilePaymentLedgersOnSchedule();
+
+        verify(paymentReconciliationIncidentService).recordIssues(any(), any());
+    }
 
     @Test
     @DisplayName("reconcileLocalLedger reports missing finalized payment rows")
@@ -53,7 +76,8 @@ class PaymentReconciliationServiceTest {
                 billingAgreementRepository,
                 subscriptionPaymentRepository,
                 userSubscriptionRepository,
-                List.of());
+                List.of(),
+                paymentReconciliationIncidentService);
         User user = buildUser(1L);
         PaymentOrder doneOrder = buildOrder(user);
         doneOrder.markDone("tx_1", null, "{}");
@@ -67,6 +91,8 @@ class PaymentReconciliationServiceTest {
 
         assertThat(result.checkedOrders()).isEqualTo(1);
         assertThat(result.doneOrdersWithoutPayment()).isEqualTo(1);
+        assertThat(result.issues()).extracting(PaymentReconciliationService.LocalReconciliationIssue::issueType)
+                .containsExactly(PaymentReconciliationIssueType.DONE_ORDER_WITHOUT_PAYMENT);
         assertThat(result.hasMismatch()).isTrue();
     }
 
@@ -78,7 +104,8 @@ class PaymentReconciliationServiceTest {
                 billingAgreementRepository,
                 subscriptionPaymentRepository,
                 userSubscriptionRepository,
-                List.of());
+                List.of(),
+                paymentReconciliationIncidentService);
         User user = buildUser(1L);
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
@@ -98,6 +125,8 @@ class PaymentReconciliationServiceTest {
 
         assertThat(result.checkedBillingAgreements()).isEqualTo(1);
         assertThat(result.activeAgreementsWithoutSubscription()).isEqualTo(1);
+        assertThat(result.issues()).extracting(PaymentReconciliationService.LocalReconciliationIssue::issueType)
+                .containsExactly(PaymentReconciliationIssueType.ACTIVE_AGREEMENT_WITHOUT_SUBSCRIPTION);
         assertThat(result.hasMismatch()).isTrue();
     }
 
@@ -109,7 +138,8 @@ class PaymentReconciliationServiceTest {
                 billingAgreementRepository,
                 subscriptionPaymentRepository,
                 userSubscriptionRepository,
-                List.of(paymentStatusLookupProvider));
+                List.of(paymentStatusLookupProvider),
+                paymentReconciliationIncidentService);
         User user = buildUser(1L);
         PaymentOrder order = buildOrder(user);
 
@@ -131,7 +161,7 @@ class PaymentReconciliationServiceTest {
         assertThat(result.checkedOrders()).isEqualTo(1);
         assertThat(result.providerDoneWithoutLocalFinalization()).isEqualTo(1);
         assertThat(result.issues()).extracting(PaymentReconciliationService.ProviderReconciliationIssue::issueType)
-                .containsExactly("PROVIDER_DONE_LOCAL_NOT_FINALIZED");
+                .containsExactly(PaymentReconciliationIssueType.PROVIDER_DONE_LOCAL_NOT_FINALIZED);
         assertThat(result.hasMismatch()).isTrue();
     }
 
@@ -143,7 +173,8 @@ class PaymentReconciliationServiceTest {
                 billingAgreementRepository,
                 subscriptionPaymentRepository,
                 userSubscriptionRepository,
-                List.of(paymentStatusLookupProvider));
+                List.of(paymentStatusLookupProvider),
+                paymentReconciliationIncidentService);
         User user = buildUser(1L);
         PaymentOrder order = buildOrder(user);
 

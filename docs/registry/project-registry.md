@@ -30,12 +30,12 @@ dependencies:
 
 ## ATStudio Project Stats (PRJ-ATS-001)
 
-> Last verified: 2026-05-23
+> Last verified: 2026-05-24
 
 | Category | Count | Reference |
 | :-- | :-- | :-- |
-| Backend REST APIs | 119 | `docs/design/api-spec.md` v11 |
-| DB Tables | 30 | `docs/design/db-schema.md` |
+| Backend REST APIs | 121 | `docs/design/api-spec.md` v11 |
+| DB Tables | 31 | `docs/design/db-schema.md` |
 | Frontend Screens | 52 | `docs/index.md` |
 | Agents | 13 | `docs/architecture/system-design.md` §2.4 |
 | SR Items completed | 82 | `docs/SR/index.md` |

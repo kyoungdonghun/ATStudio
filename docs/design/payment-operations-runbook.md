@@ -21,6 +21,7 @@ Toss does not run ATStudio subscription scheduling. ATStudio owns renewal timing
 | `payment_orders` | Internal payment attempt ledger and merchant `orderId` source |
 | `subscription_payments` | Finalized subscription payment records |
 | `billing_agreements` | Stored provider customer key, encrypted billing key, masked payment method, next billing date |
+| `payment_reconciliation_incidents` | Persistent reconciliation mismatch incident state and operator workflow |
 | `user_subscriptions` | User access state, current plan, pending plan/cycle |
 | Toss payment lookup API | Provider-side payment status comparison by `orderId` |
 
@@ -37,8 +38,11 @@ It performs:
 - Local ledger reconciliation.
 - Provider-backed reconciliation for recent subscription payment orders when a lookup-capable provider is configured.
 - If a mismatch is detected, the current implementation writes WARN-level server logs.
-- The current implementation does not persist a separate reconciliation incident row.
-- The current implementation does not send email, Slack, or in-app admin notifications.
+- The scheduled job creates or updates `payment_reconciliation_incidents` by deterministic `dedupeKey`.
+- Repeated detection increments `occurrenceCount` and updates `lastDetectedAt`.
+- A `RESOLVED` incident is reopened if the same mismatch appears again.
+- An `IGNORED` incident remains ignored, but occurrence metadata is still updated.
+- Optional operator email notification is sent only when `PAYMENT_RECONCILIATION_NOTIFICATION_ENABLED=true` and `PAYMENT_OPERATIONS_OPERATOR_EMAIL` is configured.
 
 ### Admin Read-only
 
@@ -67,6 +71,25 @@ Forbidden fields:
 - raw `authKey`
 - raw provider payload
 
+### Admin Incident Workflow
+
+`GET /api/admin/payments/reconciliation-incidents`
+
+Lists persisted reconciliation incidents. Optional `status` filtering supports `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, and `IGNORED`.
+
+`PUT /api/admin/payments/reconciliation-incidents/{incidentId}/status`
+
+Updates only the reconciliation incident workflow state and note. This endpoint does not refund payments, cancel provider charges, change subscriptions, or mutate billing agreements.
+
+Status guidance:
+
+| Status | Meaning |
+|---|---|
+| `OPEN` | Newly detected or reopened issue that needs operator attention. |
+| `ACKNOWLEDGED` | Operator has seen the issue and is investigating. |
+| `RESOLVED` | Operator verified that the mismatch is fixed or no longer present. If detected again, the incident reopens automatically. |
+| `IGNORED` | Operator intentionally suppresses this known/acceptable mismatch. Repeated detections update occurrence metadata but do not reopen it automatically. |
+
 ## 4. Interpreting Reconciliation Issues
 
 | Issue type | Meaning | First response |
@@ -79,7 +102,7 @@ Forbidden fields:
 
 ## 5. Current Automation and Visibility Boundary
 
-Current automation is limited to detection and read-only diagnostics.
+Current automation is limited to detection, persistent incident visibility, and optional email notification. It does not perform financial or entitlement mutations.
 
 | Capability | Current state |
 |---|---|
@@ -87,12 +110,12 @@ Current automation is limited to detection and read-only diagnostics.
 | Provider comparison | Available when Toss lookup configuration is present. |
 | Automatic log output | WARN-level logs are written for detected mismatches. |
 | Admin read-only check | `GET /api/admin/payments/reconciliation` returns current mismatch counts and issue records. |
-| Persistent incident storage | Not implemented. |
-| Operator notification | Not implemented. |
-| Admin incident workflow | Not implemented. |
+| Persistent incident storage | Implemented through `payment_reconciliation_incidents`. |
+| Operator notification | Optional email notification when explicitly enabled and configured. |
+| Admin incident workflow | Implemented through incident list and status update APIs. |
 | Auto refund/cancel/entitlement correction | Not implemented. |
 
-This means the system can detect and expose mismatches, but it does not yet guarantee that an operator will notice them without log monitoring or manual admin checks.
+This means the system can detect, persist, and expose mismatches. Operator notification still depends on email configuration or external log monitoring; there is no Slack/SMS/in-app push channel yet.
 
 ## 6. Provider Success + Local Failure Compensation
 
@@ -115,16 +138,17 @@ Do not request or store raw card information, raw billing keys, `authKey`, or To
 
 ### 6.2 Decision Path
 
-1. Confirm provider status from `GET /api/admin/payments/reconciliation` and the Toss dashboard.
-2. Confirm whether the user received the paid entitlement:
+1. Open `GET /api/admin/payments/reconciliation-incidents?status=OPEN` and acknowledge the incident if investigation starts.
+2. Confirm provider status from `GET /api/admin/payments/reconciliation` and the Toss dashboard.
+3. Confirm whether the user received the paid entitlement:
    - New subscription: active subscription exists for the paid plan and period.
    - Upgrade: plan changed immediately and expiration date remained unchanged.
    - Renewal: subscription period extended to the next cycle.
-3. If the user did not receive the entitlement, choose one operational resolution:
+4. If the user did not receive the entitlement, choose one operational resolution:
    - Manual refund/cancel through Toss dashboard.
    - Manual entitlement correction only after separate operational approval and backup.
-4. Record the incident in the support tracker with the safe evidence above.
-5. Rerun reconciliation and confirm the issue is either resolved or intentionally tracked.
+5. Record external support-tracker details if a refund, entitlement correction, or customer contact is needed.
+6. Rerun reconciliation and mark the incident `RESOLVED` or `IGNORED` with a short note.
 
 ### 6.3 Refund/Cancellation Boundary
 
@@ -142,10 +166,12 @@ Before enabling live Toss recurring billing:
 - Confirm production CORS allows only intended frontend origins.
 - Set `PAYMENT_BILLING_KEY_ENCRYPTION_SECRET` through a secret manager or environment variable.
 - Confirm `TOSS_PAYMENT_LOOKUP_BY_ORDER_ID_URL` or `app.payment.billing.payment-lookup-by-order-id-url` points to the Toss production API.
+- If email notification is desired, set `PAYMENT_RECONCILIATION_NOTIFICATION_ENABLED=true` and `PAYMENT_OPERATIONS_OPERATOR_EMAIL`.
 - Confirm application logs do not include raw billing keys, raw provider payloads, or raw card data.
 - Confirm admin payment pages are restricted to `ROLE_ADMIN`.
 - Confirm WARN-level reconciliation logs are collected by the production log monitoring system.
 - Run `GET /api/admin/payments/reconciliation` after a staging payment rehearsal.
+- Run `GET /api/admin/payments/reconciliation-incidents?status=OPEN` after a staging payment rehearsal.
 
 ## 8. Webhook Boundary
 
@@ -165,9 +191,8 @@ If webhook is introduced later:
 
 Separate REQ/SR items are still needed for:
 
-- Persistent reconciliation incident storage.
-- Operator notification for high-severity reconciliation issues.
-- Admin incident workflow such as `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, and `IGNORED`.
+- Admin frontend UI for the reconciliation incident workflow.
+- Slack/SMS/in-app operator notification channels.
 - Refund automation.
 - Receipt, settlement, and tax invoice operations.
 - Admin payment mutation APIs.

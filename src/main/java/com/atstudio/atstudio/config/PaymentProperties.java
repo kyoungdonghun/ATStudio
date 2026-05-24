@@ -15,6 +15,7 @@ public class PaymentProperties {
     private PaymentProviderType provider = PaymentProviderType.MOCK;
     private Toss toss = new Toss();
     private Billing billing = new Billing();
+    private Operations operations = new Operations();
 
     @Getter
     @Setter
@@ -40,5 +41,12 @@ public class PaymentProperties {
         private String paymentLookupByOrderIdUrl = "https://api.tosspayments.com/v1/payments/orders/{orderId}";
         private int connectTimeoutMillis = 3000;
         private int readTimeoutMillis = 60000;
+    }
+
+    @Getter
+    @Setter
+    public static class Operations {
+        private boolean reconciliationNotificationEnabled = false;
+        private String operatorEmail = "";
     }
 }

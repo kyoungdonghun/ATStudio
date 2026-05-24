@@ -18,7 +18,8 @@ public record AdminPaymentReconciliationResponse(
                         local.checkedBillingAgreements(),
                         local.doneOrdersWithoutPayment(),
                         local.activeAgreementsWithoutSubscription(),
-                        local.hasMismatch()),
+                        local.hasMismatch(),
+                        local.issues()),
                 new ProviderLedger(
                         provider.checkedOrders(),
                         provider.skippedOrders(),
@@ -36,7 +37,8 @@ public record AdminPaymentReconciliationResponse(
             int checkedBillingAgreements,
             int doneOrdersWithoutPayment,
             int activeAgreementsWithoutSubscription,
-            boolean hasMismatch) {
+            boolean hasMismatch,
+            List<PaymentReconciliationService.LocalReconciliationIssue> issues) {
     }
 
     public record ProviderLedger(
@@ -51,4 +53,3 @@ public record AdminPaymentReconciliationResponse(
             List<PaymentReconciliationService.ProviderReconciliationIssue> issues) {
     }
 }
-

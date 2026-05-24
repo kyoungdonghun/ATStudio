@@ -1,8 +1,8 @@
 # ATStudio DB Schema Definition v6 (Confirmed)
 
-> **Status**: v6 Confirmed — users.company_name (SR-47), subscriptions.max_playlists (SR-55), subscription seed prices finalized, payment billing sync, recurring-first plan changes
-> **Base**: v5 + 2026-05-19 payment change patch
-> **Date**: 2026-05-19
+> **Status**: v6 Confirmed — users.company_name (SR-47), subscriptions.max_playlists (SR-55), subscription seed prices finalized, payment billing sync, recurring-first plan changes, payment reconciliation incidents
+> **Base**: v5 + 2026-05-24 payment operations incident patch
+> **Date**: 2026-05-24
 
 ---
 
@@ -17,6 +17,7 @@
 | 5 | `billing_agreements` | **Added** — Server-side recurring billing agreement and encrypted billing key metadata. |
 | 6 | Payment table billing links | **Added** — `payment_orders.billing_agreement_id` and `subscription_payments.billing_agreement_id` for recurring billing traceability. |
 | 7 | Subscription change policy | **Updated** — Upgrade charges remaining-period difference through `TOSS_BILLING`, preserves the current billing cycle for the active period, and stores requested future cycle changes as pending; downgrade remains pending for next renewal. |
+| 8 | `payment_reconciliation_incidents` | **Added** — Persistent local/provider reconciliation incident workflow with dedupe, occurrence count, optional notification marker, and admin status tracking. |
 
 ---
 
@@ -393,6 +394,42 @@
 - Provider-level billing agreement cancellation clears issued-key fields and requires payment-method re-registration before future automatic charges.
 - Neither cancellation path removes already-paid subscription access before `user_subscriptions.expires_at`.
 
+## 6.6 Payment Reconciliation Incidents (`payment_reconciliation_incidents`)
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Dedupe key | `dedupe_key` | VARCHAR(255) | NOT NULL | UNIQUE | | Deterministic issue key such as issue type plus order ID |
+| Issue type | `issue_type` | ENUM('DONE_ORDER_WITHOUT_PAYMENT','ACTIVE_AGREEMENT_WITHOUT_SUBSCRIPTION','PROVIDER_DONE_LOCAL_NOT_FINALIZED','LOCAL_DONE_PROVIDER_NOT_FOUND','LOCAL_DONE_PROVIDER_NOT_DONE','AMOUNT_MISMATCH','PROVIDER_LOOKUP_FAILED') | NOT NULL | | | Local/provider mismatch category |
+| Status | `status` | ENUM('OPEN','ACKNOWLEDGED','RESOLVED','IGNORED') | NOT NULL | INDEX(status,last_detected_at) | 'OPEN' | Operator workflow state |
+| Severity | `severity` | ENUM('WARNING','CRITICAL') | NOT NULL | | 'WARNING' | Used for triage and optional email notification |
+| Payment order | `payment_order_id` | BIGINT | NULL | FK(payment_orders.id) | | Set when the issue maps to a payment order |
+| Billing agreement | `billing_agreement_id` | BIGINT | NULL | FK(billing_agreements.id) | | Set when the issue maps to a billing agreement |
+| User | `user_id` | BIGINT | NULL | FK(users.id) | | Support lookup only |
+| Order ID | `order_id` | VARCHAR(64) | NULL | INDEX | | Merchant order ID |
+| Provider | `provider` | ENUM('MOCK','TOSS','TOSS_BILLING','KAKAOPAY') | NULL | | | |
+| Purpose | `purpose` | ENUM('SUBSCRIBE','UPGRADE','RENEWAL','BILLING_AGREEMENT') | NULL | | | |
+| Local status | `local_status` | VARCHAR(50) | NULL | | | Local order/agreement status snapshot |
+| Provider status | `provider_status` | VARCHAR(50) | NULL | | | Provider lookup status snapshot |
+| Local amount | `local_amount` | DECIMAL(10,2) | NULL | | | |
+| Provider amount | `provider_amount` | DECIMAL(10,2) | NULL | | | |
+| Provider transaction ID | `provider_transaction_id` | VARCHAR(200) | NULL | | | Provider payment key/transaction identifier only |
+| Failure code | `failure_code` | VARCHAR(100) | NULL | | | Sanitized provider/local code |
+| Failure message | `failure_message` | VARCHAR(500) | NULL | | | Sanitized message |
+| Occurrence count | `occurrence_count` | INT | NOT NULL | | 1 | Incremented on repeated detection |
+| First detected at | `first_detected_at` | DATETIME | NOT NULL | | | |
+| Last detected at | `last_detected_at` | DATETIME | NOT NULL | | | Updated on repeated detection |
+| Notified at | `notified_at` | DATETIME | NULL | | | Set when optional operator email notification is sent |
+| Resolved at | `resolved_at` | DATETIME | NULL | | | Set for `RESOLVED` or `IGNORED` |
+| Resolution note | `resolution_note` | VARCHAR(500) | NULL | | | Operator note |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+- Repeated detections update the same row by `dedupe_key`.
+- `RESOLVED` incidents reopen automatically if the same mismatch appears again.
+- `IGNORED` incidents remain ignored while occurrence metadata continues to update.
+- This table must never store raw billing keys, raw `authKey`, raw `customerKey`, raw card data, Toss secret keys, or raw provider payloads.
+
 ---
 
 # 7. Likes
@@ -670,6 +707,7 @@ users ─┬─< social_accounts
        ├─< billing_agreements
        ├─< payment_orders ──> subscriptions
        ├─< subscription_payments ──> subscriptions
+       ├─< payment_reconciliation_incidents ──> payment_orders / billing_agreements
        ├─< company_certifications
        ├─< track_downloads ──> tracks
        ├─< play_histories ──> tracks
@@ -712,20 +750,21 @@ site_settings (standalone — no FK)
 | 13 | `billing_agreements` | Recurring billing agreement credentials and state | Transaction |
 | 14 | `payment_orders` | Payment attempt ledger | Transaction |
 | 15 | `subscription_payments` | Subscription payment records | Transaction |
-| 16 | `likes` | Track likes | Mapping |
-| 17 | `album_likes` | Album likes | Mapping |
-| 18 | `download_queue` | Download queue | Mapping |
-| 19 | `whitelist_channels` | Whitelist channels | Master |
-| 20 | `questions` | Inquiries | Transaction |
-| 21 | `answers` | Inquiry answers | Transaction |
-| 22 | `licenses` | Track usage licenses | Transaction |
-| 23 | `notices` | Notices | Master |
-| 24 | `question_attachments` | Inquiry attachments | Transaction |
-| 25 | `notice_attachments` | Notice attachments | Transaction |
-| 26 | `albums` | Curated albums | Master |
-| 27 | `album_tracks` | Album-track mapping | Mapping |
-| 28 | `email_verification_tokens` | Email verification tokens | Transaction |
-| 29 | `password_reset_tokens` | Password reset tokens | Transaction |
-| 30 | `site_settings` | Site configuration key-value store | Master |
+| 16 | `payment_reconciliation_incidents` | Payment reconciliation incident workflow | Transaction |
+| 17 | `likes` | Track likes | Mapping |
+| 18 | `album_likes` | Album likes | Mapping |
+| 19 | `download_queue` | Download queue | Mapping |
+| 20 | `whitelist_channels` | Whitelist channels | Master |
+| 21 | `questions` | Inquiries | Transaction |
+| 22 | `answers` | Inquiry answers | Transaction |
+| 23 | `licenses` | Track usage licenses | Transaction |
+| 24 | `notices` | Notices | Master |
+| 25 | `question_attachments` | Inquiry attachments | Transaction |
+| 26 | `notice_attachments` | Notice attachments | Transaction |
+| 27 | `albums` | Curated albums | Master |
+| 28 | `album_tracks` | Album-track mapping | Mapping |
+| 29 | `email_verification_tokens` | Email verification tokens | Transaction |
+| 30 | `password_reset_tokens` | Password reset tokens | Transaction |
+| 31 | `site_settings` | Site configuration key-value store | Master |
 
-Total **30 tables**
+Total **31 tables**

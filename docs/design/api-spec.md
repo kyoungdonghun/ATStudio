@@ -1,6 +1,6 @@
 # ATStudio API Specification v11 (Confirmed)
 
-> **Status**: 11th confirmed — subscription cancel/reactivate, change-reservation, cycle-only pending UX, billing-method recovery, and payment reconciliation policy sync
+> **Status**: 11th confirmed — subscription cancel/reactivate, change-reservation, cycle-only pending UX, billing-method recovery, payment reconciliation, and incident workflow sync
 > **Base**: v10 + 2026-05-24 payment operations reconciliation patch
 > **Date**: 2026-05-24
 
@@ -18,6 +18,7 @@
 | AB6 | §6.3.7/§6.7 cycle-only pending UX | Provider-level billing-agreement cancel is separated from user-facing subscription cancel; upgrade plus next-cycle changes must show the upgraded plan as active and only the billing cycle as pending. |
 | AB7 | §6.3.8 admin reconciliation | Added read-only admin local/provider payment reconciliation endpoint. |
 | AB8 | Full API Summary | Updated total count from 118 → 119 |
+| AB9 | §6.3.8 reconciliation incidents | Added admin APIs for persisted reconciliation incident list and status workflow; updated total count from 119 → 121 |
 
 ---
 
@@ -1346,9 +1347,9 @@ For payment-method re-registration on an existing active/grace-period subscripti
 }
 ```
 
-## 6.3.8 Payment Operations Read-only APIs
+## 6.3.8 Payment Operations Admin APIs
 
-These endpoints are implemented as read-only admin support/audit views. They must not expose raw billing keys, auth keys, customer keys, Toss secret keys, or raw provider payloads.
+These endpoints are implemented as admin support/audit views. Payment order, billing agreement, subscription payment, and on-demand reconciliation endpoints are read-only. Reconciliation incident status updates mutate only the incident workflow state; they must not refund payments, cancel provider charges, change subscriptions, or mutate billing agreements. These endpoints must not expose raw billing keys, auth keys, customer keys, Toss secret keys, raw provider payloads, or raw card data.
 
 | API | Purpose | Notes |
 |---|---|---|
@@ -1356,6 +1357,8 @@ These endpoints are implemented as read-only admin support/audit views. They mus
 | `GET /api/admin/payments/billing-agreements` | List billing agreements by latest created date | Shows masked method and failure count only |
 | `GET /api/admin/payments/subscription-payments` | List finalized subscription payment records | No refund/settlement mutation in this phase |
 | `GET /api/admin/payments/reconciliation` | Run local/provider payment reconciliation | Read-only; returns support-safe mismatch counts and issue records, no raw provider secrets |
+| `GET /api/admin/payments/reconciliation-incidents` | List persisted reconciliation incidents | Optional `status` filter; support-safe incident workflow metadata only |
+| `PUT /api/admin/payments/reconciliation-incidents/{incidentId}/status` | Update incident workflow status | Mutates incident status/note only; no payment/subscription/provider mutation |
 
 ### GET /api/admin/payments/reconciliation
 
@@ -1375,7 +1378,8 @@ These endpoints are implemented as read-only admin support/audit views. They mus
       "checkedBillingAgreements": 12,
       "doneOrdersWithoutPayment": 0,
       "activeAgreementsWithoutSubscription": 0,
-      "hasMismatch": false
+      "hasMismatch": false,
+      "issues": []
     },
     "providerLedger": {
       "checkedOrders": 100,
@@ -1389,6 +1393,9 @@ These endpoints are implemented as read-only admin support/audit views. They mus
       "issues": [
         {
           "issueType": "PROVIDER_DONE_LOCAL_NOT_FINALIZED",
+          "paymentOrderId": 3001,
+          "userId": 12,
+          "billingAgreementId": 10,
           "orderId": "ATS-REN-20260524-ABC123",
           "provider": "TOSS_BILLING",
           "purpose": "RENEWAL",
@@ -1402,6 +1409,94 @@ These endpoints are implemented as read-only admin support/audit views. They mus
         }
       ]
     }
+  }
+}
+```
+
+### GET /api/admin/payments/reconciliation-incidents
+
+| Field | Value |
+|---|---|
+| **URL** | `GET /api/admin/payments/reconciliation-incidents?status=OPEN&page=1&size=20` |
+| **Auth** | ADMIN |
+| **Description** | Lists persisted reconciliation incidents created by scheduled reconciliation. `status` is optional and may be `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, or `IGNORED`. This endpoint is for operations triage and does not mutate payment state. |
+
+**Response** `200 OK`
+
+```json
+{
+  "dataList": [
+    {
+      "id": 1,
+      "dedupeKey": "PROVIDER_DONE_LOCAL_NOT_FINALIZED:order:ATS-REN-20260524-ABC123",
+      "issueType": "PROVIDER_DONE_LOCAL_NOT_FINALIZED",
+      "status": "OPEN",
+      "severity": "CRITICAL",
+      "paymentOrderId": 3001,
+      "billingAgreementId": 10,
+      "userId": 12,
+      "userNickname": "customer12",
+      "orderId": "ATS-REN-20260524-ABC123",
+      "provider": "TOSS_BILLING",
+      "purpose": "RENEWAL",
+      "localStatus": "IN_PROGRESS",
+      "providerStatus": "DONE",
+      "localAmount": 9900,
+      "providerAmount": 9900,
+      "providerTransactionId": "payment_key",
+      "failureCode": null,
+      "failureMessage": null,
+      "occurrenceCount": 2,
+      "firstDetectedAt": "2026-05-24T01:00:00",
+      "lastDetectedAt": "2026-05-24T01:00:00",
+      "notifiedAt": "2026-05-24T01:00:02",
+      "resolvedAt": null,
+      "resolutionNote": null,
+      "createdAt": "2026-05-24T01:00:00"
+    }
+  ],
+  "pageInfo": {
+    "page": 1,
+    "size": 20,
+    "total": 1,
+    "start": 1,
+    "end": 1,
+    "prev": false,
+    "next": false
+  }
+}
+```
+
+### PUT /api/admin/payments/reconciliation-incidents/{incidentId}/status
+
+| Field | Value |
+|---|---|
+| **URL** | `PUT /api/admin/payments/reconciliation-incidents/{incidentId}/status` |
+| **Auth** | ADMIN |
+| **Description** | Updates the reconciliation incident workflow state. Valid statuses are `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, and `IGNORED`. This endpoint does not mutate payment orders, subscriptions, billing agreements, or provider state. |
+
+**Request**
+
+```json
+{
+  "status": "ACKNOWLEDGED",
+  "note": "Investigating against Toss dashboard."
+}
+```
+
+**Response** `200 OK`
+
+```json
+{
+  "data": {
+    "id": 1,
+    "dedupeKey": "PROVIDER_DONE_LOCAL_NOT_FINALIZED:order:ATS-REN-20260524-ABC123",
+    "issueType": "PROVIDER_DONE_LOCAL_NOT_FINALIZED",
+    "status": "ACKNOWLEDGED",
+    "severity": "CRITICAL",
+    "orderId": "ATS-REN-20260524-ABC123",
+    "occurrenceCount": 2,
+    "resolutionNote": "Investigating against Toss dashboard."
   }
 }
 ```
@@ -2726,7 +2821,7 @@ key: String (required) — setting key name
 
 ---
 
-# Full API Summary (119)
+# Full API Summary (121)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -2747,5 +2842,5 @@ key: String (required) — setting key name
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
-| 18 | Admin Payment Operations | 4 |
-| | **Total** | **119** |
+| 18 | Admin Payment Operations | 6 |
+| | **Total** | **121** |

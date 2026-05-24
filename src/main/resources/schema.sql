@@ -377,7 +377,7 @@ CREATE TABLE IF NOT EXISTS licenses
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 3.8  billing_agreements / payment_orders / subscription_payments
+-- 3.8  billing_agreements / payment_orders / subscription_payments / payment_reconciliation_incidents
 -- ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS billing_agreements
 (
@@ -459,6 +459,56 @@ CREATE TABLE IF NOT EXISTS subscription_payments
     CONSTRAINT fk_subscription_payments_subscription FOREIGN KEY (subscription_id)      REFERENCES subscriptions      (id),
     CONSTRAINT fk_subscription_payments_order        FOREIGN KEY (payment_order_id)     REFERENCES payment_orders     (id),
     CONSTRAINT fk_subscription_payments_agreement    FOREIGN KEY (billing_agreement_id) REFERENCES billing_agreements (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS payment_reconciliation_incidents
+(
+    id                      BIGINT NOT NULL AUTO_INCREMENT,
+    dedupe_key              VARCHAR(255) NOT NULL,
+    issue_type              ENUM (
+        'DONE_ORDER_WITHOUT_PAYMENT',
+        'ACTIVE_AGREEMENT_WITHOUT_SUBSCRIPTION',
+        'PROVIDER_DONE_LOCAL_NOT_FINALIZED',
+        'LOCAL_DONE_PROVIDER_NOT_FOUND',
+        'LOCAL_DONE_PROVIDER_NOT_DONE',
+        'AMOUNT_MISMATCH',
+        'PROVIDER_LOOKUP_FAILED'
+    ) NOT NULL,
+    status                  ENUM ('OPEN', 'ACKNOWLEDGED', 'RESOLVED', 'IGNORED') NOT NULL DEFAULT 'OPEN',
+    severity                ENUM ('WARNING', 'CRITICAL') NOT NULL DEFAULT 'WARNING',
+    payment_order_id        BIGINT NULL,
+    billing_agreement_id    BIGINT NULL,
+    user_id                 BIGINT NULL,
+    order_id                VARCHAR(64) NULL,
+    provider                ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NULL,
+    purpose                 ENUM ('SUBSCRIBE', 'UPGRADE', 'RENEWAL', 'BILLING_AGREEMENT') NULL,
+    local_status            VARCHAR(50) NULL,
+    provider_status         VARCHAR(50) NULL,
+    local_amount            DECIMAL(10, 2) NULL,
+    provider_amount         DECIMAL(10, 2) NULL,
+    provider_transaction_id VARCHAR(200) NULL,
+    failure_code            VARCHAR(100) NULL,
+    failure_message         VARCHAR(500) NULL,
+    occurrence_count        INT NOT NULL DEFAULT 1,
+    first_detected_at       DATETIME NOT NULL,
+    last_detected_at        DATETIME NOT NULL,
+    notified_at             DATETIME NULL,
+    resolved_at             DATETIME NULL,
+    resolution_note         VARCHAR(500) NULL,
+    created_at              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_payment_reconciliation_incidents_dedupe (dedupe_key),
+    KEY idx_payment_reconciliation_incidents_status_last (status, last_detected_at),
+    KEY idx_payment_reconciliation_incidents_order (order_id),
+    CONSTRAINT fk_payment_reconciliation_incidents_order
+        FOREIGN KEY (payment_order_id) REFERENCES payment_orders (id),
+    CONSTRAINT fk_payment_reconciliation_incidents_agreement
+        FOREIGN KEY (billing_agreement_id) REFERENCES billing_agreements (id),
+    CONSTRAINT fk_payment_reconciliation_incidents_user
+        FOREIGN KEY (user_id) REFERENCES users (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;

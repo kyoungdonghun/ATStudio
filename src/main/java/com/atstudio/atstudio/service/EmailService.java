@@ -125,6 +125,19 @@ public class EmailService {
         sendEmail(user.getEmail(), subject, body);
     }
 
+    public void sendPaymentReconciliationIncidentAlert(
+            String operatorEmail,
+            String summary,
+            String details) {
+        if (operatorEmail == null || operatorEmail.isBlank()) {
+            return;
+        }
+
+        String subject = "[ATStudio] Payment reconciliation incident";
+        String body = buildPaymentReconciliationIncidentEmailBody(summary, details);
+        sendEmail(operatorEmail, subject, body);
+    }
+
     @Transactional
     public void resetPassword(String token, String newPassword) {
         passwordLoginPolicy.ensureEnabled();
@@ -224,7 +237,35 @@ public class EmailService {
                 defaultText(retryGuide, "Please check your payment method and try again from My Subscription."));
     }
 
+    private String buildPaymentReconciliationIncidentEmailBody(String summary, String details) {
+        return """
+                <div style="max-width:640px;margin:0 auto;font-family:'Apple SD Gothic Neo',sans-serif;">
+                  <h2 style="color:#333;">Payment reconciliation incident</h2>
+                  <p>%s</p>
+                  <pre style="white-space:pre-wrap;background:#f6f8fa;border:1px solid #d0d7de;
+                              border-radius:6px;padding:12px;color:#24292f;">%s</pre>
+                  <p style="color:#888;font-size:13px;">
+                    This message never includes card numbers, billing keys, auth keys, customer keys, or provider secrets.
+                  </p>
+                </div>
+                """.formatted(
+                escapeHtml(defaultText(summary, "A payment reconciliation incident was detected.")),
+                escapeHtml(defaultText(details, "-")));
+    }
+
     private String defaultText(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 }
