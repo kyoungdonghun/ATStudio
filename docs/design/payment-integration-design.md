@@ -679,9 +679,10 @@ Sensitive-data boundary:
 - Provider API-backed reconciliation is implemented for recent Toss billing payment orders by `orderId`.
 - Scheduled reconciliation persists mismatch incidents and can send optional operator email when explicitly configured.
 - Provider success plus local persistence failure is covered by the payment operations runbook; actual refund automation remains separate.
+- Refund, receipt, settlement, and tax invoice operating policy is documented in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md); implementation remains separate.
 - Add external notification channels as follow-up work if email/log/admin-screen operations are insufficient.
 - Provider-side webhook handling remains optional auxiliary work and must not become the sole source of truth for recurring billing access.
-- Add receipt, settlement, tax invoice, and refund operations as separate REQ/SR items.
+- Add receipt, settlement, tax invoice, and refund implementations as separate REQ/SR items.
 
 ## 15. Open Decisions
 
@@ -700,6 +701,7 @@ Sensitive-data boundary:
 | PAY-D11 | Upgrade payment model | Use active billing agreement for immediate prorated charge; preserve current billing cycle and next billing date |
 | PAY-D12 | Downgrade payment model | Schedule pending plan/cycle and apply after the next successful renewal charge with no immediate charge |
 | PAY-D13 | Removed billing-key recovery | Mark local agreement `EXPIRED`, clear issued-key metadata, keep the subscription unchanged, and require zero-amount `BILLING_AGREEMENT` re-registration |
+| PAY-D14 | Refund/receipt/settlement/tax invoice policy | Policy documented; implementation requires separate audited operation ledgers and REQ/SR approval |
 
 ## 16. Implementation Risk Notes
 
@@ -716,6 +718,7 @@ Sensitive-data boundary:
 - [API Specification](api-spec.md)
 - [DB Schema](db-schema.md)
 - [Payment Operations Runbook](payment-operations-runbook.md)
+- [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md)
 - [User Subscription Use Cases](usecase/user-subscription.md)
 - [Screen Flow](../ui/screen-flow.md)
 - [Modal List](../ui/modal-list.md)

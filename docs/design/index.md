@@ -1,6 +1,6 @@
 ---
-version: 1.3
-last_updated: 2026-05-24
+version: 1.4
+last_updated: 2026-05-25
 project: system
 owner: SA
 category: registry
@@ -30,4 +30,4 @@ status: stable
 | **[Use Case Index](usecase/index.md)** | Domain use case documents | stable |
 | **[Payment Integration Design](payment-integration-design.md)** | Recurring-first subscription payment, legacy/mock payment compatibility, and provider architecture | draft |
 | **[Payment Operations Runbook](payment-operations-runbook.md)** | Toss recurring payment reconciliation and production incident response | draft |
-
+| **[Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md)** | Payment operations policy for refund, receipt, settlement, tax invoice, and future admin mutation boundaries | draft |

@@ -1,7 +1,7 @@
 # Payment Operations Runbook
 
 > Purpose: Define production-facing operational procedures for Toss billing-key recurring payment reconciliation and incident response.
-> Scope: ATStudio subscription payments only. This document does not introduce refund automation, settlement, tax invoice, or admin mutation features.
+> Scope: ATStudio subscription payments only. This document does not introduce refund automation, settlement, tax invoice, or admin mutation features. Refund/receipt/settlement/tax invoice policy is defined separately in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md).
 
 ## 1. Operating Model
 
@@ -156,6 +156,13 @@ ATStudio does not yet provide an admin refund or force-cancel API.
 
 Until that feature exists, refund or cancellation must be handled in Toss operations tooling and recorded externally. Do not add ad-hoc database edits without approval, backup, and a linked incident.
 
+For the next implementation boundary, use [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md):
+
+- User-facing subscription cancellation is not refund.
+- Provider refund and entitlement correction are separate audited operations.
+- Future refund provider requests must persist an idempotency key before execution.
+- Receipt, settlement, and tax invoice evidence require explicit ledgers rather than only sanitized provider payload.
+
 ## 7. Production Configuration Checklist
 
 Before enabling live Toss recurring billing:
@@ -193,8 +200,8 @@ If webhook is introduced later:
 Separate REQ/SR items are still needed for:
 
 - Slack/SMS/in-app operator notification channels.
-- Refund automation.
-- Receipt, settlement, and tax invoice operations.
+- Refund automation based on the payment operations policy.
+- Receipt evidence, cash receipt, settlement import/reconciliation, and tax invoice request implementation based on the payment operations policy.
 - Admin payment mutation APIs.
 - Legacy endpoint removal.
 - KakaoPay, NaverPay, or other PG adapters.

@@ -1,6 +1,6 @@
 ---
-version: 1.6
-last_updated: 2026-04-15
+version: 1.7
+last_updated: 2026-05-25
 project: ATS
 owner: EO
 category: registry
@@ -17,7 +17,7 @@ status: stable
 | Category | Document Count | Index File | Description |
 | ---------- | ------- | ------------------------------------------ | -------------------- |
 | Architecture | 1 | [Architecture Index](architecture/index.md) | High-level design/principles |
-| Design | 22 | [Design Index](design/index.md) | Meta + ATStudio domain design (API, DB, use cases, protocol references) |
+| Design | 23 | [Design Index](design/index.md) | Meta + ATStudio domain design (API, DB, use cases, protocol references) |
 | Policies | 8 | [Policies Index](policies/index.md) | Operational policy documents |
 | Standards | 13 | [Standards Index](standards/index.md) | Standard documents and reference assets |
 | Templates | 18 | [Templates Index](templates/index.md) | Document/artifact templates |
@@ -30,7 +30,7 @@ status: stable
 | UI | 3 | [UI Index](ui/index.md) | Screen inventory, flow, and modal planning documents |
 | Eval | 0 | [Eval Index](eval/index.md) | Evaluation documents |
 
-**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **175**.
+**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **176**.
 
 ## Required Documents Mapping by Role
 
