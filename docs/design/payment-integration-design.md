@@ -42,6 +42,7 @@ Current implementation facts:
 - Toss one-time checkout remains a provider capability, but subscription `SUBSCRIBE`/`UPGRADE` prepare and confirm are blocked for user-facing subscription scope.
 - Expired `READY`/`IN_PROGRESS` payment orders are closed by scheduler.
 - A local reconciliation job reports ledger mismatches such as `DONE` payment orders without finalized subscription payment rows.
+- Provider API reconciliation compares recent Toss billing payment orders with Toss payment state by `orderId` when lookup configuration is available.
 - Admins have a read-only payment operations view for payment orders, billing agreements, and finalized subscription payments.
 
 The payment layer separates:
@@ -672,9 +673,9 @@ Sensitive-data boundary:
 
 ### Phase E: Remaining Production Hardening
 
-- Add provider-side webhook handling.
-- Add provider API-backed reconciliation beyond the current local ledger mismatch scan.
-- Add compensating cancel/refund handling for provider success plus local persistence failure.
+- Provider API-backed reconciliation is implemented for recent Toss billing payment orders by `orderId`.
+- Provider success plus local persistence failure is covered by the payment operations runbook; actual refund automation remains separate.
+- Provider-side webhook handling remains optional auxiliary work and must not become the sole source of truth for recurring billing access.
 - Add receipt, settlement, tax invoice, and refund operations as separate REQ/SR items.
 
 ## 15. Open Decisions
@@ -687,7 +688,7 @@ Sensitive-data boundary:
 | PAY-D04 | Mock UI detail level | Include success/fail/cancel buttons |
 | PAY-D05 | One-time checkout role | Not user-facing for subscription scope; stale subscription routes are blocked |
 | PAY-D06 | Payment admin screen | Design read-only support view first; defer mutation/refund operations |
-| PAY-D07 | Refund/cancel automation | Defer implementation, design compensation hook now |
+| PAY-D07 | Refund/cancel automation | Defer implementation; use provider reconciliation plus the operations runbook as the manual compensation hook |
 | PAY-D08 | Recurring billing failure grace period | 3-day grace period with up to 3 retry attempts (accepted) |
 | PAY-D09 | Initial recurring subscription charge | Billing-key registration followed by immediate first charge (accepted) |
 | PAY-D10 | Production checkout surface | Dedicated `/subscriptions/checkout` callback route implemented for recurring billing auth |
@@ -709,6 +710,7 @@ Sensitive-data boundary:
 
 - [API Specification](api-spec.md)
 - [DB Schema](db-schema.md)
+- [Payment Operations Runbook](payment-operations-runbook.md)
 - [User Subscription Use Cases](usecase/user-subscription.md)
 - [Screen Flow](../ui/screen-flow.md)
 - [Modal List](../ui/modal-list.md)

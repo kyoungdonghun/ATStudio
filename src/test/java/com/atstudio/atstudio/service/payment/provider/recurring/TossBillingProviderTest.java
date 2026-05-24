@@ -201,6 +201,44 @@ class TossBillingProviderTest {
         assertThat(captured.authorization.get()).isEqualTo(basicAuth());
     }
 
+    @Test
+    @DisplayName("findPaymentByOrderId retrieves Toss payment state with sanitized payload")
+    void findPaymentByOrderIdSuccess() throws IOException {
+        CapturedRequest captured = new CapturedRequest();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v1/payments/orders/ORDER-1", exchange -> {
+            captured.authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            captured.method.set(exchange.getRequestMethod());
+            String response = """
+                    {
+                      "paymentKey": "payment_key",
+                      "orderId": "ORDER-1",
+                      "status": "DONE",
+                      "method": "카드",
+                      "approvedAt": "2026-05-24T10:00:00+09:00",
+                      "totalAmount": 9900,
+                      "card": {
+                        "number": "1234-****-****-5678"
+                      }
+                    }
+                    """;
+            send(exchange, 200, response);
+        });
+        server.start();
+
+        TossBillingProvider provider = new TossBillingProvider(properties(baseUrl()));
+
+        ProviderPaymentLookupResult result = provider.findPaymentByOrderId("ORDER-1");
+
+        assertThat(captured.method.get()).isEqualTo("GET");
+        assertThat(captured.authorization.get()).isEqualTo(basicAuth());
+        assertThat(result.found()).isTrue();
+        assertThat(result.providerDone()).isTrue();
+        assertThat(result.transactionId()).isEqualTo("payment_key");
+        assertThat(result.totalAmount()).isEqualByComparingTo("9900");
+        assertThat(result.providerPayload()).contains("\"paymentKey\":\"payment_key\"");
+    }
+
     private PaymentProperties properties(String baseUrl) {
         PaymentProperties properties = new PaymentProperties();
         properties.getToss().setClientKey("test_ck_sample");
@@ -210,6 +248,7 @@ class TossBillingProviderTest {
         properties.getBilling().setIssueUrl(baseUrl + "/v1/billing/authorizations/issue");
         properties.getBilling().setChargeUrl(baseUrl + "/v1/billing/{billingKey}");
         properties.getBilling().setDeleteUrl(baseUrl + "/v1/billing/{billingKey}");
+        properties.getBilling().setPaymentLookupByOrderIdUrl(baseUrl + "/v1/payments/orders/{orderId}");
         return properties;
     }
 

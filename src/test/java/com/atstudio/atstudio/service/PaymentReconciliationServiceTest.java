@@ -14,6 +14,8 @@ import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.repository.PaymentOrderRepository;
 import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
+import com.atstudio.atstudio.service.payment.provider.recurring.PaymentStatusLookupProvider;
+import com.atstudio.atstudio.service.payment.provider.recurring.ProviderPaymentLookupResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +43,7 @@ class PaymentReconciliationServiceTest {
     @Mock BillingAgreementRepository billingAgreementRepository;
     @Mock SubscriptionPaymentRepository subscriptionPaymentRepository;
     @Mock UserSubscriptionRepository userSubscriptionRepository;
+    @Mock PaymentStatusLookupProvider paymentStatusLookupProvider;
 
     @Test
     @DisplayName("reconcileLocalLedger reports missing finalized payment rows")
@@ -49,7 +52,8 @@ class PaymentReconciliationServiceTest {
                 paymentOrderRepository,
                 billingAgreementRepository,
                 subscriptionPaymentRepository,
-                userSubscriptionRepository);
+                userSubscriptionRepository,
+                List.of());
         User user = buildUser(1L);
         PaymentOrder doneOrder = buildOrder(user);
         doneOrder.markDone("tx_1", null, "{}");
@@ -73,7 +77,8 @@ class PaymentReconciliationServiceTest {
                 paymentOrderRepository,
                 billingAgreementRepository,
                 subscriptionPaymentRepository,
-                userSubscriptionRepository);
+                userSubscriptionRepository,
+                List.of());
         User user = buildUser(1L);
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
@@ -94,6 +99,64 @@ class PaymentReconciliationServiceTest {
         assertThat(result.checkedBillingAgreements()).isEqualTo(1);
         assertThat(result.activeAgreementsWithoutSubscription()).isEqualTo(1);
         assertThat(result.hasMismatch()).isTrue();
+    }
+
+    @Test
+    @DisplayName("reconcileProviderLedger reports provider DONE orders that are not finalized locally")
+    void reconcileProviderLedger_reportsProviderDoneWithoutLocalFinalization() {
+        PaymentReconciliationService service = new PaymentReconciliationService(
+                paymentOrderRepository,
+                billingAgreementRepository,
+                subscriptionPaymentRepository,
+                userSubscriptionRepository,
+                List.of(paymentStatusLookupProvider));
+        User user = buildUser(1L);
+        PaymentOrder order = buildOrder(user);
+
+        given(paymentOrderRepository.findAllByOrderByCreatedAtDesc(any()))
+                .willReturn(new PageImpl<>(List.of(order)));
+        given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+        given(paymentStatusLookupProvider.isLookupConfigured()).willReturn(true);
+        given(paymentStatusLookupProvider.findPaymentByOrderId("ATS-DONE"))
+                .willReturn(ProviderPaymentLookupResult.found(
+                        PaymentProviderType.TOSS_BILLING,
+                        "ATS-DONE",
+                        "payment_key",
+                        "DONE",
+                        BigDecimal.valueOf(9900),
+                        "{\"paymentKey\":\"payment_key\"}"));
+
+        PaymentReconciliationService.ProviderReconciliationResult result = service.reconcileProviderLedger();
+
+        assertThat(result.checkedOrders()).isEqualTo(1);
+        assertThat(result.providerDoneWithoutLocalFinalization()).isEqualTo(1);
+        assertThat(result.issues()).extracting(PaymentReconciliationService.ProviderReconciliationIssue::issueType)
+                .containsExactly("PROVIDER_DONE_LOCAL_NOT_FINALIZED");
+        assertThat(result.hasMismatch()).isTrue();
+    }
+
+    @Test
+    @DisplayName("reconcileProviderLedger skips provider lookup when provider configuration is unavailable")
+    void reconcileProviderLedger_skipsUnconfiguredLookupProvider() {
+        PaymentReconciliationService service = new PaymentReconciliationService(
+                paymentOrderRepository,
+                billingAgreementRepository,
+                subscriptionPaymentRepository,
+                userSubscriptionRepository,
+                List.of(paymentStatusLookupProvider));
+        User user = buildUser(1L);
+        PaymentOrder order = buildOrder(user);
+
+        given(paymentOrderRepository.findAllByOrderByCreatedAtDesc(any()))
+                .willReturn(new PageImpl<>(List.of(order)));
+        given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+        given(paymentStatusLookupProvider.isLookupConfigured()).willReturn(false);
+
+        PaymentReconciliationService.ProviderReconciliationResult result = service.reconcileProviderLedger();
+
+        assertThat(result.checkedOrders()).isEqualTo(1);
+        assertThat(result.skippedOrders()).isEqualTo(1);
+        assertThat(result.hasMismatch()).isFalse();
     }
 
     private User buildUser(Long id) {

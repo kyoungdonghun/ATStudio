@@ -37,6 +37,7 @@ public class PaymentProperties {
         private String issueUrl = "https://api.tosspayments.com/v1/billing/authorizations/issue";
         private String chargeUrl = "https://api.tosspayments.com/v1/billing/{billingKey}";
         private String deleteUrl = "https://api.tosspayments.com/v1/billing/{billingKey}";
+        private String paymentLookupByOrderIdUrl = "https://api.tosspayments.com/v1/payments/orders/{orderId}";
         private int connectTimeoutMillis = 3000;
         private int readTimeoutMillis = 60000;
     }

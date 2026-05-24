@@ -26,7 +26,7 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class TossBillingProvider implements RecurringPaymentProvider {
+public class TossBillingProvider implements RecurringPaymentProvider, PaymentStatusLookupProvider {
 
     private static final String CHECKOUT_TYPE = "TOSS_BILLING_AUTH";
     private static final String AUTH_METHOD = "CARD";
@@ -37,6 +37,11 @@ public class TossBillingProvider implements RecurringPaymentProvider {
     @Override
     public PaymentProviderType getProviderType() {
         return PaymentProviderType.TOSS_BILLING;
+    }
+
+    @Override
+    public boolean isLookupConfigured() {
+        return !isBlank(paymentProperties.getToss().getSecretKey());
     }
 
     @Override
@@ -147,6 +152,46 @@ public class TossBillingProvider implements RecurringPaymentProvider {
         }
     }
 
+    @Override
+    public ProviderPaymentLookupResult findPaymentByOrderId(String orderId) {
+        PaymentProperties.Toss toss = paymentProperties.getToss();
+        if (isBlank(toss.getSecretKey())) {
+            return ProviderPaymentLookupResult.failure(
+                    getProviderType(),
+                    orderId,
+                    "TOSS_SECRET_KEY_MISSING",
+                    "Toss secret key is not configured.");
+        }
+        if (isBlank(orderId)) {
+            return ProviderPaymentLookupResult.failure(
+                    getProviderType(),
+                    orderId,
+                    "TOSS_ORDER_ID_MISSING",
+                    "orderId is required.");
+        }
+
+        try {
+            HttpResponse<String> response = httpClient().send(
+                    lookupByOrderIdRequest(orderId),
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+            );
+            return toPaymentLookupResult(orderId, response);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return ProviderPaymentLookupResult.failure(
+                    getProviderType(),
+                    orderId,
+                    "TOSS_PAYMENT_LOOKUP_INTERRUPTED",
+                    e.getMessage());
+        } catch (IOException | IllegalArgumentException e) {
+            return ProviderPaymentLookupResult.failure(
+                    getProviderType(),
+                    orderId,
+                    "TOSS_PAYMENT_LOOKUP_ERROR",
+                    e.getMessage());
+        }
+    }
+
     protected HttpClient httpClient() {
         return HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(paymentProperties.getBilling().getConnectTimeoutMillis()))
@@ -191,6 +236,13 @@ public class TossBillingProvider implements RecurringPaymentProvider {
         return requestBuilder(deleteUrl(billingKey))
                 .timeout(readTimeout())
                 .DELETE()
+                .build();
+    }
+
+    private HttpRequest lookupByOrderIdRequest(String orderId) {
+        return requestBuilder(lookupByOrderIdUrl(orderId))
+                .timeout(readTimeout())
+                .GET()
                 .build();
     }
 
@@ -279,6 +331,38 @@ public class TossBillingProvider implements RecurringPaymentProvider {
         return BillingAgreementCancelResult.failure(
                 code,
                 message);
+    }
+
+    private ProviderPaymentLookupResult toPaymentLookupResult(
+            String orderId,
+            HttpResponse<String> response) throws IOException {
+        JsonNode root = readJson(response.body());
+        if (isFailure(response)) {
+            String code = text(root, "code", "TOSS_PAYMENT_LOOKUP_FAILED");
+            String message = text(root, "message", "Toss payment lookup failed.");
+            if (response.statusCode() == 404 || "NOT_FOUND_PAYMENT".equals(code)) {
+                return ProviderPaymentLookupResult.notFound(getProviderType(), orderId, "NOT_FOUND_PAYMENT", message);
+            }
+            log.warn(
+                    "Toss payment lookup failed. status={}, orderId={}, code={}, message={}",
+                    response.statusCode(),
+                    orderId,
+                    code,
+                    message);
+            return ProviderPaymentLookupResult.failure(getProviderType(), orderId, code, message);
+        }
+
+        String returnedOrderId = text(root, "orderId", orderId);
+        BigDecimal totalAmount = root.hasNonNull("totalAmount")
+                ? BigDecimal.valueOf(root.get("totalAmount").asLong())
+                : null;
+        return ProviderPaymentLookupResult.found(
+                getProviderType(),
+                returnedOrderId,
+                text(root, "paymentKey", ""),
+                text(root, "status", ""),
+                totalAmount,
+                sanitizedChargePayload(root));
     }
 
     private String sanitizedAgreementPayload(JsonNode root) throws IOException {
@@ -382,6 +466,11 @@ public class TossBillingProvider implements RecurringPaymentProvider {
     private String deleteUrl(String billingKey) {
         return paymentProperties.getBilling().getDeleteUrl()
                 .replace("{billingKey}", encode(billingKey));
+    }
+
+    private String lookupByOrderIdUrl(String orderId) {
+        return paymentProperties.getBilling().getPaymentLookupByOrderIdUrl()
+                .replace("{orderId}", encode(orderId));
     }
 
     private String authorization() {

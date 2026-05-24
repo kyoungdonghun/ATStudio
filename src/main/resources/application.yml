@@ -108,6 +108,7 @@ app:
       issue-url: ${TOSS_BILLING_ISSUE_URL:https://api.tosspayments.com/v1/billing/authorizations/issue}
       charge-url: ${TOSS_BILLING_CHARGE_URL:https://api.tosspayments.com/v1/billing/{billingKey}}
       delete-url: ${TOSS_BILLING_DELETE_URL:https://api.tosspayments.com/v1/billing/{billingKey}}
+      payment-lookup-by-order-id-url: ${TOSS_PAYMENT_LOOKUP_BY_ORDER_ID_URL:https://api.tosspayments.com/v1/payments/orders/{orderId}}
       connect-timeout-millis: ${TOSS_BILLING_CONNECT_TIMEOUT_MILLIS:3000}
       read-timeout-millis: ${TOSS_BILLING_READ_TIMEOUT_MILLIS:60000}
   security:

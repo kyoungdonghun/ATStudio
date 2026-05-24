@@ -1,8 +1,8 @@
 # ATStudio API Specification v11 (Confirmed)
 
-> **Status**: 11th confirmed — subscription cancel/reactivate, change-reservation, cycle-only pending UX, and billing-method recovery policy sync
-> **Base**: v10 + 2026-05-23 subscription billing recovery patch
-> **Date**: 2026-05-23
+> **Status**: 11th confirmed — subscription cancel/reactivate, change-reservation, cycle-only pending UX, billing-method recovery, and payment reconciliation policy sync
+> **Base**: v10 + 2026-05-24 payment operations reconciliation patch
+> **Date**: 2026-05-24
 
 ---
 
@@ -16,6 +16,8 @@
 | AB4 | Full API Summary | Updated total count from 117 → 118 |
 | AB5 | §6.3.4/§6.3.5/§6.7 billing recovery | Active users with an expired/removed billing key can re-register a payment method through `BILLING_AGREEMENT` orders; removed provider billing keys return `BILLING_AGREEMENT_REAUTH_REQUIRED`. |
 | AB6 | §6.3.7/§6.7 cycle-only pending UX | Provider-level billing-agreement cancel is separated from user-facing subscription cancel; upgrade plus next-cycle changes must show the upgraded plan as active and only the billing cycle as pending. |
+| AB7 | §6.3.8 admin reconciliation | Added read-only admin local/provider payment reconciliation endpoint. |
+| AB8 | Full API Summary | Updated total count from 118 → 119 |
 
 ---
 
@@ -1353,6 +1355,56 @@ These endpoints are implemented as read-only admin support/audit views. They mus
 | `GET /api/admin/payments/orders` | List payment attempts by latest created date | Read-only; includes status, purpose, provider, amount, sanitized failure code/message |
 | `GET /api/admin/payments/billing-agreements` | List billing agreements by latest created date | Shows masked method and failure count only |
 | `GET /api/admin/payments/subscription-payments` | List finalized subscription payment records | No refund/settlement mutation in this phase |
+| `GET /api/admin/payments/reconciliation` | Run local/provider payment reconciliation | Read-only; returns support-safe mismatch counts and issue records, no raw provider secrets |
+
+### GET /api/admin/payments/reconciliation
+
+| Field | Value |
+|---|---|
+| **URL** | `GET /api/admin/payments/reconciliation` |
+| **Auth** | ADMIN |
+| **Description** | Runs read-only local ledger and provider API-backed reconciliation for recent subscription payment orders. Provider lookup is skipped when the provider lookup configuration is unavailable. This endpoint is for operations diagnostics only and must not mutate payment, billing agreement, or subscription state. |
+
+**Response** `200 OK`
+
+```json
+{
+  "data": {
+    "localLedger": {
+      "checkedOrders": 100,
+      "checkedBillingAgreements": 12,
+      "doneOrdersWithoutPayment": 0,
+      "activeAgreementsWithoutSubscription": 0,
+      "hasMismatch": false
+    },
+    "providerLedger": {
+      "checkedOrders": 100,
+      "skippedOrders": 0,
+      "providerNotFound": 2,
+      "lookupFailures": 0,
+      "providerDoneWithoutLocalFinalization": 1,
+      "localDoneButProviderNotDone": 0,
+      "amountMismatches": 0,
+      "hasMismatch": true,
+      "issues": [
+        {
+          "issueType": "PROVIDER_DONE_LOCAL_NOT_FINALIZED",
+          "orderId": "ATS-REN-20260524-ABC123",
+          "provider": "TOSS_BILLING",
+          "purpose": "RENEWAL",
+          "localStatus": "IN_PROGRESS",
+          "providerStatus": "DONE",
+          "localAmount": 9900,
+          "providerAmount": 9900,
+          "providerTransactionId": "payment_key",
+          "failureCode": null,
+          "failureMessage": null
+        }
+      ]
+    }
+  }
+}
+```
 
 ## 6.4 My Subscription
 | Field | Value |
@@ -2674,7 +2726,7 @@ key: String (required) — setting key name
 
 ---
 
-# Full API Summary (118)
+# Full API Summary (119)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -2695,5 +2747,5 @@ key: String (required) — setting key name
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
-| 18 | Admin Payment Operations | 3 |
-| | **Total** | **118** |
+| 18 | Admin Payment Operations | 4 |
+| | **Total** | **119** |

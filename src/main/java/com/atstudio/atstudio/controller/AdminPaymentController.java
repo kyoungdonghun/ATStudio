@@ -3,6 +3,7 @@ package com.atstudio.atstudio.controller;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.payment.AdminBillingAgreementResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentOrderResponse;
+import com.atstudio.atstudio.dto.payment.AdminPaymentReconciliationResponse;
 import com.atstudio.atstudio.dto.payment.AdminSubscriptionPaymentResponse;
 import com.atstudio.atstudio.service.AdminPaymentReadService;
 import lombok.RequiredArgsConstructor;
@@ -42,5 +43,11 @@ public class AdminPaymentController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(adminPaymentReadService.listSubscriptionPayments(page, size));
+    }
+
+    @GetMapping("/reconciliation")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentReconciliationResponse>> reconcilePayments() {
+        return ResponseEntity.ok(adminPaymentReadService.reconcilePayments());
     }
 }

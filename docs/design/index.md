@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-05-22
+version: 1.3
+last_updated: 2026-05-24
 project: system
 owner: SA
 category: registry
@@ -25,8 +25,9 @@ status: stable
 
 | Document | Description | Status |
 |---|---|---|
-| **[API Specification](api-spec.md)** | REST API spec v11 — 118 endpoints | stable |
+| **[API Specification](api-spec.md)** | REST API spec v11 — 119 endpoints | stable |
 | **[DB Schema](db-schema.md)** | Database schema — 30 tables | stable |
 | **[Use Case Index](usecase/index.md)** | Domain use case documents | stable |
 | **[Payment Integration Design](payment-integration-design.md)** | Recurring-first subscription payment, legacy/mock payment compatibility, and provider architecture | draft |
+| **[Payment Operations Runbook](payment-operations-runbook.md)** | Toss recurring payment reconciliation and production incident response | draft |
 

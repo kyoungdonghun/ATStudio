@@ -4,6 +4,7 @@ import com.atstudio.atstudio.common.dto.PageInfo;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.payment.AdminBillingAgreementResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentOrderResponse;
+import com.atstudio.atstudio.dto.payment.AdminPaymentReconciliationResponse;
 import com.atstudio.atstudio.dto.payment.AdminSubscriptionPaymentResponse;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.repository.PaymentOrderRepository;
@@ -23,6 +24,7 @@ public class AdminPaymentReadService {
     private final PaymentOrderRepository paymentOrderRepository;
     private final BillingAgreementRepository billingAgreementRepository;
     private final SubscriptionPaymentRepository subscriptionPaymentRepository;
+    private final PaymentReconciliationService paymentReconciliationService;
 
     public ResponseDTO<AdminPaymentOrderResponse> listPaymentOrders(int page, int size) {
         Pageable pageable = pageable(page, size);
@@ -44,6 +46,16 @@ public class AdminPaymentReadService {
                 subscriptionPaymentRepository.findAllByOrderByCreatedAtDesc(pageable)
                         .map(AdminSubscriptionPaymentResponse::from);
         return paged(result, page, size);
+    }
+
+    public ResponseDTO<AdminPaymentReconciliationResponse> reconcilePayments() {
+        PaymentReconciliationService.ReconciliationResult local =
+                paymentReconciliationService.reconcileLocalLedger();
+        PaymentReconciliationService.ProviderReconciliationResult provider =
+                paymentReconciliationService.reconcileProviderLedger();
+        return ResponseDTO.<AdminPaymentReconciliationResponse>builder()
+                .data(AdminPaymentReconciliationResponse.from(local, provider))
+                .build();
     }
 
     private Pageable pageable(int page, int size) {

@@ -268,7 +268,7 @@ dependencies:
 > 총 **31개** 모달 (M-01 ~ M-31)
 > - 1차 (화면 목록 기반): M-01 ~ M-10 (10개)
 > - 2차 (유스케이스 추가): M-11 ~ M-31 (21개)
-> - 보류/구현 후보: M-15, provider webhook/reconciliation presentation, payment-method replacement flow
+> - 보류/구현 후보: M-15, admin reconciliation presentation, payment-method replacement flow
 > v1.2 2026-03-07 → v1.3 2026-03-29 → v1.4 2026-05-16
 
 ## Related Documents
