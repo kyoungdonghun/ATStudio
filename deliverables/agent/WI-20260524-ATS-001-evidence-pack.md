@@ -11,6 +11,7 @@
   - [x] Local ledger and provider ledger mismatches are reported separately.
   - [x] Admin/operator read-only endpoint exposes support-safe reconciliation evidence.
   - [x] Provider success plus local persistence failure runbook is documented.
+  - [x] Current visibility boundary is documented: WARN logs and on-demand admin checks only, no persistent incidents or operator notifications yet.
   - [x] No DB schema migration was introduced.
   - [x] Focused backend tests pass.
   - [x] Full backend tests pass.
@@ -90,6 +91,7 @@
   - Provider lookup depends on Toss secret-key configuration and network reachability.
   - `GET /api/admin/payments/reconciliation` performs external provider reads when configured; keep it admin-only.
   - Reconciliation reports issues but does not automatically refund, cancel, or mutate subscriptions.
+  - Reconciliation issues are not yet persisted or pushed to operators; production use needs log monitoring until the follow-up incident workflow exists.
 - Rollback:
   - Revert this WI's code and docs files.
   - Remove `GET /api/admin/payments/reconciliation` from API spec and controller.
@@ -97,9 +99,9 @@
 
 ## Follow-ups
 
+- Persistent reconciliation incident storage and operator notification.
 - Refund/receipt/settlement/tax invoice operations.
 - Admin payment mutation and audit policy.
 - Multi-server scheduler lock.
 - Legacy endpoint removal.
 - Multi-PG provider adapters.
-

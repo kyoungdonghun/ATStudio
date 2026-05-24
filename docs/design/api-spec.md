@@ -1363,7 +1363,7 @@ These endpoints are implemented as read-only admin support/audit views. They mus
 |---|---|
 | **URL** | `GET /api/admin/payments/reconciliation` |
 | **Auth** | ADMIN |
-| **Description** | Runs read-only local ledger and provider API-backed reconciliation for recent subscription payment orders. Provider lookup is skipped when the provider lookup configuration is unavailable. This endpoint is for operations diagnostics only and must not mutate payment, billing agreement, or subscription state. |
+| **Description** | Runs read-only local ledger and provider API-backed reconciliation for recent subscription payment orders. Provider lookup is skipped when the provider lookup configuration is unavailable. This endpoint is for operations diagnostics only and must not mutate payment, billing agreement, or subscription state. It returns current mismatch results on demand but does not persist incident records, acknowledge issues, resolve issues, or send operator notifications. |
 
 **Response** `200 OK`
 

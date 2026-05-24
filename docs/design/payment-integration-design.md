@@ -43,6 +43,7 @@ Current implementation facts:
 - Expired `READY`/`IN_PROGRESS` payment orders are closed by scheduler.
 - A local reconciliation job reports ledger mismatches such as `DONE` payment orders without finalized subscription payment rows.
 - Provider API reconciliation compares recent Toss billing payment orders with Toss payment state by `orderId` when lookup configuration is available.
+- Reconciliation currently exposes mismatches through WARN logs and the admin read-only reconciliation endpoint; persistent incident records and operator push notifications are not implemented yet.
 - Admins have a read-only payment operations view for payment orders, billing agreements, and finalized subscription payments.
 
 The payment layer separates:
@@ -675,6 +676,7 @@ Sensitive-data boundary:
 
 - Provider API-backed reconciliation is implemented for recent Toss billing payment orders by `orderId`.
 - Provider success plus local persistence failure is covered by the payment operations runbook; actual refund automation remains separate.
+- Add persistent reconciliation incident storage and operator notifications as a follow-up before relying on passive monitoring alone.
 - Provider-side webhook handling remains optional auxiliary work and must not become the sole source of truth for recurring billing access.
 - Add receipt, settlement, tax invoice, and refund operations as separate REQ/SR items.
 

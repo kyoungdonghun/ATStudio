@@ -36,12 +36,17 @@ It performs:
 
 - Local ledger reconciliation.
 - Provider-backed reconciliation for recent subscription payment orders when a lookup-capable provider is configured.
+- If a mismatch is detected, the current implementation writes WARN-level server logs.
+- The current implementation does not persist a separate reconciliation incident row.
+- The current implementation does not send email, Slack, or in-app admin notifications.
 
 ### Admin Read-only
 
 `GET /api/admin/payments/reconciliation`
 
 This endpoint runs the same read-only checks and returns support-safe counts and issue records. It must remain read-only.
+
+Operators can use this endpoint to check the current state on demand. It does not create, acknowledge, or resolve incident records.
 
 Safe fields include:
 
@@ -72,11 +77,28 @@ Forbidden fields:
 | `AMOUNT_MISMATCH` | Provider amount differs from local order amount. | Do not mutate subscription until amount source is verified. |
 | `PROVIDER_LOOKUP_FAILED` | Provider lookup failed due to config, network, auth, or provider error. | Fix lookup failure and rerun reconciliation. |
 
-## 5. Provider Success + Local Failure Compensation
+## 5. Current Automation and Visibility Boundary
+
+Current automation is limited to detection and read-only diagnostics.
+
+| Capability | Current state |
+|---|---|
+| Scheduled execution | Runs daily at 01:00 server time. |
+| Provider comparison | Available when Toss lookup configuration is present. |
+| Automatic log output | WARN-level logs are written for detected mismatches. |
+| Admin read-only check | `GET /api/admin/payments/reconciliation` returns current mismatch counts and issue records. |
+| Persistent incident storage | Not implemented. |
+| Operator notification | Not implemented. |
+| Admin incident workflow | Not implemented. |
+| Auto refund/cancel/entitlement correction | Not implemented. |
+
+This means the system can detect and expose mismatches, but it does not yet guarantee that an operator will notice them without log monitoring or manual admin checks.
+
+## 6. Provider Success + Local Failure Compensation
 
 Use this path when Toss has charged the customer but ATStudio did not finalize the subscription state.
 
-### 5.1 Evidence Collection
+### 6.1 Evidence Collection
 
 Collect only support-safe evidence:
 
@@ -91,7 +113,7 @@ Collect only support-safe evidence:
 
 Do not request or store raw card information, raw billing keys, `authKey`, or Toss secret keys.
 
-### 5.2 Decision Path
+### 6.2 Decision Path
 
 1. Confirm provider status from `GET /api/admin/payments/reconciliation` and the Toss dashboard.
 2. Confirm whether the user received the paid entitlement:
@@ -104,13 +126,13 @@ Do not request or store raw card information, raw billing keys, `authKey`, or To
 4. Record the incident in the support tracker with the safe evidence above.
 5. Rerun reconciliation and confirm the issue is either resolved or intentionally tracked.
 
-### 5.3 Refund/Cancellation Boundary
+### 6.3 Refund/Cancellation Boundary
 
 ATStudio does not yet provide an admin refund or force-cancel API.
 
 Until that feature exists, refund or cancellation must be handled in Toss operations tooling and recorded externally. Do not add ad-hoc database edits without approval, backup, and a linked incident.
 
-## 6. Production Configuration Checklist
+## 7. Production Configuration Checklist
 
 Before enabling live Toss recurring billing:
 
@@ -122,9 +144,10 @@ Before enabling live Toss recurring billing:
 - Confirm `TOSS_PAYMENT_LOOKUP_BY_ORDER_ID_URL` or `app.payment.billing.payment-lookup-by-order-id-url` points to the Toss production API.
 - Confirm application logs do not include raw billing keys, raw provider payloads, or raw card data.
 - Confirm admin payment pages are restricted to `ROLE_ADMIN`.
+- Confirm WARN-level reconciliation logs are collected by the production log monitoring system.
 - Run `GET /api/admin/payments/reconciliation` after a staging payment rehearsal.
 
-## 7. Webhook Boundary
+## 8. Webhook Boundary
 
 Webhook can be added later as an auxiliary event channel for supported Toss events.
 
@@ -138,10 +161,13 @@ If webhook is introduced later:
 - Store only sanitized event metadata.
 - Re-query provider state before mutating paid access.
 
-## 8. Follow-up Scope
+## 9. Follow-up Scope
 
 Separate REQ/SR items are still needed for:
 
+- Persistent reconciliation incident storage.
+- Operator notification for high-severity reconciliation issues.
+- Admin incident workflow such as `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, and `IGNORED`.
 - Refund automation.
 - Receipt, settlement, and tax invoice operations.
 - Admin payment mutation APIs.
