@@ -74,6 +74,7 @@ public class BillingAgreementApplicationService {
     private final PlaylistService playlistService;
     private final BillingCustomerKeyGenerator billingCustomerKeyGenerator;
     private final BillingKeyCrypto billingKeyCrypto;
+    private final PaymentReceiptEvidenceService paymentReceiptEvidenceService;
     private final Map<PaymentProviderType, RecurringPaymentProvider> recurringProviders;
 
     public BillingAgreementApplicationService(
@@ -87,6 +88,7 @@ public class BillingAgreementApplicationService {
             PlaylistService playlistService,
             BillingCustomerKeyGenerator billingCustomerKeyGenerator,
             BillingKeyCrypto billingKeyCrypto,
+            PaymentReceiptEvidenceService paymentReceiptEvidenceService,
             List<RecurringPaymentProvider> recurringProviders) {
         this.userRepository = userRepository;
         this.subscriptionRepository = subscriptionRepository;
@@ -98,6 +100,7 @@ public class BillingAgreementApplicationService {
         this.playlistService = playlistService;
         this.billingCustomerKeyGenerator = billingCustomerKeyGenerator;
         this.billingKeyCrypto = billingKeyCrypto;
+        this.paymentReceiptEvidenceService = paymentReceiptEvidenceService;
         this.recurringProviders = recurringProviders.stream()
                 .collect(Collectors.toUnmodifiableMap(RecurringPaymentProvider::getProviderType, Function.identity()));
     }
@@ -224,8 +227,13 @@ public class BillingAgreementApplicationService {
         }
 
         UserSubscription subscription = applySubscriptionAction(order);
-        saveSubscriptionPayment(order, subscription, chargeResult.transactionId(), agreement);
+        SubscriptionPayment subscriptionPayment =
+                saveSubscriptionPayment(order, subscription, chargeResult.transactionId(), agreement);
         order.markDone(chargeResult.transactionId(), subscription, chargeResult.providerPayload());
+        paymentReceiptEvidenceService.publishSuccessfulChargeEvidence(
+                order,
+                subscriptionPayment,
+                chargeResult.providerPayload());
         agreement.activate(
                 protectedBillingKey.ciphertext(),
                 protectedBillingKey.fingerprint(),

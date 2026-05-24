@@ -115,6 +115,16 @@ class TossBillingProviderTest {
                       "method": "카드",
                       "approvedAt": "2026-05-17T10:00:00+09:00",
                       "totalAmount": 9900,
+                      "receipt": {
+                        "url": "https://dashboard.tosspayments.com/receipt/payment_key"
+                      },
+                      "cashReceipt": {
+                        "receiptKey": "cash_receipt_key",
+                        "receiptUrl": "https://dashboard.tosspayments.com/cash-receipts/cash_receipt_key",
+                        "type": "소득공제",
+                        "issueStatus": "IN_PROGRESS",
+                        "requestedAt": "2026-05-17T10:00:01+09:00"
+                      },
                       "card": {
                         "number": "1234-****-****-5678"
                       }
@@ -144,6 +154,9 @@ class TossBillingProviderTest {
         assertThat(result.success()).isTrue();
         assertThat(result.transactionId()).isEqualTo("payment_key");
         assertThat(result.providerPayload()).contains("\"paymentKey\":\"payment_key\"");
+        assertThat(result.providerPayload())
+                .contains("\"receipt\":{\"url\":\"https://dashboard.tosspayments.com/receipt/payment_key\"")
+                .contains("\"cashReceipt\":{\"receiptKey\":\"cash_receipt_key\"");
         assertThat(result.providerPayload()).doesNotContain("billing_secret_key");
     }
 

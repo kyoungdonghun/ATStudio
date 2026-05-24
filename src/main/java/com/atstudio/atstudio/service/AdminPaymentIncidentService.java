@@ -6,6 +6,7 @@ import com.atstudio.atstudio.dto.payment.AdminPaymentReconciliationIncidentRespo
 import com.atstudio.atstudio.entity.PaymentReconciliationIncident;
 import com.atstudio.atstudio.entity.enums.PaymentReconciliationIncidentStatus;
 import com.atstudio.atstudio.repository.PaymentReconciliationIncidentRepository;
+import com.atstudio.atstudio.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ public class AdminPaymentIncidentService {
 
     private final PaymentReconciliationIncidentRepository incidentRepository;
     private final PaymentReconciliationIncidentService incidentService;
+    private final PaymentOperationAuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public ResponseDTO<AdminPaymentReconciliationIncidentResponse> listIncidents(
@@ -37,9 +39,20 @@ public class AdminPaymentIncidentService {
     @Transactional
     public ResponseDTO<AdminPaymentReconciliationIncidentResponse> updateIncidentStatus(
             Long incidentId,
+            CustomUserDetails actorDetails,
             PaymentReconciliationIncidentStatus status,
             String note) {
+        PaymentReconciliationIncident existing = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new com.atstudio.atstudio.common.exception.BusinessException(
+                        com.atstudio.atstudio.common.exception.BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        PaymentReconciliationIncidentStatus beforeStatus = existing.getStatus();
         PaymentReconciliationIncident incident = incidentService.changeStatus(incidentId, status, note);
+        auditLogService.recordReconciliationIncidentStatusUpdate(
+                actorDetails,
+                incident,
+                beforeStatus,
+                incident.getStatus(),
+                note);
         return ResponseDTO.<AdminPaymentReconciliationIncidentResponse>builder()
                 .data(AdminPaymentReconciliationIncidentResponse.from(incident))
                 .build();

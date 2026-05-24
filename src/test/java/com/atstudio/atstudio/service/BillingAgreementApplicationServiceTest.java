@@ -76,6 +76,7 @@ class BillingAgreementApplicationServiceTest {
     @Mock PlaylistService playlistService;
     @Mock BillingCustomerKeyGenerator billingCustomerKeyGenerator;
     @Mock BillingKeyCrypto billingKeyCrypto;
+    @Mock PaymentReceiptEvidenceService paymentReceiptEvidenceService;
     @Mock RecurringPaymentProvider recurringPaymentProvider;
 
     BillingAgreementApplicationService service;
@@ -94,6 +95,7 @@ class BillingAgreementApplicationServiceTest {
                 playlistService,
                 billingCustomerKeyGenerator,
                 billingKeyCrypto,
+                paymentReceiptEvidenceService,
                 List.of(recurringPaymentProvider)
         );
     }
@@ -242,6 +244,10 @@ class BillingAgreementApplicationServiceTest {
         verify(recurringPaymentProvider).charge(chargeCaptor.capture());
         assertThat(chargeCaptor.getValue().idempotencyKey()).isEqualTo("billing-initial-ORDER-1");
         verify(subscriptionPaymentRepository).save(any(SubscriptionPayment.class));
+        verify(paymentReceiptEvidenceService).publishSuccessfulChargeEvidence(
+                eq(order),
+                any(SubscriptionPayment.class),
+                eq("{\"paymentKey\":\"pay_1\"}"));
         verify(playlistService).createDefaultPlaylist(user);
     }
 

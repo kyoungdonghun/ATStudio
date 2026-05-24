@@ -1,8 +1,18 @@
-# ATStudio API Specification v11 (Confirmed)
+# ATStudio API Specification v12 (Confirmed)
 
-> **Status**: 11th confirmed — subscription cancel/reactivate, change-reservation, cycle-only pending UX, billing-method recovery, payment reconciliation, and incident workflow sync
-> **Base**: v10 + 2026-05-24 payment operations reconciliation patch
-> **Date**: 2026-05-24
+> **Status**: 12th confirmed — payment receipt evidence and operation audit log read APIs
+> **Base**: v11 + 2026-05-25 payment operations audit foundation patch
+> **Date**: 2026-05-25
+
+---
+
+## v11 → v12 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| AC1 | §6.3.8 payment receipt evidence | Added admin read-only API for persisted payment receipt evidence captured from successful provider charge payloads. |
+| AC2 | §6.3.8 payment operation audit logs | Added admin read-only API for payment operation audit logs. Reconciliation incident status changes now write an audit row. |
+| AC3 | Full API Summary | Updated total count from 121 → 123 |
 
 ---
 
@@ -1349,16 +1359,108 @@ For payment-method re-registration on an existing active/grace-period subscripti
 
 ## 6.3.8 Payment Operations Admin APIs
 
-These endpoints are implemented as admin support/audit views. Payment order, billing agreement, subscription payment, and on-demand reconciliation endpoints are read-only. Reconciliation incident status updates mutate only the incident workflow state; they must not refund payments, cancel provider charges, change subscriptions, or mutate billing agreements. These endpoints must not expose raw billing keys, auth keys, customer keys, Toss secret keys, raw provider payloads, or raw card data.
+These endpoints are implemented as admin support/audit views. Payment order, billing agreement, subscription payment, receipt evidence, operation audit log, and on-demand reconciliation endpoints are read-only. Reconciliation incident status updates mutate only the incident workflow state and create an audit log row; they must not refund payments, cancel provider charges, change subscriptions, or mutate billing agreements. These endpoints must not expose raw billing keys, auth keys, customer keys, Toss secret keys, raw provider payloads, or raw card data.
 
 | API | Purpose | Notes |
 |---|---|---|
 | `GET /api/admin/payments/orders` | List payment attempts by latest created date | Read-only; includes status, purpose, provider, amount, sanitized failure code/message |
 | `GET /api/admin/payments/billing-agreements` | List billing agreements by latest created date | Shows masked method and failure count only |
 | `GET /api/admin/payments/subscription-payments` | List finalized subscription payment records | No refund/settlement mutation in this phase |
+| `GET /api/admin/payments/receipts` | List persisted payment receipt evidence | Read-only; stores safe provider receipt URL/key metadata only |
+| `GET /api/admin/payments/operation-audit-logs` | List payment operation audit logs | Read-only; includes admin/system action metadata without raw provider payloads |
 | `GET /api/admin/payments/reconciliation` | Run local/provider payment reconciliation | Read-only; returns support-safe mismatch counts and issue records, no raw provider secrets |
 | `GET /api/admin/payments/reconciliation-incidents` | List persisted reconciliation incidents | Optional `status` filter; support-safe incident workflow metadata only |
 | `PUT /api/admin/payments/reconciliation-incidents/{incidentId}/status` | Update incident workflow status | Mutates incident status/note only; no payment/subscription/provider mutation |
+
+### GET /api/admin/payments/receipts
+
+| Field | Value |
+|---|---|
+| **URL** | `GET /api/admin/payments/receipts?page=1&size=20` |
+| **Auth** | ADMIN |
+| **Description** | Lists receipt evidence rows captured after successful subscription charges. This endpoint is read-only and returns support-safe receipt metadata only. It does not expose raw provider payloads, billing keys, auth keys, customer keys, or raw card data. |
+
+**Response** `200 OK`
+
+```json
+{
+  "dataList": [
+    {
+      "id": 1,
+      "userId": 12,
+      "userNickname": "customer12",
+      "paymentOrderId": 3001,
+      "orderId": "ATS-REN-20260525-ABC123",
+      "subscriptionPaymentId": 901,
+      "provider": "TOSS_BILLING",
+      "type": "PAYMENT_RECEIPT",
+      "status": "ISSUED",
+      "providerPaymentKey": "payment_key",
+      "receiptKey": null,
+      "receiptUrl": "https://dashboard.tosspayments.com/receipt/payment_key",
+      "issuedAt": "2026-05-25T10:00:00",
+      "cancelledAt": null,
+      "createdAt": "2026-05-25T10:00:02"
+    }
+  ],
+  "pageInfo": {
+    "page": 1,
+    "size": 20,
+    "total": 1,
+    "start": 1,
+    "end": 1,
+    "prev": false,
+    "next": false
+  }
+}
+```
+
+### GET /api/admin/payments/operation-audit-logs
+
+| Field | Value |
+|---|---|
+| **URL** | `GET /api/admin/payments/operation-audit-logs?page=1&size=20` |
+| **Auth** | ADMIN |
+| **Description** | Lists append-only payment operation audit rows. Current actions include reconciliation incident status updates and system-created receipt evidence rows. This endpoint is read-only. |
+
+**Response** `200 OK`
+
+```json
+{
+  "dataList": [
+    {
+      "id": 1,
+      "action": "RECONCILIATION_INCIDENT_STATUS_UPDATE",
+      "targetType": "RECONCILIATION_INCIDENT",
+      "targetId": 10,
+      "actorUserId": 99,
+      "actorEmail": "admin@test.com",
+      "targetUserId": 12,
+      "targetUserNickname": "customer12",
+      "paymentOrderId": 3001,
+      "orderId": "ATS-REN-20260525-ABC123",
+      "subscriptionPaymentId": null,
+      "reconciliationIncidentId": 10,
+      "provider": "TOSS_BILLING",
+      "providerTransactionId": "payment_key",
+      "beforeStatus": "OPEN",
+      "afterStatus": "ACKNOWLEDGED",
+      "reasonCode": "PROVIDER_DONE_LOCAL_NOT_FINALIZED",
+      "note": "Investigating against Toss dashboard.",
+      "createdAt": "2026-05-25T10:30:00"
+    }
+  ],
+  "pageInfo": {
+    "page": 1,
+    "size": 20,
+    "total": 1,
+    "start": 1,
+    "end": 1,
+    "prev": false,
+    "next": false
+  }
+}
+```
 
 ### GET /api/admin/payments/reconciliation
 
@@ -1473,7 +1575,7 @@ These endpoints are implemented as admin support/audit views. Payment order, bil
 |---|---|
 | **URL** | `PUT /api/admin/payments/reconciliation-incidents/{incidentId}/status` |
 | **Auth** | ADMIN |
-| **Description** | Updates the reconciliation incident workflow state. Valid statuses are `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, and `IGNORED`. This endpoint does not mutate payment orders, subscriptions, billing agreements, or provider state. |
+| **Description** | Updates the reconciliation incident workflow state and writes a `payment_operation_audit_logs` row. Valid statuses are `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, and `IGNORED`. This endpoint does not mutate payment orders, subscriptions, billing agreements, or provider state. |
 
 **Request**
 
@@ -2821,7 +2923,7 @@ key: String (required) — setting key name
 
 ---
 
-# Full API Summary (121)
+# Full API Summary (123)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -2842,5 +2944,5 @@ key: String (required) — setting key name
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
-| 18 | Admin Payment Operations | 6 |
-| | **Total** | **121** |
+| 18 | Admin Payment Operations | 8 |
+| | **Total** | **123** |

@@ -3,11 +3,15 @@ package com.atstudio.atstudio.service;
 import com.atstudio.atstudio.common.dto.PageInfo;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.payment.AdminBillingAgreementResponse;
+import com.atstudio.atstudio.dto.payment.AdminPaymentOperationAuditLogResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentOrderResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentReconciliationResponse;
+import com.atstudio.atstudio.dto.payment.AdminPaymentReceiptResponse;
 import com.atstudio.atstudio.dto.payment.AdminSubscriptionPaymentResponse;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
+import com.atstudio.atstudio.repository.PaymentOperationAuditLogRepository;
 import com.atstudio.atstudio.repository.PaymentOrderRepository;
+import com.atstudio.atstudio.repository.PaymentReceiptRepository;
 import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -24,6 +28,8 @@ public class AdminPaymentReadService {
     private final PaymentOrderRepository paymentOrderRepository;
     private final BillingAgreementRepository billingAgreementRepository;
     private final SubscriptionPaymentRepository subscriptionPaymentRepository;
+    private final PaymentReceiptRepository paymentReceiptRepository;
+    private final PaymentOperationAuditLogRepository paymentOperationAuditLogRepository;
     private final PaymentReconciliationService paymentReconciliationService;
 
     public ResponseDTO<AdminPaymentOrderResponse> listPaymentOrders(int page, int size) {
@@ -45,6 +51,22 @@ public class AdminPaymentReadService {
         Page<AdminSubscriptionPaymentResponse> result =
                 subscriptionPaymentRepository.findAllByOrderByCreatedAtDesc(pageable)
                         .map(AdminSubscriptionPaymentResponse::from);
+        return paged(result, page, size);
+    }
+
+    public ResponseDTO<AdminPaymentReceiptResponse> listPaymentReceipts(int page, int size) {
+        Pageable pageable = pageable(page, size);
+        Page<AdminPaymentReceiptResponse> result =
+                paymentReceiptRepository.findAllByOrderByCreatedAtDesc(pageable)
+                        .map(AdminPaymentReceiptResponse::from);
+        return paged(result, page, size);
+    }
+
+    public ResponseDTO<AdminPaymentOperationAuditLogResponse> listPaymentOperationAuditLogs(int page, int size) {
+        Pageable pageable = pageable(page, size);
+        Page<AdminPaymentOperationAuditLogResponse> result =
+                paymentOperationAuditLogRepository.findAllByOrderByCreatedAtDesc(pageable)
+                        .map(AdminPaymentOperationAuditLogResponse::from);
         return paged(result, page, size);
     }
 

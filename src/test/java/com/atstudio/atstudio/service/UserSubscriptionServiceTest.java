@@ -58,6 +58,7 @@ class UserSubscriptionServiceTest {
     @Mock PaymentOrderRepository paymentOrderRepository;
     @Mock SubscriptionPaymentRepository subscriptionPaymentRepository;
     @Mock BillingKeyCrypto billingKeyCrypto;
+    @Mock PaymentReceiptEvidenceService paymentReceiptEvidenceService;
     @Mock RecurringPaymentProvider recurringPaymentProvider;
 
     UserSubscriptionService userSubscriptionService;
@@ -72,6 +73,7 @@ class UserSubscriptionServiceTest {
                 paymentOrderRepository,
                 subscriptionPaymentRepository,
                 billingKeyCrypto,
+                paymentReceiptEvidenceService,
                 List.of(recurringPaymentProvider)
         );
     }
@@ -238,6 +240,10 @@ class UserSubscriptionServiceTest {
             assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.valueOf(5000));
             assertThat(result.expiresAt()).isEqualTo(originalExpiresAt);
             verify(subscriptionPaymentRepository).save(any(SubscriptionPayment.class));
+            verify(paymentReceiptEvidenceService).publishSuccessfulChargeEvidence(
+                    any(PaymentOrder.class),
+                    any(SubscriptionPayment.class),
+                    eq("{\"paymentKey\":\"pay_upgrade\"}"));
 
             assertThat(us.getSubscription()).isEqualTo(newSub);
             assertThat(us.getBillingCycle()).isEqualTo(BillingCycle.MONTHLY);

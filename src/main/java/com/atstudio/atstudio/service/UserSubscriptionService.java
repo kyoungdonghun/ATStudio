@@ -70,6 +70,7 @@ public class UserSubscriptionService {
     private final PaymentOrderRepository paymentOrderRepository;
     private final SubscriptionPaymentRepository subscriptionPaymentRepository;
     private final BillingKeyCrypto billingKeyCrypto;
+    private final PaymentReceiptEvidenceService paymentReceiptEvidenceService;
     private final List<RecurringPaymentProvider> recurringProviders;
 
     // 6.3 POST /api/user-subscriptions
@@ -179,7 +180,7 @@ public class UserSubscriptionService {
                     throw paymentConfirmFailed(chargeResult);
                 }
 
-                subscriptionPaymentRepository.save(SubscriptionPayment.builder()
+                SubscriptionPayment subscriptionPayment = subscriptionPaymentRepository.save(SubscriptionPayment.builder()
                         .paymentOrder(order)
                         .billingAgreement(agreement)
                         .provider(order.getProvider())
@@ -192,6 +193,10 @@ public class UserSubscriptionService {
                         .pgTransactionId(chargeResult.transactionId())
                         .build());
                 order.markDone(chargeResult.transactionId(), current, chargeResult.providerPayload());
+                paymentReceiptEvidenceService.publishSuccessfulChargeEvidence(
+                        order,
+                        subscriptionPayment,
+                        chargeResult.providerPayload());
                 agreement.recordSuccessfulCharge(agreement.getNextBillingAt());
             }
 

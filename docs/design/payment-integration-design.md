@@ -663,14 +663,17 @@ Operator-facing minimum visibility:
 
 - Latest `payment_orders` for a user, including purpose, provider, status, amount, order ID, sanitized failure code/message, and timestamps.
 - Related `subscription_payments` for finalized charges.
+- Related `payment_receipts` for safe provider receipt/cash receipt evidence when successful charges return receipt metadata.
 - Current `billing_agreements` status, masked method, next billing date, failure count, and cancellation date.
 - Persisted `payment_reconciliation_incidents` for scheduled local/provider mismatch detection, including status, severity, dedupe key, occurrence count, safe order/provider fields, and resolution note.
-- Read-only payment support view first. Incident status changes are allowed for operations workflow only; refund, receipt, settlement, webhook reconciliation, and multi-PG operations remain separate follow-up scopes.
+- Append-only `payment_operation_audit_logs` for incident status changes and system-created receipt evidence events.
+- Read-only payment support view first. Incident status changes are allowed for operations workflow only; refund, settlement, webhook reconciliation, and multi-PG operations remain separate follow-up scopes.
 
 Sensitive-data boundary:
 
 - Ordinary users must not see raw `authKey`, `customerKey`, `billingKey`, Toss secret key, or raw provider payload.
 - Operators may see internal `orderId`, sanitized failure code/message, provider, purpose, amount, timestamps, and masked payment method.
+- Operators may see safe receipt URLs, cash receipt keys, provider payment keys, and audit status transitions in admin-only payment operations APIs.
 - Operators may see reconciliation incident workflow metadata such as `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, `IGNORED`, occurrence count, and resolution note.
 - Billing keys remain encrypted server-side only; only fingerprint/masked method may appear in diagnostics.
 
@@ -679,10 +682,11 @@ Sensitive-data boundary:
 - Provider API-backed reconciliation is implemented for recent Toss billing payment orders by `orderId`.
 - Scheduled reconciliation persists mismatch incidents and can send optional operator email when explicitly configured.
 - Provider success plus local persistence failure is covered by the payment operations runbook; actual refund automation remains separate.
-- Refund, receipt, settlement, and tax invoice operating policy is documented in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md); implementation remains separate.
+- Receipt evidence storage and payment operation audit logs are implemented as the first P2-A foundation without provider mutation.
+- Refund, settlement, and tax invoice operating policy is documented in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md); implementation remains separate.
 - Add external notification channels as follow-up work if email/log/admin-screen operations are insufficient.
 - Provider-side webhook handling remains optional auxiliary work and must not become the sole source of truth for recurring billing access.
-- Add receipt, settlement, tax invoice, and refund implementations as separate REQ/SR items.
+- Add settlement, tax invoice, cash receipt issue/cancel, and refund implementations as separate REQ/SR items.
 
 ## 15. Open Decisions
 
@@ -701,7 +705,7 @@ Sensitive-data boundary:
 | PAY-D11 | Upgrade payment model | Use active billing agreement for immediate prorated charge; preserve current billing cycle and next billing date |
 | PAY-D12 | Downgrade payment model | Schedule pending plan/cycle and apply after the next successful renewal charge with no immediate charge |
 | PAY-D13 | Removed billing-key recovery | Mark local agreement `EXPIRED`, clear issued-key metadata, keep the subscription unchanged, and require zero-amount `BILLING_AGREEMENT` re-registration |
-| PAY-D14 | Refund/receipt/settlement/tax invoice policy | Policy documented; implementation requires separate audited operation ledgers and REQ/SR approval |
+| PAY-D14 | Refund/receipt/settlement/tax invoice policy | Policy documented; receipt evidence and operation audit ledgers implemented; refund, settlement, and tax invoice mutation still require separate REQ/SR approval |
 
 ## 16. Implementation Risk Notes
 

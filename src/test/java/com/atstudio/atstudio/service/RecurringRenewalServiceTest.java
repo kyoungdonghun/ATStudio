@@ -56,6 +56,7 @@ class RecurringRenewalServiceTest {
     @Mock SubscriptionPaymentRepository subscriptionPaymentRepository;
     @Mock BillingKeyCrypto billingKeyCrypto;
     @Mock EmailService emailService;
+    @Mock PaymentReceiptEvidenceService paymentReceiptEvidenceService;
     @Mock RecurringPaymentProvider recurringPaymentProvider;
 
     RecurringRenewalService service;
@@ -70,6 +71,7 @@ class RecurringRenewalServiceTest {
                 subscriptionPaymentRepository,
                 billingKeyCrypto,
                 emailService,
+                paymentReceiptEvidenceService,
                 List.of(recurringPaymentProvider)
         );
     }
@@ -113,6 +115,10 @@ class RecurringRenewalServiceTest {
         verify(recurringPaymentProvider).charge(chargeCaptor.capture());
         assertThat(chargeCaptor.getValue().idempotencyKey()).contains("attempt-1");
         verify(subscriptionPaymentRepository).save(any(SubscriptionPayment.class));
+        verify(paymentReceiptEvidenceService).publishSuccessfulChargeEvidence(
+                any(PaymentOrder.class),
+                any(SubscriptionPayment.class),
+                eq("{\"paymentKey\":\"pay_renewal\"}"));
     }
 
     @Test

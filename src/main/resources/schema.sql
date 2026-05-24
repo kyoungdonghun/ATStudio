@@ -1,7 +1,7 @@
 -- =============================================================================
 -- ATStudio Database Schema v4
 -- =============================================================================
--- Source  : docs/design/db-schema.md (v4 Confirmed, 2026-02-20)
+-- Source  : docs/design/db-schema.md (v7 Confirmed, 2026-05-25)
 -- Engine  : InnoDB
 -- Charset : utf8mb4 / utf8mb4_unicode_ci
 -- DB      : atstudio  (see application.yml)
@@ -377,7 +377,7 @@ CREATE TABLE IF NOT EXISTS licenses
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 3.8  billing_agreements / payment_orders / subscription_payments / payment_reconciliation_incidents
+-- 3.8  billing_agreements / payment_orders / subscription_payments / payment_reconciliation_incidents / payment_receipts / payment_operation_audit_logs
 -- ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS billing_agreements
 (
@@ -509,6 +509,75 @@ CREATE TABLE IF NOT EXISTS payment_reconciliation_incidents
         FOREIGN KEY (billing_agreement_id) REFERENCES billing_agreements (id),
     CONSTRAINT fk_payment_reconciliation_incidents_user
         FOREIGN KEY (user_id) REFERENCES users (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS payment_receipts
+(
+    id                      BIGINT NOT NULL AUTO_INCREMENT,
+    payment_order_id        BIGINT NOT NULL,
+    subscription_payment_id BIGINT NOT NULL,
+    user_id                 BIGINT NOT NULL,
+    provider                ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NOT NULL,
+    type                    ENUM ('PAYMENT_RECEIPT', 'CASH_RECEIPT') NOT NULL,
+    status                  ENUM ('ISSUED', 'CANCELLED', 'PARTIAL_CANCELLED', 'FAILED') NOT NULL DEFAULT 'ISSUED',
+    provider_payment_key    VARCHAR(200) NULL,
+    receipt_key             VARCHAR(200) NULL,
+    receipt_url             VARCHAR(1000) NULL,
+    issued_at               DATETIME NULL,
+    cancelled_at            DATETIME NULL,
+    evidence_payload        TEXT NULL COMMENT 'Sanitized receipt evidence only. No billing/auth/customer keys or raw card data.',
+    created_at              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_payment_receipts_order_type (payment_order_id, type),
+    KEY idx_payment_receipts_user_created (user_id, created_at),
+    KEY idx_payment_receipts_provider_payment_key (provider_payment_key),
+    CONSTRAINT fk_payment_receipts_order
+        FOREIGN KEY (payment_order_id) REFERENCES payment_orders (id),
+    CONSTRAINT fk_payment_receipts_subscription_payment
+        FOREIGN KEY (subscription_payment_id) REFERENCES subscription_payments (id),
+    CONSTRAINT fk_payment_receipts_user
+        FOREIGN KEY (user_id) REFERENCES users (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS payment_operation_audit_logs
+(
+    id                         BIGINT NOT NULL AUTO_INCREMENT,
+    action                     ENUM ('RECONCILIATION_INCIDENT_STATUS_UPDATE', 'RECEIPT_EVIDENCE_CREATED') NOT NULL,
+    target_type                ENUM ('RECONCILIATION_INCIDENT', 'PAYMENT_RECEIPT') NOT NULL,
+    target_id                  BIGINT NULL,
+    actor_user_id              BIGINT NULL COMMENT 'Admin actor. NULL for system-generated audit entries.',
+    target_user_id             BIGINT NULL COMMENT 'Payment owner when resolvable.',
+    payment_order_id           BIGINT NULL,
+    subscription_payment_id    BIGINT NULL,
+    reconciliation_incident_id BIGINT NULL,
+    provider                   ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NULL,
+    order_id                   VARCHAR(64) NULL,
+    provider_transaction_id    VARCHAR(200) NULL,
+    before_status              VARCHAR(60) NULL,
+    after_status               VARCHAR(60) NULL,
+    reason_code                VARCHAR(100) NULL,
+    note                       VARCHAR(500) NULL,
+    created_at                 DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at                 DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_payment_operation_audit_logs_target (target_type, target_id),
+    KEY idx_payment_operation_audit_logs_order (order_id),
+    KEY idx_payment_operation_audit_logs_actor_created (actor_user_id, created_at),
+    CONSTRAINT fk_payment_operation_audit_logs_actor
+        FOREIGN KEY (actor_user_id) REFERENCES users (id),
+    CONSTRAINT fk_payment_operation_audit_logs_target_user
+        FOREIGN KEY (target_user_id) REFERENCES users (id),
+    CONSTRAINT fk_payment_operation_audit_logs_order
+        FOREIGN KEY (payment_order_id) REFERENCES payment_orders (id),
+    CONSTRAINT fk_payment_operation_audit_logs_subscription_payment
+        FOREIGN KEY (subscription_payment_id) REFERENCES subscription_payments (id),
+    CONSTRAINT fk_payment_operation_audit_logs_incident
+        FOREIGN KEY (reconciliation_incident_id) REFERENCES payment_reconciliation_incidents (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
@@ -680,5 +749,5 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- =============================================================================
 -- END OF SCHEMA
--- Total: 26 tables
+-- Total: 33 tables
 -- =============================================================================

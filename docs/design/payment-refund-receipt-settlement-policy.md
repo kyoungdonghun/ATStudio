@@ -50,15 +50,16 @@ Tax invoice policy in this document is a system policy baseline, not tax advice.
 | Provider lookup | Reconciliation compares recent orders with Toss state by `orderId` when lookup is configured. |
 | Admin view | `/admin/payments` lists orders, billing agreements, subscription payments, and reconciliation incidents. |
 | Mutation boundary | Admin payment screens are intentionally read-only except incident workflow status/note updates. |
+| Operation audit | `payment_operation_audit_logs` stores reconciliation incident status changes and system-created receipt evidence audit rows. |
 | Refund state | `PaymentStatus` has `REFUND`, but no refund ledger or provider cancel implementation exists. |
-| Receipt state | No dedicated receipt URL, cash receipt key, or tax invoice record exists. |
+| Receipt state | `payment_receipts` stores safe provider receipt/cash receipt evidence after successful charges when Toss returns receipt metadata. |
 | Settlement state | No settlement import, settlement reconciliation, fee, VAT, or payout-date record exists. |
 
 ### Current data gap
 
-`PaymentOrder.pgTransactionId` is used as the provider transaction identifier after Toss billing charge. In Toss billing charge responses, this value may be the `paymentKey`. That is enough for support lookup, but future refund/receipt/settlement features should not rely on parsing a generic transaction field or sanitized JSON payload.
+`PaymentOrder.pgTransactionId` is used as the provider transaction identifier after Toss billing charge. In Toss billing charge responses, this value may be the `paymentKey`. This is enough for support lookup and is now copied into `payment_receipts.provider_payment_key` when receipt evidence exists. Future refund and settlement features still should not rely only on parsing a generic transaction field or sanitized JSON payload.
 
-Future implementation should introduce explicit operation ledgers for refund, receipt evidence, settlement, tax invoice requests, and admin actions.
+Current implementation introduced explicit ledgers for receipt evidence and payment operation audit logs. Future implementation should still introduce refund, settlement, and tax invoice request ledgers before those operations become mutable.
 
 ## 4. Policy Principles
 
@@ -217,24 +218,44 @@ Policy:
   - cancellation status
 - If a cash receipt is issued through a standalone API rather than provider-linked payment cancellation, ATStudio must explicitly cancel or partially cancel the cash receipt when the related payment is refunded.
 
-### 6.4 Receipt evidence model candidate
+### 6.4 Receipt evidence model
 
-Future table candidate: `payment_receipts`
+Implemented table: `payment_receipts`
 
 | Column | Notes |
 |---|---|
 | `id` | Receipt evidence ID |
 | `payment_order_id` | Related order |
 | `subscription_payment_id` | Related payment |
-| `type` | `CARD_RECEIPT`, `CASH_RECEIPT`, `TAX_INVOICE_REFERENCE` |
+| `type` | `PAYMENT_RECEIPT`, `CASH_RECEIPT` |
 | `provider` | Provider |
 | `provider_payment_key` | Provider payment key |
 | `receipt_key` | Cash receipt key if applicable |
 | `receipt_url` | Provider or external evidence URL |
-| `status` | `ISSUED`, `IN_PROGRESS`, `FAILED`, `CANCELLED`, `PARTIAL_CANCELLED` |
-| `masked_identity` | Masked cash receipt identity if applicable |
+| `status` | `ISSUED`, `FAILED`, `CANCELLED`, `PARTIAL_CANCELLED` |
 | `issued_at`, `cancelled_at` | Evidence lifecycle |
-| `provider_payload` | Sanitized metadata only |
+| `evidence_payload` | Minimal sanitized metadata only |
+
+Current capture behavior:
+
+- Initial subscription charge, upgrade charge, and renewal charge publish a receipt evidence event after the local payment transaction commits.
+- The receipt listener stores a `PAYMENT_RECEIPT` row when provider payload includes `receipt.url`.
+- It stores a `CASH_RECEIPT` row when provider payload includes a cash receipt key or URL.
+- Duplicate receipt type rows for the same payment order are skipped.
+- Evidence payload is reduced to payment key, order ID, status, method, amount, timestamp, receipt type, receipt URL, and receipt key. It must not store raw card data, billing key, auth key, customer key, or raw provider payload.
+
+### 6.5 Operation audit ledger
+
+Implemented table: `payment_operation_audit_logs`
+
+Current action coverage:
+
+| Action | Actor | Target | Notes |
+|---|---|---|---|
+| `RECONCILIATION_INCIDENT_STATUS_UPDATE` | Admin user | `payment_reconciliation_incidents` | Records before/after status, reason code, note, order/provider references. |
+| `RECEIPT_EVIDENCE_CREATED` | System (`NULL`) | `payment_receipts` | Records receipt evidence creation for support traceability. |
+
+Future refund, entitlement correction, settlement import, cash receipt issue/cancel, and tax invoice request workflows should add explicit action values instead of reusing these actions.
 
 ## 7. Settlement Policy
 
@@ -375,7 +396,7 @@ If a payment is refunded after tax invoice issuance:
 
 | Phase | Scope | Why first |
 |---|---|---|
-| P2-A | Admin audit ledger and receipt evidence storage | Safest foundation; no provider mutation required. |
+| P2-A | Admin audit ledger and receipt evidence storage | Implemented. No provider mutation added. |
 | P2-B | Refund request workflow without automatic entitlement mutation | Adds provider cancellation safely with idempotency and approval. |
 | P2-C | Entitlement correction workflow linked to refund | Money movement and access mutation remain auditable separately. |
 | P2-D | Settlement import and settlement reconciliation | Accounting visibility without touching user access. |

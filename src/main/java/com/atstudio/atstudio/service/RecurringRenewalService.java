@@ -58,6 +58,7 @@ public class RecurringRenewalService {
     private final SubscriptionPaymentRepository subscriptionPaymentRepository;
     private final BillingKeyCrypto billingKeyCrypto;
     private final EmailService emailService;
+    private final PaymentReceiptEvidenceService paymentReceiptEvidenceService;
     private final Map<PaymentProviderType, RecurringPaymentProvider> recurringProviders;
 
     public RecurringRenewalService(
@@ -67,6 +68,7 @@ public class RecurringRenewalService {
             SubscriptionPaymentRepository subscriptionPaymentRepository,
             BillingKeyCrypto billingKeyCrypto,
             EmailService emailService,
+            PaymentReceiptEvidenceService paymentReceiptEvidenceService,
             List<RecurringPaymentProvider> recurringProviders) {
         this.billingAgreementRepository = billingAgreementRepository;
         this.userSubscriptionRepository = userSubscriptionRepository;
@@ -74,6 +76,7 @@ public class RecurringRenewalService {
         this.subscriptionPaymentRepository = subscriptionPaymentRepository;
         this.billingKeyCrypto = billingKeyCrypto;
         this.emailService = emailService;
+        this.paymentReceiptEvidenceService = paymentReceiptEvidenceService;
         this.recurringProviders = recurringProviders.stream()
                 .collect(Collectors.toUnmodifiableMap(RecurringPaymentProvider::getProviderType, Function.identity()));
     }
@@ -205,7 +208,7 @@ public class RecurringRenewalService {
                 order.getBillingCycle(),
                 periodStart,
                 newExpiresAt);
-        subscriptionPaymentRepository.save(SubscriptionPayment.builder()
+        SubscriptionPayment subscriptionPayment = subscriptionPaymentRepository.save(SubscriptionPayment.builder()
                 .paymentOrder(order)
                 .billingAgreement(agreement)
                 .provider(order.getProvider())
@@ -218,6 +221,10 @@ public class RecurringRenewalService {
                 .pgTransactionId(chargeResult.transactionId())
                 .build());
         order.markDone(chargeResult.transactionId(), currentSubscription, chargeResult.providerPayload());
+        paymentReceiptEvidenceService.publishSuccessfulChargeEvidence(
+                order,
+                subscriptionPayment,
+                chargeResult.providerPayload());
         agreement.recordSuccessfulCharge(newExpiresAt);
     }
 

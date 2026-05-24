@@ -383,8 +383,33 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
         if (root.hasNonNull("totalAmount")) {
             payload.put("totalAmount", root.get("totalAmount").asLong());
         }
+        putReceiptEvidence(payload, root);
         putMaskedPaymentMethod(payload, root);
         return objectMapper.writeValueAsString(payload);
+    }
+
+    private void putReceiptEvidence(Map<String, Object> payload, JsonNode root) {
+        JsonNode receipt = root.path("receipt");
+        if (receipt.isObject()) {
+            Map<String, String> sanitizedReceipt = new LinkedHashMap<>();
+            putTextIfPresentString(sanitizedReceipt, "url", receipt);
+            if (!sanitizedReceipt.isEmpty()) {
+                payload.put("receipt", sanitizedReceipt);
+            }
+        }
+
+        JsonNode cashReceipt = root.path("cashReceipt");
+        if (cashReceipt.isObject()) {
+            Map<String, String> sanitizedCashReceipt = new LinkedHashMap<>();
+            putTextIfPresentString(sanitizedCashReceipt, "receiptKey", cashReceipt);
+            putTextIfPresentString(sanitizedCashReceipt, "receiptUrl", cashReceipt);
+            putTextIfPresentString(sanitizedCashReceipt, "type", cashReceipt);
+            putTextIfPresentString(sanitizedCashReceipt, "issueStatus", cashReceipt);
+            putTextIfPresentString(sanitizedCashReceipt, "requestedAt", cashReceipt);
+            if (!sanitizedCashReceipt.isEmpty()) {
+                payload.put("cashReceipt", sanitizedCashReceipt);
+            }
+        }
     }
 
     private void putMaskedPaymentMethod(Map<String, Object> payload, JsonNode root) {

@@ -1,7 +1,7 @@
 # Payment Operations Runbook
 
 > Purpose: Define production-facing operational procedures for Toss billing-key recurring payment reconciliation and incident response.
-> Scope: ATStudio subscription payments only. This document does not introduce refund automation, settlement, tax invoice, or admin mutation features. Refund/receipt/settlement/tax invoice policy is defined separately in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md).
+> Scope: ATStudio subscription payments only. This document covers reconciliation, receipt evidence storage, and payment operation audit visibility. It does not introduce refund automation, settlement import, tax invoice workflow, or provider money-movement mutation. Refund/receipt/settlement/tax invoice policy is defined separately in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md).
 
 ## 1. Operating Model
 
@@ -22,6 +22,8 @@ Toss does not run ATStudio subscription scheduling. ATStudio owns renewal timing
 | `subscription_payments` | Finalized subscription payment records |
 | `billing_agreements` | Stored provider customer key, encrypted billing key, masked payment method, next billing date |
 | `payment_reconciliation_incidents` | Persistent reconciliation mismatch incident state and operator workflow |
+| `payment_receipts` | Safe provider receipt/cash receipt evidence captured after successful charges |
+| `payment_operation_audit_logs` | Append-only payment operation audit rows for admin/system operations |
 | `user_subscriptions` | User access state, current plan, pending plan/cycle |
 | Toss payment lookup API | Provider-side payment status comparison by `orderId` |
 
@@ -79,7 +81,7 @@ Lists persisted reconciliation incidents. Optional `status` filtering supports `
 
 `PUT /api/admin/payments/reconciliation-incidents/{incidentId}/status`
 
-Updates only the reconciliation incident workflow state and note. This endpoint does not refund payments, cancel provider charges, change subscriptions, or mutate billing agreements.
+Updates only the reconciliation incident workflow state and note. This endpoint also writes a `payment_operation_audit_logs` row. It does not refund payments, cancel provider charges, change subscriptions, or mutate billing agreements.
 
 Status guidance:
 
@@ -111,6 +113,8 @@ Current automation is limited to detection, persistent incident visibility, and 
 | Automatic log output | WARN-level logs are written for detected mismatches. |
 | Admin read-only check | `GET /api/admin/payments/reconciliation` returns current mismatch counts and issue records. |
 | Persistent incident storage | Implemented through `payment_reconciliation_incidents`. |
+| Receipt evidence storage | Implemented through `payment_receipts` after successful subscription charges when provider receipt fields are present. |
+| Operation audit logs | Implemented through `payment_operation_audit_logs` for incident workflow changes and receipt evidence creation. |
 | Operator notification | Optional email notification when explicitly enabled and configured. |
 | Admin incident workflow | Implemented through incident list/status APIs and the `/admin/payments` incident tab. |
 | Auto refund/cancel/entitlement correction | Not implemented. |
@@ -132,6 +136,8 @@ Collect only support-safe evidence:
 - local subscription status and plan
 - expected amount and billing cycle
 - provider status, amount, and `paymentKey`
+- receipt URL or cash receipt key if `GET /api/admin/payments/receipts` has a matching row
+- audit log rows from `GET /api/admin/payments/operation-audit-logs` when an operator status change occurred
 - relevant application log timestamps
 
 Do not request or store raw card information, raw billing keys, `authKey`, or Toss secret keys.
@@ -179,6 +185,8 @@ Before enabling live Toss recurring billing:
 - Confirm WARN-level reconciliation logs are collected by the production log monitoring system.
 - Run `GET /api/admin/payments/reconciliation` after a staging payment rehearsal.
 - Run `GET /api/admin/payments/reconciliation-incidents?status=OPEN` after a staging payment rehearsal.
+- Run `GET /api/admin/payments/receipts` after a successful staging charge and confirm only safe receipt evidence is returned.
+- Run `GET /api/admin/payments/operation-audit-logs` after changing a reconciliation incident status and confirm an audit row exists.
 - Keep the deployment on one application scheduler instance. Scheduler lock remains out of active scope unless more than one application instance will run.
 
 ## 8. Webhook Boundary
@@ -201,7 +209,7 @@ Separate REQ/SR items are still needed for:
 
 - Slack/SMS/in-app operator notification channels.
 - Refund automation based on the payment operations policy.
-- Receipt evidence, cash receipt, settlement import/reconciliation, and tax invoice request implementation based on the payment operations policy.
+- Cash receipt issue/cancel, settlement import/reconciliation, and tax invoice request implementation based on the payment operations policy.
 - Admin payment mutation APIs.
 - Legacy endpoint removal.
 - KakaoPay, NaverPay, or other PG adapters.

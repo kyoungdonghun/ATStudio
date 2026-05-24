@@ -1,8 +1,18 @@
-# ATStudio DB Schema Definition v6 (Confirmed)
+# ATStudio DB Schema Definition v7 (Confirmed)
 
-> **Status**: v6 Confirmed — users.company_name (SR-47), subscriptions.max_playlists (SR-55), subscription seed prices finalized, payment billing sync, recurring-first plan changes, payment reconciliation incidents
-> **Base**: v5 + 2026-05-24 payment operations incident patch
-> **Date**: 2026-05-24
+> **Status**: v7 Confirmed — payment receipt evidence and payment operation audit log foundation
+> **Base**: v6 + 2026-05-25 payment operations audit foundation patch
+> **Date**: 2026-05-25
+
+---
+
+## v6 to v7 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| 1 | `payment_receipts` | **Added** — Safe receipt/cash receipt evidence rows captured after successful provider charges. |
+| 2 | `payment_operation_audit_logs` | **Added** — Append-only payment operation audit rows for reconciliation incident workflow changes and receipt evidence creation. |
+| 3 | Sensitive evidence boundary | **Confirmed** — Receipt evidence payload stores sanitized metadata only, never billing keys, auth keys, customer keys, raw card data, or raw provider payloads. |
 
 ---
 
@@ -432,6 +442,61 @@
 
 ---
 
+## 6.7 Payment Receipts (`payment_receipts`)
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Payment order | `payment_order_id` | BIGINT | NOT NULL | FK(payment_orders.id), UNIQUE(payment_order_id,type) | | Related payment attempt |
+| Subscription payment | `subscription_payment_id` | BIGINT | NOT NULL | FK(subscription_payments.id) | | Related finalized subscription payment |
+| User | `user_id` | BIGINT | NOT NULL | FK(users.id), INDEX(user_id,created_at) | | Payment owner |
+| Provider | `provider` | ENUM('MOCK','TOSS','TOSS_BILLING','KAKAOPAY') | NOT NULL | | | |
+| Receipt type | `type` | ENUM('PAYMENT_RECEIPT','CASH_RECEIPT') | NOT NULL | UNIQUE(payment_order_id,type) | | One row per receipt type per order |
+| Status | `status` | ENUM('ISSUED','CANCELLED','PARTIAL_CANCELLED','FAILED') | NOT NULL | | 'ISSUED' | Evidence lifecycle; refund/cancel automation remains future work |
+| Provider payment key | `provider_payment_key` | VARCHAR(200) | NULL | INDEX | | Toss payment key or equivalent provider transaction ID |
+| Receipt key | `receipt_key` | VARCHAR(200) | NULL | | | Cash receipt key when provider returns one |
+| Receipt URL | `receipt_url` | VARCHAR(1000) | NULL | | | Provider receipt/cash receipt URL |
+| Issued at | `issued_at` | DATETIME | NULL | | | Provider-approved or requested timestamp when available |
+| Cancelled at | `cancelled_at` | DATETIME | NULL | | | Reserved for future refund/cash receipt cancellation |
+| Evidence payload | `evidence_payload` | TEXT | NULL | | | Minimal sanitized metadata only |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+- Receipt rows are created after the successful payment transaction commits.
+- Missing receipt fields are skipped; charge completion does not depend on provider returning a receipt URL.
+- `evidence_payload` must not contain raw billing keys, raw `authKey`, raw `customerKey`, raw card data, Toss secret keys, or raw provider payloads.
+- Current supported types are `PAYMENT_RECEIPT` and `CASH_RECEIPT`; tax invoice tracking remains a future table/workflow.
+
+## 6.8 Payment Operation Audit Logs (`payment_operation_audit_logs`)
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Action | `action` | ENUM('RECONCILIATION_INCIDENT_STATUS_UPDATE','RECEIPT_EVIDENCE_CREATED') | NOT NULL | | | Audit action kind |
+| Target type | `target_type` | ENUM('RECONCILIATION_INCIDENT','PAYMENT_RECEIPT') | NOT NULL | INDEX(target_type,target_id) | | |
+| Target ID | `target_id` | BIGINT | NULL | INDEX(target_type,target_id) | | ID in the target table |
+| Actor user | `actor_user_id` | BIGINT | NULL | FK(users.id), INDEX(actor_user_id,created_at) | | Admin actor; NULL for system-created logs |
+| Target user | `target_user_id` | BIGINT | NULL | FK(users.id) | | Payment owner when resolvable |
+| Payment order | `payment_order_id` | BIGINT | NULL | FK(payment_orders.id) | | |
+| Subscription payment | `subscription_payment_id` | BIGINT | NULL | FK(subscription_payments.id) | | |
+| Reconciliation incident | `reconciliation_incident_id` | BIGINT | NULL | FK(payment_reconciliation_incidents.id) | | |
+| Provider | `provider` | ENUM('MOCK','TOSS','TOSS_BILLING','KAKAOPAY') | NULL | | | |
+| Order ID | `order_id` | VARCHAR(64) | NULL | INDEX | | Merchant order ID |
+| Provider transaction ID | `provider_transaction_id` | VARCHAR(200) | NULL | | | Provider payment key/transaction identifier only |
+| Before status | `before_status` | VARCHAR(60) | NULL | | | |
+| After status | `after_status` | VARCHAR(60) | NULL | | | |
+| Reason code | `reason_code` | VARCHAR(100) | NULL | | | Incident type or receipt type |
+| Note | `note` | VARCHAR(500) | NULL | | | Operator/system note |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+- Audit rows are append-only in the application API surface. No update/delete API exists.
+- Current admin mutation coverage is reconciliation incident status update.
+- System-generated receipt evidence creation logs have `actor_user_id = NULL`.
+- Future refund, entitlement correction, settlement import, and tax invoice workflows should add new action values rather than overloading the current ones.
+
+---
+
 # 7. Likes
 
 ## 7.1 Likes (`likes`)
@@ -708,6 +773,8 @@ users ─┬─< social_accounts
        ├─< payment_orders ──> subscriptions
        ├─< subscription_payments ──> subscriptions
        ├─< payment_reconciliation_incidents ──> payment_orders / billing_agreements
+       ├─< payment_receipts ──> payment_orders / subscription_payments
+       ├─< payment_operation_audit_logs ──> payment_orders / subscription_payments / payment_reconciliation_incidents
        ├─< company_certifications
        ├─< track_downloads ──> tracks
        ├─< play_histories ──> tracks
@@ -731,7 +798,7 @@ site_settings (standalone — no FK)
 
 ---
 
-# Complete Table List (30 Tables)
+# Complete Table List (33 Tables)
 
 | # | Table Name | Description | Type |
 |---|------------|-------------|------|
@@ -751,20 +818,22 @@ site_settings (standalone — no FK)
 | 14 | `payment_orders` | Payment attempt ledger | Transaction |
 | 15 | `subscription_payments` | Subscription payment records | Transaction |
 | 16 | `payment_reconciliation_incidents` | Payment reconciliation incident workflow | Transaction |
-| 17 | `likes` | Track likes | Mapping |
-| 18 | `album_likes` | Album likes | Mapping |
-| 19 | `download_queue` | Download queue | Mapping |
-| 20 | `whitelist_channels` | Whitelist channels | Master |
-| 21 | `questions` | Inquiries | Transaction |
-| 22 | `answers` | Inquiry answers | Transaction |
-| 23 | `licenses` | Track usage licenses | Transaction |
-| 24 | `notices` | Notices | Master |
-| 25 | `question_attachments` | Inquiry attachments | Transaction |
-| 26 | `notice_attachments` | Notice attachments | Transaction |
-| 27 | `albums` | Curated albums | Master |
-| 28 | `album_tracks` | Album-track mapping | Mapping |
-| 29 | `email_verification_tokens` | Email verification tokens | Transaction |
-| 30 | `password_reset_tokens` | Password reset tokens | Transaction |
-| 31 | `site_settings` | Site configuration key-value store | Master |
+| 17 | `payment_receipts` | Payment receipt/cash receipt evidence | Transaction |
+| 18 | `payment_operation_audit_logs` | Payment operation audit trail | Log |
+| 19 | `likes` | Track likes | Mapping |
+| 20 | `album_likes` | Album likes | Mapping |
+| 21 | `download_queue` | Download queue | Mapping |
+| 22 | `whitelist_channels` | Whitelist channels | Master |
+| 23 | `questions` | Inquiries | Transaction |
+| 24 | `answers` | Inquiry answers | Transaction |
+| 25 | `licenses` | Track usage licenses | Transaction |
+| 26 | `notices` | Notices | Master |
+| 27 | `question_attachments` | Inquiry attachments | Transaction |
+| 28 | `notice_attachments` | Notice attachments | Transaction |
+| 29 | `albums` | Curated albums | Master |
+| 30 | `album_tracks` | Album-track mapping | Mapping |
+| 31 | `email_verification_tokens` | Email verification tokens | Transaction |
+| 32 | `password_reset_tokens` | Password reset tokens | Transaction |
+| 33 | `site_settings` | Site configuration key-value store | Master |
 
-Total **31 tables**
+Total **33 tables**

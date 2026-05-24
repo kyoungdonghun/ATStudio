@@ -81,9 +81,11 @@
 | [ ] | 주문 탭을 확인한다. | 결제 주문의 주문번호, 사용자, 목적, PG, 상태, 금액, 실패 코드가 보인다. | |
 | [ ] | 자동결제 탭을 확인한다. | billing key 원문 없이 마스킹된 결제수단과 상태만 보인다. | |
 | [ ] | 결제내역 탭을 확인한다. | 확정된 구독 결제 이력이 보인다. | |
+| [ ] | `GET /api/admin/payments/receipts`를 호출한다. | 성공 결제에 영수증 근거가 있으면 receipt URL/key가 보이고 raw provider payload나 카드 원문은 보이지 않는다. | |
+| [ ] | `GET /api/admin/payments/operation-audit-logs`를 호출한다. | receipt evidence 생성 또는 incident 상태 변경 감사 로그가 보인다. | |
 | [ ] | 대사 Incident 탭에서 `OPEN` 필터를 확인한다. | 열린 incident만 표시된다. | |
 | [ ] | 대사 Incident 탭에서 `전체`, `ACKNOWLEDGED`, `RESOLVED`, `IGNORED` 필터를 확인한다. | 상태별 조회가 정상 동작한다. | |
-| [ ] | incident 상태와 처리 메모를 저장한다. | 상태와 메모가 저장되고 다시 조회해도 유지된다. | |
+| [ ] | incident 상태와 처리 메모를 저장한다. | 상태와 메모가 저장되고 다시 조회해도 유지되며 operation audit log가 생성된다. | |
 | [ ] | incident 화면의 민감정보 노출 여부를 확인한다. | billing key, authKey, customerKey, Toss secret, 카드 원문, provider raw payload가 보이지 않는다. | |
 
 ## 8. 대사와 운영 장애 대응
@@ -114,4 +116,4 @@
 | [ ] | 정기 갱신 성공/실패/만료 흐름을 확인했다. | 스케줄러와 권한 정책이 결제 상태와 일치한다. | |
 | [ ] | 관리자 결제 운영 화면과 incident workflow를 확인했다. | 운영자가 이상 상황을 발견하고 처리 상태를 남길 수 있다. | |
 | [ ] | 민감정보 비노출을 확인했다. | 결제 운영 화면과 API가 보안 경계를 지킨다. | |
-| [ ] | 남은 P2 범위를 확인했다. | 환불/영수증/정산/세금계산서, admin payment mutation, webhook, multi-PG는 별도 REQ/SR로 분리한다. | |
+| [ ] | 남은 P2 범위를 확인했다. | 환불, cash receipt issue/cancel, 정산, 세금계산서, admin payment mutation, webhook, multi-PG는 별도 REQ/SR로 분리한다. | |
