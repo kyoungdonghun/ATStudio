@@ -4,6 +4,9 @@ import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.config.PaymentProperties;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
+import com.atstudio.atstudio.service.payment.provider.refund.PaymentRefundProvider;
+import com.atstudio.atstudio.service.payment.provider.refund.PaymentRefundProviderCommand;
+import com.atstudio.atstudio.service.payment.provider.refund.PaymentRefundProviderResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -19,14 +22,16 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class TossBillingProvider implements RecurringPaymentProvider, PaymentStatusLookupProvider {
+public class TossBillingProvider implements RecurringPaymentProvider, PaymentStatusLookupProvider, PaymentRefundProvider {
 
     private static final String CHECKOUT_TYPE = "TOSS_BILLING_AUTH";
     private static final String AUTH_METHOD = "CARD";
@@ -153,6 +158,43 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
     }
 
     @Override
+    public PaymentRefundProviderResult cancelPayment(PaymentRefundProviderCommand command) {
+        PaymentProperties.Toss toss = paymentProperties.getToss();
+        if (isBlank(toss.getSecretKey())) {
+            return PaymentRefundProviderResult.failure(
+                    "TOSS_SECRET_KEY_MISSING",
+                    "Toss secret key is not configured.",
+                    null);
+        }
+        if (isBlank(command.providerPaymentKey()) || isBlank(command.idempotencyKey())) {
+            return PaymentRefundProviderResult.failure(
+                    "TOSS_PAYMENT_CANCEL_INVALID_ARGUMENT",
+                    "providerPaymentKey and idempotencyKey are required.",
+                    null);
+        }
+
+        try {
+            HttpResponse<String> response = httpClient().send(
+                    paymentCancelRequest(command),
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+            );
+            return toRefundResult(command, response);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return PaymentRefundProviderResult.pending(
+                    "TOSS_PAYMENT_CANCEL_INTERRUPTED",
+                    e.getMessage(),
+                    null);
+        } catch (IOException | IllegalArgumentException | ArithmeticException e) {
+            log.warn("Toss payment cancel result is unknown. paymentKey={}", command.providerPaymentKey(), e);
+            return PaymentRefundProviderResult.pending(
+                    "TOSS_PAYMENT_CANCEL_UNKNOWN",
+                    "Toss payment cancel request result is unknown.",
+                    null);
+        }
+    }
+
+    @Override
     public ProviderPaymentLookupResult findPaymentByOrderId(String orderId) {
         PaymentProperties.Toss toss = paymentProperties.getToss();
         if (isBlank(toss.getSecretKey())) {
@@ -243,6 +285,22 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
         return requestBuilder(lookupByOrderIdUrl(orderId))
                 .timeout(readTimeout())
                 .GET()
+                .build();
+    }
+
+    private HttpRequest paymentCancelRequest(PaymentRefundProviderCommand command) throws IOException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("cancelReason", isBlank(command.reason()) ? "ATStudio admin refund" : command.reason());
+        if (command.amount() != null) {
+            body.put("cancelAmount", toTossAmount(command.amount()));
+        }
+
+        return requestBuilder(paymentCancelUrl(command.providerPaymentKey()))
+                .timeout(readTimeout())
+                .header("Idempotency-Key", command.idempotencyKey())
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        objectMapper.writeValueAsString(body),
+                        StandardCharsets.UTF_8))
                 .build();
     }
 
@@ -365,6 +423,28 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
                 sanitizedChargePayload(root));
     }
 
+    private PaymentRefundProviderResult toRefundResult(
+            PaymentRefundProviderCommand command,
+            HttpResponse<String> response) throws IOException {
+        JsonNode root = readJson(response.body());
+        String providerPayload = sanitizedRefundPayload(root);
+        if (isFailure(response)) {
+            String code = text(root, "code", "TOSS_PAYMENT_CANCEL_FAILED");
+            String message = text(root, "message", "Toss payment cancel failed.");
+            log.warn(
+                    "Toss payment cancel failed. status={}, orderId={}, code={}, message={}",
+                    response.statusCode(),
+                    command.orderId(),
+                    code,
+                    message);
+            return PaymentRefundProviderResult.failure(code, message, providerPayload);
+        }
+
+        return PaymentRefundProviderResult.success(
+                firstCancelTransactionKey(root, command.providerPaymentKey()),
+                providerPayload);
+    }
+
     private String sanitizedAgreementPayload(JsonNode root) throws IOException {
         Map<String, Object> payload = new LinkedHashMap<>();
         putTextIfPresent(payload, "method", root);
@@ -386,6 +466,52 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
         putReceiptEvidence(payload, root);
         putMaskedPaymentMethod(payload, root);
         return objectMapper.writeValueAsString(payload);
+    }
+
+    private String sanitizedRefundPayload(JsonNode root) throws IOException {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        putTextIfPresent(payload, "paymentKey", root);
+        putTextIfPresent(payload, "orderId", root);
+        putTextIfPresent(payload, "status", root);
+        if (root.hasNonNull("totalAmount")) {
+            payload.put("totalAmount", root.get("totalAmount").asLong());
+        }
+        if (root.hasNonNull("balanceAmount")) {
+            payload.put("balanceAmount", root.get("balanceAmount").asLong());
+        }
+
+        JsonNode cancels = root.path("cancels");
+        if (cancels.isArray()) {
+            List<Map<String, Object>> sanitizedCancels = new ArrayList<>();
+            for (JsonNode cancel : cancels) {
+                Map<String, Object> sanitizedCancel = new LinkedHashMap<>();
+                if (cancel.hasNonNull("cancelAmount")) {
+                    sanitizedCancel.put("cancelAmount", cancel.get("cancelAmount").asLong());
+                }
+                putTextIfPresent(sanitizedCancel, "cancelReason", cancel);
+                putTextIfPresent(sanitizedCancel, "canceledAt", cancel);
+                putTextIfPresent(sanitizedCancel, "transactionKey", cancel);
+                putTextIfPresent(sanitizedCancel, "cancelStatus", cancel);
+                if (!sanitizedCancel.isEmpty()) {
+                    sanitizedCancels.add(sanitizedCancel);
+                }
+            }
+            if (!sanitizedCancels.isEmpty()) {
+                payload.put("cancels", sanitizedCancels);
+            }
+        }
+        return objectMapper.writeValueAsString(payload);
+    }
+
+    private String firstCancelTransactionKey(JsonNode root, String fallbackPaymentKey) {
+        JsonNode cancels = root.path("cancels");
+        if (cancels.isArray() && !cancels.isEmpty()) {
+            String transactionKey = text(cancels.get(0), "transactionKey", "");
+            if (!isBlank(transactionKey)) {
+                return transactionKey;
+            }
+        }
+        return text(root, "paymentKey", fallbackPaymentKey);
     }
 
     private void putReceiptEvidence(Map<String, Object> payload, JsonNode root) {
@@ -520,6 +646,11 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
     private String lookupByOrderIdUrl(String orderId) {
         return paymentProperties.getBilling().getPaymentLookupByOrderIdUrl()
                 .replace("{orderId}", encode(orderId));
+    }
+
+    private String paymentCancelUrl(String paymentKey) {
+        return paymentProperties.getToss().getCancelUrl()
+                .replace("{paymentKey}", encode(paymentKey));
     }
 
     private String authorization() {

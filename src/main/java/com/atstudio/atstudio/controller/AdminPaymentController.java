@@ -7,12 +7,18 @@ import com.atstudio.atstudio.dto.payment.AdminPaymentOrderResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentReconciliationIncidentResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentReconciliationResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentReceiptResponse;
+import com.atstudio.atstudio.dto.payment.AdminPaymentRefundApproveRequest;
+import com.atstudio.atstudio.dto.payment.AdminPaymentRefundCreateRequest;
+import com.atstudio.atstudio.dto.payment.AdminPaymentRefundExecuteRequest;
+import com.atstudio.atstudio.dto.payment.AdminPaymentRefundPreviewResponse;
+import com.atstudio.atstudio.dto.payment.AdminPaymentRefundResponse;
 import com.atstudio.atstudio.dto.payment.AdminSubscriptionPaymentResponse;
 import com.atstudio.atstudio.dto.payment.AdminUpdatePaymentReconciliationIncidentRequest;
 import com.atstudio.atstudio.entity.enums.PaymentReconciliationIncidentStatus;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.AdminPaymentIncidentService;
 import com.atstudio.atstudio.service.AdminPaymentReadService;
+import com.atstudio.atstudio.service.AdminPaymentRefundService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +26,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -33,6 +40,7 @@ public class AdminPaymentController {
 
     private final AdminPaymentReadService adminPaymentReadService;
     private final AdminPaymentIncidentService adminPaymentIncidentService;
+    private final AdminPaymentRefundService adminPaymentRefundService;
 
     @GetMapping("/orders")
     @PreAuthorize("hasRole('ADMIN')")
@@ -72,6 +80,53 @@ public class AdminPaymentController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(adminPaymentReadService.listPaymentOperationAuditLogs(page, size));
+    }
+
+    @GetMapping("/refunds")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentRefundResponse>> listRefunds(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(adminPaymentRefundService.listRefunds(page, size));
+    }
+
+    @GetMapping("/refunds/{refundId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentRefundResponse>> getRefund(@PathVariable Long refundId) {
+        return ResponseEntity.ok(adminPaymentRefundService.getRefund(refundId));
+    }
+
+    @GetMapping("/refund-preview/{subscriptionPaymentId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentRefundPreviewResponse>> previewRefund(
+            @PathVariable Long subscriptionPaymentId) {
+        return ResponseEntity.ok(adminPaymentRefundService.previewRefund(subscriptionPaymentId));
+    }
+
+    @PostMapping("/refunds")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentRefundResponse>> createRefund(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody AdminPaymentRefundCreateRequest request) {
+        return ResponseEntity.ok(adminPaymentRefundService.createRefund(userDetails, request));
+    }
+
+    @PostMapping("/refunds/{refundId}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentRefundResponse>> approveRefund(
+            @PathVariable Long refundId,
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody AdminPaymentRefundApproveRequest request) {
+        return ResponseEntity.ok(adminPaymentRefundService.approveRefund(refundId, userDetails, request));
+    }
+
+    @PostMapping("/refunds/{refundId}/execute")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentRefundResponse>> executeRefund(
+            @PathVariable Long refundId,
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody AdminPaymentRefundExecuteRequest request) {
+        return ResponseEntity.ok(adminPaymentRefundService.executeRefund(refundId, userDetails, request));
     }
 
     @GetMapping("/reconciliation")

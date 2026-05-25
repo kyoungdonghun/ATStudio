@@ -25,6 +25,7 @@ public class PaymentProperties {
         private String successUrl = "http://localhost:5173/subscriptions/payment/success";
         private String failUrl = "http://localhost:5173/subscriptions/payment/fail";
         private String confirmUrl = "https://api.tosspayments.com/v1/payments/confirm";
+        private String cancelUrl = "https://api.tosspayments.com/v1/payments/{paymentKey}/cancel";
         private int connectTimeoutMillis = 3000;
         private int readTimeoutMillis = 10000;
     }

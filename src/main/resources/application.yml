@@ -99,6 +99,7 @@ app:
       success-url: ${TOSS_SUCCESS_URL:http://localhost:5173/subscriptions/payment/success}
       fail-url: ${TOSS_FAIL_URL:http://localhost:5173/subscriptions/payment/fail}
       confirm-url: ${TOSS_CONFIRM_URL:https://api.tosspayments.com/v1/payments/confirm}
+      cancel-url: ${TOSS_CANCEL_URL:https://api.tosspayments.com/v1/payments/{paymentKey}/cancel}
       connect-timeout-millis: ${TOSS_CONNECT_TIMEOUT_MILLIS:3000}
       read-timeout-millis: ${TOSS_READ_TIMEOUT_MILLIS:10000}
     billing:

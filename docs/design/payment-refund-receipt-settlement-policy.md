@@ -5,13 +5,13 @@ project: ATS
 owner: SA
 category: design
 status: draft
-source_req: REQ-20260525-ATS-002
+source_req: REQ-20260525-ATS-002, REQ-20260525-ATS-004
 ---
 
 # Payment Refund, Receipt, Settlement, and Tax Invoice Policy
 
 > Scope: ATStudio subscription payment operations after recurring billing checkout.
-> This document defines operating policy and future implementation boundaries. It does not implement refund, receipt, settlement, tax invoice, or admin mutation APIs.
+> This document defines operating policy and implementation boundaries for refund, receipt, settlement, and tax invoice operations. Receipt evidence, operation audit logging, and admin refund ledger/provider cancel APIs are implemented; settlement import, tax invoice workflow, cash receipt issue/cancel automation, and entitlement correction remain separate follow-up scopes.
 
 ## 1. Purpose
 
@@ -23,7 +23,7 @@ ATStudio recurring subscription payment is now recurring-first:
 - Renewal is run by ATStudio scheduler, not by Toss.
 - Reconciliation incidents are detected, persisted, and triaged through `/admin/payments`.
 
-The next production concern is financial operations after a charge has already happened. Refund, receipt, settlement, and tax invoice work must be designed before admin mutation APIs are added because these operations can affect customer money, subscription access, tax evidence, and accounting records.
+The next production concern is financial operations after a charge has already happened. Refund, receipt, settlement, and tax invoice work must stay explicit because these operations can affect customer money, subscription access, tax evidence, and accounting records.
 
 ## 2. External Basis
 
@@ -49,17 +49,17 @@ Tax invoice policy in this document is a system policy baseline, not tax advice.
 | Finalized payment | `subscription_payments` stores successful subscription payment records. |
 | Provider lookup | Reconciliation compares recent orders with Toss state by `orderId` when lookup is configured. |
 | Admin view | `/admin/payments` lists orders, billing agreements, subscription payments, and reconciliation incidents. |
-| Mutation boundary | Admin payment screens are intentionally read-only except incident workflow status/note updates. |
-| Operation audit | `payment_operation_audit_logs` stores reconciliation incident status changes and system-created receipt evidence audit rows. |
-| Refund state | `PaymentStatus` has `REFUND`, but no refund ledger or provider cancel implementation exists. |
+| Mutation boundary | Admin payment screens expose incident workflow status/note updates. Refund mutation exists as backend admin APIs; a first-class refund UI tab is not implemented yet. |
+| Operation audit | `payment_operation_audit_logs` stores reconciliation incident status changes, system-created receipt evidence audit rows, and admin refund workflow transitions. |
+| Refund state | `payment_refunds` stores admin refund request, approval, provider execution, idempotency, provider cancel transaction, and failure/pending-confirmation state. |
 | Receipt state | `payment_receipts` stores safe provider receipt/cash receipt evidence after successful charges when Toss returns receipt metadata. |
 | Settlement state | No settlement import, settlement reconciliation, fee, VAT, or payout-date record exists. |
 
 ### Current data gap
 
-`PaymentOrder.pgTransactionId` is used as the provider transaction identifier after Toss billing charge. In Toss billing charge responses, this value may be the `paymentKey`. This is enough for support lookup and is now copied into `payment_receipts.provider_payment_key` when receipt evidence exists. Future refund and settlement features still should not rely only on parsing a generic transaction field or sanitized JSON payload.
+`PaymentOrder.pgTransactionId` is used as the provider transaction identifier after Toss billing charge. In Toss billing charge responses, this value may be the `paymentKey`. This value is copied into `payment_receipts.provider_payment_key` when receipt evidence exists and into `payment_refunds.provider_payment_key` when a refund request is created.
 
-Current implementation introduced explicit ledgers for receipt evidence and payment operation audit logs. Future implementation should still introduce refund, settlement, and tax invoice request ledgers before those operations become mutable.
+Current implementation introduced explicit ledgers for receipt evidence, refund workflow, and payment operation audit logs. Future implementation should still introduce settlement and tax invoice request ledgers before those operations become mutable.
 
 ## 4. Policy Principles
 
@@ -149,19 +149,19 @@ Required policy:
 
 Toss payment cancellation supports full and partial cancellation by `paymentKey`, and Toss recommends an idempotency key for safe duplicate prevention.
 
-ATStudio future implementation should:
+ATStudio implementation does the following for admin refund execution:
 
 - Persist a refund request before calling Toss.
-- Generate idempotency key as `ATS-REFUND-{refundRequestId}` or another stable unique key.
+- Generate a stable `ATS-REFUND-*` idempotency key for each refund request.
 - Use the same idempotency key for retry of the same refund request.
 - Never change the idempotency key to bypass an unclear provider error.
 - Store provider cancel transaction key if returned.
-- Re-query provider payment status after ambiguous timeout or provider failure.
 - Mark refund request as `PENDING_PROVIDER_CONFIRMATION` when the provider result is unknown.
+- Leave provider re-query/reconciliation of ambiguous refund results as an operator runbook task until a dedicated refund reconciliation workflow is approved.
 
-### 5.6 Refund state model candidate
+### 5.6 Refund state model
 
-Future table candidate: `payment_refunds`
+Implemented table: `payment_refunds`
 
 | Column | Notes |
 |---|---|
@@ -171,7 +171,7 @@ Future table candidate: `payment_refunds`
 | `reconciliation_incident_id` | Nullable incident linkage |
 | `provider` | `TOSS_BILLING` first |
 | `provider_payment_key` | Provider payment key, not a secret |
-| `provider_cancel_transaction_key` | Provider cancellation transaction key if available |
+| `provider_refund_transaction_id` | Provider cancellation transaction key if available |
 | `amount` | Refund amount |
 | `currency` | `KRW` |
 | `status` | `REQUESTED`, `APPROVED`, `PROCESSING`, `SUCCEEDED`, `FAILED`, `PENDING_PROVIDER_CONFIRMATION`, `CANCELLED` |
@@ -181,6 +181,19 @@ Future table candidate: `payment_refunds`
 | `requested_by`, `approved_by`, `executed_by` | Admin user IDs |
 | `provider_payload` | Sanitized response metadata only |
 | `created_at`, `updated_at`, `approved_at`, `executed_at` | Audit timeline |
+
+Implemented admin APIs:
+
+| API | Purpose | Mutation risk |
+|---|---|---|
+| `GET /api/admin/payments/refund-preview/{subscriptionPaymentId}` | Show refundable amount and provider readiness | Read-only |
+| `GET /api/admin/payments/refunds` | List local refund ledger records | Read-only |
+| `GET /api/admin/payments/refunds/{refundId}` | Show one local refund ledger record | Read-only |
+| `POST /api/admin/payments/refunds` | Create refund request and idempotency key | Local audit mutation |
+| `POST /api/admin/payments/refunds/{refundId}/approve` | Approve refund request | Local audit mutation |
+| `POST /api/admin/payments/refunds/{refundId}/execute` | Execute provider cancel/refund with persisted idempotency key | Provider money movement |
+
+The implemented refund APIs do not automatically mutate `user_subscriptions`, `billing_agreements`, or `subscription_payments.payment_status`.
 
 ## 6. Receipt and Cash Receipt Policy
 
@@ -254,8 +267,14 @@ Current action coverage:
 |---|---|---|---|
 | `RECONCILIATION_INCIDENT_STATUS_UPDATE` | Admin user | `payment_reconciliation_incidents` | Records before/after status, reason code, note, order/provider references. |
 | `RECEIPT_EVIDENCE_CREATED` | System (`NULL`) | `payment_receipts` | Records receipt evidence creation for support traceability. |
+| `PAYMENT_REFUND_REQUESTED` | Admin user | `payment_refunds` | Records local refund request creation. |
+| `PAYMENT_REFUND_APPROVED` | Admin user | `payment_refunds` | Records local refund approval. |
+| `PAYMENT_REFUND_PROCESSING` | Admin user | `payment_refunds` | Records provider execution start. |
+| `PAYMENT_REFUND_SUCCEEDED` | Admin user | `payment_refunds` | Records successful provider cancel result. |
+| `PAYMENT_REFUND_FAILED` | Admin user | `payment_refunds` | Records deterministic provider/local failure. |
+| `PAYMENT_REFUND_PENDING_PROVIDER_CONFIRMATION` | Admin user | `payment_refunds` | Records ambiguous provider result requiring manual confirmation. |
 
-Future refund, entitlement correction, settlement import, and tax invoice request workflows should add explicit action values instead of reusing these actions. Cash receipt issue/cancel actions remain conditional on future cash-like payment support.
+Future entitlement correction, settlement import, and tax invoice request workflows should add explicit action values instead of reusing these actions. Cash receipt issue/cancel actions remain conditional on future cash-like payment support.
 
 ## 7. Settlement Policy
 
@@ -397,7 +416,7 @@ If a payment is refunded after tax invoice issuance:
 | Phase | Scope | Why first |
 |---|---|---|
 | P2-A | Admin audit ledger and receipt evidence storage | Implemented. No provider mutation added. |
-| P2-B | Refund request workflow without automatic entitlement mutation | Adds provider cancellation safely with idempotency and approval. |
+| P2-B | Refund request workflow without automatic entitlement mutation | Implemented as backend admin APIs with provider cancellation, idempotency, and approval. |
 | P2-C | Entitlement correction workflow linked to refund | Money movement and access mutation remain auditable separately. |
 | P2-D | Settlement import and settlement reconciliation | Accounting visibility without touching user access. |
 | P2-E | Tax invoice request tracking | Enables manual HomeTax/ASP operation with internal traceability. |
@@ -405,15 +424,17 @@ If a payment is refunded after tax invoice issuance:
 
 ### 9.2 API candidate map
 
-These are future candidates, not implemented endpoints.
+The refund APIs below are implemented. The remaining entries are future candidates.
 
 | API | Purpose | Mutation risk |
 |---|---|---|
-| `GET /api/admin/payment-operations/refund-preview/{subscriptionPaymentId}` | Show refundable amount and entitlement impact preview | Read-only |
-| `POST /api/admin/payment-operations/refunds` | Create refund request | Local audit mutation |
-| `POST /api/admin/payment-operations/refunds/{id}/approve` | Approve refund request | Local audit mutation |
-| `POST /api/admin/payment-operations/refunds/{id}/execute` | Execute provider refund/cancel with idempotency key | Provider money movement |
-| `POST /api/admin/payment-operations/refunds/{id}/entitlement-correction` | Apply local subscription correction after approval | Local access mutation |
+| `GET /api/admin/payments/refund-preview/{subscriptionPaymentId}` | Show refundable amount and provider readiness | Read-only |
+| `GET /api/admin/payments/refunds` | List refund ledger records | Read-only |
+| `GET /api/admin/payments/refunds/{id}` | Show refund ledger detail | Read-only |
+| `POST /api/admin/payments/refunds` | Create refund request | Local audit mutation |
+| `POST /api/admin/payments/refunds/{id}/approve` | Approve refund request | Local audit mutation |
+| `POST /api/admin/payments/refunds/{id}/execute` | Execute provider refund/cancel with idempotency key | Provider money movement |
+| `POST /api/admin/payment-operations/refunds/{id}/entitlement-correction` | Apply local subscription correction after approval | Local access mutation; future candidate |
 | `GET /api/users/me/payment-receipts` | User receipt list | Read-only |
 | `GET /api/admin/payment-operations/settlements` | Admin settlement records | Read-only |
 | `POST /api/admin/payment-operations/settlements/import` | Import provider settlement records | Local accounting mutation |
@@ -485,11 +506,11 @@ Business registration numbers, representative names, and invoice emails are oper
 - avoid logs
 - do not include in public screenshots
 
-## 12. Acceptance Checklist for Future Implementation REQs
+## 12. Acceptance Checklist for Remaining Implementation REQs
 
-Before implementing refund/receipt/settlement/tax invoice features, confirm:
+Before implementing remaining payment operation features, confirm:
 
-- [ ] Which admin roles can request, approve, and execute refunds.
+- [x] Which admin roles can request, approve, and execute refunds. Current backend boundary is `ADMIN`.
 - [ ] Whether two-person approval is required for refunds above a threshold.
 - [ ] Whether full refund should automatically create an entitlement-correction task.
 - [ ] Whether receipt URLs are available in the Toss billing charge response for the active API version.
@@ -510,6 +531,7 @@ Before implementing refund/receipt/settlement/tax invoice features, confirm:
 | PAYOPS-D05 | Current card-only recurring billing does not require cash receipt automation in the first implementation. | Accepted |
 | PAYOPS-D06 | Settlement means PG-to-ATStudio merchant settlement, not creator payout. | Accepted |
 | PAYOPS-D07 | Tax invoice issuance starts as manual HomeTax/ASP-backed operations tracking until tax review approves automation. | Accepted |
+| PAYOPS-D08 | Refund ledger/provider cancel is implemented as admin backend APIs first; entitlement correction and first-class admin refund UI remain separate. | Accepted |
 
 ## Related Documents
 

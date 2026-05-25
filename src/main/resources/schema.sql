@@ -377,7 +377,7 @@ CREATE TABLE IF NOT EXISTS licenses
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 3.8  billing_agreements / payment_orders / subscription_payments / payment_reconciliation_incidents / payment_receipts / payment_operation_audit_logs
+-- 3.8  billing_agreements / payment_orders / subscription_payments / payment_refunds / payment_reconciliation_incidents / payment_receipts / payment_operation_audit_logs
 -- ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS billing_agreements
 (
@@ -459,6 +459,67 @@ CREATE TABLE IF NOT EXISTS subscription_payments
     CONSTRAINT fk_subscription_payments_subscription FOREIGN KEY (subscription_id)      REFERENCES subscriptions      (id),
     CONSTRAINT fk_subscription_payments_order        FOREIGN KEY (payment_order_id)     REFERENCES payment_orders     (id),
     CONSTRAINT fk_subscription_payments_agreement    FOREIGN KEY (billing_agreement_id) REFERENCES billing_agreements (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS payment_refunds
+(
+    id                             BIGINT NOT NULL AUTO_INCREMENT,
+    subscription_payment_id        BIGINT NOT NULL,
+    payment_order_id               BIGINT NOT NULL,
+    user_id                        BIGINT NOT NULL,
+    provider                       ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NOT NULL,
+    status                         ENUM (
+        'REQUESTED',
+        'APPROVED',
+        'PROCESSING',
+        'SUCCEEDED',
+        'FAILED',
+        'PENDING_PROVIDER_CONFIRMATION',
+        'CANCELLED'
+    ) NOT NULL DEFAULT 'REQUESTED',
+    amount                         DECIMAL(10, 2) NOT NULL,
+    currency                       VARCHAR(3) NOT NULL DEFAULT 'KRW',
+    reason_code                    ENUM (
+        'CUSTOMER_REQUEST',
+        'DUPLICATE_PAYMENT',
+        'PAYMENT_ERROR',
+        'SERVICE_ISSUE',
+        'ADMIN_ADJUSTMENT',
+        'OTHER'
+    ) NOT NULL,
+    reason_note                    VARCHAR(500) NULL,
+    idempotency_key                VARCHAR(100) NOT NULL,
+    provider_payment_key           VARCHAR(200) NOT NULL,
+    provider_refund_transaction_id VARCHAR(200) NULL,
+    provider_payload               TEXT NULL COMMENT 'Sanitized provider cancel response only.',
+    failure_code                   VARCHAR(100) NULL,
+    failure_message                VARCHAR(500) NULL,
+    requested_by                   BIGINT NULL,
+    approved_by                    BIGINT NULL,
+    executed_by                    BIGINT NULL,
+    approved_at                    DATETIME NULL,
+    executed_at                    DATETIME NULL,
+    created_at                     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at                     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_payment_refunds_idempotency (idempotency_key),
+    KEY idx_payment_refunds_status_created (status, created_at),
+    KEY idx_payment_refunds_payment (subscription_payment_id),
+    KEY idx_payment_refunds_user_created (user_id, created_at),
+    CONSTRAINT fk_payment_refunds_subscription_payment
+        FOREIGN KEY (subscription_payment_id) REFERENCES subscription_payments (id),
+    CONSTRAINT fk_payment_refunds_order
+        FOREIGN KEY (payment_order_id) REFERENCES payment_orders (id),
+    CONSTRAINT fk_payment_refunds_user
+        FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT fk_payment_refunds_requested_by
+        FOREIGN KEY (requested_by) REFERENCES users (id),
+    CONSTRAINT fk_payment_refunds_approved_by
+        FOREIGN KEY (approved_by) REFERENCES users (id),
+    CONSTRAINT fk_payment_refunds_executed_by
+        FOREIGN KEY (executed_by) REFERENCES users (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
@@ -547,8 +608,17 @@ CREATE TABLE IF NOT EXISTS payment_receipts
 CREATE TABLE IF NOT EXISTS payment_operation_audit_logs
 (
     id                         BIGINT NOT NULL AUTO_INCREMENT,
-    action                     ENUM ('RECONCILIATION_INCIDENT_STATUS_UPDATE', 'RECEIPT_EVIDENCE_CREATED') NOT NULL,
-    target_type                ENUM ('RECONCILIATION_INCIDENT', 'PAYMENT_RECEIPT') NOT NULL,
+    action                     ENUM (
+        'RECONCILIATION_INCIDENT_STATUS_UPDATE',
+        'RECEIPT_EVIDENCE_CREATED',
+        'PAYMENT_REFUND_REQUESTED',
+        'PAYMENT_REFUND_APPROVED',
+        'PAYMENT_REFUND_PROCESSING',
+        'PAYMENT_REFUND_SUCCEEDED',
+        'PAYMENT_REFUND_FAILED',
+        'PAYMENT_REFUND_PENDING_PROVIDER_CONFIRMATION'
+    ) NOT NULL,
+    target_type                ENUM ('RECONCILIATION_INCIDENT', 'PAYMENT_RECEIPT', 'PAYMENT_REFUND') NOT NULL,
     target_id                  BIGINT NULL,
     actor_user_id              BIGINT NULL COMMENT 'Admin actor. NULL for system-generated audit entries.',
     target_user_id             BIGINT NULL COMMENT 'Payment owner when resolvable.',

@@ -34,8 +34,8 @@ dependencies:
 
 | Category | Count | Reference |
 | :-- | :-- | :-- |
-| Backend REST APIs | 123 | `docs/design/api-spec.md` v12 |
-| DB Tables | 33 | `docs/design/db-schema.md` |
+| Backend REST APIs | 129 | `docs/design/api-spec.md` v13 |
+| DB Tables | 34 | `docs/design/db-schema.md` |
 | Frontend Screens | 52 | `docs/index.md` |
 | Agents | 13 | `docs/architecture/system-design.md` §2.4 |
 | SR Items completed | 82 | `docs/SR/index.md` |

@@ -3,6 +3,8 @@ package com.atstudio.atstudio.service.payment.provider.recurring;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.config.PaymentProperties;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
+import com.atstudio.atstudio.service.payment.provider.refund.PaymentRefundProviderCommand;
+import com.atstudio.atstudio.service.payment.provider.refund.PaymentRefundProviderResult;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -285,10 +287,67 @@ class TossBillingProviderTest {
         assertThat(result.providerPayload()).contains("\"paymentKey\":\"payment_key\"");
     }
 
+    @Test
+    @DisplayName("cancelPayment calls Toss payment cancel API with idempotency key and sanitized response")
+    void cancelPaymentSuccess() throws IOException {
+        CapturedRequest captured = new CapturedRequest();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v1/payments/payment_key/cancel", exchange -> {
+            captured.authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            captured.idempotencyKey.set(exchange.getRequestHeaders().getFirst("Idempotency-Key"));
+            captured.method.set(exchange.getRequestMethod());
+            captured.body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            String response = """
+                    {
+                      "paymentKey": "payment_key",
+                      "orderId": "ORDER-1",
+                      "status": "CANCELED",
+                      "totalAmount": 9900,
+                      "balanceAmount": 0,
+                      "card": {
+                        "number": "5388111122221111"
+                      },
+                      "cancels": [
+                        {
+                          "cancelAmount": 9900,
+                          "cancelReason": "CUSTOMER_REQUEST",
+                          "canceledAt": "2026-05-25T10:00:00+09:00",
+                          "transactionKey": "cancel_tx_key",
+                          "cancelStatus": "DONE"
+                        }
+                      ]
+                    }
+                    """;
+            send(exchange, 200, response);
+        });
+        server.start();
+
+        TossBillingProvider provider = new TossBillingProvider(properties(baseUrl()));
+
+        PaymentRefundProviderResult result = provider.cancelPayment(new PaymentRefundProviderCommand(
+                "payment_key",
+                "ORDER-1",
+                BigDecimal.valueOf(9900),
+                "CUSTOMER_REQUEST",
+                "ATS-REFUND-1"));
+
+        assertThat(captured.method.get()).isEqualTo("POST");
+        assertThat(captured.authorization.get()).isEqualTo(basicAuth());
+        assertThat(captured.idempotencyKey.get()).isEqualTo("ATS-REFUND-1");
+        assertThat(captured.body.get()).contains("\"cancelReason\":\"CUSTOMER_REQUEST\"");
+        assertThat(captured.body.get()).contains("\"cancelAmount\":9900");
+        assertThat(result.success()).isTrue();
+        assertThat(result.providerRefundTransactionId()).isEqualTo("cancel_tx_key");
+        assertThat(result.providerPayload()).contains("\"paymentKey\":\"payment_key\"");
+        assertThat(result.providerPayload()).contains("\"transactionKey\":\"cancel_tx_key\"");
+        assertThat(result.providerPayload()).doesNotContain("5388111122221111");
+    }
+
     private PaymentProperties properties(String baseUrl) {
         PaymentProperties properties = new PaymentProperties();
         properties.getToss().setClientKey("test_ck_sample");
         properties.getToss().setSecretKey("test_sk_sample");
+        properties.getToss().setCancelUrl(baseUrl + "/v1/payments/{paymentKey}/cancel");
         properties.getBilling().setAuthSuccessUrl("http://localhost:5173/subscriptions/billing/success");
         properties.getBilling().setAuthFailUrl("http://localhost:5173/subscriptions/billing/fail");
         properties.getBilling().setIssueUrl(baseUrl + "/v1/billing/authorizations/issue");

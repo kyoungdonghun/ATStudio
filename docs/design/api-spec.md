@@ -1,8 +1,18 @@
-# ATStudio API Specification v12 (Confirmed)
+# ATStudio API Specification v13 (Confirmed)
 
-> **Status**: 12th confirmed — payment receipt evidence and operation audit log read APIs
-> **Base**: v11 + 2026-05-25 payment operations audit foundation patch
+> **Status**: 13th confirmed — admin refund ledger and Toss cancel execution APIs
+> **Base**: v12 + 2026-05-25 admin refund ledger/Toss cancel patch
 > **Date**: 2026-05-25
+
+---
+
+## v12 → v13 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| AD1 | §6.3.8 admin refund workflow | Added refund preview, request, approve, execute, list, and detail APIs for audited admin refund operations. |
+| AD2 | Refund execution boundary | Provider refund/cancel execution is admin-only and uses the persisted refund ledger plus provider idempotency key; it does not automatically mutate subscription entitlement. |
+| AD3 | Full API Summary | Updated total count from 123 → 129 |
 
 ---
 
@@ -1359,7 +1369,7 @@ For payment-method re-registration on an existing active/grace-period subscripti
 
 ## 6.3.8 Payment Operations Admin APIs
 
-These endpoints are implemented as admin support/audit views. Payment order, billing agreement, subscription payment, receipt evidence, operation audit log, and on-demand reconciliation endpoints are read-only. Reconciliation incident status updates mutate only the incident workflow state and create an audit log row; they must not refund payments, cancel provider charges, change subscriptions, or mutate billing agreements. These endpoints must not expose raw billing keys, auth keys, customer keys, Toss secret keys, raw provider payloads, or raw card data.
+These endpoints are implemented as admin support/audit views and controlled payment operation APIs. Payment order, billing agreement, subscription payment, receipt evidence, operation audit log, and on-demand reconciliation endpoints are read-only. Reconciliation incident status updates mutate only the incident workflow state and create an audit log row. Refund APIs mutate only the `payment_refunds` ledger until an approved refund is explicitly executed; execution calls the provider cancel API with the persisted idempotency key and does not automatically change subscriptions, billing agreements, or user entitlement. These endpoints must not expose raw billing keys, auth keys, customer keys, Toss secret keys, raw provider payloads, or raw card data.
 
 | API | Purpose | Notes |
 |---|---|---|
@@ -1368,6 +1378,12 @@ These endpoints are implemented as admin support/audit views. Payment order, bil
 | `GET /api/admin/payments/subscription-payments` | List finalized subscription payment records | No refund/settlement mutation in this phase |
 | `GET /api/admin/payments/receipts` | List persisted payment receipt evidence | Read-only; stores safe provider receipt URL/key metadata only |
 | `GET /api/admin/payments/operation-audit-logs` | List payment operation audit logs | Read-only; includes admin/system action metadata without raw provider payloads |
+| `GET /api/admin/payments/refund-preview/{subscriptionPaymentId}` | Preview refundable amount for a finalized subscription payment | Read-only; rejects unsupported provider/status/missing provider payment key |
+| `GET /api/admin/payments/refunds` | List refund ledger records | Read-only list of local refund operation records |
+| `GET /api/admin/payments/refunds/{refundId}` | Get refund ledger detail | Read-only detail for one local refund operation |
+| `POST /api/admin/payments/refunds` | Create a refund request | Local ledger mutation only; provider is not called |
+| `POST /api/admin/payments/refunds/{refundId}/approve` | Approve a refund request | Local ledger mutation only; provider is not called |
+| `POST /api/admin/payments/refunds/{refundId}/execute` | Execute an approved refund through Toss cancel | Provider money movement; reuses the persisted idempotency key |
 | `GET /api/admin/payments/reconciliation` | Run local/provider payment reconciliation | Read-only; returns support-safe mismatch counts and issue records, no raw provider secrets |
 | `GET /api/admin/payments/reconciliation-incidents` | List persisted reconciliation incidents | Optional `status` filter; support-safe incident workflow metadata only |
 | `PUT /api/admin/payments/reconciliation-incidents/{incidentId}/status` | Update incident workflow status | Mutates incident status/note only; no payment/subscription/provider mutation |
@@ -1421,7 +1437,7 @@ These endpoints are implemented as admin support/audit views. Payment order, bil
 |---|---|
 | **URL** | `GET /api/admin/payments/operation-audit-logs?page=1&size=20` |
 | **Auth** | ADMIN |
-| **Description** | Lists append-only payment operation audit rows. Current actions include reconciliation incident status updates and system-created receipt evidence rows. This endpoint is read-only. |
+| **Description** | Lists append-only payment operation audit rows. Current actions include reconciliation incident status updates, system-created receipt evidence rows, and admin refund workflow transitions. This endpoint is read-only. |
 
 **Response** `200 OK`
 
@@ -1461,6 +1477,191 @@ These endpoints are implemented as admin support/audit views. Payment order, bil
   }
 }
 ```
+
+### GET /api/admin/payments/refund-preview/{subscriptionPaymentId}
+
+| Field | Value |
+|---|---|
+| **URL** | `GET /api/admin/payments/refund-preview/{subscriptionPaymentId}` |
+| **Auth** | ADMIN |
+| **Description** | Previews whether a finalized subscription payment can be refunded and how much remains refundable after existing requested, approved, processing, pending-confirmation, or succeeded refund rows. This endpoint is read-only and must not call Toss. |
+
+**Response** `200 OK`
+
+```json
+{
+  "data": {
+    "subscriptionPaymentId": 901,
+    "paymentOrderId": 3001,
+    "orderId": "ATS-REN-20260525-ABC123",
+    "userId": 12,
+    "userNickname": "customer12",
+    "provider": "TOSS_BILLING",
+    "originalAmount": 29900,
+    "alreadyRefundedOrReservedAmount": 10000,
+    "refundableAmount": 19900,
+    "providerPaymentKey": "payment_key",
+    "refundable": true,
+    "reason": null
+  }
+}
+```
+
+### GET /api/admin/payments/refunds
+
+| Field | Value |
+|---|---|
+| **URL** | `GET /api/admin/payments/refunds?page=1&size=20` |
+| **Auth** | ADMIN |
+| **Description** | Lists local refund ledger records by latest created date. It returns support-safe refund metadata, provider payment key, provider cancel transaction key, status, actor, and failure summary fields only. |
+
+**Response** `200 OK`
+
+```json
+{
+  "dataList": [
+    {
+      "id": 1,
+      "subscriptionPaymentId": 901,
+      "paymentOrderId": 3001,
+      "orderId": "ATS-REN-20260525-ABC123",
+      "userId": 12,
+      "userNickname": "customer12",
+      "provider": "TOSS_BILLING",
+      "status": "REQUESTED",
+      "amount": 19900,
+      "currency": "KRW",
+      "reasonCode": "CUSTOMER_REQUEST",
+      "reasonNote": "Support-approved refund.",
+      "idempotencyKey": "ATS-REFUND-8F68B0D6F73A",
+      "providerPaymentKey": "payment_key",
+      "providerRefundTransactionId": null,
+      "failureCode": null,
+      "failureMessage": null,
+      "requestedById": 99,
+      "requestedByEmail": "admin@test.com",
+      "approvedById": null,
+      "approvedByEmail": null,
+      "executedById": null,
+      "executedByEmail": null,
+      "approvedAt": null,
+      "executedAt": null,
+      "createdAt": "2026-05-25T11:00:00",
+      "updatedAt": "2026-05-25T11:00:00"
+    }
+  ],
+  "pageInfo": {
+    "page": 1,
+    "size": 20,
+    "total": 1,
+    "start": 1,
+    "end": 1,
+    "prev": false,
+    "next": false
+  }
+}
+```
+
+### GET /api/admin/payments/refunds/{refundId}
+
+| Field | Value |
+|---|---|
+| **URL** | `GET /api/admin/payments/refunds/{refundId}` |
+| **Auth** | ADMIN |
+| **Description** | Returns one local refund ledger record. It must not expose raw provider cancel payload, raw card data, or provider secrets. |
+
+**Response** `200 OK`
+
+```json
+{
+  "data": {
+    "id": 1,
+    "subscriptionPaymentId": 901,
+    "paymentOrderId": 3001,
+    "orderId": "ATS-REN-20260525-ABC123",
+    "userId": 12,
+    "userNickname": "customer12",
+    "provider": "TOSS_BILLING",
+    "status": "APPROVED",
+    "amount": 19900,
+    "currency": "KRW",
+    "reasonCode": "CUSTOMER_REQUEST",
+    "reasonNote": "Support-approved refund.",
+    "idempotencyKey": "ATS-REFUND-8F68B0D6F73A",
+    "providerPaymentKey": "payment_key",
+    "providerRefundTransactionId": null,
+    "failureCode": null,
+    "failureMessage": null,
+    "requestedById": 99,
+    "requestedByEmail": "admin@test.com",
+    "approvedById": 100,
+    "approvedByEmail": "lead@test.com",
+    "executedById": null,
+    "executedByEmail": null,
+    "approvedAt": "2026-05-25T11:05:00",
+    "executedAt": null,
+    "createdAt": "2026-05-25T11:00:00",
+    "updatedAt": "2026-05-25T11:05:00"
+  }
+}
+```
+
+### POST /api/admin/payments/refunds
+
+| Field | Value |
+|---|---|
+| **URL** | `POST /api/admin/payments/refunds` |
+| **Auth** | ADMIN |
+| **Description** | Creates a local refund request with a stable idempotency key. This endpoint does not call Toss and does not mutate subscription entitlement. The requested amount must be at least 1 KRW and must not exceed the remaining refundable amount. |
+
+**Request**
+
+```json
+{
+  "subscriptionPaymentId": 901,
+  "amount": 19900,
+  "reasonCode": "CUSTOMER_REQUEST",
+  "reasonNote": "Support-approved refund."
+}
+```
+
+**Response** `200 OK` — returns `AdminPaymentRefundResponse` with `status: "REQUESTED"`.
+
+### POST /api/admin/payments/refunds/{refundId}/approve
+
+| Field | Value |
+|---|---|
+| **URL** | `POST /api/admin/payments/refunds/{refundId}/approve` |
+| **Auth** | ADMIN |
+| **Description** | Approves a `REQUESTED` refund request and writes a payment operation audit log row. This endpoint does not call Toss. |
+
+**Request**
+
+```json
+{
+  "note": "Verified against customer support ticket."
+}
+```
+
+**Response** `200 OK` — returns `AdminPaymentRefundResponse` with `status: "APPROVED"`.
+
+### POST /api/admin/payments/refunds/{refundId}/execute
+
+| Field | Value |
+|---|---|
+| **URL** | `POST /api/admin/payments/refunds/{refundId}/execute` |
+| **Auth** | ADMIN |
+| **Description** | Executes an `APPROVED` or `PENDING_PROVIDER_CONFIRMATION` refund through the configured provider. For Toss billing, the server calls `POST /v1/payments/{paymentKey}/cancel` with the persisted idempotency key. Success stores the provider cancel transaction key and marks the refund `SUCCEEDED`. Ambiguous provider/network errors mark the refund `PENDING_PROVIDER_CONFIRMATION`; deterministic provider failures mark it `FAILED`. This endpoint does not automatically mutate subscription entitlement. |
+
+**Request**
+
+```json
+{
+  "note": "Executing after approval."
+}
+```
+
+**Response** `200 OK` — returns `AdminPaymentRefundResponse` with `status: "SUCCEEDED"`, `FAILED`, or `PENDING_PROVIDER_CONFIRMATION`.
 
 ### GET /api/admin/payments/reconciliation
 
@@ -2923,7 +3124,7 @@ key: String (required) — setting key name
 
 ---
 
-# Full API Summary (123)
+# Full API Summary (129)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -2944,5 +3145,5 @@ key: String (required) — setting key name
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
-| 18 | Admin Payment Operations | 8 |
-| | **Total** | **123** |
+| 18 | Admin Payment Operations | 14 |
+| | **Total** | **129** |

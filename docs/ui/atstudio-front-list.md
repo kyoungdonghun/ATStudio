@@ -1,6 +1,6 @@
 # ATStudio 화면 목록 (Frontend)
 
-> API Spec v12 기준 | updated 2026-05-25
+> API Spec v13 기준 | updated 2026-05-25
 > `[PUBLIC]` = 인증 불필요 / `auth required` = 로그인 필요 / `[ADMIN]` = 관리자 전용 / `⚠️` = API 미정의
 
 > `🗑️ 삭제` = 상세/목록 페이지에서 `confirm()` 처리 / 회원탈퇴만 비밀번호 재확인 모달
@@ -86,7 +86,7 @@
 | K-10 | 결제 운영 (`/admin/payments`) | `6.3.8 GET /api/admin/payments/orders` `6.3.8 GET /api/admin/payments/billing-agreements` `6.3.8 GET /api/admin/payments/subscription-payments` `6.3.8 GET /api/admin/payments/reconciliation-incidents` `6.3.8 PUT /api/admin/payments/reconciliation-incidents/{incidentId}/status` | admin required |
 
 > K-10 current UI tabs: `주문`, `자동결제`, `결제내역`, `대사 Incident`.
-> `GET /api/admin/payments/receipts` and `GET /api/admin/payments/operation-audit-logs` are implemented as admin read-only APIs, but first-class receipt/audit UI tabs are not implemented yet.
+> `GET /api/admin/payments/receipts`, `GET /api/admin/payments/operation-audit-logs`, and admin refund APIs are implemented as admin backend APIs, but first-class receipt/audit/refund UI tabs are not implemented yet.
 
 ---
 

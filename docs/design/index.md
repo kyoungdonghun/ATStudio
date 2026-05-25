@@ -25,8 +25,8 @@ status: stable
 
 | Document | Description | Status |
 |---|---|---|
-| **[API Specification](api-spec.md)** | REST API spec v12 — 123 endpoints | stable |
-| **[DB Schema](db-schema.md)** | Database schema — 33 tables | stable |
+| **[API Specification](api-spec.md)** | REST API spec v13 — 129 endpoints | stable |
+| **[DB Schema](db-schema.md)** | Database schema — 34 tables | stable |
 | **[Use Case Index](usecase/index.md)** | Domain use case documents | stable |
 | **[Payment Integration Design](payment-integration-design.md)** | Recurring-first subscription payment, legacy/mock payment compatibility, and provider architecture | draft |
 | **[Payment Operations Runbook](payment-operations-runbook.md)** | Toss recurring payment reconciliation and production incident response | draft |

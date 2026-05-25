@@ -8,6 +8,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Optional;
+
 public interface SubscriptionPaymentRepository extends JpaRepository<SubscriptionPayment, Long> {
 
     boolean existsByUser(User user);
@@ -16,4 +18,7 @@ public interface SubscriptionPaymentRepository extends JpaRepository<Subscriptio
 
     @EntityGraph(attributePaths = {"user", "subscription", "paymentOrder", "billingAgreement"})
     Page<SubscriptionPayment> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"user", "subscription", "paymentOrder", "billingAgreement"})
+    Optional<SubscriptionPayment> findWithGraphById(Long id);
 }
