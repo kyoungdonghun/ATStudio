@@ -188,8 +188,8 @@ Future table candidate: `payment_refunds`
 
 | Type | Meaning | ATStudio current status |
 |---|---|---|
-| Card/payment receipt | Provider evidence for a completed card payment | Not stored in a dedicated field |
-| Cash receipt | Korean cash receipt for cash-like transactions | Not primary for current card-only recurring billing |
+| Card/payment receipt | Provider evidence for a completed card payment | Stored in `payment_receipts` when the provider returns safe receipt metadata |
+| Cash receipt | Korean cash receipt for cash-like transactions | Evidence capture exists in `payment_receipts` when provider metadata is returned; issue/cancel mutation is not implemented for current card-only recurring billing |
 | Tax invoice | B2B tax document issued by HomeTax/ASP/manual accounting flow | Not implemented |
 
 ### 6.2 Current recurring billing method
@@ -199,7 +199,7 @@ Future table candidate: `payment_refunds`
 Policy:
 
 - User-facing subscription payment history should eventually expose a provider receipt URL when available.
-- The receipt URL should be stored explicitly, not only inside sanitized provider payload.
+- Receipt evidence is stored explicitly in `payment_receipts` when Toss returns safe receipt metadata; it is not kept only inside sanitized provider payload.
 - If Toss sends customer payment result emails through `customerEmail`, that email is provider notification, not ATStudio's own receipt ledger.
 
 ### 6.3 Cash receipt boundary
@@ -255,7 +255,7 @@ Current action coverage:
 | `RECONCILIATION_INCIDENT_STATUS_UPDATE` | Admin user | `payment_reconciliation_incidents` | Records before/after status, reason code, note, order/provider references. |
 | `RECEIPT_EVIDENCE_CREATED` | System (`NULL`) | `payment_receipts` | Records receipt evidence creation for support traceability. |
 
-Future refund, entitlement correction, settlement import, cash receipt issue/cancel, and tax invoice request workflows should add explicit action values instead of reusing these actions.
+Future refund, entitlement correction, settlement import, and tax invoice request workflows should add explicit action values instead of reusing these actions. Cash receipt issue/cancel actions remain conditional on future cash-like payment support.
 
 ## 7. Settlement Policy
 
@@ -493,7 +493,7 @@ Before implementing refund/receipt/settlement/tax invoice features, confirm:
 - [ ] Whether two-person approval is required for refunds above a threshold.
 - [ ] Whether full refund should automatically create an entitlement-correction task.
 - [ ] Whether receipt URLs are available in the Toss billing charge response for the active API version.
-- [ ] Whether cash receipt is needed for current card-only recurring billing.
+- [ ] Whether a future cash-like payment method or standalone cash receipt request flow requires cash receipt issue/cancel automation.
 - [ ] Which business users can request tax invoices.
 - [ ] Whether tax invoice issuance is manual HomeTax, ASP, or automated API integration.
 - [ ] Whether settlement data is imported from Toss API or uploaded manually by operations.

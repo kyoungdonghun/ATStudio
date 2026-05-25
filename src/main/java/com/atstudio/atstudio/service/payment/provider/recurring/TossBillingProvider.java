@@ -418,7 +418,7 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
             Map<String, String> sanitizedCard = new LinkedHashMap<>();
             putTextIfPresentString(sanitizedCard, "issuerCode", card);
             putTextIfPresentString(sanitizedCard, "acquirerCode", card);
-            putTextIfPresentString(sanitizedCard, "number", card);
+            putStringIfPresent(sanitizedCard, "number", maskedSensitiveNumber(text(card, "number", "")));
             putTextIfPresentString(sanitizedCard, "cardType", card);
             putTextIfPresentString(sanitizedCard, "ownerType", card);
             if (!sanitizedCard.isEmpty()) {
@@ -431,7 +431,10 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
             JsonNode first = transfers.get(0);
             Map<String, String> sanitizedTransfer = new LinkedHashMap<>();
             putTextIfPresentString(sanitizedTransfer, "bankName", first);
-            putTextIfPresentString(sanitizedTransfer, "bankAccountNumber", first);
+            putStringIfPresent(
+                    sanitizedTransfer,
+                    "bankAccountNumber",
+                    maskedSensitiveNumber(text(first, "bankAccountNumber", "")));
             if (!sanitizedTransfer.isEmpty()) {
                 payload.put("transfer", sanitizedTransfer);
             }
@@ -441,17 +444,32 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
     private String maskedMethod(JsonNode root) {
         JsonNode card = root.path("card");
         if (card.hasNonNull("number")) {
-            return card.get("number").asText();
+            return maskedSensitiveNumber(card.get("number").asText());
         }
 
         JsonNode transfers = root.path("transfers");
         if (transfers.isArray() && !transfers.isEmpty()) {
             JsonNode first = transfers.get(0);
             String bankName = text(first, "bankName", "");
-            String bankAccountNumber = text(first, "bankAccountNumber", "");
-            return (bankName + " " + bankAccountNumber).trim();
+            String bankAccountNumber = maskedSensitiveNumber(text(first, "bankAccountNumber", ""));
+            return (bankName + " " + (bankAccountNumber == null ? "" : bankAccountNumber)).trim();
         }
         return null;
+    }
+
+    private String maskedSensitiveNumber(String value) {
+        if (isBlank(value)) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.contains("*")) {
+            return trimmed;
+        }
+        String digits = trimmed.replaceAll("\\D", "");
+        if (digits.length() < 8) {
+            return null;
+        }
+        return digits.substring(0, 4) + "-****-****-" + digits.substring(digits.length() - 4);
     }
 
     private JsonNode readJson(String body) throws IOException {
@@ -470,6 +488,12 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
     private void putTextIfPresentString(Map<String, String> payload, String field, JsonNode root) {
         if (root.hasNonNull(field)) {
             payload.put(field, root.get(field).asText());
+        }
+    }
+
+    private void putStringIfPresent(Map<String, String> payload, String field, String value) {
+        if (!isBlank(value)) {
+            payload.put(field, value);
         }
     }
 

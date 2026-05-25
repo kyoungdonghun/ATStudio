@@ -9,10 +9,11 @@
 - Toss 정기결제 성공 응답에서 안전한 receipt/cashReceipt 필드만 sanitizer에 포함하도록 확장했다.
 - 최초 정기 구독 결제, 업그레이드 차액 결제, 자동 갱신 결제 성공 후 receipt evidence 저장 이벤트를 발행한다.
 - receipt evidence 저장은 결제 트랜잭션 commit 이후 처리되며, provider가 영수증 정보를 주지 않으면 조용히 skip한다.
+- Toss가 카드번호 원문을 반환하더라도 `maskedMethod`와 provider payload에는 강제 마스킹된 값만 남도록 보강했다.
 - `GET /api/admin/payments/receipts` read-only API를 추가했다.
 - `GET /api/admin/payments/operation-audit-logs` read-only API를 추가했다.
 - reconciliation incident 상태 변경 시 actor, before/after status, note, 대상 incident/order 정보를 감사 로그로 남긴다.
-- API spec, DB schema, SR-93, payment runbook, payment policy, 최종 인수테스트 체크리스트를 현행화했다.
+- API spec, DB schema, SR-93, payment runbook, payment policy, UI/API inventory, 최종 인수테스트 체크리스트를 현행화했다.
 
 ## 보안 경계
 
@@ -23,13 +24,14 @@
 ## 검증
 
 - `gradlew.bat test` 통과.
+- `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` 통과.
 - `python .agents\skills\validate-docs\scripts\validate_docs.py` 통과.
 - `git diff --check` 통과. Windows CRLF 안내 warning만 있었고 whitespace error는 없었다.
 
 ## 남은 범위
 
 - Toss refund/cancel API와 환불 ledger.
-- cash receipt 발급/취소 mutation.
 - settlement import/reconciliation.
 - tax invoice request/admin workflow.
 - admin payment mutation UI/API.
+- cash receipt 발급/취소 mutation은 현재 카드-only 정기결제 범위에서는 보류한다.

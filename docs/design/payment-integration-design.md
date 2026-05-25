@@ -686,7 +686,8 @@ Sensitive-data boundary:
 - Refund, settlement, and tax invoice operating policy is documented in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md); implementation remains separate.
 - Add external notification channels as follow-up work if email/log/admin-screen operations are insufficient.
 - Provider-side webhook handling remains optional auxiliary work and must not become the sole source of truth for recurring billing access.
-- Add settlement, tax invoice, cash receipt issue/cancel, and refund implementations as separate REQ/SR items.
+- Add refund, settlement, tax invoice, and admin payment mutation implementations as separate REQ/SR items.
+- Cash receipt issue/cancel automation remains on hold for the current card-only recurring billing scope; keep evidence capture only unless a cash-like payment method is approved.
 
 ## 15. Open Decisions
 

@@ -1,6 +1,6 @@
 # ATStudio 화면 목록 (Frontend)
 
-> API Spec v6 기준 | v5 2026-03-29
+> API Spec v12 기준 | updated 2026-05-25
 > `[PUBLIC]` = 인증 불필요 / `auth required` = 로그인 필요 / `[ADMIN]` = 관리자 전용 / `⚠️` = API 미정의
 
 > `🗑️ 삭제` = 상세/목록 페이지에서 `confirm()` 처리 / 회원탈퇴만 비밀번호 재확인 모달
@@ -83,7 +83,10 @@
 | 16-1 | 구독 플랜 비교/선택 | `6.1 GET /api/subscriptions` | [PUBLIC] |
 | 16-2 | 구독 결제 (`/subscriptions/checkout`) | `6.3.4 POST /api/payments/billing-agreements/prepare` `6.3.5 POST /api/payments/billing-agreements/confirm` | auth required |
 | 16-3 | 내 구독 현황 (업그레이드·다운그레이드·해지) | `6.4 GET /api/user-subscriptions/me` `6.7 PUT` `6.10 DELETE` `6.3.6 GET` `6.3.7 DELETE` | auth required |
-| K-10 | 결제 운영 (`/admin/payments`) | `6.3.8 GET /api/admin/payments/orders` `6.3.8 GET /api/admin/payments/billing-agreements` `6.3.8 GET /api/admin/payments/subscription-payments` `6.3.8 GET /api/admin/payments/reconciliation-incidents` `6.3.8 PUT /api/admin/payments/reconciliation-incidents/{incidentId}/status` `6.3.8 GET /api/admin/payments/receipts` `6.3.8 GET /api/admin/payments/operation-audit-logs` | admin required |
+| K-10 | 결제 운영 (`/admin/payments`) | `6.3.8 GET /api/admin/payments/orders` `6.3.8 GET /api/admin/payments/billing-agreements` `6.3.8 GET /api/admin/payments/subscription-payments` `6.3.8 GET /api/admin/payments/reconciliation-incidents` `6.3.8 PUT /api/admin/payments/reconciliation-incidents/{incidentId}/status` | admin required |
+
+> K-10 current UI tabs: `주문`, `자동결제`, `결제내역`, `대사 Incident`.
+> `GET /api/admin/payments/receipts` and `GET /api/admin/payments/operation-audit-logs` are implemented as admin read-only APIs, but first-class receipt/audit UI tabs are not implemented yet.
 
 ---
 

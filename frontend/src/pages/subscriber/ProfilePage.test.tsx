@@ -78,7 +78,9 @@ describe('ProfilePage', () => {
 
     fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: 'creator02' } });
     fireEvent.change(screen.getByLabelText('직업'), { target: { value: 'ARTIST' } });
-    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    const saveButton = screen.getByRole('button', { name: '저장' });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    fireEvent.click(saveButton);
 
     await waitFor(() => {
       expect(checkNicknameAvailabilityMock).toHaveBeenCalledWith('creator02');

@@ -8,6 +8,7 @@
 - [x] `payment_operation_audit_logs` entity/repository/service exists and records admin/system payment operation changes.
 - [x] Initial subscription, upgrade charge, and recurring renewal successful charge paths publish receipt evidence events.
 - [x] Toss sanitized charge payload includes safe receipt/cash receipt fields when present.
+- [x] Toss card/payment method sanitizer masks raw card/account numbers before returning `maskedMethod` or storing provider payload.
 - [x] Reconciliation incident status update records actor, before/after status, note, and target linkage.
 - [x] Admin read-only APIs list payment receipts and operation audit logs with pagination.
 - [x] API spec, DB schema, runbook, SR-93, payment policy, UI/API inventory, and acceptance checklist are synchronized.
@@ -55,6 +56,7 @@
 - `src/main/java/com/atstudio/atstudio/controller/AdminPaymentController.java:63` — admin receipt list API.
 - `src/main/java/com/atstudio/atstudio/controller/AdminPaymentController.java:71` — admin operation audit log list API.
 - `src/main/java/com/atstudio/atstudio/service/payment/provider/recurring/TossBillingProvider.java:386` — Toss sanitized charge payload includes safe receipt evidence.
+- `src/main/java/com/atstudio/atstudio/service/payment/provider/recurring/TossBillingProvider.java` — raw card/account numbers are forced through local masking before provider payload or `maskedMethod` exposure.
 - `src/main/resources/schema.sql` — manual DB schema updated to 33 tables.
 - `docs/design/api-spec.md:1369` — new admin receipt/audit APIs listed.
 - `docs/design/db-schema.md:445` — `payment_receipts` DB contract.
@@ -76,6 +78,15 @@
   - Result: all validations passed.
 - `git diff --check`
   - Result: no whitespace errors; only Windows LF-to-CRLF warnings.
+- Closure hardening rerun:
+  - `.\gradlew.bat test --tests "com.atstudio.atstudio.service.payment.provider.recurring.TossBillingProviderTest"` — passed.
+  - `.\gradlew.bat test` — passed.
+  - `npm run typecheck` — passed.
+  - `npm run lint` — passed.
+  - `npm test` — first run exposed a profile test timing issue unrelated to payment; after waiting for the save button to become enabled, rerun passed 14 files / 51 tests.
+  - `npm run build` — passed.
+  - `python .agents\skills\validate-docs\scripts\validate_docs.py` — passed.
+  - `git diff --check` — passed with LF-to-CRLF warnings only.
 
 ## Tests
 
@@ -91,6 +102,7 @@
   - Verify receipt evidence publishing on successful charge paths.
 - `TossBillingProviderTest`
   - Verifies safe receipt/cash receipt fields are preserved in sanitized charge payload.
+  - Verifies raw card numbers are masked before returning `maskedMethod` or provider payload.
 
 ## Risks / Rollback
 
@@ -110,3 +122,4 @@
 - P2-D: settlement import/reconciliation.
 - P2-E: tax invoice request/admin tracking.
 - P2-F: admin UI tabs for receipts and operation audit logs if needed.
+- Cash receipt issue/cancel automation: on hold while current recurring billing remains card-only; reopen only if cash-like payment support is approved.

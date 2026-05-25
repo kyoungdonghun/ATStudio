@@ -209,7 +209,9 @@ Separate REQ/SR items are still needed for:
 
 - Slack/SMS/in-app operator notification channels.
 - Refund automation based on the payment operations policy.
-- Cash receipt issue/cancel, settlement import/reconciliation, and tax invoice request implementation based on the payment operations policy.
+- Settlement import/reconciliation and tax invoice request implementation based on the payment operations policy.
 - Admin payment mutation APIs.
 - Legacy endpoint removal.
 - KakaoPay, NaverPay, or other PG adapters.
+
+Cash receipt issue/cancel automation is intentionally on hold while ATStudio uses card-only recurring billing. Reopen it only if a cash-like payment method or a separate cash receipt request flow is approved.

@@ -116,4 +116,4 @@
 | [ ] | 정기 갱신 성공/실패/만료 흐름을 확인했다. | 스케줄러와 권한 정책이 결제 상태와 일치한다. | |
 | [ ] | 관리자 결제 운영 화면과 incident workflow를 확인했다. | 운영자가 이상 상황을 발견하고 처리 상태를 남길 수 있다. | |
 | [ ] | 민감정보 비노출을 확인했다. | 결제 운영 화면과 API가 보안 경계를 지킨다. | |
-| [ ] | 남은 P2 범위를 확인했다. | 환불, cash receipt issue/cancel, 정산, 세금계산서, admin payment mutation, webhook, multi-PG는 별도 REQ/SR로 분리한다. | |
+| [ ] | 남은 P2 범위를 확인했다. | 환불, 정산, 세금계산서, admin payment mutation, webhook, multi-PG는 별도 REQ/SR로 분리한다. cash receipt issue/cancel은 카드-only 정기결제 범위에서는 보류한다. | |

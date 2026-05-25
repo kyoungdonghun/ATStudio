@@ -99,6 +99,36 @@ class TossBillingProviderTest {
     }
 
     @Test
+    @DisplayName("confirmAgreement masks raw card number before returning or storing provider payload")
+    void confirmAgreementMasksRawCardNumber() throws IOException {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v1/billing/authorizations/issue", exchange -> {
+            String response = """
+                    {
+                      "billingKey": "billing_secret_key",
+                      "method": "카드",
+                      "authenticatedAt": "2026-05-17T10:00:00+09:00",
+                      "card": {
+                        "number": "5388111122221111"
+                      }
+                    }
+                    """;
+            send(exchange, 200, response);
+        });
+        server.start();
+
+        TossBillingProvider provider = new TossBillingProvider(properties(baseUrl()));
+
+        BillingAgreementConfirmResult result = provider.confirmAgreement(
+                new BillingAgreementConfirmCommand("auth_key", "ats_billing_customer"));
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.maskedMethod()).isEqualTo("5388-****-****-1111");
+        assertThat(result.providerPayload()).contains("5388-****-****-1111");
+        assertThat(result.providerPayload()).doesNotContain("5388111122221111");
+    }
+
+    @Test
     @DisplayName("charge calls Toss billing API with idempotency key and sanitized response")
     void chargeSuccess() throws IOException {
         CapturedRequest captured = new CapturedRequest();
@@ -126,7 +156,7 @@ class TossBillingProviderTest {
                         "requestedAt": "2026-05-17T10:00:01+09:00"
                       },
                       "card": {
-                        "number": "1234-****-****-5678"
+                        "number": "5388111122221111"
                       }
                     }
                     """;
@@ -153,10 +183,13 @@ class TossBillingProviderTest {
         assertThat(captured.body.get()).contains("\"orderId\":\"ORDER-1\"");
         assertThat(result.success()).isTrue();
         assertThat(result.transactionId()).isEqualTo("payment_key");
+        assertThat(result.maskedMethod()).isEqualTo("5388-****-****-1111");
         assertThat(result.providerPayload()).contains("\"paymentKey\":\"payment_key\"");
         assertThat(result.providerPayload())
                 .contains("\"receipt\":{\"url\":\"https://dashboard.tosspayments.com/receipt/payment_key\"")
                 .contains("\"cashReceipt\":{\"receiptKey\":\"cash_receipt_key\"");
+        assertThat(result.providerPayload()).contains("5388-****-****-1111");
+        assertThat(result.providerPayload()).doesNotContain("5388111122221111");
         assertThat(result.providerPayload()).doesNotContain("billing_secret_key");
     }
 
