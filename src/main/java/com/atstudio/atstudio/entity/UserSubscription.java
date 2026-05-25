@@ -133,4 +133,19 @@ public class UserSubscription extends BaseEntity {
         if (newBillingCycle != null) this.billingCycle = newBillingCycle;
         if (newExpiresAt != null) this.expiresAt = newExpiresAt;
     }
+
+    public void applyEntitlementCorrection(
+            Subscription targetSubscription,
+            BillingCycle targetBillingCycle,
+            SubscriptionStatus targetStatus,
+            LocalDate targetExpiresAt,
+            boolean clearPendingChange) {
+        this.subscription = targetSubscription;
+        this.billingCycle = targetBillingCycle;
+        this.status = targetStatus;
+        this.expiresAt = targetExpiresAt;
+        if (clearPendingChange) {
+            clearPendingChange();
+        }
+    }
 }

@@ -2,10 +2,12 @@ package com.atstudio.atstudio.repository;
 
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -39,4 +41,8 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
 
     @EntityGraph(attributePaths = {"user", "subscription"})
     Optional<UserSubscription> findById(Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT us FROM UserSubscription us JOIN FETCH us.user JOIN FETCH us.subscription WHERE us.id = :id")
+    Optional<UserSubscription> findByIdForUpdate(@Param("id") Long id);
 }

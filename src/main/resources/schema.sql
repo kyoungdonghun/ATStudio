@@ -377,7 +377,7 @@ CREATE TABLE IF NOT EXISTS licenses
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 3.8  billing_agreements / payment_orders / subscription_payments / payment_refunds / payment_reconciliation_incidents / payment_receipts / payment_operation_audit_logs
+-- 3.8  billing_agreements / payment_orders / subscription_payments / payment_refunds / payment_entitlement_corrections / payment_reconciliation_incidents / payment_receipts / payment_operation_audit_logs
 -- ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS billing_agreements
 (
@@ -524,6 +524,71 @@ CREATE TABLE IF NOT EXISTS payment_refunds
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS payment_entitlement_corrections
+(
+    id                              BIGINT NOT NULL AUTO_INCREMENT,
+    payment_refund_id               BIGINT NOT NULL,
+    subscription_payment_id         BIGINT NOT NULL,
+    payment_order_id                BIGINT NOT NULL,
+    user_subscription_id            BIGINT NOT NULL,
+    user_id                         BIGINT NOT NULL,
+    provider                        ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NOT NULL,
+    status                          ENUM ('REQUESTED', 'APPROVED', 'PROCESSING', 'SUCCEEDED', 'FAILED', 'CANCELLED') NOT NULL DEFAULT 'REQUESTED',
+    action                          ENUM ('SET_SUBSCRIPTION_STATE') NOT NULL DEFAULT 'SET_SUBSCRIPTION_STATE',
+    before_subscription_id          BIGINT NOT NULL,
+    before_billing_cycle            ENUM ('MONTHLY', 'YEARLY') NOT NULL,
+    before_status                   ENUM ('ACTIVE', 'CANCELLED', 'EXPIRED') NOT NULL,
+    before_expires_at               DATE NOT NULL,
+    before_pending_subscription_id  BIGINT NULL,
+    before_pending_billing_cycle    ENUM ('MONTHLY', 'YEARLY') NULL,
+    target_subscription_id          BIGINT NOT NULL,
+    target_billing_cycle            ENUM ('MONTHLY', 'YEARLY') NOT NULL,
+    target_status                   ENUM ('ACTIVE', 'CANCELLED', 'EXPIRED') NOT NULL,
+    target_expires_at               DATE NOT NULL,
+    clear_pending_change            BOOLEAN NOT NULL DEFAULT FALSE,
+    cancel_billing_agreement        BOOLEAN NOT NULL DEFAULT FALSE,
+    before_billing_agreement_status ENUM ('READY', 'ACTIVE', 'SUSPENDED', 'CANCELLED', 'EXPIRED') NULL,
+    after_billing_agreement_status  ENUM ('READY', 'ACTIVE', 'SUSPENDED', 'CANCELLED', 'EXPIRED') NULL,
+    reason_note                     VARCHAR(500) NULL,
+    failure_code                    VARCHAR(100) NULL,
+    failure_message                 VARCHAR(500) NULL,
+    requested_by                    BIGINT NULL,
+    approved_by                     BIGINT NULL,
+    executed_by                     BIGINT NULL,
+    approved_at                     DATETIME NULL,
+    executed_at                     DATETIME NULL,
+    created_at                      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at                      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_payment_entitlement_corrections_status_created (status, created_at),
+    KEY idx_payment_entitlement_corrections_refund (payment_refund_id),
+    KEY idx_payment_entitlement_corrections_user_created (user_id, created_at),
+    CONSTRAINT fk_payment_entitlement_corrections_refund
+        FOREIGN KEY (payment_refund_id) REFERENCES payment_refunds (id),
+    CONSTRAINT fk_payment_entitlement_corrections_subscription_payment
+        FOREIGN KEY (subscription_payment_id) REFERENCES subscription_payments (id),
+    CONSTRAINT fk_payment_entitlement_corrections_order
+        FOREIGN KEY (payment_order_id) REFERENCES payment_orders (id),
+    CONSTRAINT fk_payment_entitlement_corrections_user_subscription
+        FOREIGN KEY (user_subscription_id) REFERENCES user_subscriptions (id),
+    CONSTRAINT fk_payment_entitlement_corrections_user
+        FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT fk_payment_entitlement_corrections_before_subscription
+        FOREIGN KEY (before_subscription_id) REFERENCES subscriptions (id),
+    CONSTRAINT fk_payment_entitlement_corrections_before_pending_subscription
+        FOREIGN KEY (before_pending_subscription_id) REFERENCES subscriptions (id),
+    CONSTRAINT fk_payment_entitlement_corrections_target_subscription
+        FOREIGN KEY (target_subscription_id) REFERENCES subscriptions (id),
+    CONSTRAINT fk_payment_entitlement_corrections_requested_by
+        FOREIGN KEY (requested_by) REFERENCES users (id),
+    CONSTRAINT fk_payment_entitlement_corrections_approved_by
+        FOREIGN KEY (approved_by) REFERENCES users (id),
+    CONSTRAINT fk_payment_entitlement_corrections_executed_by
+        FOREIGN KEY (executed_by) REFERENCES users (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS payment_reconciliation_incidents
 (
     id                      BIGINT NOT NULL AUTO_INCREMENT,
@@ -616,9 +681,14 @@ CREATE TABLE IF NOT EXISTS payment_operation_audit_logs
         'PAYMENT_REFUND_PROCESSING',
         'PAYMENT_REFUND_SUCCEEDED',
         'PAYMENT_REFUND_FAILED',
-        'PAYMENT_REFUND_PENDING_PROVIDER_CONFIRMATION'
+        'PAYMENT_REFUND_PENDING_PROVIDER_CONFIRMATION',
+        'PAYMENT_ENTITLEMENT_CORRECTION_REQUESTED',
+        'PAYMENT_ENTITLEMENT_CORRECTION_APPROVED',
+        'PAYMENT_ENTITLEMENT_CORRECTION_PROCESSING',
+        'PAYMENT_ENTITLEMENT_CORRECTION_SUCCEEDED',
+        'PAYMENT_ENTITLEMENT_CORRECTION_FAILED'
     ) NOT NULL,
-    target_type                ENUM ('RECONCILIATION_INCIDENT', 'PAYMENT_RECEIPT', 'PAYMENT_REFUND') NOT NULL,
+    target_type                ENUM ('RECONCILIATION_INCIDENT', 'PAYMENT_RECEIPT', 'PAYMENT_REFUND', 'PAYMENT_ENTITLEMENT_CORRECTION') NOT NULL,
     target_id                  BIGINT NULL,
     actor_user_id              BIGINT NULL COMMENT 'Admin actor. NULL for system-generated audit entries.',
     target_user_id             BIGINT NULL COMMENT 'Payment owner when resolvable.',

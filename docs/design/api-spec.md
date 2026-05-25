@@ -1,8 +1,18 @@
-# ATStudio API Specification v13 (Confirmed)
+# ATStudio API Specification v14 (Confirmed)
 
-> **Status**: 13th confirmed — admin refund ledger and Toss cancel execution APIs
-> **Base**: v12 + 2026-05-25 admin refund ledger/Toss cancel patch
+> **Status**: 14th confirmed — admin refund entitlement correction APIs
+> **Base**: v13 + 2026-05-25 admin refund entitlement correction patch
 > **Date**: 2026-05-25
+
+---
+
+## v13 → v14 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| AE1 | §6.3.8 admin entitlement correction workflow | Added refund-linked entitlement correction preview, request, approve, execute, list, and detail APIs. |
+| AE2 | Refund/access boundary | Provider refund remains separate from local subscription access mutation. Entitlement correction applies only explicit admin-provided target state and does not infer previous plan rollback automatically. |
+| AE3 | Full API Summary | Updated total count from 129 → 135 |
 
 ---
 
@@ -1369,7 +1379,7 @@ For payment-method re-registration on an existing active/grace-period subscripti
 
 ## 6.3.8 Payment Operations Admin APIs
 
-These endpoints are implemented as admin support/audit views and controlled payment operation APIs. Payment order, billing agreement, subscription payment, receipt evidence, operation audit log, and on-demand reconciliation endpoints are read-only. Reconciliation incident status updates mutate only the incident workflow state and create an audit log row. Refund APIs mutate only the `payment_refunds` ledger until an approved refund is explicitly executed; execution calls the provider cancel API with the persisted idempotency key and does not automatically change subscriptions, billing agreements, or user entitlement. These endpoints must not expose raw billing keys, auth keys, customer keys, Toss secret keys, raw provider payloads, or raw card data.
+These endpoints are implemented as admin support/audit views and controlled payment operation APIs. Payment order, billing agreement, subscription payment, receipt evidence, operation audit log, and on-demand reconciliation endpoints are read-only. Reconciliation incident status updates mutate only the incident workflow state and create an audit log row. Refund APIs mutate only the `payment_refunds` ledger until an approved refund is explicitly executed; execution calls the provider cancel API with the persisted idempotency key and does not automatically change subscriptions, billing agreements, or user entitlement. Entitlement correction APIs are a separate admin-only workflow that applies an explicit target subscription state after support approval. These endpoints must not expose raw billing keys, auth keys, customer keys, Toss secret keys, raw provider payloads, or raw card data.
 
 | API | Purpose | Notes |
 |---|---|---|
@@ -1384,6 +1394,12 @@ These endpoints are implemented as admin support/audit views and controlled paym
 | `POST /api/admin/payments/refunds` | Create a refund request | Local ledger mutation only; provider is not called |
 | `POST /api/admin/payments/refunds/{refundId}/approve` | Approve a refund request | Local ledger mutation only; provider is not called |
 | `POST /api/admin/payments/refunds/{refundId}/execute` | Execute an approved refund through Toss cancel | Provider money movement; reuses the persisted idempotency key |
+| `POST /api/admin/payments/entitlement-correction-preview` | Preview explicit local entitlement correction target | Read-only; requires a succeeded refund record |
+| `GET /api/admin/payments/entitlement-corrections` | List entitlement correction ledger records | Read-only list of local access correction operations |
+| `GET /api/admin/payments/entitlement-corrections/{correctionId}` | Get entitlement correction detail | Read-only detail with before/target snapshots |
+| `POST /api/admin/payments/entitlement-corrections` | Create an entitlement correction request | Local ledger mutation only; no provider call |
+| `POST /api/admin/payments/entitlement-corrections/{correctionId}/approve` | Approve an entitlement correction request | Local workflow mutation only |
+| `POST /api/admin/payments/entitlement-corrections/{correctionId}/execute` | Execute approved local entitlement correction | Mutates `user_subscriptions` and optionally local `billing_agreements`; no provider billing-key delete call |
 | `GET /api/admin/payments/reconciliation` | Run local/provider payment reconciliation | Read-only; returns support-safe mismatch counts and issue records, no raw provider secrets |
 | `GET /api/admin/payments/reconciliation-incidents` | List persisted reconciliation incidents | Optional `status` filter; support-safe incident workflow metadata only |
 | `PUT /api/admin/payments/reconciliation-incidents/{incidentId}/status` | Update incident workflow status | Mutates incident status/note only; no payment/subscription/provider mutation |
@@ -1437,7 +1453,7 @@ These endpoints are implemented as admin support/audit views and controlled paym
 |---|---|
 | **URL** | `GET /api/admin/payments/operation-audit-logs?page=1&size=20` |
 | **Auth** | ADMIN |
-| **Description** | Lists append-only payment operation audit rows. Current actions include reconciliation incident status updates, system-created receipt evidence rows, and admin refund workflow transitions. This endpoint is read-only. |
+| **Description** | Lists append-only payment operation audit rows. Current actions include reconciliation incident status updates, system-created receipt evidence rows, admin refund workflow transitions, and admin entitlement correction workflow transitions. This endpoint is read-only. |
 
 **Response** `200 OK`
 
@@ -1662,6 +1678,178 @@ These endpoints are implemented as admin support/audit views and controlled paym
 ```
 
 **Response** `200 OK` — returns `AdminPaymentRefundResponse` with `status: "SUCCEEDED"`, `FAILED`, or `PENDING_PROVIDER_CONFIRMATION`.
+
+### POST /api/admin/payments/entitlement-correction-preview
+
+| Field | Value |
+|---|---|
+| **URL** | `POST /api/admin/payments/entitlement-correction-preview` |
+| **Auth** | ADMIN |
+| **Description** | Previews whether a succeeded refund can receive a local entitlement correction. The request must explicitly provide the target subscription plan, billing cycle, status, expiration date, pending-change clearing preference, and local billing-agreement cancellation preference. This endpoint is read-only and must not call Toss. |
+
+**Request**
+
+```json
+{
+  "paymentRefundId": 1,
+  "targetSubscriptionId": 1,
+  "targetBillingCycle": "MONTHLY",
+  "targetStatus": "EXPIRED",
+  "targetExpiresAt": "2026-05-25",
+  "clearPendingChange": true,
+  "cancelBillingAgreement": true,
+  "reasonNote": "Full refund entitlement correction."
+}
+```
+
+**Response** `200 OK`
+
+```json
+{
+  "data": {
+    "paymentRefundId": 1,
+    "refundStatus": "SUCCEEDED",
+    "userId": 12,
+    "userNickname": "customer12",
+    "userSubscriptionId": 20,
+    "currentSubscriptionId": 3,
+    "currentPlanName": "PREMIUM",
+    "currentBillingCycle": "YEARLY",
+    "currentStatus": "ACTIVE",
+    "currentExpiresAt": "2027-05-25",
+    "currentPendingSubscriptionId": 1,
+    "currentPendingPlanName": "STANDARD",
+    "currentPendingBillingCycle": "MONTHLY",
+    "targetSubscriptionId": 1,
+    "targetPlanName": "STANDARD",
+    "targetBillingCycle": "MONTHLY",
+    "targetStatus": "EXPIRED",
+    "targetExpiresAt": "2026-05-25",
+    "clearPendingChange": true,
+    "cancelBillingAgreement": true,
+    "currentBillingAgreementStatus": "ACTIVE",
+    "targetBillingAgreementStatus": "CANCELLED",
+    "executable": true,
+    "reason": null
+  }
+}
+```
+
+### GET /api/admin/payments/entitlement-corrections
+
+| Field | Value |
+|---|---|
+| **URL** | `GET /api/admin/payments/entitlement-corrections?page=1&size=20` |
+| **Auth** | ADMIN |
+| **Description** | Lists local entitlement correction ledger records by latest created date. The endpoint is read-only and returns before/target snapshots plus actor metadata. |
+
+**Response** `200 OK` — paginated list of `AdminPaymentEntitlementCorrectionResponse`.
+
+### GET /api/admin/payments/entitlement-corrections/{correctionId}
+
+| Field | Value |
+|---|---|
+| **URL** | `GET /api/admin/payments/entitlement-corrections/{correctionId}` |
+| **Auth** | ADMIN |
+| **Description** | Returns one entitlement correction ledger record. It must not expose raw provider payload, billing key, auth key, customer key, or card data. |
+
+**Response** `200 OK`
+
+```json
+{
+  "data": {
+    "id": 1,
+    "paymentRefundId": 1,
+    "subscriptionPaymentId": 901,
+    "paymentOrderId": 3001,
+    "orderId": "ATS-REN-20260525-ABC123",
+    "userSubscriptionId": 20,
+    "userId": 12,
+    "userNickname": "customer12",
+    "provider": "TOSS_BILLING",
+    "status": "REQUESTED",
+    "action": "SET_SUBSCRIPTION_STATE",
+    "beforeSubscriptionId": 3,
+    "beforePlanName": "PREMIUM",
+    "beforeBillingCycle": "YEARLY",
+    "beforeStatus": "ACTIVE",
+    "beforeExpiresAt": "2027-05-25",
+    "beforePendingSubscriptionId": 1,
+    "beforePendingPlanName": "STANDARD",
+    "beforePendingBillingCycle": "MONTHLY",
+    "targetSubscriptionId": 1,
+    "targetPlanName": "STANDARD",
+    "targetBillingCycle": "MONTHLY",
+    "targetStatus": "EXPIRED",
+    "targetExpiresAt": "2026-05-25",
+    "clearPendingChange": true,
+    "cancelBillingAgreement": true,
+    "beforeBillingAgreementStatus": "ACTIVE",
+    "afterBillingAgreementStatus": "ACTIVE",
+    "reasonNote": "Full refund entitlement correction.",
+    "failureCode": null,
+    "failureMessage": null,
+    "requestedById": 99,
+    "requestedByEmail": "admin@test.com",
+    "approvedById": null,
+    "approvedByEmail": null,
+    "executedById": null,
+    "executedByEmail": null,
+    "approvedAt": null,
+    "executedAt": null,
+    "createdAt": "2026-05-25T12:00:00",
+    "updatedAt": "2026-05-25T12:00:00"
+  }
+}
+```
+
+### POST /api/admin/payments/entitlement-corrections
+
+| Field | Value |
+|---|---|
+| **URL** | `POST /api/admin/payments/entitlement-corrections` |
+| **Auth** | ADMIN |
+| **Description** | Creates a local entitlement correction request linked to a succeeded refund. It stores the current subscription snapshot and the explicit target state. It does not call Toss and does not mutate user access yet. |
+
+**Request** — same body as `POST /api/admin/payments/entitlement-correction-preview`.
+
+**Response** `200 OK` — returns `AdminPaymentEntitlementCorrectionResponse` with `status: "REQUESTED"`.
+
+### POST /api/admin/payments/entitlement-corrections/{correctionId}/approve
+
+| Field | Value |
+|---|---|
+| **URL** | `POST /api/admin/payments/entitlement-corrections/{correctionId}/approve` |
+| **Auth** | ADMIN |
+| **Description** | Approves a `REQUESTED` entitlement correction and writes a payment operation audit log row. It does not mutate user access yet. |
+
+**Request**
+
+```json
+{
+  "note": "Support ticket verified."
+}
+```
+
+**Response** `200 OK` — returns `AdminPaymentEntitlementCorrectionResponse` with `status: "APPROVED"`.
+
+### POST /api/admin/payments/entitlement-corrections/{correctionId}/execute
+
+| Field | Value |
+|---|---|
+| **URL** | `POST /api/admin/payments/entitlement-corrections/{correctionId}/execute` |
+| **Auth** | ADMIN |
+| **Description** | Executes an `APPROVED` entitlement correction by applying the explicit target state to `user_subscriptions`. If `cancelBillingAgreement` is true, it marks the local billing agreement cancelled to stop future local charges. It does not delete or cancel the provider billing key. Unexpected local failures roll back the transaction so the correction can be retried after investigation. |
+
+**Request**
+
+```json
+{
+  "note": "Executing after approval."
+}
+```
+
+**Response** `200 OK` — returns `AdminPaymentEntitlementCorrectionResponse` with `status: "SUCCEEDED"`.
 
 ### GET /api/admin/payments/reconciliation
 
@@ -3124,7 +3312,7 @@ key: String (required) — setting key name
 
 ---
 
-# Full API Summary (129)
+# Full API Summary (135)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -3145,5 +3333,5 @@ key: String (required) — setting key name
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
-| 18 | Admin Payment Operations | 14 |
-| | **Total** | **129** |
+| 18 | Admin Payment Operations | 20 |
+| | **Total** | **135** |

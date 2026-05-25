@@ -1,7 +1,7 @@
 # Payment Operations Runbook
 
 > Purpose: Define production-facing operational procedures for Toss billing-key recurring payment reconciliation and incident response.
-> Scope: ATStudio subscription payments only. This document covers reconciliation, receipt evidence storage, payment operation audit visibility, and the admin refund ledger/provider cancel workflow. It does not introduce settlement import, tax invoice workflow, cash receipt issue/cancel automation, or automatic entitlement correction. Refund/receipt/settlement/tax invoice policy is defined separately in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md).
+> Scope: ATStudio subscription payments only. This document covers reconciliation, receipt evidence storage, payment operation audit visibility, the admin refund ledger/provider cancel workflow, and the separate refund-linked entitlement correction workflow. It does not introduce settlement import, tax invoice workflow, cash receipt issue/cancel automation, or automatic entitlement correction. Refund/receipt/settlement/tax invoice policy is defined separately in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md).
 
 ## 1. Operating Model
 
@@ -21,6 +21,7 @@ Toss does not run ATStudio subscription scheduling. ATStudio owns renewal timing
 | `payment_orders` | Internal payment attempt ledger and merchant `orderId` source |
 | `subscription_payments` | Finalized subscription payment records |
 | `payment_refunds` | Admin refund request, approval, provider execution, idempotency, and provider cancel result ledger |
+| `payment_entitlement_corrections` | Refund-linked admin entitlement correction request, before/target access snapshots, approval, execution, and result ledger |
 | `billing_agreements` | Stored provider customer key, encrypted billing key, masked payment method, next billing date |
 | `payment_reconciliation_incidents` | Persistent reconciliation mismatch incident state and operator workflow |
 | `payment_receipts` | Safe provider receipt/cash receipt evidence captured after successful charges |
@@ -105,7 +106,7 @@ Status guidance:
 
 ## 5. Current Automation and Visibility Boundary
 
-Current automation is limited to detection, persistent incident visibility, optional email notification, and explicit admin-approved refund execution. It does not automatically perform entitlement correction, settlement mutation, tax invoice mutation, or cash receipt issue/cancel.
+Current automation is limited to detection, persistent incident visibility, optional email notification, explicit admin-approved refund execution, and explicit admin-approved local entitlement correction. It does not automatically perform entitlement correction, settlement mutation, tax invoice mutation, or cash receipt issue/cancel.
 
 | Capability | Current state |
 |---|---|
@@ -116,10 +117,11 @@ Current automation is limited to detection, persistent incident visibility, opti
 | Persistent incident storage | Implemented through `payment_reconciliation_incidents`. |
 | Receipt evidence storage | Implemented through `payment_receipts` after successful subscription charges when provider receipt fields are present. |
 | Refund ledger/provider cancel | Implemented through admin refund APIs backed by `payment_refunds`; provider execution requires an approved refund and reuses the persisted idempotency key. |
-| Operation audit logs | Implemented through `payment_operation_audit_logs` for incident workflow changes, receipt evidence creation, and refund workflow transitions. |
+| Entitlement correction ledger | Implemented through admin entitlement correction APIs backed by `payment_entitlement_corrections`; execution requires approval and applies only explicit target access state. |
+| Operation audit logs | Implemented through `payment_operation_audit_logs` for incident workflow changes, receipt evidence creation, refund workflow transitions, and entitlement correction workflow transitions. |
 | Operator notification | Optional email notification when explicitly enabled and configured. |
 | Admin incident workflow | Implemented through incident list/status APIs and the `/admin/payments` incident tab. |
-| Auto entitlement correction | Not implemented; refund execution does not change subscription access. |
+| Auto entitlement correction | Not implemented; refund execution does not change subscription access. Entitlement correction must be created and executed separately. |
 
 This means the system can detect, persist, and expose mismatches. Operator notification still depends on email configuration or external log monitoring; there is no Slack/SMS/in-app push channel yet.
 
@@ -154,7 +156,7 @@ Do not request or store raw card information, raw billing keys, `authKey`, or To
    - Renewal: subscription period extended to the next cycle.
 4. If the user did not receive the entitlement, choose one operational resolution:
    - Admin refund request/approval/execution through `payment_refunds` if the original payment is refundable.
-   - Manual entitlement correction only after separate operational approval and backup.
+   - Admin entitlement correction through `payment_entitlement_corrections` after a refund succeeds and support approves the exact local access outcome.
 5. Record external support-tracker details if a refund, entitlement correction, or customer contact is needed.
 6. Rerun reconciliation and mark the incident `RESOLVED` or `IGNORED` with a short note.
 
@@ -169,7 +171,7 @@ Admin refund workflow:
 3. Approve the request with `POST /api/admin/payments/refunds/{refundId}/approve`.
 4. Execute provider cancel with `POST /api/admin/payments/refunds/{refundId}/execute`.
 5. If the result is `PENDING_PROVIDER_CONFIRMATION`, verify the Toss dashboard/provider lookup before retrying or taking further action.
-6. If entitlement must be changed after refund, handle it through a separate approved entitlement-correction procedure. Do not edit subscription tables ad hoc without approval, backup, and a linked incident/support record.
+6. If entitlement must be changed after refund, handle it through the separate entitlement-correction procedure below. Do not edit subscription tables ad hoc without approval, backup, and a linked incident/support record.
 
 Refund policy anchors:
 
@@ -177,6 +179,28 @@ Refund policy anchors:
 - Provider refund and entitlement correction are separate audited operations.
 - Refund provider requests persist an idempotency key before execution and must reuse it for the same refund request.
 - Receipt, settlement, and tax invoice evidence require explicit ledgers rather than only sanitized provider payload.
+
+### 6.4 Entitlement Correction Boundary
+
+ATStudio provides admin backend APIs for refund-linked entitlement correction. These APIs operate only on local subscription access state and local billing agreement state; they do not move money and do not call provider billing-key delete/cancel APIs.
+
+Admin entitlement correction workflow:
+
+1. Confirm the related refund is `SUCCEEDED`.
+2. Decide the exact target access state from the support ticket and operational evidence. Do not infer a previous plan rollback automatically from payment history.
+3. Preview the target with `POST /api/admin/payments/entitlement-correction-preview`.
+4. Create a local correction request with `POST /api/admin/payments/entitlement-corrections`.
+5. Approve the request with `POST /api/admin/payments/entitlement-corrections/{correctionId}/approve`.
+6. Execute local access correction with `POST /api/admin/payments/entitlement-corrections/{correctionId}/execute`.
+7. Confirm `user_subscriptions` matches the target plan, billing cycle, status, expiration date, and pending-change clearing policy.
+8. If `cancelBillingAgreement=true`, confirm only the local billing agreement was marked cancelled. Provider billing-key deletion remains a separate operation.
+
+Execution safety notes:
+
+- `EXPIRED` target status must not use a future expiration date.
+- `ACTIVE` or `CANCELLED` target status must not use a past expiration date.
+- The target plan must match the user's type and be active.
+- If execution fails unexpectedly, the transaction rolls back and the correction remains retryable after investigation.
 
 ## 7. Production Configuration Checklist
 
@@ -198,6 +222,7 @@ Before enabling live Toss recurring billing:
 - Run `GET /api/admin/payments/receipts` after a successful staging charge and confirm only safe receipt evidence is returned.
 - Run `GET /api/admin/payments/operation-audit-logs` after changing a reconciliation incident status and confirm an audit row exists.
 - For refund rehearsal in a safe Toss test/staging environment, run preview → create → approve → execute and confirm `payment_refunds` plus audit logs update without exposing raw provider/card data.
+- For entitlement correction rehearsal, use a safe succeeded refund row and run preview → create → approve → execute. Confirm `payment_entitlement_corrections`, `user_subscriptions`, optional local `billing_agreements`, and audit logs update without provider billing-key delete calls.
 - Keep the deployment on one application scheduler instance. Scheduler lock remains out of active scope unless more than one application instance will run.
 
 ## 8. Webhook Boundary
@@ -219,8 +244,7 @@ If webhook is introduced later:
 Separate REQ/SR items are still needed for:
 
 - Slack/SMS/in-app operator notification channels.
-- First-class admin refund UI tab if operators need UI-driven refund operations instead of API calls.
-- Entitlement correction workflow linked to refund decisions.
+- First-class admin refund/entitlement correction UI tabs if operators need UI-driven operations instead of API calls.
 - Settlement import/reconciliation and tax invoice request implementation based on the payment operations policy.
 - Legacy endpoint removal.
 - KakaoPay, NaverPay, or other PG adapters.

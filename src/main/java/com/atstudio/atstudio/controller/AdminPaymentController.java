@@ -2,6 +2,11 @@ package com.atstudio.atstudio.controller;
 
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.payment.AdminBillingAgreementResponse;
+import com.atstudio.atstudio.dto.payment.AdminPaymentEntitlementCorrectionApproveRequest;
+import com.atstudio.atstudio.dto.payment.AdminPaymentEntitlementCorrectionExecuteRequest;
+import com.atstudio.atstudio.dto.payment.AdminPaymentEntitlementCorrectionPreviewResponse;
+import com.atstudio.atstudio.dto.payment.AdminPaymentEntitlementCorrectionRequest;
+import com.atstudio.atstudio.dto.payment.AdminPaymentEntitlementCorrectionResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentOperationAuditLogResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentOrderResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentReconciliationIncidentResponse;
@@ -16,6 +21,7 @@ import com.atstudio.atstudio.dto.payment.AdminSubscriptionPaymentResponse;
 import com.atstudio.atstudio.dto.payment.AdminUpdatePaymentReconciliationIncidentRequest;
 import com.atstudio.atstudio.entity.enums.PaymentReconciliationIncidentStatus;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.AdminPaymentEntitlementCorrectionService;
 import com.atstudio.atstudio.service.AdminPaymentIncidentService;
 import com.atstudio.atstudio.service.AdminPaymentReadService;
 import com.atstudio.atstudio.service.AdminPaymentRefundService;
@@ -41,6 +47,7 @@ public class AdminPaymentController {
     private final AdminPaymentReadService adminPaymentReadService;
     private final AdminPaymentIncidentService adminPaymentIncidentService;
     private final AdminPaymentRefundService adminPaymentRefundService;
+    private final AdminPaymentEntitlementCorrectionService adminPaymentEntitlementCorrectionService;
 
     @GetMapping("/orders")
     @PreAuthorize("hasRole('ADMIN')")
@@ -127,6 +134,60 @@ public class AdminPaymentController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody AdminPaymentRefundExecuteRequest request) {
         return ResponseEntity.ok(adminPaymentRefundService.executeRefund(refundId, userDetails, request));
+    }
+
+    @PostMapping("/entitlement-correction-preview")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentEntitlementCorrectionPreviewResponse>> previewEntitlementCorrection(
+            @Valid @RequestBody AdminPaymentEntitlementCorrectionRequest request) {
+        return ResponseEntity.ok(adminPaymentEntitlementCorrectionService.previewCorrection(request));
+    }
+
+    @GetMapping("/entitlement-corrections")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentEntitlementCorrectionResponse>> listEntitlementCorrections(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(adminPaymentEntitlementCorrectionService.listCorrections(page, size));
+    }
+
+    @GetMapping("/entitlement-corrections/{correctionId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentEntitlementCorrectionResponse>> getEntitlementCorrection(
+            @PathVariable Long correctionId) {
+        return ResponseEntity.ok(adminPaymentEntitlementCorrectionService.getCorrection(correctionId));
+    }
+
+    @PostMapping("/entitlement-corrections")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentEntitlementCorrectionResponse>> createEntitlementCorrection(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody AdminPaymentEntitlementCorrectionRequest request) {
+        return ResponseEntity.ok(adminPaymentEntitlementCorrectionService.createCorrection(userDetails, request));
+    }
+
+    @PostMapping("/entitlement-corrections/{correctionId}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentEntitlementCorrectionResponse>> approveEntitlementCorrection(
+            @PathVariable Long correctionId,
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody AdminPaymentEntitlementCorrectionApproveRequest request) {
+        return ResponseEntity.ok(adminPaymentEntitlementCorrectionService.approveCorrection(
+                correctionId,
+                userDetails,
+                request));
+    }
+
+    @PostMapping("/entitlement-corrections/{correctionId}/execute")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentEntitlementCorrectionResponse>> executeEntitlementCorrection(
+            @PathVariable Long correctionId,
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody AdminPaymentEntitlementCorrectionExecuteRequest request) {
+        return ResponseEntity.ok(adminPaymentEntitlementCorrectionService.executeCorrection(
+                correctionId,
+                userDetails,
+                request));
     }
 
     @GetMapping("/reconciliation")

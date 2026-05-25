@@ -74,7 +74,7 @@ Primary goal:
 
 Non-goals for the first checkout integration:
 
-- Refund execution was excluded from the first checkout slice; it is now handled by separate admin refund ledger/provider cancel APIs.
+- Refund execution was excluded from the first checkout slice; it is now handled by separate admin refund ledger/provider cancel APIs. Refund-linked entitlement correction is also handled by a separate explicit target-state admin API workflow.
 - Multi-PG routing by user choice in the first release.
 - KakaoPay implementation.
 - One-time subscription products, passes, credits, or manual renewal products.
@@ -666,8 +666,9 @@ Operator-facing minimum visibility:
 - Related `payment_receipts` for safe provider receipt/cash receipt evidence when successful charges return receipt metadata.
 - Current `billing_agreements` status, masked method, next billing date, failure count, and cancellation date.
 - Persisted `payment_reconciliation_incidents` for scheduled local/provider mismatch detection, including status, severity, dedupe key, occurrence count, safe order/provider fields, and resolution note.
-- Append-only `payment_operation_audit_logs` for incident status changes, system-created receipt evidence events, and admin refund workflow transitions.
-- Read-only payment support view first. Incident status changes are allowed for operations workflow. Refund request/approval/provider execution now exists as backend admin APIs; first-class refund UI, entitlement correction, settlement, webhook reconciliation, and multi-PG operations remain separate follow-up scopes.
+- Append-only `payment_operation_audit_logs` for incident status changes, system-created receipt evidence events, admin refund workflow transitions, and admin entitlement correction workflow transitions.
+- Related `payment_entitlement_corrections` for refund-linked local access correction with before/target subscription state snapshots.
+- Read-only payment support view first. Incident status changes are allowed for operations workflow. Refund request/approval/provider execution and refund-linked entitlement correction now exist as backend admin APIs; first-class refund/entitlement correction UI, settlement, webhook reconciliation, and multi-PG operations remain separate follow-up scopes.
 
 Sensitive-data boundary:
 
@@ -681,12 +682,12 @@ Sensitive-data boundary:
 
 - Provider API-backed reconciliation is implemented for recent Toss billing payment orders by `orderId`.
 - Scheduled reconciliation persists mismatch incidents and can send optional operator email when explicitly configured.
-- Provider success plus local persistence failure is covered by the payment operations runbook; admin refund ledger/provider cancel APIs are available when a support-approved refund is needed.
+- Provider success plus local persistence failure is covered by the payment operations runbook; admin refund ledger/provider cancel APIs are available when a support-approved refund is needed, and local access correction is available through the separate entitlement correction APIs after refund success.
 - Receipt evidence storage and payment operation audit logs are implemented as the first P2-A foundation without provider mutation.
-- Refund, settlement, and tax invoice operating policy is documented in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md); refund backend implementation is complete, while entitlement correction, settlement, tax invoice, and first-class refund UI remain separate.
+- Refund, settlement, and tax invoice operating policy is documented in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md); refund backend and entitlement correction backend implementation are complete, while settlement, tax invoice, and first-class refund/entitlement correction UI remain separate.
 - Add external notification channels as follow-up work if email/log/admin-screen operations are insufficient.
 - Provider-side webhook handling remains optional auxiliary work and must not become the sole source of truth for recurring billing access.
-- Add entitlement correction, settlement, tax invoice, and first-class admin refund UI implementations as separate REQ/SR items.
+- Add settlement, tax invoice, and first-class admin refund/entitlement correction UI implementations as separate REQ/SR items.
 - Cash receipt issue/cancel automation remains on hold for the current card-only recurring billing scope; keep evidence capture only unless a cash-like payment method is approved.
 
 ## 15. Open Decisions
@@ -699,14 +700,14 @@ Sensitive-data boundary:
 | PAY-D04 | Mock UI detail level | Include success/fail/cancel buttons |
 | PAY-D05 | One-time checkout role | Not user-facing for subscription scope; stale subscription routes are blocked |
 | PAY-D06 | Payment admin screen | Design read-only support view first; keep refund operation available as backend admin APIs until a first-class refund UI is approved |
-| PAY-D07 | Refund/cancel automation | Implement admin refund ledger/provider cancel APIs; keep entitlement correction separate |
+| PAY-D07 | Refund/cancel automation | Implement admin refund ledger/provider cancel APIs; keep entitlement correction as a separate explicit target-state operation |
 | PAY-D08 | Recurring billing failure grace period | 3-day grace period with up to 3 retry attempts (accepted) |
 | PAY-D09 | Initial recurring subscription charge | Billing-key registration followed by immediate first charge (accepted) |
 | PAY-D10 | Production checkout surface | Dedicated `/subscriptions/checkout` callback route implemented for recurring billing auth |
 | PAY-D11 | Upgrade payment model | Use active billing agreement for immediate prorated charge; preserve current billing cycle and next billing date |
 | PAY-D12 | Downgrade payment model | Schedule pending plan/cycle and apply after the next successful renewal charge with no immediate charge |
 | PAY-D13 | Removed billing-key recovery | Mark local agreement `EXPIRED`, clear issued-key metadata, keep the subscription unchanged, and require zero-amount `BILLING_AGREEMENT` re-registration |
-| PAY-D14 | Refund/receipt/settlement/tax invoice policy | Policy documented; receipt evidence, operation audit, and refund ledgers implemented; settlement and tax invoice mutation still require separate REQ/SR approval |
+| PAY-D14 | Refund/receipt/settlement/tax invoice policy | Policy documented; receipt evidence, operation audit, refund ledgers, and entitlement correction ledgers implemented; settlement and tax invoice mutation still require separate REQ/SR approval |
 
 ## 16. Implementation Risk Notes
 

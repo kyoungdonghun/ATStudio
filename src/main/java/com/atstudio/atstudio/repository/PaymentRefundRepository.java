@@ -22,6 +22,8 @@ public interface PaymentRefundRepository extends JpaRepository<PaymentRefund, Lo
             "user",
             "paymentOrder",
             "subscriptionPayment",
+            "subscriptionPayment.userSubscription",
+            "subscriptionPayment.userSubscription.subscription",
             "requestedBy",
             "approvedBy",
             "executedBy"
@@ -32,6 +34,8 @@ public interface PaymentRefundRepository extends JpaRepository<PaymentRefund, Lo
             "user",
             "paymentOrder",
             "subscriptionPayment",
+            "subscriptionPayment.userSubscription",
+            "subscriptionPayment.userSubscription.subscription",
             "requestedBy",
             "approvedBy",
             "executedBy"

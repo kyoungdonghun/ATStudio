@@ -5,13 +5,13 @@ project: ATS
 owner: SA
 category: design
 status: draft
-source_req: REQ-20260525-ATS-002, REQ-20260525-ATS-004
+source_req: REQ-20260525-ATS-002, REQ-20260525-ATS-004, REQ-20260525-ATS-005
 ---
 
 # Payment Refund, Receipt, Settlement, and Tax Invoice Policy
 
 > Scope: ATStudio subscription payment operations after recurring billing checkout.
-> This document defines operating policy and implementation boundaries for refund, receipt, settlement, and tax invoice operations. Receipt evidence, operation audit logging, and admin refund ledger/provider cancel APIs are implemented; settlement import, tax invoice workflow, cash receipt issue/cancel automation, and entitlement correction remain separate follow-up scopes.
+> This document defines operating policy and implementation boundaries for refund, receipt, settlement, and tax invoice operations. Receipt evidence, operation audit logging, admin refund ledger/provider cancel APIs, and refund-linked entitlement correction APIs are implemented; settlement import, tax invoice workflow, cash receipt issue/cancel automation, and first-class refund/entitlement UI remain separate follow-up scopes.
 
 ## 1. Purpose
 
@@ -49,9 +49,10 @@ Tax invoice policy in this document is a system policy baseline, not tax advice.
 | Finalized payment | `subscription_payments` stores successful subscription payment records. |
 | Provider lookup | Reconciliation compares recent orders with Toss state by `orderId` when lookup is configured. |
 | Admin view | `/admin/payments` lists orders, billing agreements, subscription payments, and reconciliation incidents. |
-| Mutation boundary | Admin payment screens expose incident workflow status/note updates. Refund mutation exists as backend admin APIs; a first-class refund UI tab is not implemented yet. |
-| Operation audit | `payment_operation_audit_logs` stores reconciliation incident status changes, system-created receipt evidence audit rows, and admin refund workflow transitions. |
+| Mutation boundary | Admin payment screens expose incident workflow status/note updates. Refund and entitlement-correction mutations exist as backend admin APIs; first-class refund/entitlement-correction UI tabs are not implemented yet. |
+| Operation audit | `payment_operation_audit_logs` stores reconciliation incident status changes, system-created receipt evidence audit rows, admin refund workflow transitions, and admin entitlement correction workflow transitions. |
 | Refund state | `payment_refunds` stores admin refund request, approval, provider execution, idempotency, provider cancel transaction, and failure/pending-confirmation state. |
+| Entitlement correction state | `payment_entitlement_corrections` stores refund-linked local access correction requests, before/target snapshots, approvals, execution actor, and result state. |
 | Receipt state | `payment_receipts` stores safe provider receipt/cash receipt evidence after successful charges when Toss returns receipt metadata. |
 | Settlement state | No settlement import, settlement reconciliation, fee, VAT, or payout-date record exists. |
 
@@ -126,7 +127,7 @@ Default entitlement policy:
 | Upgrade charge fully refunded | Roll back the upgraded plan only through a separate entitlement correction action. |
 | Renewal charge fully refunded | Reverse the renewal extension only through a separate entitlement correction action. |
 
-The provider refund and local entitlement correction must be separate audited steps. A later implementation may offer a guided operation that executes both, but it must still record each step independently.
+The provider refund and local entitlement correction are separate audited steps. Current entitlement correction APIs require an admin to explicitly provide the target access state instead of inferring a previous plan rollback from payment history.
 
 ### 5.4 Partial refund
 
@@ -194,6 +195,50 @@ Implemented admin APIs:
 | `POST /api/admin/payments/refunds/{refundId}/execute` | Execute provider cancel/refund with persisted idempotency key | Provider money movement |
 
 The implemented refund APIs do not automatically mutate `user_subscriptions`, `billing_agreements`, or `subscription_payments.payment_status`.
+
+### 5.7 Entitlement correction state model
+
+Implemented table: `payment_entitlement_corrections`
+
+| Column | Notes |
+|---|---|
+| `id` | Internal entitlement correction ID |
+| `payment_refund_id` | Succeeded refund that justifies the correction |
+| `payment_order_id` | Original order |
+| `subscription_payment_id` | Original finalized payment |
+| `user_subscription_id` | Local access row to correct |
+| `user_id` | Payment/access owner |
+| `provider` | Provider context, currently `TOSS_BILLING` for executable refund-linked corrections |
+| `status` | `REQUESTED`, `APPROVED`, `PROCESSING`, `SUCCEEDED`, `FAILED`, `CANCELLED` |
+| `action` | Current value: `SET_SUBSCRIPTION_STATE` |
+| `before_*` fields | Snapshot of current subscription plan, cycle, status, expiration, and pending change before execution |
+| `target_*` fields | Explicit target plan, cycle, status, and expiration date |
+| `clear_pending_change` | Whether pending plan/cycle fields should be cleared |
+| `cancel_billing_agreement` | Whether local billing agreement should be marked cancelled |
+| `before_billing_agreement_status`, `after_billing_agreement_status` | Local agreement status snapshot/result |
+| `requested_by`, `approved_by`, `executed_by` | Admin user IDs |
+| `created_at`, `updated_at`, `approved_at`, `executed_at` | Audit timeline |
+
+Implemented admin APIs:
+
+| API | Purpose | Mutation risk |
+|---|---|---|
+| `POST /api/admin/payments/entitlement-correction-preview` | Show current state and explicit target outcome | Read-only |
+| `GET /api/admin/payments/entitlement-corrections` | List local correction ledger records | Read-only |
+| `GET /api/admin/payments/entitlement-corrections/{id}` | Show correction ledger detail | Read-only |
+| `POST /api/admin/payments/entitlement-corrections` | Create correction request | Local audit mutation |
+| `POST /api/admin/payments/entitlement-corrections/{id}/approve` | Approve correction request | Local workflow mutation |
+| `POST /api/admin/payments/entitlement-corrections/{id}/execute` | Apply explicit local subscription state and optional local billing agreement cancellation | Local access mutation |
+
+Execution rules:
+
+- Only `SUCCEEDED` refund records can be used for correction creation.
+- The target subscription must be active and must match the user's type.
+- `EXPIRED` target status cannot use a future expiration date.
+- `ACTIVE` or `CANCELLED` target status cannot use a past expiration date.
+- No-op correction targets are rejected.
+- Local billing agreement cancellation does not call provider billing-key delete/cancel APIs.
+- Unexpected local execution failure rolls back the transaction so the approved correction can be retried after investigation.
 
 ## 6. Receipt and Cash Receipt Policy
 
@@ -273,8 +318,13 @@ Current action coverage:
 | `PAYMENT_REFUND_SUCCEEDED` | Admin user | `payment_refunds` | Records successful provider cancel result. |
 | `PAYMENT_REFUND_FAILED` | Admin user | `payment_refunds` | Records deterministic provider/local failure. |
 | `PAYMENT_REFUND_PENDING_PROVIDER_CONFIRMATION` | Admin user | `payment_refunds` | Records ambiguous provider result requiring manual confirmation. |
+| `PAYMENT_ENTITLEMENT_CORRECTION_REQUESTED` | Admin user | `payment_entitlement_corrections` | Records local access correction request creation. |
+| `PAYMENT_ENTITLEMENT_CORRECTION_APPROVED` | Admin user | `payment_entitlement_corrections` | Records local access correction approval. |
+| `PAYMENT_ENTITLEMENT_CORRECTION_PROCESSING` | Admin user | `payment_entitlement_corrections` | Records local access correction execution start. |
+| `PAYMENT_ENTITLEMENT_CORRECTION_SUCCEEDED` | Admin user | `payment_entitlement_corrections` | Records successful local access correction. |
+| `PAYMENT_ENTITLEMENT_CORRECTION_FAILED` | Admin user | `payment_entitlement_corrections` | Reserved for failed local correction tracking. |
 
-Future entitlement correction, settlement import, and tax invoice request workflows should add explicit action values instead of reusing these actions. Cash receipt issue/cancel actions remain conditional on future cash-like payment support.
+Future settlement import and tax invoice request workflows should add explicit action values instead of reusing these actions. Cash receipt issue/cancel actions remain conditional on future cash-like payment support.
 
 ## 7. Settlement Policy
 
@@ -417,14 +467,14 @@ If a payment is refunded after tax invoice issuance:
 |---|---|---|
 | P2-A | Admin audit ledger and receipt evidence storage | Implemented. No provider mutation added. |
 | P2-B | Refund request workflow without automatic entitlement mutation | Implemented as backend admin APIs with provider cancellation, idempotency, and approval. |
-| P2-C | Entitlement correction workflow linked to refund | Money movement and access mutation remain auditable separately. |
+| P2-C | Entitlement correction workflow linked to refund | Implemented as backend admin APIs; money movement and access mutation remain auditable separately. |
 | P2-D | Settlement import and settlement reconciliation | Accounting visibility without touching user access. |
 | P2-E | Tax invoice request tracking | Enables manual HomeTax/ASP operation with internal traceability. |
 | P2-F | Tax invoice automation or ASP integration | Requires tax review and external integration decision. |
 
 ### 9.2 API candidate map
 
-The refund APIs below are implemented. The remaining entries are future candidates.
+The refund and entitlement correction APIs below are implemented. The remaining entries are future candidates.
 
 | API | Purpose | Mutation risk |
 |---|---|---|
@@ -434,7 +484,12 @@ The refund APIs below are implemented. The remaining entries are future candidat
 | `POST /api/admin/payments/refunds` | Create refund request | Local audit mutation |
 | `POST /api/admin/payments/refunds/{id}/approve` | Approve refund request | Local audit mutation |
 | `POST /api/admin/payments/refunds/{id}/execute` | Execute provider refund/cancel with idempotency key | Provider money movement |
-| `POST /api/admin/payment-operations/refunds/{id}/entitlement-correction` | Apply local subscription correction after approval | Local access mutation; future candidate |
+| `POST /api/admin/payments/entitlement-correction-preview` | Preview explicit local entitlement correction target | Read-only |
+| `GET /api/admin/payments/entitlement-corrections` | List entitlement correction ledger records | Read-only |
+| `GET /api/admin/payments/entitlement-corrections/{id}` | Show entitlement correction ledger detail | Read-only |
+| `POST /api/admin/payments/entitlement-corrections` | Create entitlement correction request | Local audit mutation |
+| `POST /api/admin/payments/entitlement-corrections/{id}/approve` | Approve entitlement correction request | Local workflow mutation |
+| `POST /api/admin/payments/entitlement-corrections/{id}/execute` | Apply explicit local subscription correction after approval | Local access mutation |
 | `GET /api/users/me/payment-receipts` | User receipt list | Read-only |
 | `GET /api/admin/payment-operations/settlements` | Admin settlement records | Read-only |
 | `POST /api/admin/payment-operations/settlements/import` | Import provider settlement records | Local accounting mutation |
@@ -512,7 +567,7 @@ Before implementing remaining payment operation features, confirm:
 
 - [x] Which admin roles can request, approve, and execute refunds. Current backend boundary is `ADMIN`.
 - [ ] Whether two-person approval is required for refunds above a threshold.
-- [ ] Whether full refund should automatically create an entitlement-correction task.
+- [x] Whether full refund should automatically create an entitlement-correction task. Current decision: no automatic creation; admin creates explicit target-state correction after support approval.
 - [ ] Whether receipt URLs are available in the Toss billing charge response for the active API version.
 - [ ] Whether a future cash-like payment method or standalone cash receipt request flow requires cash receipt issue/cancel automation.
 - [ ] Which business users can request tax invoices.
@@ -531,7 +586,8 @@ Before implementing remaining payment operation features, confirm:
 | PAYOPS-D05 | Current card-only recurring billing does not require cash receipt automation in the first implementation. | Accepted |
 | PAYOPS-D06 | Settlement means PG-to-ATStudio merchant settlement, not creator payout. | Accepted |
 | PAYOPS-D07 | Tax invoice issuance starts as manual HomeTax/ASP-backed operations tracking until tax review approves automation. | Accepted |
-| PAYOPS-D08 | Refund ledger/provider cancel is implemented as admin backend APIs first; entitlement correction and first-class admin refund UI remain separate. | Accepted |
+| PAYOPS-D08 | Refund ledger/provider cancel is implemented as admin backend APIs first; first-class admin refund UI remains separate. | Accepted |
+| PAYOPS-D09 | Refund-linked entitlement correction is implemented as an explicit target-state admin backend workflow; first-class admin UI remains separate. | Accepted |
 
 ## Related Documents
 

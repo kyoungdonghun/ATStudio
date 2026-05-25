@@ -82,11 +82,15 @@
 | [ ] | 자동결제 탭을 확인한다. | billing key 원문 없이 마스킹된 결제수단과 상태만 보인다. | |
 | [ ] | 결제내역 탭을 확인한다. | 확정된 구독 결제 이력이 보인다. | |
 | [ ] | `GET /api/admin/payments/receipts`를 호출한다. | 성공 결제에 영수증 근거가 있으면 receipt URL/key가 보이고 raw provider payload나 카드 원문은 보이지 않는다. | |
-| [ ] | `GET /api/admin/payments/operation-audit-logs`를 호출한다. | receipt evidence 생성 또는 incident 상태 변경 감사 로그가 보인다. | |
+| [ ] | `GET /api/admin/payments/operation-audit-logs`를 호출한다. | receipt evidence 생성, incident 상태 변경, 환불 workflow, 권한 보정 workflow 감사 로그가 보인다. | |
 | [ ] | `GET /api/admin/payments/refund-preview/{subscriptionPaymentId}`를 호출한다. | 환불 가능 결제에서는 원 결제액, 예약/성공 환불액, 남은 환불 가능액이 support-safe 형태로 보인다. | API-only |
 | [ ] | `POST /api/admin/payments/refunds`로 환불 요청을 만든다. | provider 호출 없이 `REQUESTED` 환불 원장과 audit log가 생성된다. | API-only |
 | [ ] | `POST /api/admin/payments/refunds/{refundId}/approve`를 호출한다. | `APPROVED`로 바뀌고 provider 호출 없이 audit log가 생성된다. | API-only |
 | [ ] | 안전한 Toss 테스트 결제로 `POST /api/admin/payments/refunds/{refundId}/execute`를 호출한다. | Toss cancel이 저장된 idempotency key로 호출되고 결과가 `SUCCEEDED`, `FAILED`, 또는 `PENDING_PROVIDER_CONFIRMATION`으로 기록된다. 구독 권한은 자동 변경되지 않는다. | API-only |
+| [ ] | 환불 성공 건으로 `POST /api/admin/payments/entitlement-correction-preview`를 호출한다. | 현재 구독 상태와 명시한 목표 상태가 support-safe 형태로 보이며 실행 가능 여부가 반환된다. | API-only |
+| [ ] | `POST /api/admin/payments/entitlement-corrections`로 권한 보정 요청을 만든다. | provider 호출 없이 `REQUESTED` 권한 보정 원장과 audit log가 생성된다. | API-only |
+| [ ] | `POST /api/admin/payments/entitlement-corrections/{correctionId}/approve`를 호출한다. | `APPROVED`로 바뀌고 구독 권한은 아직 변경되지 않는다. | API-only |
+| [ ] | `POST /api/admin/payments/entitlement-corrections/{correctionId}/execute`를 호출한다. | `user_subscriptions`가 명시한 목표 상태로 바뀌고, 선택한 경우 local `billing_agreements`만 취소된다. provider billing key 삭제 API는 호출되지 않는다. | API-only |
 | [ ] | 대사 Incident 탭에서 `OPEN` 필터를 확인한다. | 열린 incident만 표시된다. | |
 | [ ] | 대사 Incident 탭에서 `전체`, `ACKNOWLEDGED`, `RESOLVED`, `IGNORED` 필터를 확인한다. | 상태별 조회가 정상 동작한다. | |
 | [ ] | incident 상태와 처리 메모를 저장한다. | 상태와 메모가 저장되고 다시 조회해도 유지되며 operation audit log가 생성된다. | |
@@ -120,4 +124,4 @@
 | [ ] | 정기 갱신 성공/실패/만료 흐름을 확인했다. | 스케줄러와 권한 정책이 결제 상태와 일치한다. | |
 | [ ] | 관리자 결제 운영 화면과 incident workflow를 확인했다. | 운영자가 이상 상황을 발견하고 처리 상태를 남길 수 있다. | |
 | [ ] | 민감정보 비노출을 확인했다. | 결제 운영 화면과 API가 보안 경계를 지킨다. | |
-| [ ] | 남은 P2 범위를 확인했다. | 환불 backend는 구현됨. 남은 범위는 환불 entitlement correction, first-class admin refund UI, 정산, 세금계산서, webhook, multi-PG다. cash receipt issue/cancel은 카드-only 정기결제 범위에서는 보류한다. | |
+| [ ] | 남은 P2 범위를 확인했다. | 환불 backend와 권한 보정 backend는 구현됨. 남은 범위는 first-class admin refund/entitlement UI, 정산, 세금계산서, webhook, multi-PG다. cash receipt issue/cancel은 카드-only 정기결제 범위에서는 보류한다. | |

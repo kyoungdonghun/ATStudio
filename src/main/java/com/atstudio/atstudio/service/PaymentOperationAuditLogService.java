@@ -1,10 +1,12 @@
 package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.entity.PaymentOperationAuditLog;
+import com.atstudio.atstudio.entity.PaymentEntitlementCorrection;
 import com.atstudio.atstudio.entity.PaymentReceipt;
 import com.atstudio.atstudio.entity.PaymentRefund;
 import com.atstudio.atstudio.entity.PaymentReconciliationIncident;
 import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.enums.PaymentEntitlementCorrectionStatus;
 import com.atstudio.atstudio.entity.enums.PaymentOperationAuditAction;
 import com.atstudio.atstudio.entity.enums.PaymentOperationAuditTargetType;
 import com.atstudio.atstudio.entity.enums.PaymentRefundStatus;
@@ -98,6 +100,35 @@ public class PaymentOperationAuditLogService {
                 .build());
     }
 
+    @Transactional
+    public void recordPaymentEntitlementCorrectionEvent(
+            CustomUserDetails actorDetails,
+            PaymentEntitlementCorrection correction,
+            PaymentOperationAuditAction action,
+            PaymentEntitlementCorrectionStatus beforeStatus,
+            PaymentEntitlementCorrectionStatus afterStatus,
+            String note) {
+        User actor = resolveActor(actorDetails);
+        auditLogRepository.save(PaymentOperationAuditLog.builder()
+                .action(action)
+                .targetType(PaymentOperationAuditTargetType.PAYMENT_ENTITLEMENT_CORRECTION)
+                .targetId(correction.getId())
+                .actorUser(actor)
+                .targetUser(correction.getUser())
+                .paymentOrder(correction.getPaymentOrder())
+                .subscriptionPayment(correction.getSubscriptionPayment())
+                .provider(correction.getProvider())
+                .orderId(correction.getPaymentOrder().getOrderId())
+                .providerTransactionId(correction.getPaymentRefund().getProviderRefundTransactionId() == null
+                        ? correction.getPaymentRefund().getProviderPaymentKey()
+                        : correction.getPaymentRefund().getProviderRefundTransactionId())
+                .beforeStatus(statusName(beforeStatus))
+                .afterStatus(statusName(afterStatus))
+                .reasonCode(correction.getAction().name())
+                .note(truncate(note, MAX_NOTE_LENGTH))
+                .build());
+    }
+
     private User resolveActor(CustomUserDetails actorDetails) {
         if (actorDetails == null || actorDetails.getId() == null) {
             return null;
@@ -110,6 +141,10 @@ public class PaymentOperationAuditLogService {
     }
 
     private String statusName(PaymentRefundStatus status) {
+        return status == null ? null : status.name();
+    }
+
+    private String statusName(PaymentEntitlementCorrectionStatus status) {
         return status == null ? null : status.name();
     }
 
