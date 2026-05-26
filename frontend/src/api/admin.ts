@@ -32,9 +32,7 @@ interface UserListParams {
   userType?: string;
 }
 
-export async function fetchUsers(
-  params: UserListParams = {},
-): Promise<PagedResponse<User>> {
+export async function fetchUsers(params: UserListParams = {}): Promise<PagedResponse<User>> {
   const { data } = await client.get<PagedResponse<User>>('/users', { params });
   return data;
 }
@@ -49,14 +47,8 @@ interface UpdateUserAdminRequest {
   isVerified?: boolean;
 }
 
-export async function updateUserAdmin(
-  userId: number,
-  body: UpdateUserAdminRequest,
-): Promise<User> {
-  const { data } = await client.put<ApiResponse<User>>(
-    `/users/${userId}`,
-    body,
-  );
+export async function updateUserAdmin(userId: number, body: UpdateUserAdminRequest): Promise<User> {
+  const { data } = await client.put<ApiResponse<User>>(`/users/${userId}`, body);
   return data.data;
 }
 
@@ -78,9 +70,7 @@ export async function fetchCompanyCerts(
   return data;
 }
 
-export async function fetchCompanyCert(
-  certId: number,
-): Promise<CompanyCertification> {
+export async function fetchCompanyCert(certId: number): Promise<CompanyCertification> {
   const { data } = await client.get<ApiResponse<CompanyCertification>>(
     `/company-certifications/${certId}`,
   );
@@ -160,6 +150,176 @@ export interface AdminSubscriptionPayment {
   createdAt: string;
 }
 
+export interface AdminPaymentReceipt {
+  id: number;
+  userId: number;
+  userNickname: string;
+  paymentOrderId: number;
+  orderId: string;
+  subscriptionPaymentId: number;
+  provider: string;
+  type: string;
+  status: string;
+  providerPaymentKey: string | null;
+  receiptKey: string | null;
+  receiptUrl: string | null;
+  issuedAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminPaymentOperationAuditLog {
+  id: number;
+  action: string;
+  targetType: string;
+  targetId: number | null;
+  actorUserId: number | null;
+  actorEmail: string | null;
+  targetUserId: number | null;
+  targetUserNickname: string | null;
+  paymentOrderId: number | null;
+  orderId: string | null;
+  subscriptionPaymentId: number | null;
+  reconciliationIncidentId: number | null;
+  provider: string | null;
+  providerTransactionId: string | null;
+  beforeStatus: string | null;
+  afterStatus: string | null;
+  reasonCode: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export type AdminPaymentRefundReasonCode =
+  | 'CUSTOMER_REQUEST'
+  | 'DUPLICATE_PAYMENT'
+  | 'PAYMENT_ERROR'
+  | 'SERVICE_ISSUE'
+  | 'ADMIN_ADJUSTMENT'
+  | 'OTHER';
+
+export interface AdminPaymentRefundPreview {
+  subscriptionPaymentId: number;
+  paymentOrderId: number | null;
+  orderId: string | null;
+  userId: number;
+  userNickname: string;
+  provider: string | null;
+  originalAmount: number;
+  alreadyRefundedOrReservedAmount: number;
+  refundableAmount: number;
+  providerPaymentKey: string | null;
+  refundable: boolean;
+  reason: string | null;
+}
+
+export interface AdminPaymentRefund {
+  id: number;
+  subscriptionPaymentId: number;
+  paymentOrderId: number;
+  orderId: string;
+  userId: number;
+  userNickname: string;
+  provider: string;
+  status: string;
+  amount: number;
+  currency: string;
+  reasonCode: AdminPaymentRefundReasonCode;
+  reasonNote: string | null;
+  idempotencyKey: string;
+  providerPaymentKey: string;
+  providerRefundTransactionId: string | null;
+  failureCode: string | null;
+  failureMessage: string | null;
+  requestedById: number | null;
+  requestedByEmail: string | null;
+  approvedById: number | null;
+  approvedByEmail: string | null;
+  executedById: number | null;
+  executedByEmail: string | null;
+  approvedAt: string | null;
+  executedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AdminPaymentEntitlementCorrectionBillingCycle = 'MONTHLY' | 'YEARLY';
+export type AdminPaymentEntitlementCorrectionSubscriptionStatus =
+  | 'ACTIVE'
+  | 'CANCELLED'
+  | 'EXPIRED';
+
+export interface AdminPaymentEntitlementCorrectionPreview {
+  paymentRefundId: number;
+  refundStatus: string;
+  userId: number;
+  userNickname: string;
+  userSubscriptionId: number;
+  currentSubscriptionId: number;
+  currentPlanName: string;
+  currentBillingCycle: AdminPaymentEntitlementCorrectionBillingCycle;
+  currentStatus: AdminPaymentEntitlementCorrectionSubscriptionStatus;
+  currentExpiresAt: string;
+  currentPendingSubscriptionId: number | null;
+  currentPendingPlanName: string | null;
+  currentPendingBillingCycle: AdminPaymentEntitlementCorrectionBillingCycle | null;
+  targetSubscriptionId: number;
+  targetPlanName: string;
+  targetBillingCycle: AdminPaymentEntitlementCorrectionBillingCycle;
+  targetStatus: AdminPaymentEntitlementCorrectionSubscriptionStatus;
+  targetExpiresAt: string;
+  clearPendingChange: boolean;
+  cancelBillingAgreement: boolean;
+  currentBillingAgreementStatus: string | null;
+  targetBillingAgreementStatus: string | null;
+  executable: boolean;
+  reason: string | null;
+}
+
+export interface AdminPaymentEntitlementCorrection {
+  id: number;
+  paymentRefundId: number;
+  subscriptionPaymentId: number;
+  paymentOrderId: number;
+  orderId: string;
+  userSubscriptionId: number;
+  userId: number;
+  userNickname: string;
+  provider: string;
+  status: string;
+  action: string;
+  beforeSubscriptionId: number;
+  beforePlanName: string;
+  beforeBillingCycle: AdminPaymentEntitlementCorrectionBillingCycle;
+  beforeStatus: AdminPaymentEntitlementCorrectionSubscriptionStatus;
+  beforeExpiresAt: string;
+  beforePendingSubscriptionId: number | null;
+  beforePendingPlanName: string | null;
+  beforePendingBillingCycle: AdminPaymentEntitlementCorrectionBillingCycle | null;
+  targetSubscriptionId: number;
+  targetPlanName: string;
+  targetBillingCycle: AdminPaymentEntitlementCorrectionBillingCycle;
+  targetStatus: AdminPaymentEntitlementCorrectionSubscriptionStatus;
+  targetExpiresAt: string;
+  clearPendingChange: boolean;
+  cancelBillingAgreement: boolean;
+  beforeBillingAgreementStatus: string | null;
+  afterBillingAgreementStatus: string | null;
+  reasonNote: string | null;
+  failureCode: string | null;
+  failureMessage: string | null;
+  requestedById: number | null;
+  requestedByEmail: string | null;
+  approvedById: number | null;
+  approvedByEmail: string | null;
+  executedById: number | null;
+  executedByEmail: string | null;
+  approvedAt: string | null;
+  executedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type AdminPaymentReconciliationIncidentStatus =
   | 'OPEN'
   | 'ACKNOWLEDGED'
@@ -201,10 +361,9 @@ export async function fetchAdminPaymentOrders(
   page = 1,
   size = 20,
 ): Promise<PagedResponse<AdminPaymentOrder>> {
-  const { data } = await client.get<PagedResponse<AdminPaymentOrder>>(
-    '/admin/payments/orders',
-    { params: { page, size } },
-  );
+  const { data } = await client.get<PagedResponse<AdminPaymentOrder>>('/admin/payments/orders', {
+    params: { page, size },
+  });
   return data;
 }
 
@@ -262,4 +421,148 @@ export async function fetchAdminSubscriptionPayments(
     { params: { page, size } },
   );
   return data;
+}
+
+export async function fetchAdminPaymentReceipts(
+  page = 1,
+  size = 20,
+): Promise<PagedResponse<AdminPaymentReceipt>> {
+  const { data } = await client.get<PagedResponse<AdminPaymentReceipt>>(
+    '/admin/payments/receipts',
+    { params: { page, size } },
+  );
+  return data;
+}
+
+export async function fetchAdminPaymentOperationAuditLogs(
+  page = 1,
+  size = 20,
+): Promise<PagedResponse<AdminPaymentOperationAuditLog>> {
+  const { data } = await client.get<PagedResponse<AdminPaymentOperationAuditLog>>(
+    '/admin/payments/operation-audit-logs',
+    { params: { page, size } },
+  );
+  return data;
+}
+
+export async function fetchAdminPaymentRefundPreview(
+  subscriptionPaymentId: number,
+): Promise<AdminPaymentRefundPreview> {
+  const { data } = await client.get<ApiResponse<AdminPaymentRefundPreview>>(
+    `/admin/payments/refund-preview/${subscriptionPaymentId}`,
+  );
+  return data.data;
+}
+
+interface CreateAdminPaymentRefundRequest {
+  subscriptionPaymentId: number;
+  amount: number;
+  reasonCode: AdminPaymentRefundReasonCode;
+  reasonNote?: string;
+}
+
+export async function fetchAdminPaymentRefunds(
+  page = 1,
+  size = 20,
+): Promise<PagedResponse<AdminPaymentRefund>> {
+  const { data } = await client.get<PagedResponse<AdminPaymentRefund>>('/admin/payments/refunds', {
+    params: { page, size },
+  });
+  return data;
+}
+
+export async function createAdminPaymentRefund(
+  body: CreateAdminPaymentRefundRequest,
+): Promise<AdminPaymentRefund> {
+  const { data } = await client.post<ApiResponse<AdminPaymentRefund>>(
+    '/admin/payments/refunds',
+    body,
+  );
+  return data.data;
+}
+
+export async function approveAdminPaymentRefund(
+  refundId: number,
+  note?: string,
+): Promise<AdminPaymentRefund> {
+  const { data } = await client.post<ApiResponse<AdminPaymentRefund>>(
+    `/admin/payments/refunds/${refundId}/approve`,
+    { note },
+  );
+  return data.data;
+}
+
+export async function executeAdminPaymentRefund(
+  refundId: number,
+  note?: string,
+): Promise<AdminPaymentRefund> {
+  const { data } = await client.post<ApiResponse<AdminPaymentRefund>>(
+    `/admin/payments/refunds/${refundId}/execute`,
+    { note },
+  );
+  return data.data;
+}
+
+interface AdminPaymentEntitlementCorrectionRequest {
+  paymentRefundId: number;
+  targetSubscriptionId: number;
+  targetBillingCycle: AdminPaymentEntitlementCorrectionBillingCycle;
+  targetStatus: AdminPaymentEntitlementCorrectionSubscriptionStatus;
+  targetExpiresAt: string;
+  clearPendingChange: boolean;
+  cancelBillingAgreement: boolean;
+  reasonNote?: string;
+}
+
+export async function previewAdminPaymentEntitlementCorrection(
+  body: AdminPaymentEntitlementCorrectionRequest,
+): Promise<AdminPaymentEntitlementCorrectionPreview> {
+  const { data } = await client.post<ApiResponse<AdminPaymentEntitlementCorrectionPreview>>(
+    '/admin/payments/entitlement-correction-preview',
+    body,
+  );
+  return data.data;
+}
+
+export async function fetchAdminPaymentEntitlementCorrections(
+  page = 1,
+  size = 20,
+): Promise<PagedResponse<AdminPaymentEntitlementCorrection>> {
+  const { data } = await client.get<PagedResponse<AdminPaymentEntitlementCorrection>>(
+    '/admin/payments/entitlement-corrections',
+    { params: { page, size } },
+  );
+  return data;
+}
+
+export async function createAdminPaymentEntitlementCorrection(
+  body: AdminPaymentEntitlementCorrectionRequest,
+): Promise<AdminPaymentEntitlementCorrection> {
+  const { data } = await client.post<ApiResponse<AdminPaymentEntitlementCorrection>>(
+    '/admin/payments/entitlement-corrections',
+    body,
+  );
+  return data.data;
+}
+
+export async function approveAdminPaymentEntitlementCorrection(
+  correctionId: number,
+  note?: string,
+): Promise<AdminPaymentEntitlementCorrection> {
+  const { data } = await client.post<ApiResponse<AdminPaymentEntitlementCorrection>>(
+    `/admin/payments/entitlement-corrections/${correctionId}/approve`,
+    { note },
+  );
+  return data.data;
+}
+
+export async function executeAdminPaymentEntitlementCorrection(
+  correctionId: number,
+  note?: string,
+): Promise<AdminPaymentEntitlementCorrection> {
+  const { data } = await client.post<ApiResponse<AdminPaymentEntitlementCorrection>>(
+    `/admin/payments/entitlement-corrections/${correctionId}/execute`,
+    { note },
+  );
+  return data.data;
 }

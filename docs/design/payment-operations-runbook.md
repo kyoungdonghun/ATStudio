@@ -244,7 +244,6 @@ If webhook is introduced later:
 Separate REQ/SR items are still needed for:
 
 - Slack/SMS/in-app operator notification channels.
-- First-class admin refund/entitlement correction UI tabs if operators need UI-driven operations instead of API calls.
 - Settlement import/reconciliation and tax invoice request implementation based on the payment operations policy.
 - Legacy endpoint removal.
 - KakaoPay, NaverPay, or other PG adapters.

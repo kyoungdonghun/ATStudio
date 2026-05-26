@@ -83,10 +83,11 @@
 | 16-1 | 구독 플랜 비교/선택 | `6.1 GET /api/subscriptions` | [PUBLIC] |
 | 16-2 | 구독 결제 (`/subscriptions/checkout`) | `6.3.4 POST /api/payments/billing-agreements/prepare` `6.3.5 POST /api/payments/billing-agreements/confirm` | auth required |
 | 16-3 | 내 구독 현황 (업그레이드·다운그레이드·해지) | `6.4 GET /api/user-subscriptions/me` `6.7 PUT` `6.10 DELETE` `6.3.6 GET` `6.3.7 DELETE` | auth required |
-| K-10 | 결제 운영 (`/admin/payments`) | `6.3.8 GET /api/admin/payments/orders` `6.3.8 GET /api/admin/payments/billing-agreements` `6.3.8 GET /api/admin/payments/subscription-payments` `6.3.8 GET /api/admin/payments/reconciliation-incidents` `6.3.8 PUT /api/admin/payments/reconciliation-incidents/{incidentId}/status` | admin required |
+| K-10 | 결제 운영 (`/admin/payments`) | `6.3.8 GET /api/admin/payments/orders` `6.3.8 GET /api/admin/payments/billing-agreements` `6.3.8 GET /api/admin/payments/subscription-payments` `6.3.8 GET /api/admin/payments/reconciliation-incidents` `6.3.8 PUT /api/admin/payments/reconciliation-incidents/{incidentId}/status` `6.3.8 GET /api/admin/payments/receipts` `6.3.8 GET /api/admin/payments/operation-audit-logs` `6.3.8 GET/POST /api/admin/payments/refunds` `6.3.8 POST /api/admin/payments/entitlement-corrections` | admin required |
 
-> K-10 current UI tabs: `주문`, `자동결제`, `결제내역`, `대사 Incident`.
-> `GET /api/admin/payments/receipts`, `GET /api/admin/payments/operation-audit-logs`, admin refund APIs, and admin entitlement correction APIs are implemented as admin backend APIs, but first-class receipt/audit/refund/entitlement-correction UI tabs are not implemented yet.
+> K-10 current UI tabs: `주문`, `자동결제`, `결제내역`, `대사 Incident`, `영수증`, `감사로그`, `환불`, `권한 보정`.
+> Boundary with K-2b: `사용자 구독 관리` handles ordinary local subscription status/cycle/expiration edits and grace-period cancellation. `결제 운영` handles payment-backed evidence, incident triage, refund execution, and refund-linked entitlement correction.
+> Refund and entitlement-correction UI keeps the backend policy boundary: provider refund execution and local entitlement correction are separate admin-confirmed operations, and destructive execution requires typed confirmation.
 
 ---
 

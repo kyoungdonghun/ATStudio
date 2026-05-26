@@ -602,7 +602,7 @@ Status: Implemented.
 
 ### Phase B: Toss One-time Payment Integration
 
-Status: Implemented for the direct checkout/confirm path with Toss test-key friendly configuration. This path is now legacy/test-only for subscription scope. Webhook, refund, reconciliation, and transaction compensation remain hardening items.
+Status: Implemented for the direct checkout/confirm path with Toss test-key friendly configuration. This path is now legacy/test-only for subscription scope. Later phases moved recurring subscription checkout to billing-key based charging, implemented provider reconciliation and admin refund/entitlement-correction APIs, and left webhook handling as an optional auxiliary hardening item.
 
 - Add Toss configuration:
   - `app.payment.provider=TOSS`
@@ -668,7 +668,7 @@ Operator-facing minimum visibility:
 - Persisted `payment_reconciliation_incidents` for scheduled local/provider mismatch detection, including status, severity, dedupe key, occurrence count, safe order/provider fields, and resolution note.
 - Append-only `payment_operation_audit_logs` for incident status changes, system-created receipt evidence events, admin refund workflow transitions, and admin entitlement correction workflow transitions.
 - Related `payment_entitlement_corrections` for refund-linked local access correction with before/target subscription state snapshots.
-- Read-only payment support view first. Incident status changes are allowed for operations workflow. Refund request/approval/provider execution and refund-linked entitlement correction now exist as backend admin APIs; first-class refund/entitlement correction UI, settlement, webhook reconciliation, and multi-PG operations remain separate follow-up scopes.
+- Read-only payment support view first. Incident status changes are allowed for operations workflow. Receipt/audit views, refund request/approval/provider execution, and refund-linked entitlement correction now exist in `/admin/payments`. Settlement, webhook reconciliation, and multi-PG operations remain separate follow-up scopes.
 
 Sensitive-data boundary:
 
@@ -684,10 +684,10 @@ Sensitive-data boundary:
 - Scheduled reconciliation persists mismatch incidents and can send optional operator email when explicitly configured.
 - Provider success plus local persistence failure is covered by the payment operations runbook; admin refund ledger/provider cancel APIs are available when a support-approved refund is needed, and local access correction is available through the separate entitlement correction APIs after refund success.
 - Receipt evidence storage and payment operation audit logs are implemented as the first P2-A foundation without provider mutation.
-- Refund, settlement, and tax invoice operating policy is documented in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md); refund backend and entitlement correction backend implementation are complete, while settlement, tax invoice, and first-class refund/entitlement correction UI remain separate.
+- Refund, settlement, and tax invoice operating policy is documented in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md); refund backend, entitlement correction backend, and first-class admin payment operation UI are complete, while settlement and tax invoice remain separate.
 - Add external notification channels as follow-up work if email/log/admin-screen operations are insufficient.
 - Provider-side webhook handling remains optional auxiliary work and must not become the sole source of truth for recurring billing access.
-- Add settlement, tax invoice, and first-class admin refund/entitlement correction UI implementations as separate REQ/SR items.
+- Add settlement and tax invoice implementations as separate REQ/SR items.
 - Cash receipt issue/cancel automation remains on hold for the current card-only recurring billing scope; keep evidence capture only unless a cash-like payment method is approved.
 
 ## 15. Open Decisions
@@ -699,7 +699,7 @@ Sensitive-data boundary:
 | PAY-D03 | Keep direct `POST /api/user-subscriptions`? | Blocked legacy endpoint; no direct subscription mutation |
 | PAY-D04 | Mock UI detail level | Include success/fail/cancel buttons |
 | PAY-D05 | One-time checkout role | Not user-facing for subscription scope; stale subscription routes are blocked |
-| PAY-D06 | Payment admin screen | Design read-only support view first; keep refund operation available as backend admin APIs until a first-class refund UI is approved |
+| PAY-D06 | Payment admin screen | Payment operations UI includes support views, reconciliation incident workflow, receipt/audit views, and separate refund/entitlement-correction operation tabs |
 | PAY-D07 | Refund/cancel automation | Implement admin refund ledger/provider cancel APIs; keep entitlement correction as a separate explicit target-state operation |
 | PAY-D08 | Recurring billing failure grace period | 3-day grace period with up to 3 retry attempts (accepted) |
 | PAY-D09 | Initial recurring subscription charge | Billing-key registration followed by immediate first charge (accepted) |

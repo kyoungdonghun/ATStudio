@@ -11,7 +11,7 @@ source_req: REQ-20260525-ATS-002, REQ-20260525-ATS-004, REQ-20260525-ATS-005
 # Payment Refund, Receipt, Settlement, and Tax Invoice Policy
 
 > Scope: ATStudio subscription payment operations after recurring billing checkout.
-> This document defines operating policy and implementation boundaries for refund, receipt, settlement, and tax invoice operations. Receipt evidence, operation audit logging, admin refund ledger/provider cancel APIs, and refund-linked entitlement correction APIs are implemented; settlement import, tax invoice workflow, cash receipt issue/cancel automation, and first-class refund/entitlement UI remain separate follow-up scopes.
+> This document defines operating policy and implementation boundaries for refund, receipt, settlement, and tax invoice operations. Receipt evidence, operation audit logging, admin refund ledger/provider cancel APIs, refund-linked entitlement correction APIs, and first-class admin receipt/audit/refund/entitlement UI are implemented; settlement import, tax invoice workflow, and cash receipt issue/cancel automation remain separate follow-up scopes.
 
 ## 1. Purpose
 
@@ -49,7 +49,7 @@ Tax invoice policy in this document is a system policy baseline, not tax advice.
 | Finalized payment | `subscription_payments` stores successful subscription payment records. |
 | Provider lookup | Reconciliation compares recent orders with Toss state by `orderId` when lookup is configured. |
 | Admin view | `/admin/payments` lists orders, billing agreements, subscription payments, and reconciliation incidents. |
-| Mutation boundary | Admin payment screens expose incident workflow status/note updates. Refund and entitlement-correction mutations exist as backend admin APIs; first-class refund/entitlement-correction UI tabs are not implemented yet. |
+| Mutation boundary | Admin payment screens expose incident workflow status/note updates, receipt/audit views, and separate refund plus entitlement-correction operation tabs. Refund and entitlement-correction mutations remain separate admin-confirmed workflows, and destructive execution requires typed confirmation. Ordinary subscription status/cycle/expiration edits remain in the user subscription admin screen. |
 | Operation audit | `payment_operation_audit_logs` stores reconciliation incident status changes, system-created receipt evidence audit rows, admin refund workflow transitions, and admin entitlement correction workflow transitions. |
 | Refund state | `payment_refunds` stores admin refund request, approval, provider execution, idempotency, provider cancel transaction, and failure/pending-confirmation state. |
 | Entitlement correction state | `payment_entitlement_corrections` stores refund-linked local access correction requests, before/target snapshots, approvals, execution actor, and result state. |
@@ -60,7 +60,7 @@ Tax invoice policy in this document is a system policy baseline, not tax advice.
 
 `PaymentOrder.pgTransactionId` is used as the provider transaction identifier after Toss billing charge. In Toss billing charge responses, this value may be the `paymentKey`. This value is copied into `payment_receipts.provider_payment_key` when receipt evidence exists and into `payment_refunds.provider_payment_key` when a refund request is created.
 
-Current implementation introduced explicit ledgers for receipt evidence, refund workflow, and payment operation audit logs. Future implementation should still introduce settlement and tax invoice request ledgers before those operations become mutable.
+Current implementation introduced explicit ledgers for receipt evidence, refund workflow, refund-linked entitlement correction, and payment operation audit logs. Future implementation should still introduce settlement and tax invoice request ledgers before those operations become mutable.
 
 ## 4. Policy Principles
 
@@ -528,6 +528,8 @@ Every operation that touches money, evidence, or subscription access must record
 - Disable provider execution if required identifiers are missing.
 - Use explicit status labels such as `Pending provider confirmation` for ambiguous results.
 - Never offer an automatic "refund and fix everything" button without showing the exact local and provider actions.
+- Keep the admin screen boundary clear: general local subscription editing belongs to `사용자 구독 관리`; payment-backed refund, audit, incident, and refund-linked entitlement correction belongs to `결제 운영`.
+- Require typed confirmation before provider refund execution or local entitlement correction execution.
 
 ## 11. Security and Privacy Boundary
 
@@ -586,8 +588,8 @@ Before implementing remaining payment operation features, confirm:
 | PAYOPS-D05 | Current card-only recurring billing does not require cash receipt automation in the first implementation. | Accepted |
 | PAYOPS-D06 | Settlement means PG-to-ATStudio merchant settlement, not creator payout. | Accepted |
 | PAYOPS-D07 | Tax invoice issuance starts as manual HomeTax/ASP-backed operations tracking until tax review approves automation. | Accepted |
-| PAYOPS-D08 | Refund ledger/provider cancel is implemented as admin backend APIs first; first-class admin refund UI remains separate. | Accepted |
-| PAYOPS-D09 | Refund-linked entitlement correction is implemented as an explicit target-state admin backend workflow; first-class admin UI remains separate. | Accepted |
+| PAYOPS-D08 | Refund ledger/provider cancel is implemented as admin backend APIs and first-class admin UI while keeping request, approval, and provider execution separate. | Accepted |
+| PAYOPS-D09 | Refund-linked entitlement correction is implemented as an explicit target-state admin backend workflow and first-class admin UI while keeping it separate from provider refund. | Accepted |
 
 ## Related Documents
 
