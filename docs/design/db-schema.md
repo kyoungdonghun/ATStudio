@@ -1,8 +1,18 @@
-# ATStudio DB Schema Definition v9 (Confirmed)
+# ATStudio DB Schema Definition v10 (Confirmed)
 
-> **Status**: v9 Confirmed — admin refund entitlement correction ledger
-> **Base**: v8 + 2026-05-25 admin refund entitlement correction patch
-> **Date**: 2026-05-25
+> **Status**: v10 Confirmed — admin settlement import/reconciliation ledger
+> **Base**: v9 + 2026-05-26 admin settlement import/reconciliation patch
+> **Date**: 2026-05-26
+
+---
+
+## v9 to v10 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| 1 | `payment_settlements` | **Added** — Admin settlement evidence import and reconciliation ledger for PG-to-merchant accounting review. |
+| 2 | `payment_operation_audit_logs` settlement actions | **Updated** — Added settlement import/reconcile/ignore action values and `PAYMENT_SETTLEMENT` target type. |
+| 3 | Table count | **Updated** — Total database tables changed from 35 to 36. |
 
 ---
 
@@ -475,7 +485,48 @@
 - Unexpected execution failure rolls back the local transaction so the approved correction can be retried after investigation.
 - This table must never store raw billing keys, raw `authKey`, raw `customerKey`, raw card data, Toss secret keys, or raw provider payloads.
 
-## 6.7 Billing Agreements (`billing_agreements`)
+## 6.7 Payment Settlements (`payment_settlements`)
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Source | `source` | ENUM('CSV_MANUAL','TOSS_API','SYSTEM_RECONCILIATION') | NOT NULL | | | Current import source is `CSV_MANUAL`; generated missing-provider rows use `SYSTEM_RECONCILIATION` |
+| Provider | `provider` | ENUM('MOCK','TOSS','TOSS_BILLING','KAKAOPAY') | NOT NULL | | | Current expected provider is `TOSS_BILLING` |
+| Status | `status` | ENUM('IMPORTED','MATCHED','MISMATCHED','LOCAL_PAYMENT_NOT_FOUND','PROVIDER_SETTLEMENT_NOT_FOUND','IGNORED') | NOT NULL | INDEX(status,created_at) | 'IMPORTED' | Settlement reconciliation workflow state |
+| Deduplication key | `deduplication_key` | VARCHAR(64) | NOT NULL | UNIQUE | | Deterministic row key from provider settlement ID or normalized row contents |
+| Import batch key | `import_batch_key` | VARCHAR(64) | NOT NULL | | | Batch identifier returned to admin UI |
+| Source file name | `source_file_name` | VARCHAR(255) | NULL | | | Uploaded CSV file name or `system-reconciliation` |
+| Source row number | `source_row_number` | INT | NULL | | | CSV row number when imported |
+| Provider settlement ID | `provider_settlement_id` | VARCHAR(200) | NULL | | | Provider row identifier when available |
+| Provider payment key | `provider_payment_key` | VARCHAR(200) | NULL | INDEX | | Toss payment key or equivalent support-safe provider identifier |
+| Order ID | `order_id` | VARCHAR(64) | NOT NULL | INDEX | | Merchant order ID |
+| Payment order | `payment_order_id` | BIGINT | NULL | FK(payment_orders.id) | | Matched local order when found |
+| Subscription payment | `subscription_payment_id` | BIGINT | NULL | FK(subscription_payments.id) | | Matched finalized payment when found |
+| User | `user_id` | BIGINT | NULL | FK(users.id) | | Payment owner when resolvable |
+| Gross amount | `gross_amount` | DECIMAL(15,2) | NOT NULL | | | Provider gross amount or local payment amount for generated rows |
+| Refund amount | `refund_amount` | DECIMAL(15,2) | NOT NULL | | 0 | Succeeded local refund sum or provider evidence |
+| Fee amount | `fee_amount` | DECIMAL(15,2) | NOT NULL | | 0 | Provider fee evidence |
+| VAT amount | `vat_amount` | DECIMAL(15,2) | NOT NULL | | 0 | Fee/tax evidence |
+| Net settlement amount | `net_settlement_amount` | DECIMAL(15,2) | NOT NULL | | | `gross - refund - fee - VAT` under current policy |
+| Currency | `currency` | VARCHAR(3) | NOT NULL | | 'KRW' | CSV import validates a 3-letter code |
+| Settlement base date | `settlement_base_date` | DATE | NOT NULL | INDEX | | Provider settlement sales/base date or selected scan end date |
+| Settlement payout date | `settlement_payout_date` | DATE | NULL | | | Expected/actual provider payout date |
+| Provider status | `provider_status` | VARCHAR(100) | NULL | | | Provider status text when present |
+| Mismatch reason | `mismatch_reason` | VARCHAR(500) | NULL | | | Human-readable reconciliation reason |
+| Operator note | `operator_note` | VARCHAR(500) | NULL | | | Import or ignore note |
+| Source payload | `source_payload` | TEXT | NULL | | | Allowlisted source fields only; no raw provider payload |
+| Reconciled at | `reconciled_at` | DATETIME | NULL | | | Internal reconciliation timestamp |
+| Ignored by | `ignored_by` | BIGINT | NULL | FK(users.id) | | Admin actor who ignored the row |
+| Ignored at | `ignored_at` | DATETIME | NULL | | | Ignore timestamp |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+- Settlement rows are accounting evidence and operator review records. They must not automatically mutate `user_subscriptions`, `billing_agreements`, `payment_orders`, `subscription_payments`, provider state, or refund state.
+- `CSV_MANUAL` import requires stable headers and ignores unknown columns. Current implementation accepts CSV; Excel files should be exported to CSV before import.
+- `SYSTEM_RECONCILIATION` rows represent local finalized payments with no imported provider settlement evidence for the selected period.
+- `source_payload` stores only allowlisted support-safe values such as order ID, provider payment key, amount fields, dates, provider status, and currency. It must not store raw card data, raw provider payload, billing keys, auth keys, customer keys, or Toss secret keys.
+
+## 6.8 Billing Agreements (`billing_agreements`)
 
 | Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
 |-------------|--------|------|------|-------------|---------|-------|
@@ -502,7 +553,7 @@
 - Provider-level billing agreement cancellation clears issued-key fields and requires payment-method re-registration before future automatic charges.
 - Neither cancellation path removes already-paid subscription access before `user_subscriptions.expires_at`.
 
-## 6.8 Payment Reconciliation Incidents (`payment_reconciliation_incidents`)
+## 6.9 Payment Reconciliation Incidents (`payment_reconciliation_incidents`)
 
 | Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
 |-------------|--------|------|------|-------------|---------|-------|
@@ -540,7 +591,7 @@
 
 ---
 
-## 6.9 Payment Receipts (`payment_receipts`)
+## 6.10 Payment Receipts (`payment_receipts`)
 
 | Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
 |-------------|--------|------|------|-------------|---------|-------|
@@ -565,13 +616,13 @@
 - `evidence_payload` must not contain raw billing keys, raw `authKey`, raw `customerKey`, raw card data, Toss secret keys, or raw provider payloads.
 - Current supported types are `PAYMENT_RECEIPT` and `CASH_RECEIPT`; tax invoice tracking remains a future table/workflow.
 
-## 6.10 Payment Operation Audit Logs (`payment_operation_audit_logs`)
+## 6.11 Payment Operation Audit Logs (`payment_operation_audit_logs`)
 
 | Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
 |-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
-| Action | `action` | ENUM('RECONCILIATION_INCIDENT_STATUS_UPDATE','RECEIPT_EVIDENCE_CREATED','PAYMENT_REFUND_REQUESTED','PAYMENT_REFUND_APPROVED','PAYMENT_REFUND_PROCESSING','PAYMENT_REFUND_SUCCEEDED','PAYMENT_REFUND_FAILED','PAYMENT_REFUND_PENDING_PROVIDER_CONFIRMATION','PAYMENT_ENTITLEMENT_CORRECTION_REQUESTED','PAYMENT_ENTITLEMENT_CORRECTION_APPROVED','PAYMENT_ENTITLEMENT_CORRECTION_PROCESSING','PAYMENT_ENTITLEMENT_CORRECTION_SUCCEEDED','PAYMENT_ENTITLEMENT_CORRECTION_FAILED') | NOT NULL | | | Audit action kind |
-| Target type | `target_type` | ENUM('RECONCILIATION_INCIDENT','PAYMENT_RECEIPT','PAYMENT_REFUND','PAYMENT_ENTITLEMENT_CORRECTION') | NOT NULL | INDEX(target_type,target_id) | | |
+| Action | `action` | ENUM('RECONCILIATION_INCIDENT_STATUS_UPDATE','RECEIPT_EVIDENCE_CREATED','PAYMENT_REFUND_REQUESTED','PAYMENT_REFUND_APPROVED','PAYMENT_REFUND_PROCESSING','PAYMENT_REFUND_SUCCEEDED','PAYMENT_REFUND_FAILED','PAYMENT_REFUND_PENDING_PROVIDER_CONFIRMATION','PAYMENT_ENTITLEMENT_CORRECTION_REQUESTED','PAYMENT_ENTITLEMENT_CORRECTION_APPROVED','PAYMENT_ENTITLEMENT_CORRECTION_PROCESSING','PAYMENT_ENTITLEMENT_CORRECTION_SUCCEEDED','PAYMENT_ENTITLEMENT_CORRECTION_FAILED','PAYMENT_SETTLEMENT_IMPORTED','PAYMENT_SETTLEMENT_RECONCILED','PAYMENT_SETTLEMENT_IGNORED') | NOT NULL | | | Audit action kind |
+| Target type | `target_type` | ENUM('RECONCILIATION_INCIDENT','PAYMENT_RECEIPT','PAYMENT_REFUND','PAYMENT_ENTITLEMENT_CORRECTION','PAYMENT_SETTLEMENT') | NOT NULL | INDEX(target_type,target_id) | | |
 | Target ID | `target_id` | BIGINT | NULL | INDEX(target_type,target_id) | | ID in the target table |
 | Actor user | `actor_user_id` | BIGINT | NULL | FK(users.id), INDEX(actor_user_id,created_at) | | Admin actor; NULL for system-created logs |
 | Target user | `target_user_id` | BIGINT | NULL | FK(users.id) | | Payment owner when resolvable |
@@ -589,9 +640,9 @@
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
 - Audit rows are append-only in the application API surface. No update/delete API exists.
-- Current admin mutation coverage is reconciliation incident status update, refund request/approval/execution workflow, and refund-linked entitlement correction request/approval/execution workflow.
+- Current admin mutation coverage is reconciliation incident status update, refund request/approval/execution workflow, refund-linked entitlement correction request/approval/execution workflow, and settlement import/reconcile/ignore workflow.
 - System-generated receipt evidence creation logs have `actor_user_id = NULL`.
-- Future settlement import and tax invoice workflows should add new action values rather than overloading the current ones.
+- Future tax invoice workflows should add new action values rather than overloading the current ones.
 
 ---
 
@@ -872,9 +923,10 @@ users ─┬─< social_accounts
        ├─< subscription_payments ──> subscriptions
        ├─< payment_refunds ──> subscription_payments / payment_orders
        ├─< payment_entitlement_corrections ──> payment_refunds / user_subscriptions
+       ├─< payment_settlements ──> payment_orders / subscription_payments
        ├─< payment_reconciliation_incidents ──> payment_orders / billing_agreements
        ├─< payment_receipts ──> payment_orders / subscription_payments
-       ├─< payment_operation_audit_logs ──> payment_orders / subscription_payments / payment_reconciliation_incidents / payment_refunds / payment_entitlement_corrections
+       ├─< payment_operation_audit_logs ──> payment_orders / subscription_payments / payment_reconciliation_incidents / payment_refunds / payment_entitlement_corrections / payment_settlements(target_id)
        ├─< company_certifications
        ├─< track_downloads ──> tracks
        ├─< play_histories ──> tracks
@@ -898,7 +950,7 @@ site_settings (standalone — no FK)
 
 ---
 
-# Complete Table List (35 Tables)
+# Complete Table List (36 Tables)
 
 | # | Table Name | Description | Type |
 |---|------------|-------------|------|
@@ -919,23 +971,24 @@ site_settings (standalone — no FK)
 | 15 | `subscription_payments` | Subscription payment records | Transaction |
 | 16 | `payment_refunds` | Admin refund request/approval/execution ledger | Transaction |
 | 17 | `payment_entitlement_corrections` | Admin refund-linked entitlement correction ledger | Transaction |
-| 18 | `payment_reconciliation_incidents` | Payment reconciliation incident workflow | Transaction |
-| 19 | `payment_receipts` | Payment receipt/cash receipt evidence | Transaction |
-| 20 | `payment_operation_audit_logs` | Payment operation audit trail | Log |
-| 21 | `likes` | Track likes | Mapping |
-| 22 | `album_likes` | Album likes | Mapping |
-| 23 | `download_queue` | Download queue | Mapping |
-| 24 | `whitelist_channels` | Whitelist channels | Master |
-| 25 | `questions` | Inquiries | Transaction |
-| 26 | `answers` | Inquiry answers | Transaction |
-| 27 | `licenses` | Track usage licenses | Transaction |
-| 28 | `notices` | Notices | Master |
-| 29 | `question_attachments` | Inquiry attachments | Transaction |
-| 30 | `notice_attachments` | Notice attachments | Transaction |
-| 31 | `albums` | Curated albums | Master |
-| 32 | `album_tracks` | Album-track mapping | Mapping |
-| 33 | `email_verification_tokens` | Email verification tokens | Transaction |
-| 34 | `password_reset_tokens` | Password reset tokens | Transaction |
-| 35 | `site_settings` | Site configuration key-value store | Master |
+| 18 | `payment_settlements` | Admin settlement import/reconciliation ledger | Transaction |
+| 19 | `payment_reconciliation_incidents` | Payment reconciliation incident workflow | Transaction |
+| 20 | `payment_receipts` | Payment receipt/cash receipt evidence | Transaction |
+| 21 | `payment_operation_audit_logs` | Payment operation audit trail | Log |
+| 22 | `likes` | Track likes | Mapping |
+| 23 | `album_likes` | Album likes | Mapping |
+| 24 | `download_queue` | Download queue | Mapping |
+| 25 | `whitelist_channels` | Whitelist channels | Master |
+| 26 | `questions` | Inquiries | Transaction |
+| 27 | `answers` | Inquiry answers | Transaction |
+| 28 | `licenses` | Track usage licenses | Transaction |
+| 29 | `notices` | Notices | Master |
+| 30 | `question_attachments` | Inquiry attachments | Transaction |
+| 31 | `notice_attachments` | Notice attachments | Transaction |
+| 32 | `albums` | Curated albums | Master |
+| 33 | `album_tracks` | Album-track mapping | Mapping |
+| 34 | `email_verification_tokens` | Email verification tokens | Transaction |
+| 35 | `password_reset_tokens` | Password reset tokens | Transaction |
+| 36 | `site_settings` | Site configuration key-value store | Master |
 
-Total **35 tables**
+Total **36 tables**

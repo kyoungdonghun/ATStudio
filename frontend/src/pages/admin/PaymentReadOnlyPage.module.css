@@ -50,7 +50,8 @@
 
 .filterSelect,
 .statusSelect,
-.textInput {
+.textInput,
+.fileInput {
   min-height: 34px;
   border: 1px solid var(--border2);
   border-radius: 5px;
@@ -58,6 +59,13 @@
   background: var(--bg2);
   color: var(--text1);
   font-size: 13px;
+}
+
+.fileName {
+  color: var(--text1);
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .loading,
@@ -146,6 +154,20 @@
   background: rgba(52, 211, 153, 0.12);
   color: #34d399;
   border-color: rgba(52, 211, 153, 0.3);
+}
+
+.statusMATCHED {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+.statusMISMATCHED,
+.statusLOCAL_PAYMENT_NOT_FOUND,
+.statusPROVIDER_SETTLEMENT_NOT_FOUND {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.3);
 }
 
 .statusIGNORED {
@@ -349,6 +371,17 @@
   color: var(--text1);
   font-size: 13px;
   font-weight: 800;
+}
+
+.errorList {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--error-border);
+  border-radius: 6px;
+  background: var(--error-dim);
+  color: var(--error);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .actionBar {

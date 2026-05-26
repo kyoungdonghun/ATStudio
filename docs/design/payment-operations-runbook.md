@@ -1,7 +1,7 @@
 # Payment Operations Runbook
 
 > Purpose: Define production-facing operational procedures for Toss billing-key recurring payment reconciliation and incident response.
-> Scope: ATStudio subscription payments only. This document covers reconciliation, receipt evidence storage, payment operation audit visibility, the admin refund ledger/provider cancel workflow, and the separate refund-linked entitlement correction workflow. It does not introduce settlement import, tax invoice workflow, cash receipt issue/cancel automation, or automatic entitlement correction. Refund/receipt/settlement/tax invoice policy is defined separately in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md).
+> Scope: ATStudio subscription payments only. This document covers reconciliation, receipt evidence storage, payment operation audit visibility, the admin refund ledger/provider cancel workflow, the separate refund-linked entitlement correction workflow, and settlement import/reconciliation operations. It does not introduce tax invoice workflow, cash receipt issue/cancel automation, or automatic entitlement correction. Refund/receipt/settlement/tax invoice policy is defined separately in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md).
 
 ## 1. Operating Model
 
@@ -26,6 +26,7 @@ Toss does not run ATStudio subscription scheduling. ATStudio owns renewal timing
 | `payment_reconciliation_incidents` | Persistent reconciliation mismatch incident state and operator workflow |
 | `payment_receipts` | Safe provider receipt/cash receipt evidence captured after successful charges |
 | `payment_operation_audit_logs` | Append-only payment operation audit rows for admin/system operations |
+| `payment_settlements` | Imported/generated settlement evidence and reconciliation review rows |
 | `user_subscriptions` | User access state, current plan, pending plan/cycle |
 | Toss payment lookup API | Provider-side payment status comparison by `orderId` |
 
@@ -106,7 +107,7 @@ Status guidance:
 
 ## 5. Current Automation and Visibility Boundary
 
-Current automation is limited to detection, persistent incident visibility, optional email notification, explicit admin-approved refund execution, and explicit admin-approved local entitlement correction. It does not automatically perform entitlement correction, settlement mutation, tax invoice mutation, or cash receipt issue/cancel.
+Current automation is limited to detection, persistent incident visibility, optional email notification, explicit admin-approved refund execution, explicit admin-approved local entitlement correction, and admin-triggered settlement evidence import/review. It does not automatically perform entitlement correction, tax invoice mutation, cash receipt issue/cancel, or provider settlement API import.
 
 | Capability | Current state |
 |---|---|
@@ -118,7 +119,8 @@ Current automation is limited to detection, persistent incident visibility, opti
 | Receipt evidence storage | Implemented through `payment_receipts` after successful subscription charges when provider receipt fields are present. |
 | Refund ledger/provider cancel | Implemented through admin refund APIs backed by `payment_refunds`; provider execution requires an approved refund and reuses the persisted idempotency key. |
 | Entitlement correction ledger | Implemented through admin entitlement correction APIs backed by `payment_entitlement_corrections`; execution requires approval and applies only explicit target access state. |
-| Operation audit logs | Implemented through `payment_operation_audit_logs` for incident workflow changes, receipt evidence creation, refund workflow transitions, and entitlement correction workflow transitions. |
+| Settlement import/reconciliation | Implemented through admin settlement APIs backed by `payment_settlements`; current source adapter is CSV/manual import and generated missing-provider review rows. |
+| Operation audit logs | Implemented through `payment_operation_audit_logs` for incident workflow changes, receipt evidence creation, refund workflow transitions, entitlement correction workflow transitions, and settlement import/reconcile/ignore transitions. |
 | Operator notification | Optional email notification when explicitly enabled and configured. |
 | Admin incident workflow | Implemented through incident list/status APIs and the `/admin/payments` incident tab. |
 | Auto entitlement correction | Not implemented; refund execution does not change subscription access. Entitlement correction must be created and executed separately. |
@@ -202,6 +204,26 @@ Execution safety notes:
 - The target plan must match the user's type and be active.
 - If execution fails unexpectedly, the transaction rolls back and the correction remains retryable after investigation.
 
+### 6.5 Settlement Import/Reconciliation Boundary
+
+ATStudio provides admin APIs and UI for settlement evidence import and settlement review. These APIs operate only on `payment_settlements` and payment operation audit logs.
+
+Admin settlement workflow:
+
+1. Export provider settlement evidence to CSV using the documented settlement template headers.
+2. Import the CSV from the `/admin/payments` settlement tab or `POST /api/admin/payments/settlements/import`.
+3. Review the import summary: total rows, imported rows, duplicates, failed rows, and status counts.
+4. Investigate `MISMATCHED`, `LOCAL_PAYMENT_NOT_FOUND`, and `PROVIDER_SETTLEMENT_NOT_FOUND` rows against local payment/refund ledgers and provider dashboard evidence.
+5. Use `POST /api/admin/payments/settlements/reconcile` for a selected period to generate local-payment-without-imported-provider-evidence review rows.
+6. Use `PUT /api/admin/payments/settlements/{settlementId}/ignore` only when the row is verified as acceptable or intentionally out of active review.
+
+Settlement safety notes:
+
+- Settlement import accepts CSV. Excel files should be exported to CSV before import.
+- Settlement rows must not mutate user subscription access, billing agreements, payment order status, finalized payment status, refund status, or provider state.
+- Unknown CSV columns are ignored. Stored `source_payload` is allowlisted and must not contain raw provider payload, card data, billing keys, auth keys, customer keys, or Toss secret keys.
+- Generated `PROVIDER_SETTLEMENT_NOT_FOUND` rows are review candidates. They are not proof that Toss failed to settle money until provider evidence is checked.
+
 ## 7. Production Configuration Checklist
 
 Before enabling live Toss recurring billing:
@@ -223,6 +245,7 @@ Before enabling live Toss recurring billing:
 - Run `GET /api/admin/payments/operation-audit-logs` after changing a reconciliation incident status and confirm an audit row exists.
 - For refund rehearsal in a safe Toss test/staging environment, run preview → create → approve → execute and confirm `payment_refunds` plus audit logs update without exposing raw provider/card data.
 - For entitlement correction rehearsal, use a safe succeeded refund row and run preview → create → approve → execute. Confirm `payment_entitlement_corrections`, `user_subscriptions`, optional local `billing_agreements`, and audit logs update without provider billing-key delete calls.
+- For settlement rehearsal, import a safe CSV and confirm `payment_settlements`, settlement status counts, ignore workflow, and audit logs update without changing subscription/payment/refund/provider state.
 - Keep the deployment on one application scheduler instance. Scheduler lock remains out of active scope unless more than one application instance will run.
 
 ## 8. Webhook Boundary
@@ -244,7 +267,8 @@ If webhook is introduced later:
 Separate REQ/SR items are still needed for:
 
 - Slack/SMS/in-app operator notification channels.
-- Settlement import/reconciliation and tax invoice request implementation based on the payment operations policy.
+- Tax invoice request implementation based on the payment operations policy.
+- Toss Settlement API adapter automation, if manual CSV import becomes insufficient.
 - Legacy endpoint removal.
 - KakaoPay, NaverPay, or other PG adapters.
 

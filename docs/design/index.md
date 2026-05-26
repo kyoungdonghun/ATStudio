@@ -1,6 +1,6 @@
 ---
-version: 1.4
-last_updated: 2026-05-25
+version: 1.5
+last_updated: 2026-05-26
 project: system
 owner: SA
 category: registry
@@ -25,9 +25,10 @@ status: stable
 
 | Document | Description | Status |
 |---|---|---|
-| **[API Specification](api-spec.md)** | REST API spec v14 — 135 endpoints | stable |
-| **[DB Schema](db-schema.md)** | Database schema — 35 tables | stable |
+| **[API Specification](api-spec.md)** | REST API spec v15 — 139 endpoints | stable |
+| **[DB Schema](db-schema.md)** | Database schema — 36 tables | stable |
 | **[Use Case Index](usecase/index.md)** | Domain use case documents | stable |
 | **[Payment Integration Design](payment-integration-design.md)** | Recurring-first subscription payment, legacy/mock payment compatibility, and provider architecture | draft |
 | **[Payment Operations Runbook](payment-operations-runbook.md)** | Toss recurring payment reconciliation and production incident response | draft |
 | **[Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md)** | Payment operations policy for refund, receipt, settlement, tax invoice, and future admin mutation boundaries | draft |
+| **[Payment Settlement Import and Reconciliation Design](payment-settlement-import-design.md)** | Settlement source adapter, CSV-first import, reconciliation, and admin operation design | draft |

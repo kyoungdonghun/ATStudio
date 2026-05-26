@@ -5,12 +5,14 @@ import com.atstudio.atstudio.entity.PaymentEntitlementCorrection;
 import com.atstudio.atstudio.entity.PaymentReceipt;
 import com.atstudio.atstudio.entity.PaymentRefund;
 import com.atstudio.atstudio.entity.PaymentReconciliationIncident;
+import com.atstudio.atstudio.entity.PaymentSettlement;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.PaymentEntitlementCorrectionStatus;
 import com.atstudio.atstudio.entity.enums.PaymentOperationAuditAction;
 import com.atstudio.atstudio.entity.enums.PaymentOperationAuditTargetType;
 import com.atstudio.atstudio.entity.enums.PaymentRefundStatus;
 import com.atstudio.atstudio.entity.enums.PaymentReconciliationIncidentStatus;
+import com.atstudio.atstudio.entity.enums.PaymentSettlementStatus;
 import com.atstudio.atstudio.repository.PaymentOperationAuditLogRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
@@ -129,6 +131,33 @@ public class PaymentOperationAuditLogService {
                 .build());
     }
 
+    @Transactional
+    public void recordPaymentSettlementEvent(
+            CustomUserDetails actorDetails,
+            PaymentSettlement settlement,
+            PaymentOperationAuditAction action,
+            PaymentSettlementStatus beforeStatus,
+            PaymentSettlementStatus afterStatus,
+            String note) {
+        User actor = resolveActor(actorDetails);
+        auditLogRepository.save(PaymentOperationAuditLog.builder()
+                .action(action)
+                .targetType(PaymentOperationAuditTargetType.PAYMENT_SETTLEMENT)
+                .targetId(settlement.getId())
+                .actorUser(actor)
+                .targetUser(settlement.getUser())
+                .paymentOrder(settlement.getPaymentOrder())
+                .subscriptionPayment(settlement.getSubscriptionPayment())
+                .provider(settlement.getProvider())
+                .orderId(settlement.getOrderId())
+                .providerTransactionId(settlement.getProviderPaymentKey())
+                .beforeStatus(statusName(beforeStatus))
+                .afterStatus(statusName(afterStatus))
+                .reasonCode(settlement.getSource().name())
+                .note(truncate(note, MAX_NOTE_LENGTH))
+                .build());
+    }
+
     private User resolveActor(CustomUserDetails actorDetails) {
         if (actorDetails == null || actorDetails.getId() == null) {
             return null;
@@ -145,6 +174,10 @@ public class PaymentOperationAuditLogService {
     }
 
     private String statusName(PaymentEntitlementCorrectionStatus status) {
+        return status == null ? null : status.name();
+    }
+
+    private String statusName(PaymentSettlementStatus status) {
         return status == null ? null : status.name();
     }
 

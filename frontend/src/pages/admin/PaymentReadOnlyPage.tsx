@@ -15,8 +15,12 @@ import {
   fetchAdminPaymentReconciliationIncidents,
   fetchAdminPaymentRefundPreview,
   fetchAdminPaymentRefunds,
+  fetchAdminPaymentSettlements,
   fetchAdminSubscriptionPayments,
+  ignoreAdminPaymentSettlement,
+  importAdminPaymentSettlements,
   previewAdminPaymentEntitlementCorrection,
+  reconcileAdminPaymentSettlements,
   updateAdminPaymentReconciliationIncidentStatus,
   type AdminBillingAgreement,
   type AdminPaymentEntitlementCorrection,
@@ -31,6 +35,10 @@ import {
   type AdminPaymentRefund,
   type AdminPaymentRefundPreview,
   type AdminPaymentRefundReasonCode,
+  type AdminPaymentSettlement,
+  type AdminPaymentSettlementImportResult,
+  type AdminPaymentSettlementSource,
+  type AdminPaymentSettlementStatus,
   type AdminSubscriptionPayment,
 } from '@/api/admin';
 import { fetchAdminSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
@@ -47,6 +55,7 @@ type TabKey =
   | 'incidents'
   | 'receipts'
   | 'audits'
+  | 'settlements'
   | 'refunds'
   | 'corrections';
 
@@ -72,6 +81,21 @@ const SUBSCRIPTION_STATUSES: AdminPaymentEntitlementCorrectionSubscriptionStatus
   'ACTIVE',
   'CANCELLED',
   'EXPIRED',
+];
+
+const SETTLEMENT_STATUSES: AdminPaymentSettlementStatus[] = [
+  'MATCHED',
+  'MISMATCHED',
+  'LOCAL_PAYMENT_NOT_FOUND',
+  'PROVIDER_SETTLEMENT_NOT_FOUND',
+  'IMPORTED',
+  'IGNORED',
+];
+
+const SETTLEMENT_SOURCES: AdminPaymentSettlementSource[] = [
+  'CSV_MANUAL',
+  'SYSTEM_RECONCILIATION',
+  'TOSS_API',
 ];
 
 const REFUND_EXECUTION_CONFIRM_TEXT = '환불 실행';
@@ -103,12 +127,27 @@ export default function PaymentReadOnlyPage() {
   const [incidents, setIncidents] = useState<AdminPaymentReconciliationIncident[]>([]);
   const [receipts, setReceipts] = useState<AdminPaymentReceipt[]>([]);
   const [audits, setAudits] = useState<AdminPaymentOperationAuditLog[]>([]);
+  const [settlements, setSettlements] = useState<AdminPaymentSettlement[]>([]);
   const [refunds, setRefunds] = useState<AdminPaymentRefund[]>([]);
   const [corrections, setCorrections] = useState<AdminPaymentEntitlementCorrection[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [incidentStatusFilter, setIncidentStatusFilter] = useState<
     AdminPaymentReconciliationIncidentStatus | ''
   >('OPEN');
+  const [settlementStatusFilter, setSettlementStatusFilter] = useState<
+    AdminPaymentSettlementStatus | ''
+  >('');
+  const [settlementSourceFilter, setSettlementSourceFilter] = useState<
+    AdminPaymentSettlementSource | ''
+  >('');
+  const [settlementBaseDateFrom, setSettlementBaseDateFrom] = useState('');
+  const [settlementBaseDateTo, setSettlementBaseDateTo] = useState('');
+  const [settlementFile, setSettlementFile] = useState<File | null>(null);
+  const [settlementNote, setSettlementNote] = useState('');
+  const [settlementBusy, setSettlementBusy] = useState<string | null>(null);
+  const [settlementImportResult, setSettlementImportResult] =
+    useState<AdminPaymentSettlementImportResult | null>(null);
+  const [settlementIgnoreNotes, setSettlementIgnoreNotes] = useState<Record<number, string>>({});
   const [incidentEdits, setIncidentEdits] = useState<Record<number, IncidentEdit>>({});
   const [updatingIncidentId, setUpdatingIncidentId] = useState<number | null>(null);
   const [refundPaymentId, setRefundPaymentId] = useState('');
@@ -170,6 +209,15 @@ export default function PaymentReadOnlyPage() {
         const result = await fetchAdminPaymentOperationAuditLogs(page, 20);
         setAudits(result.dataList);
         setPageInfo(result.pageInfo);
+      } else if (tab === 'settlements') {
+        const result = await fetchAdminPaymentSettlements(page, 20, {
+          status: settlementStatusFilter || undefined,
+          source: settlementSourceFilter || undefined,
+          baseDateFrom: settlementBaseDateFrom || undefined,
+          baseDateTo: settlementBaseDateTo || undefined,
+        });
+        setSettlements(result.dataList);
+        setPageInfo(result.pageInfo);
       } else if (tab === 'refunds') {
         const result = await fetchAdminPaymentRefunds(page, 20);
         setRefunds(result.dataList);
@@ -185,7 +233,15 @@ export default function PaymentReadOnlyPage() {
     } finally {
       setLoading(false);
     }
-  }, [incidentStatusFilter, page, tab]);
+  }, [
+    incidentStatusFilter,
+    page,
+    settlementBaseDateFrom,
+    settlementBaseDateTo,
+    settlementSourceFilter,
+    settlementStatusFilter,
+    tab,
+  ]);
 
   useEffect(() => {
     void loadData();
@@ -215,6 +271,25 @@ export default function PaymentReadOnlyPage() {
     setPage(1);
   }
 
+  function changeSettlementStatusFilter(next: AdminPaymentSettlementStatus | '') {
+    setSettlementStatusFilter(next);
+    setPage(1);
+  }
+
+  function changeSettlementSourceFilter(next: AdminPaymentSettlementSource | '') {
+    setSettlementSourceFilter(next);
+    setPage(1);
+  }
+
+  function changeSettlementDateFilter(type: 'from' | 'to', value: string) {
+    if (type === 'from') {
+      setSettlementBaseDateFrom(value);
+    } else {
+      setSettlementBaseDateTo(value);
+    }
+    setPage(1);
+  }
+
   function changeIncidentEdit(incidentId: number, patch: Partial<IncidentEdit>) {
     setIncidentEdits((prev) => ({
       ...prev,
@@ -237,6 +312,76 @@ export default function PaymentReadOnlyPage() {
 
   function changeCorrectionActionNote(correctionId: number, note: string) {
     setCorrectionActionNotes((prev) => ({ ...prev, [correctionId]: note }));
+  }
+
+  function changeSettlementIgnoreNote(settlementId: number, note: string) {
+    setSettlementIgnoreNotes((prev) => ({ ...prev, [settlementId]: note }));
+  }
+
+  async function importSettlementFile() {
+    if (!settlementFile) {
+      showToast('error', '정산 CSV 파일을 선택해주세요.');
+      return;
+    }
+    if (!window.confirm('정산 파일을 import하고 내부 결제/환불 원장과 대조합니다.')) {
+      return;
+    }
+    setSettlementBusy('import');
+    try {
+      const result = await importAdminPaymentSettlements(
+        settlementFile,
+        settlementNote.trim() || undefined,
+      );
+      setSettlementImportResult(result);
+      setSettlementFile(null);
+      showToast('success', '정산 파일 import가 완료되었습니다.');
+      await loadData();
+    } catch {
+      showToast('error', '정산 파일 import에 실패했습니다.');
+    } finally {
+      setSettlementBusy(null);
+    }
+  }
+
+  async function reconcileSettlementGaps() {
+    if (!window.confirm('선택한 기간의 로컬 결제 중 정산 근거가 없는 항목을 확인합니다.')) {
+      return;
+    }
+    setSettlementBusy('reconcile');
+    try {
+      const result = await reconcileAdminPaymentSettlements({
+        baseDateFrom: settlementBaseDateFrom || undefined,
+        baseDateTo: settlementBaseDateTo || undefined,
+      });
+      setSettlementImportResult(result);
+      showToast('success', '정산 누락 후보 확인이 완료되었습니다.');
+      await loadData();
+    } catch {
+      showToast('error', '정산 누락 후보 확인에 실패했습니다.');
+    } finally {
+      setSettlementBusy(null);
+    }
+  }
+
+  async function ignoreSettlement(settlement: AdminPaymentSettlement) {
+    const note = settlementIgnoreNotes[settlement.id]?.trim();
+    if (!note) {
+      showToast('error', 'ignore 처리 메모를 입력해주세요.');
+      return;
+    }
+    if (!window.confirm(`정산 row #${settlement.id}을 IGNORE 처리합니다.`)) {
+      return;
+    }
+    setSettlementBusy(`ignore-${settlement.id}`);
+    try {
+      await ignoreAdminPaymentSettlement(settlement.id, note);
+      showToast('success', '정산 row가 IGNORE 처리되었습니다.');
+      await loadData();
+    } catch {
+      showToast('error', '정산 row를 IGNORE 처리하지 못했습니다.');
+    } finally {
+      setSettlementBusy(null);
+    }
   }
 
   async function saveIncident(incident: AdminPaymentReconciliationIncident) {
@@ -478,6 +623,9 @@ export default function PaymentReadOnlyPage() {
         <TabButton active={tab === 'audits'} onClick={() => changeTab('audits')}>
           {'감사로그'}
         </TabButton>
+        <TabButton active={tab === 'settlements'} onClick={() => changeTab('settlements')}>
+          {'정산'}
+        </TabButton>
         <TabButton active={tab === 'refunds'} onClick={() => changeTab('refunds')}>
           {'환불'}
         </TabButton>
@@ -504,6 +652,65 @@ export default function PaymentReadOnlyPage() {
             ))}
           </select>
         </div>
+      )}
+
+      {tab === 'settlements' && (
+        <>
+          <div className={styles.filterBar}>
+            <span className={styles.filterLabel}>{'상태'}</span>
+            <select
+              className={styles.filterSelect}
+              value={settlementStatusFilter}
+              onChange={(e) =>
+                changeSettlementStatusFilter(e.target.value as AdminPaymentSettlementStatus | '')
+              }
+            >
+              <option value="">{'전체'}</option>
+              {SETTLEMENT_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+            <span className={styles.filterLabel}>{'source'}</span>
+            <select
+              className={styles.filterSelect}
+              value={settlementSourceFilter}
+              onChange={(e) =>
+                changeSettlementSourceFilter(e.target.value as AdminPaymentSettlementSource | '')
+              }
+            >
+              <option value="">{'전체'}</option>
+              {SETTLEMENT_SOURCES.map((source) => (
+                <option key={source} value={source}>
+                  {source}
+                </option>
+              ))}
+            </select>
+            <input
+              className={styles.textInput}
+              type="date"
+              value={settlementBaseDateFrom}
+              onChange={(e) => changeSettlementDateFilter('from', e.target.value)}
+            />
+            <input
+              className={styles.textInput}
+              type="date"
+              value={settlementBaseDateTo}
+              onChange={(e) => changeSettlementDateFilter('to', e.target.value)}
+            />
+          </div>
+          <SettlementOperationPanel
+            busy={settlementBusy}
+            file={settlementFile}
+            note={settlementNote}
+            result={settlementImportResult}
+            onFileChange={setSettlementFile}
+            onImport={() => void importSettlementFile()}
+            onNoteChange={setSettlementNote}
+            onReconcile={() => void reconcileSettlementGaps()}
+          />
+        </>
       )}
 
       {tab === 'refunds' && (
@@ -556,6 +763,15 @@ export default function PaymentReadOnlyPage() {
       )}
       {!loading && !error && tab === 'receipts' && <ReceiptTable receipts={receipts} />}
       {!loading && !error && tab === 'audits' && <AuditTable audits={audits} />}
+      {!loading && !error && tab === 'settlements' && (
+        <SettlementTable
+          busy={settlementBusy}
+          ignoreNotes={settlementIgnoreNotes}
+          settlements={settlements}
+          onIgnore={(settlement) => void ignoreSettlement(settlement)}
+          onNoteChange={changeSettlementIgnoreNote}
+        />
+      )}
       {!loading && !error && tab === 'refunds' && (
         <RefundTable
           actionNotes={refundActionNotes}
@@ -614,6 +830,97 @@ function buildIncidentEdits(
     };
     return acc;
   }, {});
+}
+
+function SettlementOperationPanel({
+  busy,
+  file,
+  note,
+  result,
+  onFileChange,
+  onImport,
+  onNoteChange,
+  onReconcile,
+}: {
+  busy: string | null;
+  file: File | null;
+  note: string;
+  result: AdminPaymentSettlementImportResult | null;
+  onFileChange: (file: File | null) => void;
+  onImport: () => void;
+  onNoteChange: (note: string) => void;
+  onReconcile: () => void;
+}) {
+  return (
+    <section className={styles.operationPanel}>
+      <div className={styles.panelHeader}>
+        <div>
+          <h2>{'정산 import'}</h2>
+          <p>{'CSV source adapter로 정산 근거를 저장하고 내부 결제/환불 원장과 대조합니다.'}</p>
+        </div>
+        <span className={styles.panelBadge}>{'CSV_MANUAL'}</span>
+      </div>
+      <div className={styles.formGrid}>
+        <label className={styles.fieldWide}>
+          <span>{'정산 CSV'}</span>
+          <input
+            accept=".csv,text/csv"
+            className={styles.fileInput}
+            type="file"
+            onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
+          />
+          <strong className={styles.fileName}>{file?.name ?? '선택된 파일 없음'}</strong>
+        </label>
+        <label className={styles.fieldWide}>
+          <span>{'운영 메모'}</span>
+          <textarea
+            className={styles.noteInput}
+            maxLength={500}
+            value={note}
+            onChange={(e) => onNoteChange(e.target.value)}
+            placeholder="정산 import 근거"
+          />
+        </label>
+      </div>
+      {result && (
+        <div className={styles.previewBox}>
+          <PreviewItem label="batch" value={result.importBatchKey} />
+          <PreviewItem label="rows" value={String(result.totalRows)} />
+          <PreviewItem label="imported" value={String(result.importedRows)} />
+          <PreviewItem label="duplicates" value={String(result.skippedDuplicateRows)} />
+          <PreviewItem label="failed" value={String(result.failedRows)} />
+          <PreviewItem label="statuses" value={formatStatusCounts(result.statusCounts)} />
+        </div>
+      )}
+      {result && result.errors.length > 0 && (
+        <div className={styles.errorList}>
+          {result.errors.slice(0, 5).map((error) => (
+            <div key={`${error.rowNumber}-${error.message}`}>
+              {`row ${error.rowNumber}: ${error.message}`}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className={styles.actionBar}>
+        <button
+          className={styles.saveBtn}
+          disabled={!file || busy === 'import'}
+          onClick={onImport}
+          type="button"
+        >
+          {busy === 'import' ? 'import 중' : '정산 import'}
+        </button>
+        <button
+          className={styles.secondaryBtn}
+          disabled={busy === 'reconcile'}
+          onClick={onReconcile}
+          type="button"
+        >
+          {busy === 'reconcile' ? '확인 중' : '누락 후보 확인'}
+        </button>
+      </div>
+    </section>
+  );
 }
 
 function RefundOperationPanel({
@@ -1155,6 +1462,108 @@ function AuditTable({ audits }: { audits: AdminPaymentOperationAuditLog[] }) {
   );
 }
 
+function SettlementTable({
+  busy,
+  ignoreNotes,
+  settlements,
+  onIgnore,
+  onNoteChange,
+}: {
+  busy: string | null;
+  ignoreNotes: Record<number, string>;
+  settlements: AdminPaymentSettlement[];
+  onIgnore: (settlement: AdminPaymentSettlement) => void;
+  onNoteChange: (settlementId: number, note: string) => void;
+}) {
+  return (
+    <div className={styles.tableWrap}>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>{'상태'}</th>
+            <th>{'주문번호'}</th>
+            <th>{'사용자'}</th>
+            <th>{'Source'}</th>
+            <th>{'금액'}</th>
+            <th>{'정산일'}</th>
+            <th>{'Local'}</th>
+            <th>{'사유'}</th>
+            <th>{'처리'}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {settlements.length === 0 && <EmptyRow colSpan={10} />}
+          {settlements.map((settlement) => (
+            <tr key={settlement.id}>
+              <td>{settlement.id}</td>
+              <td>
+                <span className={statusClass(settlement.status)}>{settlement.status}</span>
+              </td>
+              <td>
+                <div>{settlement.orderId}</div>
+                <div className={styles.subtle}>{settlement.providerPaymentKey ?? '-'}</div>
+              </td>
+              <td>{settlement.userNickname ?? settlement.userId ?? '-'}</td>
+              <td>
+                <div>{settlement.source}</div>
+                <div className={styles.subtle}>{settlement.provider}</div>
+                <div className={styles.subtle}>
+                  {settlement.sourceFileName
+                    ? `${settlement.sourceFileName}:${settlement.sourceRowNumber ?? '-'}`
+                    : '-'}
+                </div>
+              </td>
+              <td>
+                <div>{`gross ${formatPrice(settlement.grossAmount)}`}</div>
+                <div
+                  className={styles.subtle}
+                >{`refund ${formatPrice(settlement.refundAmount)}`}</div>
+                <div className={styles.subtle}>{`fee ${formatPrice(settlement.feeAmount)}`}</div>
+                <div
+                  className={styles.subtle}
+                >{`net ${formatPrice(settlement.netSettlementAmount)}`}</div>
+              </td>
+              <td>
+                <div>{formatDate(settlement.settlementBaseDate)}</div>
+                <div className={styles.subtle}>{formatDate(settlement.settlementPayoutDate)}</div>
+              </td>
+              <td>
+                <div>{settlement.paymentOrderId ? `order #${settlement.paymentOrderId}` : '-'}</div>
+                <div className={styles.subtle}>
+                  {settlement.subscriptionPaymentId
+                    ? `payment #${settlement.subscriptionPaymentId}`
+                    : '-'}
+                </div>
+              </td>
+              <td className={styles.wrapCell}>{settlement.mismatchReason ?? '-'}</td>
+              <td>
+                <div className={styles.operationActions}>
+                  <textarea
+                    className={styles.noteInput}
+                    maxLength={500}
+                    value={ignoreNotes[settlement.id] ?? ''}
+                    onChange={(e) => onNoteChange(settlement.id, e.target.value)}
+                    placeholder="IGNORE 메모"
+                  />
+                  <button
+                    className={styles.compactBtn}
+                    disabled={settlement.status === 'IGNORED' || busy === `ignore-${settlement.id}`}
+                    onClick={() => onIgnore(settlement)}
+                    type="button"
+                  >
+                    {'IGNORE'}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function RefundTable({
   actionNotes,
   busy,
@@ -1512,6 +1921,14 @@ function severityClass(severity: string): string {
 
 function formatNullablePrice(value: number | null): string {
   return value == null ? '-' : formatPrice(value);
+}
+
+function formatStatusCounts(counts: Record<string, number>): string {
+  const entries = Object.entries(counts);
+  if (entries.length === 0) {
+    return '-';
+  }
+  return entries.map(([key, value]) => `${key}:${value}`).join(', ');
 }
 
 function todayInputValue(): string {

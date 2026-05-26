@@ -17,16 +17,25 @@ import com.atstudio.atstudio.dto.payment.AdminPaymentRefundCreateRequest;
 import com.atstudio.atstudio.dto.payment.AdminPaymentRefundExecuteRequest;
 import com.atstudio.atstudio.dto.payment.AdminPaymentRefundPreviewResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentRefundResponse;
+import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementIgnoreRequest;
+import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementImportResponse;
+import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementReconcileRequest;
+import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementResponse;
 import com.atstudio.atstudio.dto.payment.AdminSubscriptionPaymentResponse;
 import com.atstudio.atstudio.dto.payment.AdminUpdatePaymentReconciliationIncidentRequest;
 import com.atstudio.atstudio.entity.enums.PaymentReconciliationIncidentStatus;
+import com.atstudio.atstudio.entity.enums.PaymentSettlementSource;
+import com.atstudio.atstudio.entity.enums.PaymentSettlementStatus;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.AdminPaymentEntitlementCorrectionService;
 import com.atstudio.atstudio.service.AdminPaymentIncidentService;
 import com.atstudio.atstudio.service.AdminPaymentReadService;
 import com.atstudio.atstudio.service.AdminPaymentRefundService;
+import com.atstudio.atstudio.service.AdminPaymentSettlementService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -37,7 +46,11 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/admin/payments")
@@ -48,6 +61,7 @@ public class AdminPaymentController {
     private final AdminPaymentIncidentService adminPaymentIncidentService;
     private final AdminPaymentRefundService adminPaymentRefundService;
     private final AdminPaymentEntitlementCorrectionService adminPaymentEntitlementCorrectionService;
+    private final AdminPaymentSettlementService adminPaymentSettlementService;
 
     @GetMapping("/orders")
     @PreAuthorize("hasRole('ADMIN')")
@@ -87,6 +101,52 @@ public class AdminPaymentController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(adminPaymentReadService.listPaymentOperationAuditLogs(page, size));
+    }
+
+    @GetMapping("/settlements")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentSettlementResponse>> listSettlements(
+            @RequestParam(required = false) PaymentSettlementStatus status,
+            @RequestParam(required = false) PaymentSettlementSource source,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate baseDateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate baseDateTo,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(adminPaymentSettlementService.listSettlements(
+                status,
+                source,
+                baseDateFrom,
+                baseDateTo,
+                page,
+                size));
+    }
+
+    @PostMapping(value = "/settlements/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentSettlementImportResponse>> importSettlements(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(required = false) String note) {
+        return ResponseEntity.ok(adminPaymentSettlementService.importSettlements(userDetails, file, note));
+    }
+
+    @PostMapping("/settlements/reconcile")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentSettlementImportResponse>> reconcileSettlements(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestBody(required = false) AdminPaymentSettlementReconcileRequest request) {
+        return ResponseEntity.ok(adminPaymentSettlementService.reconcileMissingProviderSettlements(
+                userDetails,
+                request));
+    }
+
+    @PutMapping("/settlements/{settlementId}/ignore")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentSettlementResponse>> ignoreSettlement(
+            @PathVariable Long settlementId,
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @Valid @RequestBody AdminPaymentSettlementIgnoreRequest request) {
+        return ResponseEntity.ok(adminPaymentSettlementService.ignoreSettlement(settlementId, userDetails, request));
     }
 
     @GetMapping("/refunds")

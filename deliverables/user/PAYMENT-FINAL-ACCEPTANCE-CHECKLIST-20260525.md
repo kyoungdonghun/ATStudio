@@ -1,7 +1,7 @@
 # Payment Final Acceptance Checklist
 
 작성일: 2026-05-25  
-대상: ATStudio Toss 정기결제, 구독 변경, 운영 대사/incident 기능  
+대상: ATStudio Toss 정기결제, 구독 변경, 운영 대사/incident/settlement 기능
 목적: 최종 인수테스트 시 사용자가 직접 확인할 항목을 한 문서에서 추적한다.
 
 ## 0. 테스트 준비
@@ -11,7 +11,7 @@
 | [ ] | 테스트 서버가 최신 `dev/kyoung` 기준으로 실행된다. | 결제 관련 최신 UI/API가 반영되어 있다. | |
 | [ ] | Toss 테스트 키 환경이 적용되어 있다. | 결제수단 등록 화면이 Toss 테스트 환경으로 열린다. | |
 | [ ] | 테스트 계정의 기존 구독 상태를 정리한다. | 신규 가입, 변경, 취소 흐름을 독립적으로 볼 수 있다. | |
-| [ ] | 관리자 계정으로 `/admin/payments` 접근이 가능하다. | `결제 운영` 화면과 `대사 Incident`, `영수증`, `감사로그`, `환불`, `권한 보정` 탭을 볼 수 있다. | |
+| [ ] | 관리자 계정으로 `/admin/payments` 접근이 가능하다. | `결제 운영` 화면과 `대사 Incident`, `영수증`, `감사로그`, `정산`, `환불`, `권한 보정` 탭을 볼 수 있다. | |
 
 ## 1. 신규 정기 구독 가입
 
@@ -76,13 +76,17 @@
 
 | 체크 | 항목 | 기대 결과 | 메모 |
 |------|------|-----------|------|
-| [ ] | 관리자 계정으로 `/admin/payments`에 접속한다. | `주문`, `자동결제`, `결제내역`, `대사 Incident`, `영수증`, `감사로그`, `환불`, `권한 보정` 탭이 보인다. | |
+| [ ] | 관리자 계정으로 `/admin/payments`에 접속한다. | `주문`, `자동결제`, `결제내역`, `대사 Incident`, `영수증`, `감사로그`, `정산`, `환불`, `권한 보정` 탭이 보인다. | |
 | [ ] | 일반 사용자 계정으로 `/admin/payments` 접근을 시도한다. | 접근이 차단된다. | |
 | [ ] | 주문 탭을 확인한다. | 결제 주문의 주문번호, 사용자, 목적, PG, 상태, 금액, 실패 코드가 보인다. | |
 | [ ] | 자동결제 탭을 확인한다. | billing key 원문 없이 마스킹된 결제수단과 상태만 보인다. | |
 | [ ] | 결제내역 탭을 확인한다. | 확정된 구독 결제 이력이 보인다. | |
 | [ ] | 영수증 탭을 확인한다. | 성공 결제에 영수증 근거가 있으면 receipt URL/key가 보이고 raw provider payload나 카드 원문은 보이지 않는다. | |
 | [ ] | 감사로그 탭을 확인한다. | receipt evidence 생성, incident 상태 변경, 환불 workflow, 권한 보정 workflow 감사 로그가 보인다. | |
+| [ ] | 정산 탭에서 정상 CSV를 import한다. | `payment_settlements` row가 생성되고 `MATCHED`, `MISMATCHED`, `LOCAL_PAYMENT_NOT_FOUND` status count가 support-safe 형태로 보인다. 구독/결제/환불/provider 상태는 바뀌지 않는다. | |
+| [ ] | 정산 탭에서 같은 CSV를 다시 import한다. | 중복 row가 새로 생성되지 않고 duplicate count로 집계된다. | |
+| [ ] | 정산 탭에서 누락 후보 확인을 실행한다. | 선택한 기간의 local DONE 결제 중 imported provider settlement evidence가 없는 항목만 `PROVIDER_SETTLEMENT_NOT_FOUND` 후보로 생성된다. | |
+| [ ] | 정산 row를 IGNORE 처리한다. | 메모와 함께 `IGNORED` 상태가 저장되고 operation audit log가 생성된다. 원 row는 삭제되지 않는다. | |
 | [ ] | 환불 탭에서 결제내역 ID로 환불 미리보기를 실행한다. | 환불 가능 결제에서는 원 결제액, 예약/성공 환불액, 남은 환불 가능액이 support-safe 형태로 보인다. | |
 | [ ] | 환불 탭에서 환불 요청을 만든다. | provider 호출 없이 `REQUESTED` 환불 원장과 audit log가 생성된다. | |
 | [ ] | 환불 탭에서 환불 요청을 승인한다. | `APPROVED`로 바뀌고 provider 호출 없이 audit log가 생성된다. | |
@@ -123,6 +127,6 @@
 |------|------|-----------|------|
 | [ ] | 신규 가입, 업그레이드, 다운그레이드, 취소, 취소 철회를 모두 통과했다. | 사용자 구독 핵심 흐름을 운영 후보로 볼 수 있다. | |
 | [ ] | 정기 갱신 성공/실패/만료 흐름을 확인했다. | 스케줄러와 권한 정책이 결제 상태와 일치한다. | |
-| [ ] | 관리자 결제 운영 화면과 incident/refund/entitlement workflow를 확인했다. | 운영자가 이상 상황을 발견하고 처리 상태, 환불 요청, 권한 보정 요청을 화면에서 남길 수 있다. | |
+| [ ] | 관리자 결제 운영 화면과 incident/settlement/refund/entitlement workflow를 확인했다. | 운영자가 이상 상황을 발견하고 처리 상태, 정산 대사 근거, 환불 요청, 권한 보정 요청을 화면에서 남길 수 있다. | |
 | [ ] | 민감정보 비노출을 확인했다. | 결제 운영 화면과 API가 보안 경계를 지킨다. | |
-| [ ] | 남은 P2 범위를 확인했다. | 남은 범위는 정산, 세금계산서, webhook, multi-PG다. cash receipt issue/cancel은 카드-only 정기결제 범위에서는 보류한다. | |
+| [ ] | 남은 P2 범위를 확인했다. | 남은 범위는 세금계산서, webhook, multi-PG, 필요 시 Toss Settlement API adapter다. cash receipt issue/cancel은 카드-only 정기결제 범위에서는 보류한다. | |

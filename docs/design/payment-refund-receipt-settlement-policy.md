@@ -1,17 +1,17 @@
 ---
 version: 1.0
-last_updated: 2026-05-25
+last_updated: 2026-05-26
 project: ATS
 owner: SA
 category: design
 status: draft
-source_req: REQ-20260525-ATS-002, REQ-20260525-ATS-004, REQ-20260525-ATS-005
+source_req: REQ-20260525-ATS-002, REQ-20260525-ATS-004, REQ-20260525-ATS-005, REQ-20260526-ATS-001
 ---
 
 # Payment Refund, Receipt, Settlement, and Tax Invoice Policy
 
 > Scope: ATStudio subscription payment operations after recurring billing checkout.
-> This document defines operating policy and implementation boundaries for refund, receipt, settlement, and tax invoice operations. Receipt evidence, operation audit logging, admin refund ledger/provider cancel APIs, refund-linked entitlement correction APIs, and first-class admin receipt/audit/refund/entitlement UI are implemented; settlement import, tax invoice workflow, and cash receipt issue/cancel automation remain separate follow-up scopes.
+> This document defines operating policy and implementation boundaries for refund, receipt, settlement, and tax invoice operations. Receipt evidence, operation audit logging, admin refund ledger/provider cancel APIs, refund-linked entitlement correction APIs, settlement import/reconciliation APIs/UI, and first-class admin receipt/audit/refund/entitlement/settlement UI are implemented; tax invoice workflow and cash receipt issue/cancel automation remain separate follow-up scopes.
 
 ## 1. Purpose
 
@@ -54,13 +54,13 @@ Tax invoice policy in this document is a system policy baseline, not tax advice.
 | Refund state | `payment_refunds` stores admin refund request, approval, provider execution, idempotency, provider cancel transaction, and failure/pending-confirmation state. |
 | Entitlement correction state | `payment_entitlement_corrections` stores refund-linked local access correction requests, before/target snapshots, approvals, execution actor, and result state. |
 | Receipt state | `payment_receipts` stores safe provider receipt/cash receipt evidence after successful charges when Toss returns receipt metadata. |
-| Settlement state | No settlement import, settlement reconciliation, fee, VAT, or payout-date record exists. |
+| Settlement state | `payment_settlements` stores CSV/manual settlement evidence, generated missing-provider review rows, amount/refund/fee/VAT/net comparisons, ignore state, and support-safe source payload. |
 
 ### Current data gap
 
 `PaymentOrder.pgTransactionId` is used as the provider transaction identifier after Toss billing charge. In Toss billing charge responses, this value may be the `paymentKey`. This value is copied into `payment_receipts.provider_payment_key` when receipt evidence exists and into `payment_refunds.provider_payment_key` when a refund request is created.
 
-Current implementation introduced explicit ledgers for receipt evidence, refund workflow, refund-linked entitlement correction, and payment operation audit logs. Future implementation should still introduce settlement and tax invoice request ledgers before those operations become mutable.
+Current implementation introduced explicit ledgers for receipt evidence, refund workflow, refund-linked entitlement correction, settlement reconciliation, and payment operation audit logs. Future implementation should still introduce tax invoice request ledgers before tax invoice operations become mutable.
 
 ## 4. Policy Principles
 
@@ -323,8 +323,11 @@ Current action coverage:
 | `PAYMENT_ENTITLEMENT_CORRECTION_PROCESSING` | Admin user | `payment_entitlement_corrections` | Records local access correction execution start. |
 | `PAYMENT_ENTITLEMENT_CORRECTION_SUCCEEDED` | Admin user | `payment_entitlement_corrections` | Records successful local access correction. |
 | `PAYMENT_ENTITLEMENT_CORRECTION_FAILED` | Admin user | `payment_entitlement_corrections` | Reserved for failed local correction tracking. |
+| `PAYMENT_SETTLEMENT_IMPORTED` | Admin user | `payment_settlements` | Records imported settlement evidence rows. |
+| `PAYMENT_SETTLEMENT_RECONCILED` | Admin user | `payment_settlements` | Records generated missing-provider settlement review rows. |
+| `PAYMENT_SETTLEMENT_IGNORED` | Admin user | `payment_settlements` | Records operator ignore decisions. |
 
-Future settlement import and tax invoice request workflows should add explicit action values instead of reusing these actions. Cash receipt issue/cancel actions remain conditional on future cash-like payment support.
+Future tax invoice request workflows should add explicit action values instead of reusing these actions. Cash receipt issue/cancel actions remain conditional on future cash-like payment support.
 
 ## 7. Settlement Policy
 
@@ -340,7 +343,19 @@ It does not mean:
 
 If ATStudio later pays creators or sellers, that is a separate settlement/payout domain with additional contract, tax, and identity requirements.
 
-### 7.2 Settlement reconciliation
+### 7.2 Settlement source strategy
+
+Settlement data can come from more than one provider-facing source. ATStudio uses a source adapter boundary so the first implementation can start with manually uploaded settlement evidence while keeping a future Toss Settlement API adapter open.
+
+| Source | Status | Policy |
+|---|---|---|
+| `CSV_MANUAL` | First implementation | Admin uploads a CSV settlement file using the ATStudio template. Excel files should be exported to CSV first. |
+| `SYSTEM_RECONCILIATION` | First implementation | System-generated review rows show local finalized payments that lack imported provider settlement evidence for the selected period. |
+| `TOSS_API` | Future adapter | Toss Settlement API lookup may be added later without replacing the local settlement ledger, reconciliation rules, or admin UI. |
+
+The provider source is evidence for accounting reconciliation. It is not a subscription entitlement source and must not automatically mutate payment, refund, billing agreement, or subscription state.
+
+### 7.3 Settlement reconciliation
 
 Toss settlement information can be used to compare provider settlement records with ATStudio internal payment records.
 
@@ -360,30 +375,41 @@ Policy:
   - payout date
   - provider settlement status
 
-### 7.3 Settlement model candidate
+### 7.4 Settlement model
 
-Future table candidate: `payment_settlements`
+Implemented table: `payment_settlements`
 
 | Column | Notes |
 |---|---|
 | `id` | Internal settlement row |
+| `source` | `CSV_MANUAL`, `SYSTEM_RECONCILIATION`, future `TOSS_API` |
 | `provider` | Provider |
+| `provider_settlement_id` | Provider settlement row identifier if available |
 | `provider_payment_key` | Provider payment key |
 | `order_id` | Merchant order ID |
 | `payment_order_id` | Nullable local order mapping |
 | `subscription_payment_id` | Nullable local finalized payment mapping |
+| `user_id` | Nullable payment owner mapping |
+| `import_batch_key` | Import or generated scan batch identifier |
+| `source_file_name`, `source_row_number` | CSV/source traceability |
 | `gross_amount` | Original amount |
 | `refund_amount` | Refunded amount included in settlement calculation |
 | `fee_amount` | Provider fee if available |
 | `vat_amount` | VAT/tax amount if available |
 | `net_settlement_amount` | Amount expected to be paid to merchant |
+| `currency` | 3-letter currency code, default `KRW` |
 | `settlement_base_date` | Provider settlement sales/base date |
 | `settlement_payout_date` | Expected or actual payout date |
-| `status` | `IMPORTED`, `MATCHED`, `MISMATCHED`, `IGNORED` |
+| `provider_status` | Provider status text when available |
+| `status` | `IMPORTED`, `MATCHED`, `MISMATCHED`, `LOCAL_PAYMENT_NOT_FOUND`, `PROVIDER_SETTLEMENT_NOT_FOUND`, `IGNORED` |
+| `mismatch_reason` | Review reason when reconciliation is not matched |
+| `operator_note`, `ignored_by`, `ignored_at` | Operator workflow state |
 | `reconciled_at` | Internal reconciliation timestamp |
-| `provider_payload` | Sanitized provider settlement metadata |
+| `source_payload` | Allowlisted source metadata only |
 
-### 7.4 Settlement incident types
+Detailed implementation design is tracked in [Payment Settlement Import and Reconciliation Design](payment-settlement-import-design.md).
+
+### 7.5 Settlement incident types
 
 Future reconciliation incident types:
 
@@ -468,13 +494,13 @@ If a payment is refunded after tax invoice issuance:
 | P2-A | Admin audit ledger and receipt evidence storage | Implemented. No provider mutation added. |
 | P2-B | Refund request workflow without automatic entitlement mutation | Implemented as backend admin APIs with provider cancellation, idempotency, and approval. |
 | P2-C | Entitlement correction workflow linked to refund | Implemented as backend admin APIs; money movement and access mutation remain auditable separately. |
-| P2-D | Settlement import and settlement reconciliation | Accounting visibility without touching user access. |
+| P2-D | Settlement import and settlement reconciliation | Implemented as accounting visibility without touching user access. First implementation is CSV/manual source adapter; Toss Settlement API remains a future adapter. |
 | P2-E | Tax invoice request tracking | Enables manual HomeTax/ASP operation with internal traceability. |
 | P2-F | Tax invoice automation or ASP integration | Requires tax review and external integration decision. |
 
-### 9.2 API candidate map
+### 9.2 API map
 
-The refund and entitlement correction APIs below are implemented. The remaining entries are future candidates.
+The refund, entitlement correction, and settlement APIs below are implemented. Tax invoice entries remain future candidates.
 
 | API | Purpose | Mutation risk |
 |---|---|---|
@@ -491,8 +517,10 @@ The refund and entitlement correction APIs below are implemented. The remaining 
 | `POST /api/admin/payments/entitlement-corrections/{id}/approve` | Approve entitlement correction request | Local workflow mutation |
 | `POST /api/admin/payments/entitlement-corrections/{id}/execute` | Apply explicit local subscription correction after approval | Local access mutation |
 | `GET /api/users/me/payment-receipts` | User receipt list | Read-only |
-| `GET /api/admin/payment-operations/settlements` | Admin settlement records | Read-only |
-| `POST /api/admin/payment-operations/settlements/import` | Import provider settlement records | Local accounting mutation |
+| `GET /api/admin/payments/settlements` | Admin settlement records | Read-only |
+| `POST /api/admin/payments/settlements/import` | Import provider settlement CSV evidence | Local accounting mutation |
+| `POST /api/admin/payments/settlements/reconcile` | Generate missing-provider settlement evidence review rows | Local accounting mutation |
+| `PUT /api/admin/payments/settlements/{id}/ignore` | Mark a settlement row ignored with an operator note | Local workflow mutation |
 | `POST /api/tax-invoice-requests` | User requests tax invoice evidence | Local request mutation |
 | `PUT /api/admin/tax-invoice-requests/{id}/status` | Admin updates manual issuance status | Local workflow mutation |
 
@@ -574,7 +602,7 @@ Before implementing remaining payment operation features, confirm:
 - [ ] Whether a future cash-like payment method or standalone cash receipt request flow requires cash receipt issue/cancel automation.
 - [ ] Which business users can request tax invoices.
 - [ ] Whether tax invoice issuance is manual HomeTax, ASP, or automated API integration.
-- [ ] Whether settlement data is imported from Toss API or uploaded manually by operations.
+- [x] Whether settlement data is imported from Toss API or uploaded manually by operations. Current decision: CSV/manual upload first; Toss Settlement API adapter remains future.
 - [ ] Which accounting system, if any, must receive exported data.
 
 ## 13. Current Decision Record
@@ -590,6 +618,7 @@ Before implementing remaining payment operation features, confirm:
 | PAYOPS-D07 | Tax invoice issuance starts as manual HomeTax/ASP-backed operations tracking until tax review approves automation. | Accepted |
 | PAYOPS-D08 | Refund ledger/provider cancel is implemented as admin backend APIs and first-class admin UI while keeping request, approval, and provider execution separate. | Accepted |
 | PAYOPS-D09 | Refund-linked entitlement correction is implemented as an explicit target-state admin backend workflow and first-class admin UI while keeping it separate from provider refund. | Accepted |
+| PAYOPS-D10 | Settlement import starts with CSV/manual source adapter while preserving a future Toss Settlement API adapter path. | Accepted and implemented |
 
 ## Related Documents
 

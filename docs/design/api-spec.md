@@ -1,8 +1,18 @@
-# ATStudio API Specification v14 (Confirmed)
+# ATStudio API Specification v15 (Confirmed)
 
-> **Status**: 14th confirmed — admin refund entitlement correction APIs
-> **Base**: v13 + 2026-05-25 admin refund entitlement correction patch
-> **Date**: 2026-05-25
+> **Status**: 15th confirmed — admin settlement import/reconciliation APIs
+> **Base**: v14 + 2026-05-26 admin settlement import/reconciliation patch
+> **Date**: 2026-05-26
+
+---
+
+## v14 → v15 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| AF1 | §6.3.8 admin settlement import/reconciliation workflow | Added CSV/manual settlement import, settlement list, missing-provider evidence scan, and ignore APIs. |
+| AF2 | Settlement boundary | Settlement rows are accounting evidence and operator review records. They do not mutate subscription access, payment status, refund status, billing agreements, or provider state. |
+| AF3 | Full API Summary | Updated total count from 135 → 139 |
 
 ---
 
@@ -1379,7 +1389,7 @@ For payment-method re-registration on an existing active/grace-period subscripti
 
 ## 6.3.8 Payment Operations Admin APIs
 
-These endpoints are implemented as admin support/audit views and controlled payment operation APIs. Payment order, billing agreement, subscription payment, receipt evidence, operation audit log, and on-demand reconciliation endpoints are read-only. Reconciliation incident status updates mutate only the incident workflow state and create an audit log row. Refund APIs mutate only the `payment_refunds` ledger until an approved refund is explicitly executed; execution calls the provider cancel API with the persisted idempotency key and does not automatically change subscriptions, billing agreements, or user entitlement. Entitlement correction APIs are a separate admin-only workflow that applies an explicit target subscription state after support approval. These endpoints must not expose raw billing keys, auth keys, customer keys, Toss secret keys, raw provider payloads, or raw card data.
+These endpoints are implemented as admin support/audit views and controlled payment operation APIs. Payment order, billing agreement, subscription payment, receipt evidence, operation audit log, and on-demand reconciliation endpoints are read-only. Reconciliation incident status updates mutate only the incident workflow state and create an audit log row. Refund APIs mutate only the `payment_refunds` ledger until an approved refund is explicitly executed; execution calls the provider cancel API with the persisted idempotency key and does not automatically change subscriptions, billing agreements, or user entitlement. Entitlement correction APIs are a separate admin-only workflow that applies an explicit target subscription state after support approval. Settlement APIs import and compare PG settlement evidence against local payment/refund ledgers, but do not mutate subscriptions, payment status, refund status, billing agreements, or provider state. These endpoints must not expose raw billing keys, auth keys, customer keys, Toss secret keys, raw provider payloads, or raw card data.
 
 | API | Purpose | Notes |
 |---|---|---|
@@ -1389,6 +1399,10 @@ These endpoints are implemented as admin support/audit views and controlled paym
 | `GET /api/admin/payments/receipts` | List persisted payment receipt evidence | Read-only; stores safe provider receipt URL/key metadata only |
 | `GET /api/admin/payments/operation-audit-logs` | List payment operation audit logs | Read-only; includes admin/system action metadata without raw provider payloads |
 | `GET /api/admin/payments/refund-preview/{subscriptionPaymentId}` | Preview refundable amount for a finalized subscription payment | Read-only; rejects unsupported provider/status/missing provider payment key |
+| `GET /api/admin/payments/settlements` | List settlement reconciliation rows | Optional status/source/base-date filters; support-safe accounting evidence only |
+| `POST /api/admin/payments/settlements/import` | Import settlement CSV evidence and reconcile rows | Local accounting ledger mutation only; no provider call |
+| `POST /api/admin/payments/settlements/reconcile` | Generate local-payment-without-provider-settlement candidates | Local review row creation only; no provider call |
+| `PUT /api/admin/payments/settlements/{settlementId}/ignore` | Mark a settlement row ignored | Local workflow mutation and audit row only |
 | `GET /api/admin/payments/refunds` | List refund ledger records | Read-only list of local refund operation records |
 | `GET /api/admin/payments/refunds/{refundId}` | Get refund ledger detail | Read-only detail for one local refund operation |
 | `POST /api/admin/payments/refunds` | Create a refund request | Local ledger mutation only; provider is not called |
@@ -1493,6 +1507,134 @@ These endpoints are implemented as admin support/audit views and controlled paym
   }
 }
 ```
+
+### GET /api/admin/payments/settlements
+
+| Field | Value |
+|---|---|
+| **URL** | `GET /api/admin/payments/settlements?page=1&size=20&status=MISMATCHED&source=CSV_MANUAL&baseDateFrom=2026-05-01&baseDateTo=2026-05-31` |
+| **Auth** | ADMIN |
+| **Description** | Lists imported or generated settlement reconciliation rows by latest created date. The endpoint is read-only and returns support-safe settlement evidence only. It does not expose raw provider payloads, raw card data, billing keys, auth keys, customer keys, or provider secrets. |
+
+**Response** `200 OK`
+
+```json
+{
+  "dataList": [
+    {
+      "id": 1,
+      "source": "CSV_MANUAL",
+      "provider": "TOSS_BILLING",
+      "status": "MATCHED",
+      "orderId": "ATS-REN-20260525-ABC123",
+      "providerPaymentKey": "payment_key",
+      "providerSettlementId": "settlement_row_1",
+      "paymentOrderId": 3001,
+      "subscriptionPaymentId": 901,
+      "userId": 12,
+      "userNickname": "customer12",
+      "grossAmount": 29900,
+      "refundAmount": 0,
+      "feeAmount": 900,
+      "vatAmount": 90,
+      "netSettlementAmount": 28910,
+      "currency": "KRW",
+      "settlementBaseDate": "2026-05-25",
+      "settlementPayoutDate": "2026-05-31",
+      "providerStatus": "PAID_OUT",
+      "mismatchReason": null,
+      "sourceFileName": "settlements.csv",
+      "sourceRowNumber": 2,
+      "operatorNote": "May settlement import",
+      "ignoredBy": null,
+      "ignoredAt": null,
+      "reconciledAt": "2026-05-26T10:00:00",
+      "createdAt": "2026-05-26T10:00:00"
+    }
+  ],
+  "pageInfo": {
+    "page": 1,
+    "size": 20,
+    "total": 1,
+    "start": 1,
+    "end": 1,
+    "prev": false,
+    "next": false
+  }
+}
+```
+
+### POST /api/admin/payments/settlements/import
+
+| Field | Value |
+|---|---|
+| **URL** | `POST /api/admin/payments/settlements/import` |
+| **Auth** | ADMIN |
+| **Content-Type** | `multipart/form-data` |
+| **Description** | Imports a CSV settlement evidence file through the `CSV_MANUAL` source adapter, validates each row, deduplicates rows by deterministic settlement key, and compares imported evidence with local `payment_orders`, `subscription_payments`, and succeeded `payment_refunds`. This endpoint does not call Toss and does not mutate subscription access or payment/refund state. |
+
+**Form Data**
+
+| Field | Required | Description |
+|---|---|---|
+| `file` | yes | CSV file. Required headers: `provider`, `order_id`, `gross_amount`, `net_settlement_amount`, `settlement_base_date`. |
+| `note` | no | Operator note stored on imported rows when provided. |
+
+**Response** `200 OK`
+
+```json
+{
+  "data": {
+    "importBatchKey": "ATS-SETTLE-6f88d2a9a8424f0c",
+    "totalRows": 10,
+    "importedRows": 9,
+    "skippedDuplicateRows": 1,
+    "failedRows": 0,
+    "statusCounts": {
+      "MATCHED": 8,
+      "MISMATCHED": 1
+    },
+    "errors": []
+  }
+}
+```
+
+### POST /api/admin/payments/settlements/reconcile
+
+| Field | Value |
+|---|---|
+| **URL** | `POST /api/admin/payments/settlements/reconcile` |
+| **Auth** | ADMIN |
+| **Description** | Scans local finalized subscription payments in the selected created-at range and creates `PROVIDER_SETTLEMENT_NOT_FOUND` review rows when no imported provider settlement evidence exists for the order. This endpoint does not call Toss and does not mutate subscription access or provider state. |
+
+**Request**
+
+```json
+{
+  "baseDateFrom": "2026-05-01",
+  "baseDateTo": "2026-05-31"
+}
+```
+
+**Response** `200 OK` — returns the same import summary shape as settlement import.
+
+### PUT /api/admin/payments/settlements/{settlementId}/ignore
+
+| Field | Value |
+|---|---|
+| **URL** | `PUT /api/admin/payments/settlements/{settlementId}/ignore` |
+| **Auth** | ADMIN |
+| **Description** | Marks a settlement reconciliation row as `IGNORED` with an operator note and writes a payment operation audit row. This endpoint does not delete the row and does not mutate any payment, refund, subscription, billing agreement, or provider state. |
+
+**Request**
+
+```json
+{
+  "note": "Confirmed as expected fee adjustment."
+}
+```
+
+**Response** `200 OK` — returns `AdminPaymentSettlementResponse` with `status: "IGNORED"`.
 
 ### GET /api/admin/payments/refund-preview/{subscriptionPaymentId}
 
@@ -3312,7 +3454,7 @@ key: String (required) — setting key name
 
 ---
 
-# Full API Summary (135)
+# Full API Summary (139)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -3333,5 +3475,5 @@ key: String (required) — setting key name
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
-| 18 | Admin Payment Operations | 20 |
-| | **Total** | **135** |
+| 18 | Admin Payment Operations | 24 |
+| | **Total** | **139** |

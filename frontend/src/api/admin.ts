@@ -190,6 +190,61 @@ export interface AdminPaymentOperationAuditLog {
   createdAt: string;
 }
 
+export type AdminPaymentSettlementSource = 'CSV_MANUAL' | 'TOSS_API' | 'SYSTEM_RECONCILIATION';
+export type AdminPaymentSettlementStatus =
+  | 'IMPORTED'
+  | 'MATCHED'
+  | 'MISMATCHED'
+  | 'LOCAL_PAYMENT_NOT_FOUND'
+  | 'PROVIDER_SETTLEMENT_NOT_FOUND'
+  | 'IGNORED';
+
+export interface AdminPaymentSettlement {
+  id: number;
+  source: AdminPaymentSettlementSource;
+  provider: string;
+  status: AdminPaymentSettlementStatus;
+  orderId: string;
+  providerPaymentKey: string | null;
+  providerSettlementId: string | null;
+  paymentOrderId: number | null;
+  subscriptionPaymentId: number | null;
+  userId: number | null;
+  userNickname: string | null;
+  grossAmount: number;
+  refundAmount: number;
+  feeAmount: number;
+  vatAmount: number;
+  netSettlementAmount: number;
+  currency: string;
+  settlementBaseDate: string;
+  settlementPayoutDate: string | null;
+  providerStatus: string | null;
+  mismatchReason: string | null;
+  sourceFileName: string | null;
+  sourceRowNumber: number | null;
+  operatorNote: string | null;
+  ignoredBy: number | null;
+  ignoredAt: string | null;
+  reconciledAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminPaymentSettlementImportError {
+  rowNumber: number;
+  message: string;
+}
+
+export interface AdminPaymentSettlementImportResult {
+  importBatchKey: string;
+  totalRows: number;
+  importedRows: number;
+  skippedDuplicateRows: number;
+  failedRows: number;
+  statusCounts: Record<string, number>;
+  errors: AdminPaymentSettlementImportError[];
+}
+
 export type AdminPaymentRefundReasonCode =
   | 'CUSTOMER_REQUEST'
   | 'DUPLICATE_PAYMENT'
@@ -443,6 +498,61 @@ export async function fetchAdminPaymentOperationAuditLogs(
     { params: { page, size } },
   );
   return data;
+}
+
+interface AdminPaymentSettlementListParams {
+  status?: AdminPaymentSettlementStatus;
+  source?: AdminPaymentSettlementSource;
+  baseDateFrom?: string;
+  baseDateTo?: string;
+}
+
+export async function fetchAdminPaymentSettlements(
+  page = 1,
+  size = 20,
+  filters: AdminPaymentSettlementListParams = {},
+): Promise<PagedResponse<AdminPaymentSettlement>> {
+  const { data } = await client.get<PagedResponse<AdminPaymentSettlement>>(
+    '/admin/payments/settlements',
+    { params: { page, size, ...filters } },
+  );
+  return data;
+}
+
+export async function importAdminPaymentSettlements(
+  file: File,
+  note?: string,
+): Promise<AdminPaymentSettlementImportResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await client.post<ApiResponse<AdminPaymentSettlementImportResult>>(
+    '/admin/payments/settlements/import',
+    formData,
+    { params: note ? { note } : undefined },
+  );
+  return data.data;
+}
+
+export async function reconcileAdminPaymentSettlements(body: {
+  baseDateFrom?: string;
+  baseDateTo?: string;
+}): Promise<AdminPaymentSettlementImportResult> {
+  const { data } = await client.post<ApiResponse<AdminPaymentSettlementImportResult>>(
+    '/admin/payments/settlements/reconcile',
+    body,
+  );
+  return data.data;
+}
+
+export async function ignoreAdminPaymentSettlement(
+  settlementId: number,
+  note?: string,
+): Promise<AdminPaymentSettlement> {
+  const { data } = await client.put<ApiResponse<AdminPaymentSettlement>>(
+    `/admin/payments/settlements/${settlementId}/ignore`,
+    { note },
+  );
+  return data.data;
 }
 
 export async function fetchAdminPaymentRefundPreview(

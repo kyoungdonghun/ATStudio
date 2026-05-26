@@ -1,6 +1,6 @@
 ---
 version: 1.4
-last_updated: 2026-05-20
+last_updated: 2026-05-26
 project: ATS
 owner: MA
 category: guide
@@ -342,6 +342,14 @@ dependencies:
 
 [K-7 트랙 관리]  "트랙 삭제" → [M-11 ConfirmModal] → 목록 갱신
 
+[K-10 결제 운영]
+  탭: 주문 / 자동결제 / 결제내역 / 대사 Incident / 영수증 / 감사로그 / 정산 / 환불 / 권한 보정
+  ├── 대사 Incident: 상태/메모 변경 → 결제 operation audit 기록
+  ├── 정산: CSV import → settlement row 생성/대조, 누락 후보 확인, IGNORE 메모 처리
+  │    정산 작업은 구독/결제/환불/provider 상태를 변경하지 않음
+  ├── 환불: preview → request → approve → typed confirmation execute
+  └── 권한 보정: preview → request → approve → typed confirmation execute
+
 [6 음원 업로드]
   태그 선택 → [M-03 SelectModal]
   성공 → [B-1 음원 상세]
@@ -394,7 +402,7 @@ dependencies:
 | R-03 | 태그 필터 — 인라인 vs 모달 전환 용이성 | 인라인 우선, 전환 어려우면 재논의 |
 | R-04 | 18 통계 대시보드 지표 확장 설계 | 필요 시 후속 정의 |
 | R-05 | 결제 운영 안정화 (billing auth / upgrade charge / renewal failure) | One-time Toss widget UX SR-92 is dropped; production hardening continues under SR-93 and follow-up REQ/SR items |
-| R-06 | 결제 운영 화면 | Payment order / billing agreement / subscription payment support tabs, reconciliation incident workflow, receipt/audit views, and admin refund/entitlement-correction operation tabs are implemented at `/admin/payments` |
+| R-06 | 결제 운영 화면 | Payment order / billing agreement / subscription payment support tabs, reconciliation incident workflow, receipt/audit views, settlement import/reconciliation, and admin refund/entitlement-correction operation tabs are implemented at `/admin/payments` |
 | R-07 | M-15 기업인증 서류 파일 제한 | 업로드 정책 미확정 |
 
 ---

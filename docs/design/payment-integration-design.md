@@ -666,9 +666,10 @@ Operator-facing minimum visibility:
 - Related `payment_receipts` for safe provider receipt/cash receipt evidence when successful charges return receipt metadata.
 - Current `billing_agreements` status, masked method, next billing date, failure count, and cancellation date.
 - Persisted `payment_reconciliation_incidents` for scheduled local/provider mismatch detection, including status, severity, dedupe key, occurrence count, safe order/provider fields, and resolution note.
-- Append-only `payment_operation_audit_logs` for incident status changes, system-created receipt evidence events, admin refund workflow transitions, and admin entitlement correction workflow transitions.
+- Append-only `payment_operation_audit_logs` for incident status changes, system-created receipt evidence events, admin refund workflow transitions, admin entitlement correction workflow transitions, and settlement import/reconcile/ignore transitions.
 - Related `payment_entitlement_corrections` for refund-linked local access correction with before/target subscription state snapshots.
-- Read-only payment support view first. Incident status changes are allowed for operations workflow. Receipt/audit views, refund request/approval/provider execution, and refund-linked entitlement correction now exist in `/admin/payments`. Settlement, webhook reconciliation, and multi-PG operations remain separate follow-up scopes.
+- Related `payment_settlements` for CSV/manual settlement evidence import, local payment/refund comparison, generated missing-provider review rows, and ignore workflow.
+- Read-only payment support view first. Incident status changes are allowed for operations workflow. Receipt/audit views, settlement import/reconciliation, refund request/approval/provider execution, and refund-linked entitlement correction now exist in `/admin/payments`. Webhook reconciliation and multi-PG operations remain separate follow-up scopes.
 
 Sensitive-data boundary:
 
@@ -684,10 +685,10 @@ Sensitive-data boundary:
 - Scheduled reconciliation persists mismatch incidents and can send optional operator email when explicitly configured.
 - Provider success plus local persistence failure is covered by the payment operations runbook; admin refund ledger/provider cancel APIs are available when a support-approved refund is needed, and local access correction is available through the separate entitlement correction APIs after refund success.
 - Receipt evidence storage and payment operation audit logs are implemented as the first P2-A foundation without provider mutation.
-- Refund, settlement, and tax invoice operating policy is documented in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md); refund backend, entitlement correction backend, and first-class admin payment operation UI are complete, while settlement and tax invoice remain separate.
+- Refund, settlement, and tax invoice operating policy is documented in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md); refund backend, entitlement correction backend, settlement import/reconciliation, and first-class admin payment operation UI are complete, while tax invoice remains separate.
 - Add external notification channels as follow-up work if email/log/admin-screen operations are insufficient.
 - Provider-side webhook handling remains optional auxiliary work and must not become the sole source of truth for recurring billing access.
-- Add settlement and tax invoice implementations as separate REQ/SR items.
+- Add tax invoice implementation and optional Toss Settlement API adapter automation as separate REQ/SR items.
 - Cash receipt issue/cancel automation remains on hold for the current card-only recurring billing scope; keep evidence capture only unless a cash-like payment method is approved.
 
 ## 15. Open Decisions
@@ -699,7 +700,7 @@ Sensitive-data boundary:
 | PAY-D03 | Keep direct `POST /api/user-subscriptions`? | Blocked legacy endpoint; no direct subscription mutation |
 | PAY-D04 | Mock UI detail level | Include success/fail/cancel buttons |
 | PAY-D05 | One-time checkout role | Not user-facing for subscription scope; stale subscription routes are blocked |
-| PAY-D06 | Payment admin screen | Payment operations UI includes support views, reconciliation incident workflow, receipt/audit views, and separate refund/entitlement-correction operation tabs |
+| PAY-D06 | Payment admin screen | Payment operations UI includes support views, reconciliation incident workflow, receipt/audit views, settlement operations, and separate refund/entitlement-correction operation tabs |
 | PAY-D07 | Refund/cancel automation | Implement admin refund ledger/provider cancel APIs; keep entitlement correction as a separate explicit target-state operation |
 | PAY-D08 | Recurring billing failure grace period | 3-day grace period with up to 3 retry attempts (accepted) |
 | PAY-D09 | Initial recurring subscription charge | Billing-key registration followed by immediate first charge (accepted) |
@@ -707,7 +708,7 @@ Sensitive-data boundary:
 | PAY-D11 | Upgrade payment model | Use active billing agreement for immediate prorated charge; preserve current billing cycle and next billing date |
 | PAY-D12 | Downgrade payment model | Schedule pending plan/cycle and apply after the next successful renewal charge with no immediate charge |
 | PAY-D13 | Removed billing-key recovery | Mark local agreement `EXPIRED`, clear issued-key metadata, keep the subscription unchanged, and require zero-amount `BILLING_AGREEMENT` re-registration |
-| PAY-D14 | Refund/receipt/settlement/tax invoice policy | Policy documented; receipt evidence, operation audit, refund ledgers, and entitlement correction ledgers implemented; settlement and tax invoice mutation still require separate REQ/SR approval |
+| PAY-D14 | Refund/receipt/settlement/tax invoice policy | Policy documented; receipt evidence, operation audit, refund ledgers, entitlement correction ledgers, and settlement import/reconciliation implemented; tax invoice mutation still requires separate REQ/SR approval |
 
 ## 16. Implementation Risk Notes
 

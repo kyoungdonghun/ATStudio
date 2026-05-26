@@ -17,7 +17,7 @@ status: stable
 | Category | Document Count | Index File | Description |
 | ---------- | ------- | ------------------------------------------ | -------------------- |
 | Architecture | 1 | [Architecture Index](architecture/index.md) | High-level design/principles |
-| Design | 23 | [Design Index](design/index.md) | Meta + ATStudio domain design (API, DB, use cases, protocol references) |
+| Design | 26 | [Design Index](design/index.md) | Meta + ATStudio domain design (API, DB, use cases, protocol references) |
 | Policies | 8 | [Policies Index](policies/index.md) | Operational policy documents |
 | Standards | 13 | [Standards Index](standards/index.md) | Standard documents and reference assets |
 | Templates | 18 | [Templates Index](templates/index.md) | Document/artifact templates |
@@ -66,7 +66,7 @@ status: stable
 | Config | `.claude/config/workspace.json`, `.claude/config/context-injection-rules.json` | ATStudio routing, tech_stack, context injection |
 
 - **Tech Stack**: Java 17, Spring Boot 4.x, MySQL 8.x + React 18, TypeScript 5.6, Vite 6 (Phase 2 — active)
-- **Project Stats**: 135 APIs, 35 DB tables, 52 screens, 13 agents
+- **Project Stats**: 139 APIs, 36 DB tables, 52 screens, 13 agents
 - **Project Registry**: See [Project Registry](registry/project-registry.md)
 
 ## Starting Point Guides
