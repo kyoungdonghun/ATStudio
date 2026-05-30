@@ -127,7 +127,7 @@ dependencies:
 | :-- | :-- | :-- |
 | User subscription flows passed. | New subscription, re-registration, upgrade, downgrade, cancel, reactivate, and renewal scenarios are accepted. | [ ] |
 | Admin operation flows passed. | Incidents, receipts, audits, refund, correction, and settlement operations are accepted. | [ ] |
-| Deferred scope is understood. | Tax invoice workflow, Toss Settlement API adapter, webhook, multi-PG, and cash receipt mutation are not treated as current defects. | [ ] |
+| Deferred scope is understood. | Tax invoice workflow is on hold under the current card-only recurring subscription scope. Toss Settlement API adapter, webhook, multi-PG, and cash receipt mutation are not treated as current defects. | [ ] |
 
 ## Related Documents
 

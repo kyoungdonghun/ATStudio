@@ -259,7 +259,7 @@
 2. File upload + certification request submission (status: PENDING)
 3. Admin review: revision request (REVISION_REQUESTED) or approval (APPROVED)
 4. Upon approval: `certification_code` issued, subscription payment enabled
-5. After payment, admin provides tax invoice/contract to the business (offline/separate process)
+5. After payment, admin provides offline business contract evidence if needed. Tax invoice handling is not part of the current card-only recurring subscription scope.
 
 ---
 
@@ -614,7 +614,7 @@
 - Receipt rows are created after the successful payment transaction commits.
 - Missing receipt fields are skipped; charge completion does not depend on provider returning a receipt URL.
 - `evidence_payload` must not contain raw billing keys, raw `authKey`, raw `customerKey`, raw card data, Toss secret keys, or raw provider payloads.
-- Current supported types are `PAYMENT_RECEIPT` and `CASH_RECEIPT`; tax invoice tracking remains a future table/workflow.
+- Current supported types are `PAYMENT_RECEIPT` and `CASH_RECEIPT`; tax invoice tracking remains on hold unless ATStudio later approves B2B invoice, bank-transfer, postpaid, or contract purchase payments.
 
 ## 6.11 Payment Operation Audit Logs (`payment_operation_audit_logs`)
 
@@ -642,7 +642,7 @@
 - Audit rows are append-only in the application API surface. No update/delete API exists.
 - Current admin mutation coverage is reconciliation incident status update, refund request/approval/execution workflow, refund-linked entitlement correction request/approval/execution workflow, and settlement import/reconcile/ignore workflow.
 - System-generated receipt evidence creation logs have `actor_user_id = NULL`.
-- Future tax invoice workflows should add new action values rather than overloading the current ones.
+- Future tax invoice workflows, if reopened for B2B/non-card payment scope, should add new action values rather than overloading the current ones.
 
 ---
 

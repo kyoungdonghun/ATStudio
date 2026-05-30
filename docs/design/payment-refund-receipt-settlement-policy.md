@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-05-26
+version: 1.1
+last_updated: 2026-05-30
 project: ATS
 owner: SA
 category: design
@@ -11,7 +11,7 @@ source_req: REQ-20260525-ATS-002, REQ-20260525-ATS-004, REQ-20260525-ATS-005, RE
 # Payment Refund, Receipt, Settlement, and Tax Invoice Policy
 
 > Scope: ATStudio subscription payment operations after recurring billing checkout.
-> This document defines operating policy and implementation boundaries for refund, receipt, settlement, and tax invoice operations. Receipt evidence, operation audit logging, admin refund ledger/provider cancel APIs, refund-linked entitlement correction APIs, settlement import/reconciliation APIs/UI, and first-class admin receipt/audit/refund/entitlement/settlement UI are implemented; tax invoice workflow and cash receipt issue/cancel automation remain separate follow-up scopes.
+> This document defines operating policy and implementation boundaries for refund, receipt, settlement, and tax invoice operations. Receipt evidence, operation audit logging, admin refund ledger/provider cancel APIs, refund-linked entitlement correction APIs, settlement import/reconciliation APIs/UI, and first-class admin receipt/audit/refund/entitlement/settlement UI are implemented. Tax invoice workflow and cash receipt issue/cancel automation are on hold under the current card-only recurring subscription scope.
 
 ## 1. Purpose
 
@@ -23,7 +23,7 @@ ATStudio recurring subscription payment is now recurring-first:
 - Renewal is run by ATStudio scheduler, not by Toss.
 - Reconciliation incidents are detected, persisted, and triaged through `/admin/payments`.
 
-The next production concern is financial operations after a charge has already happened. Refund, receipt, settlement, and tax invoice work must stay explicit because these operations can affect customer money, subscription access, tax evidence, and accounting records.
+The production concern after a charge has already happened is financial operations around the current card-only recurring subscription model. Refund, receipt, and settlement work must stay explicit because these operations can affect customer money, subscription access, evidence, and accounting records. Tax invoice workflow is documented as a future boundary only, not as a next implementation for the current card-only scope.
 
 ## 2. External Basis
 
@@ -60,7 +60,7 @@ Tax invoice policy in this document is a system policy baseline, not tax advice.
 
 `PaymentOrder.pgTransactionId` is used as the provider transaction identifier after Toss billing charge. In Toss billing charge responses, this value may be the `paymentKey`. This value is copied into `payment_receipts.provider_payment_key` when receipt evidence exists and into `payment_refunds.provider_payment_key` when a refund request is created.
 
-Current implementation introduced explicit ledgers for receipt evidence, refund workflow, refund-linked entitlement correction, settlement reconciliation, and payment operation audit logs. Future implementation should still introduce tax invoice request ledgers before tax invoice operations become mutable.
+Current implementation introduced explicit ledgers for receipt evidence, refund workflow, refund-linked entitlement correction, settlement reconciliation, and payment operation audit logs. Tax invoice request ledgers should be introduced only if ATStudio later approves B2B invoice, bank-transfer, postpaid, or contract purchase payments.
 
 ## 4. Policy Principles
 
@@ -72,7 +72,7 @@ Current implementation introduced explicit ledgers for receipt evidence, refund 
 | Evidence records are append-only first | Refund/receipt/settlement/tax invoice operations need audit records before destructive or financial mutation. |
 | Separate financial evidence types | Card receipt, cash receipt, settlement, and tax invoice are different evidence types and must not be collapsed into one status. |
 | No raw secrets | No raw billing key, auth key, customer key, Toss secret key, raw card data, or raw provider payload in responses, logs, screenshots, or documents. |
-| Tax handling requires external confirmation | Tax invoice automation must not be enabled until business type, VAT treatment, and evidence duplication policy are confirmed. |
+| Tax handling requires external confirmation and a matching payment scope | Tax invoice workflow must not be enabled for the current card-only recurring subscription scope by default. Reopen it only after business type, VAT treatment, evidence duplication policy, and B2B invoice/payment scope are confirmed. |
 
 ## 5. Refund Policy
 
@@ -248,7 +248,7 @@ Execution rules:
 |---|---|---|
 | Card/payment receipt | Provider evidence for a completed card payment | Stored in `payment_receipts` when the provider returns safe receipt metadata |
 | Cash receipt | Korean cash receipt for cash-like transactions | Evidence capture exists in `payment_receipts` when provider metadata is returned; issue/cancel mutation is not implemented for current card-only recurring billing |
-| Tax invoice | B2B tax document issued by HomeTax/ASP/manual accounting flow | Not implemented |
+| Tax invoice | B2B tax document issued by HomeTax/ASP/manual accounting flow | On hold for current card-only recurring billing |
 
 ### 6.2 Current recurring billing method
 
@@ -327,7 +327,7 @@ Current action coverage:
 | `PAYMENT_SETTLEMENT_RECONCILED` | Admin user | `payment_settlements` | Records generated missing-provider settlement review rows. |
 | `PAYMENT_SETTLEMENT_IGNORED` | Admin user | `payment_settlements` | Records operator ignore decisions. |
 
-Future tax invoice request workflows should add explicit action values instead of reusing these actions. Cash receipt issue/cancel actions remain conditional on future cash-like payment support.
+Future tax invoice request workflows should add explicit action values instead of reusing these actions, but only after a matching B2B invoice, bank-transfer, postpaid, or contract purchase payment scope is approved. Cash receipt issue/cancel actions remain conditional on future cash-like payment support.
 
 ## 7. Settlement Policy
 
@@ -426,23 +426,29 @@ Future reconciliation incident types:
 
 Tax invoices are not the same as Toss receipt URLs or cash receipts.
 
+Current decision:
+
+- ATStudio's current subscription payment scope is card-only recurring billing.
+- Card payments normally produce provider/card receipt evidence, which ATStudio already captures when safe metadata is returned.
+- ATStudio does not currently support B2B invoice, bank-transfer, postpaid, or contract purchase payments that would justify a first-class tax invoice request workflow.
+
 Policy:
 
 - ATStudio should not auto-issue electronic tax invoices until tax treatment is confirmed.
-- Initial production policy should be manual issuance through HomeTax or an approved e-tax invoice ASP.
-- The application may collect and track tax invoice requests, but issuance itself can remain external in the first release.
+- Initial production policy for any future tax invoice scope should be manual issuance through HomeTax or an approved e-tax invoice ASP.
+- The application may collect and track tax invoice requests only after a matching B2B invoice, bank-transfer, postpaid, or contract purchase scope is approved.
 - Tax invoice automation requires separate REQ/SR and tax operator approval.
 
 ### 8.2 Request eligibility candidate
 
-Future tax invoice request can be considered for:
+Future tax invoice request can be considered only if one of these product/payment scopes is approved:
 
-- Business users.
-- Corporate/company-certified users.
-- Payments where the business requests tax invoice evidence.
-- Cases approved by accounting operations.
+- B2B invoice or contract purchase.
+- Bank-transfer or postpaid payment.
+- Institution purchase that explicitly requires tax invoice operation.
+- Accounting-approved exception where card receipt evidence is not sufficient.
 
-The request should require:
+If reopened, the request should require:
 
 - Business registration number.
 - Company name.
@@ -456,7 +462,7 @@ ATStudio already has company certification flows, but tax invoice issuance must 
 
 ### 8.3 Tax invoice model candidate
 
-Future table candidate: `tax_invoice_requests`
+Future table candidate after scope approval: `tax_invoice_requests`
 
 | Column | Notes |
 |---|---|
@@ -478,7 +484,7 @@ Future table candidate: `tax_invoice_requests`
 
 ### 8.4 Tax invoice cancellation/correction
 
-If a payment is refunded after tax invoice issuance:
+If a future non-card/B2B payment is refunded after tax invoice issuance:
 
 - The system must not silently hide or delete the original invoice record.
 - Accounting must decide whether a cancellation, correction, or separate negative evidence is required.
@@ -495,12 +501,12 @@ If a payment is refunded after tax invoice issuance:
 | P2-B | Refund request workflow without automatic entitlement mutation | Implemented as backend admin APIs with provider cancellation, idempotency, and approval. |
 | P2-C | Entitlement correction workflow linked to refund | Implemented as backend admin APIs; money movement and access mutation remain auditable separately. |
 | P2-D | Settlement import and settlement reconciliation | Implemented as accounting visibility without touching user access. First implementation is CSV/manual source adapter; Toss Settlement API remains a future adapter. |
-| P2-E | Tax invoice request tracking | Enables manual HomeTax/ASP operation with internal traceability. |
+| P2-E | Tax invoice request tracking | On hold for current card-only recurring billing. Reopen only for approved B2B invoice, bank-transfer, postpaid, or contract purchase scope. |
 | P2-F | Tax invoice automation or ASP integration | Requires tax review and external integration decision. |
 
 ### 9.2 API map
 
-The refund, entitlement correction, and settlement APIs below are implemented. Tax invoice entries remain future candidates.
+The refund, entitlement correction, and settlement APIs below are implemented. Tax invoice entries remain future candidates only after a matching non-card/B2B payment scope is approved.
 
 | API | Purpose | Mutation risk |
 |---|---|---|
@@ -516,13 +522,13 @@ The refund, entitlement correction, and settlement APIs below are implemented. T
 | `POST /api/admin/payments/entitlement-corrections` | Create entitlement correction request | Local audit mutation |
 | `POST /api/admin/payments/entitlement-corrections/{id}/approve` | Approve entitlement correction request | Local workflow mutation |
 | `POST /api/admin/payments/entitlement-corrections/{id}/execute` | Apply explicit local subscription correction after approval | Local access mutation |
-| `GET /api/users/me/payment-receipts` | User receipt list | Read-only |
+| `GET /api/admin/payments/receipts` | Admin receipt evidence list | Read-only |
 | `GET /api/admin/payments/settlements` | Admin settlement records | Read-only |
 | `POST /api/admin/payments/settlements/import` | Import provider settlement CSV evidence | Local accounting mutation |
 | `POST /api/admin/payments/settlements/reconcile` | Generate missing-provider settlement evidence review rows | Local accounting mutation |
 | `PUT /api/admin/payments/settlements/{id}/ignore` | Mark a settlement row ignored with an operator note | Local workflow mutation |
-| `POST /api/tax-invoice-requests` | User requests tax invoice evidence | Local request mutation |
-| `PUT /api/admin/tax-invoice-requests/{id}/status` | Admin updates manual issuance status | Local workflow mutation |
+| `POST /api/tax-invoice-requests` | Future-only user tax invoice evidence request candidate | Not part of current card-only API surface |
+| `PUT /api/admin/tax-invoice-requests/{id}/status` | Future-only admin manual issuance status candidate | Not part of current card-only API surface |
 
 ### 9.3 Required admin audit fields
 
@@ -547,7 +553,7 @@ Every operation that touches money, evidence, or subscription access must record
 - Show refund status only after an admin refund request exists.
 - Do not expose internal provider payload or admin notes.
 - If a refund changes access, show the access end date and reason in plain language.
-- Tax invoice requests should show workflow status, not raw accounting internals.
+- Future tax invoice requests, if approved, should show workflow status, not raw accounting internals.
 
 ### Admin-facing
 
@@ -584,7 +590,7 @@ Allowed support-safe fields:
 - receipt URL
 - sanitized failure code/message
 
-Business registration numbers, representative names, and invoice emails are operationally necessary for tax invoice workflows but must be treated as sensitive business data:
+Business registration numbers, representative names, and invoice emails would be operationally necessary for a future tax invoice workflow but must be treated as sensitive business data:
 
 - mask in list views
 - restrict to admin/accounting roles
@@ -600,8 +606,9 @@ Before implementing remaining payment operation features, confirm:
 - [x] Whether full refund should automatically create an entitlement-correction task. Current decision: no automatic creation; admin creates explicit target-state correction after support approval.
 - [ ] Whether receipt URLs are available in the Toss billing charge response for the active API version.
 - [ ] Whether a future cash-like payment method or standalone cash receipt request flow requires cash receipt issue/cancel automation.
-- [ ] Which business users can request tax invoices.
-- [ ] Whether tax invoice issuance is manual HomeTax, ASP, or automated API integration.
+- [ ] Whether ATStudio has approved B2B invoice, bank-transfer, postpaid, or contract purchase scope that justifies tax invoice request tracking.
+- [ ] Which business users can request tax invoices if that scope is approved.
+- [ ] Whether future tax invoice issuance is manual HomeTax, ASP, or automated API integration.
 - [x] Whether settlement data is imported from Toss API or uploaded manually by operations. Current decision: CSV/manual upload first; Toss Settlement API adapter remains future.
 - [ ] Which accounting system, if any, must receive exported data.
 
@@ -615,7 +622,7 @@ Before implementing remaining payment operation features, confirm:
 | PAYOPS-D04 | Receipt evidence must use explicit fields/tables, not only sanitized provider payload. | Accepted |
 | PAYOPS-D05 | Current card-only recurring billing does not require cash receipt automation in the first implementation. | Accepted |
 | PAYOPS-D06 | Settlement means PG-to-ATStudio merchant settlement, not creator payout. | Accepted |
-| PAYOPS-D07 | Tax invoice issuance starts as manual HomeTax/ASP-backed operations tracking until tax review approves automation. | Accepted |
+| PAYOPS-D07 | Tax invoice workflow is on hold for current card-only recurring billing. If B2B invoice, bank-transfer, postpaid, or contract purchase scope is approved later, issuance starts as manual HomeTax/ASP-backed operations tracking until tax review approves automation. | Accepted |
 | PAYOPS-D08 | Refund ledger/provider cancel is implemented as admin backend APIs and first-class admin UI while keeping request, approval, and provider execution separate. | Accepted |
 | PAYOPS-D09 | Refund-linked entitlement correction is implemented as an explicit target-state admin backend workflow and first-class admin UI while keeping it separate from provider refund. | Accepted |
 | PAYOPS-D10 | Settlement import starts with CSV/manual source adapter while preserving a future Toss Settlement API adapter path. | Accepted and implemented |

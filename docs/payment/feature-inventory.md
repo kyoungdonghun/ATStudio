@@ -128,7 +128,7 @@ dependencies:
 | Capability | Status | Notes |
 | :-- | :-- | :-- |
 | Cash receipt issue/cancel automation | On hold | Current recurring subscription policy is card-only. Receipt evidence capture exists, but cash receipt mutation is not in scope. |
-| Tax invoice request/admin workflow | Planned | Should be handled as a separate REQ/SR if needed. |
+| Tax invoice request/admin workflow | On hold | Current payment scope is card-only recurring subscription. Reopen only when B2B invoice, bank-transfer, postpaid, or contract purchase scope is approved. |
 | Toss webhook handling | Planned | Optional auxiliary hardening. It must not become the sole source of truth for subscription access. |
 | Multi-PG expansion | Planned | Provider abstractions exist, but current user-facing provider is Toss billing. |
 | Multi-server scheduler lock | On hold | Current deployment assumption is single server. Revisit only if deployment topology changes. |

@@ -180,7 +180,7 @@ Refund policy anchors:
 - User-facing subscription cancellation is not refund.
 - Provider refund and entitlement correction are separate audited operations.
 - Refund provider requests persist an idempotency key before execution and must reuse it for the same refund request.
-- Receipt, settlement, and tax invoice evidence require explicit ledgers rather than only sanitized provider payload.
+- Receipt and settlement evidence require explicit ledgers rather than only sanitized provider payload. Tax invoice tracking should add its own ledger only if future B2B invoice, bank-transfer, postpaid, or contract purchase scope is approved.
 
 ### 6.4 Entitlement Correction Boundary
 
@@ -267,7 +267,7 @@ If webhook is introduced later:
 Separate REQ/SR items are still needed for:
 
 - Slack/SMS/in-app operator notification channels.
-- Tax invoice request implementation based on the payment operations policy.
+- Tax invoice request implementation only after B2B invoice, bank-transfer, postpaid, or contract purchase scope is approved.
 - Toss Settlement API adapter automation, if manual CSV import becomes insufficient.
 - Legacy endpoint removal.
 - KakaoPay, NaverPay, or other PG adapters.

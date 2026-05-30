@@ -1,5 +1,5 @@
 ---
-version: 1.0
+version: 1.1
 last_updated: 2026-05-30
 project: ATS
 owner: docops
@@ -36,7 +36,32 @@ The current payment system is recurring-subscription first:
 
 This directory is a guide layer. Detailed source-of-truth design documents remain in `docs/design/`.
 
-## 2. Reading Order
+## 2. Current Closure Decision
+
+The current card-only recurring subscription payment feature is ready to close as a feature slice when validation passes.
+
+Closed scope:
+
+- Card-based Toss recurring subscription checkout.
+- User subscription lifecycle and plan-change policy.
+- Renewal, failure, retry, and expiration handling.
+- Admin payment operations for ledgers, incidents, receipts, audit logs, refunds, entitlement correction, and CSV/manual settlement review.
+
+Not blockers for closure:
+
+- Toss webhook hardening.
+- Toss Settlement API adapter.
+- Multi-PG expansion.
+- Legacy endpoint removal.
+- Additional operator notification channels.
+
+On hold under the current card-only recurring subscription premise:
+
+- Tax invoice request/admin workflow.
+- Cash receipt issue/cancel mutation.
+- B2B invoice, bank-transfer, postpaid, or contract purchase payment flows.
+
+## 3. Reading Order
 
 | Reader Goal | Start Here | Then Read |
 | :-- | :-- | :-- |
@@ -46,7 +71,7 @@ This directory is a guide layer. Detailed source-of-truth design documents remai
 | Explain the feature to a client | [Client Brief](client-brief.md) | [Acceptance Test Checklist](acceptance-test-checklist.md) |
 | Plan the next payment work | [Known Limits and Next Steps](known-limits-and-next-steps.md) | [SR-93](../SR/SR-93.md) |
 
-## 3. Document List
+## 4. Document List
 
 | Document | Description | Status |
 | :-- | :-- | :-- |
@@ -58,7 +83,7 @@ This directory is a guide layer. Detailed source-of-truth design documents remai
 | [Client Brief](client-brief.md) | Client-facing draft explanation of the payment system without internal implementation noise. | draft |
 | [Known Limits and Next Steps](known-limits-and-next-steps.md) | Planned, deferred, and out-of-scope payment capabilities. | stable |
 
-## 4. Maintenance Rule
+## 5. Maintenance Rule
 
 When a new payment feature is added, update this directory in the same commit or the immediately following documentation commit.
 

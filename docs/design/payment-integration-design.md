@@ -685,10 +685,10 @@ Sensitive-data boundary:
 - Scheduled reconciliation persists mismatch incidents and can send optional operator email when explicitly configured.
 - Provider success plus local persistence failure is covered by the payment operations runbook; admin refund ledger/provider cancel APIs are available when a support-approved refund is needed, and local access correction is available through the separate entitlement correction APIs after refund success.
 - Receipt evidence storage and payment operation audit logs are implemented as the first P2-A foundation without provider mutation.
-- Refund, settlement, and tax invoice operating policy is documented in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md); refund backend, entitlement correction backend, settlement import/reconciliation, and first-class admin payment operation UI are complete, while tax invoice remains separate.
+- Refund, settlement, and tax invoice operating policy is documented in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md); refund backend, entitlement correction backend, settlement import/reconciliation, and first-class admin payment operation UI are complete. Tax invoice workflow is on hold for the current card-only recurring subscription scope.
 - Add external notification channels as follow-up work if email/log/admin-screen operations are insufficient.
 - Provider-side webhook handling remains optional auxiliary work and must not become the sole source of truth for recurring billing access.
-- Add tax invoice implementation and optional Toss Settlement API adapter automation as separate REQ/SR items.
+- Add optional Toss Settlement API adapter automation as a separate REQ/SR item if manual CSV import becomes insufficient. Reopen tax invoice implementation only if ATStudio approves B2B invoice, bank-transfer, postpaid, or contract purchase payments.
 - Cash receipt issue/cancel automation remains on hold for the current card-only recurring billing scope; keep evidence capture only unless a cash-like payment method is approved.
 
 ## 15. Open Decisions
@@ -708,7 +708,7 @@ Sensitive-data boundary:
 | PAY-D11 | Upgrade payment model | Use active billing agreement for immediate prorated charge; preserve current billing cycle and next billing date |
 | PAY-D12 | Downgrade payment model | Schedule pending plan/cycle and apply after the next successful renewal charge with no immediate charge |
 | PAY-D13 | Removed billing-key recovery | Mark local agreement `EXPIRED`, clear issued-key metadata, keep the subscription unchanged, and require zero-amount `BILLING_AGREEMENT` re-registration |
-| PAY-D14 | Refund/receipt/settlement/tax invoice policy | Policy documented; receipt evidence, operation audit, refund ledgers, entitlement correction ledgers, and settlement import/reconciliation implemented; tax invoice mutation still requires separate REQ/SR approval |
+| PAY-D14 | Refund/receipt/settlement/tax invoice policy | Policy documented; receipt evidence, operation audit, refund ledgers, entitlement correction ledgers, and settlement import/reconciliation implemented; tax invoice workflow is on hold for current card-only recurring billing and requires a future B2B/non-card payment scope before REQ/SR approval |
 
 ## 16. Implementation Risk Notes
 

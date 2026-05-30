@@ -107,7 +107,7 @@ Client testing should focus on:
 
 The following items are recognized as future or separate work and should not be treated as defects in the current payment delivery:
 
-- Tax invoice request/admin workflow.
+- Tax invoice request/admin workflow for future B2B invoice, bank-transfer, postpaid, or contract purchase scope.
 - Toss Settlement API direct automation.
 - Toss webhook hardening.
 - Multi-PG expansion beyond Toss recurring billing.
