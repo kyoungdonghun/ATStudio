@@ -1,6 +1,6 @@
 ---
-version: 1.7
-last_updated: 2026-05-25
+version: 1.8
+last_updated: 2026-05-30
 project: ATS
 owner: EO
 category: registry
@@ -17,20 +17,21 @@ status: stable
 | Category | Document Count | Index File | Description |
 | ---------- | ------- | ------------------------------------------ | -------------------- |
 | Architecture | 1 | [Architecture Index](architecture/index.md) | High-level design/principles |
-| Design | 26 | [Design Index](design/index.md) | Meta + ATStudio domain design (API, DB, use cases, protocol references) |
+| Design | 24 | [Design Index](design/index.md) | Meta + ATStudio domain design (API, DB, use cases, protocol references) |
 | Policies | 8 | [Policies Index](policies/index.md) | Operational policy documents |
 | Standards | 13 | [Standards Index](standards/index.md) | Standard documents and reference assets |
 | Templates | 18 | [Templates Index](templates/index.md) | Document/artifact templates |
 | Registry | 4 | [Registry Index](registry/index.md) | Asset/context/project registries |
 | Audit | 2 | [Audit Index](audit/index.md) | Audit reports and remediation baselines |
 | Client | 7 | [Client Index](client/index.md) | External testing guides and client SR intake references |
+| Payment | 7 | [Payment Index](payment/index.md) | Payment system guide, flows, operations, acceptance checklist, and client brief |
 | SR | 92 | [SR Index](SR/index.md) | Screen Review items (SR-01~90, SR-92~93) |
 | Retrospective | 4 | [Retrospective Index](retrospective/index.md) | Engineering lessons, domain design, kick.md, process |
 | ADR | 1 | [ADR Index](adr/index.md) | Decision records |
 | UI | 3 | [UI Index](ui/index.md) | Screen inventory, flow, and modal planning documents |
 | Eval | 0 | [Eval Index](eval/index.md) | Evaluation documents |
 
-**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **176**.
+**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **184**.
 
 ## Required Documents Mapping by Role
 
@@ -63,6 +64,7 @@ status: stable
 | Policies | [security-policy.md](policies/security-policy.md) | Section 6: JWT/MySQL Secrets Management |
 | Registry | [project-registry.md](registry/project-registry.md) | PRJ-ATS-001 registration |
 | Client | [testing-guide.md](client/testing-guide.md) | External testing guide and SR intake reference set |
+| Payment | [payment/index.md](payment/index.md) | Payment documentation pack for current subscription payment system |
 | Config | `.claude/config/workspace.json`, `.claude/config/context-injection-rules.json` | ATStudio routing, tech_stack, context injection |
 
 - **Tech Stack**: Java 17, Spring Boot 4.x, MySQL 8.x + React 18, TypeScript 5.6, Vite 6 (Phase 2 — active)
@@ -82,6 +84,13 @@ status: stable
 
 1. **[Client Testing Guide](client/testing-guide.md)**: External tester entry point and shared account baseline
 2. **[Client Index](client/index.md)**: Scenario, test-case, methodology, and SR-writing references
+3. **[Payment Client Brief](payment/client-brief.md)**: Draft payment-system explanation for client-facing review
+
+### Payment System Review
+
+1. **[Payment Documentation Pack](payment/index.md)**: Start here for payment feature scope and reading order
+2. **[Payment Feature Inventory](payment/feature-inventory.md)**: Current implemented payment capabilities
+3. **[Payment Acceptance Test Checklist](payment/acceptance-test-checklist.md)**: Payment-specific acceptance test checklist
 
 ### Document Authors
 
