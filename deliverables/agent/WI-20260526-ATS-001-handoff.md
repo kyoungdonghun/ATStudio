@@ -7,14 +7,14 @@ Blocks: WI-20260526-ATS-002, WI-20260526-ATS-003
 
 [WI SUMMARY]
 Why: Settlement import/reconciliation must be designed before adding accounting-facing tables, APIs, and UI.
-Scope (in/out): In scope is settlement source adapter design, CSV/Excel-first import policy, matching rules, admin API/UI contract, and documentation updates. Out of scope is backend/frontend implementation.
+Scope (in/out): In scope is settlement source adapter design, CSV-first import policy, matching rules, admin API/UI contract, and documentation updates. Excel sources must be exported to CSV before import. Out of scope is backend/frontend implementation.
 DoD: Design docs define source adapters, ledger fields, statuses, reconciliation rules, security boundary, and future Toss Settlement API extension path.
 Constraints/Forbidden: Do not implement Toss Settlement API integration. Do not treat settlement data as subscription entitlement source. Do not include raw secrets or raw provider payload examples.
 
 [ACCEPTANCE CRITERIA]
 Functional:
 - [ ] Settlement source abstraction is documented.
-- [ ] CSV/Excel import template and validation rules are documented.
+- [ ] CSV import template and validation rules are documented.
 - [ ] Matching/mismatch rules are documented.
 - [ ] Admin API/UI expectations are documented.
 Performance:
