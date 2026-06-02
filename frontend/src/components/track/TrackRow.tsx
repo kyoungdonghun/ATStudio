@@ -37,6 +37,8 @@ export default function TrackRow({
 
   const genreTags = track.tags.filter((t) => t.type === 'GENRE');
   const moodTags = track.tags.filter((t) => t.type === 'MOOD');
+  const usageTags = track.tags.filter((t) => t.type === 'USAGE');
+  const usageText = usageTags.map((t) => `#${t.name}`).join(' ');
 
   return (
     <tr className={rowClass}>
@@ -80,6 +82,9 @@ export default function TrackRow({
                 </>
               )}
             </div>
+            {usageText && (
+              <div className={styles.usageLine}>{usageText}</div>
+            )}
           </div>
         </div>
       </td>

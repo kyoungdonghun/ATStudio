@@ -32,6 +32,7 @@ export interface TrackListParams {
   genre?: string;
   mood?: string;
   instrument?: string;
+  usage?: string;
   bpmMin?: number;
   bpmMax?: number;
   tonality?: string;
@@ -52,6 +53,7 @@ export async function fetchTracks(
   if (params.genre) query.genre = params.genre;
   if (params.mood) query.mood = params.mood;
   if (params.instrument) query.instrument = params.instrument;
+  if (params.usage) query.usage = params.usage;
   if (params.bpmMin !== undefined) query.bpmMin = params.bpmMin;
   if (params.bpmMax !== undefined) query.bpmMax = params.bpmMax;
   if (params.tonality) query.tonality = params.tonality;

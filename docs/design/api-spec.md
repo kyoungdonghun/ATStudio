@@ -1,8 +1,18 @@
-# ATStudio API Specification v15 (Confirmed)
+# ATStudio API Specification v16 (Confirmed)
 
-> **Status**: 15th confirmed — admin settlement import/reconciliation APIs
-> **Base**: v14 + 2026-05-26 admin settlement import/reconciliation patch
-> **Date**: 2026-05-26
+> **Status**: 16th confirmed — usage guide tag search/display contract
+> **Base**: v15 + 2026-06-02 usage guide tag patch
+> **Date**: 2026-06-02
+
+---
+
+## v15 → v16 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| AG1 | §1.2 public track search | Added `usage` tag filter and expanded `keyword` to search both track title and `USAGE` guide tag names. |
+| AG2 | §2 tag contract | Added `USAGE` as an allowed tag type for visible guide hashtags such as `#쇼츠용` and `#유튜브용`. |
+| AG3 | Full API Summary | Endpoint count unchanged at 139. |
 
 ---
 
@@ -285,10 +295,11 @@ tagIds: List<Long> (optional)
 ```
 page: Integer (default: 1)
 size: Integer (default: 20)
-keyword: String (optional, title search)
+keyword: String (optional, track title or USAGE guide tag name search)
 genre: String (optional, genre tag filter)
 mood: String (optional, mood tag filter)
 instrument: String (optional, instrument tag filter)
+usage: String (optional, usage guide tag filter)
 bpmMin: Integer (optional)
 bpmMax: Integer (optional)
 tonality: String (optional)
@@ -309,7 +320,8 @@ sort: String (optional, "latest"|"popular"|"likes"|"downloads", default: "latest
       "thumbnail": "/tracks/thumbnail/summer-vibes.jpg",
       "playCount": 1500,
       "tags": [
-        { "id": 1, "name": "Happy", "type": "MOOD" }
+        { "id": 1, "name": "Happy", "type": "MOOD" },
+        { "id": 69, "name": "쇼츠용", "type": "USAGE" }
       ],
       "createdAt": "2026-02-19T10:00:00"
     }
@@ -341,7 +353,8 @@ sort: String (optional, "latest"|"popular"|"likes"|"downloads", default: "latest
   "playCount": 1500,
   "tags": [
     { "id": 1, "name": "Happy", "type": "MOOD" },
-    { "id": 5, "name": "Pop", "type": "GENRE" }
+    { "id": 5, "name": "Pop", "type": "GENRE" },
+    { "id": 69, "name": "쇼츠용", "type": "USAGE" }
   ],
   "createdAt": "2026-02-19T10:00:00",
   "updatedAt": "2026-02-19T12:00:00"
@@ -497,7 +510,7 @@ keyword: String (optional, track title keyword search — NFC-normalized)
 
 **Query Parameters**
 ```
-type: String (optional, "MOOD"|"GENRE"|"INSTRUMENT")
+type: String (optional, "MOOD"|"GENRE"|"INSTRUMENT"|"USAGE")
 ```
 
 **Response** `200 OK`
@@ -505,7 +518,8 @@ type: String (optional, "MOOD"|"GENRE"|"INSTRUMENT")
 {
   "dataList": [
     { "id": 1, "name": "Happy", "type": "MOOD", "createdAt": "2026-02-19T10:00:00" },
-    { "id": 2, "name": "Pop", "type": "GENRE", "createdAt": "2026-02-19T10:00:00" }
+    { "id": 2, "name": "Pop", "type": "GENRE", "createdAt": "2026-02-19T10:00:00" },
+    { "id": 69, "name": "쇼츠용", "type": "USAGE", "createdAt": "2026-06-02T10:00:00" }
   ]
 }
 ```
@@ -545,6 +559,7 @@ type: String (optional, "MOOD"|"GENRE"|"INSTRUMENT")
 ```
 genre: String (optional, comma-separated genre tag names)
 mood: String (optional, comma-separated mood tag names)
+usage: String (optional, comma-separated usage guide tag names)
 bpmMin: Integer (optional)
 bpmMax: Integer (optional)
 ```
@@ -554,7 +569,8 @@ bpmMax: Integer (optional)
 {
   "dataList": [
     { "id": 1, "name": "Happy", "type": "MOOD", "createdAt": "2026-02-19T10:00:00" },
-    { "id": 2, "name": "Pop", "type": "GENRE", "createdAt": "2026-02-19T10:00:00" }
+    { "id": 2, "name": "Pop", "type": "GENRE", "createdAt": "2026-02-19T10:00:00" },
+    { "id": 69, "name": "쇼츠용", "type": "USAGE", "createdAt": "2026-06-02T10:00:00" }
   ]
 }
 ```

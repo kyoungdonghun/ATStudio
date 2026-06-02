@@ -15,6 +15,7 @@ public class TrackSearchRequest extends RequestDTO {
     private String genre;
     private String mood;
     private String instrument;
+    private String usage;
     private Integer bpmMin;
     private Integer bpmMax;
     private String tonality;

@@ -10,7 +10,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-001 |
-| **Version** | 26-02-20 |
+| **Version** | 26-06-02 |
 | **Description** | Admin registers a new track. After upload, a low-quality preview_file is generated asynchronously. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Admin logged in. At least one tag exists in the tags DB. |
@@ -18,7 +18,7 @@
 | **Related UC** | SOUND-006 (view track detail), SOUND-012 (update track), SOUND-010 (play track) |
 
 **Main Flow**
-1. Admin enters metadata (title, BPM, key, description) and selects tags.
+1. Admin enters metadata (title, BPM, key, description) and selects tags, including optional visible `USAGE` guide tags.
 2. Admin attaches the audio file (audioFile) and thumbnail (optional).
 3. Frontend performs client-side validation.
 4. Frontend sends metadata and files to the backend as multipart/form-data.
@@ -43,7 +43,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-005 |
-| **Version** | 26-03-29 |
+| **Version** | 26-06-02 |
 | **Description** | User (including non-members) views the track list. Only tracks with is_active=1 are returned. |
 | **Actor** | User (including non-members), Backend |
 | **Preconditions** | - |
@@ -51,10 +51,11 @@
 | **Related UC** | SOUND-010 (play track), SOUND-011 (download track), SOUND-006 (view track detail) |
 
 **Main Flow**
-1. User selects/enters search criteria (keyword, tag, BPM range, key, sort order). All optional.
+1. User selects/enters search criteria (keyword, genre tag, mood tag, usage guide tag, BPM range, key, sort order). All optional.
 2. Frontend sends criteria as query parameters to the backend.
-3. Backend returns a paginated list of tracks matching the criteria where is_active=1.
-4. Frontend displays the track list on screen.
+3. Backend searches `keyword` against the track title and associated `USAGE` guide tag names only.
+4. Backend returns a paginated list of tracks matching the criteria where is_active=1.
+5. Frontend displays the track list on screen and renders `USAGE` tags as a visible hashtag subline below the track title.
 
 **Sort Parameter**
 | Value | Sort behavior |
@@ -77,14 +78,14 @@
 | playCount | Long | Total play count |
 | likeCount | Long | Total like count |
 | downloadCount | Long | Total download count |
-| tags | List\<TagResponse\> | Associated tags |
+| tags | List\<TagResponse\> | Associated tags. `USAGE` tags are displayed as visible guide hashtags such as `#쇼츠용` below the track title in list/player contexts. |
 | createdAt | LocalDateTime | Track creation timestamp |
 
 **Exception / Alternative Flow**
 - No search results: returns an empty content array.
 
 **Postconditions**
-- Track list matching criteria (title, BPM, key, thumbnail, playCount, likeCount, downloadCount, tags) and pageInfo displayed on screen.
+- Track list matching criteria (title, tag names, BPM, key, thumbnail, playCount, likeCount, downloadCount, tags) and pageInfo displayed on screen.
 
 ---
 
@@ -93,7 +94,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-006 |
-| **Version** | 26-02-20 |
+| **Version** | 26-06-02 |
 | **Description** | User (including non-members) views detailed track information. |
 | **Actor** | User (including non-members), Backend |
 | **Preconditions** | Target track exists in DB with is_active=1. |
@@ -103,13 +104,13 @@
 **Main Flow**
 1. Frontend sends a detail request including trackId to the backend.
 2. Backend retrieves the track record and associated tags, then returns them.
-3. Frontend displays the track detail on screen.
+3. Frontend displays the track detail on screen, including visible `USAGE` guide hashtags if linked to the track.
 
 **Exception / Alternative Flow**
 - Track not found or is_active=0: 404 response.
 
 **Postconditions**
-- Track metadata (title, BPM, key, description, tags, playCount, audioFile path, etc.) displayed on screen.
+- Track metadata (title, BPM, key, description, tags, visible usage guide hashtags, playCount, audioFile path, etc.) displayed on screen.
 
 ---
 

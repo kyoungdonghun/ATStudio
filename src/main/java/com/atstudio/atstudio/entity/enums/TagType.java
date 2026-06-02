@@ -1,5 +1,5 @@
 package com.atstudio.atstudio.entity.enums;
 
 public enum TagType {
-    MOOD, GENRE, INSTRUMENT
+    MOOD, GENRE, INSTRUMENT, USAGE
 }

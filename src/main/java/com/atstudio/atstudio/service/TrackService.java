@@ -99,13 +99,14 @@ public class TrackService {
         Pageable pageable = PageRequest.of(Math.max(0, request.getPage() - 1), request.getSize(), sort);
 
         Specification<Track> spec = TrackSpecification.isActive();
-        spec = addSpec(spec, TrackSpecification.titleContains(request.getKeyword()));
+        spec = addSpec(spec, TrackSpecification.keywordContains(request.getKeyword()));
         spec = addSpec(spec, TrackSpecification.hasBpmMin(request.getBpmMin()));
         spec = addSpec(spec, TrackSpecification.hasBpmMax(request.getBpmMax()));
         spec = addSpec(spec, TrackSpecification.hasTonality(request.getTonality()));
         spec = addSpec(spec, parseMultiTagSpec(request.getGenre(), "GENRE"));
         spec = addSpec(spec, parseMultiTagSpec(request.getMood(), "MOOD"));
         spec = addSpec(spec, parseMultiTagSpec(request.getInstrument(), "INSTRUMENT"));
+        spec = addSpec(spec, parseMultiTagSpec(request.getUsage(), "USAGE"));
 
         Page<Track> page = trackRepository.findAll(spec, pageable);
 

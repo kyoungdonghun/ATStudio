@@ -7,7 +7,7 @@ import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import styles from './TagManagePage.module.css';
 
-const TAG_TYPES: TagType[] = ['GENRE', 'MOOD', 'INSTRUMENT'];
+const TAG_TYPES: TagType[] = ['GENRE', 'MOOD', 'INSTRUMENT', 'USAGE'];
 
 export default function TagManagePage() {
   const [tags, setTags] = useState<TagItem[]>([]);

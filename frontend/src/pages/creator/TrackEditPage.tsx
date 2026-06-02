@@ -46,6 +46,7 @@ export default function TrackEditPage() {
   const [genreTags, setGenreTags] = useState<TagItem[]>([]);
   const [moodTags, setMoodTags] = useState<TagItem[]>([]);
   const [instrumentTags, setInstrumentTags] = useState<TagItem[]>([]);
+  const [usageTags, setUsageTags] = useState<TagItem[]>([]);
 
   /* ── UI state ── */
   const [pageLoading, setPageLoading] = useState(true);
@@ -60,11 +61,12 @@ export default function TrackEditPage() {
       if (!trackId) return;
 
       try {
-        const [track, genres, moods, instruments] = await Promise.all([
+        const [track, genres, moods, instruments, usages] = await Promise.all([
           fetchTrackDetailForAdmin(Number(trackId)),
           fetchTags('GENRE'),
           fetchTags('MOOD'),
           fetchTags('INSTRUMENT'),
+          fetchTags('USAGE'),
         ]);
 
         if (cancelled) return;
@@ -81,6 +83,7 @@ export default function TrackEditPage() {
         setGenreTags(genres);
         setMoodTags(moods);
         setInstrumentTags(instruments);
+        setUsageTags(usages);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : '데이터를 불러올 수 없습니다.');
@@ -332,6 +335,20 @@ export default function TrackEditPage() {
                 <Tag
                   key={tag.id}
                   label={tag.name}
+                  active={selectedTagIds.includes(tag.id)}
+                  onClick={() => toggleTag(tag.id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {usageTags.length > 0 && (
+            <div className={styles.tagGroup}>
+              <span className={styles.tagGroupLabel}>{'용도'}</span>
+              {usageTags.map((tag) => (
+                <Tag
+                  key={tag.id}
+                  label={`#${tag.name}`}
                   active={selectedTagIds.includes(tag.id)}
                   onClick={() => toggleTag(tag.id)}
                 />

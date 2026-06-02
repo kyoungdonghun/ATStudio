@@ -215,6 +215,12 @@
   color: var(--text1);
 }
 
+.usageChip {
+  color: var(--accent);
+  border-color: var(--accent-border);
+  background: var(--accent-dim);
+}
+
 /* ── Description ── */
 
 .desc {

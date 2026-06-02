@@ -72,6 +72,7 @@ task_types:
 | shorts | Shorts | Short-form video content (target use case for tracks) | short-form, clip | video (too generic) | - | YouTube Shorts, TikTok, Reels |
 | genre | Genre | Track classification category | category, type | tag (different concept) | - | e.g., EDM, Lo-fi, Hip-hop |
 | tag | Tag | Admin-managed category for track discovery and classification | keyword, label | genre (different concept) | - | Predefined categories managed by admin; not user-defined |
+| usage-tag | Usage Guide Tag | Visible guide/search hashtag that describes the expected content use case for a track | usage hashtag, guide tag | license, usage license | - | Stored as `tags.type=USAGE`; examples: `#쇼츠용`, `#유튜브용`, `#릴스용` |
 | license | License | Track usage rights automatically issued upon download | permission, rights | copyright (broader) | - | DB table `licenses`; issued per (user, track) pair |
 | upload | Upload | Process of creator submitting a track to the platform | submit, publish | post (ambiguous) | - | Includes file validation and async preview generation |
 | subscription | Subscription | Paid plan that grants download and playlist access | plan, membership | purchase (different) | - | DB table `user_subscriptions`; required for downloads |

@@ -168,6 +168,16 @@
   color: var(--accent);
 }
 
+.usageLine {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Tag chips ── */
 
 .tagChip {
@@ -283,6 +293,10 @@
 
   .title {
     font-size: 12px;
+  }
+
+  .usageLine {
+    font-size: 10px;
   }
 
   .actBtn {

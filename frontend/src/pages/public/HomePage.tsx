@@ -328,7 +328,9 @@ export default function HomePage() {
                 <span className={styles.trackNum}>{idx + 1}</span>
                 <span className={styles.trackTitle}>{track.title}</span>
                 <span className={styles.trackMeta}>
-                  {track.tags.filter((t) => t.type === 'GENRE').map((t) => t.name).join(', ')}
+                  {track.tags.some((t) => t.type === 'USAGE')
+                    ? track.tags.filter((t) => t.type === 'USAGE').map((t) => `#${t.name}`).join(', ')
+                    : track.tags.filter((t) => t.type === 'GENRE').map((t) => t.name).join(', ')}
                 </span>
                 <span className={styles.trackDur}>
                   {track.duration

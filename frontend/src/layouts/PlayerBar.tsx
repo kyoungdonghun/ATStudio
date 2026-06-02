@@ -344,6 +344,10 @@ export default function PlayerBar() {
   }
 
   const progressPercent = progressRatio * 100;
+  const currentUsageText = (currentTrack.tags ?? [])
+    .filter((tag) => tag.type === 'USAGE')
+    .map((tag) => `#${tag.name}`)
+    .join(' ');
 
   return (
     <>
@@ -373,6 +377,9 @@ export default function PlayerBar() {
             >
               {currentTrack.title}
             </div>
+            {currentUsageText && (
+              <div className={styles.trackUsage}>{currentUsageText}</div>
+            )}
           </div>
           <button
             className={`${styles.heartBtn} ${likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
@@ -507,6 +514,9 @@ export default function PlayerBar() {
               <div className={styles.trackName}
                 onClick={(e) => { e.stopPropagation(); navigate(`/tracks/${currentTrack.id}`); }}
                 style={{ cursor: 'pointer' }}>{currentTrack.title}</div>
+              {currentUsageText && (
+                <div className={styles.trackUsage}>{currentUsageText}</div>
+              )}
             </div>
           </div>
           <div className={styles.mobileControls}>

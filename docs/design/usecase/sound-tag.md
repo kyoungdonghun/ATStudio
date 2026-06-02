@@ -10,7 +10,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-003 |
-| **Version** | 26-02-20 |
+| **Version** | 26-06-02 |
 | **Description** | Admin creates a new tag. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Admin logged in. |
@@ -18,7 +18,7 @@
 | **Related UC** | SOUND-001 (create track), SOUND-012 (update track) |
 
 **Main Flow**
-1. Admin enters the tag name (name) and type (type: MOOD/GENRE/INSTRUMENT).
+1. Admin enters the tag name (name) and type (type: MOOD/GENRE/INSTRUMENT/USAGE).
 2. Frontend sends the data to the backend.
 3. Backend performs validation (name UNIQUE check).
 4. Backend creates a record in the tags table and returns a 201 response.
@@ -37,8 +37,8 @@
 
 | Field | Value |
 |-------|-------|
-| **API** | `GET /api/tags?type={MOOD\|GENRE\|INSTRUMENT}` |
-| **Version** | 26-02-20 |
+| **API** | `GET /api/tags?type={MOOD\|GENRE\|INSTRUMENT\|USAGE}` |
+| **Version** | 26-06-02 |
 | **Description** | Retrieves the full tag list for filter UI or tag selection popup. Filterable by type parameter. |
 | **Actor** | User (including non-members), Backend |
 | **Preconditions** | - |
@@ -52,6 +52,11 @@
 **Postconditions**
 - Tag list (id, name, type) returned.
 
+**Usage Guide Tags**
+- `USAGE` tags are visible guide/search hashtags for user-facing discovery (for example, `#쇼츠용`, `#유튜브용`, `#릴스용`).
+- They are stored in the same `tags` and `track_tags` tables as other tag types.
+- They do not replace `artistName`; `artistName` remains uploader nickname metadata.
+
 ---
 
 ## SOUND-014: Update Tag
@@ -59,7 +64,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-014 |
-| **Version** | 26-02-20 |
+| **Version** | 26-06-02 |
 | **Description** | Admin updates the name or type of an existing tag. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Admin logged in. Target tag exists in DB. |
@@ -67,7 +72,7 @@
 | **Related UC** | - |
 
 **Main Flow**
-1. Admin enters the updated name and type.
+1. Admin enters the updated name and type (MOOD/GENRE/INSTRUMENT/USAGE).
 2. Frontend sends tagId and changed data to the backend.
 3. Backend performs validation and UNIQUE check.
 4. Backend updates the tag and returns the updated tag information.

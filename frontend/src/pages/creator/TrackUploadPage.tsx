@@ -54,6 +54,7 @@ export default function TrackUploadPage() {
   const [genreTags, setGenreTags] = useState<TagItem[]>([]);
   const [moodTags, setMoodTags] = useState<TagItem[]>([]);
   const [instrumentTags, setInstrumentTags] = useState<TagItem[]>([]);
+  const [usageTags, setUsageTags] = useState<TagItem[]>([]);
 
   /* ── UI state ── */
   const [submitting, setSubmitting] = useState(false);
@@ -67,15 +68,17 @@ export default function TrackUploadPage() {
     let cancelled = false;
     async function loadTags() {
       try {
-        const [genres, moods, instruments] = await Promise.all([
+        const [genres, moods, instruments, usages] = await Promise.all([
           fetchTags('GENRE'),
           fetchTags('MOOD'),
           fetchTags('INSTRUMENT'),
+          fetchTags('USAGE'),
         ]);
         if (!cancelled) {
           setGenreTags(genres);
           setMoodTags(moods);
           setInstrumentTags(instruments);
+          setUsageTags(usages);
         }
       } catch {
         /* tags are supplementary */
@@ -447,6 +450,19 @@ export default function TrackUploadPage() {
                               <Tag
                                 key={tag.id}
                                 label={tag.name}
+                                active={track.tagIds.includes(tag.id)}
+                                onClick={() => toggleTag(idx, tag.id)}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        {usageTags.length > 0 && (
+                          <div className={styles.tagGroup}>
+                            <span className={styles.tagGroupLabel}>{'용도'}</span>
+                            {usageTags.map((tag) => (
+                              <Tag
+                                key={tag.id}
+                                label={`#${tag.name}`}
                                 active={track.tagIds.includes(tag.id)}
                                 onClick={() => toggleTag(idx, tag.id)}
                               />

@@ -1,6 +1,7 @@
 package com.atstudio.atstudio.repository.spec;
 
 import com.atstudio.atstudio.entity.Track;
+import com.atstudio.atstudio.entity.TrackTag;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 
@@ -25,6 +26,27 @@ public class TrackSpecification {
         if (keyword == null || keyword.isBlank()) return null;
         String normalized = Normalizer.normalize(keyword.toLowerCase(), Normalizer.Form.NFC);
         return (root, query, cb) -> cb.like(cb.lower(root.get("title")), "%" + normalized + "%");
+    }
+
+    public static Specification<Track> keywordContains(String keyword) {
+        if (keyword == null || keyword.isBlank()) return null;
+        String normalized = Normalizer.normalize(keyword.toLowerCase(), Normalizer.Form.NFC);
+        String pattern = "%" + normalized + "%";
+        return (root, query, cb) -> {
+            query.distinct(true);
+            var tagSubquery = query.subquery(Long.class);
+            var trackTag = tagSubquery.from(TrackTag.class);
+            tagSubquery.select(trackTag.get("track").get("id"))
+                    .where(
+                            cb.equal(trackTag.get("track").get("id"), root.get("id")),
+                            cb.equal(trackTag.get("tag").get("type").as(String.class), "USAGE"),
+                            cb.like(cb.lower(trackTag.get("tag").get("name").as(String.class)), pattern)
+                    );
+            return cb.or(
+                    cb.like(cb.lower(root.get("title")), pattern),
+                    cb.exists(tagSubquery)
+            );
+        };
     }
 
     public static Specification<Track> hasBpmMin(Integer bpmMin) {

@@ -9,11 +9,13 @@ interface TagFilterModalProps {
   onClose: () => void;
   genreTags: TagItem[];
   moodTags: TagItem[];
+  usageTags: TagItem[];
   activeGenres: string[];
   activeMoods: string[];
+  activeUsages: string[];
   activeBpmLabel: string;
   bpmPresets: readonly { label: string }[];
-  onApply: (genres: string[], moods: string[], bpm: string) => void;
+  onApply: (genres: string[], moods: string[], usages: string[], bpm: string) => void;
 }
 
 export default function TagFilterModal({
@@ -21,14 +23,17 @@ export default function TagFilterModal({
   onClose,
   genreTags,
   moodTags,
+  usageTags,
   activeGenres,
   activeMoods,
+  activeUsages,
   activeBpmLabel,
   bpmPresets,
   onApply,
 }: TagFilterModalProps) {
   const [selectedGenres, setSelectedGenres] = useState<string[]>(activeGenres);
   const [selectedMoods, setSelectedMoods] = useState<string[]>(activeMoods);
+  const [selectedUsages, setSelectedUsages] = useState<string[]>(activeUsages);
   const [selectedBpm, setSelectedBpm] = useState(activeBpmLabel);
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,11 +43,12 @@ export default function TagFilterModal({
     if (open) {
       setSelectedGenres(activeGenres);
       setSelectedMoods(activeMoods);
+      setSelectedUsages(activeUsages);
       setSelectedBpm(activeBpmLabel);
       setQuery('');
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [open, activeGenres, activeMoods, activeBpmLabel]);
+  }, [open, activeGenres, activeMoods, activeUsages, activeBpmLabel]);
 
   const q = query.trim().toLowerCase();
 
@@ -52,6 +58,9 @@ export default function TagFilterModal({
   const filteredMoods = q
     ? moodTags.filter((t) => t.name.toLowerCase().includes(q))
     : moodTags;
+  const filteredUsages = q
+    ? usageTags.filter((t) => t.name.toLowerCase().includes(q))
+    : usageTags;
   const filteredBpm = q
     ? bpmPresets.filter((p) => p.label.toLowerCase().includes(q))
     : bpmPresets;
@@ -68,22 +77,30 @@ export default function TagFilterModal({
     );
   }
 
+  function toggleUsage(name: string) {
+    setSelectedUsages((prev) =>
+      prev.includes(name) ? prev.filter((u) => u !== name) : [...prev, name],
+    );
+  }
+
   function handleApply() {
-    onApply(selectedGenres, selectedMoods, selectedBpm);
+    onApply(selectedGenres, selectedMoods, selectedUsages, selectedBpm);
     onClose();
   }
 
   function handleClear() {
     setSelectedGenres([]);
     setSelectedMoods([]);
+    setSelectedUsages([]);
     setSelectedBpm('');
   }
 
   const totalSelected =
-    selectedGenres.length + selectedMoods.length + (selectedBpm ? 1 : 0);
+    selectedGenres.length + selectedMoods.length + selectedUsages.length + (selectedBpm ? 1 : 0);
   const noResults =
     filteredGenres.length === 0 &&
     filteredMoods.length === 0 &&
+    filteredUsages.length === 0 &&
     filteredBpm.length === 0;
 
   return (
@@ -143,6 +160,23 @@ export default function TagFilterModal({
                       label={tag.name}
                       active={selectedMoods.includes(tag.name)}
                       onClick={() => toggleMood(tag.name)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Usage */}
+            {filteredUsages.length > 0 && (
+              <div className={styles.section}>
+                <span className={styles.sectionLabel}>{'용도'}</span>
+                <div className={styles.chips}>
+                  {filteredUsages.map((tag) => (
+                    <FilterChip
+                      key={tag.id}
+                      label={`#${tag.name}`}
+                      active={selectedUsages.includes(tag.name)}
+                      onClick={() => toggleUsage(tag.name)}
                     />
                   ))}
                 </div>

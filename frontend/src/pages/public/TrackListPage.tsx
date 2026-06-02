@@ -60,6 +60,7 @@ export default function TrackListPage() {
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
   const [genreTags, setGenreTags] = useState<TagItem[]>([]);
   const [moodTags, setMoodTags] = useState<TagItem[]>([]);
+  const [usageTags, setUsageTags] = useState<TagItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,8 +77,10 @@ export default function TrackListPage() {
   const activeKeyword = searchParams.get('keyword') ?? '';
   const activeGenres = searchParams.getAll('genre');
   const activeMoods = searchParams.getAll('mood');
+  const activeUsages = searchParams.getAll('usage');
   const activeGenresKey = activeGenres.join(',');
   const activeMoodsKey = activeMoods.join(',');
+  const activeUsagesKey = activeUsages.join(',');
   const activeBpmLabel = searchParams.get('bpm') ?? '';
   const sortValue = (searchParams.get('sort') ?? 'latest') as 'latest' | 'popular' | 'likes' | 'downloads';
 
@@ -105,9 +108,11 @@ export default function TrackListPage() {
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [genreExpanded, setGenreExpanded] = useState(false);
   const [moodExpanded, setMoodExpanded] = useState(false);
-  const hasActiveFilters = activeGenresKey !== '' || activeMoodsKey !== '' || activeBpmLabel !== '';
+  const [usageExpanded, setUsageExpanded] = useState(false);
+  const hasActiveFilters = activeGenresKey !== '' || activeMoodsKey !== '' || activeUsagesKey !== '' || activeBpmLabel !== '';
   const [availableGenres, setAvailableGenres] = useState<Set<string>>(new Set());
   const [availableMoods, setAvailableMoods] = useState<Set<string>>(new Set());
+  const [availableUsages, setAvailableUsages] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isAuthenticated && !likeLoaded) {
@@ -122,13 +127,15 @@ export default function TrackListPage() {
 
     async function loadTags() {
       try {
-        const [genres, moods] = await Promise.all([
+        const [genres, moods, usages] = await Promise.all([
           fetchTags('GENRE'),
           fetchTags('MOOD'),
+          fetchTags('USAGE'),
         ]);
         if (!cancelled) {
           setGenreTags(genres);
           setMoodTags(moods);
+          setUsageTags(usages);
         }
       } catch {
         /* tags are supplementary, ignore errors */
@@ -155,6 +162,7 @@ export default function TrackListPage() {
     if (activeKeyword) params.keyword = activeKeyword;
     if (activeGenresKey) params.genre = activeGenresKey;
     if (activeMoodsKey) params.mood = activeMoodsKey;
+    if (activeUsagesKey) params.usage = activeUsagesKey;
 
     const bpmPreset = BPM_PRESETS.find((p) => p.label === activeBpmLabel);
     if (bpmPreset) {
@@ -171,7 +179,7 @@ export default function TrackListPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, sortValue, activeKeyword, activeGenresKey, activeMoodsKey, activeBpmLabel]);
+  }, [currentPage, sortValue, activeKeyword, activeGenresKey, activeMoodsKey, activeUsagesKey, activeBpmLabel]);
 
   useEffect(() => {
     loadTracks();
@@ -182,19 +190,22 @@ export default function TrackListPage() {
     if (!hasActiveFilters) {
       setAvailableGenres(new Set());
       setAvailableMoods(new Set());
+      setAvailableUsages(new Set());
       return;
     }
     const bpmPreset = BPM_PRESETS.find((p) => p.label === activeBpmLabel);
     fetchAvailableTags({
       genre: activeGenresKey || undefined,
       mood: activeMoodsKey || undefined,
+      usage: activeUsagesKey || undefined,
       bpmMin: bpmPreset?.min,
       bpmMax: bpmPreset?.max,
     }).then((tags) => {
       setAvailableGenres(new Set(tags.filter((t) => t.type === 'GENRE').map((t) => t.name)));
       setAvailableMoods(new Set(tags.filter((t) => t.type === 'MOOD').map((t) => t.name)));
+      setAvailableUsages(new Set(tags.filter((t) => t.type === 'USAGE').map((t) => t.name)));
     }).catch(() => { /* ignore */ });
-  }, [activeGenresKey, activeMoodsKey, activeBpmLabel, hasActiveFilters]);
+  }, [activeGenresKey, activeMoodsKey, activeUsagesKey, activeBpmLabel, hasActiveFilters]);
 
   /* ── Filter helpers ── */
   function setFilter(key: string, value: string) {
@@ -231,6 +242,17 @@ export default function TrackListPage() {
     setSearchParams(next);
   }
 
+  function toggleUsage(name: string) {
+    const next = new URLSearchParams(searchParams);
+    next.delete('usage');
+    const updated = activeUsages.includes(name)
+      ? activeUsages.filter((u) => u !== name)
+      : [...activeUsages, name];
+    updated.forEach((u) => next.append('usage', u));
+    next.set('page', '1');
+    setSearchParams(next);
+  }
+
   function toggleBpm(label: string) {
     setFilter('bpm', activeBpmLabel === label ? '' : label);
   }
@@ -239,12 +261,14 @@ export default function TrackListPage() {
     setFilter('sort', e.target.value);
   }
 
-  function handleFilterApply(genres: string[], moods: string[], bpm: string) {
+  function handleFilterApply(genres: string[], moods: string[], usages: string[], bpm: string) {
     const next = new URLSearchParams(searchParams);
     next.delete('genre');
     genres.forEach((g) => next.append('genre', g));
     next.delete('mood');
     moods.forEach((m) => next.append('mood', m));
+    next.delete('usage');
+    usages.forEach((u) => next.append('usage', u));
     if (bpm) {
       next.set('bpm', bpm);
     } else {
@@ -264,6 +288,12 @@ export default function TrackListPage() {
   const sortedMoodTags = [...moodTags].sort((a, b) => {
     const aActive = activeMoods.includes(a.name) ? 0 : 1;
     const bActive = activeMoods.includes(b.name) ? 0 : 1;
+    return aActive - bActive;
+  });
+
+  const sortedUsageTags = [...usageTags].sort((a, b) => {
+    const aActive = activeUsages.includes(a.name) ? 0 : 1;
+    const bActive = activeUsages.includes(b.name) ? 0 : 1;
     return aActive - bActive;
   });
 
@@ -383,6 +413,34 @@ export default function TrackListPage() {
           )}
         </div>
 
+        {/* Usage row */}
+        {usageTags.length > 0 && (
+          <div className={`${styles.filterRow} ${usageExpanded ? styles.filterRowExpanded : ''}`}>
+            <span className={styles.filterLabel}>{'용도'}</span>
+            <div className={styles.filterChips}>
+              {sortedUsageTags
+                .filter((tag) =>
+                  activeUsages.includes(tag.name) ||
+                  availableUsages.size === 0 ||
+                  availableUsages.has(tag.name)
+                )
+                .map((tag) => (
+                  <FilterChip
+                    key={tag.id}
+                    label={`#${tag.name}`}
+                    active={activeUsages.includes(tag.name)}
+                    onClick={() => toggleUsage(tag.name)}
+                  />
+                ))}
+            </div>
+            {usageTags.length > 6 && (
+              <button className={styles.expandBtn} onClick={() => setUsageExpanded((v) => !v)}>
+                {usageExpanded ? '\u25B2 접기' : '\u25BC 펼치기'}
+              </button>
+            )}
+          </div>
+        )}
+
         {/* BPM row + reset */}
         <div className={styles.filterRow}>
           <span className={styles.filterLabel}>BPM</span>
@@ -403,6 +461,7 @@ export default function TrackListPage() {
                 const next = new URLSearchParams(searchParams);
                 next.delete('genre');
                 next.delete('mood');
+                next.delete('usage');
                 next.delete('bpm');
                 next.set('page', '1');
                 setSearchParams(next);
@@ -420,8 +479,10 @@ export default function TrackListPage() {
         onClose={() => setFilterModalOpen(false)}
         genreTags={genreTags}
         moodTags={moodTags}
+        usageTags={usageTags}
         activeGenres={activeGenres}
         activeMoods={activeMoods}
+        activeUsages={activeUsages}
         activeBpmLabel={activeBpmLabel}
         bpmPresets={BPM_PRESETS}
         onApply={handleFilterApply}

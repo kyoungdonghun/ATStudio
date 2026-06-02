@@ -1,8 +1,17 @@
-# ATStudio DB Schema Definition v10 (Confirmed)
+# ATStudio DB Schema Definition v11 (Confirmed)
 
-> **Status**: v10 Confirmed — admin settlement import/reconciliation ledger
-> **Base**: v9 + 2026-05-26 admin settlement import/reconciliation patch
-> **Date**: 2026-05-26
+> **Status**: v11 Confirmed — usage guide tag type
+> **Base**: v10 + 2026-06-02 usage guide tag patch
+> **Date**: 2026-06-02
+
+---
+
+## v10 to v11 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| 1 | `tags.type` | **Updated** — Added `USAGE` for visible guide hashtags and search filters such as `#쇼츠용`, `#유튜브용`, and `#릴스용`. |
+| 2 | Table count | **Unchanged** — Total database tables remains 36. |
 
 ---
 
@@ -292,7 +301,7 @@
 |-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
 | Tag name | `name` | VARCHAR(50) | NOT NULL | UNIQUE | | |
-| Tag type | `type` | ENUM('MOOD','GENRE','INSTRUMENT') | NOT NULL | | | Mood / Genre / Instrument |
+| Tag type | `type` | ENUM('MOOD','GENRE','INSTRUMENT','USAGE') | NOT NULL | | | Mood / Genre / Instrument / visible usage guide hashtag |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 

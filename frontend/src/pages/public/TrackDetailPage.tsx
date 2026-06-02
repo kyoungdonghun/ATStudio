@@ -98,6 +98,7 @@ export default function TrackDetailPage() {
 
   const genreTags = track.tags.filter((t) => t.type === 'GENRE');
   const moodTags = track.tags.filter((t) => t.type === 'MOOD');
+  const usageTags = track.tags.filter((t) => t.type === 'USAGE');
   const liked = likedIds.has(track.id);
 
   return (
@@ -215,8 +216,13 @@ export default function TrackDetailPage() {
           </dl>
 
           {/* Tags */}
-          {(genreTags.length > 0 || moodTags.length > 0) && (
+          {(usageTags.length > 0 || genreTags.length > 0 || moodTags.length > 0) && (
             <div className={styles.tagSection}>
+              {usageTags.map((t) => (
+                <span key={t.id} className={`${styles.tagChip} ${styles.usageChip}`}>
+                  {`#${t.name}`}
+                </span>
+              ))}
               {genreTags.map((t) => (
                 <span key={t.id} className={styles.tagChip}>
                   {t.name}

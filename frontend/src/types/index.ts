@@ -95,7 +95,7 @@ export interface Track {
 
 /* ── Tag ── */
 
-export type TagType = 'GENRE' | 'MOOD' | 'INSTRUMENT';
+export type TagType = 'GENRE' | 'MOOD' | 'INSTRUMENT' | 'USAGE';
 
 export interface TagItem {
   id: number;
