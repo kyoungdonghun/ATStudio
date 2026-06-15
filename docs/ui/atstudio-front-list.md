@@ -1,6 +1,6 @@
 # ATStudio 화면 목록 (Frontend)
 
-> API Spec v15 기준 | updated 2026-05-26
+> API Spec v17 기준 | updated 2026-06-03
 > `[PUBLIC]` = 인증 불필요 / `auth required` = 로그인 필요 / `[ADMIN]` = 관리자 전용 / `⚠️` = API 미정의
 
 > `🗑️ 삭제` = 상세/목록 페이지에서 `confirm()` 처리 / 회원탈퇴만 비밀번호 재확인 모달
@@ -96,7 +96,7 @@
 
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
-| H-1 | 채널 등록/목록/수정 | `12.1~12.4 /api/whitelist-channels` | auth required |
+| H-1 | 채널 저장/목록/수정/등록 요청 | `12.1~12.6 /api/whitelist-channels` | auth required |
 
 ---
 
@@ -143,6 +143,7 @@
 | K-5 | 기업 인증 목록 / 심사 처리 | `13.3 GET /api/company-certifications` `13.4 GET` `13.5 PUT` | [ADMIN] |
 | K-6 | 태그 관리 (생성/수정/삭제) | `2.1 POST /api/tags` `2.3 PUT` `2.4 DELETE` | [ADMIN] |
 | K-7 | 트랙 관리 (전체 목록 + 활성화/삭제) | `1.8 GET /api/tracks/admin` `1.6 PUT /api/tracks/{id}` `1.7 DELETE /api/tracks/{id}` | [ADMIN] |
+| K-11 | 화이트리스트 운영 | `12.7~12.9 /api/admin/whitelist-channels` | [ADMIN] |
 
 ---
 
@@ -157,8 +158,9 @@
 
 ---
 
-> 총 **49개** 화면 (관리자 전용 포함)
+> 총 **53개** 화면 (관리자 전용 포함)
 >
 > **변경 이력**
+> - v6 (2026-06-03): H-1 whitelist channel workflow expanded; K-11 admin whitelist operations screen added.
 > - v5 (2026-03-29): K-2 분리 → K-2(구독 플랜 관리) + K-2b(사용자 구독 관리, SR-14); D-1 좋아요 목록 탭 분리(SR-34); 문의 목록 탭 추가(SR-30)
 > - v4 (2026-03-07): 초기 확정 (48개)

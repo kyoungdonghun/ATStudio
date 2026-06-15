@@ -18,6 +18,7 @@ const MENU_ITEMS: MenuItem[] = [
   { label: '구독 플랜', path: '/admin/subscriptions' },
   { label: '사용자 구독', path: '/admin/user-subscriptions' },
   { label: '결제 운영', path: '/admin/payments' },
+  { label: '화이트리스트', path: '/admin/whitelist-channels' },
   { label: '라이선스 관리', path: '/admin/licenses' },
   { label: '문의 관리', path: '/admin/questions' },
   { label: '기업 인증', path: '/admin/company-certifications' },

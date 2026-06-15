@@ -382,6 +382,16 @@ export default function ProfilePage() {
                   {formatDate(profile.createdAt)}
                 </span>
               </div>
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>{'YouTube 채널'}</span>
+                <span className={styles.infoValue}>
+                  <Link to="/whitelist-channels">
+                    <Button variant="ghost" size="sm">
+                      {'화이트리스트 채널 관리'}
+                    </Button>
+                  </Link>
+                </span>
+              </div>
 
               {/* 기업 회원 전용: 기업 인증 */}
               {profile.userType === 'BUSINESS' && (
@@ -560,6 +570,11 @@ export default function ProfilePage() {
                 >
                   {'저장'}
                 </Button>
+              </div>
+              <div className={styles.formHint}>
+                {'YouTube 채널 정보는 화이트리스트 채널 관리 화면에서 언제든지 추가하거나 수정할 수 있습니다.'}
+                {' '}
+                <Link to="/whitelist-channels">{'채널 관리로 이동'}</Link>
               </div>
               {profileMsg && <div className={styles.successMsg}>{profileMsg}</div>}
               {profileError && <div className={styles.errorMsg}>{profileError}</div>}

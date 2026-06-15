@@ -1,8 +1,18 @@
-# ATStudio API Specification v16 (Confirmed)
+# ATStudio API Specification v17 (Confirmed)
 
-> **Status**: 16th confirmed — usage guide tag search/display contract
-> **Base**: v15 + 2026-06-02 usage guide tag patch
-> **Date**: 2026-06-02
+> **Status**: 17th confirmed — whitelist channel request/admin operation workflow
+> **Base**: v16 + 2026-06-03 whitelist channel workflow patch
+> **Date**: 2026-06-03
+
+---
+
+## v16 → v17 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| AH1 | §12 whitelist user workflow | Reworked whitelist from immediate subscriber-only registration to saved channel drafts plus explicit registration request. Added request and primary-channel endpoints. |
+| AH2 | §12 admin whitelist operations | Added admin list/status update/CSV export APIs for manual external YouTube/agency registration workflow. CSV includes `userEmail`. |
+| AH3 | Full API Summary | Updated total count from 139 → 145. |
 
 ---
 
@@ -2824,27 +2834,46 @@ keyword: String (optional)
 
 # 12. Whitelist Channels
 
-## 12.1 Register Channel
+## 12.1 Save Channel Draft
 | Field | Value |
 |-------|-------|
 | **URL** | `POST /api/whitelist-channels` |
-| **Auth** | auth required (subscribers only) |
+| **Auth** | auth required |
 
 **Request**
 ```json
 {
   "channelUrl": "https://youtube.com/@mychannel",
-  "channelName": "My Channel"
+  "channelName": "My Channel",
+  "youtubeHandle": "@mychannel",
+  "youtubeChannelId": "UCxxxxxxxxxxxxxxxxxxxxxx"
 }
 ```
 
 > **channelUrl validation**: Strict URI parsing — host must be exactly `youtube.com` or end with `.youtube.com`. Supports all URL formats — `@handle`, `/channel/UCxxx`, `/c/customname`. Spoofed domains (e.g., `notarealsite-youtube.com`) are rejected.
+> Saving a channel creates a `DRAFT` row. Active subscription and plan limit checks are performed by 12.4 when the user requests registration.
 
 **Response** `201 Created`
+```json
+{
+  "id": 1,
+  "channelUrl": "https://youtube.com/@mychannel",
+  "channelName": "My Channel",
+  "youtubeHandle": "@mychannel",
+  "youtubeChannelId": "UCxxxxxxxxxxxxxxxxxxxxxx",
+  "status": "DRAFT",
+  "primary": true,
+  "adminNote": null,
+  "requestedAt": null,
+  "exportedAt": null,
+  "processedAt": null,
+  "removalRequestedAt": null,
+  "createdAt": "2026-06-03T10:00:00"
+}
+```
 
 **Error Cases**
 ```json
-{ "status": 403, "error": "Forbidden", "errorCode": "WHITELIST_CHANNEL_LIMIT_EXCEEDED", "message": "채널 등록 한도를 초과했습니다." }
 { "status": 400, "error": "Bad Request", "errorCode": "INVALID_ARGUMENT", "message": "유튜브 채널 URL이 올바르지 않습니다." }
 ```
 
@@ -2862,6 +2891,15 @@ keyword: String (optional)
       "id": 1,
       "channelUrl": "https://youtube.com/@mychannel",
       "channelName": "My Channel",
+      "youtubeHandle": "@mychannel",
+      "youtubeChannelId": "UCxxxxxxxxxxxxxxxxxxxxxx",
+      "status": "PENDING",
+      "primary": true,
+      "adminNote": null,
+      "requestedAt": "2026-06-03T10:05:00",
+      "exportedAt": null,
+      "processedAt": null,
+      "removalRequestedAt": null,
       "createdAt": "2026-02-19T10:00:00"
     }
   ]
@@ -2878,21 +2916,169 @@ keyword: String (optional)
 ```json
 {
   "channelUrl": "https://youtube.com/@newchannel",
-  "channelName": "New Channel Name"
+  "channelName": "New Channel Name",
+  "youtubeHandle": "@newchannel",
+  "youtubeChannelId": "UCyyyyyyyyyyyyyyyyyyyyyy"
 }
 ```
 
 > **channelUrl validation**: Same as 12.1 — strict URI parsing, host must be exactly `youtube.com` or end with `.youtube.com`.
+> Updating a channel in `REGISTERED`, `EXPORTED`, or `REVISION_REQUESTED` is treated as a reprocessing request. The backend checks active subscription and plan limit, excludes the target channel's own counted slot, then moves it back to `PENDING` for operator reprocessing.
 
 **Response** `200 OK`
 
-## 12.4 Delete Channel
+## 12.4 Request Whitelist Registration
+| Field | Value |
+|-------|-------|
+| **URL** | `POST /api/whitelist-channels/{channelId}/request` |
+| **Auth** | auth required (owner only, active subscription required) |
+
+**Description**
+Moves a saved channel to `PENDING` after checking active subscription and plan limit.
+
+`PENDING` requests are idempotent. For `REVISION_REQUESTED`, the target channel's own counted slot is excluded before comparing against the plan limit, then the channel moves back to `PENDING`. Direct request attempts from `EXPORTED`, `REGISTERED`, or `REMOVAL_REQUESTED` return `INVALID_STATE_TRANSITION`.
+
+**Plan Limit Counted Statuses**
+```
+PENDING, EXPORTED, REGISTERED, REVISION_REQUESTED, REMOVAL_REQUESTED
+```
+
+**Response** `200 OK`
+
+**Error Cases**
+```json
+{ "status": 403, "error": "Forbidden", "errorCode": "NO_ACTIVE_SUBSCRIPTION", "message": "활성 구독이 없습니다." }
+{ "status": 403, "error": "Forbidden", "errorCode": "WHITELIST_CHANNEL_LIMIT_EXCEEDED", "message": "채널 등록 한도를 초과했습니다." }
+{ "status": 400, "error": "Bad Request", "errorCode": "INVALID_STATE_TRANSITION", "message": "상태를 변경할 수 없습니다." }
+```
+
+## 12.5 Set Primary Channel
+| Field | Value |
+|-------|-------|
+| **URL** | `PUT /api/whitelist-channels/{channelId}/primary` |
+| **Auth** | auth required (owner only) |
+
+**Description**
+Marks the selected channel as the user's representative YouTube channel and clears the previous primary channel if present.
+
+**Response** `200 OK`
+
+## 12.6 Delete Channel / Request Removal
 | Field | Value |
 |-------|-------|
 | **URL** | `DELETE /api/whitelist-channels/{channelId}` |
 | **Auth** | auth required (owner only) |
 
+**Description**
+Deletes local-only states (`DRAFT`, `PENDING`, `REVISION_REQUESTED`, `REJECTED`, `CANCELLED`). For `EXPORTED` and `REGISTERED`, the row is kept and changed to `REMOVAL_REQUESTED` because external removal must be handled manually by an operator.
+
+If the deleted local-only row was the user's primary channel and another saved channel remains, the backend promotes one remaining channel as primary.
+
 **Response** `204 No Content`
+
+## 12.7 Admin List Whitelist Channels
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/admin/whitelist-channels` |
+| **Auth** | `[ADMIN]` |
+
+**Query Parameters**
+```
+status: WhitelistChannelStatus (optional)
+keyword: String (optional; user email/nickname/channel name/URL/handle/channelId)
+page: Integer (default: 1)
+size: Integer (default: 20)
+```
+
+**Response** `200 OK`
+```json
+{
+  "dataList": [
+    {
+      "id": 1,
+      "userId": 10,
+      "userEmail": "user@test.com",
+      "userNickname": "user10",
+      "channelUrl": "https://youtube.com/@mychannel",
+      "channelName": "My Channel",
+      "youtubeHandle": "@mychannel",
+      "youtubeChannelId": "UCxxxxxxxxxxxxxxxxxxxxxx",
+      "status": "PENDING",
+      "primary": true,
+      "adminNote": null,
+      "processedByEmail": null,
+      "planName": "DELUXE",
+      "billingCycle": "MONTHLY",
+      "requestedAt": "2026-06-03T10:05:00",
+      "exportedAt": null,
+      "processedAt": null,
+      "removalRequestedAt": null,
+      "createdAt": "2026-06-03T10:00:00"
+    }
+  ],
+  "pageInfo": {
+    "page": 1,
+    "size": 20,
+    "total": 1,
+    "last": 1,
+    "start": 1,
+    "end": 1,
+    "prev": false,
+    "next": false
+  }
+}
+```
+
+## 12.8 Admin Update Whitelist Channel Status
+| Field | Value |
+|-------|-------|
+| **URL** | `PUT /api/admin/whitelist-channels/{channelId}/status` |
+| **Auth** | `[ADMIN]` |
+
+**Request**
+```json
+{
+  "status": "REGISTERED",
+  "adminNote": "External registration completed."
+}
+```
+
+**Supported Status Values**
+```
+REGISTERED, REVISION_REQUESTED, REJECTED, REMOVAL_REQUESTED, CANCELLED
+```
+
+**Response** `200 OK`
+
+## 12.9 Admin Export Whitelist Channels
+| Field | Value |
+|-------|-------|
+| **URL** | `POST /api/admin/whitelist-channels/export` |
+| **Auth** | `[ADMIN]` |
+
+**Query Parameters**
+```
+status: WhitelistChannelStatus (optional; default PENDING)
+note: String (optional)
+```
+
+> Export is status-based. `keyword` filtering is supported by 12.7 list only and is not applied to CSV export in the current implementation.
+
+**Response** `200 OK`
+```
+Content-Type: text/csv;charset=UTF-8
+Content-Disposition: attachment; filename*=UTF-8''whitelist-channels-20260603-100000.csv
+```
+
+**CSV Columns**
+```
+requestId,userId,userEmail,userNickname,channelName,youtubeHandle,channelUrl,youtubeChannelId,requestedAt,planName,billingCycle,exportedAt
+```
+
+**Side Effects**
+- Creates `whitelist_export_batches` and `whitelist_export_items` snapshot rows when export target rows exist.
+- When exporting `PENDING` rows, marks those channels as `EXPORTED`.
+- Exporting non-`PENDING` rows is allowed for operations review/removal handoff, but it does not overwrite the current workflow status.
 
 ---
 
@@ -3470,7 +3656,7 @@ key: String (required) — setting key name
 
 ---
 
-# Full API Summary (139)
+# Full API Summary (145)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -3485,11 +3671,11 @@ key: String (required) — setting key name
 | 9 | Notice | 6 |
 | 10 | Likes (Favorites) | 6 |
 | 11 | Download Queue / History | 5 |
-| 12 | Whitelist Channels | 4 |
+| 12 | Whitelist Channels | 9 |
 | 13 | Company Certification | 5 |
 | 14 | Utility / Auth | 12 |
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
 | 18 | Admin Payment Operations | 24 |
-| | **Total** | **139** |
+| | **Total** | **145** |

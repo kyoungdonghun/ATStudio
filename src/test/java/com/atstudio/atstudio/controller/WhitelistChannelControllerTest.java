@@ -78,19 +78,6 @@ class WhitelistChannelControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
-    @Test
-    @WithMockUser(roles = "USER")
-    @DisplayName("POST /api/whitelist-channels - 구독 없음 → 403")
-    void registerChannel_noSubscription_returns403() throws Exception {
-        given(whitelistChannelService.registerChannel(any(), any()))
-                .willThrow(new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
-
-        mockMvc.perform(post("/api/whitelist-channels")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(VALID_REQUEST))
-                .andExpect(status().isForbidden());
-    }
-
     // ── 12.2 GET /api/whitelist-channels ─────────────────────────────────────
 
     @Test
@@ -146,7 +133,56 @@ class WhitelistChannelControllerTest {
                 .andExpect(status().isForbidden());
     }
 
-    // ── 12.4 DELETE /api/whitelist-channels/{channelId} ──────────────────────
+    // ── 12.4 POST /api/whitelist-channels/{channelId}/request ────────────────
+
+    @Test
+    @DisplayName("POST /api/whitelist-channels/{id}/request - 비인증 → 401")
+    void requestRegistration_unauthenticated_returns401() throws Exception {
+        mockMvc.perform(post("/api/whitelist-channels/1/request"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("POST /api/whitelist-channels/{id}/request - 인증됨 → 200")
+    void requestRegistration_authenticated_returns200() throws Exception {
+        given(whitelistChannelService.requestRegistration(any(), anyLong())).willReturn(MOCK_RESPONSE);
+
+        mockMvc.perform(post("/api/whitelist-channels/1/request"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("POST /api/whitelist-channels/{id}/request - 구독 없음 → 403")
+    void requestRegistration_noSubscription_returns403() throws Exception {
+        given(whitelistChannelService.requestRegistration(any(), anyLong()))
+                .willThrow(new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+
+        mockMvc.perform(post("/api/whitelist-channels/1/request"))
+                .andExpect(status().isForbidden());
+    }
+
+    // ── 12.5 PUT /api/whitelist-channels/{channelId}/primary ────────────────
+
+    @Test
+    @DisplayName("PUT /api/whitelist-channels/{id}/primary - 비인증 → 401")
+    void setPrimary_unauthenticated_returns401() throws Exception {
+        mockMvc.perform(put("/api/whitelist-channels/1/primary"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("PUT /api/whitelist-channels/{id}/primary - 인증됨 → 200")
+    void setPrimary_authenticated_returns200() throws Exception {
+        given(whitelistChannelService.setPrimary(any(), anyLong())).willReturn(MOCK_RESPONSE);
+
+        mockMvc.perform(put("/api/whitelist-channels/1/primary"))
+                .andExpect(status().isOk());
+    }
+
+    // ── 12.6 DELETE /api/whitelist-channels/{channelId} ──────────────────────
 
     @Test
     @DisplayName("DELETE /api/whitelist-channels/{id} - 비인증 → 401")

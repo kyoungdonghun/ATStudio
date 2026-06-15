@@ -30,7 +30,7 @@ public class WhitelistChannelController {
         WhitelistChannelResponse response = whitelistChannelService.registerChannel(userDetails, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ResponseDTO.<WhitelistChannelResponse>withSingleData()
-                        .message("Channel registered")
+                        .message("Channel saved")
                         .data(response)
                         .build());
     }
@@ -61,7 +61,31 @@ public class WhitelistChannelController {
                 .build());
     }
 
-    // ── 12.4 DELETE /api/whitelist-channels/{channelId} ──────────────────────
+    // ── 12.4 POST /api/whitelist-channels/{channelId}/request ────────────────
+
+    @PostMapping("/{channelId}/request")
+    public ResponseEntity<ResponseDTO<WhitelistChannelResponse>> requestRegistration(
+            @PathVariable Long channelId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        WhitelistChannelResponse response = whitelistChannelService.requestRegistration(userDetails, channelId);
+        return ResponseEntity.ok(ResponseDTO.<WhitelistChannelResponse>withSingleData()
+                .data(response)
+                .build());
+    }
+
+    // ── 12.5 PUT /api/whitelist-channels/{channelId}/primary ────────────────
+
+    @PutMapping("/{channelId}/primary")
+    public ResponseEntity<ResponseDTO<WhitelistChannelResponse>> setPrimary(
+            @PathVariable Long channelId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        WhitelistChannelResponse response = whitelistChannelService.setPrimary(userDetails, channelId);
+        return ResponseEntity.ok(ResponseDTO.<WhitelistChannelResponse>withSingleData()
+                .data(response)
+                .build());
+    }
+
+    // ── 12.6 DELETE /api/whitelist-channels/{channelId} ──────────────────────
 
     @DeleteMapping("/{channelId}")
     public ResponseEntity<Void> deleteChannel(

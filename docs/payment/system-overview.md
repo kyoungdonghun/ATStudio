@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-05-30
+version: 1.1
+last_updated: 2026-06-15
 project: ATS
 owner: docops
 category: guide
@@ -64,6 +64,12 @@ The system does not let the frontend directly activate subscriptions after selec
 | `payment_refunds` | Admin refund request, approval, provider execution, idempotency, and result ledger. |
 | `payment_entitlement_corrections` | Refund-linked local access correction workflow. |
 | `payment_settlements` | CSV/manual settlement evidence rows and generated reconciliation review rows. |
+
+Runtime DB note:
+
+- The backend defaults to `spring.jpa.hibernate.ddl-auto=validate`.
+- `src/main/resources/schema.sql` is a full fresh-DB reference, not an automatic migration runner for existing MySQL databases.
+- Existing local/staging/production databases must be patched before server startup when payment or whitelist tables/columns are missing. The current manual patch reference is `src/main/resources/db/manual/20260615_align_payment_whitelist_schema.sql`; see [DB Schema](../design/db-schema.md) for the source-of-truth notes.
 
 ## 4. User APIs
 

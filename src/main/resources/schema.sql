@@ -1,7 +1,7 @@
 -- =============================================================================
--- ATStudio Database Schema v4
+-- ATStudio Database Schema v12
 -- =============================================================================
--- Source  : docs/design/db-schema.md (v7 Confirmed, 2026-05-25)
+-- Source  : docs/design/db-schema.md (v12 Confirmed, 2026-06-15 runtime notes)
 -- Engine  : InnoDB
 -- Charset : utf8mb4 / utf8mb4_unicode_ci
 -- DB      : atstudio  (see application.yml)
@@ -10,6 +10,9 @@
 --       Local development may override this via application-local.yml.
 --       This file is for MANUAL setup / reference only.
 --       Spring Boot does NOT auto-execute this for external DBs by default.
+--       For an existing DB, do not assume this file performs migrations.
+--       Apply a reviewed ALTER/CREATE patch such as:
+--       src/main/resources/db/manual/20260615_align_payment_whitelist_schema.sql
 --
 -- Usage:
 --   mysql -u root -p atstudio < src/main/resources/schema.sql
@@ -207,14 +210,69 @@ CREATE TABLE IF NOT EXISTS playlists
 -- ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS whitelist_channels
 (
-    id           BIGINT       NOT NULL AUTO_INCREMENT,
-    user_id      BIGINT       NOT NULL,
-    channel_url  VARCHAR(255) NOT NULL COMMENT 'YouTube channel URL.',
-    channel_name VARCHAR(100) NOT NULL,
-    created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    id                   BIGINT       NOT NULL AUTO_INCREMENT,
+    user_id              BIGINT       NOT NULL,
+    channel_url          VARCHAR(255) NOT NULL COMMENT 'YouTube channel URL.',
+    channel_name         VARCHAR(100) NOT NULL,
+    youtube_handle       VARCHAR(100) NULL COMMENT 'YouTube handle, e.g. @channel.',
+    youtube_channel_id   VARCHAR(100) NULL COMMENT 'YouTube canonical channel ID, e.g. UC...',
+    status               ENUM ('DRAFT', 'PENDING', 'EXPORTED', 'REGISTERED', 'REVISION_REQUESTED', 'REJECTED', 'CANCELLED', 'REMOVAL_REQUESTED') NOT NULL DEFAULT 'DRAFT',
+    is_primary           TINYINT(1)   NOT NULL DEFAULT 0,
+    requested_at         DATETIME     NULL,
+    exported_at          DATETIME     NULL,
+    processed_at         DATETIME     NULL,
+    removal_requested_at DATETIME     NULL,
+    admin_note           VARCHAR(500) NULL,
+    processed_by         BIGINT       NULL,
+    created_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_whitelist_channels_user FOREIGN KEY (user_id) REFERENCES users (id)
+    KEY idx_whitelist_channels_user_status (user_id, status),
+    KEY idx_whitelist_channels_status_requested (status, requested_at),
+    CONSTRAINT fk_whitelist_channels_user FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT fk_whitelist_channels_processed_by FOREIGN KEY (processed_by) REFERENCES users (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS whitelist_export_batches
+(
+    id          BIGINT       NOT NULL AUTO_INCREMENT,
+    file_name   VARCHAR(255) NOT NULL,
+    item_count  INT          NOT NULL,
+    exported_by BIGINT       NULL,
+    note        VARCHAR(500) NULL,
+    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_whitelist_export_batches_exported_by FOREIGN KEY (exported_by) REFERENCES users (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS whitelist_export_items
+(
+    id                          BIGINT       NOT NULL AUTO_INCREMENT,
+    batch_id                    BIGINT       NOT NULL,
+    whitelist_channel_id        BIGINT       NULL,
+    status_at_export            ENUM ('DRAFT', 'PENDING', 'EXPORTED', 'REGISTERED', 'REVISION_REQUESTED', 'REJECTED', 'CANCELLED', 'REMOVAL_REQUESTED') NOT NULL,
+    user_id_snapshot            BIGINT       NOT NULL,
+    user_email_snapshot         VARCHAR(100) NOT NULL,
+    user_nickname_snapshot      VARCHAR(20)  NOT NULL,
+    channel_name_snapshot       VARCHAR(100) NOT NULL,
+    youtube_handle_snapshot     VARCHAR(100) NULL,
+    channel_url_snapshot        VARCHAR(255) NOT NULL,
+    youtube_channel_id_snapshot VARCHAR(100) NULL,
+    plan_name_snapshot          VARCHAR(30)  NULL,
+    billing_cycle_snapshot      ENUM ('MONTHLY', 'YEARLY') NULL,
+    requested_at_snapshot       DATETIME     NULL,
+    exported_at_snapshot        DATETIME     NOT NULL,
+    created_at                  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at                  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_whitelist_export_items_batch (batch_id),
+    CONSTRAINT fk_whitelist_export_items_batch FOREIGN KEY (batch_id) REFERENCES whitelist_export_batches (id),
+    CONSTRAINT fk_whitelist_export_items_channel FOREIGN KEY (whitelist_channel_id) REFERENCES whitelist_channels (id) ON DELETE SET NULL
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
@@ -377,7 +435,7 @@ CREATE TABLE IF NOT EXISTS licenses
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 3.8  billing_agreements / payment_orders / subscription_payments / payment_refunds / payment_entitlement_corrections / payment_reconciliation_incidents / payment_receipts / payment_operation_audit_logs
+-- 3.8  billing_agreements / payment_orders / subscription_payments / payment_settlements / payment_refunds / payment_entitlement_corrections / payment_reconciliation_incidents / payment_receipts / payment_operation_audit_logs
 -- ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS billing_agreements
 (
@@ -459,6 +517,53 @@ CREATE TABLE IF NOT EXISTS subscription_payments
     CONSTRAINT fk_subscription_payments_subscription FOREIGN KEY (subscription_id)      REFERENCES subscriptions      (id),
     CONSTRAINT fk_subscription_payments_order        FOREIGN KEY (payment_order_id)     REFERENCES payment_orders     (id),
     CONSTRAINT fk_subscription_payments_agreement    FOREIGN KEY (billing_agreement_id) REFERENCES billing_agreements (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS payment_settlements
+(
+    id                      BIGINT NOT NULL AUTO_INCREMENT,
+    source                  ENUM ('CSV_MANUAL', 'TOSS_API', 'SYSTEM_RECONCILIATION') NOT NULL,
+    provider                ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NOT NULL,
+    status                  ENUM ('IMPORTED', 'MATCHED', 'MISMATCHED', 'LOCAL_PAYMENT_NOT_FOUND', 'PROVIDER_SETTLEMENT_NOT_FOUND', 'IGNORED') NOT NULL DEFAULT 'IMPORTED',
+    deduplication_key       VARCHAR(64) NOT NULL,
+    import_batch_key        VARCHAR(64) NOT NULL,
+    source_file_name        VARCHAR(255) NULL,
+    source_row_number       INT NULL,
+    provider_settlement_id  VARCHAR(200) NULL,
+    provider_payment_key    VARCHAR(200) NULL,
+    order_id                VARCHAR(64) NOT NULL,
+    payment_order_id        BIGINT NULL,
+    subscription_payment_id BIGINT NULL,
+    user_id                 BIGINT NULL,
+    gross_amount            DECIMAL(15, 2) NOT NULL,
+    refund_amount           DECIMAL(15, 2) NOT NULL DEFAULT 0,
+    fee_amount              DECIMAL(15, 2) NOT NULL DEFAULT 0,
+    vat_amount              DECIMAL(15, 2) NOT NULL DEFAULT 0,
+    net_settlement_amount   DECIMAL(15, 2) NOT NULL,
+    currency                VARCHAR(3) NOT NULL DEFAULT 'KRW',
+    settlement_base_date    DATE NOT NULL,
+    settlement_payout_date  DATE NULL,
+    provider_status         VARCHAR(100) NULL,
+    mismatch_reason         VARCHAR(500) NULL,
+    operator_note           VARCHAR(500) NULL,
+    source_payload          TEXT NULL,
+    reconciled_at           DATETIME NULL,
+    ignored_by              BIGINT NULL,
+    ignored_at              DATETIME NULL,
+    created_at              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_payment_settlements_deduplication_key (deduplication_key),
+    KEY idx_payment_settlements_status_created (status, created_at),
+    KEY idx_payment_settlements_order_id (order_id),
+    KEY idx_payment_settlements_payment_key (provider_payment_key),
+    KEY idx_payment_settlements_base_date (settlement_base_date),
+    CONSTRAINT fk_payment_settlements_order FOREIGN KEY (payment_order_id) REFERENCES payment_orders (id),
+    CONSTRAINT fk_payment_settlements_subscription_payment FOREIGN KEY (subscription_payment_id) REFERENCES subscription_payments (id),
+    CONSTRAINT fk_payment_settlements_user FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT fk_payment_settlements_ignored_by FOREIGN KEY (ignored_by) REFERENCES users (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
@@ -889,5 +994,5 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- =============================================================================
 -- END OF SCHEMA
--- Total: 33 tables
+-- Total: 38 tables
 -- =============================================================================

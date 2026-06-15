@@ -1,332 +1,291 @@
-/* ── Page ── */
-
 .page {
-  padding: 32px var(--page-px);
-  max-width: var(--page-max-w);
+  width: min(100%, 1120px);
   margin: 0 auto;
+  padding: 32px var(--page-px);
 }
 
 .pageHeader {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 24px;
   margin-bottom: 24px;
 }
 
 .pageTitle {
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 8px;
 }
 
-.count {
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--text2);
-  margin-left: 10px;
-}
-
-/* ── States ── */
-
-.loading,
-.error,
-.empty {
-  text-align: center;
-  padding: 80px 0;
+.subtitle {
   color: var(--text2);
   font-size: 14px;
-  line-height: 2;
+  line-height: 1.7;
+  max-width: 680px;
 }
 
-.error {
-  color: var(--error);
+.limitBox {
+  min-width: 132px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--bg1);
 }
 
-.emptyLink {
+.limitBox span {
+  display: block;
+  color: var(--text2);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.limitBox strong {
   color: var(--accent);
-  text-decoration: none;
-  font-weight: 500;
+  font-size: 18px;
 }
 
-.emptyLink:hover {
-  text-decoration: underline;
+.formPanel,
+.channelCard {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg1);
 }
 
-/* ── Add Form ── */
+.formPanel {
+  padding: 20px;
+  margin-bottom: 18px;
+}
 
-.addForm {
+.formHeader {
   display: flex;
-  gap: 8px;
-  margin-bottom: 24px;
-  align-items: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.textButton {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .fieldGroup {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  flex: 1;
+  gap: 6px;
 }
 
 .fieldLabel {
-  font-size: 11px;
-  font-weight: 500;
   color: var(--text2);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .input {
-  padding: 8px 12px;
-  border: 1px solid var(--border);
+  width: 100%;
+  border: 1px solid var(--border2);
   border-radius: 6px;
   background: var(--bg0);
   color: var(--text0);
-  font-size: 13px;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.input:focus {
-  border-color: var(--accent);
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
 }
 
 .input::placeholder {
   color: var(--text2);
 }
 
-.btnAdd {
-  background: var(--accent);
-  color: var(--bg0);
-  border: none;
-  border-radius: 6px;
-  padding: 8px 18px;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: opacity 0.15s;
-  white-space: nowrap;
-  height: 35px;
+.input:focus {
+  border-color: var(--accent-border);
+  outline: none;
 }
 
-.btnAdd:hover {
-  opacity: 0.88;
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 
-.btnAdd:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.success,
+.error,
+.empty {
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  font-size: 14px;
 }
 
-/* ── Table ── */
-
-.tableWrap {
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+.success {
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  background: var(--accent-dim);
 }
 
-.table {
-  width: 100%;
-  border-collapse: collapse;
+.error {
+  border: 1px solid var(--error-border);
+  color: var(--error);
+  background: var(--error-dim);
 }
 
-.table thead th {
-  font-size: 11px;
-  font-weight: 500;
+.empty,
+.loading {
   color: var(--text2);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  white-space: nowrap;
-}
-
-.table thead .thNum {
-  width: 42px;
   text-align: center;
+  line-height: 1.8;
 }
 
-.table thead .thDate {
-  width: 120px;
+.empty {
+  padding: 56px 16px;
 }
 
-.table thead .thActs {
-  width: 90px;
-  text-align: center;
+.loading {
+  padding: 80px 0;
 }
 
-.table tbody td {
-  padding: 10px 12px;
-  vertical-align: middle;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
+.channelList {
+  display: grid;
+  gap: 12px;
+}
+
+.channelCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 18px;
+}
+
+.channelTitleRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.primaryBadge,
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.primaryBadge {
+  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  color: #34d399;
+}
+
+.statusBadge {
+  border: 1px solid var(--border2);
   color: var(--text1);
 }
 
-.row {
-  transition: background 0.12s;
+.statusDRAFT,
+.statusCANCELLED {
+  background: var(--bg2);
 }
 
-.row:hover {
-  background: var(--bg1);
+.statusPENDING,
+.statusREVISION_REQUESTED,
+.statusREMOVAL_REQUESTED {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.35);
+  color: #fbbf24;
 }
 
-/* ── Cells ── */
-
-.cellNum {
-  text-align: center;
-  width: 42px;
-  color: var(--text2);
+.statusEXPORTED {
+  background: rgba(96, 165, 250, 0.12);
+  border-color: rgba(96, 165, 250, 0.35);
+  color: #60a5fa;
 }
 
-.cellName {
-  font-weight: 500;
-  color: var(--text0);
+.statusREGISTERED {
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.35);
+  color: #34d399;
 }
 
-.cellUrl {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.channelLink {
-  color: var(--accent);
-  text-decoration: none;
-  font-size: 13px;
-}
-
-.channelLink:hover {
-  text-decoration: underline;
-}
-
-.cellDate {
-  width: 120px;
-  color: var(--text2);
-  white-space: nowrap;
-}
-
-.cellActs {
-  width: 90px;
-  text-align: center;
-  white-space: nowrap;
-}
-
-/* ── Action Buttons ── */
-
-.editBtn,
-.deleteBtn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  font-size: 14px;
-  transition: color 0.15s;
-}
-
-.editBtn {
-  color: var(--accent);
-}
-
-.editBtn:hover {
-  opacity: 0.7;
-}
-
-.deleteBtn {
-  color: var(--text2);
-  margin-left: 4px;
-}
-
-.deleteBtn:hover {
+.statusREJECTED {
+  background: var(--error-dim);
+  border-color: var(--error-border);
   color: var(--error);
 }
 
-/* ── Inline Edit ── */
-
-.editInput {
-  padding: 4px 8px;
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  background: var(--bg0);
-  color: var(--text0);
-  font-size: 13px;
-  font-family: inherit;
-  outline: none;
-  width: 100%;
-}
-
-.saveBtn,
-.cancelBtn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  font-size: 13px;
-  transition: color 0.15s;
-}
-
-.saveBtn {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.saveBtn:hover {
-  opacity: 0.7;
-}
-
-.cancelBtn {
+.channelMeta {
+  display: grid;
+  gap: 6px;
   color: var(--text2);
-  margin-left: 2px;
+  font-size: 13px;
 }
 
-.cancelBtn:hover {
-  color: var(--text0);
+.channelMeta a {
+  color: var(--accent);
+  overflow-wrap: anywhere;
 }
 
-/* ══ Tablet ══ */
-@media (max-width: 1023px) {
-  .cellDate,
-  .thDate {
-    display: none;
-  }
+.adminNote {
+  margin-top: 12px;
+  border-left: 3px solid rgba(251, 191, 36, 0.75);
+  padding: 8px 10px;
+  color: var(--text1);
+  background: rgba(251, 191, 36, 0.08);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
-/* ══ Mobile ══ */
+.dateLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.cardActions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 260px;
+}
+
 @media (max-width: 767px) {
-  .pageTitle {
-    font-size: 18px;
+  .page {
+    padding: 24px var(--page-px);
+  }
+
+  .pageHeader,
+  .channelCard {
+    grid-template-columns: 1fr;
   }
 
   .pageHeader {
-    margin-bottom: 16px;
-  }
-
-  .addForm {
     flex-direction: column;
-    align-items: stretch;
   }
 
-  .btnAdd {
-    height: auto;
-    padding: 10px 18px;
+  .formGrid {
+    grid-template-columns: 1fr;
   }
 
-  .cellDate,
-  .thDate {
-    display: none;
-  }
-
-  .table thead th,
-  .table tbody td {
-    padding: 8px 8px;
-  }
-
-  .cellUrl {
-    max-width: 160px;
+  .cardActions {
+    justify-content: flex-start;
+    min-width: 0;
   }
 }

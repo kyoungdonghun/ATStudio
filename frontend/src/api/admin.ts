@@ -7,6 +7,7 @@ import type {
   CompanyCertificationSummary,
   CertificationStatus,
   UserRole,
+  WhitelistChannelStatus,
 } from '@/types';
 
 /* ── Dashboard Stats ── */
@@ -98,6 +99,81 @@ export async function processCompanyCert(
     body,
   );
   return data.data;
+}
+
+/* ── Whitelist Channel Operations ── */
+
+export interface AdminWhitelistChannel {
+  id: number;
+  userId: number;
+  userEmail: string;
+  userNickname: string;
+  channelUrl: string;
+  channelName: string;
+  youtubeHandle: string | null;
+  youtubeChannelId: string | null;
+  status: WhitelistChannelStatus;
+  primary: boolean;
+  adminNote: string | null;
+  processedByEmail: string | null;
+  planName: string | null;
+  billingCycle: 'MONTHLY' | 'YEARLY' | null;
+  requestedAt: string | null;
+  exportedAt: string | null;
+  processedAt: string | null;
+  removalRequestedAt: string | null;
+  createdAt: string;
+}
+
+interface AdminWhitelistChannelListParams {
+  page?: number;
+  size?: number;
+  status?: WhitelistChannelStatus;
+  keyword?: string;
+}
+
+export async function fetchAdminWhitelistChannels(
+  params: AdminWhitelistChannelListParams = {},
+): Promise<PagedResponse<AdminWhitelistChannel>> {
+  const { data } = await client.get<PagedResponse<AdminWhitelistChannel>>(
+    '/admin/whitelist-channels',
+    { params },
+  );
+  return data;
+}
+
+export async function updateAdminWhitelistChannelStatus(
+  channelId: number,
+  body: { status: WhitelistChannelStatus; adminNote?: string },
+): Promise<AdminWhitelistChannel> {
+  const { data } = await client.put<ApiResponse<AdminWhitelistChannel>>(
+    `/admin/whitelist-channels/${channelId}/status`,
+    body,
+  );
+  return data.data;
+}
+
+export async function exportAdminWhitelistChannels(
+  status?: WhitelistChannelStatus,
+  note?: string,
+): Promise<{ blob: Blob; fileName: string }> {
+  const response = await client.post<Blob>(
+    '/admin/whitelist-channels/export',
+    null,
+    {
+      params: { status, note },
+      responseType: 'blob',
+    },
+  );
+  const disposition = response.headers['content-disposition'];
+  const fileNameMatch = typeof disposition === 'string'
+    ? disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/)
+    : null;
+  const encodedName = fileNameMatch?.[1] ?? fileNameMatch?.[2];
+  const fileName = encodedName
+    ? decodeURIComponent(encodedName)
+    : 'whitelist-channels.csv';
+  return { blob: response.data, fileName };
 }
 
 /* ── Payment Operations ── */

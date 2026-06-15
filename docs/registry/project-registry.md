@@ -1,6 +1,6 @@
 ---
 version: 1.4
-last_updated: 2026-05-26
+last_updated: 2026-06-15
 project: ATS
 owner: EO
 category: registry
@@ -26,16 +26,16 @@ dependencies:
 
 | Project ID | Name/Alias | Repo (URL or path) | Status | Owner | Last Updated | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| PRJ-ATS-001 | ATStudio | TBD | active | MA | 2026-05-26 | Shorts Music Marketplace (Java 17 + Spring Boot 4.x + React 18 + TypeScript) |
+| PRJ-ATS-001 | ATStudio | TBD | active | MA | 2026-06-15 | Shorts Music Marketplace (Java 17 + Spring Boot 4.x + React 18 + TypeScript) |
 
 ## ATStudio Project Stats (PRJ-ATS-001)
 
-> Last verified: 2026-05-26
+> Last verified: 2026-06-15
 
 | Category | Count | Reference |
 | :-- | :-- | :-- |
-| Backend REST APIs | 139 | `docs/design/api-spec.md` v15 |
-| DB Tables | 36 | `docs/design/db-schema.md` |
-| Frontend Screens | 52 | `docs/index.md` |
+| Backend REST APIs | 145 | `docs/design/api-spec.md` v17 |
+| DB Tables | 38 | `docs/design/db-schema.md` |
+| Frontend Screens | 53 | `docs/index.md` |
 | Agents | 13 | `docs/architecture/system-design.md` §2.4 |
 | SR Items completed | 82 | `docs/SR/index.md` |

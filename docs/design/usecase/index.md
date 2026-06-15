@@ -1,8 +1,8 @@
 # Use Case Specification Index
 
-> **Version**: v10
-> **Confirmed date**: 2026-04-18
-> **Reference documents**: `docs/design/db-schema.md` (v5), `docs/design/api-spec.md` (v9)
+> **Version**: v11
+> **Confirmed date**: 2026-06-15
+> **Reference documents**: `docs/design/db-schema.md` (v12), `docs/design/api-spec.md` (v17)
 > **Source**: `docs/ui/usecase-spec csv/`
 
 ---
@@ -22,13 +22,13 @@
 | `user-notice.md` | Notice (create/list/detail/update/delete) | 5 |
 | `likes.md` | Likes (add/list/remove, track + album) | 6 |
 | `download-queue.md` | Download queue (add/list/remove) | 3 |
-| `whitelist.md` | Whitelist channel (register/list/update/delete) | 4 |
+| `whitelist.md` | Whitelist channel (save/list/update/delete/request/primary/admin/export) | 8 |
 | `company-certification.md` | Company certification (apply/view status/admin management) | 5 |
 | `business-license.md` | Legacy redirect stub (moved to `company-certification.md`) | - |
 | `util.md` | Utility (duplicate check/token/subscription status/download count/email verify/password reset/public capabilities/site settings) | 14 |
 | `sound-album.md` | Album (create/list/detail/update/delete/add track/remove track/reorder/likes cross-ref) | 9 |
 
-**Total UC count: 103** (net +1 vs v9: UTIL-019 added)
+**Total UC count: 107** (net +4 vs v10: whitelist workflow/admin export added)
 
 ---
 
@@ -127,10 +127,14 @@
 | DLQ-001 | Add to download queue | `download-queue.md` |
 | DLQ-002 | View download queue | `download-queue.md` |
 | DLQ-003 | Remove from download queue | `download-queue.md` |
-| WL-001 | Register channel | `whitelist.md` |
+| WL-001 | Save channel draft | `whitelist.md` |
 | WL-002 | List my channels | `whitelist.md` |
 | WL-003 | Update channel | `whitelist.md` |
-| WL-004 | Delete channel | `whitelist.md` |
+| WL-004 | Delete or request removal | `whitelist.md` |
+| WL-005 | Request whitelist registration | `whitelist.md` |
+| WL-006 | Set primary channel | `whitelist.md` |
+| WL-007 | Admin list/process channels | `whitelist.md` |
+| WL-008 | Admin CSV export | `whitelist.md` |
 
 ### Company Certification
 
@@ -310,7 +314,7 @@
 | SOUND-020 | Remove track from playlist | Present in API spec section 4.6 but missing from original |
 | LIKE-001~003 | Likes CRUD | DB likes table + API section 10 present but missing from original |
 | DLQ-001~003 | Download queue | DB download_queue table + API section 11 present but missing from original |
-| WL-001~004 | Whitelist channels | DB whitelist_channels table + API section 12 present but missing from original |
+| WL-001~008 | Whitelist channels | DB whitelist tables + API section 12 present but missing from original |
 | BL-001~005 | Business license review | DB business_license_requests table + API section 13 present but missing from original |
 | UTIL-012 | Check nickname duplicate | Required by INFO-001/005 but missing from original. Added as API 14.7 |
 

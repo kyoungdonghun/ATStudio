@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-05-30
+version: 1.2
+last_updated: 2026-06-15
 project: ATS
 owner: docops
 category: guide
@@ -24,7 +24,7 @@ dependencies:
 
 ## 1. Scope
 
-This directory explains the ATStudio payment system as of 2026-05-30.
+This directory explains the ATStudio payment system as of 2026-06-15.
 
 The current payment system is recurring-subscription first:
 
@@ -33,6 +33,7 @@ The current payment system is recurring-subscription first:
 - Upgrades are charged immediately for the remaining-period difference.
 - Downgrades and billing-cycle-only changes are scheduled for the next renewal.
 - Admins can review payment ledgers, reconciliation incidents, receipt evidence, refund workflow, entitlement correction workflow, and settlement reconciliation from `/admin/payments`.
+- Existing MySQL databases must be patched separately from `schema.sql` when running with `ddl-auto=validate`; see [System Overview](system-overview.md) and [DB Schema](../design/db-schema.md).
 
 This directory is a guide layer. Detailed source-of-truth design documents remain in `docs/design/`.
 

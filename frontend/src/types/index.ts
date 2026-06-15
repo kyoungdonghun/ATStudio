@@ -268,9 +268,28 @@ export interface CompanyCertificationSummary {
 
 /* ── Whitelist Channel ── */
 
+export type WhitelistChannelStatus =
+  | 'DRAFT'
+  | 'PENDING'
+  | 'EXPORTED'
+  | 'REGISTERED'
+  | 'REVISION_REQUESTED'
+  | 'REJECTED'
+  | 'CANCELLED'
+  | 'REMOVAL_REQUESTED';
+
 export interface WhitelistChannel {
   id: number;
   channelUrl: string;
   channelName: string;
+  youtubeHandle: string | null;
+  youtubeChannelId: string | null;
+  status: WhitelistChannelStatus;
+  primary: boolean;
+  adminNote: string | null;
+  requestedAt: string | null;
+  exportedAt: string | null;
+  processedAt: string | null;
+  removalRequestedAt: string | null;
   createdAt: string;
 }

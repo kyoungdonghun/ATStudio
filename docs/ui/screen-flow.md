@@ -1,6 +1,6 @@
 ---
 version: 1.4
-last_updated: 2026-05-26
+last_updated: 2026-06-03
 project: ATS
 owner: MA
 category: guide
@@ -16,7 +16,7 @@ dependencies:
 
 # ATStudio 화면 흐름도 (Screen Flow)
 
-> atstudio-front-list.md v4 / modal-list.md v1.2 기준 | v1.2 2026-03-07 확정
+> atstudio-front-list.md v6 / modal-list.md v1.2 기준 | v1.4 2026-06-03 확정
 > `[PUBLIC]` = 비인증 접근 가능 / `[AUTH]` = 로그인 필요 / `[ADMIN]` = 관리자 전용
 > `M-##` = modal-list.md 참조
 
@@ -265,10 +265,15 @@ dependencies:
 [F-1 내 라이선스 목록]
   └── 라이선스 클릭 → [F-2 라이선스 상세]
 
-[H-1 채널 등록/목록/수정]
-  ├── "채널 등록" → POST /api/whitelist-channels → 목록 갱신 (같은 화면)
-  ├── "채널 수정" → PUT → 화면 갱신
-  └── "채널 삭제" → [M-21 ConfirmModal] → 목록 갱신
+[H-1 화이트리스트 채널]
+  ├── "채널 저장" → POST /api/whitelist-channels → DRAFT 저장 후 목록 갱신
+  ├── "등록 요청" → POST /api/whitelist-channels/{channelId}/request → PENDING
+  │    REVISION_REQUESTED 재요청: 자기 슬롯은 한도 계산에서 제외 후 PENDING 복귀
+  ├── "대표 설정" → PUT /api/whitelist-channels/{channelId}/primary → 목록 갱신
+  ├── "채널 수정" → PUT → 화면 갱신 (처리된 채널은 재요청 상태로 전환 가능)
+  └── "삭제/해제 요청" → confirm() → DELETE
+       DRAFT/PENDING/REVISION_REQUESTED/REJECTED/CANCELLED: 삭제, 대표 삭제 시 남은 채널 대표 승계
+       EXPORTED/REGISTERED: REMOVAL_REQUESTED
 
 [I-1 기업인증 신청]
   ├── 서류 첨부 → [M-15 FileUploadModal 보류]
@@ -349,6 +354,14 @@ dependencies:
   │    정산 작업은 구독/결제/환불/provider 상태를 변경하지 않음
   ├── 환불: preview → request → approve → typed confirmation execute
   └── 권한 보정: preview → request → approve → typed confirmation execute
+
+[K-11 화이트리스트 운영]
+  ├── 상태/키워드 필터 → GET /api/admin/whitelist-channels
+  ├── CSV 내보내기 → POST /api/admin/whitelist-channels/export
+  │    PENDING export: EXPORTED 전환 + export ledger 기록
+  │    그 외 상태 export: 상태 유지 + export ledger 기록
+  └── 상태 저장 → PUT /api/admin/whitelist-channels/{channelId}/status
+       REGISTERED / REVISION_REQUESTED / REJECTED / REMOVAL_REQUESTED / CANCELLED
 
 [6 음원 업로드]
   태그 선택 → [M-03 SelectModal]

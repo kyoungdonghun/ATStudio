@@ -93,6 +93,7 @@ const NoticeCreatePage = lazyPage(() => import('@/pages/admin/NoticeCreatePage')
 const NoticeEditPage = lazyPage(() => import('@/pages/admin/NoticeEditPage'));
 const UserSubscriptionManagePage = lazyPage(() => import('@/pages/admin/UserSubscriptionManagePage'));
 const PaymentReadOnlyPage = lazyPage(() => import('@/pages/admin/PaymentReadOnlyPage'));
+const WhitelistChannelManagePage = lazyPage(() => import('@/pages/admin/WhitelistChannelManagePage'));
 const SiteSettingsPage = lazyPage(() => import('@/pages/admin/SiteSettingsPage'));
 
 // Error
@@ -158,7 +159,7 @@ const routes: RouteObject[] = [
       { path: '/subscriptions/billing/success', element: authRequired(<SubscriptionPaymentPage />) },
       { path: '/subscriptions/billing/fail', element: authRequired(<SubscriptionPaymentPage />) },
       { path: '/subscriptions/manage', element: authRequired(<SubscriptionManagePage />) },
-      { path: '/whitelist-channels', element: subscriberOnly(<WhitelistChannelPage />) },
+      { path: '/whitelist-channels', element: authRequired(<WhitelistChannelPage />) },
       { path: '/company-certification/apply', element: authRequired(<CompanyCertApplyPage />) },
       { path: '/company-certification/status', element: authRequired(<CompanyCertStatusPage />) },
       { path: '/questions', element: authRequired(<QuestionListPage />), loader: () => {
@@ -202,6 +203,7 @@ const routes: RouteObject[] = [
       { path: 'track-manage', element: <TrackManagePage /> },
       { path: 'user-subscriptions', element: <UserSubscriptionManagePage /> },
       { path: 'payments', element: <PaymentReadOnlyPage /> },
+      { path: 'whitelist-channels', element: <WhitelistChannelManagePage /> },
       { path: 'notices/new', element: <NoticeCreatePage /> },
       { path: 'notices/:noticeId/edit', element: <NoticeEditPage /> },
       { path: 'settings', element: <SiteSettingsPage /> },

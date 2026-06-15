@@ -1,13 +1,13 @@
 ---
-version: 1.4
-last_updated: 2026-05-20
+version: 1.5
+last_updated: 2026-06-03
 project: ATS
 owner: docops
 category: guide
 status: stable
 dependencies:
   - path: docs/ui/atstudio-front-list.md
-    version: v4
+    version: v6
     reason: Screen number system and screen names (primary source)
   - path: docs/design/usecase/sound-track.md
     reason: SOUND-016 Track deletion modal
@@ -36,7 +36,7 @@ dependencies:
 # ATStudio Modal/Popup Interaction List
 
 > API Spec v5 / Usecase v5 기준 | v1.2 2026-03-07
-> 관련 화면 목록: [docs/ui/atstudio-front-list.md](atstudio-front-list.md) v4
+> 관련 화면 목록: [docs/ui/atstudio-front-list.md](atstudio-front-list.md) v6
 
 ---
 
@@ -89,7 +89,7 @@ dependencies:
 | M-18 | QUESTION-007 | K-4 (문의 관리) | 상태 변경 클릭 | 문의 상태 선택 (OPEN / IN_PROGRESS / RESOLVED / CLOSED) | SelectModal | `8.6 PUT /api/questions/{questionId}/status` |
 | M-19 | ANNOUNCE-005 | Screen 22 (공지 조회) | "공지 삭제" 클릭 | "공지를 삭제하시겠습니까?" | ConfirmModal | `9.5 DELETE /api/notices/{noticeId}` |
 | M-20 | QUESTION-006 | Screen 15 (문의 보기) | "문의 삭제" 클릭 | "문의를 삭제하시겠습니까?" | ConfirmModal | `8.7 DELETE /api/questions/{questionId}` |
-| M-21 | WL-004 | H-1 (채널 등록/목록/수정) | "채널 삭제" 클릭 | "채널을 삭제하시겠습니까?" | ConfirmModal | `12.4 DELETE /api/whitelist-channels/{channelId}` |
+| M-21 | WL-004 | H-1 (채널 저장/목록/수정/등록 요청) | "삭제/해제 요청" 클릭 | "이 채널을 삭제할까요?" 또는 "삭제 대신 등록 해제를 요청할까요?" | ConfirmModal | `12.6 DELETE /api/whitelist-channels/{channelId}` |
 | M-22 | DLQ-003 | Legacy Screen 11 (pre-SR-79) | "항목 제거" 클릭 | "장바구니에서 제거하시겠습니까?" | ConfirmModal | `11.3 DELETE /api/download-queue/{trackId}` |
 | M-23 | LIKE-003 | D-1 (좋아요 목록) | "좋아요 취소" 클릭 | "좋아요를 취소하시겠습니까?" | ConfirmModal | `10.3 DELETE /api/likes/{trackId}` |
 | M-24 | PAYMENT-009 | K-2 (구독 목록/상세) | "구독 강제 취소" 클릭 | "구독을 강제 취소하시겠습니까?" | ConfirmModal | `6.9 DELETE /api/user-subscriptions/{userSubscriptionId}` |

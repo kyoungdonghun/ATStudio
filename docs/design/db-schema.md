@@ -1,8 +1,30 @@
-# ATStudio DB Schema Definition v11 (Confirmed)
+# ATStudio DB Schema Definition v12 (Confirmed)
 
-> **Status**: v11 Confirmed — usage guide tag type
-> **Base**: v10 + 2026-06-02 usage guide tag patch
-> **Date**: 2026-06-02
+> **Status**: v12 Confirmed — whitelist channel workflow and export ledger
+> **Base**: v11 + 2026-06-03 whitelist channel workflow patch
+> **Date**: 2026-06-15
+
+---
+
+## Runtime DB Application Notes
+
+- `src/main/resources/application.yml` defaults to `spring.jpa.hibernate.ddl-auto=validate`.
+- `src/main/resources/schema.sql` is the full manual setup/reference schema for a fresh MySQL database. It is not an automatic migration tool for an existing local/staging/production DB.
+- Spring Boot does not auto-run `schema.sql` against the external MySQL datasource by default. Test profile explicitly disables SQL init and uses Hibernate `create-drop` for H2.
+- Existing DBs must be patched before starting the server with `ddl-auto=validate`; otherwise Hibernate validation can fail when new columns/tables are missing.
+- Current manual patch file: `src/main/resources/db/manual/20260615_align_payment_whitelist_schema.sql`.
+- Apply the patch only after backup and local/staging rehearsal. Do not execute it blindly against production. MySQL DDL may implicitly commit.
+- The patch covers the latest known delta for `tags.type=USAGE`, `payment_settlements`, expanded `whitelist_channels`, and `whitelist_export_batches` / `whitelist_export_items`. Older DBs that predate previous payment-operation tables must apply those earlier schema changes first or be rebuilt from `schema.sql`.
+
+---
+
+## v11 to v12 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| 1 | `whitelist_channels` | **Updated** — Added YouTube handle/channel ID, status workflow, primary flag, requested/exported/processed/removal timestamps, admin note, and processed-by admin reference. |
+| 2 | `whitelist_export_batches`, `whitelist_export_items` | **Added** — Admin CSV export batch and item snapshots for manual external YouTube/agency whitelist registration workflow. |
+| 3 | Table count | **Updated** — Total database tables changed from 36 to 38. |
 
 ---
 
@@ -695,13 +717,60 @@
 |-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
 | User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
-| Channel URL | `channel_url` | VARCHAR(255) | NOT NULL | | | YouTube channel URL. Validated at app level: must contain `youtube.com`. |
+| Channel URL | `channel_url` | VARCHAR(255) | NOT NULL | | | YouTube channel URL. Validated at app level: host must be `youtube.com` or end with `.youtube.com`. |
 | Channel name | `channel_name` | VARCHAR(100) | NOT NULL | | | Display name |
+| YouTube handle | `youtube_handle` | VARCHAR(100) | NULL | | | User-facing YouTube handle, e.g. `@channel` |
+| YouTube channel ID | `youtube_channel_id` | VARCHAR(100) | NULL | | | Canonical YouTube channel ID, e.g. `UC...` |
+| Status | `status` | ENUM('DRAFT','PENDING','EXPORTED','REGISTERED','REVISION_REQUESTED','REJECTED','CANCELLED','REMOVAL_REQUESTED') | NOT NULL | | 'DRAFT' | Whitelist request workflow state |
+| Primary flag | `is_primary` | TINYINT(1) | NOT NULL | | 0 | Representative channel for the user |
+| Requested at | `requested_at` | DATETIME | NULL | | | User registration request timestamp |
+| Exported at | `exported_at` | DATETIME | NULL | | | Admin CSV export timestamp |
+| Processed at | `processed_at` | DATETIME | NULL | | | Admin status processing timestamp |
+| Removal requested at | `removal_requested_at` | DATETIME | NULL | | | User-requested external removal timestamp |
+| Admin note | `admin_note` | VARCHAR(500) | NULL | | | Operator note displayed to user/admin |
+| Processed by | `processed_by` | BIGINT | NULL | FK(users.id) | | Admin who processed the current workflow state |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
-- Maximum registerable channels limited by `subscriptions.max_whitelist_channels`
-- App checks current active channel count on registration
+- Users may save draft channels without active subscription.
+- `subscriptions.max_whitelist_channels` applies when requesting registration, not when saving drafts.
+- Plan-counting statuses: `PENDING`, `EXPORTED`, `REGISTERED`, `REVISION_REQUESTED`, `REMOVAL_REQUESTED`.
+- Local-only statuses (`DRAFT`, `PENDING`, `REVISION_REQUESTED`, `REJECTED`, `CANCELLED`) can be physically deleted by the user. `EXPORTED`/`REGISTERED` deletion becomes `REMOVAL_REQUESTED`.
+- If a physically deleted local-only channel was primary, the service promotes another saved channel as primary when one remains.
+
+## 9.2 Whitelist Export Batches (`whitelist_export_batches`)
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| File name | `file_name` | VARCHAR(255) | NOT NULL | | | Generated CSV file name |
+| Item count | `item_count` | INT | NOT NULL | | | Number of exported channel rows |
+| Exported by | `exported_by` | BIGINT | NULL | FK(users.id) | | Admin who generated the export |
+| Note | `note` | VARCHAR(500) | NULL | | | Export note |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | Export created time |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+## 9.3 Whitelist Export Items (`whitelist_export_items`)
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Batch | `batch_id` | BIGINT | NOT NULL | FK(whitelist_export_batches.id) | | Export batch |
+| Channel | `whitelist_channel_id` | BIGINT | NULL | FK(whitelist_channels.id), ON DELETE SET NULL | | Source channel row; snapshots remain even if a locally deletable channel is later deleted |
+| Status at export | `status_at_export` | ENUM('DRAFT','PENDING','EXPORTED','REGISTERED','REVISION_REQUESTED','REJECTED','CANCELLED','REMOVAL_REQUESTED') | NOT NULL | | | Status before export mutation |
+| User ID snapshot | `user_id_snapshot` | BIGINT | NOT NULL | | | User ID at export time |
+| User email snapshot | `user_email_snapshot` | VARCHAR(100) | NOT NULL | | | Included in CSV for external processing |
+| User nickname snapshot | `user_nickname_snapshot` | VARCHAR(20) | NOT NULL | | | User nickname at export time |
+| Channel name snapshot | `channel_name_snapshot` | VARCHAR(100) | NOT NULL | | | Channel display name at export time |
+| YouTube handle snapshot | `youtube_handle_snapshot` | VARCHAR(100) | NULL | | | Handle at export time |
+| Channel URL snapshot | `channel_url_snapshot` | VARCHAR(255) | NOT NULL | | | Channel URL at export time |
+| YouTube channel ID snapshot | `youtube_channel_id_snapshot` | VARCHAR(100) | NULL | | | Channel ID at export time |
+| Plan name snapshot | `plan_name_snapshot` | VARCHAR(30) | NULL | | | Active subscription plan at export time |
+| Billing cycle snapshot | `billing_cycle_snapshot` | ENUM('MONTHLY','YEARLY') | NULL | | | Active subscription cycle at export time |
+| Requested at snapshot | `requested_at_snapshot` | DATETIME | NULL | | | User request timestamp at export time |
+| Exported at snapshot | `exported_at_snapshot` | DATETIME | NOT NULL | | | CSV export timestamp |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
 ---
 
@@ -942,7 +1011,7 @@ users ─┬─< social_accounts
        ├─< likes ──> tracks
        ├─< album_likes ──> albums
        ├─< download_queue ──> tracks
-       ├─< whitelist_channels
+       ├─< whitelist_channels ─< whitelist_export_items >─ whitelist_export_batches
        ├─< licenses ──> tracks
        ├─< playlists ─< playlist_tracks ──> tracks
        ├─< albums ─< album_tracks ──> tracks
@@ -959,7 +1028,7 @@ site_settings (standalone — no FK)
 
 ---
 
-# Complete Table List (36 Tables)
+# Complete Table List (38 Tables)
 
 | # | Table Name | Description | Type |
 |---|------------|-------------|------|
@@ -988,16 +1057,18 @@ site_settings (standalone — no FK)
 | 23 | `album_likes` | Album likes | Mapping |
 | 24 | `download_queue` | Download queue | Mapping |
 | 25 | `whitelist_channels` | Whitelist channels | Master |
-| 26 | `questions` | Inquiries | Transaction |
-| 27 | `answers` | Inquiry answers | Transaction |
-| 28 | `licenses` | Track usage licenses | Transaction |
-| 29 | `notices` | Notices | Master |
-| 30 | `question_attachments` | Inquiry attachments | Transaction |
-| 31 | `notice_attachments` | Notice attachments | Transaction |
-| 32 | `albums` | Curated albums | Master |
-| 33 | `album_tracks` | Album-track mapping | Mapping |
-| 34 | `email_verification_tokens` | Email verification tokens | Transaction |
-| 35 | `password_reset_tokens` | Password reset tokens | Transaction |
-| 36 | `site_settings` | Site configuration key-value store | Master |
+| 26 | `whitelist_export_batches` | Admin whitelist CSV export batches | Transaction |
+| 27 | `whitelist_export_items` | Admin whitelist CSV export item snapshots | Transaction |
+| 28 | `questions` | Inquiries | Transaction |
+| 29 | `answers` | Inquiry answers | Transaction |
+| 30 | `licenses` | Track usage licenses | Transaction |
+| 31 | `notices` | Notices | Master |
+| 32 | `question_attachments` | Inquiry attachments | Transaction |
+| 33 | `notice_attachments` | Notice attachments | Transaction |
+| 34 | `albums` | Curated albums | Master |
+| 35 | `album_tracks` | Album-track mapping | Mapping |
+| 36 | `email_verification_tokens` | Email verification tokens | Transaction |
+| 37 | `password_reset_tokens` | Password reset tokens | Transaction |
+| 38 | `site_settings` | Site configuration key-value store | Master |
 
-Total **36 tables**
+Total **38 tables**

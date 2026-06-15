@@ -1,0 +1,216 @@
+.page {
+  padding: 36px var(--page-px);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.subtitle,
+.subText {
+  color: var(--text2);
+  font-size: 13px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.filter select,
+.searchInput,
+.actionCell select,
+.actionCell textarea {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--text0);
+  font: inherit;
+}
+
+.filter select {
+  padding: 8px 10px;
+}
+
+.searchInput {
+  width: min(420px, 100%);
+  padding: 9px 12px;
+}
+
+.success,
+.error,
+.loading,
+.empty {
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.success {
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+  background: var(--accent-dim);
+}
+
+.error {
+  color: var(--error);
+  border: 1px solid var(--error-border);
+  background: var(--error-dim);
+}
+
+.loading,
+.empty {
+  color: var(--text2);
+  text-align: center;
+}
+
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  min-width: 1080px;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 14px;
+  text-align: left;
+  vertical-align: top;
+  font-size: 13px;
+}
+
+.table th {
+  color: var(--text2);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.table td > strong,
+.table td > span,
+.channelCell a,
+.channelCell span {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.channelCell {
+  min-width: 280px;
+}
+
+.channelCell a {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.statusBadge,
+.primaryBadge {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-right: 6px;
+}
+
+.statusBadge {
+  border: 1px solid var(--border2);
+}
+
+.primaryBadge {
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.12);
+}
+
+.statusDRAFT,
+.statusCANCELLED {
+  color: var(--text1);
+  background: var(--bg2);
+}
+
+.statusPENDING,
+.statusREVISION_REQUESTED,
+.statusREMOVAL_REQUESTED {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.statusEXPORTED {
+  color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.35);
+  background: rgba(96, 165, 250, 0.12);
+}
+
+.statusREGISTERED {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(52, 211, 153, 0.12);
+}
+
+.statusREJECTED {
+  color: var(--error);
+  border-color: var(--error-border);
+  background: var(--error-dim);
+}
+
+.actionCell {
+  width: 260px;
+}
+
+.actionCell select,
+.actionCell textarea {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 8px;
+}
+
+.actionCell textarea {
+  min-height: 62px;
+  resize: vertical;
+}
+
+@media (max-width: 767px) {
+  .page {
+    padding: 0;
+  }
+
+  .header {
+    flex-direction: column;
+  }
+
+  .searchInput {
+    width: 100%;
+  }
+}

@@ -11,6 +11,7 @@ import com.atstudio.atstudio.entity.WhitelistChannel;
 import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
+import com.atstudio.atstudio.entity.enums.WhitelistChannelStatus;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.repository.WhitelistChannelRepository;
@@ -61,9 +62,7 @@ class WhitelistChannelServiceTest {
                     "https://youtube.com/@channel1", "채널1");
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                    .willReturn(Optional.of(sub));
-            given(whitelistChannelRepository.countByUser(user)).willReturn(2L);
+            given(whitelistChannelRepository.countByUser(user)).willReturn(0L);
             given(whitelistChannelRepository.save(any(WhitelistChannel.class))).willReturn(saved);
 
             WhitelistChannelResponse result = whitelistChannelService.registerChannel(
@@ -73,6 +72,7 @@ class WhitelistChannelServiceTest {
             assertThat(result.id()).isEqualTo(1L);
             assertThat(result.channelUrl()).isEqualTo("https://youtube.com/@channel1");
             assertThat(result.channelName()).isEqualTo("채널1");
+            assertThat(result.status()).isEqualTo(WhitelistChannelStatus.DRAFT);
         }
 
         @Test
@@ -118,8 +118,6 @@ class WhitelistChannelServiceTest {
                     "https://www.youtube.com/channel/xxx", "채널WWW");
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                    .willReturn(Optional.of(sub));
             given(whitelistChannelRepository.countByUser(user)).willReturn(0L);
             given(whitelistChannelRepository.save(any(WhitelistChannel.class))).willReturn(saved);
 
@@ -131,39 +129,82 @@ class WhitelistChannelServiceTest {
         }
 
         @Test
-        @DisplayName("실패 - 활성 구독 없음 → NO_ACTIVE_SUBSCRIPTION")
+        @DisplayName("실패 - 등록 요청 시 활성 구독 없음 → NO_ACTIVE_SUBSCRIPTION")
         void fail_noSubscription() {
             User user = buildUser(1L, UserRole.USER);
-            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            WhitelistChannel channel = buildChannel(10L, user,
+                    "https://youtube.com/@channel1", "채널1");
+            given(whitelistChannelRepository.findById(10L)).willReturn(Optional.of(channel));
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> whitelistChannelService.registerChannel(
-                    buildUserDetails(1L, UserRole.USER),
-                    new WhitelistChannelRequest("https://youtube.com/@channel1", "채널1")))
+            assertThatThrownBy(() -> whitelistChannelService.requestRegistration(
+                    buildUserDetails(1L, UserRole.USER), 10L))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
         }
 
         @Test
-        @DisplayName("실패 - 채널 한도 초과 → WHITELIST_CHANNEL_LIMIT_EXCEEDED")
+        @DisplayName("실패 - 등록 요청 시 채널 한도 초과 → WHITELIST_CHANNEL_LIMIT_EXCEEDED")
         void fail_limitExceeded() {
             User user = buildUser(1L, UserRole.USER);
             Subscription plan = buildSubscription(3);
             UserSubscription sub = buildUserSubscription(user, plan);
+            WhitelistChannel channel = buildChannel(10L, user,
+                    "https://youtube.com/@channel4", "채널4");
 
-            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(whitelistChannelRepository.findById(10L)).willReturn(Optional.of(channel));
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(sub));
-            given(whitelistChannelRepository.countByUser(user)).willReturn(3L);
+            given(whitelistChannelRepository.countByUserAndStatusIn(eq(user), any()))
+                    .willReturn(3L);
 
-            assertThatThrownBy(() -> whitelistChannelService.registerChannel(
-                    buildUserDetails(1L, UserRole.USER),
-                    new WhitelistChannelRequest("https://youtube.com/@channel4", "채널4")))
+            assertThatThrownBy(() -> whitelistChannelService.requestRegistration(
+                    buildUserDetails(1L, UserRole.USER), 10L))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.WHITELIST_CHANNEL_LIMIT_EXCEEDED));
+        }
+
+        @Test
+        @DisplayName("success - revision requested channel can be requested again without consuming a new slot")
+        void success_revisionRequestedCanRequestAgain() {
+            User user = buildUser(1L, UserRole.USER);
+            Subscription plan = buildSubscription(1);
+            UserSubscription sub = buildUserSubscription(user, plan);
+            WhitelistChannel channel = buildChannel(10L, user,
+                    "https://youtube.com/@channel1", "channel1");
+            ReflectionTestUtils.setField(channel, "status", WhitelistChannelStatus.REVISION_REQUESTED);
+
+            given(whitelistChannelRepository.findById(10L)).willReturn(Optional.of(channel));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.of(sub));
+            given(whitelistChannelRepository.countByUserAndStatusIn(eq(user), any()))
+                    .willReturn(1L);
+
+            WhitelistChannelResponse result = whitelistChannelService.requestRegistration(
+                    buildUserDetails(1L, UserRole.USER), 10L);
+
+            assertThat(result.status()).isEqualTo(WhitelistChannelStatus.PENDING);
+            assertThat(channel.getRequestedAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("fail - registered channel cannot be requested again directly")
+        void fail_registeredCannotRequestAgainDirectly() {
+            User user = buildUser(1L, UserRole.USER);
+            WhitelistChannel channel = buildChannel(10L, user,
+                    "https://youtube.com/@channel1", "channel1");
+            ReflectionTestUtils.setField(channel, "status", WhitelistChannelStatus.REGISTERED);
+
+            given(whitelistChannelRepository.findById(10L)).willReturn(Optional.of(channel));
+
+            assertThatThrownBy(() -> whitelistChannelService.requestRegistration(
+                    buildUserDetails(1L, UserRole.USER), 10L))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.INVALID_STATE_TRANSITION));
         }
     }
 
@@ -181,7 +222,7 @@ class WhitelistChannelServiceTest {
             WhitelistChannel ch2 = buildChannel(2L, user, "https://youtube.com/@ch2", "채널2");
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(whitelistChannelRepository.findByUserOrderByCreatedAtDesc(user))
+            given(whitelistChannelRepository.findByUserOrderByPrimaryDescCreatedAtDesc(user))
                     .willReturn(List.of(ch1, ch2));
 
             List<WhitelistChannelResponse> result = whitelistChannelService.getMyChannels(
@@ -217,6 +258,50 @@ class WhitelistChannelServiceTest {
         }
 
         @Test
+        @DisplayName("success - processed channel update requeues with the existing counted slot")
+        void success_processedChannelUpdateRequeuesWithExistingSlot() {
+            User user = buildUser(1L, UserRole.USER);
+            Subscription plan = buildSubscription(1);
+            UserSubscription sub = buildUserSubscription(user, plan);
+            WhitelistChannel channel = buildChannel(10L, user,
+                    "https://youtube.com/@old", "old");
+            ReflectionTestUtils.setField(channel, "status", WhitelistChannelStatus.REGISTERED);
+
+            given(whitelistChannelRepository.findById(10L)).willReturn(Optional.of(channel));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.of(sub));
+            given(whitelistChannelRepository.countByUserAndStatusIn(eq(user), any()))
+                    .willReturn(1L);
+
+            WhitelistChannelResponse result = whitelistChannelService.updateChannel(
+                    buildUserDetails(1L, UserRole.USER), 10L,
+                    new WhitelistChannelRequest("https://youtube.com/@new", "new"));
+
+            assertThat(result.status()).isEqualTo(WhitelistChannelStatus.PENDING);
+            assertThat(channel.getRequestedAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("fail - processed channel update cannot requeue without active subscription")
+        void fail_processedChannelUpdateWithoutSubscription() {
+            User user = buildUser(1L, UserRole.USER);
+            WhitelistChannel channel = buildChannel(10L, user,
+                    "https://youtube.com/@old", "old");
+            ReflectionTestUtils.setField(channel, "status", WhitelistChannelStatus.REGISTERED);
+
+            given(whitelistChannelRepository.findById(10L)).willReturn(Optional.of(channel));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> whitelistChannelService.updateChannel(
+                    buildUserDetails(1L, UserRole.USER), 10L,
+                    new WhitelistChannelRequest("https://youtube.com/@new", "new")))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+        }
+
+        @Test
         @DisplayName("실패 - 타인 채널 수정 → RESOURCE_NOT_ACCESS")
         void fail_notOwner() {
             User owner = buildUser(1L, UserRole.USER);
@@ -247,7 +332,7 @@ class WhitelistChannelServiceTest {
         }
     }
 
-    // ── 12.4 deleteChannel ───────────────────────────────────────────────────
+    // ── 12.6 deleteChannel ───────────────────────────────────────────────────
 
     @Nested
     @DisplayName("deleteChannel()")
@@ -265,6 +350,26 @@ class WhitelistChannelServiceTest {
             whitelistChannelService.deleteChannel(buildUserDetails(1L, UserRole.USER), 10L);
 
             verify(whitelistChannelRepository).delete(channel);
+        }
+
+        @Test
+        @DisplayName("success - deleting the primary channel promotes another channel")
+        void success_promotesReplacementPrimaryOnDelete() {
+            User user = buildUser(1L, UserRole.USER);
+            WhitelistChannel primary = buildChannel(10L, user,
+                    "https://youtube.com/@primary", "primary");
+            WhitelistChannel replacement = buildChannel(11L, user,
+                    "https://youtube.com/@replacement", "replacement");
+            primary.setPrimary(true);
+
+            given(whitelistChannelRepository.findById(10L)).willReturn(Optional.of(primary));
+            given(whitelistChannelRepository.findByUserOrderByCreatedAtDesc(user))
+                    .willReturn(List.of(primary, replacement));
+
+            whitelistChannelService.deleteChannel(buildUserDetails(1L, UserRole.USER), 10L);
+
+            assertThat(replacement.isPrimary()).isTrue();
+            verify(whitelistChannelRepository).delete(primary);
         }
 
         @Test
