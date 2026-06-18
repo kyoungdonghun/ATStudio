@@ -83,9 +83,9 @@ dependencies:
 | M-12 | SOUND-019 | 1/3/B-1 (음원 목록/상세) | "재생목록에 추가" 클릭 | 내 재생목록 목록 선택 | SelectModal | `3.4 POST /api/playlists/{playlistId}/tracks` |
 | M-13 | SOUND-017 | Screen 4/5 (재생목록 목록) | "재생목록 삭제" 클릭 | "재생목록을 삭제하시겠습니까?" | ConfirmModal | `3.8 DELETE /api/playlists/{playlistId}` |
 | M-14 | ALBUM-005 | L-1/L-2 (앨범 목록) | "앨범 삭제" 클릭 | "앨범을 삭제하시겠습니까?" | ConfirmModal | `15.5 DELETE /api/albums/{id}` |
-| M-15 | CC-001 | I-1 (기업인증 신청) | 서류 첨부 영역 클릭 | 파일 업로드 (복수 가능) **[보류]** | FileUploadModal | `13.1 POST /api/company-certifications` |
+| M-15 | CC-001/CC-002 | I-1/I-2 (기업인증 신청/보완 재제출) | 서류 첨부 영역 클릭 | 인라인 파일 업로드 (복수 가능) | InlineFilePicker | `13.1 POST /api/company-certifications`, `13.2 POST /api/company-certifications/me/documents` |
 | M-16 | QUESTION-001 | Screen 14 (문의글 작성) | 첨부파일 클릭 | 파일 업로드 | FileUploadModal | `8.1 POST /api/questions` |
-| M-17 | CC-005 | K-5 (기업인증 심사) | 심사결과 처리 클릭 | APPROVED / REVISION_REQUESTED / REJECTED 선택 + adminNote 입력 | ReviewModal | `13.5 PUT /api/company-certifications/{certificationId}` |
+| M-17 | CC-006 | K-5 (기업인증 심사) | 심사결과 처리 클릭 | APPROVED / REVISION_REQUESTED / REJECTED 선택 + adminNote 입력 | ReviewModal | `13.7 PUT /api/company-certifications/{certificationId}` |
 | M-18 | QUESTION-007 | K-4 (문의 관리) | 상태 변경 클릭 | 문의 상태 선택 (OPEN / IN_PROGRESS / RESOLVED / CLOSED) | SelectModal | `8.6 PUT /api/questions/{questionId}/status` |
 | M-19 | ANNOUNCE-005 | Screen 22 (공지 조회) | "공지 삭제" 클릭 | "공지를 삭제하시겠습니까?" | ConfirmModal | `9.5 DELETE /api/notices/{noticeId}` |
 | M-20 | QUESTION-006 | Screen 15 (문의 보기) | "문의 삭제" 클릭 | "문의를 삭제하시겠습니까?" | ConfirmModal | `8.7 DELETE /api/questions/{questionId}` |
@@ -261,14 +261,14 @@ dependencies:
 | M-26 | Toss billing auth checkout — 구독 최초 결제 (Screen 16-2) | One-time Toss widget UX work under SR-92 is retired. Production focus is billing auth return/retry recovery. |
 | M-27 | Billing-key upgrade charge — 업그레이드 결제 (M-09 내) | No checkout modal is needed. Server-side recurring charge, failure recovery, and user copy are the remaining hardening focus. |
 | M-31 | Toss billing auth checkout — 정기결제 등록 | Dedicated `/subscriptions/checkout` callback route is implemented for mobile auth return, stale redirect recovery, and retry messaging. |
-| M-15 | 기업인증 서류 파일 제한 (I-1) | 업로드 허용 파일 확장자 및 최대 크기 정책 미확정. FileUploadModal 구현 시 별도 정의 필요. |
+| M-15 | 기업인증 서류 파일 제한 (I-1/I-2) | 해결됨. 인라인 파일 업로드로 구현되며 PDF/HWP/HWPX/DOC/DOCX/JPG/JPEG/PNG, 최대 10개, 파일당 20MB를 적용한다. |
 
 ---
 
 > 총 **31개** 모달 (M-01 ~ M-31)
 > - 1차 (화면 목록 기반): M-01 ~ M-10 (10개)
 > - 2차 (유스케이스 추가): M-11 ~ M-31 (21개)
-> - 보류/구현 후보: M-15, admin reconciliation presentation, payment-method replacement flow
+> - 보류/구현 후보: admin reconciliation presentation, payment-method replacement flow
 > v1.2 2026-03-07 → v1.3 2026-03-29 → v1.4 2026-05-16
 
 ## Related Documents

@@ -51,6 +51,8 @@ ACTIVE → ACTIVE (업그레이드)
 PENDING → APPROVED (승인)
 PENDING → REJECTED (반려)
 PENDING → REVISION_REQUESTED (수정 요청)
+REVISION_REQUESTED → PENDING (보완 서류 재제출)
+REJECTED → PENDING (새 신청)
 ```
 
 ### 3.5 시나리오 기반 테스트 (Scenario-based Testing)

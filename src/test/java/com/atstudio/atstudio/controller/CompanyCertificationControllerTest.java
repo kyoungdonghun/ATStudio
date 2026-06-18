@@ -3,12 +3,14 @@ package com.atstudio.atstudio.controller;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.dto.certification.CompanyCertificationDocumentDownload;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationResponse;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationSummaryResponse;
 import com.atstudio.atstudio.security.CustomUserDetailsService;
 import com.atstudio.atstudio.service.CompanyCertificationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -37,14 +39,16 @@ class CompanyCertificationControllerTest {
 
     private static final CompanyCertificationResponse MOCK_RESPONSE =
             new CompanyCertificationResponse(
-                    1L, "PENDING", null, null,
-                    "/uploads/company-docs/1/", null,
+                    1L, 1L, "user1", "user1@test.com", "ATStudio Biz", "02-1234-5678",
+                    "PENDING", null, null,
+                    "/uploads/company-docs/1/", List.of(), null,
                     LocalDateTime.now());
 
     private static final CompanyCertificationResponse MOCK_APPROVED_RESPONSE =
             new CompanyCertificationResponse(
-                    1L, "APPROVED", "서류 확인 완료", "BIZ-test-uuid",
-                    "/uploads/company-docs/1/", LocalDateTime.now(),
+                    1L, 1L, "user1", "user1@test.com", "ATStudio Biz", "02-1234-5678",
+                    "APPROVED", "서류 확인 완료", "BIZ-test-uuid",
+                    "/uploads/company-docs/1/", List.of(), LocalDateTime.now(),
                     LocalDateTime.now());
 
     // ── 13.1 POST /api/company-certifications ────────────────────────────────
@@ -119,6 +123,19 @@ class CompanyCertificationControllerTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("POST /api/company-certifications/me/documents - 보완 재제출 -> 200")
+    void resubmit_success() throws Exception {
+        given(certificationService.resubmit(any(), anyList())).willReturn(MOCK_RESPONSE);
+
+        MockMultipartFile doc = new MockMultipartFile(
+                "documents", "doc.pdf", "application/pdf", new byte[]{1, 2, 3});
+
+        mockMvc.perform(multipart("/api/company-certifications/me/documents").file(doc))
+                .andExpect(status().isOk());
+    }
+
     // ── 13.3 GET /api/company-certifications ─────────────────────────────────
 
     @Test
@@ -172,6 +189,29 @@ class CompanyCertificationControllerTest {
         given(certificationService.getDetail(1L)).willReturn(MOCK_RESPONSE);
 
         mockMvc.perform(get("/api/company-certifications/1"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("GET /api/company-certifications/1/documents/1 - 일반 유저 -> 403")
+    void downloadDocument_forbidden_user() throws Exception {
+        mockMvc.perform(get("/api/company-certifications/1/documents/1"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("GET /api/company-certifications/1/documents/1 - ADMIN -> 200")
+    void downloadDocument_success() throws Exception {
+        given(certificationService.downloadDocument(1L, 1L))
+                .willReturn(new CompanyCertificationDocumentDownload(
+                        new ByteArrayResource(new byte[]{1, 2, 3}),
+                        "doc.pdf",
+                        "application/pdf"
+                ));
+
+        mockMvc.perform(get("/api/company-certifications/1/documents/1"))
                 .andExpect(status().isOk());
     }
 

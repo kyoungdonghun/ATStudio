@@ -240,18 +240,28 @@ export interface Question {
 
 /* ── Company Certification ── */
 
-export type CertificationStatus =
-  | 'PENDING'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'REVISION_REQUESTED';
+export type CertificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVISION_REQUESTED';
+
+export interface CompanyCertificationDocument {
+  id: number;
+  originalFilename: string;
+  contentType: string | null;
+  sizeBytes: number;
+  createdAt: string;
+}
 
 /** Detail response (GET /company-certifications/me, GET /company-certifications/{id}) */
 export interface CompanyCertification {
   id: number;
+  userId: number;
+  userNickname: string;
+  userEmail: string;
+  companyName: string | null;
+  phoneCompany: string | null;
   status: CertificationStatus;
   adminNote: string | null;
   documentPath: string | null;
+  documents: CompanyCertificationDocument[];
   certificationCode: string | null;
   approvedAt: string | null;
   createdAt: string;
@@ -262,6 +272,8 @@ export interface CompanyCertificationSummary {
   id: number;
   userId: number;
   userNickname: string;
+  userEmail: string;
+  companyName: string | null;
   status: CertificationStatus;
   createdAt: string;
 }

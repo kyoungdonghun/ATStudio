@@ -1,8 +1,8 @@
-# ATStudio DB Schema Definition v12 (Confirmed)
+# ATStudio DB Schema Definition v13 (Confirmed)
 
-> **Status**: v12 Confirmed — whitelist channel workflow and export ledger
-> **Base**: v11 + 2026-06-03 whitelist channel workflow patch
-> **Date**: 2026-06-15
+> **Status**: v13 Confirmed — company certification document metadata
+> **Base**: v12 + REQ-20260618-ATS-001 company certification workflow patch
+> **Date**: 2026-06-18
 
 ---
 
@@ -12,9 +12,21 @@
 - `src/main/resources/schema.sql` is the full manual setup/reference schema for a fresh MySQL database. It is not an automatic migration tool for an existing local/staging/production DB.
 - Spring Boot does not auto-run `schema.sql` against the external MySQL datasource by default. Test profile explicitly disables SQL init and uses Hibernate `create-drop` for H2.
 - Existing DBs must be patched before starting the server with `ddl-auto=validate`; otherwise Hibernate validation can fail when new columns/tables are missing.
-- Current manual patch file: `src/main/resources/db/manual/20260615_align_payment_whitelist_schema.sql`.
+- Current manual patch files:
+  - `src/main/resources/db/manual/20260615_align_payment_whitelist_schema.sql`
+  - `src/main/resources/db/manual/20260618_company_certification_documents.sql`
 - Apply the patch only after backup and local/staging rehearsal. Do not execute it blindly against production. MySQL DDL may implicitly commit.
-- The patch covers the latest known delta for `tags.type=USAGE`, `payment_settlements`, expanded `whitelist_channels`, and `whitelist_export_batches` / `whitelist_export_items`. Older DBs that predate previous payment-operation tables must apply those earlier schema changes first or be rebuilt from `schema.sql`.
+- The patches cover the latest known delta for `tags.type=USAGE`, `payment_settlements`, expanded `whitelist_channels`, `whitelist_export_batches` / `whitelist_export_items`, and `company_certification_documents`. Older DBs that predate previous payment-operation tables must apply those earlier schema changes first or be rebuilt from `schema.sql`.
+
+---
+
+## v12 to v13 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| 1 | `company_certification_documents` | **Added** — stores per-file metadata for company certification review documents. |
+| 2 | Document access policy | **Updated** — admin review should use authenticated document metadata/download APIs instead of relying on raw storage directory paths. |
+| 3 | Table count | **Updated** — Total database tables changed from 38 to 39. |
 
 ---
 
@@ -274,23 +286,41 @@
 | Applicant | `user_id` | BIGINT | NOT NULL | FK(users.id) | | Business member |
 | Review status | `status` | ENUM('PENDING','APPROVED','REVISION_REQUESTED','REJECTED') | NOT NULL | | 'PENDING' | Pending / Approved / Revision requested / Rejected |
 | Admin note | `admin_note` | TEXT | NULL | | | Reason for revision request, etc. |
-| Document file path | `document_path` | VARCHAR(500) | NOT NULL | | | Stored in per-user dedicated folder |
+| Document file path | `document_path` | VARCHAR(500) | NOT NULL | | | Legacy/current directory hint. Per-file metadata is stored in `company_certification_documents`. |
 | Certification code | `certification_code` | VARCHAR(50) | NULL | UNIQUE | | UUID-based, issued upon approval |
 | Approved at | `approved_at` | DATETIME | NULL | | | Timestamp of approval completion |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
 **File storage policy:**
-- App-level creation of per-user dedicated directory (e.g., `/uploads/company-docs/{user_id}/`)
-- `document_path` stores the directory path
-- Files within the directory are managed directly on the filesystem
+- App-level creation of per-submission dedicated directory (e.g., `/uploads/company-docs/{user_id}/{request_key}/`)
+- `document_path` stores the directory hint for backward compatibility.
+- `company_certification_documents.stored_path` stores the StorageService relative path for each file.
+- Admin review uses authenticated download API; direct public `/uploads/company-docs/**` access is not the primary document review mechanism.
 
 **Process:**
 1. Business member selects subscription plan and goes to document submission page
 2. File upload + certification request submission (status: PENDING)
-3. Admin review: revision request (REVISION_REQUESTED) or approval (APPROVED)
-4. Upon approval: `certification_code` issued, subscription payment enabled
-5. After payment, admin provides offline business contract evidence if needed. Tax invoice handling is not part of the current card-only recurring subscription scope.
+3. Admin review: revision request (REVISION_REQUESTED), rejection (REJECTED), or approval (APPROVED)
+4. REVISION_REQUESTED: user replaces documents on the same certification, returning status to PENDING
+5. REJECTED: previous record remains as history; user may submit a new application
+6. Upon approval: `certification_code` issued, subscription payment enabled
+7. After payment, admin provides offline business contract evidence if needed. Tax invoice handling is not part of the current card-only recurring subscription scope.
+
+## 3.2 Company Certification Documents (`company_certification_documents`)
+
+> Per-file metadata for documents submitted to a company certification application. Raw file contents remain in StorageService-managed filesystem storage.
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Certification | `certification_id` | BIGINT | NOT NULL | FK(company_certifications.id), ON DELETE CASCADE | | Parent application |
+| Original filename | `original_filename` | VARCHAR(255) | NOT NULL | | | Display name for admin review |
+| Stored path | `stored_path` | VARCHAR(500) | NOT NULL | | | StorageService relative path. Not exposed directly to users. |
+| Content type | `content_type` | VARCHAR(100) | NULL | | | Browser-provided MIME type |
+| Size bytes | `size_bytes` | BIGINT | NOT NULL | | | Uploaded file size |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
 ---
 
@@ -1028,7 +1058,7 @@ site_settings (standalone — no FK)
 
 ---
 
-# Complete Table List (38 Tables)
+# Complete Table List (39 Tables)
 
 | # | Table Name | Description | Type |
 |---|------------|-------------|------|
@@ -1037,38 +1067,39 @@ site_settings (standalone — no FK)
 | 3 | `subscriptions` | Subscription plan definitions | Master |
 | 4 | `user_subscriptions` | User subscription status | Transaction |
 | 5 | `company_certifications` | Company certification | Transaction |
-| 6 | `tracks` | Audio tracks | Master |
-| 7 | `tags` | Tags | Master |
-| 8 | `track_tags` | Track-tag mapping | Mapping |
-| 9 | `playlists` | Playlists | Master |
-| 10 | `playlist_tracks` | Playlist-track mapping | Mapping |
-| 11 | `track_downloads` | Download history | Log |
-| 12 | `play_histories` | Play history | Log |
-| 13 | `billing_agreements` | Recurring billing agreement credentials and state | Transaction |
-| 14 | `payment_orders` | Payment attempt ledger | Transaction |
-| 15 | `subscription_payments` | Subscription payment records | Transaction |
-| 16 | `payment_refunds` | Admin refund request/approval/execution ledger | Transaction |
-| 17 | `payment_entitlement_corrections` | Admin refund-linked entitlement correction ledger | Transaction |
-| 18 | `payment_settlements` | Admin settlement import/reconciliation ledger | Transaction |
-| 19 | `payment_reconciliation_incidents` | Payment reconciliation incident workflow | Transaction |
-| 20 | `payment_receipts` | Payment receipt/cash receipt evidence | Transaction |
-| 21 | `payment_operation_audit_logs` | Payment operation audit trail | Log |
-| 22 | `likes` | Track likes | Mapping |
-| 23 | `album_likes` | Album likes | Mapping |
-| 24 | `download_queue` | Download queue | Mapping |
-| 25 | `whitelist_channels` | Whitelist channels | Master |
-| 26 | `whitelist_export_batches` | Admin whitelist CSV export batches | Transaction |
-| 27 | `whitelist_export_items` | Admin whitelist CSV export item snapshots | Transaction |
-| 28 | `questions` | Inquiries | Transaction |
-| 29 | `answers` | Inquiry answers | Transaction |
-| 30 | `licenses` | Track usage licenses | Transaction |
-| 31 | `notices` | Notices | Master |
-| 32 | `question_attachments` | Inquiry attachments | Transaction |
-| 33 | `notice_attachments` | Notice attachments | Transaction |
-| 34 | `albums` | Curated albums | Master |
-| 35 | `album_tracks` | Album-track mapping | Mapping |
-| 36 | `email_verification_tokens` | Email verification tokens | Transaction |
-| 37 | `password_reset_tokens` | Password reset tokens | Transaction |
-| 38 | `site_settings` | Site configuration key-value store | Master |
+| 6 | `company_certification_documents` | Company certification document metadata | Transaction |
+| 7 | `tracks` | Audio tracks | Master |
+| 8 | `tags` | Tags | Master |
+| 9 | `track_tags` | Track-tag mapping | Mapping |
+| 10 | `playlists` | Playlists | Master |
+| 11 | `playlist_tracks` | Playlist-track mapping | Mapping |
+| 12 | `track_downloads` | Download history | Log |
+| 13 | `play_histories` | Play history | Log |
+| 14 | `billing_agreements` | Recurring billing agreement credentials and state | Transaction |
+| 15 | `payment_orders` | Payment attempt ledger | Transaction |
+| 16 | `subscription_payments` | Subscription payment records | Transaction |
+| 17 | `payment_refunds` | Admin refund request/approval/execution ledger | Transaction |
+| 18 | `payment_entitlement_corrections` | Admin refund-linked entitlement correction ledger | Transaction |
+| 19 | `payment_settlements` | Admin settlement import/reconciliation ledger | Transaction |
+| 20 | `payment_reconciliation_incidents` | Payment reconciliation incident workflow | Transaction |
+| 21 | `payment_receipts` | Payment receipt/cash receipt evidence | Transaction |
+| 22 | `payment_operation_audit_logs` | Payment operation audit trail | Log |
+| 23 | `likes` | Track likes | Mapping |
+| 24 | `album_likes` | Album likes | Mapping |
+| 25 | `download_queue` | Download queue | Mapping |
+| 26 | `whitelist_channels` | Whitelist channels | Master |
+| 27 | `whitelist_export_batches` | Admin whitelist CSV export batches | Transaction |
+| 28 | `whitelist_export_items` | Admin whitelist CSV export item snapshots | Transaction |
+| 29 | `questions` | Inquiries | Transaction |
+| 30 | `answers` | Inquiry answers | Transaction |
+| 31 | `licenses` | Track usage licenses | Transaction |
+| 32 | `notices` | Notices | Master |
+| 33 | `question_attachments` | Inquiry attachments | Transaction |
+| 34 | `notice_attachments` | Notice attachments | Transaction |
+| 35 | `albums` | Curated albums | Master |
+| 36 | `album_tracks` | Album-track mapping | Mapping |
+| 37 | `email_verification_tokens` | Email verification tokens | Transaction |
+| 38 | `password_reset_tokens` | Password reset tokens | Transaction |
+| 39 | `site_settings` | Site configuration key-value store | Master |
 
-Total **38 tables**
+Total **39 tables**

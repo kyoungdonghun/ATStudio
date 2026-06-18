@@ -1,8 +1,18 @@
-# ATStudio API Specification v17 (Confirmed)
+# ATStudio API Specification v18 (Confirmed)
 
-> **Status**: 17th confirmed — whitelist channel request/admin operation workflow
-> **Base**: v16 + 2026-06-03 whitelist channel workflow patch
-> **Date**: 2026-06-03
+> **Status**: 18th confirmed — company certification resubmission, admin document review, and protected document download
+> **Base**: v17 + REQ-20260618-ATS-001 company certification workflow patch
+> **Date**: 2026-06-18
+
+---
+
+## v17 → v18 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| AI1 | §13 company certification workflow | Added revision resubmission and admin document download APIs. Certification responses now include applicant and document metadata. |
+| AI2 | §13 document access | Company certification documents are reviewed through admin-only authenticated download APIs; raw storage paths are not used as the primary review mechanism. |
+| AI3 | Full API Summary | Updated total count from 145 → 147. |
 
 ---
 
@@ -3099,13 +3109,67 @@ documents: List<File> (required)
 ```json
 {
   "id": 1,
+  "userId": 10,
+  "userNickname": "biz-user",
+  "userEmail": "biz@example.com",
+  "companyName": "ATStudio Biz",
+  "phoneCompany": "02-1234-5678",
   "status": "PENDING",
   "documentPath": "/uploads/company-docs/1/",
+  "documents": [
+    {
+      "id": 101,
+      "originalFilename": "business-license.pdf",
+      "contentType": "application/pdf",
+      "sizeBytes": 123456,
+      "createdAt": "2026-06-18T10:00:00"
+    }
+  ],
   "createdAt": "2026-02-19T10:00:00"
 }
 ```
 
-## 13.2 My Certification Application Status
+**Business Rules**
+- `PENDING`, `APPROVED`, and `REVISION_REQUESTED` block new applications.
+- `REJECTED` remains as history and a new application may be submitted.
+- Empty files, unsupported extensions, oversized files, and over-limit file counts return validation errors.
+
+## 13.2 Resubmit Certification Documents
+| Field | Value |
+|-------|-------|
+| **URL** | `POST /api/company-certifications/me/documents` |
+| **Auth** | auth required (business members) |
+| **Description** | Submit replacement documents for the latest `REVISION_REQUESTED` certification. The same certification returns to `PENDING`. |
+
+**Request** (multipart/form-data)
+```
+documents: List<File> (required)
+```
+
+**Response** `200 OK`
+```json
+{
+  "id": 1,
+  "status": "PENDING",
+  "adminNote": null,
+  "documents": [
+    {
+      "id": 102,
+      "originalFilename": "updated-business-license.pdf",
+      "contentType": "application/pdf",
+      "sizeBytes": 124000,
+      "createdAt": "2026-06-18T11:00:00"
+    }
+  ]
+}
+```
+
+**Errors**
+- `400 Bad Request` — `INVALID_STATE_TRANSITION`: latest certification is not `REVISION_REQUESTED`.
+- `403 Forbidden` — not a business member.
+- `404 Not Found` — no certification exists.
+
+## 13.3 My Certification Application Status
 | Field | Value |
 |-------|-------|
 | **URL** | `GET /api/company-certifications/me` |
@@ -3115,14 +3179,28 @@ documents: List<File> (required)
 ```json
 {
   "id": 1,
+  "userId": 10,
+  "userNickname": "biz-user",
+  "userEmail": "biz@example.com",
+  "companyName": "ATStudio Biz",
+  "phoneCompany": "02-1234-5678",
   "status": "PENDING",
   "adminNote": null,
   "certificationCode": null,
+  "documents": [
+    {
+      "id": 101,
+      "originalFilename": "business-license.pdf",
+      "contentType": "application/pdf",
+      "sizeBytes": 123456,
+      "createdAt": "2026-06-18T10:00:00"
+    }
+  ],
   "createdAt": "2026-02-19T10:00:00"
 }
 ```
 
-## 13.3 List Certification Applications (Admin)
+## 13.4 List Certification Applications (Admin)
 | Field | Value |
 |-------|-------|
 | **URL** | `GET /api/company-certifications` |
@@ -3137,7 +3215,7 @@ size: Integer (default: 20)
 
 **Response** `200 OK` — Pagination
 
-## 13.4 Get Certification Application Detail (Admin)
+## 13.5 Get Certification Application Detail (Admin)
 | Field | Value |
 |-------|-------|
 | **URL** | `GET /api/company-certifications/{certificationId}` |
@@ -3145,7 +3223,24 @@ size: Integer (default: 20)
 
 **Response** `200 OK`
 
-## 13.5 Process Certification Review (Admin)
+## 13.6 Download Certification Document (Admin)
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/company-certifications/{certificationId}/documents/{documentId}` |
+| **Auth** | `[ADMIN]` |
+| **Description** | Download one submitted document through an authenticated admin API. |
+
+**Response** `200 OK`
+```
+Content-Type: application/pdf
+Content-Disposition: attachment; filename*=UTF-8''business-license.pdf
+```
+
+**Errors**
+- `403 Forbidden` — non-admin access.
+- `404 Not Found` — document does not belong to the certification or does not exist.
+
+## 13.7 Process Certification Review (Admin)
 | Field | Value |
 |-------|-------|
 | **URL** | `PUT /api/company-certifications/{certificationId}` |
@@ -3169,6 +3264,12 @@ size: Integer (default: 20)
   "approvedAt": "2026-02-19T15:00:00"
 }
 ```
+
+**Status Rules**
+- `PENDING → APPROVED`: issue `certificationCode`, set `approvedAt`, and enable business subscription payment.
+- `PENDING → REVISION_REQUESTED`: store `adminNote`; user may resubmit documents through §13.2.
+- `PENDING → REJECTED`: store `adminNote`; user may submit a new application through §13.1.
+- `REVISION_REQUESTED → PENDING`: only the user resubmission API performs this transition.
 
 ---
 
@@ -3656,7 +3757,7 @@ key: String (required) — setting key name
 
 ---
 
-# Full API Summary (145)
+# Full API Summary (147)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -3672,10 +3773,10 @@ key: String (required) — setting key name
 | 10 | Likes (Favorites) | 6 |
 | 11 | Download Queue / History | 5 |
 | 12 | Whitelist Channels | 9 |
-| 13 | Company Certification | 5 |
+| 13 | Company Certification | 7 |
 | 14 | Utility / Auth | 12 |
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
 | 18 | Admin Payment Operations | 24 |
-| | **Total** | **145** |
+| | **Total** | **147** |

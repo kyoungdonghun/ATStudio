@@ -103,6 +103,113 @@
   white-space: pre-wrap;
 }
 
+/* ── Action panels ── */
+
+.resubmitPanel,
+.actionPanel {
+  margin-top: 20px;
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+}
+
+.panelTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text0);
+  margin: 0 0 8px;
+}
+
+.panelDesc {
+  font-size: 14px;
+  color: var(--text2);
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+
+.dropZone {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px;
+  background: var(--bg2);
+  border: 1px dashed var(--border2);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text2);
+  font-size: 13px;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.dropZone:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.fileHidden {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.fileHint {
+  font-size: 12px;
+  color: var(--text2);
+  margin: 8px 0 0;
+}
+
+.fileList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.fileItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text1);
+}
+
+.fileItemName {
+  min-width: 0;
+  word-break: break-all;
+}
+
+.fileRemoveBtn {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.fileRemoveBtn:hover {
+  color: var(--error);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
 /* ── Empty state ── */
 
 .empty {

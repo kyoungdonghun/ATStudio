@@ -8,6 +8,8 @@ public record CompanyCertificationSummaryResponse(
         Long id,
         Long userId,
         String userNickname,
+        String userEmail,
+        String companyName,
         String status,
         LocalDateTime createdAt
 ) {
@@ -16,6 +18,8 @@ public record CompanyCertificationSummaryResponse(
                 cert.getId(),
                 cert.getUser().getId(),
                 cert.getUser().getNickname(),
+                cert.getUser().getEmail(),
+                cert.getUser().getCompanyName(),
                 cert.getStatus().name(),
                 cert.getCreatedAt()
         );

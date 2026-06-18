@@ -7,6 +7,8 @@ import com.atstudio.atstudio.common.exception.BusinessException;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.time.LocalDateTime;
 
 @Entity
@@ -36,6 +38,10 @@ public class CompanyCertification extends BaseEntity {
     @Column(nullable = false, length = 500)
     private String documentPath;
 
+    @Builder.Default
+    @OneToMany(mappedBy = "certification", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CompanyCertificationDocument> documents = new ArrayList<>();
+
     @Column(length = 50, unique = true)
     private String certificationCode;
 
@@ -48,6 +54,24 @@ public class CompanyCertification extends BaseEntity {
         this.adminNote = adminNote;
         this.certificationCode = certificationCode;
         this.approvedAt = approvedAt;
+    }
+
+    public void updateDocumentPath(String documentPath) {
+        this.documentPath = documentPath;
+    }
+
+    public void clearDocuments() {
+        this.documents.clear();
+    }
+
+    public void addDocument(String originalFilename, String storedPath, String contentType, Long sizeBytes) {
+        this.documents.add(CompanyCertificationDocument.builder()
+                .certification(this)
+                .originalFilename(originalFilename)
+                .storedPath(storedPath)
+                .contentType(contentType)
+                .sizeBytes(sizeBytes)
+                .build());
     }
 
     private void validateTransition(CompanyCertificationStatus from, CompanyCertificationStatus to) {

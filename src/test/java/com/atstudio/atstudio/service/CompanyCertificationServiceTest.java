@@ -11,6 +11,7 @@ import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.CompanyCertificationStatus;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
+import com.atstudio.atstudio.repository.CompanyCertificationDocumentRepository;
 import com.atstudio.atstudio.repository.CompanyCertificationRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
@@ -43,6 +44,7 @@ import static org.mockito.Mockito.verify;
 class CompanyCertificationServiceTest {
 
     @Mock CompanyCertificationRepository certificationRepository;
+    @Mock CompanyCertificationDocumentRepository documentRepository;
     @Mock UserRepository userRepository;
     @Mock StorageService storageService;
 
@@ -58,15 +60,17 @@ class CompanyCertificationServiceTest {
         @DisplayName("성공 - BUSINESS 회원 정상 신청")
         void apply_success() {
             User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
-            CompanyCertification saved = buildCertification(1L, user,
-                    CompanyCertificationStatus.PENDING, "/uploads/company-docs/1/");
-
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList()))
                     .willReturn(false);
-            given(storageService.store(any(MultipartFile.class), eq("company-docs/1")))
+            given(storageService.store(any(MultipartFile.class), startsWith("company-docs/1/")))
                     .willReturn("company-docs/1/doc.pdf");
-            given(certificationRepository.save(any(CompanyCertification.class))).willReturn(saved);
+            given(certificationRepository.save(any(CompanyCertification.class)))
+                    .willAnswer(invocation -> {
+                        CompanyCertification certification = invocation.getArgument(0);
+                        ReflectionTestUtils.setField(certification, "id", 1L);
+                        return certification;
+                    });
 
             List<MultipartFile> documents = List.of(
                     new MockMultipartFile("documents", "doc.pdf",
@@ -77,8 +81,9 @@ class CompanyCertificationServiceTest {
 
             assertThat(result.id()).isEqualTo(1L);
             assertThat(result.status()).isEqualTo("PENDING");
-            assertThat(result.documentPath()).isEqualTo("/uploads/company-docs/1/");
-            verify(storageService).store(any(MultipartFile.class), eq("company-docs/1"));
+            assertThat(result.documentPath()).startsWith("/uploads/company-docs/1/");
+            assertThat(result.documents()).hasSize(1);
+            verify(storageService).store(any(MultipartFile.class), startsWith("company-docs/1/"));
         }
 
         @Test
@@ -140,6 +145,70 @@ class CompanyCertificationServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.RESOURCE_DUPLICATE));
+        }
+
+        @Test
+        @DisplayName("실패 - REVISION_REQUESTED 신청 이미 존재 시 RESOURCE_DUPLICATE")
+        void apply_duplicateRevisionRequested() {
+            User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList()))
+                    .willReturn(true);
+
+            assertThatThrownBy(() -> certificationService.apply(
+                    buildUserDetails(1L, UserRole.USER), List.of()))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.RESOURCE_DUPLICATE));
+        }
+    }
+
+    // ── 13.2 resubmit ───────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("resubmit()")
+    class Resubmit {
+
+        @Test
+        @DisplayName("성공 - REVISION_REQUESTED 상태에서 보완 서류 재제출")
+        void resubmit_success() {
+            User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+            CompanyCertification cert = buildCertification(1L, user,
+                    CompanyCertificationStatus.REVISION_REQUESTED, "/uploads/company-docs/1/old/");
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(certificationRepository.findTopByUserOrderByCreatedAtDesc(user)).willReturn(Optional.of(cert));
+            given(storageService.store(any(MultipartFile.class), startsWith("company-docs/1/")))
+                    .willReturn("company-docs/1/new/doc.pdf");
+
+            List<MultipartFile> documents = List.of(
+                    new MockMultipartFile("documents", "doc.pdf",
+                            "application/pdf", new byte[]{1, 2, 3}));
+
+            CompanyCertificationResponse result = certificationService.resubmit(
+                    buildUserDetails(1L, UserRole.USER), documents);
+
+            assertThat(result.status()).isEqualTo("PENDING");
+            assertThat(result.adminNote()).isNull();
+            assertThat(result.documents()).hasSize(1);
+            verify(storageService).store(any(MultipartFile.class), startsWith("company-docs/1/"));
+        }
+
+        @Test
+        @DisplayName("실패 - REVISION_REQUESTED가 아니면 INVALID_STATE_TRANSITION")
+        void resubmit_invalidState() {
+            User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+            CompanyCertification cert = buildCertification(1L, user,
+                    CompanyCertificationStatus.PENDING, "/uploads/company-docs/1/");
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(certificationRepository.findTopByUserOrderByCreatedAtDesc(user)).willReturn(Optional.of(cert));
+
+            assertThatThrownBy(() -> certificationService.resubmit(
+                    buildUserDetails(1L, UserRole.USER), List.of()))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.INVALID_STATE_TRANSITION));
         }
     }
 

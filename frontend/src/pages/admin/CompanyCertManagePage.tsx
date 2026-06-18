@@ -1,20 +1,44 @@
 /** Screen K-5: Company certification review */
 import { useEffect, useState, useCallback } from 'react';
-import { fetchCompanyCerts, processCompanyCert } from '@/api/admin';
-import type { CompanyCertificationSummary, CertificationStatus, PageInfo } from '@/types';
-import { formatDate } from '@/utils/format';
+import {
+  downloadCompanyCertDocument,
+  fetchCompanyCert,
+  fetchCompanyCerts,
+  processCompanyCert,
+} from '@/api/admin';
+import type {
+  CompanyCertification,
+  CompanyCertificationDocument,
+  CompanyCertificationSummary,
+  CertificationStatus,
+  PageInfo,
+} from '@/types';
+import { formatDate, formatDateTime } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Pagination from '@/components/ui/Pagination';
 import styles from './CompanyCertManagePage.module.css';
 
 const STATUS_OPTIONS: Array<{ label: string; value: CertificationStatus | '' }> = [
-  { label: 'All', value: '' },
-  { label: 'Pending', value: 'PENDING' },
-  { label: 'Approved', value: 'APPROVED' },
-  { label: 'Rejected', value: 'REJECTED' },
-  { label: 'Revision Requested', value: 'REVISION_REQUESTED' },
+  { label: '전체', value: '' },
+  { label: '심사중', value: 'PENDING' },
+  { label: '승인', value: 'APPROVED' },
+  { label: '반려', value: 'REJECTED' },
+  { label: '보완 요청', value: 'REVISION_REQUESTED' },
 ];
+
+const STATUS_LABELS: Record<CertificationStatus, string> = {
+  PENDING: '심사중',
+  APPROVED: '승인',
+  REJECTED: '반려',
+  REVISION_REQUESTED: '보완 요청',
+};
+
+const REVIEW_ACTION_LABELS: Record<Exclude<CertificationStatus, 'PENDING'>, string> = {
+  APPROVED: '승인',
+  REVISION_REQUESTED: '보완 요청',
+  REJECTED: '반려',
+};
 
 function statusClass(status: CertificationStatus): string {
   const map: Record<CertificationStatus, string> = {
@@ -26,6 +50,12 @@ function statusClass(status: CertificationStatus): string {
   return `${styles.statusBadge} ${map[status] ?? ''}`;
 }
 
+function formatBytes(sizeBytes: number): string {
+  if (sizeBytes < 1024) return `${sizeBytes} B`;
+  if (sizeBytes < 1024 * 1024) return `${Math.round(sizeBytes / 1024)} KB`;
+  return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export default function CompanyCertManagePage() {
   const [certs, setCerts] = useState<CompanyCertificationSummary[]>([]);
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
@@ -34,11 +64,14 @@ export default function CompanyCertManagePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  /* Review modal */
-  const [reviewTarget, setReviewTarget] = useState<{
-    cert: CompanyCertificationSummary;
-    action: 'APPROVED' | 'REJECTED';
-  } | null>(null);
+  const [detail, setDetail] = useState<CompanyCertification | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [downloadId, setDownloadId] = useState<number | null>(null);
+
+  const [reviewAction, setReviewAction] = useState<Exclude<CertificationStatus, 'PENDING'> | null>(
+    null,
+  );
   const [adminNote, setAdminNote] = useState('');
   const [reviewLoading, setReviewLoading] = useState(false);
 
@@ -52,7 +85,7 @@ export default function CompanyCertManagePage() {
         setCerts(result.dataList);
         setPageInfo(result.pageInfo);
       })
-      .catch(() => setError('Failed to load certifications'))
+      .catch(() => setError('기업 인증 신청 목록을 불러오지 못했습니다.'))
       .finally(() => setLoading(false));
   }, [page, statusFilter]);
 
@@ -60,30 +93,73 @@ export default function CompanyCertManagePage() {
     loadCerts();
   }, [loadCerts]);
 
-  const openReview = (
-    cert: CompanyCertificationSummary,
-    action: 'APPROVED' | 'REJECTED',
-  ) => {
-    setReviewTarget({ cert, action });
-    setAdminNote('');
-  };
+  async function openDetail(certId: number) {
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(true);
+    try {
+      const data = await fetchCompanyCert(certId);
+      setDetail(data);
+    } catch {
+      setDetailError('기업 인증 신청 상세를 불러오지 못했습니다.');
+    } finally {
+      setDetailLoading(false);
+    }
+  }
 
-  const confirmReview = async () => {
-    if (!reviewTarget) return;
+  function closeDetail() {
+    setDetail(null);
+    setDetailError(null);
+    setReviewAction(null);
+    setAdminNote('');
+  }
+
+  function openReview(action: Exclude<CertificationStatus, 'PENDING'>) {
+    setReviewAction(action);
+    setAdminNote('');
+  }
+
+  async function refreshDetail(certId: number) {
+    const data = await fetchCompanyCert(certId);
+    setDetail(data);
+  }
+
+  async function confirmReview() {
+    if (!detail || !reviewAction) return;
     setReviewLoading(true);
     try {
-      await processCompanyCert(reviewTarget.cert.id, {
-        status: reviewTarget.action,
+      await processCompanyCert(detail.id, {
+        status: reviewAction,
         adminNote: adminNote || undefined,
       });
-      setReviewTarget(null);
+      setReviewAction(null);
+      setAdminNote('');
+      await refreshDetail(detail.id);
       loadCerts();
     } catch {
-      setError('Failed to process certification');
+      setDetailError('기업 인증 심사 처리에 실패했습니다.');
     } finally {
       setReviewLoading(false);
     }
-  };
+  }
+
+  async function handleDownload(document: CompanyCertificationDocument) {
+    if (!detail) return;
+    setDownloadId(document.id);
+    try {
+      const { blob, fileName } = await downloadCompanyCertDocument(detail.id, document.id);
+      const url = window.URL.createObjectURL(blob);
+      const link = window.document.createElement('a');
+      link.href = url;
+      link.download = fileName || document.originalFilename;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setDetailError('서류 다운로드에 실패했습니다.');
+    } finally {
+      setDownloadId(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -103,11 +179,10 @@ export default function CompanyCertManagePage() {
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>Company Certification Review</h1>
+      <h1 className={styles.title}>기업 인증 심사</h1>
 
-      {/* Status Filter */}
       <div className={styles.filterBar}>
-        <span className={styles.filterLabel}>Status:</span>
+        <span className={styles.filterLabel}>상태</span>
         <select
           className={styles.filterSelect}
           value={statusFilter}
@@ -124,107 +199,174 @@ export default function CompanyCertManagePage() {
         </select>
       </div>
 
-      {/* Table */}
       <div className={styles.tableWrap}>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>User</th>
-            <th>Status</th>
-            <th>Applied</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {certs.length === 0 && (
+        <table className={styles.table}>
+          <thead>
             <tr>
-              <td colSpan={5} className={styles.empty}>
-                No certification applications found.
-              </td>
+              <th>ID</th>
+              <th>신청자</th>
+              <th>회사명</th>
+              <th>상태</th>
+              <th>신청일</th>
+              <th>작업</th>
             </tr>
-          )}
-          {certs.map((cert) => (
-            <tr key={cert.id} className={styles.row}>
-              <td>{cert.id}</td>
-              <td>{cert.userNickname}</td>
-              <td>
-                <span className={statusClass(cert.status)}>
-                  {cert.status}
-                </span>
-              </td>
-              <td>{formatDate(cert.createdAt)}</td>
-              <td>
-                {cert.status === 'PENDING' && (
-                  <div className={styles.actionBtns}>
-                    <Button
-                      size="sm"
-                      onClick={() => openReview(cert, 'APPROVED')}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => openReview(cert, 'REJECTED')}
-                    >
-                      Reject
-                    </Button>
+          </thead>
+          <tbody>
+            {certs.length === 0 && (
+              <tr>
+                <td colSpan={6} className={styles.empty}>
+                  기업 인증 신청 내역이 없습니다.
+                </td>
+              </tr>
+            )}
+            {certs.map((cert) => (
+              <tr key={cert.id} className={styles.row}>
+                <td>{cert.id}</td>
+                <td>
+                  <div className={styles.userCell}>
+                    <strong>{cert.userNickname}</strong>
+                    <span>{cert.userEmail}</span>
                   </div>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                </td>
+                <td>{cert.companyName ?? '-'}</td>
+                <td>
+                  <span className={statusClass(cert.status)}>{STATUS_LABELS[cert.status]}</span>
+                </td>
+                <td>{formatDate(cert.createdAt)}</td>
+                <td>
+                  <Button variant="outline" size="sm" onClick={() => openDetail(cert.id)}>
+                    상세
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {pageInfo && pageInfo.total > pageInfo.size && (
         <Pagination pageInfo={pageInfo} currentPage={page} onPageChange={setPage} />
       )}
 
-      {/* Review confirm modal */}
       <Modal
-        open={reviewTarget !== null}
-        onClose={() => setReviewTarget(null)}
-        title={
-          reviewTarget?.action === 'APPROVED'
-            ? 'Approve Certification'
-            : 'Reject Certification'
-        }
+        open={detailLoading || detail !== null || detailError !== null}
+        onClose={closeDetail}
+        title="기업 인증 상세"
       >
         <div className={styles.modalBody}>
-          <div>
-            {reviewTarget?.action === 'APPROVED'
-              ? 'Approve'
-              : 'Reject'}{' '}
-            certification for{' '}
-            <strong>{reviewTarget?.cert.userNickname}</strong>?
-          </div>
+          {detailLoading && <div className={styles.loadingInline}>상세를 불러오는 중...</div>}
+          {detailError && <div className={styles.modalError}>{detailError}</div>}
+          {detail && (
+            <>
+              <div className={styles.detailGrid}>
+                <div>
+                  <span className={styles.detailLabel}>신청자</span>
+                  <strong>{detail.userNickname}</strong>
+                  <span>{detail.userEmail}</span>
+                </div>
+                <div>
+                  <span className={styles.detailLabel}>회사명</span>
+                  <strong>{detail.companyName ?? '-'}</strong>
+                  <span>{detail.phoneCompany ?? '-'}</span>
+                </div>
+                <div>
+                  <span className={styles.detailLabel}>상태</span>
+                  <span className={statusClass(detail.status)}>{STATUS_LABELS[detail.status]}</span>
+                </div>
+                <div>
+                  <span className={styles.detailLabel}>신청일</span>
+                  <strong>{formatDateTime(detail.createdAt)}</strong>
+                </div>
+              </div>
+
+              {detail.adminNote && (
+                <div className={styles.noteBox}>
+                  <span className={styles.detailLabel}>관리자 메모</span>
+                  <p>{detail.adminNote}</p>
+                </div>
+              )}
+
+              <div className={styles.documentsBlock}>
+                <h3 className={styles.sectionTitle}>제출 서류</h3>
+                {detail.documents.length === 0 ? (
+                  <p className={styles.emptyDocuments}>
+                    개별 서류 메타데이터가 없습니다. 이전 방식으로 저장된 신청일 수 있습니다.
+                  </p>
+                ) : (
+                  <div className={styles.documentList}>
+                    {detail.documents.map((document) => (
+                      <div key={document.id} className={styles.documentItem}>
+                        <div className={styles.documentMeta}>
+                          <strong>{document.originalFilename}</strong>
+                          <span>
+                            {`${formatBytes(document.sizeBytes)} · ${document.contentType ?? 'unknown'}`}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={downloadId === document.id}
+                          onClick={() => handleDownload(document)}
+                        >
+                          다운로드
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {detail.status === 'PENDING' && (
+                <div className={styles.reviewActions}>
+                  <Button size="sm" onClick={() => openReview('APPROVED')}>
+                    승인
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openReview('REVISION_REQUESTED')}
+                  >
+                    보완 요청
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={() => openReview('REJECTED')}>
+                    반려
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </Modal>
+
+      <Modal
+        open={reviewAction !== null}
+        onClose={() => setReviewAction(null)}
+        title={reviewAction ? `${REVIEW_ACTION_LABELS[reviewAction]} 처리` : '심사 처리'}
+      >
+        <div className={styles.modalBody}>
+          <p className={styles.confirmText}>
+            {reviewAction
+              ? `${detail?.userNickname ?? '신청자'}의 기업 인증을 ${REVIEW_ACTION_LABELS[reviewAction]} 처리합니다.`
+              : ''}
+          </p>
           <textarea
             className={styles.noteInput}
-            placeholder="Admin note (optional)"
+            placeholder="관리자 메모 (보완 요청/반려 시 사유를 적어주세요)"
             value={adminNote}
             onChange={(e) => setAdminNote(e.target.value)}
           />
         </div>
         <div className={styles.modalActions}>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setReviewTarget(null)}
-          >
-            Cancel
+          <Button variant="ghost" size="sm" onClick={() => setReviewAction(null)}>
+            취소
           </Button>
           <Button
-            variant={
-              reviewTarget?.action === 'APPROVED' ? 'primary' : 'danger'
-            }
+            variant={reviewAction === 'REJECTED' ? 'danger' : 'primary'}
             size="sm"
             loading={reviewLoading}
             onClick={confirmReview}
           >
-            {reviewTarget?.action === 'APPROVED' ? 'Approve' : 'Reject'}
+            {reviewAction ? REVIEW_ACTION_LABELS[reviewAction] : '확인'}
           </Button>
         </div>
       </Modal>

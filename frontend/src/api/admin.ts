@@ -101,6 +101,26 @@ export async function processCompanyCert(
   return data.data;
 }
 
+export async function downloadCompanyCertDocument(
+  certId: number,
+  documentId: number,
+): Promise<{ blob: Blob; fileName: string }> {
+  const response = await client.get<Blob>(
+    `/company-certifications/${certId}/documents/${documentId}`,
+    { responseType: 'blob' },
+  );
+  const disposition = response.headers['content-disposition'];
+  const fileNameMatch =
+    typeof disposition === 'string'
+      ? disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/)
+      : null;
+  const encodedName = fileNameMatch?.[1] ?? fileNameMatch?.[2];
+  const fileName = encodedName
+    ? decodeURIComponent(encodedName)
+    : `company-certification-${documentId}`;
+  return { blob: response.data, fileName };
+}
+
 /* ── Whitelist Channel Operations ── */
 
 export interface AdminWhitelistChannel {
@@ -157,22 +177,17 @@ export async function exportAdminWhitelistChannels(
   status?: WhitelistChannelStatus,
   note?: string,
 ): Promise<{ blob: Blob; fileName: string }> {
-  const response = await client.post<Blob>(
-    '/admin/whitelist-channels/export',
-    null,
-    {
-      params: { status, note },
-      responseType: 'blob',
-    },
-  );
+  const response = await client.post<Blob>('/admin/whitelist-channels/export', null, {
+    params: { status, note },
+    responseType: 'blob',
+  });
   const disposition = response.headers['content-disposition'];
-  const fileNameMatch = typeof disposition === 'string'
-    ? disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/)
-    : null;
+  const fileNameMatch =
+    typeof disposition === 'string'
+      ? disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/)
+      : null;
   const encodedName = fileNameMatch?.[1] ?? fileNameMatch?.[2];
-  const fileName = encodedName
-    ? decodeURIComponent(encodedName)
-    : 'whitelist-channels.csv';
+  const fileName = encodedName ? decodeURIComponent(encodedName) : 'whitelist-channels.csv';
   return { blob: response.data, fileName };
 }
 

@@ -13,7 +13,7 @@
 | **Version** | 26-02-20 |
 | **Description** | Member selects a subscription plan and pays to start a subscription. BUSINESS type members can only subscribe after company certification review approval. |
 | **Actor** | User (Member), Backend, Payment Gateway (PG) |
-| **Preconditions** | Logged in. At least one subscription plan exists in DB. If BUSINESS type: CC-001~005 review approved (company_certifications.status=APPROVED). |
+| **Preconditions** | Logged in. At least one subscription plan exists in DB. If BUSINESS type: company certification review approved (CC-001~007, company_certifications.status=APPROVED). |
 | **Trigger** | User clicks the 'Subscribe' button on a specific plan in the subscription plan list screen. |
 | **Related UC** | PAYMENT-002 (list plans), PAYMENT-006 (view my subscription), CC-001 (apply for company certification) |
 

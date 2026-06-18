@@ -115,6 +115,24 @@
   gap: 6px;
 }
 
+.userCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.userCell strong {
+  color: var(--text0);
+  font-size: 14px;
+}
+
+.userCell span {
+  color: var(--text2);
+  font-size: 12px;
+  word-break: break-all;
+}
+
 .empty {
   text-align: center;
   padding: 48px 0;
@@ -145,7 +163,10 @@
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .pageBtn:hover:not(:disabled) {
@@ -171,6 +192,130 @@
   font-size: 14px;
   color: var(--text0);
   line-height: 1.6;
+}
+
+.loadingInline {
+  color: var(--text2);
+  padding: 24px 0;
+  text-align: center;
+}
+
+.modalError {
+  color: var(--error);
+  font-size: 13px;
+  padding: 12px;
+  background: var(--error-dim);
+  border: 1px solid var(--error-border);
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.detailGrid > div,
+.noteBox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 0;
+}
+
+.detailGrid strong,
+.detailGrid span {
+  word-break: break-all;
+}
+
+.detailLabel {
+  color: var(--text2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.noteBox {
+  margin-bottom: 16px;
+}
+
+.noteBox p {
+  margin: 0;
+  color: var(--text1);
+  white-space: pre-wrap;
+}
+
+.documentsBlock {
+  margin-top: 16px;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text0);
+  margin: 0 0 10px;
+}
+
+.documentList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.documentItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.documentMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.documentMeta strong {
+  color: var(--text0);
+  word-break: break-all;
+}
+
+.documentMeta span {
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.emptyDocuments {
+  color: var(--text2);
+  font-size: 13px;
+  margin: 0;
+  padding: 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+}
+
+.reviewActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.confirmText {
+  margin: 0;
+  color: var(--text1);
 }
 
 .noteInput {
@@ -241,11 +386,20 @@
     gap: 4px;
   }
 
-  /* Hide ID(1), Applied(4) on mobile */
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .documentItem {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  /* Hide ID(1), Applied(5) on mobile */
   .table th:nth-child(1),
   .table td:nth-child(1),
-  .table th:nth-child(4),
-  .table td:nth-child(4) {
+  .table th:nth-child(5),
+  .table td:nth-child(5) {
     display: none;
   }
 }

@@ -1,8 +1,8 @@
 # Use Case Specification Index
 
-> **Version**: v11
-> **Confirmed date**: 2026-06-15
-> **Reference documents**: `docs/design/db-schema.md` (v12), `docs/design/api-spec.md` (v17)
+> **Version**: v12
+> **Confirmed date**: 2026-06-18
+> **Reference documents**: `docs/design/db-schema.md` (v13), `docs/design/api-spec.md` (v18)
 > **Source**: `docs/ui/usecase-spec csv/`
 
 ---
@@ -23,12 +23,12 @@
 | `likes.md` | Likes (add/list/remove, track + album) | 6 |
 | `download-queue.md` | Download queue (add/list/remove) | 3 |
 | `whitelist.md` | Whitelist channel (save/list/update/delete/request/primary/admin/export) | 8 |
-| `company-certification.md` | Company certification (apply/view status/admin management) | 5 |
+| `company-certification.md` | Company certification (apply/resubmit/view status/admin review/protected documents) | 7 |
 | `business-license.md` | Legacy redirect stub (moved to `company-certification.md`) | - |
 | `util.md` | Utility (duplicate check/token/subscription status/download count/email verify/password reset/public capabilities/site settings) | 14 |
 | `sound-album.md` | Album (create/list/detail/update/delete/add track/remove track/reorder/likes cross-ref) | 9 |
 
-**Total UC count: 107** (net +4 vs v10: whitelist workflow/admin export added)
+**Total UC count: 109** (net +2 vs v11: company certification resubmission and protected document download added)
 
 ---
 
@@ -141,10 +141,12 @@
 | Code | Title | File |
 |------|-------|------|
 | CC-001 | Apply for company certification | `company-certification.md` |
-| CC-002 | View my application status | `company-certification.md` |
-| CC-003 | List applications (Admin) | `company-certification.md` |
-| CC-004 | View application detail (Admin) | `company-certification.md` |
-| CC-005 | Process review (Admin) | `company-certification.md` |
+| CC-002 | Resubmit documents after revision request | `company-certification.md` |
+| CC-003 | View my application status | `company-certification.md` |
+| CC-004 | List applications (Admin) | `company-certification.md` |
+| CC-005 | View application detail and documents (Admin) | `company-certification.md` |
+| CC-006 | Process review (Admin) | `company-certification.md` |
+| CC-007 | Protect company certification documents | `company-certification.md` |
 
 ### Album
 

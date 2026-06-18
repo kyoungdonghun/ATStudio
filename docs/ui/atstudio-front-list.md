@@ -1,6 +1,6 @@
 # ATStudio 화면 목록 (Frontend)
 
-> API Spec v17 기준 | updated 2026-06-03
+> API Spec v18 기준 | updated 2026-06-18
 > `[PUBLIC]` = 인증 불필요 / `auth required` = 로그인 필요 / `[ADMIN]` = 관리자 전용 / `⚠️` = API 미정의
 
 > `🗑️ 삭제` = 상세/목록 페이지에서 `confirm()` 처리 / 회원탈퇴만 비밀번호 재확인 모달
@@ -105,7 +105,7 @@
 | No | 화면명 | 관련 API | 인증 |
 |----|--------|---------|------|
 | I-1 | 기업 인증 신청 | `13.1 POST /api/company-certifications` | auth required |
-| I-2 | 기업 인증 현황 | `13.2 GET /api/company-certifications/me` | auth required |
+| I-2 | 기업 인증 현황 / 보완 재제출 | `13.2 POST /api/company-certifications/me/documents` `13.3 GET /api/company-certifications/me` | auth required |
 
 ---
 
@@ -140,7 +140,7 @@
 | K-2b | 사용자 구독 목록 / 강제 취소 (SR-14) | `6.5 GET /api/user-subscriptions` `6.6 GET` `6.8 PUT` `6.9 DELETE` | [ADMIN] |
 | K-3 | 라이선스 조회 (회원별) | `7.2 GET /api/users/{userId}/licenses` `7.4 GET /api/users/{userId}/licenses/{licenseId}` | [ADMIN] |
 | K-4 | 문의 관리 (상태 변경) | `8.3 GET /api/questions` `8.6 PUT /api/questions/{id}/status` | [ADMIN] |
-| K-5 | 기업 인증 목록 / 심사 처리 | `13.3 GET /api/company-certifications` `13.4 GET` `13.5 PUT` | [ADMIN] |
+| K-5 | 기업 인증 목록 / 상세 / 문서 다운로드 / 심사 처리 | `13.4 GET /api/company-certifications` `13.5 GET` `13.6 GET document` `13.7 PUT` | [ADMIN] |
 | K-6 | 태그 관리 (생성/수정/삭제) | `2.1 POST /api/tags` `2.3 PUT` `2.4 DELETE` | [ADMIN] |
 | K-7 | 트랙 관리 (전체 목록 + 활성화/삭제) | `1.8 GET /api/tracks/admin` `1.6 PUT /api/tracks/{id}` `1.7 DELETE /api/tracks/{id}` | [ADMIN] |
 | K-11 | 화이트리스트 운영 | `12.7~12.9 /api/admin/whitelist-channels` | [ADMIN] |

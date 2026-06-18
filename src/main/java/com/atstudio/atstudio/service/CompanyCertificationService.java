@@ -1,22 +1,26 @@
 package com.atstudio.atstudio.service;
 
-import com.atstudio.atstudio.common.validation.ValidationConstants;
 import com.atstudio.atstudio.common.dto.PageInfo;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.common.validation.ValidationConstants;
+import com.atstudio.atstudio.dto.certification.CompanyCertificationDocumentDownload;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationResponse;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationReviewRequest;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationSummaryResponse;
 import com.atstudio.atstudio.entity.CompanyCertification;
+import com.atstudio.atstudio.entity.CompanyCertificationDocument;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.CompanyCertificationStatus;
 import com.atstudio.atstudio.entity.enums.UserType;
+import com.atstudio.atstudio.repository.CompanyCertificationDocumentRepository;
 import com.atstudio.atstudio.repository.CompanyCertificationRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -34,7 +39,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CompanyCertificationService {
 
+    private static final List<CompanyCertificationStatus> OPEN_OR_LOCKED_STATUSES = List.of(
+            CompanyCertificationStatus.PENDING,
+            CompanyCertificationStatus.APPROVED,
+            CompanyCertificationStatus.REVISION_REQUESTED
+    );
+
     private final CompanyCertificationRepository certificationRepository;
+    private final CompanyCertificationDocumentRepository documentRepository;
     private final UserRepository userRepository;
     private final StorageService storageService;
 
@@ -43,43 +55,87 @@ public class CompanyCertificationService {
     @Transactional
     public CompanyCertificationResponse apply(CustomUserDetails userDetails,
                                                List<MultipartFile> documents) {
-        User user = userRepository.findById(userDetails.getId())
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        User user = findUser(userDetails);
 
         if (user.getUserType() != UserType.BUSINESS) {
             throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
         }
 
-        boolean hasPendingOrApproved = certificationRepository.existsByUserAndStatusIn(
-                user, List.of(CompanyCertificationStatus.PENDING, CompanyCertificationStatus.APPROVED));
-        if (hasPendingOrApproved) {
+        boolean hasOpenOrLockedCertification = certificationRepository.existsByUserAndStatusIn(
+                user,
+                OPEN_OR_LOCKED_STATUSES
+        );
+        if (hasOpenOrLockedCertification) {
             throw new BusinessException(BUSINESS_ERROR.RESOURCE_DUPLICATE);
         }
 
-        validateDocuments(documents);
-        String documentPath = storeDocuments(user.getId(), documents);
+        List<MultipartFile> validDocuments = validateDocuments(documents);
+        String directory = buildDocumentDirectory(user.getId());
 
         CompanyCertification certification = CompanyCertification.builder()
                 .user(user)
-                .documentPath(documentPath)
+                .documentPath(toPublicDocumentDirectory(directory))
                 .build();
+        for (StoredCertificationDocument stored : storeDocuments(directory, validDocuments)) {
+            certification.addDocument(
+                    stored.originalFilename(),
+                    stored.storedPath(),
+                    stored.contentType(),
+                    stored.sizeBytes()
+            );
+        }
+
         certification = certificationRepository.save(certification);
+        return CompanyCertificationResponse.from(certification);
+    }
+
+    // ── 13.2 POST /api/company-certifications/me/documents ───────────────────
+
+    @Transactional
+    public CompanyCertificationResponse resubmit(CustomUserDetails userDetails,
+                                                 List<MultipartFile> documents) {
+        User user = findUser(userDetails);
+
+        if (user.getUserType() != UserType.BUSINESS) {
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
+        }
+
+        CompanyCertification certification = certificationRepository.findTopByUserOrderByCreatedAtDesc(user)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        if (certification.getStatus() != CompanyCertificationStatus.REVISION_REQUESTED) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_STATE_TRANSITION);
+        }
+
+        List<MultipartFile> validDocuments = validateDocuments(documents);
+        String directory = buildDocumentDirectory(user.getId());
+        List<StoredCertificationDocument> storedDocuments = storeDocuments(directory, validDocuments);
+
+        deleteStoredDocuments(certification);
+        certification.clearDocuments();
+        certification.updateDocumentPath(toPublicDocumentDirectory(directory));
+        storedDocuments.forEach(stored ->
+                certification.addDocument(
+                        stored.originalFilename(),
+                        stored.storedPath(),
+                        stored.contentType(),
+                        stored.sizeBytes()
+                ));
+        certification.process(CompanyCertificationStatus.PENDING, null, null, null);
 
         return CompanyCertificationResponse.from(certification);
     }
 
-    // ── 13.2 GET /api/company-certifications/me ──────────────────────────────
+    // ── 13.3 GET /api/company-certifications/me ──────────────────────────────
 
     public CompanyCertificationResponse getMyStatus(CustomUserDetails userDetails) {
-        User user = userRepository.findById(userDetails.getId())
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        User user = findUser(userDetails);
 
         return certificationRepository.findTopByUserOrderByCreatedAtDesc(user)
                 .map(CompanyCertificationResponse::from)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
     }
 
-    // ── 13.3 GET /api/company-certifications ─────────────────────────────────
+    // ── 13.4 GET /api/company-certifications ─────────────────────────────────
 
     public ResponseDTO<CompanyCertificationSummaryResponse> listAll(String status,
                                                                      int page, int size) {
@@ -110,7 +166,7 @@ public class CompanyCertificationService {
                 .build();
     }
 
-    // ── 13.4 GET /api/company-certifications/{certificationId} ───────────────
+    // ── 13.5 GET /api/company-certifications/{certificationId} ───────────────
 
     public CompanyCertificationResponse getDetail(Long certificationId) {
         CompanyCertification certification = certificationRepository.findById(certificationId)
@@ -119,7 +175,23 @@ public class CompanyCertificationService {
         return CompanyCertificationResponse.from(certification);
     }
 
-    // ── 13.5 PUT /api/company-certifications/{certificationId} ───────────────
+    // ── 13.6 GET /api/company-certifications/{certificationId}/documents/{documentId}
+
+    public CompanyCertificationDocumentDownload downloadDocument(Long certificationId, Long documentId) {
+        CompanyCertificationDocument document = documentRepository.findByIdAndCertificationId(
+                        documentId,
+                        certificationId
+                )
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        Resource resource = storageService.loadAsResource(document.getStoredPath());
+        return new CompanyCertificationDocumentDownload(
+                resource,
+                document.getOriginalFilename(),
+                document.getContentType()
+        );
+    }
+
+    // ── 13.7 PUT /api/company-certifications/{certificationId} ───────────────
 
     @Transactional
     public CompanyCertificationResponse processReview(Long certificationId,
@@ -143,39 +215,81 @@ public class CompanyCertificationService {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private void validateDocuments(List<MultipartFile> documents) {
+    private User findUser(CustomUserDetails userDetails) {
+        return userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+    }
+
+    private List<MultipartFile> validateDocuments(List<MultipartFile> documents) {
         if (documents == null || documents.isEmpty()) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
         }
-        if (documents.size() > ValidationConstants.CERT_DOC_MAX_COUNT) {
+
+        List<MultipartFile> validDocuments = documents.stream()
+                .filter(doc -> doc != null && !doc.isEmpty())
+                .toList();
+        if (validDocuments.isEmpty()) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
         }
-        for (MultipartFile doc : documents) {
-            if (doc.isEmpty()) continue;
-            // 확장자 검증
-            String originalName = doc.getOriginalFilename();
-            if (originalName != null) {
-                String ext = originalName.substring(originalName.lastIndexOf('.') + 1).toLowerCase();
-                if (!ValidationConstants.CERT_DOC_ALLOWED_EXTENSIONS.contains(ext)) {
-                    throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
-                }
+        if (validDocuments.size() > ValidationConstants.CERT_DOC_MAX_COUNT) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+        }
+
+        for (MultipartFile doc : validDocuments) {
+            String originalName = sanitizeOriginalFilename(doc.getOriginalFilename());
+            int extensionIndex = originalName.lastIndexOf('.');
+            if (extensionIndex < 0 || extensionIndex == originalName.length() - 1) {
+                throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
             }
-            // 크기 검증
+            String ext = originalName.substring(extensionIndex + 1).toLowerCase();
+            if (!ValidationConstants.CERT_DOC_ALLOWED_EXTENSIONS.contains(ext)) {
+                throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+            }
             if (doc.getSize() > ValidationConstants.CERT_DOC_MAX_SIZE_BYTES) {
                 throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
             }
         }
+
+        return validDocuments;
     }
 
-    private String storeDocuments(Long userId, List<MultipartFile> documents) {
-        String directory = "company-docs/" + userId;
-        if (documents != null && !documents.isEmpty()) {
-            for (MultipartFile doc : documents) {
-                if (!doc.isEmpty()) {
-                    storageService.store(doc, directory);
-                }
-            }
-        }
+    private List<StoredCertificationDocument> storeDocuments(String directory,
+                                                             List<MultipartFile> documents) {
+        return documents.stream()
+                .map(doc -> new StoredCertificationDocument(
+                        sanitizeOriginalFilename(doc.getOriginalFilename()),
+                        storageService.store(doc, directory),
+                        doc.getContentType(),
+                        doc.getSize()
+                ))
+                .toList();
+    }
+
+    private void deleteStoredDocuments(CompanyCertification certification) {
+        certification.getDocuments().stream()
+                .map(CompanyCertificationDocument::getStoredPath)
+                .forEach(storageService::delete);
+    }
+
+    private String buildDocumentDirectory(Long userId) {
+        return "company-docs/" + userId + "/" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private String toPublicDocumentDirectory(String directory) {
         return "/uploads/" + directory + "/";
     }
+
+    private String sanitizeOriginalFilename(String originalFilename) {
+        if (originalFilename == null || originalFilename.isBlank()) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+        }
+        return Paths.get(originalFilename).getFileName().toString();
+    }
+
+    private record StoredCertificationDocument(
+            String originalFilename,
+            String storedPath,
+            String contentType,
+            long sizeBytes
+    ) {}
 }

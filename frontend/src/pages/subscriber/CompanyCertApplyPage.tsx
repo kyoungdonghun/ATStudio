@@ -23,6 +23,7 @@ export default function CompanyCertApplyPage() {
   const [checking, setChecking] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [existingRejected, setExistingRejected] = useState(false);
   const [guideText, setGuideText] = useState<string | null>(null);
   const [guideLoading, setGuideLoading] = useState(true);
 
@@ -43,7 +44,9 @@ export default function CompanyCertApplyPage() {
     }
 
     loadGuide();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   /* ── Check existing certification ── */
@@ -52,8 +55,12 @@ export default function CompanyCertApplyPage() {
 
     async function checkExisting() {
       try {
-        await fetchMyCompanyCert();
-        // If we get here, user already has a certification
+        const cert = await fetchMyCompanyCert();
+        // Rejected applications are kept for history, but the user may start a new one.
+        if (!cancelled && cert.status === 'REJECTED') {
+          setExistingRejected(true);
+          return;
+        }
         if (!cancelled) {
           navigate('/company-certification/status', { replace: true });
         }
@@ -74,7 +81,9 @@ export default function CompanyCertApplyPage() {
     }
 
     checkExisting();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [navigate]);
 
   /* ── File handlers ── */
@@ -135,8 +144,7 @@ export default function CompanyCertApplyPage() {
       await applyCompanyCert(files);
       navigate('/company-certification/status');
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : '인증 신청에 실패했습니다.';
+      const msg = err instanceof Error ? err.message : '인증 신청에 실패했습니다.';
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -155,7 +163,9 @@ export default function CompanyCertApplyPage() {
     <div className={styles.page}>
       <h1 className={styles.pageTitle}>{'기업 인증 신청'}</h1>
       <p className={styles.description}>
-        {'사업자등록증 등 기업 서류를 제출하면 관리자 심사 후 승인됩니다.'}
+        {existingRejected
+          ? '이전 신청은 반려되었습니다. 보완한 서류로 새 인증 신청을 제출해주세요.'
+          : '사업자등록증 등 기업 서류를 제출하면 관리자 심사 후 승인됩니다.'}
       </p>
 
       {/* Guide text from settings */}
@@ -164,9 +174,14 @@ export default function CompanyCertApplyPage() {
           <p className={styles.guideLoading}>{'가이드를 불러오는 중...'}</p>
         ) : guideText ? (
           <ul className={styles.guideList}>
-            {guideText.split('\n').filter(Boolean).map((line, idx) => (
-              <li key={idx} className={styles.guideItem}>{line}</li>
-            ))}
+            {guideText
+              .split('\n')
+              .filter(Boolean)
+              .map((line, idx) => (
+                <li key={idx} className={styles.guideItem}>
+                  {line}
+                </li>
+              ))}
           </ul>
         ) : (
           <ul className={styles.guideList}>
@@ -182,9 +197,7 @@ export default function CompanyCertApplyPage() {
 
         {/* File upload */}
         <div className={styles.field}>
-          <span className={`${styles.label} ${styles.required}`}>
-            {'서류 첨부'}
-          </span>
+          <span className={`${styles.label} ${styles.required}`}>{'서류 첨부'}</span>
 
           <label className={styles.dropZone}>
             <input
@@ -222,12 +235,7 @@ export default function CompanyCertApplyPage() {
 
         {/* Actions */}
         <div className={styles.actions}>
-          <Button
-            variant="ghost"
-            type="button"
-            onClick={() => navigate(-1)}
-            disabled={submitting}
-          >
+          <Button variant="ghost" type="button" onClick={() => navigate(-1)} disabled={submitting}>
             {'취소'}
           </Button>
           <Button type="submit" loading={submitting}>

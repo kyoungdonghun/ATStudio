@@ -1,6 +1,7 @@
 package com.atstudio.atstudio.controller;
 
 import com.atstudio.atstudio.common.dto.ResponseDTO;
+import com.atstudio.atstudio.dto.certification.CompanyCertificationDocumentDownload;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationResponse;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationReviewRequest;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationSummaryResponse;
@@ -8,14 +9,18 @@ import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.CompanyCertificationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.util.UriUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @RestController
@@ -41,6 +46,19 @@ public class CompanyCertificationController {
 
     // ── 13.2 GET /api/company-certifications/me ──────────────────────────────
 
+    @PostMapping(value = "/me/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ResponseDTO<CompanyCertificationResponse>> resubmit(
+            @RequestPart("documents") List<MultipartFile> documents,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        CompanyCertificationResponse response = certificationService.resubmit(userDetails, documents);
+        return ResponseEntity.ok(ResponseDTO.<CompanyCertificationResponse>withSingleData()
+                .message("Company certification documents resubmitted")
+                .data(response)
+                .build());
+    }
+
+    // ── 13.3 GET /api/company-certifications/me ──────────────────────────────
+
     @GetMapping("/me")
     public ResponseEntity<ResponseDTO<CompanyCertificationResponse>> getMyStatus(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -51,7 +69,7 @@ public class CompanyCertificationController {
                 .build());
     }
 
-    // ── 13.3 GET /api/company-certifications ─────────────────────────────────
+    // ── 13.4 GET /api/company-certifications ─────────────────────────────────
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -62,7 +80,7 @@ public class CompanyCertificationController {
         return ResponseEntity.ok(certificationService.listAll(status, page, size));
     }
 
-    // ── 13.4 GET /api/company-certifications/{certificationId} ───────────────
+    // ── 13.5 GET /api/company-certifications/{certificationId} ───────────────
 
     @GetMapping("/{certificationId}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -75,7 +93,26 @@ public class CompanyCertificationController {
                 .build());
     }
 
-    // ── 13.5 PUT /api/company-certifications/{certificationId} ───────────────
+    // ── 13.6 GET /api/company-certifications/{certificationId}/documents/{documentId}
+
+    @GetMapping("/{certificationId}/documents/{documentId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Resource> downloadDocument(
+            @PathVariable Long certificationId,
+            @PathVariable Long documentId) {
+        CompanyCertificationDocumentDownload download = certificationService.downloadDocument(
+                certificationId,
+                documentId
+        );
+        String filename = UriUtils.encode(download.originalFilename(), StandardCharsets.UTF_8);
+        MediaType mediaType = parseMediaType(download.contentType());
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + filename)
+                .body(download.resource());
+    }
+
+    // ── 13.7 PUT /api/company-certifications/{certificationId} ───────────────
 
     @PutMapping("/{certificationId}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -88,5 +125,16 @@ public class CompanyCertificationController {
                 .message("Certification review processed")
                 .data(response)
                 .build());
+    }
+
+    private MediaType parseMediaType(String contentType) {
+        if (contentType == null || contentType.isBlank()) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        try {
+            return MediaType.parseMediaType(contentType);
+        } catch (IllegalArgumentException e) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 }

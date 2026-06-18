@@ -276,20 +276,24 @@ dependencies:
        EXPORTED/REGISTERED: REMOVAL_REQUESTED
 
 [I-1 기업인증 신청]
-  ├── 서류 첨부 → [M-15 FileUploadModal 보류]
+  ├── 서류 첨부 → 인라인 파일 선택 (PDF/HWP/HWPX/DOC/DOCX/JPG/PNG, 최대 10개)
   └── "신청 제출" → POST /api/company-certifications → [I-2 기업인증 현황]
 
 [I-2 기업인증 현황]
   └── 상태 표시:
        PENDING: "심사 중"
-       APPROVED: "승인됨"
-       REVISION_REQUESTED / REJECTED:
-         → 관리자가 1:1 문의 또는 이메일로 직접 컨택 (UI 재신청 흐름 없음)
-         → "추가 안내는 등록하신 이메일 또는 1:1 문의를 확인해주세요" 안내 표시
+       APPROVED: "승인됨" + 구독 플랜 CTA
+       REVISION_REQUESTED:
+         → adminNote 확인
+         → 보완 서류 첨부
+         → POST /api/company-certifications/me/documents → PENDING 복귀
+       REJECTED:
+         → adminNote 확인
+         → "새 인증 신청" CTA → [I-1 기업인증 신청]
 ```
 
-> 기업인증 핵심 정책: 완전 자동화 목표이나, 가이드를 잘 따르는 "좋은 케이스"는 1:1 문의 없이 처리.
-> REVISION_REQUESTED/REJECTED 케이스는 관리자 직접 컨택으로 처리 (1:1 문의 전 초벌 필터 역할).
+> 기업인증 핵심 정책: 좋은 케이스는 1:1 문의 없이 신청→관리자 문서 확인→승인으로 처리한다.
+> REVISION_REQUESTED는 같은 신청 건 보완 제출, REJECTED는 기록 보존 후 새 신청으로 처리한다.
 
 ---
 
@@ -338,7 +342,10 @@ dependencies:
 
 [K-4 문의 관리]  "상태 변경" → [M-18 SelectModal] → 화면 갱신
 
-[K-5 기업 인증 목록 / 심사 처리]  "심사 처리" → [M-17 ReviewModal] → 화면 갱신
+[K-5 기업 인증 목록 / 상세 / 심사 처리]
+  ├── "상세" → 신청자 정보 + 제출 서류 목록
+  ├── "다운로드" → GET /api/company-certifications/{certificationId}/documents/{documentId}
+  └── "승인/보완 요청/반려" → [M-17 ReviewModal] → 화면 갱신
 
 [K-6 태그 관리]
   ├── "태그 생성" → POST /api/tags → 목록 갱신
@@ -406,7 +413,7 @@ dependencies:
 
 ---
 
-## 12. 잔여 미확정 항목
+## 12. 잔여 / 후속 항목
 
 | # | 항목 | 상태 |
 |---|------|------|
@@ -416,7 +423,7 @@ dependencies:
 | R-04 | 18 통계 대시보드 지표 확장 설계 | 필요 시 후속 정의 |
 | R-05 | 결제 운영 안정화 (billing auth / upgrade charge / renewal failure) | One-time Toss widget UX SR-92 is dropped; production hardening continues under SR-93 and follow-up REQ/SR items |
 | R-06 | 결제 운영 화면 | Payment order / billing agreement / subscription payment support tabs, reconciliation incident workflow, receipt/audit views, settlement import/reconciliation, and admin refund/entitlement-correction operation tabs are implemented at `/admin/payments` |
-| R-07 | M-15 기업인증 서류 파일 제한 | 업로드 정책 미확정 |
+| R-07 | M-15 기업인증 서류 파일 제한 | 해결됨. PDF/HWP/HWPX/DOC/DOCX/JPG/JPEG/PNG, 최대 10개, 파일당 20MB. |
 
 ---
 

@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
+import { getApiErrorCode } from '@/api/client';
 import {
   confirmBillingAgreement,
   prepareBillingAgreement,
@@ -41,6 +42,7 @@ export default function SubscriptionPaymentPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [requiresCompanyCertification, setRequiresCompanyCertification] = useState(false);
 
   useEffect(() => {
     if (!isRedirect || redirectHandledRef.current) return;
@@ -124,6 +126,7 @@ export default function SubscriptionPaymentPage() {
     async function loadAndPrepare() {
       setLoading(true);
       setErrorMessage(null);
+      setRequiresCompanyCertification(false);
       setPaymentOrder(null);
 
       try {
@@ -147,9 +150,13 @@ export default function SubscriptionPaymentPage() {
         setPaymentOrder(prepared);
       } catch (err: unknown) {
         if (!active) return;
-        const msg =
-          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          '결제 준비 중 오류가 발생했습니다.';
+        const errorCode = await getApiErrorCode(err);
+        const requiresCertification = errorCode === 'COMPANY_CERTIFICATION_REQUIRED';
+        const msg = requiresCertification
+          ? '기업 인증 승인 후 기업용 구독 결제를 진행할 수 있습니다.'
+          : ((err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+            '결제 준비 중 오류가 발생했습니다.');
+        setRequiresCompanyCertification(requiresCertification);
         setErrorMessage(msg);
         showToast('error', msg);
       } finally {
@@ -331,6 +338,14 @@ export default function SubscriptionPaymentPage() {
         <button className={styles.btnBack} onClick={() => navigate('/subscriptions')}>
           {'돌아가기'}
         </button>
+        {requiresCompanyCertification && (
+          <button
+            className={styles.btnBack}
+            onClick={() => navigate('/company-certification/status')}
+          >
+            {'기업 인증 관리'}
+          </button>
+        )}
         <button className={styles.btnPay} onClick={handleConfirm} disabled={!canConfirm}>
           {submitting ? '처리 중...' : '카드 등록하기'}
         </button>
