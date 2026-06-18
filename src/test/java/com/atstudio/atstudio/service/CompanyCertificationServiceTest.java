@@ -27,6 +27,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
@@ -37,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -177,7 +180,7 @@ class CompanyCertificationServiceTest {
                     CompanyCertificationStatus.REVISION_REQUESTED, "/uploads/company-docs/1/old/");
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(certificationRepository.findTopByUserOrderByCreatedAtDesc(user)).willReturn(Optional.of(cert));
+            given(certificationRepository.findTopByUserOrderByCreatedAtDescIdDesc(user)).willReturn(Optional.of(cert));
             given(storageService.store(any(MultipartFile.class), startsWith("company-docs/1/")))
                     .willReturn("company-docs/1/new/doc.pdf");
 
@@ -195,6 +198,72 @@ class CompanyCertificationServiceTest {
         }
 
         @Test
+        @DisplayName("성공 - 재제출 시 기존 파일은 커밋 후 삭제")
+        void resubmit_deletesPreviousFilesAfterCommit() {
+            User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+            CompanyCertification cert = buildCertification(1L, user,
+                    CompanyCertificationStatus.REVISION_REQUESTED, "/uploads/company-docs/1/old/");
+            cert.addDocument("old.pdf", "company-docs/1/old/old.pdf", "application/pdf", 3L);
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(certificationRepository.findTopByUserOrderByCreatedAtDescIdDesc(user)).willReturn(Optional.of(cert));
+            given(storageService.store(any(MultipartFile.class), startsWith("company-docs/1/")))
+                    .willReturn("company-docs/1/new/new.pdf");
+
+            TransactionSynchronizationManager.initSynchronization();
+            try {
+                CompanyCertificationResponse result = certificationService.resubmit(
+                        buildUserDetails(1L, UserRole.USER),
+                        List.of(new MockMultipartFile("documents", "new.pdf",
+                                "application/pdf", new byte[]{1, 2, 3})));
+
+                assertThat(result.status()).isEqualTo("PENDING");
+                verify(storageService, never()).delete("company-docs/1/old/old.pdf");
+
+                List<TransactionSynchronization> synchronizations =
+                        TransactionSynchronizationManager.getSynchronizations();
+                assertThat(synchronizations).hasSize(1);
+
+                synchronizations.get(0).afterCommit();
+                verify(storageService).delete("company-docs/1/old/old.pdf");
+            } finally {
+                TransactionSynchronizationManager.clearSynchronization();
+            }
+        }
+
+        @Test
+        @DisplayName("성공 - 재제출 롤백 시 새로 저장한 파일 정리")
+        void resubmit_deletesNewFilesAfterRollback() {
+            User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+            CompanyCertification cert = buildCertification(1L, user,
+                    CompanyCertificationStatus.REVISION_REQUESTED, "/uploads/company-docs/1/old/");
+            cert.addDocument("old.pdf", "company-docs/1/old/old.pdf", "application/pdf", 3L);
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(certificationRepository.findTopByUserOrderByCreatedAtDescIdDesc(user)).willReturn(Optional.of(cert));
+            given(storageService.store(any(MultipartFile.class), startsWith("company-docs/1/")))
+                    .willReturn("company-docs/1/new/new.pdf");
+
+            TransactionSynchronizationManager.initSynchronization();
+            try {
+                certificationService.resubmit(
+                        buildUserDetails(1L, UserRole.USER),
+                        List.of(new MockMultipartFile("documents", "new.pdf",
+                                "application/pdf", new byte[]{1, 2, 3})));
+
+                List<TransactionSynchronization> synchronizations =
+                        TransactionSynchronizationManager.getSynchronizations();
+                assertThat(synchronizations).hasSize(1);
+
+                synchronizations.get(0).afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+                verify(storageService, never()).delete("company-docs/1/old/old.pdf");
+                verify(storageService).delete("company-docs/1/new/new.pdf");
+            } finally {
+                TransactionSynchronizationManager.clearSynchronization();
+            }
+        }
+
+        @Test
         @DisplayName("실패 - REVISION_REQUESTED가 아니면 INVALID_STATE_TRANSITION")
         void resubmit_invalidState() {
             User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
@@ -202,7 +271,7 @@ class CompanyCertificationServiceTest {
                     CompanyCertificationStatus.PENDING, "/uploads/company-docs/1/");
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(certificationRepository.findTopByUserOrderByCreatedAtDesc(user)).willReturn(Optional.of(cert));
+            given(certificationRepository.findTopByUserOrderByCreatedAtDescIdDesc(user)).willReturn(Optional.of(cert));
 
             assertThatThrownBy(() -> certificationService.resubmit(
                     buildUserDetails(1L, UserRole.USER), List.of()))
@@ -226,7 +295,7 @@ class CompanyCertificationServiceTest {
                     CompanyCertificationStatus.PENDING, "/uploads/company-docs/1/");
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(certificationRepository.findTopByUserOrderByCreatedAtDesc(user)).willReturn(Optional.of(cert));
+            given(certificationRepository.findTopByUserOrderByCreatedAtDescIdDesc(user)).willReturn(Optional.of(cert));
 
             CompanyCertificationResponse result = certificationService.getMyStatus(
                     buildUserDetails(1L, UserRole.USER));
@@ -242,7 +311,7 @@ class CompanyCertificationServiceTest {
             User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(certificationRepository.findTopByUserOrderByCreatedAtDesc(user)).willReturn(Optional.empty());
+            given(certificationRepository.findTopByUserOrderByCreatedAtDescIdDesc(user)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> certificationService.getMyStatus(
                     buildUserDetails(1L, UserRole.USER)))

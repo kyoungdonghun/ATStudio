@@ -275,7 +275,7 @@
 | 7 | QUESTION-006 delete (renumbered) | Former QUESTION-007 (delete) renumbered to QUESTION-006 (delete). |
 | 8 | QUESTION-007 status change | **New** -- Admin inquiry status change UC (maps to existing API 8.7 to v4 API 8.6). |
 | 9 | PAYMENT-010 Cancel my subscription | **New** -- `DELETE /api/user-subscriptions/me`. Member directly cancels subscription. |
-| 10 | BL-001 precondition updated | "No PENDING or APPROVED" to "No PENDING/APPROVED; reapplication allowed after REJECTED/REVISION_REQUESTED". |
+| 10 | BL-001 precondition updated | "No PENDING or APPROVED" to "No PENDING/APPROVED; reapplication allowed after rejected/rework cases" in the former business-license wording. Current CC policy is: `REVISION_REQUESTED` resubmits the same application, while `REJECTED` allows a new application. |
 
 ### Removed UC (v3 to v4)
 

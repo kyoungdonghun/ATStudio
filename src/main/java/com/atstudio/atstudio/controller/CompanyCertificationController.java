@@ -44,7 +44,7 @@ public class CompanyCertificationController {
                         .build());
     }
 
-    // ── 13.2 GET /api/company-certifications/me ──────────────────────────────
+    // ── 13.2 POST /api/company-certifications/me/documents ──────────────────
 
     @PostMapping(value = "/me/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseDTO<CompanyCertificationResponse>> resubmit(

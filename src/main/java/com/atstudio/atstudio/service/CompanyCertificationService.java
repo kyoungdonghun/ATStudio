@@ -27,10 +27,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -71,12 +75,14 @@ public class CompanyCertificationService {
 
         List<MultipartFile> validDocuments = validateDocuments(documents);
         String directory = buildDocumentDirectory(user.getId());
+        List<StoredCertificationDocument> storedDocuments = storeDocuments(directory, validDocuments);
+        registerDocumentFileCleanup(storedDocuments, List.of());
 
         CompanyCertification certification = CompanyCertification.builder()
                 .user(user)
                 .documentPath(toPublicDocumentDirectory(directory))
                 .build();
-        for (StoredCertificationDocument stored : storeDocuments(directory, validDocuments)) {
+        for (StoredCertificationDocument stored : storedDocuments) {
             certification.addDocument(
                     stored.originalFilename(),
                     stored.storedPath(),
@@ -100,7 +106,7 @@ public class CompanyCertificationService {
             throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
         }
 
-        CompanyCertification certification = certificationRepository.findTopByUserOrderByCreatedAtDesc(user)
+        CompanyCertification certification = certificationRepository.findTopByUserOrderByCreatedAtDescIdDesc(user)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         if (certification.getStatus() != CompanyCertificationStatus.REVISION_REQUESTED) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_STATE_TRANSITION);
@@ -109,8 +115,11 @@ public class CompanyCertificationService {
         List<MultipartFile> validDocuments = validateDocuments(documents);
         String directory = buildDocumentDirectory(user.getId());
         List<StoredCertificationDocument> storedDocuments = storeDocuments(directory, validDocuments);
+        List<String> previousStoredPaths = certification.getDocuments().stream()
+                .map(CompanyCertificationDocument::getStoredPath)
+                .toList();
+        registerDocumentFileCleanup(storedDocuments, previousStoredPaths);
 
-        deleteStoredDocuments(certification);
         certification.clearDocuments();
         certification.updateDocumentPath(toPublicDocumentDirectory(directory));
         storedDocuments.forEach(stored ->
@@ -130,7 +139,7 @@ public class CompanyCertificationService {
     public CompanyCertificationResponse getMyStatus(CustomUserDetails userDetails) {
         User user = findUser(userDetails);
 
-        return certificationRepository.findTopByUserOrderByCreatedAtDesc(user)
+        return certificationRepository.findTopByUserOrderByCreatedAtDescIdDesc(user)
                 .map(CompanyCertificationResponse::from)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
     }
@@ -140,7 +149,8 @@ public class CompanyCertificationService {
     public ResponseDTO<CompanyCertificationSummaryResponse> listAll(String status,
                                                                      int page, int size) {
         Pageable pageable = PageRequest.of(Math.max(0, page - 1), Math.max(1, size),
-                Sort.by(Sort.Direction.DESC, "createdAt"));
+                Sort.by(Sort.Direction.DESC, "createdAt")
+                        .and(Sort.by(Sort.Direction.DESC, "id")));
 
         Page<CompanyCertification> result;
         if (status != null && !status.isBlank()) {
@@ -255,20 +265,46 @@ public class CompanyCertificationService {
 
     private List<StoredCertificationDocument> storeDocuments(String directory,
                                                              List<MultipartFile> documents) {
-        return documents.stream()
-                .map(doc -> new StoredCertificationDocument(
+        List<StoredCertificationDocument> storedDocuments = new ArrayList<>();
+        try {
+            for (MultipartFile doc : documents) {
+                storedDocuments.add(new StoredCertificationDocument(
                         sanitizeOriginalFilename(doc.getOriginalFilename()),
                         storageService.store(doc, directory),
                         doc.getContentType(),
                         doc.getSize()
-                ))
-                .toList();
+                ));
+            }
+        } catch (RuntimeException e) {
+            storedDocuments.stream()
+                    .map(StoredCertificationDocument::storedPath)
+                    .forEach(storageService::delete);
+            throw e;
+        }
+        return Collections.unmodifiableList(storedDocuments);
     }
 
-    private void deleteStoredDocuments(CompanyCertification certification) {
-        certification.getDocuments().stream()
-                .map(CompanyCertificationDocument::getStoredPath)
-                .forEach(storageService::delete);
+    private void registerDocumentFileCleanup(List<StoredCertificationDocument> newDocuments,
+                                             List<String> previousStoredPaths) {
+        List<String> newStoredPaths = newDocuments.stream()
+                .map(StoredCertificationDocument::storedPath)
+                .toList();
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                previousStoredPaths.forEach(storageService::delete);
+            }
+
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    newStoredPaths.forEach(storageService::delete);
+                }
+            }
+        });
     }
 
     private String buildDocumentDirectory(Long userId) {

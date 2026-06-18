@@ -104,7 +104,7 @@ class CompanyCertificationControllerTest {
                 .andExpect(status().isConflict());
     }
 
-    // ── 13.2 GET /api/company-certifications/me ──────────────────────────────
+    // ── 13.3 GET /api/company-certifications/me ──────────────────────────────
 
     @Test
     @DisplayName("GET /api/company-certifications/me - 비인증 -> 401")

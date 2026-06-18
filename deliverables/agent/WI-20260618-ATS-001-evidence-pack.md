@@ -49,6 +49,7 @@
 - `src/main/java/com/atstudio/atstudio/repository/CompanyCertificationDocumentRepository.java` — certification-scoped document lookup.
 - `src/main/java/com/atstudio/atstudio/entity/CompanyCertification.java` — one-to-many documents, document replacement helpers, document path update.
 - `src/main/java/com/atstudio/atstudio/service/CompanyCertificationService.java` — duplicate gate, revision resubmission, document storage metadata, protected download service.
+- `src/main/java/com/atstudio/atstudio/repository/CompanyCertificationRepository.java` — latest certification lookup uses `createdAt DESC, id DESC`.
 - `src/main/java/com/atstudio/atstudio/controller/CompanyCertificationController.java` — resubmit endpoint and admin document download endpoint.
 - `src/main/java/com/atstudio/atstudio/config/SecurityConfig.java` — admin-only `/uploads/company-docs/**` and admin document download security rules.
 - `src/main/java/com/atstudio/atstudio/dto/certification/CompanyCertificationResponse.java` — applicant and document metadata response.
@@ -71,6 +72,7 @@
 ### Tests
 
 - `src/test/java/com/atstudio/atstudio/service/CompanyCertificationServiceTest.java` — duplicate state, revision resubmit, document metadata tests.
+- `src/test/java/com/atstudio/atstudio/service/CompanyCertificationServiceTest.java` — transaction-aware file cleanup tests for commit/rollback paths.
 - `src/test/java/com/atstudio/atstudio/controller/CompanyCertificationControllerTest.java` — resubmit endpoint and admin-only document download tests.
 
 ### Documentation
@@ -86,6 +88,7 @@
 ## Commands & Outputs
 
 - `gradlew.bat test` → PASS, 743 tests completed.
+- `gradlew.bat test --tests "com.atstudio.atstudio.service.CompanyCertificationServiceTest" --tests "com.atstudio.atstudio.controller.CompanyCertificationControllerTest"` → PASS.
 - `cd frontend; npm run typecheck` → PASS.
 - `cd frontend; npm run lint` → PASS.
 - `cd frontend; npm run test` → PASS, 14 files / 51 tests.
@@ -93,6 +96,8 @@
 - `cd frontend; npx prettier --check <changed frontend files>` → PASS.
 - `python .agents/skills/validate-docs/scripts/validate_docs.py` → PASS.
 - `git diff --check` → PASS, only CRLF normalization warnings.
+- Local DB patch `src/main/resources/db/manual/20260618_company_certification_documents.sql` → APPLIED to local `atstudio`; verified `table_exists=1` and expected columns.
+- Local DB schema recheck → verified `company_certification_documents=1` and `fk_to_company_certifications=1`.
 
 ## Known Validation Notes
 
@@ -101,14 +106,15 @@
 
 ## Risks / Rollback
 
-- Risk: Existing DBs need the manual DDL patch before running with schema validation against the new entity/table.
+- Risk: Existing non-local DBs need the manual DDL patch before running with schema validation against the new entity/table.
 - Risk: Historical certification rows cannot automatically reconstruct per-file metadata if only legacy `document_path` exists.
+- Mitigation: Resubmission file replacement now defers previous-file deletion until DB commit and deletes newly stored files on rollback.
 - Rollback:
   - Revert this WI commit.
-  - If the manual DDL was applied later, drop `company_certification_documents` only after confirming no newer data depends on it.
+  - If the manual DDL was applied, drop `company_certification_documents` only after confirming no newer data depends on it.
   - Restore the previous API spec / DB schema / UI docs from the reverted commit.
 
 ## Follow-ups
 
-- Apply `src/main/resources/db/manual/20260618_company_certification_documents.sql` to the local test DB only after explicit approval.
+- Apply `src/main/resources/db/manual/20260618_company_certification_documents.sql` to staging/production DBs only after backup and explicit approval.
 - Consider future policies for approval revocation, certification expiry, external business registry verification, and automated notification.

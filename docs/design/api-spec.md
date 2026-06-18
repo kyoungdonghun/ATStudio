@@ -3115,7 +3115,7 @@ documents: List<File> (required)
   "companyName": "ATStudio Biz",
   "phoneCompany": "02-1234-5678",
   "status": "PENDING",
-  "documentPath": "/uploads/company-docs/1/",
+  "documentPath": "/uploads/company-docs/10/3f4a9b2c/",
   "documents": [
     {
       "id": 101,

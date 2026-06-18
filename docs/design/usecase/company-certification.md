@@ -59,7 +59,7 @@
 1. User checks the admin note that explains why revision was requested.
 2. User uploads replacement documents.
 3. Frontend sends the files to `POST /api/company-certifications/me/documents`.
-4. Backend validates member type and latest certification status.
+4. Backend validates member type and latest certification status (`createdAt DESC`, then `id DESC` as tie-breaker).
 5. Backend stores replacement files, clears old document metadata, updates document metadata, and changes status to PENDING.
 6. Backend returns the updated certification status.
 
@@ -88,7 +88,7 @@
 
 **Main Flow**
 1. Frontend sends a request with the auth token to the backend.
-2. Backend extracts userId from the JWT and queries the latest company_certifications record.
+2. Backend extracts userId from the JWT and queries the latest company_certifications record (`createdAt DESC`, then `id DESC`).
 3. Backend returns status, adminNote, certificationCode, approvedAt, and submitted document metadata.
 
 **Postconditions**

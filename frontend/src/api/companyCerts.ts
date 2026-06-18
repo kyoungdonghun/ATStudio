@@ -31,7 +31,7 @@ export async function resubmitCompanyCert(documents: File[]): Promise<CompanyCer
   return data.data;
 }
 
-/** 13.2 GET /api/company-certifications/me — my status */
+/** 13.3 GET /api/company-certifications/me — my status */
 export async function fetchMyCompanyCert(): Promise<CompanyCertification> {
   const { data } = await client.get<ApiResponse<CompanyCertification>>(
     '/company-certifications/me',
