@@ -88,15 +88,21 @@ public class RecurringRenewalService {
 
     @Transactional
     public RenewalRunResult processDueRenewals(LocalDate today) {
-        List<BillingAgreement> dueAgreements = billingAgreementRepository
-                .findByStatusAndNextBillingAtLessThanEqual(BillingAgreementStatus.ACTIVE, today);
+        List<Long> dueAgreementIDs = billingAgreementRepository
+                .findDueRenewalCandidateIDs(BillingAgreementStatus.ACTIVE, today);
 
         int attempted = 0;
         int succeeded = 0;
         int failed = 0;
         int skipped = 0;
 
-        for (BillingAgreement agreement : dueAgreements) {
+        for (Long billingAgreementID : dueAgreementIDs) {
+            BillingAgreement agreement = billingAgreementRepository.findByIDForRenewal(billingAgreementID)
+                    .orElse(null);
+            if (agreement == null) {
+                skipped++;
+                continue;
+            }
             RenewalOutcome outcome = processAgreement(agreement, today);
             attempted += outcome.attempted();
             succeeded += outcome.succeeded();
@@ -113,6 +119,10 @@ public class RecurringRenewalService {
 
     private RenewalOutcome processAgreement(BillingAgreement agreement, LocalDate today) {
         if (agreement.getStatus() != BillingAgreementStatus.ACTIVE || agreement.getProvider() != RECURRING_PROVIDER) {
+            return RenewalOutcome.skip();
+        }
+        if (agreement.getUser().isDeleted()) {
+            agreement.cancel();
             return RenewalOutcome.skip();
         }
         if (isBlank(agreement.getBillingKeyCiphertext())) {

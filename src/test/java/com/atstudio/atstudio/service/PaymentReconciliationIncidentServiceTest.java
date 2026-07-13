@@ -1,7 +1,10 @@
 package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.config.PaymentProperties;
+import com.atstudio.atstudio.entity.BillingAgreement;
 import com.atstudio.atstudio.entity.PaymentReconciliationIncident;
+import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.enums.PaymentReconciliationIncidentSeverity;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.PaymentReconciliationIncidentStatus;
@@ -17,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -140,6 +144,93 @@ class PaymentReconciliationIncidentServiceTest {
         verify(emailService, never()).sendPaymentReconciliationIncidentAlert(any(), any(), any());
     }
 
+    @Test
+    @DisplayName("billing cleanup failure creates a warning incident with agreement and user references")
+    void recordBillingCleanupFailure_createsIncident() {
+        paymentProperties.getOperations().setReconciliationNotificationEnabled(false);
+        BillingAgreement agreement = billingAgreement(90L);
+        String dedupeKey = "LOCAL_DONE_PROVIDER_NOT_DONE:billingAgreement:90";
+        given(incidentRepository.findByDedupeKey(dedupeKey)).willReturn(Optional.empty());
+        given(incidentRepository.save(any(PaymentReconciliationIncident.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        service.recordBillingCleanupFailure(agreement, null, null);
+
+        ArgumentCaptor<PaymentReconciliationIncident> captor =
+                ArgumentCaptor.forClass(PaymentReconciliationIncident.class);
+        verify(incidentRepository).save(captor.capture());
+        PaymentReconciliationIncident incident = captor.getValue();
+        assertThat(incident.getDedupeKey()).isEqualTo(dedupeKey);
+        assertThat(incident.getIssueType())
+                .isEqualTo(PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_DONE);
+        assertThat(incident.getStatus()).isEqualTo(PaymentReconciliationIncidentStatus.OPEN);
+        assertThat(incident.getSeverity()).isEqualTo(PaymentReconciliationIncidentSeverity.WARNING);
+        assertThat(incident.getBillingAgreement()).isSameAs(agreement);
+        assertThat(incident.getUser()).isSameAs(agreement.getUser());
+        assertThat(incident.getLocalStatus()).isEqualTo("CANCELLED");
+        assertThat(incident.getProviderStatus()).isEqualTo("BILLING_KEY_DELETE_FAILED");
+        assertThat(incident.getFailureCode()).isEqualTo("BILLING_KEY_DELETE_FAILED");
+        assertThat(incident.getFailureMessage()).isEqualTo("Provider billing key deletion failed.");
+    }
+
+    @Test
+    @DisplayName("billing cleanup failures use one agreement-scoped incident and increment occurrence count")
+    void recordBillingCleanupFailure_deduplicatesByAgreement() {
+        paymentProperties.getOperations().setReconciliationNotificationEnabled(false);
+        BillingAgreement agreement = billingAgreement(91L);
+        String dedupeKey = "LOCAL_DONE_PROVIDER_NOT_DONE:billingAgreement:91";
+        PaymentReconciliationIncident existing = PaymentReconciliationIncident.builder()
+                .dedupeKey(dedupeKey)
+                .issueType(PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_DONE)
+                .status(PaymentReconciliationIncidentStatus.RESOLVED)
+                .severity(PaymentReconciliationIncidentSeverity.WARNING)
+                .billingAgreement(agreement)
+                .user(agreement.getUser())
+                .localStatus("CANCELLED")
+                .providerStatus("BILLING_KEY_DELETE_FAILED")
+                .occurrenceCount(1)
+                .firstDetectedAt(LocalDateTime.now().minusDays(1))
+                .lastDetectedAt(LocalDateTime.now().minusDays(1))
+                .resolvedAt(LocalDateTime.now().minusHours(1))
+                .build();
+        given(incidentRepository.findByDedupeKey(dedupeKey)).willReturn(Optional.of(existing));
+
+        service.recordBillingCleanupFailure(agreement, "DELETE_FAILED", "provider rejected deletion");
+
+        assertThat(existing.getStatus()).isEqualTo(PaymentReconciliationIncidentStatus.OPEN);
+        assertThat(existing.getOccurrenceCount()).isEqualTo(2);
+        assertThat(existing.getBillingAgreement()).isSameAs(agreement);
+        assertThat(existing.getUser()).isSameAs(agreement.getUser());
+        assertThat(existing.getLocalStatus()).isEqualTo("CANCELLED");
+        assertThat(existing.getProviderStatus()).isEqualTo("BILLING_KEY_DELETE_FAILED");
+        assertThat(existing.getFailureCode()).isEqualTo("DELETE_FAILED");
+        assertThat(existing.getFailureMessage()).isEqualTo("provider rejected deletion");
+        verify(incidentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("successful billing cleanup resolves its matching incident")
+    void resolveBillingCleanupIncident_resolvesMatchingIncident() {
+        BillingAgreement agreement = billingAgreement(92L);
+        String dedupeKey = "LOCAL_DONE_PROVIDER_NOT_DONE:billingAgreement:92";
+        PaymentReconciliationIncident existing = PaymentReconciliationIncident.builder()
+                .dedupeKey(dedupeKey)
+                .issueType(PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_DONE)
+                .status(PaymentReconciliationIncidentStatus.OPEN)
+                .severity(PaymentReconciliationIncidentSeverity.WARNING)
+                .occurrenceCount(1)
+                .firstDetectedAt(LocalDateTime.now().minusDays(1))
+                .lastDetectedAt(LocalDateTime.now().minusDays(1))
+                .build();
+        given(incidentRepository.findByDedupeKey(dedupeKey)).willReturn(Optional.of(existing));
+
+        service.resolveBillingCleanupIncident(agreement);
+
+        assertThat(existing.getStatus()).isEqualTo(PaymentReconciliationIncidentStatus.RESOLVED);
+        assertThat(existing.getResolvedAt()).isNotNull();
+        assertThat(existing.getResolutionNote()).isEqualTo("Provider billing key cleanup completed.");
+    }
+
     private PaymentReconciliationService.ReconciliationResult emptyLocalResult() {
         return new PaymentReconciliationService.ReconciliationResult(0, 0, 0, 0, List.of());
     }
@@ -171,5 +262,23 @@ class PaymentReconciliationIncidentServiceTest {
                 0,
                 0,
                 List.of(issue));
+    }
+
+    private BillingAgreement billingAgreement(Long id) {
+        User user = User.builder()
+                .nickname("withdrawn-user")
+                .email("withdrawn@test.com")
+                .build();
+        ReflectionTestUtils.setField(user, "id", 7L);
+        user.withdraw();
+        BillingAgreement agreement = BillingAgreement.builder()
+                .user(user)
+                .provider(PaymentProviderType.TOSS_BILLING)
+                .providerCustomerKey("customer-key-" + id)
+                .build();
+        ReflectionTestUtils.setField(agreement, "id", id);
+        agreement.activate("encrypted-key", "fingerprint", "CARD", "****1234", java.time.LocalDate.now());
+        agreement.cancel();
+        return agreement;
     }
 }

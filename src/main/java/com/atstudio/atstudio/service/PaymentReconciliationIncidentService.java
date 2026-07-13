@@ -5,6 +5,7 @@ import com.atstudio.atstudio.entity.BillingAgreement;
 import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.PaymentReconciliationIncident;
 import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.PaymentReconciliationIncidentSeverity;
@@ -27,7 +28,11 @@ import java.time.LocalDateTime;
 public class PaymentReconciliationIncidentService {
 
     private static final int MAX_FAILURE_MESSAGE_LENGTH = 500;
+    private static final int MAX_FAILURE_CODE_LENGTH = 100;
     private static final int MAX_NOTE_LENGTH = 500;
+    private static final String BILLING_KEY_DELETE_FAILED = "BILLING_KEY_DELETE_FAILED";
+    private static final String BILLING_KEY_DELETE_FAILURE_MESSAGE = "Provider billing key deletion failed.";
+    private static final String BILLING_CLEANUP_RESOLVED_NOTE = "Provider billing key cleanup completed.";
 
     private final PaymentReconciliationIncidentRepository incidentRepository;
     private final PaymentOrderRepository paymentOrderRepository;
@@ -55,6 +60,51 @@ public class PaymentReconciliationIncidentService {
                         com.atstudio.atstudio.common.exception.BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         incident.changeStatus(status, truncate(note, MAX_NOTE_LENGTH), LocalDateTime.now());
         return incident;
+    }
+
+    @Transactional
+    public void recordBillingCleanupFailure(
+            BillingAgreement billingAgreement,
+            String failureCode,
+            String failureMessage) {
+        LocalDateTime detectedAt = LocalDateTime.now();
+        upsertIncident(
+                dedupeKey(
+                        PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_DONE,
+                        null,
+                        null,
+                        billingAgreement.getId()),
+                PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_DONE,
+                PaymentReconciliationIncidentSeverity.WARNING,
+                null,
+                billingAgreement,
+                billingAgreement.getUser(),
+                null,
+                billingAgreement.getProvider(),
+                null,
+                BillingAgreementStatus.CANCELLED.name(),
+                BILLING_KEY_DELETE_FAILED,
+                null,
+                null,
+                null,
+                normalizeFailureCode(failureCode),
+                normalizeFailureMessage(failureMessage),
+                detectedAt);
+    }
+
+    @Transactional
+    public void resolveBillingCleanupIncident(BillingAgreement billingAgreement) {
+        String dedupeKey = dedupeKey(
+                PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_DONE,
+                null,
+                null,
+                billingAgreement.getId());
+        incidentRepository.findByDedupeKey(dedupeKey)
+                .filter(incident -> incident.getStatus() != PaymentReconciliationIncidentStatus.RESOLVED)
+                .ifPresent(incident -> incident.changeStatus(
+                        PaymentReconciliationIncidentStatus.RESOLVED,
+                        BILLING_CLEANUP_RESOLVED_NOTE,
+                        LocalDateTime.now()));
     }
 
     private void recordLocalIssue(
@@ -141,7 +191,7 @@ public class PaymentReconciliationIncidentService {
                             localAmount,
                             providerAmount,
                             providerTransactionId,
-                            failureCode,
+                            truncate(failureCode, MAX_FAILURE_CODE_LENGTH),
                             truncate(failureMessage, MAX_FAILURE_MESSAGE_LENGTH),
                             severity,
                             detectedAt);
@@ -163,7 +213,7 @@ public class PaymentReconciliationIncidentService {
                         .localAmount(localAmount)
                         .providerAmount(providerAmount)
                         .providerTransactionId(providerTransactionId)
-                        .failureCode(failureCode)
+                        .failureCode(truncate(failureCode, MAX_FAILURE_CODE_LENGTH))
                         .failureMessage(truncate(failureMessage, MAX_FAILURE_MESSAGE_LENGTH))
                         .occurrenceCount(1)
                         .firstDetectedAt(detectedAt)
@@ -281,6 +331,20 @@ public class PaymentReconciliationIncidentService {
             return value;
         }
         return value.substring(0, maxLength);
+    }
+
+    private String normalizeFailureCode(String failureCode) {
+        if (failureCode == null || failureCode.isBlank()) {
+            return BILLING_KEY_DELETE_FAILED;
+        }
+        return failureCode;
+    }
+
+    private String normalizeFailureMessage(String failureMessage) {
+        if (failureMessage == null || failureMessage.isBlank()) {
+            return BILLING_KEY_DELETE_FAILURE_MESSAGE;
+        }
+        return failureMessage;
     }
 
     private String nullText(Object value) {

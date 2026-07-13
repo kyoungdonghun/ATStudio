@@ -68,6 +68,7 @@ class DownloadServiceTest {
         assertThat(result).isEqualTo(mockResource);
         verify(trackDownloadRepository).save(any(TrackDownload.class));
         verify(licenseRepository).save(any(License.class));
+        verify(storageService).loadAsResource("tracks/audio/test.mp3");
     }
 
     @Test

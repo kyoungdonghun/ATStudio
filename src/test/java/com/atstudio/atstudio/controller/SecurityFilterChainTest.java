@@ -14,11 +14,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import com.atstudio.atstudio.dto.user.UserResponse;
+
+import java.net.URI;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -83,6 +87,55 @@ class SecurityFilterChainTest {
                 .andExpect(jsonPath("$.data.passwordLoginEnabled").value(true))
                 .andExpect(jsonPath("$.data.passwordReset.enabled").value(true))
                 .andExpect(jsonPath("$.data.socialLogin.google.enabled").value(false));
+    }
+
+    @Test
+    @DisplayName("GET /uploads/tracks/audio/** - 비인증 요청 차단")
+    void originalTrackAudio_withoutToken_isDenied() throws Exception {
+        mockMvc.perform(get("/uploads/tracks/audio/original.mp3"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("GET /uploads/tracks/audio/** - USER 요청 차단")
+    void originalTrackAudio_userRole_isDenied() throws Exception {
+        mockMvc.perform(get("/uploads/tracks/audio/original.mp3"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("GET /uploads/tracks/audio/** - ADMIN 요청 차단")
+    void originalTrackAudio_adminRole_isDenied() throws Exception {
+        mockMvc.perform(get("/uploads/tracks/audio/original.mp3"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("GET /uploads/tracks/audio/** - encoded and traversal variants are rejected before resource resolution")
+    void originalTrackAudio_encodedAndTraversalVariants_areRejected() throws Exception {
+        List<String> requestPaths = List.of(
+                "/uploads/tracks/%61udio/original.mp3",
+                "/uploads/tracks/audio%2Foriginal.mp3",
+                "/uploads/tracks/preview/%2e%2e/audio/original.mp3",
+                "/uploads/tracks/thumbnail/%2e%2e/audio/original.mp3");
+
+        for (String requestPath : requestPaths) {
+            mockMvc.perform(get(URI.create(requestPath)))
+                    .andExpect(result -> assertRejectedBeforeResourceResolution(
+                            requestPath,
+                            result.getResponse().getStatus()));
+        }
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("GET /api/tracks/admin - admin matcher precedes the public track wildcard")
+    void adminTrackList_userRole_isDeniedBeforePublicTrackWildcard() throws Exception {
+        mockMvc.perform(get("/api/tracks/admin"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -249,6 +302,14 @@ class SecurityFilterChainTest {
     private void assertNotForbidden(int status) {
         if (status == 403) {
             throw new AssertionError("Expected status NOT to be 403, but was 403");
+        }
+    }
+
+    private void assertRejectedBeforeResourceResolution(String requestPath, int status) {
+        if (status != 400 && status != 403) {
+            throw new AssertionError(
+                    "Expected encoded media path to be rejected with 400 or 403, but "
+                            + requestPath + " returned " + status);
         }
     }
 

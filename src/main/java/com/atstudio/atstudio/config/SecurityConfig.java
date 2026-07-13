@@ -77,6 +77,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/notices/*/attachments/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/settings/*").permitAll()
                 .requestMatchers(HttpMethod.PUT, "/api/settings/*").hasRole("ADMIN")
+                .requestMatchers("/uploads/tracks/audio/**").denyAll()
                 .requestMatchers(HttpMethod.GET, "/uploads/company-docs/**").hasRole("ADMIN")
                 // Swagger (dev only -- SEC-15: checked at application level via profile)
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()

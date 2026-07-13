@@ -161,6 +161,8 @@ public class EmailService {
     // ── 이메일 발송 ──────────────────────────────────────────────
 
     private void sendEmail(String to, String subject, String htmlBody) {
+        String deliveryId = UUID.randomUUID().toString();
+
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
@@ -169,15 +171,12 @@ public class EmailService {
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
             mailSender.send(message);
-            log.info("Email sent to {} — subject: {}", to, subject);
+            log.info("Email delivery completed. deliveryId={}, outcome=SUCCESS", deliveryId);
         } catch (Exception e) {
-            // SMTP 미설정 시 콘솔 fallback
-            log.warn("Failed to send email to {}. Falling back to console output.", to);
-            log.info("═══ EMAIL FALLBACK ═══");
-            log.info("To: {}", to);
-            log.info("Subject: {}", subject);
-            log.info("Body:\n{}", htmlBody);
-            log.info("═══ END EMAIL ═══");
+            log.warn(
+                    "Email delivery failed. deliveryId={}, outcome=FAILURE, exceptionClass={}",
+                    deliveryId,
+                    e.getClass().getName());
         }
     }
 

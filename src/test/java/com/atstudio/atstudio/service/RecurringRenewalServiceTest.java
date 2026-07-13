@@ -85,8 +85,7 @@ class RecurringRenewalServiceTest {
         UserSubscription userSubscription = buildUserSubscription(100L, user, subscription, due);
         BillingAgreement agreement = buildActiveAgreement(user, due);
 
-        given(billingAgreementRepository.findByStatusAndNextBillingAtLessThanEqual(
-                BillingAgreementStatus.ACTIVE, due)).willReturn(List.of(agreement));
+        givenDueAgreement(agreement, due);
         given(userSubscriptionRepository.findActiveByUser(user, due)).willReturn(Optional.of(userSubscription));
         given(paymentOrderRepository.findFirstByBillingAgreementAndPurposeAndStatusInOrderByCreatedAtDesc(
                 eq(agreement), eq(PaymentPurpose.RENEWAL), anyCollection())).willReturn(Optional.empty());
@@ -131,8 +130,7 @@ class RecurringRenewalServiceTest {
         userSubscription.schedulePendingChange(subscription, BillingCycle.YEARLY);
         BillingAgreement agreement = buildActiveAgreement(user, due);
 
-        given(billingAgreementRepository.findByStatusAndNextBillingAtLessThanEqual(
-                BillingAgreementStatus.ACTIVE, due)).willReturn(List.of(agreement));
+        givenDueAgreement(agreement, due);
         given(userSubscriptionRepository.findActiveByUser(user, due)).willReturn(Optional.of(userSubscription));
         given(paymentOrderRepository.findFirstByBillingAgreementAndPurposeAndStatusInOrderByCreatedAtDesc(
                 eq(agreement), eq(PaymentPurpose.RENEWAL), anyCollection())).willReturn(Optional.empty());
@@ -174,8 +172,7 @@ class RecurringRenewalServiceTest {
         PaymentOrder doneOrder = buildRenewalOrder(user, subscription, userSubscription, agreement, due);
         doneOrder.markDone("tx_renewal", userSubscription, "{}");
 
-        given(billingAgreementRepository.findByStatusAndNextBillingAtLessThanEqual(
-                BillingAgreementStatus.ACTIVE, due)).willReturn(List.of(agreement));
+        givenDueAgreement(agreement, due);
         given(userSubscriptionRepository.findActiveByUser(user, due)).willReturn(Optional.of(userSubscription));
         given(paymentOrderRepository.findFirstByBillingAgreementAndPurposeAndStatusInOrderByCreatedAtDesc(
                 eq(agreement), eq(PaymentPurpose.RENEWAL), anyCollection())).willReturn(Optional.of(doneOrder));
@@ -196,8 +193,7 @@ class RecurringRenewalServiceTest {
         UserSubscription userSubscription = buildUserSubscription(100L, user, subscription, due);
         BillingAgreement agreement = buildActiveAgreement(user, due);
 
-        given(billingAgreementRepository.findByStatusAndNextBillingAtLessThanEqual(
-                BillingAgreementStatus.ACTIVE, due)).willReturn(List.of(agreement));
+        givenDueAgreement(agreement, due);
         given(userSubscriptionRepository.findActiveByUser(user, due)).willReturn(Optional.of(userSubscription));
         given(paymentOrderRepository.findFirstByBillingAgreementAndPurposeAndStatusInOrderByCreatedAtDesc(
                 eq(agreement), eq(PaymentPurpose.RENEWAL), anyCollection())).willReturn(Optional.empty());
@@ -231,8 +227,7 @@ class RecurringRenewalServiceTest {
         PaymentOrder failedOrder = buildRenewalOrder(user, subscription, userSubscription, agreement, originalDue);
         failedOrder.markFailed("DECLINED", "Previous failure.");
 
-        given(billingAgreementRepository.findByStatusAndNextBillingAtLessThanEqual(
-                BillingAgreementStatus.ACTIVE, retryDay)).willReturn(List.of(agreement));
+        givenDueAgreement(agreement, retryDay);
         given(userSubscriptionRepository.findActiveByUser(user, retryDay)).willReturn(Optional.of(userSubscription));
         given(paymentOrderRepository.findFirstByBillingAgreementAndPurposeAndStatusInOrderByCreatedAtDesc(
                 eq(agreement), eq(PaymentPurpose.RENEWAL), anyCollection())).willReturn(Optional.of(failedOrder));
@@ -257,13 +252,33 @@ class RecurringRenewalServiceTest {
         BillingAgreement agreement = buildActiveAgreement(user, due);
         agreement.cancel();
 
-        given(billingAgreementRepository.findByStatusAndNextBillingAtLessThanEqual(
-                BillingAgreementStatus.ACTIVE, due)).willReturn(List.of(agreement));
+        givenDueAgreement(agreement, due);
 
         RecurringRenewalService.RenewalRunResult result = service.processDueRenewals(due);
 
         assertThat(result.skipped()).isEqualTo(1);
         verify(recurringPaymentProvider, never()).charge(any());
+    }
+
+    @Test
+    @DisplayName("a due candidate withdrawn before locked reload is never charged")
+    void processDueRenewals_deletedUserNeverCharges() {
+        LocalDate due = LocalDate.of(2026, 5, 17);
+        User user = buildUser(1L);
+        BillingAgreement agreement = buildActiveAgreement(user, due);
+        user.withdraw();
+
+        givenDueAgreement(agreement, due);
+
+        RecurringRenewalService.RenewalRunResult result = service.processDueRenewals(due);
+
+        assertThat(result.skipped()).isEqualTo(1);
+        assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.CANCELLED);
+        verify(billingKeyCrypto, never()).decrypt(any());
+        verify(userSubscriptionRepository, never()).findActiveByUser(any(), any());
+        verify(paymentOrderRepository, never()).save(any(PaymentOrder.class));
+        verify(recurringPaymentProvider, never()).charge(any());
+        verify(billingAgreementRepository).findByIDForRenewal(agreement.getId());
     }
 
     @Test
@@ -276,8 +291,7 @@ class RecurringRenewalServiceTest {
         userSubscription.cancel();
         BillingAgreement agreement = buildActiveAgreement(user, due);
 
-        given(billingAgreementRepository.findByStatusAndNextBillingAtLessThanEqual(
-                BillingAgreementStatus.ACTIVE, due)).willReturn(List.of(agreement));
+        givenDueAgreement(agreement, due);
         given(userSubscriptionRepository.findActiveByUser(user, due)).willReturn(Optional.of(userSubscription));
 
         RecurringRenewalService.RenewalRunResult result = service.processDueRenewals(due);
@@ -291,7 +305,7 @@ class RecurringRenewalServiceTest {
     @DisplayName("no due agreements means no renewal attempt")
     void processDueRenewals_dueDateBoundary() {
         LocalDate today = LocalDate.of(2026, 5, 17);
-        given(billingAgreementRepository.findByStatusAndNextBillingAtLessThanEqual(
+        given(billingAgreementRepository.findDueRenewalCandidateIDs(
                 BillingAgreementStatus.ACTIVE, today)).willReturn(List.of());
 
         RecurringRenewalService.RenewalRunResult result = service.processDueRenewals(today);
@@ -311,8 +325,7 @@ class RecurringRenewalServiceTest {
         UserSubscription expiredSubscription = buildUserSubscription(100L, user, subscription, due.plusDays(3));
         BillingAgreement agreement = buildActiveAgreement(user, due);
 
-        given(billingAgreementRepository.findByStatusAndNextBillingAtLessThanEqual(
-                BillingAgreementStatus.ACTIVE, afterGrace)).willReturn(List.of(agreement));
+        givenDueAgreement(agreement, afterGrace);
         given(userSubscriptionRepository.findActiveByUser(user, afterGrace)).willReturn(Optional.empty());
         given(userSubscriptionRepository.findByUser(user)).willReturn(Optional.of(expiredSubscription));
 
@@ -374,8 +387,17 @@ class RecurringRenewalServiceTest {
                 .provider(PaymentProviderType.TOSS_BILLING)
                 .providerCustomerKey("ats_billing_customer_1")
                 .build();
+        ReflectionTestUtils.setField(agreement, "id", user.getId());
         agreement.activate("encrypted-key", "fingerprint", "CARD", "1234", nextBillingAt);
         return agreement;
+    }
+
+    private void givenDueAgreement(BillingAgreement agreement, LocalDate dueDate) {
+        given(billingAgreementRepository.findDueRenewalCandidateIDs(
+                BillingAgreementStatus.ACTIVE,
+                dueDate)).willReturn(List.of(agreement.getId()));
+        given(billingAgreementRepository.findByIDForRenewal(agreement.getId()))
+                .willReturn(Optional.of(agreement));
     }
 
     private PaymentOrder buildRenewalOrder(

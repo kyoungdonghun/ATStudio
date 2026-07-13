@@ -8,7 +8,9 @@ import com.atstudio.atstudio.service.TrackService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -17,10 +19,14 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/tracks")
 @RequiredArgsConstructor
 public class TrackController {
+
+    private static final long DEFAULT_STREAM_CHUNK_SIZE = 1024 * 1024;
 
     private final TrackService trackService;
     private final DownloadService downloadService;
@@ -88,53 +94,74 @@ public class TrackController {
     }
 
     @GetMapping("/{trackId}/stream")
-    public ResponseEntity<org.springframework.core.io.support.ResourceRegion> streamTrack(
+    public ResponseEntity<ResourceRegion> streamTrack(
             @PathVariable Long trackId,
             @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader) {
-        Resource resource = trackService.getStreamResource(trackId);
+        TrackService.StreamResource streamResource = trackService.getStreamResource(trackId);
+        Resource resource = streamResource.resource();
+        long publicLength = streamResource.publicLength();
+        MediaType contentType = resolveAudioContentType(resource);
+
+        if (publicLength <= 0) {
+            return rangeNotSatisfiable(publicLength);
+        }
+
+        if (rangeHeader == null) {
+            ResourceRegion region = new ResourceRegion(resource, 0, publicLength);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                    .contentLength(publicLength)
+                    .contentType(contentType)
+                    .body(region);
+        }
+
         try {
-            long fileLength = resource.contentLength();
-            String contentType = "audio/mpeg";
-            String filename = resource.getFilename();
-            if (filename != null && filename.toLowerCase().endsWith(".wav")) {
-                contentType = "audio/wav";
+            List<HttpRange> ranges = HttpRange.parseRanges(rangeHeader);
+            if (ranges.size() != 1) {
+                return rangeNotSatisfiable(publicLength);
             }
 
-            long start = 0;
-            long end = fileLength - 1;
-            long chunkSize = Math.min(1024 * 1024, fileLength); // 1MB default chunk
-
-            if (rangeHeader != null) {
-                String range = rangeHeader.replace("bytes=", "");
-                String[] parts = range.split("-");
-                start = Long.parseLong(parts[0]);
-                end = (parts.length > 1 && !parts[1].isEmpty())
-                        ? Long.parseLong(parts[1])
-                        : Math.min(start + chunkSize - 1, fileLength - 1);
-                if (end >= fileLength) end = fileLength - 1;
+            HttpRange range = ranges.get(0);
+            long start = range.getRangeStart(publicLength);
+            long end = range.getRangeEnd(publicLength);
+            if (isOpenEndedRange(rangeHeader)) {
+                end = Math.min(end, start + DEFAULT_STREAM_CHUNK_SIZE - 1);
+            }
+            if (start < 0 || start >= publicLength || end < start) {
+                return rangeNotSatisfiable(publicLength);
             }
 
             long contentLength = end - start + 1;
-            var region = new org.springframework.core.io.support.ResourceRegion(resource, start, contentLength);
-
-            if (rangeHeader == null) {
-                return ResponseEntity.ok()
-                        .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                        .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileLength))
-                        .contentType(MediaType.parseMediaType(contentType))
-                        .body(region);
-            }
-
+            ResourceRegion region = new ResourceRegion(resource, start, contentLength);
             return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                     .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                    .header(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + end + "/" + fileLength)
-                    .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(contentLength))
-                    .contentType(MediaType.parseMediaType(contentType))
+                    .header(HttpHeaders.CONTENT_RANGE,
+                            "bytes " + start + "-" + end + "/" + publicLength)
+                    .contentLength(contentLength)
+                    .contentType(contentType)
                     .body(region);
-        } catch (java.io.IOException e) {
-            throw new com.atstudio.atstudio.common.exception.BusinessException(
-                    com.atstudio.atstudio.common.exception.BUSINESS_ERROR.TRACK_NOT_FOUND);
+        } catch (IllegalArgumentException e) {
+            return rangeNotSatisfiable(publicLength);
         }
+    }
+
+    private MediaType resolveAudioContentType(Resource resource) {
+        String filename = resource.getFilename();
+        if (filename != null && filename.toLowerCase().endsWith(".wav")) {
+            return MediaType.parseMediaType("audio/wav");
+        }
+        return MediaType.parseMediaType("audio/mpeg");
+    }
+
+    private boolean isOpenEndedRange(String rangeHeader) {
+        String rangeValue = rangeHeader.substring(rangeHeader.indexOf('=') + 1).trim();
+        return rangeValue.endsWith("-") && !rangeValue.startsWith("-");
+    }
+
+    private ResponseEntity<ResourceRegion> rangeNotSatisfiable(long publicLength) {
+        return ResponseEntity.status(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                .header(HttpHeaders.CONTENT_RANGE, "bytes */" + Math.max(0, publicLength))
+                .build();
     }
 
     @PutMapping(value = "/{trackId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

@@ -26,7 +26,15 @@ public record TrackResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static TrackResponse from(Track track, List<Tag> tags) {
+    public static TrackResponse fromPublic(Track track, List<Tag> tags) {
+        return from(track, tags, null);
+    }
+
+    public static TrackResponse fromAdmin(Track track, List<Tag> tags) {
+        return from(track, tags, track.getAudioFile());
+    }
+
+    private static TrackResponse from(Track track, List<Tag> tags, String audioFile) {
         return new TrackResponse(
                 track.getId(),
                 track.getTitle(),
@@ -35,7 +43,7 @@ public record TrackResponse(
                 track.getBpm(),
                 track.getTonality(),
                 track.getDescription(),
-                track.getAudioFile(),
+                audioFile,
                 track.getThumbnail(),
                 track.isActive(),
                 track.getPlayCount(),

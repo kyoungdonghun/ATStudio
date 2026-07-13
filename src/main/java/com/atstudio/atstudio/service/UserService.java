@@ -5,12 +5,18 @@ import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.user.*;
+import com.atstudio.atstudio.entity.BillingAgreement;
 import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.UserSubscription;
+import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
+import com.atstudio.atstudio.entity.enums.PaymentProviderType;
+import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.service.auth.PasswordLoginPolicy;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,6 +38,9 @@ public class UserService {
     private final LicenseRepository licenseRepository;
     private final WhitelistChannelRepository whitelistChannelRepository;
     private final PasswordLoginPolicy passwordLoginPolicy;
+    private final BillingAgreementRepository billingAgreementRepository;
+    private final UserSubscriptionRepository userSubscriptionRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -111,6 +120,22 @@ public class UserService {
             throw new BusinessException(BUSINESS_ERROR.INVALID_CREDENTIALS);
         }
 
+        BillingAgreement billingAgreement = billingAgreementRepository
+                .findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING)
+                .orElse(null);
+        if (billingAgreement != null && !isTerminal(billingAgreement.getStatus())) {
+            billingAgreement.cancel();
+        }
+
+        UserSubscription userSubscription = userSubscriptionRepository.findByUser(user).orElse(null);
+        if (userSubscription != null && userSubscription.getStatus() == SubscriptionStatus.ACTIVE) {
+            userSubscription.cancel();
+        }
+
+        if (billingAgreement != null && hasIssuedKey(billingAgreement)) {
+            eventPublisher.publishEvent(new WithdrawalBillingCleanupRequestedEvent(billingAgreement.getId()));
+        }
+
         // 관련 레코드 정리 (고아 레코드 방지)
         likeRepository.deleteAllByUser(user);
         downloadQueueRepository.deleteAllByUser(user);
@@ -120,6 +145,15 @@ public class UserService {
         whitelistChannelRepository.deleteAllByUser(user);
 
         user.withdraw();
+    }
+
+    private boolean isTerminal(BillingAgreementStatus status) {
+        return status == BillingAgreementStatus.CANCELLED || status == BillingAgreementStatus.EXPIRED;
+    }
+
+    private boolean hasIssuedKey(BillingAgreement billingAgreement) {
+        String ciphertext = billingAgreement.getBillingKeyCiphertext();
+        return ciphertext != null && !ciphertext.isBlank();
     }
 
     @Transactional

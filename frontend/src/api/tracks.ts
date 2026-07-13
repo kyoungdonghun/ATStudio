@@ -11,7 +11,7 @@ export interface TrackDetail {
   bpm: number;
   tonality: string;
   description: string | null;
-  audioFile: string;
+  audioFile: string | null;
   thumbnail: string | null;
   waveformData?: string | null;
   isActive: boolean;
@@ -21,6 +21,10 @@ export interface TrackDetail {
   tags: TagItem[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdminTrackDetail extends TrackDetail {
+  audioFile: string;
 }
 
 /* ── List params ── */
@@ -72,8 +76,8 @@ export async function fetchTrackDetail(trackId: number): Promise<TrackDetail> {
 }
 
 /** GET /api/tracks/admin/{trackId} -- admin track detail (includes inactive) */
-export async function fetchTrackDetailForAdmin(trackId: number): Promise<TrackDetail> {
-  const { data } = await client.get<ApiResponse<TrackDetail>>(`/tracks/admin/${trackId}`);
+export async function fetchTrackDetailForAdmin(trackId: number): Promise<AdminTrackDetail> {
+  const { data } = await client.get<ApiResponse<AdminTrackDetail>>(`/tracks/admin/${trackId}`);
   return data.data;
 }
 
@@ -113,31 +117,25 @@ export async function fetchAdminTracks(
   if (params.is_active !== undefined) query.is_active = params.is_active;
   if (params.keyword) query.keyword = params.keyword;
 
-  const { data } = await client.get<PagedResponse<AdminTrackListItem>>(
-    '/tracks/admin',
-    { params: query },
-  );
+  const { data } = await client.get<PagedResponse<AdminTrackListItem>>('/tracks/admin', {
+    params: query,
+  });
   return data;
 }
 
 /** POST /api/tracks -- create track (multipart/form-data) */
-export async function createTrack(formData: FormData): Promise<TrackDetail> {
-  const { data } = await client.post<ApiResponse<TrackDetail>>('/tracks', formData, {
+export async function createTrack(formData: FormData): Promise<AdminTrackDetail> {
+  const { data } = await client.post<ApiResponse<AdminTrackDetail>>('/tracks', formData, {
     timeout: 300_000, // 5 minutes for file upload
   });
   return data.data;
 }
 
 /** PUT /api/tracks/{trackId} -- update track (multipart/form-data) */
-export async function updateTrack(
-  trackId: number,
-  formData: FormData,
-): Promise<TrackDetail> {
-  const { data } = await client.put<ApiResponse<TrackDetail>>(
-    `/tracks/${trackId}`,
-    formData,
-    { timeout: 300_000 },
-  );
+export async function updateTrack(trackId: number, formData: FormData): Promise<AdminTrackDetail> {
+  const { data } = await client.put<ApiResponse<AdminTrackDetail>>(`/tracks/${trackId}`, formData, {
+    timeout: 300_000,
+  });
   return data.data;
 }
 

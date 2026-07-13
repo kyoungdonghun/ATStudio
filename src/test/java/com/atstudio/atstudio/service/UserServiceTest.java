@@ -5,7 +5,13 @@ import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.user.*;
+import com.atstudio.atstudio.entity.BillingAgreement;
 import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.UserSubscription;
+import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
+import com.atstudio.atstudio.entity.enums.BillingCycle;
+import com.atstudio.atstudio.entity.enums.PaymentProviderType;
+import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserJob;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
@@ -17,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,12 +31,15 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("UserService 단위 테스트")
@@ -46,8 +56,79 @@ class UserServiceTest {
     @Mock WhitelistChannelRepository whitelistChannelRepository;
     @Mock PlaylistService playlistService;
     @Mock PasswordLoginPolicy passwordLoginPolicy;
+    @Mock BillingAgreementRepository billingAgreementRepository;
+    @Mock UserSubscriptionRepository userSubscriptionRepository;
+    @Mock ApplicationEventPublisher eventPublisher;
 
     @InjectMocks UserService userService;
+
+    @Test
+    @DisplayName("withdraw() cancels local billing before publishing the ID-only cleanup event")
+    void withdraw_cancelsLocalBillingBeforePublishingCleanup() {
+        User user = buildUser(1L, "withdraw@test.com", "withdraw-user", null, UserJob.EDITOR);
+        BillingAgreement agreement = BillingAgreement.builder()
+                .user(user)
+                .provider(PaymentProviderType.TOSS_BILLING)
+                .providerCustomerKey("customer-key")
+                .build();
+        ReflectionTestUtils.setField(agreement, "id", 11L);
+        agreement.activate("encrypted-key", "fingerprint", "CARD", "****1234", LocalDate.now());
+        UserSubscription subscription = UserSubscription.builder()
+                .user(user)
+                .billingCycle(BillingCycle.MONTHLY)
+                .status(SubscriptionStatus.ACTIVE)
+                .startedAt(LocalDate.now())
+                .expiresAt(LocalDate.now().plusMonths(1))
+                .build();
+        WithdrawRequest request = new WithdrawRequest();
+        request.setPassword("password123");
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(passwordEncoder.matches("password123", "encoded")).willReturn(true);
+        given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+                .willReturn(Optional.of(agreement));
+        given(userSubscriptionRepository.findByUser(user)).willReturn(Optional.of(subscription));
+        org.mockito.Mockito.doAnswer(invocation -> {
+            Object event = invocation.getArgument(0);
+            assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.CANCELLED);
+            assertThat(subscription.getStatus()).isEqualTo(SubscriptionStatus.CANCELLED);
+            assertThat(user.isDeleted()).isFalse();
+            assertThat(event).isEqualTo(new WithdrawalBillingCleanupRequestedEvent(11L));
+            return null;
+        }).when(eventPublisher).publishEvent(any(Object.class));
+
+        userService.withdraw(1L, request);
+
+        assertThat(user.isDeleted()).isTrue();
+        assertThat(agreement.getBillingKeyCiphertext()).isEqualTo("encrypted-key");
+        verify(eventPublisher).publishEvent(new WithdrawalBillingCleanupRequestedEvent(11L));
+        verify(likeRepository).deleteAllByUser(user);
+        verify(downloadQueueRepository).deleteAllByUser(user);
+        verify(playHistoryRepository).deleteAllByUser(user);
+        verify(trackDownloadRepository).deleteAllByUser(user);
+        verify(licenseRepository).deleteAllByUser(user);
+        verify(whitelistChannelRepository).deleteAllByUser(user);
+    }
+
+    @Test
+    @DisplayName("withdraw() stops before billing changes when the password is invalid")
+    void withdraw_invalidPasswordDoesNotChangeBilling() {
+        User user = buildUser(1L, "withdraw@test.com", "withdraw-user", null, UserJob.EDITOR);
+        WithdrawRequest request = new WithdrawRequest();
+        request.setPassword("wrong-password");
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(passwordEncoder.matches("wrong-password", "encoded")).willReturn(false);
+
+        assertThatThrownBy(() -> userService.withdraw(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_CREDENTIALS));
+
+        assertThat(user.isDeleted()).isFalse();
+        verify(billingAgreementRepository, never()).findByUserAndProvider(any(), any());
+        verify(userSubscriptionRepository, never()).findByUser(any());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
 
     // ── register() ────────────────────────────────────────────────────────────
 
