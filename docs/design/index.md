@@ -1,6 +1,6 @@
 ---
-version: 1.7
-last_updated: 2026-06-18
+version: 1.8
+last_updated: 2026-07-13
 project: system
 owner: SA
 category: registry
@@ -32,3 +32,4 @@ status: stable
 | **[Payment Operations Runbook](payment-operations-runbook.md)** | Toss recurring payment reconciliation and production incident response | draft |
 | **[Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md)** | Payment operations policy for refund, receipt, settlement, tax invoice, and future admin mutation boundaries | draft |
 | **[Payment Settlement Import and Reconciliation Design](payment-settlement-import-design.md)** | Settlement source adapter, CSV-first import, reconciliation, and admin operation design | draft |
+| **[P0 Release Blocker Remediation Design](p0-release-blocker-remediation-design.md)** | Protected track media, secret-free mail logging, and withdrawal billing-stop contracts | stable |
