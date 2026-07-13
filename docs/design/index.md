@@ -1,5 +1,5 @@
 ---
-version: 1.8
+version: 1.9
 last_updated: 2026-07-13
 project: system
 owner: SA
@@ -25,8 +25,8 @@ status: stable
 
 | Document | Description | Status |
 |---|---|---|
-| **[API Specification](api-spec.md)** | REST API spec v18 — 147 endpoints | stable |
-| **[DB Schema](db-schema.md)** | Database schema — 39 tables | stable |
+| **[API Specification](api-spec.md)** | REST API spec v19 — 147 endpoints | stable |
+| **[DB Schema](db-schema.md)** | Database schema v14 — 39 tables | stable |
 | **[Use Case Index](usecase/index.md)** | Domain use case documents | stable |
 | **[Payment Integration Design](payment-integration-design.md)** | Recurring-first subscription payment, legacy/mock payment compatibility, and provider architecture | draft |
 | **[Payment Operations Runbook](payment-operations-runbook.md)** | Toss recurring payment reconciliation and production incident response | draft |

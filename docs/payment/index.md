@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-06-15
+version: 1.3
+last_updated: 2026-07-13
 project: ATS
 owner: docops
 category: guide
@@ -24,7 +24,7 @@ dependencies:
 
 ## 1. Scope
 
-This directory explains the ATStudio payment system as of 2026-06-15.
+This directory explains the ATStudio payment system as of 2026-07-13.
 
 The current payment system is recurring-subscription first:
 
@@ -32,6 +32,8 @@ The current payment system is recurring-subscription first:
 - The first subscription charge happens immediately after billing-key registration.
 - Upgrades are charged immediately for the remaining-period difference.
 - Downgrades and billing-cycle-only changes are scheduled for the next renewal.
+- Account withdrawal cancels local renewal eligibility before soft deletion, then attempts Provider billing-key cleanup after commit.
+- Withdrawal cleanup failure is visible as a deduplicated Incident and retried daily; withdrawal never creates an automatic refund.
 - Admins can review payment ledgers, reconciliation incidents, receipt evidence, refund workflow, entitlement correction workflow, and settlement reconciliation from `/admin/payments`.
 - Existing MySQL databases must be patched separately from `schema.sql` when running with `ddl-auto=validate`; see [System Overview](system-overview.md) and [DB Schema](../design/db-schema.md).
 
@@ -39,13 +41,16 @@ This directory is a guide layer. Detailed source-of-truth design documents remai
 
 ## 2. Current Closure Decision
 
-The current card-only recurring subscription payment feature is ready to close as a feature slice when validation passes.
+The three 2026-07-13 P0 behaviors are implemented and focused-test verified in implementation commit `d11c62d`: protected Track media, secret-free mail delivery logs, and post-withdrawal renewal stop. This statement is limited to the P0 remediation slice.
+
+Production readiness remains OPEN in [SR-93](../SR/SR-93.md), and the broader full-system release verdict remains NO-GO while separate payment integrity, migration, deployment, and other audit gates are open.
 
 Closed scope:
 
 - Card-based Toss recurring subscription checkout.
 - User subscription lifecycle and plan-change policy.
 - Renewal, failure, retry, and expiration handling.
+- Local-first account-withdrawal cancellation, after-commit Provider cleanup, durable Incident/retry handling, already-removed convergence, and no-auto-refund separation.
 - Admin payment operations for ledgers, incidents, receipts, audit logs, refunds, entitlement correction, and CSV/manual settlement review.
 
 Not blockers for closure:

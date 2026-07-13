@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-06-15
+version: 1.2
+last_updated: 2026-07-13
 project: ATS
 owner: docops
 category: guide
@@ -46,6 +46,7 @@ The system does not let the frontend directly activate subscriptions after selec
 | User payment APIs | `PaymentController`, `UserSubscriptionController` | Billing agreement prepare/confirm/read/cancel and subscription change/cancel/reactivate. |
 | Admin payment APIs | `AdminPaymentController` | Read and mutate admin-only payment operation workflows. |
 | Application services | `BillingAgreementApplicationService`, `UserSubscriptionService`, `RecurringRenewalService` | Billing-key registration, initial charge, upgrade charge, renewal, cancellation, and access transitions. |
+| Withdrawal cleanup | `UserService`, `WithdrawalBillingCleanupCoordinator`, `WithdrawalBillingCleanupService` | Local-first withdrawal cancellation, ID-only after-commit dispatch, Provider key cleanup, Incident lifecycle, and daily retry. |
 | Operations services | `PaymentReconciliationService`, `AdminPaymentRefundService`, `AdminPaymentEntitlementCorrectionService`, `AdminPaymentSettlementService` | Reconciliation, refund, correction, settlement import/review, and audit workflow. |
 | Provider adapters | `RecurringPaymentProvider`, `PaymentStatusLookupProvider`, `PaymentRefundProvider`, `TossBillingProvider` | Provider-specific billing auth, charge, lookup, cancel, and refund/cancel calls. |
 | Ledgers | Payment tables listed below | Persist source-of-truth local evidence and workflow state. |
@@ -55,10 +56,10 @@ The system does not let the frontend directly activate subscriptions after selec
 | Table | Role |
 | :-- | :-- |
 | `payment_orders` | Payment attempt/order ledger for billing auth, initial charge, upgrade, renewal, and legacy states. |
-| `billing_agreements` | Recurring payment agreement state, encrypted billing key, provider customer key, masked payment method, failure count, and next billing date. |
+| `billing_agreements` | Recurring payment agreement state, encrypted billing key, provider customer key, masked payment method, failure count, next billing date, and withdrawal cleanup retry eligibility. |
 | `subscription_payments` | Finalized subscription charge records. |
 | `user_subscriptions` | Current user access state, plan, billing cycle, expiration, and pending change state. |
-| `payment_reconciliation_incidents` | Persistent local/provider mismatch incident workflow. |
+| `payment_reconciliation_incidents` | Persistent local/provider mismatch and withdrawal-cleanup Incident workflow. |
 | `payment_receipts` | Safe receipt/cash-receipt evidence captured from successful provider responses. |
 | `payment_operation_audit_logs` | Append-only admin/system operation audit log. |
 | `payment_refunds` | Admin refund request, approval, provider execution, idempotency, and result ledger. |
@@ -82,6 +83,7 @@ Runtime DB note:
 | `PUT /api/user-subscriptions/me` | Change plan or billing cycle. Upgrade may charge immediately. Downgrade/cycle-only change is scheduled. |
 | `DELETE /api/user-subscriptions/me` | Cancel subscription renewal while keeping access until expiration. |
 | `POST /api/user-subscriptions/me/reactivate` | Reactivate a cancelled grace-period subscription. |
+| `DELETE /api/users/me` | Withdraw the account, cancel local renewal eligibility, and request Provider billing-key cleanup after commit. No refund is created. |
 
 Legacy one-time subscription payment APIs exist in controller shape, but subscription `SUBSCRIBE` and `UPGRADE` direct confirmation is blocked for the current recurring-subscription scope.
 
@@ -147,6 +149,7 @@ Important fields:
 | 00:10 daily | `SubscriptionScheduler.processExpiredPaymentOrders()` | Expire stale `READY` and `IN_PROGRESS` payment orders. |
 | 00:30 daily | `SubscriptionScheduler.processExpiredSubscriptions()` | Expire subscriptions after renewal/grace handling. |
 | 01:00 daily | `PaymentReconciliationService.scheduledReconciliation()` | Compare local/provider ledgers and persist incidents when mismatches are found. |
+| 01:15 daily | `WithdrawalBillingCleanupCoordinator.retryFailedCleanups()` | Retry only deleted-user `CANCELLED` agreements that still retain encrypted key material. |
 
 Current deployment assumption is single server. Multi-server scheduler locking is intentionally deferred.
 
@@ -160,6 +163,7 @@ The following values must never be returned to frontend/admin screens or stored 
 - Raw `customerKey`
 - Raw card number
 - Raw provider payload containing sensitive fields
+- Mail recipient, subject/body, verification/reset URL or token, raw delivery exception message, or stack trace
 
 Allowed support-safe values include:
 
@@ -168,6 +172,14 @@ Allowed support-safe values include:
 - Masked payment method
 - Receipt URL or receipt key when provider returns it
 - Reconciliation status, incident metadata, and audit workflow fields
+
+Withdrawal-specific boundaries:
+
+- Local agreement/subscription cancellation completes before user soft deletion and does not depend on Provider cleanup success.
+- Provider failure keeps encrypted key material for retry and creates/updates an agreement-scoped `WARNING` Incident.
+- Provider success or `ALREADY_REMOVED_BILLING_KEY` clears issued-key material and resolves the matching Incident.
+- Deleted users are excluded by both renewal selection and service guard before charge work.
+- Account withdrawal never creates an automatic refund. Refund remains a separate approved admin workflow.
 
 ## Related Documents
 

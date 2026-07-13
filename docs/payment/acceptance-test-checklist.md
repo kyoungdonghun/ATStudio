@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-05-30
+version: 1.1
+last_updated: 2026-07-13
 project: ATS
 owner: qa
 category: guide
@@ -86,7 +86,17 @@ dependencies:
 | Simulate repeated failure or grace expiration. | Billing agreement is suspended and subscription expires after grace as appropriate. | [ ] |
 | Confirm failure email behavior. | Email attempt occurs with safe guidance, or failure is logged without exposing secrets. | [ ] |
 
-## 8. Admin Payment Operations
+## 8. Account Withdrawal Safety
+
+| Check | Expected Result | Done |
+| :-- | :-- | :-- |
+| Withdraw a password account with an ACTIVE subscription and billing agreement in a safe test environment. | User becomes deleted; subscription and agreement are locally `CANCELLED`; no refund row is created. | [ ] |
+| Run due renewal after withdrawal. | Deleted user is not selected or charged; Provider charge invocation remains zero. | [ ] |
+| Simulate Provider cleanup failure. | Withdrawal remains complete, key material is retained for retry, and one agreement-scoped `WARNING` Incident is open. | [ ] |
+| Run the 01:15 cleanup retry with Provider success. | Issued-key fields are cleared and the matching Incident becomes `RESOLVED`. | [ ] |
+| Return `ALREADY_REMOVED_BILLING_KEY` from the Provider test double. | Cleanup converges to success, clears local key material, and resolves the Incident. | [ ] |
+
+## 9. Admin Payment Operations
 
 | Check | Expected Result | Done |
 | :-- | :-- | :-- |
@@ -100,7 +110,7 @@ dependencies:
 | Run settlement missing-provider scan. | Missing settlement evidence rows are generated for selected period. | [ ] |
 | Ignore a settlement row. | Row becomes `IGNORED` with operator note. | [ ] |
 
-## 9. Refund and Entitlement Correction
+## 10. Refund and Entitlement Correction
 
 | Check | Expected Result | Done |
 | :-- | :-- | :-- |
@@ -112,7 +122,7 @@ dependencies:
 | Preview entitlement correction from succeeded refund. | Target local subscription state is shown. | [ ] |
 | Execute entitlement correction with required confirmation text. | Local subscription state changes and audit log is recorded. | [ ] |
 
-## 10. Security and Data Boundary
+## 11. Security and Data Boundary
 
 | Check | Expected Result | Done |
 | :-- | :-- | :-- |
@@ -121,7 +131,7 @@ dependencies:
 | Inspect server logs around payment flow. | Secrets and raw card numbers are not logged. | [ ] |
 | Inspect settlement import payload behavior. | Stored source payload contains allowlisted support-safe fields only. | [ ] |
 
-## 11. Final Acceptance Gate
+## 12. Final Acceptance Gate
 
 | Check | Expected Result | Done |
 | :-- | :-- | :-- |

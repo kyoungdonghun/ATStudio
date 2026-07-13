@@ -1,6 +1,6 @@
 ---
-version: 0.1
-last_updated: 2026-05-30
+version: 0.2
+last_updated: 2026-07-13
 project: ATS
 owner: docops
 category: guide
@@ -59,6 +59,10 @@ Cancelling a subscription stops future renewal. The user can continue using paid
 
 If the user changes their mind before the paid period expires, the subscription can be reactivated.
 
+### 2.7 Account Withdrawal
+
+Account withdrawal stops local automatic renewal before the account is marked deleted. ATStudio then removes the Provider billing key after the local change commits. If Provider cleanup temporarily fails, local renewal remains blocked and the system records and retries the cleanup. Withdrawal does not automatically refund an earlier payment.
+
 ## 3. Admin Operation Support
 
 ATStudio includes an admin payment operations screen at `/admin/payments`.
@@ -99,6 +103,7 @@ Client testing should focus on:
 - Downgrade reservation.
 - Billing-cycle change reservation.
 - Cancellation and reactivation.
+- Account withdrawal with confirmation that future renewal stops and no automatic refund is created.
 - Admin review of payment evidence.
 - Refund and entitlement correction only in safe test/staging conditions.
 - Settlement CSV import only with safe test data.

@@ -1,6 +1,6 @@
 ---
-version: 2.0
-last_updated: 2026-07-11
+version: 2.1
+last_updated: 2026-07-13
 project: ATS
 owner: qa
 category: registry

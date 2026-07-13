@@ -1,5 +1,5 @@
 ---
-version: 1.0
+version: 1.1
 last_updated: 2026-07-13
 project: ATS
 owner: SA
@@ -20,7 +20,7 @@ dependencies:
 
 ## 1. Scope and Invariants
 
-This design covers only the following release blockers:
+This design covers only the following release blockers. The implementation and focused verification are complete in implementation commit `d11c62d`; [the dated closure report](../audit/p0-release-blocker-closure-20260713.md) records the WI-003 through WI-011 evidence and remaining boundaries.
 
 1. Public exposure of original track storage keys and files.
 2. Verification and password-reset secrets written to SMTP failure logs.
@@ -54,14 +54,14 @@ The original file remains in its current physical location during this WI. Movin
 
 The public stream endpoint must never fall back to serving the complete original file.
 
-- If `preview_file` exists, the endpoint serves that resource with the existing Range behavior.
-- If `preview_file` is absent, the endpoint exposes a bounded prefix of the original as a compatibility preview.
+- If `preview_file` normalizes under `tracks/preview/` and differs from `audio_file`, the endpoint serves that dedicated resource with the existing Range behavior.
+- If `preview_file` is absent, invalid, outside the dedicated directory, or resolves to the original key, the endpoint exposes a bounded prefix of the original as a compatibility preview.
 - The compatibility boundary is the smaller of 30 seconds and 50 percent of the track duration, estimated proportionally from resource length. If duration is unavailable, 25 percent of the resource is used.
 - At least one byte remains outside the public boundary whenever the resource contains more than one byte.
 - A Range request starting at or beyond the preview boundary returns `416 Range Not Satisfiable`.
 - A request without a Range header returns only the bounded preview region.
 
-This fallback closes full-original retrieval without introducing a new transcoder dependency. Dedicated low-quality preview generation remains a separate follow-up; current documents that claim it already runs asynchronously must be corrected during the documentation WI.
+This fallback closes full-original retrieval without introducing a new transcoder dependency. Dedicated low-quality preview generation remains a separate follow-up; WI-012 corrected active documents that had claimed it already ran asynchronously.
 
 ### 2.4 Subscriber download
 
@@ -108,7 +108,7 @@ The event is handled only after the local transaction commits. A repeated withdr
 
 ### 4.2 Provider cleanup
 
-After commit, the cleanup handler decrypts the stored billing key and invokes the agreement's registered recurring-payment provider. Provider success clears encrypted key material and `next_billing_at`.
+After commit, the cleanup handler decrypts the stored billing key and invokes the agreement's registered recurring-payment provider. Provider success clears encrypted key material, its fingerprint/masked-method metadata, `next_billing_at`, and `last_charged_at`.
 
 Provider failure does not restore local renewal eligibility. The cancelled agreement retains encrypted key material so cleanup can be retried.
 
@@ -123,7 +123,7 @@ Cleanup failure is stored in `payment_reconciliation_incidents` using the existi
 - severity: `WARNING`;
 - dedupe boundary: billing-agreement ID.
 
-This reuses the existing operational incident schema and admin view. A daily single-server retry scans only deleted users whose agreements are `CANCELLED` and still contain encrypted key material. Success clears the key and resolves the matching incident; another failure increments the existing incident.
+This reuses the existing operational incident schema and admin view. A daily 01:15 single-server retry scans only deleted users whose agreements are `CANCELLED` and still contain encrypted key material. Provider success or the explicit `ALREADY_REMOVED_BILLING_KEY` response clears the key and resolves the matching incident; another failure increments the existing incident.
 
 ### 4.4 Renewal defense in depth
 
@@ -139,6 +139,7 @@ The due-renewal query excludes deleted users at the database query boundary. `Re
 | Provider deletion returns failure | deleted | CANCELLED, key retained | attempted | open deduplicated incident |
 | Crypto/provider throws | deleted | CANCELLED, key retained | zero or attempted | open deduplicated incident without secret data |
 | Retry succeeds later | deleted | CANCELLED, key cleared | once per retry run | incident resolved |
+| Provider reports key already removed | deleted | CANCELLED, key cleared | once | convergent success; incident resolved |
 
 ## 6. Acceptance-Test Matrix
 

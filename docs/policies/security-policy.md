@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-04-16
+version: 1.3
+last_updated: 2026-07-13
 project: ATS
 owner: PG
 category: policy
@@ -146,6 +146,25 @@ Use the committed `application.yml` as the safe shared baseline, and override pe
 | `APP_SECURITY_RATE_LIMIT_REFRESH_LIMIT` | `60` recommended | `30` | `30` | Keep refresh higher than login to avoid false positives |
 
 **Operational rule:** The committed [application-local.example.yml](../../application-local.example.yml) is a developer bootstrap example only. Stage and production must use environment-variable driven values managed outside the repository.
+
+### 6.5 Protected Track Media
+
+- Public Track detail responses must not expose the original `audio_file` storage key. The compatibility field is returned as `audioFile: null`.
+- Admin create, update, and detail responses may retain the original key for the existing admin edit workflow.
+- `/uploads/tracks/audio/**` is denied before static-resource resolution for anonymous, USER, and ADMIN requests. Encoded and traversal variants must also fail before resource delivery.
+- Public playback uses `GET /api/tracks/{trackId}/stream`. A valid dedicated preview must normalize under `tracks/preview/` and differ from the original key.
+- When no valid dedicated preview exists, the endpoint may read the original only through the controller and expose a bounded prefix. It must never expose the complete original through repeated or malformed Range requests.
+- Entitled subscribers obtain the original only through `GET /api/tracks/{trackId}/download` after the existing subscription, quota, history, and license controls.
+
+### 6.6 Mail Delivery Logging
+
+Email delivery logs are correlation metadata, not a payload fallback.
+
+- Generate one random `deliveryId` per delivery attempt.
+- Success: log only `deliveryId` and `outcome=SUCCESS`.
+- Failure: log only `deliveryId`, `outcome=FAILURE`, and the exception class name.
+- Never log recipient address, subject, HTML/plain-text body, verification/reset URL or token, raw exception message, or stack trace.
+- Delivery exceptions remain absorbed where the external contract is intentionally generic. In particular, password-reset requests must not reveal account existence or mail delivery success.
 
 ---
 

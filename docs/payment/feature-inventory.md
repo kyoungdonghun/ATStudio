@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-05-30
+version: 1.1
+last_updated: 2026-07-13
 project: ATS
 owner: docops
 category: guide
@@ -54,6 +54,8 @@ dependencies:
 | Subscription cancellation | Implemented | User cancellation stops future renewal while preserving access until `expiresAt`. |
 | Cancellation reactivation | Implemented | A cancelled grace-period subscriber can reactivate before expiration if the billing agreement is reusable. |
 | Automatic renewal cancellation as a separate UX action | Retired | The user-facing action is "cancel subscription"; it means stop future renewal while preserving paid access. |
+| Account-withdrawal renewal stop | Implemented | Password-authenticated withdrawal cancels the local agreement and ACTIVE subscription before soft-deleting the user. |
+| Account-withdrawal automatic refund | Not implemented by design | Withdrawal never creates a refund. Refund remains a separate audited admin workflow. |
 
 ## 4. Renewal, Failure, and Recovery
 
@@ -66,6 +68,10 @@ dependencies:
 | Renewal retry policy | Implemented | Up to 3 retry attempts. |
 | Renewal failure email notice | Implemented | Email notification is attempted for renewal failure and final failure guidance. |
 | Removed billing-key recovery | Implemented | Provider errors indicating removed/invalid billing key mark the local agreement expired and require re-registration. |
+| Withdrawal after-commit billing-key cleanup | Implemented | An ID-only event dispatches agreement-specific Provider cleanup only after the withdrawal transaction commits. |
+| Withdrawal cleanup retry | Implemented with constraint | Runs daily at 01:15 on the current single-server scheduler and selects only deleted/CANCELLED/key-retaining agreements. |
+| Withdrawal cleanup Incident | Implemented | Failure reuses `LOCAL_DONE_PROVIDER_NOT_DONE` with agreement-scoped dedupe and `WARNING` severity; success resolves it. |
+| Already-removed convergence | Implemented | `ALREADY_REMOVED_BILLING_KEY` clears local issued-key material and resolves the matching Incident. |
 
 ## 5. Payment Ledgers and Evidence
 
@@ -101,6 +107,7 @@ dependencies:
 | Local ledger reconciliation | Implemented | Admin/API and scheduled process can compare local payment ledger consistency. |
 | Toss provider reconciliation | Implemented | Recent Toss billing payment orders can be checked against provider lookup by order ID when configured. |
 | Persistent reconciliation incidents | Implemented | `payment_reconciliation_incidents` stores deduped incident state, severity, occurrence count, and operator workflow. |
+| Withdrawal cleanup incidents | Implemented | The same Incident ledger records Provider billing-key deletion failure without storing the raw key; repeated failures increment one agreement-scoped row. |
 | Scheduled reconciliation | Implemented | Runs daily at 01:00 server time. |
 | Optional operator notification | Implemented with constraint | Sends notification only when explicitly configured. |
 | Settlement CSV import | Implemented | Admin uploads CSV settlement evidence into `payment_settlements`. Excel sources must be exported to CSV first. |

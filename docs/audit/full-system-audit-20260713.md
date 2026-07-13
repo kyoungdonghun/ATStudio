@@ -1,5 +1,5 @@
 ---
-version: 1.0
+version: 1.1
 last_updated: 2026-07-13
 project: ATS
 owner: EO
@@ -16,6 +16,8 @@ dependencies:
     reason: Frontend and UX adjudication
   - path: ../../deliverables/agent/WI-20260711-ATS-019-evidence-pack.md
     reason: Documentation and operations adjudication
+  - path: p0-release-blocker-closure-20260713.md
+    reason: Current remediation status for the three historical P0 findings
 tier: 3
 target_agents:
   - eo
@@ -39,6 +41,12 @@ task_types:
 # ATStudio Full-System Audit - 2026-07-13
 
 > Purpose: Canonical integration of WI-20260711-ATS-001 through WI-20260711-ATS-019. This report de-duplicates aliases, resolves conflicting severity decisions, records the release verdict, and defines bounded remediation and acceptance gates. It does not implement fixes.
+
+## Remediation Status Update - 2026-07-13
+
+The three P0 findings below remain preserved as the 2026-07-13 audit snapshot. Their approved remediation is implemented and focused-test verified in implementation commit `d11c62d`; see [P0 Release Blocker Closure Report](p0-release-blocker-closure-20260713.md). This update does not rewrite the historical inventory, matrices, or original evidence.
+
+The broader release verdict remains **NO-GO** because separate P1, conditional deployment/database, and quality gates remain open. P0 closure is not a release-ready declaration.
 
 ## Executive Decision
 
@@ -222,6 +230,8 @@ Each wave must close with an Evidence Pack and an explicit WI-chain check. Docum
 WI-019 established that the sync skill counts Standards as 12 direct non-index Markdown files, producing a pre-WI-020 total of 184. The current user-modified root index instead records Standards 13 and total 185. This WI adds one audit document and therefore changes only the permitted working-tree values: Audit 2 to 3, total 185 to 186, and the date to 2026-07-13.
 
 The underlying counting-contract discrepancy remains ATS020-P2-15. Resolving it would require changing the Standards row and total under a separately approved scope; WI-020 does not overwrite the user's existing root-index work.
+
+Current status (2026-07-13): WI-012 explicitly included index/count alignment. The active root index now applies the documented direct-file rule for Standards (12) and includes the new P0 closure report under Audit (4), for a total of 187. The paragraph above is retained as the WI-020 historical decision.
 
 ## Evidence Map
 

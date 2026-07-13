@@ -10,8 +10,8 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-001 |
-| **Version** | 26-06-02 |
-| **Description** | Admin registers a new track. After upload, a low-quality preview_file is generated asynchronously. |
+| **Version** | 26-07-13 |
+| **Description** | Admin registers a new track. The current service stores the original and waveform metadata; it does not generate a dedicated `preview_file`. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Admin logged in. At least one tag exists in the tags DB. |
 | **Trigger** | Admin clicks the 'Create' button on the track registration page. |
@@ -25,15 +25,15 @@
 5. Backend performs authorization and server-side validation.
 6. Backend saves files to file storage and obtains the paths.
 7. Backend creates the track record (is_active=0, play_count=0) and track_tags in the DB.
-8. Backend enqueues async low-quality preview_file generation.
-9. Backend returns a success response (201 Created).
+8. Backend leaves `preview_file` unset unless a dedicated preview key was populated by a separate operation.
+9. Backend returns an admin response containing the original `audioFile` storage key (201 Created).
 
 **Exception / Alternative Flow**
-- Async preview_file generation failure: preview_file remains NULL. On streaming request, falls back to audio_file.
+- `preview_file` is absent or invalid: public streaming uses the bounded original-prefix compatibility path; it never serves the complete original as fallback.
 
 **Postconditions**
 - Track record (is_active=0) created in DB.
-- audioFile saved in file storage. preview_file async generation pending (NULL).
+- `audioFile` is saved in file storage. No asynchronous preview-generation job is queued.
 - track_tags linked. Admin must separately set is_active=1 to expose the track to users.
 
 ---
@@ -43,7 +43,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-005 |
-| **Version** | 26-06-02 |
+| **Version** | 26-07-13 |
 | **Description** | User (including non-members) views the track list. Only tracks with is_active=1 are returned. |
 | **Actor** | User (including non-members), Backend |
 | **Preconditions** | - |
@@ -103,14 +103,14 @@
 
 **Main Flow**
 1. Frontend sends a detail request including trackId to the backend.
-2. Backend retrieves the track record and associated tags, then returns them.
+2. Backend retrieves the track record and associated tags, then returns a public `TrackResponse` with `audioFile=null`.
 3. Frontend displays the track detail on screen, including visible `USAGE` guide hashtags if linked to the track.
 
 **Exception / Alternative Flow**
 - Track not found or is_active=0: 404 response.
 
 **Postconditions**
-- Track metadata (title, BPM, key, description, tags, visible usage guide hashtags, playCount, audioFile path, etc.) displayed on screen.
+- Track metadata (title, BPM, key, description, tags, visible usage guide hashtags, counts, waveform data, etc.) is displayed. The original storage key is not included in public detail data.
 
 ---
 
@@ -119,8 +119,8 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-010 |
-| **Version** | 26-02-20 |
-| **Description** | User (including non-members) streams a track. preview_file (low-quality) is served first; falls back to audio_file if unavailable. Play history recording is handled by the frontend calling SOUND-004 separately. |
+| **Version** | 26-07-13 |
+| **Description** | User (including non-members) streams a bounded public preview. A valid dedicated preview is served in full; otherwise only a bounded prefix of the original is exposed. Play history recording is handled by the frontend calling SOUND-004 separately. |
 | **Actor** | User (including non-members), Backend |
 | **Preconditions** | Track exists in DB with is_active=1. audio_file exists in file storage. |
 | **Trigger** | User clicks the 'Play' button on a track. |
@@ -129,17 +129,19 @@
 **Main Flow**
 1. User clicks the 'Play' button.
 2. Frontend sends a streaming request including trackId to the backend.
-3. Backend checks whether tracks.preview_file exists.
-4. If preview_file exists, streams the low-quality file. If NULL, streams audio_file (fallback).
+3. Backend accepts `preview_file` as dedicated only when its normalized key is under `tracks/preview/` and differs from `audio_file`.
+4. If the dedicated preview is valid, Backend streams that resource. Otherwise it exposes only a bounded prefix of the original: the smaller of 30 seconds and 50% of duration by byte ratio, or 25% when duration is unavailable. A multi-byte original always retains at least one private byte.
 5. Streaming playback starts in the frontend QueBar.
 6. If member: frontend simultaneously calls SOUND-004 (save play history) when QueBar playback starts.
 
 **Exception / Alternative Flow**
-- preview_file=NULL: automatic fallback to audio_file. No functional impact.
-- File storage error: 503 response.
+- No `Range` header: returns `200` with only the public representation length.
+- One valid Range: returns `206` within the public boundary.
+- Malformed, multiple, unsupported, zero-length, or out-of-bound Range: returns `416` with `Content-Range: bytes */{publicLength}`.
+- Missing/inactive track or unavailable resource: track-not-found response.
 
 **Postconditions**
-- Track is streaming. Play history and play_count updates are handled in SOUND-004.
+- Only the dedicated preview or bounded compatibility prefix is public. The complete original remains available only through SOUND-011. Play history and play_count updates are handled in SOUND-004.
 
 ---
 
@@ -148,7 +150,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-011 |
-| **Version** | 26-02-20 |
+| **Version** | 26-07-13 |
 | **Description** | A subscribed member downloads the original track file (audio_file). Download record is saved and license is automatically issued. |
 | **Actor** | User (Member, subscriber), Backend |
 | **Preconditions** | Logged in. user_subscriptions.status = ACTIVE. Today's download count < plan download_per_day. |
@@ -192,7 +194,7 @@
 1. Admin modifies fields (title, BPM, key, description, tags, files, is_active).
 2. Frontend sends the changed data as multipart/form-data to the backend.
 3. Backend performs authorization and validation.
-4. If audioFile changed: saves the new file to storage, replaces path. Enqueues preview_file regeneration.
+4. If audioFile changed: saves the new file to storage, replaces the path, deletes the old original, and regenerates waveform metadata. No preview-generation job is queued.
 5. If tags changed: updates track_tags + updates tracks.updated_at.
 6. Backend updates the DB record and returns the updated track information.
 

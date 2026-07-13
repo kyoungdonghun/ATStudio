@@ -1,8 +1,19 @@
-# ATStudio DB Schema Definition v13 (Confirmed)
+# ATStudio DB Schema Definition v14 (Confirmed)
 
-> **Status**: v13 Confirmed — company certification document metadata
-> **Base**: v12 + REQ-20260618-ATS-001 company certification workflow patch
-> **Date**: 2026-06-18
+> **Status**: v14 Confirmed — P0 current-state semantics with no structural schema change
+> **Base**: v13 + REQ-20260713-ATS-001 P0 remediation
+> **Date**: 2026-07-13
+
+---
+
+## v13 to v14 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| 1 | `tracks.audio_file` / `tracks.preview_file` | **Wording corrected** — no asynchronous preview generator exists. `audio_file` remains the original download source; a valid dedicated preview is optional, and public fallback is a bounded original prefix. |
+| 2 | `billing_agreements` withdrawal lifecycle | **Clarified** — withdrawal cancels locally before soft deletion, then performs Provider key cleanup after commit with retained key material on retryable failure. |
+| 3 | `payment_reconciliation_incidents` | **Clarified** — withdrawal cleanup reuses `LOCAL_DONE_PROVIDER_NOT_DONE` with agreement-scoped dedupe and resolves it after convergent cleanup. |
+| 4 | Table count and structure | **Unchanged** — 39 tables; no column, key, ENUM, seed, or data change. |
 
 ---
 
@@ -131,7 +142,7 @@
 
 | # | Item | Decision |
 |---|------|----------|
-| 1 | `tracks.preview_file` | **Addition confirmed** — Low-quality file generated asynchronously after upload. Falls back to audio_file for streaming if NULL |
+| 1 | `tracks.preview_file` | **Historical column addition; behavior superseded by v14** — The asynchronous generator described at the time is not implemented. The nullable column may identify a valid dedicated preview; otherwise streaming exposes only a bounded original prefix. |
 
 ---
 
@@ -336,8 +347,8 @@
 | BPM | `bpm` | INT | NOT NULL | | | |
 | Key/Tonality | `tonality` | VARCHAR(10) | NOT NULL | | | e.g., C, Am, F#m |
 | Description | `description` | TEXT | NULL | | | |
-| Audio file path | `audio_file` | VARCHAR(255) | NOT NULL | | | Original file (for download) |
-| Preview file path | `preview_file` | VARCHAR(255) | NULL | | | Low-quality converted file (for streaming). Falls back to audio_file if NULL |
+| Audio file path | `audio_file` | VARCHAR(255) | NOT NULL | | | Original storage key for admin metadata and entitled controller-mediated download; public Track DTOs return `audioFile: null` and the static original route is denied |
+| Preview file path | `preview_file` | VARCHAR(255) | NULL | | | Optional dedicated preview key. Current code does not generate it asynchronously. A normalized `tracks/preview/` key distinct from `audio_file` is served in full; absent or invalid values use only a bounded original prefix |
 | Duration | `duration` | INT | NOT NULL | | 0 | Duration in seconds, auto-extracted from audio file |
 | Copyright holder | `user_id` | BIGINT | NOT NULL | FK(users.id) | | Currently only a single admin (artist) uses this |
 | Active flag | `is_active` | TINYINT(1) | NOT NULL | | 0 | Published after review (admin activates) |
@@ -613,6 +624,9 @@
 - User-facing subscription cancellation changes the agreement state but retains the encrypted billing key for possible reactivation before `user_subscriptions.expires_at`.
 - Provider-level billing agreement cancellation clears issued-key fields and requires payment-method re-registration before future automatic charges.
 - Neither cancellation path removes already-paid subscription access before `user_subscriptions.expires_at`.
+- Account withdrawal is a separate local-first path: a non-terminal agreement becomes `CANCELLED` before `users.is_deleted=1`, and the ACTIVE subscription is cancelled without creating a refund.
+- Withdrawal Provider cleanup runs after commit. Success clears all issued-key fields and `next_billing_at`; failure retains encrypted key material for the deleted-user cleanup retry.
+- The cleanup retry query selects only deleted users with `CANCELLED` agreements and nonblank `billing_key_ciphertext`. Deleted users are independently excluded from renewal selection.
 
 ## 6.9 Payment Reconciliation Incidents (`payment_reconciliation_incidents`)
 
@@ -648,6 +662,7 @@
 - Repeated detections update the same row by `dedupe_key`.
 - `RESOLVED` incidents reopen automatically if the same mismatch appears again.
 - `IGNORED` incidents remain ignored while occurrence metadata continues to update.
+- Withdrawal billing-key cleanup failures reuse `LOCAL_DONE_PROVIDER_NOT_DONE` with `local_status=CANCELLED`, `provider_status=BILLING_KEY_DELETE_FAILED`, `WARNING` severity, and a dedupe key scoped to `billing_agreement_id`. Provider cleanup success, including `ALREADY_REMOVED_BILLING_KEY`, resolves the matching row.
 - This table must never store raw billing keys, raw `authKey`, raw `customerKey`, raw card data, Toss secret keys, or raw provider payloads.
 
 ---

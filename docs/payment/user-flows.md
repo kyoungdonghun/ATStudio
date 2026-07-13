@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-05-30
+version: 1.1
+last_updated: 2026-07-13
 project: ATS
 owner: docops
 category: guide
@@ -16,7 +16,7 @@ dependencies:
 
 # Payment User Flows
 
-> Purpose: Explain how users move through subscription payment, plan change, cancellation, reactivation, and billing recovery flows.
+> Purpose: Explain how users move through subscription payment, plan change, cancellation, reactivation, account withdrawal, and billing recovery flows.
 
 ---
 
@@ -237,7 +237,29 @@ Expected result:
 - User gets a grace period before access ends.
 - Renewal failure does not silently apply pending downgrade or cycle changes.
 
-## 12. Refund and Entitlement Correction
+## 12. Account Withdrawal
+
+Entry point:
+
+- Profile/account settings through `DELETE /api/users/me`
+
+Flow:
+
+1. User confirms withdrawal with the account password.
+2. Backend cancels a non-terminal local billing agreement and ACTIVE subscription before marking the account deleted.
+3. Backend publishes an ID-only cleanup request when encrypted billing-key material exists.
+4. Account soft deletion commits independently of Provider cleanup.
+5. After commit, Backend asks the registered Provider to remove the billing key.
+6. If cleanup fails, local renewal stays blocked, the key remains encrypted for retry, and an agreement-scoped Incident is created or updated.
+7. A daily 01:15 retry processes only deleted users with `CANCELLED` agreements and retained keys.
+8. Provider success or an already-removed response clears local issued-key fields and resolves the Incident.
+
+Expected result:
+
+- The withdrawn account is never charged by the renewal scheduler; deleted users are excluded before decryption, order creation, or Provider charge.
+- Withdrawal does not create a refund. A refund requires the separate admin request, approval, and execution workflow for a specific payment.
+
+## 13. Refund and Entitlement Correction
 
 Refund is an admin operation, but its result affects user support.
 

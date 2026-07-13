@@ -1,8 +1,20 @@
-# ATStudio API Specification v18 (Confirmed)
+# ATStudio API Specification v19 (Confirmed)
 
-> **Status**: 18th confirmed — company certification resubmission, admin document review, and protected document download
-> **Base**: v17 + REQ-20260618-ATS-001 company certification workflow patch
-> **Date**: 2026-06-18
+> **Status**: 19th confirmed — P0 protected media, mail-delivery logging, and withdrawal billing-stop alignment
+> **Base**: v18 + REQ-20260713-ATS-001 P0 remediation
+> **Date**: 2026-07-13
+
+---
+
+## v18 → v19 Change History
+
+| # | Item | Decision |
+|---|------|----------|
+| AJ1 | §1 public/admin Track contract | Public detail keeps the response shape but returns `audioFile: null`; admin create, update, and detail responses retain the original storage key. |
+| AJ2 | §1 preview stream | Removed the false asynchronous preview-generation and full-original fallback claims. A valid dedicated preview is served in full; otherwise only a bounded original prefix is public, with Range requests enforced against that boundary. |
+| AJ3 | §5 withdrawal | Documented password-first local cancellation, after-commit Provider cleanup, retry Incident behavior, deleted-user renewal exclusion, and no automatic refund. |
+| AJ4 | §14 mail delivery | Documented delivery-metadata-only logging for verification and password-reset mail attempts. |
+| AJ5 | Full API Summary | Endpoint count unchanged at 147. |
 
 ---
 
@@ -187,7 +199,7 @@
 
 | # | Item | Decision |
 |---|------|----------|
-| 1 | Track streaming | **preview_file served first** — If `preview_file` exists, serve low-quality stream; if NULL, `audio_file` fallback |
+| 1 | Track streaming | **Historical design, superseded by v19** — `preview_file` was intended as a dedicated preview. Current code does not generate it asynchronously; an absent or invalid dedicated preview uses only a bounded original prefix, never the complete original. |
 | 2 | Nickname duplicate check API | **Added (confirmed)** — `GET /api/utils/check-nickname` |
 
 ---
@@ -272,7 +284,7 @@
 |-------|-------|
 | **URL** | `POST /api/tracks` |
 | **Auth** | `[ADMIN]` |
-| **Description** | Admin uploads a new track (published after review: is_active=0). After upload, async low-quality `preview_file` generation (on failure, stays NULL → audio_file fallback) |
+| **Description** | Admin uploads a new track (published after review: is_active=0). The current service stores the original and extracts waveform metadata; it does not generate a dedicated `preview_file`. Until a valid dedicated preview is separately populated, public streaming uses the bounded original-prefix compatibility path. |
 
 **Request** (multipart/form-data)
 ```
@@ -293,7 +305,7 @@ tagIds: List<Long> (optional)
   "bpm": 120,
   "tonality": "C",
   "description": "...",
-  "audioFile": "/tracks/audio/summer-vibes.mp3",
+  "audioFile": "tracks/audio/summer-vibes.mp3",
   "thumbnail": "/tracks/thumbnail/summer-vibes.jpg",
   "isActive": false,
   "playCount": 0,
@@ -355,7 +367,7 @@ sort: String (optional, "latest"|"popular"|"likes"|"downloads", default: "latest
 |-------|-------|
 | **URL** | `GET /api/tracks/{trackId}` |
 | **Auth** | `[PUBLIC]` |
-| **Description** | Get track detail |
+| **Description** | Get active track detail. The public DTO retains the `audioFile` field for compatibility but always returns it as `null`; callers use the stream endpoint for preview playback. |
 
 **Response** `200 OK`
 ```json
@@ -367,10 +379,13 @@ sort: String (optional, "latest"|"popular"|"likes"|"downloads", default: "latest
   "bpm": 120,
   "tonality": "C",
   "description": "A happy summer track for shorts",
-  "audioFile": "/tracks/audio/summer-vibes.mp3",
+  "audioFile": null,
   "thumbnail": "/tracks/thumbnail/summer-vibes.jpg",
   "isActive": true,
   "playCount": 1500,
+  "likeCount": 80,
+  "downloadCount": 24,
+  "waveformData": "[0.12,0.48,0.31]",
   "tags": [
     { "id": 1, "name": "Happy", "type": "MOOD" },
     { "id": 5, "name": "Pop", "type": "GENRE" },
@@ -386,9 +401,15 @@ sort: String (optional, "latest"|"popular"|"likes"|"downloads", default: "latest
 |-------|-------|
 | **URL** | `GET /api/tracks/{trackId}/stream` |
 | **Auth** | `[PUBLIC]` |
-| **Description** | Track preview streaming (available to non-members). If `preview_file` exists, serves low-quality file; if `preview_file` is NULL, falls back to `audio_file`. Play history recording is done by the frontend explicitly calling 4.1 API separately. |
+| **Description** | Public Track preview streaming. A normalized path under `tracks/preview/` that differs from `audio_file` is treated as a dedicated preview and served to its full length. Otherwise, the service reads the original resource only through this controller and exposes a bounded prefix: the smaller of 30 seconds and 50% of duration by byte ratio, or 25% when duration is unavailable. Multi-byte originals always keep at least one byte private. Play history recording remains a separate frontend call to §4.1. |
 
-**Response** `200 OK` — audio stream (Content-Type: audio/mpeg)
+**Responses**
+
+- `200 OK`: no `Range` header; returns only the public representation length.
+- `206 Partial Content`: one valid byte range resolved against the public representation length. Open-ended ranges are additionally capped to the controller chunk size.
+- `416 Range Not Satisfiable`: zero-length public representation, malformed/unsupported/multiple range, or a range beginning at or beyond the public boundary. Returns `Content-Range: bytes */{publicLength}`.
+
+The endpoint returns `audio/mpeg` by default and `audio/wav` for a `.wav` resource. Repeated Range requests cannot cross the same public boundary. The complete original remains available only through the authenticated subscriber download endpoint.
 
 ## 1.5 Download Track
 | Field | Value |
@@ -424,7 +445,7 @@ tagIds: List<Long> (optional)
 isActive: Boolean (optional)
 ```
 
-**Response** `200 OK` — Updated track detail (same format as 1.3)
+**Response** `200 OK` — Admin Track detail shape. Unlike public §1.3, `audioFile` contains the original storage key.
 
 ## 1.7 Delete Track (Soft Delete)
 | Field | Value |
@@ -485,7 +506,7 @@ keyword: String (optional, track title keyword search — NFC-normalized)
 | **Auth** | `[ADMIN]` |
 | **Description** | Admin-only track detail endpoint. Unlike `GET /api/tracks/{trackId}`, this returns tracks regardless of `is_active` status, enabling admins to edit soft-deleted (deactivated) tracks. (SR-60) |
 
-**Response** `200 OK` — Same shape as `GET /api/tracks/{trackId}` (TrackResponse)
+**Response** `200 OK` — Same field set as `GET /api/tracks/{trackId}` (`TrackResponse`), but `audioFile` contains the original storage key. This endpoint may also return inactive tracks.
 
 **Error Cases**
 ```json
@@ -1070,7 +1091,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 |-------|-------|
 | **URL** | `DELETE /api/users/me` |
 | **Auth** | auth required |
-| **Description** | Soft delete (is_deleted = 1) |
+| **Description** | Password-authenticated soft withdrawal with local-first billing stop. In the withdrawal transaction, a non-terminal Toss billing agreement and ACTIVE subscription are marked `CANCELLED`, an ID-only cleanup event is published when encrypted key material exists, transient user-owned rows are removed, and `users.is_deleted` becomes `1`. Provider billing-key deletion runs only after commit. No automatic refund is created. |
 
 **Request**
 ```json
@@ -2986,6 +3007,15 @@ If the deleted local-only row was the user's primary channel and another saved c
 
 **Response** `204 No Content`
 
+**Billing and failure behavior**
+
+- The local cancellation remains effective even when Provider cleanup fails.
+- Deleted users are excluded by the due-renewal query and by a second service guard before key decryption or charge.
+- Provider cleanup failure retains encrypted key material for retry and creates/updates a `WARNING` `LOCAL_DONE_PROVIDER_NOT_DONE` Incident scoped to the billing agreement.
+- A daily retry processes only deleted users with `CANCELLED` agreements and retained key material.
+- Provider success or `ALREADY_REMOVED_BILLING_KEY` clears local issued-key fields and resolves the matching Incident.
+- Refund remains a separate approved admin workflow; withdrawal never invokes it automatically.
+
 ## 12.7 Admin List Whitelist Channels
 | Field | Value |
 |-------|-------|
@@ -3483,6 +3513,13 @@ token: String (required — UUID token from email link)
 ```json
 { "message": "비밀번호 재설정 이메일이 발송되었습니다." }
 ```
+
+**Delivery logging boundary**
+
+- Each attempted email delivery receives a random `deliveryId`.
+- Success logs contain only `deliveryId` and `outcome=SUCCESS`.
+- Failure logs contain only `deliveryId`, `outcome=FAILURE`, and the exception class name.
+- Recipient, subject, body, URL/token, raw exception message, and stack trace are not logged. Delivery exceptions remain absorbed so the generic external response is unchanged.
 
 ## 14.11 Reset Password
 

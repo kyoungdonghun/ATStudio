@@ -1,6 +1,6 @@
 ---
-version: 0.7
-last_updated: 2026-05-23
+version: 0.8
+last_updated: 2026-07-13
 project: ATS
 owner: SA
 category: design
@@ -45,6 +45,8 @@ Current implementation facts:
 - Provider API reconciliation compares recent Toss billing payment orders with Toss payment state by `orderId` when lookup configuration is available.
 - Reconciliation exposes on-demand diagnostics through the admin read-only reconciliation endpoint and persists scheduled mismatch incidents for operator workflow.
 - Admins have a payment operations view for payment orders, billing agreements, finalized subscription payments, and reconciliation incidents.
+- Account withdrawal authenticates first, cancels local renewal eligibility before soft deletion, and dispatches billing-key cleanup only after commit.
+- Withdrawal cleanup failure retains encrypted key material for a daily agreement-specific retry and creates a deduplicated reconciliation Incident; it never triggers an automatic refund.
 
 The payment layer separates:
 
@@ -142,6 +144,8 @@ flowchart TD
 | `PaymentOrder` | Internal payment intent and audit state |
 | `BillingAgreement` | Stored recurring billing agreement and provider billing key metadata |
 | `SubscriptionPayment` | Finalized payment record linked to a subscription |
+| `WithdrawalBillingCleanupCoordinator` | Handles the ID-only withdrawal cleanup event after commit and runs the daily 01:15 retry. |
+| `WithdrawalBillingCleanupService` | Performs agreement-specific Provider cleanup in `REQUIRES_NEW`, records/resolves Incidents, and clears issued-key material only after convergent Provider completion. |
 
 ### 5.2 Provider Interface Draft
 
@@ -421,6 +425,8 @@ Provider-level billing agreement cancellation endpoint. Current subscriber UX do
 
 When this provider-level endpoint is used, the provider billing key is deleted and the local issued-key fields are cleared. Such a cancellation cannot be reactivated until the user completes the payment-method re-registration flow.
 
+Account withdrawal through `DELETE /api/users/me` is a separate path. It marks the local agreement and ACTIVE subscription `CANCELLED` in the withdrawal transaction, soft-deletes the user, and requests Provider cleanup after commit. The withdrawal path does not preserve paid access for the deleted account and does not create a refund.
+
 ### 10.7 Deprecated Compatibility Endpoint
 
 `POST /api/user-subscriptions`
@@ -531,6 +537,21 @@ sequenceDiagram
     end
 ```
 
+### 11.6 Account Withdrawal and Billing-Key Cleanup
+
+1. Backend verifies the submitted password before any billing mutation.
+2. In the withdrawal transaction, a non-terminal Toss billing agreement and an ACTIVE subscription are marked `CANCELLED`.
+3. When encrypted key material exists, Backend publishes `WithdrawalBillingCleanupRequestedEvent` containing only `billingAgreementID`.
+4. Backend removes transient user-owned rows and marks the user deleted.
+5. An `AFTER_COMMIT` listener calls `WithdrawalBillingCleanupService.cleanup()` in an agreement-specific `REQUIRES_NEW` transaction.
+6. Provider success clears the encrypted key, fingerprint, masked-method metadata, next billing date, and last charged timestamp, then resolves any matching Incident.
+7. Provider failure or an exception keeps the agreement `CANCELLED`, retains encrypted key material, and creates or increments a `WARNING` `LOCAL_DONE_PROVIDER_NOT_DONE` Incident deduplicated by agreement ID.
+8. At 01:15 daily, a single-server retry selects only deleted users with `CANCELLED` agreements and nonblank encrypted keys.
+9. `ALREADY_REMOVED_BILLING_KEY` is treated as convergent success because the Provider-side objective is already complete.
+10. The renewal query excludes deleted users, and `RecurringRenewalService` repeats the deleted-user guard before key decryption, order creation, or charge.
+
+Withdrawal does not call the refund workflow. Any refund remains a separate support-approved admin operation with its own ledger, approval, and Provider execution.
+
 ## 12. Business Rules
 
 1. A subscription or upgrade must never be applied before payment confirmation.
@@ -544,6 +565,9 @@ sequenceDiagram
 9. Recurring renewal must be idempotent per subscription period.
 10. User-facing subscription cancellation must stop future charges but must not remove already-paid access.
 11. Cancellation reactivation before `expiresAt` may reuse the stored encrypted billing key; raw card details are never stored or returned.
+12. Account withdrawal must make the local agreement and subscription non-renewable before user soft deletion, regardless of Provider cleanup outcome.
+13. Deleted users must be excluded at both renewal-query and service boundaries before a Provider charge is possible.
+14. Account withdrawal must not create an automatic refund; refund and entitlement correction remain separate audited admin workflows.
 
 ## 13. Frontend Design
 
@@ -637,7 +661,7 @@ Status: Implemented for the billing-key registration, immediate first charge, en
 
 Status: Implemented for the 2026-05-21 hardening slice plus the 2026-05-23 billing-method recovery patch.
 
-The one-time Toss Widget inline UX concern was retired because subscription purchase and upgrade now use recurring billing auth/charge instead of one-time checkout. The 2026-05-21 hardening slice adds a dedicated checkout/callback route, backend one-time subscription blocking, stale order expiration, local ledger reconciliation logging, renewal failure email notices, and a read-only admin payment view. The 2026-05-23 recovery patch adds removed billing-key detection and active-subscription payment-method re-registration.
+The one-time Toss Widget inline UX concern was retired because subscription purchase and upgrade now use recurring billing auth/charge instead of one-time checkout. The 2026-05-21 hardening slice adds a dedicated checkout/callback route, backend one-time subscription blocking, stale order expiration, local ledger reconciliation logging, renewal failure email notices, and a read-only admin payment view. The 2026-05-23 recovery patch adds removed billing-key detection and active-subscription payment-method re-registration. The 2026-07-13 P0 slice adds local-first account-withdrawal cancellation, after-commit Provider cleanup, durable Incident/retry handling, already-removed convergence, and deleted-user renewal guards.
 
 Recommended checkout surface:
 
@@ -666,6 +690,7 @@ Operator-facing minimum visibility:
 - Related `payment_receipts` for safe provider receipt/cash receipt evidence when successful charges return receipt metadata.
 - Current `billing_agreements` status, masked method, next billing date, failure count, and cancellation date.
 - Persisted `payment_reconciliation_incidents` for scheduled local/provider mismatch detection, including status, severity, dedupe key, occurrence count, safe order/provider fields, and resolution note.
+- Withdrawal cleanup failures appear in the same Incident ledger as `LOCAL_DONE_PROVIDER_NOT_DONE`, with the billing agreement/user references and no raw billing key.
 - Append-only `payment_operation_audit_logs` for incident status changes, system-created receipt evidence events, admin refund workflow transitions, admin entitlement correction workflow transitions, and settlement import/reconcile/ignore transitions.
 - Related `payment_entitlement_corrections` for refund-linked local access correction with before/target subscription state snapshots.
 - Related `payment_settlements` for CSV/manual settlement evidence import, local payment/refund comparison, generated missing-provider review rows, and ignore workflow.
@@ -678,6 +703,7 @@ Sensitive-data boundary:
 - Operators may see safe receipt URLs, cash receipt keys, provider payment keys, and audit status transitions in admin-only payment operations APIs.
 - Operators may see reconciliation incident workflow metadata such as `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, `IGNORED`, occurrence count, and resolution note.
 - Billing keys remain encrypted server-side only; only fingerprint/masked method may appear in diagnostics.
+- Withdrawal cleanup logs may contain the billing agreement ID, aggregate retry counts, outcome, and exception class/simple failure type. They must not contain the decrypted key or raw exception message.
 
 ### Phase E: Remaining Production Hardening
 
@@ -719,12 +745,14 @@ Sensitive-data boundary:
 - KakaoPay and TossPay test behavior differs by integration path. Provider-specific docs must be checked again before implementation.
 - Toss billing-key flow uses server-side API keys and billing keys. Treat them as sensitive payment credentials.
 - Recurring billing introduces retry, grace, and notification requirements that do not exist in the current subscription model.
+- Withdrawal cleanup retry assumes one scheduler owner. A multi-server deployment requires a separately approved scheduler ownership/locking design.
 
 ## Related Documents
 
 - [API Specification](api-spec.md)
 - [DB Schema](db-schema.md)
 - [Payment Operations Runbook](payment-operations-runbook.md)
+- [P0 Remediation Closure Report](../audit/p0-release-blocker-closure-20260713.md)
 - [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md)
 - [User Subscription Use Cases](usecase/user-subscription.md)
 - [Screen Flow](../ui/screen-flow.md)

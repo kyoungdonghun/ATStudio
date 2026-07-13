@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-05-30
+version: 1.1
+last_updated: 2026-07-13
 project: ATS
 owner: docops
 category: guide
@@ -34,6 +34,7 @@ Current delivery is complete for:
 - Refund ledger and Toss cancel/refund execution.
 - Entitlement correction workflow after refund.
 - CSV/manual settlement import and settlement reconciliation review.
+- Local-first account-withdrawal billing stop, after-commit Provider cleanup, daily retry, Incident resolution, and no-auto-refund separation.
 
 Current delivery is not a full financial back-office suite. The remaining items below should be planned as separate REQ/SR work.
 
@@ -53,6 +54,7 @@ Current delivery is not a full financial back-office suite. The remaining items 
 | Cash receipt issue/cancel automation | Current recurring subscription policy is card-only. Receipt evidence capture exists, but cash receipt mutation is held until a cash-like payment method is approved. |
 | Tax invoice request/admin workflow | Current recurring subscription policy is card-only, where provider/card receipt evidence is the normal first evidence path. Reopen only if ATStudio adds B2B invoice, bank-transfer, postpaid, or contract purchase scope. |
 | Multi-server scheduler lock | Current deployment assumption is single server. Add locking only if ATStudio runs multiple backend instances that can execute the same scheduler. |
+| Manual withdrawal cleanup endpoint | Not implemented. Current recovery is the targeted daily retry; add a controlled operator trigger only under a separately approved operations requirement. |
 | Creator royalty settlement / seller payout | Current settlement import compares PG-to-ATStudio payment settlement evidence. Creator payout is a different business process. |
 | User-facing one-time subscription payment | Subscription payment is recurring-first. One-time subscription prepare/confirm is blocked for current scope. |
 

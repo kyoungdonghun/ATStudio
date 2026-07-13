@@ -19,6 +19,18 @@
 
 ---
 
+## Shared Mail Delivery Logging Boundary
+
+Verification, password-reset, subscription-failure, and operator-alert delivery attempts use the same internal mail sender.
+
+- Each attempt receives a random `deliveryId`.
+- Success logs contain only `deliveryId` and `outcome=SUCCESS`.
+- Failure logs contain only `deliveryId`, `outcome=FAILURE`, and the exception class name.
+- Recipient, subject, body, URL/token, raw exception message, and stack trace are not logged.
+- Delivery exceptions are absorbed; the existing external API response behavior is preserved.
+
+---
+
 ## UTIL-002: Check Email Duplicate
 
 | Field | Value |
@@ -227,7 +239,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | UTIL-014 |
-| **Version** | 26-03-14 |
+| **Version** | 26-07-13 |
 | **Description** | Verifies a user's email address via a token sent by email. The user clicks the verification link in the email, and the frontend automatically calls this API with the token from the URL query parameter. |
 | **Actor** | User (non-member or member), Backend |
 | **Preconditions** | User has registered and received a verification email containing a UUID token link. Token is valid (not expired, not already used). |
@@ -273,10 +285,10 @@
 6. Backend always returns 200 OK with "비밀번호 재설정 이메일이 발송되었습니다." (regardless of email existence).
 
 **Exception / Alternative Flow**
-- SMTP failure: Backend logs the email content to console as fallback (development environment).
+- SMTP failure: Backend keeps the generic external response and writes delivery metadata only. It does not log the recipient, subject, body, reset URL/token, raw exception message, or stack trace.
 
 **Postconditions**
-- If user exists: `password_reset_tokens` record created. Email sent (or console fallback). No user state changes yet.
+- If user exists: `password_reset_tokens` record created and delivery attempted. No console payload fallback is emitted and no user state changes occur yet.
 - If user does not exist: No action taken. Same 200 response returned (security: prevents account enumeration).
 
 ---

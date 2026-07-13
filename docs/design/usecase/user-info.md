@@ -261,8 +261,8 @@
 | Field | Value |
 |-------|-------|
 | **Code** | INFO-007 |
-| **Version** | 26-02-20 |
-| **Description** | Member withdraws their own account. Soft delete (is_deleted=1). |
+| **Version** | 26-07-13 |
+| **Description** | Member withdraws their own account. The backend stops local recurring renewal before soft deletion, then cleans up Provider billing-key material after commit. Withdrawal does not create an automatic refund. |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. |
 | **Trigger** | User clicks the 'Withdraw' button on the 'My Info' screen. |
@@ -274,14 +274,23 @@
 3. User enters their password and clicks the 'Confirm' button.
 4. Frontend sends the withdrawal request including the password to the backend.
 5. Backend verifies the password.
-6. Backend sets users.is_deleted=1. (Soft delete. Not a physical deletion.)
-7. Backend returns 204 No Content. Frontend logs out and navigates to the main screen.
+6. Backend loads the user's Toss billing agreement. A non-terminal agreement is marked `CANCELLED` locally.
+7. Backend marks an ACTIVE `user_subscriptions` row `CANCELLED`. No refund is created.
+8. If encrypted billing-key material exists, Backend publishes a cleanup event containing only `billingAgreementID`.
+9. Backend removes the existing user-owned transient records and sets `users.is_deleted=1` (soft delete, not physical deletion).
+10. After the local transaction commits, a separate cleanup transaction asks the registered Provider to remove the billing key.
+11. Backend returns 204 No Content. Frontend logs out and navigates to the main screen.
 
 **Exception / Alternative Flow**
 - Password mismatch: 401 response.
+- Provider cleanup fails or throws: withdrawal remains complete and local renewal remains blocked. The encrypted key is retained for retry and a deduplicated `WARNING` Incident is recorded.
+- Provider reports `ALREADY_REMOVED_BILLING_KEY`: cleanup converges to success, local key fields are cleared, and the matching Incident is resolved.
 
 **Postconditions**
-- users.is_deleted=1 updated. Login with this account is no longer possible.
+- `users.is_deleted=1`; login is no longer possible.
+- Due-renewal selection excludes the deleted user, and a second service guard prevents key decryption, order creation, or Provider charge.
+- A daily 01:15 single-server retry processes only deleted users with `CANCELLED` agreements and retained encrypted key material.
+- Refund, when required, remains a separate support-approved admin workflow.
 
 ---
 

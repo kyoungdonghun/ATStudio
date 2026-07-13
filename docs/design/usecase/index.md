@@ -1,8 +1,8 @@
 # Use Case Specification Index
 
-> **Version**: v12
-> **Confirmed date**: 2026-06-18
-> **Reference documents**: `docs/design/db-schema.md` (v13), `docs/design/api-spec.md` (v18)
+> **Version**: v13
+> **Confirmed date**: 2026-07-13
+> **Reference documents**: `docs/design/db-schema.md` (v14), `docs/design/api-spec.md` (v19)
 > **Source**: `docs/ui/usecase-spec csv/`
 
 ---
@@ -28,7 +28,7 @@
 | `util.md` | Utility (duplicate check/token/subscription status/download count/email verify/password reset/public capabilities/site settings) | 14 |
 | `sound-album.md` | Album (create/list/detail/update/delete/add track/remove track/reorder/likes cross-ref) | 9 |
 
-**Total UC count: 109** (net +2 vs v11: company certification resubmission and protected document download added)
+**Total UC count: 109** (unchanged from v12; v13 corrects Track preview, mail logging, and withdrawal behavior without adding a UC)
 
 ---
 
@@ -334,6 +334,6 @@
 
 | # | Field | Value |
 |---|-------|-------|
-| 1 | `tracks.preview_file` column added | Low-quality file generated asynchronously after upload. If NULL, fallback to audio_file for streaming |
+| 1 | `tracks.preview_file` column added | Historical v3 design statement, superseded by v13 current behavior: no asynchronous generator exists; a valid dedicated preview is optional, and fallback exposes only a bounded original prefix. |
 | 2 | `GET /api/utils/check-nickname` API added | Nickname duplicate check API (UTIL-012) |
 | 3 | `track_tags` join table | Physical deletion confirmed when track is soft-deleted |

@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-04-15
+version: 1.2
+last_updated: 2026-07-13
 project: ATS
 owner: EO
 category: standard
@@ -74,7 +74,7 @@ task_types:
 | tag | Tag | Admin-managed category for track discovery and classification | keyword, label | genre (different concept) | - | Predefined categories managed by admin; not user-defined |
 | usage-tag | Usage Guide Tag | Visible guide/search hashtag that describes the expected content use case for a track | usage hashtag, guide tag | license, usage license | - | Stored as `tags.type=USAGE`; examples: `#쇼츠용`, `#유튜브용`, `#릴스용` |
 | license | License | Track usage rights automatically issued upon download | permission, rights | copyright (broader) | - | DB table `licenses`; issued per (user, track) pair |
-| upload | Upload | Process of creator submitting a track to the platform | submit, publish | post (ambiguous) | - | Includes file validation and async preview generation |
+| upload | Upload | Process of creator submitting a track to the platform | submit, publish | post (ambiguous) | - | Includes file validation, original storage, duration extraction, and waveform extraction; no async preview generation is currently implemented |
 | subscription | Subscription | Paid plan that grants download and playlist access | plan, membership | purchase (different) | - | DB table `user_subscriptions`; required for downloads |
 | whitelist-channel | Whitelist Channel | YouTube channel profile saved by a member and optionally submitted for manual whitelist registration | channel | account (ambiguous) | - | DB table `whitelist_channels`; request/registered/removal states are limited by subscription plan |
 | download-queue | Download Queue | Temporary collection of tracks queued for sequential download | cart (incorrect) | cart (no purchase concept) | - | DB table `download_queue`; frontend calls SOUND-011 per track |

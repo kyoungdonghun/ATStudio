@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-05-30
+version: 1.1
+last_updated: 2026-07-13
 project: ATS
 owner: docops
 category: guide
@@ -112,10 +112,12 @@ Use when:
 
 - Scheduled reconciliation found a mismatch.
 - On-demand reconciliation finds different local/provider state.
+- A withdrawn user's Provider billing-key deletion failed and the daily cleanup retry is pending.
 
 Rule:
 
 - Incident status changes do not change payments, subscriptions, billing agreements, refunds, or provider state.
+- Withdrawal cleanup success resolves its matching agreement-scoped Incident automatically. Operators must not restore renewal eligibility or create a refund merely to close this Incident.
 
 ## 7. Receipts Tab
 
@@ -246,6 +248,7 @@ Rule:
 | "I cancelled but still have access." | User subscription status | This is expected until `expiresAt` |
 | "Payment failed during renewal." | Automatic payment tab | Orders tab, renewal failure email/logs |
 | "Provider and local numbers do not match." | Incidents tab | Settlement tab, runbook |
+| "I withdrew, but automatic payment may still be active." | Automatic payment tab | Incidents tab; verify local `CANCELLED`, deleted user, and cleanup retry state |
 
 ## Related Documents
 
