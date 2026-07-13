@@ -1,6 +1,6 @@
 ---
 version: 2.0
-last_updated: 2026-06-18
+last_updated: 2026-07-13
 project: ATS
 owner: EO
 category: registry
@@ -22,8 +22,8 @@ status: stable
 | Standards | 13 | [Standards Index](standards/index.md) | Standard documents and reference assets |
 | Templates | 18 | [Templates Index](templates/index.md) | Document/artifact templates |
 | Registry | 4 | [Registry Index](registry/index.md) | Asset/context/project registries |
-| Audit | 2 | [Audit Index](audit/index.md) | Audit reports and remediation baselines |
-| Client | 7 | [Client Index](client/index.md) | External testing guides and client SR intake references |
+| Audit | 3 | [Audit Index](audit/index.md) | Audit reports and remediation baselines |
+| Client | 8 | [Client Index](client/index.md) | Easy client acceptance testing guides and SR intake references |
 | Payment | 7 | [Payment Index](payment/index.md) | Payment system guide, flows, operations, acceptance checklist, and client brief |
 | SR | 92 | [SR Index](SR/index.md) | Screen Review items (SR-01~90, SR-92~93) |
 | Retrospective | 4 | [Retrospective Index](retrospective/index.md) | Engineering lessons, domain design, kick.md, process |
@@ -31,7 +31,7 @@ status: stable
 | UI | 3 | [UI Index](ui/index.md) | Screen inventory, flow, and modal planning documents |
 | Eval | 0 | [Eval Index](eval/index.md) | Evaluation documents |
 
-**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **184**.
+**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **186**.
 
 ## Required Documents Mapping by Role
 
@@ -82,9 +82,11 @@ status: stable
 
 ### External Testers / Client Review
 
-1. **[Client Testing Guide](client/testing-guide.md)**: External tester entry point and shared account baseline
-2. **[Client Index](client/index.md)**: Scenario, test-case, methodology, and SR-writing references
-3. **[Payment Client Brief](payment/client-brief.md)**: Draft payment-system explanation for client-facing review
+1. **[Client Testing Guide](client/testing-guide.md)**: External tester entry point and preparation notes
+2. **[Quick Checklist](client/1-quick-checklist.md)**: Short first-pass acceptance review
+3. **[Full Feature Checklist](client/2-full-feature-checklist.md)**: Full client-facing acceptance checklist
+4. **[Admin Checklist](client/3-admin-checklist.md)**: Admin-page acceptance review
+5. **[Payment Client Brief](payment/client-brief.md)**: Draft payment-system explanation for client-facing review
 
 ### Payment System Review
 
