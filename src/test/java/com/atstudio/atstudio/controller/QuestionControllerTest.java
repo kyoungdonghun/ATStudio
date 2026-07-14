@@ -1,6 +1,8 @@
 package com.atstudio.atstudio.controller;
 
 import com.atstudio.atstudio.dto.question.AnswerResponse;
+import com.atstudio.atstudio.dto.question.AttachmentResponse;
+import com.atstudio.atstudio.dto.question.QuestionAttachmentDownload;
 import com.atstudio.atstudio.dto.question.QuestionListItemResponse;
 import com.atstudio.atstudio.dto.question.QuestionResponse;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
@@ -12,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -24,7 +27,11 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -64,14 +71,21 @@ class QuestionControllerTest {
     @WithMockUser(roles = "USER")
     @DisplayName("POST /api/questions - 인증된 유저 → 201")
     void createQuestion_authenticated_returns201() throws Exception {
-        given(questionService.createQuestion(any(), any())).willReturn(MOCK_QUESTION);
+        QuestionResponse response = new QuestionResponse(
+                1L, "title", "content", "DOWNLOAD", false, "OPEN", null,
+                List.of(new AttachmentResponse(7L, "evidence.html", 24L)),
+                null, LocalDateTime.now()
+        );
+        given(questionService.createQuestion(any(), any())).willReturn(response);
 
         mockMvc.perform(multipart("/api/questions")
                         .param("title", "제목")
                         .param("content", "내용")
                         .param("category", "DOWNLOAD")
                         .param("isPublic", "false"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.attachments[0].originalName").value("evidence.html"))
+                .andExpect(jsonPath("$.data.attachments[0].filePath").doesNotExist());
     }
 
     // ── 8.2 POST /api/questions/{id}/answers ────────────────────────────────
@@ -149,13 +163,88 @@ class QuestionControllerTest {
     @WithMockUser(roles = "USER")
     @DisplayName("GET /api/questions/{id}/attachments/{id} - 인증됨 → 200")
     void downloadAttachment_authenticated_returns200() throws Exception {
-        ByteArrayResource resource = new ByteArrayResource(new byte[]{1, 2, 3}) {
-            @Override public String getFilename() { return "file.png"; }
-        };
-        given(questionService.downloadAttachment(anyLong(), anyLong(), any())).willReturn(resource);
+        byte[] body = "<script>alert(1)</script>".getBytes();
+        given(questionService.downloadAttachment(anyLong(), anyLong(), any()))
+                .willReturn(new QuestionAttachmentDownload(
+                        new ByteArrayResource(body),
+                        "evidence.html"
+                ));
 
         mockMvc.perform(get("/api/questions/1/attachments/1"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(body))
+                .andExpect(content().contentType(MediaType.APPLICATION_OCTET_STREAM))
+                .andExpect(header().string(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename*=UTF-8''evidence.html"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store, private"))
+                .andExpect(header().string(HttpHeaders.PRAGMA, "no-cache"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string(
+                        "Content-Security-Policy",
+                        "default-src 'none'; sandbox"))
+                .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "none"));
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("GET /api/questions/{id}/attachments/{id} - Range and header injection stay fail closed")
+    void downloadAttachment_rangeAndHeaderInjection_returnsSafeFullAttachment() throws Exception {
+        byte[] body = new byte[]{1, 2, 3, 4};
+        given(questionService.downloadAttachment(anyLong(), anyLong(), any()))
+                .willReturn(new QuestionAttachmentDownload(
+                        new ByteArrayResource(body),
+                        "report\r\nX-Evil: injected.html"
+                ));
+
+        mockMvc.perform(get("/api/questions/1/attachments/1")
+                        .header(HttpHeaders.RANGE, "bytes=0-1"))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(body))
+                .andExpect(header().string(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename*=UTF-8''report%0D%0AX-Evil%3A%20injected.html"))
+                .andExpect(header().doesNotExist("X-Evil"))
+                .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "none"));
+    }
+
+    @Test
+    @DisplayName("GET /uploads/questions/** - unauthenticated static access is denied")
+    void staticQuestionAttachments_unauthenticatedDenied() throws Exception {
+        mockMvc.perform(get("/uploads/questions/attachments/evidence.html"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(questionService);
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("GET /uploads/questions/** - USER static access is denied")
+    void staticQuestionAttachments_userDenied() throws Exception {
+        mockMvc.perform(get("/uploads/questions/attachments/evidence.html"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(questionService);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("GET /uploads/questions/** - ADMIN static access is denied")
+    void staticQuestionAttachments_adminDenied() throws Exception {
+        mockMvc.perform(get("/uploads/questions/attachments/evidence.html"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(questionService);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("GET /uploads/questions/** - encoded traversal is denied")
+    void staticQuestionAttachments_encodedTraversalDenied() throws Exception {
+        mockMvc.perform(get("/uploads/questions/%2e%2e/%2e%2e/evidence.html"))
+                .andExpect(status().is4xxClientError());
+
+        verifyNoInteractions(questionService);
     }
 
     // ── 8.6 PUT /api/questions/{id}/status ──────────────────────────────────

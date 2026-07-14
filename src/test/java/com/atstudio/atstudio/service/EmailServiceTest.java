@@ -25,6 +25,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.Properties;
 
@@ -76,6 +77,33 @@ class EmailServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.PASSWORD_LOGIN_DISABLED));
+    }
+
+    @Test
+    @DisplayName("resetPassword() 성공 - 사용자 행 잠금 후 비밀번호와 refresh session을 함께 변경")
+    void resetPassword_success_revokesRefreshSession() {
+        User user = User.builder()
+                .email("reset@test.com")
+                .nickname("reset-user")
+                .password("encoded-old")
+                .build();
+        ReflectionTestUtils.setField(user, "id", 1L);
+        user.updateRefreshToken("stored-refresh-hash");
+        PasswordResetToken resetToken = PasswordResetToken.builder()
+                .user(user)
+                .token("reset-fixture")
+                .expiresAt(LocalDateTime.now().plusMinutes(10))
+                .build();
+        when(resetTokenRepository.findByToken("reset-fixture")).thenReturn(Optional.of(resetToken));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.encode("new-password")).thenReturn("encoded-new");
+
+        emailService.resetPassword("reset-fixture", "new-password");
+
+        assertThat(resetToken.isUsed()).isTrue();
+        assertThat(user.getPassword()).isEqualTo("encoded-new");
+        assertThat(user.getRefreshToken()).isNull();
+        verify(userRepository).findByIdForUpdate(1L);
     }
 
     @Test

@@ -5,6 +5,9 @@
 # [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
 
 spring:
+  profiles:
+    active: local
+
   datasource:
     url: jdbc:mysql://localhost:3306/atstudio?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&zeroDateTimeBehavior=convertToNull&createDatabaseIfNotExist=true
     username: REPLACE_WITH_LOCAL_DB_USER
@@ -53,7 +56,7 @@ app:
   bootstrap:
     test-users:
       enabled: true
-      default-password: Test1234!
+      default-password: ${APP_BOOTSTRAP_TEST_USERS_DEFAULT_PASSWORD:}
   mail:
     base-url: http://localhost:5173
   payment:

@@ -15,7 +15,9 @@ import com.atstudio.atstudio.repository.AlbumTrackRepository;
 import com.atstudio.atstudio.repository.TrackRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
-import com.atstudio.atstudio.service.storage.StorageService;
+import com.atstudio.atstudio.service.storage.StorageDomain;
+import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
+import com.atstudio.atstudio.service.storage.StorageRoot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -35,7 +37,7 @@ public class AlbumService {
     private final AlbumTrackRepository albumTrackRepository;
     private final TrackRepository trackRepository;
     private final UserRepository userRepository;
-    private final StorageService storageService;
+    private final StorageMutationCoordinator storageMutationCoordinator;
 
     // -- 15.1 POST /api/albums ------------------------------------------------
 
@@ -47,7 +49,11 @@ public class AlbumService {
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
         String thumbnailUrl = (thumbnailFile != null && !thumbnailFile.isEmpty())
-                ? storageService.store(thumbnailFile, "albums/thumbnails")
+                ? storageMutationCoordinator.store(
+                        StorageDomain.ALBUM,
+                        StorageRoot.PUBLIC,
+                        thumbnailFile,
+                        "albums/thumbnails")
                 : null;
 
         Album album = Album.builder()
@@ -116,9 +122,15 @@ public class AlbumService {
                                      MultipartFile thumbnailFile) {
         Album album = getActiveAlbum(id);
 
-        String thumbnailUrl = (thumbnailFile != null && !thumbnailFile.isEmpty())
-                ? storageService.store(thumbnailFile, "albums/thumbnails")
-                : null;
+        String thumbnailUrl = null;
+        if (thumbnailFile != null && !thumbnailFile.isEmpty()) {
+            thumbnailUrl = storageMutationCoordinator.replace(
+                    StorageDomain.ALBUM,
+                    StorageRoot.PUBLIC,
+                    thumbnailFile,
+                    "albums/thumbnails",
+                    album.getThumbnail());
+        }
 
         album.update(request.getTitle(), request.getDescription(), thumbnailUrl);
 
@@ -132,6 +144,10 @@ public class AlbumService {
     public void deleteAlbum(Long id) {
         Album album = getActiveAlbum(id);
         album.softDelete();
+        storageMutationCoordinator.deleteAfterCommit(
+                StorageDomain.ALBUM,
+                StorageRoot.PUBLIC,
+                album.getThumbnail());
     }
 
     // -- 15.6 POST /api/albums/{id}/tracks ------------------------------------

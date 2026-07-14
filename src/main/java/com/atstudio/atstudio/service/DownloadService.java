@@ -10,6 +10,7 @@ import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.storage.StorageService;
+import com.atstudio.atstudio.service.storage.StorageRoot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
@@ -83,7 +84,7 @@ public class DownloadService {
             throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND);
         }
 
-        return storageService.loadAsResource(audioFile);
+        return storageService.loadAsResource(StorageRoot.PUBLIC, audioFile);
     }
 
     /**

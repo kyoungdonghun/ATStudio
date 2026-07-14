@@ -16,6 +16,9 @@ import com.atstudio.atstudio.repository.NoticeAttachmentRepository;
 import com.atstudio.atstudio.repository.NoticeRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.storage.StorageDomain;
+import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
+import com.atstudio.atstudio.service.storage.StorageRoot;
 import com.atstudio.atstudio.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
@@ -39,6 +42,7 @@ public class NoticeService {
     private final NoticeAttachmentRepository attachmentRepository;
     private final UserRepository userRepository;
     private final StorageService storageService;
+    private final StorageMutationCoordinator storageMutationCoordinator;
 
     @Transactional
     public NoticeResponse createNotice(NoticeCreateRequest request, CustomUserDetails userDetails) {
@@ -102,8 +106,11 @@ public class NoticeService {
             List<NoticeAttachment> toDelete = attachmentRepository.findAllByNoticeId(noticeId).stream()
                     .filter(a -> request.getDeleteAttachmentIds().contains(a.getId()))
                     .toList();
+            storageMutationCoordinator.deleteAfterCommit(
+                    StorageDomain.NOTICE,
+                    StorageRoot.PUBLIC,
+                    toDelete.stream().map(NoticeAttachment::getFilePath).toList());
             for (NoticeAttachment attachment : toDelete) {
-                storageService.delete(attachment.getFilePath());
                 attachmentRepository.delete(attachment);
             }
         }
@@ -124,9 +131,10 @@ public class NoticeService {
 
         // Delete attachment files from storage + DB before notice
         List<NoticeAttachment> attachments = attachmentRepository.findAllByNoticeId(noticeId);
-        for (NoticeAttachment attachment : attachments) {
-            storageService.delete(attachment.getFilePath());
-        }
+        storageMutationCoordinator.deleteAfterCommit(
+                StorageDomain.NOTICE,
+                StorageRoot.PUBLIC,
+                attachments.stream().map(NoticeAttachment::getFilePath).toList());
         attachmentRepository.deleteAllByNotice(notice);
 
         noticeRepository.delete(notice);
@@ -142,7 +150,7 @@ public class NoticeService {
         NoticeAttachment attachment = attachmentRepository.findByIdAndNoticeId(attachmentId, noticeId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
-        return storageService.loadAsResource(attachment.getFilePath());
+        return storageService.loadAsResource(StorageRoot.PUBLIC, attachment.getFilePath());
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -159,14 +167,21 @@ public class NoticeService {
     private List<NoticeAttachment> saveAttachments(Notice notice, List<MultipartFile> files) {
         if (files == null || files.isEmpty()) return List.of();
 
+        List<MultipartFile> nonEmptyFiles = files.stream()
+                .filter(file -> file != null && !file.isEmpty())
+                .toList();
+        List<String> storedPaths = storageMutationCoordinator.storeAll(
+                StorageDomain.NOTICE,
+                StorageRoot.PUBLIC,
+                nonEmptyFiles,
+                "notices/attachments");
         List<NoticeAttachment> attachments = new ArrayList<>();
-        for (MultipartFile file : files) {
-            if (file.isEmpty()) continue;
-            String filePath = storageService.store(file, "notices/attachments");
+        for (int index = 0; index < nonEmptyFiles.size(); index++) {
+            MultipartFile file = nonEmptyFiles.get(index);
             NoticeAttachment attachment = NoticeAttachment.builder()
                     .notice(notice)
                     .originalName(file.getOriginalFilename())
-                    .filePath(filePath)
+                    .filePath(storedPaths.get(index))
                     .fileSize(file.getSize())
                     .build();
             attachments.add(attachmentRepository.save(attachment));

@@ -1,5 +1,6 @@
 package com.atstudio.atstudio.config;
 
+import com.atstudio.atstudio.security.AcceptanceHostFilter;
 import com.atstudio.atstudio.security.AuthRateLimitFilter;
 import com.atstudio.atstudio.security.JwtAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
@@ -26,6 +27,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AcceptanceHostFilter acceptanceHostFilter;
     private final AuthRateLimitFilter authRateLimitFilter;
     private final CorsConfigurationSource corsConfigurationSource;
 
@@ -56,6 +58,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/social/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/auth/verify-email").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/forgot-password").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/reset-password").permitAll()
@@ -78,7 +81,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/settings/*").permitAll()
                 .requestMatchers(HttpMethod.PUT, "/api/settings/*").hasRole("ADMIN")
                 .requestMatchers("/uploads/tracks/audio/**").denyAll()
-                .requestMatchers(HttpMethod.GET, "/uploads/company-docs/**").hasRole("ADMIN")
+                .requestMatchers("/uploads/company-docs/**").denyAll()
+                .requestMatchers("/uploads/questions/**").denyAll()
                 // Swagger (dev only -- SEC-15: checked at application level via profile)
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 // USER — /api/users/me must precede ADMIN wildcard /api/users/*
@@ -133,6 +137,7 @@ public class SecurityConfig {
                 .anyRequest().permitAll()
             )
             .addFilterBefore(authRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(acceptanceHostFilter, AuthRateLimitFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

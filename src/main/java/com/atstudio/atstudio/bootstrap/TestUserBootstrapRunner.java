@@ -22,6 +22,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +35,7 @@ import java.util.Optional;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@Order(Ordered.LOWEST_PRECEDENCE)
 @ConditionalOnProperty(prefix = "app.bootstrap.test-users", name = "enabled", havingValue = "true")
 public class TestUserBootstrapRunner implements ApplicationRunner {
 
@@ -132,14 +135,7 @@ public class TestUserBootstrapRunner implements ApplicationRunner {
         ensureApprovedBusinessCertification(businessUser);
         ensureSubscription(businessUser, "PREMIUM", UserType.BUSINESS, SubscriptionStatus.ACTIVE, 30);
 
-        log.info(
-                "Non-prod QA bootstrap ready: admin={}, user={}, subscriber={}, grace={}, business={}",
-                admin.getEmail(),
-                basicUser.getEmail(),
-                subscriber.getEmail(),
-                graceUser.getEmail(),
-                businessUser.getEmail()
-        );
+        log.info("Non-prod QA bootstrap ready: fixtureUserCount={}", 5);
     }
 
     private User upsertUser(FixtureUser fixture, String encodedPassword) {
@@ -169,7 +165,7 @@ public class TestUserBootstrapRunner implements ApplicationRunner {
 
     private void ensureNoActiveSubscription(User user) {
         if (hasPaymentHistory(user)) {
-            log.info("Skipping QA bootstrap subscription reset for {} because payment history exists.", user.getEmail());
+            log.info("Skipping QA bootstrap subscription reset: reason=PAYMENT_HISTORY");
             return;
         }
         userSubscriptionRepository.findByUser(user).ifPresent(existing ->
@@ -189,14 +185,17 @@ public class TestUserBootstrapRunner implements ApplicationRunner {
             int expiresInDays
     ) {
         if (hasPaymentHistory(user)) {
-            log.info("Skipping QA bootstrap subscription fixture alignment for {} because payment history exists.",
-                    user.getEmail());
+            log.info("Skipping QA bootstrap subscription fixture alignment: reason=PAYMENT_HISTORY");
             return;
         }
 
         Optional<Subscription> maybePlan = subscriptionRepository.findByNameAndUserTypeAndIsActiveTrue(planName, userType);
         if (maybePlan.isEmpty()) {
-            log.warn("Skipping QA bootstrap subscription for {}: plan {} / {} not found", user.getEmail(), userType, planName);
+            log.warn(
+                    "Skipping QA bootstrap subscription: reason=PLAN_NOT_FOUND, userType={}, plan={}",
+                    userType,
+                    planName
+            );
             return;
         }
 

@@ -1,7 +1,7 @@
 -- =============================================================================
--- ATStudio Database Schema v12
+-- ATStudio Database Schema v13
 -- =============================================================================
--- Source  : docs/design/db-schema.md (v12 Confirmed, 2026-06-15 runtime notes)
+-- Source  : docs/design/db-schema.md + docs/design/p1-payment-db-integrity-design.md
 -- Engine  : InnoDB
 -- Charset : utf8mb4 / utf8mb4_unicode_ci
 -- DB      : atstudio  (see application.yml)
@@ -192,6 +192,7 @@ CREATE TABLE IF NOT EXISTS tracks
     audio_file   VARCHAR(255) NOT NULL COMMENT 'Original storage path for entitled download; never expose through the public static route.',
     preview_file VARCHAR(255) NULL     COMMENT 'Optional dedicated preview path. If absent or invalid, public streaming exposes only a bounded original prefix.',
     duration     INT          NOT NULL DEFAULT 0 COMMENT 'Duration in seconds, auto-extracted from audio file.',
+    waveform_data TEXT        NULL     COMMENT 'Waveform peak data extracted from the uploaded audio file.',
     user_id      BIGINT       NOT NULL COMMENT 'Copyright holder (currently admin/artist only).',
     is_active    TINYINT(1)   NOT NULL DEFAULT 0 COMMENT 'Published after admin review.',
     play_count     BIGINT       NOT NULL DEFAULT 0,
@@ -484,29 +485,38 @@ CREATE TABLE IF NOT EXISTS billing_agreements
 
 CREATE TABLE IF NOT EXISTS payment_orders
 (
-    id                   BIGINT                                                               NOT NULL AUTO_INCREMENT,
-    order_id             VARCHAR(64)                                                          NOT NULL,
-    user_id              BIGINT                                                               NOT NULL,
-    purpose              ENUM ('SUBSCRIBE', 'UPGRADE', 'RENEWAL', 'BILLING_AGREEMENT')         NOT NULL,
-    provider             ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY')                     NOT NULL,
-    status               ENUM ('READY', 'IN_PROGRESS', 'DONE', 'FAILED', 'CANCELLED', 'EXPIRED') NOT NULL DEFAULT 'READY',
-    subscription_id      BIGINT                                                               NOT NULL,
-    user_subscription_id BIGINT                                                               NULL,
-    billing_agreement_id BIGINT                                                               NULL,
-    billing_cycle        ENUM ('MONTHLY', 'YEARLY')                                           NOT NULL,
-    amount               DECIMAL(10, 2)                                                       NOT NULL,
-    currency             VARCHAR(3)                                                           NOT NULL DEFAULT 'KRW',
-    pg_transaction_id    VARCHAR(200)                                                         NULL,
-    provider_payload     TEXT                                                                 NULL,
-    failure_code         VARCHAR(100)                                                         NULL,
-    failure_message      VARCHAR(500)                                                         NULL,
-    expires_at           DATETIME                                                             NOT NULL,
-    confirmed_at         DATETIME                                                             NULL,
-    created_at           DATETIME                                                             NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at           DATETIME                                                             NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    id                       BIGINT                                                               NOT NULL AUTO_INCREMENT,
+    order_id                 VARCHAR(64)                                                          NOT NULL,
+    command_key              VARCHAR(191)                                                         NULL,
+    user_id                  BIGINT                                                               NOT NULL,
+    purpose                  ENUM ('SUBSCRIBE', 'UPGRADE', 'RENEWAL', 'BILLING_AGREEMENT')         NOT NULL,
+    provider                 ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY')                     NOT NULL,
+    status                   ENUM ('READY', 'IN_PROGRESS', 'PROCESSING', 'PROVIDER_SUCCEEDED', 'PENDING_PROVIDER_CONFIRMATION', 'DONE', 'FAILED', 'CANCELLED', 'EXPIRED') NOT NULL DEFAULT 'READY',
+    subscription_id          BIGINT                                                               NOT NULL,
+    user_subscription_id     BIGINT                                                               NULL,
+    billing_agreement_id     BIGINT                                                               NULL,
+    billing_cycle            ENUM ('MONTHLY', 'YEARLY')                                           NOT NULL,
+    billing_period_start     DATE                                                                 NULL,
+    provider_attempt         INT                                                                  NOT NULL DEFAULT 0,
+    provider_idempotency_key VARCHAR(100)                                                         NULL,
+    processing_started_at    DATETIME                                                             NULL,
+    amount                   DECIMAL(10, 2)                                                       NOT NULL,
+    currency                 VARCHAR(3)                                                           NOT NULL DEFAULT 'KRW',
+    pg_transaction_id        VARCHAR(200)                                                         NULL,
+    provider_payload         TEXT                                                                 NULL,
+    failure_code             VARCHAR(100)                                                         NULL,
+    failure_message          VARCHAR(500)                                                         NULL,
+    expires_at               DATETIME                                                             NOT NULL,
+    confirmed_at             DATETIME                                                             NULL,
+    created_at               DATETIME                                                             NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at               DATETIME                                                             NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_payment_orders_order_id (order_id),
+    UNIQUE KEY uq_payment_orders_command_key (command_key),
+    UNIQUE KEY uq_payment_orders_provider_attempt_key (provider, provider_idempotency_key),
+    UNIQUE KEY uq_payment_orders_renewal_period (billing_agreement_id, user_subscription_id, purpose, billing_period_start),
     KEY idx_payment_orders_user_status (user_id, status),
+    KEY idx_payment_orders_status_processing (status, processing_started_at),
     CONSTRAINT fk_payment_orders_user              FOREIGN KEY (user_id)              REFERENCES users              (id),
     CONSTRAINT fk_payment_orders_subscription      FOREIGN KEY (subscription_id)      REFERENCES subscriptions      (id),
     CONSTRAINT fk_payment_orders_user_subscription FOREIGN KEY (user_subscription_id) REFERENCES user_subscriptions (id),
@@ -527,10 +537,12 @@ CREATE TABLE IF NOT EXISTS subscription_payments
     provider             ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NULL,
     amount               DECIMAL(10, 2)                  NOT NULL COMMENT 'Prorated amount for upgrades.',
     payment_status       ENUM ('READY', 'DONE', 'REFUND') NOT NULL DEFAULT 'READY',
-    pg_transaction_id    VARCHAR(100)                    NULL     COMMENT 'PG provider transaction ID.',
+    pg_transaction_id    VARCHAR(200)                    NULL     COMMENT 'PG provider transaction ID.',
     created_at           DATETIME                        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at           DATETIME                        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_subscription_payments_order (payment_order_id),
+    UNIQUE KEY uq_subscription_payments_provider_transaction (provider, pg_transaction_id),
     CONSTRAINT fk_subscription_payments_user         FOREIGN KEY (user_id)              REFERENCES users              (id),
     CONSTRAINT fk_subscription_payments_user_sub     FOREIGN KEY (user_subscription_id) REFERENCES user_subscriptions (id),
     CONSTRAINT fk_subscription_payments_subscription FOREIGN KEY (subscription_id)      REFERENCES subscriptions      (id),
@@ -810,9 +822,12 @@ CREATE TABLE IF NOT EXISTS payment_operation_audit_logs
         'PAYMENT_ENTITLEMENT_CORRECTION_APPROVED',
         'PAYMENT_ENTITLEMENT_CORRECTION_PROCESSING',
         'PAYMENT_ENTITLEMENT_CORRECTION_SUCCEEDED',
-        'PAYMENT_ENTITLEMENT_CORRECTION_FAILED'
+        'PAYMENT_ENTITLEMENT_CORRECTION_FAILED',
+        'PAYMENT_SETTLEMENT_IMPORTED',
+        'PAYMENT_SETTLEMENT_RECONCILED',
+        'PAYMENT_SETTLEMENT_IGNORED'
     ) NOT NULL,
-    target_type                ENUM ('RECONCILIATION_INCIDENT', 'PAYMENT_RECEIPT', 'PAYMENT_REFUND', 'PAYMENT_ENTITLEMENT_CORRECTION') NOT NULL,
+    target_type                ENUM ('RECONCILIATION_INCIDENT', 'PAYMENT_RECEIPT', 'PAYMENT_REFUND', 'PAYMENT_ENTITLEMENT_CORRECTION', 'PAYMENT_SETTLEMENT') NOT NULL,
     target_id                  BIGINT NULL,
     actor_user_id              BIGINT NULL COMMENT 'Admin actor. NULL for system-generated audit entries.',
     target_user_id             BIGINT NULL COMMENT 'Payment owner when resolvable.',
@@ -1004,6 +1019,34 @@ CREATE TABLE IF NOT EXISTS site_settings
     updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_site_settings_key (setting_key)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+-- Durable file/DB lifecycle journal. This table contains opaque generated keys only.
+CREATE TABLE IF NOT EXISTS storage_mutations
+(
+    id              BIGINT                                                                                              NOT NULL AUTO_INCREMENT,
+    operation_id    CHAR(36)                                                                                            NOT NULL,
+    domain          ENUM ('TRACK', 'PLAYLIST', 'ALBUM', 'COMPANY_CERTIFICATION', 'NOTICE', 'QUESTION')                 NOT NULL,
+    mutation_type   ENUM ('CREATE', 'REPLACE', 'DELETE')                                                               NOT NULL,
+    storage_root    ENUM ('PUBLIC', 'PRIVATE')                                                                         NOT NULL,
+    new_key         VARCHAR(500)                                                                                        NULL,
+    old_key         VARCHAR(500)                                                                                        NULL,
+    state           ENUM ('PREPARED', 'COMMITTED', 'ROLLBACK_CLEANUP', 'AFTER_COMMIT_DELETE', 'RETRY', 'DONE', 'FAILED') NOT NULL,
+    attempt_count   INT                                                                                                 NOT NULL DEFAULT 0,
+    next_attempt_at DATETIME                                                                                            NULL,
+    reason_code     VARCHAR(64)                                                                                         NULL,
+    created_at      DATETIME                                                                                            NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME                                                                                            NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_storage_mutations_recovery (state, next_attempt_at, id),
+    KEY idx_storage_mutations_operation_id (operation_id),
+    CONSTRAINT chk_storage_mutations_keys CHECK (
+        (mutation_type = 'CREATE' AND new_key IS NOT NULL AND old_key IS NULL)
+        OR (mutation_type = 'REPLACE' AND new_key IS NOT NULL AND old_key IS NOT NULL)
+        OR (mutation_type = 'DELETE' AND new_key IS NULL AND old_key IS NOT NULL)
+    )
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;

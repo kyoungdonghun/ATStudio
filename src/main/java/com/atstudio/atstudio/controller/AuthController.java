@@ -3,11 +3,13 @@ package com.atstudio.atstudio.controller;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.auth.*;
 import com.atstudio.atstudio.entity.enums.SocialProvider;
+import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.EmailService;
 import com.atstudio.atstudio.service.auth.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -44,6 +46,13 @@ public class AuthController {
                 .message("Token refreshed")
                 .data(authService.refresh(request))
                 .build());
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        authService.logout(userDetails.getId());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/verify-email")

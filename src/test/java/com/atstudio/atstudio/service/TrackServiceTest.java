@@ -10,6 +10,9 @@ import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.TagType;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.storage.StorageDomain;
+import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
+import com.atstudio.atstudio.service.storage.StorageRoot;
 import com.atstudio.atstudio.service.storage.StorageService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,6 +49,7 @@ class TrackServiceTest {
     @Mock TagRepository tagRepository;
     @Mock UserRepository userRepository;
     @Mock StorageService storageService;
+    @Mock StorageMutationCoordinator storageMutationCoordinator;
     @Mock CustomUserDetails userDetails;
     @Mock LikeRepository likeRepository;
     @Mock DownloadQueueRepository downloadQueueRepository;
@@ -64,7 +68,9 @@ class TrackServiceTest {
     void createTrack_success_audioFileOnly() {
         given(userDetails.getId()).willReturn(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(buildUser(1L)));
-        given(storageService.store(any(), eq("tracks/audio"))).willReturn("tracks/audio/test.mp3");
+        given(storageMutationCoordinator.writeAll(
+                eq(StorageDomain.TRACK), eq(StorageRoot.PUBLIC), anyList()))
+                .willReturn(List.of("tracks/audio/test.mp3"));
         given(trackRepository.save(any(Track.class))).willAnswer(inv -> {
             Track t = inv.getArgument(0);
             ReflectionTestUtils.setField(t, "id", 1L);
@@ -94,8 +100,9 @@ class TrackServiceTest {
 
         given(userDetails.getId()).willReturn(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(buildUser(1L)));
-        given(storageService.store(any(), eq("tracks/audio"))).willReturn("tracks/audio/test.mp3");
-        given(storageService.store(any(), eq("tracks/thumbnail"))).willReturn("tracks/thumbnail/cover.jpg");
+        given(storageMutationCoordinator.writeAll(
+                eq(StorageDomain.TRACK), eq(StorageRoot.PUBLIC), anyList()))
+                .willReturn(List.of("tracks/audio/test.mp3", "tracks/thumbnail/cover.jpg"));
         given(trackRepository.save(any(Track.class))).willAnswer(inv -> {
             Track t = inv.getArgument(0);
             ReflectionTestUtils.setField(t, "id", 1L);
@@ -285,7 +292,7 @@ class TrackServiceTest {
         ReflectionTestUtils.setField(track, "previewFile", "tracks/preview/test.mp3");
         ByteArrayResource resource = new ByteArrayResource(new byte[1_000]);
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource("tracks/preview/test.mp3")).willReturn(resource);
+        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/preview/test.mp3")).willReturn(resource);
 
         TrackService.StreamResource result = trackService.getStreamResource(1L);
 
@@ -300,13 +307,13 @@ class TrackServiceTest {
         ReflectionTestUtils.setField(track, "previewFile", "tracks/preview/../audio/test.mp3");
         ByteArrayResource resource = new ByteArrayResource(new byte[1_000]);
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource(anyString())).willReturn(resource);
+        given(storageService.loadAsResource(eq(StorageRoot.PUBLIC), anyString())).willReturn(resource);
 
         TrackService.StreamResource result = trackService.getStreamResource(1L);
 
         assertThat(result.resource()).isSameAs(resource);
         assertThat(result.publicLength()).isEqualTo(250L);
-        verify(storageService).loadAsResource("tracks/audio/test.mp3");
+        verify(storageService).loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3");
     }
 
     @Test
@@ -316,7 +323,7 @@ class TrackServiceTest {
         ReflectionTestUtils.setField(track, "previewFile", "tracks/audio/test.mp3");
         ByteArrayResource resource = new ByteArrayResource(new byte[1_000]);
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource("tracks/audio/test.mp3")).willReturn(resource);
+        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3")).willReturn(resource);
 
         TrackService.StreamResource result = trackService.getStreamResource(1L);
 
@@ -331,7 +338,7 @@ class TrackServiceTest {
         ReflectionTestUtils.setField(track, "duration", 120);
         ByteArrayResource resource = new ByteArrayResource(new byte[1_200]);
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource("tracks/audio/test.mp3")).willReturn(resource);
+        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3")).willReturn(resource);
 
         TrackService.StreamResource result = trackService.getStreamResource(1L);
 
@@ -346,7 +353,7 @@ class TrackServiceTest {
         ReflectionTestUtils.setField(track, "duration", 40);
         ByteArrayResource resource = new ByteArrayResource(new byte[1_000]);
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource("tracks/audio/test.mp3")).willReturn(resource);
+        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3")).willReturn(resource);
 
         TrackService.StreamResource result = trackService.getStreamResource(1L);
 
@@ -359,7 +366,7 @@ class TrackServiceTest {
         Track track = buildTrack(1L, true);
         ByteArrayResource resource = new ByteArrayResource(new byte[1_000]);
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource("tracks/audio/test.mp3")).willReturn(resource);
+        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3")).willReturn(resource);
 
         TrackService.StreamResource result = trackService.getStreamResource(1L);
 
@@ -372,7 +379,7 @@ class TrackServiceTest {
         Track track = buildTrack(1L, true);
         ByteArrayResource resource = new ByteArrayResource(new byte[2]);
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource("tracks/audio/test.mp3")).willReturn(resource);
+        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3")).willReturn(resource);
 
         TrackService.StreamResource result = trackService.getStreamResource(1L);
 
@@ -385,7 +392,7 @@ class TrackServiceTest {
         Track track = buildTrack(1L, true);
         ByteArrayResource resource = new ByteArrayResource(new byte[1]);
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource("tracks/audio/test.mp3")).willReturn(resource);
+        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3")).willReturn(resource);
 
         TrackService.StreamResource result = trackService.getStreamResource(1L);
 
@@ -409,8 +416,7 @@ class TrackServiceTest {
 
         assertThat(response.title()).isEqualTo("Updated Title");
         assertThat(response.bpm()).isEqualTo(140);
-        verify(storageService, never()).delete(anyString());
-        verify(storageService, never()).store(any(), anyString());
+        verifyNoInteractions(storageMutationCoordinator);
     }
 
     @Test
@@ -418,7 +424,13 @@ class TrackServiceTest {
     void updateTrack_success_withNewAudioFile() {
         Track track = buildTrack(1L, true);
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.store(any(), eq("tracks/audio"))).willReturn("tracks/audio/new.mp3");
+        given(storageMutationCoordinator.replace(
+                eq(StorageDomain.TRACK),
+                eq(StorageRoot.PUBLIC),
+                any(),
+                eq("tracks/audio"),
+                eq("tracks/audio/test.mp3")))
+                .willReturn("tracks/audio/new.mp3");
         given(trackTagRepository.findAllWithTagByTrack(any(Track.class))).willReturn(List.of());
 
         TrackUpdateRequest request = new TrackUpdateRequest();
@@ -427,8 +439,12 @@ class TrackServiceTest {
         TrackResponse response = trackService.updateTrack(1L, request, newAudioFile, null);
 
         assertThat(response.audioFile()).isEqualTo("tracks/audio/new.mp3");
-        verify(storageService).delete("tracks/audio/test.mp3");
-        verify(storageService).store(any(), eq("tracks/audio"));
+        verify(storageMutationCoordinator).replace(
+                eq(StorageDomain.TRACK),
+                eq(StorageRoot.PUBLIC),
+                any(),
+                eq("tracks/audio"),
+                eq("tracks/audio/test.mp3"));
     }
 
     @Test
@@ -463,6 +479,7 @@ class TrackServiceTest {
         trackService.deleteTrack(1L);
 
         assertThat(track.isActive()).isFalse();
+        verifyNoInteractions(storageMutationCoordinator);
     }
 
     @Test

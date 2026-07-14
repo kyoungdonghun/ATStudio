@@ -97,8 +97,10 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
             return toAgreementConfirmResult(response);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return BillingAgreementConfirmResult.failure("TOSS_BILLING_ISSUE_INTERRUPTED", e.getMessage());
-        } catch (IOException | IllegalArgumentException e) {
+            throw outcomeUnknown("Toss billing key issue was interrupted.", e);
+        } catch (IOException e) {
+            throw outcomeUnknown("Toss billing key issue result is unknown.", e);
+        } catch (IllegalArgumentException e) {
             return BillingAgreementConfirmResult.failure("TOSS_BILLING_ISSUE_ERROR", e.getMessage());
         }
     }
@@ -123,8 +125,10 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
             return toChargeResult(command, response);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return BillingChargeResult.failure("TOSS_BILLING_CHARGE_INTERRUPTED", e.getMessage());
-        } catch (IOException | IllegalArgumentException | ArithmeticException e) {
+            throw outcomeUnknown("Toss recurring charge was interrupted.", e);
+        } catch (IOException e) {
+            throw outcomeUnknown("Toss recurring charge result is unknown.", e);
+        } catch (IllegalArgumentException | ArithmeticException e) {
             return BillingChargeResult.failure("TOSS_BILLING_CHARGE_ERROR", e.getMessage());
         }
     }
@@ -151,8 +155,10 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
             return toCancelResult(response);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return BillingAgreementCancelResult.failure("TOSS_BILLING_DELETE_INTERRUPTED", e.getMessage());
-        } catch (IOException | IllegalArgumentException e) {
+            throw outcomeUnknown("Toss billing key deletion was interrupted.", e);
+        } catch (IOException e) {
+            throw outcomeUnknown("Toss billing key deletion result is unknown.", e);
+        } catch (IllegalArgumentException e) {
             return BillingAgreementCancelResult.failure("TOSS_BILLING_DELETE_ERROR", e.getMessage());
         }
     }
@@ -313,6 +319,9 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
 
     private BillingAgreementConfirmResult toAgreementConfirmResult(HttpResponse<String> response) throws IOException {
         JsonNode root = readJson(response.body());
+        if (isServerError(response)) {
+            throw outcomeUnknown("Toss billing key issue returned a server error.");
+        }
         if (isFailure(response)) {
             String code = text(root, "code", "TOSS_BILLING_ISSUE_FAILED");
             String message = text(root, "message", "Toss billing key issue failed.");
@@ -328,9 +337,7 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
 
         String billingKey = text(root, "billingKey", "");
         if (isBlank(billingKey)) {
-            return BillingAgreementConfirmResult.failure(
-                    "TOSS_BILLING_KEY_MISSING",
-                    "Toss billing key issue response did not include billingKey.");
+            throw outcomeUnknown("Toss billing key issue succeeded without a billingKey.");
         }
 
         return BillingAgreementConfirmResult.success(
@@ -344,6 +351,9 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
             BillingChargeCommand command,
             HttpResponse<String> response) throws IOException {
         JsonNode root = readJson(response.body());
+        if (isServerError(response)) {
+            throw outcomeUnknown("Toss recurring charge returned a server error.");
+        }
         if (isFailure(response)) {
             String code = text(root, "code", "TOSS_BILLING_CHARGE_FAILED");
             String message = text(root, "message", "Toss recurring charge failed.");
@@ -361,9 +371,7 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
         String returnedOrderId = text(root, "orderId", "");
         long totalAmount = root.path("totalAmount").asLong(-1);
         if (!command.orderId().equals(returnedOrderId) || toTossAmount(command.amount()) != totalAmount) {
-            return BillingChargeResult.failure(
-                    "TOSS_BILLING_CHARGE_MISMATCH",
-                    "Toss recurring charge response does not match the payment order.");
+            throw outcomeUnknown("Toss recurring charge succeeded with mismatched payment evidence.");
         }
 
         return BillingChargeResult.success(
@@ -376,6 +384,10 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
     private BillingAgreementCancelResult toCancelResult(HttpResponse<String> response) throws IOException {
         if (response.statusCode() >= 200 && response.statusCode() < 300) {
             return BillingAgreementCancelResult.success("tossBillingKeyDeleted=true");
+        }
+
+        if (isServerError(response)) {
+            throw outcomeUnknown("Toss billing key deletion returned a server error.");
         }
 
         JsonNode root = readJson(response.body());
@@ -428,6 +440,12 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
             HttpResponse<String> response) throws IOException {
         JsonNode root = readJson(response.body());
         String providerPayload = sanitizedRefundPayload(root);
+        if (isServerError(response)) {
+            return PaymentRefundProviderResult.pending(
+                    "TOSS_PAYMENT_CANCEL_UNKNOWN",
+                    "Toss payment cancel request result is unknown.",
+                    providerPayload);
+        }
         if (isFailure(response)) {
             String code = text(root, "code", "TOSS_PAYMENT_CANCEL_FAILED");
             String message = text(root, "message", "Toss payment cancel failed.");
@@ -440,8 +458,17 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
             return PaymentRefundProviderResult.failure(code, message, providerPayload);
         }
 
+        String returnedOrderId = text(root, "orderId", "");
+        String refundTransactionKey = latestCancelTransactionKey(root);
+        if (!command.orderId().equals(returnedOrderId) || isBlank(refundTransactionKey)) {
+            return PaymentRefundProviderResult.pending(
+                    "TOSS_PAYMENT_CANCEL_EVIDENCE_MISSING",
+                    "Toss payment cancel response did not include matching refund evidence.",
+                    providerPayload);
+        }
+
         return PaymentRefundProviderResult.success(
-                firstCancelTransactionKey(root, command.providerPaymentKey()),
+                refundTransactionKey,
                 providerPayload);
     }
 
@@ -472,6 +499,7 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
         Map<String, Object> payload = new LinkedHashMap<>();
         putTextIfPresent(payload, "paymentKey", root);
         putTextIfPresent(payload, "orderId", root);
+        putTextIfPresent(payload, "lastTransactionKey", root);
         putTextIfPresent(payload, "status", root);
         if (root.hasNonNull("totalAmount")) {
             payload.put("totalAmount", root.get("totalAmount").asLong());
@@ -503,15 +531,21 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
         return objectMapper.writeValueAsString(payload);
     }
 
-    private String firstCancelTransactionKey(JsonNode root, String fallbackPaymentKey) {
-        JsonNode cancels = root.path("cancels");
-        if (cancels.isArray() && !cancels.isEmpty()) {
-            String transactionKey = text(cancels.get(0), "transactionKey", "");
-            if (!isBlank(transactionKey)) {
-                return transactionKey;
-            }
-        }
-        return text(root, "paymentKey", fallbackPaymentKey);
+    private String latestCancelTransactionKey(JsonNode root) {
+        String lastTransactionKey = text(root, "lastTransactionKey", "");
+        return isBlank(lastTransactionKey) ? null : lastTransactionKey;
+    }
+
+    private boolean isServerError(HttpResponse<String> response) {
+        return response.statusCode() >= 500;
+    }
+
+    private PaymentProviderOutcomeUnknownException outcomeUnknown(String message) {
+        return new PaymentProviderOutcomeUnknownException(message);
+    }
+
+    private PaymentProviderOutcomeUnknownException outcomeUnknown(String message, Throwable cause) {
+        return new PaymentProviderOutcomeUnknownException(message, cause);
     }
 
     private void putReceiptEvidence(Map<String, Object> payload, JsonNode root) {

@@ -22,8 +22,8 @@ public class PaymentProperties {
     public static class Toss {
         private String clientKey = "";
         private String secretKey = "";
-        private String successUrl = "http://localhost:5173/subscriptions/payment/success";
-        private String failUrl = "http://localhost:5173/subscriptions/payment/fail";
+        private String successUrl = "";
+        private String failUrl = "";
         private String confirmUrl = "https://api.tosspayments.com/v1/payments/confirm";
         private String cancelUrl = "https://api.tosspayments.com/v1/payments/{paymentKey}/cancel";
         private int connectTimeoutMillis = 3000;
@@ -34,8 +34,8 @@ public class PaymentProperties {
     @Setter
     public static class Billing {
         private String encryptionSecret = "";
-        private String authSuccessUrl = "http://localhost:5173/subscriptions/checkout/success";
-        private String authFailUrl = "http://localhost:5173/subscriptions/checkout/fail";
+        private String authSuccessUrl = "";
+        private String authFailUrl = "";
         private String issueUrl = "https://api.tosspayments.com/v1/billing/authorizations/issue";
         private String chargeUrl = "https://api.tosspayments.com/v1/billing/{billingKey}";
         private String deleteUrl = "https://api.tosspayments.com/v1/billing/{billingKey}";

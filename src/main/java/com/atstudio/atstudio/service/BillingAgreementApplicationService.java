@@ -12,21 +12,17 @@ import com.atstudio.atstudio.dto.subscription.UserSubscriptionResponse;
 import com.atstudio.atstudio.entity.BillingAgreement;
 import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.Subscription;
-import com.atstudio.atstudio.entity.SubscriptionPayment;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
 import com.atstudio.atstudio.entity.enums.CompanyCertificationStatus;
-import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
-import com.atstudio.atstudio.entity.enums.PaymentStatus;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.repository.CompanyCertificationRepository;
 import com.atstudio.atstudio.repository.PaymentOrderRepository;
-import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
 import com.atstudio.atstudio.repository.SubscriptionRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
@@ -43,6 +39,7 @@ import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeCom
 import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeResult;
 import com.atstudio.atstudio.service.payment.provider.recurring.RecurringPaymentProvider;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -63,18 +60,18 @@ public class BillingAgreementApplicationService {
     private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS_BILLING;
     private static final DateTimeFormatter ORDER_DATE = DateTimeFormatter.BASIC_ISO_DATE;
     private static final int PAYMENT_EXPIRY_MINUTES = 15;
+    private static final String ALREADY_REMOVED_BILLING_KEY = "ALREADY_REMOVED_BILLING_KEY";
+    private static final String BILLING_KEY_DELETE_EXCEPTION = "BILLING_KEY_DELETE_EXCEPTION";
 
     private final UserRepository userRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final PaymentOrderRepository paymentOrderRepository;
-    private final SubscriptionPaymentRepository subscriptionPaymentRepository;
     private final BillingAgreementRepository billingAgreementRepository;
     private final CompanyCertificationRepository companyCertificationRepository;
-    private final PlaylistService playlistService;
     private final BillingCustomerKeyGenerator billingCustomerKeyGenerator;
     private final BillingKeyCrypto billingKeyCrypto;
-    private final PaymentReceiptEvidenceService paymentReceiptEvidenceService;
+    private final PaymentCommandTransactionService paymentCommandTransactionService;
     private final Map<PaymentProviderType, RecurringPaymentProvider> recurringProviders;
 
     public BillingAgreementApplicationService(
@@ -82,25 +79,21 @@ public class BillingAgreementApplicationService {
             SubscriptionRepository subscriptionRepository,
             UserSubscriptionRepository userSubscriptionRepository,
             PaymentOrderRepository paymentOrderRepository,
-            SubscriptionPaymentRepository subscriptionPaymentRepository,
             BillingAgreementRepository billingAgreementRepository,
             CompanyCertificationRepository companyCertificationRepository,
-            PlaylistService playlistService,
             BillingCustomerKeyGenerator billingCustomerKeyGenerator,
             BillingKeyCrypto billingKeyCrypto,
-            PaymentReceiptEvidenceService paymentReceiptEvidenceService,
+            PaymentCommandTransactionService paymentCommandTransactionService,
             List<RecurringPaymentProvider> recurringProviders) {
         this.userRepository = userRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.userSubscriptionRepository = userSubscriptionRepository;
         this.paymentOrderRepository = paymentOrderRepository;
-        this.subscriptionPaymentRepository = subscriptionPaymentRepository;
         this.billingAgreementRepository = billingAgreementRepository;
         this.companyCertificationRepository = companyCertificationRepository;
-        this.playlistService = playlistService;
         this.billingCustomerKeyGenerator = billingCustomerKeyGenerator;
         this.billingKeyCrypto = billingKeyCrypto;
-        this.paymentReceiptEvidenceService = paymentReceiptEvidenceService;
+        this.paymentCommandTransactionService = paymentCommandTransactionService;
         this.recurringProviders = recurringProviders.stream()
                 .collect(Collectors.toUnmodifiableMap(RecurringPaymentProvider::getProviderType, Function.identity()));
     }
@@ -158,91 +151,163 @@ public class BillingAgreementApplicationService {
         );
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public BillingAgreementConfirmResponse confirmBillingAgreement(
             CustomUserDetails userDetails,
             BillingAgreementConfirmRequest request) {
-        User user = findUser(userDetails);
-        PaymentOrder order = findOwnedBillingOrder(user, request.orderId());
-        BillingAgreement agreement = order.getBillingAgreement();
-
-        if (order.getStatus() == PaymentOrderStatus.DONE) {
-            return toConfirmResponse(order, agreement);
+        PaymentCommandTransactionService.BillingConfirmClaim claim =
+                paymentCommandTransactionService.claimBillingConfirm(
+                        userDetails.getId(),
+                        request.orderId(),
+                        request.customerKey(),
+                        request.amount(),
+                        LocalDateTime.now());
+        if (claim.action() == PaymentCommandTransactionService.BillingConfirmAction.COMPLETED) {
+            return claim.response();
         }
-        validateConfirmable(order, agreement, request);
+        if (claim.action() == PaymentCommandTransactionService.BillingConfirmAction.FINALIZE_ONLY) {
+            return paymentCommandTransactionService.finalizeInitialCharge(
+                    userDetails.getId(),
+                    claim.agreementID(),
+                    claim.orderID());
+        }
 
-        BillingAgreementConfirmResult issueResult = recurringProvider().confirmAgreement(
-                new BillingAgreementConfirmCommand(request.authKey(), request.customerKey()));
+        BillingAgreementConfirmResult issueResult;
+        try {
+            issueResult = recurringProvider().confirmAgreement(
+                    new BillingAgreementConfirmCommand(request.authKey(), claim.providerCustomerKey()));
+        } catch (RuntimeException exception) {
+            recordProviderFailure(
+                    claim,
+                    "BILLING_KEY_ISSUE_EXCEPTION",
+                    exception.getClass().getSimpleName(),
+                    PaymentCommandTransactionService.ProviderFailureDisposition.PENDING_PROVIDER_CONFIRMATION,
+                    false);
+            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_CONFIRM_FAILED);
+        }
+        if (issueResult == null) {
+            recordProviderFailure(
+                    claim,
+                    "BILLING_KEY_ISSUE_EMPTY_RESULT",
+                    "Provider returned no billing-key issue result.",
+                    PaymentCommandTransactionService.ProviderFailureDisposition.PENDING_PROVIDER_CONFIRMATION,
+                    false);
+            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_CONFIRM_FAILED);
+        }
         if (!issueResult.success()) {
-            order.markFailed(issueResult.failureCode(), issueResult.failureMessage());
+            recordProviderFailure(
+                    claim,
+                    issueResult.failureCode(),
+                    issueResult.failureMessage(),
+                    PaymentCommandTransactionService.ProviderFailureDisposition.FAILED,
+                    false);
             throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_CONFIRM_FAILED);
         }
         if (isBlank(issueResult.billingKey())) {
-            order.markFailed("BILLING_KEY_MISSING", "Billing key was not returned by provider.");
+            recordProviderFailure(
+                    claim,
+                    "BILLING_KEY_MISSING",
+                    "Billing key was not returned by provider.",
+                    PaymentCommandTransactionService.ProviderFailureDisposition.FAILED,
+                    false);
             throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_CONFIRM_FAILED);
         }
 
-        BillingKeyCrypto.ProtectedBillingKey protectedBillingKey =
-                billingKeyCrypto.encrypt(issueResult.billingKey());
-        agreement.storeIssuedKey(
-                protectedBillingKey.ciphertext(),
-                protectedBillingKey.fingerprint(),
-                issueResult.payMethod(),
-                issueResult.maskedMethod());
-
-        if (order.getPurpose() == PaymentPurpose.BILLING_AGREEMENT) {
-            UserSubscription activeSubscription = findActiveSubscriptionOrNull(user);
-            if (activeSubscription == null) {
-                deleteIssuedKeyAfterFailedInitialCharge(issueResult.billingKey(), agreement);
-                throw new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION);
-            }
-            agreement.activate(
+        try {
+            BillingKeyCrypto.ProtectedBillingKey protectedBillingKey =
+                    billingKeyCrypto.encrypt(issueResult.billingKey());
+            paymentCommandTransactionService.storeIssuedBillingKey(
+                    claim.agreementID(),
+                    claim.orderID(),
                     protectedBillingKey.ciphertext(),
                     protectedBillingKey.fingerprint(),
                     issueResult.payMethod(),
-                    issueResult.maskedMethod(),
-                    activeSubscription.getExpiresAt());
-            order.markDone(
-                    "billing-agreement-" + order.getOrderId(),
-                    activeSubscription,
-                    issueResult.providerPayload());
-            return toConfirmResponse(order, agreement);
-        }
-
-        BillingChargeResult chargeResult = recurringProvider().charge(new BillingChargeCommand(
-                issueResult.billingKey(),
-                agreement.getProviderCustomerKey(),
-                order.getOrderId(),
-                orderName(order),
-                order.getAmount(),
-                user.getEmail(),
-                user.getNickname(),
-                "billing-initial-" + order.getOrderId()
-        ));
-        if (!chargeResult.success()) {
-            order.markFailed(chargeResult.failureCode(), chargeResult.failureMessage());
-            agreement.recordFailedCharge();
-            deleteIssuedKeyAfterFailedInitialCharge(issueResult.billingKey(), agreement);
+                    issueResult.maskedMethod());
+        } catch (RuntimeException exception) {
+            recordProviderFailure(
+                    claim,
+                    "BILLING_KEY_STORAGE_FAILED",
+                    exception.getClass().getSimpleName(),
+                    PaymentCommandTransactionService.ProviderFailureDisposition.FAILED,
+                    false);
+            cleanupIssuedBillingKey(issueResult.billingKey(), claim.agreementID());
             throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_CONFIRM_FAILED);
         }
 
-        UserSubscription subscription = applySubscriptionAction(order);
-        SubscriptionPayment subscriptionPayment =
-                saveSubscriptionPayment(order, subscription, chargeResult.transactionId(), agreement);
-        order.markDone(chargeResult.transactionId(), subscription, chargeResult.providerPayload());
-        paymentReceiptEvidenceService.publishSuccessfulChargeEvidence(
-                order,
-                subscriptionPayment,
-                chargeResult.providerPayload());
-        agreement.activate(
-                protectedBillingKey.ciphertext(),
-                protectedBillingKey.fingerprint(),
-                firstPresent(chargeResult.payMethod(), issueResult.payMethod()),
-                firstPresent(chargeResult.maskedMethod(), issueResult.maskedMethod()),
-                subscription.getExpiresAt());
-        agreement.recordSuccessfulCharge(subscription.getExpiresAt());
+        if (claim.purpose() == PaymentPurpose.BILLING_AGREEMENT) {
+            paymentCommandTransactionService.recordProviderSuccess(
+                    claim.agreementID(),
+                    claim.orderID(),
+                    "billing-agreement-" + claim.orderID(),
+                    issueResult.providerPayload(),
+                    issueResult.payMethod(),
+                    issueResult.maskedMethod());
+            return paymentCommandTransactionService.finalizeInitialCharge(
+                    userDetails.getId(),
+                    claim.agreementID(),
+                    claim.orderID());
+        }
 
-        return toConfirmResponse(order, agreement);
+        BillingChargeResult chargeResult;
+        try {
+            chargeResult = recurringProvider().charge(new BillingChargeCommand(
+                    issueResult.billingKey(),
+                    claim.providerCustomerKey(),
+                    claim.orderID(),
+                    claim.orderName(),
+                    claim.amount(),
+                    claim.userEmail(),
+                    claim.userNickname(),
+                    claim.providerIdempotencyKey()));
+        } catch (RuntimeException exception) {
+            recordProviderFailure(
+                    claim,
+                    "BILLING_CHARGE_EXCEPTION",
+                    exception.getClass().getSimpleName(),
+                    PaymentCommandTransactionService.ProviderFailureDisposition.PENDING_PROVIDER_CONFIRMATION,
+                    true);
+            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_CONFIRM_FAILED);
+        }
+        if (chargeResult == null) {
+            recordProviderFailure(
+                    claim,
+                    "BILLING_CHARGE_EMPTY_RESULT",
+                    "Provider returned no initial-charge result.",
+                    PaymentCommandTransactionService.ProviderFailureDisposition.PENDING_PROVIDER_CONFIRMATION,
+                    true);
+            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_CONFIRM_FAILED);
+        }
+        if (!chargeResult.success()) {
+            recordProviderFailure(
+                    claim,
+                    chargeResult.failureCode(),
+                    chargeResult.failureMessage(),
+                    PaymentCommandTransactionService.ProviderFailureDisposition.FAILED,
+                    true);
+            cleanupIssuedBillingKey(issueResult.billingKey(), claim.agreementID());
+            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_CONFIRM_FAILED);
+        }
+        if (isBlank(chargeResult.transactionId())) {
+            recordProviderFailure(
+                    claim,
+                    "PROVIDER_TRANSACTION_MISSING",
+                    "Provider success did not include a transaction ID.",
+                    PaymentCommandTransactionService.ProviderFailureDisposition.PENDING_PROVIDER_CONFIRMATION,
+                    true);
+            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_CONFIRM_FAILED);
+        }
+
+        paymentCommandTransactionService.recordProviderSuccess(
+                claim.agreementID(),
+                claim.orderID(),
+                chargeResult.transactionId(),
+                chargeResult.providerPayload(),
+                chargeResult.payMethod(),
+                chargeResult.maskedMethod());
+        return paymentCommandTransactionService.finalizeInitialCharge(
+                userDetails.getId(),
+                claim.agreementID(),
+                claim.orderID());
     }
 
     public BillingAgreementResponse getMyBillingAgreement(CustomUserDetails userDetails) {
@@ -305,49 +370,6 @@ public class BillingAgreementApplicationService {
                 .build());
     }
 
-    private void validateConfirmable(
-            PaymentOrder order,
-            BillingAgreement agreement,
-            BillingAgreementConfirmRequest request) {
-        if (agreement == null) {
-            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_NOT_FOUND);
-        }
-        if (agreement.getStatus() != BillingAgreementStatus.READY) {
-            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE);
-        }
-        if (order.getStatus() == PaymentOrderStatus.FAILED
-                || order.getStatus() == PaymentOrderStatus.CANCELLED
-                || order.getStatus() == PaymentOrderStatus.EXPIRED) {
-            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
-        }
-        if (order.isExpired(LocalDateTime.now())) {
-            order.markExpired();
-            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_EXPIRED);
-        }
-        if (!agreement.isOwnedBy(order.getUser())) {
-            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
-        }
-        if (!agreement.getProviderCustomerKey().equals(request.customerKey())) {
-            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
-        }
-        if (order.getAmount().compareTo(request.amount()) != 0) {
-            throw new BusinessException(BUSINESS_ERROR.PAYMENT_AMOUNT_MISMATCH);
-        }
-        validateSubscriptionUserType(order.getUser(), order.getSubscription());
-        if (order.getPurpose() == PaymentPurpose.SUBSCRIBE) {
-            validateSubscriptionPreconditions(order.getUser());
-        } else {
-            UserSubscription activeSubscription = findActiveSubscriptionOrNull(order.getUser());
-            if (activeSubscription == null) {
-                throw new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION);
-            }
-            validateBillingAgreementRegistrationRequest(
-                    activeSubscription,
-                    order.getSubscription(),
-                    order.getBillingCycle());
-        }
-    }
-
     private void validateBillingAgreementRegistrationRequest(
             UserSubscription activeSubscription,
             Subscription subscription,
@@ -356,58 +378,6 @@ public class BillingAgreementApplicationService {
                 || activeSubscription.getBillingCycle() != billingCycle) {
             throw new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_ALREADY_EXISTS);
         }
-    }
-
-    private void deleteIssuedKeyAfterFailedInitialCharge(String billingKey, BillingAgreement agreement) {
-        BillingAgreementCancelResult cancelResult = recurringProvider().cancelAgreement(
-                new BillingAgreementCancelCommand(billingKey));
-        if (cancelResult.success()) {
-            agreement.clearIssuedKey();
-        }
-    }
-
-    private UserSubscription applySubscriptionAction(PaymentOrder order) {
-        LocalDate startedAt = LocalDate.now();
-        LocalDate expiresAt = expiresAt(startedAt, order.getBillingCycle());
-        UserSubscription userSubscription = userSubscriptionRepository.findByUser(order.getUser())
-                .map(existing -> {
-                    existing.startNewSubscription(
-                            order.getSubscription(),
-                            order.getBillingCycle(),
-                            startedAt,
-                            expiresAt);
-                    return existing;
-                })
-                .orElseGet(() -> userSubscriptionRepository.save(
-                        UserSubscription.builder()
-                                .user(order.getUser())
-                                .subscription(order.getSubscription())
-                                .billingCycle(order.getBillingCycle())
-                                .startedAt(startedAt)
-                                .expiresAt(expiresAt)
-                                .build()));
-
-        playlistService.createDefaultPlaylist(order.getUser());
-        return userSubscription;
-    }
-
-    private SubscriptionPayment saveSubscriptionPayment(
-            PaymentOrder order,
-            UserSubscription userSubscription,
-            String pgTransactionId,
-            BillingAgreement agreement) {
-        return subscriptionPaymentRepository.save(SubscriptionPayment.builder()
-                .paymentOrder(order)
-                .billingAgreement(agreement)
-                .provider(order.getProvider())
-                .user(order.getUser())
-                .userSubscription(userSubscription)
-                .subscription(order.getSubscription())
-                .billingCycle(order.getBillingCycle())
-                .amount(order.getAmount())
-                .paymentStatus(PaymentStatus.DONE)
-                .pgTransactionId(pgTransactionId)
-                .build());
     }
 
     private PaymentOrder findOwnedBillingOrder(User user, String orderId) {
@@ -465,12 +435,6 @@ public class BillingAgreementApplicationService {
                 : subscription.getPriceYearly();
     }
 
-    private LocalDate expiresAt(LocalDate startedAt, BillingCycle billingCycle) {
-        return billingCycle == BillingCycle.MONTHLY
-                ? startedAt.plusMonths(1)
-                : startedAt.plusYears(1);
-    }
-
     private RecurringPaymentProvider recurringProvider() {
         RecurringPaymentProvider provider = recurringProviders.get(RECURRING_PROVIDER);
         if (provider == null) {
@@ -489,21 +453,6 @@ public class BillingAgreementApplicationService {
                 metadata.get("failUrl"),
                 metadata.get("method")
         );
-    }
-
-    private BillingAgreementConfirmResponse toConfirmResponse(
-            PaymentOrder order,
-            BillingAgreement agreement) {
-        UserSubscriptionResponse subscription = order.getUserSubscription() == null
-                ? null
-                : UserSubscriptionResponse.from(order.getUserSubscription());
-        return new BillingAgreementConfirmResponse(
-                order.getOrderId(),
-                order.getStatus(),
-                agreement.getProvider(),
-                agreement.getStatus(),
-                agreement.getNextBillingAt(),
-                subscription);
     }
 
     private BillingAgreementResponse toAgreementResponse(
@@ -530,12 +479,44 @@ public class BillingAgreementApplicationService {
         return orderId;
     }
 
-    private String orderName(PaymentOrder order) {
-        return order.getSubscription().getName() + " recurring subscription";
+    private void recordProviderFailure(
+            PaymentCommandTransactionService.BillingConfirmClaim claim,
+            String failureCode,
+            String failureMessage,
+            PaymentCommandTransactionService.ProviderFailureDisposition disposition,
+            boolean recordFailedCharge) {
+        paymentCommandTransactionService.recordProviderFailure(
+                claim.agreementID(),
+                claim.orderID(),
+                failureCode,
+                failureMessage,
+                disposition,
+                recordFailedCharge);
     }
 
-    private String firstPresent(String first, String second) {
-        return isBlank(first) ? second : first;
+    private void cleanupIssuedBillingKey(String billingKey, Long agreementID) {
+        BillingAgreementCancelResult cancelResult;
+        try {
+            cancelResult = recurringProvider().cancelAgreement(new BillingAgreementCancelCommand(billingKey));
+        } catch (RuntimeException exception) {
+            paymentCommandTransactionService.recordBillingCleanupFailure(
+                    agreementID,
+                    BILLING_KEY_DELETE_EXCEPTION,
+                    exception.getClass().getSimpleName());
+            return;
+        }
+
+        if (cancelResult != null
+                && (cancelResult.success()
+                || ALREADY_REMOVED_BILLING_KEY.equals(cancelResult.failureCode()))) {
+            paymentCommandTransactionService.clearIssuedBillingKeyAfterCleanup(agreementID);
+            return;
+        }
+
+        paymentCommandTransactionService.recordBillingCleanupFailure(
+                agreementID,
+                cancelResult == null ? BILLING_KEY_DELETE_EXCEPTION : cancelResult.failureCode(),
+                cancelResult == null ? "EmptyProviderResult" : cancelResult.failureMessage());
     }
 
     private boolean isBlank(String value) {

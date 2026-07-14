@@ -1,0 +1,47 @@
+spring:
+  config:
+    activate:
+      on-profile: acceptance
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+server:
+  address: 127.0.0.1
+
+jwt:
+  secret: ${JWT_SECRET}
+
+oauth2:
+  google:
+    redirect-uri: ${APP_PUBLIC_BASE_URL}/social-login/google
+  kakao:
+    redirect-uri: ${APP_PUBLIC_BASE_URL}/social-login/kakao
+  naver:
+    redirect-uri: ${APP_PUBLIC_BASE_URL}/social-login/naver
+
+app:
+  acceptance:
+    enabled: true
+    public-base-url: ${APP_PUBLIC_BASE_URL}
+  bootstrap:
+    test-users:
+      enabled: ${APP_BOOTSTRAP_TEST_USERS_ENABLED:false}
+      default-password: ${APP_BOOTSTRAP_TEST_USERS_DEFAULT_PASSWORD:}
+  mail:
+    base-url: ${APP_PUBLIC_BASE_URL}
+  payment:
+    toss:
+      client-key: ${TOSS_CLIENT_KEY:}
+      secret-key: ${TOSS_SECRET_KEY:}
+      success-url: ${APP_PUBLIC_BASE_URL}/subscriptions/payment/success
+      fail-url: ${APP_PUBLIC_BASE_URL}/subscriptions/payment/fail
+    billing:
+      encryption-secret: ${PAYMENT_BILLING_KEY_ENCRYPTION_SECRET:}
+      auth-success-url: ${APP_PUBLIC_BASE_URL}/subscriptions/checkout/success
+      auth-fail-url: ${APP_PUBLIC_BASE_URL}/subscriptions/checkout/fail

@@ -14,12 +14,15 @@ import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.service.PlaylistService;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.DefaultApplicationArguments;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -34,7 +37,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 @DisplayName("TestUserBootstrapRunner 단위 테스트")
 class TestUserBootstrapRunnerTest {
 
@@ -51,11 +54,16 @@ class TestUserBootstrapRunnerTest {
 
     @InjectMocks TestUserBootstrapRunner runner;
 
+    @BeforeEach
+    void setUp() {
+        properties.setDefaultPassword("fixture-bootstrap-password");
+    }
+
     @Test
     @DisplayName("run() 성공 - 누락된 QA 계정과 구독 fixture를 생성한다")
-    void run_createsFixtureAccounts() throws Exception {
+    void run_createsFixtureAccounts(CapturedOutput output) throws Exception {
         ReflectionTestUtils.setField(runner, "properties", properties);
-        given(passwordEncoder.encode("Test1234!")).willReturn("encoded");
+        given(passwordEncoder.encode("fixture-bootstrap-password")).willReturn("encoded");
         given(userRepository.findOneByEmail(any())).willReturn(Optional.empty());
         given(userRepository.save(any(User.class))).willAnswer(invocation -> {
             User user = invocation.getArgument(0);
@@ -81,13 +89,16 @@ class TestUserBootstrapRunnerTest {
         verify(userSubscriptionRepository, times(3)).save(any(UserSubscription.class));
         verify(companyCertificationRepository, times(1)).save(any());
         verify(playlistService, times(3)).createDefaultPlaylist(any(User.class));
+        assertThat(output)
+                .contains("Non-prod QA bootstrap ready: fixtureUserCount=5")
+                .doesNotContain("@atstudio.local");
     }
 
     @Test
     @DisplayName("run() 성공 - 일반 QA 계정에 활성 구독이 있으면 만료 처리한다")
     void run_expiresSubscriptionForBasicUser() throws Exception {
         ReflectionTestUtils.setField(runner, "properties", properties);
-        given(passwordEncoder.encode("Test1234!")).willReturn("encoded");
+        given(passwordEncoder.encode("fixture-bootstrap-password")).willReturn("encoded");
 
         User existingUser = User.builder()
                 .nickname("qa_user")
@@ -137,9 +148,9 @@ class TestUserBootstrapRunnerTest {
 
     @Test
     @DisplayName("run() 성공 - 결제 이력이 있는 QA 계정의 구독은 보존한다")
-    void run_preservesPaymentManagedSubscriptionForBasicUser() throws Exception {
+    void run_preservesPaymentManagedSubscriptionForBasicUser(CapturedOutput output) throws Exception {
         ReflectionTestUtils.setField(runner, "properties", properties);
-        given(passwordEncoder.encode("Test1234!")).willReturn("encoded");
+        given(passwordEncoder.encode("fixture-bootstrap-password")).willReturn("encoded");
 
         User existingUser = User.builder()
                 .nickname("qa_user")
@@ -189,6 +200,9 @@ class TestUserBootstrapRunnerTest {
 
         assertThat(existingSubscription.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
         assertThat(existingSubscription.getExpiresAt()).isAfter(LocalDate.now());
+        assertThat(output)
+                .contains("reason=PAYMENT_HISTORY")
+                .doesNotContain("qa.user@atstudio.local");
     }
 
     private Subscription buildSubscription(Long id, String name, UserType userType) {

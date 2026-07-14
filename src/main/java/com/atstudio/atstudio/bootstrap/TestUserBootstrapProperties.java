@@ -19,5 +19,5 @@ public class TestUserBootstrapProperties {
     /**
      * Shared password for the bootstrap QA accounts.
      */
-    private String defaultPassword = "Test1234!";
+    private String defaultPassword = "";
 }

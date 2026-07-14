@@ -30,7 +30,6 @@ public class SubscriptionScheduler {
     private final PaymentOrderRepository paymentOrderRepository;
 
     @Scheduled(cron = "0 0 0 * * *")
-    @Transactional
     public void processRecurringRenewals() {
         recurringRenewalService.processDueRenewals();
     }

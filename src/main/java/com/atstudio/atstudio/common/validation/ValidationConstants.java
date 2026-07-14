@@ -44,9 +44,10 @@ public final class ValidationConstants {
 
     // ── Company Certification ──
     public static final long CERT_DOC_MAX_SIZE_BYTES = 20L * 1024 * 1024;
+    public static final long CERT_DOC_MAX_AGGREGATE_SIZE_BYTES = 50L * 1024 * 1024;
     public static final int CERT_DOC_MAX_COUNT = 10;
     public static final java.util.Set<String> CERT_DOC_ALLOWED_EXTENSIONS =
-            java.util.Set.of("pdf", "hwp", "hwpx", "doc", "docx", "jpg", "jpeg", "png");
+            java.util.Set.of("pdf", "jpg", "jpeg", "png");
 
     // ── Search ──
     public static final int SEARCH_KEYWORD_MAX = 100;

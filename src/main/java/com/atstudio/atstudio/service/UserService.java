@@ -112,7 +112,7 @@ public class UserService {
 
     @Transactional
     public void withdraw(Long userID, WithdrawRequest request) {
-        User user = userRepository.findById(userID)
+        User user = userRepository.findByIdForUpdate(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
         if (user.getPassword() == null
@@ -181,7 +181,7 @@ public class UserService {
 
     @Transactional
     public void updatePassword(Long userID, UpdatePasswordRequest request) {
-        User user = userRepository.findById(userID)
+        User user = userRepository.findByIdForUpdate(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
         if (user.getPassword() == null
@@ -190,6 +190,7 @@ public class UserService {
         }
 
         user.updatePassword(passwordEncoder.encode(request.getNewPassword()));
+        user.clearRefreshToken();
     }
 
     public boolean isEmailAvailable(String email) {

@@ -3,6 +3,7 @@ package com.atstudio.atstudio.service;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.common.validation.ValidationConstants;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationResponse;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationReviewRequest;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationSummaryResponse;
@@ -15,6 +16,10 @@ import com.atstudio.atstudio.repository.CompanyCertificationDocumentRepository;
 import com.atstudio.atstudio.repository.CompanyCertificationRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.image.CanonicalImageService;
+import com.atstudio.atstudio.service.storage.StorageDomain;
+import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
+import com.atstudio.atstudio.service.storage.StorageRoot;
 import com.atstudio.atstudio.service.storage.StorageService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -27,8 +32,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
@@ -50,6 +53,8 @@ class CompanyCertificationServiceTest {
     @Mock CompanyCertificationDocumentRepository documentRepository;
     @Mock UserRepository userRepository;
     @Mock StorageService storageService;
+    @Mock StorageMutationCoordinator storageMutationCoordinator;
+    @Mock CanonicalImageService canonicalImageService;
 
     @InjectMocks CompanyCertificationService certificationService;
 
@@ -66,8 +71,12 @@ class CompanyCertificationServiceTest {
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList()))
                     .willReturn(false);
-            given(storageService.store(any(MultipartFile.class), startsWith("company-docs/1/")))
-                    .willReturn("company-docs/1/doc.pdf");
+            given(storageMutationCoordinator.storeAll(
+                    eq(StorageDomain.COMPANY_CERTIFICATION),
+                    eq(StorageRoot.PRIVATE),
+                    anyList(),
+                    startsWith("company-docs/1/")))
+                    .willReturn(List.of("company-docs/1/doc.pdf"));
             given(certificationRepository.save(any(CompanyCertification.class)))
                     .willAnswer(invocation -> {
                         CompanyCertification certification = invocation.getArgument(0);
@@ -77,16 +86,21 @@ class CompanyCertificationServiceTest {
 
             List<MultipartFile> documents = List.of(
                     new MockMultipartFile("documents", "doc.pdf",
-                            "application/pdf", new byte[]{1, 2, 3}));
+                            "application/pdf", pdfBytes()));
 
             CompanyCertificationResponse result = certificationService.apply(
                     buildUserDetails(1L, UserRole.USER), documents);
 
             assertThat(result.id()).isEqualTo(1L);
             assertThat(result.status()).isEqualTo("PENDING");
-            assertThat(result.documentPath()).startsWith("/uploads/company-docs/1/");
+            assertThat(result.documentPath()).isNull();
             assertThat(result.documents()).hasSize(1);
-            verify(storageService).store(any(MultipartFile.class), startsWith("company-docs/1/"));
+            assertThat(result.documents().get(0).contentType()).isEqualTo("application/pdf");
+            verify(storageMutationCoordinator).storeAll(
+                    eq(StorageDomain.COMPANY_CERTIFICATION),
+                    eq(StorageRoot.PRIVATE),
+                    anyList(),
+                    startsWith("company-docs/1/"));
         }
 
         @Test
@@ -181,12 +195,16 @@ class CompanyCertificationServiceTest {
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(certificationRepository.findTopByUserOrderByCreatedAtDescIdDesc(user)).willReturn(Optional.of(cert));
-            given(storageService.store(any(MultipartFile.class), startsWith("company-docs/1/")))
-                    .willReturn("company-docs/1/new/doc.pdf");
+            given(storageMutationCoordinator.storeAll(
+                    eq(StorageDomain.COMPANY_CERTIFICATION),
+                    eq(StorageRoot.PRIVATE),
+                    anyList(),
+                    startsWith("company-docs/1/")))
+                    .willReturn(List.of("company-docs/1/new/doc.pdf"));
 
             List<MultipartFile> documents = List.of(
                     new MockMultipartFile("documents", "doc.pdf",
-                            "application/pdf", new byte[]{1, 2, 3}));
+                            "application/pdf", pdfBytes()));
 
             CompanyCertificationResponse result = certificationService.resubmit(
                     buildUserDetails(1L, UserRole.USER), documents);
@@ -194,7 +212,129 @@ class CompanyCertificationServiceTest {
             assertThat(result.status()).isEqualTo("PENDING");
             assertThat(result.adminNote()).isNull();
             assertThat(result.documents()).hasSize(1);
-            verify(storageService).store(any(MultipartFile.class), startsWith("company-docs/1/"));
+            verify(storageMutationCoordinator).storeAll(
+                    eq(StorageDomain.COMPANY_CERTIFICATION),
+                    eq(StorageRoot.PRIVATE),
+                    anyList(),
+                    startsWith("company-docs/1/"));
+        }
+
+        @Test
+        @DisplayName("성공 - PNG 인증 이미지는 canonical JPEG로 변환 후 PRIVATE 저장")
+        void apply_imageDocument_usesCanonicalImageAndPrivateStorage() throws Exception {
+            User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+            MockMultipartFile original = new MockMultipartFile(
+                    "documents", "biz.png", "image/png", pngSignatureBytes());
+            MockMultipartFile canonical = new MockMultipartFile(
+                    "documents", "thumbnail.jpg", "image/jpeg", new byte[]{1, 2, 3});
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList()))
+                    .willReturn(false);
+            given(canonicalImageService.canonicalizeThumbnail(original)).willReturn(canonical);
+            given(storageMutationCoordinator.storeAll(
+                    eq(StorageDomain.COMPANY_CERTIFICATION),
+                    eq(StorageRoot.PRIVATE),
+                    argThat(files -> files.size() == 1 && files.get(0) == canonical),
+                    startsWith("company-docs/1/")))
+                    .willReturn(List.of("company-docs/1/canonical.jpg"));
+            given(certificationRepository.save(any(CompanyCertification.class)))
+                    .willAnswer(invocation -> {
+                        CompanyCertification certification = invocation.getArgument(0);
+                        ReflectionTestUtils.setField(certification, "id", 1L);
+                        return certification;
+                    });
+
+            CompanyCertificationResponse result = certificationService.apply(
+                    buildUserDetails(1L, UserRole.USER), List.of(original));
+
+            assertThat(result.documents().get(0).originalFilename()).isEqualTo("biz.png");
+            assertThat(result.documents().get(0).contentType()).isEqualTo("image/jpeg");
+            verify(canonicalImageService).canonicalizeThumbnail(original);
+        }
+
+        @Test
+        @DisplayName("실패 - PDF trailing payload는 DB 저장 전에 거부")
+        void apply_pdfTrailingPayload_rejectedBeforeStorage() {
+            User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList()))
+                    .willReturn(false);
+
+            assertThatThrownBy(() -> certificationService.apply(
+                    buildUserDetails(1L, UserRole.USER),
+                    List.of(new MockMultipartFile("documents", "doc.pdf",
+                            "application/pdf", "%PDF-1.7\n%%EOF<script>".getBytes()))))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.INVALID_VALID));
+            verify(storageMutationCoordinator, never()).storeAll(any(), any(), anyList(), anyString());
+            verify(certificationRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("실패 - path-like filename은 DB 저장 전에 거부")
+        void apply_pathLikeFilename_rejectedBeforeStorage() {
+            User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList()))
+                    .willReturn(false);
+
+            assertThatThrownBy(() -> certificationService.apply(
+                    buildUserDetails(1L, UserRole.USER),
+                    List.of(new MockMultipartFile("documents", "../doc.pdf",
+                            "application/pdf", pdfBytes()))))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.INVALID_VALID));
+            verify(storageMutationCoordinator, never()).storeAll(any(), any(), anyList(), anyString());
+            verify(certificationRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("실패 - HWP/HWPX/DOC/DOCX baseline 외 형식은 거부")
+        void apply_officeAndHwpDocuments_rejected() {
+            User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList()))
+                    .willReturn(false);
+
+            for (String filename : List.of("doc.hwp", "doc.hwpx", "doc.doc", "doc.docx")) {
+                assertThatThrownBy(() -> certificationService.apply(
+                        buildUserDetails(1L, UserRole.USER),
+                        List.of(new MockMultipartFile("documents", filename,
+                                "application/octet-stream", new byte[]{1, 2, 3}))))
+                        .isInstanceOf(BusinessException.class)
+                        .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                                .isEqualTo(BUSINESS_ERROR.INVALID_VALID));
+            }
+            verify(storageMutationCoordinator, never()).storeAll(any(), any(), anyList(), anyString());
+        }
+
+        @Test
+        @DisplayName("실패 - aggregate 50MiB 초과는 DB 저장 전에 거부")
+        void apply_aggregateTooLarge_rejectedBeforeStorage() {
+            User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList()))
+                    .willReturn(false);
+
+            List<MultipartFile> documents = java.util.stream.IntStream.range(0, 3)
+                    .mapToObj(index -> new MockMultipartFile(
+                            "documents",
+                            "doc" + index + ".pdf",
+                            "application/pdf",
+                            new byte[(int) ValidationConstants.CERT_DOC_MAX_SIZE_BYTES]))
+                    .map(MultipartFile.class::cast)
+                    .toList();
+
+            assertThatThrownBy(() -> certificationService.apply(
+                    buildUserDetails(1L, UserRole.USER), documents))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.IO_LARGE));
+            verify(storageMutationCoordinator, never()).storeAll(any(), any(), anyList(), anyString());
+            verify(certificationRepository, never()).save(any());
         }
 
         @Test
@@ -207,28 +347,23 @@ class CompanyCertificationServiceTest {
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(certificationRepository.findTopByUserOrderByCreatedAtDescIdDesc(user)).willReturn(Optional.of(cert));
-            given(storageService.store(any(MultipartFile.class), startsWith("company-docs/1/")))
-                    .willReturn("company-docs/1/new/new.pdf");
+            given(storageMutationCoordinator.storeAll(
+                    eq(StorageDomain.COMPANY_CERTIFICATION),
+                    eq(StorageRoot.PRIVATE),
+                    anyList(),
+                    startsWith("company-docs/1/")))
+                    .willReturn(List.of("company-docs/1/new/new.pdf"));
 
-            TransactionSynchronizationManager.initSynchronization();
-            try {
-                CompanyCertificationResponse result = certificationService.resubmit(
-                        buildUserDetails(1L, UserRole.USER),
-                        List.of(new MockMultipartFile("documents", "new.pdf",
-                                "application/pdf", new byte[]{1, 2, 3})));
+            CompanyCertificationResponse result = certificationService.resubmit(
+                    buildUserDetails(1L, UserRole.USER),
+                    List.of(new MockMultipartFile("documents", "new.pdf",
+                            "application/pdf", pdfBytes())));
 
-                assertThat(result.status()).isEqualTo("PENDING");
-                verify(storageService, never()).delete("company-docs/1/old/old.pdf");
-
-                List<TransactionSynchronization> synchronizations =
-                        TransactionSynchronizationManager.getSynchronizations();
-                assertThat(synchronizations).hasSize(1);
-
-                synchronizations.get(0).afterCommit();
-                verify(storageService).delete("company-docs/1/old/old.pdf");
-            } finally {
-                TransactionSynchronizationManager.clearSynchronization();
-            }
+            assertThat(result.status()).isEqualTo("PENDING");
+            verify(storageMutationCoordinator).deleteAfterCommit(
+                    StorageDomain.COMPANY_CERTIFICATION,
+                    StorageRoot.PRIVATE,
+                    List.of("company-docs/1/old/old.pdf"));
         }
 
         @Test
@@ -241,26 +376,22 @@ class CompanyCertificationServiceTest {
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(certificationRepository.findTopByUserOrderByCreatedAtDescIdDesc(user)).willReturn(Optional.of(cert));
-            given(storageService.store(any(MultipartFile.class), startsWith("company-docs/1/")))
-                    .willReturn("company-docs/1/new/new.pdf");
+            given(storageMutationCoordinator.storeAll(
+                    eq(StorageDomain.COMPANY_CERTIFICATION),
+                    eq(StorageRoot.PRIVATE),
+                    anyList(),
+                    startsWith("company-docs/1/")))
+                    .willReturn(List.of("company-docs/1/new/new.pdf"));
 
-            TransactionSynchronizationManager.initSynchronization();
-            try {
-                certificationService.resubmit(
-                        buildUserDetails(1L, UserRole.USER),
-                        List.of(new MockMultipartFile("documents", "new.pdf",
-                                "application/pdf", new byte[]{1, 2, 3})));
+            certificationService.resubmit(
+                    buildUserDetails(1L, UserRole.USER),
+                    List.of(new MockMultipartFile("documents", "new.pdf",
+                            "application/pdf", pdfBytes())));
 
-                List<TransactionSynchronization> synchronizations =
-                        TransactionSynchronizationManager.getSynchronizations();
-                assertThat(synchronizations).hasSize(1);
-
-                synchronizations.get(0).afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
-                verify(storageService, never()).delete("company-docs/1/old/old.pdf");
-                verify(storageService).delete("company-docs/1/new/new.pdf");
-            } finally {
-                TransactionSynchronizationManager.clearSynchronization();
-            }
+            verify(storageMutationCoordinator).deleteAfterCommit(
+                    StorageDomain.COMPANY_CERTIFICATION,
+                    StorageRoot.PRIVATE,
+                    List.of("company-docs/1/old/old.pdf"));
         }
 
         @Test
@@ -520,5 +651,15 @@ class CompanyCertificationServiceTest {
                 .isDeleted(false)
                 .isProfileComplete(true)
                 .build();
+    }
+
+    private byte[] pdfBytes() {
+        return "%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n".getBytes();
+    }
+
+    private byte[] pngSignatureBytes() {
+        return new byte[]{
+                (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00
+        };
     }
 }

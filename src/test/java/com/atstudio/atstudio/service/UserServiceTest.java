@@ -66,6 +66,7 @@ class UserServiceTest {
     @DisplayName("withdraw() cancels local billing before publishing the ID-only cleanup event")
     void withdraw_cancelsLocalBillingBeforePublishingCleanup() {
         User user = buildUser(1L, "withdraw@test.com", "withdraw-user", null, UserJob.EDITOR);
+        user.updateRefreshToken("stored-refresh-hash");
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
                 .provider(PaymentProviderType.TOSS_BILLING)
@@ -83,7 +84,7 @@ class UserServiceTest {
         WithdrawRequest request = new WithdrawRequest();
         request.setPassword("password123");
 
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(passwordEncoder.matches("password123", "encoded")).willReturn(true);
         given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
                 .willReturn(Optional.of(agreement));
@@ -100,6 +101,7 @@ class UserServiceTest {
         userService.withdraw(1L, request);
 
         assertThat(user.isDeleted()).isTrue();
+        assertThat(user.getRefreshToken()).isNull();
         assertThat(agreement.getBillingKeyCiphertext()).isEqualTo("encrypted-key");
         verify(eventPublisher).publishEvent(new WithdrawalBillingCleanupRequestedEvent(11L));
         verify(likeRepository).deleteAllByUser(user);
@@ -114,9 +116,10 @@ class UserServiceTest {
     @DisplayName("withdraw() stops before billing changes when the password is invalid")
     void withdraw_invalidPasswordDoesNotChangeBilling() {
         User user = buildUser(1L, "withdraw@test.com", "withdraw-user", null, UserJob.EDITOR);
+        user.updateRefreshToken("stored-refresh-hash");
         WithdrawRequest request = new WithdrawRequest();
         request.setPassword("wrong-password");
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(passwordEncoder.matches("wrong-password", "encoded")).willReturn(false);
 
         assertThatThrownBy(() -> userService.withdraw(1L, request))
@@ -125,6 +128,7 @@ class UserServiceTest {
                         .isEqualTo(BUSINESS_ERROR.INVALID_CREDENTIALS));
 
         assertThat(user.isDeleted()).isFalse();
+        assertThat(user.getRefreshToken()).isEqualTo("stored-refresh-hash");
         verify(billingAgreementRepository, never()).findByUserAndProvider(any(), any());
         verify(userSubscriptionRepository, never()).findByUser(any());
         verify(eventPublisher, never()).publishEvent(any(Object.class));
@@ -283,7 +287,8 @@ class UserServiceTest {
     @DisplayName("updatePassword() 성공 - 현재 비밀번호 일치 시 새 비밀번호로 변경")
     void updatePassword_success() {
         User user = buildUser(1L, "user@test.com", "nick", null, null);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        user.updateRefreshToken("stored-refresh-hash");
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("currentPw", "encoded")).thenReturn(true);
         when(passwordEncoder.encode("newPw")).thenReturn("encoded-new");
 
@@ -294,13 +299,14 @@ class UserServiceTest {
         userService.updatePassword(1L, request);
 
         assertThat(user.getPassword()).isEqualTo("encoded-new");
+        assertThat(user.getRefreshToken()).isNull();
     }
 
     @Test
     @DisplayName("updatePassword() 실패 - 현재 비밀번호 불일치 → INVALID_CREDENTIALS 예외")
     void updatePassword_wrongCurrentPassword_throwsException() {
         User user = buildUser(1L, "user@test.com", "nick", null, null);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrongPw", "encoded")).thenReturn(false);
 
         UpdatePasswordRequest request = new UpdatePasswordRequest();
@@ -324,7 +330,7 @@ class UserServiceTest {
                 .userType(UserType.INDIVIDUAL)
                 .build();
         ReflectionTestUtils.setField(user, "id", 1L);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
 
         UpdatePasswordRequest request = new UpdatePasswordRequest();
         request.setCurrentPassword("any");
@@ -339,7 +345,7 @@ class UserServiceTest {
     @Test
     @DisplayName("updatePassword() 실패 - 존재하지 않는 사용자 → RESOURCE_NOT_FOUND 예외")
     void updatePassword_userNotFound_throwsException() {
-        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+        when(userRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
 
         UpdatePasswordRequest request = new UpdatePasswordRequest();
         request.setCurrentPassword("pw");

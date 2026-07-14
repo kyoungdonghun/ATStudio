@@ -10,7 +10,17 @@ import lombok.*;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "subscription_payments")
+@Table(
+        name = "subscription_payments",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uq_subscription_payments_order",
+                        columnNames = "payment_order_id"),
+                @UniqueConstraint(
+                        name = "uq_subscription_payments_provider_transaction",
+                        columnNames = {"provider", "pg_transaction_id"})
+        }
+)
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -57,6 +67,6 @@ public class SubscriptionPayment extends BaseEntity {
     @Column(nullable = false, length = 10)
     private PaymentStatus paymentStatus = PaymentStatus.READY;
 
-    @Column(length = 100)
+    @Column(name = "pg_transaction_id", length = 200)
     private String pgTransactionId;
 }

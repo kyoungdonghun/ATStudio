@@ -1,4 +1,13 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { logoutSessionMock } = vi.hoisted(() => ({
+  logoutSessionMock: vi.fn(),
+}));
+
+vi.mock('@/api/auth', () => ({
+  logoutSession: logoutSessionMock,
+}));
+
 import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import { useAuthStore } from '@/store/authStore';
 import { useLikeStore } from '@/store/likeStore';
@@ -41,6 +50,8 @@ const track: Track = {
 
 describe('authStore', () => {
   beforeEach(() => {
+    logoutSessionMock.mockReset();
+    logoutSessionMock.mockResolvedValue(undefined);
     localStorage.clear();
     sessionStorage.clear();
     useAuthStore.setState({ user: null, accessToken: null, role: 'GUEST' });
@@ -65,7 +76,14 @@ describe('authStore', () => {
     expect(useAuthStore.getState().role).toBe('USER');
   });
 
-  it('clears persisted auth and dependent stores on logout', () => {
+  it('calls server logout before clearing persisted auth and dependent stores', async () => {
+    let resolveLogout: (() => void) | undefined;
+    logoutSessionMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveLogout = resolve;
+        }),
+    );
     localStorage.setItem('accessToken', 'access-token');
     localStorage.setItem('refreshToken', 'refresh-token');
     localStorage.setItem('user', JSON.stringify(user));
@@ -80,7 +98,14 @@ describe('authStore', () => {
       queue: [track],
     });
 
-    useAuthStore.getState().logout();
+    const logoutResult = useAuthStore.getState().logout();
+
+    await vi.waitFor(() => expect(logoutSessionMock).toHaveBeenCalledTimes(1));
+    expect(localStorage.getItem('accessToken')).toBe('access-token');
+    expect(useAuthStore.getState().role).toBe('USER');
+
+    resolveLogout?.();
+    await expect(logoutResult).resolves.toBe(true);
 
     expect(localStorage.getItem('accessToken')).toBeNull();
     expect(localStorage.getItem('refreshToken')).toBeNull();
@@ -94,5 +119,20 @@ describe('authStore', () => {
     expect(usePlayerStore.getState().currentTrack).toBeNull();
     expect(usePlayerStore.getState().queue).toEqual([]);
     expect(usePlayerStore.getState().isPlaying).toBe(false);
+  });
+
+  it('clears local auth but reports an unconfirmed server logout on network failure', async () => {
+    logoutSessionMock.mockRejectedValue(new Error('network unavailable'));
+    localStorage.setItem('accessToken', 'access-token');
+    localStorage.setItem('refreshToken', 'refresh-token');
+    localStorage.setItem('user', JSON.stringify(user));
+    useAuthStore.setState({ user, accessToken: 'access-token', role: 'USER' });
+
+    await expect(useAuthStore.getState().logout()).resolves.toBe(false);
+
+    expect(localStorage.getItem('accessToken')).toBeNull();
+    expect(localStorage.getItem('refreshToken')).toBeNull();
+    expect(localStorage.getItem('user')).toBeNull();
+    expect(useAuthStore.getState().role).toBe('GUEST');
   });
 });

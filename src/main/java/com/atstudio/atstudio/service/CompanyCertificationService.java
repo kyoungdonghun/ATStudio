@@ -18,6 +18,10 @@ import com.atstudio.atstudio.repository.CompanyCertificationDocumentRepository;
 import com.atstudio.atstudio.repository.CompanyCertificationRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.image.CanonicalImageService;
+import com.atstudio.atstudio.service.storage.StorageDomain;
+import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
+import com.atstudio.atstudio.service.storage.StorageRoot;
 import com.atstudio.atstudio.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
@@ -27,15 +31,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.nio.file.Paths;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -48,11 +52,15 @@ public class CompanyCertificationService {
             CompanyCertificationStatus.APPROVED,
             CompanyCertificationStatus.REVISION_REQUESTED
     );
+    private static final byte[] PDF_HEADER = {'%', 'P', 'D', 'F', '-'};
+    private static final byte[] PDF_EOF = {'%', '%', 'E', 'O', 'F'};
 
     private final CompanyCertificationRepository certificationRepository;
     private final CompanyCertificationDocumentRepository documentRepository;
     private final UserRepository userRepository;
     private final StorageService storageService;
+    private final StorageMutationCoordinator storageMutationCoordinator;
+    private final CanonicalImageService canonicalImageService;
 
     // ── 13.1 POST /api/company-certifications ────────────────────────────────
 
@@ -73,14 +81,13 @@ public class CompanyCertificationService {
             throw new BusinessException(BUSINESS_ERROR.RESOURCE_DUPLICATE);
         }
 
-        List<MultipartFile> validDocuments = validateDocuments(documents);
+        List<VerifiedCertificationDocument> validDocuments = validateDocuments(documents);
         String directory = buildDocumentDirectory(user.getId());
         List<StoredCertificationDocument> storedDocuments = storeDocuments(directory, validDocuments);
-        registerDocumentFileCleanup(storedDocuments, List.of());
 
         CompanyCertification certification = CompanyCertification.builder()
                 .user(user)
-                .documentPath(toPublicDocumentDirectory(directory))
+                .documentPath(directory)
                 .build();
         for (StoredCertificationDocument stored : storedDocuments) {
             certification.addDocument(
@@ -112,16 +119,19 @@ public class CompanyCertificationService {
             throw new BusinessException(BUSINESS_ERROR.INVALID_STATE_TRANSITION);
         }
 
-        List<MultipartFile> validDocuments = validateDocuments(documents);
+        List<VerifiedCertificationDocument> validDocuments = validateDocuments(documents);
         String directory = buildDocumentDirectory(user.getId());
         List<StoredCertificationDocument> storedDocuments = storeDocuments(directory, validDocuments);
         List<String> previousStoredPaths = certification.getDocuments().stream()
                 .map(CompanyCertificationDocument::getStoredPath)
                 .toList();
-        registerDocumentFileCleanup(storedDocuments, previousStoredPaths);
+        storageMutationCoordinator.deleteAfterCommit(
+                StorageDomain.COMPANY_CERTIFICATION,
+                StorageRoot.PRIVATE,
+                previousStoredPaths);
 
         certification.clearDocuments();
-        certification.updateDocumentPath(toPublicDocumentDirectory(directory));
+        certification.updateDocumentPath(directory);
         storedDocuments.forEach(stored ->
                 certification.addDocument(
                         stored.originalFilename(),
@@ -193,11 +203,10 @@ public class CompanyCertificationService {
                         certificationId
                 )
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
-        Resource resource = storageService.loadAsResource(document.getStoredPath());
+        Resource resource = storageService.loadAsResource(StorageRoot.PRIVATE, document.getStoredPath());
         return new CompanyCertificationDocumentDownload(
                 resource,
-                document.getOriginalFilename(),
-                document.getContentType()
+                document.getOriginalFilename()
         );
     }
 
@@ -230,7 +239,7 @@ public class CompanyCertificationService {
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
     }
 
-    private List<MultipartFile> validateDocuments(List<MultipartFile> documents) {
+    private List<VerifiedCertificationDocument> validateDocuments(List<MultipartFile> documents) {
         if (documents == null || documents.isEmpty()) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
         }
@@ -245,82 +254,181 @@ public class CompanyCertificationService {
             throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
         }
 
-        for (MultipartFile doc : validDocuments) {
-            String originalName = sanitizeOriginalFilename(doc.getOriginalFilename());
-            int extensionIndex = originalName.lastIndexOf('.');
-            if (extensionIndex < 0 || extensionIndex == originalName.length() - 1) {
-                throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
-            }
-            String ext = originalName.substring(extensionIndex + 1).toLowerCase();
-            if (!ValidationConstants.CERT_DOC_ALLOWED_EXTENSIONS.contains(ext)) {
-                throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
-            }
-            if (doc.getSize() > ValidationConstants.CERT_DOC_MAX_SIZE_BYTES) {
-                throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
-            }
+        long aggregateSize = validDocuments.stream().mapToLong(MultipartFile::getSize).sum();
+        if (aggregateSize > ValidationConstants.CERT_DOC_MAX_AGGREGATE_SIZE_BYTES) {
+            throw new BusinessException(BUSINESS_ERROR.IO_LARGE);
         }
 
-        return validDocuments;
+        return validDocuments.stream()
+                .map(this::verifyDocument)
+                .toList();
     }
 
     private List<StoredCertificationDocument> storeDocuments(String directory,
-                                                             List<MultipartFile> documents) {
-        List<StoredCertificationDocument> storedDocuments = new ArrayList<>();
-        try {
-            for (MultipartFile doc : documents) {
-                storedDocuments.add(new StoredCertificationDocument(
-                        sanitizeOriginalFilename(doc.getOriginalFilename()),
-                        storageService.store(doc, directory),
-                        doc.getContentType(),
-                        doc.getSize()
-                ));
-            }
-        } catch (RuntimeException e) {
-            storedDocuments.stream()
-                    .map(StoredCertificationDocument::storedPath)
-                    .forEach(storageService::delete);
-            throw e;
-        }
-        return Collections.unmodifiableList(storedDocuments);
-    }
-
-    private void registerDocumentFileCleanup(List<StoredCertificationDocument> newDocuments,
-                                             List<String> previousStoredPaths) {
-        List<String> newStoredPaths = newDocuments.stream()
-                .map(StoredCertificationDocument::storedPath)
+                                                              List<VerifiedCertificationDocument> documents) {
+        List<String> storedPaths = storageMutationCoordinator.storeAll(
+                StorageDomain.COMPANY_CERTIFICATION,
+                StorageRoot.PRIVATE,
+                documents.stream().map(VerifiedCertificationDocument::storageFile).toList(),
+                directory);
+        return java.util.stream.IntStream.range(0, documents.size())
+                .mapToObj(index -> {
+                    VerifiedCertificationDocument document = documents.get(index);
+                    return new StoredCertificationDocument(
+                            document.originalFilename(),
+                            storedPaths.get(index),
+                            document.contentType(),
+                            document.sizeBytes());
+                })
                 .toList();
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                previousStoredPaths.forEach(storageService::delete);
-            }
-
-            @Override
-            public void afterCompletion(int status) {
-                if (status == STATUS_ROLLED_BACK) {
-                    newStoredPaths.forEach(storageService::delete);
-                }
-            }
-        });
     }
 
     private String buildDocumentDirectory(Long userId) {
         return "company-docs/" + userId + "/" + UUID.randomUUID().toString().substring(0, 8);
     }
 
-    private String toPublicDocumentDirectory(String directory) {
-        return "/uploads/" + directory + "/";
-    }
-
     private String sanitizeOriginalFilename(String originalFilename) {
         if (originalFilename == null || originalFilename.isBlank()) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
         }
-        return Paths.get(originalFilename).getFileName().toString();
+        String trimmed = originalFilename.trim();
+        if (trimmed.indexOf('\0') >= 0
+                || trimmed.contains("/")
+                || trimmed.contains("\\")
+                || trimmed.contains(":")
+                || trimmed.equals(".")
+                || trimmed.equals("..")) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+        }
+        return trimmed;
     }
+
+    private VerifiedCertificationDocument verifyDocument(MultipartFile document) {
+        if (document.getSize() > ValidationConstants.CERT_DOC_MAX_SIZE_BYTES) {
+            throw new BusinessException(BUSINESS_ERROR.IO_LARGE);
+        }
+
+        String originalFilename = sanitizeOriginalFilename(document.getOriginalFilename());
+        String extension = extensionOf(originalFilename);
+        if (!ValidationConstants.CERT_DOC_ALLOWED_EXTENSIONS.contains(extension)) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+        }
+
+        byte[] bytes = readBytes(document);
+        VerifiedFormat format = verifyFormat(bytes);
+        verifyExtension(extension, format);
+        verifyClientMime(document.getContentType(), format.submittedMimeTypes());
+
+        if (format == VerifiedFormat.PDF) {
+            MultipartFile storageFile = new VerifiedMultipartFile(
+                    document.getName(),
+                    originalFilename,
+                    format.storedMimeType(),
+                    bytes);
+            return new VerifiedCertificationDocument(
+                    originalFilename,
+                    storageFile,
+                    format.storedMimeType(),
+                    storageFile.getSize());
+        }
+
+        MultipartFile canonicalImage = canonicalImageService.canonicalizeThumbnail(document);
+        return new VerifiedCertificationDocument(
+                originalFilename,
+                canonicalImage,
+                canonicalImage.getContentType(),
+                canonicalImage.getSize());
+    }
+
+    private String extensionOf(String originalFilename) {
+        int extensionIndex = originalFilename.lastIndexOf('.');
+        if (extensionIndex < 0 || extensionIndex == originalFilename.length() - 1) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+        }
+        return originalFilename.substring(extensionIndex + 1).toLowerCase(Locale.ROOT);
+    }
+
+    private byte[] readBytes(MultipartFile document) {
+        try {
+            return document.getBytes();
+        } catch (IOException exception) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+        }
+    }
+
+    private VerifiedFormat verifyFormat(byte[] bytes) {
+        if (startsWith(bytes, PDF_HEADER) && endsWithPdfEof(bytes)) {
+            return VerifiedFormat.PDF;
+        }
+        if (startsWith(bytes, new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF})) {
+            return VerifiedFormat.JPEG;
+        }
+        if (startsWith(bytes, new byte[]{
+                (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
+        })) {
+            return VerifiedFormat.PNG;
+        }
+        throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+    }
+
+    private boolean startsWith(byte[] bytes, byte[] prefix) {
+        return bytes.length >= prefix.length
+                && Arrays.equals(Arrays.copyOf(bytes, prefix.length), prefix);
+    }
+
+    private boolean endsWithPdfEof(byte[] bytes) {
+        int end = bytes.length - 1;
+        while (end >= 0 && isPdfWhitespace(bytes[end])) {
+            end--;
+        }
+        if (end + 1 < PDF_EOF.length) {
+            return false;
+        }
+        for (int index = 0; index < PDF_EOF.length; index++) {
+            if (bytes[end - PDF_EOF.length + 1 + index] != PDF_EOF[index]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isPdfWhitespace(byte value) {
+        return value == 0x00
+                || value == 0x09
+                || value == 0x0A
+                || value == 0x0C
+                || value == 0x0D
+                || value == 0x20;
+    }
+
+    private void verifyExtension(String extension, VerifiedFormat format) {
+        boolean matches = switch (format) {
+            case PDF -> extension.equals("pdf");
+            case JPEG -> extension.equals("jpg") || extension.equals("jpeg");
+            case PNG -> extension.equals("png");
+        };
+        if (!matches) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+        }
+    }
+
+    private void verifyClientMime(String clientMime, List<String> acceptedMimeTypes) {
+        if (clientMime == null || clientMime.isBlank()) {
+            return;
+        }
+        String normalized = clientMime.toLowerCase(Locale.ROOT);
+        if (normalized.equals("application/octet-stream") || acceptedMimeTypes.contains(normalized)) {
+            return;
+        }
+        throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+    }
+
+    private record VerifiedCertificationDocument(
+            String originalFilename,
+            MultipartFile storageFile,
+            String contentType,
+            long sizeBytes
+    ) {}
 
     private record StoredCertificationDocument(
             String originalFilename,
@@ -328,4 +436,74 @@ public class CompanyCertificationService {
             String contentType,
             long sizeBytes
     ) {}
+
+    private enum VerifiedFormat {
+        PDF("application/pdf", List.of("application/pdf")),
+        JPEG("image/jpeg", List.of("image/jpeg")),
+        PNG("image/jpeg", List.of("image/png"));
+
+        private final String storedMimeType;
+        private final List<String> submittedMimeTypes;
+
+        VerifiedFormat(String storedMimeType, List<String> submittedMimeTypes) {
+            this.storedMimeType = storedMimeType;
+            this.submittedMimeTypes = submittedMimeTypes;
+        }
+
+        String storedMimeType() {
+            return storedMimeType;
+        }
+
+        List<String> submittedMimeTypes() {
+            return submittedMimeTypes;
+        }
+    }
+
+    private record VerifiedMultipartFile(
+            String name,
+            String originalFilename,
+            String contentType,
+            byte[] bytes
+    ) implements MultipartFile {
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public String getOriginalFilename() {
+            return originalFilename;
+        }
+
+        @Override
+        public String getContentType() {
+            return contentType;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return bytes.length == 0;
+        }
+
+        @Override
+        public long getSize() {
+            return bytes.length;
+        }
+
+        @Override
+        public byte[] getBytes() {
+            return bytes.clone();
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return new ByteArrayInputStream(bytes);
+        }
+
+        @Override
+        public void transferTo(java.io.File dest) throws IOException, IllegalStateException {
+            java.nio.file.Files.write(dest.toPath(), bytes);
+        }
+    }
 }

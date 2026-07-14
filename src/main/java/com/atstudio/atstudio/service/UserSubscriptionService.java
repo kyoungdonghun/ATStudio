@@ -71,6 +71,8 @@ public class UserSubscriptionService {
     private final SubscriptionPaymentRepository subscriptionPaymentRepository;
     private final BillingKeyCrypto billingKeyCrypto;
     private final PaymentReceiptEvidenceService paymentReceiptEvidenceService;
+    private final PaymentCommandTransactionService paymentCommandTransactionService;
+    private final SubscriptionUpgradePaymentExecutor subscriptionUpgradePaymentExecutor;
     private final List<RecurringPaymentProvider> recurringProviders;
 
     // 6.3 POST /api/user-subscriptions
@@ -150,56 +152,15 @@ public class UserSubscriptionService {
 
         if (isUpgrade) {
             BigDecimal proratedAmount = calculateProratedUpgradeAmount(current, newPlan);
-            BillingAgreement agreement = findReusableBillingAgreement(user, current);
             if (requiresImmediateCharge(proratedAmount)) {
-                PaymentOrder order = createUpgradeOrder(
+                return processChargedUpgrade(
                         user,
                         current,
                         newPlan,
-                        current.getBillingCycle(),
-                        proratedAmount,
-                        agreement);
-                BillingChargeResult chargeResult = chargeUpgrade(order, agreement);
-                if (!chargeResult.success()) {
-                    order.markFailed(chargeResult.failureCode(), chargeResult.failureMessage());
-                    if (isRemovedBillingKeyFailure(chargeResult)) {
-                        expireRemovedBillingKey(agreement);
-                    } else {
-                        agreement.recordFailedCharge();
-                    }
-                    log.warn(
-                            "Subscription upgrade charge failed. userId={}, orderId={}, agreementId={}, failureCode={}, failureMessage={}",
-                            user.getId(),
-                            order.getOrderId(),
-                            agreement.getId(),
-                            chargeResult.failureCode(),
-                            chargeResult.failureMessage());
-                    if (isRemovedBillingKeyFailure(chargeResult)) {
-                        throw billingAgreementReauthRequired(chargeResult);
-                    }
-                    throw paymentConfirmFailed(chargeResult);
-                }
-
-                SubscriptionPayment subscriptionPayment = subscriptionPaymentRepository.save(SubscriptionPayment.builder()
-                        .paymentOrder(order)
-                        .billingAgreement(agreement)
-                        .provider(order.getProvider())
-                        .user(user)
-                        .userSubscription(current)
-                        .subscription(newPlan)
-                        .billingCycle(current.getBillingCycle())
-                        .amount(proratedAmount)
-                        .paymentStatus(PaymentStatus.DONE)
-                        .pgTransactionId(chargeResult.transactionId())
-                        .build());
-                order.markDone(chargeResult.transactionId(), current, chargeResult.providerPayload());
-                paymentReceiptEvidenceService.publishSuccessfulChargeEvidence(
-                        order,
-                        subscriptionPayment,
-                        chargeResult.providerPayload());
-                agreement.recordSuccessfulCharge(agreement.getNextBillingAt());
+                        request.billingCycle());
             }
 
+            findReusableBillingAgreement(user, current);
             reactivateIfCancelled(user, current);
             current.upgradeKeepingPeriod(newPlan, request.billingCycle());
 
@@ -371,6 +332,100 @@ public class UserSubscriptionService {
                 order.getUser().getNickname(),
                 "subscription-upgrade-" + order.getOrderId()
         ));
+    }
+
+    private ChangeSubscriptionResponse processChargedUpgrade(
+            User user,
+            UserSubscription current,
+            Subscription newPlan,
+            BillingCycle targetBillingCycle) {
+        PaymentCommandTransactionService.UpgradeClaim claim =
+                paymentCommandTransactionService.claimUpgrade(
+                        user.getId(),
+                        current.getId(),
+                        newPlan.getId(),
+                        targetBillingCycle,
+                        LocalDateTime.now());
+        if (claim.action() == PaymentCommandTransactionService.UpgradeAction.FINALIZE_ONLY) {
+            return paymentCommandTransactionService.finalizeUpgrade(
+                    user.getId(),
+                    claim.agreementID(),
+                    claim.orderID(),
+                    claim.targetBillingCycle());
+        }
+
+        BillingChargeResult chargeResult;
+        try {
+            chargeResult = subscriptionUpgradePaymentExecutor.charge(claim);
+        } catch (RuntimeException exception) {
+            recordUpgradeProviderFailure(
+                    claim,
+                    "SUBSCRIPTION_UPGRADE_CHARGE_EXCEPTION",
+                    exception.getClass().getSimpleName(),
+                    PaymentCommandTransactionService.ProviderFailureDisposition.PENDING_PROVIDER_CONFIRMATION,
+                    true);
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_CONFIRM_FAILED);
+        }
+        if (chargeResult == null) {
+            recordUpgradeProviderFailure(
+                    claim,
+                    "SUBSCRIPTION_UPGRADE_CHARGE_EMPTY_RESULT",
+                    "Provider returned no upgrade-charge result.",
+                    PaymentCommandTransactionService.ProviderFailureDisposition.PENDING_PROVIDER_CONFIRMATION,
+                    true);
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_CONFIRM_FAILED);
+        }
+        if (!chargeResult.success()) {
+            boolean removedBillingKey = isRemovedBillingKeyFailure(chargeResult);
+            recordUpgradeProviderFailure(
+                    claim,
+                    chargeResult.failureCode(),
+                    chargeResult.failureMessage(),
+                    PaymentCommandTransactionService.ProviderFailureDisposition.FAILED,
+                    !removedBillingKey);
+            if (removedBillingKey) {
+                paymentCommandTransactionService.expireIssuedBillingKeyAfterProviderRemoval(claim.agreementID());
+                throw billingAgreementReauthRequired(chargeResult);
+            }
+            throw paymentConfirmFailed(chargeResult);
+        }
+        if (isBlank(chargeResult.transactionId())) {
+            recordUpgradeProviderFailure(
+                    claim,
+                    "PROVIDER_TRANSACTION_MISSING",
+                    "Provider success did not include a transaction ID.",
+                    PaymentCommandTransactionService.ProviderFailureDisposition.PENDING_PROVIDER_CONFIRMATION,
+                    true);
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_CONFIRM_FAILED);
+        }
+
+        paymentCommandTransactionService.recordProviderSuccess(
+                claim.agreementID(),
+                claim.orderID(),
+                chargeResult.transactionId(),
+                chargeResult.providerPayload(),
+                chargeResult.payMethod(),
+                chargeResult.maskedMethod());
+        return paymentCommandTransactionService.finalizeUpgrade(
+                user.getId(),
+                claim.agreementID(),
+                claim.orderID(),
+                claim.targetBillingCycle());
+    }
+
+    private void recordUpgradeProviderFailure(
+            PaymentCommandTransactionService.UpgradeClaim claim,
+            String failureCode,
+            String failureMessage,
+            PaymentCommandTransactionService.ProviderFailureDisposition disposition,
+            boolean recordFailedCharge) {
+        paymentCommandTransactionService.recordProviderFailure(
+                claim.agreementID(),
+                claim.orderID(),
+                failureCode,
+                failureMessage,
+                disposition,
+                recordFailedCharge);
     }
 
     private BusinessException paymentConfirmFailed(BillingChargeResult chargeResult) {

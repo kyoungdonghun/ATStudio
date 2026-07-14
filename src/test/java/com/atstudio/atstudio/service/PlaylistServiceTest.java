@@ -10,13 +10,17 @@ import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.entity.key.PlaylistTrackId;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.security.CustomUserDetails;
-import com.atstudio.atstudio.service.storage.StorageService;
+import com.atstudio.atstudio.service.image.CanonicalImageService;
+import com.atstudio.atstudio.service.storage.StorageDomain;
+import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
+import com.atstudio.atstudio.service.storage.StorageRoot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -41,7 +45,8 @@ class PlaylistServiceTest {
     @Mock PlaylistRepository playlistRepository;
     @Mock PlaylistTrackRepository playlistTrackRepository;
     @Mock TrackRepository trackRepository;
-    @Mock StorageService storageService;
+    @Mock StorageMutationCoordinator storageMutationCoordinator;
+    @Mock CanonicalImageService canonicalImageService;
 
     @InjectMocks PlaylistService playlistService;
 
@@ -62,6 +67,36 @@ class PlaylistServiceTest {
 
         assertThat(result.id()).isEqualTo(1L);
         assertThat(result.title()).isEqualTo("Test Playlist");
+    }
+
+    @Test
+    void createPlaylist_storesThumbnailThroughCoordinator() {
+        User user = buildUser(1L);
+        Playlist saved = buildPlaylist(1L, user, "Thumbnail Playlist");
+        PlaylistCreateRequest request = new PlaylistCreateRequest();
+        request.setTitle("Thumbnail Playlist");
+        MockMultipartFile thumbnail = new MockMultipartFile(
+                "thumbnail", "cover.png", "image/png", new byte[]{1});
+        MockMultipartFile canonicalThumbnail = new MockMultipartFile(
+                "thumbnail", "thumbnail.jpg", "image/jpeg", new byte[]{(byte) 0xFF, (byte) 0xD8});
+
+        setupSubscriberMocks(user);
+        given(canonicalImageService.canonicalizeThumbnail(thumbnail)).willReturn(canonicalThumbnail);
+        given(storageMutationCoordinator.store(
+                StorageDomain.PLAYLIST,
+                StorageRoot.PUBLIC,
+                canonicalThumbnail,
+                "playlists/thumbnails"))
+                .willReturn("playlists/thumbnails/generated.jpg");
+        given(playlistRepository.save(any(Playlist.class))).willReturn(saved);
+
+        playlistService.createPlaylist(request, thumbnail, buildUserDetails(1L));
+
+        verify(storageMutationCoordinator).store(
+                StorageDomain.PLAYLIST,
+                StorageRoot.PUBLIC,
+                canonicalThumbnail,
+                "playlists/thumbnails");
     }
 
     @Test
@@ -303,6 +338,38 @@ class PlaylistServiceTest {
         PlaylistResponse result = playlistService.updatePlaylist(1L, request, null, buildUserDetails(1L));
 
         assertThat(result.title()).isEqualTo("New Title");
+    }
+
+    @Test
+    void updatePlaylist_replacesThumbnailThroughCoordinator() {
+        User user = buildUser(1L);
+        Playlist playlist = buildPlaylist(1L, user, "Playlist");
+        ReflectionTestUtils.setField(playlist, "thumbnail", "playlists/thumbnails/old.png");
+        PlaylistUpdateRequest request = new PlaylistUpdateRequest();
+        MockMultipartFile thumbnail = new MockMultipartFile(
+                "thumbnail", "new.png", "image/png", new byte[]{2});
+        MockMultipartFile canonicalThumbnail = new MockMultipartFile(
+                "thumbnail", "thumbnail.jpg", "image/jpeg", new byte[]{(byte) 0xFF, (byte) 0xD8});
+
+        setupSubscriberMocks(user);
+        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+        given(canonicalImageService.canonicalizeThumbnail(thumbnail)).willReturn(canonicalThumbnail);
+        given(storageMutationCoordinator.replace(
+                StorageDomain.PLAYLIST,
+                StorageRoot.PUBLIC,
+                canonicalThumbnail,
+                "playlists/thumbnails",
+                "playlists/thumbnails/old.png"))
+                .willReturn("playlists/thumbnails/new.jpg");
+
+        playlistService.updatePlaylist(1L, request, thumbnail, buildUserDetails(1L));
+
+        verify(storageMutationCoordinator).replace(
+                StorageDomain.PLAYLIST,
+                StorageRoot.PUBLIC,
+                canonicalThumbnail,
+                "playlists/thumbnails",
+                "playlists/thumbnails/old.png");
     }
 
     @Test

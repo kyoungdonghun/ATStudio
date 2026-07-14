@@ -86,13 +86,12 @@ public class AuthService {
 
         Long userID = jwtTokenProvider.getUserID(requestToken);
 
-        User user = userRepository.findById(userID)
+        User user = userRepository.findByIdForUpdate(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
-        // SEC-07: DB 불일치 시 refresh token clear
+        // A stale token must not revoke a newer single-session refresh capability.
         if (user.getRefreshToken() == null
                 || !sha256(requestToken).equals(user.getRefreshToken())) {
-            user.clearRefreshToken();
             throw new BusinessException(BUSINESS_ERROR.REFRESH_TOKEN_INVALID);
         }
 
@@ -108,6 +107,12 @@ public class AuthService {
 
         return new AuthResponse(newAccessToken, newRefreshToken, "Bearer",
                 jwtTokenProvider.getAccessTokenExpiration() / 1000);
+    }
+
+    @Transactional
+    public void logout(Long userID) {
+        userRepository.findByIdForUpdate(userID)
+                .ifPresent(User::clearRefreshToken);
     }
 
     /** SHA-256 해시 (refresh token용 — BCrypt 72바이트 제한 회피) */

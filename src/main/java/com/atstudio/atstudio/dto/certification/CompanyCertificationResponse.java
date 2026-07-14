@@ -31,7 +31,7 @@ public record CompanyCertificationResponse(
                 cert.getStatus().name(),
                 cert.getAdminNote(),
                 cert.getCertificationCode(),
-                cert.getDocumentPath(),
+                null,
                 cert.getDocuments().stream()
                         .map(CompanyCertificationDocumentResponse::from)
                         .toList(),

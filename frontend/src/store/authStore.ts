@@ -23,8 +23,10 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   role: UserRole;
+  stageTokens: (accessToken: string, refreshToken: string) => void;
   login: (accessToken: string, user: User, refreshToken?: string | null) => void;
-  logout: () => void;
+  logout: () => Promise<boolean>;
+  clearSession: () => void;
   isAuthenticated: () => boolean;
 }
 
@@ -32,6 +34,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: loadUser(),
   accessToken: safeStorage.getItem('accessToken'),
   role: loadRole(),
+
+  stageTokens: (accessToken: string, refreshToken: string) => {
+    get().clearSession();
+
+    const accessTokenStored = safeStorage.setItem('accessToken', accessToken);
+    const refreshTokenStored = safeStorage.setItem('refreshToken', refreshToken);
+    if (!accessTokenStored || !refreshTokenStored) {
+      get().clearSession();
+      throw new Error('Failed to stage authentication tokens');
+    }
+
+    set({ accessToken });
+  },
 
   login: (accessToken: string, user: User, refreshToken) => {
     safeStorage.setItem('accessToken', accessToken);
@@ -46,7 +61,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ accessToken, user, role: user.role });
   },
 
-  logout: () => {
+  logout: async () => {
+    let serverConfirmed = true;
+    try {
+      const { logoutSession } = await import('@/api/auth');
+      await logoutSession();
+    } catch {
+      serverConfirmed = false;
+    } finally {
+      get().clearSession();
+    }
+    return serverConfirmed;
+  },
+
+  clearSession: () => {
     safeStorage.removeItem('accessToken');
     safeStorage.removeItem('refreshToken');
     safeStorage.removeItem('user');

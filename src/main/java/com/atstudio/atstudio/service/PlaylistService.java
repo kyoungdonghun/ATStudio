@@ -10,7 +10,10 @@ import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.key.PlaylistTrackId;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.security.CustomUserDetails;
-import com.atstudio.atstudio.service.storage.StorageService;
+import com.atstudio.atstudio.service.image.CanonicalImageService;
+import com.atstudio.atstudio.service.storage.StorageDomain;
+import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
+import com.atstudio.atstudio.service.storage.StorageRoot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,7 +35,8 @@ public class PlaylistService {
     private final UserRepository userRepository;
     private final TrackRepository trackRepository;
     private final UserSubscriptionRepository userSubscriptionRepository;
-    private final StorageService storageService;
+    private final StorageMutationCoordinator storageMutationCoordinator;
+    private final CanonicalImageService canonicalImageService;
 
     // ── 3.1 POST /api/playlists ──────────────────────────────────────────────
 
@@ -50,7 +54,11 @@ public class PlaylistService {
         }
 
         String thumbnailUrl = (thumbnailFile != null && !thumbnailFile.isEmpty())
-                ? storageService.store(thumbnailFile, "playlists/thumbnails")
+                ? storageMutationCoordinator.store(
+                        StorageDomain.PLAYLIST,
+                        StorageRoot.PUBLIC,
+                        canonicalImageService.canonicalizeThumbnail(thumbnailFile),
+                        "playlists/thumbnails")
                 : null;
 
         Playlist playlist = Playlist.builder()
@@ -183,9 +191,15 @@ public class PlaylistService {
         validateSubscriber(userDetails);
         Playlist playlist = getOwnedPlaylist(playlistId, userDetails.getId());
 
-        String thumbnailUrl = (thumbnailFile != null && !thumbnailFile.isEmpty())
-                ? storageService.store(thumbnailFile, "playlists/thumbnails")
-                : playlist.getThumbnail();
+        String thumbnailUrl = playlist.getThumbnail();
+        if (thumbnailFile != null && !thumbnailFile.isEmpty()) {
+            thumbnailUrl = storageMutationCoordinator.replace(
+                    StorageDomain.PLAYLIST,
+                    StorageRoot.PUBLIC,
+                    canonicalImageService.canonicalizeThumbnail(thumbnailFile),
+                    "playlists/thumbnails",
+                    playlist.getThumbnail());
+        }
 
         playlist.update(request.getTitle(), request.getDescription(), thumbnailUrl);
 
@@ -240,6 +254,10 @@ public class PlaylistService {
         Playlist playlist = getOwnedPlaylist(playlistId, userDetails.getId());
         playlistTrackRepository.deleteAllByIdPlaylistId(playlistId);
         playlist.deactivate();
+        storageMutationCoordinator.deleteAfterCommit(
+                StorageDomain.PLAYLIST,
+                StorageRoot.PUBLIC,
+                playlist.getThumbnail());
     }
 
     // ── Default playlist on signup ──────────────────────────────────────────

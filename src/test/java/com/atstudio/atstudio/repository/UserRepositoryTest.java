@@ -2,12 +2,14 @@ package com.atstudio.atstudio.repository;
 
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.config.JpaConfig;
+import jakarta.persistence.LockModeType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.jpa.repository.Lock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,6 +40,19 @@ class UserRepositoryTest {
                     assertThat(u.getNickname()).isEqualTo("alice");
                     assertThat(u.getEmail()).isEqualTo("alice@test.com");
                 });
+    }
+
+    @Test
+    @DisplayName("refresh session 변경용 사용자 조회는 비관적 쓰기 잠금을 사용")
+    void findByIdForUpdate_usesPessimisticWriteLock() throws Exception {
+        User saved = userRepository.saveAndFlush(buildUser("locked", "locked@test.com"));
+
+        assertThat(userRepository.findByIdForUpdate(saved.getId()))
+                .contains(saved);
+        assertThat(UserRepository.class.getMethod("findByIdForUpdate", Long.class)
+                .getAnnotation(Lock.class)
+                .value())
+                .isEqualTo(LockModeType.PESSIMISTIC_WRITE);
     }
 
     @Test

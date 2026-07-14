@@ -111,6 +111,110 @@ class AdminWhitelistChannelServiceTest {
     }
 
     @Test
+    @DisplayName("exportChannels neutralizes formula-leading user cells before CSV quoting")
+    void exportChannelsNeutralizesFormulaLeadingUserCellsBeforeQuoting() {
+        User directUser = user(2L, "=2+3", "+nickname", UserRole.USER);
+        WhitelistChannel directChannel = channel(
+                8L,
+                directUser,
+                "-legitimate",
+                "@shorts",
+                " =HYPERLINK(\"https://example.com\")",
+                "\t=channel");
+        directChannel.requestRegistration();
+
+        User controlUser = user(3L, "\uFEFF=hidden", "  @spaced", UserRole.USER);
+        WhitelistChannel controlChannel = channel(
+                9L,
+                controlUser,
+                "\r=carriage",
+                "\n=line-feed",
+                "\tplain-control",
+                "-UC123");
+        controlChannel.requestRegistration();
+
+        AtomicReference<List<WhitelistExportItem>> savedItems = stubPendingExport(
+                List.of(directChannel, controlChannel));
+
+        AdminWhitelistExportFile file = service.exportChannels(
+                actor(99L, UserRole.ADMIN),
+                WhitelistChannelStatus.PENDING,
+                null);
+
+        String csv = new String(file.content(), StandardCharsets.UTF_8);
+        assertThat(csv).startsWith(
+                "\uFEFFrequestId,userId,userEmail,userNickname,channelName,youtubeHandle,channelUrl,"
+                        + "youtubeChannelId,requestedAt,planName,billingCycle,exportedAt\n");
+        assertThat(csv).contains(
+                "\"'=2+3\",\"'+nickname\",\"'-legitimate\",\"'@shorts\","
+                        + "\"' =HYPERLINK(\"\"https://example.com\"\")\",\"'\t=channel\"");
+        assertThat(csv).contains(
+                "\"'\uFEFF=hidden\",\"'  @spaced\",\"'\r=carriage\",\"'\n=line-feed\","
+                        + "\"'\tplain-control\",\"'-UC123\"");
+
+        List<WhitelistExportItem> items = savedItems.get();
+        assertThat(items.get(0).getUserEmailSnapshot()).isEqualTo("=2+3");
+        assertThat(items.get(0).getUserNicknameSnapshot()).isEqualTo("+nickname");
+        assertThat(items.get(0).getChannelNameSnapshot()).isEqualTo("-legitimate");
+        assertThat(items.get(0).getYoutubeHandleSnapshot()).isEqualTo("@shorts");
+        assertThat(items.get(0).getChannelUrlSnapshot())
+                .isEqualTo(" =HYPERLINK(\"https://example.com\")");
+        assertThat(items.get(0).getYoutubeChannelIdSnapshot()).isEqualTo("\t=channel");
+        assertThat(items.get(1).getUserEmailSnapshot()).isEqualTo("\uFEFF=hidden");
+        assertThat(items.get(1).getUserNicknameSnapshot()).isEqualTo("  @spaced");
+        assertThat(items.get(1).getChannelNameSnapshot()).isEqualTo("\r=carriage");
+        assertThat(items.get(1).getYoutubeHandleSnapshot()).isEqualTo("\n=line-feed");
+        assertThat(items.get(1).getChannelUrlSnapshot()).isEqualTo("\tplain-control");
+        assertThat(items.get(1).getYoutubeChannelIdSnapshot()).isEqualTo("-UC123");
+
+        assertThat(directUser.getEmail()).isEqualTo("=2+3");
+        assertThat(directChannel.getChannelUrl()).isEqualTo(" =HYPERLINK(\"https://example.com\")");
+        assertThat(controlUser.getNickname()).isEqualTo("  @spaced");
+        assertThat(controlChannel.getYoutubeHandle()).isEqualTo("\n=line-feed");
+    }
+
+    @Test
+    @DisplayName("exportChannels preserves quoted, empty, null, apostrophe, and Korean user values")
+    void exportChannelsPreservesNonFormulaUserValuesAndSnapshots() {
+        User user = user(4L, "normal@test.com", "평범한 사용자", UserRole.USER);
+        WhitelistChannel channel = channel(
+                10L,
+                user,
+                "일반 \"채널\"\n두번째 줄",
+                "'@already-safe",
+                "",
+                null);
+        channel.requestRegistration();
+
+        AtomicReference<List<WhitelistExportItem>> savedItems = stubPendingExport(List.of(channel));
+
+        AdminWhitelistExportFile file = service.exportChannels(
+                actor(99L, UserRole.ADMIN),
+                WhitelistChannelStatus.PENDING,
+                null);
+
+        String csv = new String(file.content(), StandardCharsets.UTF_8);
+        assertThat(csv).contains(
+                "\"normal@test.com\",\"평범한 사용자\",\"일반 \"\"채널\"\"\n두번째 줄\","
+                        + "\"'@already-safe\",\"\",,");
+        assertThat(csv).doesNotContain("\"''@already-safe\"");
+
+        WhitelistExportItem item = savedItems.get().get(0);
+        assertThat(item.getUserEmailSnapshot()).isEqualTo("normal@test.com");
+        assertThat(item.getUserNicknameSnapshot()).isEqualTo("평범한 사용자");
+        assertThat(item.getChannelNameSnapshot()).isEqualTo("일반 \"채널\"\n두번째 줄");
+        assertThat(item.getYoutubeHandleSnapshot()).isEqualTo("'@already-safe");
+        assertThat(item.getChannelUrlSnapshot()).isEmpty();
+        assertThat(item.getYoutubeChannelIdSnapshot()).isNull();
+
+        assertThat(user.getNickname()).isEqualTo("평범한 사용자");
+        assertThat(channel.getChannelName()).isEqualTo("일반 \"채널\"\n두번째 줄");
+        assertThat(channel.getYoutubeHandle()).isEqualTo("'@already-safe");
+        assertThat(channel.getChannelUrl()).isEmpty();
+        assertThat(channel.getYoutubeChannelId()).isNull();
+    }
+
+    @Test
     @DisplayName("exportChannels does not overwrite non-pending workflow status")
     void exportChannelsKeepsNonPendingStatus() {
         User admin = user(99L, "admin@test.com", UserRole.ADMIN);
@@ -156,10 +260,34 @@ class AdminWhitelistChannelServiceTest {
                         .isEqualTo(BUSINESS_ERROR.INVALID_STATE_TRANSITION));
     }
 
+    private AtomicReference<List<WhitelistExportItem>> stubPendingExport(List<WhitelistChannel> channels) {
+        User admin = user(99L, "admin@test.com", UserRole.ADMIN);
+        given(whitelistChannelRepository.findByStatusOrderByRequestedAtAsc(WhitelistChannelStatus.PENDING))
+                .willReturn(channels);
+        given(userRepository.findById(99L)).willReturn(Optional.of(admin));
+        given(whitelistExportBatchRepository.save(any(WhitelistExportBatch.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+        given(userSubscriptionRepository.findActiveByUser(any(User.class), any(LocalDate.class)))
+                .willReturn(Optional.empty());
+        AtomicReference<List<WhitelistExportItem>> savedItems = new AtomicReference<>();
+        given(whitelistExportItemRepository.saveAll(any()))
+                .willAnswer(invocation -> {
+                    Iterable<WhitelistExportItem> items = invocation.getArgument(0);
+                    List<WhitelistExportItem> list = StreamSupport.stream(items.spliterator(), false).toList();
+                    savedItems.set(list);
+                    return list;
+                });
+        return savedItems;
+    }
+
     private User user(Long id, String email, UserRole role) {
+        return user(id, email, "user" + id, role);
+    }
+
+    private User user(Long id, String email, String nickname, UserRole role) {
         User user = User.builder()
                 .email(email)
-                .nickname("user" + id)
+                .nickname(nickname)
                 .password("pw")
                 .userType(UserType.INDIVIDUAL)
                 .role(role)
@@ -190,12 +318,29 @@ class AdminWhitelistChannelServiceTest {
     }
 
     private WhitelistChannel channel(Long id, User user) {
+        return channel(
+                id,
+                user,
+                "Shorts Channel",
+                "@shorts",
+                "https://youtube.com/@shorts",
+                "UC123");
+    }
+
+    private WhitelistChannel channel(
+            Long id,
+            User user,
+            String channelName,
+            String youtubeHandle,
+            String channelUrl,
+            String youtubeChannelId
+    ) {
         WhitelistChannel channel = WhitelistChannel.builder()
                 .user(user)
-                .channelName("Shorts Channel")
-                .channelUrl("https://youtube.com/@shorts")
-                .youtubeHandle("@shorts")
-                .youtubeChannelId("UC123")
+                .channelName(channelName)
+                .channelUrl(channelUrl)
+                .youtubeHandle(youtubeHandle)
+                .youtubeChannelId(youtubeChannelId)
                 .primary(true)
                 .build();
         ReflectionTestUtils.setField(channel, "id", id);

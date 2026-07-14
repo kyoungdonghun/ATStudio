@@ -59,6 +59,8 @@ class UserSubscriptionServiceTest {
     @Mock SubscriptionPaymentRepository subscriptionPaymentRepository;
     @Mock BillingKeyCrypto billingKeyCrypto;
     @Mock PaymentReceiptEvidenceService paymentReceiptEvidenceService;
+    @Mock PaymentCommandTransactionService paymentCommandTransactionService;
+    @Mock SubscriptionUpgradePaymentExecutor subscriptionUpgradePaymentExecutor;
     @Mock RecurringPaymentProvider recurringPaymentProvider;
 
     UserSubscriptionService userSubscriptionService;
@@ -74,6 +76,8 @@ class UserSubscriptionServiceTest {
                 subscriptionPaymentRepository,
                 billingKeyCrypto,
                 paymentReceiptEvidenceService,
+                paymentCommandTransactionService,
+                subscriptionUpgradePaymentExecutor,
                 List.of(recurringPaymentProvider)
         );
     }
@@ -208,27 +212,38 @@ class UserSubscriptionServiceTest {
 
             Subscription newSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
             ReflectionTestUtils.setField(newSub, "priceMonthly", BigDecimal.valueOf(19900));
-            BillingAgreement agreement = buildActiveAgreement(user);
             LocalDate originalExpiresAt = us.getExpiresAt();
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
-            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
-                    .willReturn(Optional.of(agreement));
-            given(paymentOrderRepository.save(any(PaymentOrder.class)))
-                    .willAnswer(invocation -> invocation.getArgument(0));
-            given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("raw-billing-key");
-            given(recurringPaymentProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
-            given(recurringPaymentProvider.charge(any()))
+            PaymentCommandTransactionService.UpgradeClaim claim = upgradeClaim(
+                    "ATS-UPG-1",
+                    BigDecimal.valueOf(5000),
+                    BillingCycle.MONTHLY);
+            given(paymentCommandTransactionService.claimUpgrade(
+                    eq(1L),
+                    eq(100L),
+                    eq(20L),
+                    eq(BillingCycle.MONTHLY),
+                    any()))
+                    .willReturn(claim);
+            given(subscriptionUpgradePaymentExecutor.charge(claim))
                     .willReturn(BillingChargeResult.success(
                             "tx_upgrade",
                             "CARD",
                             "1234",
                             "{\"paymentKey\":\"pay_upgrade\"}"));
-            given(subscriptionPaymentRepository.save(any(SubscriptionPayment.class)))
-                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(paymentCommandTransactionService.finalizeUpgrade(
+                    1L,
+                    claim.agreementID(),
+                    claim.orderID(),
+                    BillingCycle.MONTHLY))
+                    .willAnswer(invocation -> {
+                        us.upgradeKeepingPeriod(newSub, BillingCycle.MONTHLY);
+                        return upgradeResponse(newSub, BillingCycle.MONTHLY, us, BigDecimal.valueOf(5000));
+                    });
 
             ChangeSubscriptionResponse result = userSubscriptionService.changeSubscription(
                     buildUserDetails(1L),
@@ -239,11 +254,18 @@ class UserSubscriptionServiceTest {
             assertThat(result.proratedAmount()).isNotNull();
             assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.valueOf(5000));
             assertThat(result.expiresAt()).isEqualTo(originalExpiresAt);
-            verify(subscriptionPaymentRepository).save(any(SubscriptionPayment.class));
-            verify(paymentReceiptEvidenceService).publishSuccessfulChargeEvidence(
-                    any(PaymentOrder.class),
-                    any(SubscriptionPayment.class),
-                    eq("{\"paymentKey\":\"pay_upgrade\"}"));
+            verify(paymentCommandTransactionService).recordProviderSuccess(
+                    claim.agreementID(),
+                    claim.orderID(),
+                    "tx_upgrade",
+                    "{\"paymentKey\":\"pay_upgrade\"}",
+                    "CARD",
+                    "1234");
+            verify(paymentCommandTransactionService).finalizeUpgrade(
+                    1L,
+                    claim.agreementID(),
+                    claim.orderID(),
+                    BillingCycle.MONTHLY);
 
             assertThat(us.getSubscription()).isEqualTo(newSub);
             assertThat(us.getBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
@@ -251,11 +273,9 @@ class UserSubscriptionServiceTest {
             assertThat(us.getPendingSubscription()).isNull();
             assertThat(us.getPendingBillingCycle()).isNull();
 
-            ArgumentCaptor<BillingChargeCommand> chargeCaptor =
-                    ArgumentCaptor.forClass(BillingChargeCommand.class);
-            verify(recurringPaymentProvider).charge(chargeCaptor.capture());
-            assertThat(chargeCaptor.getValue().amount()).isEqualByComparingTo(BigDecimal.valueOf(5000));
-            assertThat(chargeCaptor.getValue().orderName()).contains("Premium");
+            verify(subscriptionUpgradePaymentExecutor).charge(claim);
+            assertThat(claim.amount()).isEqualByComparingTo(BigDecimal.valueOf(5000));
+            assertThat(claim.orderName()).contains("Premium");
         }
 
         @Test
@@ -273,27 +293,38 @@ class UserSubscriptionServiceTest {
             Subscription newSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
             ReflectionTestUtils.setField(newSub, "priceMonthly", BigDecimal.valueOf(29900));
             ReflectionTestUtils.setField(newSub, "priceYearly", BigDecimal.valueOf(299000));
-            BillingAgreement agreement = buildActiveAgreement(user);
             LocalDate originalExpiresAt = us.getExpiresAt();
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
-            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
-                    .willReturn(Optional.of(agreement));
-            given(paymentOrderRepository.save(any(PaymentOrder.class)))
-                    .willAnswer(invocation -> invocation.getArgument(0));
-            given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("raw-billing-key");
-            given(recurringPaymentProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
-            given(recurringPaymentProvider.charge(any()))
+            PaymentCommandTransactionService.UpgradeClaim claim = upgradeClaim(
+                    "ATS-UPG-2",
+                    BigDecimal.valueOf(200000),
+                    BillingCycle.MONTHLY);
+            given(paymentCommandTransactionService.claimUpgrade(
+                    eq(1L),
+                    eq(100L),
+                    eq(20L),
+                    eq(BillingCycle.MONTHLY),
+                    any()))
+                    .willReturn(claim);
+            given(subscriptionUpgradePaymentExecutor.charge(claim))
                     .willReturn(BillingChargeResult.success(
                             "tx_upgrade",
                             "CARD",
                             "1234",
                             "{\"paymentKey\":\"pay_upgrade\"}"));
-            given(subscriptionPaymentRepository.save(any(SubscriptionPayment.class)))
-                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(paymentCommandTransactionService.finalizeUpgrade(
+                    1L,
+                    claim.agreementID(),
+                    claim.orderID(),
+                    BillingCycle.MONTHLY))
+                    .willAnswer(invocation -> {
+                        us.upgradeKeepingPeriod(newSub, BillingCycle.MONTHLY);
+                        return upgradeResponse(newSub, BillingCycle.MONTHLY, us, BigDecimal.valueOf(200000));
+                    });
 
             ChangeSubscriptionResponse result = userSubscriptionService.changeSubscription(
                     buildUserDetails(1L),
@@ -309,14 +340,8 @@ class UserSubscriptionServiceTest {
             assertThat(us.getPendingSubscription()).isEqualTo(newSub);
             assertThat(us.getPendingBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
 
-            ArgumentCaptor<PaymentOrder> orderCaptor = ArgumentCaptor.forClass(PaymentOrder.class);
-            verify(paymentOrderRepository).save(orderCaptor.capture());
-            assertThat(orderCaptor.getValue().getBillingCycle()).isEqualTo(BillingCycle.YEARLY);
-
-            ArgumentCaptor<SubscriptionPayment> paymentCaptor =
-                    ArgumentCaptor.forClass(SubscriptionPayment.class);
-            verify(subscriptionPaymentRepository).save(paymentCaptor.capture());
-            assertThat(paymentCaptor.getValue().getBillingCycle()).isEqualTo(BillingCycle.YEARLY);
+            assertThat(claim.amount()).isEqualByComparingTo(BigDecimal.valueOf(200000));
+            verify(subscriptionUpgradePaymentExecutor).charge(claim);
         }
 
         @Test
@@ -332,36 +357,41 @@ class UserSubscriptionServiceTest {
 
             Subscription newSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
             ReflectionTestUtils.setField(newSub, "priceMonthly", BigDecimal.valueOf(20000));
-            BillingAgreement agreement = buildActiveAgreement(user);
-
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
-            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
-                    .willReturn(Optional.of(agreement));
-            given(paymentOrderRepository.save(any(PaymentOrder.class)))
-                    .willAnswer(invocation -> invocation.getArgument(0));
-            given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("raw-billing-key");
-            given(recurringPaymentProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
-            given(recurringPaymentProvider.charge(any()))
+            PaymentCommandTransactionService.UpgradeClaim claim = upgradeClaim(
+                    "ATS-UPG-3",
+                    BigDecimal.valueOf(3333),
+                    BillingCycle.MONTHLY);
+            given(paymentCommandTransactionService.claimUpgrade(
+                    eq(1L),
+                    eq(100L),
+                    eq(20L),
+                    eq(BillingCycle.MONTHLY),
+                    any()))
+                    .willReturn(claim);
+            given(subscriptionUpgradePaymentExecutor.charge(claim))
                     .willReturn(BillingChargeResult.success(
                             "tx_upgrade",
                             "CARD",
                             "1234",
                             "{\"paymentKey\":\"pay_upgrade\"}"));
-            given(subscriptionPaymentRepository.save(any(SubscriptionPayment.class)))
-                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(paymentCommandTransactionService.finalizeUpgrade(
+                    1L,
+                    claim.agreementID(),
+                    claim.orderID(),
+                    BillingCycle.MONTHLY))
+                    .willReturn(upgradeResponse(newSub, BillingCycle.MONTHLY, us, BigDecimal.valueOf(3333)));
 
             ChangeSubscriptionResponse result = userSubscriptionService.changeSubscription(
                     buildUserDetails(1L),
                     new ChangeSubscriptionRequest(20L, BillingCycle.MONTHLY));
 
             assertThat(result.proratedAmount()).isEqualByComparingTo(BigDecimal.valueOf(3333));
-            ArgumentCaptor<BillingChargeCommand> chargeCaptor =
-                    ArgumentCaptor.forClass(BillingChargeCommand.class);
-            verify(recurringPaymentProvider).charge(chargeCaptor.capture());
-            assertThat(chargeCaptor.getValue().amount()).isEqualByComparingTo(BigDecimal.valueOf(3333));
+            verify(subscriptionUpgradePaymentExecutor).charge(claim);
+            assertThat(claim.amount()).isEqualByComparingTo(BigDecimal.valueOf(3333));
         }
 
         @Test
@@ -410,8 +440,13 @@ class UserSubscriptionServiceTest {
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
-            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
-                    .willReturn(Optional.empty());
+            given(paymentCommandTransactionService.claimUpgrade(
+                    eq(1L),
+                    eq(100L),
+                    eq(20L),
+                    eq(BillingCycle.MONTHLY),
+                    any()))
+                    .willThrow(new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_NOT_FOUND));
 
             assertThatThrownBy(() -> userSubscriptionService.changeSubscription(
                     buildUserDetails(1L),
@@ -421,7 +456,7 @@ class UserSubscriptionServiceTest {
                             .isEqualTo(BUSINESS_ERROR.BILLING_AGREEMENT_NOT_FOUND));
 
             assertThat(us.getSubscription()).isEqualTo(currentSub);
-            verify(recurringPaymentProvider, never()).charge(any());
+            verify(subscriptionUpgradePaymentExecutor, never()).charge(any());
             verify(subscriptionPaymentRepository, never()).save(any());
         }
 
@@ -434,19 +469,22 @@ class UserSubscriptionServiceTest {
                     BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
             Subscription newSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
             ReflectionTestUtils.setField(newSub, "priceMonthly", BigDecimal.valueOf(19900));
-            BillingAgreement agreement = buildActiveAgreement(user);
-
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
-            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
-                    .willReturn(Optional.of(agreement));
-            given(paymentOrderRepository.save(any(PaymentOrder.class)))
-                    .willAnswer(invocation -> invocation.getArgument(0));
-            given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("removed-billing-key");
-            given(recurringPaymentProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
-            given(recurringPaymentProvider.charge(any()))
+            PaymentCommandTransactionService.UpgradeClaim claim = upgradeClaim(
+                    "ATS-UPG-4",
+                    BigDecimal.valueOf(9950),
+                    BillingCycle.MONTHLY);
+            given(paymentCommandTransactionService.claimUpgrade(
+                    eq(1L),
+                    eq(100L),
+                    eq(20L),
+                    eq(BillingCycle.MONTHLY),
+                    any()))
+                    .willReturn(claim);
+            given(subscriptionUpgradePaymentExecutor.charge(claim))
                     .willReturn(BillingChargeResult.failure(
                             "ALREADY_REMOVED_BILLING_KEY",
                             "이미 삭제된 빌링키입니다."));
@@ -459,9 +497,15 @@ class UserSubscriptionServiceTest {
                             .isEqualTo(BUSINESS_ERROR.BILLING_AGREEMENT_REAUTH_REQUIRED));
 
             assertThat(us.getSubscription()).isEqualTo(currentSub);
-            assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.EXPIRED);
-            assertThat(agreement.getBillingKeyCiphertext()).isNull();
-            assertThat(agreement.getBillingKeyFingerprint()).isNull();
+            verify(paymentCommandTransactionService).recordProviderFailure(
+                    claim.agreementID(),
+                    claim.orderID(),
+                    "ALREADY_REMOVED_BILLING_KEY",
+                    "이미 삭제된 빌링키입니다.",
+                    PaymentCommandTransactionService.ProviderFailureDisposition.FAILED,
+                    false);
+            verify(paymentCommandTransactionService)
+                    .expireIssuedBillingKeyAfterProviderRemoval(claim.agreementID());
             verify(subscriptionPaymentRepository, never()).save(any());
         }
 
@@ -870,6 +914,39 @@ class UserSubscriptionServiceTest {
                 .build();
         ReflectionTestUtils.setField(us, "id", id);
         return us;
+    }
+
+    private PaymentCommandTransactionService.UpgradeClaim upgradeClaim(
+            String orderID,
+            BigDecimal amount,
+            BillingCycle targetBillingCycle) {
+        return new PaymentCommandTransactionService.UpgradeClaim(
+                PaymentCommandTransactionService.UpgradeAction.CALL_PROVIDER,
+                200L,
+                orderID,
+                "encrypted-key",
+                "ats_billing_customer_1",
+                "ATStudio Premium Upgrade",
+                amount,
+                "user1@test.com",
+                "user1",
+                "subscription-upgrade-" + orderID + "-attempt-1",
+                targetBillingCycle);
+    }
+
+    private ChangeSubscriptionResponse upgradeResponse(
+            Subscription subscription,
+            BillingCycle targetBillingCycle,
+            UserSubscription current,
+            BigDecimal amount) {
+        return new ChangeSubscriptionResponse(
+                SubscriptionResponse.from(subscription),
+                targetBillingCycle.name(),
+                current.getStatus().name(),
+                "UPGRADE",
+                amount,
+                current.getStartedAt(),
+                current.getExpiresAt());
     }
 
     private BillingAgreement buildActiveAgreement(User user) {

@@ -14,6 +14,7 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -25,7 +26,10 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -41,14 +45,14 @@ class CompanyCertificationControllerTest {
             new CompanyCertificationResponse(
                     1L, 1L, "user1", "user1@test.com", "ATStudio Biz", "02-1234-5678",
                     "PENDING", null, null,
-                    "/uploads/company-docs/1/", List.of(), null,
+                    null, List.of(), null,
                     LocalDateTime.now());
 
     private static final CompanyCertificationResponse MOCK_APPROVED_RESPONSE =
             new CompanyCertificationResponse(
                     1L, 1L, "user1", "user1@test.com", "ATStudio Biz", "02-1234-5678",
                     "APPROVED", "서류 확인 완료", "BIZ-test-uuid",
-                    "/uploads/company-docs/1/", List.of(), LocalDateTime.now(),
+                    null, List.of(), LocalDateTime.now(),
                     LocalDateTime.now());
 
     // ── 13.1 POST /api/company-certifications ────────────────────────────────
@@ -207,12 +211,83 @@ class CompanyCertificationControllerTest {
         given(certificationService.downloadDocument(1L, 1L))
                 .willReturn(new CompanyCertificationDocumentDownload(
                         new ByteArrayResource(new byte[]{1, 2, 3}),
-                        "doc.pdf",
-                        "application/pdf"
+                        "doc.pdf"
                 ));
 
         mockMvc.perform(get("/api/company-certifications/1/documents/1"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_OCTET_STREAM))
+                .andExpect(header().string(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename*=UTF-8''doc.pdf"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store, private"))
+                .andExpect(header().string(HttpHeaders.PRAGMA, "no-cache"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string(
+                        "Content-Security-Policy",
+                        "default-src 'none'; sandbox"))
+                .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "none"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("GET /api/company-certifications/1/documents/1 - Range 요청도 attachment 전체 응답 유지")
+    void downloadDocument_rangeRequestStillReturnsSafeAttachment() throws Exception {
+        byte[] body = new byte[]{1, 2, 3, 4};
+        given(certificationService.downloadDocument(1L, 1L))
+                .willReturn(new CompanyCertificationDocumentDownload(
+                        new ByteArrayResource(body),
+                        "doc.pdf"
+                ));
+
+        mockMvc.perform(get("/api/company-certifications/1/documents/1")
+                        .header(HttpHeaders.RANGE, "bytes=0-1"))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(body))
+                .andExpect(content().contentType(MediaType.APPLICATION_OCTET_STREAM))
+                .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "none"))
+                .andExpect(header().string(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename*=UTF-8''doc.pdf"));
+    }
+
+    @Test
+    @DisplayName("GET /uploads/company-docs/** - 비인증 요청도 정적 공개가 차단된다")
+    void staticCompanyDocs_unauthenticatedDenied() throws Exception {
+        mockMvc.perform(get("/uploads/company-docs/1/secret.pdf"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(certificationService);
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("GET /uploads/company-docs/** - USER도 정적 공개가 차단된다")
+    void staticCompanyDocs_userDenied() throws Exception {
+        mockMvc.perform(get("/uploads/company-docs/1/secret.pdf"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(certificationService);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("GET /uploads/company-docs/** - ADMIN도 정적 공개가 차단된다")
+    void staticCompanyDocs_adminDenied() throws Exception {
+        mockMvc.perform(get("/uploads/company-docs/1/secret.pdf"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(certificationService);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("GET /uploads/company-docs/** - encoded traversal 변형도 4xx로 차단된다")
+    void staticCompanyDocs_encodedTraversalDenied() throws Exception {
+        mockMvc.perform(get("/uploads/company-docs/%2e%2e/%2e%2e/secret.pdf"))
+                .andExpect(status().is4xxClientError());
+
+        verifyNoInteractions(certificationService);
     }
 
     // ── 13.5 PUT /api/company-certifications/{certificationId} ───────────────

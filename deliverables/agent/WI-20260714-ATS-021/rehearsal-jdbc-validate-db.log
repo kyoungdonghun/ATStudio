@@ -1,0 +1,87 @@
+WI: WI-20260714-ATS-021
+connection.method: MySQL Connector/J via process environment; secret values not printed
+mysql.cli.on.path: false-or-not-used
+disposable.database: ats_wi021_20260715_valdat01
+application.database.target.changed: false
+application.database.name.equals.disposable: false
+application.database.name.safe-check: a***o (not used)
+admin.jdbc.url.class: loopback-or-localhost
+server.version: 8.0.45
+server.version_comment: MySQL Community Server - GPL
+create.database: OK
+selected.database: ats_wi021_20260715_valdat01
+sql.file: src/main/resources/schema.sql
+sql.sha256: 79b27d89641be3b64636669b06ae6236fe06c3ed1c90e9e5cfb252f95daf73a4
+sql.statement.count: 42
+sql.executed.count: 42
+sql.file: src/main/resources/db/manual/20260615_align_payment_whitelist_schema.sql
+sql.sha256: 051b4e94249d5a996f3dcb174765052949b91f2adf6f1c1320b0581f7b693be2
+sql.statement.count: 33
+select.preview: [table_count=3]
+select.rows: 1 sql=SELECT COUNT(*) AS table_count FROM information_schema.tables WHERE table_schema = DATABASE() AN
+select.preview: [TABLE_NAME=tags, COLUMN_NAME=type, COLUMN_TYPE=enum('MOOD','GENRE','INSTRUMENT','USAGE'), IS_NULLABLE=NO]
+select.preview: [TABLE_NAME=whitelist_channels, COLUMN_NAME=youtube_handle, COLUMN_TYPE=varchar(100), IS_NULLABLE=YES]
+select.preview: [TABLE_NAME=whitelist_channels, COLUMN_NAME=youtube_channel_id, COLUMN_TYPE=varchar(100), IS_NULLABLE=YES]
+select.rows: 11 sql=SELECT table_name, column_name, column_type, is_nullable FROM information_schema.columns WHERE t
+sql.executed.count: 33
+sql.file: src/main/resources/db/manual/20260618_company_certification_documents.sql
+sql.sha256: 6f7b232f1330ebe9be5b9c37670ec940f0d183d38f3484f79502f4edd728dfa2
+sql.statement.count: 1
+sql.executed.count: 1
+sql.file: src/main/resources/db/manual/20260714_storage_mutations_journal.sql
+sql.sha256: 97326049ff0f187c14e29bac3454ae65bc22b9b0054d23c0c0e4b5ba4f8c0d5b
+sql.statement.count: 2
+select.preview: [TABLE_NAME=storage_mutations, ENGINE=InnoDB, TABLE_COLLATION=utf8mb4_unicode_ci]
+select.rows: 1 sql=SELECT table_name, engine, table_collation FROM information_schema.tables WHERE table_schema = D
+sql.executed.count: 2
+sql.file: src/main/resources/db/manual/20260714_payment_db_integrity.sql
+sql.sha256: 395ed4cad8c4f747c55ce34229092a08d75e8fcb53acab41c6beee178c37d1d5
+sql.statement.count: 40
+select.preview: [TABLE_NAME=billing_agreements, COLUMN_NAME=id, COLUMN_TYPE=bigint, IS_NULLABLE=NO, COLUMN_DEFAULT=null]
+select.preview: [TABLE_NAME=billing_agreements, COLUMN_NAME=user_id, COLUMN_TYPE=bigint, IS_NULLABLE=NO, COLUMN_DEFAULT=null]
+select.preview: [TABLE_NAME=billing_agreements, COLUMN_NAME=provider, COLUMN_TYPE=enum('TOSS_BILLING','KAKAOPAY'), IS_NULLABLE=NO, COLUMN_DEFAULT=null]
+select.rows: 82 sql=SELECT table_name, column_name, column_type, is_nullable, column_default FROM information_schema
+select.rows: 0 sql=SELECT id, order_id, billing_period_start, DATE_SUB(DATE(expires_at), INTERVAL 3 DAY) AS assumed
+select.rows: 0 sql=SELECT billing_agreement_id, user_subscription_id, purpose, billing_period_start, COUNT(*) AS du
+select.preview: [TABLE_NAME=payment_operation_audit_logs, COLUMN_NAME=action, COLUMN_TYPE=enum('RECONCILIATION_INCIDENT_STATUS_UPDATE','RECEIPT_EVIDENCE_CREATED','PAYMENT_REFUND_REQUESTED','PAYMENT_REFUND_APPROVED','PAYMENT_REFUND_PROCESSING','PAYMENT_REFUND_SUCCEEDED','PAYMENT_REFUND_FAILED','PAYMENT_REFUND_PENDING_PROVIDER_CONFIRMATION','PAYMENT_ENTITLEMENT_CORRECTION_REQUESTED','PAYMENT_ENTITLEMENT_CORRECTION_APPROVED','PAYMENT_ENTITLEMENT_CORRECTION_PROCESSING','PAYMENT_ENTITLEMENT_CORRECTION_SUCCEEDED','PAYMENT_ENTITLEMENT_CORRECTION_FAILED','PAYMENT_SETTLEMENT_IMPORTED','PAYMENT_SETTLEMENT_RECONCILED','PAYMENT_SETTLEMENT_IGNORED'), IS_NULLABLE=NO, COLUMN_DEFAULT=null]
+select.preview: [TABLE_NAME=payment_operation_audit_logs, COLUMN_NAME=target_type, COLUMN_TYPE=enum('RECONCILIATION_INCIDENT','PAYMENT_RECEIPT','PAYMENT_REFUND','PAYMENT_ENTITLEMENT_CORRECTION','PAYMENT_SETTLEMENT'), IS_NULLABLE=NO, COLUMN_DEFAULT=null]
+select.preview: [TABLE_NAME=payment_orders, COLUMN_NAME=command_key, COLUMN_TYPE=varchar(191), IS_NULLABLE=YES, COLUMN_DEFAULT=null]
+select.rows: 9 sql=SELECT table_name, column_name, column_type, is_nullable, column_default FROM information_schema
+select.preview: [TABLE_NAME=payment_orders, INDEX_NAME=idx_payment_orders_status_processing, NON_UNIQUE=1, indexed_columns=status,processing_started_at]
+select.preview: [TABLE_NAME=payment_orders, INDEX_NAME=uq_payment_orders_command_key, NON_UNIQUE=0, indexed_columns=command_key]
+select.preview: [TABLE_NAME=payment_orders, INDEX_NAME=uq_payment_orders_provider_attempt_key, NON_UNIQUE=0, indexed_columns=provider,provider_idempotency_key]
+select.rows: 6 sql=SELECT table_name, index_name, non_unique, GROUP_CONCAT(column_name ORDER BY seq_in_index) AS in
+sql.executed.count: 40
+enum.ok: payment_orders.status contains 9 values
+column.ok: payment_orders.command_key=varchar(191)
+column.ok: payment_orders.billing_period_start=date
+column.ok: payment_orders.provider_attempt=int
+column.ok: payment_orders.provider_idempotency_key=varchar(100)
+column.ok: payment_orders.processing_started_at=datetime
+index.ok: payment_orders.uq_payment_orders_command_key unique=true columns=command_key
+index.ok: payment_orders.uq_payment_orders_provider_attempt_key unique=true columns=provider,provider_idempotency_key
+index.ok: payment_orders.uq_payment_orders_renewal_period unique=true columns=billing_agreement_id,user_subscription_id,purpose,billing_period_start
+index.ok: payment_orders.idx_payment_orders_status_processing unique=false columns=status,processing_started_at
+column.ok: subscription_payments.pg_transaction_id=varchar(200)
+index.ok: subscription_payments.uq_subscription_payments_order unique=true columns=payment_order_id
+index.ok: subscription_payments.uq_subscription_payments_provider_transaction unique=true columns=provider,pg_transaction_id
+enum.ok: payment_operation_audit_logs.action contains 16 values
+enum.ok: payment_operation_audit_logs.target_type contains 5 values
+enum.ok: storage_mutations.domain contains 6 values
+enum.ok: storage_mutations.mutation_type contains 3 values
+enum.ok: storage_mutations.storage_root contains 2 values
+enum.ok: storage_mutations.state contains 7 values
+index.ok: storage_mutations.idx_storage_mutations_recovery unique=false columns=state,next_attempt_at,id
+index.ok: storage_mutations.idx_storage_mutations_operation_id unique=false columns=operation_id
+check.ok: storage_mutations.chk_storage_mutations_keys
+table.count: 40
+enum.flush.payment_order_status.count: 9
+enum.flush.payment_audit_action.count: 16
+enum.flush.payment_audit_target.count: 5
+enum.flush.storage_domain.count: 6
+enum.flush.storage_type.count: 3
+enum.flush.storage_root.count: 2
+enum.flush.storage_state.count: 7
+contract.validation: OK
+drop.database: deferred-for-hibernate-validate
+RESULT: PASS

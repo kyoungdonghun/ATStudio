@@ -1,9 +1,13 @@
 package com.atstudio.atstudio.service;
 
+import com.atstudio.atstudio.common.dto.ResponseDTO;
+import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.payment.AdminPaymentRefundApproveRequest;
 import com.atstudio.atstudio.dto.payment.AdminPaymentRefundCreateRequest;
 import com.atstudio.atstudio.dto.payment.AdminPaymentRefundExecuteRequest;
+import com.atstudio.atstudio.dto.payment.AdminPaymentRefundPreviewResponse;
+import com.atstudio.atstudio.dto.payment.AdminPaymentRefundResponse;
 import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.PaymentRefund;
 import com.atstudio.atstudio.entity.Subscription;
@@ -31,21 +35,29 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -57,7 +69,9 @@ class AdminPaymentRefundServiceTest {
     @Mock PaymentRefundRepository paymentRefundRepository;
     @Mock UserRepository userRepository;
     @Mock PaymentOperationAuditLogService auditLogService;
+    @Mock PaymentRefundTransactionService refundTransactionService;
     @Mock PaymentRefundProvider refundProvider;
+    @Captor ArgumentCaptor<Collection<PaymentRefundStatus>> statusesCaptor;
 
     AdminPaymentRefundService service;
 
@@ -68,6 +82,7 @@ class AdminPaymentRefundServiceTest {
                 paymentRefundRepository,
                 userRepository,
                 auditLogService,
+                refundTransactionService,
                 List.of(refundProvider));
     }
 
@@ -76,7 +91,7 @@ class AdminPaymentRefundServiceTest {
     void createRefund() {
         Fixture fixture = fixture();
         User admin = admin();
-        given(subscriptionPaymentRepository.findWithGraphById(30L))
+        given(subscriptionPaymentRepository.findWithGraphByIdForUpdate(30L))
                 .willReturn(Optional.of(fixture.payment()));
         given(paymentRefundRepository.sumAmountBySubscriptionPaymentAndStatuses(any(), anyCollection()))
                 .willReturn(BigDecimal.ZERO);
@@ -111,13 +126,25 @@ class AdminPaymentRefundServiceTest {
                 org.mockito.ArgumentMatchers.eq(PaymentRefundStatus.REQUESTED),
                 org.mockito.ArgumentMatchers.eq("customer support approved"));
         verify(refundProvider, never()).cancelPayment(any());
+
+        InOrder reservationOrder = inOrder(subscriptionPaymentRepository, paymentRefundRepository);
+        reservationOrder.verify(subscriptionPaymentRepository).findWithGraphByIdForUpdate(30L);
+        reservationOrder.verify(paymentRefundRepository)
+                .sumAmountBySubscriptionPaymentAndStatuses(any(), statusesCaptor.capture());
+        reservationOrder.verify(paymentRefundRepository).save(any(PaymentRefund.class));
+        assertThat(statusesCaptor.getValue()).containsExactlyInAnyOrder(
+                PaymentRefundStatus.REQUESTED,
+                PaymentRefundStatus.APPROVED,
+                PaymentRefundStatus.PROCESSING,
+                PaymentRefundStatus.SUCCEEDED,
+                PaymentRefundStatus.PENDING_PROVIDER_CONFIRMATION);
     }
 
     @Test
     @DisplayName("createRefund blocks cumulative refund amount above original payment amount")
     void createRefundBlocksOverRefund() {
         Fixture fixture = fixture();
-        given(subscriptionPaymentRepository.findWithGraphById(30L))
+        given(subscriptionPaymentRepository.findWithGraphByIdForUpdate(30L))
                 .willReturn(Optional.of(fixture.payment()));
         given(paymentRefundRepository.sumAmountBySubscriptionPaymentAndStatuses(any(), anyCollection()))
                 .willReturn(BigDecimal.valueOf(9500));
@@ -136,18 +163,127 @@ class AdminPaymentRefundServiceTest {
     }
 
     @Test
+    @DisplayName("createRefund allows a reservation exactly at the source payment boundary")
+    void createRefundAllowsExactBoundary() {
+        Fixture fixture = fixture();
+        given(subscriptionPaymentRepository.findWithGraphByIdForUpdate(30L))
+                .willReturn(Optional.of(fixture.payment()));
+        given(paymentRefundRepository.sumAmountBySubscriptionPaymentAndStatuses(any(), anyCollection()))
+                .willReturn(BigDecimal.valueOf(9400));
+        given(paymentRefundRepository.save(any(PaymentRefund.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        service.createRefund(
+                actor(),
+                new AdminPaymentRefundCreateRequest(
+                        30L,
+                        BigDecimal.valueOf(500),
+                        PaymentRefundReasonCode.CUSTOMER_REQUEST,
+                        "boundary"));
+
+        verify(paymentRefundRepository).save(any(PaymentRefund.class));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidLockedSourceFields")
+    @DisplayName("createRefund revalidates source payment fields after acquiring the lock")
+    void createRefundRevalidatesLockedSourcePayment(
+            String scenario,
+            String fieldName,
+            Object invalidValue) {
+        Fixture fixture = fixture();
+        ReflectionTestUtils.setField(fixture.payment(), fieldName, invalidValue);
+        given(subscriptionPaymentRepository.findWithGraphByIdForUpdate(30L))
+                .willReturn(Optional.of(fixture.payment()));
+
+        assertThatThrownBy(() -> service.createRefund(
+                actor(),
+                new AdminPaymentRefundCreateRequest(
+                        30L,
+                        BigDecimal.valueOf(500),
+                        PaymentRefundReasonCode.CUSTOMER_REQUEST,
+                        "stale preview")))
+                .isInstanceOf(BusinessException.class);
+
+        verify(paymentRefundRepository, never())
+                .sumAmountBySubscriptionPaymentAndStatuses(any(), anyCollection());
+        verify(paymentRefundRepository, never()).save(any());
+    }
+
+    private static Stream<Arguments> invalidLockedSourceFields() {
+        return Stream.of(
+                Arguments.of("status changed after preview", "paymentStatus", PaymentStatus.READY),
+                Arguments.of("provider changed after preview", "provider", PaymentProviderType.TOSS),
+                Arguments.of("provider key cleared after preview", "pgTransactionId", " "));
+    }
+
+    @Test
+    @DisplayName("createRefund validates the request against the locked source amount")
+    void createRefundUsesLockedSourceAmount() {
+        Fixture fixture = fixture();
+        ReflectionTestUtils.setField(fixture.payment(), "amount", BigDecimal.ZERO);
+        given(subscriptionPaymentRepository.findWithGraphByIdForUpdate(30L))
+                .willReturn(Optional.of(fixture.payment()));
+        given(paymentRefundRepository.sumAmountBySubscriptionPaymentAndStatuses(any(), anyCollection()))
+                .willReturn(BigDecimal.ZERO);
+
+        assertThatThrownBy(() -> service.createRefund(
+                actor(),
+                new AdminPaymentRefundCreateRequest(
+                        30L,
+                        BigDecimal.valueOf(500),
+                        PaymentRefundReasonCode.CUSTOMER_REQUEST,
+                        "invalid source amount")))
+                .isInstanceOf(BusinessException.class);
+
+        verify(paymentRefundRepository)
+                .sumAmountBySubscriptionPaymentAndStatuses(any(), anyCollection());
+        verify(paymentRefundRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("previewRefund remains advisory and does not acquire the source lock")
+    void previewRefundRemainsUnlocked() {
+        Fixture fixture = fixture();
+        given(subscriptionPaymentRepository.findWithGraphById(30L))
+                .willReturn(Optional.of(fixture.payment()));
+        given(paymentRefundRepository.sumAmountBySubscriptionPaymentAndStatuses(any(), anyCollection()))
+                .willReturn(BigDecimal.valueOf(400));
+
+        ResponseDTO<AdminPaymentRefundPreviewResponse> response = service.previewRefund(30L);
+
+        assertThat(response.getData().refundableAmount()).isEqualByComparingTo("9500");
+        verify(subscriptionPaymentRepository, never()).findWithGraphByIdForUpdate(any());
+    }
+
+    @Test
     @DisplayName("executeRefund calls provider only after approval and keeps idempotency key")
     void executeRefund() {
         Fixture fixture = fixture();
-        User admin = admin();
         PaymentRefund refund = refund(fixture, PaymentRefundStatus.APPROVED);
-        given(paymentRefundRepository.findByIdForUpdate(77L)).willReturn(Optional.of(refund));
-        given(userRepository.findById(99L)).willReturn(Optional.of(admin));
+        PaymentRefundProviderResult providerResult = PaymentRefundProviderResult.success(
+                "cancel_tx_key",
+                "{\"paymentKey\":\"payment_key\"}");
+        given(refundTransactionService.claimExecution(
+                org.mockito.ArgumentMatchers.eq(77L),
+                any(CustomUserDetails.class),
+                org.mockito.ArgumentMatchers.eq("execute")))
+                .willReturn(new PaymentRefundTransactionService.RefundExecutionClaim(
+                        77L,
+                        PaymentProviderType.TOSS_BILLING,
+                        "payment_key",
+                        "ORDER-1",
+                        BigDecimal.valueOf(5000),
+                        PaymentRefundReasonCode.CUSTOMER_REQUEST.name(),
+                        "ATS-REFUND-77"));
         given(refundProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
         given(refundProvider.cancelPayment(any(PaymentRefundProviderCommand.class)))
-                .willReturn(PaymentRefundProviderResult.success(
-                        "cancel_tx_key",
-                        "{\"paymentKey\":\"payment_key\"}"));
+                .willReturn(providerResult);
+        given(refundTransactionService.recordExecutionResult(
+                org.mockito.ArgumentMatchers.eq(77L),
+                any(CustomUserDetails.class),
+                org.mockito.ArgumentMatchers.eq(providerResult)))
+                .willReturn(AdminPaymentRefundResponse.from(refund));
 
         service.executeRefund(77L, actor(), new AdminPaymentRefundExecuteRequest("execute"));
 
@@ -158,29 +294,20 @@ class AdminPaymentRefundServiceTest {
         assertThat(command.providerPaymentKey()).isEqualTo("payment_key");
         assertThat(command.amount()).isEqualByComparingTo("5000");
         assertThat(command.idempotencyKey()).isEqualTo("ATS-REFUND-77");
-        assertThat(refund.getStatus()).isEqualTo(PaymentRefundStatus.SUCCEEDED);
-        assertThat(refund.getProviderRefundTransactionId()).isEqualTo("cancel_tx_key");
-        verify(auditLogService).recordPaymentRefundEvent(
-                any(),
-                any(PaymentRefund.class),
-                org.mockito.ArgumentMatchers.eq(PaymentOperationAuditAction.PAYMENT_REFUND_PROCESSING),
-                org.mockito.ArgumentMatchers.eq(PaymentRefundStatus.APPROVED),
-                org.mockito.ArgumentMatchers.eq(PaymentRefundStatus.PROCESSING),
-                org.mockito.ArgumentMatchers.eq("execute"));
-        verify(auditLogService).recordPaymentRefundEvent(
-                any(),
-                any(PaymentRefund.class),
-                org.mockito.ArgumentMatchers.eq(PaymentOperationAuditAction.PAYMENT_REFUND_SUCCEEDED),
-                org.mockito.ArgumentMatchers.eq(PaymentRefundStatus.PROCESSING),
-                org.mockito.ArgumentMatchers.eq(PaymentRefundStatus.SUCCEEDED),
-                org.mockito.ArgumentMatchers.isNull());
+        verify(refundTransactionService).recordExecutionResult(
+                org.mockito.ArgumentMatchers.eq(77L),
+                any(CustomUserDetails.class),
+                org.mockito.ArgumentMatchers.eq(providerResult));
     }
 
     @Test
     @DisplayName("executeRefund rejects unapproved refund requests")
     void executeRefundRequiresApproval() {
-        PaymentRefund refund = refund(fixture(), PaymentRefundStatus.REQUESTED);
-        given(paymentRefundRepository.findByIdForUpdate(77L)).willReturn(Optional.of(refund));
+        given(refundTransactionService.claimExecution(
+                org.mockito.ArgumentMatchers.eq(77L),
+                any(CustomUserDetails.class),
+                org.mockito.ArgumentMatchers.eq("execute")))
+                .willThrow(new BusinessException(BUSINESS_ERROR.INVALID_STATE_TRANSITION));
 
         assertThatThrownBy(() -> service.executeRefund(
                 77L,

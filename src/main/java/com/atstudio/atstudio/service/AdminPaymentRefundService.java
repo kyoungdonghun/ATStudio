@@ -28,6 +28,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -51,6 +52,7 @@ public class AdminPaymentRefundService {
     private final PaymentRefundRepository paymentRefundRepository;
     private final UserRepository userRepository;
     private final PaymentOperationAuditLogService auditLogService;
+    private final PaymentRefundTransactionService refundTransactionService;
     private final List<PaymentRefundProvider> refundProviders;
 
     @Transactional(readOnly = true)
@@ -90,9 +92,8 @@ public class AdminPaymentRefundService {
     public ResponseDTO<AdminPaymentRefundResponse> createRefund(
             CustomUserDetails actorDetails,
             AdminPaymentRefundCreateRequest request) {
-        SubscriptionPayment payment = findSubscriptionPayment(request.subscriptionPaymentId());
-        validateRefundablePayment(payment);
-        validateRefundAmount(payment, request.amount());
+        SubscriptionPayment payment = findSubscriptionPaymentForUpdate(request.subscriptionPaymentId());
+        validateLockedRefundReservation(payment, request.amount());
 
         User actor = resolveActor(actorDetails);
         PaymentRefund refund = paymentRefundRepository.save(PaymentRefund.builder()
@@ -144,67 +145,45 @@ public class AdminPaymentRefundService {
                 .build();
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public ResponseDTO<AdminPaymentRefundResponse> executeRefund(
             Long refundId,
             CustomUserDetails actorDetails,
             AdminPaymentRefundExecuteRequest request) {
-        PaymentRefund refund = findRefundForUpdate(refundId);
-        if (refund.getStatus() != PaymentRefundStatus.APPROVED
-                && refund.getStatus() != PaymentRefundStatus.PENDING_PROVIDER_CONFIRMATION) {
-            throw new BusinessException(BUSINESS_ERROR.INVALID_STATE_TRANSITION);
+        PaymentRefundTransactionService.RefundExecutionClaim claim =
+                refundTransactionService.claimExecution(refundId, actorDetails, request.note());
+
+        PaymentRefundProvider provider = refundProvider(claim.provider());
+        PaymentRefundProviderResult providerResult;
+        try {
+            providerResult = provider.cancelPayment(new PaymentRefundProviderCommand(
+                    claim.providerPaymentKey(),
+                    claim.orderId(),
+                    claim.amount(),
+                    claim.reason(),
+                    claim.idempotencyKey()));
+        } catch (RuntimeException exception) {
+            AdminPaymentRefundResponse response =
+                    refundTransactionService.recordExecutionException(refundId, actorDetails, exception);
+            return ResponseDTO.<AdminPaymentRefundResponse>builder()
+                    .data(response)
+                    .build();
         }
 
-        PaymentRefundStatus beforeProcessing = refund.getStatus();
-        PaymentOperationAuditAction processingAction = refund.markProcessing(resolveActor(actorDetails));
-        auditLogService.recordPaymentRefundEvent(
-                actorDetails,
-                refund,
-                processingAction,
-                beforeProcessing,
-                refund.getStatus(),
-                request.note());
-
-        PaymentRefundProvider provider = refundProvider(refund.getProvider());
-        PaymentRefundProviderResult providerResult = provider.cancelPayment(new PaymentRefundProviderCommand(
-                refund.getProviderPaymentKey(),
-                refund.getPaymentOrder().getOrderId(),
-                refund.getAmount(),
-                refund.getReasonCode().name(),
-                refund.getIdempotencyKey()));
-
-        PaymentRefundStatus beforeResult = refund.getStatus();
-        PaymentOperationAuditAction resultAction;
-        if (providerResult.success()) {
-            resultAction = refund.markSucceeded(
-                    providerResult.providerRefundTransactionId(),
-                    providerResult.providerPayload());
-        } else if (providerResult.pendingConfirmation()) {
-            resultAction = refund.markPendingProviderConfirmation(
-                    providerResult.failureCode(),
-                    providerResult.failureMessage(),
-                    providerResult.providerPayload());
-        } else {
-            resultAction = refund.markFailed(
-                    providerResult.failureCode(),
-                    providerResult.failureMessage(),
-                    providerResult.providerPayload());
-        }
-
-        auditLogService.recordPaymentRefundEvent(
-                actorDetails,
-                refund,
-                resultAction,
-                beforeResult,
-                refund.getStatus(),
-                providerResult.failureMessage());
+        AdminPaymentRefundResponse response =
+                refundTransactionService.recordExecutionResult(refundId, actorDetails, providerResult);
         return ResponseDTO.<AdminPaymentRefundResponse>builder()
-                .data(AdminPaymentRefundResponse.from(refund))
+                .data(response)
                 .build();
     }
 
     private SubscriptionPayment findSubscriptionPayment(Long subscriptionPaymentId) {
         return subscriptionPaymentRepository.findWithGraphById(subscriptionPaymentId)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+    }
+
+    private SubscriptionPayment findSubscriptionPaymentForUpdate(Long subscriptionPaymentId) {
+        return subscriptionPaymentRepository.findWithGraphByIdForUpdate(subscriptionPaymentId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
     }
 
@@ -245,12 +224,13 @@ public class AdminPaymentRefundService {
         return "Payment is not refundable.";
     }
 
-    private void validateRefundAmount(SubscriptionPayment payment, BigDecimal amount) {
+    private void validateLockedRefundReservation(SubscriptionPayment payment, BigDecimal amount) {
+        validateRefundablePayment(payment);
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
-        BigDecimal refundableAmount = payment.getAmount().subtract(reservedRefundAmount(payment));
-        if (amount.compareTo(refundableAmount) > 0) {
+        BigDecimal reservedAmount = reservedRefundAmount(payment);
+        if (reservedAmount.add(amount).compareTo(payment.getAmount()) > 0) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
     }

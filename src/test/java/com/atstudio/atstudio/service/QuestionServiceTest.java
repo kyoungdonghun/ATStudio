@@ -14,6 +14,9 @@ import com.atstudio.atstudio.repository.QuestionAttachmentRepository;
 import com.atstudio.atstudio.repository.QuestionRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.storage.StorageDomain;
+import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
+import com.atstudio.atstudio.service.storage.StorageRoot;
 import com.atstudio.atstudio.service.storage.StorageService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -49,6 +52,7 @@ class QuestionServiceTest {
     @Mock QuestionAttachmentRepository attachmentRepository;
     @Mock UserRepository userRepository;
     @Mock StorageService storageService;
+    @Mock StorageMutationCoordinator storageMutationCoordinator;
 
     @InjectMocks QuestionService questionService;
 
@@ -93,8 +97,12 @@ class QuestionServiceTest {
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(questionRepository.save(any(Question.class))).willReturn(saved);
-            given(storageService.store(any(MultipartFile.class), eq("questions/attachments")))
-                    .willReturn("questions/attachments/abc.png");
+            given(storageMutationCoordinator.storeAll(
+                    eq(StorageDomain.QUESTION),
+                    eq(StorageRoot.PRIVATE),
+                    anyList(),
+                    eq("questions/attachments")))
+                    .willReturn(List.of("questions/attachments/abc.png"));
             given(attachmentRepository.save(any(QuestionAttachment.class))).willReturn(attachment);
 
             QuestionCreateRequest request = new QuestionCreateRequest();
@@ -111,7 +119,11 @@ class QuestionServiceTest {
 
             assertThat(result.attachments()).hasSize(1);
             assertThat(result.attachments().get(0).originalName()).isEqualTo("screenshot.png");
-            verify(storageService).store(any(MultipartFile.class), eq("questions/attachments"));
+            verify(storageMutationCoordinator).storeAll(
+                    eq(StorageDomain.QUESTION),
+                    eq(StorageRoot.PRIVATE),
+                    anyList(),
+                    eq("questions/attachments"));
         }
     }
 
@@ -351,13 +363,68 @@ class QuestionServiceTest {
             given(attachmentRepository.findByIdAndQuestionId(5L, 10L))
                     .willReturn(Optional.of(attachment));
             Resource mockResource = new ByteArrayResource(new byte[]{1, 2, 3});
-            given(storageService.loadAsResource("questions/attachments/file.png"))
+            given(storageService.loadAsResource(StorageRoot.PRIVATE, "questions/attachments/file.png"))
                     .willReturn(mockResource);
 
-            Resource result = questionService.downloadAttachment(10L, 5L,
+            QuestionAttachmentDownload result = questionService.downloadAttachment(10L, 5L,
                     buildUserDetails(50L, UserRole.USER));
 
-            assertThat(result).isNotNull();
+            assertThat(result.resource()).isSameAs(mockResource);
+            assertThat(result.originalFilename()).isEqualTo("file.png");
+            verify(storageService).loadAsResource(
+                    StorageRoot.PRIVATE,
+                    "questions/attachments/file.png"
+            );
+        }
+
+        @Test
+        @DisplayName("success - private question attachment is available to its owner")
+        void success_privateQuestion_owner() {
+            User owner = buildUser(1L, UserRole.USER);
+            Question question = buildQuestion(10L, owner, "title", "content",
+                    QuestionCategory.DOWNLOAD, false, QuestionStatus.OPEN);
+            QuestionAttachment attachment = buildAttachment(5L, question,
+                    "owner.txt", "questions/attachments/owner.txt", 1024L);
+            Resource resource = new ByteArrayResource(new byte[]{1});
+
+            given(questionRepository.findById(10L)).willReturn(Optional.of(question));
+            given(attachmentRepository.findByIdAndQuestionId(5L, 10L))
+                    .willReturn(Optional.of(attachment));
+            given(storageService.loadAsResource(StorageRoot.PRIVATE, attachment.getFilePath()))
+                    .willReturn(resource);
+
+            QuestionAttachmentDownload result = questionService.downloadAttachment(
+                    10L,
+                    5L,
+                    buildUserDetails(1L, UserRole.USER)
+            );
+
+            assertThat(result.resource()).isSameAs(resource);
+        }
+
+        @Test
+        @DisplayName("success - private question attachment is available to an admin")
+        void success_privateQuestion_admin() {
+            User owner = buildUser(1L, UserRole.USER);
+            Question question = buildQuestion(10L, owner, "title", "content",
+                    QuestionCategory.DOWNLOAD, false, QuestionStatus.OPEN);
+            QuestionAttachment attachment = buildAttachment(5L, question,
+                    "admin.txt", "questions/attachments/admin.txt", 1024L);
+            Resource resource = new ByteArrayResource(new byte[]{1});
+
+            given(questionRepository.findById(10L)).willReturn(Optional.of(question));
+            given(attachmentRepository.findByIdAndQuestionId(5L, 10L))
+                    .willReturn(Optional.of(attachment));
+            given(storageService.loadAsResource(StorageRoot.PRIVATE, attachment.getFilePath()))
+                    .willReturn(resource);
+
+            QuestionAttachmentDownload result = questionService.downloadAttachment(
+                    10L,
+                    5L,
+                    buildUserDetails(99L, UserRole.ADMIN)
+            );
+
+            assertThat(result.resource()).isSameAs(resource);
         }
 
         @Test
@@ -491,11 +558,24 @@ class QuestionServiceTest {
             User owner = buildUser(1L, UserRole.USER);
             Question question = buildQuestion(10L, owner, "제목", "내용",
                     QuestionCategory.PAYMENT, true, QuestionStatus.OPEN);
+            QuestionAttachment attachment = buildAttachment(
+                    5L,
+                    question,
+                    "evidence.html",
+                    "questions/attachments/evidence.html",
+                    1024L
+            );
 
             given(questionRepository.findById(10L)).willReturn(Optional.of(question));
+            given(attachmentRepository.findAllByQuestionId(10L)).willReturn(List.of(attachment));
 
             questionService.deleteQuestion(10L, buildUserDetails(1L, UserRole.USER));
 
+            verify(storageMutationCoordinator).deleteAfterCommit(
+                    StorageDomain.QUESTION,
+                    StorageRoot.PRIVATE,
+                    List.of("questions/attachments/evidence.html")
+            );
             verify(attachmentRepository).deleteAllByQuestion(question);
             verify(answerRepository).deleteAllByQuestion(question);
             verify(questionRepository).delete(question);

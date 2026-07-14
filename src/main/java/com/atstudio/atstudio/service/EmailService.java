@@ -152,10 +152,12 @@ public class EmailService {
             throw new BusinessException(BUSINESS_ERROR.TOKEN_EXPIRED);
         }
 
-        resetToken.markUsed();
+        User user = userRepository.findByIdForUpdate(resetToken.getUser().getId())
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
-        User user = resetToken.getUser();
+        resetToken.markUsed();
         user.updatePassword(passwordEncoder.encode(newPassword));
+        user.clearRefreshToken();
     }
 
     // ── 이메일 발송 ──────────────────────────────────────────────

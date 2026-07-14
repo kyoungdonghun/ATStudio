@@ -45,6 +45,9 @@ spring:
       max-file-size: 30MB
       max-request-size: 60MB
 
+server:
+  forward-headers-strategy: none
+
 # JWT 설정
 jwt:
   secret: ${JWT_SECRET}
@@ -79,15 +82,26 @@ springdoc:
 
 # 파일 저장소 설정
 app:
+  acceptance:
+    enabled: ${APP_ACCEPTANCE_ENABLED:false}
+    public-base-url: ${APP_PUBLIC_BASE_URL:}
   auth:
     password-login:
       enabled: ${APP_AUTH_PASSWORD_LOGIN_ENABLED:true}
   storage:
     base-path: uploads
+    public-path: ${APP_STORAGE_PUBLIC_PATH:${app.storage.base-path:uploads}}
+    private-path: ${APP_STORAGE_PRIVATE_PATH:private-uploads}
+    recovery:
+      batch-size: ${APP_STORAGE_RECOVERY_BATCH_SIZE:50}
+      max-attempts: ${APP_STORAGE_RECOVERY_MAX_ATTEMPTS:8}
+      stale-seconds: ${APP_STORAGE_RECOVERY_STALE_SECONDS:300}
+      claim-seconds: ${APP_STORAGE_RECOVERY_CLAIM_SECONDS:120}
+      interval-ms: ${APP_STORAGE_RECOVERY_INTERVAL_MS:60000}
   bootstrap:
     test-users:
       enabled: ${APP_BOOTSTRAP_TEST_USERS_ENABLED:false}
-      default-password: ${APP_BOOTSTRAP_TEST_USERS_DEFAULT_PASSWORD:Test1234!}
+      default-password: ${APP_BOOTSTRAP_TEST_USERS_DEFAULT_PASSWORD:}
   mail:
     from: ${MAIL_FROM:noreply@atstudio.com}
     base-url: ${APP_BASE_URL:http://localhost:5173}
@@ -116,6 +130,9 @@ app:
       reconciliation-notification-enabled: ${PAYMENT_RECONCILIATION_NOTIFICATION_ENABLED:false}
       operator-email: ${PAYMENT_OPERATIONS_OPERATOR_EMAIL:}
   security:
+    trusted-client-identity:
+      enabled: ${APP_SECURITY_TRUSTED_CLIENT_IDENTITY_ENABLED:false}
+      trusted-proxy-addresses: ${APP_SECURITY_TRUSTED_PROXY_ADDRESSES:127.0.0.1,::1}
     rate-limit:
       enabled: ${APP_SECURITY_RATE_LIMIT_ENABLED:true}
       login:

@@ -14,12 +14,12 @@ import java.nio.file.Paths;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    @Value("${app.storage.base-path:uploads}")
-    private String basePath;
+    @Value("${app.storage.public-path:${app.storage.base-path:uploads}}")
+    private String publicPath;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        String absolutePath = Paths.get(basePath).toAbsolutePath().normalize().toString();
+        String absolutePath = Paths.get(publicPath).toAbsolutePath().normalize().toString();
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations("file:" + absolutePath + "/");
     }

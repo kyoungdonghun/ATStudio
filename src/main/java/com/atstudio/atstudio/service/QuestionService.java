@@ -18,6 +18,9 @@ import com.atstudio.atstudio.repository.QuestionRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.spec.QuestionSpecification;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.storage.StorageDomain;
+import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
+import com.atstudio.atstudio.service.storage.StorageRoot;
 import com.atstudio.atstudio.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
@@ -43,6 +46,7 @@ public class QuestionService {
     private final QuestionAttachmentRepository attachmentRepository;
     private final UserRepository userRepository;
     private final StorageService storageService;
+    private final StorageMutationCoordinator storageMutationCoordinator;
 
     // ── 8.1 POST /api/questions ─────────────────────────────────────────────
 
@@ -147,15 +151,16 @@ public class QuestionService {
 
     // ── 8.5 GET /api/questions/{questionId}/attachments/{attachmentId} ──────
 
-    public Resource downloadAttachment(Long questionId, Long attachmentId,
-                                        CustomUserDetails userDetails) {
+    public QuestionAttachmentDownload downloadAttachment(Long questionId, Long attachmentId,
+                                                         CustomUserDetails userDetails) {
         Question question = findQuestionById(questionId);
         checkReadAccess(question, userDetails);
 
         QuestionAttachment attachment = attachmentRepository.findByIdAndQuestionId(attachmentId, questionId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
-        return storageService.loadAsResource(attachment.getFilePath());
+        Resource resource = storageService.loadAsResource(StorageRoot.PRIVATE, attachment.getFilePath());
+        return new QuestionAttachmentDownload(resource, attachment.getOriginalName());
     }
 
     // ── 8.6 PUT /api/questions/{questionId}/status ──────────────────────────
@@ -183,6 +188,11 @@ public class QuestionService {
         }
 
         // Delete children first to avoid FK constraint violation (CR-C-001)
+        List<QuestionAttachment> attachments = attachmentRepository.findAllByQuestionId(questionId);
+        storageMutationCoordinator.deleteAfterCommit(
+                StorageDomain.QUESTION,
+                StorageRoot.PRIVATE,
+                attachments.stream().map(QuestionAttachment::getFilePath).toList());
         attachmentRepository.deleteAllByQuestion(question);
         answerRepository.deleteAllByQuestion(question);
         questionRepository.delete(question);
@@ -208,14 +218,21 @@ public class QuestionService {
                                                       List<MultipartFile> files) {
         if (files == null || files.isEmpty()) return List.of();
 
+        List<MultipartFile> nonEmptyFiles = files.stream()
+                .filter(file -> file != null && !file.isEmpty())
+                .toList();
+        List<String> storedPaths = storageMutationCoordinator.storeAll(
+                StorageDomain.QUESTION,
+                StorageRoot.PRIVATE,
+                nonEmptyFiles,
+                "questions/attachments");
         List<QuestionAttachment> attachments = new ArrayList<>();
-        for (MultipartFile file : files) {
-            if (file.isEmpty()) continue;
-            String filePath = storageService.store(file, "questions/attachments");
+        for (int index = 0; index < nonEmptyFiles.size(); index++) {
+            MultipartFile file = nonEmptyFiles.get(index);
             QuestionAttachment attachment = QuestionAttachment.builder()
                     .question(question)
                     .originalName(file.getOriginalFilename())
-                    .filePath(filePath)
+                    .filePath(storedPaths.get(index))
                     .fileSize(file.getSize())
                     .build();
             attachments.add(attachmentRepository.save(attachment));

@@ -4,6 +4,5 @@ import org.springframework.core.io.Resource;
 
 public record CompanyCertificationDocumentDownload(
         Resource resource,
-        String originalFilename,
-        String contentType
+        String originalFilename
 ) {}

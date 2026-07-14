@@ -175,18 +175,51 @@ public class AdminWhitelistChannelService {
         for (CsvRow row : rows) {
             sb.append(csv(row.requestId())).append(',')
                     .append(csv(row.userId())).append(',')
-                    .append(csv(row.userEmail())).append(',')
-                    .append(csv(row.userNickname())).append(',')
-                    .append(csv(row.channelName())).append(',')
-                    .append(csv(row.youtubeHandle())).append(',')
-                    .append(csv(row.channelUrl())).append(',')
-                    .append(csv(row.youtubeChannelId())).append(',')
+                    .append(csvUserText(row.userEmail())).append(',')
+                    .append(csvUserText(row.userNickname())).append(',')
+                    .append(csvUserText(row.channelName())).append(',')
+                    .append(csvUserText(row.youtubeHandle())).append(',')
+                    .append(csvUserText(row.channelUrl())).append(',')
+                    .append(csvUserText(row.youtubeChannelId())).append(',')
                     .append(csv(row.requestedAt())).append(',')
                     .append(csv(row.planName())).append(',')
                     .append(csv(row.billingCycle())).append(',')
                     .append(csv(row.exportedAt())).append('\n');
         }
         return sb.toString();
+    }
+
+    private String csvUserText(String value) {
+        return csv(neutralizeFormulaCell(value));
+    }
+
+    private String neutralizeFormulaCell(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+
+        char first = value.charAt(0);
+        if (first == '\t' || first == '\r' || first == '\n') {
+            return "'" + value;
+        }
+
+        int effectiveIndex = 0;
+        while (effectiveIndex < value.length()) {
+            char current = value.charAt(effectiveIndex);
+            if (current != '\uFEFF' && current != ' ' && current != '\t') {
+                break;
+            }
+            effectiveIndex++;
+        }
+
+        if (effectiveIndex < value.length() && isFormulaPrefix(value.charAt(effectiveIndex))) {
+            return "'" + value;
+        }
+        return value;
+    }
+
+    private boolean isFormulaPrefix(char value) {
+        return value == '=' || value == '+' || value == '-' || value == '@';
     }
 
     private String csv(Object value) {

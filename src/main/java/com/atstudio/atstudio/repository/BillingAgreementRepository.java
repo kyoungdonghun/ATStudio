@@ -34,9 +34,25 @@ public interface BillingAgreementRepository extends JpaRepository<BillingAgreeme
             BillingAgreementStatus status,
             LocalDate nextBillingAt);
 
+    @Query("SELECT ba.id FROM BillingAgreement ba JOIN ba.user u "
+            + "WHERE ba.status = :status AND ba.nextBillingAt <= :nextBillingAt "
+            + "AND ba.id > :lastSeenID "
+            + "AND u.isDeleted = false "
+            + "ORDER BY ba.id ASC")
+    List<Long> findDueRenewalCandidateIDs(
+            @Param("status") BillingAgreementStatus status,
+            @Param("nextBillingAt") LocalDate nextBillingAt,
+            @Param("lastSeenID") Long lastSeenID,
+            Pageable pageable);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT ba FROM BillingAgreement ba JOIN FETCH ba.user WHERE ba.id = :billingAgreementID")
     Optional<BillingAgreement> findByIDForRenewal(
+            @Param("billingAgreementID") Long billingAgreementID);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT ba FROM BillingAgreement ba JOIN FETCH ba.user WHERE ba.id = :billingAgreementID")
+    Optional<BillingAgreement> findByIDForUpdate(
             @Param("billingAgreementID") Long billingAgreementID);
 
     @Query("SELECT ba.id FROM BillingAgreement ba JOIN ba.user u "

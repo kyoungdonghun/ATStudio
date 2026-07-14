@@ -1,3 +1,4 @@
+import axios from 'axios';
 import client from '@/api/client';
 import type { ApiResponse, UserJob, UserRole, UserType } from '@/types';
 
@@ -150,6 +151,18 @@ export async function requestPasswordReset(req: PasswordResetRequest): Promise<v
 /** POST /api/auth/reset-password */
 export async function resetPassword(token: string, newPassword: string): Promise<void> {
   await client.post('/auth/reset-password', { token, newPassword });
+}
+
+/** POST /api/auth/logout -- authenticated, bodyless session revocation */
+export async function logoutSession(): Promise<void> {
+  try {
+    await client.post('/auth/logout');
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      return;
+    }
+    throw error;
+  }
 }
 
 /** GET /api/auth/verify-email?token=... */

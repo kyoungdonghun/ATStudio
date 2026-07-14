@@ -12,7 +12,7 @@ import com.atstudio.atstudio.repository.AlbumTrackRepository;
 import com.atstudio.atstudio.repository.TrackRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
-import com.atstudio.atstudio.service.storage.StorageService;
+import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,7 +39,7 @@ class AlbumServiceTest {
     @Mock AlbumTrackRepository albumTrackRepository;
     @Mock TrackRepository trackRepository;
     @Mock UserRepository userRepository;
-    @Mock StorageService storageService;
+    @Mock StorageMutationCoordinator storageMutationCoordinator;
 
     @InjectMocks AlbumService albumService;
 

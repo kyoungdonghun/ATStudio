@@ -2,269 +2,258 @@ package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
-import com.atstudio.atstudio.entity.BillingAgreement;
-import com.atstudio.atstudio.entity.PaymentOrder;
-import com.atstudio.atstudio.entity.Subscription;
-import com.atstudio.atstudio.entity.SubscriptionPayment;
 import com.atstudio.atstudio.entity.User;
-import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
-import com.atstudio.atstudio.entity.enums.BillingCycle;
-import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
-import com.atstudio.atstudio.entity.enums.PaymentPurpose;
-import com.atstudio.atstudio.entity.enums.PaymentStatus;
-import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
-import com.atstudio.atstudio.repository.PaymentOrderRepository;
-import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
-import com.atstudio.atstudio.repository.UserSubscriptionRepository;
+import com.atstudio.atstudio.service.PaymentCommandTransactionService.ProviderFailureDisposition;
+import com.atstudio.atstudio.service.PaymentCommandTransactionService.RenewalAction;
+import com.atstudio.atstudio.service.PaymentCommandTransactionService.RenewalClaim;
+import com.atstudio.atstudio.service.PaymentCommandTransactionService.RenewalFailureResult;
 import com.atstudio.atstudio.service.payment.billing.BillingKeyCrypto;
 import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeCommand;
 import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeResult;
 import com.atstudio.atstudio.service.payment.provider.recurring.RecurringPaymentProvider;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@Transactional(readOnly = true)
 public class RecurringRenewalService {
 
     private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS_BILLING;
-    private static final int GRACE_DAYS = 3;
-    private static final int MAX_RETRY_COUNT = 3;
-    private static final List<PaymentOrderStatus> RENEWAL_ORDER_STATUSES = List.of(
-            PaymentOrderStatus.READY,
-            PaymentOrderStatus.IN_PROGRESS,
-            PaymentOrderStatus.FAILED,
-            PaymentOrderStatus.DONE
-    );
+    private static final int DUE_SCAN_PAGE_SIZE = 100;
 
     private final BillingAgreementRepository billingAgreementRepository;
-    private final UserSubscriptionRepository userSubscriptionRepository;
-    private final PaymentOrderRepository paymentOrderRepository;
-    private final SubscriptionPaymentRepository subscriptionPaymentRepository;
+    private final PaymentCommandTransactionService paymentCommandTransactions;
     private final BillingKeyCrypto billingKeyCrypto;
     private final EmailService emailService;
-    private final PaymentReceiptEvidenceService paymentReceiptEvidenceService;
     private final Map<PaymentProviderType, RecurringPaymentProvider> recurringProviders;
 
     public RecurringRenewalService(
             BillingAgreementRepository billingAgreementRepository,
-            UserSubscriptionRepository userSubscriptionRepository,
-            PaymentOrderRepository paymentOrderRepository,
-            SubscriptionPaymentRepository subscriptionPaymentRepository,
+            PaymentCommandTransactionService paymentCommandTransactions,
             BillingKeyCrypto billingKeyCrypto,
             EmailService emailService,
-            PaymentReceiptEvidenceService paymentReceiptEvidenceService,
             List<RecurringPaymentProvider> recurringProviders) {
         this.billingAgreementRepository = billingAgreementRepository;
-        this.userSubscriptionRepository = userSubscriptionRepository;
-        this.paymentOrderRepository = paymentOrderRepository;
-        this.subscriptionPaymentRepository = subscriptionPaymentRepository;
+        this.paymentCommandTransactions = paymentCommandTransactions;
         this.billingKeyCrypto = billingKeyCrypto;
         this.emailService = emailService;
-        this.paymentReceiptEvidenceService = paymentReceiptEvidenceService;
         this.recurringProviders = recurringProviders.stream()
                 .collect(Collectors.toUnmodifiableMap(RecurringPaymentProvider::getProviderType, Function.identity()));
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public RenewalRunResult processDueRenewals() {
         return processDueRenewals(LocalDate.now());
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public RenewalRunResult processDueRenewals(LocalDate today) {
-        List<Long> dueAgreementIDs = billingAgreementRepository
-                .findDueRenewalCandidateIDs(BillingAgreementStatus.ACTIVE, today);
-
+        long lastSeenID = 0L;
         int attempted = 0;
         int succeeded = 0;
         int failed = 0;
         int skipped = 0;
 
-        for (Long billingAgreementID : dueAgreementIDs) {
-            BillingAgreement agreement = billingAgreementRepository.findByIDForRenewal(billingAgreementID)
-                    .orElse(null);
-            if (agreement == null) {
-                skipped++;
-                continue;
+        while (true) {
+            List<Long> dueAgreementIDs = billingAgreementRepository.findDueRenewalCandidateIDs(
+                    BillingAgreementStatus.ACTIVE,
+                    today,
+                    lastSeenID,
+                    PageRequest.of(0, DUE_SCAN_PAGE_SIZE));
+            if (dueAgreementIDs.isEmpty()) {
+                break;
             }
-            RenewalOutcome outcome = processAgreement(agreement, today);
-            attempted += outcome.attempted();
-            succeeded += outcome.succeeded();
-            failed += outcome.failed();
-            skipped += outcome.skipped();
+
+            for (Long billingAgreementID : dueAgreementIDs) {
+                lastSeenID = billingAgreementID;
+                RenewalOutcome outcome = processAgreement(billingAgreementID, today);
+                attempted += outcome.attempted();
+                succeeded += outcome.succeeded();
+                failed += outcome.failed();
+                skipped += outcome.skipped();
+            }
+            if (dueAgreementIDs.size() < DUE_SCAN_PAGE_SIZE) {
+                break;
+            }
         }
 
-        if (attempted > 0 || skipped > 0) {
+        if (attempted > 0 || failed > 0 || skipped > 0) {
             log.info("Recurring renewal processed: attempted={}, succeeded={}, failed={}, skipped={}",
                     attempted, succeeded, failed, skipped);
         }
         return new RenewalRunResult(attempted, succeeded, failed, skipped);
     }
 
-    private RenewalOutcome processAgreement(BillingAgreement agreement, LocalDate today) {
-        if (agreement.getStatus() != BillingAgreementStatus.ACTIVE || agreement.getProvider() != RECURRING_PROVIDER) {
-            return RenewalOutcome.skip();
+    private RenewalOutcome processAgreement(Long billingAgreementID, LocalDate today) {
+        RenewalClaim claim = null;
+        try {
+            claim = paymentCommandTransactions.claimRenewal(
+                    billingAgreementID,
+                    today,
+                    LocalDateTime.now());
+            return processClaim(claim, today);
+        } catch (BusinessException exception) {
+            log.warn(
+                    "Recurring renewal agreement failed. agreementId={}, errorCode={}",
+                    billingAgreementID,
+                    exception.getErrorCode());
+            return failedOutcomeFor(claim);
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Recurring renewal agreement failed. agreementId={}, exception={}",
+                    billingAgreementID,
+                    exception.getClass().getSimpleName());
+            return failedOutcomeFor(claim);
         }
-        if (agreement.getUser().isDeleted()) {
-            agreement.cancel();
-            return RenewalOutcome.skip();
-        }
-        if (isBlank(agreement.getBillingKeyCiphertext())) {
-            agreement.suspend();
-            return RenewalOutcome.skip();
-        }
+    }
 
-        Optional<UserSubscription> activeSubscription =
-                userSubscriptionRepository.findActiveByUser(agreement.getUser(), today);
-        if (activeSubscription.isEmpty()) {
-            suspendAgreementWithoutActiveSubscription(agreement, today);
-            return RenewalOutcome.skip();
-        }
+    private RenewalOutcome failedOutcomeFor(RenewalClaim claim) {
+        return claim != null && claim.action() == RenewalAction.CALL_PROVIDER
+                ? RenewalOutcome.failure()
+                : RenewalOutcome.failedWithoutAttempt();
+    }
 
-        UserSubscription subscription = activeSubscription.get();
-        if (subscription.getStatus() == SubscriptionStatus.CANCELLED) {
-            agreement.cancel();
+    private RenewalOutcome processClaim(RenewalClaim claim, LocalDate today) {
+        if (claim.action() == RenewalAction.SKIPPED) {
             return RenewalOutcome.skip();
         }
-        PaymentOrder order = findOrCreateRenewalOrder(agreement, subscription);
-        if (order.getStatus() == PaymentOrderStatus.DONE) {
-            return RenewalOutcome.skip();
-        }
-
-        LocalDate graceEndsAt = graceEndsAt(order);
-        if (today.isAfter(graceEndsAt)) {
-            notifyRenewalFailure(agreement, order, graceEndsAt, true);
-            finalizeRenewalFailure(agreement, subscription, graceEndsAt, today);
+        if (claim.action() == RenewalAction.FAILED_WITHOUT_ATTEMPT) {
+            notifyRenewalFailure(claim.user(), claim.orderID(), claim.graceEndsAt(), claim.finalFailure());
             return RenewalOutcome.failedWithoutAttempt();
         }
-
-        BillingChargeResult chargeResult = recurringProvider().charge(new BillingChargeCommand(
-                billingKeyCrypto.decrypt(agreement.getBillingKeyCiphertext()),
-                agreement.getProviderCustomerKey(),
-                order.getOrderId(),
-                orderName(order),
-                order.getAmount(),
-                agreement.getUser().getEmail(),
-                agreement.getUser().getNickname(),
-                idempotencyKey(order, agreement)
-        ));
-
-        if (chargeResult.success()) {
-            applySuccessfulRenewal(order, agreement, subscription, chargeResult);
+        if (claim.action() == RenewalAction.FINALIZE_ONLY) {
+            paymentCommandTransactions.finalizeRenewal(claim.agreementID(), claim.orderID());
             return RenewalOutcome.success();
         }
 
-        applyFailedRenewal(order, agreement, subscription, chargeResult, graceEndsAt, today);
+        return chargeClaim(claim, today);
+    }
+
+    private RenewalOutcome chargeClaim(RenewalClaim claim, LocalDate today) {
+        BillingChargeResult chargeResult;
+        try {
+            chargeResult = recurringProvider().charge(new BillingChargeCommand(
+                    billingKeyCrypto.decrypt(claim.billingKeyCiphertext()),
+                    claim.providerCustomerKey(),
+                    claim.orderID(),
+                    claim.orderName(),
+                    claim.amount(),
+                    claim.userEmail(),
+                    claim.userNickname(),
+                    claim.providerIdempotencyKey()));
+        } catch (RuntimeException exception) {
+            recordAmbiguousProviderFailure(claim, today, exception);
+            return RenewalOutcome.failure();
+        }
+
+        if (chargeResult == null) {
+            recordAmbiguousProviderFailure(
+                    claim,
+                    today,
+                    "PROVIDER_NULL_RESULT",
+                    "Provider returned null charge result.");
+            return RenewalOutcome.failure();
+        }
+        if (chargeResult.success()) {
+            if (isBlank(chargeResult.transactionId())) {
+                recordAmbiguousProviderFailure(
+                        claim,
+                        today,
+                        "PROVIDER_SUCCESS_MISSING_TRANSACTION_ID",
+                        "Provider success result did not include a transaction ID.");
+                return RenewalOutcome.failure();
+            }
+            paymentCommandTransactions.recordProviderSuccess(
+                    claim.agreementID(),
+                    claim.orderID(),
+                    chargeResult.transactionId(),
+                    chargeResult.providerPayload(),
+                    null,
+                    null);
+            try {
+                paymentCommandTransactions.finalizeRenewal(claim.agreementID(), claim.orderID());
+                return RenewalOutcome.success();
+            } catch (RuntimeException exception) {
+                log.warn(
+                        "Recurring renewal local finalization failed after provider success. "
+                                + "agreementId={}, orderId={}, exception={}",
+                        claim.agreementID(),
+                        claim.orderID(),
+                        exception.getClass().getSimpleName());
+                return RenewalOutcome.failure();
+            }
+        }
+
+        RenewalFailureResult failure = paymentCommandTransactions.recordRenewalProviderFailure(
+                claim.agreementID(),
+                claim.orderID(),
+                chargeResult.failureCode(),
+                chargeResult.failureMessage(),
+                ProviderFailureDisposition.FAILED,
+                today);
+        notifyRenewalFailure(failure.user(), failure.orderID(), failure.graceEndsAt(), failure.finalFailure());
         return RenewalOutcome.failure();
     }
 
-    private PaymentOrder findOrCreateRenewalOrder(
-            BillingAgreement agreement,
-            UserSubscription subscription) {
-        Optional<PaymentOrder> existingOrder = paymentOrderRepository
-                .findFirstByBillingAgreementAndPurposeAndStatusInOrderByCreatedAtDesc(
-                        agreement,
-                        PaymentPurpose.RENEWAL,
-                        RENEWAL_ORDER_STATUSES);
-        if (existingOrder.isPresent() && shouldReuseRenewalOrder(existingOrder.get(), agreement)) {
-            return existingOrder.get();
-        }
-
-        return paymentOrderRepository.save(PaymentOrder.builder()
-                .orderId(renewalOrderId(agreement))
-                .user(agreement.getUser())
-                .purpose(PaymentPurpose.RENEWAL)
-                .provider(RECURRING_PROVIDER)
-                .subscription(renewalSubscription(subscription))
-                .userSubscription(subscription)
-                .billingAgreement(agreement)
-                .billingCycle(renewalBillingCycle(subscription))
-                .amount(priceFor(renewalSubscription(subscription), renewalBillingCycle(subscription)))
-                .currency("KRW")
-                .expiresAt(graceExpiresAt(agreement.getNextBillingAt()))
-                .build());
+    private void recordAmbiguousProviderFailure(
+            RenewalClaim claim,
+            LocalDate today,
+            RuntimeException exception) {
+        recordAmbiguousProviderFailure(
+                claim,
+                today,
+                "PROVIDER_EXCEPTION",
+                exception.getClass().getSimpleName());
+        log.warn(
+                "Recurring renewal provider outcome is ambiguous. agreementId={}, orderId={}, exception={}",
+                claim.agreementID(),
+                claim.orderID(),
+                exception.getClass().getSimpleName());
     }
 
-    private boolean shouldReuseRenewalOrder(PaymentOrder order, BillingAgreement agreement) {
-        return order.getStatus() != PaymentOrderStatus.DONE
-                || renewalPeriodStart(order).equals(agreement.getNextBillingAt());
-    }
-
-    private void applySuccessfulRenewal(
-            PaymentOrder order,
-            BillingAgreement agreement,
-            UserSubscription currentSubscription,
-            BillingChargeResult chargeResult) {
-        LocalDate periodStart = renewalPeriodStart(order);
-        LocalDate newExpiresAt = expiresAt(periodStart, order.getBillingCycle());
-        currentSubscription.startNewSubscription(
-                order.getSubscription(),
-                order.getBillingCycle(),
-                periodStart,
-                newExpiresAt);
-        SubscriptionPayment subscriptionPayment = subscriptionPaymentRepository.save(SubscriptionPayment.builder()
-                .paymentOrder(order)
-                .billingAgreement(agreement)
-                .provider(order.getProvider())
-                .user(order.getUser())
-                .userSubscription(currentSubscription)
-                .subscription(order.getSubscription())
-                .billingCycle(order.getBillingCycle())
-                .amount(order.getAmount())
-                .paymentStatus(PaymentStatus.DONE)
-                .pgTransactionId(chargeResult.transactionId())
-                .build());
-        order.markDone(chargeResult.transactionId(), currentSubscription, chargeResult.providerPayload());
-        paymentReceiptEvidenceService.publishSuccessfulChargeEvidence(
-                order,
-                subscriptionPayment,
-                chargeResult.providerPayload());
-        agreement.recordSuccessfulCharge(newExpiresAt);
-    }
-
-    private void applyFailedRenewal(
-            PaymentOrder order,
-            BillingAgreement agreement,
-            UserSubscription subscription,
-            BillingChargeResult chargeResult,
-            LocalDate graceEndsAt,
-            LocalDate today) {
-        order.markFailed(chargeResult.failureCode(), chargeResult.failureMessage());
-        LocalDate nextRetryAt = today.plusDays(1).isAfter(graceEndsAt)
-                ? graceEndsAt
-                : today.plusDays(1);
-        agreement.recordFailedCharge(nextRetryAt);
-        if (subscription.getExpiresAt().isBefore(graceEndsAt)) {
-            subscription.adminUpdate(null, null, graceEndsAt);
-        }
-        boolean finalFailure = agreement.getFailureCount() >= MAX_RETRY_COUNT || !today.isBefore(graceEndsAt);
-        notifyRenewalFailure(agreement, order, graceEndsAt, finalFailure);
-        if (finalFailure) {
-            finalizeRenewalFailure(agreement, subscription, graceEndsAt, today);
+    private void recordAmbiguousProviderFailure(
+            RenewalClaim claim,
+            LocalDate today,
+            String code,
+            String message) {
+        try {
+            paymentCommandTransactions.recordRenewalProviderFailure(
+                    claim.agreementID(),
+                    claim.orderID(),
+                    code,
+                    message,
+                    ProviderFailureDisposition.PENDING_PROVIDER_CONFIRMATION,
+                    today);
+        } catch (RuntimeException recordException) {
+            log.warn(
+                    "Failed to persist ambiguous renewal provider outcome. agreementId={}, orderId={}, exception={}",
+                    claim.agreementID(),
+                    claim.orderID(),
+                    recordException.getClass().getSimpleName());
         }
     }
 
     private void notifyRenewalFailure(
-            BillingAgreement agreement,
-            PaymentOrder order,
+            User user,
+            String orderID,
             LocalDate graceEndsAt,
             boolean finalFailure) {
+        if (user == null || orderID == null || graceEndsAt == null) {
+            return;
+        }
         String summary = finalFailure
                 ? "Your subscription renewal payment has failed repeatedly and automatic renewal is suspended."
                 : "Your subscription renewal payment could not be completed.";
@@ -275,33 +264,12 @@ public class RecurringRenewalService {
                     + ". Please check your registered payment method.";
         try {
             emailService.sendSubscriptionPaymentFailureEmail(
-                    agreement.getUser(),
-                    summary + " Order: " + order.getOrderId(),
+                    user,
+                    summary + " Order: " + orderID,
                     retryGuide);
-        } catch (RuntimeException e) {
-            log.warn("Failed to send renewal failure email. orderId={}", order.getOrderId(), e);
+        } catch (RuntimeException exception) {
+            log.warn("Failed to send renewal failure email. orderId={}", orderID, exception);
         }
-    }
-
-    private void finalizeRenewalFailure(
-            BillingAgreement agreement,
-            UserSubscription subscription,
-            LocalDate graceEndsAt,
-            LocalDate today) {
-        agreement.suspend();
-        if (subscription.getExpiresAt().isBefore(graceEndsAt)) {
-            subscription.adminUpdate(null, null, graceEndsAt);
-        }
-        if (today.isAfter(graceEndsAt)) {
-            subscription.expire();
-        }
-    }
-
-    private void suspendAgreementWithoutActiveSubscription(BillingAgreement agreement, LocalDate today) {
-        agreement.suspend();
-        userSubscriptionRepository.findByUser(agreement.getUser())
-                .filter(subscription -> subscription.getExpiresAt().isBefore(today))
-                .ifPresent(UserSubscription::expire);
     }
 
     private RecurringPaymentProvider recurringProvider() {
@@ -310,55 +278,6 @@ public class RecurringRenewalService {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_PROVIDER_NOT_CONFIGURED);
         }
         return provider;
-    }
-
-    private Subscription renewalSubscription(UserSubscription subscription) {
-        return subscription.getPendingSubscription() == null
-                ? subscription.getSubscription()
-                : subscription.getPendingSubscription();
-    }
-
-    private BillingCycle renewalBillingCycle(UserSubscription subscription) {
-        return subscription.getPendingBillingCycle() == null
-                ? subscription.getBillingCycle()
-                : subscription.getPendingBillingCycle();
-    }
-
-    private BigDecimal priceFor(Subscription subscription, BillingCycle billingCycle) {
-        return billingCycle == BillingCycle.MONTHLY
-                ? subscription.getPriceMonthly()
-                : subscription.getPriceYearly();
-    }
-
-    private LocalDate expiresAt(LocalDate startedAt, BillingCycle billingCycle) {
-        return billingCycle == BillingCycle.MONTHLY
-                ? startedAt.plusMonths(1)
-                : startedAt.plusYears(1);
-    }
-
-    private LocalDateTime graceExpiresAt(LocalDate periodStart) {
-        return periodStart.plusDays(GRACE_DAYS).atTime(LocalTime.MAX);
-    }
-
-    private LocalDate graceEndsAt(PaymentOrder order) {
-        return order.getExpiresAt().toLocalDate();
-    }
-
-    private LocalDate renewalPeriodStart(PaymentOrder order) {
-        return order.getExpiresAt().toLocalDate().minusDays(GRACE_DAYS);
-    }
-
-    private String renewalOrderId(BillingAgreement agreement) {
-        return "ATS-REN-" + agreement.getNextBillingAt().toString().replace("-", "")
-                + "-" + Integer.toUnsignedString(agreement.getProviderCustomerKey().hashCode()).toUpperCase();
-    }
-
-    private String idempotencyKey(PaymentOrder order, BillingAgreement agreement) {
-        return "renewal-" + order.getOrderId() + "-attempt-" + (agreement.getFailureCount() + 1);
-    }
-
-    private String orderName(PaymentOrder order) {
-        return order.getSubscription().getName() + " recurring renewal";
     }
 
     private boolean isBlank(String value) {

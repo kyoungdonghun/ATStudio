@@ -131,6 +131,23 @@ class TossBillingProviderTest {
     }
 
     @Test
+    @DisplayName("confirmAgreement treats a Toss server error as an unknown provider outcome")
+    void confirmAgreementServerErrorIsUnknown() throws IOException {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v1/billing/authorizations/issue", exchange -> send(
+                exchange,
+                500,
+                "{\"code\":\"FAILED_INTERNAL_SYSTEM_PROCESSING\",\"message\":\"temporary failure\"}"));
+        server.start();
+
+        TossBillingProvider provider = new TossBillingProvider(properties(baseUrl()));
+
+        assertThatThrownBy(() -> provider.confirmAgreement(
+                new BillingAgreementConfirmCommand("auth_key", "ats_billing_customer")))
+                .isInstanceOf(PaymentProviderOutcomeUnknownException.class);
+    }
+
+    @Test
     @DisplayName("charge calls Toss billing API with idempotency key and sanitized response")
     void chargeSuccess() throws IOException {
         CapturedRequest captured = new CapturedRequest();
@@ -196,7 +213,7 @@ class TossBillingProviderTest {
     }
 
     @Test
-    @DisplayName("charge returns mismatch failure when Toss amount differs")
+    @DisplayName("charge treats mismatched successful evidence as an unknown provider outcome")
     void chargeMismatch() throws IOException {
         server = HttpServer.create(new InetSocketAddress(0), 0);
         server.createContext("/v1/billing/billing_secret_key", exchange -> {
@@ -213,7 +230,7 @@ class TossBillingProviderTest {
 
         TossBillingProvider provider = new TossBillingProvider(properties(baseUrl()));
 
-        BillingChargeResult result = provider.charge(new BillingChargeCommand(
+        assertThatThrownBy(() -> provider.charge(new BillingChargeCommand(
                 "billing_secret_key",
                 "ats_billing_customer",
                 "ORDER-1",
@@ -221,10 +238,32 @@ class TossBillingProviderTest {
                 BigDecimal.valueOf(9900),
                 null,
                 null,
-                null));
+                null)))
+                .isInstanceOf(PaymentProviderOutcomeUnknownException.class);
+    }
 
-        assertThat(result.success()).isFalse();
-        assertThat(result.failureCode()).isEqualTo("TOSS_BILLING_CHARGE_MISMATCH");
+    @Test
+    @DisplayName("charge treats a Toss server error as an unknown provider outcome")
+    void chargeServerErrorIsUnknown() throws IOException {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v1/billing/billing_secret_key", exchange -> send(
+                exchange,
+                500,
+                "{\"code\":\"FAILED_INTERNAL_SYSTEM_PROCESSING\",\"message\":\"temporary failure\"}"));
+        server.start();
+
+        TossBillingProvider provider = new TossBillingProvider(properties(baseUrl()));
+
+        assertThatThrownBy(() -> provider.charge(new BillingChargeCommand(
+                "billing_secret_key",
+                "ats_billing_customer",
+                "ORDER-1",
+                "ATStudio STANDARD Subscription",
+                BigDecimal.valueOf(9900),
+                null,
+                null,
+                "renewal-1")))
+                .isInstanceOf(PaymentProviderOutcomeUnknownException.class);
     }
 
     @Test
@@ -247,6 +286,23 @@ class TossBillingProviderTest {
         assertThat(result.success()).isTrue();
         assertThat(captured.method.get()).isEqualTo("DELETE");
         assertThat(captured.authorization.get()).isEqualTo(basicAuth());
+    }
+
+    @Test
+    @DisplayName("cancelAgreement treats a Toss server error as an unknown provider outcome")
+    void cancelAgreementServerErrorIsUnknown() throws IOException {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v1/billing/billing_secret_key", exchange -> send(
+                exchange,
+                503,
+                "{\"code\":\"PROVIDER_UNAVAILABLE\",\"message\":\"temporary failure\"}"));
+        server.start();
+
+        TossBillingProvider provider = new TossBillingProvider(properties(baseUrl()));
+
+        assertThatThrownBy(() -> provider.cancelAgreement(
+                new BillingAgreementCancelCommand("billing_secret_key")))
+                .isInstanceOf(PaymentProviderOutcomeUnknownException.class);
     }
 
     @Test
@@ -301,6 +357,7 @@ class TossBillingProviderTest {
                     {
                       "paymentKey": "payment_key",
                       "orderId": "ORDER-1",
+                      "lastTransactionKey": "cancel_tx_key",
                       "status": "CANCELED",
                       "totalAmount": 9900,
                       "balanceAmount": 0,
@@ -341,6 +398,89 @@ class TossBillingProviderTest {
         assertThat(result.providerPayload()).contains("\"paymentKey\":\"payment_key\"");
         assertThat(result.providerPayload()).contains("\"transactionKey\":\"cancel_tx_key\"");
         assertThat(result.providerPayload()).doesNotContain("5388111122221111");
+    }
+
+    @Test
+    @DisplayName("cancelPayment uses the latest refund transaction key for repeated partial cancellations")
+    void cancelPaymentUsesLatestTransactionKey() throws IOException {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v1/payments/payment_key/cancel", exchange -> send(exchange, 200, """
+                {
+                  "paymentKey": "payment_key",
+                  "orderId": "ORDER-1",
+                  "lastTransactionKey": "cancel_tx_new",
+                  "status": "PARTIAL_CANCELED",
+                  "cancels": [
+                    {"transactionKey": "cancel_tx_old", "cancelAmount": 1000},
+                    {"transactionKey": "cancel_tx_new", "cancelAmount": 2000}
+                  ]
+                }
+                """));
+        server.start();
+
+        TossBillingProvider provider = new TossBillingProvider(properties(baseUrl()));
+
+        PaymentRefundProviderResult result = provider.cancelPayment(new PaymentRefundProviderCommand(
+                "payment_key",
+                "ORDER-1",
+                BigDecimal.valueOf(2000),
+                "CUSTOMER_REQUEST",
+                "ATS-REFUND-2"));
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.providerRefundTransactionId()).isEqualTo("cancel_tx_new");
+    }
+
+    @Test
+    @DisplayName("cancelPayment keeps server errors pending instead of finalizing a failure")
+    void cancelPaymentServerErrorIsPending() throws IOException {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v1/payments/payment_key/cancel", exchange -> send(
+                exchange,
+                503,
+                "{\"code\":\"PROVIDER_UNAVAILABLE\",\"message\":\"temporary failure\"}"));
+        server.start();
+
+        TossBillingProvider provider = new TossBillingProvider(properties(baseUrl()));
+
+        PaymentRefundProviderResult result = provider.cancelPayment(new PaymentRefundProviderCommand(
+                "payment_key",
+                "ORDER-1",
+                BigDecimal.valueOf(9900),
+                "CUSTOMER_REQUEST",
+                "ATS-REFUND-3"));
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.pendingConfirmation()).isTrue();
+        assertThat(result.failureCode()).isEqualTo("TOSS_PAYMENT_CANCEL_UNKNOWN");
+    }
+
+    @Test
+    @DisplayName("cancelPayment does not infer refund identity when lastTransactionKey is missing")
+    void cancelPaymentMissingTransactionKeyIsPending() throws IOException {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v1/payments/payment_key/cancel", exchange -> send(exchange, 200, """
+                {
+                  "paymentKey": "payment_key",
+                  "orderId": "ORDER-1",
+                  "status": "CANCELED",
+                  "cancels": [{"cancelAmount": 9900, "transactionKey": "historical_cancel_tx"}]
+                }
+                """));
+        server.start();
+
+        TossBillingProvider provider = new TossBillingProvider(properties(baseUrl()));
+
+        PaymentRefundProviderResult result = provider.cancelPayment(new PaymentRefundProviderCommand(
+                "payment_key",
+                "ORDER-1",
+                BigDecimal.valueOf(9900),
+                "CUSTOMER_REQUEST",
+                "ATS-REFUND-4"));
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.pendingConfirmation()).isTrue();
+        assertThat(result.providerRefundTransactionId()).isNull();
     }
 
     private PaymentProperties properties(String baseUrl) {

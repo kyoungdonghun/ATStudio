@@ -33,7 +33,12 @@ let failedQueue: Array<{
   reject: (err: unknown) => void;
 }> = [];
 
-const AUTH_REFRESH_EXCLUDED_PATHS = ['/auth/login', '/auth/refresh', '/auth/social/'];
+const AUTH_REFRESH_EXCLUDED_PATHS = [
+  '/auth/login',
+  '/auth/logout',
+  '/auth/refresh',
+  '/auth/social/',
+];
 
 export function shouldSkipRefresh(config?: { url?: string | undefined }): boolean {
   const url = config?.url ?? '';
@@ -67,7 +72,7 @@ client.interceptors.response.use(
 
     const refreshToken = safeStorage.getItem('refreshToken');
     if (!refreshToken) {
-      useAuthStore.getState().logout();
+      useAuthStore.getState().clearSession();
       return Promise.reject(error);
     }
 
@@ -103,7 +108,7 @@ client.interceptors.response.use(
       processQueue(refreshError, null);
       safeStorage.removeItem('accessToken');
       safeStorage.removeItem('refreshToken');
-      useAuthStore.getState().logout();
+      useAuthStore.getState().clearSession();
       useToastStore.getState().show('error', '세션이 만료되었습니다. 다시 로그인해주세요.');
       router.navigate('/login');
       return Promise.reject(refreshError);

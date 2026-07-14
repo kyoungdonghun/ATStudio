@@ -13,7 +13,10 @@ export default function SocialLoginPage() {
   const [searchParams] = useSearchParams();
   const code = searchParams.get('code');
   const returnedState = searchParams.get('state');
+  const stageTokens = useAuthStore((s) => s.stageTokens);
   const authLogin = useAuthStore((s) => s.login);
+  const authLogout = useAuthStore((s) => s.logout);
+  const clearSession = useAuthStore((s) => s.clearSession);
 
   const [error, setError] = useState('');
   const processed = useRef(false);
@@ -40,9 +43,13 @@ export default function SocialLoginPage() {
     safeSessionStorage.removeItem('oauth_code_verifier');
 
     (async () => {
+      let tokensStaged = false;
       try {
         const res = await socialLogin(provider, code, codeVerifier);
-        const me: MeResponse = await fetchMe();
+        stageTokens(res.accessToken, res.refreshToken);
+        tokensStaged = true;
+
+        const me: MeResponse = await fetchMe(res.accessToken);
 
         authLogin(res.accessToken, {
           id: me.id,
@@ -65,13 +72,19 @@ export default function SocialLoginPage() {
 
         navigate('/', { replace: true });
       } catch (err: unknown) {
+        if (tokensStaged) {
+          await authLogout();
+        } else {
+          clearSession();
+        }
+
         const msg =
           (err as { response?: { data?: { message?: string } } })?.response
             ?.data?.message ?? '소셜 로그인에 실패했습니다.';
         setError(msg);
       }
     })();
-  }, [provider, code, returnedState, navigate, authLogin]);
+  }, [provider, code, returnedState, navigate, stageTokens, authLogin, authLogout, clearSession]);
 
   return (
     <div className={styles.page}>

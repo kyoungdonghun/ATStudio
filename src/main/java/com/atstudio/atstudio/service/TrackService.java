@@ -13,7 +13,11 @@ import com.atstudio.atstudio.entity.key.TrackTagId;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.repository.spec.TrackSpecification;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.storage.StorageDomain;
+import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
+import com.atstudio.atstudio.service.storage.StorageRoot;
 import com.atstudio.atstudio.service.storage.StorageService;
+import com.atstudio.atstudio.service.storage.StorageWriteRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.core.io.Resource;
@@ -38,6 +42,7 @@ import java.nio.ByteOrder;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -52,6 +57,7 @@ public class TrackService {
     private final TagRepository tagRepository;
     private final UserRepository userRepository;
     private final StorageService storageService;
+    private final StorageMutationCoordinator storageMutationCoordinator;
     private final LikeRepository likeRepository;
     private final DownloadQueueRepository downloadQueueRepository;
     private final PlayHistoryRepository playHistoryRepository;
@@ -66,13 +72,20 @@ public class TrackService {
         User user = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
-        String audioFilePath = storageService.store(audioFile, "tracks/audio");
-        String thumbnailPath = (thumbnail != null && !thumbnail.isEmpty())
-                ? storageService.store(thumbnail, "tracks/thumbnail")
-                : null;
-
         int duration = extractDuration(audioFile);
         String waveformData = extractWaveformPeaks(audioFile);
+
+        List<StorageWriteRequest> writes = new ArrayList<>();
+        writes.add(StorageWriteRequest.create(audioFile, "tracks/audio"));
+        if (thumbnail != null && !thumbnail.isEmpty()) {
+            writes.add(StorageWriteRequest.create(thumbnail, "tracks/thumbnail"));
+        }
+        List<String> storedKeys = storageMutationCoordinator.writeAll(
+                StorageDomain.TRACK,
+                StorageRoot.PUBLIC,
+                writes);
+        String audioFilePath = storedKeys.get(0);
+        String thumbnailPath = storedKeys.size() > 1 ? storedKeys.get(1) : null;
 
         Track track = Track.builder()
                 .title(java.text.Normalizer.normalize(request.getTitle(), java.text.Normalizer.Form.NFC))
@@ -148,7 +161,7 @@ public class TrackService {
         String filePath = hasPreviewFile
                 ? track.getPreviewFile()
                 : track.getAudioFile();
-        Resource resource = storageService.loadAsResource(filePath);
+        Resource resource = storageService.loadAsResource(StorageRoot.PUBLIC, filePath);
 
         try {
             long resourceLength = resource.contentLength();
@@ -170,16 +183,23 @@ public class TrackService {
 
         if (audioFile != null && !audioFile.isEmpty()) {
             String oldAudioFile = track.getAudioFile();
-            track.updateAudioFile(storageService.store(audioFile, "tracks/audio"));
-            storageService.delete(oldAudioFile);
-            track.updateWaveformData(extractWaveformPeaks(audioFile));
+            String waveformData = extractWaveformPeaks(audioFile);
+            track.updateAudioFile(storageMutationCoordinator.replace(
+                    StorageDomain.TRACK,
+                    StorageRoot.PUBLIC,
+                    audioFile,
+                    "tracks/audio",
+                    oldAudioFile));
+            track.updateWaveformData(waveformData);
         }
         if (thumbnail != null && !thumbnail.isEmpty()) {
             String oldThumbnail = track.getThumbnail();
-            track.updateThumbnail(storageService.store(thumbnail, "tracks/thumbnail"));
-            if (oldThumbnail != null) {
-                storageService.delete(oldThumbnail);
-            }
+            track.updateThumbnail(storageMutationCoordinator.replace(
+                    StorageDomain.TRACK,
+                    StorageRoot.PUBLIC,
+                    thumbnail,
+                    "tracks/thumbnail",
+                    oldThumbnail));
         }
         if (request.getIsActive() != null) {
             track.updateIsActive(request.getIsActive());

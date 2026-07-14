@@ -29,6 +29,13 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
             @Param("user") User user,
             @Param("today") LocalDate today);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT us FROM UserSubscription us JOIN FETCH us.user JOIN FETCH us.subscription "
+           + "WHERE us.user = :user AND us.status IN ('ACTIVE', 'CANCELLED') AND us.expiresAt >= :today")
+    Optional<UserSubscription> findActiveByUserForUpdate(
+            @Param("user") User user,
+            @Param("today") LocalDate today);
+
     @Query("SELECT us FROM UserSubscription us JOIN FETCH us.subscription " +
            "WHERE us.status IN ('ACTIVE', 'CANCELLED') AND us.expiresAt < :today")
     List<UserSubscription> findExpired(@Param("today") LocalDate today);
@@ -45,4 +52,12 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT us FROM UserSubscription us JOIN FETCH us.user JOIN FETCH us.subscription WHERE us.id = :id")
     Optional<UserSubscription> findByIdForUpdate(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT us FROM UserSubscription us JOIN FETCH us.subscription WHERE us.user.id = :userID")
+    Optional<UserSubscription> findByUserIDForUpdate(@Param("userID") Long userID);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT us FROM UserSubscription us JOIN FETCH us.user JOIN FETCH us.subscription WHERE us.user = :user")
+    Optional<UserSubscription> findByUserForUpdate(@Param("user") User user);
 }

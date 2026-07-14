@@ -15,6 +15,7 @@ import com.atstudio.atstudio.repository.NoticeAttachmentRepository;
 import com.atstudio.atstudio.repository.NoticeRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
 import com.atstudio.atstudio.service.storage.StorageService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,7 @@ class NoticeServiceTest {
     @Mock NoticeAttachmentRepository attachmentRepository;
     @Mock UserRepository userRepository;
     @Mock StorageService storageService;
+    @Mock StorageMutationCoordinator storageMutationCoordinator;
 
     @InjectMocks NoticeService noticeService;
 

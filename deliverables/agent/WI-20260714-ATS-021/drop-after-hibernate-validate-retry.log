@@ -1,0 +1,7 @@
+WI: WI-20260714-ATS-021
+connection.method: MySQL Connector/J via process environment; secret values not printed
+disposable.database: ats_wi021_20260715_valdat01
+drop.database: OK
+cleanup.database.exists: 0
+drop.attempted: true
+RESULT: PASS

@@ -113,7 +113,7 @@ class AuthServiceTest {
 
         when(jwtTokenProvider.validateToken("old-refresh")).thenReturn(TokenValidationResult.VALID);
         when(jwtTokenProvider.getUserID("old-refresh")).thenReturn(1L);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(jwtTokenProvider.generateAccessToken(1L, UserRole.USER)).thenReturn("new-access");
         when(jwtTokenProvider.generateRefreshToken(1L)).thenReturn("new-refresh");
         when(jwtTokenProvider.getAccessTokenExpiration()).thenReturn(3600000L);
@@ -156,14 +156,14 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("refresh() 실패 - DB 해시 불일치 → clearRefreshToken() 호출 + REFRESH_TOKEN_INVALID 예외")
-    void refresh_dbHashMismatch_clearsTokenAndThrows() {
+    @DisplayName("refresh() 실패 - DB 해시 불일치 시 최신 세션 보존 + REFRESH_TOKEN_INVALID 예외")
+    void refresh_dbHashMismatch_preservesCurrentSessionAndThrows() {
         User user = buildUser(1L, false);
         user.updateRefreshToken(sha256("other-refresh"));
 
         when(jwtTokenProvider.validateToken("some-refresh")).thenReturn(TokenValidationResult.VALID);
         when(jwtTokenProvider.getUserID("some-refresh")).thenReturn(1L);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
 
         RefreshRequest request = new RefreshRequest();
         request.setRefreshToken("some-refresh");
@@ -173,11 +173,40 @@ class AuthServiceTest {
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.REFRESH_TOKEN_INVALID));
 
-        assertThat(user.getRefreshToken()).isNull();  // clearRefreshToken() 호출 검증
+        assertThat(user.getRefreshToken()).isEqualTo(sha256("other-refresh"));
     }
 
     @Test
     @DisplayName("refresh() 실패 - 탈퇴 계정 → ACCOUNT_DEACTIVATED 예외")
+    void refresh_staleReplayAfterSuccessfulRotationPreservesNewSession() {
+        User user = buildUser(1L, false);
+        user.updateRefreshToken(sha256("old-refresh"));
+
+        when(jwtTokenProvider.validateToken("old-refresh")).thenReturn(TokenValidationResult.VALID);
+        when(jwtTokenProvider.getUserID("old-refresh")).thenReturn(1L);
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(jwtTokenProvider.generateAccessToken(1L, UserRole.USER)).thenReturn("new-access");
+        when(jwtTokenProvider.generateRefreshToken(1L)).thenReturn("new-refresh");
+        when(jwtTokenProvider.getAccessTokenExpiration()).thenReturn(3600000L);
+
+        RefreshRequest request = new RefreshRequest();
+        request.setRefreshToken("old-refresh");
+
+        AuthResponse refreshed = authService.refresh(request);
+
+        assertThat(refreshed.refreshToken()).isEqualTo("new-refresh");
+        assertThat(user.getRefreshToken()).isEqualTo(sha256("new-refresh"));
+
+        assertThatThrownBy(() -> authService.refresh(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.REFRESH_TOKEN_INVALID));
+
+        assertThat(user.getRefreshToken()).isEqualTo(sha256("new-refresh"));
+    }
+
+    @Test
+    @DisplayName("refresh() 실패 - 삭제 계정은 ACCOUNT_DEACTIVATED 예외")
     void refresh_deletedUser_throwsAccountDeactivated() {
         User user = buildUser(1L, false);
         user.withdraw();                        // isDeleted=true, refreshToken=null
@@ -185,7 +214,7 @@ class AuthServiceTest {
 
         when(jwtTokenProvider.validateToken("some-refresh")).thenReturn(TokenValidationResult.VALID);
         when(jwtTokenProvider.getUserID("some-refresh")).thenReturn(1L);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
 
         RefreshRequest request = new RefreshRequest();
         request.setRefreshToken("some-refresh");
@@ -196,7 +225,52 @@ class AuthServiceTest {
                         .isEqualTo(BUSINESS_ERROR.ACCOUNT_DEACTIVATED));
     }
 
+    @Test
+    @DisplayName("logout() 성공 - 현재 refresh session 폐기 및 반복 호출 멱등 처리")
+    void logout_repeatedCalls_clearRefreshSessionIdempotently() {
+        User user = buildUser(1L, false);
+        user.updateRefreshToken(sha256("current-refresh"));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+
+        authService.logout(1L);
+        authService.logout(1L);
+
+        assertThat(user.getRefreshToken()).isNull();
+        verify(userRepository, times(2)).findByIdForUpdate(1L);
+    }
+
+    @Test
+    @DisplayName("logout() 성공 - 인증 후 사용자 행이 없어도 멱등 처리")
+    void logout_missingUser_isIdempotent() {
+        when(userRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
+
+        authService.logout(99L);
+
+        verify(userRepository).findByIdForUpdate(99L);
+    }
+
     // ── helper ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("logout() 이후 stale refresh 재사용은 거부된다")
+    void logout_thenRefreshReplayFails() {
+        User user = buildUser(1L, false);
+        user.updateRefreshToken(sha256("stale-refresh"));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+        when(jwtTokenProvider.validateToken("stale-refresh")).thenReturn(TokenValidationResult.VALID);
+        when(jwtTokenProvider.getUserID("stale-refresh")).thenReturn(1L);
+
+        authService.logout(1L);
+
+        RefreshRequest request = new RefreshRequest();
+        request.setRefreshToken("stale-refresh");
+
+        assertThatThrownBy(() -> authService.refresh(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.REFRESH_TOKEN_INVALID));
+        assertThat(user.getRefreshToken()).isNull();
+    }
 
     private User buildUser(Long id, boolean deleted) {
         User user = User.builder()

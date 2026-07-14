@@ -28,6 +28,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     private static final BUSINESS_ERROR RATE_LIMIT_ERROR = BUSINESS_ERROR.RATE_LIMIT_EXCEEDED;
 
     private final AuthRateLimitProperties properties;
+    private final TrustedClientIdentityResolver clientIdentityResolver;
     private final Map<String, SlidingWindow> windows = new ConcurrentHashMap<>();
     private final AtomicInteger requestCounter = new AtomicInteger();
 
@@ -43,7 +44,8 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         long now = System.currentTimeMillis();
         maybeCleanup(now);
 
-        String key = request.getMethod() + ":" + request.getRequestURI() + ":" + request.getRemoteAddr();
+        String key = request.getMethod() + ":" + request.getRequestURI() + ":"
+                + clientIdentityResolver.resolve(request);
         SlidingWindow window = windows.computeIfAbsent(key, ignored -> new SlidingWindow());
         Decision decision = window.tryAcquire(rule.getLimit(), Duration.ofSeconds(rule.getWindowSeconds()), now);
 

@@ -8,14 +8,18 @@ import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.QuestionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.util.StreamUtils;
+import org.springframework.web.util.UriUtils;
 import org.springframework.web.bind.annotation.*;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/api/questions")
@@ -83,16 +87,30 @@ public class QuestionController {
     // ── 8.5 GET /api/questions/{questionId}/attachments/{attachmentId} ──────
 
     @GetMapping("/{questionId}/attachments/{attachmentId}")
-    public ResponseEntity<Resource> downloadAttachment(
+    public ResponseEntity<byte[]> downloadAttachment(
             @PathVariable Long questionId,
             @PathVariable Long attachmentId,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-        Resource resource = questionService.downloadAttachment(questionId, attachmentId, userDetails);
-        String filename = resource.getFilename() != null ? resource.getFilename() : "attachment";
+            @AuthenticationPrincipal CustomUserDetails userDetails) throws IOException {
+        QuestionAttachmentDownload download = questionService.downloadAttachment(
+                questionId,
+                attachmentId,
+                userDetails
+        );
+        String originalFilename = download.originalFilename();
+        String filename = UriUtils.encode(
+                originalFilename == null || originalFilename.isBlank() ? "attachment" : originalFilename,
+                StandardCharsets.UTF_8
+        );
+        byte[] body = StreamUtils.copyToByteArray(download.resource().getInputStream());
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(resource);
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + filename)
+                .header(HttpHeaders.CACHE_CONTROL, "no-store, private")
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .header("X-Content-Type-Options", "nosniff")
+                .header("Content-Security-Policy", "default-src 'none'; sandbox")
+                .header(HttpHeaders.ACCEPT_RANGES, "none")
+                .body(body);
     }
 
     // ── 8.6 PUT /api/questions/{questionId}/status ──────────────────────────

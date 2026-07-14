@@ -8,6 +8,7 @@ import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.storage.StorageService;
+import com.atstudio.atstudio.service.storage.StorageRoot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,14 +62,14 @@ class DownloadServiceTest {
         given(trackDownloadRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
         given(licenseRepository.findByUserAndTrack(user, track)).willReturn(Optional.empty());
         given(licenseRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
-        given(storageService.loadAsResource(anyString())).willReturn(mockResource);
+        given(storageService.loadAsResource(eq(StorageRoot.PUBLIC), anyString())).willReturn(mockResource);
 
         Resource result = downloadService.download(1L, userDetails);
 
         assertThat(result).isEqualTo(mockResource);
         verify(trackDownloadRepository).save(any(TrackDownload.class));
         verify(licenseRepository).save(any(License.class));
-        verify(storageService).loadAsResource("tracks/audio/test.mp3");
+        verify(storageService).loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3");
     }
 
     @Test
@@ -81,7 +82,7 @@ class DownloadServiceTest {
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
         given(licenseRepository.findByUserAndTrack(user, track)).willReturn(Optional.of(buildLicense(user, track)));
-        given(storageService.loadAsResource(anyString())).willReturn(mock(Resource.class));
+        given(storageService.loadAsResource(eq(StorageRoot.PUBLIC), anyString())).willReturn(mock(Resource.class));
 
         downloadService.download(1L, userDetails);
 
@@ -105,7 +106,7 @@ class DownloadServiceTest {
         given(trackDownloadRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
         given(licenseRepository.findByUserAndTrack(user, track)).willReturn(Optional.empty());
         given(licenseRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
-        given(storageService.loadAsResource(anyString())).willReturn(mockResource);
+        given(storageService.loadAsResource(eq(StorageRoot.PUBLIC), anyString())).willReturn(mockResource);
 
         Resource result = downloadService.download(1L, userDetails);
 
@@ -129,7 +130,7 @@ class DownloadServiceTest {
         given(trackDownloadRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
         given(licenseRepository.findByUserAndTrack(user, track)).willReturn(Optional.empty());
         given(licenseRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
-        given(storageService.loadAsResource(anyString())).willReturn(mockResource);
+        given(storageService.loadAsResource(eq(StorageRoot.PUBLIC), anyString())).willReturn(mockResource);
 
         Resource result = downloadService.download(1L, userDetails);
 
@@ -153,7 +154,7 @@ class DownloadServiceTest {
         given(trackDownloadRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
         given(licenseRepository.findByUserAndTrack(user, track)).willReturn(Optional.empty());
         given(licenseRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
-        given(storageService.loadAsResource(anyString())).willReturn(mockResource);
+        given(storageService.loadAsResource(eq(StorageRoot.PUBLIC), anyString())).willReturn(mockResource);
 
         Resource result = downloadService.download(1L, userDetails);
 

@@ -7,6 +7,7 @@ import com.atstudio.atstudio.dto.payment.BillingAgreementConfirmResponse;
 import com.atstudio.atstudio.dto.payment.BillingAgreementPrepareRequest;
 import com.atstudio.atstudio.dto.payment.BillingAgreementPrepareResponse;
 import com.atstudio.atstudio.dto.payment.BillingAgreementResponse;
+import com.atstudio.atstudio.dto.subscription.UserSubscriptionResponse;
 import com.atstudio.atstudio.entity.BillingAgreement;
 import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.Subscription;
@@ -42,6 +43,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -60,6 +62,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -77,6 +80,7 @@ class BillingAgreementApplicationServiceTest {
     @Mock BillingCustomerKeyGenerator billingCustomerKeyGenerator;
     @Mock BillingKeyCrypto billingKeyCrypto;
     @Mock PaymentReceiptEvidenceService paymentReceiptEvidenceService;
+    @Mock PaymentCommandTransactionService paymentCommandTransactionService;
     @Mock RecurringPaymentProvider recurringPaymentProvider;
 
     BillingAgreementApplicationService service;
@@ -89,13 +93,11 @@ class BillingAgreementApplicationServiceTest {
                 subscriptionRepository,
                 userSubscriptionRepository,
                 paymentOrderRepository,
-                subscriptionPaymentRepository,
                 billingAgreementRepository,
                 companyCertificationRepository,
-                playlistService,
                 billingCustomerKeyGenerator,
                 billingKeyCrypto,
-                paymentReceiptEvidenceService,
+                paymentCommandTransactionService,
                 List.of(recurringPaymentProvider)
         );
     }
@@ -195,16 +197,30 @@ class BillingAgreementApplicationServiceTest {
     @Test
     @DisplayName("confirm issues billing key, charges immediately, and activates subscription")
     void confirmBillingAgreement_success() {
-        User user = buildUser(1L);
-        Subscription subscription = buildSubscription(10L);
-        BillingAgreement agreement = buildReadyAgreement(user);
-        PaymentOrder order = buildBillingOrder(user, subscription, agreement);
-        UserSubscription saved = buildUserSubscription(100L, user, subscription, SubscriptionStatus.ACTIVE);
+        UserSubscription saved = buildUserSubscription(
+                100L,
+                buildUser(1L),
+                buildSubscription(10L),
+                SubscriptionStatus.ACTIVE);
+        PaymentCommandTransactionService.BillingConfirmClaim claim = providerClaim(
+                "ORDER-1",
+                PaymentPurpose.SUBSCRIBE,
+                BigDecimal.valueOf(9900));
+        BillingAgreementConfirmResponse finalized = new BillingAgreementConfirmResponse(
+                "ORDER-1",
+                PaymentOrderStatus.DONE,
+                PaymentProviderType.TOSS_BILLING,
+                BillingAgreementStatus.ACTIVE,
+                saved.getExpiresAt(),
+                UserSubscriptionResponse.from(saved));
 
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(paymentOrderRepository.findByOrderId("ORDER-1")).willReturn(Optional.of(order));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                .willReturn(Optional.empty());
+        given(paymentCommandTransactionService.claimBillingConfirm(
+                eq(1L),
+                eq("ORDER-1"),
+                eq("ats_billing_customer_1"),
+                eq(BigDecimal.valueOf(9900)),
+                any(LocalDateTime.class)))
+                .willReturn(claim);
         given(recurringPaymentProvider.confirmAgreement(any()))
                 .willReturn(BillingAgreementConfirmResult.success(
                         "billing_raw_key",
@@ -219,10 +235,8 @@ class BillingAgreementApplicationServiceTest {
                         "CARD",
                         "1234",
                         "{\"paymentKey\":\"pay_1\"}"));
-        given(userSubscriptionRepository.findByUser(user)).willReturn(Optional.empty());
-        given(userSubscriptionRepository.save(any(UserSubscription.class))).willReturn(saved);
-        given(subscriptionPaymentRepository.save(any(SubscriptionPayment.class)))
-                .willAnswer(invocation -> invocation.getArgument(0));
+        given(paymentCommandTransactionService.finalizeInitialCharge(1L, 200L, "ORDER-1"))
+                .willReturn(finalized);
 
         BillingAgreementConfirmResponse response = service.confirmBillingAgreement(
                 buildUserDetails(1L),
@@ -235,52 +249,70 @@ class BillingAgreementApplicationServiceTest {
         assertThat(response.orderStatus()).isEqualTo(PaymentOrderStatus.DONE);
         assertThat(response.agreementStatus()).isEqualTo(BillingAgreementStatus.ACTIVE);
         assertThat(response.subscription().id()).isEqualTo(100L);
-        assertThat(order.getStatus()).isEqualTo(PaymentOrderStatus.DONE);
-        assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.ACTIVE);
-        assertThat(agreement.getBillingKeyCiphertext()).isEqualTo("encrypted-key");
         assertThat(response.toString()).doesNotContain("billing_raw_key");
 
         ArgumentCaptor<BillingChargeCommand> chargeCaptor = ArgumentCaptor.forClass(BillingChargeCommand.class);
         verify(recurringPaymentProvider).charge(chargeCaptor.capture());
-        assertThat(chargeCaptor.getValue().idempotencyKey()).isEqualTo("billing-initial-ORDER-1");
-        verify(subscriptionPaymentRepository).save(any(SubscriptionPayment.class));
-        verify(paymentReceiptEvidenceService).publishSuccessfulChargeEvidence(
-                eq(order),
-                any(SubscriptionPayment.class),
-                eq("{\"paymentKey\":\"pay_1\"}"));
-        verify(playlistService).createDefaultPlaylist(user);
+        assertThat(chargeCaptor.getValue().idempotencyKey())
+                .isEqualTo("billing-initial-ORDER-1-attempt-1");
+
+        InOrder ordering = inOrder(
+                paymentCommandTransactionService,
+                recurringPaymentProvider,
+                billingKeyCrypto);
+        ordering.verify(paymentCommandTransactionService).claimBillingConfirm(
+                eq(1L),
+                eq("ORDER-1"),
+                eq("ats_billing_customer_1"),
+                eq(BigDecimal.valueOf(9900)),
+                any(LocalDateTime.class));
+        ordering.verify(recurringPaymentProvider).confirmAgreement(any());
+        ordering.verify(billingKeyCrypto).encrypt("billing_raw_key");
+        ordering.verify(paymentCommandTransactionService).storeIssuedBillingKey(
+                200L,
+                "ORDER-1",
+                "encrypted-key",
+                "fingerprint",
+                "CARD",
+                "1234");
+        ordering.verify(recurringPaymentProvider).charge(any());
+        ordering.verify(paymentCommandTransactionService).recordProviderSuccess(
+                200L,
+                "ORDER-1",
+                "tx_1",
+                "{\"paymentKey\":\"pay_1\"}",
+                "CARD",
+                "1234");
+        ordering.verify(paymentCommandTransactionService).finalizeInitialCharge(1L, 200L, "ORDER-1");
     }
 
     @Test
     @DisplayName("confirm billing agreement re-registration stores key without an immediate charge")
     void confirmBillingAgreement_reRegistrationOnly() {
-        User user = buildUser(1L);
-        Subscription subscription = buildSubscription(10L);
         UserSubscription activeSubscription = buildUserSubscription(
                 100L,
-                user,
-                subscription,
+                buildUser(1L),
+                buildSubscription(10L),
                 SubscriptionStatus.ACTIVE);
-        BillingAgreement agreement = buildReadyAgreement(user);
-        PaymentOrder order = PaymentOrder.builder()
-                .orderId("ORDER-REAUTH")
-                .user(user)
-                .purpose(PaymentPurpose.BILLING_AGREEMENT)
-                .provider(PaymentProviderType.TOSS_BILLING)
-                .subscription(subscription)
-                .userSubscription(activeSubscription)
-                .billingAgreement(agreement)
-                .billingCycle(BillingCycle.MONTHLY)
-                .amount(BigDecimal.ZERO)
-                .currency("KRW")
-                .expiresAt(LocalDateTime.now().plusMinutes(10))
-                .build();
-        order.markInProgress("{\"phase\":\"prepare\"}");
+        PaymentCommandTransactionService.BillingConfirmClaim claim = providerClaim(
+                "ORDER-REAUTH",
+                PaymentPurpose.BILLING_AGREEMENT,
+                BigDecimal.ZERO);
+        BillingAgreementConfirmResponse finalized = new BillingAgreementConfirmResponse(
+                "ORDER-REAUTH",
+                PaymentOrderStatus.DONE,
+                PaymentProviderType.TOSS_BILLING,
+                BillingAgreementStatus.ACTIVE,
+                activeSubscription.getExpiresAt(),
+                UserSubscriptionResponse.from(activeSubscription));
 
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(paymentOrderRepository.findByOrderId("ORDER-REAUTH")).willReturn(Optional.of(order));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                .willReturn(Optional.of(activeSubscription));
+        given(paymentCommandTransactionService.claimBillingConfirm(
+                eq(1L),
+                eq("ORDER-REAUTH"),
+                eq("ats_billing_customer_1"),
+                eq(BigDecimal.ZERO),
+                any(LocalDateTime.class)))
+                .willReturn(claim);
         given(recurringPaymentProvider.confirmAgreement(any()))
                 .willReturn(BillingAgreementConfirmResult.success(
                         "billing_raw_key",
@@ -289,6 +321,8 @@ class BillingAgreementApplicationServiceTest {
                         "{\"method\":\"CARD\"}"));
         given(billingKeyCrypto.encrypt("billing_raw_key"))
                 .willReturn(new BillingKeyCrypto.ProtectedBillingKey("encrypted-key", "fingerprint"));
+        given(paymentCommandTransactionService.finalizeInitialCharge(1L, 200L, "ORDER-REAUTH"))
+                .willReturn(finalized);
 
         BillingAgreementConfirmResponse response = service.confirmBillingAgreement(
                 buildUserDetails(1L),
@@ -301,24 +335,31 @@ class BillingAgreementApplicationServiceTest {
         assertThat(response.orderStatus()).isEqualTo(PaymentOrderStatus.DONE);
         assertThat(response.agreementStatus()).isEqualTo(BillingAgreementStatus.ACTIVE);
         assertThat(response.nextBillingAt()).isEqualTo(activeSubscription.getExpiresAt());
-        assertThat(agreement.getBillingKeyCiphertext()).isEqualTo("encrypted-key");
         verify(recurringPaymentProvider, never()).charge(any());
-        verify(subscriptionPaymentRepository, never()).save(any());
-        verify(playlistService, never()).createDefaultPlaylist(any());
+        verify(paymentCommandTransactionService).recordProviderSuccess(
+                200L,
+                "ORDER-REAUTH",
+                "billing-agreement-ORDER-REAUTH",
+                "{\"method\":\"CARD\"}",
+                "CARD",
+                "1234");
     }
 
     @Test
     @DisplayName("initial charge failure leaves subscription inactive")
     void confirmBillingAgreement_chargeFailure() {
-        User user = buildUser(1L);
-        Subscription subscription = buildSubscription(10L);
-        BillingAgreement agreement = buildReadyAgreement(user);
-        PaymentOrder order = buildBillingOrder(user, subscription, agreement);
+        PaymentCommandTransactionService.BillingConfirmClaim claim = providerClaim(
+                "ORDER-1",
+                PaymentPurpose.SUBSCRIBE,
+                BigDecimal.valueOf(9900));
 
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(paymentOrderRepository.findByOrderId("ORDER-1")).willReturn(Optional.of(order));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                .willReturn(Optional.empty());
+        given(paymentCommandTransactionService.claimBillingConfirm(
+                eq(1L),
+                eq("ORDER-1"),
+                eq("ats_billing_customer_1"),
+                eq(BigDecimal.valueOf(9900)),
+                any(LocalDateTime.class)))
+                .willReturn(claim);
         given(recurringPaymentProvider.confirmAgreement(any()))
                 .willReturn(BillingAgreementConfirmResult.success(
                         "billing_raw_key",
@@ -343,25 +384,28 @@ class BillingAgreementApplicationServiceTest {
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.BILLING_AGREEMENT_CONFIRM_FAILED));
 
-        assertThat(order.getStatus()).isEqualTo(PaymentOrderStatus.FAILED);
-        assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.READY);
-        assertThat(agreement.getFailureCount()).isEqualTo(1);
-        assertThat(agreement.getBillingKeyCiphertext()).isNull();
-        verify(userSubscriptionRepository, never()).save(any(UserSubscription.class));
-        verify(subscriptionPaymentRepository, never()).save(any(SubscriptionPayment.class));
+        InOrder ordering = inOrder(paymentCommandTransactionService, recurringPaymentProvider);
+        ordering.verify(paymentCommandTransactionService).recordProviderFailure(
+                200L,
+                "ORDER-1",
+                "DECLINED",
+                "Initial charge failed.",
+                PaymentCommandTransactionService.ProviderFailureDisposition.FAILED,
+                true);
+        ordering.verify(recurringPaymentProvider).cancelAgreement(any());
+        ordering.verify(paymentCommandTransactionService).clearIssuedBillingKeyAfterCleanup(200L);
     }
 
     @Test
     @DisplayName("confirm rejects owner mismatch before provider call")
     void confirmBillingAgreement_ownerMismatch() {
-        User user = buildUser(1L);
-        User otherUser = buildUser(2L);
-        Subscription subscription = buildSubscription(10L);
-        BillingAgreement agreement = buildReadyAgreement(otherUser);
-        PaymentOrder order = buildBillingOrder(otherUser, subscription, agreement);
-
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(paymentOrderRepository.findByOrderId("ORDER-1")).willReturn(Optional.of(order));
+        given(paymentCommandTransactionService.claimBillingConfirm(
+                eq(1L),
+                eq("ORDER-1"),
+                eq("ats_billing_customer_1"),
+                eq(BigDecimal.valueOf(9900)),
+                any(LocalDateTime.class)))
+                .willThrow(new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS));
 
         assertThatThrownBy(() -> service.confirmBillingAgreement(
                 buildUserDetails(1L),
@@ -380,13 +424,13 @@ class BillingAgreementApplicationServiceTest {
     @Test
     @DisplayName("confirm rejects customerKey mismatch")
     void confirmBillingAgreement_customerKeyMismatch() {
-        User user = buildUser(1L);
-        Subscription subscription = buildSubscription(10L);
-        BillingAgreement agreement = buildReadyAgreement(user);
-        PaymentOrder order = buildBillingOrder(user, subscription, agreement);
-
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(paymentOrderRepository.findByOrderId("ORDER-1")).willReturn(Optional.of(order));
+        given(paymentCommandTransactionService.claimBillingConfirm(
+                eq(1L),
+                eq("ORDER-1"),
+                eq("wrong_customer_key"),
+                eq(BigDecimal.valueOf(9900)),
+                any(LocalDateTime.class)))
+                .willThrow(new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT));
 
         assertThatThrownBy(() -> service.confirmBillingAgreement(
                 buildUserDetails(1L),
@@ -458,6 +502,24 @@ class BillingAgreementApplicationServiceTest {
         assertThat(subscriptionAccess.getStatus()).isEqualTo(SubscriptionStatus.CANCELLED);
         assertThat(response.toString()).doesNotContain("billing_raw_key");
         verify(recurringPaymentProvider).cancelAgreement(any());
+    }
+
+    private PaymentCommandTransactionService.BillingConfirmClaim providerClaim(
+            String orderID,
+            PaymentPurpose purpose,
+            BigDecimal amount) {
+        return new PaymentCommandTransactionService.BillingConfirmClaim(
+                PaymentCommandTransactionService.BillingConfirmAction.CALL_PROVIDER,
+                200L,
+                orderID,
+                purpose,
+                "ats_billing_customer_1",
+                "Basic recurring subscription",
+                amount,
+                "user1@test.com",
+                "user1",
+                "billing-initial-" + orderID + "-attempt-1",
+                null);
     }
 
     private User buildUser(Long id) {
