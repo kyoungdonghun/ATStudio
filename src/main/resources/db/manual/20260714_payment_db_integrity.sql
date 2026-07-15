@@ -26,9 +26,28 @@ WHERE table_schema = DATABASE()
       'user_subscriptions',
       'payment_orders',
       'subscription_payments',
+      'payment_refunds',
       'payment_operation_audit_logs'
   )
 ORDER BY table_name, ordinal_position;
+
+SELECT table_name, index_name, non_unique,
+       GROUP_CONCAT(column_name ORDER BY seq_in_index) AS indexed_columns
+FROM information_schema.statistics
+WHERE table_schema = DATABASE()
+  AND index_name IN (
+      'idx_billing_agreements_renewal_retry',
+      'idx_billing_agreements_cleanup',
+      'uq_payment_orders_command_key',
+      'uq_payment_orders_provider_attempt_key',
+      'uq_payment_orders_renewal_period',
+      'idx_payment_orders_status_processing',
+      'uq_subscription_payments_order',
+      'uq_subscription_payments_provider_transaction',
+      'idx_payment_refunds_status_processing'
+  )
+GROUP BY table_name, index_name, non_unique
+ORDER BY table_name, index_name;
 
 DELIMITER //
 
@@ -45,9 +64,10 @@ BEGIN
           'user_subscriptions',
           'payment_orders',
           'subscription_payments',
+          'payment_refunds',
           'payment_operation_audit_logs'
       );
-    IF v_count <> 5 THEN
+    IF v_count <> 6 THEN
         SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'Missing payment baseline table; stop before applying this patch.';
     END IF;
@@ -61,14 +81,21 @@ BEGIN
               'subscription_id', 'user_subscription_id',
               'billing_agreement_id', 'billing_cycle', 'expires_at'
           ))
+          OR (table_name = 'billing_agreements' AND column_name IN (
+              'id', 'user_id', 'provider', 'status',
+              'billing_key_ciphertext', 'next_billing_at', 'updated_at'
+          ))
           OR (table_name = 'subscription_payments' AND column_name IN (
               'payment_order_id', 'provider', 'pg_transaction_id'
+          ))
+          OR (table_name = 'payment_refunds' AND column_name IN (
+              'id', 'status', 'updated_at'
           ))
           OR (table_name = 'payment_operation_audit_logs' AND column_name IN (
               'action', 'target_type'
           ))
       );
-    IF v_count <> 16 THEN
+    IF v_count <> 26 THEN
         SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'Missing payment baseline column; stop before applying this patch.';
     END IF;
@@ -122,6 +149,22 @@ BEGIN
         SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'Duplicate provider transaction finalizations exist.';
     END IF;
+
+    SELECT COUNT(*) INTO v_count
+    FROM billing_agreements
+    WHERE status = 'CANCELLED'
+      AND billing_key_ciphertext IS NOT NULL
+      AND CHAR_LENGTH(TRIM(billing_key_ciphertext)) > 0;
+    IF v_count > 0 THEN
+        SELECT id, provider, status, updated_at
+        FROM billing_agreements
+        WHERE status = 'CANCELLED'
+          AND billing_key_ciphertext IS NOT NULL
+          AND CHAR_LENGTH(TRIM(billing_key_ciphertext)) > 0
+        ORDER BY id;
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Cancelled agreements retain billing keys; row-specific cleanup disposition is required.';
+    END IF;
 END//
 
 DELIMITER ;
@@ -129,11 +172,17 @@ DELIMITER ;
 CALL ats_payment_integrity_preflight();
 DROP PROCEDURE IF EXISTS ats_payment_integrity_preflight;
 
+SELECT id, status, updated_at
+FROM payment_refunds
+WHERE status = 'PROCESSING'
+ORDER BY id;
+
 -- 2. Add command columns and expand ENUMs
 DELIMITER //
 
 DROP PROCEDURE IF EXISTS ats_add_payment_column_if_missing//
 CREATE PROCEDURE ats_add_payment_column_if_missing(
+    IN p_table_name VARCHAR(64),
     IN p_column_name VARCHAR(64),
     IN p_alter_sql TEXT
 )
@@ -142,7 +191,7 @@ BEGIN
         SELECT 1
         FROM information_schema.columns
         WHERE table_schema = DATABASE()
-          AND table_name = 'payment_orders'
+          AND table_name = p_table_name
           AND column_name = p_column_name
     ) THEN
         SET @ats_sql = p_alter_sql;
@@ -155,22 +204,27 @@ END//
 DELIMITER ;
 
 CALL ats_add_payment_column_if_missing(
+    'payment_orders',
     'command_key',
     'ALTER TABLE payment_orders ADD COLUMN command_key VARCHAR(191) NULL AFTER order_id'
 );
 CALL ats_add_payment_column_if_missing(
+    'payment_orders',
     'billing_period_start',
     'ALTER TABLE payment_orders ADD COLUMN billing_period_start DATE NULL AFTER billing_cycle'
 );
 CALL ats_add_payment_column_if_missing(
+    'payment_orders',
     'provider_attempt',
     'ALTER TABLE payment_orders ADD COLUMN provider_attempt INT NOT NULL DEFAULT 0 AFTER billing_period_start'
 );
 CALL ats_add_payment_column_if_missing(
+    'payment_orders',
     'provider_idempotency_key',
     'ALTER TABLE payment_orders ADD COLUMN provider_idempotency_key VARCHAR(100) NULL AFTER provider_attempt'
 );
 CALL ats_add_payment_column_if_missing(
+    'payment_orders',
     'processing_started_at',
     'ALTER TABLE payment_orders ADD COLUMN processing_started_at DATETIME NULL AFTER provider_idempotency_key'
 );
@@ -269,7 +323,180 @@ UPDATE payment_orders
 SET command_key = CONCAT('LEGACY:', order_id)
 WHERE command_key IS NULL;
 
--- 4. Block ambiguous renewal groups
+-- 4. Preflight Package A legacy state
+SELECT agreement.id AS billing_agreement_id,
+       agreement.next_billing_at AS legacy_retry_at,
+       payment_order.id AS payment_order_id,
+       payment_order.user_subscription_id,
+       payment_order.billing_period_start,
+       DATEDIFF(agreement.next_billing_at, payment_order.billing_period_start) AS retry_day_offset
+FROM billing_agreements agreement
+JOIN payment_orders payment_order
+  ON payment_order.billing_agreement_id = agreement.id
+ AND payment_order.user_id = agreement.user_id
+JOIN user_subscriptions user_subscription
+  ON user_subscription.id = payment_order.user_subscription_id
+ AND user_subscription.user_id = agreement.user_id
+WHERE agreement.status = 'ACTIVE'
+  AND payment_order.purpose = 'RENEWAL'
+  AND payment_order.status = 'FAILED'
+  AND payment_order.billing_period_start IS NOT NULL
+  AND DATEDIFF(agreement.next_billing_at, payment_order.billing_period_start) BETWEEN 1 AND 3
+ORDER BY agreement.id, payment_order.id;
+
+SELECT agreement.id AS billing_agreement_id,
+       agreement.next_billing_at AS legacy_retry_at,
+       (
+           SELECT COUNT(*)
+           FROM payment_orders exact_order
+           JOIN user_subscriptions exact_subscription
+             ON exact_subscription.id = exact_order.user_subscription_id
+            AND exact_subscription.user_id = agreement.user_id
+           WHERE exact_order.billing_agreement_id = agreement.id
+             AND exact_order.user_id = agreement.user_id
+             AND exact_order.purpose = 'RENEWAL'
+             AND exact_order.status = 'FAILED'
+             AND exact_order.billing_period_start IS NOT NULL
+             AND DATEDIFF(agreement.next_billing_at, exact_order.billing_period_start) BETWEEN 1 AND 3
+       ) AS exact_candidate_count
+FROM billing_agreements agreement
+WHERE agreement.status = 'ACTIVE'
+  AND EXISTS (
+      SELECT 1
+      FROM payment_orders retry_window_order
+      WHERE retry_window_order.user_id = agreement.user_id
+        AND retry_window_order.purpose = 'RENEWAL'
+        AND retry_window_order.status = 'FAILED'
+        AND retry_window_order.billing_period_start IS NOT NULL
+        AND DATEDIFF(
+            agreement.next_billing_at,
+            retry_window_order.billing_period_start
+        ) BETWEEN 1 AND 3
+  )
+  AND (
+      SELECT COUNT(*)
+      FROM payment_orders exact_order
+      JOIN user_subscriptions exact_subscription
+        ON exact_subscription.id = exact_order.user_subscription_id
+       AND exact_subscription.user_id = agreement.user_id
+      WHERE exact_order.billing_agreement_id = agreement.id
+        AND exact_order.user_id = agreement.user_id
+        AND exact_order.purpose = 'RENEWAL'
+        AND exact_order.status = 'FAILED'
+        AND exact_order.billing_period_start IS NOT NULL
+        AND DATEDIFF(agreement.next_billing_at, exact_order.billing_period_start) BETWEEN 1 AND 3
+  ) <> 1
+ORDER BY agreement.id;
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS ats_check_legacy_renewal_retry_repair//
+CREATE PROCEDURE ats_check_legacy_renewal_retry_repair()
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM billing_agreements agreement
+        WHERE agreement.status = 'ACTIVE'
+          AND EXISTS (
+              SELECT 1
+              FROM payment_orders retry_window_order
+              WHERE retry_window_order.user_id = agreement.user_id
+                AND retry_window_order.purpose = 'RENEWAL'
+                AND retry_window_order.status = 'FAILED'
+                AND retry_window_order.billing_period_start IS NOT NULL
+                AND DATEDIFF(
+                    agreement.next_billing_at,
+                    retry_window_order.billing_period_start
+                ) BETWEEN 1 AND 3
+          )
+          AND (
+              SELECT COUNT(*)
+              FROM payment_orders exact_order
+              JOIN user_subscriptions exact_subscription
+                ON exact_subscription.id = exact_order.user_subscription_id
+               AND exact_subscription.user_id = agreement.user_id
+              WHERE exact_order.billing_agreement_id = agreement.id
+                AND exact_order.user_id = agreement.user_id
+                AND exact_order.purpose = 'RENEWAL'
+                AND exact_order.status = 'FAILED'
+                AND exact_order.billing_period_start IS NOT NULL
+                AND DATEDIFF(
+                    agreement.next_billing_at,
+                    exact_order.billing_period_start
+                ) BETWEEN 1 AND 3
+          ) <> 1
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Legacy retry window lacks one exact failed renewal period; row-specific disposition is required.';
+    END IF;
+END//
+
+DELIMITER ;
+
+CALL ats_check_legacy_renewal_retry_repair();
+DROP PROCEDURE IF EXISTS ats_check_legacy_renewal_retry_repair;
+
+-- 5. Add Package A columns
+CALL ats_add_payment_column_if_missing(
+    'billing_agreements',
+    'renewal_retry_at',
+    'ALTER TABLE billing_agreements ADD COLUMN renewal_retry_at DATE NULL AFTER next_billing_at'
+);
+CALL ats_add_payment_column_if_missing(
+    'billing_agreements',
+    'billing_key_cleanup_status',
+    'ALTER TABLE billing_agreements ADD COLUMN billing_key_cleanup_status ENUM (''NONE'', ''REQUIRED'', ''PROCESSING'', ''PENDING_PROVIDER_CONFIRMATION'', ''FAILED'') NOT NULL DEFAULT ''NONE'' AFTER cancelled_at'
+);
+CALL ats_add_payment_column_if_missing(
+    'billing_agreements',
+    'billing_key_cleanup_started_at',
+    'ALTER TABLE billing_agreements ADD COLUMN billing_key_cleanup_started_at DATETIME NULL AFTER billing_key_cleanup_status'
+);
+CALL ats_add_payment_column_if_missing(
+    'payment_orders',
+    'upgrade_target_billing_cycle',
+    'ALTER TABLE payment_orders ADD COLUMN upgrade_target_billing_cycle ENUM (''MONTHLY'', ''YEARLY'') NULL AFTER billing_cycle'
+);
+CALL ats_add_payment_column_if_missing(
+    'payment_refunds',
+    'processing_started_at',
+    'ALTER TABLE payment_refunds ADD COLUMN processing_started_at DATETIME NULL AFTER approved_at'
+);
+
+-- 6. Repair and backfill Package A state
+UPDATE billing_agreements agreement
+JOIN (
+    SELECT candidate_agreement.id AS billing_agreement_id,
+           MIN(candidate_order.id) AS payment_order_id
+    FROM billing_agreements candidate_agreement
+    JOIN payment_orders candidate_order
+      ON candidate_order.billing_agreement_id = candidate_agreement.id
+     AND candidate_order.user_id = candidate_agreement.user_id
+    JOIN user_subscriptions candidate_subscription
+      ON candidate_subscription.id = candidate_order.user_subscription_id
+     AND candidate_subscription.user_id = candidate_agreement.user_id
+    WHERE candidate_agreement.status = 'ACTIVE'
+      AND candidate_agreement.renewal_retry_at IS NULL
+      AND candidate_order.purpose = 'RENEWAL'
+      AND candidate_order.status = 'FAILED'
+      AND candidate_order.billing_period_start IS NOT NULL
+      AND DATEDIFF(
+          candidate_agreement.next_billing_at,
+          candidate_order.billing_period_start
+      ) BETWEEN 1 AND 3
+    GROUP BY candidate_agreement.id
+    HAVING COUNT(*) = 1
+) repair ON repair.billing_agreement_id = agreement.id
+JOIN payment_orders failed_order ON failed_order.id = repair.payment_order_id
+SET agreement.renewal_retry_at = agreement.next_billing_at,
+    agreement.next_billing_at = failed_order.billing_period_start;
+
+UPDATE payment_refunds
+SET processing_started_at = updated_at
+WHERE status = 'PROCESSING'
+  AND processing_started_at IS NULL;
+
+-- 7. Block ambiguous renewal groups
 SELECT billing_agreement_id, user_subscription_id, purpose,
        billing_period_start, COUNT(*) AS duplicate_count
 FROM payment_orders
@@ -335,7 +562,7 @@ DELIMITER ;
 CALL ats_payment_integrity_constraint_preflight();
 DROP PROCEDURE IF EXISTS ats_payment_integrity_constraint_preflight;
 
--- 5. Add final constraints and indexes
+-- 8. Add final constraints and indexes
 DELIMITER //
 
 DROP PROCEDURE IF EXISTS ats_add_payment_index_if_missing//
@@ -391,19 +618,40 @@ CALL ats_add_payment_index_if_missing(
     'uq_subscription_payments_provider_transaction',
     'ALTER TABLE subscription_payments ADD UNIQUE KEY uq_subscription_payments_provider_transaction (provider, pg_transaction_id)'
 );
+CALL ats_add_payment_index_if_missing(
+    'billing_agreements',
+    'idx_billing_agreements_renewal_retry',
+    'ALTER TABLE billing_agreements ADD KEY idx_billing_agreements_renewal_retry (status, renewal_retry_at, id)'
+);
+CALL ats_add_payment_index_if_missing(
+    'billing_agreements',
+    'idx_billing_agreements_cleanup',
+    'ALTER TABLE billing_agreements ADD KEY idx_billing_agreements_cleanup (billing_key_cleanup_status, billing_key_cleanup_started_at, id)'
+);
+CALL ats_add_payment_index_if_missing(
+    'payment_refunds',
+    'idx_payment_refunds_status_processing',
+    'ALTER TABLE payment_refunds ADD KEY idx_payment_refunds_status_processing (status, processing_started_at, id)'
+);
 
 DROP PROCEDURE IF EXISTS ats_add_payment_column_if_missing;
 DROP PROCEDURE IF EXISTS ats_add_payment_index_if_missing;
 
--- 6. Post-apply contract comparison
+-- 9. Post-apply contract comparison
 SELECT table_name, column_name, column_type, is_nullable, column_default
 FROM information_schema.columns
 WHERE table_schema = DATABASE()
   AND (
       (table_name = 'payment_orders' AND column_name IN (
           'status', 'command_key', 'billing_period_start', 'provider_attempt',
-          'provider_idempotency_key', 'processing_started_at'
+          'provider_idempotency_key', 'processing_started_at',
+          'upgrade_target_billing_cycle'
       ))
+      OR (table_name = 'billing_agreements' AND column_name IN (
+          'renewal_retry_at', 'billing_key_cleanup_status',
+          'billing_key_cleanup_started_at'
+      ))
+      OR (table_name = 'payment_refunds' AND column_name = 'processing_started_at')
       OR (table_name = 'subscription_payments' AND column_name = 'pg_transaction_id')
       OR (table_name = 'payment_operation_audit_logs'
           AND column_name IN ('action', 'target_type'))
@@ -420,7 +668,10 @@ WHERE table_schema = DATABASE()
       'uq_payment_orders_renewal_period',
       'idx_payment_orders_status_processing',
       'uq_subscription_payments_order',
-      'uq_subscription_payments_provider_transaction'
+      'uq_subscription_payments_provider_transaction',
+      'idx_billing_agreements_renewal_retry',
+      'idx_billing_agreements_cleanup',
+      'idx_payment_refunds_status_processing'
   )
 GROUP BY table_name, index_name, non_unique
 ORDER BY table_name, index_name;

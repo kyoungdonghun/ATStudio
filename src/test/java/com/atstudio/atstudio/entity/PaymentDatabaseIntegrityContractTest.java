@@ -1,8 +1,14 @@
 package com.atstudio.atstudio.entity;
 
+import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
+import com.atstudio.atstudio.entity.enums.BillingCycle;
+import com.atstudio.atstudio.entity.enums.BillingKeyCleanupStatus;
 import com.atstudio.atstudio.entity.enums.PaymentOperationAuditAction;
 import com.atstudio.atstudio.entity.enums.PaymentOperationAuditTargetType;
 import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
+import com.atstudio.atstudio.entity.enums.PaymentProviderType;
+import com.atstudio.atstudio.entity.enums.PaymentPurpose;
+import com.atstudio.atstudio.entity.enums.PaymentRefundStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
@@ -14,6 +20,8 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
@@ -23,6 +31,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DisplayName("Payment database integrity contract tests")
 class PaymentDatabaseIntegrityContractTest {
@@ -50,6 +59,12 @@ class PaymentDatabaseIntegrityContractTest {
         assertColumn(PaymentOrder.class, "providerAttempt", "provider_attempt", 255, false);
         assertColumn(PaymentOrder.class, "providerIdempotencyKey", "provider_idempotency_key", 100, true);
         assertColumn(PaymentOrder.class, "processingStartedAt", "processing_started_at", 255, true);
+        assertColumn(
+                PaymentOrder.class,
+                "upgradeTargetBillingCycle",
+                "upgrade_target_billing_cycle",
+                10,
+                true);
 
         Table table = PaymentOrder.class.getAnnotation(Table.class);
         assertUniqueConstraint(table, "uq_payment_orders_command_key", "command_key");
@@ -66,6 +81,145 @@ class PaymentDatabaseIntegrityContractTest {
                 "purpose",
                 "billing_period_start");
         assertIndex(table, "idx_payment_orders_status_processing", "status,processing_started_at");
+    }
+
+    @Test
+    @DisplayName("Package A entities expose retry, cleanup, upgrade, and refund lease mappings")
+    void packageAEntitiesMapAdditiveContract() throws NoSuchFieldException {
+        assertThat(BillingKeyCleanupStatus.values()).containsExactly(
+                BillingKeyCleanupStatus.NONE,
+                BillingKeyCleanupStatus.REQUIRED,
+                BillingKeyCleanupStatus.PROCESSING,
+                BillingKeyCleanupStatus.PENDING_PROVIDER_CONFIRMATION,
+                BillingKeyCleanupStatus.FAILED);
+
+        assertColumn(BillingAgreement.class, "renewalRetryAt", "renewal_retry_at", 255, true);
+        assertColumn(
+                BillingAgreement.class,
+                "billingKeyCleanupStatus",
+                "billing_key_cleanup_status",
+                40,
+                false);
+        assertColumn(
+                BillingAgreement.class,
+                "billingKeyCleanupStartedAt",
+                "billing_key_cleanup_started_at",
+                255,
+                true);
+        Table agreementTable = BillingAgreement.class.getAnnotation(Table.class);
+        assertIndex(
+                agreementTable,
+                "idx_billing_agreements_renewal_retry",
+                "status,renewal_retry_at,id");
+        assertIndex(
+                agreementTable,
+                "idx_billing_agreements_cleanup",
+                "billing_key_cleanup_status,billing_key_cleanup_started_at,id");
+
+        assertColumn(PaymentRefund.class, "processingStartedAt", "processing_started_at", 255, true);
+        Table refundTable = PaymentRefund.class.getAnnotation(Table.class);
+        assertIndex(
+                refundTable,
+                "idx_payment_refunds_status_processing",
+                "status,processing_started_at,id");
+    }
+
+    @Test
+    @DisplayName("renewal failure preserves period identity and cleanup transitions require the active lease")
+    void billingAgreementEnforcesPackageAStateTransitions() {
+        LocalDate billingPeriodStart = LocalDate.of(2026, 7, 15);
+        LocalDate retryAt = billingPeriodStart.plusDays(1);
+        LocalDateTime cleanupStartedAt = LocalDateTime.of(2026, 7, 15, 12, 0, 0, 123_000_000);
+        BillingAgreement agreement = BillingAgreement.builder()
+                .provider(PaymentProviderType.TOSS_BILLING)
+                .providerCustomerKey("ats_billing_random")
+                .build();
+        agreement.activate("ciphertext", "fingerprint", "CARD", "masked", billingPeriodStart);
+        agreement.recordSuccessfulCharge(billingPeriodStart);
+
+        agreement.recordFailedCharge(retryAt);
+
+        assertThat(agreement.getNextBillingAt()).isEqualTo(billingPeriodStart);
+        assertThat(agreement.getRenewalRetryAt()).isEqualTo(retryAt);
+        assertThat(agreement.getFailureCount()).isEqualTo(1);
+
+        agreement.cancel();
+        agreement.claimBillingKeyCleanup(cleanupStartedAt);
+
+        LocalDateTime persistedLease = cleanupStartedAt.withNano(0);
+        assertThat(agreement.getBillingKeyCleanupStatus()).isEqualTo(BillingKeyCleanupStatus.PROCESSING);
+        assertThat(agreement.getBillingKeyCleanupStartedAt()).isEqualTo(persistedLease);
+        assertThat(agreement.isBillingKeyCleanupProcessingStale(persistedLease)).isTrue();
+        assertThatThrownBy(() -> agreement.markBillingKeyCleanupFailed(persistedLease.plusSeconds(1)))
+                .isInstanceOf(IllegalStateException.class);
+
+        agreement.markBillingKeyCleanupPendingProviderConfirmation(persistedLease);
+        agreement.markBillingKeyCleanupRequired();
+        agreement.claimBillingKeyCleanup(cleanupStartedAt.plusMinutes(16));
+        agreement.markBillingKeyCleanupSucceeded(cleanupStartedAt.plusMinutes(16));
+
+        assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.CANCELLED);
+        assertThat(agreement.getBillingKeyCleanupStatus()).isEqualTo(BillingKeyCleanupStatus.NONE);
+        assertThat(agreement.getBillingKeyCleanupStartedAt()).isNull();
+        assertThat(agreement.getBillingKeyCiphertext()).isNull();
+        assertThat(agreement.getNextBillingAt()).isEqualTo(billingPeriodStart);
+        assertThat(agreement.getLastChargedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("upgrade claims require a target cycle and reconciliation accepts only stale processing")
+    void paymentOrderEnforcesUpgradeAndReconciliationContract() {
+        LocalDateTime claimedAt = LocalDateTime.of(2026, 7, 15, 12, 0);
+        PaymentOrder missingTarget = PaymentOrder.builder()
+                .purpose(PaymentPurpose.UPGRADE)
+                .build();
+        assertThatThrownBy(() -> missingTarget.claimProviderAttempt("upgrade-command", "attempt-1", claimedAt))
+                .isInstanceOf(IllegalStateException.class);
+
+        PaymentOrder order = PaymentOrder.builder()
+                .purpose(PaymentPurpose.UPGRADE)
+                .upgradeTargetBillingCycle(BillingCycle.YEARLY)
+                .build();
+        order.claimProviderAttempt("upgrade-command", "attempt-1", claimedAt);
+
+        assertThatThrownBy(() -> order.markProviderSucceededFromReconciliation(
+                "transaction-1",
+                "sanitized",
+                claimedAt.minusSeconds(1)))
+                .isInstanceOf(IllegalStateException.class);
+
+        order.markProviderSucceededFromReconciliation(
+                "transaction-1",
+                "sanitized",
+                claimedAt);
+
+        assertThat(order.getStatus()).isEqualTo(PaymentOrderStatus.PROVIDER_SUCCEEDED);
+        assertThat(order.getUpgradeTargetBillingCycle()).isEqualTo(BillingCycle.YEARLY);
+        assertThat(order.getPgTransactionId()).isEqualTo("transaction-1");
+        assertThat(order.getProcessingStartedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("refund result writers reject an old lease and clear the current lease")
+    void paymentRefundFencesResultWriters() {
+        LocalDateTime firstClaim = LocalDateTime.of(2026, 7, 15, 12, 0, 0, 987_000_000);
+        LocalDateTime secondClaim = firstClaim.plusMinutes(16);
+        PaymentRefund refund = PaymentRefund.builder()
+                .status(PaymentRefundStatus.APPROVED)
+                .build();
+
+        refund.markProcessing(null, firstClaim);
+        LocalDateTime firstLease = firstClaim.withNano(0);
+        refund.reclaimProcessing(null, firstLease, secondClaim);
+
+        assertThatThrownBy(() -> refund.markSucceeded("refund-transaction", "sanitized", firstLease))
+                .isInstanceOf(IllegalStateException.class);
+
+        refund.markSucceeded("refund-transaction", "sanitized", secondClaim);
+
+        assertThat(refund.getStatus()).isEqualTo(PaymentRefundStatus.SUCCEEDED);
+        assertThat(refund.getProcessingStartedAt()).isNull();
+        assertThat(refund.getProviderRefundTransactionId()).isEqualTo("refund-transaction");
     }
 
     @Test
@@ -87,10 +241,14 @@ class PaymentDatabaseIntegrityContractTest {
     void freshSchemaMatchesJavaContract() throws IOException {
         String schema = Files.readString(FRESH_SCHEMA);
         String paymentOrders = tableDefinition(schema, "payment_orders");
+        String billingAgreements = tableDefinition(schema, "billing_agreements");
         String subscriptionPayments = tableDefinition(schema, "subscription_payments");
+        String paymentRefunds = tableDefinition(schema, "payment_refunds");
         String auditLogs = tableDefinition(schema, "payment_operation_audit_logs");
         String normalizedPaymentOrders = normalizeSql(paymentOrders);
+        String normalizedBillingAgreements = normalizeSql(billingAgreements);
         String normalizedSubscriptionPayments = normalizeSql(subscriptionPayments);
+        String normalizedPaymentRefunds = normalizeSql(paymentRefunds);
 
         assertThat(normalizedPaymentOrders)
                 .contains("command_key VARCHAR(191)"
@@ -98,6 +256,7 @@ class PaymentDatabaseIntegrityContractTest {
                         , "provider_attempt INT"
                         , "provider_idempotency_key VARCHAR(100)"
                         , "processing_started_at DATETIME"
+                        , "upgrade_target_billing_cycle ENUM ('MONTHLY', 'YEARLY')"
                         , "UNIQUE KEY uq_payment_orders_command_key (command_key)"
                         , "UNIQUE KEY uq_payment_orders_provider_attempt_key (provider, provider_idempotency_key)"
                         , "UNIQUE KEY uq_payment_orders_renewal_period (billing_agreement_id, user_subscription_id, purpose, billing_period_start)"
@@ -105,10 +264,21 @@ class PaymentDatabaseIntegrityContractTest {
         assertThat(paymentOrders)
                 .contains("'PROCESSING'", "'PROVIDER_SUCCEEDED'", "'PENDING_PROVIDER_CONFIRMATION'");
 
+        assertThat(normalizedBillingAgreements)
+                .contains("renewal_retry_at DATE"
+                        , "billing_key_cleanup_status ENUM ( 'NONE', 'REQUIRED', 'PROCESSING', 'PENDING_PROVIDER_CONFIRMATION', 'FAILED' ) NOT NULL DEFAULT 'NONE'"
+                        , "billing_key_cleanup_started_at DATETIME"
+                        , "KEY idx_billing_agreements_renewal_retry (status, renewal_retry_at, id)"
+                        , "KEY idx_billing_agreements_cleanup (billing_key_cleanup_status, billing_key_cleanup_started_at, id)");
+
         assertThat(normalizedSubscriptionPayments)
                 .contains("pg_transaction_id VARCHAR(200)"
                         , "UNIQUE KEY uq_subscription_payments_order (payment_order_id)"
                         , "UNIQUE KEY uq_subscription_payments_provider_transaction (provider, pg_transaction_id)");
+
+        assertThat(normalizedPaymentRefunds)
+                .contains("processing_started_at DATETIME"
+                        , "KEY idx_payment_refunds_status_processing (status, processing_started_at, id)");
 
         assertAuditEnumValues(auditLogs);
     }
@@ -124,18 +294,65 @@ class PaymentDatabaseIntegrityContractTest {
                         , "information_schema.statistics"
                         , "DATE_SUB(DATE(expires_at), INTERVAL 3 DAY)"
                         , "'RENEWAL:'"
-                        , "CONCAT('LEGACY:', order_id)");
+                        , "CONCAT('LEGACY:', order_id)"
+                        , "agreement.renewal_retry_at = agreement.next_billing_at"
+                        , "agreement.next_billing_at = failed_order.billing_period_start"
+                        , "SET processing_started_at = updated_at"
+                        , "billing_key_cleanup_status ENUM (''NONE'', ''REQUIRED'', ''PROCESSING'', ''PENDING_PROVIDER_CONFIRMATION'', ''FAILED'')"
+                        , "upgrade_target_billing_cycle ENUM (''MONTHLY'', ''YEARLY'')"
+                        , "ADD COLUMN processing_started_at DATETIME NULL AFTER approved_at"
+                        , "idx_billing_agreements_renewal_retry"
+                        , "idx_billing_agreements_cleanup"
+                        , "idx_payment_refunds_status_processing");
         assertThat(patch).doesNotContain("DELETE FROM", "TRUNCATE TABLE", "DROP TABLE");
-        assertThat(patch).doesNotContain("UPDATE subscription_payments", "UPDATE payment_operation_audit_logs");
+        assertThat(patch).doesNotContain(
+                "UPDATE subscription_payments",
+                "UPDATE payment_operation_audit_logs",
+                "SET upgrade_target_billing_cycle");
+
+        int columnSection = patch.indexOf("-- 2. Add command columns and expand ENUMs");
+        int packageAPreflight = patch.indexOf("-- 4. Preflight Package A legacy state");
+        int packageAColumns = patch.indexOf("-- 5. Add Package A columns");
+        String preColumnSection = patch.substring(0, columnSection);
+        String packageAPreflightSql = patch.substring(packageAPreflight, packageAColumns);
+        assertThat(preColumnSection).doesNotContain(
+                "renewal_retry_at",
+                "billing_key_cleanup_status",
+                "billing_key_cleanup_started_at",
+                "upgrade_target_billing_cycle",
+                "processing_started_at");
+        assertThat(packageAPreflightSql).doesNotContain(
+                "renewal_retry_at",
+                "billing_key_cleanup_status",
+                "billing_key_cleanup_started_at",
+                "upgrade_target_billing_cycle",
+                "processing_started_at");
+        assertThat(patch.indexOf("SET billing_period_start = DATE_SUB"))
+                .isLessThan(patch.indexOf("CALL ats_check_legacy_renewal_retry_repair()"));
+        assertThat(patch.indexOf("CALL ats_check_legacy_renewal_retry_repair()"))
+                .isLessThan(patch.indexOf("ADD COLUMN renewal_retry_at"));
+        assertThat(patch.indexOf("FROM payment_refunds"))
+                .isLessThan(patch.indexOf("SET billing_period_start = DATE_SUB"));
+        assertThat(patch.indexOf("ADD COLUMN renewal_retry_at"))
+                .isLessThan(patch.indexOf("agreement.renewal_retry_at = agreement.next_billing_at"));
+        assertThat(patch.indexOf("agreement.next_billing_at = failed_order.billing_period_start"))
+                .isLessThan(patch.indexOf("ADD KEY idx_billing_agreements_renewal_retry"));
+        assertThat(patch.indexOf("ADD COLUMN processing_started_at DATETIME NULL AFTER approved_at"))
+                .isLessThan(patch.indexOf("SET processing_started_at = updated_at"));
+        assertThat(patch.indexOf("SET processing_started_at = updated_at"))
+                .isLessThan(patch.indexOf("ADD KEY idx_payment_refunds_status_processing"));
 
         assertSectionsInOrder(
                 patch,
                 "-- 1. Preflight inventory and blocking checks",
                 "-- 2. Add command columns and expand ENUMs",
                 "-- 3. Backfill legacy command identity",
-                "-- 4. Block ambiguous renewal groups",
-                "-- 5. Add final constraints and indexes",
-                "-- 6. Post-apply contract comparison");
+                "-- 4. Preflight Package A legacy state",
+                "-- 5. Add Package A columns",
+                "-- 6. Repair and backfill Package A state",
+                "-- 7. Block ambiguous renewal groups",
+                "-- 8. Add final constraints and indexes",
+                "-- 9. Post-apply contract comparison");
         assertAuditEnumValues(patch);
     }
 

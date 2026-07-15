@@ -25,6 +25,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
 @Table(
@@ -32,7 +33,10 @@ import java.time.LocalDateTime;
         indexes = {
                 @Index(name = "idx_payment_refunds_status_created", columnList = "status,created_at"),
                 @Index(name = "idx_payment_refunds_payment", columnList = "subscription_payment_id"),
-                @Index(name = "idx_payment_refunds_user_created", columnList = "user_id,created_at")
+                @Index(name = "idx_payment_refunds_user_created", columnList = "user_id,created_at"),
+                @Index(
+                        name = "idx_payment_refunds_status_processing",
+                        columnList = "status,processing_started_at,id")
         }
 )
 @Getter
@@ -113,6 +117,9 @@ public class PaymentRefund extends BaseEntity {
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
+    @Column(name = "processing_started_at")
+    private LocalDateTime processingStartedAt;
+
     @Column(name = "executed_at")
     private LocalDateTime executedAt;
 
@@ -124,17 +131,57 @@ public class PaymentRefund extends BaseEntity {
     }
 
     public PaymentOperationAuditAction markProcessing(User actor) {
+        return markProcessing(actor, LocalDateTime.now());
+    }
+
+    public PaymentOperationAuditAction markProcessing(User actor, LocalDateTime now) {
+        if (now == null) {
+            throw new IllegalArgumentException("Refund processing start time is required.");
+        }
+        if (status != PaymentRefundStatus.APPROVED
+                && status != PaymentRefundStatus.PENDING_PROVIDER_CONFIRMATION) {
+            throw new IllegalStateException("Refund cannot be claimed from " + status + ".");
+        }
+
         this.status = PaymentRefundStatus.PROCESSING;
         this.executedBy = actor;
+        this.processingStartedAt = toSecondPrecision(now);
+        return PaymentOperationAuditAction.PAYMENT_REFUND_PROCESSING;
+    }
+
+    public PaymentOperationAuditAction reclaimProcessing(
+            User actor,
+            LocalDateTime expectedLeaseStartedAt,
+            LocalDateTime now) {
+        requireActiveLease(expectedLeaseStartedAt);
+        if (now == null) {
+            throw new IllegalArgumentException("Refund processing start time is required.");
+        }
+
+        this.executedBy = actor;
+        this.processingStartedAt = toSecondPrecision(now);
         return PaymentOperationAuditAction.PAYMENT_REFUND_PROCESSING;
     }
 
     public PaymentOperationAuditAction markSucceeded(String providerRefundTransactionId, String providerPayload) {
+        return markSucceeded(providerRefundTransactionId, providerPayload, processingStartedAt);
+    }
+
+    public PaymentOperationAuditAction markSucceeded(
+            String providerRefundTransactionId,
+            String providerPayload,
+            LocalDateTime leaseStartedAt) {
+        requireActiveLease(leaseStartedAt);
+        if (providerRefundTransactionId == null || providerRefundTransactionId.isBlank()) {
+            throw new IllegalArgumentException("Provider refund transaction ID is required.");
+        }
+
         this.status = PaymentRefundStatus.SUCCEEDED;
         this.providerRefundTransactionId = providerRefundTransactionId;
         this.providerPayload = providerPayload;
         this.failureCode = null;
         this.failureMessage = null;
+        this.processingStartedAt = null;
         this.executedAt = LocalDateTime.now();
         return PaymentOperationAuditAction.PAYMENT_REFUND_SUCCEEDED;
     }
@@ -143,10 +190,25 @@ public class PaymentRefund extends BaseEntity {
             String failureCode,
             String failureMessage,
             String providerPayload) {
+        return markPendingProviderConfirmation(
+                failureCode,
+                failureMessage,
+                providerPayload,
+                processingStartedAt);
+    }
+
+    public PaymentOperationAuditAction markPendingProviderConfirmation(
+            String failureCode,
+            String failureMessage,
+            String providerPayload,
+            LocalDateTime leaseStartedAt) {
+        requireActiveLease(leaseStartedAt);
+
         this.status = PaymentRefundStatus.PENDING_PROVIDER_CONFIRMATION;
         this.failureCode = failureCode;
         this.failureMessage = failureMessage;
         this.providerPayload = providerPayload;
+        this.processingStartedAt = null;
         return PaymentOperationAuditAction.PAYMENT_REFUND_PENDING_PROVIDER_CONFIRMATION;
     }
 
@@ -154,10 +216,33 @@ public class PaymentRefund extends BaseEntity {
             String failureCode,
             String failureMessage,
             String providerPayload) {
+        return markFailed(failureCode, failureMessage, providerPayload, processingStartedAt);
+    }
+
+    public PaymentOperationAuditAction markFailed(
+            String failureCode,
+            String failureMessage,
+            String providerPayload,
+            LocalDateTime leaseStartedAt) {
+        requireActiveLease(leaseStartedAt);
+
         this.status = PaymentRefundStatus.FAILED;
         this.failureCode = failureCode;
         this.failureMessage = failureMessage;
         this.providerPayload = providerPayload;
+        this.processingStartedAt = null;
         return PaymentOperationAuditAction.PAYMENT_REFUND_FAILED;
+    }
+
+    private void requireActiveLease(LocalDateTime leaseStartedAt) {
+        if (leaseStartedAt == null
+                || status != PaymentRefundStatus.PROCESSING
+                || !Objects.equals(processingStartedAt, toSecondPrecision(leaseStartedAt))) {
+            throw new IllegalStateException("Refund processing lease is no longer active.");
+        }
+    }
+
+    private LocalDateTime toSecondPrecision(LocalDateTime value) {
+        return value.withNano(0);
     }
 }

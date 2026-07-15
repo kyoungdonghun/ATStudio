@@ -469,15 +469,26 @@ CREATE TABLE IF NOT EXISTS billing_agreements
     pay_method              VARCHAR(50)                                                     NULL,
     masked_method           VARCHAR(100)                                                    NULL,
     next_billing_at         DATE                                                            NULL,
+    renewal_retry_at        DATE                                                            NULL,
     last_charged_at         DATETIME                                                        NULL,
     failure_count           INT                                                             NOT NULL DEFAULT 0,
     cancelled_at            DATETIME                                                        NULL,
+    billing_key_cleanup_status ENUM (
+        'NONE',
+        'REQUIRED',
+        'PROCESSING',
+        'PENDING_PROVIDER_CONFIRMATION',
+        'FAILED'
+    ) NOT NULL DEFAULT 'NONE',
+    billing_key_cleanup_started_at DATETIME                                                 NULL,
     created_at              DATETIME                                                        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at              DATETIME                                                        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_billing_agreements_user_provider (user_id, provider),
     UNIQUE KEY uq_billing_agreements_provider_customer (provider, provider_customer_key),
     KEY idx_billing_agreements_status_next (status, next_billing_at),
+    KEY idx_billing_agreements_renewal_retry (status, renewal_retry_at, id),
+    KEY idx_billing_agreements_cleanup (billing_key_cleanup_status, billing_key_cleanup_started_at, id),
     CONSTRAINT fk_billing_agreements_user FOREIGN KEY (user_id) REFERENCES users (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
@@ -496,6 +507,7 @@ CREATE TABLE IF NOT EXISTS payment_orders
     user_subscription_id     BIGINT                                                               NULL,
     billing_agreement_id     BIGINT                                                               NULL,
     billing_cycle            ENUM ('MONTHLY', 'YEARLY')                                           NOT NULL,
+    upgrade_target_billing_cycle ENUM ('MONTHLY', 'YEARLY')                                       NULL,
     billing_period_start     DATE                                                                 NULL,
     provider_attempt         INT                                                                  NOT NULL DEFAULT 0,
     provider_idempotency_key VARCHAR(100)                                                         NULL,
@@ -636,6 +648,7 @@ CREATE TABLE IF NOT EXISTS payment_refunds
     approved_by                    BIGINT NULL,
     executed_by                    BIGINT NULL,
     approved_at                    DATETIME NULL,
+    processing_started_at          DATETIME NULL,
     executed_at                    DATETIME NULL,
     created_at                     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at                     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -644,6 +657,7 @@ CREATE TABLE IF NOT EXISTS payment_refunds
     KEY idx_payment_refunds_status_created (status, created_at),
     KEY idx_payment_refunds_payment (subscription_payment_id),
     KEY idx_payment_refunds_user_created (user_id, created_at),
+    KEY idx_payment_refunds_status_processing (status, processing_started_at, id),
     CONSTRAINT fk_payment_refunds_subscription_payment
         FOREIGN KEY (subscription_payment_id) REFERENCES subscription_payments (id),
     CONSTRAINT fk_payment_refunds_order

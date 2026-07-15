@@ -104,6 +104,10 @@ public class PaymentOrder extends BaseEntity {
     @Column(name = "billing_cycle", nullable = false, length = 10)
     private BillingCycle billingCycle;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "upgrade_target_billing_cycle", length = 10)
+    private BillingCycle upgradeTargetBillingCycle;
+
     @Column(name = "billing_period_start")
     private LocalDate billingPeriodStart;
 
@@ -172,6 +176,7 @@ public class PaymentOrder extends BaseEntity {
                 && status != PaymentOrderStatus.FAILED) {
             throw new IllegalStateException("Payment order cannot claim a provider attempt from " + status + ".");
         }
+        requirePurposeFields();
 
         this.commandKey = commandKey;
         this.providerAttempt += 1;
@@ -186,6 +191,7 @@ public class PaymentOrder extends BaseEntity {
         if (isBlank(pgTransactionId)) {
             throw new IllegalArgumentException("Provider transaction ID is required.");
         }
+        requirePurposeFields();
         if (status == PaymentOrderStatus.PROVIDER_SUCCEEDED
                 && Objects.equals(this.pgTransactionId, pgTransactionId)) {
             return;
@@ -193,6 +199,34 @@ public class PaymentOrder extends BaseEntity {
         if (status != PaymentOrderStatus.PROCESSING) {
             throw new IllegalStateException("Payment order cannot record provider success from " + status + ".");
         }
+
+        this.status = PaymentOrderStatus.PROVIDER_SUCCEEDED;
+        this.pgTransactionId = pgTransactionId;
+        this.providerPayload = providerPayload;
+        this.failureCode = null;
+        this.failureMessage = null;
+        this.processingStartedAt = null;
+    }
+
+    public void markProviderSucceededFromReconciliation(
+            String pgTransactionId,
+            String providerPayload,
+            LocalDateTime staleBefore) {
+        if (isBlank(pgTransactionId)) {
+            throw new IllegalArgumentException("Provider transaction ID is required.");
+        }
+        if (status == PaymentOrderStatus.PROCESSING && !isProcessingStale(staleBefore)) {
+            throw new IllegalStateException("Fresh payment processing cannot be reconciled as provider success.");
+        }
+        if (status != PaymentOrderStatus.PROCESSING
+                && status != PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION) {
+            throw new IllegalStateException(
+                    "Payment order cannot reconcile provider success from " + status + ".");
+        }
+        if (this.pgTransactionId != null && !Objects.equals(this.pgTransactionId, pgTransactionId)) {
+            throw new IllegalStateException("Provider transaction ID cannot be changed.");
+        }
+        requirePurposeFields();
 
         this.status = PaymentOrderStatus.PROVIDER_SUCCEEDED;
         this.pgTransactionId = pgTransactionId;
@@ -214,7 +248,8 @@ public class PaymentOrder extends BaseEntity {
     }
 
     public boolean isProcessingStale(LocalDateTime staleBefore) {
-        return status == PaymentOrderStatus.PROCESSING
+        return staleBefore != null
+                && status == PaymentOrderStatus.PROCESSING
                 && processingStartedAt != null
                 && !processingStartedAt.isAfter(staleBefore);
     }
@@ -253,5 +288,14 @@ public class PaymentOrder extends BaseEntity {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private void requirePurposeFields() {
+        if (purpose == PaymentPurpose.UPGRADE && upgradeTargetBillingCycle == null) {
+            throw new IllegalStateException("Upgrade target billing cycle is required.");
+        }
+        if (purpose != PaymentPurpose.UPGRADE && upgradeTargetBillingCycle != null) {
+            throw new IllegalStateException("Upgrade target billing cycle is allowed only for upgrade orders.");
+        }
     }
 }

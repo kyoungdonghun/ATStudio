@@ -2,6 +2,7 @@ package com.atstudio.atstudio.entity;
 
 import com.atstudio.atstudio.common.entity.BaseEntity;
 import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
+import com.atstudio.atstudio.entity.enums.BillingKeyCleanupStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -40,7 +41,13 @@ import java.util.Objects;
                 )
         },
         indexes = {
-                @Index(name = "idx_billing_agreements_status_next", columnList = "status,next_billing_at")
+                @Index(name = "idx_billing_agreements_status_next", columnList = "status,next_billing_at"),
+                @Index(
+                        name = "idx_billing_agreements_renewal_retry",
+                        columnList = "status,renewal_retry_at,id"),
+                @Index(
+                        name = "idx_billing_agreements_cleanup",
+                        columnList = "billing_key_cleanup_status,billing_key_cleanup_started_at,id")
         }
 )
 @Getter
@@ -84,6 +91,9 @@ public class BillingAgreement extends BaseEntity {
     @Column(name = "next_billing_at")
     private LocalDate nextBillingAt;
 
+    @Column(name = "renewal_retry_at")
+    private LocalDate renewalRetryAt;
+
     @Column(name = "last_charged_at")
     private LocalDateTime lastChargedAt;
 
@@ -93,6 +103,14 @@ public class BillingAgreement extends BaseEntity {
 
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "billing_key_cleanup_status", nullable = false, length = 40)
+    private BillingKeyCleanupStatus billingKeyCleanupStatus = BillingKeyCleanupStatus.NONE;
+
+    @Column(name = "billing_key_cleanup_started_at")
+    private LocalDateTime billingKeyCleanupStartedAt;
 
     public void activate(
             String billingKeyCiphertext,
@@ -109,8 +127,11 @@ public class BillingAgreement extends BaseEntity {
         this.payMethod = payMethod;
         this.maskedMethod = maskedMethod;
         this.nextBillingAt = nextBillingAt;
+        this.renewalRetryAt = null;
         this.failureCount = 0;
         this.cancelledAt = null;
+        this.billingKeyCleanupStatus = BillingKeyCleanupStatus.NONE;
+        this.billingKeyCleanupStartedAt = null;
         this.status = BillingAgreementStatus.ACTIVE;
     }
 
@@ -125,9 +146,12 @@ public class BillingAgreement extends BaseEntity {
         this.payMethod = null;
         this.maskedMethod = null;
         this.nextBillingAt = null;
+        this.renewalRetryAt = null;
         this.lastChargedAt = null;
         this.failureCount = 0;
         this.cancelledAt = null;
+        this.billingKeyCleanupStatus = BillingKeyCleanupStatus.NONE;
+        this.billingKeyCleanupStartedAt = null;
         this.status = BillingAgreementStatus.READY;
     }
 
@@ -144,6 +168,8 @@ public class BillingAgreement extends BaseEntity {
         this.billingKeyFingerprint = billingKeyFingerprint;
         this.payMethod = payMethod;
         this.maskedMethod = maskedMethod;
+        this.billingKeyCleanupStatus = BillingKeyCleanupStatus.NONE;
+        this.billingKeyCleanupStartedAt = null;
     }
 
     public void clearIssuedKey() {
@@ -152,7 +178,10 @@ public class BillingAgreement extends BaseEntity {
         this.payMethod = null;
         this.maskedMethod = null;
         this.nextBillingAt = null;
+        this.renewalRetryAt = null;
         this.lastChargedAt = null;
+        this.billingKeyCleanupStatus = BillingKeyCleanupStatus.NONE;
+        this.billingKeyCleanupStartedAt = null;
     }
 
     public void expireIssuedKey() {
@@ -161,12 +190,16 @@ public class BillingAgreement extends BaseEntity {
         this.payMethod = null;
         this.maskedMethod = null;
         this.nextBillingAt = null;
+        this.renewalRetryAt = null;
+        this.billingKeyCleanupStatus = BillingKeyCleanupStatus.NONE;
+        this.billingKeyCleanupStartedAt = null;
         this.status = BillingAgreementStatus.EXPIRED;
     }
 
     public void recordSuccessfulCharge(LocalDate nextBillingAt) {
         this.lastChargedAt = LocalDateTime.now();
         this.nextBillingAt = nextBillingAt;
+        this.renewalRetryAt = null;
         this.failureCount = 0;
         this.status = BillingAgreementStatus.ACTIVE;
     }
@@ -177,6 +210,7 @@ public class BillingAgreement extends BaseEntity {
         }
 
         this.nextBillingAt = nextBillingAt;
+        this.renewalRetryAt = null;
         this.failureCount = 0;
         this.cancelledAt = null;
         this.status = BillingAgreementStatus.ACTIVE;
@@ -186,22 +220,85 @@ public class BillingAgreement extends BaseEntity {
         this.failureCount += 1;
     }
 
-    public void recordFailedCharge(LocalDate nextBillingAt) {
+    public void recordFailedCharge(LocalDate renewalRetryAt) {
+        if (renewalRetryAt == null) {
+            throw new IllegalArgumentException("Renewal retry date is required.");
+        }
+
         this.failureCount += 1;
-        this.nextBillingAt = nextBillingAt;
+        this.renewalRetryAt = renewalRetryAt;
     }
 
     public void suspend() {
+        this.renewalRetryAt = null;
         this.status = BillingAgreementStatus.SUSPENDED;
     }
 
     public void cancel() {
+        this.renewalRetryAt = null;
         this.status = BillingAgreementStatus.CANCELLED;
         this.cancelledAt = LocalDateTime.now();
     }
 
     public void expire() {
+        this.renewalRetryAt = null;
         this.status = BillingAgreementStatus.EXPIRED;
+    }
+
+    public void markBillingKeyCleanupRequired() {
+        requireCancelledAgreementWithRetainedKey();
+        if (billingKeyCleanupStatus != BillingKeyCleanupStatus.FAILED
+                && billingKeyCleanupStatus != BillingKeyCleanupStatus.PENDING_PROVIDER_CONFIRMATION) {
+            throw new IllegalStateException(
+                    "Billing key cleanup cannot be retried from " + billingKeyCleanupStatus + ".");
+        }
+
+        this.billingKeyCleanupStatus = BillingKeyCleanupStatus.REQUIRED;
+        this.billingKeyCleanupStartedAt = null;
+    }
+
+    public void claimBillingKeyCleanup(LocalDateTime startedAt) {
+        requireCancelledAgreementWithRetainedKey();
+        if (startedAt == null) {
+            throw new IllegalArgumentException("Billing key cleanup start time is required.");
+        }
+        if (billingKeyCleanupStatus != BillingKeyCleanupStatus.NONE
+                && billingKeyCleanupStatus != BillingKeyCleanupStatus.REQUIRED) {
+            throw new IllegalStateException(
+                    "Billing key cleanup cannot be claimed from " + billingKeyCleanupStatus + ".");
+        }
+
+        this.billingKeyCleanupStatus = BillingKeyCleanupStatus.PROCESSING;
+        this.billingKeyCleanupStartedAt = toSecondPrecision(startedAt);
+    }
+
+    public void markBillingKeyCleanupSucceeded(LocalDateTime leaseStartedAt) {
+        requireBillingKeyCleanupLease(leaseStartedAt);
+        this.billingKeyCiphertext = null;
+        this.billingKeyFingerprint = null;
+        this.payMethod = null;
+        this.maskedMethod = null;
+        this.billingKeyCleanupStatus = BillingKeyCleanupStatus.NONE;
+        this.billingKeyCleanupStartedAt = null;
+    }
+
+    public void markBillingKeyCleanupFailed(LocalDateTime leaseStartedAt) {
+        requireBillingKeyCleanupLease(leaseStartedAt);
+        this.billingKeyCleanupStatus = BillingKeyCleanupStatus.FAILED;
+        this.billingKeyCleanupStartedAt = null;
+    }
+
+    public void markBillingKeyCleanupPendingProviderConfirmation(LocalDateTime leaseStartedAt) {
+        requireBillingKeyCleanupLease(leaseStartedAt);
+        this.billingKeyCleanupStatus = BillingKeyCleanupStatus.PENDING_PROVIDER_CONFIRMATION;
+        this.billingKeyCleanupStartedAt = null;
+    }
+
+    public boolean isBillingKeyCleanupProcessingStale(LocalDateTime staleBefore) {
+        return staleBefore != null
+                && billingKeyCleanupStatus == BillingKeyCleanupStatus.PROCESSING
+                && billingKeyCleanupStartedAt != null
+                && !billingKeyCleanupStartedAt.isAfter(toSecondPrecision(staleBefore));
     }
 
     public boolean isChargeableOn(LocalDate today) {
@@ -216,5 +313,23 @@ public class BillingAgreement extends BaseEntity {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private void requireCancelledAgreementWithRetainedKey() {
+        if (status != BillingAgreementStatus.CANCELLED || isBlank(billingKeyCiphertext)) {
+            throw new IllegalStateException("Cancelled agreement with a retained billing key is required.");
+        }
+    }
+
+    private void requireBillingKeyCleanupLease(LocalDateTime leaseStartedAt) {
+        if (leaseStartedAt == null
+                || billingKeyCleanupStatus != BillingKeyCleanupStatus.PROCESSING
+                || !Objects.equals(billingKeyCleanupStartedAt, toSecondPrecision(leaseStartedAt))) {
+            throw new IllegalStateException("Billing key cleanup lease is no longer active.");
+        }
+    }
+
+    private LocalDateTime toSecondPrecision(LocalDateTime value) {
+        return value.withNano(0);
     }
 }
