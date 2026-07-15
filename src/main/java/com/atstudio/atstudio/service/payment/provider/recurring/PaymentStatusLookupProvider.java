@@ -1,6 +1,8 @@
 package com.atstudio.atstudio.service.payment.provider.recurring;
 
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface PaymentStatusLookupProvider {
 
@@ -10,5 +12,6 @@ public interface PaymentStatusLookupProvider {
         return true;
     }
 
+    @Transactional(propagation = Propagation.NEVER)
     ProviderPaymentLookupResult findPaymentByOrderId(String orderId);
 }

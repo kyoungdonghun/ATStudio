@@ -1,228 +1,175 @@
 package com.atstudio.atstudio.service;
 
-import com.atstudio.atstudio.entity.BillingAgreement;
-import com.atstudio.atstudio.entity.PaymentOrder;
-import com.atstudio.atstudio.entity.Subscription;
-import com.atstudio.atstudio.entity.User;
-import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
-import com.atstudio.atstudio.entity.enums.BillingCycle;
+import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.PaymentReconciliationIssueType;
-import com.atstudio.atstudio.entity.enums.UserRole;
-import com.atstudio.atstudio.entity.enums.UserType;
-import com.atstudio.atstudio.repository.BillingAgreementRepository;
-import com.atstudio.atstudio.repository.PaymentOrderRepository;
-import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
-import com.atstudio.atstudio.repository.UserSubscriptionRepository;
+import com.atstudio.atstudio.service.PaymentReconciliationTransactionService.EvidenceAssessment;
+import com.atstudio.atstudio.service.PaymentReconciliationTransactionService.ProviderLookupClaim;
 import com.atstudio.atstudio.service.payment.provider.recurring.PaymentStatusLookupProvider;
 import com.atstudio.atstudio.service.payment.provider.recurring.ProviderPaymentLookupResult;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("PaymentReconciliationService unit tests")
 class PaymentReconciliationServiceTest {
 
-    @Mock PaymentOrderRepository paymentOrderRepository;
-    @Mock BillingAgreementRepository billingAgreementRepository;
-    @Mock SubscriptionPaymentRepository subscriptionPaymentRepository;
-    @Mock UserSubscriptionRepository userSubscriptionRepository;
+    @Mock PaymentReconciliationTransactionService reconciliationTransactions;
     @Mock PaymentStatusLookupProvider paymentStatusLookupProvider;
-    @Mock PaymentReconciliationIncidentService paymentReconciliationIncidentService;
+    @Mock PaymentReconciliationIncidentService incidentService;
+    @Mock PaymentCommandTransactionService paymentCommandTransactions;
+
+    PaymentReconciliationService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new PaymentReconciliationService(
+                reconciliationTransactions,
+                List.of(paymentStatusLookupProvider),
+                incidentService,
+                paymentCommandTransactions);
+    }
 
     @Test
-    @DisplayName("scheduled reconciliation records detected issues into incident storage")
-    void reconcilePaymentLedgersOnSchedule_recordsIncidents() {
-        PaymentReconciliationService service = new PaymentReconciliationService(
-                paymentOrderRepository,
-                billingAgreementRepository,
-                subscriptionPaymentRepository,
-                userSubscriptionRepository,
-                List.of(),
-                paymentReconciliationIncidentService);
-
-        given(paymentOrderRepository.findAllByOrderByCreatedAtDesc(any()))
-                .willReturn(new PageImpl<>(List.of()));
-        given(billingAgreementRepository.findByStatus(BillingAgreementStatus.ACTIVE)).willReturn(List.of());
+    @DisplayName("scheduled reconciliation records local issues and runs provider orchestration without an outer unit")
+    void reconcilePaymentLedgersOnSchedule_recordsLocalIssues() {
+        PaymentReconciliationService.ReconciliationResult localResult =
+                new PaymentReconciliationService.ReconciliationResult(0, 0, 0, 0, List.of());
+        given(reconciliationTransactions.reconcileLocalLedger()).willReturn(localResult);
+        given(reconciliationTransactions.findProviderCandidateIDs(any(), anyLong(), anyInt()))
+                .willReturn(List.of());
 
         service.reconcilePaymentLedgersOnSchedule();
 
-        verify(paymentReconciliationIncidentService).recordIssues(any(), any());
+        verify(incidentService).recordLocalIssues(localResult);
+        verify(reconciliationTransactions).findProviderCandidateIDs(any(), anyLong(), anyInt());
     }
 
-    @Test
-    @DisplayName("reconcileLocalLedger reports missing finalized payment rows")
-    void reconcileLocalLedger_reportsDoneOrderWithoutPayment() {
-        PaymentReconciliationService service = new PaymentReconciliationService(
-                paymentOrderRepository,
-                billingAgreementRepository,
-                subscriptionPaymentRepository,
-                userSubscriptionRepository,
-                List.of(),
-                paymentReconciliationIncidentService);
-        User user = buildUser(1L);
-        PaymentOrder doneOrder = buildOrder(user);
-        doneOrder.markDone("tx_1", null, "{}");
-
-        given(paymentOrderRepository.findAllByOrderByCreatedAtDesc(any()))
-                .willReturn(new PageImpl<>(List.of(doneOrder)));
-        given(subscriptionPaymentRepository.existsByPaymentOrder(doneOrder)).willReturn(false);
-        given(billingAgreementRepository.findByStatus(BillingAgreementStatus.ACTIVE)).willReturn(List.of());
-
-        PaymentReconciliationService.ReconciliationResult result = service.reconcileLocalLedger();
-
-        assertThat(result.checkedOrders()).isEqualTo(1);
-        assertThat(result.doneOrdersWithoutPayment()).isEqualTo(1);
-        assertThat(result.issues()).extracting(PaymentReconciliationService.LocalReconciliationIssue::issueType)
-                .containsExactly(PaymentReconciliationIssueType.DONE_ORDER_WITHOUT_PAYMENT);
-        assertThat(result.hasMismatch()).isTrue();
-    }
-
-    @Test
-    @DisplayName("reconcileLocalLedger reports active agreement without active subscription")
-    void reconcileLocalLedger_reportsAgreementWithoutSubscription() {
-        PaymentReconciliationService service = new PaymentReconciliationService(
-                paymentOrderRepository,
-                billingAgreementRepository,
-                subscriptionPaymentRepository,
-                userSubscriptionRepository,
-                List.of(),
-                paymentReconciliationIncidentService);
-        User user = buildUser(1L);
-        BillingAgreement agreement = BillingAgreement.builder()
-                .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
-                .providerCustomerKey("customer-key")
-                .build();
-        ReflectionTestUtils.setField(agreement, "id", 10L);
-        agreement.activate("encrypted", "fingerprint", "CARD", "1234", LocalDate.now().plusMonths(1));
-
-        given(paymentOrderRepository.findAllByOrderByCreatedAtDesc(any()))
-                .willReturn(new PageImpl<>(List.of()));
-        given(billingAgreementRepository.findByStatus(BillingAgreementStatus.ACTIVE)).willReturn(List.of(agreement));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                .willReturn(Optional.empty());
-
-        PaymentReconciliationService.ReconciliationResult result = service.reconcileLocalLedger();
-
-        assertThat(result.checkedBillingAgreements()).isEqualTo(1);
-        assertThat(result.activeAgreementsWithoutSubscription()).isEqualTo(1);
-        assertThat(result.issues()).extracting(PaymentReconciliationService.LocalReconciliationIssue::issueType)
-                .containsExactly(PaymentReconciliationIssueType.ACTIVE_AGREEMENT_WITHOUT_SUBSCRIPTION);
-        assertThat(result.hasMismatch()).isTrue();
-    }
-
-    @Test
-    @DisplayName("reconcileProviderLedger reports provider DONE orders that are not finalized locally")
-    void reconcileProviderLedger_reportsProviderDoneWithoutLocalFinalization() {
-        PaymentReconciliationService service = new PaymentReconciliationService(
-                paymentOrderRepository,
-                billingAgreementRepository,
-                subscriptionPaymentRepository,
-                userSubscriptionRepository,
-                List.of(paymentStatusLookupProvider),
-                paymentReconciliationIncidentService);
-        User user = buildUser(1L);
-        PaymentOrder order = buildOrder(user);
-
-        given(paymentOrderRepository.findAllByOrderByCreatedAtDesc(any()))
-                .willReturn(new PageImpl<>(List.of(order)));
+    @ParameterizedTest
+    @EnumSource(value = PaymentPurpose.class, names = {"SUBSCRIBE", "UPGRADE", "RENEWAL"})
+    @DisplayName("exact DONE evidence dispatches the purpose-specific finalizer")
+    void exactDoneEvidence_dispatchesPurposeFinalizer(PaymentPurpose purpose) {
+        ProviderLookupClaim claim = claim(purpose);
+        ProviderPaymentLookupResult providerResult = exactResult(claim);
+        PaymentCommandTransactionService.ReconciliationFinalizationTarget target =
+                new PaymentCommandTransactionService.ReconciliationFinalizationTarget(
+                        purpose,
+                        claim.userID(),
+                        claim.billingAgreementID(),
+                        claim.orderID());
+        given(reconciliationTransactions.findProviderCandidateIDs(any(), anyLong(), anyInt()))
+                .willReturn(List.of(claim.paymentOrderID()));
+        given(reconciliationTransactions.claimProviderLookup(anyLong(), any()))
+                .willReturn(Optional.of(claim));
         given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
         given(paymentStatusLookupProvider.isLookupConfigured()).willReturn(true);
-        given(paymentStatusLookupProvider.findPaymentByOrderId("ATS-DONE"))
-                .willReturn(ProviderPaymentLookupResult.found(
-                        PaymentProviderType.TOSS_BILLING,
-                        "ATS-DONE",
-                        "payment_key",
-                        "DONE",
-                        BigDecimal.valueOf(9900),
-                        "{\"paymentKey\":\"payment_key\"}"));
+        given(paymentStatusLookupProvider.findPaymentByOrderId(claim.orderID())).willReturn(providerResult);
+        given(reconciliationTransactions.assessProviderEvidence(claim, providerResult))
+                .willReturn(new EvidenceAssessment(true, null, null, null));
+        given(reconciliationTransactions.applyExactProviderSuccess(eq(claim), eq(providerResult), any()))
+                .willReturn(target);
 
         PaymentReconciliationService.ProviderReconciliationResult result = service.reconcileProviderLedger();
 
-        assertThat(result.checkedOrders()).isEqualTo(1);
-        assertThat(result.providerDoneWithoutLocalFinalization()).isEqualTo(1);
-        assertThat(result.issues()).extracting(PaymentReconciliationService.ProviderReconciliationIssue::issueType)
-                .containsExactly(PaymentReconciliationIssueType.PROVIDER_DONE_LOCAL_NOT_FINALIZED);
-        assertThat(result.hasMismatch()).isTrue();
+        assertThat(result.finalizedOrders()).isEqualTo(1);
+        assertThat(result.hasMismatch()).isFalse();
+        verify(incidentService).recordProviderRecoveryIssue(any());
+        verify(incidentService).resolveProviderRecoveryIncidents(claim.orderID());
+        switch (purpose) {
+            case SUBSCRIBE -> verify(paymentCommandTransactions).finalizeInitialCharge(7L, 11L, claim.orderID());
+            case UPGRADE -> verify(paymentCommandTransactions).finalizeUpgrade(7L, 11L, claim.orderID());
+            case RENEWAL -> verify(paymentCommandTransactions).finalizeRenewal(11L, claim.orderID());
+            default -> throw new AssertionError("Unexpected purpose: " + purpose);
+        }
     }
 
     @Test
-    @DisplayName("reconcileProviderLedger skips provider lookup when provider configuration is unavailable")
-    void reconcileProviderLedger_skipsUnconfiguredLookupProvider() {
-        PaymentReconciliationService service = new PaymentReconciliationService(
-                paymentOrderRepository,
-                billingAgreementRepository,
-                subscriptionPaymentRepository,
-                userSubscriptionRepository,
-                List.of(paymentStatusLookupProvider),
-                paymentReconciliationIncidentService);
-        User user = buildUser(1L);
-        PaymentOrder order = buildOrder(user);
-
-        given(paymentOrderRepository.findAllByOrderByCreatedAtDesc(any()))
-                .willReturn(new PageImpl<>(List.of(order)));
+    @DisplayName("mismatched provider evidence remains Incident-only")
+    void mismatchedEvidence_doesNotPersistOrFinalize() {
+        ProviderLookupClaim claim = claim(PaymentPurpose.RENEWAL);
+        ProviderPaymentLookupResult providerResult = ProviderPaymentLookupResult.found(
+                claim.provider(),
+                claim.orderID(),
+                "tx-1",
+                "DONE",
+                BigDecimal.valueOf(10900),
+                "KRW",
+                "{}");
+        EvidenceAssessment mismatch = new EvidenceAssessment(
+                false,
+                PaymentReconciliationIssueType.AMOUNT_MISMATCH,
+                "AMOUNT_MISMATCH",
+                "Provider amount does not match the local command.");
+        given(reconciliationTransactions.findProviderCandidateIDs(any(), anyLong(), anyInt()))
+                .willReturn(List.of(claim.paymentOrderID()));
+        given(reconciliationTransactions.claimProviderLookup(anyLong(), any()))
+                .willReturn(Optional.of(claim));
         given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
-        given(paymentStatusLookupProvider.isLookupConfigured()).willReturn(false);
+        given(paymentStatusLookupProvider.isLookupConfigured()).willReturn(true);
+        given(paymentStatusLookupProvider.findPaymentByOrderId(claim.orderID())).willReturn(providerResult);
+        given(reconciliationTransactions.assessProviderEvidence(claim, providerResult)).willReturn(mismatch);
 
         PaymentReconciliationService.ProviderReconciliationResult result = service.reconcileProviderLedger();
 
-        assertThat(result.checkedOrders()).isEqualTo(1);
-        assertThat(result.skippedOrders()).isEqualTo(1);
-        assertThat(result.hasMismatch()).isFalse();
+        assertThat(result.amountMismatches()).isEqualTo(1);
+        assertThat(result.finalizedOrders()).isZero();
+        assertThat(result.issues()).singleElement()
+                .extracting(PaymentReconciliationService.ProviderReconciliationIssue::failureCode)
+                .isEqualTo("AMOUNT_MISMATCH");
+        verify(incidentService).recordProviderRecoveryIssue(any());
+        verify(reconciliationTransactions, never()).applyExactProviderSuccess(any(), any(), any());
+        verify(paymentCommandTransactions, never()).finalizeInitialCharge(anyLong(), anyLong(), any());
+        verify(paymentCommandTransactions, never()).finalizeUpgrade(anyLong(), anyLong(), any());
+        verify(paymentCommandTransactions, never()).finalizeRenewal(anyLong(), any());
     }
 
-    private User buildUser(Long id) {
-        User user = User.builder()
-                .email("user" + id + "@test.com")
-                .nickname("user" + id)
-                .password("pw")
-                .userType(UserType.INDIVIDUAL)
-                .role(UserRole.USER)
-                .build();
-        ReflectionTestUtils.setField(user, "id", id);
-        return user;
+    private ProviderLookupClaim claim(PaymentPurpose purpose) {
+        return new ProviderLookupClaim(
+                1L,
+                7L,
+                11L,
+                purpose == PaymentPurpose.SUBSCRIBE ? null : 13L,
+                "ORDER-" + purpose,
+                "COMMAND-" + purpose,
+                PaymentProviderType.TOSS_BILLING,
+                purpose,
+                PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION,
+                BigDecimal.valueOf(9900),
+                "KRW",
+                null,
+                true,
+                null);
     }
 
-    private PaymentOrder buildOrder(User user) {
-        Subscription subscription = Subscription.builder()
-                .name("Basic")
-                .description("Test plan")
-                .userType(UserType.INDIVIDUAL)
-                .priceMonthly(BigDecimal.valueOf(9900))
-                .priceYearly(BigDecimal.valueOf(99000))
-                .downloadPerDay(10)
-                .maxWhitelistChannels(3)
-                .maxPlaylists(5)
-                .build();
-        return PaymentOrder.builder()
-                .orderId("ATS-DONE")
-                .user(user)
-                .purpose(PaymentPurpose.RENEWAL)
-                .provider(PaymentProviderType.TOSS_BILLING)
-                .subscription(subscription)
-                .billingCycle(BillingCycle.MONTHLY)
-                .amount(BigDecimal.valueOf(9900))
-                .currency("KRW")
-                .expiresAt(LocalDateTime.now().plusMinutes(10))
-                .build();
+    private ProviderPaymentLookupResult exactResult(ProviderLookupClaim claim) {
+        return ProviderPaymentLookupResult.found(
+                claim.provider(),
+                claim.orderID(),
+                "tx-" + claim.purpose(),
+                "DONE",
+                claim.amount(),
+                claim.currency(),
+                "{}");
     }
 }

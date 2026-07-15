@@ -1,29 +1,23 @@
 package com.atstudio.atstudio.service;
 
-import com.atstudio.atstudio.entity.BillingAgreement;
-import com.atstudio.atstudio.entity.PaymentOrder;
-import com.atstudio.atstudio.entity.UserSubscription;
-import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
-import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.PaymentReconciliationIssueType;
-import com.atstudio.atstudio.repository.BillingAgreementRepository;
-import com.atstudio.atstudio.repository.PaymentOrderRepository;
-import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
-import com.atstudio.atstudio.repository.UserSubscriptionRepository;
+import com.atstudio.atstudio.service.PaymentReconciliationTransactionService.EvidenceAssessment;
+import com.atstudio.atstudio.service.PaymentReconciliationTransactionService.ProviderLookupClaim;
 import com.atstudio.atstudio.service.payment.provider.recurring.PaymentStatusLookupProvider;
 import com.atstudio.atstudio.service.payment.provider.recurring.ProviderPaymentLookupResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.EnumSet;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,70 +26,24 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class PaymentReconciliationService {
 
-    private static final EnumSet<PaymentPurpose> FINAL_PAYMENT_PURPOSES = EnumSet.of(
-            PaymentPurpose.SUBSCRIBE,
-            PaymentPurpose.UPGRADE,
-            PaymentPurpose.RENEWAL
-    );
+    private static final int PROVIDER_CANDIDATE_PAGE_SIZE = 100;
+    private static final int STALE_PROCESSING_MINUTES = 15;
 
-    private final PaymentOrderRepository paymentOrderRepository;
-    private final BillingAgreementRepository billingAgreementRepository;
-    private final SubscriptionPaymentRepository subscriptionPaymentRepository;
-    private final UserSubscriptionRepository userSubscriptionRepository;
+    private final PaymentReconciliationTransactionService reconciliationTransactions;
     private final List<PaymentStatusLookupProvider> paymentStatusLookupProviders;
-    private final PaymentReconciliationIncidentService paymentReconciliationIncidentService;
+    private final PaymentReconciliationIncidentService incidentService;
+    private final PaymentCommandTransactionService paymentCommandTransactions;
 
     @Scheduled(cron = "0 0 1 * * *")
-    @Transactional
+    @Transactional(propagation = Propagation.NEVER)
     public void reconcilePaymentLedgersOnSchedule() {
         ReconciliationResult local = reconcileLocalLedger();
-        ProviderReconciliationResult provider = reconcileProviderLedger();
-        paymentReconciliationIncidentService.recordIssues(local, provider);
+        incidentService.recordLocalIssues(local);
+        reconcileProviderLedger();
     }
 
-    @Transactional(readOnly = true)
     public ReconciliationResult reconcileLocalLedger() {
-        List<PaymentOrder> recentOrders = paymentOrderRepository
-                .findAllByOrderByCreatedAtDesc(PageRequest.of(0, 100))
-                .getContent();
-        int doneOrdersWithoutPayment = 0;
-        List<LocalReconciliationIssue> issues = new java.util.ArrayList<>();
-
-        for (PaymentOrder order : recentOrders) {
-            if (order.getStatus() == PaymentOrderStatus.DONE
-                    && FINAL_PAYMENT_PURPOSES.contains(order.getPurpose())
-                    && !subscriptionPaymentRepository.existsByPaymentOrder(order)) {
-                doneOrdersWithoutPayment++;
-                issues.add(localIssue(order, PaymentReconciliationIssueType.DONE_ORDER_WITHOUT_PAYMENT));
-                log.warn("Payment ledger mismatch: DONE order has no subscription payment. orderId={}",
-                        order.getOrderId());
-            }
-        }
-
-        List<BillingAgreement> activeAgreements =
-                billingAgreementRepository.findByStatus(BillingAgreementStatus.ACTIVE);
-        int activeAgreementsWithoutSubscription = 0;
-        LocalDate today = LocalDate.now();
-
-        for (BillingAgreement agreement : activeAgreements) {
-            boolean hasActiveSubscription = userSubscriptionRepository
-                    .findActiveByUser(agreement.getUser(), today)
-                    .map(UserSubscription::getId)
-                    .isPresent();
-            if (!hasActiveSubscription) {
-                activeAgreementsWithoutSubscription++;
-                issues.add(localIssue(agreement));
-                log.warn("Payment ledger mismatch: ACTIVE billing agreement has no active subscription. agreementId={}",
-                        agreement.getId());
-            }
-        }
-
-        ReconciliationResult result = new ReconciliationResult(
-                recentOrders.size(),
-                activeAgreements.size(),
-                doneOrdersWithoutPayment,
-                activeAgreementsWithoutSubscription,
-                List.copyOf(issues));
+        ReconciliationResult result = reconciliationTransactions.reconcileLocalLedger();
         if (result.hasMismatch()) {
             log.warn("Payment reconciliation completed with mismatches: {}", result);
         } else {
@@ -104,155 +52,243 @@ public class PaymentReconciliationService {
         return result;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(propagation = Propagation.NEVER)
     public ProviderReconciliationResult reconcileProviderLedger() {
-        List<PaymentOrder> recentOrders = paymentOrderRepository
-                .findAllByOrderByCreatedAtDesc(PageRequest.of(0, 100))
-                .getContent()
-                .stream()
-                .filter(order -> FINAL_PAYMENT_PURPOSES.contains(order.getPurpose()))
-                .toList();
-
+        LocalDateTime staleBefore = LocalDateTime.now().minusMinutes(STALE_PROCESSING_MINUTES);
+        long lastSeenID = 0L;
         int skipped = 0;
+        int checked = 0;
         int providerNotFound = 0;
         int lookupFailures = 0;
         int providerDoneWithoutLocalFinalization = 0;
         int localDoneButProviderNotDone = 0;
         int amountMismatches = 0;
-        List<ProviderReconciliationIssue> issues = new java.util.ArrayList<>();
+        int finalizedOrders = 0;
+        List<ProviderReconciliationIssue> issues = new ArrayList<>();
 
-        for (PaymentOrder order : recentOrders) {
-            Optional<PaymentStatusLookupProvider> lookupProvider = lookupProvider(order);
-            if (lookupProvider.isEmpty()) {
-                skipped++;
-                continue;
+        while (true) {
+            List<Long> candidateIDs = reconciliationTransactions.findProviderCandidateIDs(
+                    staleBefore,
+                    lastSeenID,
+                    PROVIDER_CANDIDATE_PAGE_SIZE);
+            if (candidateIDs.isEmpty()) {
+                break;
             }
 
-            ProviderPaymentLookupResult providerResult =
-                    lookupProvider.get().findPaymentByOrderId(order.getOrderId());
-            if (!providerResult.found()) {
-                if (providerResult.lookupFailure()) {
-                    lookupFailures++;
-                    issues.add(issue(order, providerResult, PaymentReconciliationIssueType.PROVIDER_LOOKUP_FAILED));
-                } else {
-                    providerNotFound++;
-                    if (order.getStatus() == PaymentOrderStatus.DONE) {
-                        issues.add(issue(
-                                order,
-                                providerResult,
-                                PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_FOUND));
-                    }
+            for (Long candidateID : candidateIDs) {
+                lastSeenID = candidateID;
+                Optional<ProviderLookupClaim> claim =
+                        reconciliationTransactions.claimProviderLookup(candidateID, staleBefore);
+                if (claim.isEmpty()) {
+                    skipped++;
+                    continue;
                 }
-                continue;
+
+                checked++;
+                OrderReconciliationOutcome outcome = reconcileProviderOrder(claim.get(), staleBefore);
+                skipped += outcome.skipped() ? 1 : 0;
+                providerNotFound += outcome.providerNotFound() ? 1 : 0;
+                lookupFailures += outcome.lookupFailure() ? 1 : 0;
+                providerDoneWithoutLocalFinalization += outcome.providerDoneWithoutLocalFinalization() ? 1 : 0;
+                localDoneButProviderNotDone += outcome.localDoneButProviderNotDone() ? 1 : 0;
+                amountMismatches += outcome.amountMismatch() ? 1 : 0;
+                finalizedOrders += outcome.finalized() ? 1 : 0;
+                if (outcome.issue() != null) {
+                    issues.add(outcome.issue());
+                }
             }
 
-            if (amountMismatch(order, providerResult)) {
-                amountMismatches++;
-                issues.add(issue(order, providerResult, PaymentReconciliationIssueType.AMOUNT_MISMATCH));
-            }
-
-            if (providerResult.providerDone() && order.getStatus() != PaymentOrderStatus.DONE) {
-                providerDoneWithoutLocalFinalization++;
-                issues.add(issue(
-                        order,
-                        providerResult,
-                        PaymentReconciliationIssueType.PROVIDER_DONE_LOCAL_NOT_FINALIZED));
-                log.warn(
-                        "Payment provider mismatch: provider DONE but local order is not finalized. orderId={}, localStatus={}, providerStatus={}",
-                        order.getOrderId(),
-                        order.getStatus(),
-                        providerResult.status());
-            }
-
-            if (!providerResult.providerDone() && order.getStatus() == PaymentOrderStatus.DONE) {
-                localDoneButProviderNotDone++;
-                issues.add(issue(
-                        order,
-                        providerResult,
-                        PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_DONE));
-                log.warn(
-                        "Payment provider mismatch: local DONE but provider is not DONE. orderId={}, providerStatus={}",
-                        order.getOrderId(),
-                        providerResult.status());
+            if (candidateIDs.size() < PROVIDER_CANDIDATE_PAGE_SIZE) {
+                break;
             }
         }
 
         ProviderReconciliationResult result = new ProviderReconciliationResult(
-                recentOrders.size(),
+                checked,
                 skipped,
                 providerNotFound,
                 lookupFailures,
                 providerDoneWithoutLocalFinalization,
                 localDoneButProviderNotDone,
                 amountMismatches,
+                finalizedOrders,
                 List.copyOf(issues));
         if (result.hasMismatch()) {
-            log.warn("Payment provider reconciliation completed with mismatches: {}", result);
+            log.warn("Payment provider reconciliation completed with unresolved mismatches: {}", result);
         } else {
             log.info("Payment provider reconciliation completed: {}", result);
         }
         return result;
     }
 
-    private Optional<PaymentStatusLookupProvider> lookupProvider(PaymentOrder order) {
+    private OrderReconciliationOutcome reconcileProviderOrder(
+            ProviderLookupClaim claim,
+            LocalDateTime staleBefore) {
+        Optional<PaymentStatusLookupProvider> provider = lookupProvider(claim.provider());
+        if (provider.isEmpty()) {
+            ProviderPaymentLookupResult unavailable = ProviderPaymentLookupResult.failure(
+                    claim.provider(),
+                    claim.orderID(),
+                    "PROVIDER_LOOKUP_NOT_CONFIGURED",
+                    "Provider lookup is not configured.");
+            return recordMismatch(claim, unavailable, true, false);
+        }
+
+        ProviderPaymentLookupResult providerResult;
+        try {
+            assertNoTransactionAtProviderBoundary();
+            providerResult = provider.get().findPaymentByOrderId(claim.orderID());
+        } catch (RuntimeException exception) {
+            providerResult = ProviderPaymentLookupResult.failure(
+                    claim.provider(),
+                    claim.orderID(),
+                    "PROVIDER_LOOKUP_EXCEPTION",
+                    exception.getClass().getSimpleName());
+        }
+
+        EvidenceAssessment assessment = reconciliationTransactions.assessProviderEvidence(claim, providerResult);
+        if (!assessment.exactDone()) {
+            return recordMismatch(claim, providerResult, false, false, assessment);
+        }
+
+        ProviderReconciliationIssue detectedIssue = issue(
+                claim,
+                providerResult,
+                PaymentReconciliationIssueType.PROVIDER_DONE_LOCAL_NOT_FINALIZED,
+                null,
+                null);
+        incidentService.recordProviderRecoveryIssue(detectedIssue);
+        try {
+            PaymentCommandTransactionService.ReconciliationFinalizationTarget target =
+                    reconciliationTransactions.applyExactProviderSuccess(claim, providerResult, staleBefore);
+            finalizeByPurpose(target);
+        } catch (RuntimeException exception) {
+            ProviderReconciliationIssue failureIssue = issue(
+                    claim,
+                    providerResult,
+                    PaymentReconciliationIssueType.PROVIDER_DONE_LOCAL_NOT_FINALIZED,
+                    "LOCAL_FINALIZATION_FAILED",
+                    exception.getClass().getSimpleName());
+            incidentService.recordProviderFinalizationFailure(failureIssue);
+            return OrderReconciliationOutcome.unresolved(
+                    failureIssue,
+                    false,
+                    false,
+                    false,
+                    true,
+                    false,
+                    false);
+        }
+
+        try {
+            incidentService.resolveProviderRecoveryIncidents(claim.orderID());
+            return OrderReconciliationOutcome.success();
+        } catch (RuntimeException exception) {
+            log.error(
+                    "Payment reconciliation finalized but Incident resolution failed. orderId={}, exceptionClass={}",
+                    claim.orderID(),
+                    exception.getClass().getSimpleName());
+            ProviderReconciliationIssue resolutionIssue = issue(
+                    claim,
+                    providerResult,
+                    PaymentReconciliationIssueType.PROVIDER_DONE_LOCAL_NOT_FINALIZED,
+                    "INCIDENT_RESOLUTION_FAILED",
+                    exception.getClass().getSimpleName());
+            return OrderReconciliationOutcome.finalizedWithIssue(resolutionIssue);
+        }
+    }
+
+    private OrderReconciliationOutcome recordMismatch(
+            ProviderLookupClaim claim,
+            ProviderPaymentLookupResult providerResult,
+            boolean skipped,
+            boolean localDoneButProviderNotDone) {
+        EvidenceAssessment assessment = reconciliationTransactions.assessProviderEvidence(claim, providerResult);
+        return recordMismatch(claim, providerResult, skipped, localDoneButProviderNotDone, assessment);
+    }
+
+    private OrderReconciliationOutcome recordMismatch(
+            ProviderLookupClaim claim,
+            ProviderPaymentLookupResult providerResult,
+            boolean skipped,
+            boolean localDoneButProviderNotDone,
+            EvidenceAssessment assessment) {
+        ProviderReconciliationIssue mismatch = issue(
+                claim,
+                providerResult,
+                assessment.issueType(),
+                assessment.failureCode(),
+                assessment.failureMessage());
+        incidentService.recordProviderRecoveryIssue(mismatch);
+        boolean providerNotFound = providerResult != null
+                && !providerResult.found()
+                && !providerResult.lookupFailure();
+        boolean lookupFailure = providerResult == null || providerResult.lookupFailure();
+        boolean providerDone = providerResult != null && providerResult.providerDone();
+        return OrderReconciliationOutcome.unresolved(
+                mismatch,
+                skipped,
+                providerNotFound,
+                lookupFailure,
+                providerDone,
+                localDoneButProviderNotDone,
+                assessment.issueType() == PaymentReconciliationIssueType.AMOUNT_MISMATCH);
+    }
+
+    private void finalizeByPurpose(PaymentCommandTransactionService.ReconciliationFinalizationTarget target) {
+        switch (target.purpose()) {
+            case SUBSCRIBE -> paymentCommandTransactions.finalizeInitialCharge(
+                    target.userID(),
+                    target.agreementID(),
+                    target.orderID());
+            case UPGRADE -> paymentCommandTransactions.finalizeUpgrade(
+                    target.userID(),
+                    target.agreementID(),
+                    target.orderID());
+            case RENEWAL -> paymentCommandTransactions.finalizeRenewal(
+                    target.agreementID(),
+                    target.orderID());
+            default -> throw new IllegalStateException(
+                    "Unsupported reconciliation purpose: " + target.purpose());
+        }
+    }
+
+    private Optional<PaymentStatusLookupProvider> lookupProvider(PaymentProviderType providerType) {
         return paymentStatusLookupProviders.stream()
-                .filter(provider -> provider.getProviderType() == order.getProvider())
+                .filter(provider -> provider.getProviderType() == providerType)
                 .filter(PaymentStatusLookupProvider::isLookupConfigured)
                 .findFirst();
     }
 
-    private boolean amountMismatch(PaymentOrder order, ProviderPaymentLookupResult providerResult) {
-        BigDecimal providerAmount = providerResult.totalAmount();
-        return providerAmount != null && order.getAmount().compareTo(providerAmount) != 0;
-    }
-
     private ProviderReconciliationIssue issue(
-            PaymentOrder order,
+            ProviderLookupClaim claim,
             ProviderPaymentLookupResult providerResult,
-            PaymentReconciliationIssueType issueType) {
+            PaymentReconciliationIssueType issueType,
+            String failureCode,
+            String failureMessage) {
         return new ProviderReconciliationIssue(
                 issueType,
-                order.getId(),
-                order.getUser().getId(),
-                order.getBillingAgreement() == null ? null : order.getBillingAgreement().getId(),
-                order.getOrderId(),
-                order.getProvider(),
-                order.getPurpose(),
-                order.getStatus().name(),
-                providerResult.status(),
-                order.getAmount(),
-                providerResult.totalAmount(),
-                providerResult.transactionId(),
-                providerResult.failureCode(),
-                providerResult.failureMessage());
+                claim.paymentOrderID(),
+                claim.userID(),
+                claim.billingAgreementID(),
+                claim.orderID(),
+                claim.provider(),
+                claim.purpose(),
+                claim.localStatus().name(),
+                providerResult == null ? null : providerResult.status(),
+                claim.amount(),
+                providerResult == null ? null : providerResult.totalAmount(),
+                claim.currency(),
+                providerResult == null ? null : providerResult.currency(),
+                providerResult == null ? null : providerResult.transactionId(),
+                failureCode,
+                failureMessage);
     }
 
-    private LocalReconciliationIssue localIssue(
-            PaymentOrder order,
-            PaymentReconciliationIssueType issueType) {
-        return new LocalReconciliationIssue(
-                issueType,
-                order.getId(),
-                order.getUser().getId(),
-                order.getBillingAgreement() == null ? null : order.getBillingAgreement().getId(),
-                order.getOrderId(),
-                order.getProvider(),
-                order.getPurpose(),
-                order.getStatus().name(),
-                order.getAmount());
-    }
-
-    private LocalReconciliationIssue localIssue(BillingAgreement agreement) {
-        return new LocalReconciliationIssue(
-                PaymentReconciliationIssueType.ACTIVE_AGREEMENT_WITHOUT_SUBSCRIPTION,
-                null,
-                agreement.getUser().getId(),
-                agreement.getId(),
-                null,
-                agreement.getProvider(),
-                null,
-                agreement.getStatus().name(),
-                null);
+    private void assertNoTransactionAtProviderBoundary() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("Provider lookup cannot run inside a local transaction.");
+        }
     }
 
     public record ReconciliationResult(
@@ -274,6 +310,7 @@ public class PaymentReconciliationService {
             int providerDoneWithoutLocalFinalization,
             int localDoneButProviderNotDone,
             int amountMismatches,
+            int finalizedOrders,
             List<ProviderReconciliationIssue> issues) {
         public boolean hasMismatch() {
             return !issues.isEmpty();
@@ -304,8 +341,48 @@ public class PaymentReconciliationService {
             String providerStatus,
             BigDecimal localAmount,
             BigDecimal providerAmount,
+            String localCurrency,
+            String providerCurrency,
             String providerTransactionId,
             String failureCode,
             String failureMessage) {
+    }
+
+    private record OrderReconciliationOutcome(
+            boolean skipped,
+            boolean providerNotFound,
+            boolean lookupFailure,
+            boolean providerDoneWithoutLocalFinalization,
+            boolean localDoneButProviderNotDone,
+            boolean amountMismatch,
+            boolean finalized,
+            ProviderReconciliationIssue issue) {
+
+        static OrderReconciliationOutcome success() {
+            return new OrderReconciliationOutcome(false, false, false, true, false, false, true, null);
+        }
+
+        static OrderReconciliationOutcome finalizedWithIssue(ProviderReconciliationIssue issue) {
+            return new OrderReconciliationOutcome(false, false, false, true, false, false, true, issue);
+        }
+
+        static OrderReconciliationOutcome unresolved(
+                ProviderReconciliationIssue issue,
+                boolean skipped,
+                boolean providerNotFound,
+                boolean lookupFailure,
+                boolean providerDoneWithoutLocalFinalization,
+                boolean localDoneButProviderNotDone,
+                boolean amountMismatch) {
+            return new OrderReconciliationOutcome(
+                    skipped,
+                    providerNotFound,
+                    lookupFailure,
+                    providerDoneWithoutLocalFinalization,
+                    localDoneButProviderNotDone,
+                    amountMismatch,
+                    false,
+                    issue);
+        }
     }
 }

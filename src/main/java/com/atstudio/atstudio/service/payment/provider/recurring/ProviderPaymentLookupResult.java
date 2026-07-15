@@ -11,6 +11,7 @@ public record ProviderPaymentLookupResult(
         String transactionId,
         String status,
         BigDecimal totalAmount,
+        String currency,
         String providerPayload,
         String failureCode,
         String failureMessage
@@ -22,6 +23,7 @@ public record ProviderPaymentLookupResult(
             String transactionId,
             String status,
             BigDecimal totalAmount,
+            String currency,
             String providerPayload) {
         return new ProviderPaymentLookupResult(
                 provider,
@@ -30,6 +32,7 @@ public record ProviderPaymentLookupResult(
                 transactionId,
                 status,
                 totalAmount,
+                currency,
                 providerPayload,
                 null,
                 null);
@@ -44,6 +47,7 @@ public record ProviderPaymentLookupResult(
                 provider,
                 false,
                 orderId,
+                null,
                 null,
                 null,
                 null,
@@ -65,6 +69,7 @@ public record ProviderPaymentLookupResult(
                 null,
                 null,
                 null,
+                null,
                 failureCode,
                 failureMessage);
     }
@@ -77,4 +82,3 @@ public record ProviderPaymentLookupResult(
         return !found && !"NOT_FOUND_PAYMENT".equals(failureCode);
     }
 }
-

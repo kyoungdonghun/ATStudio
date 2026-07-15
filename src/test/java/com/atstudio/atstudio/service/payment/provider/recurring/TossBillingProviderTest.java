@@ -321,6 +321,7 @@ class TossBillingProviderTest {
                       "method": "카드",
                       "approvedAt": "2026-05-24T10:00:00+09:00",
                       "totalAmount": 9900,
+                      "currency": "KRW",
                       "card": {
                         "number": "1234-****-****-5678"
                       }
@@ -340,7 +341,9 @@ class TossBillingProviderTest {
         assertThat(result.providerDone()).isTrue();
         assertThat(result.transactionId()).isEqualTo("payment_key");
         assertThat(result.totalAmount()).isEqualByComparingTo("9900");
+        assertThat(result.currency()).isEqualTo("KRW");
         assertThat(result.providerPayload()).contains("\"paymentKey\":\"payment_key\"");
+        assertThat(result.providerPayload()).contains("\"currency\":\"KRW\"");
     }
 
     @Test

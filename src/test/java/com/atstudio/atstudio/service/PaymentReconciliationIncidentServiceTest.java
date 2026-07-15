@@ -20,12 +20,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,6 +35,7 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,6 +47,8 @@ class PaymentReconciliationIncidentServiceTest {
     @Mock BillingAgreementRepository billingAgreementRepository;
     @Mock UserRepository userRepository;
     @Mock EmailService emailService;
+    @Mock PaymentOperationAuditLogService auditLogService;
+    @Mock ObjectProvider<PaymentOperationAuditLogService> auditLogServiceProvider;
 
     PaymentProperties paymentProperties;
     PaymentReconciliationIncidentService service;
@@ -59,7 +64,8 @@ class PaymentReconciliationIncidentServiceTest {
                 billingAgreementRepository,
                 userRepository,
                 paymentProperties,
-                emailService);
+                emailService,
+                auditLogServiceProvider);
     }
 
     @Test
@@ -231,6 +237,43 @@ class PaymentReconciliationIncidentServiceTest {
         assertThat(existing.getResolutionNote()).isEqualTo("Provider billing key cleanup completed.");
     }
 
+    @Test
+    @DisplayName("successful finalize-only recovery resolves the matching provider Incident and audits it")
+    void resolveProviderRecoveryIncidents_resolvesAndAuditsMatchingIncident() {
+        enableAuditService();
+        String dedupeKey = "PROVIDER_DONE_LOCAL_NOT_FINALIZED:order:ATS-REN-1";
+        PaymentReconciliationIncident existing = PaymentReconciliationIncident.builder()
+                .dedupeKey(dedupeKey)
+                .issueType(PaymentReconciliationIssueType.PROVIDER_DONE_LOCAL_NOT_FINALIZED)
+                .status(PaymentReconciliationIncidentStatus.OPEN)
+                .severity(PaymentReconciliationIncidentSeverity.CRITICAL)
+                .occurrenceCount(1)
+                .firstDetectedAt(LocalDateTime.now().minusMinutes(5))
+                .lastDetectedAt(LocalDateTime.now().minusMinutes(5))
+                .build();
+        given(incidentRepository.findByDedupeKey(dedupeKey)).willReturn(Optional.of(existing));
+
+        service.resolveProviderRecoveryIncidents("ATS-REN-1");
+
+        assertThat(existing.getStatus()).isEqualTo(PaymentReconciliationIncidentStatus.RESOLVED);
+        assertThat(existing.getResolutionNote())
+                .isEqualTo("Provider payment evidence was finalized locally without another charge.");
+        verify(auditLogService).recordReconciliationIncidentStatusUpdate(
+                null,
+                existing,
+                PaymentReconciliationIncidentStatus.OPEN,
+                PaymentReconciliationIncidentStatus.RESOLVED,
+                "Provider payment evidence was finalized locally without another charge.");
+    }
+
+    private void enableAuditService() {
+        doAnswer(invocation -> {
+            Consumer<PaymentOperationAuditLogService> consumer = invocation.getArgument(0);
+            consumer.accept(auditLogService);
+            return null;
+        }).when(auditLogServiceProvider).ifAvailable(any());
+    }
+
     private PaymentReconciliationService.ReconciliationResult emptyLocalResult() {
         return new PaymentReconciliationService.ReconciliationResult(0, 0, 0, 0, List.of());
     }
@@ -250,6 +293,8 @@ class PaymentReconciliationIncidentServiceTest {
                         "DONE",
                         BigDecimal.valueOf(9900),
                         BigDecimal.valueOf(9900),
+                        "KRW",
+                        "KRW",
                         "payment_key",
                         null,
                         null);
@@ -259,6 +304,7 @@ class PaymentReconciliationIncidentServiceTest {
                 0,
                 0,
                 1,
+                0,
                 0,
                 0,
                 List.of(issue));

@@ -12,6 +12,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -201,6 +203,7 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
     }
 
     @Override
+    @Transactional(propagation = Propagation.NEVER)
     public ProviderPaymentLookupResult findPaymentByOrderId(String orderId) {
         PaymentProperties.Toss toss = paymentProperties.getToss();
         if (isBlank(toss.getSecretKey())) {
@@ -432,7 +435,8 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
                 text(root, "paymentKey", ""),
                 text(root, "status", ""),
                 totalAmount,
-                sanitizedChargePayload(root));
+                text(root, "currency", null),
+                sanitizedLookupPayload(root));
     }
 
     private PaymentRefundProviderResult toRefundResult(
@@ -490,6 +494,22 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
         if (root.hasNonNull("totalAmount")) {
             payload.put("totalAmount", root.get("totalAmount").asLong());
         }
+        putReceiptEvidence(payload, root);
+        putMaskedPaymentMethod(payload, root);
+        return objectMapper.writeValueAsString(payload);
+    }
+
+    private String sanitizedLookupPayload(JsonNode root) throws IOException {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        putTextIfPresent(payload, "paymentKey", root);
+        putTextIfPresent(payload, "orderId", root);
+        putTextIfPresent(payload, "status", root);
+        putTextIfPresent(payload, "method", root);
+        putTextIfPresent(payload, "approvedAt", root);
+        if (root.hasNonNull("totalAmount")) {
+            payload.put("totalAmount", root.get("totalAmount").asLong());
+        }
+        putTextIfPresent(payload, "currency", root);
         putReceiptEvidence(payload, root);
         putMaskedPaymentMethod(payload, root);
         return objectMapper.writeValueAsString(payload);

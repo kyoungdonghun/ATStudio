@@ -6,6 +6,7 @@ import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.PaymentReconciliationIncident;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
+import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.PaymentReconciliationIncidentSeverity;
@@ -17,11 +18,15 @@ import com.atstudio.atstudio.repository.PaymentReconciliationIncidentRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -33,6 +38,16 @@ public class PaymentReconciliationIncidentService {
     private static final String BILLING_KEY_DELETE_FAILED = "BILLING_KEY_DELETE_FAILED";
     private static final String BILLING_KEY_DELETE_FAILURE_MESSAGE = "Provider billing key deletion failed.";
     private static final String BILLING_CLEANUP_RESOLVED_NOTE = "Provider billing key cleanup completed.";
+    private static final String PROVIDER_RECOVERY_RESOLVED_NOTE =
+            "Provider payment evidence was finalized locally without another charge.";
+    private static final List<PaymentReconciliationIssueType> PROVIDER_RECOVERY_ISSUE_TYPES = List.of(
+            PaymentReconciliationIssueType.PROVIDER_DONE_LOCAL_NOT_FINALIZED,
+            PaymentReconciliationIssueType.PROVIDER_LOOKUP_FAILED,
+            PaymentReconciliationIssueType.AMOUNT_MISMATCH,
+            PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_FOUND,
+            PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_DONE,
+            PaymentReconciliationIssueType.DONE_ORDER_WITHOUT_PAYMENT
+    );
 
     private final PaymentReconciliationIncidentRepository incidentRepository;
     private final PaymentOrderRepository paymentOrderRepository;
@@ -40,6 +55,7 @@ public class PaymentReconciliationIncidentService {
     private final UserRepository userRepository;
     private final PaymentProperties paymentProperties;
     private final EmailService emailService;
+    private final ObjectProvider<PaymentOperationAuditLogService> auditLogServiceProvider;
 
     @Transactional
     public void recordIssues(
@@ -48,6 +64,55 @@ public class PaymentReconciliationIncidentService {
         LocalDateTime detectedAt = LocalDateTime.now();
         localResult.issues().forEach(issue -> recordLocalIssue(issue, detectedAt));
         providerResult.issues().forEach(issue -> recordProviderIssue(issue, detectedAt));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordLocalIssues(PaymentReconciliationService.ReconciliationResult localResult) {
+        LocalDateTime detectedAt = LocalDateTime.now();
+        localResult.issues().forEach(issue -> recordLocalIssue(issue, detectedAt));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordProviderRecoveryIssue(PaymentReconciliationService.ProviderReconciliationIssue issue) {
+        PaymentReconciliationIncident incident = recordProviderIssue(issue, LocalDateTime.now());
+        recordIncidentAudit(
+                incident,
+                null,
+                incident.getStatus(),
+                recoveryEvidenceNote(issue));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordProviderFinalizationFailure(
+            PaymentReconciliationService.ProviderReconciliationIssue issue) {
+        PaymentReconciliationIncident incident = recordProviderIssue(issue, LocalDateTime.now());
+        recordIncidentAudit(
+                incident,
+                incident.getStatus(),
+                incident.getStatus(),
+                "Reconciliation finalization failed; exceptionClass=" + nullText(issue.failureMessage()));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void resolveProviderRecoveryIncidents(String orderID) {
+        LocalDateTime resolvedAt = LocalDateTime.now();
+        for (PaymentReconciliationIssueType issueType : PROVIDER_RECOVERY_ISSUE_TYPES) {
+            String dedupeKey = dedupeKey(issueType, orderID, null, null);
+            incidentRepository.findByDedupeKey(dedupeKey)
+                    .filter(incident -> incident.getStatus() != PaymentReconciliationIncidentStatus.RESOLVED)
+                    .ifPresent(incident -> {
+                        PaymentReconciliationIncidentStatus beforeStatus = incident.getStatus();
+                        incident.changeStatus(
+                                PaymentReconciliationIncidentStatus.RESOLVED,
+                                PROVIDER_RECOVERY_RESOLVED_NOTE,
+                                resolvedAt);
+                        recordIncidentAudit(
+                                incident,
+                                beforeStatus,
+                                PaymentReconciliationIncidentStatus.RESOLVED,
+                                PROVIDER_RECOVERY_RESOLVED_NOTE);
+                    });
+        }
     }
 
     @Transactional
@@ -133,13 +198,13 @@ public class PaymentReconciliationIncidentService {
                 detectedAt);
     }
 
-    private void recordProviderIssue(
+    private PaymentReconciliationIncident recordProviderIssue(
             PaymentReconciliationService.ProviderReconciliationIssue issue,
             LocalDateTime detectedAt) {
         PaymentOrder paymentOrder = findPaymentOrder(issue.paymentOrderId());
         BillingAgreement billingAgreement = findBillingAgreement(issue.billingAgreementId());
         User user = resolveUser(paymentOrder, billingAgreement, issue.userId());
-        upsertIncident(
+        return upsertIncident(
                 dedupeKey(issue.issueType(), issue.orderId(), issue.paymentOrderId(), issue.billingAgreementId()),
                 issue.issueType(),
                 severity(issue.issueType()),
@@ -159,7 +224,7 @@ public class PaymentReconciliationIncidentService {
                 detectedAt);
     }
 
-    private void upsertIncident(
+    private PaymentReconciliationIncident upsertIncident(
             String dedupeKey,
             PaymentReconciliationIssueType issueType,
             PaymentReconciliationIncidentSeverity severity,
@@ -221,6 +286,41 @@ public class PaymentReconciliationIncidentService {
                         .build()));
 
         notifyOperatorIfNeeded(incident);
+        return incident;
+    }
+
+    private void recordIncidentAudit(
+            PaymentReconciliationIncident incident,
+            PaymentReconciliationIncidentStatus beforeStatus,
+            PaymentReconciliationIncidentStatus afterStatus,
+            String note) {
+        auditLogServiceProvider.ifAvailable(auditLogService ->
+                auditLogService.recordReconciliationIncidentStatusUpdate(
+                        null,
+                        incident,
+                        beforeStatus,
+                        afterStatus,
+                        truncate(note, MAX_NOTE_LENGTH)));
+    }
+
+    private String recoveryEvidenceNote(PaymentReconciliationService.ProviderReconciliationIssue issue) {
+        String nextLocalStatus = issue.failureCode() == null
+                ? PaymentOrderStatus.PROVIDER_SUCCEEDED.name()
+                : issue.localStatus();
+        return "Reconciliation evidence detected: oldLocalStatus=%s, newLocalStatus=%s, "
+                .formatted(
+                        nullText(issue.localStatus()),
+                        nullText(nextLocalStatus))
+                + "providerStatus=%s, localAmount=%s, "
+                .formatted(
+                        nullText(issue.providerStatus()),
+                        nullText(issue.localAmount()))
+                + "providerAmount=%s, localCurrency=%s, providerCurrency=%s, transactionId=%s."
+                .formatted(
+                        nullText(issue.providerAmount()),
+                        nullText(issue.localCurrency()),
+                        nullText(issue.providerCurrency()),
+                        nullText(issue.providerTransactionId()));
     }
 
     private PaymentOrder findPaymentOrder(Long paymentOrderId) {
