@@ -100,6 +100,26 @@ export default function TrackDetailPage() {
   const moodTags = track.tags.filter((t) => t.type === 'MOOD');
   const usageTags = track.tags.filter((t) => t.type === 'USAGE');
   const liked = likedIds.has(track.id);
+  const playerTrack = {
+    id: track.id,
+    title: track.title,
+    artistName: track.artistName ?? '',
+    duration: track.duration ?? 0,
+    bpm: track.bpm,
+    tonality: track.tonality,
+    description: track.description,
+    audioFile: track.audioFile,
+    thumbnail: track.thumbnail,
+    waveformData: track.waveformData,
+    tags: track.tags,
+    isActive: track.isActive,
+    playCount: track.playCount,
+    likeCount: track.likeCount,
+    downloadCount: track.downloadCount,
+    createdAt: track.createdAt,
+    updatedAt: track.updatedAt,
+  };
+  const hasCurrentWaveform = (currentTrack?.waveformData ?? null) === (track.waveformData ?? null);
 
   return (
     <div className={styles.page}>
@@ -132,28 +152,11 @@ export default function TrackDetailPage() {
             <button
               className={styles.btnPlay}
               onClick={() => {
-                if (currentTrack?.id === track.id) {
+                if (currentTrack?.id === track.id && hasCurrentWaveform) {
                   if (isPlayerPlaying) pauseTrack();
                   else resumeTrack();
                 } else {
-                  playTrack({
-                    id: track.id,
-                    title: track.title,
-                    artistName: track.artistName ?? '',
-                    duration: track.duration ?? 0,
-                    bpm: track.bpm,
-                    tonality: track.tonality,
-                    description: track.description,
-                    audioFile: track.audioFile,
-                    thumbnail: track.thumbnail,
-                    tags: track.tags,
-                    isActive: track.isActive,
-                    playCount: track.playCount,
-                    likeCount: track.likeCount,
-                    downloadCount: track.downloadCount,
-                    createdAt: track.createdAt,
-                    updatedAt: track.updatedAt,
-                  });
+                  playTrack(playerTrack);
                 }
               }}
             >
