@@ -1,17 +1,30 @@
 # ATStudio API Specification v19 (Confirmed)
 
-> **Status**: 19th confirmed — P0 protected media, mail-delivery logging, and withdrawal billing-stop alignment
-> **Base**: v18 + REQ-20260713-ATS-001 P0 remediation
-> **Date**: 2026-07-13
+> **Status**: 19th confirmed - 2026-07-15 public full-track listening supersession addendum
+> **Base**: v19 + REQ-20260715-ATS-001 full-track listening restoration addendum
+> **Date**: 2026-07-15
 
 ---
 
-## v18 → v19 Change History
+## 2026-07-15 Full-Listening Supersession
+
+This addendum is the current Track listening contract under REQ-20260715-ATS-001. Any earlier active wording that prescribes a dedicated preview, bounded prefix, duration ratio, or preview generator is superseded for listening behavior; original-key protection, static-route denial, and official download entitlement remain unchanged.
+
+| # | Item | Decision |
+|---|------|----------|
+| AK1 | §1 public Track listening | `GET /api/tracks/{trackId}/stream` serves the complete active Track resource through the controller for public listening. It does not select `preview_file` or apply a duration/byte-ratio boundary. |
+| AK2 | §1 Range contract | No-Range responses use the full resource length; one valid Range is resolved against that length; malformed, multiple, or unsatisfiable Ranges return `416` with `Content-Range: bytes */{fullLength}`. |
+| AK3 | Listening/download boundary | Public DTO storage-key redaction and direct static-original denial remain. Public listening grants no download record or License; official first download retains subscription and plan-limit checks. |
+| AK4 | Full API Summary | Endpoint count unchanged at 147. |
+
+---
+
+## Historical v18 to v19 Change History
 
 | # | Item | Decision |
 |---|------|----------|
 | AJ1 | §1 public/admin Track contract | Public detail keeps the response shape but returns `audioFile: null`; admin create, update, and detail responses retain the original storage key. |
-| AJ2 | §1 preview stream | Removed the false asynchronous preview-generation and full-original fallback claims. A valid dedicated preview is served in full; otherwise only a bounded original prefix is public, with Range requests enforced against that boundary. |
+| AJ2 | §1 preview stream | **Superseded by the 2026-07-15 addendum above.** v19 removed false asynchronous preview-generation and full-original fallback claims. Its dedicated-preview or bounded-prefix listening decision is retained here only as historical context. |
 | AJ3 | §5 withdrawal | Documented password-first local cancellation, after-commit Provider cleanup, retry Incident behavior, deleted-user renewal exclusion, and no automatic refund. |
 | AJ4 | §14 mail delivery | Documented delivery-metadata-only logging for verification and password-reset mail attempts. |
 | AJ5 | Full API Summary | Endpoint count unchanged at 147. |
@@ -199,7 +212,7 @@
 
 | # | Item | Decision |
 |---|------|----------|
-| 1 | Track streaming | **Historical design, superseded by v19** — `preview_file` was intended as a dedicated preview. Current code does not generate it asynchronously; an absent or invalid dedicated preview uses only a bounded original prefix, never the complete original. |
+| 1 | Track streaming | **Historical design, superseded by the 2026-07-15 addendum** - `preview_file` was introduced for an earlier preview design. The current public stream reads the complete active Track resource through the controller and does not select this column. |
 | 2 | Nickname duplicate check API | **Added (confirmed)** — `GET /api/utils/check-nickname` |
 
 ---
@@ -284,7 +297,7 @@
 |-------|-------|
 | **URL** | `POST /api/tracks` |
 | **Auth** | `[ADMIN]` |
-| **Description** | Admin uploads a new track (published after review: is_active=0). The current service stores the original and extracts waveform metadata; it does not generate a dedicated `preview_file`. Until a valid dedicated preview is separately populated, public streaming uses the bounded original-prefix compatibility path. |
+| **Description** | Admin uploads a new track (published after review: is_active=0). The service stores the original and extracts waveform metadata. Public listening later reads the active Track through the controller without exposing its storage key or a direct static URL. |
 
 **Request** (multipart/form-data)
 ```
@@ -367,7 +380,7 @@ sort: String (optional, "latest"|"popular"|"likes"|"downloads", default: "latest
 |-------|-------|
 | **URL** | `GET /api/tracks/{trackId}` |
 | **Auth** | `[PUBLIC]` |
-| **Description** | Get active track detail. The public DTO retains the `audioFile` field for compatibility but always returns it as `null`; callers use the stream endpoint for preview playback. |
+| **Description** | Get active track detail. The public DTO retains the `audioFile` field for compatibility but always returns it as `null`; callers use the stream endpoint for full-track listening. |
 
 **Response** `200 OK`
 ```json
@@ -401,22 +414,22 @@ sort: String (optional, "latest"|"popular"|"likes"|"downloads", default: "latest
 |-------|-------|
 | **URL** | `GET /api/tracks/{trackId}/stream` |
 | **Auth** | `[PUBLIC]` |
-| **Description** | Public Track preview streaming. A normalized path under `tracks/preview/` that differs from `audio_file` is treated as a dedicated preview and served to its full length. Otherwise, the service reads the original resource only through this controller and exposes a bounded prefix: the smaller of 30 seconds and 50% of duration by byte ratio, or 25% when duration is unavailable. Multi-byte originals always keep at least one byte private. Play history recording remains a separate frontend call to §4.1. |
+| **Description** | Public full-track listening for an active Track. The service loads `audio_file` only through this controller and serves the complete resource; it does not expose the storage key or a direct static URL. Play history recording remains a separate frontend call to §4.1. |
 
 **Responses**
 
-- `200 OK`: no `Range` header; returns only the public representation length.
-- `206 Partial Content`: one valid byte range resolved against the public representation length. Open-ended ranges are additionally capped to the controller chunk size.
-- `416 Range Not Satisfiable`: zero-length public representation, malformed/unsupported/multiple range, or a range beginning at or beyond the public boundary. Returns `Content-Range: bytes */{publicLength}`.
+- `200 OK`: no `Range` header; returns the complete resource representation and full content length.
+- `206 Partial Content`: one valid start/end, open-ended, or suffix byte range resolved against the full resource length.
+- `416 Range Not Satisfiable`: zero-length resource, malformed/unsupported/multiple range, or a range beginning at or beyond the full resource length. Returns `Content-Range: bytes */{fullLength}`.
 
-The endpoint returns `audio/mpeg` by default and `audio/wav` for a `.wav` resource. Repeated Range requests cannot cross the same public boundary. The complete original remains available only through the authenticated subscriber download endpoint.
+The endpoint returns `audio/mpeg` by default and `audio/wav` for a `.wav` resource. Public listening does not create a download record or License and does not grant an official file-download entitlement. The original storage key is never returned by the public Track API, and `/uploads/tracks/audio/**` remains denied before static-resource resolution.
 
 ## 1.5 Download Track
 | Field | Value |
 |-------|-------|
 | **URL** | `GET /api/tracks/{trackId}/download` |
-| **Auth** | auth required (subscribers only) |
-| **Description** | Download track file. Checks daily download limit. Saves download record + auto-issues license (does not re-issue if existing license exists) |
+| **Auth** | auth required; active subscription required for a first download, while an existing License permits entitled re-download |
+| **Description** | Official Track download. A first download checks the active subscription and plan daily limit, saves a download record, and auto-issues a License. An existing License permits re-download without duplicate issuance or another daily-count entry. |
 
 **Response** `200 OK` — file download (Content-Disposition: attachment)
 

@@ -163,8 +163,8 @@ class TrackControllerTest {
     // ── GET /api/tracks/{id}/stream (PUBLIC) ─────────────────────────────────
 
     @Test
-    @DisplayName("GET stream - 전용 previewFile의 Range 응답 유지")
-    void streamTrack_previewFile_preservesRangeResponse() throws Exception {
+    @DisplayName("GET stream - 시작/종료 Range를 전체 원본 길이로 해석")
+    void streamTrack_startEndRangeUsesFullResourceLength() throws Exception {
         ByteArrayResource resource = new ByteArrayResource("0123456789".getBytes());
         given(trackService.getStreamResource(1L))
                 .willReturn(new TrackService.StreamResource(resource, 10L));
@@ -178,59 +178,60 @@ class TrackControllerTest {
     }
 
     @Test
-    @DisplayName("GET stream - Range 미지정 원본 폴백은 공개 경계까지만 반환")
-    void streamTrack_originalFallback_withoutRangeReturnsBoundedPrefix() throws Exception {
+    @DisplayName("GET stream - Range 미지정 시 원본 전체 반환")
+    void streamTrack_withoutRangeReturnsFullResource() throws Exception {
         ByteArrayResource resource = new ByteArrayResource("0123456789".getBytes());
         given(trackService.getStreamResource(1L))
-                .willReturn(new TrackService.StreamResource(resource, 4L));
+                .willReturn(new TrackService.StreamResource(resource, 10L));
 
         mockMvc.perform(get("/api/tracks/1/stream"))
                 .andExpect(status().isOk())
-                .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 4L))
-                .andExpect(content().bytes("0123".getBytes()));
+                .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
+                .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 10L))
+                .andExpect(content().bytes("0123456789".getBytes()));
     }
 
     @Test
-    @DisplayName("GET stream - 공개 경계 이후에서 시작하는 Range는 416")
-    void streamTrack_originalFallback_outOfBoundsRangeReturns416() throws Exception {
+    @DisplayName("GET stream - 전체 원본 길이에서 시작하는 Range는 416")
+    void streamTrack_rangeStartingAtResourceLengthReturns416() throws Exception {
         ByteArrayResource resource = new ByteArrayResource("0123456789".getBytes());
         given(trackService.getStreamResource(1L))
-                .willReturn(new TrackService.StreamResource(resource, 4L));
+                .willReturn(new TrackService.StreamResource(resource, 10L));
 
         mockMvc.perform(get("/api/tracks/1/stream")
-                        .header(HttpHeaders.RANGE, "bytes=4-"))
+                        .header(HttpHeaders.RANGE, "bytes=10-"))
                 .andExpect(status().isRequestedRangeNotSatisfiable())
-                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */4"));
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */10"));
     }
 
     @Test
-    @DisplayName("GET stream - 경계 안에서 시작한 Range의 끝은 공개 경계로 제한")
-    void streamTrack_originalFallback_clampsRangeEndToBoundary() throws Exception {
+    @DisplayName("GET stream - 종료가 전체 길이를 넘는 Range는 원본 끝으로 제한")
+    void streamTrack_rangeEndIsClampedToFullResourceLength() throws Exception {
         ByteArrayResource resource = new ByteArrayResource("0123456789".getBytes());
         given(trackService.getStreamResource(1L))
-                .willReturn(new TrackService.StreamResource(resource, 4L));
+                .willReturn(new TrackService.StreamResource(resource, 10L));
 
         mockMvc.perform(get("/api/tracks/1/stream")
-                        .header(HttpHeaders.RANGE, "bytes=2-9"))
+                        .header(HttpHeaders.RANGE, "bytes=7-99"))
                 .andExpect(status().isPartialContent())
-                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 2-3/4"))
-                .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 2L))
-                .andExpect(content().bytes("23".getBytes()));
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 7-9/10"))
+                .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 3L))
+                .andExpect(content().bytes("789".getBytes()));
     }
 
     @Test
-    @DisplayName("GET stream - suffix Range is resolved against the public boundary")
-    void streamTrack_originalFallback_suffixRangeUsesPublicBoundary() throws Exception {
+    @DisplayName("GET stream - suffix Range를 전체 원본 길이로 해석")
+    void streamTrack_suffixRangeUsesFullResourceLength() throws Exception {
         ByteArrayResource resource = new ByteArrayResource("0123456789".getBytes());
         given(trackService.getStreamResource(1L))
-                .willReturn(new TrackService.StreamResource(resource, 4L));
+                .willReturn(new TrackService.StreamResource(resource, 10L));
 
         mockMvc.perform(get("/api/tracks/1/stream")
                         .header(HttpHeaders.RANGE, "bytes=-2"))
                 .andExpect(status().isPartialContent())
-                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 2-3/4"))
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 8-9/10"))
                 .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 2L))
-                .andExpect(content().bytes("23".getBytes()));
+                .andExpect(content().bytes("89".getBytes()));
     }
 
     @Test
@@ -238,12 +239,12 @@ class TrackControllerTest {
     void streamTrack_malformedRangeReturns416() throws Exception {
         ByteArrayResource resource = new ByteArrayResource("0123456789".getBytes());
         given(trackService.getStreamResource(1L))
-                .willReturn(new TrackService.StreamResource(resource, 4L));
+                .willReturn(new TrackService.StreamResource(resource, 10L));
 
         mockMvc.perform(get("/api/tracks/1/stream")
                         .header(HttpHeaders.RANGE, "bytes=invalid"))
                 .andExpect(status().isRequestedRangeNotSatisfiable())
-                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */4"));
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */10"));
     }
 
     @Test
@@ -251,7 +252,7 @@ class TrackControllerTest {
     void streamTrack_rangeEdgeCasesReturn416() throws Exception {
         ByteArrayResource resource = new ByteArrayResource("0123456789".getBytes());
         given(trackService.getStreamResource(1L))
-                .willReturn(new TrackService.StreamResource(resource, 4L));
+                .willReturn(new TrackService.StreamResource(resource, 10L));
 
         for (String rangeHeader : List.of(
                 "bytes=3-1",
@@ -261,7 +262,7 @@ class TrackControllerTest {
             mockMvc.perform(get("/api/tracks/1/stream")
                             .header(HttpHeaders.RANGE, rangeHeader))
                     .andExpect(status().isRequestedRangeNotSatisfiable())
-                    .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */4"));
+                    .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */10"));
         }
     }
 
@@ -270,27 +271,27 @@ class TrackControllerTest {
     void streamTrack_multipleRangesReturn416() throws Exception {
         ByteArrayResource resource = new ByteArrayResource("0123456789".getBytes());
         given(trackService.getStreamResource(1L))
-                .willReturn(new TrackService.StreamResource(resource, 4L));
+                .willReturn(new TrackService.StreamResource(resource, 10L));
 
         mockMvc.perform(get("/api/tracks/1/stream")
                         .header(HttpHeaders.RANGE, "bytes=0-0,2-2"))
                 .andExpect(status().isRequestedRangeNotSatisfiable())
-                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */4"));
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */10"));
     }
 
     @Test
-    @DisplayName("GET stream - repeated requests cannot retrieve bytes beyond the public boundary")
-    void streamTrack_repeatedOutOfBoundsRangesReturn416() throws Exception {
+    @DisplayName("GET stream - open-ended Range를 원본 끝까지 반환")
+    void streamTrack_openEndedRangeReturnsThroughResourceEnd() throws Exception {
         ByteArrayResource resource = new ByteArrayResource("0123456789".getBytes());
         given(trackService.getStreamResource(1L))
-                .willReturn(new TrackService.StreamResource(resource, 4L));
+                .willReturn(new TrackService.StreamResource(resource, 10L));
 
-        for (int start : List.of(4, 5, 9)) {
-            mockMvc.perform(get("/api/tracks/1/stream")
-                            .header(HttpHeaders.RANGE, "bytes=" + start + "-"))
-                    .andExpect(status().isRequestedRangeNotSatisfiable())
-                    .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes */4"));
-        }
+        mockMvc.perform(get("/api/tracks/1/stream")
+                        .header(HttpHeaders.RANGE, "bytes=4-"))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 4-9/10"))
+                .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 6L))
+                .andExpect(content().bytes("456789".getBytes()));
     }
 
     // ── GET /api/tracks/{id}/download (인증 필요) ─────────────────────────────

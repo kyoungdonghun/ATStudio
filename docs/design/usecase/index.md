@@ -1,9 +1,18 @@
 # Use Case Specification Index
 
-> **Version**: v13
-> **Confirmed date**: 2026-07-13
-> **Reference documents**: `docs/design/db-schema.md` (v14), `docs/design/api-spec.md` (v19)
+> **Version**: v14
+> **Confirmed date**: 2026-07-15
+> **Reference documents**: `docs/design/db-schema.md` (v15), `docs/design/api-spec.md` (v19)
 > **Source**: `docs/ui/usecase-spec csv/`
+
+---
+
+## Current Track Media Contract
+
+- SOUND-010 provides complete active-Track Public Listening through `GET /api/tracks/{trackId}/stream`, with valid Ranges resolved against the full resource length.
+- Public responses expose no original storage key, `/uploads/tracks/audio/**` remains denied, and listening creates no download record or License.
+- SOUND-011 Official Download remains separate: a first download requires an active Subscription and available plan quota; an existing License permits entitled re-download.
+- SOUND-001 and SOUND-012 require no separate preview-generation workflow. The legacy nullable schema column is not a current listening dependency.
 
 ---
 
@@ -296,7 +305,7 @@
 | 3 | INFO-007 | Changed to soft delete (is_deleted=1), added password re-confirmation |
 | 4 | INFO-009 | Fixed description error ("specific member's" to "own"), removed active subscription precondition |
 | 5 | INFO-011 | Fixed code typo (IFNO-011 to INFO-011) |
-| 6 | SOUND-001 | Updated file upload flow (multipart sent directly to backend), added async preview_file generation |
+| 6 | SOUND-001 | **Historical v3 record, superseded by v14** - changed upload to direct multipart and introduced a separate preview-generation design. Current SOUND-001 stores the original and waveform metadata; no preview-generation workflow is required. |
 | 7 | SOUND-002 | Fixed actor (admin/artist to User (Member)) |
 | 8 | SOUND-004/009/015 | Renamed "playlog" to "play history (play_histories)" |
 | 9 | SOUND-010 | Added play_histories recording + play_count increment as postconditions |
@@ -334,6 +343,6 @@
 
 | # | Field | Value |
 |---|-------|-------|
-| 1 | `tracks.preview_file` column added | Historical v3 design statement, superseded by v13 current behavior: no asynchronous generator exists; a valid dedicated preview is optional, and fallback exposes only a bounded original prefix. |
+| 1 | `tracks.preview_file` column added | **Historical v3 schema statement, superseded by v14** - the legacy nullable column remains for compatibility, but current Public Listening serves the complete active Track through the controller and does not select or depend on it. |
 | 2 | `GET /api/utils/check-nickname` API added | Nickname duplicate check API (UTIL-012) |
 | 3 | `track_tags` join table | Physical deletion confirmed when track is soft-deleted |

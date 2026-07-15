@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-07-13
+version: 1.2
+last_updated: 2026-07-15
 project: ATS
 owner: SA
 category: design
@@ -12,11 +12,15 @@ dependencies:
     reason: Secret and protected-resource handling rules
   - path: api-spec.md
     reason: Current API contract baseline
+  - path: ../../deliverables/user/REQ-20260715-ATS-001.md
+    reason: Superseding public full-track listening decision
 ---
 
 # P0 Release Blocker Remediation Design
 
 > Purpose: Define the implementation and verification contracts for the three P0 findings confirmed by the 2026-07-13 full-system audit.
+
+> **Supersession note (2026-07-15):** REQ-20260715-ATS-001 supersedes only this design's listening-length and dedicated-preview selection decision. Public listening now serves the complete active Track through `GET /api/tracks/{trackId}/stream`, with Range requests resolved against the full resource length. The original storage key remains absent from public DTOs, direct `/uploads/tracks/audio/**` access remains denied, and official download/License entitlement remains separate. The bounded-preview statements below are preserved as the historical 2026-07-13 remediation contract, not current policy.
 
 ## 1. Scope and Invariants
 
@@ -26,9 +30,9 @@ This design covers only the following release blockers. The implementation and f
 2. Verification and password-reset secrets written to SMTP failure logs.
 3. Recurring charges remaining possible after account withdrawal.
 
-The following invariants must remain true:
+The following invariants record the 2026-07-13 baseline. The first item is superseded by the note above; the remaining protection and business boundaries remain current:
 
-- Public users can play a bounded preview.
+- **Historical, superseded:** Public users can play a bounded preview.
 - Eligible subscribers can download the original through the existing authenticated download API.
 - Password-reset requests retain their generic external response behavior.
 - Account withdrawal does not trigger an automatic refund.
@@ -50,9 +54,9 @@ Every request under `/uploads/tracks/audio/**` is denied before static-resource 
 
 The original file remains in its current physical location during this WI. Moving existing files or changing stored paths is a separate, destructive migration that requires explicit approval. The route denial is therefore the immediate enforcement boundary.
 
-### 2.3 Public stream compatibility
+### 2.3 Public stream compatibility (historical, superseded)
 
-The public stream endpoint must never fall back to serving the complete original file.
+The 2026-07-13 contract did not allow the public stream endpoint to fall back to the complete original file. The bullets in this subsection record that historical closure contract and must not be implemented as current listening policy after REQ-20260715-ATS-001.
 
 - If `preview_file` normalizes under `tracks/preview/` and differs from `audio_file`, the endpoint serves that dedicated resource with the existing Range behavior.
 - If `preview_file` is absent, invalid, outside the dedicated directory, or resolves to the original key, the endpoint exposes a bounded prefix of the original as a compatibility preview.
@@ -143,12 +147,14 @@ The due-renewal query excludes deleted users at the database query boundary. `Re
 
 ## 6. Acceptance-Test Matrix
 
+MEDIA-03, MEDIA-04, and the preview wording in REGRESSION-01 are historical closure criteria superseded only for listening length by REQ-20260715-ATS-001. MEDIA-01, MEDIA-02, MEDIA-05, and all non-media criteria retain their original meaning.
+
 | ID | Verification |
 |---|---|
 | MEDIA-01 | Public track detail returns `audioFile: null`; admin detail retains the key. |
 | MEDIA-02 | Authenticated USER and ADMIN requests to `/uploads/tracks/audio/**` are denied. |
-| MEDIA-03 | A stream backed by `preview_file` preserves normal Range behavior. |
-| MEDIA-04 | A stream falling back to the original never returns a region beyond the bounded preview and rejects an out-of-bound Range. |
+| MEDIA-03 | Historical 2026-07-13 criterion: a stream backed by `preview_file` preserves normal Range behavior. Superseded for current listening behavior. |
+| MEDIA-04 | Historical 2026-07-13 criterion: an original-backed stream never returns a region beyond the bounded preview and rejects an out-of-bound Range. Superseded for current listening behavior. |
 | MEDIA-05 | Subscriber download still returns the original after existing entitlement checks. |
 | MAIL-01 | Simulated SMTP failure logs a delivery ID and outcome. |
 | MAIL-02 | Captured logs do not contain recipient, subject, body, token, URL, provider exception message, or stack trace. |
@@ -156,7 +162,7 @@ The due-renewal query excludes deleted users at the database query boundary. `Re
 | WITHDRAW-02 | Provider cleanup failure leaves the user deleted and agreement non-chargeable, and creates one deduplicated incident. |
 | WITHDRAW-03 | Cleanup retry success clears key material and resolves the incident. |
 | WITHDRAW-04 | Due-renewal query and service guard both exclude deleted users; provider charge invocation count is zero. |
-| REGRESSION-01 | Existing public listing, preview playback, subscriber download, password-reset generic response, and normal renewal tests pass. |
+| REGRESSION-01 | Historical 2026-07-13 wording: existing public listing, preview playback, subscriber download, password-reset generic response, and normal renewal tests pass. Its preview-length portion is superseded; the other regression boundaries remain current. |
 
 ## 7. Rollback and Migration
 
@@ -171,6 +177,7 @@ The due-renewal query excludes deleted users at the database query boundary. `Re
 
 - [Full-System Audit](../audit/full-system-audit-20260713.md): Confirmed P0 findings and evidence.
 - [Security Policy](../policies/security-policy.md): Protected-resource and secret-handling requirements.
+- [REQ-20260715-ATS-001](../../deliverables/user/REQ-20260715-ATS-001.md): Approved superseding full-track listening decision.
 
 ### Reference Documents
 

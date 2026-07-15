@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-07-13
+version: 1.3
+last_updated: 2026-07-15
 project: ATS
 owner: EO
 category: standard
@@ -74,7 +74,9 @@ task_types:
 | tag | Tag | Admin-managed category for track discovery and classification | keyword, label | genre (different concept) | - | Predefined categories managed by admin; not user-defined |
 | usage-tag | Usage Guide Tag | Visible guide/search hashtag that describes the expected content use case for a track | usage hashtag, guide tag | license, usage license | - | Stored as `tags.type=USAGE`; examples: `#쇼츠용`, `#유튜브용`, `#릴스용` |
 | license | License | Track usage rights automatically issued upon download | permission, rights | copyright (broader) | - | DB table `licenses`; issued per (user, track) pair |
-| upload | Upload | Process of creator submitting a track to the platform | submit, publish | post (ambiguous) | - | Includes file validation, original storage, duration extraction, and waveform extraction; no async preview generation is currently implemented |
+| public-listening | Public Listening | Complete active Track playback through the public controller-mediated stream | listening, playback | preview (when it implies truncation), download | - | `GET /api/tracks/{trackId}/stream`; does not expose the storage key or static URL and does not create a download record or License |
+| official-download | Official Download | Controller-mediated transfer of the original Track under download entitlement | entitled download, re-download | listening, static retrieval | - | A first download requires an active Subscription and available plan quota, records the download, and issues a License; an existing License permits entitled re-download |
+| upload | Upload | Process of creator submitting a track to the platform | submit, publish | post (ambiguous) | - | Includes file validation, original storage, duration extraction, and waveform extraction |
 | subscription | Subscription | Paid plan that grants download and playlist access | plan, membership | purchase (different) | - | DB table `user_subscriptions`; required for downloads |
 | whitelist-channel | Whitelist Channel | YouTube channel profile saved by a member and optionally submitted for manual whitelist registration | channel | account (ambiguous) | - | DB table `whitelist_channels`; request/registered/removal states are limited by subscription plan |
 | download-queue | Download Queue | Temporary collection of tracks queued for sequential download | cart (incorrect) | cart (no purchase concept) | - | DB table `download_queue`; frontend calls SOUND-011 per track |

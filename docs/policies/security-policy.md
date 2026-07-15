@@ -1,6 +1,6 @@
 ---
-version: 1.3
-last_updated: 2026-07-13
+version: 1.4
+last_updated: 2026-07-15
 project: ATS
 owner: PG
 category: policy
@@ -8,6 +8,8 @@ status: stable
 dependencies:
   - path: ../standards/glossary.md
     reason: Standard terminology usage baseline
+  - path: ../design/api-spec.md
+    reason: Current public listening and official download contract
 tier: 1
 target_agents:
   - pg
@@ -152,9 +154,9 @@ Use the committed `application.yml` as the safe shared baseline, and override pe
 - Public Track detail responses must not expose the original `audio_file` storage key. The compatibility field is returned as `audioFile: null`.
 - Admin create, update, and detail responses may retain the original key for the existing admin edit workflow.
 - `/uploads/tracks/audio/**` is denied before static-resource resolution for anonymous, USER, and ADMIN requests. Encoded and traversal variants must also fail before resource delivery.
-- Public playback uses `GET /api/tracks/{trackId}/stream`. A valid dedicated preview must normalize under `tracks/preview/` and differ from the original key.
-- When no valid dedicated preview exists, the endpoint may read the original only through the controller and expose a bounded prefix. It must never expose the complete original through repeated or malformed Range requests.
-- Entitled subscribers obtain the original only through `GET /api/tracks/{trackId}/download` after the existing subscription, quota, history, and license controls.
+- Public Listening uses `GET /api/tracks/{trackId}/stream` and serves the complete active Track resource only through the controller. A no-Range request returns the complete representation; one valid Range is resolved against the full resource length; malformed, multiple, or unsatisfiable Ranges return `416` with `Content-Range: bytes */{fullLength}`.
+- Public Listening does not disclose the original storage key or static URL and does not create a download record or License. It is not official file-download entitlement.
+- Official Download uses `GET /api/tracks/{trackId}/download`. A first download requires an active Subscription and available plan quota, then records download history and issues a License. An existing License permits entitled re-download without duplicate issuance or another daily-count entry.
 
 ### 6.6 Mail Delivery Logging
 

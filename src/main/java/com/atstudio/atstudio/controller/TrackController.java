@@ -26,8 +26,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TrackController {
 
-    private static final long DEFAULT_STREAM_CHUNK_SIZE = 1024 * 1024;
-
     private final TrackService trackService;
     private final DownloadService downloadService;
 
@@ -124,9 +122,6 @@ public class TrackController {
             HttpRange range = ranges.get(0);
             long start = range.getRangeStart(publicLength);
             long end = range.getRangeEnd(publicLength);
-            if (isOpenEndedRange(rangeHeader)) {
-                end = Math.min(end, start + DEFAULT_STREAM_CHUNK_SIZE - 1);
-            }
             if (start < 0 || start >= publicLength || end < start) {
                 return rangeNotSatisfiable(publicLength);
             }
@@ -151,11 +146,6 @@ public class TrackController {
             return MediaType.parseMediaType("audio/wav");
         }
         return MediaType.parseMediaType("audio/mpeg");
-    }
-
-    private boolean isOpenEndedRange(String rangeHeader) {
-        String rangeValue = rangeHeader.substring(rangeHeader.indexOf('=') + 1).trim();
-        return rangeValue.endsWith("-") && !rangeValue.startsWith("-");
     }
 
     private ResponseEntity<ResourceRegion> rangeNotSatisfiable(long publicLength) {

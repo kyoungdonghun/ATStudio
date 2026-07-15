@@ -35,7 +35,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
@@ -286,117 +285,51 @@ class TrackServiceTest {
     // ── getStreamResource() ──────────────────────────────────────────────────
 
     @Test
-    @DisplayName("getStreamResource() - previewFile이 있으면 전체 미리보기 길이 제공")
-    void getStreamResource_previewFileUsesFullPreviewLength() {
+    @DisplayName("getStreamResource() - previewFile이 있어도 원본 리소스의 전체 길이 제공")
+    void getStreamResource_previewFileStillUsesFullOriginal() {
         Track track = buildTrack(1L, true);
         ReflectionTestUtils.setField(track, "previewFile", "tracks/preview/test.mp3");
-        ByteArrayResource resource = new ByteArrayResource(new byte[1_000]);
+        ByteArrayResource originalResource = new ByteArrayResource(new byte[1_000]);
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/preview/test.mp3")).willReturn(resource);
+        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3"))
+                .willReturn(originalResource);
 
         TrackService.StreamResource result = trackService.getStreamResource(1L);
 
-        assertThat(result.resource()).isSameAs(resource);
+        assertThat(result.resource()).isSameAs(originalResource);
         assertThat(result.publicLength()).isEqualTo(1_000L);
-    }
-
-    @Test
-    @DisplayName("getStreamResource() - preview 경로가 원본으로 정규화되면 원본 폴백 경계를 적용")
-    void getStreamResource_previewTraversalToOriginalUsesBoundedFallback() {
-        Track track = buildTrack(1L, true);
-        ReflectionTestUtils.setField(track, "previewFile", "tracks/preview/../audio/test.mp3");
-        ByteArrayResource resource = new ByteArrayResource(new byte[1_000]);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource(eq(StorageRoot.PUBLIC), anyString())).willReturn(resource);
-
-        TrackService.StreamResource result = trackService.getStreamResource(1L);
-
-        assertThat(result.resource()).isSameAs(resource);
-        assertThat(result.publicLength()).isEqualTo(250L);
         verify(storageService).loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3");
+        verify(storageService, never()).loadAsResource(StorageRoot.PUBLIC, "tracks/preview/test.mp3");
     }
 
     @Test
-    @DisplayName("getStreamResource() - preview와 원본 키가 같으면 전체 원본을 공개하지 않음")
-    void getStreamResource_previewKeyEqualToOriginalUsesBoundedFallback() {
-        Track track = buildTrack(1L, true);
-        ReflectionTestUtils.setField(track, "previewFile", "tracks/audio/test.mp3");
-        ByteArrayResource resource = new ByteArrayResource(new byte[1_000]);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3")).willReturn(resource);
-
-        TrackService.StreamResource result = trackService.getStreamResource(1L);
-
-        assertThat(result.resource()).isSameAs(resource);
-        assertThat(result.publicLength()).isEqualTo(250L);
-    }
-
-    @Test
-    @DisplayName("getStreamResource() - 원본 폴백은 30초와 재생시간 50% 중 작은 경계로 제한")
-    void getStreamResource_originalFallbackUsesBoundedDurationRatio() {
+    @DisplayName("getStreamResource() - 재생시간과 무관하게 원본 리소스 전체 길이 제공")
+    void getStreamResource_usesFullOriginalLengthRegardlessOfDuration() {
         Track track = buildTrack(1L, true);
         ReflectionTestUtils.setField(track, "duration", 120);
         ByteArrayResource resource = new ByteArrayResource(new byte[1_200]);
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3")).willReturn(resource);
+        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3"))
+                .willReturn(resource);
 
         TrackService.StreamResource result = trackService.getStreamResource(1L);
 
         assertThat(result.resource()).isSameAs(resource);
-        assertThat(result.publicLength()).isEqualTo(300L);
+        assertThat(result.publicLength()).isEqualTo(1_200L);
     }
 
     @Test
-    @DisplayName("getStreamResource() - 60초 미만 원본 폴백은 재생시간의 50%로 제한")
-    void getStreamResource_shortOriginalFallbackUsesHalfDuration() {
-        Track track = buildTrack(1L, true);
-        ReflectionTestUtils.setField(track, "duration", 40);
-        ByteArrayResource resource = new ByteArrayResource(new byte[1_000]);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3")).willReturn(resource);
-
-        TrackService.StreamResource result = trackService.getStreamResource(1L);
-
-        assertThat(result.publicLength()).isEqualTo(500L);
-    }
-
-    @Test
-    @DisplayName("getStreamResource() - 재생시간이 없으면 원본의 25%만 공개")
-    void getStreamResource_originalFallbackWithoutDurationUsesQuarter() {
-        Track track = buildTrack(1L, true);
-        ByteArrayResource resource = new ByteArrayResource(new byte[1_000]);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3")).willReturn(resource);
-
-        TrackService.StreamResource result = trackService.getStreamResource(1L);
-
-        assertThat(result.publicLength()).isEqualTo(250L);
-    }
-
-    @Test
-    @DisplayName("getStreamResource() - 다중 바이트 원본은 최소 1바이트를 공개 경계 밖에 유지")
-    void getStreamResource_originalFallbackKeepsOneBytePrivate() {
-        Track track = buildTrack(1L, true);
-        ByteArrayResource resource = new ByteArrayResource(new byte[2]);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3")).willReturn(resource);
-
-        TrackService.StreamResource result = trackService.getStreamResource(1L);
-
-        assertThat(result.publicLength()).isEqualTo(1L);
-    }
-
-    @Test
-    @DisplayName("getStreamResource() - one-byte original is not exposed as a complete fallback")
-    void getStreamResource_oneByteOriginalFallbackExposesNoBytes() {
+    @DisplayName("getStreamResource() - 1바이트 원본도 전체 길이 제공")
+    void getStreamResource_oneByteOriginalUsesFullLength() {
         Track track = buildTrack(1L, true);
         ByteArrayResource resource = new ByteArrayResource(new byte[1]);
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3")).willReturn(resource);
+        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3"))
+                .willReturn(resource);
 
         TrackService.StreamResource result = trackService.getStreamResource(1L);
 
-        assertThat(result.publicLength()).isZero();
+        assertThat(result.publicLength()).isOne();
     }
 
     // ── updateTrack() ─────────────────────────────────────────────────────────

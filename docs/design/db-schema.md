@@ -1,16 +1,25 @@
-# ATStudio DB Schema Definition v14 (Confirmed)
+# ATStudio DB Schema Definition v15 (Confirmed)
 
-> **Status**: v14 Confirmed — P0 current-state semantics with no structural schema change
-> **Base**: v13 + REQ-20260713-ATS-001 P0 remediation
-> **Date**: 2026-07-13
+> **Status**: v15 Confirmed - current Track media semantics with no structural schema change
+> **Base**: v14 + REQ-20260715-ATS-001 public full-track listening alignment
+> **Date**: 2026-07-15
 
 ---
 
-## v13 to v14 Change History
+## v14 to v15 Change History
 
 | # | Item | Decision |
 |---|------|----------|
-| 1 | `tracks.audio_file` / `tracks.preview_file` | **Wording corrected** — no asynchronous preview generator exists. `audio_file` remains the original download source; a valid dedicated preview is optional, and public fallback is a bounded original prefix. |
+| 1 | `tracks.audio_file` / `tracks.preview_file` | **Current contract clarified** - `audio_file` remains a private storage key used only through controller-mediated Public Listening and Official Download. Public DTOs redact the key, the static original route remains denied, and current listening does not depend on `preview_file`. |
+| 2 | Table count and structure | **Unchanged** - 39 tables; no column, key, ENUM, seed, or data change. |
+
+---
+
+## v13 to v14 Change History (Historical)
+
+| # | Item | Decision |
+|---|------|----------|
+| 1 | `tracks.audio_file` / `tracks.preview_file` | **Historical 2026-07-13 contract, superseded for listening behavior by v15** - this version documented an optional dedicated resource and bounded original fallback. That listening decision is preserved only as history and is not current policy. |
 | 2 | `billing_agreements` withdrawal lifecycle | **Clarified** — withdrawal cancels locally before soft deletion, then performs Provider key cleanup after commit with retained key material on retryable failure. |
 | 3 | `payment_reconciliation_incidents` | **Clarified** — withdrawal cleanup reuses `LOCAL_DONE_PROVIDER_NOT_DONE` with agreement-scoped dedupe and resolves it after convergent cleanup. |
 | 4 | Table count and structure | **Unchanged** — 39 tables; no column, key, ENUM, seed, or data change. |
@@ -142,7 +151,7 @@
 
 | # | Item | Decision |
 |---|------|----------|
-| 1 | `tracks.preview_file` | **Historical column addition; behavior superseded by v14** — The asynchronous generator described at the time is not implemented. The nullable column may identify a valid dedicated preview; otherwise streaming exposes only a bounded original prefix. |
+| 1 | `tracks.preview_file` | **Historical v3 schema addition** - the version associated this nullable column with a separate preview workflow. That behavior is superseded; v15 Public Listening serves the complete active Track through the controller and does not depend on this legacy column. |
 
 ---
 
@@ -347,8 +356,8 @@
 | BPM | `bpm` | INT | NOT NULL | | | |
 | Key/Tonality | `tonality` | VARCHAR(10) | NOT NULL | | | e.g., C, Am, F#m |
 | Description | `description` | TEXT | NULL | | | |
-| Audio file path | `audio_file` | VARCHAR(255) | NOT NULL | | | Original storage key for admin metadata and entitled controller-mediated download; public Track DTOs return `audioFile: null` and the static original route is denied |
-| Preview file path | `preview_file` | VARCHAR(255) | NULL | | | Optional dedicated preview key. Current code does not generate it asynchronously. A normalized `tracks/preview/` key distinct from `audio_file` is served in full; absent or invalid values use only a bounded original prefix |
+| Audio file path | `audio_file` | VARCHAR(255) | NOT NULL | | | Private original storage key used for controller-mediated full Public Listening and protected Official Download; public Track DTOs return `audioFile: null` and `/uploads/tracks/audio/**` is denied |
+| Legacy preview file path | `preview_file` | VARCHAR(255) | NULL | | | Nullable legacy column retained for schema compatibility; current Public Listening does not select or depend on it |
 | Duration | `duration` | INT | NOT NULL | | 0 | Duration in seconds, auto-extracted from audio file |
 | Copyright holder | `user_id` | BIGINT | NOT NULL | FK(users.id) | | Currently only a single admin (artist) uses this |
 | Active flag | `is_active` | TINYINT(1) | NOT NULL | | 0 | Published after review (admin activates) |

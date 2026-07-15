@@ -39,9 +39,6 @@ import java.io.InputStream;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.InvalidPathException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,8 +46,6 @@ import java.util.List;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class TrackService {
-
-    private static final String PREVIEW_DIRECTORY_PREFIX = "tracks/preview/";
 
     private final TrackRepository trackRepository;
     private final TrackTagRepository trackTagRepository;
@@ -155,20 +150,12 @@ public class TrackService {
 
     public StreamResource getStreamResource(Long trackId) {
         Track track = findActiveTrack(trackId);
-        boolean hasPreviewFile = isDedicatedPreviewFile(
-                track.getPreviewFile(),
+        Resource resource = storageService.loadAsResource(
+                StorageRoot.PUBLIC,
                 track.getAudioFile());
-        String filePath = hasPreviewFile
-                ? track.getPreviewFile()
-                : track.getAudioFile();
-        Resource resource = storageService.loadAsResource(StorageRoot.PUBLIC, filePath);
 
         try {
-            long resourceLength = resource.contentLength();
-            long publicLength = hasPreviewFile
-                    ? resourceLength
-                    : calculateOriginalFallbackLength(resourceLength, track.getDuration());
-            return new StreamResource(resource, publicLength);
+            return new StreamResource(resource, resource.contentLength());
         } catch (IOException e) {
             throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
         }
@@ -279,47 +266,6 @@ public class TrackService {
             throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
         }
         return track;
-    }
-
-    private long calculateOriginalFallbackLength(long resourceLength, int durationSeconds) {
-        if (resourceLength <= 1) {
-            return 0;
-        }
-
-        double previewRatio = durationSeconds > 0
-                ? Math.min(30.0, durationSeconds * 0.5) / durationSeconds
-                : 0.25;
-        long estimatedLength = (long) Math.floor(resourceLength * previewRatio);
-
-        return Math.max(1, Math.min(resourceLength - 1, estimatedLength));
-    }
-
-    private boolean isDedicatedPreviewFile(String previewFile, String audioFile) {
-        String normalizedPreview = normalizeStoragePath(previewFile);
-        if (normalizedPreview == null
-                || !normalizedPreview.startsWith(PREVIEW_DIRECTORY_PREFIX)) {
-            return false;
-        }
-
-        String normalizedAudio = normalizeStoragePath(audioFile);
-        return normalizedAudio == null
-                || !normalizedPreview.equalsIgnoreCase(normalizedAudio);
-    }
-
-    private String normalizeStoragePath(String storagePath) {
-        if (storagePath == null || storagePath.isBlank()) {
-            return null;
-        }
-
-        try {
-            Path normalizedPath = Paths.get(storagePath.replace('\\', '/')).normalize();
-            if (normalizedPath.isAbsolute()) {
-                return null;
-            }
-            return normalizedPath.toString().replace('\\', '/');
-        } catch (InvalidPathException e) {
-            return null;
-        }
     }
 
     public record StreamResource(Resource resource, long publicLength) {
