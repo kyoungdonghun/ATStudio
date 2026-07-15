@@ -506,25 +506,30 @@ database. The ordered patch must:
    `billing_period_start` by one to three days. Abort if an agreement has zero
    or multiple plausible failed-period rows while its date is inside a retry
    window.
-4. For each unique exact legacy retry row, copy the old agreement
+4. List every existing `PROCESSING` refund for operator review before any
+   backfill. This preflight query must not assume that the new lease column
+   already exists.
+5. List and abort on every cancelled agreement that retains billing-key
+   ciphertext. Its provider cleanup outcome is ambiguous and must receive an
+   approved row-specific disposition before assigning cleanup state.
+6. Add the three groups of nullable/defaulted columns, without their new
+   indexes, through the existing idempotent helper procedures.
+7. For each unique exact legacy retry row, copy the old agreement
    `next_billing_at` to `renewal_retry_at`, then restore `next_billing_at` from
    that order's `billing_period_start`. Do not choose a "latest" row outside
    the exact agreement/subscription/purpose/grace predicate.
-5. Add the three groups of nullable/defaulted columns and indexes through the
-   existing idempotent helper procedures.
-6. Leave historical terminal `UPGRADE` rows with
+8. Leave historical terminal `UPGRADE` rows with
    `upgrade_target_billing_cycle = NULL`; they are not recovery candidates.
-7. Backfill `payment_refunds.processing_started_at = updated_at` only for
+9. Backfill `payment_refunds.processing_started_at = updated_at` only for
    existing `PROCESSING` rows with a null lease. List those rows for operator
    review first. Other refund states remain null.
-8. List and abort on every cancelled agreement that retains billing-key
-   ciphertext. Its provider cleanup outcome is ambiguous and must receive an
-   approved row-specific disposition before assigning cleanup state.
-9. Compare `information_schema` column types and index order to this contract,
-   then run Hibernate `ddl-auto=validate` on the disposable copy.
+10. Add the new indexes through the existing idempotent helper procedures only
+    after the repair and backfill statements complete.
+11. Compare `information_schema` column types and index order to this contract,
+    then run Hibernate `ddl-auto=validate` on the disposable copy.
 
 The patch remains additive except for the narrowly proven legacy renewal-date
-repair in step 4. It does not delete, merge, or automatically finalize a
+repair in step 7. It does not delete, merge, or automatically finalize a
 payment/refund/incident row.
 
 ## 10. Test and Proof Contract
@@ -588,7 +593,7 @@ DDL implicit commits, or the manual patch.
 | `entity/PaymentOrder.java` | Persist upgrade target cycle; reconciled-success transition |
 | `entity/PaymentRefund.java` | Refund lease field, timestamped claim, terminal lease clearing |
 | `entity/enums/BillingKeyCleanupStatus.java` | New cleanup enum |
-| `repository/BillingAgreementRepository.java` | Exact renewal candidate and cleanup/stale projections |
+| `repository/BillingAgreementRepository.java` | Package B owns and provides exact renewal candidates plus cleanup/stale projections; package C consumes the cleanup contract without editing this repository |
 | `repository/PaymentOrderRepository.java` | Canonical lock projections and exact reconciliation candidates |
 | `repository/SubscriptionPaymentRepository.java` | Locked existing-payment lookup for finalizers |
 | `repository/PaymentRefundRepository.java` | Stale lease query and locked claim lookup |
@@ -615,8 +620,8 @@ The slices below are disjoint by production-file ownership.
 | Slice | Exclusive production ownership | Depends on | Closure |
 |---|---|---|---|
 | A - Schema and entity foundation | Three entities, new cleanup enum, `schema.sql`, manual patch | This design | Static DDL/entity contract plus copied-DB preflight rehearsal; no retained DB apply |
-| B - Payment command core | Payment command transaction service, renewal service, payment/agreement/subscription repositories | A | F-01 behavior and canonical command locks; exposes reconciliation-safe success/finalizers |
-| C - Cancellation and withdrawal cleanup | Billing agreement application service, withdrawal cleanup service, new cleanup transaction service | A | Cancellation/withdrawal F-02 transaction tests |
+| B - Payment command core | Payment command transaction service, renewal service, payment/agreement/subscription repositories, including the `BillingAgreementRepository` cleanup/stale contract consumed by C | A | F-01 behavior and canonical command locks; exposes reconciliation-safe success/finalizers and cleanup repository projections |
+| C - Cancellation and withdrawal cleanup | Billing agreement application service, withdrawal cleanup service, new cleanup transaction service; consumes B-owned cleanup repository projections without repository edits | A, B | Cancellation/withdrawal F-02 transaction tests |
 | D - Charged upgrade orchestration | User subscription service and upgrade provider executor | B | Charged-upgrade F-02 transaction tests |
 | E - Refund lease recovery | Admin refund service, refund transaction service, refund repository | A | F-03 crash and fencing tests |
 | F - Reconciliation and finalize-only | Reconciliation service, new reconciliation transaction service, lookup result/adapter, Incident integration | B | Scheduled F-02 plus F-04 evidence/finalize tests |
