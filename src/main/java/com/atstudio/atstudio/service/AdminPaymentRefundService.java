@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -150,8 +151,29 @@ public class AdminPaymentRefundService {
             Long refundId,
             CustomUserDetails actorDetails,
             AdminPaymentRefundExecuteRequest request) {
+        return executeRefundAt(refundId, actorDetails, request, LocalDateTime.now());
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public ResponseDTO<AdminPaymentRefundResponse> executeRefundAt(
+            Long refundId,
+            CustomUserDetails actorDetails,
+            AdminPaymentRefundExecuteRequest request,
+            LocalDateTime now) {
         PaymentRefundTransactionService.RefundExecutionClaim claim =
-                refundTransactionService.claimExecution(refundId, actorDetails, request.note());
+                refundTransactionService.claimExecution(refundId, actorDetails, request.note(), now);
+
+        if (claim.executionMode() == PaymentRefundTransactionService.RefundExecutionMode.LOOKUP_ONLY) {
+            AdminPaymentRefundResponse response = refundTransactionService.recordReplayUnavailable(
+                    refundId,
+                    actorDetails,
+                    claim.leaseStartedAt());
+            return ResponseDTO.<AdminPaymentRefundResponse>builder()
+                    .data(response)
+                    .build();
+        }
+
+        refundTransactionService.validateClaimForExecution(claim);
 
         PaymentRefundProvider provider = refundProvider(claim.provider());
         PaymentRefundProviderResult providerResult;
@@ -164,14 +186,22 @@ public class AdminPaymentRefundService {
                     claim.idempotencyKey()));
         } catch (RuntimeException exception) {
             AdminPaymentRefundResponse response =
-                    refundTransactionService.recordExecutionException(refundId, actorDetails, exception);
+                    refundTransactionService.recordExecutionException(
+                            refundId,
+                            actorDetails,
+                            claim.leaseStartedAt(),
+                            exception);
             return ResponseDTO.<AdminPaymentRefundResponse>builder()
                     .data(response)
                     .build();
         }
 
         AdminPaymentRefundResponse response =
-                refundTransactionService.recordExecutionResult(refundId, actorDetails, providerResult);
+                refundTransactionService.recordExecutionResult(
+                        refundId,
+                        actorDetails,
+                        claim.leaseStartedAt(),
+                        providerResult);
         return ResponseDTO.<AdminPaymentRefundResponse>builder()
                 .data(response)
                 .build();

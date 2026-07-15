@@ -261,27 +261,33 @@ class AdminPaymentRefundServiceTest {
     void executeRefund() {
         Fixture fixture = fixture();
         PaymentRefund refund = refund(fixture, PaymentRefundStatus.APPROVED);
+        LocalDateTime leaseStartedAt = LocalDateTime.of(2026, 7, 15, 10, 0);
         PaymentRefundProviderResult providerResult = PaymentRefundProviderResult.success(
                 "cancel_tx_key",
                 "{\"paymentKey\":\"payment_key\"}");
         given(refundTransactionService.claimExecution(
                 org.mockito.ArgumentMatchers.eq(77L),
                 any(CustomUserDetails.class),
-                org.mockito.ArgumentMatchers.eq("execute")))
+                org.mockito.ArgumentMatchers.eq("execute"),
+                any(LocalDateTime.class)))
                 .willReturn(new PaymentRefundTransactionService.RefundExecutionClaim(
                         77L,
                         PaymentProviderType.TOSS_BILLING,
                         "payment_key",
                         "ORDER-1",
                         BigDecimal.valueOf(5000),
+                        "KRW",
                         PaymentRefundReasonCode.CUSTOMER_REQUEST.name(),
-                        "ATS-REFUND-77"));
+                        "ATS-REFUND-77",
+                        leaseStartedAt,
+                        PaymentRefundTransactionService.RefundExecutionMode.PROVIDER_MUTATION));
         given(refundProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
         given(refundProvider.cancelPayment(any(PaymentRefundProviderCommand.class)))
                 .willReturn(providerResult);
         given(refundTransactionService.recordExecutionResult(
                 org.mockito.ArgumentMatchers.eq(77L),
                 any(CustomUserDetails.class),
+                org.mockito.ArgumentMatchers.eq(leaseStartedAt),
                 org.mockito.ArgumentMatchers.eq(providerResult)))
                 .willReturn(AdminPaymentRefundResponse.from(refund));
 
@@ -294,10 +300,52 @@ class AdminPaymentRefundServiceTest {
         assertThat(command.providerPaymentKey()).isEqualTo("payment_key");
         assertThat(command.amount()).isEqualByComparingTo("5000");
         assertThat(command.idempotencyKey()).isEqualTo("ATS-REFUND-77");
+        verify(refundTransactionService).validateClaimForExecution(any());
         verify(refundTransactionService).recordExecutionResult(
                 org.mockito.ArgumentMatchers.eq(77L),
                 any(CustomUserDetails.class),
+                org.mockito.ArgumentMatchers.eq(leaseStartedAt),
                 org.mockito.ArgumentMatchers.eq(providerResult));
+    }
+
+    @Test
+    @DisplayName("executeRefund keeps lookup-only recovery pending without provider mutation")
+    void executeRefundKeepsLookupOnlyRecoveryPending() {
+        Fixture fixture = fixture();
+        PaymentRefund pending = refund(fixture, PaymentRefundStatus.PENDING_PROVIDER_CONFIRMATION);
+        LocalDateTime leaseStartedAt = LocalDateTime.of(2026, 7, 15, 10, 0);
+        PaymentRefundTransactionService.RefundExecutionClaim claim =
+                new PaymentRefundTransactionService.RefundExecutionClaim(
+                        77L,
+                        PaymentProviderType.TOSS_BILLING,
+                        "payment_key",
+                        "ORDER-1",
+                        BigDecimal.valueOf(5000),
+                        "KRW",
+                        PaymentRefundReasonCode.CUSTOMER_REQUEST.name(),
+                        "ATS-REFUND-77",
+                        leaseStartedAt,
+                        PaymentRefundTransactionService.RefundExecutionMode.LOOKUP_ONLY);
+        given(refundTransactionService.claimExecution(
+                org.mockito.ArgumentMatchers.eq(77L),
+                any(CustomUserDetails.class),
+                org.mockito.ArgumentMatchers.eq("recover"),
+                any(LocalDateTime.class)))
+                .willReturn(claim);
+        given(refundTransactionService.recordReplayUnavailable(
+                org.mockito.ArgumentMatchers.eq(77L),
+                any(CustomUserDetails.class),
+                org.mockito.ArgumentMatchers.eq(leaseStartedAt)))
+                .willReturn(AdminPaymentRefundResponse.from(pending));
+
+        service.executeRefund(77L, actor(), new AdminPaymentRefundExecuteRequest("recover"));
+
+        verify(refundProvider, never()).cancelPayment(any());
+        verify(refundTransactionService, never()).validateClaimForExecution(any());
+        verify(refundTransactionService).recordReplayUnavailable(
+                org.mockito.ArgumentMatchers.eq(77L),
+                any(CustomUserDetails.class),
+                org.mockito.ArgumentMatchers.eq(leaseStartedAt));
     }
 
     @Test
@@ -306,7 +354,8 @@ class AdminPaymentRefundServiceTest {
         given(refundTransactionService.claimExecution(
                 org.mockito.ArgumentMatchers.eq(77L),
                 any(CustomUserDetails.class),
-                org.mockito.ArgumentMatchers.eq("execute")))
+                org.mockito.ArgumentMatchers.eq("execute"),
+                any(LocalDateTime.class)))
                 .willThrow(new BusinessException(BUSINESS_ERROR.INVALID_STATE_TRANSITION));
 
         assertThatThrownBy(() -> service.executeRefund(

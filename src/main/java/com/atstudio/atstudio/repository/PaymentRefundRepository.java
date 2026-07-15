@@ -13,7 +13,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface PaymentRefundRepository extends JpaRepository<PaymentRefund, Long> {
@@ -45,6 +47,19 @@ public interface PaymentRefundRepository extends JpaRepository<PaymentRefund, Lo
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from PaymentRefund r where r.id = :id")
     Optional<PaymentRefund> findByIdForUpdate(@Param("id") Long id);
+
+    @Query("""
+            select r.id
+            from PaymentRefund r
+            where r.status = :status
+              and r.processingStartedAt is not null
+              and r.processingStartedAt <= :leaseExpiredBefore
+            order by r.processingStartedAt asc, r.id asc
+            """)
+    List<Long> findStaleProcessingIds(
+            @Param("status") PaymentRefundStatus status,
+            @Param("leaseExpiredBefore") LocalDateTime leaseExpiredBefore,
+            Pageable pageable);
 
     @Query("""
             select coalesce(sum(r.amount), 0)
