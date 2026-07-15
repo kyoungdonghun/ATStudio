@@ -1,0 +1,12 @@
+wi=WI-20260715-ATS-007
+databaseAlias=WI007_DISPOSABLE
+databaseName=not-printed
+credentialSource=application-local-yml
+commandTimeoutSeconds=300
+schemaCreate=PASS
+hibernateValidate=PASS
+mysqlRaces=PASS
+diagnostics=NOT_REQUIRED
+drop=PASS
+cleanupDatabaseExists=0
+result=PASS

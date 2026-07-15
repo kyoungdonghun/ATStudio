@@ -1,0 +1,9 @@
+wi=WI-20260715-ATS-007
+credential.source=process-env-or-application-local-yml; values-not-printed
+database.alias=WI007_DISPOSABLE; actual-name-not-printed
+database.hostClass=loopback
+diagnostics.innodbStatusCaptured=true
+diagnostics.latestDeadlockPresent=false
+diagnostics.lockWaitPresent=false
+diagnostics.statusSha256=dfdcf9bfe0d82e11b0bf174a1615b2ae05b0919a39684a204a0579d7e16c188b
+result=PASS
