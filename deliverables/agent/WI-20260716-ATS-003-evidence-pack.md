@@ -2,7 +2,7 @@
 
 ## Summary (one-liner)
 
-- Independently verified the current-worktree `AT.M` branding and compatibility boundaries, repaired one backend test coverage regression, and identified the reachable stable demo checkpoint as pending runtime refresh.
+- Independently verified the current-worktree `AT.M` branding and compatibility boundaries, repaired one backend test coverage regression, and confirmed completion of the stable runtime refresh.
 
 ## Scope / DoD Check
 
@@ -12,11 +12,11 @@
 - [x] Confirmed seed-source changes do not update existing database rows.
 - [x] Passed frontend typecheck, ESLint, focused Vitest, focused backend tests, frontend build, backend build, and diff integrity checks.
 - [x] Restored custom Toss refund-reason coverage and added a separate default-reason test.
-- [ ] Public client URL displays `AT.M`: the active URL returns HTTP 200 but still serves the pre-refresh stable checkpoint with `<title>ATStudio</title>`.
+- [x] Public client URL displays `AT.M`: `/tracks/2` returns HTTP 200 with `<title>AT.M</title>` and DOM banner link `AT.M`.
 
 **Implementation verification:** `PASS`. Source, compatibility, focused regression, and build gates pass.
 
-**Runtime refresh:** `PENDING`. The active public runtime is reachable but has not yet received the verified worktree.
+**Runtime refresh:** `PASS / COMPLETE`. Stable branch `codex/client-demo-stable` was fast-forwarded to commit `930115e`, and local/public runtime verification passed.
 
 ## Reference Documents (Tier 0-2)
 
@@ -39,19 +39,17 @@
 
 ## Findings
 
-### F1 - Reachable client-facing runtime is pending checkpoint refresh
+### F1 - Client-facing runtime refresh completed
 
-**Status:** Runtime follow-up required
+**Status:** Complete
 
-- `Get-NetTCPConnection -State Listen` found active listeners on 5173 and 8080.
-- `Get-CimInstance Win32_Process` showed both processes loading from `C:\Users\jm991\Desktop\project\ATStudio-client-demo-stable`.
-- `Invoke-WebRequest http://localhost:5173/` returned HTTP 200 with title `ATStudio`.
-- Served Vite modules for `Header.tsx` and `HomePage.tsx` reported `old=True`, `new=False`, and file paths under `ATStudio-client-demo-stable`.
-- Browser DOM inspection showed `ATStudio` in the header, footer brand, and copyright.
-- `Invoke-WebRequest http://localhost:5173/api/tracks?page=0&size=1` returned HTTP 200 JSON, confirming the stale demo's API proxy still works.
-- User-browser and direct checks confirmed `https://challenged-efficiently-void-jonathan.trycloudflare.com/` returns HTTP 200 and exposes `<title>ATStudio</title>` from the stable checkpoint.
+- Initial verification identified that ports 5173 and 8080 loaded from `C:\Users\jm991\Desktop\project\ATStudio-client-demo-stable` before the refresh.
+- The stable branch `codex/client-demo-stable` was then fast-forwarded to commit `930115e`.
+- Post-refresh local `/tracks/2` returned HTTP 200 with `<title>AT.M</title>`.
+- Post-refresh public `https://challenged-efficiently-void-jonathan.trycloudflare.com/tracks/2` returned HTTP 200 with `<title>AT.M</title>`.
+- The in-app browser DOM snapshot confirmed the public banner link text is `AT.M`.
 
-**Conclusion:** The implementation is verified. The active tunnel is healthy, while deployment of the verified worktree to the stable checkpoint remains pending.
+**Conclusion:** Both implementation verification and runtime refresh verification are complete.
 
 ### F2 - Custom Toss refund-reason coverage was lost
 
@@ -120,8 +118,10 @@ No production file was modified for this correction.
 | Scoped exact and case-insensitive `rg` searches | 0 | Residuals classified above |
 | Preserved-identifier diff search | 0 | No preserved-identifier diff lines |
 | `git diff --check` | 0 | No whitespace errors; LF/CRLF notices only |
-| Local root, served-module, process, and API checks | mixed gate | Runtime works but serves stale checkpoint branding |
-| User-browser and direct active public URL check | current runtime | HTTP 200 with `<title>ATStudio</title>`; refresh pending |
+| Stable worktree refresh | complete | `codex/client-demo-stable` fast-forwarded to `930115e` |
+| Local `/tracks/2` | 0 / PASS | HTTP 200 with `<title>AT.M</title>` |
+| Public `/tracks/2` | PASS | HTTP 200 with `<title>AT.M</title>` |
+| In-app browser DOM snapshot | PASS | Banner link text `AT.M` |
 
 The implementation evidence already records `npm test` as 20 files / 83 tests and `gradlew.bat test` as 984 tests / 9 skipped / 0 failed. Those full suites were not duplicated per the WI-003 instruction.
 
@@ -135,7 +135,7 @@ The implementation evidence already records `npm test` as 20 files / 83 tests an
 
 ### Risks
 
-- The active public demo will continue to expose stale `ATStudio` branding until the stable checkpoint is refreshed.
+- The `trycloudflare.com` URL is operational infrastructure and may change independently of the verified branding implementation.
 - Existing historical DB rows can retain the old brand by design; changing them requires separate approval.
 - LF/CRLF conversion notices remain a repository/worktree characteristic, but `git diff --check` found no whitespace error.
 
@@ -145,11 +145,13 @@ The implementation evidence already records `npm test` as 20 files / 83 tests an
 2. Remove the WI-003 summary/evidence with that withdrawal.
 3. No product-code, database, schema, URL, ciphertext, or runtime-log rollback is required from WI-003.
 
-## Follow-up
+## Follow-up (Completed)
 
-- Refresh `ATStudio-client-demo-stable` from the verified worktree under a separate runtime WI.
-- Restart the stable checkpoint frontend/backend only as required for the refresh; retain the active public tunnel unless runtime operations require otherwise.
-- Reverify rendered `AT.M` branding and `/api/tracks` through `https://challenged-efficiently-void-jonathan.trycloudflare.com/` after refresh.
+- [x] Fast-forward `codex/client-demo-stable` to commit `930115e`.
+- [x] Verify local and public `/tracks/2` return HTTP 200 with `<title>AT.M</title>`.
+- [x] Verify the public DOM banner link displays `AT.M`.
+
+No runtime-refresh follow-up remains for WI-003.
 
 ## Execution Boundaries
 
