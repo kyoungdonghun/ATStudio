@@ -90,6 +90,7 @@ class PaymentReconciliationRecoveryIntegrationTest {
     @Autowired SubscriptionPaymentRepository subscriptionPaymentRepository;
     @Autowired PaymentReconciliationIncidentRepository incidentRepository;
     @Autowired PaymentOperationAuditLogRepository auditLogRepository;
+    @Autowired PaymentCommandTransactionService paymentCommandTransactions;
     @Autowired TestPaymentProvider paymentProvider;
     @Autowired EntityManager entityManager;
 
@@ -246,6 +247,43 @@ class PaymentReconciliationRecoveryIntegrationTest {
         assertThat(paymentOrderRepository.findById(stale.order().getId()).orElseThrow().getStatus())
                 .isEqualTo(PaymentOrderStatus.DONE);
         assertThat(paymentProvider.lookupTransactionStates()).containsExactly(false);
+        assertThat(paymentProvider.chargeCalls()).isZero();
+    }
+
+    @Test
+    @DisplayName("normal renewal finalizer winning after provider lookup still resolves reconciliation Incident")
+    void normalRenewalFinalizerWinningAfterLookupConvergesAndResolvesIncident() {
+        RecoveryFixture renewal = persistRenewalFixture(
+                PaymentOrderStatus.PROCESSING,
+                LocalDateTime.now().minusMinutes(16));
+        paymentProvider.respondExact(renewal.order());
+        paymentProvider.beforeLookupReturn(() -> {
+            paymentCommandTransactions.recordProviderSuccess(
+                    renewal.order().getBillingAgreement().getId(),
+                    renewal.order().getOrderId(),
+                    transactionID(renewal.order()),
+                    "{\"paymentKey\":\"" + transactionID(renewal.order()) + "\"}",
+                    null,
+                    null);
+            paymentCommandTransactions.finalizeRenewal(
+                    renewal.order().getBillingAgreement().getId(),
+                    renewal.order().getOrderId());
+        });
+
+        PaymentReconciliationService.ProviderReconciliationResult result = service.reconcileProviderLedger();
+
+        entityManager.clear();
+        assertThat(result.finalizedOrders()).isEqualTo(1);
+        assertThat(result.issues()).isEmpty();
+        assertThat(paymentOrderRepository.findById(renewal.order().getId()).orElseThrow().getStatus())
+                .isEqualTo(PaymentOrderStatus.DONE);
+        assertThat(subscriptionPaymentRepository.count()).isEqualTo(1);
+        assertThat(userSubscriptionRepository.findById(renewal.userSubscriptionID()).orElseThrow().getExpiresAt())
+                .isEqualTo(renewal.billingPeriodStart().plusMonths(1));
+        assertThat(incidentRepository.findAll())
+                .extracting(PaymentReconciliationIncident::getStatus)
+                .containsOnly(PaymentReconciliationIncidentStatus.RESOLVED);
+        assertThat(paymentProvider.lookupCalls()).isEqualTo(1);
         assertThat(paymentProvider.chargeCalls()).isZero();
     }
 
@@ -456,12 +494,14 @@ class PaymentReconciliationRecoveryIntegrationTest {
 
         private final Map<String, ProviderPaymentLookupResult> responses = new HashMap<>();
         private final List<Boolean> lookupTransactionStates = new ArrayList<>();
+        private Runnable beforeLookupReturn;
         private int lookupCalls;
         private int chargeCalls;
 
         void reset() {
             responses.clear();
             lookupTransactionStates.clear();
+            beforeLookupReturn = null;
             lookupCalls = 0;
             chargeCalls = 0;
         }
@@ -479,6 +519,10 @@ class PaymentReconciliationRecoveryIntegrationTest {
 
         void respond(String orderID, ProviderPaymentLookupResult result) {
             responses.put(orderID, result);
+        }
+
+        void beforeLookupReturn(Runnable callback) {
+            beforeLookupReturn = callback;
         }
 
         int lookupCalls() {
@@ -503,6 +547,11 @@ class PaymentReconciliationRecoveryIntegrationTest {
         public ProviderPaymentLookupResult findPaymentByOrderId(String orderId) {
             lookupCalls++;
             lookupTransactionStates.add(TransactionSynchronizationManager.isActualTransactionActive());
+            if (beforeLookupReturn != null) {
+                Runnable callback = beforeLookupReturn;
+                beforeLookupReturn = null;
+                callback.run();
+            }
             return responses.get(orderId);
         }
 

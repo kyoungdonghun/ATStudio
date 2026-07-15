@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -206,6 +207,85 @@ class PaymentCommandIndependentVerificationIntegrationTest
         assertThat(order.getProviderAttempt()).isEqualTo(1);
         assertThat(paymentOrderRepository.count()).isEqualTo(1);
         assertThat(subscriptionPaymentRepository.count()).isEqualTo(1);
+        assertThat(recurringPaymentProvider.calls()).containsExactly("charge");
+    }
+
+    @Test
+    @DisplayName("completed renewal finalization is an idempotent no-op after the billing period advances")
+    void completedRenewalFinalizationIsIdempotentAfterPeriodAdvance() {
+        LocalDate due = LocalDate.of(2026, 8, 17);
+        RenewalFixture fixture = persistRenewalFixture("renewal-retry", due);
+
+        RecurringRenewalService.RenewalRunResult completed = recurringRenewalService.processDueRenewals(due);
+        PaymentOrder order = renewalOrderFor(fixture.agreementID());
+
+        assertThat(completed.succeeded()).isEqualTo(1);
+        assertThat(order.getStatus()).isEqualTo(PaymentOrderStatus.DONE);
+        assertThat(billingAgreementRepository.findById(fixture.agreementID()).orElseThrow().getNextBillingAt())
+                .isEqualTo(due.plusMonths(1));
+
+        paymentCommandTransactions.finalizeRenewal(fixture.agreementID(), order.getOrderId());
+
+        entityManager.clear();
+        assertThat(paymentOrderRepository.findById(order.getId()).orElseThrow().getStatus())
+                .isEqualTo(PaymentOrderStatus.DONE);
+        assertThat(subscriptionPaymentRepository.count()).isEqualTo(1);
+        assertThat(userSubscriptionRepository.findAll()).singleElement()
+                .satisfies(subscription -> {
+                    assertThat(subscription.getStartedAt()).isEqualTo(due);
+                    assertThat(subscription.getExpiresAt()).isEqualTo(due.plusMonths(1));
+                });
+        assertThat(billingAgreementRepository.findById(fixture.agreementID()).orElseThrow().getNextBillingAt())
+                .isEqualTo(due.plusMonths(1));
+        assertThat(recurringPaymentProvider.calls()).containsExactly("charge");
+    }
+
+    @Test
+    @DisplayName("completed renewal retry fails closed when its committed payment evidence is missing")
+    void completedRenewalRetryRequiresCommittedPaymentEvidence() {
+        LocalDate due = LocalDate.of(2026, 8, 17);
+        RenewalFixture fixture = persistRenewalFixture("renewal-no-payment", due);
+        recurringRenewalService.processDueRenewals(due);
+        PaymentOrder order = renewalOrderFor(fixture.agreementID());
+        subscriptionPaymentRepository.deleteAll();
+        subscriptionPaymentRepository.flush();
+        entityManager.clear();
+
+        assertThatThrownBy(() -> paymentCommandTransactions.finalizeRenewal(
+                fixture.agreementID(),
+                order.getOrderId()))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE));
+
+        assertThat(subscriptionPaymentRepository.count()).isZero();
+        assertThat(billingAgreementRepository.findById(fixture.agreementID()).orElseThrow().getNextBillingAt())
+                .isEqualTo(due.plusMonths(1));
+        assertThat(recurringPaymentProvider.calls()).containsExactly("charge");
+    }
+
+    @Test
+    @DisplayName("completed renewal retry fails closed when its payment evidence amount differs")
+    void completedRenewalRetryRejectsMismatchedPaymentEvidence() {
+        LocalDate due = LocalDate.of(2026, 8, 17);
+        RenewalFixture fixture = persistRenewalFixture("renewal-bad-payment", due);
+        recurringRenewalService.processDueRenewals(due);
+        PaymentOrder order = renewalOrderFor(fixture.agreementID());
+        SubscriptionPayment payment = subscriptionPaymentRepository.findAll().get(0);
+        ReflectionTestUtils.setField(payment, "amount", order.getAmount().add(BigDecimal.ONE));
+        subscriptionPaymentRepository.saveAndFlush(payment);
+        entityManager.clear();
+
+        assertThatThrownBy(() -> paymentCommandTransactions.finalizeRenewal(
+                fixture.agreementID(),
+                order.getOrderId()))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE));
+
+        assertThat(subscriptionPaymentRepository.count()).isEqualTo(1);
+        assertThat(billingAgreementRepository.findById(fixture.agreementID()).orElseThrow().getNextBillingAt())
+                .isEqualTo(due.plusMonths(1));
         assertThat(recurringPaymentProvider.calls()).containsExactly("charge");
     }
 
