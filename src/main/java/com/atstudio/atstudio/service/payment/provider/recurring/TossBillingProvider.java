@@ -299,7 +299,7 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
 
     private HttpRequest paymentCancelRequest(PaymentRefundProviderCommand command) throws IOException {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("cancelReason", isBlank(command.reason()) ? "ATStudio admin refund" : command.reason());
+        body.put("cancelReason", isBlank(command.reason()) ? "AT.M admin refund" : command.reason());
         if (command.amount() != null) {
             body.put("cancelAmount", toTossAmount(command.amount()));
         }

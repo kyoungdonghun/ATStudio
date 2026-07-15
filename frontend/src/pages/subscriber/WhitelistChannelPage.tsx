@@ -263,7 +263,7 @@ export default function WhitelistChannelPage() {
             id="whitelist-channel-name"
             label="채널명"
             value={form.channelName}
-            placeholder="예: ATStudio Shorts"
+            placeholder="예: AT.M Shorts"
             maxLength={CHANNEL_NAME_MAX}
             onChange={(value) => updateForm('channelName', value)}
           />

@@ -282,7 +282,7 @@ class UserSubscriptionServiceTest {
 
             verify(subscriptionUpgradePaymentExecutor).charge(claim);
             assertThat(claim.amount()).isEqualByComparingTo(BigDecimal.valueOf(5000));
-            assertThat(claim.orderName()).contains("Premium");
+            assertThat(claim.orderName()).isEqualTo("AT.M Premium Upgrade");
         }
 
         @Test
@@ -988,7 +988,7 @@ class UserSubscriptionServiceTest {
                 orderID,
                 "encrypted-key",
                 "ats_billing_customer_1",
-                "ATStudio Premium Upgrade",
+                "AT.M Premium Upgrade",
                 amount,
                 "user1@test.com",
                 "user1",

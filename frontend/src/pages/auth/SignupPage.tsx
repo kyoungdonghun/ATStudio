@@ -172,7 +172,7 @@ export default function SignupPage() {
     <div className={styles.page}>
       <div className={styles.card}>
         <h1 className={styles.title}>회원가입</h1>
-        <p className={styles.subtitle}>ATStudio에 가입하고 음악을 시작하세요</p>
+        <p className={styles.subtitle}>AT.M에 가입하고 음악을 시작하세요</p>
 
         <form className={styles.form} onSubmit={handleSubmit} noValidate>
           {/* User Type Toggle */}

@@ -68,7 +68,7 @@ export default function AdminLayout() {
       >
         <div className={styles.sidebarHeader}>
           <Link to="/admin/dashboard" className={styles.logo}>
-            ATStudio
+            AT.M
           </Link>
           <span className={styles.logoSub}>Admin</span>
         </div>

@@ -59,7 +59,7 @@ public class EmailService {
         emailTokenRepository.save(verificationToken);
 
         String verifyUrl = baseUrl + "/email-verify?token=" + token;
-        String subject = "[ATStudio] 이메일 인증을 완료해주세요";
+        String subject = "[AT.M] 이메일 인증을 완료해주세요";
         String body = buildVerificationEmailBody(user.getNickname(), verifyUrl);
 
         sendEmail(user.getEmail(), subject, body);
@@ -102,7 +102,7 @@ public class EmailService {
             resetTokenRepository.save(resetToken);
 
             String resetUrl = baseUrl + "/password-reset?token=" + token;
-            String subject = "[ATStudio] 비밀번호 재설정 안내";
+            String subject = "[AT.M] 비밀번호 재설정 안내";
             String body = buildResetEmailBody(user.getNickname(), resetUrl);
 
             sendEmail(user.getEmail(), subject, body);
@@ -117,7 +117,7 @@ public class EmailService {
             return;
         }
 
-        String subject = "[ATStudio] Subscription payment notice";
+        String subject = "[AT.M] Subscription payment notice";
         String body = buildSubscriptionPaymentFailureEmailBody(
                 user.getNickname(),
                 failureSummary,
@@ -133,7 +133,7 @@ public class EmailService {
             return;
         }
 
-        String subject = "[ATStudio] Payment reconciliation incident";
+        String subject = "[AT.M] Payment reconciliation incident";
         String body = buildPaymentReconciliationIncidentEmailBody(summary, details);
         sendEmail(operatorEmail, subject, body);
     }
@@ -233,7 +233,7 @@ public class EmailService {
                   </p>
                 </div>
                 """.formatted(
-                defaultText(nickname, "ATStudio user"),
+                defaultText(nickname, "AT.M user"),
                 defaultText(failureSummary, "Your subscription renewal payment could not be completed."),
                 defaultText(retryGuide, "Please check your payment method and try again from My Subscription."));
     }

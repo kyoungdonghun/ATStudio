@@ -9,6 +9,8 @@ import com.atstudio.atstudio.repository.EmailVerificationTokenRepository;
 import com.atstudio.atstudio.repository.PasswordResetTokenRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.service.auth.PasswordLoginPolicy;
+import jakarta.mail.Multipart;
+import jakarta.mail.Part;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.DisplayName;
@@ -126,6 +128,7 @@ class EmailServiceTest {
                 ArgumentCaptor.forClass(EmailVerificationToken.class);
         verify(emailTokenRepository).save(tokenCaptor.capture());
         verify(mailSender).send(message);
+        assertThat(message.getSubject()).isEqualTo("[AT.M] 이메일 인증을 완료해주세요");
         String secretToken = tokenCaptor.getValue().getToken();
         String secretUrl = BASE_URL + "/email-verify?token=" + secretToken;
         assertThat(output.getAll())
@@ -157,6 +160,7 @@ class EmailServiceTest {
                 ArgumentCaptor.forClass(PasswordResetToken.class);
         verify(resetTokenRepository).save(tokenCaptor.capture());
         verify(mailSender).send(message);
+        assertThat(message.getSubject()).isEqualTo("[AT.M] 비밀번호 재설정 안내");
         String secretToken = tokenCaptor.getValue().getToken();
         String secretUrl = BASE_URL + "/password-reset?token=" + secretToken;
         assertThat(output.getAll())
@@ -173,6 +177,39 @@ class EmailServiceTest {
                         "\tat ");
     }
 
+    @Test
+    @DisplayName("subscription payment email uses the AT.M subject and fallback recipient name")
+    void sendSubscriptionPaymentFailureEmail_usesAtMBrand() throws Exception {
+        User user = mock(User.class);
+        MimeMessage message = newMimeMessage();
+        setMailProperties();
+        when(user.getEmail()).thenReturn("subscriber@atstudio.test");
+        when(user.getNickname()).thenReturn(null);
+        when(mailSender.createMimeMessage()).thenReturn(message);
+
+        emailService.sendSubscriptionPaymentFailureEmail(user, null, null);
+
+        verify(mailSender).send(message);
+        assertThat(message.getSubject()).isEqualTo("[AT.M] Subscription payment notice");
+        assertThat(bodyText(message)).contains("AT.M user");
+    }
+
+    @Test
+    @DisplayName("payment reconciliation alert uses the AT.M subject")
+    void sendPaymentReconciliationIncidentAlert_usesAtMBrand() throws Exception {
+        MimeMessage message = newMimeMessage();
+        setMailProperties();
+        when(mailSender.createMimeMessage()).thenReturn(message);
+
+        emailService.sendPaymentReconciliationIncidentAlert(
+                "operator@atstudio.test",
+                "summary",
+                "details");
+
+        verify(mailSender).send(message);
+        assertThat(message.getSubject()).isEqualTo("[AT.M] Payment reconciliation incident");
+    }
+
     private void setMailProperties() {
         ReflectionTestUtils.setField(emailService, "fromAddress", FROM_ADDRESS);
         ReflectionTestUtils.setField(emailService, "baseUrl", BASE_URL);
@@ -180,5 +217,20 @@ class EmailServiceTest {
 
     private MimeMessage newMimeMessage() {
         return new MimeMessage(Session.getInstance(new Properties()));
+    }
+
+    private String bodyText(Part part) throws Exception {
+        Object content = part.getContent();
+        if (content instanceof String text) {
+            return text;
+        }
+        if (content instanceof Multipart multipart) {
+            StringBuilder body = new StringBuilder();
+            for (int index = 0; index < multipart.getCount(); index++) {
+                body.append(bodyText(multipart.getBodyPart(index)));
+            }
+            return body.toString();
+        }
+        return "";
     }
 }

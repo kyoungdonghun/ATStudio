@@ -190,7 +190,7 @@ export default function LoginPage() {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <h1 className={styles.title}>ATStudio</h1>
+        <h1 className={styles.title}>AT.M</h1>
         <p className={styles.subtitle}>계정에 로그인하세요</p>
 
         <form className={styles.form} onSubmit={handleSubmit} noValidate>

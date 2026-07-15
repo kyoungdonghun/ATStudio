@@ -116,7 +116,7 @@ export default function Header() {
     <>
       <header className={styles.header}>
         <Link to="/" className={styles.logo}>
-          ATStudio
+          AT.M
         </Link>
 
         {/* Desktop/Tablet: inline search */}

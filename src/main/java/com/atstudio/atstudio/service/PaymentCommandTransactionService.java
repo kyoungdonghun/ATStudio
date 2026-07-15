@@ -154,7 +154,7 @@ public class PaymentCommandTransactionService {
                 order.getOrderId(),
                 agreement.getBillingKeyCiphertext(),
                 agreement.getProviderCustomerKey(),
-                "ATStudio " + target.getName() + " Upgrade",
+                "AT.M " + target.getName() + " Upgrade",
                 order.getAmount(),
                 current.getUser().getEmail(),
                 current.getUser().getNickname(),

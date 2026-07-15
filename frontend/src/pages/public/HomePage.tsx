@@ -392,7 +392,7 @@ export default function HomePage() {
       {/* ── FOOTER ── */}
       <footer className={styles.footer}>
         <div>
-          <div className={styles.ftLogo}>ATStudio</div>
+          <div className={styles.ftLogo}>AT.M</div>
           <div className={styles.ftDesc}>
             {'쇼츠 크리에이터를 위한'}
             <br />
@@ -413,7 +413,7 @@ export default function HomePage() {
           <Link to="/notices" className={styles.ftLink}>{'공지사항'}</Link>
         </div>
         <div className={styles.ftCopy}>
-          {'\u00A9 2026 ATStudio. All rights reserved.'}
+          {'\u00A9 2026 AT.M. All rights reserved.'}
         </div>
       </footer>
     </>

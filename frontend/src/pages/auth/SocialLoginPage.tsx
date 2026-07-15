@@ -89,7 +89,7 @@ export default function SocialLoginPage() {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <h1 className={styles.title}>ATStudio</h1>
+        <h1 className={styles.title}>AT.M</h1>
         {error ? (
           <>
             <p className={styles.errorText}>{error}</p>

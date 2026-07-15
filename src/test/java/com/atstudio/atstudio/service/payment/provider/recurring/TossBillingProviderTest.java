@@ -189,7 +189,7 @@ class TossBillingProviderTest {
                 "billing_secret_key",
                 "ats_billing_customer",
                 "ORDER-1",
-                "ATStudio STANDARD Subscription",
+                "AT.M STANDARD Subscription",
                 BigDecimal.valueOf(9900),
                 "buyer@test.com",
                 "buyer",
@@ -200,6 +200,7 @@ class TossBillingProviderTest {
         assertThat(captured.body.get()).contains("\"amount\":9900");
         assertThat(captured.body.get()).contains("\"customerKey\":\"ats_billing_customer\"");
         assertThat(captured.body.get()).contains("\"orderId\":\"ORDER-1\"");
+        assertThat(captured.body.get()).contains("\"orderName\":\"AT.M STANDARD Subscription\"");
         assertThat(result.success()).isTrue();
         assertThat(result.transactionId()).isEqualTo("payment_key");
         assertThat(result.maskedMethod()).isEqualTo("5388-****-****-1111");
@@ -234,7 +235,7 @@ class TossBillingProviderTest {
                 "billing_secret_key",
                 "ats_billing_customer",
                 "ORDER-1",
-                "ATStudio STANDARD Subscription",
+                "AT.M STANDARD Subscription",
                 BigDecimal.valueOf(9900),
                 null,
                 null,
@@ -258,7 +259,7 @@ class TossBillingProviderTest {
                 "billing_secret_key",
                 "ats_billing_customer",
                 "ORDER-1",
-                "ATStudio STANDARD Subscription",
+                "AT.M STANDARD Subscription",
                 BigDecimal.valueOf(9900),
                 null,
                 null,
@@ -401,6 +402,42 @@ class TossBillingProviderTest {
         assertThat(result.providerPayload()).contains("\"paymentKey\":\"payment_key\"");
         assertThat(result.providerPayload()).contains("\"transactionKey\":\"cancel_tx_key\"");
         assertThat(result.providerPayload()).doesNotContain("5388111122221111");
+    }
+
+    @Test
+    @DisplayName("cancelPayment uses the AT.M default reason when the requested reason is blank")
+    void cancelPaymentUsesDefaultReasonWhenReasonIsBlank() throws IOException {
+        CapturedRequest captured = new CapturedRequest();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v1/payments/payment_key/cancel", exchange -> {
+            captured.body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            send(exchange, 200, """
+                    {
+                      "paymentKey": "payment_key",
+                      "orderId": "ORDER-1",
+                      "lastTransactionKey": "cancel_tx_key",
+                      "status": "CANCELED",
+                      "cancels": [
+                        {
+                          "transactionKey": "cancel_tx_key"
+                        }
+                      ]
+                    }
+                    """);
+        });
+        server.start();
+
+        TossBillingProvider provider = new TossBillingProvider(properties(baseUrl()));
+
+        PaymentRefundProviderResult result = provider.cancelPayment(new PaymentRefundProviderCommand(
+                "payment_key",
+                "ORDER-1",
+                BigDecimal.valueOf(9900),
+                " ",
+                "ATS-REFUND-DEFAULT-1"));
+
+        assertThat(captured.body.get()).contains("\"cancelReason\":\"AT.M admin refund\"");
+        assertThat(result.success()).isTrue();
     }
 
     @Test

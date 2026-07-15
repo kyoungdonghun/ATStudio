@@ -111,6 +111,7 @@ describe('SignupPage', () => {
 
     renderPage();
 
+    expect(screen.getByText('AT.M에 가입하고 음악을 시작하세요')).toBeInTheDocument();
     expect(
       screen.getByText('현재 이 환경에서는 이메일 인증 메일이 비활성화되어 있습니다. 가입 전에 운영자에게 메일 설정을 요청해주세요.'),
     ).toBeInTheDocument();

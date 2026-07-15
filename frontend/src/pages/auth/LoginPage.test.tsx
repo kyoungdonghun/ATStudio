@@ -101,6 +101,7 @@ describe('LoginPage', () => {
 
     renderPage();
 
+    expect(screen.getByRole('heading', { name: 'AT.M' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Google 로그인' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Kakao 로그인' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Naver 로그인' })).toBeInTheDocument();

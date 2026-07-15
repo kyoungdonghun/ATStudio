@@ -37,6 +37,19 @@ class TossPaymentProviderTest {
     }
 
     @Test
+    @DisplayName("prepare exposes the AT.M subscription order name")
+    void prepare_usesAtMOrderName() {
+        PaymentProperties properties = properties("http://localhost/unused");
+        properties.getToss().setClientKey("test_ck_sample");
+        TossPaymentProvider provider = new TossPaymentProvider(properties);
+
+        PaymentProviderPrepareResult result = provider.prepare(buildOrder());
+
+        assertThat(result.checkoutMetadata().get("orderName"))
+                .isEqualTo("AT.M Basic Subscription");
+    }
+
+    @Test
     @DisplayName("confirm calls Toss confirm API and returns sanitized success payload")
     void confirm_success() throws IOException {
         server = HttpServer.create(new InetSocketAddress(0), 0);

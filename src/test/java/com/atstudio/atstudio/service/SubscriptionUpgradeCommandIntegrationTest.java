@@ -100,7 +100,7 @@ class SubscriptionUpgradeCommandIntegrationTest {
                         "ATS-UPG-TX-BOUNDARY",
                         "encrypted-key",
                         "ats_upgrade_customer",
-                        "ATStudio Premium Upgrade",
+                        "AT.M Premium Upgrade",
                         BigDecimal.valueOf(5000),
                         "upgrade@test.com",
                         "upgrade-user",
@@ -140,6 +140,8 @@ class SubscriptionUpgradeCommandIntegrationTest {
         assertThat(reloadSubscription(fixture.userSubscriptionID()).getSubscription().getId())
                 .isEqualTo(fixture.currentSubscriptionID());
         assertThat(recurringPaymentProvider.calls()).containsExactly("charge");
+        assertThat(recurringPaymentProvider.lastChargeCommand().orderName())
+                .isEqualTo("AT.M Premium Upgrade");
 
         service.changeSubscription(
                 userDetails(fixture.userID()),

@@ -68,6 +68,15 @@ describe('SocialLoginPage', () => {
     useAuthStore.getState().clearSession();
   });
 
+  it('shows the AT.M brand while processing the callback', () => {
+    prepareCallbackStorage();
+    socialLoginMock.mockReturnValue(new Promise(() => {}));
+
+    renderPage();
+
+    expect(screen.getByRole('heading', { name: 'AT.M' })).toBeInTheDocument();
+  });
+
   it('stages issued tokens before fetchMe and exchanges once in Strict Mode', async () => {
     const requestOrder: string[] = [];
     prepareCallbackStorage();

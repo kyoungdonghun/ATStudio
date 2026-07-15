@@ -163,7 +163,7 @@ public class TossPaymentProvider implements PaymentProvider {
     }
 
     private String orderName(PaymentOrder order) {
-        return "ATStudio " + order.getSubscription().getName() + " Subscription";
+        return "AT.M " + order.getSubscription().getName() + " Subscription";
     }
 
     private String text(JsonNode root, String field, String fallback) {

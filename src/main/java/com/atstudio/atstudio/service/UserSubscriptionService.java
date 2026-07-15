@@ -481,7 +481,7 @@ public class UserSubscriptionService {
     }
 
     private String orderName(PaymentOrder order) {
-        return "ATStudio " + order.getSubscription().getName() + " Upgrade";
+        return "AT.M " + order.getSubscription().getName() + " Upgrade";
     }
 
     private String generateUpgradeOrderId() {
