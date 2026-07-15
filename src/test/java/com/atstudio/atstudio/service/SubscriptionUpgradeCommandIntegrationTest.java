@@ -27,8 +27,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -61,6 +63,7 @@ import static org.mockito.Mockito.verify;
 class SubscriptionUpgradeCommandIntegrationTest {
 
     @Autowired UserSubscriptionService service;
+    @Autowired SubscriptionUpgradePaymentExecutor subscriptionUpgradePaymentExecutor;
     @Autowired com.atstudio.atstudio.repository.UserRepository userRepository;
     @Autowired com.atstudio.atstudio.repository.SubscriptionRepository subscriptionRepository;
     @Autowired com.atstudio.atstudio.repository.UserSubscriptionRepository userSubscriptionRepository;
@@ -69,6 +72,7 @@ class SubscriptionUpgradeCommandIntegrationTest {
     @Autowired com.atstudio.atstudio.repository.SubscriptionPaymentRepository subscriptionPaymentRepository;
     @Autowired BillingAgreementCommandIntegrationTestSupport.TestRecurringPaymentProvider recurringPaymentProvider;
     @Autowired EntityManager entityManager;
+    @Autowired TransactionTemplate transactionTemplate;
 
     @MockitoBean BillingKeyCrypto billingKeyCrypto;
     @MockitoBean PaymentReceiptEvidenceService paymentReceiptEvidenceService;
@@ -83,6 +87,30 @@ class SubscriptionUpgradeCommandIntegrationTest {
         userSubscriptionRepository.deleteAll();
         subscriptionRepository.deleteAll();
         userRepository.deleteAll();
+    }
+
+    @Test
+    @DisplayName("upgrade executor rejects an active transaction instead of suspending it")
+    void upgradeExecutorRejectsActiveTransaction() {
+        recurringPaymentProvider.reset();
+        PaymentCommandTransactionService.UpgradeClaim claim =
+                new PaymentCommandTransactionService.UpgradeClaim(
+                        PaymentCommandTransactionService.UpgradeAction.CALL_PROVIDER,
+                        200L,
+                        "ATS-UPG-TX-BOUNDARY",
+                        "encrypted-key",
+                        "ats_upgrade_customer",
+                        "ATStudio Premium Upgrade",
+                        BigDecimal.valueOf(5000),
+                        "upgrade@test.com",
+                        "upgrade-user",
+                        "subscription-upgrade-ATS-UPG-TX-BOUNDARY-attempt-1",
+                        BillingCycle.MONTHLY);
+
+        assertThatThrownBy(() -> transactionTemplate.execute(
+                status -> subscriptionUpgradePaymentExecutor.charge(claim)))
+                .isInstanceOf(IllegalTransactionStateException.class);
+        assertThat(recurringPaymentProvider.calls()).isEmpty();
     }
 
     @Test
@@ -105,6 +133,7 @@ class SubscriptionUpgradeCommandIntegrationTest {
 
         PaymentOrder providerSucceeded = reloadOrder();
         assertThat(providerSucceeded.getStatus()).isEqualTo(PaymentOrderStatus.PROVIDER_SUCCEEDED);
+        assertThat(providerSucceeded.getUpgradeTargetBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
         assertThat(providerSucceeded.getProviderIdempotencyKey())
                 .isEqualTo("subscription-upgrade-" + providerSucceeded.getOrderId() + "-attempt-1");
         assertThat(subscriptionPaymentRepository.count()).isZero();
@@ -162,6 +191,34 @@ class SubscriptionUpgradeCommandIntegrationTest {
         assertThat(retried.getProviderIdempotencyKey())
                 .isEqualTo("subscription-upgrade-" + orderID + "-attempt-2");
         assertThat(recurringPaymentProvider.calls()).containsExactly("charge", "charge");
+    }
+
+    @Test
+    @DisplayName("ambiguous provider failure stays pending and is not charged again")
+    void ambiguousProviderFailureStaysPendingWithoutBlindRetry() {
+        Fixture fixture = persistUpgradeFixture();
+        recurringPaymentProvider.chargeProbe(() -> {
+            throw new IllegalStateException("simulated provider transport failure");
+        });
+
+        assertThatThrownBy(() -> service.changeSubscription(
+                userDetails(fixture.userID()),
+                new ChangeSubscriptionRequest(fixture.targetSubscriptionID(), BillingCycle.MONTHLY)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PAYMENT_CONFIRM_FAILED));
+
+        PaymentOrder pending = reloadOrder();
+        assertThat(pending.getStatus()).isEqualTo(PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION);
+        assertThat(recurringPaymentProvider.calls()).containsExactly("charge");
+
+        assertThatThrownBy(() -> service.changeSubscription(
+                userDetails(fixture.userID()),
+                new ChangeSubscriptionRequest(fixture.targetSubscriptionID(), BillingCycle.MONTHLY)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE));
+        assertThat(recurringPaymentProvider.calls()).containsExactly("charge");
     }
 
     @Test

@@ -34,6 +34,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -59,6 +61,7 @@ class UserSubscriptionServiceTest {
     @Mock SubscriptionPaymentRepository subscriptionPaymentRepository;
     @Mock BillingKeyCrypto billingKeyCrypto;
     @Mock PaymentReceiptEvidenceService paymentReceiptEvidenceService;
+    @Mock TransactionTemplate transactionTemplate;
     @Mock PaymentCommandTransactionService paymentCommandTransactionService;
     @Mock SubscriptionUpgradePaymentExecutor subscriptionUpgradePaymentExecutor;
     @Mock RecurringPaymentProvider recurringPaymentProvider;
@@ -67,6 +70,11 @@ class UserSubscriptionServiceTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(transactionTemplate.execute(any()))
+                .thenAnswer(invocation -> {
+                    TransactionCallback<?> callback = invocation.getArgument(0);
+                    return callback.doInTransaction(null);
+                });
         userSubscriptionService = new UserSubscriptionService(
                 userSubscriptionRepository,
                 subscriptionRepository,
@@ -76,6 +84,7 @@ class UserSubscriptionServiceTest {
                 subscriptionPaymentRepository,
                 billingKeyCrypto,
                 paymentReceiptEvidenceService,
+                transactionTemplate,
                 paymentCommandTransactionService,
                 subscriptionUpgradePaymentExecutor,
                 List.of(recurringPaymentProvider)
@@ -238,8 +247,7 @@ class UserSubscriptionServiceTest {
             given(paymentCommandTransactionService.finalizeUpgrade(
                     1L,
                     claim.agreementID(),
-                    claim.orderID(),
-                    BillingCycle.MONTHLY))
+                    claim.orderID()))
                     .willAnswer(invocation -> {
                         us.upgradeKeepingPeriod(newSub, BillingCycle.MONTHLY);
                         return upgradeResponse(newSub, BillingCycle.MONTHLY, us, BigDecimal.valueOf(5000));
@@ -264,8 +272,7 @@ class UserSubscriptionServiceTest {
             verify(paymentCommandTransactionService).finalizeUpgrade(
                     1L,
                     claim.agreementID(),
-                    claim.orderID(),
-                    BillingCycle.MONTHLY);
+                    claim.orderID());
 
             assertThat(us.getSubscription()).isEqualTo(newSub);
             assertThat(us.getBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
@@ -276,6 +283,63 @@ class UserSubscriptionServiceTest {
             verify(subscriptionUpgradePaymentExecutor).charge(claim);
             assertThat(claim.amount()).isEqualByComparingTo(BigDecimal.valueOf(5000));
             assertThat(claim.orderName()).contains("Premium");
+        }
+
+        @Test
+        @DisplayName("finalize-only uses the persisted upgrade target without charging again")
+        void changeSubscription_finalizeOnlyUsesPersistedTarget() {
+            User user = buildUser(1L, UserType.INDIVIDUAL);
+            Subscription currentSub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
+            UserSubscription us = buildUserSubscription(100L, user, currentSub,
+                    BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
+            ReflectionTestUtils.setField(us, "startedAt", LocalDate.now().minusDays(15));
+            ReflectionTestUtils.setField(us, "expiresAt", LocalDate.now().plusDays(15));
+            Subscription newSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
+            ReflectionTestUtils.setField(newSub, "priceMonthly", BigDecimal.valueOf(19900));
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                    .willReturn(Optional.of(us));
+            given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
+            PaymentCommandTransactionService.UpgradeClaim claim = new PaymentCommandTransactionService.UpgradeClaim(
+                    PaymentCommandTransactionService.UpgradeAction.FINALIZE_ONLY,
+                    200L,
+                    "ATS-UPG-FINALIZE",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    BillingCycle.YEARLY);
+            given(paymentCommandTransactionService.claimUpgrade(
+                    eq(1L),
+                    eq(100L),
+                    eq(20L),
+                    eq(BillingCycle.MONTHLY),
+                    any()))
+                    .willReturn(claim);
+            given(paymentCommandTransactionService.finalizeUpgrade(
+                    1L,
+                    claim.agreementID(),
+                    claim.orderID()))
+                    .willReturn(upgradeResponse(
+                            newSub,
+                            BillingCycle.MONTHLY,
+                            us,
+                            BigDecimal.valueOf(5000)));
+
+            ChangeSubscriptionResponse result = userSubscriptionService.changeSubscription(
+                    buildUserDetails(1L),
+                    new ChangeSubscriptionRequest(20L, BillingCycle.MONTHLY));
+
+            assertThat(result.billingCycle()).isEqualTo("MONTHLY");
+            verify(subscriptionUpgradePaymentExecutor, never()).charge(any());
+            verify(paymentCommandTransactionService).finalizeUpgrade(
+                    1L,
+                    claim.agreementID(),
+                    claim.orderID());
         }
 
         @Test
@@ -319,8 +383,7 @@ class UserSubscriptionServiceTest {
             given(paymentCommandTransactionService.finalizeUpgrade(
                     1L,
                     claim.agreementID(),
-                    claim.orderID(),
-                    BillingCycle.MONTHLY))
+                    claim.orderID()))
                     .willAnswer(invocation -> {
                         us.upgradeKeepingPeriod(newSub, BillingCycle.MONTHLY);
                         return upgradeResponse(newSub, BillingCycle.MONTHLY, us, BigDecimal.valueOf(200000));
@@ -381,8 +444,7 @@ class UserSubscriptionServiceTest {
             given(paymentCommandTransactionService.finalizeUpgrade(
                     1L,
                     claim.agreementID(),
-                    claim.orderID(),
-                    BillingCycle.MONTHLY))
+                    claim.orderID()))
                     .willReturn(upgradeResponse(newSub, BillingCycle.MONTHLY, us, BigDecimal.valueOf(3333)));
 
             ChangeSubscriptionResponse result = userSubscriptionService.changeSubscription(

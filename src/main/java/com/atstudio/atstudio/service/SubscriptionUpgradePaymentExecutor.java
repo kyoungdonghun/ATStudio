@@ -23,7 +23,7 @@ public class SubscriptionUpgradePaymentExecutor {
     private final BillingKeyCrypto billingKeyCrypto;
     private final List<RecurringPaymentProvider> recurringProviders;
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional(propagation = Propagation.NEVER)
     public BillingChargeResult charge(PaymentCommandTransactionService.UpgradeClaim claim) {
         return recurringProvider().charge(new BillingChargeCommand(
                 billingKeyCrypto.decrypt(claim.billingKeyCiphertext()),

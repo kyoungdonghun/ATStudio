@@ -40,7 +40,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -71,6 +73,7 @@ public class UserSubscriptionService {
     private final SubscriptionPaymentRepository subscriptionPaymentRepository;
     private final BillingKeyCrypto billingKeyCrypto;
     private final PaymentReceiptEvidenceService paymentReceiptEvidenceService;
+    private final TransactionTemplate transactionTemplate;
     private final PaymentCommandTransactionService paymentCommandTransactionService;
     private final SubscriptionUpgradePaymentExecutor subscriptionUpgradePaymentExecutor;
     private final List<RecurringPaymentProvider> recurringProviders;
@@ -117,8 +120,26 @@ public class UserSubscriptionService {
     }
 
     // 6.7 PUT /api/user-subscriptions/me
-    @Transactional(noRollbackFor = BusinessException.class)
+    @Transactional(propagation = Propagation.NEVER)
     public ChangeSubscriptionResponse changeSubscription(
+            CustomUserDetails userDetails,
+            ChangeSubscriptionRequest request) {
+        SubscriptionChangePlan plan = transactionTemplate.execute(
+                status -> planSubscriptionChange(userDetails, request));
+        if (plan == null) {
+            throw new IllegalStateException("Subscription change planning returned no result.");
+        }
+        if (plan.localResponse() != null) {
+            return plan.localResponse();
+        }
+        return processChargedUpgrade(
+                plan.userID(),
+                plan.currentSubscriptionID(),
+                plan.targetSubscriptionID(),
+                plan.targetBillingCycle());
+    }
+
+    private SubscriptionChangePlan planSubscriptionChange(
             CustomUserDetails userDetails,
             ChangeSubscriptionRequest request) {
         User user = findUser(userDetails);
@@ -136,7 +157,7 @@ public class UserSubscriptionService {
         if (isSamePlanAndCycle(current, newPlan, request.billingCycle())) {
             reactivateIfCancelled(user, current);
             current.clearPendingChange();
-            return new ChangeSubscriptionResponse(
+            return SubscriptionChangePlan.local(new ChangeSubscriptionResponse(
                     SubscriptionResponse.from(current.getSubscription()),
                     current.getBillingCycle().name(),
                     current.getStatus().name(),
@@ -144,7 +165,7 @@ public class UserSubscriptionService {
                     BigDecimal.ZERO,
                     current.getStartedAt(),
                     current.getExpiresAt()
-            );
+            ));
         }
 
         boolean isUpgrade = newPlan.getPriceMonthly().compareTo(
@@ -153,10 +174,10 @@ public class UserSubscriptionService {
         if (isUpgrade) {
             BigDecimal proratedAmount = calculateProratedUpgradeAmount(current, newPlan);
             if (requiresImmediateCharge(proratedAmount)) {
-                return processChargedUpgrade(
-                        user,
-                        current,
-                        newPlan,
+                return SubscriptionChangePlan.charged(
+                        user.getId(),
+                        current.getId(),
+                        newPlan.getId(),
                         request.billingCycle());
             }
 
@@ -164,7 +185,7 @@ public class UserSubscriptionService {
             reactivateIfCancelled(user, current);
             current.upgradeKeepingPeriod(newPlan, request.billingCycle());
 
-            return new ChangeSubscriptionResponse(
+            return SubscriptionChangePlan.local(new ChangeSubscriptionResponse(
                     SubscriptionResponse.from(newPlan),
                     request.billingCycle().name(),
                     current.getStatus().name(),
@@ -172,12 +193,12 @@ public class UserSubscriptionService {
                     proratedAmount,
                     current.getStartedAt(),
                     current.getExpiresAt()
-            );
+            ));
         }
 
         reactivateIfCancelled(user, current);
         current.schedulePendingChange(newPlan, request.billingCycle());
-        return new ChangeSubscriptionResponse(
+        return SubscriptionChangePlan.local(new ChangeSubscriptionResponse(
                 SubscriptionResponse.from(newPlan),
                 request.billingCycle().name(),
                 current.getStatus().name(),
@@ -185,7 +206,7 @@ public class UserSubscriptionService {
                 BigDecimal.ZERO,
                 current.getStartedAt(),
                 current.getExpiresAt()
-        );
+        ));
     }
 
     // 6.8 PUT /api/user-subscriptions/{id}
@@ -335,23 +356,22 @@ public class UserSubscriptionService {
     }
 
     private ChangeSubscriptionResponse processChargedUpgrade(
-            User user,
-            UserSubscription current,
-            Subscription newPlan,
+            Long userID,
+            Long currentSubscriptionID,
+            Long targetSubscriptionID,
             BillingCycle targetBillingCycle) {
         PaymentCommandTransactionService.UpgradeClaim claim =
                 paymentCommandTransactionService.claimUpgrade(
-                        user.getId(),
-                        current.getId(),
-                        newPlan.getId(),
+                        userID,
+                        currentSubscriptionID,
+                        targetSubscriptionID,
                         targetBillingCycle,
                         LocalDateTime.now());
         if (claim.action() == PaymentCommandTransactionService.UpgradeAction.FINALIZE_ONLY) {
             return paymentCommandTransactionService.finalizeUpgrade(
-                    user.getId(),
+                    userID,
                     claim.agreementID(),
-                    claim.orderID(),
-                    claim.targetBillingCycle());
+                    claim.orderID());
         }
 
         BillingChargeResult chargeResult;
@@ -407,10 +427,9 @@ public class UserSubscriptionService {
                 chargeResult.payMethod(),
                 chargeResult.maskedMethod());
         return paymentCommandTransactionService.finalizeUpgrade(
-                user.getId(),
+                userID,
                 claim.agreementID(),
-                claim.orderID(),
-                claim.targetBillingCycle());
+                claim.orderID());
     }
 
     private void recordUpgradeProviderFailure(
@@ -497,5 +516,30 @@ public class UserSubscriptionService {
 
     private String nullToDash(String value) {
         return isBlank(value) ? "-" : value;
+    }
+
+    private record SubscriptionChangePlan(
+            Long userID,
+            Long currentSubscriptionID,
+            Long targetSubscriptionID,
+            BillingCycle targetBillingCycle,
+            ChangeSubscriptionResponse localResponse) {
+
+        private static SubscriptionChangePlan charged(
+                Long userID,
+                Long currentSubscriptionID,
+                Long targetSubscriptionID,
+                BillingCycle targetBillingCycle) {
+            return new SubscriptionChangePlan(
+                    userID,
+                    currentSubscriptionID,
+                    targetSubscriptionID,
+                    targetBillingCycle,
+                    null);
+        }
+
+        private static SubscriptionChangePlan local(ChangeSubscriptionResponse response) {
+            return new SubscriptionChangePlan(null, null, null, null, response);
+        }
     }
 }
