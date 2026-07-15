@@ -218,7 +218,7 @@ public class PaymentReconciliationIncidentService {
                 issue.providerStatus(),
                 issue.localAmount(),
                 issue.providerAmount(),
-                issue.providerTransactionId(),
+                maskProviderTransactionID(issue.providerTransactionId()),
                 issue.failureCode(),
                 issue.failureMessage(),
                 detectedAt);
@@ -320,7 +320,19 @@ public class PaymentReconciliationIncidentService {
                         nullText(issue.providerAmount()),
                         nullText(issue.localCurrency()),
                         nullText(issue.providerCurrency()),
-                        nullText(issue.providerTransactionId()));
+                        nullText(maskProviderTransactionID(issue.providerTransactionId())));
+    }
+
+    private String maskProviderTransactionID(String providerTransactionID) {
+        if (providerTransactionID == null || providerTransactionID.isBlank()) {
+            return null;
+        }
+        if (providerTransactionID.length() <= 8) {
+            return "***";
+        }
+        return providerTransactionID.substring(0, 4)
+                + "..."
+                + providerTransactionID.substring(providerTransactionID.length() - 4);
     }
 
     private PaymentOrder findPaymentOrder(Long paymentOrderId) {

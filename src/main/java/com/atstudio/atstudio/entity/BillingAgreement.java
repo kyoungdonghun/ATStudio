@@ -229,6 +229,14 @@ public class BillingAgreement extends BaseEntity {
         this.renewalRetryAt = renewalRetryAt;
     }
 
+    public void consumeRenewalRetry() {
+        if (renewalRetryAt == null) {
+            throw new IllegalStateException("Renewal retry date is not scheduled.");
+        }
+
+        this.renewalRetryAt = null;
+    }
+
     public void suspend() {
         this.renewalRetryAt = null;
         this.status = BillingAgreementStatus.SUSPENDED;
@@ -305,6 +313,14 @@ public class BillingAgreement extends BaseEntity {
         return status == BillingAgreementStatus.ACTIVE
                 && nextBillingAt != null
                 && !nextBillingAt.isAfter(today);
+    }
+
+    public boolean isInitialSubscriptionFinalizationEligible() {
+        return status == BillingAgreementStatus.READY
+                && billingKeyCleanupStatus == BillingKeyCleanupStatus.NONE
+                && cancelledAt == null
+                && !isBlank(billingKeyCiphertext)
+                && !isBlank(billingKeyFingerprint);
     }
 
     public boolean isOwnedBy(User user) {

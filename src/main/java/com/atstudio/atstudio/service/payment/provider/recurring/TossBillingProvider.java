@@ -194,7 +194,7 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
                     e.getMessage(),
                     null);
         } catch (IOException | IllegalArgumentException | ArithmeticException e) {
-            log.warn("Toss payment cancel result is unknown. paymentKey={}", command.providerPaymentKey(), e);
+            log.warn("Toss payment cancel result is unknown.", e);
             return PaymentRefundProviderResult.pending(
                     "TOSS_PAYMENT_CANCEL_UNKNOWN",
                     "Toss payment cancel request result is unknown.",
@@ -501,7 +501,6 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
 
     private String sanitizedLookupPayload(JsonNode root) throws IOException {
         Map<String, Object> payload = new LinkedHashMap<>();
-        putTextIfPresent(payload, "paymentKey", root);
         putTextIfPresent(payload, "orderId", root);
         putTextIfPresent(payload, "status", root);
         putTextIfPresent(payload, "method", root);

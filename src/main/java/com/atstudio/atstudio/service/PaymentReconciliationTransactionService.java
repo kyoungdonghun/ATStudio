@@ -228,8 +228,7 @@ public class PaymentReconciliationTransactionService {
             UserSubscription subscription) {
         return switch (order.getPurpose()) {
             case SUBSCRIBE -> subscription == null
-                    && !isBlank(agreement.getBillingKeyCiphertext())
-                    && !isBlank(agreement.getBillingKeyFingerprint());
+                    && agreement.isInitialSubscriptionFinalizationEligible();
             case UPGRADE -> subscription != null
                     && order.getUpgradeTargetBillingCycle() != null;
             case RENEWAL -> subscription != null

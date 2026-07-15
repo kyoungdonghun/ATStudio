@@ -342,7 +342,7 @@ class TossBillingProviderTest {
         assertThat(result.transactionId()).isEqualTo("payment_key");
         assertThat(result.totalAmount()).isEqualByComparingTo("9900");
         assertThat(result.currency()).isEqualTo("KRW");
-        assertThat(result.providerPayload()).contains("\"paymentKey\":\"payment_key\"");
+        assertThat(result.providerPayload()).doesNotContain("paymentKey", "payment_key");
         assertThat(result.providerPayload()).contains("\"currency\":\"KRW\"");
     }
 

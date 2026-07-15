@@ -146,7 +146,7 @@ public class AdminPaymentRefundService {
                 .build();
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional(propagation = Propagation.NEVER)
     public ResponseDTO<AdminPaymentRefundResponse> executeRefund(
             Long refundId,
             CustomUserDetails actorDetails,
@@ -154,7 +154,7 @@ public class AdminPaymentRefundService {
         return executeRefundAt(refundId, actorDetails, request, LocalDateTime.now());
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional(propagation = Propagation.NEVER)
     public ResponseDTO<AdminPaymentRefundResponse> executeRefundAt(
             Long refundId,
             CustomUserDetails actorDetails,

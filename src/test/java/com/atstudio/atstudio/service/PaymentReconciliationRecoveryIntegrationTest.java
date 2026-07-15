@@ -8,7 +8,9 @@ import com.atstudio.atstudio.entity.PaymentReconciliationIncident;
 import com.atstudio.atstudio.entity.Subscription;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
+import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
+import com.atstudio.atstudio.entity.enums.BillingKeyCleanupStatus;
 import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
@@ -20,6 +22,7 @@ import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.repository.PaymentOperationAuditLogRepository;
 import com.atstudio.atstudio.repository.PaymentOrderRepository;
 import com.atstudio.atstudio.repository.PaymentReconciliationIncidentRepository;
+import com.atstudio.atstudio.repository.PaymentRefundRepository;
 import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
 import com.atstudio.atstudio.repository.SubscriptionRepository;
 import com.atstudio.atstudio.repository.UserRepository;
@@ -46,9 +49,11 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -59,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -89,10 +95,12 @@ class PaymentReconciliationRecoveryIntegrationTest {
     @Autowired PaymentOrderRepository paymentOrderRepository;
     @Autowired SubscriptionPaymentRepository subscriptionPaymentRepository;
     @Autowired PaymentReconciliationIncidentRepository incidentRepository;
+    @Autowired PaymentRefundRepository paymentRefundRepository;
     @Autowired PaymentOperationAuditLogRepository auditLogRepository;
     @Autowired PaymentCommandTransactionService paymentCommandTransactions;
     @Autowired TestPaymentProvider paymentProvider;
     @Autowired EntityManager entityManager;
+    @Autowired PlatformTransactionManager transactionManager;
 
     @MockitoBean PlaylistService playlistService;
     @MockitoBean PaymentReceiptEvidenceService paymentReceiptEvidenceService;
@@ -107,6 +115,7 @@ class PaymentReconciliationRecoveryIntegrationTest {
     void cleanDatabase() {
         auditLogRepository.deleteAll();
         incidentRepository.deleteAll();
+        paymentRefundRepository.deleteAll();
         subscriptionPaymentRepository.deleteAll();
         paymentOrderRepository.deleteAll();
         billingAgreementRepository.deleteAll();
@@ -147,6 +156,106 @@ class PaymentReconciliationRecoveryIntegrationTest {
                 .extracting(PaymentReconciliationIncident::getStatus)
                 .containsOnly(PaymentReconciliationIncidentStatus.RESOLVED);
         assertThat(auditLogRepository.count()).isEqualTo(6);
+    }
+
+    @Test
+    @DisplayName("cancelled SUBSCRIBE with claimed cleanup remains Incident-only")
+    void cancelledSubscribeRemainsIncidentOnly() {
+        RecoveryFixture subscribe = persistSubscribeFixture();
+        cancelAndClaimCleanup(subscribe.order().getBillingAgreement().getId());
+        paymentProvider.respondExact(subscribe.order());
+        String rawPaymentKey = transactionID(subscribe.order());
+
+        PaymentReconciliationService.ProviderReconciliationResult result = service.reconcileProviderLedger();
+
+        assertThat(result.finalizedOrders()).isZero();
+        assertThat(result.issues()).hasSize(1);
+        entityManager.clear();
+        PaymentOrder unchangedOrder = paymentOrderRepository.findById(subscribe.order().getId()).orElseThrow();
+        BillingAgreement cancelled = billingAgreementRepository
+                .findById(subscribe.order().getBillingAgreement().getId())
+                .orElseThrow();
+        assertThat(unchangedOrder.getStatus()).isEqualTo(PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION);
+        assertThat(unchangedOrder.getPgTransactionId()).isNull();
+        assertThat(unchangedOrder.getProviderPayload()).isNull();
+        assertThat(cancelled.getStatus()).isEqualTo(BillingAgreementStatus.CANCELLED);
+        assertThat(cancelled.getBillingKeyCleanupStatus()).isEqualTo(BillingKeyCleanupStatus.PROCESSING);
+        assertThat(cancelled.getBillingKeyCiphertext()).isEqualTo("encrypted-subscribe");
+        assertThat(userSubscriptionRepository.count()).isZero();
+        assertThat(subscriptionPaymentRepository.count()).isZero();
+        assertThat(paymentRefundRepository.count()).isZero();
+        assertThat(incidentRepository.findAll())
+                .singleElement()
+                .satisfies(incident -> {
+                    assertThat(incident.getStatus()).isEqualTo(PaymentReconciliationIncidentStatus.OPEN);
+                    assertThat(incident.getProviderTransactionId()).doesNotContain(rawPaymentKey);
+                });
+        assertThat(auditLogRepository.findAll()).allSatisfy(log -> {
+            assertThat(log.getProviderTransactionId()).doesNotContain(rawPaymentKey);
+            assertThat(log.getNote()).doesNotContain(rawPaymentKey);
+        });
+        assertThat(paymentProvider.lookupCalls()).isEqualTo(1);
+        assertThat(paymentProvider.chargeCalls()).isZero();
+    }
+
+    @Test
+    @DisplayName("SUBSCRIBE cancellation after lookup is revalidated before provider success persistence")
+    void subscribeCancellationAfterLookupLeavesFinancialStateUnchanged() {
+        RecoveryFixture subscribe = persistSubscribeFixture();
+        paymentProvider.respondExact(subscribe.order());
+        paymentProvider.beforeLookupReturn(() ->
+                cancelAndClaimCleanup(subscribe.order().getBillingAgreement().getId()));
+
+        PaymentReconciliationService.ProviderReconciliationResult result = service.reconcileProviderLedger();
+
+        assertThat(result.finalizedOrders()).isZero();
+        entityManager.clear();
+        PaymentOrder unchangedOrder = paymentOrderRepository.findById(subscribe.order().getId()).orElseThrow();
+        BillingAgreement cancelled = billingAgreementRepository
+                .findById(subscribe.order().getBillingAgreement().getId())
+                .orElseThrow();
+        assertThat(unchangedOrder.getStatus()).isEqualTo(PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION);
+        assertThat(unchangedOrder.getPgTransactionId()).isNull();
+        assertThat(unchangedOrder.getProviderPayload()).isNull();
+        assertThat(cancelled.getStatus()).isEqualTo(BillingAgreementStatus.CANCELLED);
+        assertThat(cancelled.getBillingKeyCleanupStatus()).isEqualTo(BillingKeyCleanupStatus.PROCESSING);
+        assertThat(userSubscriptionRepository.count()).isZero();
+        assertThat(subscriptionPaymentRepository.count()).isZero();
+        assertThat(paymentRefundRepository.count()).isZero();
+        assertThat(incidentRepository.findAll())
+                .extracting(PaymentReconciliationIncident::getStatus)
+                .containsOnly(PaymentReconciliationIncidentStatus.OPEN);
+        assertThat(paymentProvider.lookupCalls()).isEqualTo(1);
+        assertThat(paymentProvider.chargeCalls()).isZero();
+    }
+
+    @Test
+    @DisplayName("SUBSCRIBE finalizer fails closed when cancellation wins after provider success persistence")
+    void subscribeFinalizerRevalidatesCancellationState() {
+        RecoveryFixture subscribe = persistSubscribeFixture();
+        Long agreementID = subscribe.order().getBillingAgreement().getId();
+        String providerTransactionID = transactionID(subscribe.order());
+        paymentCommandTransactions.recordProviderSuccessFromReconciliation(
+                agreementID,
+                subscribe.order().getOrderId(),
+                providerTransactionID,
+                "{}",
+                LocalDateTime.now().minusMinutes(15));
+        cancelAndClaimCleanup(agreementID);
+
+        assertThatThrownBy(() -> paymentCommandTransactions.finalizeInitialCharge(
+                subscribe.order().getUser().getId(),
+                agreementID,
+                subscribe.order().getOrderId()))
+                .isInstanceOf(com.atstudio.atstudio.common.exception.BusinessException.class);
+
+        entityManager.clear();
+        PaymentOrder providerSucceeded = paymentOrderRepository.findById(subscribe.order().getId()).orElseThrow();
+        assertThat(providerSucceeded.getStatus()).isEqualTo(PaymentOrderStatus.PROVIDER_SUCCEEDED);
+        assertThat(providerSucceeded.getPgTransactionId()).isEqualTo(providerTransactionID);
+        assertThat(userSubscriptionRepository.count()).isZero();
+        assertThat(subscriptionPaymentRepository.count()).isZero();
+        assertThat(paymentRefundRepository.count()).isZero();
     }
 
     @Test
@@ -332,6 +441,14 @@ class PaymentReconciliationRecoveryIntegrationTest {
                 PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION,
                 null);
         return new RecoveryFixture(order, null, null, null);
+    }
+
+    private void cancelAndClaimCleanup(Long agreementID) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(ignored -> {
+            BillingAgreement agreement = billingAgreementRepository.findByIDForUpdate(agreementID).orElseThrow();
+            agreement.cancel();
+            agreement.claimBillingKeyCleanup(LocalDateTime.now());
+        });
     }
 
     private RecoveryFixture persistUpgradeFixture() {

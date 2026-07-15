@@ -229,6 +229,33 @@ class RecurringRenewalCommandIntegrationTest {
     }
 
     @Test
+    @DisplayName("an ambiguous next-day retry consumes the prior retry date and is not charged again")
+    void ambiguousDeterministicRetryConsumesRetryDate() {
+        LocalDate due = LocalDate.of(2026, 8, 17);
+        Fixture fixture = persistRenewalFixture("ambiguous-day-two", due);
+        given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("billing_raw_key");
+        recurringPaymentProvider.chargeResults(
+                BillingChargeResult.failure("DECLINED", "First renewal attempt declined."),
+                null);
+
+        RecurringRenewalService.RenewalRunResult first = service.processDueRenewals(due);
+        RecurringRenewalService.RenewalRunResult retry = service.processDueRenewals(due.plusDays(1));
+        RecurringRenewalService.RenewalRunResult later = service.processDueRenewals(due.plusDays(2));
+
+        assertThat(first.failed()).isEqualTo(1);
+        assertThat(retry.failed()).isEqualTo(1);
+        assertThat(later).isEqualTo(new RecurringRenewalService.RenewalRunResult(0, 0, 0, 0));
+        entityManager.clear();
+        PaymentOrder pending = renewalOrderFor(fixture.agreementID());
+        BillingAgreement agreement = billingAgreementRepository.findById(fixture.agreementID()).orElseThrow();
+        assertThat(pending.getStatus()).isEqualTo(PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION);
+        assertThat(pending.getProviderAttempt()).isEqualTo(2);
+        assertThat(agreement.getNextBillingAt()).isEqualTo(due);
+        assertThat(agreement.getRenewalRetryAt()).isNull();
+        assertThat(recurringPaymentProvider.calls()).containsExactly("charge", "charge");
+    }
+
+    @Test
     @DisplayName("null and blank-success provider results become pending and later agreements continue")
     void malformedProviderResultsBecomePendingAndBatchContinues() {
         LocalDate due = LocalDate.of(2026, 8, 17);

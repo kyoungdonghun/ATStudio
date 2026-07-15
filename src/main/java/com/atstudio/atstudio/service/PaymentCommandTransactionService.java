@@ -300,6 +300,7 @@ public class PaymentCommandTransactionService {
                 || order.getProviderAttempt() >= RENEWAL_MAX_RETRY_COUNT)) {
             return RenewalClaim.skipped(billingAgreementID);
         }
+        boolean retryClaim = order.getStatus() == PaymentOrderStatus.FAILED;
 
         LocalDate graceEndsAt = renewalGraceEndsAt(order);
         if (today.isAfter(graceEndsAt)) {
@@ -319,6 +320,9 @@ public class PaymentCommandTransactionService {
                 billingPeriodStart);
         String providerIdempotencyKey = keyFactory.renewalAttempt(order.getOrderId(), providerAttempt);
         order.claimProviderAttempt(commandKey, providerIdempotencyKey, claimedAt);
+        if (retryClaim) {
+            agreement.consumeRenewalRetry();
+        }
 
         return RenewalClaim.callProvider(
                 billingAgreementID,
@@ -516,6 +520,7 @@ public class PaymentCommandTransactionService {
         if (order.getPurpose() != PaymentPurpose.SUBSCRIBE) {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
         }
+        validateInitialSubscriptionFinalizationState(agreement, lockedSubscription);
 
         SubscriptionPayment existingPayment = lockExistingPaymentForFinalization(order);
         if (existingPayment != null) {
@@ -1253,11 +1258,7 @@ public class PaymentCommandTransactionService {
         switch (order.getPurpose()) {
             case SUBSCRIBE -> {
                 validateBillingOrder(order);
-                if (subscription != null
-                        || isBlank(agreement.getBillingKeyCiphertext())
-                        || isBlank(agreement.getBillingKeyFingerprint())) {
-                    throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
-                }
+                validateInitialSubscriptionFinalizationState(agreement, subscription);
             }
             case UPGRADE -> {
                 if (subscription == null) {
@@ -1272,6 +1273,14 @@ public class PaymentCommandTransactionService {
                 validateRenewalOrder(order, agreement, subscription, agreement.getNextBillingAt());
             }
             default -> throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+    }
+
+    private void validateInitialSubscriptionFinalizationState(
+            BillingAgreement agreement,
+            UserSubscription subscription) {
+        if (subscription != null || !agreement.isInitialSubscriptionFinalizationEligible()) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
         }
     }
 

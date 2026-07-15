@@ -52,9 +52,12 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.transaction.IllegalTransactionStateException;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -96,6 +99,7 @@ class PaymentRefundResilienceIntegrationTest {
     @Autowired PaymentOperationAuditLogRepository auditLogRepository;
     @Autowired TestPaymentRefundProvider refundProvider;
     @Autowired EntityManager entityManager;
+    @Autowired PlatformTransactionManager transactionManager;
 
     @AfterEach
     void cleanDatabase() {
@@ -109,6 +113,33 @@ class PaymentRefundResilienceIntegrationTest {
         subscriptionRepository.deleteAll();
         userRepository.deleteAll();
         refundProvider.reset();
+    }
+
+    @Test
+    @DisplayName("executeRefund rejects an active caller transaction before provider invocation")
+    void executeRefundRejectsActiveCallerTransaction() {
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+
+        assertThatThrownBy(() -> transaction.executeWithoutResult(ignored -> service.executeRefund(
+                999L,
+                actor(999L),
+                new AdminPaymentRefundExecuteRequest("must reject"))))
+                .isInstanceOf(IllegalTransactionStateException.class);
+        assertThat(refundProvider.callCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("executeRefundAt rejects an active caller transaction before provider invocation")
+    void executeRefundAtRejectsActiveCallerTransaction() {
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+
+        assertThatThrownBy(() -> transaction.executeWithoutResult(ignored -> service.executeRefundAt(
+                999L,
+                actor(999L),
+                new AdminPaymentRefundExecuteRequest("must reject"),
+                LocalDateTime.now())))
+                .isInstanceOf(IllegalTransactionStateException.class);
+        assertThat(refundProvider.callCount()).isZero();
     }
 
     @Test

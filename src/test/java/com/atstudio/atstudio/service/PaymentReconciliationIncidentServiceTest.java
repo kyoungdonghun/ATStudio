@@ -97,6 +97,53 @@ class PaymentReconciliationIncidentServiceTest {
     }
 
     @Test
+    @DisplayName("provider recovery stores and audits only a masked transaction identifier")
+    void recordProviderRecoveryIssueMasksTransactionIdentifier() {
+        String rawPaymentKey = "pay_0123456789_abcdef";
+        String dedupeKey = "PROVIDER_DONE_LOCAL_NOT_FINALIZED:order:ATS-REN-MASK";
+        paymentProperties.getOperations().setReconciliationNotificationEnabled(false);
+        enableAuditService();
+        given(incidentRepository.findByDedupeKey(dedupeKey)).willReturn(Optional.empty());
+        given(incidentRepository.save(any(PaymentReconciliationIncident.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+        PaymentReconciliationService.ProviderReconciliationIssue issue =
+                new PaymentReconciliationService.ProviderReconciliationIssue(
+                        PaymentReconciliationIssueType.PROVIDER_DONE_LOCAL_NOT_FINALIZED,
+                        null,
+                        null,
+                        null,
+                        "ATS-REN-MASK",
+                        PaymentProviderType.TOSS_BILLING,
+                        PaymentPurpose.RENEWAL,
+                        "PENDING_PROVIDER_CONFIRMATION",
+                        "DONE",
+                        BigDecimal.valueOf(9900),
+                        BigDecimal.valueOf(9900),
+                        "KRW",
+                        "KRW",
+                        rawPaymentKey,
+                        null,
+                        null);
+
+        service.recordProviderRecoveryIssue(issue);
+
+        ArgumentCaptor<PaymentReconciliationIncident> incidentCaptor =
+                ArgumentCaptor.forClass(PaymentReconciliationIncident.class);
+        verify(incidentRepository).save(incidentCaptor.capture());
+        assertThat(incidentCaptor.getValue().getProviderTransactionId())
+                .isNotBlank()
+                .doesNotContain(rawPaymentKey);
+        ArgumentCaptor<String> noteCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditLogService).recordReconciliationIncidentStatusUpdate(
+                eq(null),
+                eq(incidentCaptor.getValue()),
+                eq(null),
+                eq(PaymentReconciliationIncidentStatus.OPEN),
+                noteCaptor.capture());
+        assertThat(noteCaptor.getValue()).doesNotContain(rawPaymentKey);
+    }
+
+    @Test
     @DisplayName("recordIssues reopens a resolved incident when the same mismatch appears again")
     void recordIssues_reopensResolvedIncident() {
         PaymentReconciliationIncident existing = PaymentReconciliationIncident.builder()
