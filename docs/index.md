@@ -1,6 +1,6 @@
 ---
-version: 2.1
-last_updated: 2026-07-13
+version: 2.2
+last_updated: 2026-07-15
 project: ATS
 owner: EO
 category: registry
@@ -17,12 +17,12 @@ status: stable
 | Category | Document Count | Index File | Description |
 | ---------- | ------- | ------------------------------------------ | -------------------- |
 | Architecture | 1 | [Architecture Index](architecture/index.md) | High-level design/principles |
-| Design | 25 | [Design Index](design/index.md) | Meta + ATStudio domain design (API, DB, use cases, protocol references) |
+| Design | 28 | [Design Index](design/index.md) | Meta + ATStudio domain design (API, DB, use cases, protocol references) |
 | Policies | 8 | [Policies Index](policies/index.md) | Operational policy documents |
 | Standards | 12 | [Standards Index](standards/index.md) | Standard documents and reference assets |
 | Templates | 18 | [Templates Index](templates/index.md) | Document/artifact templates |
 | Registry | 4 | [Registry Index](registry/index.md) | Asset/context/project registries |
-| Audit | 4 | [Audit Index](audit/index.md) | Audit reports and remediation baselines |
+| Audit | 6 | [Audit Index](audit/index.md) | Audit reports and remediation baselines |
 | Client | 8 | [Client Index](client/index.md) | Easy client acceptance testing guides and SR intake references |
 | Payment | 7 | [Payment Index](payment/index.md) | Payment system guide, flows, operations, acceptance checklist, and client brief |
 | SR | 92 | [SR Index](SR/index.md) | Screen Review items (SR-01~90, SR-92~93) |
@@ -31,7 +31,7 @@ status: stable
 | UI | 3 | [UI Index](ui/index.md) | Screen inventory, flow, and modal planning documents |
 | Eval | 0 | [Eval Index](eval/index.md) | Evaluation documents |
 
-**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **187**.
+**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **192**.
 
 ## Required Documents Mapping by Role
 

@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-07-13
+version: 1.2
+last_updated: 2026-07-15
 project: ATS
 owner: docops
 category: guide
@@ -40,6 +40,7 @@ Operators must treat admin payment operations as audit-sensitive.
 - Do not run refund execution unless the refund request is approved and the target payment is confirmed.
 - Do not run entitlement correction until provider refund has succeeded.
 - Do not paste raw billing keys, raw card numbers, Toss secret keys, `authKey`, or `customerKey` into notes.
+- Do not paste an exact provider payment key into Incident, refund, settlement, or audit notes. Use the masked/reference fields already shown by the screen.
 - Use notes to record support-safe evidence and decision reasons.
 
 ## 3. Orders Tab
@@ -118,6 +119,7 @@ Rule:
 
 - Incident status changes do not change payments, subscriptions, billing agreements, refunds, or provider state.
 - Withdrawal cleanup success resolves its matching agreement-scoped Incident automatically. Operators must not restore renewal eligibility or create a refund merely to close this Incident.
+- An order in `PROVIDER_SUCCEEDED` is finalize-only. Do not start a replacement charge; keep the Incident open until local finalization converges or an approved disposition is recorded.
 
 ## 7. Receipts Tab
 
@@ -210,6 +212,7 @@ Important statuses:
 
 - `REQUESTED`
 - `APPROVED`
+- `PROCESSING`
 - `SUCCEEDED`
 - `FAILED`
 - `PENDING_PROVIDER_CONFIRMATION`
@@ -217,6 +220,7 @@ Important statuses:
 Rule:
 
 - Refund execution calls provider cancel/refund and records the result. It does not automatically modify subscription access.
+- A fresh `PROCESSING` refund is already owned by a claim. A stale or ambiguous row must retain the same refund ID and idempotency key; do not create a replacement request to bypass it.
 
 ## 11. Entitlement Correction Tab
 
@@ -247,7 +251,9 @@ Rule:
 | "I was charged twice." | Payments tab | Refund preview, orders tab |
 | "I cancelled but still have access." | User subscription status | This is expected until `expiresAt` |
 | "Payment failed during renewal." | Automatic payment tab | Orders tab, renewal failure email/logs |
+| "A renewal retry looks duplicated." | Orders tab; compare billing period and command/order identity | Payments tab; confirm only one finalized payment exists |
 | "Provider and local numbers do not match." | Incidents tab | Settlement tab, runbook |
+| "A refund is stuck in progress." | Refund tab; keep the same refund row | Incident/audit evidence; do not submit a replacement refund |
 | "I withdrew, but automatic payment may still be active." | Automatic payment tab | Incidents tab; verify local `CANCELLED`, deleted user, and cleanup retry state |
 
 ## Related Documents
@@ -261,3 +267,4 @@ Rule:
 
 - [Acceptance Test Checklist](acceptance-test-checklist.md): Admin operation acceptance checks.
 - [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](../design/payment-refund-receipt-settlement-policy.md): Detailed policy.
+- [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md): Technical proof and open production gates.

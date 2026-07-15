@@ -1,10 +1,10 @@
 ---
-version: 1.0
+version: 1.1
 last_updated: 2026-07-15
 project: ATS
 owner: SA
 category: design
-status: proposed
+status: stable
 dependencies:
   - path: ../../deliverables/agent/WI-20260714-ATS-036-handoff.md
     reason: Approved design scope and output contract
@@ -19,6 +19,13 @@ dependencies:
 > Purpose: Close the design gaps identified by `WI-20260714-ATS-023` without
 > adding payment features, replaying ambiguous money movement, or applying a
 > patch to an existing database.
+
+> **Current implementation status (2026-07-15):** This design is implemented by
+> Packages A-G and the WI-008/WI-011 corrections. Independent follow-up review
+> passed in WI-012. This status closes the repository payment-integrity
+> code/test gate only; retained-database, live-provider, deployment, and client
+> acceptance gates remain open. See
+> [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md).
 
 ## 1. Decision Summary
 
@@ -614,26 +621,32 @@ DDL implicit commits, or the manual patch.
 
 ## 12. Disjoint Implementation Work Items
 
-Concrete WI IDs must be allocated by the MA through the required handoff skill.
-The slices below are disjoint by production-file ownership.
+The slices below were implemented with disjoint production-file ownership.
 
-| Slice | Exclusive production ownership | Depends on | Closure |
+| Slice | WI | Commit | Closure |
 |---|---|---|---|
-| A - Schema and entity foundation | Three entities, new cleanup enum, `schema.sql`, manual patch | This design | Static DDL/entity contract plus copied-DB preflight rehearsal; no retained DB apply |
-| B - Payment command core | Payment command transaction service, renewal service, payment/agreement/subscription repositories, including the `BillingAgreementRepository` cleanup/stale contract consumed by C | A | F-01 behavior and canonical command locks; exposes reconciliation-safe success/finalizers and cleanup repository projections |
-| C - Cancellation and withdrawal cleanup | Billing agreement application service, withdrawal cleanup service, new cleanup transaction service; consumes B-owned cleanup repository projections without repository edits | A, B | Cancellation/withdrawal F-02 transaction tests |
-| D - Charged upgrade orchestration | User subscription service and upgrade provider executor | B | Charged-upgrade F-02 transaction tests |
-| E - Refund lease recovery | Admin refund service, refund transaction service, refund repository | A | F-03 crash and fencing tests |
-| F - Reconciliation and finalize-only | Reconciliation service, new reconciliation transaction service, lookup result/adapter, Incident integration | B | Scheduled F-02 plus F-04 evidence/finalize tests |
-| G - MySQL independent proof | MySQL-only test classes/configuration and evidence deliverables | B through F | F-05 production-engine proof with exact loser assertions |
+| A - Schema and entity foundation | `WI-20260715-ATS-001` | `103fdf4` | Additive entity/fresh-schema/manual-patch foundation and static contract; no retained DB apply |
+| B - Payment command core | `WI-20260715-ATS-002` | `77c2ebd` | F-01 behavior, canonical command locks, reconciliation-safe finalizers, and cleanup projections |
+| C - Cancellation and withdrawal cleanup | `WI-20260715-ATS-004` | `49e8774` | Cancellation/withdrawal F-02 boundaries and fenced cleanup results |
+| D - Charged upgrade orchestration | `WI-20260715-ATS-005` | `45daf18` | Charged-upgrade F-02 boundary and finalize-only recovery |
+| E - Refund lease recovery | `WI-20260715-ATS-003` | `f5bbd7b` | F-03 crash recovery, stale reclaim, same-key replay limits, and fencing |
+| F - Reconciliation and finalize-only | `WI-20260715-ATS-006` | `d0bc21b` | Scheduled F-02 boundary plus F-04 evidence and purpose finalization |
+| G - MySQL independent proof | `WI-20260715-ATS-007` | `830c8dd` | Fresh disposable MySQL 8/InnoDB validation and all seven exact races |
 
 Slices B through F may add only tests for their owned production files. Slice G
 does not change production code. Any required cross-slice production change is
 returned to its owner rather than edited in the consuming slice.
 
-All slices and independent review must complete before unblocking
-`WI-20260714-ATS-025`, `WI-20260714-ATS-026`, `WI-20260714-ATS-028`, or
-`WI-20260714-ATS-034`.
+Post-package evidence:
+
+- `WI-20260715-ATS-008` (`1ecfe5c`) corrected completed-renewal idempotency and reconciliation convergence before the final Package G run.
+- `WI-20260715-ATS-009` and `WI-20260715-ATS-010` (`3f18fed`) remain the historical FAIL reviews that found two P1 and two P2 follow-ups.
+- `WI-20260715-ATS-011` (`46edd88`) corrected refund `NEVER` enforcement, SUBSCRIBE state gates, retry-gate consumption, and payment-key minimization.
+- `WI-20260715-ATS-012` (`14053e6`) independently reviewed those four corrections and returned PASS with one non-blocking P3 test gap.
+
+This implementation and review chain closes F-01 through F-05 at the current
+code/test boundary. It does not unblock retained-database application, live Toss,
+production deployment, client acceptance, or non-payment release gates.
 
 ## 13. Rollout, Rollback, and Residual Risk
 

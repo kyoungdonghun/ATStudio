@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-07-11
+version: 1.1
+last_updated: 2026-07-15
 project: ATS
 owner: qa
 category: guide
@@ -21,6 +21,8 @@ dependencies:
 ## 관리자 테스트 주의
 
 관리자 기능은 실제 데이터를 바꿀 수 있습니다. 테스트 DB가 변경되어도 되는 상황인지 확인한 뒤 진행하세요.
+
+결제 운영은 승인된 테스트/인수 환경에서만 진행합니다. 실제 카드, 실제 금액, live key, 운영 DB를 사용하지 말고, 메모에는 billing key, payment key, 카드 정보, secret을 입력하지 마세요.
 
 특히 아래 작업은 조심합니다.
 
@@ -72,6 +74,10 @@ dependencies:
 | 정산 | CSV 가져오기와 불일치 확인 | 가져온 row와 불일치 사유가 보인다. |
 | 환불 | 미리보기, 요청, 승인, 실행 | 미리보기 후 요청하며, 실행은 강한 확인을 거친다. |
 | 권한 보정 | 미리보기, 요청, 승인, 실행 | 환불과 별도 절차로 접근 권한을 조정한다. |
+| 주문/결제내역 | 안내받은 재시도 사례 | 같은 결제 주기의 완료 결제가 두 개 생기지 않는다. |
+| 대사 Incident | 완료 처리 복구 사례 | 새 결제를 만들지 않고 기존 주문이 완료되거나, 해결되지 않으면 Incident가 남는다. |
+| 환불 | 처리 중/확인 필요 사례 | 같은 환불 요청 한 건이 유지되며 새 요청으로 우회되지 않는다. |
+| 대사 Incident/감사로그 | 민감정보 표시 | 원문 payment key나 billing key가 메모와 상세 설명에 보이지 않는다. |
 
 중요한 데이터에서는 환불 실행과 권한 보정 실행을 하지 마세요.
 
@@ -104,3 +110,11 @@ dependencies:
 | 문의 관리 화면을 연다. | 문의를 읽고 답변하거나 상태를 바꿀 수 있다. |
 | 사이트 설정을 수정한다. | 저장이 가능하다. |
 | 설정이 반영되는 공개 화면을 확인한다. | 해당 화면에 변경 내용이 보인다. |
+
+## H. 내부 기술 검증
+
+아래 항목은 클라이언트가 코드, 트랜잭션, DB를 열어 직접 확인하지 않습니다.
+
+- 결제 명령 멱등성, Provider 트랜잭션 경계, 환불 처리 시간 제한과 이전 결과 차단, finalize-only 대사, payment key 최소화: [결제 무결성 종료 보고서](../audit/p1-payment-integrity-closure-20260715.md), [WI-012 Evidence Pack](../../deliverables/agent/WI-20260715-ATS-012-evidence-pack.md)
+- disposable MySQL 8/InnoDB 7/7 동시성 검증: [WI-007 Evidence Pack](../../deliverables/agent/WI-20260715-ATS-007-evidence-pack.md)
+- 운영 DB 이관, live Toss, 운영 배포, 최종 인수는 아직 완료로 표시하지 않습니다.

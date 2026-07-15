@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-07-13
+version: 1.2
+last_updated: 2026-07-15
 project: ATS
 owner: docops
 category: guide
@@ -22,7 +22,7 @@ dependencies:
 
 ## 1. Current Delivery Boundary
 
-Current delivery is complete for:
+The following capabilities are implemented and code/test verified for the current local payment scope:
 
 - Toss billing-key recurring subscription checkout.
 - Initial charge after billing-key registration.
@@ -35,8 +35,10 @@ Current delivery is complete for:
 - Entitlement correction workflow after refund.
 - CSV/manual settlement import and settlement reconciliation review.
 - Local-first account-withdrawal billing stop, after-commit Provider cleanup, daily retry, Incident resolution, and no-auto-refund separation.
+- Stable payment command identity, strict Provider transaction boundaries, retry-gate consumption, refund lease fencing, and exact finalize-only reconciliation.
+- Fresh disposable MySQL 8/InnoDB schema validation and all seven required concurrency races.
 
-Current delivery is not a full financial back-office suite. The remaining items below should be planned as separate REQ/SR work.
+This is not production-readiness closure or a full financial back-office suite. Retained-database migration rehearsal, live Toss configuration, production deployment/monitoring, client acceptance, non-payment gates, and final release approval remain open. See [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md) and [SR-93](../SR/SR-93.md).
 
 ## 2. Planned Features
 
@@ -84,6 +86,7 @@ Tax invoice request/admin workflow is intentionally not listed as a next REQ whi
 
 - [Feature Inventory](feature-inventory.md): Current implemented feature list.
 - [SR-93](../SR/SR-93.md): Production payment SR and remaining hardening context.
+- [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md): Current code/test closure and residual risks.
 
 ### Reference Documents
 

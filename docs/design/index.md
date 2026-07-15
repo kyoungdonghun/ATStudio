@@ -1,6 +1,6 @@
 ---
-version: 1.9
-last_updated: 2026-07-13
+version: 2.0
+last_updated: 2026-07-15
 project: system
 owner: SA
 category: registry
@@ -33,3 +33,6 @@ status: stable
 | **[Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md)** | Payment operations policy for refund, receipt, settlement, tax invoice, and future admin mutation boundaries | draft |
 | **[Payment Settlement Import and Reconciliation Design](payment-settlement-import-design.md)** | Settlement source adapter, CSV-first import, reconciliation, and admin operation design | draft |
 | **[P0 Release Blocker Remediation Design](p0-release-blocker-remediation-design.md)** | Protected track media, secret-free mail logging, and withdrawal billing-stop contracts | stable |
+| **[P1 Payment Integrity Remediation Design](p1-payment-integrity-remediation-design.md)** | Implemented payment command, transaction, refund recovery, reconciliation, lock-order, and MySQL proof contract | stable |
+| **[P1 Payment and Database Integrity Design](p1-payment-db-integrity-design.md)** | Superseded 2026-07-14 payment/DB baseline retained for migration cautions and historical reference | archived |
+| **[P1 Security and Acceptance Hardening Design](p1-security-acceptance-hardening-design.md)** | Security, file, session, proxy, and acceptance-environment hardening contract | draft |

@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-07-13
+version: 1.2
+last_updated: 2026-07-15
 project: ATS
 owner: qa
 category: guide
@@ -24,6 +24,7 @@ dependencies:
 
 | Check | Expected Result | Done |
 | :-- | :-- | :-- |
+| The environment is an approved local/test/staging environment using Toss test configuration. | No live key, real-money payment, retained production DB, or production deployment is used by this checklist. | [ ] |
 | Backend and frontend are running against the intended local or staging environment. | User can open `/subscriptions` and admin can open `/admin/payments`. | [ ] |
 | Toss test client key and secret key are configured for recurring billing. | Checkout opens Toss billing auth instead of provider-not-configured error. | [ ] |
 | Billing-key encryption secret is configured. | Billing-key confirmation does not fail due to missing encryption secret. | [ ] |
@@ -82,8 +83,8 @@ dependencies:
 | Check | Expected Result | Done |
 | :-- | :-- | :-- |
 | Trigger or wait for due renewal. | Scheduler charges through billing agreement and extends subscription on success. | [ ] |
-| Simulate provider failure. | Order records failure; failure count increases; retry is scheduled within grace period. | [ ] |
-| Simulate repeated failure or grace expiration. | Billing agreement is suspended and subscription expires after grace as appropriate. | [ ] |
+| Use an operator-prepared provider failure scenario. | The user sees a safe failure; the order remains visible and a retry is scheduled within the grace period without creating a second completed payment. | [ ] |
+| Use an operator-prepared repeated-failure or grace-expiration scenario. | The billing agreement becomes suspended and subscription access expires after the grace period as appropriate. | [ ] |
 | Confirm failure email behavior. | Email attempt occurs with safe guidance, or failure is logged without exposing secrets. | [ ] |
 
 ## 8. Account Withdrawal Safety
@@ -91,10 +92,9 @@ dependencies:
 | Check | Expected Result | Done |
 | :-- | :-- | :-- |
 | Withdraw a password account with an ACTIVE subscription and billing agreement in a safe test environment. | User becomes deleted; subscription and agreement are locally `CANCELLED`; no refund row is created. | [ ] |
-| Run due renewal after withdrawal. | Deleted user is not selected or charged; Provider charge invocation remains zero. | [ ] |
-| Simulate Provider cleanup failure. | Withdrawal remains complete, key material is retained for retry, and one agreement-scoped `WARNING` Incident is open. | [ ] |
-| Run the 01:15 cleanup retry with Provider success. | Issued-key fields are cleared and the matching Incident becomes `RESOLVED`. | [ ] |
-| Return `ALREADY_REMOVED_BILLING_KEY` from the Provider test double. | Cleanup converges to success, clears local key material, and resolves the Incident. | [ ] |
+| After the next prepared renewal run, review the withdrawn account in admin payment screens. | No new renewal order or finalized payment appears for the deleted user. | [ ] |
+| Use an operator-prepared Provider cleanup failure. | Withdrawal remains complete and one agreement-scoped `WARNING` Incident is visible. | [ ] |
+| After the prepared cleanup retry succeeds, review the Incident. | The matching Incident becomes `RESOLVED`; the user is not reactivated and no refund is created automatically. | [ ] |
 
 ## 9. Admin Payment Operations
 
@@ -118,6 +118,7 @@ dependencies:
 | Create refund request. | `payment_refunds` row is created; provider is not called yet. | [ ] |
 | Approve refund request. | Status moves to approved. | [ ] |
 | Execute refund with required confirmation text. | Toss cancel/refund is called with persisted idempotency key and result is recorded. | [ ] |
+| Repeat while the same refund is already processing or awaiting Provider confirmation. | The existing refund remains the only request; the UI does not bypass it with a replacement refund. | [ ] |
 | Confirm subscription access after refund. | Access is unchanged until entitlement correction is executed. | [ ] |
 | Preview entitlement correction from succeeded refund. | Target local subscription state is shown. | [ ] |
 | Execute entitlement correction with required confirmation text. | Local subscription state changes and audit log is recorded. | [ ] |
@@ -128,15 +129,29 @@ dependencies:
 | :-- | :-- | :-- |
 | Inspect user checkout/manage screens. | Raw billing key, `authKey`, `customerKey`, Toss secret, and raw card number are not visible. | [ ] |
 | Inspect admin payment screens. | Only support-safe identifiers and masked payment method appear. | [ ] |
-| Inspect server logs around payment flow. | Secrets and raw card numbers are not logged. | [ ] |
-| Inspect settlement import payload behavior. | Stored source payload contains allowlisted support-safe fields only. | [ ] |
+| Review the operator-provided sensitive-data verification result. | The result confirms that secrets, raw card data, and billing keys are absent from user/admin output, and that raw provider payment keys are not copied into serialized lookup evidence or Incident/audit free text. | [ ] |
+| Review settlement rows after CSV import. | The UI shows only the fields needed for matching and operations; no secret or raw card field is visible. | [ ] |
 
-## 12. Final Acceptance Gate
+## 12. Technical Evidence - No Client Action
+
+The checks below are implementation-only. Client and ordinary operators should
+not inspect transaction internals, run concurrency tests, or connect to a
+database to reproduce them.
+
+| Evidence | Authoritative pointer |
+| :-- | :-- |
+| Stable command identity, strict Provider boundaries, refund lease fencing, finalize-only reconciliation, and payment-key minimization | [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md) and [WI-012 Evidence Pack](../../deliverables/agent/WI-20260715-ATS-012-evidence-pack.md) |
+| Disposable MySQL 8/InnoDB schema validation and 7/7 race proof | [WI-007 Evidence Pack](../../deliverables/agent/WI-20260715-ATS-007-evidence-pack.md) |
+| Retained DB, live Toss, production deployment, and client acceptance | OPEN in [SR-93](../SR/SR-93.md) |
+
+## 13. Final Acceptance Gate
 
 | Check | Expected Result | Done |
 | :-- | :-- | :-- |
 | User subscription flows passed. | New subscription, re-registration, upgrade, downgrade, cancel, reactivate, and renewal scenarios are accepted. | [ ] |
 | Admin operation flows passed. | Incidents, receipts, audits, refund, correction, and settlement operations are accepted. | [ ] |
+| Payment-integrity evidence is linked. | Technical proof points to the closure report and WI evidence; the client is not asked to inspect code, transactions, or database internals. | [ ] |
+| Production boundary is understood. | Passing this checklist does not close retained-DB migration, live Toss, production deployment, or overall production readiness. | [ ] |
 | Deferred scope is understood. | Tax invoice workflow is on hold under the current card-only recurring subscription scope. Toss Settlement API adapter, webhook, multi-PG, and cash receipt mutation are not treated as current defects. | [ ] |
 
 ## Related Documents
@@ -150,3 +165,4 @@ dependencies:
 
 - [Original Final Acceptance Checklist](../../deliverables/user/PAYMENT-FINAL-ACCEPTANCE-CHECKLIST-20260525.md): Historical acceptance source.
 - [Known Limits and Next Steps](known-limits-and-next-steps.md): Deferred scope list.
+- [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md): Current technical closure and remaining gates.

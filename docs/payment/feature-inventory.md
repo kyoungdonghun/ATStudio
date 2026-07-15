@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-07-13
+version: 1.2
+last_updated: 2026-07-15
 project: ATS
 owner: docops
 category: guide
@@ -66,6 +66,7 @@ dependencies:
 | Subscription expiration scheduler | Implemented | Runs at 00:30 after renewal/grace handling. |
 | Renewal failure grace period | Implemented | 3-day grace period. |
 | Renewal retry policy | Implemented | Up to 3 retry attempts. |
+| Stable renewal command identity | Implemented | One unresolved billing period retains one order/command; each provider attempt has its own persisted attempt key and a claimed retry consumes its scheduling gate. |
 | Renewal failure email notice | Implemented | Email notification is attempted for renewal failure and final failure guidance. |
 | Removed billing-key recovery | Implemented | Provider errors indicating removed/invalid billing key mark the local agreement expired and require re-registration. |
 | Withdrawal after-commit billing-key cleanup | Implemented | An ID-only event dispatches agreement-specific Provider cleanup only after the withdrawal transaction commits. |
@@ -82,6 +83,7 @@ dependencies:
 | Billing agreement ledger | Implemented | `billing_agreements` stores provider customer key, encrypted billing key, fingerprint, masked method, failure count, and next billing date. |
 | Receipt evidence ledger | Implemented | `payment_receipts` stores safe receipt/cash-receipt evidence returned by successful provider charges. |
 | Operation audit log | Implemented | `payment_operation_audit_logs` records admin and system payment-operation transitions. |
+| Provider transaction evidence minimization | Implemented | Exact ownership remains structured; serialized lookup evidence and Incident/audit notes omit or mask the raw provider payment key. |
 | Raw billing key storage | Not allowed | Billing key is encrypted at rest and never returned to frontend/admin APIs. |
 | Raw provider payload exposure | Not allowed | Stored/returned payload is sanitized. Raw card numbers, billing keys, auth keys, customer keys, and Toss secret keys are excluded. |
 
@@ -106,6 +108,7 @@ dependencies:
 | :-- | :-- | :-- |
 | Local ledger reconciliation | Implemented | Admin/API and scheduled process can compare local payment ledger consistency. |
 | Toss provider reconciliation | Implemented | Recent Toss billing payment orders can be checked against provider lookup by order ID when configured. |
+| Finalize-only reconciliation | Implemented | Exact provider evidence may persist success and dispatch the existing purpose finalizer; contradictory evidence remains Incident-only. |
 | Persistent reconciliation incidents | Implemented | `payment_reconciliation_incidents` stores deduped incident state, severity, occurrence count, and operator workflow. |
 | Withdrawal cleanup incidents | Implemented | The same Incident ledger records Provider billing-key deletion failure without storing the raw key; repeated failures increment one agreement-scoped row. |
 | Scheduled reconciliation | Implemented | Runs daily at 01:00 server time. |
@@ -125,6 +128,7 @@ dependencies:
 | Refund approval | Implemented | Approval is separate from request creation. |
 | Toss cancel API execution | Implemented | Execute step calls provider cancel API with persisted idempotency key. |
 | Provider uncertainty handling | Implemented | Unknown/failed provider responses are recorded in the refund ledger for operator follow-up. |
+| Refund processing lease and fencing | Implemented | One refund row/key uses a 15-minute lease; stale results cannot overwrite a replacement claim and replay limits fall back to Incident-backed lookup-only handling. |
 | Automatic entitlement rollback after refund | Not implemented by design | Refund changes payment state only. Access correction is separate and explicit. |
 | Entitlement correction preview | Implemented | Admin previews target subscription state after a succeeded refund. |
 | Entitlement correction request/approval/execution | Implemented | `payment_entitlement_corrections` records explicit local subscription state correction workflow. |
@@ -141,6 +145,12 @@ dependencies:
 | Multi-server scheduler lock | On hold | Current deployment assumption is single server. Revisit only if deployment topology changes. |
 | Creator royalty settlement or seller payout | Out of scope | Current settlement work is PG-to-ATStudio payment settlement evidence only. |
 
+## 10. Verification Boundary
+
+- The current code/test gate passed independent follow-up review in `WI-20260715-ATS-012`.
+- The final disposable MySQL 8/InnoDB proof passed schema creation, Hibernate validation, all seven required races, and cleanup.
+- Retained-database migration, live Toss, production deployment, and client acceptance remain open; see [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md).
+
 ## Related Documents
 
 ### Required References
@@ -153,3 +163,4 @@ dependencies:
 
 - [System Overview](system-overview.md): Technical structure for this feature inventory.
 - [Known Limits and Next Steps](known-limits-and-next-steps.md): Future feature queue.
+- [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md): Verification evidence and remaining production gates.

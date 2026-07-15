@@ -1,6 +1,6 @@
 ---
-version: 2.1
-last_updated: 2026-07-13
+version: 2.2
+last_updated: 2026-07-15
 project: ATS
 owner: qa
 category: registry
@@ -10,6 +10,8 @@ dependencies:
     reason: Primary client-facing entry point
   - path: 0-site-policy.md
     reason: Role and subscription baseline
+  - path: ../audit/p1-payment-integrity-closure-20260715.md
+    reason: Payment technical evidence and open production-readiness boundary
 ---
 
 # 클라이언트 테스트 문서 안내
@@ -42,6 +44,12 @@ dependencies:
 - 구독자 기능: 결제, 플랜 변경, 취소, 다운로드, 재생목록, 라이선스, 화이트리스트 채널
 - 기업 기능: 기업 인증 신청, 보완 제출, 승인 후 기업 구독
 - 관리자 기능: 음원/앨범/태그/회원/구독/결제/화이트리스트/기업 인증/문의/공지/설정
+
+## 결제 테스트 경계
+
+- 승인된 테스트/인수 환경과 Toss 테스트 결제수단만 사용합니다. 실제 카드, 실제 금액, live key는 사용하지 않습니다.
+- 결제 트랜잭션, 동시성, MySQL 내부 검증은 클라이언트가 직접 할 일이 아닙니다. 기술 근거는 [결제 무결성 종료 보고서](../audit/p1-payment-integrity-closure-20260715.md)에 있습니다.
+- 현재 결제 코드/테스트 검증은 통과했지만, 운영 DB 이관, live Toss, 운영 배포, 최종 클라이언트 인수와 전체 production readiness는 아직 열려 있습니다.
 
 ## 관리 원칙
 

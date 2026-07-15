@@ -1,10 +1,13 @@
 ---
-version: 1.0
-last_updated: 2026-07-14
+version: 1.1
+last_updated: 2026-07-15
 project: ATS
 owner: SA
 category: design
-status: draft
+status: archived
+archived_date: 2026-07-15
+archive_reason: "Superseded by the implemented P1 payment-integrity remediation design"
+replacement_path: p1-payment-integrity-remediation-design.md
 dependencies:
   - path: ../standards/core-principles.md
     reason: Financial traceability and approval rules
@@ -23,6 +26,14 @@ dependencies:
 > Purpose: Define the implementation contract for `ATS020-P1-05` through
 > `ATS020-P1-10` and the payment/database portion of `ATS020-X-01` without
 > assuming that Toss participates in an ATStudio database transaction.
+
+> **Archived reference:** This document preserves the 2026-07-14 payment/DB
+> baseline, original gaps, approval points, and migration cautions. It is not the
+> current implementation SoT. Use
+> [P1 Payment Integrity Remediation Design](p1-payment-integrity-remediation-design.md)
+> for the implemented contract and
+> [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md)
+> for current code/test evidence. Retained-database applicability remains open.
 
 ## TL;DR
 
@@ -512,10 +523,12 @@ to a specific retained database is intentionally unconfirmed until WI-021.
 
 ### Required References
 
+- [P1 Payment Integrity Remediation Design](p1-payment-integrity-remediation-design.md)
 - [Payment Integration Design](payment-integration-design.md)
 - [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md)
 - [Payment Operations Runbook](payment-operations-runbook.md)
 - [Approved P1 Remediation REQ](../../deliverables/user/REQ-20260714-ATS-001.md)
+- [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md)
 
 ### Follow-up Work Items
 

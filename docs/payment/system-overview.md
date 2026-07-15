@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-07-13
+version: 1.3
+last_updated: 2026-07-15
 project: ATS
 owner: docops
 category: guide
@@ -14,6 +14,8 @@ dependencies:
     reason: Payment table source of truth
   - path: ../design/payment-integration-design.md
     reason: Detailed recurring payment design
+  - path: ../audit/p1-payment-integrity-closure-20260715.md
+    reason: Current payment-integrity code/test closure
 ---
 
 # Payment System Overview
@@ -37,6 +39,14 @@ The active user-facing model is:
 
 The system does not let the frontend directly activate subscriptions after selecting a plan. Subscription access changes only through server-side confirmed payment or explicit admin entitlement correction.
 
+Current payment-integrity rules:
+
+- A logical payment command has a stable persisted command identity and bounded provider-attempt identities.
+- Provider mutation runs outside local transactions; claim, result, and finalization use short committed phases.
+- Provider success is durable before subscription/payment finalization, and retries from that state are finalize-only.
+- Refund recovery retains one refund row and idempotency key, protected by a 15-minute processing lease and stale-result fencing.
+- Reconciliation may mutate only after exact provider evidence; every mismatch remains Incident-only.
+
 ## 2. Main Layers
 
 | Layer | Current Components | Responsibility |
@@ -55,14 +65,14 @@ The system does not let the frontend directly activate subscriptions after selec
 
 | Table | Role |
 | :-- | :-- |
-| `payment_orders` | Payment attempt/order ledger for billing auth, initial charge, upgrade, renewal, and legacy states. |
-| `billing_agreements` | Recurring payment agreement state, encrypted billing key, provider customer key, masked payment method, failure count, next billing date, and withdrawal cleanup retry eligibility. |
+| `payment_orders` | Payment command/order ledger with stable command identity, provider-attempt identity, purpose state, and finalize-only recovery evidence. |
+| `billing_agreements` | Recurring agreement state, encrypted billing key, masked method, immutable next billing period, retry gate, and cleanup lease/state. |
 | `subscription_payments` | Finalized subscription charge records. |
 | `user_subscriptions` | Current user access state, plan, billing cycle, expiration, and pending change state. |
 | `payment_reconciliation_incidents` | Persistent local/provider mismatch and withdrawal-cleanup Incident workflow. |
 | `payment_receipts` | Safe receipt/cash-receipt evidence captured from successful provider responses. |
 | `payment_operation_audit_logs` | Append-only admin/system operation audit log. |
-| `payment_refunds` | Admin refund request, approval, provider execution, idempotency, and result ledger. |
+| `payment_refunds` | Admin refund request, approval, provider execution, idempotency, processing lease, and fenced result ledger. |
 | `payment_entitlement_corrections` | Refund-linked local access correction workflow. |
 | `payment_settlements` | CSV/manual settlement evidence rows and generated reconciliation review rows. |
 
@@ -70,7 +80,7 @@ Runtime DB note:
 
 - The backend defaults to `spring.jpa.hibernate.ddl-auto=validate`.
 - `src/main/resources/schema.sql` is a full fresh-DB reference, not an automatic migration runner for existing MySQL databases.
-- Existing local/staging/production databases must be patched before server startup when payment or whitelist tables/columns are missing. The current manual patch reference is `src/main/resources/db/manual/20260615_align_payment_whitelist_schema.sql`; see [DB Schema](../design/db-schema.md) for the source-of-truth notes.
+- Existing local/staging/production databases must be patched before server startup when payment or whitelist tables/columns are missing. The ordered references include `20260615_align_payment_whitelist_schema.sql` and `20260714_payment_db_integrity.sql`; rehearse them on an approved copied database before any shared DB. The final fresh disposable MySQL run passed schema creation, Hibernate validation, and 7/7 races, but it does not prove a retained database.
 
 ## 4. User APIs
 
@@ -124,6 +134,11 @@ Provider-facing operations are isolated through interfaces:
 
 This keeps the current Toss implementation open to future provider adapters without making user subscription logic depend directly on provider-specific code.
 
+Provider mutation/lookup methods covered by the current remediation use
+`Propagation.NEVER` or an equivalent fail-fast boundary. An active caller
+transaction is rejected instead of suspended. Local claim, result, and
+finalization state is committed in separate short transactions.
+
 ## 7. Configuration Boundary
 
 Payment configuration is under `app.payment`.
@@ -168,7 +183,7 @@ The following values must never be returned to frontend/admin screens or stored 
 Allowed support-safe values include:
 
 - Order ID
-- Provider payment key
+- Masked provider transaction reference for support. The exact provider transaction ID remains only in protected structured ownership fields and is excluded from serialized lookup evidence and Incident/audit free text.
 - Masked payment method
 - Receipt URL or receipt key when provider returns it
 - Reconciliation status, incident metadata, and audit workflow fields
@@ -194,3 +209,4 @@ Withdrawal-specific boundaries:
 
 - [Admin Operations Guide](admin-operations-guide.md): Admin screen usage.
 - [Payment Operations Runbook](../design/payment-operations-runbook.md): Operational response procedures.
+- [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md): Current code/test evidence and remaining gates.

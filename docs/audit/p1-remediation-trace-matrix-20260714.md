@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-07-14
+version: 1.1
+last_updated: 2026-07-15
 project: ATS
 owner: qa-integ
 category: audit
@@ -71,9 +71,30 @@ dependencies:
 - Current-state documentation follows review in `WI-026`/`WI-027`; quality gates are `WI-028` through `WI-033`; final closure decision is `WI-034`.
 - Completion of WI-001 releases only its dependency edge. Phase 1 work still waits for both parallel design owners, `WI-002` and `WI-003`, to complete.
 
+## 6. Current Payment Closure Appendix - 2026-07-15
+
+This appendix does not rewrite the 2026-07-14 baseline above. It records the
+later payment-integrity result at repository snapshot `14053e6`. The scope is
+the current code/test gate for payment rows `ATS020-P1-05` through
+`ATS020-P1-10`; retained-database, live-provider, deployment, client-acceptance,
+non-payment, and overall REQ gates remain open.
+
+| Audit ID | Current closure evidence | Current decision |
+|---|---|---|
+| `ATS020-P1-05` | The WI-023 reviewed baseline records aligned audit action/target ENUM DDL and focused static proof. Package A `WI-20260715-ATS-001` (`103fdf4`) preserves and extends the entity/schema/manual-patch contract. Package G `WI-20260715-ATS-007` (`830c8dd`) reports fresh schema PASS, Hibernate validate PASS, seven MySQL races PASS, and cleanup count `0`. | **CLOSED - current code/fresh disposable schema.** Retained-DB migration remains open. |
+| `ATS020-P1-06` | Package B's impacted regression command includes `BillingAgreementFailurePersistenceIntegrationTest`; the command lifecycle persists provider outcomes before finalization. Independent payment/integration review completed after the follow-up corrections. | **CLOSED - current code/test gate.** Live Toss/deployment remain open. |
+| `ATS020-P1-07` | Package B `WI-20260715-ATS-002` (`77c2ebd`) supplies stable commands and locked finalizers; WI-008 (`1ecfe5c`) closes completed-renewal convergence. MySQL races 1, 3, 4, and 7 prove one command/payment/final result under the specified interleavings. | **CLOSED - current code/test gate.** |
+| `ATS020-P1-08` | `RecurringRenewalCommandIntegrationTest` proves two-date same-order/same-command retry; WI-011 (`46edd88`) consumes the retry scheduling gate on claim; MySQL races 1 and 2 prove exact period/attempt convergence. | **CLOSED - current code/test gate.** |
+| `ATS020-P1-09` | Package B removes the broad renewal transaction and uses bounded per-command phases; Packages C/D/F use strict claim/provider/result boundaries. Focused and impacted regressions pass, and WI-012 reports no remaining P0/P1 in the reviewed follow-ups. | **CLOSED - current single-server code/test gate.** Multi-server ownership remains out of scope. |
+| `ATS020-P1-10` | Package E `WI-20260715-ATS-003` (`f5bbd7b`) adds lease-aware refund recovery and exact reservation behavior; MySQL race 5 proves concurrent reservations never exceed the source payment, and race 6 proves stale-reclaimer fencing. | **CLOSED - current code/test gate.** Live refund execution remains unverified. |
+
+The exact F-01 through F-05, package, correction, test, and MySQL artifact map is
+maintained in [P1 Payment Integrity Closure](p1-payment-integrity-closure-20260715.md).
+
 ## Related Documents
 
 - [Full-System Audit](full-system-audit-20260713.md): Canonical finding inventory.
 - [P0 Closure Report](p0-release-blocker-closure-20260713.md): Current post-P0 baseline.
 - [Approved REQ](../../deliverables/user/REQ-20260714-ATS-001.md): Approved scope and parallel work plan.
 - [WI Handoff](../../deliverables/agent/WI-20260714-ATS-001-handoff.md): Output and evidence contract.
+- [P1 Payment Integrity Closure](p1-payment-integrity-closure-20260715.md): Current payment code/test closure and remaining gates.
