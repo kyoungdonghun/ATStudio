@@ -109,13 +109,23 @@ public class PaymentCommandTransactionService {
                 agreement,
                 commandKey,
                 proratedAmount,
+                targetBillingCycle,
                 claimedAt);
 
-        validateUpgradeOrder(order, current, target, agreement, proratedAmount);
+        validateUpgradeOrder(
+                order,
+                current,
+                target,
+                agreement,
+                proratedAmount,
+                targetBillingCycle);
 
         if (order.getStatus() == PaymentOrderStatus.DONE
                 || order.getStatus() == PaymentOrderStatus.PROVIDER_SUCCEEDED) {
-            return UpgradeClaim.finalizeOnly(agreement.getId(), order.getOrderId(), targetBillingCycle);
+            return UpgradeClaim.finalizeOnly(
+                    agreement.getId(),
+                    order.getOrderId(),
+                    order.getUpgradeTargetBillingCycle());
         }
         if (order.getStatus() == PaymentOrderStatus.PROCESSING) {
             if (order.isProcessingStale(claimedAt.minusMinutes(STALE_PROCESSING_MINUTES))) {
@@ -149,7 +159,7 @@ public class PaymentCommandTransactionService {
                 current.getUser().getEmail(),
                 current.getUser().getNickname(),
                 providerIdempotencyKey,
-                targetBillingCycle);
+                order.getUpgradeTargetBillingCycle());
     }
 
     @Transactional(
@@ -226,8 +236,7 @@ public class PaymentCommandTransactionService {
             LocalDate today,
             LocalDateTime claimedAt) {
         BillingAgreement agreement = lockAgreement(billingAgreementID);
-        if (agreement.getStatus() != BillingAgreementStatus.ACTIVE
-                || agreement.getProvider() != RECURRING_PROVIDER) {
+        if (agreement.getProvider() != RECURRING_PROVIDER || !agreement.isChargeableOn(today)) {
             return RenewalClaim.skipped(billingAgreementID);
         }
         if (agreement.getUser().isDeleted()) {
@@ -252,7 +261,18 @@ public class PaymentCommandTransactionService {
         }
 
         LocalDate billingPeriodStart = agreement.getNextBillingAt();
-        PaymentOrder order = findOrCreateRenewalOrder(agreement, current, billingPeriodStart, claimedAt);
+        PaymentOrder order = paymentOrderRepository.findRenewalPeriodForUpdate(
+                        agreement,
+                        current,
+                        PaymentPurpose.RENEWAL,
+                        billingPeriodStart)
+                .orElse(null);
+        if (order == null && agreement.getRenewalRetryAt() != null) {
+            return RenewalClaim.skipped(billingAgreementID);
+        }
+        if (order == null) {
+            order = createRenewalOrder(agreement, current, billingPeriodStart);
+        }
         validateRenewalOrder(order, agreement, current, billingPeriodStart);
 
         if (order.getStatus() == PaymentOrderStatus.DONE) {
@@ -273,6 +293,12 @@ public class PaymentCommandTransactionService {
                 || order.getStatus() == PaymentOrderStatus.CANCELLED
                 || order.getStatus() == PaymentOrderStatus.EXPIRED) {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+        if (order.getStatus() == PaymentOrderStatus.FAILED
+                && (agreement.getRenewalRetryAt() == null
+                || agreement.getRenewalRetryAt().isAfter(today)
+                || order.getProviderAttempt() >= RENEWAL_MAX_RETRY_COUNT)) {
+            return RenewalClaim.skipped(billingAgreementID);
         }
 
         LocalDate graceEndsAt = renewalGraceEndsAt(order);
@@ -344,7 +370,35 @@ public class PaymentCommandTransactionService {
                     firstPresent(payMethod, agreement.getPayMethod()),
                     firstPresent(maskedMethod, agreement.getMaskedMethod()));
         }
+        lockProviderTransactionOwner(order, providerTransactionID);
         order.markProviderSucceeded(providerTransactionID, providerPayload);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public ReconciliationFinalizationTarget recordProviderSuccessFromReconciliation(
+            Long agreementID,
+            String orderID,
+            String providerTransactionID,
+            String providerPayload,
+            LocalDateTime staleBefore) {
+        PaymentOrderRepository.CommandLockProjection projection = commandLockProjection(orderID);
+        validateProjectedAgreement(agreementID, projection);
+
+        BillingAgreement agreement = lockAgreement(agreementID);
+        UserSubscription subscription = lockProjectedSubscription(projection);
+        PaymentOrder order = lockOrder(orderID);
+        validateCommandLockProjection(projection, agreement, subscription, order);
+        validateReconciliationFinalizationTarget(order, agreement, subscription);
+        lockProviderTransactionOwner(order, providerTransactionID);
+        order.markProviderSucceededFromReconciliation(
+                providerTransactionID,
+                providerPayload,
+                staleBefore);
+        return new ReconciliationFinalizationTarget(
+                order.getPurpose(),
+                order.getUser().getId(),
+                agreement.getId(),
+                order.getOrderId());
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -385,12 +439,16 @@ public class PaymentCommandTransactionService {
             String failureMessage,
             ProviderFailureDisposition disposition,
             LocalDate today) {
-        LockedBillingCommand command = lockBillingCommand(agreementID, orderID);
-        PaymentOrder order = command.order();
-        BillingAgreement agreement = command.agreement();
-        UserSubscription subscription = userSubscriptionRepository.findByIdForUpdate(
-                        order.getUserSubscription().getId())
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+        PaymentOrderRepository.CommandLockProjection projection = commandLockProjection(orderID);
+        validateProjectedAgreement(agreementID, projection);
+        BillingAgreement agreement = lockAgreement(agreementID);
+        UserSubscription subscription = lockProjectedSubscription(projection);
+        if (subscription == null) {
+            throw new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION);
+        }
+        PaymentOrder order = lockOrder(orderID);
+        validateCommandLockProjection(projection, agreement, subscription, order);
+        validateRenewalOrder(order, agreement, subscription, agreement.getNextBillingAt());
 
         if (isSameFailureState(order.getStatus(), disposition)) {
             return new RenewalFailureResult(order.getOrderId(), agreement.getUser(), renewalGraceEndsAt(order), false);
@@ -435,6 +493,9 @@ public class PaymentCommandTransactionService {
         validateCommandOwner(userID, order, agreement);
 
         if (order.getStatus() == PaymentOrderStatus.DONE) {
+            if (order.getPurpose() == PaymentPurpose.SUBSCRIBE) {
+                lockExistingPaymentForFinalization(order);
+            }
             return toConfirmResponse(order, agreement);
         }
         if (order.getStatus() != PaymentOrderStatus.PROVIDER_SUCCEEDED) {
@@ -452,7 +513,7 @@ public class PaymentCommandTransactionService {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
         }
 
-        SubscriptionPayment existingPayment = subscriptionPaymentRepository.findByPaymentOrder(order).orElse(null);
+        SubscriptionPayment existingPayment = lockExistingPaymentForFinalization(order);
         if (existingPayment != null) {
             UserSubscription existingSubscription = existingPayment.getUserSubscription();
             order.markDone(order.getPgTransactionId(), existingSubscription, order.getProviderPayload());
@@ -508,29 +569,49 @@ public class PaymentCommandTransactionService {
     public com.atstudio.atstudio.dto.subscription.ChangeSubscriptionResponse finalizeUpgrade(
             Long userID,
             Long agreementID,
-            String orderID,
-            BillingCycle targetBillingCycle) {
-        BillingAgreement agreement = lockAgreement(agreementID);
-        PaymentOrder order = lockOrder(orderID);
-        validateLockedCommand(agreementID, orderID, agreement, order);
-        validateCommandOwner(userID, order, agreement);
-        validateUpgradePaymentOrder(order);
+            String orderID) {
+        return finalizeUpgradeLocked(userID, agreementID, orderID);
+    }
 
-        UserSubscription current = userSubscriptionRepository.findByIdForUpdate(
-                        order.getUserSubscription().getId())
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+    @Deprecated
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public com.atstudio.atstudio.dto.subscription.ChangeSubscriptionResponse finalizeUpgrade(
+            Long userID,
+            Long agreementID,
+            String orderID,
+            BillingCycle ignoredCallerTargetBillingCycle) {
+        return finalizeUpgradeLocked(userID, agreementID, orderID);
+    }
+
+    private com.atstudio.atstudio.dto.subscription.ChangeSubscriptionResponse finalizeUpgradeLocked(
+            Long userID,
+            Long agreementID,
+            String orderID) {
+        PaymentOrderRepository.CommandLockProjection projection = commandLockProjection(orderID);
+        validateProjectedAgreement(agreementID, projection);
+        BillingAgreement agreement = lockAgreement(agreementID);
+        UserSubscription current = lockProjectedSubscription(projection);
+        if (current == null) {
+            throw new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION);
+        }
+        PaymentOrder order = lockOrder(orderID);
+        validateCommandLockProjection(projection, agreement, current, order);
+        validateCommandOwner(userID, order, agreement);
+        validateUpgradeFinalizationOrder(order, current, agreement);
         if (!Objects.equals(current.getUser().getId(), userID)) {
             throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
         }
 
+        BillingCycle targetBillingCycle = order.getUpgradeTargetBillingCycle();
+        if (order.getStatus() != PaymentOrderStatus.DONE
+                && order.getStatus() != PaymentOrderStatus.PROVIDER_SUCCEEDED) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+        SubscriptionPayment existingPayment = lockExistingPaymentForFinalization(order);
         if (order.getStatus() == PaymentOrderStatus.DONE) {
             return toUpgradeResponse(order, current, targetBillingCycle);
         }
-        if (order.getStatus() != PaymentOrderStatus.PROVIDER_SUCCEEDED) {
-            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
-        }
 
-        SubscriptionPayment existingPayment = subscriptionPaymentRepository.findByPaymentOrder(order).orElse(null);
         if (existingPayment == null) {
             existingPayment = subscriptionPaymentRepository.save(SubscriptionPayment.builder()
                     .paymentOrder(order)
@@ -559,23 +640,26 @@ public class PaymentCommandTransactionService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void finalizeRenewal(Long agreementID, String orderID) {
+        PaymentOrderRepository.CommandLockProjection projection = commandLockProjection(orderID);
+        validateProjectedAgreement(agreementID, projection);
         BillingAgreement agreement = lockAgreement(agreementID);
+        UserSubscription current = lockProjectedSubscription(projection);
+        if (current == null) {
+            throw new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION);
+        }
         PaymentOrder order = lockOrder(orderID);
-        validateLockedCommand(agreementID, orderID, agreement, order);
-        validateRenewalPaymentOrder(order);
+        validateCommandLockProjection(projection, agreement, current, order);
+        validateRenewalOrder(order, agreement, current, agreement.getNextBillingAt());
 
-        UserSubscription current = userSubscriptionRepository.findByIdForUpdate(
-                        order.getUserSubscription().getId())
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
-
+        if (order.getStatus() != PaymentOrderStatus.DONE
+                && order.getStatus() != PaymentOrderStatus.PROVIDER_SUCCEEDED) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+        SubscriptionPayment existingPayment = lockExistingPaymentForFinalization(order);
         if (order.getStatus() == PaymentOrderStatus.DONE) {
             return;
         }
-        if (order.getStatus() != PaymentOrderStatus.PROVIDER_SUCCEEDED) {
-            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
-        }
 
-        SubscriptionPayment existingPayment = subscriptionPaymentRepository.findByPaymentOrder(order).orElse(null);
         if (existingPayment == null) {
             existingPayment = subscriptionPaymentRepository.save(SubscriptionPayment.builder()
                     .paymentOrder(order)
@@ -648,11 +732,10 @@ public class PaymentCommandTransactionService {
         return toConfirmResponse(order, agreement);
     }
 
-    private PaymentOrder findOrCreateRenewalOrder(
+    private PaymentOrder createRenewalOrder(
             BillingAgreement agreement,
             UserSubscription current,
-            LocalDate billingPeriodStart,
-            LocalDateTime claimedAt) {
+            LocalDate billingPeriodStart) {
         String commandKey = keyFactory.renewal(
                 agreement.getId(),
                 current.getId(),
@@ -702,6 +785,7 @@ public class PaymentCommandTransactionService {
             BillingAgreement agreement,
             String commandKey,
             BigDecimal proratedAmount,
+            BillingCycle targetBillingCycle,
             LocalDateTime claimedAt) {
         PaymentOrder existing = paymentOrderRepository.findByCommandKeyForUpdate(commandKey).orElse(null);
         if (existing != null) {
@@ -718,6 +802,7 @@ public class PaymentCommandTransactionService {
                 .userSubscription(current)
                 .billingAgreement(agreement)
                 .billingCycle(current.getBillingCycle())
+                .upgradeTargetBillingCycle(targetBillingCycle)
                 .amount(proratedAmount)
                 .currency("KRW")
                 .expiresAt(claimedAt.plusMinutes(PAYMENT_EXPIRY_MINUTES))
@@ -739,6 +824,10 @@ public class PaymentCommandTransactionService {
         Subscription expectedSubscription = renewalSubscription(current);
         BillingCycle expectedBillingCycle = renewalBillingCycle(current);
         BigDecimal expectedAmount = priceFor(expectedSubscription, expectedBillingCycle);
+        String expectedCommandKey = keyFactory.renewal(
+                agreement.getId(),
+                current.getId(),
+                billingPeriodStart);
         if (!Objects.equals(order.getUser().getId(), current.getUser().getId())
                 || !Objects.equals(order.getUserSubscription().getId(), current.getId())
                 || order.getBillingAgreement() == null
@@ -746,6 +835,7 @@ public class PaymentCommandTransactionService {
                 || !Objects.equals(order.getBillingPeriodStart(), billingPeriodStart)
                 || !Objects.equals(order.getSubscription().getId(), expectedSubscription.getId())
                 || order.getBillingCycle() != expectedBillingCycle
+                || !Objects.equals(order.getCommandKey(), expectedCommandKey)
                 || order.getAmount().compareTo(expectedAmount) != 0) {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
         }
@@ -816,14 +906,23 @@ public class PaymentCommandTransactionService {
             UserSubscription current,
             com.atstudio.atstudio.entity.Subscription target,
             BillingAgreement agreement,
-            BigDecimal proratedAmount) {
+            BigDecimal proratedAmount,
+            BillingCycle targetBillingCycle) {
         validateUpgradePaymentOrder(order);
+        String expectedCommandKey = keyFactory.upgrade(
+                current.getId(),
+                current.getStartedAt(),
+                current.getExpiresAt(),
+                target.getId(),
+                targetBillingCycle);
         if (!Objects.equals(order.getUser().getId(), current.getUser().getId())
                 || !Objects.equals(order.getUserSubscription().getId(), current.getId())
                 || !Objects.equals(order.getSubscription().getId(), target.getId())
                 || order.getBillingAgreement() == null
                 || !Objects.equals(order.getBillingAgreement().getId(), agreement.getId())
                 || order.getBillingCycle() != current.getBillingCycle()
+                || order.getUpgradeTargetBillingCycle() != targetBillingCycle
+                || !Objects.equals(order.getCommandKey(), expectedCommandKey)
                 || order.getAmount().compareTo(proratedAmount) != 0) {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
         }
@@ -833,7 +932,24 @@ public class PaymentCommandTransactionService {
         if (order.getProvider() != RECURRING_PROVIDER
                 || order.getPurpose() != PaymentPurpose.UPGRADE
                 || order.getUserSubscription() == null
-                || order.getBillingAgreement() == null) {
+                || order.getBillingAgreement() == null
+                || order.getUpgradeTargetBillingCycle() == null) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+    }
+
+    private void validateUpgradeFinalizationOrder(
+            PaymentOrder order,
+            UserSubscription current,
+            BillingAgreement agreement) {
+        validateUpgradePaymentOrder(order);
+        if (!Objects.equals(order.getUser().getId(), current.getUser().getId())
+                || !Objects.equals(order.getUserSubscription().getId(), current.getId())
+                || !Objects.equals(order.getBillingAgreement().getId(), agreement.getId())
+                || order.getAmount() == null
+                || order.getAmount().signum() <= 0
+                || !"KRW".equals(order.getCurrency())
+                || isBlank(order.getCommandKey())) {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
         }
     }
@@ -957,6 +1073,138 @@ public class PaymentCommandTransactionService {
                 agreement.getMaskedMethod(),
                 userSubscription.getExpiresAt());
         agreement.recordSuccessfulCharge(userSubscription.getExpiresAt());
+    }
+
+    private PaymentOrderRepository.CommandLockProjection commandLockProjection(String orderID) {
+        return paymentOrderRepository.findCommandLockProjectionByOrderId(orderID)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_NOT_FOUND));
+    }
+
+    private void validateProjectedAgreement(
+            Long agreementID,
+            PaymentOrderRepository.CommandLockProjection projection) {
+        if (!Objects.equals(projection.getBillingAgreementID(), agreementID)) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+    }
+
+    private UserSubscription lockProjectedSubscription(
+            PaymentOrderRepository.CommandLockProjection projection) {
+        if (projection.getUserSubscriptionID() == null) {
+            return null;
+        }
+        return userSubscriptionRepository.findByIdForUpdate(projection.getUserSubscriptionID())
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+    }
+
+    private void validateCommandLockProjection(
+            PaymentOrderRepository.CommandLockProjection projection,
+            BillingAgreement agreement,
+            UserSubscription subscription,
+            PaymentOrder order) {
+        Long lockedSubscriptionID = subscription == null ? null : subscription.getId();
+        Long orderSubscriptionID = order.getUserSubscription() == null
+                ? null
+                : order.getUserSubscription().getId();
+        if (!Objects.equals(projection.getBillingAgreementID(), agreement.getId())
+                || !Objects.equals(projection.getUserSubscriptionID(), lockedSubscriptionID)
+                || !Objects.equals(projection.getUserSubscriptionID(), orderSubscriptionID)
+                || !Objects.equals(projection.getUserID(), order.getUser().getId())
+                || projection.getPurpose() != order.getPurpose()) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+        validateLockedCommand(agreement.getId(), order.getOrderId(), agreement, order);
+    }
+
+    private SubscriptionPayment lockExistingPaymentForFinalization(PaymentOrder order) {
+        if (isBlank(order.getPgTransactionId())) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+        SubscriptionPayment existing = subscriptionPaymentRepository
+                .findByPaymentOrderForUpdate(order)
+                .orElse(null);
+        SubscriptionPayment transactionOwner = subscriptionPaymentRepository
+                .findByProviderAndPgTransactionIdForUpdate(
+                        order.getProvider(),
+                        order.getPgTransactionId())
+                .orElse(null);
+        if (existing == null) {
+            if (transactionOwner != null) {
+                throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+            }
+            return null;
+        }
+        if (transactionOwner == null || !Objects.equals(transactionOwner.getId(), existing.getId())) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+        validateExistingPayment(order, existing);
+        return existing;
+    }
+
+    private void lockProviderTransactionOwner(PaymentOrder order, String providerTransactionID) {
+        if (isBlank(providerTransactionID)) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+        subscriptionPaymentRepository.findByProviderAndPgTransactionIdForUpdate(
+                        order.getProvider(),
+                        providerTransactionID)
+                .ifPresent(payment -> {
+                    if (payment.getPaymentOrder() == null
+                            || !Objects.equals(payment.getPaymentOrder().getId(), order.getId())) {
+                        throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+                    }
+                });
+    }
+
+    private void validateExistingPayment(PaymentOrder order, SubscriptionPayment payment) {
+        Long orderSubscriptionID = order.getUserSubscription() == null
+                ? null
+                : order.getUserSubscription().getId();
+        if (payment.getPaymentOrder() == null
+                || !Objects.equals(payment.getPaymentOrder().getId(), order.getId())
+                || payment.getBillingAgreement() == null
+                || !Objects.equals(payment.getBillingAgreement().getId(), order.getBillingAgreement().getId())
+                || payment.getProvider() != order.getProvider()
+                || !Objects.equals(payment.getPgTransactionId(), order.getPgTransactionId())
+                || payment.getPaymentStatus() != PaymentStatus.DONE
+                || payment.getAmount().compareTo(order.getAmount()) != 0
+                || !Objects.equals(payment.getUser().getId(), order.getUser().getId())
+                || (orderSubscriptionID != null
+                && !Objects.equals(payment.getUserSubscription().getId(), orderSubscriptionID))) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+    }
+
+    private void validateReconciliationFinalizationTarget(
+            PaymentOrder order,
+            BillingAgreement agreement,
+            UserSubscription subscription) {
+        if (isBlank(order.getCommandKey())) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+        switch (order.getPurpose()) {
+            case SUBSCRIBE -> {
+                validateBillingOrder(order);
+                if (subscription != null
+                        || isBlank(agreement.getBillingKeyCiphertext())
+                        || isBlank(agreement.getBillingKeyFingerprint())) {
+                    throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+                }
+            }
+            case UPGRADE -> {
+                if (subscription == null) {
+                    throw new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION);
+                }
+                validateUpgradeFinalizationOrder(order, subscription, agreement);
+            }
+            case RENEWAL -> {
+                if (subscription == null) {
+                    throw new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION);
+                }
+                validateRenewalOrder(order, agreement, subscription, agreement.getNextBillingAt());
+            }
+            default -> throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
     }
 
     private LockedBillingCommand lockBillingCommand(Long agreementID, String orderID) {
@@ -1114,6 +1362,13 @@ public class PaymentCommandTransactionService {
             User user,
             LocalDate graceEndsAt,
             boolean finalFailure) {
+    }
+
+    public record ReconciliationFinalizationTarget(
+            PaymentPurpose purpose,
+            Long userID,
+            Long agreementID,
+            String orderID) {
     }
 
     public record RenewalClaim(

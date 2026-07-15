@@ -151,7 +151,81 @@ class RecurringRenewalCommandIntegrationTest {
         assertThat(billingAgreementRepository.findById(second.agreementID()).orElseThrow().getFailureCount())
                 .isEqualTo(1);
         assertThat(billingAgreementRepository.findById(second.agreementID()).orElseThrow().getNextBillingAt())
+                .isEqualTo(due);
+        assertThat(billingAgreementRepository.findById(second.agreementID()).orElseThrow().getRenewalRetryAt())
                 .isEqualTo(due.plusDays(1));
+    }
+
+    @Test
+    @DisplayName("a next-day deterministic retry reuses the period order and advances only attempt identity")
+    void deterministicRetryReusesPeriodOrderAndCommand() {
+        LocalDate due = LocalDate.of(2026, 8, 17);
+        Fixture fixture = persistRenewalFixture("two-day-retry", due);
+        given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("billing_raw_key");
+        recurringPaymentProvider.chargeResults(
+                BillingChargeResult.failure("DECLINED", "First renewal attempt declined."),
+                BillingChargeResult.success("tx_retry_success", "CARD", "1234", "{}"));
+
+        RecurringRenewalService.RenewalRunResult first = service.processDueRenewals(due);
+
+        assertThat(first.failed()).isEqualTo(1);
+        entityManager.clear();
+        PaymentOrder firstAttempt = renewalOrderFor(fixture.agreementID());
+        Long retainedOrderID = firstAttempt.getId();
+        String retainedOrderReference = firstAttempt.getOrderId();
+        String retainedCommandKey = firstAttempt.getCommandKey();
+        String firstAttemptKey = firstAttempt.getProviderIdempotencyKey();
+        assertThat(firstAttempt.getBillingPeriodStart()).isEqualTo(due);
+        assertThat(firstAttempt.getProviderAttempt()).isEqualTo(1);
+        assertThat(billingAgreementRepository.findById(fixture.agreementID()).orElseThrow().getNextBillingAt())
+                .isEqualTo(due);
+        assertThat(billingAgreementRepository.findById(fixture.agreementID()).orElseThrow().getRenewalRetryAt())
+                .isEqualTo(due.plusDays(1));
+
+        RecurringRenewalService.RenewalRunResult second = service.processDueRenewals(due.plusDays(1));
+
+        assertThat(second.succeeded()).isEqualTo(1);
+        entityManager.clear();
+        PaymentOrder retried = renewalOrderFor(fixture.agreementID());
+        assertThat(retried.getId()).isEqualTo(retainedOrderID);
+        assertThat(retried.getOrderId()).isEqualTo(retainedOrderReference);
+        assertThat(retried.getCommandKey()).isEqualTo(retainedCommandKey);
+        assertThat(retried.getBillingPeriodStart()).isEqualTo(due);
+        assertThat(retried.getProviderAttempt()).isEqualTo(2);
+        assertThat(retried.getProviderIdempotencyKey())
+                .isNotEqualTo(firstAttemptKey)
+                .endsWith("attempt-2");
+        assertThat(paymentOrderRepository.count()).isEqualTo(1);
+        assertThat(recurringPaymentProvider.calls()).containsExactly("charge", "charge");
+        assertThat(billingAgreementRepository.findById(fixture.agreementID()).orElseThrow().getNextBillingAt())
+                .isEqualTo(due.plusMonths(1));
+        assertThat(billingAgreementRepository.findById(fixture.agreementID()).orElseThrow().getRenewalRetryAt())
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("an ambiguous renewal is not selected for a later automatic charge")
+    void ambiguousRenewalIsNotSelectedForLaterCharge() {
+        LocalDate due = LocalDate.of(2026, 8, 17);
+        Fixture fixture = persistRenewalFixture("ambiguous-retry", due);
+        given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("billing_raw_key");
+        recurringPaymentProvider.chargeResults((BillingChargeResult) null);
+
+        RecurringRenewalService.RenewalRunResult first = service.processDueRenewals(due);
+        RecurringRenewalService.RenewalRunResult nextDay = service.processDueRenewals(due.plusDays(1));
+
+        assertThat(first.failed()).isEqualTo(1);
+        assertThat(nextDay).isEqualTo(new RecurringRenewalService.RenewalRunResult(0, 0, 0, 0));
+        entityManager.clear();
+        PaymentOrder pending = renewalOrderFor(fixture.agreementID());
+        assertThat(pending.getStatus()).isEqualTo(PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION);
+        assertThat(pending.getProviderAttempt()).isEqualTo(1);
+        assertThat(paymentOrderRepository.count()).isEqualTo(1);
+        assertThat(recurringPaymentProvider.calls()).containsExactly("charge");
+        assertThat(billingAgreementRepository.findById(fixture.agreementID()).orElseThrow().getNextBillingAt())
+                .isEqualTo(due);
+        assertThat(billingAgreementRepository.findById(fixture.agreementID()).orElseThrow().getRenewalRetryAt())
+                .isNull();
     }
 
     @Test

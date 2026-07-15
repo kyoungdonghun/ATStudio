@@ -3,6 +3,7 @@ package com.atstudio.atstudio.repository;
 import com.atstudio.atstudio.entity.SubscriptionPayment;
 import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
@@ -42,6 +43,18 @@ public interface SubscriptionPaymentRepository extends JpaRepository<Subscriptio
 
     @EntityGraph(attributePaths = {"user", "subscription", "paymentOrder", "billingAgreement"})
     Optional<SubscriptionPayment> findByPaymentOrder(PaymentOrder paymentOrder);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select payment from SubscriptionPayment payment where payment.paymentOrder = :paymentOrder")
+    Optional<SubscriptionPayment> findByPaymentOrderForUpdate(
+            @Param("paymentOrder") PaymentOrder paymentOrder);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select payment from SubscriptionPayment payment "
+            + "where payment.provider = :provider and payment.pgTransactionId = :pgTransactionID")
+    Optional<SubscriptionPayment> findByProviderAndPgTransactionIdForUpdate(
+            @Param("provider") PaymentProviderType provider,
+            @Param("pgTransactionID") String pgTransactionID);
 
     @EntityGraph(attributePaths = {"user", "subscription", "paymentOrder", "billingAgreement"})
     Optional<SubscriptionPayment> findFirstByPgTransactionId(String pgTransactionId);

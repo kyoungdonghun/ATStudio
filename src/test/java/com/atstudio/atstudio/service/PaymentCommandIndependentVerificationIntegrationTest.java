@@ -63,6 +63,7 @@ class PaymentCommandIndependentVerificationIntegrationTest
 
     @Autowired UserSubscriptionService userSubscriptionService;
     @Autowired RecurringRenewalService recurringRenewalService;
+    @Autowired PaymentCommandTransactionService paymentCommandTransactions;
 
     @Test
     @DisplayName("concurrent initial billing confirm converges to one provider charge and one committed payment")
@@ -123,6 +124,7 @@ class PaymentCommandIndependentVerificationIntegrationTest
         PaymentOrder pending = reloadOnlyOrder();
         assertThat(pending.getStatus()).isEqualTo(PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION);
         assertThat(pending.getProviderAttempt()).isEqualTo(1);
+        assertThat(pending.getUpgradeTargetBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
         assertThat(subscriptionPaymentRepository.count()).isZero();
         assertThat(recurringPaymentProvider.calls()).containsExactly("charge");
 
@@ -182,13 +184,17 @@ class PaymentCommandIndependentVerificationIntegrationTest
                     CompletableFuture.supplyAsync(() -> recurringRenewalService.processDueRenewals(due), executor);
             assertThat(providerEntered.await(5, TimeUnit.SECONDS)).isTrue();
 
-            RecurringRenewalService.RenewalRunResult duplicate =
-                    recurringRenewalService.processDueRenewals(due);
+            assertThatThrownBy(() -> paymentCommandTransactions.claimRenewal(
+                    fixture.agreementID(),
+                    due,
+                    java.time.LocalDateTime.now()))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE));
 
             releaseProvider.countDown();
             RecurringRenewalService.RenewalRunResult completed = first.get(5, TimeUnit.SECONDS);
 
-            assertThat(duplicate.failed()).isEqualTo(1);
             assertThat(completed.succeeded()).isEqualTo(1);
         } finally {
             releaseProvider.countDown();

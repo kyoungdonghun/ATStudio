@@ -1,5 +1,6 @@
 package com.atstudio.atstudio.service;
 
+import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.config.JpaConfig;
 import com.atstudio.atstudio.config.PaymentProperties;
 import com.atstudio.atstudio.dto.payment.BillingAgreementConfirmRequest;
@@ -13,9 +14,12 @@ import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -39,6 +43,9 @@ import static org.mockito.Mockito.verify;
 @DisplayName("Provider success and local finalization recovery integration tests")
 class PaymentProviderSuccessRecoveryIntegrationTest
         extends BillingAgreementCommandIntegrationTestSupport {
+
+    @Autowired
+    PaymentCommandTransactionService paymentCommandTransactions;
 
     @Test
     @DisplayName("provider success commits before finalization and retry finalizes without a second charge")
@@ -88,5 +95,37 @@ class PaymentProviderSuccessRecoveryIntegrationTest
                 any(PaymentOrder.class),
                 any(SubscriptionPayment.class),
                 any(String.class));
+    }
+
+    @Test
+    @DisplayName("reconciled provider success enters finalize-only flow without another provider charge")
+    void reconciledProviderSuccessFinalizesWithoutAnotherCharge() {
+        Fixture fixture = persistPreparedOrder();
+        recurringPaymentProvider.chargeResult(null);
+        BillingAgreementConfirmRequest request = new BillingAgreementConfirmRequest(
+                ORDER_ID,
+                "auth_key",
+                CUSTOMER_KEY,
+                AMOUNT);
+
+        assertThatThrownBy(() -> service.confirmBillingAgreement(userDetails(fixture.userID()), request))
+                .isInstanceOf(BusinessException.class);
+        assertThat(reloadOrder().getStatus()).isEqualTo(PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION);
+
+        paymentCommandTransactions.recordProviderSuccessFromReconciliation(
+                fixture.agreementID(),
+                ORDER_ID,
+                "tx_reconciled",
+                "{}",
+                LocalDateTime.now().minusMinutes(15));
+        BillingAgreementConfirmResponse response = paymentCommandTransactions.finalizeInitialCharge(
+                fixture.userID(),
+                fixture.agreementID(),
+                ORDER_ID);
+
+        assertThat(response.orderStatus()).isEqualTo(PaymentOrderStatus.DONE);
+        assertThat(reloadOrder().getPgTransactionId()).isEqualTo("tx_reconciled");
+        assertThat(subscriptionPaymentRepository.count()).isEqualTo(1);
+        assertThat(recurringPaymentProvider.calls()).containsExactly("confirm", "charge");
     }
 }

@@ -22,11 +22,28 @@ import java.util.Optional;
 
 public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long> {
 
+    interface CommandLockProjection {
+        Long getBillingAgreementID();
+
+        Long getUserSubscriptionID();
+
+        Long getUserID();
+
+        PaymentPurpose getPurpose();
+    }
+
     Optional<PaymentOrder> findByOrderId(String orderId);
 
     @Query("select paymentOrder.billingAgreement.id from PaymentOrder paymentOrder "
             + "where paymentOrder.orderId = :orderID")
     Optional<Long> findBillingAgreementIDByOrderId(@Param("orderID") String orderID);
+
+    @Query("select paymentOrder.billingAgreement.id as billingAgreementID, "
+            + "paymentOrder.userSubscription.id as userSubscriptionID, "
+            + "paymentOrder.user.id as userID, paymentOrder.purpose as purpose "
+            + "from PaymentOrder paymentOrder where paymentOrder.orderId = :orderID")
+    Optional<CommandLockProjection> findCommandLockProjectionByOrderId(
+            @Param("orderID") String orderID);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select paymentOrder from PaymentOrder paymentOrder where paymentOrder.orderId = :orderID")
@@ -47,6 +64,19 @@ public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long
             @Param("userSubscription") UserSubscription userSubscription,
             @Param("purpose") PaymentPurpose purpose,
             @Param("billingPeriodStart") LocalDate billingPeriodStart);
+
+    @Query("select paymentOrder.id from PaymentOrder paymentOrder "
+            + "where paymentOrder.id > :lastSeenID "
+            + "and paymentOrder.purpose in ('SUBSCRIBE', 'UPGRADE', 'RENEWAL') "
+            + "and (paymentOrder.status in ('PENDING_PROVIDER_CONFIRMATION', 'PROVIDER_SUCCEEDED') "
+            + "or (paymentOrder.status = 'PROCESSING' "
+            + "and paymentOrder.processingStartedAt is not null "
+            + "and paymentOrder.processingStartedAt <= :staleBefore)) "
+            + "order by paymentOrder.id asc")
+    List<Long> findReconciliationCandidateIDs(
+            @Param("staleBefore") LocalDateTime staleBefore,
+            @Param("lastSeenID") Long lastSeenID,
+            Pageable pageable);
 
     boolean existsByOrderId(String orderId);
 

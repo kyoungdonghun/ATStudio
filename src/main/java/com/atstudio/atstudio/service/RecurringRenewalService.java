@@ -33,6 +33,7 @@ public class RecurringRenewalService {
 
     private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS_BILLING;
     private static final int DUE_SCAN_PAGE_SIZE = 100;
+    private static final int RENEWAL_GRACE_DAYS = 3;
 
     private final BillingAgreementRepository billingAgreementRepository;
     private final PaymentCommandTransactionService paymentCommandTransactions;
@@ -54,12 +55,12 @@ public class RecurringRenewalService {
                 .collect(Collectors.toUnmodifiableMap(RecurringPaymentProvider::getProviderType, Function.identity()));
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional(propagation = Propagation.NEVER)
     public RenewalRunResult processDueRenewals() {
         return processDueRenewals(LocalDate.now());
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional(propagation = Propagation.NEVER)
     public RenewalRunResult processDueRenewals(LocalDate today) {
         long lastSeenID = 0L;
         int attempted = 0;
@@ -71,6 +72,7 @@ public class RecurringRenewalService {
             List<Long> dueAgreementIDs = billingAgreementRepository.findDueRenewalCandidateIDs(
                     BillingAgreementStatus.ACTIVE,
                     today,
+                    today.minusDays(RENEWAL_GRACE_DAYS),
                     lastSeenID,
                     PageRequest.of(0, DUE_SCAN_PAGE_SIZE));
             if (dueAgreementIDs.isEmpty()) {

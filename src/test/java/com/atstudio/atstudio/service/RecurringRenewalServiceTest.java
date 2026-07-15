@@ -20,7 +20,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -64,11 +67,13 @@ class RecurringRenewalServiceTest {
         given(billingAgreementRepository.findDueRenewalCandidateIDs(
                 BillingAgreementStatus.ACTIVE,
                 today,
+                today.minusDays(3),
                 0L,
                 PageRequest.of(0, 100))).willReturn(firstPage);
         given(billingAgreementRepository.findDueRenewalCandidateIDs(
                 BillingAgreementStatus.ACTIVE,
                 today,
+                today.minusDays(3),
                 100L,
                 PageRequest.of(0, 100))).willReturn(List.of(101L));
         given(paymentCommandTransactions.claimRenewal(any(), eq(today), any()))
@@ -125,6 +130,7 @@ class RecurringRenewalServiceTest {
         given(billingAgreementRepository.findDueRenewalCandidateIDs(
                 BillingAgreementStatus.ACTIVE,
                 today,
+                today.minusDays(3),
                 0L,
                 PageRequest.of(0, 100))).willReturn(List.of(7L, 8L));
         given(paymentCommandTransactions.claimRenewal(eq(7L), eq(today), any()))
@@ -193,10 +199,20 @@ class RecurringRenewalServiceTest {
         verify(paymentCommandTransactions, never()).recordProviderSuccess(any(), any(), any(), any(), any(), any());
     }
 
+    @Test
+    @DisplayName("renewal orchestration rejects an inherited transaction instead of suspending it")
+    void processDueRenewals_usesNeverPropagation() throws NoSuchMethodException {
+        Method method = RecurringRenewalService.class.getMethod("processDueRenewals", LocalDate.class);
+
+        assertThat(method.getAnnotation(Transactional.class).propagation())
+                .isEqualTo(Propagation.NEVER);
+    }
+
     private void givenSingleDueAgreement(Long agreementID, LocalDate today) {
         given(billingAgreementRepository.findDueRenewalCandidateIDs(
                 BillingAgreementStatus.ACTIVE,
                 today,
+                today.minusDays(3),
                 0L,
                 PageRequest.of(0, 100))).willReturn(List.of(agreementID));
     }
@@ -205,6 +221,7 @@ class RecurringRenewalServiceTest {
         given(billingAgreementRepository.findDueRenewalCandidateIDs(
                 BillingAgreementStatus.ACTIVE,
                 today,
+                today.minusDays(3),
                 0L,
                 PageRequest.of(0, 100))).willReturn(List.of(7L, 8L));
     }
