@@ -157,7 +157,8 @@ export default function TrackDetailPage() {
                 }
               }}
             >
-              {currentTrack?.id === track.id && isPlayerPlaying ? '\u23F8' : '\u25B6'}&nbsp;&nbsp;{currentTrack?.id === track.id && isPlayerPlaying ? '일시정지' : '미리 듣기'}
+              {currentTrack?.id === track.id && isPlayerPlaying ? '\u23F8' : '\u25B6'}&nbsp;&nbsp;
+              {currentTrack?.id === track.id && isPlayerPlaying ? '일시정지' : '재생'}
             </button>
             {isAuthenticated && (
               <button
@@ -181,10 +182,7 @@ export default function TrackDetailPage() {
               >
                 {liked ? '\u2665' : '\u2661'}&nbsp;&nbsp;좋아요
               </button>
-              <button
-                className={styles.btnSubAction}
-                onClick={() => setShowPlModal(true)}
-              >
+              <button className={styles.btnSubAction} onClick={() => setShowPlModal(true)}>
                 +&nbsp;&nbsp;재생목록에 추가
               </button>
             </div>
@@ -237,9 +235,7 @@ export default function TrackDetailPage() {
           )}
 
           {/* Description */}
-          {track.description && (
-            <p className={styles.desc}>{track.description}</p>
-          )}
+          {track.description && <p className={styles.desc}>{track.description}</p>}
 
           {/* License info */}
           <div className={styles.licenseSection}>
@@ -254,8 +250,8 @@ export default function TrackDetailPage() {
               <div className={styles.licenseCard}>
                 <div className={styles.licenseType}>상업 라이선스</div>
                 <p className={styles.licenseDesc}>
-                  기업/브랜드 채널의 광고, 프로모션 등 상업적 콘텐츠에 사용 가능합니다.
-                  Pro 이상 구독 필요.
+                  기업/브랜드 채널의 광고, 프로모션 등 상업적 콘텐츠에 사용 가능합니다. Pro 이상
+                  구독 필요.
                 </p>
               </div>
             </div>

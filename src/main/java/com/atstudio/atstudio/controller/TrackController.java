@@ -130,8 +130,6 @@ public class TrackController {
             ResourceRegion region = new ResourceRegion(resource, start, contentLength);
             return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                     .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                    .header(HttpHeaders.CONTENT_RANGE,
-                            "bytes " + start + "-" + end + "/" + publicLength)
                     .contentLength(contentLength)
                     .contentType(contentType)
                     .body(region);

@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -173,6 +174,9 @@ class TrackControllerTest {
                         .header(HttpHeaders.RANGE, "bytes=2-5"))
                 .andExpect(status().isPartialContent())
                 .andExpect(header().string(HttpHeaders.CONTENT_RANGE, "bytes 2-5/10"))
+                .andExpect(result -> assertEquals(
+                        List.of("bytes 2-5/10"),
+                        result.getResponse().getHeaders(HttpHeaders.CONTENT_RANGE)))
                 .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 4L))
                 .andExpect(content().bytes("2345".getBytes()));
     }
