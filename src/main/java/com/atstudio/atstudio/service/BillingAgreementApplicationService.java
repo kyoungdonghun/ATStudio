@@ -72,6 +72,8 @@ public class BillingAgreementApplicationService {
     private final BillingCustomerKeyGenerator billingCustomerKeyGenerator;
     private final BillingKeyCrypto billingKeyCrypto;
     private final PaymentCommandTransactionService paymentCommandTransactionService;
+    private final BillingAgreementCleanupTransactionService billingAgreementCleanupTransactionService;
+    private final BillingAgreementCleanupProviderExecutor billingAgreementCleanupProviderExecutor;
     private final Map<PaymentProviderType, RecurringPaymentProvider> recurringProviders;
 
     public BillingAgreementApplicationService(
@@ -84,6 +86,8 @@ public class BillingAgreementApplicationService {
             BillingCustomerKeyGenerator billingCustomerKeyGenerator,
             BillingKeyCrypto billingKeyCrypto,
             PaymentCommandTransactionService paymentCommandTransactionService,
+            BillingAgreementCleanupTransactionService billingAgreementCleanupTransactionService,
+            BillingAgreementCleanupProviderExecutor billingAgreementCleanupProviderExecutor,
             List<RecurringPaymentProvider> recurringProviders) {
         this.userRepository = userRepository;
         this.subscriptionRepository = subscriptionRepository;
@@ -94,6 +98,8 @@ public class BillingAgreementApplicationService {
         this.billingCustomerKeyGenerator = billingCustomerKeyGenerator;
         this.billingKeyCrypto = billingKeyCrypto;
         this.paymentCommandTransactionService = paymentCommandTransactionService;
+        this.billingAgreementCleanupTransactionService = billingAgreementCleanupTransactionService;
+        this.billingAgreementCleanupProviderExecutor = billingAgreementCleanupProviderExecutor;
         this.recurringProviders = recurringProviders.stream()
                 .collect(Collectors.toUnmodifiableMap(RecurringPaymentProvider::getProviderType, Function.identity()));
     }
@@ -317,34 +323,33 @@ public class BillingAgreementApplicationService {
         return toAgreementResponse(agreement, findActiveSubscriptionOrNull(user));
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NEVER)
     public BillingAgreementResponse cancelMyBillingAgreement(CustomUserDetails userDetails) {
-        User user = findUser(userDetails);
-        BillingAgreement agreement = billingAgreementRepository.findByUserAndProvider(user, RECURRING_PROVIDER)
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_NOT_FOUND));
-        if (agreement.getStatus() == BillingAgreementStatus.CANCELLED) {
-            return toAgreementResponse(agreement, findActiveSubscriptionOrNull(user));
+        BillingAgreementCleanupTransactionService.UserCancellationClaim claim =
+                billingAgreementCleanupTransactionService.claimUserCancellation(
+                        userDetails.getId(),
+                        LocalDateTime.now());
+        if (claim.action() == BillingAgreementCleanupTransactionService.CleanupAction.COMPLETED) {
+            return claim.response();
         }
-        if (agreement.getStatus() == BillingAgreementStatus.EXPIRED) {
-            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE);
-        }
-
-        if (!isBlank(agreement.getBillingKeyCiphertext())) {
-            String billingKey = billingKeyCrypto.decrypt(agreement.getBillingKeyCiphertext());
-            BillingAgreementCancelResult cancelResult = recurringProvider().cancelAgreement(
-                    new BillingAgreementCancelCommand(billingKey));
-            if (!cancelResult.success()) {
-                throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_CANCEL_FAILED);
-            }
-            agreement.clearIssuedKey();
+        if (claim.action() != BillingAgreementCleanupTransactionService.CleanupAction.CALL_PROVIDER) {
+            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_CANCEL_FAILED);
         }
 
-        agreement.cancel();
-        UserSubscription subscription = findActiveSubscriptionOrNull(user);
-        if (subscription != null) {
-            subscription.cancel();
+        BillingAgreementCleanupProviderExecutor.CleanupProviderResult providerResult =
+                billingAgreementCleanupProviderExecutor.deleteBillingKey(
+                        claim.provider(),
+                        claim.billingKeyCiphertext());
+        BillingAgreementResponse response =
+                billingAgreementCleanupTransactionService.recordUserCancellationResult(
+                        userDetails.getId(),
+                        claim,
+                        providerResult);
+        if (providerResult.disposition()
+                != BillingAgreementCleanupProviderExecutor.CleanupDisposition.SUCCEEDED) {
+            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_CANCEL_FAILED);
         }
-        return toAgreementResponse(agreement, subscription);
+        return response;
     }
 
     private BillingAgreement prepareAgreement(User user) {

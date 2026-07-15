@@ -1,116 +1,100 @@
 package com.atstudio.atstudio.service;
 
-import com.atstudio.atstudio.entity.BillingAgreement;
-import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
-import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
-import com.atstudio.atstudio.service.payment.billing.BillingKeyCrypto;
-import com.atstudio.atstudio.service.payment.provider.recurring.BillingAgreementCancelCommand;
-import com.atstudio.atstudio.service.payment.provider.recurring.BillingAgreementCancelResult;
-import com.atstudio.atstudio.service.payment.provider.recurring.RecurringPaymentProvider;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
-@Transactional(readOnly = true)
 public class WithdrawalBillingCleanupService {
 
-    private static final String PROVIDER_NOT_CONFIGURED = "BILLING_PROVIDER_NOT_CONFIGURED";
-    private static final String DELETE_EXCEPTION = "BILLING_KEY_DELETE_EXCEPTION";
-    private static final String ALREADY_REMOVED_BILLING_KEY = "ALREADY_REMOVED_BILLING_KEY";
+    private static final int CLEANUP_BATCH_SIZE = 100;
+    private static final long FIRST_CANDIDATE_ID = 0L;
 
     private final BillingAgreementRepository billingAgreementRepository;
-    private final BillingKeyCrypto billingKeyCrypto;
-    private final PaymentReconciliationIncidentService incidentService;
-    private final Map<PaymentProviderType, RecurringPaymentProvider> recurringProviders;
+    private final BillingAgreementCleanupTransactionService cleanupTransactionService;
+    private final BillingAgreementCleanupProviderExecutor cleanupProviderExecutor;
 
     public WithdrawalBillingCleanupService(
             BillingAgreementRepository billingAgreementRepository,
-            BillingKeyCrypto billingKeyCrypto,
-            PaymentReconciliationIncidentService incidentService,
-            List<RecurringPaymentProvider> recurringProviders) {
+            BillingAgreementCleanupTransactionService cleanupTransactionService,
+            BillingAgreementCleanupProviderExecutor cleanupProviderExecutor) {
         this.billingAgreementRepository = billingAgreementRepository;
-        this.billingKeyCrypto = billingKeyCrypto;
-        this.incidentService = incidentService;
-        this.recurringProviders = recurringProviders.stream()
-                .collect(Collectors.toUnmodifiableMap(RecurringPaymentProvider::getProviderType, Function.identity()));
+        this.cleanupTransactionService = cleanupTransactionService;
+        this.cleanupProviderExecutor = cleanupProviderExecutor;
     }
 
     public List<Long> findRetryCandidateIDs() {
-        return billingAgreementRepository.findWithdrawalCleanupCandidateIDs();
+        return billingAgreementRepository.findWithdrawalCleanupCandidateIDs(
+                FIRST_CANDIDATE_ID,
+                PageRequest.of(0, CLEANUP_BATCH_SIZE));
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int detectStaleCleanupClaims() {
+        LocalDateTime staleBefore = LocalDateTime.now()
+                .minus(BillingAgreementCleanupTransactionService.CLEANUP_LEASE);
+        List<Long> staleCandidateIDs =
+                billingAgreementRepository.findStaleBillingKeyCleanupCandidateIDs(
+                        staleBefore,
+                        FIRST_CANDIDATE_ID,
+                        PageRequest.of(0, CLEANUP_BATCH_SIZE));
+        int markedPending = 0;
+        for (Long agreementID : staleCandidateIDs) {
+            if (cleanupTransactionService.markStaleCleanupPending(agreementID, staleBefore)) {
+                markedPending++;
+            }
+        }
+        return markedPending;
+    }
+
+    @Transactional(propagation = Propagation.NEVER)
     public CleanupOutcome cleanup(Long billingAgreementID) {
-        BillingAgreement billingAgreement = billingAgreementRepository.findById(billingAgreementID).orElse(null);
-        if (!isEligible(billingAgreement)) {
-            return CleanupOutcome.SKIPPED;
+        BillingAgreementCleanupTransactionService.WithdrawalCleanupClaim claim =
+                cleanupTransactionService.claimWithdrawalCleanup(
+                        billingAgreementID,
+                        LocalDateTime.now());
+        switch (claim.action()) {
+            case SKIPPED -> {
+                return CleanupOutcome.SKIPPED;
+            }
+            case IN_PROGRESS -> {
+                return CleanupOutcome.IN_PROGRESS;
+            }
+            case PENDING_PROVIDER_CONFIRMATION -> {
+                return CleanupOutcome.PENDING_PROVIDER_CONFIRMATION;
+            }
+            case STABLE_FAILURE -> {
+                return CleanupOutcome.FAILED;
+            }
+            case COMPLETED -> {
+                return CleanupOutcome.SUCCEEDED;
+            }
+            case CALL_PROVIDER -> {
+                // Continue below after the durable claim commits.
+            }
         }
 
-        RecurringPaymentProvider provider = recurringProviders.get(billingAgreement.getProvider());
-        if (provider == null) {
-            incidentService.recordBillingCleanupFailure(
-                    billingAgreement,
-                    PROVIDER_NOT_CONFIGURED,
-                    "Recurring payment provider is not configured.");
-            return CleanupOutcome.FAILED;
-        }
-
-        BillingAgreementCancelResult cancelResult;
-        try {
-            String billingKey = billingKeyCrypto.decrypt(billingAgreement.getBillingKeyCiphertext());
-            cancelResult = provider.cancelAgreement(new BillingAgreementCancelCommand(billingKey));
-        } catch (RuntimeException exception) {
-            incidentService.recordBillingCleanupFailure(
-                    billingAgreement,
-                    DELETE_EXCEPTION,
-                    exception.getClass().getSimpleName());
-            return CleanupOutcome.FAILED;
-        }
-
-        if (cancelResult == null) {
-            incidentService.recordBillingCleanupFailure(
-                    billingAgreement,
-                    DELETE_EXCEPTION,
-                    "EmptyProviderResult");
-            return CleanupOutcome.FAILED;
-        }
-
-        if (!isProviderCleanupComplete(cancelResult)) {
-            incidentService.recordBillingCleanupFailure(
-                    billingAgreement,
-                    cancelResult.failureCode(),
-                    cancelResult.failureMessage());
-            return CleanupOutcome.FAILED;
-        }
-
-        billingAgreement.clearIssuedKey();
-        incidentService.resolveBillingCleanupIncident(billingAgreement);
-        return CleanupOutcome.SUCCEEDED;
-    }
-
-    private boolean isProviderCleanupComplete(BillingAgreementCancelResult cancelResult) {
-        return cancelResult.success()
-                || ALREADY_REMOVED_BILLING_KEY.equals(cancelResult.failureCode());
-    }
-
-    private boolean isEligible(BillingAgreement billingAgreement) {
-        return billingAgreement != null
-                && billingAgreement.getUser().isDeleted()
-                && billingAgreement.getStatus() == BillingAgreementStatus.CANCELLED
-                && billingAgreement.getBillingKeyCiphertext() != null
-                && !billingAgreement.getBillingKeyCiphertext().isBlank();
+        BillingAgreementCleanupProviderExecutor.CleanupProviderResult providerResult =
+                cleanupProviderExecutor.deleteBillingKey(
+                        claim.provider(),
+                        claim.billingKeyCiphertext());
+        cleanupTransactionService.recordWithdrawalCleanupResult(claim, providerResult);
+        return switch (providerResult.disposition()) {
+            case SUCCEEDED -> CleanupOutcome.SUCCEEDED;
+            case FAILED -> CleanupOutcome.FAILED;
+            case PENDING_PROVIDER_CONFIRMATION -> CleanupOutcome.PENDING_PROVIDER_CONFIRMATION;
+        };
     }
 
     public enum CleanupOutcome {
         SUCCEEDED,
         FAILED,
+        PENDING_PROVIDER_CONFIRMATION,
+        IN_PROGRESS,
         SKIPPED
     }
 }

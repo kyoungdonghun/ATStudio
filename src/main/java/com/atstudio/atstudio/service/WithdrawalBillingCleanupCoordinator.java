@@ -30,6 +30,7 @@ public class WithdrawalBillingCleanupCoordinator {
 
     @Scheduled(cron = "0 15 1 * * *")
     public RetryRunResult retryFailedCleanups() {
+        int staleMarkedPending = cleanupService.detectStaleCleanupClaims();
         List<Long> candidateIDs = cleanupService.findRetryCandidateIDs();
         int succeeded = 0;
         int failed = 0;
@@ -41,8 +42,8 @@ public class WithdrawalBillingCleanupCoordinator {
                 WithdrawalBillingCleanupService.CleanupOutcome outcome = cleanupService.cleanup(billingAgreementID);
                 switch (outcome) {
                     case SUCCEEDED -> succeeded++;
-                    case FAILED -> failed++;
-                    case SKIPPED -> skipped++;
+                    case FAILED, PENDING_PROVIDER_CONFIRMATION -> failed++;
+                    case IN_PROGRESS, SKIPPED -> skipped++;
                 }
             } catch (RuntimeException exception) {
                 errors++;
@@ -53,9 +54,10 @@ public class WithdrawalBillingCleanupCoordinator {
             }
         }
 
-        if (!candidateIDs.isEmpty()) {
+        if (staleMarkedPending > 0 || !candidateIDs.isEmpty()) {
             log.info(
-                    "Withdrawal billing cleanup retry processed: candidates={}, succeeded={}, failed={}, skipped={}, errors={}",
+                    "Withdrawal billing cleanup retry processed: staleMarkedPending={}, candidates={}, succeeded={}, failed={}, skipped={}, errors={}",
+                    staleMarkedPending,
                     candidateIDs.size(),
                     succeeded,
                     failed,

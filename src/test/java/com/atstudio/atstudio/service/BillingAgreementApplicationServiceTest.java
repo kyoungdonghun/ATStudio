@@ -81,6 +81,8 @@ class BillingAgreementApplicationServiceTest {
     @Mock BillingKeyCrypto billingKeyCrypto;
     @Mock PaymentReceiptEvidenceService paymentReceiptEvidenceService;
     @Mock PaymentCommandTransactionService paymentCommandTransactionService;
+    @Mock BillingAgreementCleanupTransactionService billingAgreementCleanupTransactionService;
+    @Mock BillingAgreementCleanupProviderExecutor billingAgreementCleanupProviderExecutor;
     @Mock RecurringPaymentProvider recurringPaymentProvider;
 
     BillingAgreementApplicationService service;
@@ -98,6 +100,8 @@ class BillingAgreementApplicationServiceTest {
                 billingCustomerKeyGenerator,
                 billingKeyCrypto,
                 paymentCommandTransactionService,
+                billingAgreementCleanupTransactionService,
+                billingAgreementCleanupProviderExecutor,
                 List.of(recurringPaymentProvider)
         );
     }
@@ -476,32 +480,55 @@ class BillingAgreementApplicationServiceTest {
     void cancelMyBillingAgreement_success() {
         User user = buildUser(1L);
         Subscription subscription = buildSubscription(10L);
-        BillingAgreement agreement = buildReadyAgreement(user);
-        agreement.activate("encrypted-key", "fingerprint", "CARD", "1234", LocalDate.now().plusMonths(1));
         UserSubscription subscriptionAccess = buildUserSubscription(
                 100L,
                 user,
                 subscription,
                 SubscriptionStatus.ACTIVE);
-
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
-                .willReturn(Optional.of(agreement));
-        given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("billing_raw_key");
-        given(recurringPaymentProvider.cancelAgreement(any()))
-                .willReturn(BillingAgreementCancelResult.success("{}"));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                .willReturn(Optional.of(subscriptionAccess));
+        LocalDateTime leaseStartedAt = LocalDateTime.now().withNano(0);
+        BillingAgreementCleanupTransactionService.UserCancellationClaim claim =
+                BillingAgreementCleanupTransactionService.UserCancellationClaim.callProvider(
+                        200L,
+                        PaymentProviderType.TOSS_BILLING,
+                        "encrypted-key",
+                        leaseStartedAt);
+        BillingAgreementCleanupProviderExecutor.CleanupProviderResult providerResult =
+                BillingAgreementCleanupProviderExecutor.CleanupProviderResult.succeeded();
+        BillingAgreementResponse expectedResponse = new BillingAgreementResponse(
+                PaymentProviderType.TOSS_BILLING,
+                BillingAgreementStatus.CANCELLED,
+                null,
+                null,
+                null,
+                null,
+                LocalDateTime.now(),
+                UserSubscriptionResponse.from(subscriptionAccess));
+        given(billingAgreementCleanupTransactionService.claimUserCancellation(
+                eq(1L),
+                any(LocalDateTime.class))).willReturn(claim);
+        given(billingAgreementCleanupProviderExecutor.deleteBillingKey(
+                PaymentProviderType.TOSS_BILLING,
+                "encrypted-key")).willReturn(providerResult);
+        given(billingAgreementCleanupTransactionService.recordUserCancellationResult(
+                1L,
+                claim,
+                providerResult)).willReturn(expectedResponse);
 
         BillingAgreementResponse response = service.cancelMyBillingAgreement(buildUserDetails(1L));
 
         assertThat(response.status()).isEqualTo(BillingAgreementStatus.CANCELLED);
-        assertThat(agreement.getBillingKeyCiphertext()).isNull();
-        assertThat(agreement.getBillingKeyFingerprint()).isNull();
-        assertThat(agreement.getNextBillingAt()).isNull();
-        assertThat(subscriptionAccess.getStatus()).isEqualTo(SubscriptionStatus.CANCELLED);
-        assertThat(response.toString()).doesNotContain("billing_raw_key");
-        verify(recurringPaymentProvider).cancelAgreement(any());
+        assertThat(response.payMethod()).isNull();
+        assertThat(response.maskedMethod()).isNull();
+        assertThat(response.toString()).doesNotContain("encrypted-key");
+        InOrder ordering = inOrder(
+                billingAgreementCleanupTransactionService,
+                billingAgreementCleanupProviderExecutor);
+        ordering.verify(billingAgreementCleanupTransactionService)
+                .claimUserCancellation(eq(1L), any(LocalDateTime.class));
+        ordering.verify(billingAgreementCleanupProviderExecutor)
+                .deleteBillingKey(PaymentProviderType.TOSS_BILLING, "encrypted-key");
+        ordering.verify(billingAgreementCleanupTransactionService)
+                .recordUserCancellationResult(1L, claim, providerResult);
     }
 
     private PaymentCommandTransactionService.BillingConfirmClaim providerClaim(

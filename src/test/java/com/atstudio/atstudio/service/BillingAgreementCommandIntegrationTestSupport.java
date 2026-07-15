@@ -68,6 +68,8 @@ abstract class BillingAgreementCommandIntegrationTestSupport {
     @MockitoBean BillingCustomerKeyGenerator billingCustomerKeyGenerator;
     @MockitoBean BillingKeyCrypto billingKeyCrypto;
     @MockitoBean PaymentReceiptEvidenceService paymentReceiptEvidenceService;
+    @MockitoBean BillingAgreementCleanupTransactionService billingAgreementCleanupTransactionService;
+    @MockitoBean BillingAgreementCleanupProviderExecutor billingAgreementCleanupProviderExecutor;
     @MockitoBean EmailService emailService;
 
     @BeforeEach

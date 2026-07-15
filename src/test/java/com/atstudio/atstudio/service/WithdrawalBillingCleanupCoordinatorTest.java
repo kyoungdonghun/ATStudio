@@ -58,6 +58,7 @@ class WithdrawalBillingCleanupCoordinatorTest {
         WithdrawalBillingCleanupCoordinator.RetryRunResult result = coordinator.retryFailedCleanups();
 
         assertThat(result).isEqualTo(new WithdrawalBillingCleanupCoordinator.RetryRunResult(3, 1, 1, 0, 1));
+        verify(cleanupService).detectStaleCleanupClaims();
         verify(cleanupService).cleanup(11L);
         verify(cleanupService).cleanup(12L);
         verify(cleanupService).cleanup(13L);
