@@ -30,15 +30,13 @@ const MENU_ITEMS: MenuItem[] = [
 function isActive(currentPath: string, menuPath: string): boolean {
   // Exact match for specific paths to avoid false positives
   if (menuPath === '/admin/albums') {
-    return currentPath === '/admin/albums' ||
-      currentPath.startsWith('/admin/albums/');
+    return currentPath === '/admin/albums' || currentPath.startsWith('/admin/albums/');
   }
   if (menuPath === '/admin/tracks/upload') {
     return currentPath === '/admin/tracks/upload';
   }
   if (menuPath === '/admin/notices/new') {
-    return currentPath === '/admin/notices/new' ||
-      currentPath.startsWith('/admin/notices/');
+    return currentPath === '/admin/notices/new' || currentPath.startsWith('/admin/notices/');
   }
   return currentPath === menuPath || currentPath.startsWith(menuPath + '/');
 }
@@ -63,9 +61,7 @@ export default function AdminLayout() {
   return (
     <div className={styles.layout}>
       {/* Sidebar */}
-      <aside
-        className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}
-      >
+      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.sidebarHeader}>
           <Link to="/admin/dashboard" className={styles.logo}>
             AT.M
@@ -79,9 +75,7 @@ export default function AdminLayout() {
               key={item.path}
               to={item.path}
               className={`${styles.navItem} ${
-                isActive(location.pathname, item.path)
-                  ? styles.navItemActive
-                  : ''
+                isActive(location.pathname, item.path) ? styles.navItemActive : ''
               }`}
             >
               {item.label}
@@ -99,12 +93,7 @@ export default function AdminLayout() {
       </aside>
 
       {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div
-          className={styles.overlay}
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
 
       {/* Top bar */}
       <header className={styles.topbar}>

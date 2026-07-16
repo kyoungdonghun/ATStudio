@@ -12,7 +12,13 @@ import { fetchTracks } from '@/api/tracks';
 import { toUploadUrl } from '@/api/client';
 import { useToastStore } from '@/store/toastStore';
 import type { TrackListItem } from '@/types';
-import { TITLE_ALBUM_MAX, DESCRIPTION_MAX, IMAGE_MAX_SIZE_MB, isFileSizeOk, validateImageDimensions } from '@/utils/validation';
+import {
+  TITLE_ALBUM_MAX,
+  DESCRIPTION_MAX,
+  IMAGE_MAX_SIZE_MB,
+  isFileSizeOk,
+  validateImageDimensions,
+} from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './AlbumEditPage.module.css';
 
@@ -64,9 +70,7 @@ export default function AlbumEditPage() {
         setTracks([...album.tracks].sort((a, b) => a.order - b.order));
       } catch (err) {
         if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : '앨범 정보를 불러올 수 없습니다.',
-          );
+          setError(err instanceof Error ? err.message : '앨범 정보를 불러올 수 없습니다.');
         }
       } finally {
         if (!cancelled) setPageLoading(false);
@@ -74,7 +78,9 @@ export default function AlbumEditPage() {
     }
 
     loadAlbum();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   /* ── Close search dropdown on outside click ── */
@@ -240,8 +246,7 @@ export default function AlbumEditPage() {
       await updateAlbum(Number(id), formData);
       navigate('/admin/albums');
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : '앨범 수정에 실패했습니다.';
+      const msg = err instanceof Error ? err.message : '앨범 수정에 실패했습니다.';
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -291,15 +296,9 @@ export default function AlbumEditPage() {
           <span className={styles.label}>{'썸네일'}</span>
           <div className={styles.thumbArea}>
             {displayThumb && (
-              <img
-                src={displayThumb}
-                alt="앨범 썸네일"
-                className={styles.thumbPreview}
-              />
+              <img src={displayThumb} alt="앨범 썸네일" className={styles.thumbPreview} />
             )}
-            <label
-              className={`${styles.fileLabel} ${thumbnail ? styles.fileLabelSelected : ''}`}
-            >
+            <label className={`${styles.fileLabel} ${thumbnail ? styles.fileLabelSelected : ''}`}>
               <input
                 type="file"
                 accept="image/*"
@@ -309,21 +308,14 @@ export default function AlbumEditPage() {
               {thumbnail ? thumbnail.name : '새 이미지 선택'}
             </label>
             {currentThumbUrl && !thumbnail && (
-              <span className={styles.currentFile}>
-                {'현재 썸네일이 설정되어 있습니다'}
-              </span>
+              <span className={styles.currentFile}>{'현재 썸네일이 설정되어 있습니다'}</span>
             )}
           </div>
         </div>
 
         {/* Actions */}
         <div className={styles.actions}>
-          <Button
-            variant="ghost"
-            type="button"
-            onClick={() => navigate(-1)}
-            disabled={submitting}
-          >
+          <Button variant="ghost" type="button" onClick={() => navigate(-1)} disabled={submitting}>
             {'취소'}
           </Button>
           <Button type="submit" loading={submitting}>
@@ -345,7 +337,9 @@ export default function AlbumEditPage() {
               placeholder="트랙 검색 (제목 또는 아티스트)"
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleTrackSearch(); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleTrackSearch();
+              }}
             />
             <Button
               type="button"

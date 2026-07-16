@@ -14,6 +14,7 @@ import {
   NICKNAME_MAX,
 } from '@/utils/validation';
 import Button from '@/components/ui/Button';
+import { consumeOAuthProfileReturnTarget } from '@/utils/oauthAttempt';
 import styles from './SignupPage.module.css';
 
 const JOB_OPTIONS = [
@@ -110,7 +111,7 @@ export default function SocialCompleteProfilePage() {
 
     setLoading(true);
     try {
-      const submitJob: UserJob | null = isBusinessUser ? null : (job || null);
+      const submitJob: UserJob | null = isBusinessUser ? null : job || null;
       const body: CompleteProfileRequest = {
         nickname: normalizedNickname,
         phonePersonal,
@@ -137,11 +138,11 @@ export default function SocialCompleteProfilePage() {
         createdAt: me.createdAt,
       });
 
-      navigate('/', { replace: true });
+      navigate(consumeOAuthProfileReturnTarget() ?? '/', { replace: true });
     } catch (err: unknown) {
       const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message ?? '프로필 완성에 실패했습니다.';
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        '프로필 완성에 실패했습니다.';
       setError(msg);
     } finally {
       setLoading(false);
@@ -178,7 +179,9 @@ export default function SocialCompleteProfilePage() {
 
           {/* Nickname */}
           <div className={styles.fieldGroup}>
-            <label className={styles.label} htmlFor="cp-nickname">닉네임</label>
+            <label className={styles.label} htmlFor="cp-nickname">
+              닉네임
+            </label>
             <input
               id="cp-nickname"
               className={styles.input}
@@ -192,7 +195,9 @@ export default function SocialCompleteProfilePage() {
 
           {/* Phone */}
           <div className={styles.fieldGroup}>
-            <label className={styles.label} htmlFor="cp-phone">연락처</label>
+            <label className={styles.label} htmlFor="cp-phone">
+              연락처
+            </label>
             <input
               id="cp-phone"
               className={styles.input}
@@ -222,7 +227,9 @@ export default function SocialCompleteProfilePage() {
 
           {isBusinessUser ? (
             <div className={styles.fieldGroup}>
-              <label className={styles.label} htmlFor="cp-company-name">회사명</label>
+              <label className={styles.label} htmlFor="cp-company-name">
+                회사명
+              </label>
               <input
                 id="cp-company-name"
                 className={styles.input}
@@ -235,7 +242,9 @@ export default function SocialCompleteProfilePage() {
             </div>
           ) : (
             <div className={styles.fieldGroup}>
-              <label className={styles.label} htmlFor="cp-job">직업</label>
+              <label className={styles.label} htmlFor="cp-job">
+                직업
+              </label>
               <select
                 id="cp-job"
                 className={styles.input}

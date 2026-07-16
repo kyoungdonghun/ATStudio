@@ -1,5 +1,5 @@
 /** Screen K-4: Admin user subscription management */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   fetchAdminUserSubscriptions,
   updateAdminUserSubscription,
@@ -8,6 +8,7 @@ import {
   type AdminUpdateSubscriptionRequest,
 } from '@/api/userSubscriptions';
 import { fetchAdminSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
+import { classifyLoadError } from '@/api/loadError';
 import type { PageInfo } from '@/types';
 import { formatDate } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
@@ -32,6 +33,7 @@ export default function UserSubscriptionManagePage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loadGenerationRef = useRef(0);
 
   /* Plans for change modal */
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
@@ -47,26 +49,50 @@ export default function UserSubscriptionManagePage() {
   const [cancelTarget, setCancelTarget] = useState<MySubscription | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
 
-  const loadData = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    fetchAdminUserSubscriptions(page, 20)
-      .then((result) => {
-        setSubscriptions(result.dataList);
-        setPageInfo(result.pageInfo);
-      })
-      .catch(() => setError('구독 목록을 불러오지 못했습니다.'))
-      .finally(() => setLoading(false));
-  }, [page]);
+  const loadData = useCallback(
+    (signal?: AbortSignal) => {
+      const generation = ++loadGenerationRef.current;
+      setLoading(true);
+      setError(null);
+      fetchAdminUserSubscriptions(page, 20, signal)
+        .then((result) => {
+          if (loadGenerationRef.current === generation) {
+            setSubscriptions(result.dataList);
+            setPageInfo(result.pageInfo);
+          }
+        })
+        .catch((loadError: unknown) => {
+          if (
+            loadGenerationRef.current === generation &&
+            classifyLoadError(loadError) !== 'cancelled'
+          ) {
+            setError('구독 목록을 불러오지 못했습니다.');
+          }
+        })
+        .finally(() => {
+          if (loadGenerationRef.current === generation) setLoading(false);
+        });
+    },
+    [page],
+  );
 
   useEffect(() => {
-    loadData();
+    const controller = new AbortController();
+    loadData(controller.signal);
+    return () => {
+      controller.abort();
+      loadGenerationRef.current += 1;
+    };
   }, [loadData]);
 
   useEffect(() => {
-    fetchAdminSubscriptionPlans()
+    const controller = new AbortController();
+    fetchAdminSubscriptionPlans(controller.signal)
       .then((plans) => setPlans(plans))
-      .catch(() => {});
+      .catch((loadError: unknown) => {
+        if (classifyLoadError(loadError) !== 'cancelled') setPlans([]);
+      });
+    return () => controller.abort();
   }, []);
 
   /* ── Edit handlers ── */
@@ -84,7 +110,8 @@ export default function UserSubscriptionManagePage() {
     try {
       const req: AdminUpdateSubscriptionRequest = {};
       if (editStatus !== editTarget.status) req.status = editStatus;
-      if (editBilling !== editTarget.billingCycle) req.billingCycle = editBilling as 'MONTHLY' | 'YEARLY';
+      if (editBilling !== editTarget.billingCycle)
+        req.billingCycle = editBilling as 'MONTHLY' | 'YEARLY';
       if (editExpires !== editTarget.expiresAt) req.expiresAt = editExpires;
 
       await updateAdminUserSubscription(editTarget.id, req);
@@ -165,7 +192,8 @@ export default function UserSubscriptionManagePage() {
                 <td>{formatDate(sub.expiresAt)}</td>
                 <td>
                   {sub.pendingSubscriptionId
-                    ? plans.find((p) => p.id === sub.pendingSubscriptionId)?.name ?? `Plan #${sub.pendingSubscriptionId}`
+                    ? (plans.find((p) => p.id === sub.pendingSubscriptionId)?.name ??
+                      `Plan #${sub.pendingSubscriptionId}`)
                     : '-'}
                 </td>
                 <td>
@@ -174,11 +202,7 @@ export default function UserSubscriptionManagePage() {
                       {'수정'}
                     </Button>
                     {sub.status === 'ACTIVE' && (
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        onClick={() => setCancelTarget(sub)}
-                      >
+                      <Button size="sm" variant="danger" onClick={() => setCancelTarget(sub)}>
                         {'취소'}
                       </Button>
                     )}
@@ -195,11 +219,7 @@ export default function UserSubscriptionManagePage() {
       )}
 
       {/* Edit modal */}
-      <Modal
-        open={editTarget !== null}
-        onClose={() => setEditTarget(null)}
-        title="구독 수정"
-      >
+      <Modal open={editTarget !== null} onClose={() => setEditTarget(null)} title="구독 수정">
         {editTarget && (
           <>
             <div className={styles.modalBody}>
@@ -257,11 +277,7 @@ export default function UserSubscriptionManagePage() {
       </Modal>
 
       {/* Cancel modal */}
-      <Modal
-        open={cancelTarget !== null}
-        onClose={() => setCancelTarget(null)}
-        title="구독 취소"
-      >
+      <Modal open={cancelTarget !== null} onClose={() => setCancelTarget(null)} title="구독 취소">
         {cancelTarget && (
           <>
             <div className={styles.modalBody}>

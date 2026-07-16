@@ -1,5 +1,7 @@
 package com.atstudio.atstudio.dto.payment;
 
+import com.atstudio.atstudio.service.payment.ProviderSupportReference;
+
 import com.atstudio.atstudio.entity.PaymentRefund;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentRefundReasonCode;
@@ -22,8 +24,8 @@ public record AdminPaymentRefundResponse(
         PaymentRefundReasonCode reasonCode,
         String reasonNote,
         String idempotencyKey,
-        String providerPaymentKey,
-        String providerRefundTransactionId,
+        String providerReference,
+        String providerRefundReference,
         String failureCode,
         String failureMessage,
         Long requestedById,
@@ -52,8 +54,8 @@ public record AdminPaymentRefundResponse(
                 refund.getReasonCode(),
                 refund.getReasonNote(),
                 refund.getIdempotencyKey(),
-                refund.getProviderPaymentKey(),
-                refund.getProviderRefundTransactionId(),
+                ProviderSupportReference.from(refund.getProviderPaymentKey()),
+                ProviderSupportReference.from(refund.getProviderRefundTransactionId()),
                 refund.getFailureCode(),
                 refund.getFailureMessage(),
                 refund.getRequestedBy() == null ? null : refund.getRequestedBy().getId(),

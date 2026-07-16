@@ -7,9 +7,7 @@ interface NoticeListParams {
   sort?: 'latest' | 'views';
 }
 
-export async function fetchNotices(
-  params: NoticeListParams = {},
-): Promise<PagedResponse<Notice>> {
+export async function fetchNotices(params: NoticeListParams = {}): Promise<PagedResponse<Notice>> {
   const { data } = await client.get<PagedResponse<Notice>>('/notices', {
     params,
   });
@@ -52,10 +50,7 @@ export async function createNotice(body: NoticeCreateBody): Promise<Notice> {
   return data.data;
 }
 
-export async function updateNotice(
-  noticeId: number,
-  body: NoticeUpdateBody,
-): Promise<Notice> {
+export async function updateNotice(noticeId: number, body: NoticeUpdateBody): Promise<Notice> {
   const form = new FormData();
   form.append('title', body.title);
   form.append('content', body.content);
@@ -83,10 +78,9 @@ export async function downloadNoticeAttachment(
   attachmentId: number,
   filename: string,
 ): Promise<void> {
-  const { data } = await client.get<Blob>(
-    `/notices/${noticeId}/attachments/${attachmentId}`,
-    { responseType: 'blob' },
-  );
+  const { data } = await client.get<Blob>(`/notices/${noticeId}/attachments/${attachmentId}`, {
+    responseType: 'blob',
+  });
   const url = URL.createObjectURL(data);
   const a = document.createElement('a');
   a.href = url;

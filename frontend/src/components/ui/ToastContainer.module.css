@@ -15,9 +15,39 @@
   border-radius: 6px;
   font-size: 13px;
   pointer-events: auto;
-  cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   animation: slideDown 0.2s ease-out;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.message {
+  min-width: 0;
+}
+
+.dismissButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: currentColor;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dismissButton:hover,
+.dismissButton:focus-visible {
+  background: var(--bg2);
+  outline: none;
 }
 
 .success {

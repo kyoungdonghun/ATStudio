@@ -70,4 +70,6 @@ public interface PaymentRefundRepository extends JpaRepository<PaymentRefund, Lo
     BigDecimal sumAmountBySubscriptionPaymentAndStatuses(
             @Param("subscriptionPayment") SubscriptionPayment subscriptionPayment,
             @Param("statuses") Collection<PaymentRefundStatus> statuses);
+
+    boolean existsByPaymentOrder_IdAndStatus(Long paymentOrderId, PaymentRefundStatus status);
 }

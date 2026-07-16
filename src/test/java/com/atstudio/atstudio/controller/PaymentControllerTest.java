@@ -21,13 +21,16 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -153,5 +156,47 @@ class PaymentControllerTest {
         mockMvc.perform(delete("/api/payments/billing-agreements/me"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("ADMIN cannot invoke any user payment mutation")
+    void userPaymentMutations_adminRole_areForbidden() throws Exception {
+        List<MockHttpServletRequestBuilder> requests = List.of(
+                post("/api/payments/subscriptions/prepare")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"purpose\":\"SUBSCRIBE\",\"subscriptionId\":10,\"billingCycle\":\"MONTHLY\"}"),
+                post("/api/payments/confirm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":\"ORDER-1\",\"amount\":9900,\"provider\":\"MOCK\"}"),
+                post("/api/payments/cancel")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":\"ORDER-1\",\"status\":\"CANCELLED\"}"),
+                post("/api/payments/billing-agreements/prepare")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"subscriptionId\":10,\"billingCycle\":\"MONTHLY\"}"),
+                post("/api/payments/billing-agreements/confirm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":\"ORDER-1\",\"authKey\":\"auth\",\"customerKey\":\"customer\",\"amount\":9900}"),
+                delete("/api/payments/billing-agreements/me")
+        );
+
+        for (MockHttpServletRequestBuilder request : requests) {
+            mockMvc.perform(request).andExpect(status().isForbidden());
+        }
+
+        verifyNoInteractions(paymentApplicationService, billingAgreementApplicationService);
+    }
+
+    @Test
+    @WithMockUser(roles = {"USER", "ADMIN"})
+    @DisplayName("ADMIN denial wins for a mixed-authority payment principal")
+    void userPaymentMutation_mixedRoles_isForbidden() throws Exception {
+        mockMvc.perform(post("/api/payments/billing-agreements/prepare")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"subscriptionId\":10,\"billingCycle\":\"MONTHLY\"}"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(paymentApplicationService, billingAgreementApplicationService);
     }
 }

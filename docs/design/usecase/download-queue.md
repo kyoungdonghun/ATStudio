@@ -3,7 +3,7 @@
 > **API Reference**: `docs/design/api-spec.md` Section 11 (Download Queue)
 > **DB Reference**: `docs/design/db-schema.md` Section 8 (`download_queue`)
 >
-> **Download Queue Concept**: Collects multiple tracks so the frontend can call the individual download API (SOUND-011) sequentially. Since there is no purchase concept, this is defined as a "download queue" rather than a "cart".
+> **Download Queue Concept**: Collects multiple tracks so the frontend can call the individual download API (SOUND-011) sequentially. Since there is no purchase concept, this is defined as a "download queue" rather than a "cart". Each official-download invocation independently serializes first-download decisions for its user, so repeated or overlapping client requests cannot create duplicate user-track licenses or exceed the existing daily quota. First downloads by different users atomically increment the shared Track count, preventing lost updates.
 
 ---
 
@@ -52,7 +52,7 @@
 
 **Postconditions**
 - Download queue track list displayed on screen.
-- User can call SOUND-011 sequentially on all or individual tracks to download them.
+- User can call SOUND-011 sequentially on all or individual tracks to download them; licensed re-downloads remain quota-free.
 
 > **Frontend Note**: On page exit during download, a `beforeunload` event displays a warning.
 

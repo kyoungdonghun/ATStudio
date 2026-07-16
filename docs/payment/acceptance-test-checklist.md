@@ -25,6 +25,7 @@ dependencies:
 | Check | Expected Result | Done |
 | :-- | :-- | :-- |
 | The environment is an approved local/test/staging environment using Toss test configuration. | No live key, real-money payment, retained production DB, or production deployment is used by this checklist. | [ ] |
+| Any remotely shared frontend uses the active development branch with Vite 6.4.3 and zero npm audit findings, or an operator-approved access-controlled alternative. | The frozen Vite 6.4.1 client-demo branch is not publicly exposed; no client URL is shared until the operator confirms the branch/environment gate. | [ ] |
 | Backend and frontend are running against the intended local or staging environment. | User can open `/subscriptions` and admin can open `/admin/payments`. | [ ] |
 | Toss test client key and secret key are configured for recurring billing. | Checkout opens Toss billing auth instead of provider-not-configured error. | [ ] |
 | Billing-key encryption secret is configured. | Billing-key confirmation does not fail due to missing encryption secret. | [ ] |
@@ -46,8 +47,8 @@ dependencies:
 | Check | Expected Result | Done |
 | :-- | :-- | :-- |
 | Use an active subscription with missing/expired/unusable billing agreement. | Manage page shows payment method re-registration guidance. | [ ] |
-| Click payment method registration. | Checkout opens with `purpose=BILLING_AGREEMENT`. | [ ] |
-| Complete billing auth. | Billing agreement becomes usable without charging the card in this step. | [ ] |
+| Click payment method registration. | Checkout opens with `purpose=BILLING_AGREEMENT` and the prepared amount is `0`. | [ ] |
+| Complete billing auth. | Billing agreement becomes usable without charging the card or changing the current plan/period in this step. | [ ] |
 | Return to manage page. | User can retry upgrade or wait for renewal using the new billing method. | [ ] |
 
 ## 4. Upgrade
@@ -128,8 +129,8 @@ dependencies:
 | Check | Expected Result | Done |
 | :-- | :-- | :-- |
 | Inspect user checkout/manage screens. | Raw billing key, `authKey`, `customerKey`, Toss secret, and raw card number are not visible. | [ ] |
-| Inspect admin payment screens. | Only support-safe identifiers and masked payment method appear. | [ ] |
-| Review the operator-provided sensitive-data verification result. | The result confirms that secrets, raw card data, and billing keys are absent from user/admin output, and that raw provider payment keys are not copied into serialized lookup evidence or Incident/audit free text. | [ ] |
+| Inspect admin payment screens. | Only order IDs, masked payment methods, and deterministic `REF-*` support references appear; exact provider identifiers do not. | [ ] |
+| Review the operator-provided sensitive-data verification result. | The result confirms that secrets, raw card data, billing keys, and exact provider payment/refund/receipt/settlement identifiers are absent from user/admin output and Incident/audit free text. | [ ] |
 | Review settlement rows after CSV import. | The UI shows only the fields needed for matching and operations; no secret or raw card field is visible. | [ ] |
 
 ## 12. Technical Evidence - No Client Action

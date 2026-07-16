@@ -18,6 +18,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -70,11 +71,12 @@ public class AdminPaymentReadService {
         return paged(result, page, size);
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED, readOnly = true)
     public ResponseDTO<AdminPaymentReconciliationResponse> reconcilePayments() {
         PaymentReconciliationService.ReconciliationResult local =
                 paymentReconciliationService.reconcileLocalLedger();
         PaymentReconciliationService.ProviderReconciliationResult provider =
-                paymentReconciliationService.reconcileProviderLedger();
+                paymentReconciliationService.diagnoseProviderLedger();
         return ResponseDTO.<AdminPaymentReconciliationResponse>builder()
                 .data(AdminPaymentReconciliationResponse.from(local, provider))
                 .build();

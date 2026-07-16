@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ProfilePage from '@/pages/subscriber/ProfilePage';
 import type { MeResponse, CheckAvailabilityResponse } from '@/api/auth';
+import { useAuthStore } from '@/store/authStore';
 
 const fetchMeMock = vi.fn();
 const checkNicknameAvailabilityMock = vi.fn();
@@ -58,9 +59,22 @@ describe('ProfilePage', () => {
     checkPhoneAvailabilityMock.mockReset();
     fetchMySubscriptionMock.mockReset();
     clientPutMock.mockReset();
+    localStorage.clear();
+    const initialUser = buildProfile();
+    localStorage.setItem('accessToken', 'access-token');
+    localStorage.setItem('user', JSON.stringify(initialUser));
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: initialUser,
+      role: initialUser.role,
+    });
 
-    checkNicknameAvailabilityMock.mockResolvedValue({ available: true } satisfies CheckAvailabilityResponse);
-    checkPhoneAvailabilityMock.mockResolvedValue({ available: true } satisfies CheckAvailabilityResponse);
+    checkNicknameAvailabilityMock.mockResolvedValue({
+      available: true,
+    } satisfies CheckAvailabilityResponse);
+    checkPhoneAvailabilityMock.mockResolvedValue({
+      available: true,
+    } satisfies CheckAvailabilityResponse);
     fetchMySubscriptionMock.mockRejectedValue(new Error('no subscription'));
   });
 
@@ -74,9 +88,14 @@ describe('ProfilePage', () => {
 
     renderPage();
 
-    expect(await screen.findByLabelText('닉네임')).toBeInTheDocument();
+    const nicknameInput = await screen.findByLabelText('닉네임');
+    await waitFor(() => {
+      expect(nicknameInput).toHaveValue('creator01');
+      expect(screen.getByLabelText('직업')).toHaveValue('EDITOR');
+      expect(screen.getByLabelText('연락처')).toHaveValue('010-1111-2222');
+    });
 
-    fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: 'creator02' } });
+    fireEvent.change(nicknameInput, { target: { value: 'creator02' } });
     fireEvent.change(screen.getByLabelText('직업'), { target: { value: 'ARTIST' } });
     const saveButton = screen.getByRole('button', { name: '저장' });
     await waitFor(() => expect(saveButton).toBeEnabled());
@@ -95,6 +114,8 @@ describe('ProfilePage', () => {
 
     expect(screen.getByText('프로필이 저장되었습니다.')).toBeInTheDocument();
     expect(checkPhoneAvailabilityMock).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().user?.nickname).toBe('creator02');
+    expect(JSON.parse(localStorage.getItem('user') ?? 'null').nickname).toBe('creator02');
   });
 
   it('preserves company fields for business members when saving a nickname change', async () => {
@@ -164,7 +185,9 @@ describe('ProfilePage', () => {
 
   it('shows a phone-duplicate error before submit when the personal phone changes', async () => {
     fetchMeMock.mockResolvedValue(buildProfile());
-    checkPhoneAvailabilityMock.mockResolvedValue({ available: false } satisfies CheckAvailabilityResponse);
+    checkPhoneAvailabilityMock.mockResolvedValue({
+      available: false,
+    } satisfies CheckAvailabilityResponse);
 
     renderPage();
 
@@ -178,5 +201,22 @@ describe('ProfilePage', () => {
     });
     expect(screen.getByText('이미 등록된 전화번호입니다.')).toBeInTheDocument();
     expect(clientPutMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps page, global, and persisted profile state unchanged when save fails', async () => {
+    const initialProfile = buildProfile();
+    fetchMeMock.mockResolvedValue(initialProfile);
+    clientPutMock.mockRejectedValue(new Error('server unavailable'));
+
+    renderPage();
+
+    const nicknameInput = await screen.findByLabelText('닉네임');
+    fireEvent.change(nicknameInput, { target: { value: 'creator02' } });
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+
+    expect(await screen.findByText('server unavailable')).toBeInTheDocument();
+    expect(useAuthStore.getState().user).toEqual(initialProfile);
+    expect(JSON.parse(localStorage.getItem('user') ?? 'null')).toEqual(initialProfile);
+    expect(nicknameInput).toHaveValue('creator02');
   });
 });

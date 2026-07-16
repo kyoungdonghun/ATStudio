@@ -1,8 +1,64 @@
-# ATStudio DB Schema Definition v15 (Confirmed)
+---
+version: 20.0
+last_updated: 2026-07-16
+project: ATS
+owner: sa
+category: design
+status: confirmed
+dependencies:
+  - path: api-spec.md
+    reason: API-to-persistence contract
+  - path: ../../src/main/resources/schema.sql
+    reason: Fresh-schema executable reference
+---
 
-> **Status**: v15 Confirmed - current Track media semantics with no structural schema change
-> **Base**: v14 + REQ-20260715-ATS-001 public full-track listening alignment
-> **Date**: 2026-07-15
+# ATStudio DB Schema Definition v20 (Confirmed)
+
+> **Status**: v20 Confirmed - exact current inventory and storage-mutation journal reconciliation
+> **Base**: v19 + current `schema.sql` and 41 JPA `@Entity` mappings
+> **Date**: 2026-07-16
+
+## v19 to v20 Change History
+
+| # | Area | Change |
+|---|---|---|
+| 1 | Exact inventory | Recounted 41 `CREATE TABLE` declarations and 41 JPA `@Entity` files from the current working tree. |
+| 2 | `storage_mutations` | Reconciled the durable file-mutation recovery ledger as table 41, including recovery and operation-ID indexes. |
+| 3 | Existing DB path | Added the existing `20260714_storage_mutations_journal.sql` pointer. Retained-database application remains environment-conditional. |
+
+## v18 to v19 Change History
+
+| # | Area | Change |
+|---|---|---|
+| 1 | `company_certifications` | Added optimistic `version` to complement the deterministic owning-user then certification-row lock contract. |
+| 2 | `company_certification_audit_logs` | Added a narrow ADMIN review and guarded-document access ledger without copied filenames, paths, notes, profile data, tokens, or file contents. |
+| 3 | Private document metadata | Certification responses omit persistence paths. Verified JPEG/PNG inputs are decoded and stored as canonical JPEG with `image/jpeg`; PDF remains `application/pdf`. |
+| 4 | Existing DB path | Added `20260716_company_certification_integrity_and_audit.sql` as a source-only retained-MySQL patch. Application remains `ENVIRONMENT-CONDITIONAL`; this WI executed no DDL. |
+
+## v17 to v18 Change History
+
+| # | Area | Change |
+|---|---|---|
+| 1 | Official download | First-download decisions lock the owning `users` row for the whole transaction before license, subscription quota, and download ledger mutation. The Track count uses one direct atomic `download_count = download_count + 1` update, preventing lost updates across different users without changing ADMIN or licensed re-download policy. |
+| 2 | `licenses` | Retained `uq_licenses_user_track (user_id, track_id)` is the JPA/fresh-schema invariant and the retained-DB backstop against duplicate user-track licenses. |
+| 3 | Existing DB path | Added `20260716_download_atomicity.sql`. It is a source-only conditional manual patch with duplicate preflight; retained-DB application and lock behavior remain `ENVIRONMENT-CONDITIONAL` until rehearsed on copied MySQL data. |
+
+## v16 to v17 Change History
+
+| # | Area | Change |
+|---|---|---|
+| 1 | `whitelist_channels` | Added optimistic `version`; user-row pessimistic locking serializes user mutations and primary/plan checks. |
+| 2 | `whitelist_export_batches` | Added persisted `status_filter` and `keyword_filter`. |
+| 3 | `whitelist_export_items` | Added `item_order` and `channel_id_snapshot`; new rows leave legacy user-ID/nickname snapshots null. |
+| 4 | Existing DB path | Added `20260716_whitelist_integrity_and_exports.sql`. Retained-DB DDL and lock/constraint behavior remain `ENVIRONMENT-CONDITIONAL` until rehearsed on copied MySQL data. |
+
+## v15 to v16 Change History
+
+| # | Area | Change |
+|---|---|---|
+| 1 | `payment_orders` | Added `idx_payment_orders_local_reconciliation (status, id, purpose)` for bounded `DONE` order keyset scans. |
+| 2 | `billing_agreements` | Added `idx_billing_agreements_local_reconciliation (status, id)` for bounded `ACTIVE` agreement keyset scans. |
+| 3 | Existing DB path | Added `20260716_payment_reconciliation_indexes.sql`; retained-database application and `EXPLAIN` evidence remain environment-conditional. |
 
 ---
 
@@ -35,8 +91,15 @@
 - Current manual patch files:
   - `src/main/resources/db/manual/20260615_align_payment_whitelist_schema.sql`
   - `src/main/resources/db/manual/20260618_company_certification_documents.sql`
+  - `src/main/resources/db/manual/20260714_storage_mutations_journal.sql`
+  - `src/main/resources/db/manual/20260715_track_waveform_data.sql`
+  - `src/main/resources/db/manual/20260716_company_certification_integrity_and_audit.sql`
+  - `src/main/resources/db/manual/20260714_payment_db_integrity.sql`
+  - `src/main/resources/db/manual/20260716_payment_reconciliation_indexes.sql`
+  - `src/main/resources/db/manual/20260716_whitelist_integrity_and_exports.sql`
+  - `src/main/resources/db/manual/20260716_download_atomicity.sql`
 - Apply the patch only after backup and local/staging rehearsal. Do not execute it blindly against production. MySQL DDL may implicitly commit.
-- The patches cover the latest known delta for `tags.type=USAGE`, `payment_settlements`, expanded `whitelist_channels`, `whitelist_export_batches` / `whitelist_export_items`, and `company_certification_documents`. Older DBs that predate previous payment-operation tables must apply those earlier schema changes first or be rebuilt from `schema.sql`.
+- The patches cover the latest known delta for `tags.type=USAGE`, `payment_settlements`, expanded `whitelist_channels`, `whitelist_export_batches` / `whitelist_export_items`, `company_certification_documents`, and the `licenses(user_id, track_id)` unique invariant. Older DBs that predate previous payment-operation tables must apply those earlier schema changes first or be rebuilt from `schema.sql`.
 
 ---
 
@@ -229,6 +292,7 @@
 | Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
 |-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Optimistic version | `version` | BIGINT | NOT NULL | | 0 | Detects writes that bypass the user/row lock contract |
 | User | `user_id` | BIGINT | NOT NULL | FK(users.id) | | |
 | Social provider | `provider` | ENUM('GOOGLE','KAKAO','NAVER') | NOT NULL | | | |
 | Social unique ID | `provider_id` | VARCHAR(255) | NOT NULL | | | User ID assigned by the social service |
@@ -303,6 +367,7 @@
 | Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
 |-------------|--------|------|------|-------------|---------|-------|
 | ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Optimistic version | `version` | BIGINT | NOT NULL | | 0 | Complements the deterministic owning-user then certification-row lock contract for cooperating writes. |
 | Applicant | `user_id` | BIGINT | NOT NULL | FK(users.id) | | Business member |
 | Review status | `status` | ENUM('PENDING','APPROVED','REVISION_REQUESTED','REJECTED') | NOT NULL | | 'PENDING' | Pending / Approved / Revision requested / Rejected |
 | Admin note | `admin_note` | TEXT | NULL | | | Reason for revision request, etc. |
@@ -316,6 +381,7 @@
 - App-level creation of per-submission dedicated directory (e.g., `/uploads/company-docs/{user_id}/{request_key}/`)
 - `document_path` stores the directory hint for backward compatibility.
 - `company_certification_documents.stored_path` stores the StorageService relative path for each file.
+- `document_path` and `stored_path` are persistence-only values and are omitted from all certification responses.
 - Admin review uses authenticated download API; direct public `/uploads/company-docs/**` access is not the primary document review mechanism.
 
 **Process:**
@@ -337,10 +403,28 @@
 | Certification | `certification_id` | BIGINT | NOT NULL | FK(company_certifications.id), ON DELETE CASCADE | | Parent application |
 | Original filename | `original_filename` | VARCHAR(255) | NOT NULL | | | Display name for admin review |
 | Stored path | `stored_path` | VARCHAR(500) | NOT NULL | | | StorageService relative path. Not exposed directly to users. |
-| Content type | `content_type` | VARCHAR(100) | NULL | | | Browser-provided MIME type |
+| Content type | `content_type` | VARCHAR(100) | NULL | | | Stored canonical output MIME. PDF remains `application/pdf`; verified JPEG/PNG inputs are decoded and stored as canonical JPEG `image/jpeg`. |
 | Size bytes | `size_bytes` | BIGINT | NOT NULL | | | Uploaded file size |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+## 3.3 Company Certification Audit Logs (`company_certification_audit_logs`)
+
+> Narrow accountability evidence for ADMIN review and guarded document downloads. This table does not retain document contents, file paths, filenames, tokens, or raw request data.
+
+| Description | Column | Type | NULL | Constraints | DEFAULT | Notes |
+|-------------|--------|------|------|-------------|---------|-------|
+| ID | `id` | BIGINT | NOT NULL | PK, AUTO_INCREMENT | | |
+| Certification | `certification_id` | BIGINT | NOT NULL | FK(company_certifications.id) | | Target application |
+| Actor | `actor_user_id` | BIGINT | NOT NULL | FK(users.id) | | Authenticated ADMIN actor |
+| Action | `action` | ENUM('REVIEWED','DOCUMENT_ACCESS_GRANTED') | NOT NULL | | | Review or authorized private-resource access grant; not byte-delivery proof |
+| Document ID | `document_id` | BIGINT | NULL | No FK | | Opaque submitted-document identifier; retained after metadata replacement |
+| From status | `from_status` | VARCHAR(30) | NULL | | | Present for review actions |
+| To status | `to_status` | VARCHAR(30) | NULL | | | Present for review actions |
+| Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | Audit timestamp |
+| Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+**Data-minimization and retention boundary:** The actor is a foreign-key identity reference only; no email, phone, filename, note, path, token, content, or profile snapshot is copied into this audit row. `POLICY-PENDING`: this schema introduces no scheduled purge, withdrawal deletion, or retention duration. A separately approved policy must name the duration, owner, legal/operational basis, and failed-delete handling before retention execution is added.
 
 ---
 
@@ -469,6 +553,8 @@
 | Confirmed at | `confirmed_at` | DATETIME | NULL | | | |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+Reconciliation index: `idx_payment_orders_local_reconciliation (status, id, purpose)` supports the `status='DONE'`, final-payment-purpose, `id > lastSeenID`, `ORDER BY id` scan. The primary response detail list is capped separately from the full mismatch count.
 
 ## 6.4 Subscription Payment Records (`subscription_payments`)
 
@@ -628,6 +714,8 @@
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
 - Billing keys are server-only encrypted credentials.
+- Newly stored billing keys use `v2:<keyId>:<nonce>:<ciphertext>`; existing `v1:<nonce>:<ciphertext>` remains decryptable through the separately retained legacy secret.
+- `idx_billing_agreements_local_reconciliation (status, id)` supports the `status='ACTIVE'`, `id > lastSeenID`, `ORDER BY id` scan.
 - User-facing and operator-facing UI may show `status`, `pay_method`, `masked_method`, `next_billing_at`, `failure_count`, and `cancelled_at`.
 - Raw billing key material and Toss secret keys must never appear in API responses, logs, screenshots, or documents.
 - User-facing subscription cancellation changes the agreement state but retains the encrypted billing key for possible reactivation before `user_subscriptions.expires_at`.
@@ -788,9 +876,16 @@
 
 - Users may save draft channels without active subscription.
 - `subscriptions.max_whitelist_channels` applies when requesting registration, not when saving drafts.
+- `app.whitelist.max-saved-channels` (default 100) is a separate technical row-safety cap, enforced under the user lock before insert. It is not a subscription plan limit.
+- User list reads use the same cap with `is_primary DESC, created_at DESC`. Retained users above the cap receive only that deterministic leading window in the unchanged response shape.
 - Plan-counting statuses: `PENDING`, `EXPORTED`, `REGISTERED`, `REVISION_REQUESTED`, `REMOVAL_REQUESTED`.
 - Local-only statuses (`DRAFT`, `PENDING`, `REVISION_REQUESTED`, `REJECTED`, `CANCELLED`) can be physically deleted by the user. `EXPORTED`/`REGISTERED` deletion becomes `REMOVAL_REQUESTED`.
-- If a physically deleted local-only channel was primary, the service promotes another saved channel as primary when one remains.
+- `REMOVAL_REQUESTED -> CANCELLED` is completed external removal. `CANCELLED` is terminal and does not count against the plan.
+- `REMOVAL_REQUESTED` and `CANCELLED` channel metadata is immutable to member edits, preserving the external removal target/evidence.
+- User mutation transactions lock the owning `users` row before reading/writing channel state or counts. This single-server contract prevents concurrent plan-limit and primary races; `version` supplies a second optimistic fence.
+- `REMOVAL_REQUESTED` and `CANCELLED` are not primary-eligible. The service clears all existing primary flags and promotes at most one newest eligible channel (`created_at DESC, id DESC`) when replacement is needed.
+- MySQL has no partial unique index for `is_primary`. This WI intentionally avoids an intrusive generated-column uniqueness scheme; real-DB lock behavior and retained-data primary cleanup proof are `ENVIRONMENT-CONDITIONAL`.
+- Withdrawal deletes local-only states, changes `EXPORTED`/`REGISTERED` to `REMOVAL_REQUESTED`, preserves existing removal requests, and clears all primary flags before soft-deleting the user.
 
 ## 9.2 Whitelist Export Batches (`whitelist_export_batches`)
 
@@ -801,6 +896,8 @@
 | Item count | `item_count` | INT | NOT NULL | | | Number of exported channel rows |
 | Exported by | `exported_by` | BIGINT | NULL | FK(users.id) | | Admin who generated the export |
 | Note | `note` | VARCHAR(500) | NULL | | | Export note |
+| Status filter | `status_filter` | Whitelist status ENUM | NULL | | | Explicit status scope recorded at creation |
+| Keyword filter | `keyword_filter` | VARCHAR(100) | NULL | | | Normalized keyword scope recorded at creation |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | Export created time |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 
@@ -812,9 +909,11 @@
 | Batch | `batch_id` | BIGINT | NOT NULL | FK(whitelist_export_batches.id) | | Export batch |
 | Channel | `whitelist_channel_id` | BIGINT | NULL | FK(whitelist_channels.id), ON DELETE SET NULL | | Source channel row; snapshots remain even if a locally deletable channel is later deleted |
 | Status at export | `status_at_export` | ENUM('DRAFT','PENDING','EXPORTED','REGISTERED','REVISION_REQUESTED','REJECTED','CANCELLED','REMOVAL_REQUESTED') | NOT NULL | | | Status before export mutation |
-| User ID snapshot | `user_id_snapshot` | BIGINT | NOT NULL | | | User ID at export time |
+| Item order | `item_order` | INT | NULL | | | Deterministic 1-based CSV row order for new batches |
+| Channel ID snapshot | `channel_id_snapshot` | BIGINT | NULL | | | Immutable request ID even if source channel is later deleted |
+| User ID snapshot | `user_id_snapshot` | BIGINT | NULL | | | Legacy compatibility column; new batches leave it null |
 | User email snapshot | `user_email_snapshot` | VARCHAR(100) | NOT NULL | | | Included in CSV for external processing |
-| User nickname snapshot | `user_nickname_snapshot` | VARCHAR(20) | NOT NULL | | | User nickname at export time |
+| User nickname snapshot | `user_nickname_snapshot` | VARCHAR(20) | NULL | | | Legacy compatibility column; new batches leave it null |
 | Channel name snapshot | `channel_name_snapshot` | VARCHAR(100) | NOT NULL | | | Channel display name at export time |
 | YouTube handle snapshot | `youtube_handle_snapshot` | VARCHAR(100) | NULL | | | Handle at export time |
 | Channel URL snapshot | `channel_url_snapshot` | VARCHAR(255) | NOT NULL | | | Channel URL at export time |
@@ -825,6 +924,11 @@
 | Exported at snapshot | `exported_at_snapshot` | DATETIME | NOT NULL | | | CSV export timestamp |
 | Created at | `created_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
 | Updated at | `updated_at` | DATETIME | NOT NULL | | CURRENT_TIMESTAMP | |
+
+- Export selection uses a recorded status and/or keyword filter and `requested_at ASC, id ASC`. It reads at most `app.whitelist.export.max-items + 1` candidates, then locks distinct users in ID order before locking accepted channel rows (default maximum 500).
+- Oversized selections fail before a batch is inserted. Empty explicit selections still create a zero-item immutable batch.
+- Re-download validates the stored count against the same configured maximum and uses a bounded ordered-item query. Current users, channels, and subscriptions are not queried, so batches created by the current implementation are byte-stable.
+- CSV omits legacy user ID/nickname and includes `userEmail`, channel ID/name/URL/handle, request time, plan, billing cycle, and export time.
 
 ---
 
@@ -1125,5 +1229,7 @@ site_settings (standalone — no FK)
 | 37 | `email_verification_tokens` | Email verification tokens | Transaction |
 | 38 | `password_reset_tokens` | Password reset tokens | Transaction |
 | 39 | `site_settings` | Site configuration key-value store | Master |
+| 40 | `company_certification_audit_logs` | Company certification review and guarded-access audit | Log |
+| 41 | `storage_mutations` | Storage mutation recovery ledger | Transaction |
 
-Total **39 tables**
+Total **41 tables**

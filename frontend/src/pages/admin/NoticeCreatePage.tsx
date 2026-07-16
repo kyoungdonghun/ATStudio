@@ -43,7 +43,9 @@ export default function NoticeCreatePage() {
     // File size check
     const oversized = added.filter((f) => !isFileSizeOk(f, ATTACHMENT_MAX_SIZE_MB));
     if (oversized.length > 0) {
-      setError(`첨부파일은 ${ATTACHMENT_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다. (초과: ${oversized.map((f) => f.name).join(', ')})`);
+      setError(
+        `첨부파일은 ${ATTACHMENT_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다. (초과: ${oversized.map((f) => f.name).join(', ')})`,
+      );
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -155,11 +157,7 @@ export default function NoticeCreatePage() {
         </div>
 
         <div className={styles.formActions}>
-          <Button
-            variant="ghost"
-            type="button"
-            onClick={() => navigate(-1)}
-          >
+          <Button variant="ghost" type="button" onClick={() => navigate(-1)}>
             Cancel
           </Button>
           <Button type="submit" loading={loading}>

@@ -19,6 +19,10 @@ public class WhitelistChannel extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Version
+    @Column(nullable = false)
+    private long version;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -97,9 +101,14 @@ public class WhitelistChannel extends BaseEntity {
         this.exportedAt = LocalDateTime.now();
     }
 
-    public void requestRemoval() {
+    public boolean requestRemoval() {
+        if (this.status == WhitelistChannelStatus.REMOVAL_REQUESTED) {
+            return false;
+        }
+
         this.status = WhitelistChannelStatus.REMOVAL_REQUESTED;
         this.removalRequestedAt = LocalDateTime.now();
+        return true;
     }
 
     public void updateAdminStatus(WhitelistChannelStatus status, User processedBy, String adminNote) {
@@ -119,6 +128,11 @@ public class WhitelistChannel extends BaseEntity {
                 || status == WhitelistChannelStatus.REVISION_REQUESTED
                 || status == WhitelistChannelStatus.REJECTED
                 || status == WhitelistChannelStatus.CANCELLED;
+    }
+
+    public boolean isPrimaryEligible() {
+        return status != WhitelistChannelStatus.REMOVAL_REQUESTED
+                && status != WhitelistChannelStatus.CANCELLED;
     }
 
     public static boolean countsAgainstPlanLimit(WhitelistChannelStatus status) {

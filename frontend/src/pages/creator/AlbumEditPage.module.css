@@ -87,7 +87,9 @@
   cursor: pointer;
   color: var(--text2);
   font-size: 13px;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .fileLabel:hover {
@@ -242,7 +244,9 @@
   border: 1px solid var(--accent-border);
   border-radius: 4px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .addBtn:hover:not(:disabled) {
@@ -354,7 +358,9 @@
   border: 1px solid var(--border2);
   border-radius: 4px;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .moveBtn:hover:not(:disabled) {
@@ -379,7 +385,10 @@
   border: 1px solid var(--border2);
   border-radius: 4px;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
 }
 
 .removeBtn:hover:not(:disabled) {

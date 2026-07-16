@@ -1,6 +1,6 @@
 ---
-version: 1.3
-last_updated: 2026-07-15
+version: 1.4
+last_updated: 2026-07-16
 project: ATS
 owner: EO
 category: standard
@@ -64,6 +64,8 @@ task_types:
 
 ## 3-A) ATStudio Domain Terms
 
+`AT.M` is the customer-facing service display brand. `ATStudio` remains the internal project identifier and is retained in technical identifiers, repository paths, routes, APIs, and historical records.
+
 | Key | Canonical Term | Definition | Synonyms (allowed) | Forbidden | External Standard Ref | Notes/Examples |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
 | track | Track | Shorts-ready audio content uploaded by creators and sold on the platform | music, song, audio | file (too generic) | - | Core marketplace product; DB table `tracks`, API `/api/tracks` |
@@ -88,7 +90,7 @@ task_types:
 | view-count | viewCount | Number of times a Notice has been viewed; incremented on each detail fetch | views | hits (too casual) | - | Field on `notices.view_count`; incremented by `notice.incrementViewCount()` in service layer |
 | like-count | likeCount | Denormalized count of likes on a Track or Album; kept in sync via domain methods | likes | — | - | Fields `tracks.like_count`, `albums.like_count`; updated by `incrementLikeCount()` / `decrementLikeCount()` |
 | download-count | downloadCount | Denormalized count of times a Track has been downloaded | downloads | — | - | Field `tracks.download_count`; updated by `incrementDownloadCount()` in service layer |
-| subscriber-route | SubscriberRoute | A React route guard that verifies the user has an active subscription before rendering | subscription guard | ProtectedRoute (different — role-based) | - | `frontend/src/router/SubscriberRoute.tsx`; redirects inactive users to `/subscriptions` |
+| subscriber-route | SubscriberRoute | A React route guard that verifies the user has a service-enabled subscription (`ACTIVE`, or `CANCELLED` before `expiresAt`) before rendering | subscription guard | ProtectedRoute (different — role-based) | - | `frontend/src/router/SubscriberRoute.tsx`; redirects users without service-enabled access to `/subscriptions` |
 
 ### External Standard Ref Format (Recommended)
 

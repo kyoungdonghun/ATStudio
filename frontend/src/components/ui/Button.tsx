@@ -30,11 +30,7 @@ export default function Button({
     .join(' ');
 
   return (
-    <button
-      className={classes}
-      disabled={disabled || loading}
-      {...rest}
-    >
+    <button className={classes} disabled={disabled || loading} {...rest}>
       {children}
       {loading && <span className={styles.spinner} />}
     </button>

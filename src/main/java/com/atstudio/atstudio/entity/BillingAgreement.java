@@ -47,7 +47,10 @@ import java.util.Objects;
                         columnList = "status,renewal_retry_at,id"),
                 @Index(
                         name = "idx_billing_agreements_cleanup",
-                        columnList = "billing_key_cleanup_status,billing_key_cleanup_started_at,id")
+                        columnList = "billing_key_cleanup_status,billing_key_cleanup_started_at,id"),
+                @Index(
+                        name = "idx_billing_agreements_local_reconciliation",
+                        columnList = "status,id")
         }
 )
 @Getter

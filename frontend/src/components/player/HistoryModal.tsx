@@ -77,11 +77,7 @@ export default function HistoryModal({ open, onClose }: HistoryModalProps) {
                   className={`${styles.item} ${isActive ? styles.itemActive : ''}`}
                 >
                   <div className={styles.thumb}>
-                    {thumbUrl ? (
-                      <img src={thumbUrl} alt={entry.title} />
-                    ) : (
-                      '\u266B'
-                    )}
+                    {thumbUrl ? <img src={thumbUrl} alt={entry.title} /> : '\u266B'}
                   </div>
                   <div className={styles.info}>
                     <div className={styles.title}>{entry.title}</div>

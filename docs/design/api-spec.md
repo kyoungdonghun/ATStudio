@@ -1,8 +1,83 @@
-# ATStudio API Specification v19 (Confirmed)
+---
+version: 26.0
+last_updated: 2026-07-16
+project: ATS
+owner: uv
+category: design
+status: confirmed
+dependencies:
+  - path: db-schema.md
+    reason: Persistence contract
+  - path: ../ui/atstudio-front-list.md
+    reason: Current screen and route contract
+---
 
-> **Status**: 19th confirmed - 2026-07-15 public full-track listening supersession addendum
-> **Base**: v19 + REQ-20260715-ATS-001 full-track listening restoration addendum
-> **Date**: 2026-07-15
+# ATStudio API Specification v26 (Confirmed)
+
+> **Current count contract (2026-07-16):** 149 method-level mappings across 24 `@RestController` classes. The count includes retained compatibility endpoints and excludes class-level `@RequestMapping` declarations.
+
+## v25 to v26 Change History
+
+| # | Area | Change |
+|---|---|---|
+| 1 | Receipt URL safety | Provider receipt links are actionable only when they are absolute HTTPS URLs without credentials and without a non-standard port. Unsafe retained values are suppressed by the API and remain non-clickable in the admin UI. |
+| 2 | Payment evidence logging | Reconciliation logs now contain aggregate counters only. Full issue objects, exact provider transaction identifiers, free-text issue details, and Toss cancel exception messages/stacks are excluded from application logs. |
+| 3 | Counts | The verified endpoint total remains 149; no mapping was added or removed. |
+
+> **Status**: 26th confirmed - 2026-07-16 WI-018 payment-evidence exposure closure
+> **Base**: v25 + REQ-20260716-ATS-002 / WI-20260716-ATS-018 closure
+> **Date**: 2026-07-16
+
+---
+
+## 2026-07-16 Download Atomicity
+
+| # | Item | Decision |
+|---|---|---|
+| DL1 | First-download fence | Official first-download decisions lock the owning `users` row before checking license, subscription, and daily quota. After the ledger/license writes, the Track count uses one direct atomic `downloadCount = downloadCount + 1` update, so different users cannot lose one another's increments. |
+| DL2 | License invariant | `uq_licenses_user_track (user_id, track_id)` remains the JPA and fresh-schema invariant, with a conditional retained-DB source patch as the duplicate-license backstop. |
+| DL3 | Unchanged behavior | Existing licensed re-downloads remain quota-free, ADMIN bypass remains unchanged, and public full-track listening remains outside the download path. |
+
+---
+
+## 2026-07-16 Whitelist Integrity and Immutable Export
+
+| # | Item | Decision |
+|---|---|---|
+| WL1 | Removal completion | `REMOVAL_REQUESTED -> CANCELLED` records completed external removal. `CANCELLED` is terminal and repeated completion is idempotent. |
+| WL2 | Mutation serialization | User whitelist writes lock the owning `users` row before channel/count mutations. Channel rows also carry an optimistic `version` fence. |
+| WL3 | Primary channel | `REMOVAL_REQUESTED` and `CANCELLED` are not primary-eligible. Removing or invalidating the primary promotes the newest eligible channel by `createdAt DESC, id DESC`; zero primary is valid when none remains. |
+| WL4 | Withdrawal | Account withdrawal deletes local-only channel states, changes `EXPORTED`/`REGISTERED` to `REMOVAL_REQUESTED`, preserves existing removal requests, and clears primary flags. |
+| WL5 | Export scope | Export requires a recorded status and/or keyword filter, locks the bounded deterministic selection, and rejects more than `app.whitelist.export.max-items` before creating a batch. |
+| WL6 | Immutable replay | Export batch filters and ordered item snapshots are immutable. `GET /api/admin/whitelist-channels/exports/{batchID}` rebuilds the same CSV bytes without querying current channel/subscription data. |
+| WL7 | CSV PII | CSV columns retain `userEmail` and operational channel/subscription fields; user ID and nickname are omitted from new CSVs and new item snapshots. |
+| WL8 | Full API Summary | Endpoint count increased from 147 to 148 for immutable batch re-download. |
+
+---
+
+## 2026-07-16 Account Abuse and Payment-Role Hardening
+
+| # | Item | Decision |
+|---|------|----------|
+| AL1 | Registration abuse budget | `POST /api/users` remains public and is limited per trusted client fingerprint without reading or parsing the request body. |
+| AL2 | Availability abuse budgets | Each email, phone, and nickname check consumes both an endpoint-wide trusted-client budget and a trusted-client + process-local salted normalized-identifier fingerprint budget. Rotating identifiers cannot bypass the endpoint-wide budget. Raw identifiers and client IP values are not stored in rate-limit keys or logs. |
+| AL3 | Rate-limit response | Requests over either budget return `429 Too Many Requests`, `Retry-After`, and `RATE_LIMIT_EXCEEDED`; requests within both budgets retain the existing endpoint response. The warning records only a fixed endpoint scope and retry seconds. |
+| AL4 | Payment role boundary | User payment APIs under `/api/payments/**` require `USER` and explicitly reject `ADMIN` with `403`. Admin payment operations remain under `/api/admin/payments/**`. |
+| AL5 | Checkout route boundary | USER checkout and callback routes remain available. ADMIN navigation to those routes is redirected to `/admin/payments`. |
+| AL6 | Environment evidence | `ATS020-X-02` trusted-proxy deployment evidence and `ATS020-X-03` JWT rotation/session evidence remain environment-conditional. |
+| AL7 | Full API Summary | Endpoint count unchanged at 147. |
+
+---
+
+## 2026-07-16 Bounded Payment Reconciliation
+
+| # | Item | Decision |
+|---|---|---|
+| PM1 | Local candidate coverage | Reconciliation keyset-scans all eligible `DONE` payment orders and `ACTIVE` billing agreements with `id > lastSeenID`; it does not stop at the latest 100 rows or load all active agreements. |
+| PM2 | Bounded response | Local and provider mismatch counters cover the full scan. `issues` is capped by configuration, `totalIssues` reports the full count, and `issueDetailsTruncated` reports whether details were omitted. |
+| PM3 | Scheduled persistence | Scheduled local reconciliation persists every mismatch batch before releasing it. API detail truncation does not suppress Incident creation. |
+| PM4 | Mutation boundary | The admin endpoint remains read-only for payment, billing agreement, subscription, and provider state. Existing exact-evidence finalization rules for provider recovery remain unchanged. |
+| PM5 | Full API Summary | Endpoint count unchanged at 147. |
 
 ---
 
@@ -429,7 +504,7 @@ The endpoint returns `audio/mpeg` by default and `audio/wav` for a `.wav` resour
 |-------|-------|
 | **URL** | `GET /api/tracks/{trackId}/download` |
 | **Auth** | auth required; active subscription required for a first download, while an existing License permits entitled re-download |
-| **Description** | Official Track download. A first download checks the active subscription and plan daily limit, saves a download record, and auto-issues a License. An existing License permits re-download without duplicate issuance or another daily-count entry. |
+| **Description** | Official Track download. A first download takes the owning user's narrow database write lock before checking the active subscription and plan daily limit, then saves one download record and auto-issues one License. The lock serializes concurrent first-download decisions for that user; the `licenses(user_id, track_id)` unique invariant is the database backstop. Its Track count is updated by one direct atomic `downloadCount = downloadCount + 1` statement, avoiding cross-user lost updates. An existing License permits re-download without duplicate issuance, another daily-count entry, or another count increment. |
 
 **Response** `200 OK` — file download (Content-Disposition: attachment)
 
@@ -638,6 +713,7 @@ bpmMax: Integer (optional)
 |-------|-------|
 | **URL** | `POST /api/playlists` |
 | **Auth** | auth required (subscribers only) |
+| **Concurrency** | Locks the owning user row before plan-count verification and insert. |
 
 **Request** (multipart/form-data)
 ```
@@ -713,6 +789,7 @@ thumbnail: File (optional)
 |-------|-------|
 | **URL** | `POST /api/playlists/{playlistId}/tracks` |
 | **Auth** | auth required (subscribers only, owner only) |
+| **Concurrency** | Locks the target playlist row before membership, count, and order mutation. |
 
 **Request**
 ```json
@@ -749,6 +826,7 @@ thumbnail: File (optional)
 |-------|-------|
 | **URL** | `PUT /api/playlists/{playlistId}/tracks` |
 | **Auth** | auth required (subscribers only, owner only) |
+| **Contract** | Payload must contain every current playlist member exactly once with unique contiguous orders from 0 through n-1; the target playlist row is locked for the mutation. |
 
 **Request**
 ```json
@@ -767,6 +845,7 @@ thumbnail: File (optional)
 |-------|-------|
 | **URL** | `DELETE /api/playlists/{playlistId}/tracks/{trackId}` |
 | **Auth** | auth required (subscribers only, owner only) |
+| **Concurrency** | Locks the target playlist row and compacts remaining order positions after removal. |
 
 **Response** `204 No Content`
 
@@ -783,7 +862,7 @@ thumbnail: File (optional)
 |-------|-------|
 | **URL** | `POST /api/playlists/{playlistId}/tracks/batch` |
 | **Auth** | auth required (subscribers only, owner only) |
-| **Description** | Bulk add multiple tracks to a playlist in one request (SR-52). Silently skips tracks already in the playlist and inactive tracks; returns the count of newly added tracks. Max 50 track IDs per request. |
+| **Description** | Bulk add multiple tracks to a playlist in one request (SR-52). Locks the target playlist row before count/order writes, silently skips tracks already in the playlist and inactive tracks, and returns the count of newly added tracks. Max 50 track IDs per request. |
 
 **Request**
 ```json
@@ -812,12 +891,14 @@ thumbnail: File (optional)
 
 # 4. Sound — Play History
 
+> **Current SPA boundary:** The active React play-history screen uses browser `localStorage` key `playHistory`, keeps at most 100 de-duplicated tracks, and records only after playback starts. It does not call or synchronize with the APIs below. The three server endpoints and `play_histories` table remain compatibility surfaces for legacy callers; they are not the current screen source of truth.
+
 ## 4.1 Save Play History
 | Field | Value |
 |-------|-------|
 | **URL** | `POST /api/play-histories` |
 | **Auth** | auth required |
-| **Description** | Auto-records when track is played in the Que bar (synced with tracks.play_count) |
+| **Description** | Retained compatibility API for server-side history and `tracks.play_count`; the active SPA does not call it. |
 
 **Request**
 ```json
@@ -833,7 +914,7 @@ thumbnail: File (optional)
 |-------|-------|
 | **URL** | `GET /api/play-histories` |
 | **Auth** | auth required |
-| **Description** | My play history list (newest first) |
+| **Description** | Retained compatibility API for server-side history; the active SPA reads browser-local history instead. |
 
 **Query Parameters**
 ```
@@ -860,7 +941,7 @@ size: Integer (default: 50)
 |-------|-------|
 | **URL** | `DELETE /api/play-histories` |
 | **Auth** | auth required |
-| **Description** | Selective delete (specify historyIds) or full delete (if historyIds is empty) |
+| **Description** | Retained compatibility API for deleting server-side history. Browser-local SPA history is deleted in `localStorage` and is not synchronized here. |
 
 **Request**
 ```json
@@ -881,6 +962,7 @@ size: Integer (default: 50)
 |-------|-------|
 | **URL** | `POST /api/users` |
 | **Auth** | `[PUBLIC]` |
+| **Abuse control** | 5 requests / 900 seconds per trusted client fingerprint; the filter does not read the body |
 
 **Request**
 ```json
@@ -913,6 +995,7 @@ size: Integer (default: 50)
 { "status": 409, "error": "Conflict", "errorCode": "EMAIL_ALREADY_REGISTERED", "message": "이미 가입된 이메일입니다." }
 { "status": 409, "error": "Conflict", "errorCode": "NICKNAME_DUPLICATED", "message": "이미 사용 중인 닉네임입니다." }
 { "status": 409, "error": "Conflict", "errorCode": "PHONE_ALREADY_REGISTERED", "message": "이미 등록된 전화번호입니다." }
+{ "status": 429, "error": "Too Many Requests", "errorCode": "RATE_LIMIT_EXCEEDED", "message": "짧은 시간에 너무 많은 요청이 발생했습니다. 잠시 후 다시 시도해주세요." }
 ```
 
 ## 5.2 Login
@@ -948,7 +1031,19 @@ size: Integer (default: 50)
 |-------|-------|
 | **URL** | `POST /api/auth/social/{provider}` |
 | **Auth** | `[PUBLIC]` |
-| **Description** | OAuth2.0 social login (GOOGLE/KAKAO/NAVER) with PKCE. On first signup, creates a users record with minimal info and returns `isProfileComplete: false`. Frontend detects this and navigates to 5.10 Profile Completion screen. |
+| **Description** | OAuth2.0 social login (GOOGLE/KAKAO/NAVER) with the existing PKCE-compatible request flow. On first signup, creates a users record with minimal info and returns `isProfileComplete: false`. Frontend detects this and navigates to 5.10 Profile Completion screen. |
+
+**Frontend callback contract**
+
+- Each redirect attempt is stored in session storage under its OAuth `state`
+  with the PKCE verifier, a validated internal return target, and creation time.
+- The callback removes the matching record before provider exchange. Missing,
+  malformed, older-than-10-minute, or replayed state is rejected.
+- A complete profile returns to the revalidated target. An incomplete profile
+  transfers that target through a separate one-time continuation consumed after
+  profile completion; invalid or missing continuation falls back to `/`.
+- External, protocol-relative, control-character, fragment, backslash, and
+  authentication/admin/API return targets are rejected.
 
 **Request**
 ```json
@@ -957,7 +1052,13 @@ size: Integer (default: 50)
   "codeVerifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
 }
 ```
-> `codeVerifier` (required): PKCE code verifier generated by the frontend and paired with the `code_challenge` sent during the authorization request.
+> `authorizationCode` is required and nonblank. `codeVerifier` is forwarded when the frontend uses PKCE; the existing endpoint accepts it as optional for provider compatibility.
+
+**Provider Response Contract**
+- Token and user-info payloads are deserialized into provider-specific typed response records; no raw `Map<String, Object>` response is used for authentication decisions.
+- The provider access token and required provider identity are mandatory. Text fields must be nonblank; Kakao's documented integral identity is normalized, while other wrong-type required fields fail closed. Provider error payloads, null bodies, missing fields, and blank fields return `401 SOCIAL_AUTH_FAILED`; no local session is issued.
+- Real authorization codes, PKCE verifiers, provider access tokens, provider identifiers, and raw provider response bodies are not written to logs, exceptions, or operational evidence. Tests use synthetic scalar fixtures only, never captured provider payloads or secrets.
+- Google, Kakao, and Naver happy-path compatibility is covered by local typed-response tests only. Real-provider payload compatibility remains `ENVIRONMENT-CONDITIONAL` until an approved environment run; this WI performs no live provider call.
 
 **Response** `200 OK`
 ```json
@@ -1104,7 +1205,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 |-------|-------|
 | **URL** | `DELETE /api/users/me` |
 | **Auth** | auth required |
-| **Description** | Password-authenticated soft withdrawal with local-first billing stop. In the withdrawal transaction, a non-terminal Toss billing agreement and ACTIVE subscription are marked `CANCELLED`, an ID-only cleanup event is published when encrypted key material exists, transient user-owned rows are removed, and `users.is_deleted` becomes `1`. Provider billing-key deletion runs only after commit. No automatic refund is created. |
+| **Description** | Password-authenticated soft withdrawal with local-first billing stop. In the withdrawal transaction, a non-terminal Toss billing agreement and ACTIVE subscription are marked `CANCELLED`, an ID-only cleanup event is published when encrypted key material exists, transient user-owned rows are removed, and `users.is_deleted` becomes `1`. Provider billing-key deletion runs only after commit. No automatic refund is created. Social-only withdrawal is `POLICY-PENDING`: the existing password-only flow remains unchanged until the user approves fresh provider reauthentication plus linked provider-ID matching. |
 
 **Request**
 ```json
@@ -1136,6 +1237,17 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 ```json
 { "status": 400, "error": "Bad Request", "errorCode": "INVALID_ARGUMENT", "message": "현재 비밀번호가 일치하지 않습니다." }
 ```
+
+---
+
+## 5.12 Logout
+| Field | Value |
+|-------|-------|
+| **URL** | `POST /api/auth/logout` |
+| **Auth** | auth required |
+| **Description** | Revokes the authenticated user's refresh-token state. The frontend also clears its local access-token/session state. |
+
+**Response** `204 No Content`
 
 ---
 
@@ -1238,7 +1350,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 | Field | Value |
 |-------|-------|
 | **URL** | `POST /api/payments/subscriptions/prepare` |
-| **Auth** | auth required |
+| **Auth** | `[USER]`; ADMIN receives `403 Forbidden` |
 | **Description** | Blocked legacy one-time subscription payment preparation. User-facing recurring subscription purchase uses §6.3.4 → §6.3.5. User-facing upgrade uses §6.7 and must not route to this one-time Toss Widget path. |
 
 **Request**
@@ -1266,7 +1378,7 @@ userType: String (optional, "INDIVIDUAL"|"BUSINESS")
 | Field | Value |
 |-------|-------|
 | **URL** | `POST /api/payments/confirm` |
-| **Auth** | auth required |
+| **Auth** | `[USER]`; ADMIN receives `403 Forbidden` |
 | **Description** | Confirms non-subscription payment orders only. One-time `SUBSCRIBE` and `UPGRADE` orders are rejected before provider confirmation; recurring subscription creation uses §6.3.5 and upgrades use §6.7. Already-`DONE` legacy orders remain idempotent. |
 
 **Request**
@@ -1311,7 +1423,7 @@ For current subscription flows, the frontend must not call this endpoint. Toss o
 | Field | Value |
 |-------|-------|
 | **URL** | `POST /api/payments/cancel` |
-| **Auth** | auth required |
+| **Auth** | `[USER]`; ADMIN receives `403 Forbidden` |
 | **Description** | Closes a prepared payment order as CANCELLED or FAILED without mutating subscription state. Used by Mock controls and Toss fail redirect handling. |
 
 **Request**
@@ -1336,7 +1448,7 @@ For current subscription flows, the frontend must not call this endpoint. Toss o
 | Field | Value |
 |-------|-------|
 | **URL** | `POST /api/payments/billing-agreements/prepare` |
-| **Auth** | auth required |
+| **Auth** | `[USER]`; ADMIN receives `403 Forbidden` |
 | **Description** | Creates an internal billing agreement registration order and returns Toss billing-auth metadata. For a new subscription, the order purpose is `SUBSCRIBE` and the first-period amount is charged during confirm. For an existing active/grace-period subscription that is re-registering an interrupted, expired, or missing payment method, the order purpose is `BILLING_AGREEMENT` and amount is `0`; subscription activation or plan change does not occur at prepare time. |
 
 **Request**
@@ -1353,7 +1465,10 @@ For current subscription flows, the frontend must not call this endpoint. Toss o
   "orderId": "ATS-BILL-20260518-ABC123",
   "provider": "TOSS_BILLING",
   "purpose": "BILLING_AGREEMENT",
-  "amount": 9900,
+  "agreementStatus": "READY",
+  "subscriptionId": 1,
+  "billingCycle": "MONTHLY",
+  "amount": 0,
   "currency": "KRW",
   "expiresAt": "2026-05-18T23:10:00",
   "checkout": {
@@ -1373,40 +1488,44 @@ For payment-method re-registration on an existing active/grace-period subscripti
 | Field | Value |
 |-------|-------|
 | **URL** | `POST /api/payments/billing-agreements/confirm` |
-| **Auth** | auth required |
+| **Auth** | `[USER]`; ADMIN receives `403 Forbidden` |
 | **Description** | Exchanges Toss billing `authKey` for a server-side billing key and stores it encrypted. For `SUBSCRIBE` orders, the backend immediately performs the first subscription charge and activates the subscription only after that charge succeeds. For `BILLING_AGREEMENT` orders, the backend updates the stored payment method only, keeps the current subscription unchanged, and sets the next billing date to the current subscription `expiresAt`. |
 
 **Request**
 ```json
 {
   "orderId": "ATS-BILL-20260518-ABC123",
-  "amount": 9900,
+  "authKey": "toss-auth-key",
   "customerKey": "ats_user_1_xxxxx",
-  "authKey": "toss-auth-key"
+  "amount": 0
 }
 ```
 
-**Response** `200 OK`
+**Response `data` payload** `200 OK`
 ```json
 {
-  "billingAgreement": {
-    "id": 10,
-    "provider": "TOSS_BILLING",
-    "status": "ACTIVE",
-    "payMethod": "CARD",
-    "maskedMethod": "****1234",
-    "nextBillingAt": "2026-06-18"
-  },
+  "orderId": "ATS-BILL-20260518-ABC123",
+  "orderStatus": "DONE",
+  "provider": "TOSS_BILLING",
+  "agreementStatus": "ACTIVE",
+  "nextBillingAt": "2026-06-18",
   "subscription": {
     "id": 1,
+    "userId": 7,
+    "userNickname": "tester",
     "subscription": { "id": 1, "name": "STANDARD" },
     "billingCycle": "MONTHLY",
     "status": "ACTIVE",
     "startedAt": "2026-05-18",
-    "expiresAt": "2026-06-18"
+    "expiresAt": "2026-06-18",
+    "pendingSubscriptionId": null,
+    "pendingBillingCycle": null,
+    "createdAt": "2026-05-18T22:00:00"
   }
 }
 ```
+
+For a payment-method re-registration, `subscription` is the unchanged current subscription. For a new-subscription confirmation, it is the newly activated subscription. The response is flat; there is no nested `billingAgreement` object.
 
 **Error Cases**
 - `400 Bad Request` — `BILLING_AGREEMENT_INVALID_STATE`, `BILLING_AGREEMENT_CONFIRM_FAILED`, `PAYMENT_AMOUNT_MISMATCH`, `PAYMENT_ORDER_EXPIRED`
@@ -1418,21 +1537,25 @@ For payment-method re-registration on an existing active/grace-period subscripti
 | Field | Value |
 |-------|-------|
 | **URL** | `GET /api/payments/billing-agreements/me` |
-| **Auth** | auth required |
+| **Auth** | `[USER]`; ADMIN receives `403 Forbidden` |
 | **Description** | Returns the current user's billing agreement status for subscription management. Raw billing keys are never returned. |
 
 **Response** `200 OK`
 ```json
 {
-  "id": 10,
   "provider": "TOSS_BILLING",
   "status": "ACTIVE",
   "payMethod": "CARD",
   "maskedMethod": "****1234",
   "nextBillingAt": "2026-06-18",
   "lastChargedAt": "2026-05-18T22:00:00",
-  "failureCount": 0,
-  "cancelledAt": null
+  "cancelledAt": null,
+  "subscription": {
+    "id": 1,
+    "billingCycle": "MONTHLY",
+    "status": "ACTIVE",
+    "expiresAt": "2026-06-18"
+  }
 }
 ```
 
@@ -1440,22 +1563,31 @@ For payment-method re-registration on an existing active/grace-period subscripti
 | Field | Value |
 |-------|-------|
 | **URL** | `DELETE /api/payments/billing-agreements/me` |
-| **Auth** | auth required |
+| **Auth** | `[USER]`; ADMIN receives `403 Forbidden` |
 | **Description** | Provider-level billing agreement cancellation endpoint. This is not the primary user-facing subscription cancel UX. The user-facing stop-renewal path is §6.10 `DELETE /api/user-subscriptions/me`, which keeps the encrypted billing key for possible reactivation before `expiresAt`. This endpoint deletes/cancels the provider billing key when one exists, clears local issued-key display fields, marks the agreement `CANCELLED`, and also cancels the active subscription if one exists. Reactivation without payment-method re-registration may not be possible after this endpoint clears the issued key. Already-paid subscription access remains available until `expiresAt`. |
 
 **Response** `200 OK`
 ```json
 {
-  "id": 10,
   "provider": "TOSS_BILLING",
   "status": "CANCELLED",
   "payMethod": null,
   "maskedMethod": null,
   "nextBillingAt": null,
-  "failureCount": 0,
-  "cancelledAt": "2026-05-18T22:10:00"
+  "lastChargedAt": "2026-05-18T22:00:00",
+  "cancelledAt": "2026-05-18T22:10:00",
+  "subscription": {
+    "id": 1,
+    "billingCycle": "MONTHLY",
+    "status": "CANCELLED",
+    "expiresAt": "2026-06-18"
+  }
 }
 ```
+
+### Legacy subscription endpoint lifecycle
+
+The blocked direct-subscription and one-time subscription endpoints remain only as an explicit compatibility failure boundary. They may be removed only after all of the following are evidenced in a separately approved change: current frontend and supported clients have no callers; callback/bookmark telemetry or an agreed observation window shows no stale use; replacement recurring routes are documented and tested; and the removal includes API, route, test, and client-document updates with rollback guidance. Until then, they must continue to reject subscription mutation and must not silently fall back to one-time payment.
 
 ## 6.3.8 Payment Operations Admin APIs
 
@@ -1466,7 +1598,7 @@ These endpoints are implemented as admin support/audit views and controlled paym
 | `GET /api/admin/payments/orders` | List payment attempts by latest created date | Read-only; includes status, purpose, provider, amount, sanitized failure code/message |
 | `GET /api/admin/payments/billing-agreements` | List billing agreements by latest created date | Shows masked method and failure count only |
 | `GET /api/admin/payments/subscription-payments` | List finalized subscription payment records | No refund/settlement mutation in this phase |
-| `GET /api/admin/payments/receipts` | List persisted payment receipt evidence | Read-only; stores safe provider receipt URL/key metadata only |
+| `GET /api/admin/payments/receipts` | List persisted payment receipt evidence | Read-only; exposes only normalized absolute HTTPS receipt URLs without credentials or non-standard ports |
 | `GET /api/admin/payments/operation-audit-logs` | List payment operation audit logs | Read-only; includes admin/system action metadata without raw provider payloads |
 | `GET /api/admin/payments/refund-preview/{subscriptionPaymentId}` | Preview refundable amount for a finalized subscription payment | Read-only; rejects unsupported provider/status/missing provider payment key |
 | `GET /api/admin/payments/settlements` | List settlement reconciliation rows | Optional status/source/base-date filters; support-safe accounting evidence only |
@@ -1494,7 +1626,7 @@ These endpoints are implemented as admin support/audit views and controlled paym
 |---|---|
 | **URL** | `GET /api/admin/payments/receipts?page=1&size=20` |
 | **Auth** | ADMIN |
-| **Description** | Lists receipt evidence rows captured after successful subscription charges. This endpoint is read-only and returns support-safe receipt metadata only. It does not expose raw provider payloads, billing keys, auth keys, customer keys, or raw card data. |
+| **Description** | Lists receipt evidence rows captured after successful subscription charges. This endpoint is read-only and returns support-safe receipt metadata only. `receiptUrl` is returned only when it is an absolute HTTPS URL without credentials and with no explicit port other than 443; an unsafe retained legacy value is returned as `null`. It does not expose raw provider payloads, billing keys, auth keys, customer keys, or raw card data. |
 
 **Response** `200 OK`
 
@@ -1511,8 +1643,8 @@ These endpoints are implemented as admin support/audit views and controlled paym
       "provider": "TOSS_BILLING",
       "type": "PAYMENT_RECEIPT",
       "status": "ISSUED",
-      "providerPaymentKey": "payment_key",
-      "receiptKey": null,
+      "providerReference": "REF-91A6E55C0E37",
+      "receiptReference": null,
       "receiptUrl": "https://dashboard.tosspayments.com/receipt/payment_key",
       "issuedAt": "2026-05-25T10:00:00",
       "cancelledAt": null,
@@ -1558,7 +1690,7 @@ These endpoints are implemented as admin support/audit views and controlled paym
       "subscriptionPaymentId": null,
       "reconciliationIncidentId": 10,
       "provider": "TOSS_BILLING",
-      "providerTransactionId": "payment_key",
+      "providerReference": "REF-91A6E55C0E37",
       "beforeStatus": "OPEN",
       "afterStatus": "ACKNOWLEDGED",
       "reasonCode": "PROVIDER_DONE_LOCAL_NOT_FINALIZED",
@@ -1597,8 +1729,8 @@ These endpoints are implemented as admin support/audit views and controlled paym
       "provider": "TOSS_BILLING",
       "status": "MATCHED",
       "orderId": "ATS-REN-20260525-ABC123",
-      "providerPaymentKey": "payment_key",
-      "providerSettlementId": "settlement_row_1",
+      "providerReference": "REF-91A6E55C0E37",
+      "providerSettlementReference": "REF-0718A08C8B79",
       "paymentOrderId": 3001,
       "subscriptionPaymentId": 901,
       "userId": 12,
@@ -1728,7 +1860,7 @@ These endpoints are implemented as admin support/audit views and controlled paym
     "originalAmount": 29900,
     "alreadyRefundedOrReservedAmount": 10000,
     "refundableAmount": 19900,
-    "providerPaymentKey": "payment_key",
+    "providerReference": "REF-91A6E55C0E37",
     "refundable": true,
     "reason": null
   }
@@ -1762,8 +1894,8 @@ These endpoints are implemented as admin support/audit views and controlled paym
       "reasonCode": "CUSTOMER_REQUEST",
       "reasonNote": "Support-approved refund.",
       "idempotencyKey": "ATS-REFUND-8F68B0D6F73A",
-      "providerPaymentKey": "payment_key",
-      "providerRefundTransactionId": null,
+      "providerReference": "REF-91A6E55C0E37",
+      "providerRefundReference": null,
       "failureCode": null,
       "failureMessage": null,
       "requestedById": 99,
@@ -1816,8 +1948,8 @@ These endpoints are implemented as admin support/audit views and controlled paym
     "reasonCode": "CUSTOMER_REQUEST",
     "reasonNote": "Support-approved refund.",
     "idempotencyKey": "ATS-REFUND-8F68B0D6F73A",
-    "providerPaymentKey": "payment_key",
-    "providerRefundTransactionId": null,
+    "providerReference": "REF-91A6E55C0E37",
+    "providerRefundReference": null,
     "failureCode": null,
     "failureMessage": null,
     "requestedById": 99,
@@ -2069,23 +2201,28 @@ These endpoints are implemented as admin support/audit views and controlled paym
 |---|---|
 | **URL** | `GET /api/admin/payments/reconciliation` |
 | **Auth** | ADMIN |
-| **Description** | Runs read-only local ledger and provider API-backed reconciliation for recent subscription payment orders. Provider lookup is skipped when the provider lookup configuration is unavailable. This endpoint is for operations diagnostics only and must not mutate payment, billing agreement, or subscription state. It returns current mismatch results on demand but does not persist incident records, acknowledge issues, resolve issues, or send operator notifications. |
+| **Description** | Runs read-only local ledger and provider API-backed reconciliation for all eligible candidates through bounded ID-keyset batches. Provider lookup is skipped when the provider lookup configuration is unavailable. This endpoint is for operations diagnostics only and must not mutate payment, billing agreement, or subscription state. It returns current support-safe mismatch results on demand but does not persist incident records, acknowledge issues, resolve issues, or send operator notifications. Counts cover the full scan; issue details are capped by `app.payment.operations.reconciliation.issue-detail-limit`. Application logs record aggregate counters only and never serialize the returned issue list or exact provider transaction identifiers. |
 
 **Response** `200 OK`
+
+This on-demand response is distinct from the persisted Incident list in the next endpoint. Its
+provider issues include both `localCurrency` and `providerCurrency` beside the compared amounts.
 
 ```json
 {
   "data": {
     "localLedger": {
-      "checkedOrders": 100,
-      "checkedBillingAgreements": 12,
+      "checkedOrders": 240,
+      "checkedBillingAgreements": 112,
       "doneOrdersWithoutPayment": 0,
       "activeAgreementsWithoutSubscription": 0,
       "hasMismatch": false,
+      "totalIssues": 0,
+      "issueDetailsTruncated": false,
       "issues": []
     },
     "providerLedger": {
-      "checkedOrders": 100,
+      "checkedOrders": 180,
       "skippedOrders": 0,
       "providerNotFound": 2,
       "lookupFailures": 0,
@@ -2093,6 +2230,8 @@ These endpoints are implemented as admin support/audit views and controlled paym
       "localDoneButProviderNotDone": 0,
       "amountMismatches": 0,
       "hasMismatch": true,
+      "totalIssues": 3,
+      "issueDetailsTruncated": true,
       "issues": [
         {
           "issueType": "PROVIDER_DONE_LOCAL_NOT_FINALIZED",
@@ -2106,7 +2245,9 @@ These endpoints are implemented as admin support/audit views and controlled paym
           "providerStatus": "DONE",
           "localAmount": 9900,
           "providerAmount": 9900,
-          "providerTransactionId": "payment_key",
+          "localCurrency": "KRW",
+          "providerCurrency": "KRW",
+          "providerReference": "REF-91A6E55C0E37",
           "failureCode": null,
           "failureMessage": null
         }
@@ -2146,7 +2287,7 @@ These endpoints are implemented as admin support/audit views and controlled paym
       "providerStatus": "DONE",
       "localAmount": 9900,
       "providerAmount": 9900,
-      "providerTransactionId": "payment_key",
+      "providerReference": "REF-91A6E55C0E37",
       "failureCode": null,
       "failureMessage": null,
       "occurrenceCount": 2,
@@ -2897,6 +3038,8 @@ keyword: String (optional)
 > **channelUrl validation**: Strict URI parsing — host must be exactly `youtube.com` or end with `.youtube.com`. Supports all URL formats — `@handle`, `/channel/UCxxx`, `/c/customname`. Spoofed domains (e.g., `notarealsite-youtube.com`) are rejected.
 > Saving a channel creates a `DRAFT` row. Active subscription and plan limit checks are performed by 12.4 when the user requests registration.
 
+Saving is also protected by the separate technical safety cap `APP_WHITELIST_MAX_SAVED_CHANNELS` (default 100). Under the owning user-row lock, a user already at that saved-row cap receives `WHITELIST_CHANNEL_LIMIT_EXCEEDED` before insert. This cap is not a subscription tier or registration-slot policy.
+
 **Response** `201 Created`
 ```json
 {
@@ -2920,6 +3063,8 @@ keyword: String (optional)
 ```json
 { "status": 400, "error": "Bad Request", "errorCode": "INVALID_ARGUMENT", "message": "유튜브 채널 URL이 올바르지 않습니다." }
 ```
+
+- `403 WHITELIST_CHANNEL_LIMIT_EXCEEDED`: the separate saved-row technical cap is already reached.
 
 ## 12.2 My Channel List
 | Field | Value |
@@ -2950,6 +3095,8 @@ keyword: String (optional)
 }
 ```
 
+The query is bounded to `APP_WHITELIST_MAX_SAVED_CHANNELS` and ordered by `primary DESC, createdAt DESC`. For a retained user already above the configured cap, this unchanged response shape contains only that deterministic leading window; it does not claim to return older rows beyond the cap and has no pagination metadata.
+
 ## 12.3 Update Channel
 | Field | Value |
 |-------|-------|
@@ -2968,6 +3115,7 @@ keyword: String (optional)
 
 > **channelUrl validation**: Same as 12.1 — strict URI parsing, host must be exactly `youtube.com` or end with `.youtube.com`.
 > Updating a channel in `REGISTERED`, `EXPORTED`, or `REVISION_REQUESTED` is treated as a reprocessing request. The backend checks active subscription and plan limit, excludes the target channel's own counted slot, then moves it back to `PENDING` for operator reprocessing.
+> `REMOVAL_REQUESTED` and terminal `CANCELLED` are immutable to member edits so the external removal target cannot drift. A completed-removal row may be deleted locally and replaced with a new draft.
 
 **Response** `200 OK`
 
@@ -2980,7 +3128,7 @@ keyword: String (optional)
 **Description**
 Moves a saved channel to `PENDING` after checking active subscription and plan limit.
 
-`PENDING` requests are idempotent. For `REVISION_REQUESTED`, the target channel's own counted slot is excluded before comparing against the plan limit, then the channel moves back to `PENDING`. Direct request attempts from `EXPORTED`, `REGISTERED`, or `REMOVAL_REQUESTED` return `INVALID_STATE_TRANSITION`.
+`PENDING` requests are idempotent. For `REVISION_REQUESTED`, the target channel's own counted slot is excluded before comparing against the plan limit, then the channel moves back to `PENDING`. Direct request attempts from `EXPORTED`, `REGISTERED`, `REMOVAL_REQUESTED`, or terminal `CANCELLED` return `INVALID_STATE_TRANSITION`.
 
 **Plan Limit Counted Statuses**
 ```
@@ -3003,7 +3151,7 @@ PENDING, EXPORTED, REGISTERED, REVISION_REQUESTED, REMOVAL_REQUESTED
 | **Auth** | auth required (owner only) |
 
 **Description**
-Marks the selected channel as the user's representative YouTube channel and clears the previous primary channel if present.
+Marks an eligible channel as the user's representative YouTube channel and clears the previous primary channel. `REMOVAL_REQUESTED` and `CANCELLED` are ineligible and return `INVALID_STATE_TRANSITION`. The owning `users` row serializes concurrent primary changes.
 
 **Response** `200 OK`
 
@@ -3014,9 +3162,9 @@ Marks the selected channel as the user's representative YouTube channel and clea
 | **Auth** | auth required (owner only) |
 
 **Description**
-Deletes local-only states (`DRAFT`, `PENDING`, `REVISION_REQUESTED`, `REJECTED`, `CANCELLED`). For `EXPORTED` and `REGISTERED`, the row is kept and changed to `REMOVAL_REQUESTED` because external removal must be handled manually by an operator.
+Deletes local-only states (`DRAFT`, `PENDING`, `REVISION_REQUESTED`, `REJECTED`, `CANCELLED`). For `EXPORTED` and `REGISTERED`, the row is kept and changed to `REMOVAL_REQUESTED` because external removal must be handled manually by an operator. Repeating the operation for `REMOVAL_REQUESTED` is idempotent and preserves the first removal-request timestamp.
 
-If the deleted local-only row was the user's primary channel and another saved channel remains, the backend promotes one remaining channel as primary.
+If the removed row was primary, the backend promotes the newest eligible row by `createdAt DESC, id DESC`. Account withdrawal uses the same evidence boundary: local-only rows are deleted, `EXPORTED`/`REGISTERED` rows enter `REMOVAL_REQUESTED`, existing removal requests remain, and no withdrawn-user primary is retained.
 
 **Response** `204 No Content`
 
@@ -3096,10 +3244,20 @@ size: Integer (default: 20)
 }
 ```
 
-**Supported Status Values**
-```
-REGISTERED, REVISION_REQUESTED, REJECTED, REMOVAL_REQUESTED, CANCELLED
-```
+**Transition Matrix**
+
+| Source | Allowed target |
+|---|---|
+| `DRAFT` | none |
+| `PENDING` | `REGISTERED`, `REVISION_REQUESTED`, `REJECTED` |
+| `EXPORTED` | `REGISTERED`, `REVISION_REQUESTED`, `REJECTED`, `REMOVAL_REQUESTED` |
+| `REGISTERED` | `REVISION_REQUESTED`, `REMOVAL_REQUESTED` |
+| `REVISION_REQUESTED` | `REGISTERED`, `REJECTED` |
+| `REJECTED` | none; the member may request again |
+| `REMOVAL_REQUESTED` | `CANCELLED` |
+| `CANCELLED` | none; terminal |
+
+Submitting the current status is idempotent. Any other source/target pair returns `INVALID_STATE_TRANSITION` without partial mutation.
 
 **Response** `200 OK`
 
@@ -3109,29 +3267,45 @@ REGISTERED, REVISION_REQUESTED, REJECTED, REMOVAL_REQUESTED, CANCELLED
 | **URL** | `POST /api/admin/whitelist-channels/export` |
 | **Auth** | `[ADMIN]` |
 
-**Query Parameters**
-```
-status: WhitelistChannelStatus (optional; default PENDING)
-note: String (optional)
+**Request**
+```json
+{
+  "status": "PENDING",
+  "keyword": "shorts",
+  "note": "Agency handoff"
+}
 ```
 
-> Export is status-based. `keyword` filtering is supported by 12.7 list only and is not applied to CSV export in the current implementation.
+At least one of `status` or nonblank `keyword` is required. The backend reads at most `APP_WHITELIST_EXPORT_MAX_ITEMS + 1` candidates in `requestedAt ASC, id ASC` order and rejects an oversized selection with `INVALID_ARGUMENT` before any lock-driven mutation or partial batch. For an accepted selection, it locks the distinct owning users in ID order and then locks the selected channel rows before snapshotting or changing `PENDING` rows. The default maximum is 500.
 
 **Response** `200 OK`
 ```
 Content-Type: text/csv;charset=UTF-8
 Content-Disposition: attachment; filename*=UTF-8''whitelist-channels-20260603-100000.csv
+X-Whitelist-Export-Batch-Id: 77
 ```
+
+Both response headers are exposed by the API CORS policy so an allowed separate-origin admin
+frontend can recover the filename and immutable batch identity.
 
 **CSV Columns**
 ```
-requestId,userId,userEmail,userNickname,channelName,youtubeHandle,channelUrl,youtubeChannelId,requestedAt,planName,billingCycle,exportedAt
+requestId,userEmail,channelName,youtubeHandle,channelUrl,youtubeChannelId,requestedAt,planName,billingCycle,exportedAt
 ```
 
 **Side Effects**
-- Creates `whitelist_export_batches` and `whitelist_export_items` snapshot rows when export target rows exist.
+- Creates one immutable `whitelist_export_batches` row, including the applied status/keyword filter, and ordered `whitelist_export_items` snapshots even when the result is empty.
 - When exporting `PENDING` rows, marks those channels as `EXPORTED`.
 - Exporting non-`PENDING` rows is allowed for operations review/removal handoff, but it does not overwrite the current workflow status.
+- New item snapshots retain `userEmail` plus operational channel/subscription fields. They do not copy user ID or nickname.
+
+## 12.10 Re-download Whitelist Export Batch
+| Field | Value |
+|-------|-------|
+| **URL** | `GET /api/admin/whitelist-channels/exports/{batchID}` |
+| **Auth** | `[ADMIN]` |
+
+Rebuilds the CSV from immutable ordered item snapshots. It does not query current channels, users, or subscriptions. The response uses the stored filename and returns the same `X-Whitelist-Export-Batch-Id`; batches created by 12.9 produce byte-stable re-downloads. The stored `itemCount` must remain within `APP_WHITELIST_EXPORT_MAX_ITEMS`, and the item query is bounded to the configured maximum plus one.
 
 ---
 
@@ -3151,31 +3325,37 @@ documents: List<File> (required)
 **Response** `201 Created`
 ```json
 {
-  "id": 1,
-  "userId": 10,
-  "userNickname": "biz-user",
-  "userEmail": "biz@example.com",
-  "companyName": "ATStudio Biz",
-  "phoneCompany": "02-1234-5678",
-  "status": "PENDING",
-  "documentPath": "/uploads/company-docs/10/3f4a9b2c/",
-  "documents": [
-    {
-      "id": 101,
-      "originalFilename": "business-license.pdf",
-      "contentType": "application/pdf",
-      "sizeBytes": 123456,
-      "createdAt": "2026-06-18T10:00:00"
-    }
-  ],
-  "createdAt": "2026-02-19T10:00:00"
+  "message": "Company certification application submitted",
+  "data": {
+    "id": 1,
+    "userId": 10,
+    "userNickname": "biz-user",
+    "userEmail": "biz@example.com",
+    "companyName": "ATStudio Biz",
+    "phoneCompany": "02-1234-5678",
+    "status": "PENDING",
+    "documents": [
+      {
+        "id": 101,
+        "originalFilename": "business-license.pdf",
+        "contentType": "application/pdf",
+        "sizeBytes": 123456,
+        "createdAt": "2026-06-18T10:00:00"
+      }
+    ],
+    "createdAt": "2026-02-19T10:00:00"
+  }
 }
 ```
 
 **Business Rules**
-- `PENDING`, `APPROVED`, and `REVISION_REQUESTED` block new applications.
+- The React apply/status routes require an authenticated USER whose `userType` is `BUSINESS`; this is an early UX gate and does not replace backend authorization.
+- Mutating certification operations lock the owning user first, then the affected certification row when one exists. This cooperating-write contract serializes apply, resubmit, and review for one user.
+- `PENDING`, `APPROVED`, and `REVISION_REQUESTED` block new applications after the owning-user lock is acquired.
 - `REJECTED` remains as history and a new application may be submitted.
-- Empty files, unsupported extensions, oversized files, and over-limit file counts return validation errors.
+- Every multipart part must be nonempty. The request accepts at most 10 PDF/JPG/JPEG/PNG files, each at most 20 MiB and at most 50 MiB in aggregate; original filenames are limited to 255 characters.
+- PNG input is verified as `image/png`, then decoded and canonicalized through the existing image service. The private stored output is JPEG with `image/jpeg`; no PNG byte-preserving storage path is introduced.
+- The response never includes `documentPath` or an individual stored path. Document IDs remain opaque download identifiers.
 
 ## 13.2 Resubmit Certification Documents
 | Field | Value |
@@ -3192,18 +3372,21 @@ documents: List<File> (required)
 **Response** `200 OK`
 ```json
 {
-  "id": 1,
-  "status": "PENDING",
-  "adminNote": null,
-  "documents": [
-    {
-      "id": 102,
-      "originalFilename": "updated-business-license.pdf",
-      "contentType": "application/pdf",
-      "sizeBytes": 124000,
-      "createdAt": "2026-06-18T11:00:00"
-    }
-  ]
+  "message": "Company certification documents resubmitted",
+  "data": {
+    "id": 1,
+    "status": "PENDING",
+    "adminNote": null,
+    "documents": [
+      {
+        "id": 102,
+        "originalFilename": "updated-business-license.pdf",
+        "contentType": "application/pdf",
+        "sizeBytes": 124000,
+        "createdAt": "2026-06-18T11:00:00"
+      }
+    ]
+  }
 }
 ```
 
@@ -3221,25 +3404,28 @@ documents: List<File> (required)
 **Response** `200 OK`
 ```json
 {
-  "id": 1,
-  "userId": 10,
-  "userNickname": "biz-user",
-  "userEmail": "biz@example.com",
-  "companyName": "ATStudio Biz",
-  "phoneCompany": "02-1234-5678",
-  "status": "PENDING",
-  "adminNote": null,
-  "certificationCode": null,
-  "documents": [
-    {
-      "id": 101,
-      "originalFilename": "business-license.pdf",
-      "contentType": "application/pdf",
-      "sizeBytes": 123456,
-      "createdAt": "2026-06-18T10:00:00"
-    }
-  ],
-  "createdAt": "2026-02-19T10:00:00"
+  "message": "My certification status retrieved",
+  "data": {
+    "id": 1,
+    "userId": 10,
+    "userNickname": "biz-user",
+    "userEmail": "biz@example.com",
+    "companyName": "ATStudio Biz",
+    "phoneCompany": "02-1234-5678",
+    "status": "PENDING",
+    "adminNote": null,
+    "certificationCode": null,
+    "documents": [
+      {
+        "id": 101,
+        "originalFilename": "business-license.pdf",
+        "contentType": "application/pdf",
+        "sizeBytes": 123456,
+        "createdAt": "2026-06-18T10:00:00"
+      }
+    ],
+    "createdAt": "2026-02-19T10:00:00"
+  }
 }
 ```
 
@@ -3255,6 +3441,8 @@ status: String (optional, "PENDING"|"APPROVED"|"REVISION_REQUESTED"|"REJECTED")
 page: Integer (default: 1)
 size: Integer (default: 20)
 ```
+
+`size` is clamped to the server-side maximum of 100.
 
 **Response** `200 OK` — Pagination
 
@@ -3275,9 +3463,12 @@ size: Integer (default: 20)
 
 **Response** `200 OK`
 ```
-Content-Type: application/pdf
+Content-Type: application/octet-stream
 Content-Disposition: attachment; filename*=UTF-8''business-license.pdf
 ```
+
+The binary response uses a generic media type for every verified PDF/JPEG/PNG evidence file. The
+authenticated metadata responses retain each document's verified `contentType` for display only.
 
 **Errors**
 - `403 Forbidden` — non-admin access.
@@ -3301,10 +3492,13 @@ Content-Disposition: attachment; filename*=UTF-8''business-license.pdf
 **Response** `200 OK`
 ```json
 {
-  "id": 1,
-  "status": "APPROVED",
-  "certificationCode": "BIZ-a1b2c3d4-e5f6-...",
-  "approvedAt": "2026-02-19T15:00:00"
+  "message": "Certification review processed",
+  "data": {
+    "id": 1,
+    "status": "APPROVED",
+    "certificationCode": "BIZ-a1b2c3d4-e5f6-...",
+    "approvedAt": "2026-02-19T15:00:00"
+  }
 }
 ```
 
@@ -3313,6 +3507,12 @@ Content-Disposition: attachment; filename*=UTF-8''business-license.pdf
 - `PENDING → REVISION_REQUESTED`: store `adminNote`; user may resubmit documents through §13.2.
 - `PENDING → REJECTED`: store `adminNote`; user may submit a new application through §13.1.
 - `REVISION_REQUESTED → PENDING`: only the user resubmission API performs this transition.
+
+**Review and download accountability**
+- `REVISION_REQUESTED` and `REJECTED` require a trimmed, nonblank `adminNote` of at most 500 characters.
+- `APPROVED` may omit `adminNote`; when supplied it is trimmed and limited to 500 characters.
+- Illegal transitions are rejected before the certification state or review audit record changes. Successful reviews record authenticated ADMIN actor, timestamp, certification ID, and from/to statuses only.
+- A guarded document access grant records the authenticated ADMIN actor, timestamp, action, certification ID, and opaque document ID after authorization and private-resource resolution. It is not a proof that the controller completed byte delivery. Audit rows never include document contents, storage paths, filenames, notes, profile snapshots, tokens, or raw request data.
 
 ---
 
@@ -3352,6 +3552,7 @@ Content-Disposition: attachment; filename*=UTF-8''business-license.pdf
 |-------|-------|
 | **URL** | `GET /api/utils/check-email` |
 | **Auth** | `[PUBLIC]` |
+| **Abuse control** | Both budgets apply: 30 requests / 60 seconds per trusted client; 30 requests / 60 seconds per trusted client + normalized email fingerprint |
 
 **Query Parameters**
 ```
@@ -3363,11 +3564,14 @@ email: String (required)
 { "available": true }
 ```
 
+Over-budget requests return `429 Too Many Requests` with `Retry-After` and `RATE_LIMIT_EXCEEDED`. The raw email is not stored in the rate-limit key or logged.
+
 ## 14.3 Phone Duplicate Check
 | Field | Value |
 |-------|-------|
 | **URL** | `GET /api/utils/check-phone` |
 | **Auth** | `[PUBLIC]` |
+| **Abuse control** | Both budgets apply: 30 requests / 60 seconds per trusted client; 30 requests / 60 seconds per trusted client + digits-only phone fingerprint |
 
 **Query Parameters**
 ```
@@ -3378,6 +3582,8 @@ phone: String (required)
 ```json
 { "available": true }
 ```
+
+Over-budget requests return `429 Too Many Requests` with `Retry-After` and `RATE_LIMIT_EXCEEDED`. The raw phone value is not stored in the rate-limit key or logged.
 
 ## 14.4 Subscription Status Check
 | Field | Value |
@@ -3433,6 +3639,7 @@ phone: String (required)
 |-------|-------|
 | **URL** | `GET /api/utils/check-nickname` |
 | **Auth** | `[PUBLIC]` |
+| **Abuse control** | Both budgets apply: 30 requests / 60 seconds per trusted client; 30 requests / 60 seconds per trusted client + normalized nickname fingerprint |
 
 **Query Parameters**
 ```
@@ -3443,6 +3650,8 @@ nickname: String (required)
 ```json
 { "available": true }
 ```
+
+Over-budget requests return `429 Too Many Requests` with `Retry-After` and `RATE_LIMIT_EXCEEDED`. The raw nickname is not stored in the rate-limit key or logged.
 
 ## 14.8 Subscription Change Preview
 | Field | Value |
@@ -3640,8 +3849,9 @@ token: String (required — UUID token from email link)
   - page: Integer (default: 1)
   - size: Integer (default: 20)
   - sort: String (optional, "latest"|"trackCount", default: "latest")
-    - "latest": ordered by createdAt DESC
-    - "trackCount": ordered by track count DESC (computed in-memory)
+    - "latest": ordered by createdAt DESC, then id DESC
+    - "trackCount": ordered globally by track count DESC, then createdAt DESC and id DESC before pagination
+  - page and size must be positive; size is bounded to 100
 - Response: 200 OK
   - dataList: [ { id, title, description, thumbnailUrl, trackCount, likeCount, createdAt } ]
 
@@ -3673,6 +3883,7 @@ token: String (required — UUID token from email link)
 - Method: POST
 - URL: /api/albums/{id}/tracks
 - Auth: ADMIN
+- Concurrency: locks the target album row before membership, count, and order mutation.
 - Request Body: { "trackId": number }
 - Response: 201 Created, AlbumDetailResponse
 - Errors: 404 RESOURCE_NOT_FOUND, 409 RESOURCE_DUPLICATE
@@ -3689,8 +3900,9 @@ token: String (required — UUID token from email link)
 - URL: /api/albums/{id}/tracks
 - Auth: ADMIN
 - Request Body: { "trackOrders": [ { "trackId": number, "order": number } ] }
+- Contract: payload must contain every current album member exactly once, with unique contiguous orders from 0 through n-1. The target album row is locked for the mutation.
 - Response: 200 OK, AlbumDetailResponse
-- Errors: 404 RESOURCE_NOT_FOUND
+- Errors: 400 INVALID_ARGUMENT, 404 RESOURCE_NOT_FOUND
 
 ---
 
@@ -3755,16 +3967,15 @@ key: String (required) — setting key name
 **Response** `200 OK`
 ```json
 {
-  "message": "Success",
-  "data": {
-    "key": "company_cert_guide",
-    "value": "Please submit the following documents..."
+    "message": "Setting retrieved",
+    "data": {
+      "key": "COMPANY_CERT_GUIDE",
+      "value": "Please submit the following documents..."
   }
 }
 ```
 
-**Errors**
-- `404 Not Found` — `RESOURCE_NOT_FOUND`: key does not exist
+If the key does not exist, the current controller returns the requested key with an empty-string value.
 
 ---
 
@@ -3789,25 +4000,18 @@ key: String (required) — setting key name
 ```
 
 **Validation**
-- `value`: required, max 5000 characters
+- `value`: required (`null` is rejected). The current DTO does not impose a length or nonblank constraint.
 
 **Response** `200 OK`
 ```json
 {
-  "message": "Success",
-  "data": {
-    "key": "company_cert_guide",
-    "value": "Updated guide text content..."
-  }
+  "message": "Setting updated"
 }
 ```
 
-**Errors**
-- `400 Bad Request` — `INVALID_ARGUMENT`: value exceeds max length or is blank
-
 ---
 
-# Full API Summary (147)
+# Full API Summary (149)
 
 | # | Section | API Count |
 |---|---------|-----------|
@@ -3815,18 +4019,18 @@ key: String (required) — setting key name
 | 2 | Tag | 5 |
 | 3 | Playlist | 9 |
 | 4 | Play History | 3 |
-| 5 | User Info | 11 |
+| 5 | User Info | 12 |
 | 6 | Subscription | 19 |
 | 7 | License | 4 |
 | 8 | Question (Inquiry/Answer) | 7 |
 | 9 | Notice | 6 |
 | 10 | Likes (Favorites) | 6 |
 | 11 | Download Queue / History | 5 |
-| 12 | Whitelist Channels | 9 |
+| 12 | Whitelist Channels | 10 |
 | 13 | Company Certification | 7 |
 | 14 | Utility / Auth | 12 |
 | 15 | Album | 8 |
 | 16 | Admin Dashboard | 1 |
 | 17 | Site Settings | 2 |
 | 18 | Admin Payment Operations | 24 |
-| | **Total** | **147** |
+| | **Total** | **149** |

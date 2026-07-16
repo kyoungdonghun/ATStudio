@@ -129,13 +129,9 @@ export default function LicenseManagePage() {
         </div>
       )}
 
-      {loading && (
-        <div className={styles.loading}>Loading...</div>
-      )}
+      {loading && <div className={styles.loading}>Loading...</div>}
 
-      {error && (
-        <div className={styles.error}>{error}</div>
-      )}
+      {error && <div className={styles.error}>{error}</div>}
 
       {!loading && !error && activeUserId && (
         <>

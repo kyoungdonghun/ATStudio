@@ -4,6 +4,7 @@ import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.whitelist.AdminWhitelistChannelResponse;
 import com.atstudio.atstudio.dto.whitelist.AdminWhitelistChannelStatusRequest;
 import com.atstudio.atstudio.dto.whitelist.AdminWhitelistExportFile;
+import com.atstudio.atstudio.dto.whitelist.AdminWhitelistExportRequest;
 import com.atstudio.atstudio.entity.enums.WhitelistChannelStatus;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.AdminWhitelistChannelService;
@@ -62,14 +63,24 @@ public class AdminWhitelistChannelController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<byte[]> exportChannels(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @RequestParam(required = false) WhitelistChannelStatus status,
-            @RequestParam(required = false) String note) {
-        AdminWhitelistExportFile file = adminWhitelistChannelService.exportChannels(userDetails, status, note);
+            @Valid @RequestBody AdminWhitelistExportRequest request) {
+        AdminWhitelistExportFile file = adminWhitelistChannelService.exportChannels(userDetails, request);
+        return exportResponse(file);
+    }
+
+    @GetMapping("/exports/{batchID}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> downloadExportBatch(@PathVariable Long batchID) {
+        return exportResponse(adminWhitelistChannelService.downloadExportBatch(batchID));
+    }
+
+    private ResponseEntity<byte[]> exportResponse(AdminWhitelistExportFile file) {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
                         .filename(file.fileName(), StandardCharsets.UTF_8)
                         .build()
                         .toString())
+                .header("X-Whitelist-Export-Batch-Id", String.valueOf(file.batchId()))
                 .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
                 .body(file.content());
     }

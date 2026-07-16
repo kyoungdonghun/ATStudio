@@ -39,6 +39,8 @@ class PaymentDatabaseIntegrityContractTest {
     private static final Path FRESH_SCHEMA = Path.of("src/main/resources/schema.sql");
     private static final Path MANUAL_PATCH = Path.of(
             "src/main/resources/db/manual/20260714_payment_db_integrity.sql");
+    private static final Path RECONCILIATION_INDEX_PATCH = Path.of(
+            "src/main/resources/db/manual/20260716_payment_reconciliation_indexes.sql");
 
     @Test
     @DisplayName("PaymentOrder exposes the command lifecycle mapping")
@@ -81,6 +83,10 @@ class PaymentDatabaseIntegrityContractTest {
                 "purpose",
                 "billing_period_start");
         assertIndex(table, "idx_payment_orders_status_processing", "status,processing_started_at");
+        assertIndex(
+                table,
+                "idx_payment_orders_local_reconciliation",
+                "status,id,purpose");
     }
 
     @Test
@@ -115,6 +121,10 @@ class PaymentDatabaseIntegrityContractTest {
                 agreementTable,
                 "idx_billing_agreements_cleanup",
                 "billing_key_cleanup_status,billing_key_cleanup_started_at,id");
+        assertIndex(
+                agreementTable,
+                "idx_billing_agreements_local_reconciliation",
+                "status,id");
 
         assertColumn(PaymentRefund.class, "processingStartedAt", "processing_started_at", 255, true);
         Table refundTable = PaymentRefund.class.getAnnotation(Table.class);
@@ -260,7 +270,8 @@ class PaymentDatabaseIntegrityContractTest {
                         , "UNIQUE KEY uq_payment_orders_command_key (command_key)"
                         , "UNIQUE KEY uq_payment_orders_provider_attempt_key (provider, provider_idempotency_key)"
                         , "UNIQUE KEY uq_payment_orders_renewal_period (billing_agreement_id, user_subscription_id, purpose, billing_period_start)"
-                        , "KEY idx_payment_orders_status_processing (status, processing_started_at)");
+                        , "KEY idx_payment_orders_status_processing (status, processing_started_at)"
+                        , "KEY idx_payment_orders_local_reconciliation (status, id, purpose)");
         assertThat(paymentOrders)
                 .contains("'PROCESSING'", "'PROVIDER_SUCCEEDED'", "'PENDING_PROVIDER_CONFIRMATION'");
 
@@ -269,7 +280,8 @@ class PaymentDatabaseIntegrityContractTest {
                         , "billing_key_cleanup_status ENUM ( 'NONE', 'REQUIRED', 'PROCESSING', 'PENDING_PROVIDER_CONFIRMATION', 'FAILED' ) NOT NULL DEFAULT 'NONE'"
                         , "billing_key_cleanup_started_at DATETIME"
                         , "KEY idx_billing_agreements_renewal_retry (status, renewal_retry_at, id)"
-                        , "KEY idx_billing_agreements_cleanup (billing_key_cleanup_status, billing_key_cleanup_started_at, id)");
+                        , "KEY idx_billing_agreements_cleanup (billing_key_cleanup_status, billing_key_cleanup_started_at, id)"
+                        , "KEY idx_billing_agreements_local_reconciliation (status, id)");
 
         assertThat(normalizedSubscriptionPayments)
                 .contains("pg_transaction_id VARCHAR(200)"
@@ -354,6 +366,23 @@ class PaymentDatabaseIntegrityContractTest {
                 "-- 8. Add final constraints and indexes",
                 "-- 9. Post-apply contract comparison");
         assertAuditEnumValues(patch);
+    }
+
+    @Test
+    @DisplayName("reconciliation index patch is additive, guarded, and includes reproducible EXPLAIN queries")
+    void reconciliationIndexPatchIsAdditiveAndReproducible() throws IOException {
+        String patch = Files.readString(RECONCILIATION_INDEX_PATCH);
+
+        assertThat(patch)
+                .contains(
+                        "SIGNAL SQLSTATE '45000'",
+                        "information_schema.statistics",
+                        "idx_payment_orders_local_reconciliation (status, id, purpose)",
+                        "idx_billing_agreements_local_reconciliation (status, id)",
+                        "EXPLAIN FORMAT=JSON",
+                        "payment_order.id > @ats_last_seen_id",
+                        "agreement.id > @ats_last_seen_id")
+                .doesNotContain("DELETE FROM", "UPDATE payment_orders", "UPDATE billing_agreements", "DROP TABLE");
     }
 
     private static void assertColumn(

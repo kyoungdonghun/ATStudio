@@ -33,7 +33,9 @@
   padding: 6px 16px;
   border-radius: 6px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .btnDelete:hover {

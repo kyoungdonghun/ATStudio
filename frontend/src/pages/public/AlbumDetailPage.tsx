@@ -146,9 +146,7 @@ export default function AlbumDetailPage() {
               {'\uD83D\uDCC5'} {formatDate(album.createdAt)}
             </span>
           </div>
-          {album.description && (
-            <p className={styles.desc}>{album.description}</p>
-          )}
+          {album.description && <p className={styles.desc}>{album.description}</p>}
           <div className={styles.actions}>
             <button
               className={styles.btnPlayAll}
@@ -184,7 +182,9 @@ export default function AlbumDetailPage() {
                   void toggleAlbumLike(album.id);
                   toast(
                     'success',
-                    likedAlbumIds.has(album.id) ? '앨범 좋아요가 해제되었습니다.' : '앨범을 좋아요했습니다.',
+                    likedAlbumIds.has(album.id)
+                      ? '앨범 좋아요가 해제되었습니다.'
+                      : '앨범을 좋아요했습니다.',
                   );
                 }}
                 title={likedAlbumIds.has(album.id) ? '앨범 좋아요 해제' : '앨범 좋아요'}
@@ -200,109 +200,126 @@ export default function AlbumDetailPage() {
       <section>
         <div className={styles.sectionLabel}>수록곡</div>
         <div className={styles.tableWrap}>
-        <table className={styles.trackTable}>
-          <thead>
-            <tr>
-              <th className={`${styles.thCenter} ${styles.thNum}`}>#</th>
-              <th>음원</th>
-              <th className={`${styles.thRight} ${styles.thOrder}`}>순서</th>
-              <th className={styles.thActions} />
-            </tr>
-          </thead>
-          <tbody>
-            {album.tracks.map((t, idx) => (
-              <tr
-                key={t.trackId}
-                className={`${styles.trackRow} ${currentTrack?.id === t.trackId ? styles.trackRowActive : ''}`}
-              >
-                <td className={styles.tdNum}>
-                  <span className={styles.trNum}>{idx + 1}</span>
-                  <button
-                    className={styles.trPlayBtn}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (currentTrack?.id === t.trackId) {
-                        if (isPlayerPlaying) pauseTrack();
-                        else resumeTrack();
-                      } else {
-                        playTrack({
-                          id: t.trackId,
-                          title: t.title,
-                          artistName: t.artistName ?? '',
-                          duration: 0,
-                          bpm: 0,
-                          tonality: '',
-                          description: null,
-                          audioFile: null,
-                          thumbnail: t.thumbnailUrl ?? null,
-                          waveformData: null,
-                          tags: [],
-                          isActive: true,
-                          playCount: 0,
-                          likeCount: 0,
-                          downloadCount: 0,
-                          createdAt: '',
-                          updatedAt: '',
-                        });
+          <table className={styles.trackTable}>
+            <thead>
+              <tr>
+                <th className={`${styles.thCenter} ${styles.thNum}`}>#</th>
+                <th>음원</th>
+                <th className={`${styles.thRight} ${styles.thOrder}`}>순서</th>
+                <th className={styles.thActions} />
+              </tr>
+            </thead>
+            <tbody>
+              {album.tracks.map((t, idx) => (
+                <tr
+                  key={t.trackId}
+                  className={`${styles.trackRow} ${currentTrack?.id === t.trackId ? styles.trackRowActive : ''}`}
+                >
+                  <td className={styles.tdNum}>
+                    <span className={styles.trNum}>{idx + 1}</span>
+                    <button
+                      className={styles.trPlayBtn}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (currentTrack?.id === t.trackId) {
+                          if (isPlayerPlaying) pauseTrack();
+                          else resumeTrack();
+                        } else {
+                          playTrack({
+                            id: t.trackId,
+                            title: t.title,
+                            artistName: t.artistName ?? '',
+                            duration: 0,
+                            bpm: 0,
+                            tonality: '',
+                            description: null,
+                            audioFile: null,
+                            thumbnail: t.thumbnailUrl ?? null,
+                            waveformData: null,
+                            tags: [],
+                            isActive: true,
+                            playCount: 0,
+                            likeCount: 0,
+                            downloadCount: 0,
+                            createdAt: '',
+                            updatedAt: '',
+                          });
+                        }
+                      }}
+                      aria-label={
+                        currentTrack?.id === t.trackId && isPlayerPlaying ? 'Pause' : 'Play'
                       }
-                    }}
-                    aria-label={currentTrack?.id === t.trackId && isPlayerPlaying ? 'Pause' : 'Play'}
-                  >
-                    {currentTrack?.id === t.trackId && isPlayerPlaying ? '\u23F8' : '\u25B6'}
-                  </button>
-                </td>
-                <td>
-                  <Link
-                    to={`/tracks/${t.trackId}`}
-                    className={styles.tdInfo}
-                  >
-                    <div className={styles.trThumb}>
-                      {t.thumbnailUrl ? (
-                        <img src={toUploadUrl(t.thumbnailUrl)!} alt={t.title} />
+                    >
+                      {currentTrack?.id === t.trackId && isPlayerPlaying ? '\u23F8' : '\u25B6'}
+                    </button>
+                  </td>
+                  <td>
+                    <Link to={`/tracks/${t.trackId}`} className={styles.tdInfo}>
+                      <div className={styles.trThumb}>
+                        {t.thumbnailUrl ? (
+                          <img src={toUploadUrl(t.thumbnailUrl)!} alt={t.title} />
+                        ) : (
+                          '\u266A'
+                        )}
+                      </div>
+                      <div>
+                        <div className={styles.trTitle}>{t.title}</div>
+                      </div>
+                    </Link>
+                  </td>
+                  <td className={styles.tdOrder}>{t.order}</td>
+                  <td className={styles.tdActions}>
+                    <div className={styles.tdActionsInner}>
+                      {isAuthenticated ? (
+                        <>
+                          <button
+                            className={`${styles.trActBtn} ${likedIds.has(t.trackId) ? styles.trActBtnActive : ''}`}
+                            onClick={() => {
+                              void toggleLike(t.trackId);
+                            }}
+                            aria-label="Like"
+                          >
+                            {likedIds.has(t.trackId) ? '\u2665' : '\u2661'}
+                          </button>
+                          <button
+                            className={styles.trActBtn}
+                            onClick={() => setAddToPlTrackId(t.trackId)}
+                            aria-label="Add to playlist"
+                            title="재생목록에 추가"
+                          >
+                            +
+                          </button>
+                        </>
                       ) : (
-                        '\u266A'
+                        <>
+                          <button
+                            className={styles.trActBtn}
+                            onClick={() => {
+                              toast('warning', '로그인이 필요한 기능입니다.');
+                              navigate('/login');
+                            }}
+                            title="Like"
+                          >
+                            {'\u2661'}
+                          </button>
+                          <button
+                            className={styles.trActBtn}
+                            onClick={() => {
+                              toast('warning', '로그인이 필요한 기능입니다.');
+                              navigate('/login');
+                            }}
+                            title="Add to playlist"
+                          >
+                            +
+                          </button>
+                        </>
                       )}
                     </div>
-                    <div>
-                      <div className={styles.trTitle}>{t.title}</div>
-                    </div>
-                  </Link>
-                </td>
-                <td className={styles.tdOrder}>{t.order}</td>
-                <td className={styles.tdActions}>
-                  <div className={styles.tdActionsInner}>
-                    {isAuthenticated ? (
-                      <>
-                        <button
-                          className={`${styles.trActBtn} ${likedIds.has(t.trackId) ? styles.trActBtnActive : ''}`}
-                          onClick={() => {
-                            void toggleLike(t.trackId);
-                          }}
-                          aria-label="Like"
-                        >
-                          {likedIds.has(t.trackId) ? '\u2665' : '\u2661'}
-                        </button>
-                        <button
-                          className={styles.trActBtn}
-                          onClick={() => setAddToPlTrackId(t.trackId)}
-                          aria-label="Add to playlist"
-                          title="재생목록에 추가"
-                        >
-                          +
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button className={styles.trActBtn} onClick={() => { toast('warning', '로그인이 필요한 기능입니다.'); navigate('/login'); }} title="Like">{'\u2661'}</button>
-                        <button className={styles.trActBtn} onClick={() => { toast('warning', '로그인이 필요한 기능입니다.'); navigate('/login'); }} title="Add to playlist">+</button>
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </section>
 

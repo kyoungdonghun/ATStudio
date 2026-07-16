@@ -19,8 +19,30 @@ import Tag from '@/components/ui/Tag';
 import styles from './TrackEditPage.module.css';
 
 const TONALITIES = [
-  'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
-  'Cm', 'C#m', 'Dm', 'D#m', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'A#m', 'Bm',
+  'C',
+  'C#',
+  'D',
+  'D#',
+  'E',
+  'F',
+  'F#',
+  'G',
+  'G#',
+  'A',
+  'A#',
+  'B',
+  'Cm',
+  'C#m',
+  'Dm',
+  'D#m',
+  'Em',
+  'Fm',
+  'F#m',
+  'Gm',
+  'G#m',
+  'Am',
+  'A#m',
+  'Bm',
 ];
 
 /** Screen 7: Track edit */
@@ -94,7 +116,9 @@ export default function TrackEditPage() {
     }
 
     loadData();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [trackId]);
 
   /* ── Tag toggle ── */
@@ -159,8 +183,7 @@ export default function TrackEditPage() {
       await updateTrack(Number(trackId), formData);
       navigate('/admin/track-manage');
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : '음원 수정에 실패했습니다.';
+      const msg = err instanceof Error ? err.message : '음원 수정에 실패했습니다.';
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -187,9 +210,7 @@ export default function TrackEditPage() {
           <div className={styles.fileBox}>
             <div className={styles.field}>
               <span className={styles.label}>{'오디오 파일'}</span>
-              <label
-                className={`${styles.fileLabel} ${audioFile ? styles.fileLabelSelected : ''}`}
-              >
+              <label className={`${styles.fileLabel} ${audioFile ? styles.fileLabelSelected : ''}`}>
                 <input
                   type="file"
                   {...(AUDIO_ACCEPT && { accept: AUDIO_ACCEPT })}
@@ -200,7 +221,8 @@ export default function TrackEditPage() {
               </label>
               {currentAudioFile && !audioFile && (
                 <span className={styles.currentFile}>
-                  {'현재: '}{currentAudioFile.split('/').pop()}
+                  {'현재: '}
+                  {currentAudioFile.split('/').pop()}
                 </span>
               )}
             </div>
@@ -209,9 +231,7 @@ export default function TrackEditPage() {
           <div className={styles.fileBox}>
             <div className={styles.field}>
               <span className={styles.label}>{'썸네일'}</span>
-              <label
-                className={`${styles.fileLabel} ${thumbnail ? styles.fileLabelSelected : ''}`}
-              >
+              <label className={`${styles.fileLabel} ${thumbnail ? styles.fileLabelSelected : ''}`}>
                 <input
                   type="file"
                   accept="image/*"
@@ -222,7 +242,8 @@ export default function TrackEditPage() {
               </label>
               {currentThumbnail && !thumbnail && (
                 <span className={styles.currentFile}>
-                  {'현재: '}{currentThumbnail.split('/').pop()}
+                  {'현재: '}
+                  {currentThumbnail.split('/').pop()}
                 </span>
               )}
             </div>
@@ -263,7 +284,9 @@ export default function TrackEditPage() {
             >
               <option value="">{'선택'}</option>
               {TONALITIES.map((t) => (
-                <option key={t} value={t}>{t}</option>
+                <option key={t} value={t}>
+                  {t}
+                </option>
               ))}
             </select>
           </div>
@@ -290,9 +313,7 @@ export default function TrackEditPage() {
               onClick={() => setIsActive((v) => !v)}
               aria-label="Toggle active"
             />
-            <span className={styles.toggleLabel}>
-              {isActive ? '활성' : '비활성'}
-            </span>
+            <span className={styles.toggleLabel}>{isActive ? '활성' : '비활성'}</span>
           </div>
         </div>
 
@@ -359,12 +380,7 @@ export default function TrackEditPage() {
 
         {/* Actions */}
         <div className={styles.actions}>
-          <Button
-            variant="ghost"
-            type="button"
-            onClick={() => navigate(-1)}
-            disabled={submitting}
-          >
+          <Button variant="ghost" type="button" onClick={() => navigate(-1)} disabled={submitting}>
             {'취소'}
           </Button>
           <Button type="submit" loading={submitting}>

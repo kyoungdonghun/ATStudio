@@ -1,11 +1,15 @@
 package com.atstudio.atstudio.service;
 
+import com.atstudio.atstudio.entity.PaymentOrder;
+import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.PaymentReconciliationIssueType;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.repository.PaymentOrderRepository;
+import com.atstudio.atstudio.repository.PaymentRefundRepository;
 import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.service.PaymentReconciliationTransactionService.EvidenceAssessment;
@@ -19,9 +23,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("PaymentReconciliationTransactionService evidence gate tests")
@@ -30,6 +39,7 @@ class PaymentReconciliationTransactionServiceTest {
     @Mock PaymentOrderRepository paymentOrderRepository;
     @Mock BillingAgreementRepository billingAgreementRepository;
     @Mock SubscriptionPaymentRepository subscriptionPaymentRepository;
+    @Mock PaymentRefundRepository paymentRefundRepository;
     @Mock UserSubscriptionRepository userSubscriptionRepository;
     @Mock PaymentCommandTransactionService paymentCommandTransactionService;
 
@@ -41,8 +51,53 @@ class PaymentReconciliationTransactionServiceTest {
                 paymentOrderRepository,
                 billingAgreementRepository,
                 subscriptionPaymentRepository,
+                paymentRefundRepository,
                 userSubscriptionRepository,
                 paymentCommandTransactionService);
+    }
+
+    @Test
+    @DisplayName("DONE order batch uses an ID keyset and reports only missing finalization rows")
+    void doneOrderBatchUsesKeyset() {
+        PaymentOrder missingPayment = paymentOrder(5L);
+        PaymentOrder finalizedPayment = mock(PaymentOrder.class);
+        given(finalizedPayment.getId()).willReturn(9L);
+        given(paymentOrderRepository.findLocalReconciliationCandidates(
+                eq(PaymentOrderStatus.DONE),
+                any(),
+                eq(0L),
+                any()))
+                .willReturn(List.of(missingPayment, finalizedPayment));
+        given(subscriptionPaymentRepository.existsByPaymentOrder(missingPayment)).willReturn(false);
+        given(subscriptionPaymentRepository.existsByPaymentOrder(finalizedPayment)).willReturn(true);
+
+        PaymentReconciliationTransactionService.LocalReconciliationBatch batch =
+                service.reconcileDoneOrderBatch(0L, 2);
+
+        assertThat(batch.checked()).isEqualTo(2);
+        assertThat(batch.lastSeenID()).isEqualTo(9L);
+        assertThat(batch.exhausted()).isFalse();
+        assertThat(batch.issues()).singleElement()
+                .extracting(PaymentReconciliationService.LocalReconciliationIssue::paymentOrderId)
+                .isEqualTo(5L);
+    }
+
+    @Test
+    @DisplayName("ACTIVE agreement batch ends on an empty page without moving the cursor")
+    void activeAgreementBatchHandlesEmptyPage() {
+        given(billingAgreementRepository.findLocalReconciliationCandidates(
+                eq(BillingAgreementStatus.ACTIVE),
+                eq(17L),
+                any()))
+                .willReturn(List.of());
+
+        PaymentReconciliationTransactionService.LocalReconciliationBatch batch =
+                service.reconcileActiveAgreementBatch(17L, 100, LocalDate.of(2026, 7, 16));
+
+        assertThat(batch.checked()).isZero();
+        assertThat(batch.lastSeenID()).isEqualTo(17L);
+        assertThat(batch.exhausted()).isTrue();
+        assertThat(batch.issues()).isEmpty();
     }
 
     @Test
@@ -169,5 +224,20 @@ class PaymentReconciliationTransactionServiceTest {
                 providerTransactionID,
                 true,
                 null);
+    }
+
+    private PaymentOrder paymentOrder(Long id) {
+        User user = mock(User.class);
+        given(user.getId()).willReturn(7L);
+        PaymentOrder order = mock(PaymentOrder.class);
+        given(order.getId()).willReturn(id);
+        given(order.getUser()).willReturn(user);
+        given(order.getBillingAgreement()).willReturn(null);
+        given(order.getOrderId()).willReturn("ORDER-" + id);
+        given(order.getProvider()).willReturn(PaymentProviderType.TOSS_BILLING);
+        given(order.getPurpose()).willReturn(PaymentPurpose.RENEWAL);
+        given(order.getStatus()).willReturn(PaymentOrderStatus.DONE);
+        given(order.getAmount()).willReturn(BigDecimal.valueOf(9900));
+        return order;
     }
 }

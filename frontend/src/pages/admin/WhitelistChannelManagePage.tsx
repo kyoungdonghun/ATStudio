@@ -1,6 +1,7 @@
 /** Admin whitelist channel operations */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  downloadAdminWhitelistExportBatch,
   exportAdminWhitelistChannels,
   fetchAdminWhitelistChannels,
   updateAdminWhitelistChannelStatus,
@@ -10,7 +11,9 @@ import Button from '@/components/ui/Button';
 import Pagination from '@/components/ui/Pagination';
 import type { PageInfo, WhitelistChannelStatus } from '@/types';
 import { formatDateTime } from '@/utils/format';
+import { getSafeYoutubeUrl } from '@/utils/safeYoutubeUrl';
 import styles from './WhitelistChannelManagePage.module.css';
+import { ADMIN_STATUS_TRANSITIONS } from './whitelistStatusTransitions';
 
 const STATUSES: Array<WhitelistChannelStatus | ''> = [
   '',
@@ -24,14 +27,6 @@ const STATUSES: Array<WhitelistChannelStatus | ''> = [
   'REMOVAL_REQUESTED',
 ];
 
-const OPERABLE_STATUSES: WhitelistChannelStatus[] = [
-  'REGISTERED',
-  'REVISION_REQUESTED',
-  'REJECTED',
-  'REMOVAL_REQUESTED',
-  'CANCELLED',
-];
-
 const STATUS_LABELS: Record<WhitelistChannelStatus, string> = {
   DRAFT: '저장됨',
   PENDING: '등록 요청',
@@ -39,13 +34,24 @@ const STATUS_LABELS: Record<WhitelistChannelStatus, string> = {
   REGISTERED: '등록 완료',
   REVISION_REQUESTED: '수정 요청',
   REJECTED: '반려',
-  CANCELLED: '요청 취소',
+  CANCELLED: '해제 완료',
   REMOVAL_REQUESTED: '해제 요청',
 };
 
 interface StatusEdit {
   status: WhitelistChannelStatus;
   adminNote: string;
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 export default function WhitelistChannelManagePage() {
@@ -60,8 +66,11 @@ export default function WhitelistChannelManagePage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [batchIDInput, setBatchIDInput] = useState('');
+  const listRequestId = useRef(0);
 
   const load = useCallback(async () => {
+    const currentRequestId = ++listRequestId.current;
     try {
       setLoading(true);
       setError(null);
@@ -71,21 +80,32 @@ export default function WhitelistChannelManagePage() {
         status: statusFilter || undefined,
         keyword: keyword || undefined,
       });
+      if (currentRequestId !== listRequestId.current) return;
       setChannels(result.dataList);
       setPageInfo(result.pageInfo);
-      setEdits(Object.fromEntries(result.dataList.map((channel) => [
-        channel.id,
-        { status: channel.status, adminNote: channel.adminNote ?? '' },
-      ])));
+      setEdits(
+        Object.fromEntries(
+          result.dataList.map((channel) => [
+            channel.id,
+            { status: channel.status, adminNote: channel.adminNote ?? '' },
+          ]),
+        ),
+      );
     } catch {
+      if (currentRequestId !== listRequestId.current) return;
       setError('화이트리스트 채널 목록을 불러오지 못했습니다.');
     } finally {
-      setLoading(false);
+      if (currentRequestId === listRequestId.current) {
+        setLoading(false);
+      }
     }
   }, [keyword, page, statusFilter]);
 
   useEffect(() => {
-    load();
+    void load();
+    return () => {
+      listRequestId.current += 1;
+    };
   }, [load]);
 
   function handleSearch() {
@@ -119,6 +139,11 @@ export default function WhitelistChannelManagePage() {
   }
 
   async function handleExport() {
+    if (!statusFilter && !keyword) {
+      setError('CSV 범위를 기록하려면 상태 또는 검색어를 적용해주세요.');
+      return;
+    }
+
     const ok = window.confirm(
       statusFilter === 'PENDING'
         ? '등록 요청 상태의 채널을 CSV로 내보내고 외부 처리 중 상태로 전환할까요?'
@@ -130,21 +155,37 @@ export default function WhitelistChannelManagePage() {
       setBusy('export');
       setError(null);
       setMessage(null);
-      const { blob, fileName } = await exportAdminWhitelistChannels(
-        statusFilter || 'PENDING',
-      );
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      setMessage('CSV export가 완료되었습니다.');
+      const { batchId, blob, fileName } = await exportAdminWhitelistChannels({
+        status: statusFilter || undefined,
+        keyword: keyword || undefined,
+      });
+      downloadBlob(blob, fileName);
+      setBatchIDInput(String(batchId));
+      setMessage(`CSV export가 완료되었습니다. Batch ${batchId}`);
       await load();
     } catch {
       setError('CSV export에 실패했습니다.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleBatchDownload() {
+    const batchID = Number(batchIDInput);
+    if (!Number.isInteger(batchID) || batchID <= 0) {
+      setError('올바른 export batch ID를 입력해주세요.');
+      return;
+    }
+
+    try {
+      setBusy('batch-download');
+      setError(null);
+      setMessage(null);
+      const { blob, fileName } = await downloadAdminWhitelistExportBatch(batchID);
+      downloadBlob(blob, fileName);
+      setMessage(`Batch ${batchID} CSV를 다시 내려받았습니다.`);
+    } catch {
+      setError('Export batch 재다운로드에 실패했습니다.');
     } finally {
       setBusy(null);
     }
@@ -159,7 +200,11 @@ export default function WhitelistChannelManagePage() {
             {'사용자가 요청한 YouTube 채널을 확인하고, 외부 등록 처리용 CSV를 내보냅니다.'}
           </p>
         </div>
-        <Button onClick={() => void handleExport()} loading={busy === 'export'}>
+        <Button
+          onClick={() => void handleExport()}
+          loading={busy === 'export'}
+          disabled={!statusFilter && !keyword}
+        >
           {'CSV 내보내기'}
         </Button>
       </div>
@@ -192,6 +237,23 @@ export default function WhitelistChannelManagePage() {
         />
         <Button variant="ghost" size="sm" onClick={handleSearch}>
           {'검색'}
+        </Button>
+        <label className={styles.filter}>
+          <span>{'Export batch ID'}</span>
+          <input
+            className={styles.batchInput}
+            inputMode="numeric"
+            value={batchIDInput}
+            onChange={(event) => setBatchIDInput(event.target.value)}
+          />
+        </label>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void handleBatchDownload()}
+          loading={busy === 'batch-download'}
+        >
+          {'다시 받기'}
         </Button>
       </div>
 
@@ -226,6 +288,8 @@ export default function WhitelistChannelManagePage() {
                   status: channel.status,
                   adminNote: channel.adminNote ?? '',
                 };
+                const statusTargets = ADMIN_STATUS_TRANSITIONS[channel.status];
+                const safeChannelUrl = getSafeYoutubeUrl(channel.channelUrl);
                 return (
                   <tr key={channel.id}>
                     <td>
@@ -234,14 +298,20 @@ export default function WhitelistChannelManagePage() {
                     </td>
                     <td className={styles.channelCell}>
                       <strong>{channel.channelName}</strong>
-                      <a href={channel.channelUrl} target="_blank" rel="noopener noreferrer">
-                        {channel.channelUrl}
-                      </a>
+                      {safeChannelUrl ? (
+                        <a href={safeChannelUrl} target="_blank" rel="noopener noreferrer">
+                          {channel.channelUrl}
+                        </a>
+                      ) : (
+                        <span>{channel.channelUrl}</span>
+                      )}
                       <span>{channel.youtubeHandle || '-'}</span>
                       <span>{channel.youtubeChannelId || '채널 ID 미입력'}</span>
                     </td>
                     <td>
-                      <span className={`${styles.statusBadge} ${styles[`status${channel.status}`]}`}>
+                      <span
+                        className={`${styles.statusBadge} ${styles[`status${channel.status}`]}`}
+                      >
                         {STATUS_LABELS[channel.status]}
                       </span>
                       {channel.primary && <span className={styles.primaryBadge}>{'대표'}</span>}
@@ -261,15 +331,18 @@ export default function WhitelistChannelManagePage() {
                     <td className={styles.actionCell}>
                       <select
                         value={edit.status}
-                        onChange={(e) => setEdits((prev) => ({
-                          ...prev,
-                          [channel.id]: {
-                            ...edit,
-                            status: e.target.value as WhitelistChannelStatus,
-                          },
-                        }))}
+                        disabled={statusTargets.length === 0}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [channel.id]: {
+                              ...edit,
+                              status: e.target.value as WhitelistChannelStatus,
+                            },
+                          }))
+                        }
                       >
-                        {OPERABLE_STATUSES.map((status) => (
+                        {[channel.status, ...statusTargets].map((status) => (
                           <option key={status} value={status}>
                             {STATUS_LABELS[status]}
                           </option>
@@ -278,18 +351,21 @@ export default function WhitelistChannelManagePage() {
                       <textarea
                         value={edit.adminNote}
                         placeholder="운영자 메모"
-                        onChange={(e) => setEdits((prev) => ({
-                          ...prev,
-                          [channel.id]: {
-                            ...edit,
-                            adminNote: e.target.value,
-                          },
-                        }))}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [channel.id]: {
+                              ...edit,
+                              adminNote: e.target.value,
+                            },
+                          }))
+                        }
                       />
                       <Button
                         size="sm"
                         onClick={() => void handleStatusUpdate(channel)}
                         loading={busy === `status-${channel.id}`}
+                        disabled={edit.status === channel.status}
                       >
                         {'저장'}
                       </Button>

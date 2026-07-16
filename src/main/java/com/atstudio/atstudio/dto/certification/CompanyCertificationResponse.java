@@ -15,7 +15,6 @@ public record CompanyCertificationResponse(
         String status,
         String adminNote,
         String certificationCode,
-        String documentPath,
         List<CompanyCertificationDocumentResponse> documents,
         LocalDateTime approvedAt,
         LocalDateTime createdAt
@@ -31,7 +30,6 @@ public record CompanyCertificationResponse(
                 cert.getStatus().name(),
                 cert.getAdminNote(),
                 cert.getCertificationCode(),
-                null,
                 cert.getDocuments().stream()
                         .map(CompanyCertificationDocumentResponse::from)
                         .toList(),

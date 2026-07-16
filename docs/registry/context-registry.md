@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-01-06
+version: 1.1
+last_updated: 2026-07-16
 project: system
 owner: EO
 category: registry
@@ -15,8 +15,8 @@ dependencies:
 ---
 # Project Context Instances
 
-> Purpose: Create **context instances** for each work to process in parallel.
-> All requests/confirmations/reports/executions/verifications must specify **PRJ + Context ID**.
+> Purpose: Optionally identify parallel or long-lived context instances when that extra coordination is useful.
+> ATStudio's active REQ/WI flow does not require a CTX ID on every request, confirmation, report, execution, or verification.
 
 ## 1) Concept
 
@@ -24,7 +24,7 @@ dependencies:
 - **Project Context Instance (CTX)**: Context instance for specific work/purpose (e.g., `CTX-20250101-003`)
   - Multiple CTXs can exist simultaneously for the same PRJ (parallel processing)
 
-> Recommendation: Create CTX per "work purpose" unit, and Close when completed (prevent infinite proliferation).
+> Recommendation: Create CTX only for parallel work where a stable context identifier adds value, and close it when completed. The authoritative ATStudio execution chain remains the approved REQ plus WI handoff/Evidence Pack under `deliverables/`.
 
 ## 2) Minimum Fields (Definition)
 

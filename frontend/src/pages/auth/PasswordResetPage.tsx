@@ -22,8 +22,11 @@ function ForgotForm() {
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { capabilities, loading: capabilitiesLoading, error: capabilitiesError } =
-    usePublicCapabilities();
+  const {
+    capabilities,
+    loading: capabilitiesLoading,
+    error: capabilitiesError,
+  } = usePublicCapabilities();
 
   const isPasswordResetAvailable = capabilities?.passwordReset.enabled ?? true;
   const isLocalMailMode = capabilities?.passwordReset.deliveryMode === 'LOCAL_SMTP';
@@ -60,7 +63,9 @@ function ForgotForm() {
     return (
       <div className={styles.page}>
         <div className={`${styles.card} ${styles.successCard}`}>
-          <div className={styles.successIcon} aria-hidden="true">&#9993;</div>
+          <div className={styles.successIcon} aria-hidden="true">
+            &#9993;
+          </div>
           <h1 className={styles.title}>메일 발송 완료</h1>
           <p className={styles.successText}>비밀번호 재설정 링크를 발송했습니다.</p>
           <p className={styles.successDetail}>
@@ -69,11 +74,13 @@ function ForgotForm() {
             메일이 도착하지 않으면 스팸 폴더를 확인해주세요.
           </p>
           <div className={styles.links}>
-            <Link to="/login" className={styles.link}>로그인으로 돌아가기</Link>
+            <Link to="/login" className={styles.link}>
+              로그인으로 돌아가기
+            </Link>
           </div>
         </div>
       </div>
-      );
+    );
   }
 
   if (!capabilitiesLoading && capabilities && !isPasswordResetAvailable) {
@@ -85,7 +92,9 @@ function ForgotForm() {
             현재 이 환경에서는 비밀번호 재설정 메일이 비활성화되어 있습니다.
           </p>
           <div className={styles.links}>
-            <Link to="/login" className={styles.link}>로그인으로 돌아가기</Link>
+            <Link to="/login" className={styles.link}>
+              로그인으로 돌아가기
+            </Link>
           </div>
         </div>
       </div>
@@ -97,11 +106,14 @@ function ForgotForm() {
       <div className={styles.card}>
         <h1 className={styles.title}>비밀번호 찾기</h1>
         <p className={styles.description}>
-          가입하신 이메일 주소를 입력하시면<br />비밀번호 재설정 링크를 보내드립니다.
+          가입하신 이메일 주소를 입력하시면
+          <br />
+          비밀번호 재설정 링크를 보내드립니다.
         </p>
         {isLocalMailMode ? (
           <p className={styles.noticeText}>
-            현재 이 환경에서는 로컬 메일 수신 환경(MailHog 등)에서만 재설정 링크를 확인할 수 있습니다.
+            현재 이 환경에서는 로컬 메일 수신 환경(MailHog 등)에서만 재설정 링크를 확인할 수
+            있습니다.
           </p>
         ) : null}
         {capabilitiesError ? (
@@ -111,7 +123,9 @@ function ForgotForm() {
         ) : null}
         <form className={styles.form} onSubmit={handleSubmit} noValidate>
           <div className={styles.fieldGroup}>
-            <label className={styles.label} htmlFor="reset-email">이메일</label>
+            <label className={styles.label} htmlFor="reset-email">
+              이메일
+            </label>
             <input
               id="reset-email"
               className={styles.input}
@@ -123,12 +137,20 @@ function ForgotForm() {
             />
           </div>
           <p className={styles.errorText}>{error}</p>
-          <Button type="submit" variant="primary" size="lg" loading={loading} className={styles.submitButton}>
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            loading={loading}
+            className={styles.submitButton}
+          >
             재설정 링크 발송
           </Button>
         </form>
         <div className={styles.links}>
-          <Link to="/login" className={styles.link}>로그인으로 돌아가기</Link>
+          <Link to="/login" className={styles.link}>
+            로그인으로 돌아가기
+          </Link>
         </div>
       </div>
     </div>
@@ -180,11 +202,15 @@ function ResetForm({ token }: { token: string }) {
     return (
       <div className={styles.page}>
         <div className={`${styles.card} ${styles.successCard}`}>
-          <div className={styles.successIcon} aria-hidden="true">&#10003;</div>
+          <div className={styles.successIcon} aria-hidden="true">
+            &#10003;
+          </div>
           <h1 className={styles.title}>비밀번호 변경 완료</h1>
           <p className={styles.successText}>비밀번호가 성공적으로 변경되었습니다.</p>
           <div className={styles.links}>
-            <Link to="/login" className={styles.link}>로그인하러 가기</Link>
+            <Link to="/login" className={styles.link}>
+              로그인하러 가기
+            </Link>
           </div>
         </div>
       </div>
@@ -198,7 +224,9 @@ function ResetForm({ token }: { token: string }) {
         <p className={styles.description}>새로운 비밀번호를 입력해주세요.</p>
         <form className={styles.form} onSubmit={handleSubmit} noValidate>
           <div className={styles.fieldGroup}>
-            <label className={styles.label} htmlFor="new-password">새 비밀번호</label>
+            <label className={styles.label} htmlFor="new-password">
+              새 비밀번호
+            </label>
             <input
               id="new-password"
               className={styles.input}
@@ -210,7 +238,9 @@ function ResetForm({ token }: { token: string }) {
             />
           </div>
           <div className={styles.fieldGroup}>
-            <label className={styles.label} htmlFor="confirm-password">비밀번호 확인</label>
+            <label className={styles.label} htmlFor="confirm-password">
+              비밀번호 확인
+            </label>
             <input
               id="confirm-password"
               className={styles.input}
@@ -222,12 +252,20 @@ function ResetForm({ token }: { token: string }) {
             />
           </div>
           <p className={styles.errorText}>{error}</p>
-          <Button type="submit" variant="primary" size="lg" loading={loading} className={styles.submitButton}>
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            loading={loading}
+            className={styles.submitButton}
+          >
             비밀번호 변경
           </Button>
         </form>
         <div className={styles.links}>
-          <Link to="/login" className={styles.link}>로그인으로 돌아가기</Link>
+          <Link to="/login" className={styles.link}>
+            로그인으로 돌아가기
+          </Link>
         </div>
       </div>
     </div>

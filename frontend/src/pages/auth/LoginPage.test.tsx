@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LoginPage from '@/pages/auth/LoginPage';
-import type { PublicCapabilitiesResponse } from '@/api/auth';
+import { fetchMe, login as loginRequest } from '@/api/auth';
+import type { MeResponse, PublicCapabilitiesResponse } from '@/api/auth';
 
 const authState = {
   login: vi.fn(),
@@ -19,6 +20,9 @@ vi.mock('@/api/auth', () => ({
   login: vi.fn(),
   fetchMe: vi.fn(),
 }));
+
+const loginRequestMock = vi.mocked(loginRequest);
+const fetchMeMock = vi.mocked(fetchMe);
 
 vi.mock('@/hooks/usePublicCapabilities', () => ({
   usePublicCapabilities: () => usePublicCapabilitiesMock(),
@@ -59,12 +63,46 @@ function buildCapabilities(
   };
 }
 
-function renderPage() {
+function DestinationProbe() {
+  const location = useLocation();
+  return <div>Destination: {`${location.pathname}${location.search}`}</div>;
+}
+
+function renderPage(initialEntry = '/login') {
   return render(
-    <MemoryRouter>
-      <LoginPage />
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<DestinationProbe />} />
+        <Route path="/profile" element={<DestinationProbe />} />
+      </Routes>
     </MemoryRouter>,
   );
+}
+
+const me: MeResponse = {
+  id: 1,
+  nickname: 'tester',
+  email: 'tester@example.com',
+  phonePersonal: '010-1234-5678',
+  phoneCompany: null,
+  job: 'EDITOR',
+  companyName: null,
+  userType: 'INDIVIDUAL',
+  role: 'USER',
+  isVerified: true,
+  createdAt: '2026-07-16T00:00:00Z',
+};
+
+async function submitPasswordLogin() {
+  fireEvent.change(screen.getByLabelText('이메일'), {
+    target: { value: 'tester@example.com' },
+  });
+  fireEvent.change(screen.getByLabelText('비밀번호'), {
+    target: { value: 'password123' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '로그인' }));
+  await waitFor(() => expect(loginRequestMock).toHaveBeenCalledTimes(1));
 }
 
 describe('LoginPage', () => {
@@ -72,6 +110,8 @@ describe('LoginPage', () => {
     authState.login.mockReset();
     authState.isAuthenticated = () => false;
     usePublicCapabilitiesMock.mockReset();
+    loginRequestMock.mockReset();
+    fetchMeMock.mockReset();
   });
 
   it('renders only providers enabled by server capabilities', () => {
@@ -139,7 +179,9 @@ describe('LoginPage', () => {
 
     renderPage();
 
-    expect(screen.getByText('이 환경에서는 소셜 로그인이 비활성화되어 있습니다.')).toBeInTheDocument();
+    expect(
+      screen.getByText('이 환경에서는 소셜 로그인이 비활성화되어 있습니다.'),
+    ).toBeInTheDocument();
     expect(screen.getByText('비밀번호 찾기 비활성화')).toBeInTheDocument();
   });
   it('disables password login and signup when the server turns off local auth', () => {
@@ -180,5 +222,52 @@ describe('LoginPage', () => {
         '이 환경에서는 QA 테스트 계정이 활성화되어 있습니다. 계정은 운영자가 별도로 제공합니다.',
       ),
     ).toBeInTheDocument();
+  });
+
+  it('returns once to a safe internal pathname and query after password login', async () => {
+    usePublicCapabilitiesMock.mockReturnValue({
+      capabilities: buildCapabilities(),
+      loading: false,
+      error: '',
+    });
+    loginRequestMock.mockResolvedValue({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      tokenType: 'Bearer',
+      expiresIn: 900,
+    });
+    fetchMeMock.mockResolvedValue(me);
+
+    renderPage('/login?returnTo=%2Fprofile%3Ftab%3Dedit');
+    await submitPasswordLogin();
+
+    expect(await screen.findByText('Destination: /profile?tab=edit')).toBeInTheDocument();
+    expect(authState.login).toHaveBeenCalledWith('access-token', me, 'refresh-token');
+  });
+
+  it.each([
+    'https://evil.example/steal',
+    '//evil.example/steal',
+    '/admin/dashboard',
+    '/social-login/google',
+    '/profile%zz',
+  ])('falls back to the existing home for unsafe return target %s', async (returnTo) => {
+    usePublicCapabilitiesMock.mockReturnValue({
+      capabilities: buildCapabilities(),
+      loading: false,
+      error: '',
+    });
+    loginRequestMock.mockResolvedValue({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      tokenType: 'Bearer',
+      expiresIn: 900,
+    });
+    fetchMeMock.mockResolvedValue(me);
+
+    renderPage(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+    await submitPasswordLogin();
+
+    expect(await screen.findByText('Destination: /')).toBeInTheDocument();
   });
 });

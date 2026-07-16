@@ -1,14 +1,19 @@
 import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchMyCompanyCert, resubmitCompanyCert } from '@/api/companyCerts';
+import {
+  fetchMyCompanyCert,
+  getCompanyCertErrorMessage,
+  getCompanyCertErrorStatus,
+  resubmitCompanyCert,
+} from '@/api/companyCerts';
 import type { CompanyCertification } from '@/types';
 import {
   CERT_DOC_ACCEPT,
-  CERT_DOC_EXTENSIONS,
   CERT_DOC_MAX_COUNT,
   CERT_DOC_MAX_SIZE_MB,
+  CERT_DOC_MAX_TOTAL_SIZE_MB,
   CERT_DOC_LABEL,
-  isFileSizeOk,
+  validateCompanyCertFileSelection,
 } from '@/utils/validation';
 import { formatDateTime } from '@/utils/format';
 import Button from '@/components/ui/Button';
@@ -49,14 +54,11 @@ export default function CompanyCertStatusPage() {
         if (!cancelled) setCert(data);
       } catch (err: unknown) {
         if (cancelled) return;
-        const status =
-          err && typeof err === 'object' && 'response' in err
-            ? (err as { response?: { status?: number } }).response?.status
-            : undefined;
+        const status = getCompanyCertErrorStatus(err);
         if (status === 404) {
           setNotFound(true);
         } else {
-          setError(err instanceof Error ? err.message : '인증 현황을 불러올 수 없습니다.');
+          setError(getCompanyCertErrorMessage(err, '인증 현황을 불러올 수 없습니다.'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -75,25 +77,9 @@ export default function CompanyCertStatusPage() {
 
     const newFiles = Array.from(selected);
 
-    for (const file of newFiles) {
-      const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-      if (!CERT_DOC_EXTENSIONS.includes(ext)) {
-        setFormError(`허용되지 않는 파일 형식입니다: ${file.name} (${CERT_DOC_LABEL} 만 가능)`);
-        e.target.value = '';
-        return;
-      }
-    }
-
-    for (const file of newFiles) {
-      if (!isFileSizeOk(file, CERT_DOC_MAX_SIZE_MB)) {
-        setFormError(`파일 크기가 ${CERT_DOC_MAX_SIZE_MB}MB를 초과합니다: ${file.name}`);
-        e.target.value = '';
-        return;
-      }
-    }
-
-    if (files.length + newFiles.length > CERT_DOC_MAX_COUNT) {
-      setFormError(`첨부파일은 최대 ${CERT_DOC_MAX_COUNT}개까지 가능합니다.`);
+    const validationError = validateCompanyCertFileSelection(files, newFiles);
+    if (validationError) {
+      setFormError(validationError);
       e.target.value = '';
       return;
     }
@@ -122,7 +108,7 @@ export default function CompanyCertStatusPage() {
       setCert(updated);
       setFiles([]);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : '보완 서류 제출에 실패했습니다.');
+      setFormError(getCompanyCertErrorMessage(err, '보완 서류 제출에 실패했습니다.'));
     } finally {
       setSubmitting(false);
     }
@@ -140,7 +126,9 @@ export default function CompanyCertStatusPage() {
     return (
       <div className={styles.page}>
         <h1 className={styles.pageTitle}>{'기업 인증 현황'}</h1>
-        <div className={styles.error}>{error}</div>
+        <div className={styles.error} role="alert">
+          {error}
+        </div>
       </div>
     );
   }
@@ -199,7 +187,11 @@ export default function CompanyCertStatusPage() {
 
         {cert.adminNote && (
           <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>{'관리자 메모'}</span>
+            <span className={styles.infoLabel}>
+              {cert.status === 'REVISION_REQUESTED' || cert.status === 'REJECTED'
+                ? '처리 사유'
+                : '관리자 메모'}
+            </span>
             <span className={styles.adminNote}>{cert.adminNote}</span>
           </div>
         )}
@@ -213,19 +205,24 @@ export default function CompanyCertStatusPage() {
               '관리자 메모를 확인한 뒤 수정된 서류를 다시 제출해주세요. 제출 후 상태는 심사중으로 돌아갑니다.'
             }
           </p>
-          {formError && <div className={styles.error}>{formError}</div>}
+          {formError && (
+            <div className={styles.error} role="alert">
+              {formError}
+            </div>
+          )}
           <label className={styles.dropZone}>
             <input
               type="file"
               multiple
               accept={CERT_DOC_ACCEPT}
+              aria-label="보완 서류 선택"
               className={styles.fileHidden}
               onChange={handleFileChange}
             />
             {'파일 선택 (여러 파일 가능)'}
           </label>
           <p className={styles.fileHint}>
-            {`허용 형식: ${CERT_DOC_LABEL} / 최대 ${CERT_DOC_MAX_SIZE_MB}MB, ${CERT_DOC_MAX_COUNT}개`}
+            {`허용 형식: ${CERT_DOC_LABEL} / 파일당 ${CERT_DOC_MAX_SIZE_MB}MB, 전체 ${CERT_DOC_MAX_TOTAL_SIZE_MB}MB, 최대 ${CERT_DOC_MAX_COUNT}개`}
           </p>
           {files.length > 0 && (
             <div className={styles.fileList}>

@@ -87,7 +87,9 @@
   cursor: pointer;
   color: var(--text2);
   font-size: 13px;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .fileLabel:hover {

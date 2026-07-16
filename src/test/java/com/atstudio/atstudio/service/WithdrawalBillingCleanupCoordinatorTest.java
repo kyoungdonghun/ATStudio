@@ -46,6 +46,7 @@ class WithdrawalBillingCleanupCoordinatorTest {
         Method retryMethod = WithdrawalBillingCleanupCoordinator.class.getMethod("retryFailedCleanups");
         Scheduled scheduled = retryMethod.getAnnotation(Scheduled.class);
         assertThat(scheduled.cron()).isEqualTo("0 15 1 * * *");
+        assertThat(scheduled.zone()).isEqualTo("${app.payment.scheduler-zone:Asia/Seoul}");
 
         given(cleanupService.findRetryCandidateIDs()).willReturn(List.of(11L, 12L, 13L));
         given(cleanupService.cleanup(11L))

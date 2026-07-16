@@ -1,457 +1,72 @@
 ---
-version: 1.4
-last_updated: 2026-06-03
+version: 3.0
+last_updated: 2026-07-16
 project: ATS
-owner: MA
-category: guide
-status: confirmed
+owner: docops
+category: design
+status: stable
 dependencies:
-  - path: docs/ui/atstudio-front-list.md
-    reason: Screen number system (primary source)
-  - path: docs/ui/modal-list.md
-    reason: Modal trigger points
-  - path: docs/design/api-spec.md
-    reason: API references
+  - path: atstudio-front-list.md
+    reason: Current screen count and route inventory
+  - path: ../design/api-spec.md
+    reason: Current API contract
+  - path: ../design/usecase/index.md
+    reason: Domain use cases
 ---
 
-# ATStudio 화면 흐름도 (Screen Flow)
-
-> atstudio-front-list.md v6 / modal-list.md v1.2 기준 | v1.4 2026-06-03 확정
-> `[PUBLIC]` = 비인증 접근 가능 / `[AUTH]` = 로그인 필요 / `[ADMIN]` = 관리자 전용
-> `M-##` = modal-list.md 참조
-
----
-
-## 1. 전체 내비게이션 구조 (GNB)
-
-```
-[비로그인]    GNB: 홈 / 음원 / 앨범 / 구독 / 공지 / 로그인
-[로그인 사용자] GNB: 홈 / 음원 / 앨범 / 구독 / 공지 / 문의 / 좋아요 / 재생목록 / 다운로드 기록 / 라이선스 / 내 계정 / 로그아웃
-[관리자]      GNB: 홈 / 음원 / 앨범 / 공지 / 문의(/admin/questions) / 관리자(/admin/dashboard) / 내 계정 / 로그아웃
-```
-
-> 현재 구현 기준으로 권한에 따라 헤더가 분기된다.
-> `문의`는 인증 필요 화면이므로 비로그인 GNB에는 노출하지 않는다.
-> 모바일 햄버거 메뉴는 동일한 메뉴 구조를 접어서 제공한다.
-
----
-
-## 2. 인증 흐름 (Auth)
-
-```
-[A-1 로그인]
-  │  성공 → 이전 페이지 복귀 (returnUrl 파라미터)
-  │          returnUrl 없을 시 → [1 메인]
-  │  실패 → 오류 메시지 인라인 표시 (화면 유지)
-  │
-  ├── "회원가입" 클릭 ────────────────────────── [A-2 일반 회원가입]
-  │                                               │  성공 → [A-1 로그인]
-  │
-  └── "소셜 로그인" 클릭 ──────────────────────── [A-3 소셜 로그인]
-                                                   │  신규 유저 → [A-4 추가정보 입력]
-                                                   │              │  완료 → [1 메인]
-                                                   │  기존 유저 → [1 메인] (직행)
-
-[A-2 일반 회원가입]  → 성공 → [A-5 이메일 인증 안내]
-  │  이메일로 인증 링크 발송 (24시간 유효)
-  │  사용자가 이메일 링크 클릭 → [A-5 이메일 인증] (token 파라미터로 자동 인증)
-  │  인증 성공 → "인증 완료" + [A-1 로그인] 이동 링크
-  │  인증 실패 → "인증 실패" + 오류 메시지
-
-[A-1 로그인] → "비밀번호 찾기" 클릭 → [A-6 비밀번호 찾기]
-  │  이메일 입력 → 14.10 POST → "재설정 링크 발송" 안내
-  │  이메일 링크 클릭 → [A-6 비밀번호 재설정] (token 파라미터)
-  │  새 비밀번호 입력 → 14.11 POST → "변경 완료" + [A-1 로그인] 이동 링크
-
-[로그아웃]  클라이언트 측 토큰 삭제 (서버 무효화 엔드포인트 없음 — 초기 버전)
-  → playerStore 초기화 (재생 중지, 큐 클리어, shuffle/repeat 리셋) (SR-33)
-  → authStore 초기화 (role = GUEST, token = null)
-  → [1 메인] (비로그인 상태)
-
-[로그인 필요 화면 접근]
-  → [A-1 로그인] 리다이렉트 (returnUrl 보존)
-  → 로그인 성공 후 원래 접근하려던 경로로 복귀
-
-[구독 필요 화면 접근 — SubscriberRoute] (SR-24/SR-25)
-  대상: /playlists*, /download-queue, /whitelist-channels
-  비로그인 → [A-1 로그인] 리다이렉트
-  로그인 + 구독 없음(status ≠ ACTIVE) → [16-1 구독 플랜] 리다이렉트
-  로그인 + 구독 ACTIVE → 정상 진입
-  (구독 상태 확인: GET /api/user-subscriptions/me 비동기 호출, 로딩 중 화면 블랭크)
-```
-
-> 자동 로그인(소셜): 클라이언트 의견 수렴 후 결정 예정.
-
----
-
-## 3. 음원 탐색 흐름 (Track Discovery)
-
-> **확정**: 음원(Track)은 리스트 방식만 사용. 이미지 카드 방식은 앨범 전용.
-
-```
-[1 메인]
-  │  음원 섹션: 리스트 형태로 표시 (썸네일 | 곡제목 파형 재생버튼 | 좋아요 재생목록추가 다운로드)
-  │  "더 보기" 버튼 → [3 음원 목록]
-  │  앨범 섹션: 이미지 카드 형태 → "더 보기" → [L-1 앨범 목록]
-  │  태그 필터: 인라인 CHIP/SELECT 형태 (모달 전환 가능성 열어둠)
-  │
-  └── 곡명 클릭 ─────────────────────────────────── [B-1 음원 상세]
-                                                       │
-                          ┌────────────────────────────┼──────────────────────┐
-                          │                            │                      │
-                    "좋아요" 클릭               "재생목록에 추가" 클릭      "다운로드" 클릭
-             10.1 POST /api/likes/{trackId}            │        1.5 GET /api/tracks/{trackId}/download
-                   (토글, 화면 유지)             [M-12 SelectModal]          (성공 시 파일 다운로드)
-                                                       │
-                                            어떤 재생목록에 추가할지 선택
-                                            3.4 POST → 완료 토스트 (화면 유지)
-
-[3 음원 목록]  ← [1 메인] "더 보기" 또는 GNB
-  └── 각 행: 좋아요 / 재생목록추가(M-12) / 다운로드 버튼 인라인 제공
-      곡명 클릭 → [B-1 음원 상세]
-```
-
----
-
-## 4. 재생목록 흐름 (Playlist)
-
-> 재생목록 생성은 경량 액션 (유튜브 패턴). 생성 후 음원 목록에서 M-12로 트랙 추가.
-> **Updated baseline (2026-04-18)**: 재생목록 생성 한도는 고정 3개가 아니라 현재 구독 플랜의 `subscription.maxPlaylists`를 따른다.
-> 이 흐름은 `SubscriberRoute` 대상이며, admin도 playlist에는 별도 예외 없이 같은 구독 규칙을 따른다.
-
-```
-[8 재생목록 생성]
-  "새 재생목록 만들기" (위치: 헤더/푸터/음원 Que bar 등 적절한 위치)
-  활성 재생목록 수가 현재 플랜 한도(`subscription.maxPlaylists`) 이상이면 버튼 비노출
-  생성 폼 제출 → 3.1 POST → 이전 화면 복귀 (크게 강조 불필요)
-
-[4/5 재생목록 목록]  ← GET /api/playlists
-  │
-  ├── "삭제" 클릭 → [M-13 ConfirmModal] → 삭제 → 목록 갱신
-  │
-  └── 재생목록 카드 클릭 ─────────────────────── [C-1 재생목록 상세]
-                                                   │
-                                             "편집" 클릭
-                                                   │
-                                          ────────────────────── [9 재생목록 수정]
-                                                                  ├── "트랙 추가" → [M-05 SelectModal]
-                                                                  │    완료 → 화면 갱신
-                                                                  ├── 트랙 순서 → 3.6 PUT (드래그앤드롭)
-                                                                  ├── "트랙 삭제" → 인라인 X버튼
-                                                                  │    → confirm() → 3.7 DELETE
-                                                                  └── "재생목록 삭제" → [M-07 ConfirmModal]
-                                                                       확인 → [4/5 목록]
-```
-
----
-
-## 5. 앨범 흐름 (Album)
-
-> 앨범 = 이미지 카드 방식 사용 (Track과 다름).
-
-```
-[L-1 앨범 목록 (이미지)]  [L-2 앨범 목록 (리스트)]
-  │
-  ├── 앨범 카드 클릭 ────────────────────────────── [L-3 앨범 상세]
-  │                                                   │  트랙 클릭 → [B-1 음원 상세]
-  │
-  └── [ADMIN] "앨범 생성" ──────────────────────── [L-4 앨범 생성]
-                                                     │  성공 → [L-5 앨범 수정 + 트랙 관리]
-                                                     │         (트랙 추가 작업 연쇄)
-                                                     │
-                                                  [L-5 앨범 수정 + 트랙 관리]
-                                                  ├── "트랙 추가" → [M-06 SelectModal]
-                                                  │    완료 → 화면 갱신
-                                                  ├── 트랙 순서 → 15.8 PUT (드래그앤드롭)
-                                                  ├── "트랙 제거" → 인라인 X버튼 → confirm()
-                                                  └── "앨범 삭제" → [M-08 ConfirmModal]
-                                                       확인 → 15.5 DELETE → [L-1 목록]
-```
-
----
-
-## 6. 다운로드 기록 흐름
-
-```
-[11 다운로드 기록]  (legacy route: `/download-queue`)
-  │  상단: 오늘 잔여 다운로드 횟수 + nextResetAt 표시
-  │  구독 없을 시: "구독이 필요합니다" 안내 + [16-1 구독 플랜]으로 이동 제안
-  │
-  ├── 검색 + 정렬(최신순 / 오래된순) + 페이징
-  │
-  ├── "항목별 다운로드" → 1.5 GET /api/tracks/{trackId}/download
-  │    성공 → 파일 다운로드 시작 (화면 유지)
-  │    한도 초과 → 토스트: "오늘 다운로드 한도 초과. {nextResetAt} 초기화"
-  │
-  ├── "선택 재다운로드" → 체크된 trackId 기준 순차 다운로드
-  │
-  └── "전체 재다운로드" → 필터 결과 전체 기준 trackId 순차 다운로드
-       확인 모달 → 다운로드 진행
-       한도 초과 시 → 토스트 표시 후 중단
-```
-
----
-
-## 7. 구독 흐름 (Subscription)
-
-```
-[16-1 구독 플랜 비교/선택]  ← [PUBLIC]
-  │
-  └── "구독하기" 클릭 ──────────────────────────── [16-2 구독 결제: /subscriptions/checkout]
-       비로그인 → "로그인이 필요합니다" 안내 + [A-1 로그인] 이동 제안
-       BUSINESS + 기업인증 없음 → "기업인증이 필요합니다" 안내 + [I-1] 이동 제안
-                                                   │
-                                             "카드 등록하기" → billing agreement prepare
-                                                    │  TOSS_BILLING → billing auth → /subscriptions/checkout/success → billing confirm + initial charge
-                                                    │  `/subscriptions/payment/*` legacy one-time redirect → blocked, no subscription mutation
-                                                   │  성공 → [16-3 내 구독]
-                                                   ├── 실패 → 결제 실패 상태 표시, 구독 미생성
-                                                   └── "취소" → [16-1], 구독 미생성
-
-       UX target after REQ-20260521-ATS-001:
-         - Default payment page shows plan, amount, cycle, payment mode, and a single primary action.
-          - Recurring billing auth uses a dedicated checkout/callback route because mobile authentication return,
-            stale redirect recovery, and retry states are easier to explain there.
-          - The one-time Toss widget inline UX tracked by SR-92 is retired for subscription scope and is not user-facing.
-         - User copy separates "payment failed" from "billing registration failed"; raw authKey, customerKey,
-           billingKey, and provider payloads are never shown to the user.
-
-[16-3 내 구독 현황]  ← GET /api/user-subscriptions/me
-  │  pending 구독 있을 시: "예약된 변경: {플랜명} (다음 결제 성공 후 적용)" 표시
-  │  업그레이드가 이미 적용되고 결제 주기만 pending이면 현재 플랜은 active/current로 표시하고,
-  │  pending 표시는 "{월간/연간} 예약" 같은 결제주기 예약으로만 분리 표시
-  │  결제 정보 있을 시: 상태(ACTIVE/SUSPENDED/CANCELLED), 결제수단(마스킹), 다음 결제일 표시
-  │  결제 실패 유예 중: "결제 재시도 중 · {expiresAt}까지 이용 가능" 표시
-  │
-   ├── "플랜 변경" → [M-09 PlanCompareModal]
-   │    업그레이드:
-   │      GET /api/utils/subscription-change-preview → 즉시 결제 차액, 적용일, 다음 결제일, 다음 결제 금액, 다음 결제 주기 표시
-   │      → 사용자가 확인 → PUT 6.7
-   │      → 서버가 active billing agreement로 정수 원 차액 즉시 결제
-   │      → 결제 성공 후 상위 플랜 즉시 적용, 현재 결제 주기와 다음 결제일은 유지
-   │      → 선택한 결제 주기가 다르면 다음 갱신용 pendingBillingCycle 표시
-   │    다음 결제일 변경:
-   │      "다음 결제일({expiresAt}) 결제 성공 후 적용 · 즉시 추가 결제 없음" 안내
-  │      → [변경 예약] → PUT 6.7 → 화면 갱신 (pending 표시)
-  │    현재 플랜/현재 주기:
-  │      pending 변경이 있으면 [예약 해제] → PUT 6.7 → 화면 갱신
-  │
-  ├── "구독 취소" → [M-10 StatusModal]
-       "취소 후 {expiresAt}까지 이용 가능" 안내
-       확인 → 6.10 DELETE → 화면 갱신
-  └── 취소 유예 중 "구독 유지하기" → POST /api/user-subscriptions/me/reactivate
-       저장된 빌링키가 유효하면 다음 결제 예약을 복구하고 status=ACTIVE로 전환
-```
-
----
-
-## 8. 개인 페이지 흐름 (My Page)
-
-```
-[10 개인정보 페이지]  ← GET /api/users/me
-  ├── 정보 수정 → PUT /api/users/me → 화면 갱신
-  ├── "비밀번호 변경" → [M-01 InputModal] → 성공 토스트 (화면 유지)
-  └── "회원탈퇴" → [M-02 InputModal] → 성공 → [A-1 로그인] (로그아웃)
-
-[D-1 좋아요 목록]
-  ├── 트랙 클릭 → [B-1 음원 상세]
-  └── "좋아요 취소" → [M-23 ConfirmModal] → 목록 갱신
-
-[E-1 재생 기록]
-  ├── 트랙 클릭 → [B-1 음원 상세]
-  ├── "항목 삭제" → 인라인 삭제 → 4.3 DELETE → 목록 갱신
-  └── "전체 삭제" → 인라인 버튼 → confirm() → 4.3 DELETE → 목록 초기화
-
-[F-1 내 라이선스 목록]
-  └── 라이선스 클릭 → [F-2 라이선스 상세]
-
-[H-1 화이트리스트 채널]
-  ├── "채널 저장" → POST /api/whitelist-channels → DRAFT 저장 후 목록 갱신
-  ├── "등록 요청" → POST /api/whitelist-channels/{channelId}/request → PENDING
-  │    REVISION_REQUESTED 재요청: 자기 슬롯은 한도 계산에서 제외 후 PENDING 복귀
-  ├── "대표 설정" → PUT /api/whitelist-channels/{channelId}/primary → 목록 갱신
-  ├── "채널 수정" → PUT → 화면 갱신 (처리된 채널은 재요청 상태로 전환 가능)
-  └── "삭제/해제 요청" → confirm() → DELETE
-       DRAFT/PENDING/REVISION_REQUESTED/REJECTED/CANCELLED: 삭제, 대표 삭제 시 남은 채널 대표 승계
-       EXPORTED/REGISTERED: REMOVAL_REQUESTED
-
-[I-1 기업인증 신청]
-  ├── 서류 첨부 → 인라인 파일 선택 (PDF/HWP/HWPX/DOC/DOCX/JPG/PNG, 최대 10개)
-  └── "신청 제출" → POST /api/company-certifications → [I-2 기업인증 현황]
-
-[I-2 기업인증 현황]
-  └── 상태 표시:
-       PENDING: "심사 중"
-       APPROVED: "승인됨" + 구독 플랜 CTA
-       REVISION_REQUESTED:
-         → adminNote 확인
-         → 보완 서류 첨부
-         → POST /api/company-certifications/me/documents → PENDING 복귀
-       REJECTED:
-         → adminNote 확인
-         → "새 인증 신청" CTA → [I-1 기업인증 신청]
-```
-
-> 기업인증 핵심 정책: 좋은 케이스는 1:1 문의 없이 신청→관리자 문서 확인→승인으로 처리한다.
-> REVISION_REQUESTED는 같은 신청 건 보완 제출, REJECTED는 기록 보존 후 새 신청으로 처리한다.
-
----
-
-## 9. 문의 / 공지 흐름
-
-```
-[13 문의글 목록]  ← GET /api/questions
-  [ADMIN 접근] /questions 진입 시 → redirect /admin/questions (loader 처리, SR-29)
-  탭 구성 (SR-30):
-    "전체" 탭: 자신이 작성한 문의 전체 목록
-    "내 문의" 탭: 미해결 문의 또는 추가 필터 (구현 기준 참고)
-  ├── "문의하기" 클릭 ─────────────────────────── [14 문의글 작성]
-  │    파일 첨부 → [M-16 FileUploadModal]
-  │    "제출" → POST /api/questions → [15 내 문의 상세]
-  │
-  └── 문의 항목 클릭 ──────────────────────────── [15 문의글 보기]
-       └── "삭제" → [M-20 ConfirmModal] → [13 목록]
-
-[20 공지 목록]  ← [PUBLIC]
-  └── 공지 클릭 ──────────────────────────────── [22 공지 조회]
-       [ADMIN] "삭제" → [M-19 ConfirmModal] → [20 목록]
-
-[ADMIN] "공지 작성" → [21 공지 작성]
-  성공 → [22 공지 조회]
-
-[ADMIN] [22]에서 "수정" → [21-2 공지 수정]
-  성공 → [22 공지 조회]
-```
-
----
-
-## 10. 관리자 페이지 흐름 (Admin)
-
-```
-[18 통계 대시보드]  API 미정의 — 사이트 완성 후 설계 예정
-
-[K-1 회원 목록 / 상세 / 권한 수정]
-  ├── 회원 클릭 → [K-1 상세] (별도 페이지)
-  └── "권한 수정" → [M-25 ConfirmModal] → 화면 갱신
-
-[K-2 구독 목록/상세/강제 취소]
-  ├── 구독 클릭 → 상세
-  └── "강제 취소" → [M-24 ConfirmModal] → 화면 갱신
-
-[K-3 라이선스 조회]  회원별 목록 → 상세 (읽기 전용)
-
-[K-4 문의 관리]  "상태 변경" → [M-18 SelectModal] → 화면 갱신
-
-[K-5 기업 인증 목록 / 상세 / 심사 처리]
-  ├── "상세" → 신청자 정보 + 제출 서류 목록
-  ├── "다운로드" → GET /api/company-certifications/{certificationId}/documents/{documentId}
-  └── "승인/보완 요청/반려" → [M-17 ReviewModal] → 화면 갱신
-
-[K-6 태그 관리]
-  ├── "태그 생성" → POST /api/tags → 목록 갱신
-  ├── "태그 수정" → PUT → 목록 갱신
-  └── "태그 삭제" → 인라인 삭제 → confirm() → [M-28 ConfirmModal] → 목록 갱신
-
-[K-7 트랙 관리]  "트랙 삭제" → [M-11 ConfirmModal] → 목록 갱신
-
-[K-10 결제 운영]
-  탭: 주문 / 자동결제 / 결제내역 / 대사 Incident / 영수증 / 감사로그 / 정산 / 환불 / 권한 보정
-  ├── 대사 Incident: 상태/메모 변경 → 결제 operation audit 기록
-  ├── 정산: CSV import → settlement row 생성/대조, 누락 후보 확인, IGNORE 메모 처리
-  │    정산 작업은 구독/결제/환불/provider 상태를 변경하지 않음
-  ├── 환불: preview → request → approve → typed confirmation execute
-  └── 권한 보정: preview → request → approve → typed confirmation execute
-
-[K-11 화이트리스트 운영]
-  ├── 상태/키워드 필터 → GET /api/admin/whitelist-channels
-  ├── CSV 내보내기 → POST /api/admin/whitelist-channels/export
-  │    PENDING export: EXPORTED 전환 + export ledger 기록
-  │    그 외 상태 export: 상태 유지 + export ledger 기록
-  └── 상태 저장 → PUT /api/admin/whitelist-channels/{channelId}/status
-       REGISTERED / REVISION_REQUESTED / REJECTED / REMOVAL_REQUESTED / CANCELLED
-
-[6 음원 업로드]
-  태그 선택 → [M-03 SelectModal]
-  성공 → [B-1 음원 상세]
-
-[7 음원 수정]
-  태그 수정 → [M-04 SelectModal]
-  성공 → [B-1 음원 상세]
-```
-
----
-
-## 10-1. 큐바 플레이어 구매하기 버튼 (SR-27)
-
-```
-[큐바 플레이어 하단]
-  현재 재생 중인 트랙에 "다운로드" 버튼 표시
-  비로그인 상태 → [A-1 로그인] 리다이렉트
-  로그인 상태 → 1.5 GET /api/tracks/{trackId}/download
-    성공 → 토스트: "다운로드가 완료되었습니다."
-    한도 초과 → 토스트: "금일 다운로드 횟수를 모두 사용했습니다."
-```
-
----
-
-## 11. 전역 내비게이션 패턴
-
-| 패턴 | 확정 동작 | 비고 |
-|------|----------|------|
-| 뒤로가기 | 브라우저 히스토리 (SPA React Router) | 구현 전 라우팅 전략 제안 |
-| 로그인 필요 화면 접근 | → [A-1] 리다이렉트, 로그인 후 returnUrl 복귀 | Q-01/Q-15 동일 |
-| 삭제 완료 후 | 목록 화면으로 (기본값) | |
-| API 에러 400/422 | 인라인 오류 메시지 | |
-| API 에러 401/403 | 토스트 또는 리다이렉트 | 구현 전 제안 |
-| API 에러 404 | [ERR-1 404 Not Found 에러 페이지] | |
-| API 에러 500 | [ERR-2 500 Server Error 에러 페이지] | |
-| 성공 토스트 | 생성/수정/삭제 성공 시 하단 토스트 | 문구 기준 구현 전 정의 |
-| 로딩 인디케이터 | 페이지 전환 + API 호출 중 표시 | 기준 구현 전 정의 |
-
-> 구체적 패턴은 구글/스포티파이/네이버/애플뮤직 등 통용 기준 참고.
-> 각 패턴 구현 전 제안 후 컨펌.
-
----
-
-## 12. 잔여 / 후속 항목
-
-| # | 항목 | 상태 |
-|---|------|------|
-| R-01 | 자동 로그인 (소셜) | 클라이언트 의견 수렴 후 결정 |
-| R-02 | GNB 추가 IA 조정 | 현재 baseline 구현 완료, 필요 시 후속 UX 개선으로 조정 |
-| R-03 | 태그 필터 — 인라인 vs 모달 전환 용이성 | 인라인 우선, 전환 어려우면 재논의 |
-| R-04 | 18 통계 대시보드 지표 확장 설계 | 필요 시 후속 정의 |
-| R-05 | 결제 운영 안정화 (billing auth / upgrade charge / renewal failure) | One-time Toss widget UX SR-92 is dropped; production hardening continues under SR-93 and follow-up REQ/SR items |
-| R-06 | 결제 운영 화면 | Payment order / billing agreement / subscription payment support tabs, reconciliation incident workflow, receipt/audit views, settlement import/reconciliation, and admin refund/entitlement-correction operation tabs are implemented at `/admin/payments` |
-| R-07 | M-15 기업인증 서류 파일 제한 | 해결됨. PDF/HWP/HWPX/DOC/DOCX/JPG/JPEG/PNG, 최대 10개, 파일당 20MB. |
-
----
-
-## 13. 추가 사항
-
-**Modal 추가 (M-28)**
-- M-28: K-6 태그 삭제 확인 | ConfirmModal | `2.4 DELETE /api/tags/{id}`
-
-**화면 추가**
-- ERR-1: 404 Not Found 에러 페이지
-- ERR-2: 500 Server Error 에러 페이지
-
-**빈 상태 (Empty State)**
-- 재생목록 0개: "재생목록이 없습니다. 첫 재생목록을 만들어보세요" + 생성 버튼
-- 다운로드 기록 비어있음: "다운로드 기록이 없습니다." + [1 메인] CTA
-- 좋아요 0개, 재생기록 0개: 각각 빈 상태 메시지 표시
-
-**토스트 기준 (공통)**
-- 생성 성공: "{항목명} 생성 완료"
-- 수정 성공: "{항목명} 수정 완료"
-- 삭제 성공: "{항목명} 삭제 완료"
-- 한도 초과: "다운로드 한도 초과. {nextResetAt} 초기화"
-- 위치/지속시간: 구현 전 제안 후 컨펌
-
----
-
-> v1.3 (2026-03-29) | 총 **51개** 화면 (49 + ERR-1 + ERR-2)
-> SR-24/25: SubscriberRoute 리다이렉트 추가 | SR-27: 큐바 구매하기 버튼 흐름 추가
-> SR-29: /questions ADMIN redirect 추가 | SR-30: 문의 목록 탭 추가
-> SR-33: 로그아웃 플레이어+전역 상태 초기화 추가
-> 관련 문서: [atstudio-front-list.md](atstudio-front-list.md) · [modal-list.md](modal-list.md)
+# ATStudio Screen Flows
+
+## Navigation Model
+
+The main layout serves public and authenticated user workflows with the shared player. The admin layout has a separate sidebar/topbar and no player. Route guards preserve safe internal return targets and reject external or protocol-relative redirects.
+
+## Authentication
+
+1. Login/signup screens load public runtime capabilities.
+2. Password or enabled social login authenticates the user.
+3. A new social account completes the required profile before protected workflows.
+4. Logout calls `POST /api/auth/logout` and clears frontend session state.
+5. Social-only account withdrawal remains policy-pending; password confirmation is not treated as social proof.
+
+## Discovery And Playback
+
+1. Public users browse tracks, tags, and albums.
+2. Streaming uses the controller-mediated public stream endpoint; storage keys are not exposed.
+3. After playback starts, the SPA records the track in browser `localStorage` under `playHistory`.
+4. The local list is capped at 100 and is not synchronized to the retained server play-history API.
+
+## Playlist
+
+1. A subscriber opens the playlist list.
+2. Create actions use the existing modal.
+3. `/playlists/new` is a compatibility adapter that opens that modal and does not add another screen UI.
+4. Detail/edit pages add, remove, and reorder tracks under current plan limits.
+
+## Subscription And Payment
+
+1. The user selects a plan/cycle on `/subscriptions`.
+2. `/subscriptions/checkout` prepares Toss billing auth.
+3. New subscription confirmation charges the first period and activates only after server confirmation.
+4. Existing subscriber payment-method re-registration prepares `purpose=BILLING_AGREEMENT` with `amount=0`; confirmation updates the method without changing the plan or period.
+5. Upgrade charges the prorated difference through the active billing agreement. Downgrade/cycle-only changes remain pending until successful renewal.
+6. Cancel stops the next renewal while paid access remains through `expiresAt`; valid grace-period cancellation can be reactivated.
+7. Legacy one-time routes remain blocked compatibility paths and must not mutate subscription state.
+
+## Whitelist And Company Certification
+
+- Users may save up to 100 whitelist channel profiles. Plan limits apply to registration-relevant states, not all drafts.
+- Whitelist transitions, primary selection, immutable export snapshots, and CSV formula neutralization follow the current backend contract.
+- BUSINESS users upload PDF/JPG/JPEG/PNG certification documents. Images are decoded and stored as canonical JPEG; review reasons are bounded to 500 characters.
+- Document metadata never exposes persistence paths. Automatic retention deletion and malware scanning remain policy-pending.
+
+## Admin
+
+- Dashboard loads `GET /api/admin/stats` with totals and five recent users.
+- Payment operations separates ledgers/incidents/refunds/settlement from ordinary subscription administration.
+- Site settings reads and upserts `COMPANY_CERT_GUIDE`.
+- Whitelist and certification review use current transition, audit, export, and private-document boundaries.
+- List screens use latest-request-wins behavior so stale responses cannot overwrite current filters/pages.
+
+## Environment Boundary
+
+Public dev-server exposure is allowed only after the operator confirms a compatible dependency state or an access-controlled alternative. Development Vite 6.4.3 currently audits at 0; the frozen client-demo Vite 6.4.1 branch retains findings and was not modified.

@@ -1,14 +1,19 @@
 import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { applyCompanyCert, fetchMyCompanyCert } from '@/api/companyCerts';
+import {
+  applyCompanyCert,
+  fetchMyCompanyCert,
+  getCompanyCertErrorMessage,
+  getCompanyCertErrorStatus,
+} from '@/api/companyCerts';
 import { getSetting } from '@/api/settings';
 import {
   CERT_DOC_ACCEPT,
-  CERT_DOC_EXTENSIONS,
   CERT_DOC_MAX_SIZE_MB,
   CERT_DOC_MAX_COUNT,
+  CERT_DOC_MAX_TOTAL_SIZE_MB,
   CERT_DOC_LABEL,
-  isFileSizeOk,
+  validateCompanyCertFileSelection,
 } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './CompanyCertApplyPage.module.css';
@@ -23,6 +28,7 @@ export default function CompanyCertApplyPage() {
   const [checking, setChecking] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [existingRejected, setExistingRejected] = useState(false);
   const [guideText, setGuideText] = useState<string | null>(null);
   const [guideLoading, setGuideLoading] = useState(true);
@@ -66,13 +72,11 @@ export default function CompanyCertApplyPage() {
         }
       } catch (err: unknown) {
         // 404 means no existing cert → show form
-        const status =
-          err && typeof err === 'object' && 'response' in err
-            ? (err as { response?: { status?: number } }).response?.status
-            : undefined;
+        const status = getCompanyCertErrorStatus(err);
         if (status !== 404) {
           if (!cancelled) {
-            setError('인증 상태를 확인할 수 없습니다.');
+            setAccessDenied(status === 403);
+            setError(getCompanyCertErrorMessage(err, '인증 상태를 확인할 수 없습니다.'));
           }
         }
       } finally {
@@ -93,28 +97,9 @@ export default function CompanyCertApplyPage() {
 
     const newFiles = Array.from(selected);
 
-    // 확장자 검증
-    for (const file of newFiles) {
-      const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-      if (!CERT_DOC_EXTENSIONS.includes(ext)) {
-        setError(`허용되지 않는 파일 형식입니다: ${file.name} (${CERT_DOC_LABEL} 만 가능)`);
-        e.target.value = '';
-        return;
-      }
-    }
-
-    // 크기 검증
-    for (const file of newFiles) {
-      if (!isFileSizeOk(file, CERT_DOC_MAX_SIZE_MB)) {
-        setError(`파일 크기가 ${CERT_DOC_MAX_SIZE_MB}MB를 초과합니다: ${file.name}`);
-        e.target.value = '';
-        return;
-      }
-    }
-
-    // 개수 검증
-    if (files.length + newFiles.length > CERT_DOC_MAX_COUNT) {
-      setError(`첨부파일은 최대 ${CERT_DOC_MAX_COUNT}개까지 가능합니다.`);
+    const validationError = validateCompanyCertFileSelection(files, newFiles);
+    if (validationError) {
+      setError(validationError);
       e.target.value = '';
       return;
     }
@@ -144,8 +129,7 @@ export default function CompanyCertApplyPage() {
       await applyCompanyCert(files);
       navigate('/company-certification/status');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '인증 신청에 실패했습니다.';
-      setError(msg);
+      setError(getCompanyCertErrorMessage(err, '인증 신청에 실패했습니다.'));
     } finally {
       setSubmitting(false);
     }
@@ -155,6 +139,17 @@ export default function CompanyCertApplyPage() {
     return (
       <div className={styles.page}>
         <div className={styles.loading}>{'Loading...'}</div>
+      </div>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <div className={styles.page}>
+        <h1 className={styles.pageTitle}>{'기업 인증 신청'}</h1>
+        <div className={styles.error} role="alert">
+          {error}
+        </div>
       </div>
     );
   }
@@ -193,7 +188,11 @@ export default function CompanyCertApplyPage() {
       </div>
 
       <form className={styles.form} onSubmit={handleSubmit}>
-        {error && <div className={styles.error}>{error}</div>}
+        {error && (
+          <div className={styles.error} role="alert">
+            {error}
+          </div>
+        )}
 
         {/* File upload */}
         <div className={styles.field}>
@@ -205,13 +204,14 @@ export default function CompanyCertApplyPage() {
               type="file"
               multiple
               accept={CERT_DOC_ACCEPT}
+              aria-label="기업 인증 서류 선택"
               className={styles.fileHidden}
               onChange={handleFileChange}
             />
             {'파일 선택 (여러 파일 가능)'}
           </label>
           <p className={styles.fileHint}>
-            {`허용 형식: ${CERT_DOC_LABEL} / 최대 ${CERT_DOC_MAX_SIZE_MB}MB, ${CERT_DOC_MAX_COUNT}개`}
+            {`허용 형식: ${CERT_DOC_LABEL} / 파일당 ${CERT_DOC_MAX_SIZE_MB}MB, 전체 ${CERT_DOC_MAX_TOTAL_SIZE_MB}MB, 최대 ${CERT_DOC_MAX_COUNT}개`}
           </p>
 
           {files.length > 0 && (

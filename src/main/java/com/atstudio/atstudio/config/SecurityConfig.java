@@ -17,6 +17,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfigurationSource;
 
@@ -25,6 +26,9 @@ import org.springframework.web.cors.CorsConfigurationSource;
 @EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+
+    private static final WebExpressionAuthorizationManager USER_ONLY_ACCESS =
+            new WebExpressionAuthorizationManager("hasRole('USER') and !hasRole('ADMIN')");
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final AcceptanceHostFilter acceptanceHostFilter;
@@ -113,14 +117,16 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/api/albums/*/tracks").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/albums/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/albums/*/tracks/*").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.POST, "/api/company-certifications").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/company-certifications/me/documents").authenticated()
-                .requestMatchers(HttpMethod.GET, "/api/company-certifications/me").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/company-certifications").access(USER_ONLY_ACCESS)
+                .requestMatchers(HttpMethod.POST, "/api/company-certifications/me/documents").access(USER_ONLY_ACCESS)
+                .requestMatchers(HttpMethod.GET, "/api/company-certifications/me").access(USER_ONLY_ACCESS)
                 .requestMatchers(HttpMethod.GET, "/api/company-certifications").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/company-certifications/*/documents/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/company-certifications/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/company-certifications/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/questions/*/status").hasRole("ADMIN")
+                // User payment APIs are never available to ADMIN, including mixed-authority principals.
+                .requestMatchers("/api/payments/**").access(USER_ONLY_ACCESS)
                 // User Subscriptions - /me endpoints are AUTH (caught by authenticated() below)
                 .requestMatchers(HttpMethod.GET, "/api/user-subscriptions/me").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/user-subscriptions/me").authenticated()

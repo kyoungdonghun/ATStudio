@@ -259,6 +259,7 @@ public class PaymentCommandTransactionService {
             agreement.cancel();
             return RenewalClaim.skipped(billingAgreementID);
         }
+        validateRenewalCancellationFence(agreement, current);
 
         LocalDate billingPeriodStart = agreement.getNextBillingAt();
         PaymentOrder order = paymentOrderRepository.findRenewalPeriodForUpdate(
@@ -337,6 +338,21 @@ public class PaymentCommandTransactionService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void authorizeRenewalProviderCall(Long agreementID, String orderID) {
+        LockedBillingCommand command = lockBillingCommand(agreementID, orderID);
+        PaymentOrder order = command.order();
+        if (order.getStatus() != PaymentOrderStatus.PROCESSING) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+        UserSubscription current = order.getUserSubscription();
+        if (current == null) {
+            throw new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION);
+        }
+        validateRenewalOrder(order, command.agreement(), current, command.agreement().getNextBillingAt());
+        validateRenewalCancellationFence(command.agreement(), current);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void storeIssuedBillingKey(
             Long agreementID,
             String orderID,
@@ -355,7 +371,9 @@ public class PaymentCommandTransactionService {
                 maskedMethod);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(
+            propagation = Propagation.REQUIRES_NEW,
+            noRollbackFor = RenewalCancellationFenceException.class)
     public void recordProviderSuccess(
             Long agreementID,
             String orderID,
@@ -376,9 +394,14 @@ public class PaymentCommandTransactionService {
         }
         lockProviderTransactionOwner(order, providerTransactionID);
         order.markProviderSucceeded(providerTransactionID, providerPayload);
+        if (order.getPurpose() == PaymentPurpose.RENEWAL) {
+            validateRenewalCancellationFence(agreement, order.getUserSubscription());
+        }
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(
+            propagation = Propagation.REQUIRES_NEW,
+            noRollbackFor = RenewalCancellationFenceException.class)
     public ReconciliationFinalizationTarget recordProviderSuccessFromReconciliation(
             Long agreementID,
             String orderID,
@@ -406,6 +429,9 @@ public class PaymentCommandTransactionService {
                 providerTransactionID,
                 providerPayload,
                 staleBefore);
+        if (order.getPurpose() == PaymentPurpose.RENEWAL) {
+            validateRenewalCancellationFence(agreement, subscription);
+        }
         return reconciliationFinalizationTarget(order, agreement);
     }
 
@@ -669,6 +695,7 @@ public class PaymentCommandTransactionService {
             return;
         }
 
+        validateRenewalCancellationFence(agreement, current);
         validateRenewalOrder(order, agreement, current, agreement.getNextBillingAt());
         SubscriptionPayment existingPayment = lockExistingPaymentForFinalization(order);
         if (existingPayment == null) {
@@ -852,6 +879,12 @@ public class PaymentCommandTransactionService {
         }
     }
 
+    private static final class RenewalCancellationFenceException extends BusinessException {
+        private RenewalCancellationFenceException() {
+            super(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+    }
+
     private void validateRenewalPaymentOrder(PaymentOrder order) {
         if (order.getProvider() != RECURRING_PROVIDER
                 || order.getPurpose() != PaymentPurpose.RENEWAL
@@ -859,6 +892,19 @@ public class PaymentCommandTransactionService {
                 || order.getBillingAgreement() == null
                 || order.getBillingPeriodStart() == null) {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+    }
+
+    private void validateRenewalCancellationFence(
+            BillingAgreement agreement,
+            UserSubscription current) {
+        if (agreement == null
+                || current == null
+                || agreement.getStatus() != BillingAgreementStatus.ACTIVE
+                || agreement.getUser() == null
+                || agreement.getUser().isDeleted()
+                || current.getStatus() != SubscriptionStatus.ACTIVE) {
+            throw new RenewalCancellationFenceException();
         }
     }
 

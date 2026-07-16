@@ -60,6 +60,16 @@
   padding: 9px 12px;
 }
 
+.batchInput {
+  width: 140px;
+  padding: 8px 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--text0);
+  font: inherit;
+}
+
 .success,
 .error,
 .loading,

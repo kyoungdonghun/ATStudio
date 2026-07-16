@@ -1,6 +1,7 @@
 package com.atstudio.atstudio.entity;
 
 import com.atstudio.atstudio.common.entity.BaseEntity;
+import com.atstudio.atstudio.entity.enums.WhitelistChannelStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -28,4 +29,11 @@ public class WhitelistExportBatch extends BaseEntity {
 
     @Column(length = 500)
     private String note;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status_filter", length = 30)
+    private WhitelistChannelStatus statusFilter;
+
+    @Column(name = "keyword_filter", length = 100)
+    private String keywordFilter;
 }

@@ -63,6 +63,12 @@
   color: var(--text2);
 }
 
+.search:focus-within,
+.mobileSearch:focus-within {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
 /* ── Tabs ── */
 
 .navTabs {
@@ -78,7 +84,9 @@
   font-weight: 400;
   color: var(--text1);
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
   text-decoration: none;
   white-space: nowrap;
 }
@@ -125,7 +133,9 @@
   background: transparent;
   color: var(--text1);
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 
 .themeToggle:hover {

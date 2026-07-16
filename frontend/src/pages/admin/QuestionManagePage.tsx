@@ -1,11 +1,7 @@
 /** Screen K-4: Question management (admin) */
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  fetchQuestions,
-  updateQuestionStatus,
-  type QuestionListItem,
-} from '@/api/questions';
+import { fetchQuestions, updateQuestionStatus, type QuestionListItem } from '@/api/questions';
 import type { PageInfo, QuestionStatus } from '@/types';
 import { formatDate } from '@/utils/format';
 import Pagination from '@/components/ui/Pagination';
@@ -14,7 +10,6 @@ import styles from './QuestionManagePage.module.css';
 /* ── Constants ── */
 
 type QuestionCategory = 'DOWNLOAD' | 'PAYMENT' | 'COPYRIGHT' | 'PRODUCTION' | 'OTHER';
-
 
 const CATEGORY_LABELS: Record<QuestionCategory, string> = {
   DOWNLOAD: '다운로드',
@@ -75,8 +70,8 @@ export default function QuestionManagePage() {
         page: currentPage,
         size: 20,
         mine: false,
-        category: categoryFilter ? categoryFilter as QuestionCategory : undefined,
-        status: statusFilter ? statusFilter as QuestionStatus : undefined,
+        category: categoryFilter ? (categoryFilter as QuestionCategory) : undefined,
+        status: statusFilter ? (statusFilter as QuestionStatus) : undefined,
       });
       setItems(result.dataList);
       setPageInfo(result.pageInfo);
@@ -108,9 +103,7 @@ export default function QuestionManagePage() {
       await updateQuestionStatus(questionId, newStatus);
       // Update local state
       setItems((prev) =>
-        prev.map((item) =>
-          item.id === questionId ? { ...item, status: newStatus } : item,
-        ),
+        prev.map((item) => (item.id === questionId ? { ...item, status: newStatus } : item)),
       );
     } catch {
       setError('상태 변경에 실패했습니다.');
@@ -137,7 +130,9 @@ export default function QuestionManagePage() {
           onChange={(e) => updateParam('category', e.target.value)}
         >
           {CATEGORY_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
           ))}
         </select>
         <select
@@ -146,7 +141,9 @@ export default function QuestionManagePage() {
           onChange={(e) => updateParam('status', e.target.value)}
         >
           {STATUS_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
           ))}
         </select>
       </div>
@@ -196,7 +193,9 @@ export default function QuestionManagePage() {
                         value={item.status}
                         disabled={updatingId === item.id}
                         onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => handleStatusChange(item.id, e.target.value as QuestionStatus)}
+                        onChange={(e) =>
+                          handleStatusChange(item.id, e.target.value as QuestionStatus)
+                        }
                       >
                         {ALL_STATUSES.map((s) => (
                           <option key={s} value={s}>

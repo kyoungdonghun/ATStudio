@@ -1,5 +1,7 @@
 package com.atstudio.atstudio.dto.payment;
 
+import com.atstudio.atstudio.service.payment.ProviderSupportReference;
+
 import com.atstudio.atstudio.entity.SubscriptionPayment;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 
@@ -15,7 +17,7 @@ public record AdminPaymentRefundPreviewResponse(
         BigDecimal originalAmount,
         BigDecimal alreadyRefundedOrReservedAmount,
         BigDecimal refundableAmount,
-        String providerPaymentKey,
+        String providerReference,
         boolean refundable,
         String reason
 ) {
@@ -35,7 +37,7 @@ public record AdminPaymentRefundPreviewResponse(
                 payment.getAmount(),
                 alreadyRefundedOrReservedAmount,
                 refundableAmount,
-                payment.getPgTransactionId(),
+                ProviderSupportReference.from(payment.getPgTransactionId()),
                 refundable,
                 reason);
     }

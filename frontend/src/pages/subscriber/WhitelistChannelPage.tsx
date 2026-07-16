@@ -1,5 +1,5 @@
 /** Screen H-1: YouTube whitelist channel management */
-import { useEffect, useState, useCallback, type FormEvent } from 'react';
+import { useEffect, useState, useCallback, useRef, type FormEvent } from 'react';
 import {
   deleteChannel,
   fetchWhitelistChannels,
@@ -9,9 +9,15 @@ import {
   updateChannel,
   type WhitelistChannelRequest,
 } from '@/api/whitelistChannels';
-import { fetchMySubscription, type MySubscription } from '@/api/userSubscriptions';
+import {
+  fetchMySubscription,
+  isNoActiveSubscriptionError,
+  type MySubscription,
+} from '@/api/userSubscriptions';
+import { classifyLoadError, getLoadErrorMessage } from '@/api/loadError';
 import Button from '@/components/ui/Button';
 import { formatDate, formatDateTime } from '@/utils/format';
+import { getSafeYoutubeUrl } from '@/utils/safeYoutubeUrl';
 import type { WhitelistChannel, WhitelistChannelStatus } from '@/types';
 import {
   CHANNEL_NAME_MAX,
@@ -20,6 +26,7 @@ import {
   YOUTUBE_HANDLE_MAX,
 } from '@/utils/validation';
 import styles from './WhitelistChannelPage.module.css';
+import { isWhitelistChannelEditable } from './whitelistChannelPolicy';
 
 const STATUS_LABELS: Record<WhitelistChannelStatus, string> = {
   DRAFT: '저장됨',
@@ -28,7 +35,7 @@ const STATUS_LABELS: Record<WhitelistChannelStatus, string> = {
   REGISTERED: '등록 완료',
   REVISION_REQUESTED: '수정 요청',
   REJECTED: '반려',
-  CANCELLED: '요청 취소',
+  CANCELLED: '해제 완료',
   REMOVAL_REQUESTED: '해제 요청',
 };
 
@@ -42,7 +49,6 @@ const LIMIT_COUNT_STATUSES = new Set<WhitelistChannelStatus>([
 
 const REQUESTABLE_STATUSES = new Set<WhitelistChannelStatus>([
   'DRAFT',
-  'CANCELLED',
   'REJECTED',
   'REVISION_REQUESTED',
 ]);
@@ -65,32 +71,67 @@ export default function WhitelistChannelPage() {
   const [channels, setChannels] = useState<WhitelistChannel[]>([]);
   const [mySub, setMySub] = useState<MySubscription | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [editId, setEditId] = useState<number | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const requestId = useRef(0);
+  const loadBlocked = useRef(false);
+  const loadQueued = useRef(false);
 
   const load = useCallback(async () => {
+    loadQueued.current = true;
+    if (loadBlocked.current) return;
+
+    loadBlocked.current = true;
+    let finalRequestId: number | null = null;
     try {
-      setLoading(true);
-      setError(null);
-      const result = await fetchWhitelistChannels();
-      setChannels(result.dataList ?? []);
-      try {
-        setMySub(await fetchMySubscription());
-      } catch {
-        setMySub(null);
+      while (loadQueued.current) {
+        loadQueued.current = false;
+        const currentRequestId = ++requestId.current;
+        finalRequestId = currentRequestId;
+        try {
+          setLoading(true);
+          const result = await fetchWhitelistChannels();
+          if (currentRequestId !== requestId.current) return;
+          setChannels(result.dataList ?? []);
+          try {
+            const subscription = await fetchMySubscription();
+            if (currentRequestId !== requestId.current) return;
+            setMySub(subscription);
+          } catch (subscriptionError) {
+            if (currentRequestId !== requestId.current) return;
+            if (isNoActiveSubscriptionError(subscriptionError)) {
+              setMySub(null);
+            } else {
+              throw subscriptionError;
+            }
+          }
+          setLoadError(null);
+        } catch (error: unknown) {
+          if (currentRequestId !== requestId.current || classifyLoadError(error) === 'cancelled') {
+            return;
+          }
+          setLoadError(getLoadErrorMessage(error, '채널 목록'));
+        }
       }
-    } catch {
-      setError('채널 목록을 불러오지 못했습니다.');
     } finally {
-      setLoading(false);
+      loadBlocked.current = false;
+      if (finalRequestId === requestId.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
+    return () => {
+      requestId.current += 1;
+      loadBlocked.current = false;
+      loadQueued.current = false;
+    };
   }, [load]);
 
   const usedSlots = channels.filter((channel) => LIMIT_COUNT_STATUSES.has(channel.status)).length;
@@ -111,7 +152,7 @@ export default function WhitelistChannelPage() {
       return false;
     }
     if (!CHANNEL_URL_PATTERN.test(form.channelUrl.trim())) {
-      setError('올바른 채널 링크를 입력해주세요. 예: https://www.youtube.com/@atstudio');
+      setError('올바른 채널 링크를 입력해주세요. 예: https://www.youtube.com/@your_channel');
       return false;
     }
     return true;
@@ -225,9 +266,34 @@ export default function WhitelistChannelPage() {
   }
 
   if (loading) {
+    if (loadError) {
+      return (
+        <div className={styles.page}>
+          <div className={styles.loadError} role="alert">
+            <p>{loadError}</p>
+            <button type="button" onClick={() => void load()} disabled={loading}>
+              다시 시도
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className={styles.page}>
         <div className={styles.loading}>{'채널 정보를 불러오는 중...'}</div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.loadError} role="alert">
+          <p>{loadError}</p>
+          <button type="button" onClick={() => void load()} disabled={loading}>
+            다시 시도
+          </button>
+        </div>
       </div>
     );
   }
@@ -238,14 +304,14 @@ export default function WhitelistChannelPage() {
         <div>
           <h1 className={styles.pageTitle}>{'화이트리스트 채널'}</h1>
           <p className={styles.subtitle}>
-            {'YouTube에서 음원을 사용할 채널 정보를 저장하고, 구독 플랜 한도 안에서 등록 요청을 진행합니다.'}
+            {
+              'YouTube에서 음원을 사용할 채널 정보를 저장하고, 구독 플랜 한도 안에서 등록 요청을 진행합니다.'
+            }
           </p>
         </div>
         <div className={styles.limitBox}>
           <span>{'등록 슬롯'}</span>
-          <strong>
-            {hasSubscription ? `${usedSlots}/${maxSlots}` : '구독 필요'}
-          </strong>
+          <strong>{hasSubscription ? `${usedSlots}/${maxSlots}` : '구독 필요'}</strong>
         </div>
       </div>
 
@@ -271,7 +337,7 @@ export default function WhitelistChannelPage() {
             id="whitelist-youtube-handle"
             label="유튜브 아이디"
             value={form.youtubeHandle}
-            placeholder="예: @atstudio"
+            placeholder="예: @your_channel"
             maxLength={YOUTUBE_HANDLE_MAX}
             onChange={(value) => updateForm('youtubeHandle', value)}
           />
@@ -279,7 +345,7 @@ export default function WhitelistChannelPage() {
             id="whitelist-channel-url"
             label="채널 링크"
             value={form.channelUrl}
-            placeholder="예: https://www.youtube.com/@atstudio"
+            placeholder="예: https://www.youtube.com/@your_channel"
             onChange={(value) => updateForm('channelUrl', value)}
           />
           <Field
@@ -308,73 +374,84 @@ export default function WhitelistChannelPage() {
         </div>
       ) : (
         <div className={styles.channelList}>
-          {channels.map((channel) => (
-            <article key={channel.id} className={styles.channelCard}>
-              <div className={styles.channelMain}>
-                <div className={styles.channelTitleRow}>
-                  <strong>{channel.channelName}</strong>
-                  {channel.primary && <span className={styles.primaryBadge}>{'대표'}</span>}
-                  <span className={`${styles.statusBadge} ${styles[`status${channel.status}`]}`}>
-                    {STATUS_LABELS[channel.status]}
-                  </span>
+          {channels.map((channel) => {
+            const safeChannelUrl = getSafeYoutubeUrl(channel.channelUrl);
+            return (
+              <article key={channel.id} className={styles.channelCard}>
+                <div className={styles.channelMain}>
+                  <div className={styles.channelTitleRow}>
+                    <strong>{channel.channelName}</strong>
+                    {channel.primary && <span className={styles.primaryBadge}>{'대표'}</span>}
+                    <span className={`${styles.statusBadge} ${styles[`status${channel.status}`]}`}>
+                      {STATUS_LABELS[channel.status]}
+                    </span>
+                  </div>
+                  <div className={styles.channelMeta}>
+                    <span>{channel.youtubeHandle || '-'}</span>
+                    {safeChannelUrl ? (
+                      <a href={safeChannelUrl} target="_blank" rel="noopener noreferrer">
+                        {channel.channelUrl}
+                      </a>
+                    ) : (
+                      <span>{channel.channelUrl}</span>
+                    )}
+                    <span>{channel.youtubeChannelId || '채널 ID 미입력'}</span>
+                  </div>
+                  {channel.adminNote && <div className={styles.adminNote}>{channel.adminNote}</div>}
+                  <div className={styles.dateLine}>
+                    <span>{`저장일 ${formatDate(channel.createdAt)}`}</span>
+                    {channel.requestedAt && (
+                      <span>{`요청 ${formatDateTime(channel.requestedAt)}`}</span>
+                    )}
+                    {channel.exportedAt && (
+                      <span>{`외부 전달 ${formatDateTime(channel.exportedAt)}`}</span>
+                    )}
+                  </div>
                 </div>
-                <div className={styles.channelMeta}>
-                  <span>{channel.youtubeHandle || '-'}</span>
-                  <a href={channel.channelUrl} target="_blank" rel="noopener noreferrer">
-                    {channel.channelUrl}
-                  </a>
-                  <span>{channel.youtubeChannelId || '채널 ID 미입력'}</span>
-                </div>
-                {channel.adminNote && (
-                  <div className={styles.adminNote}>{channel.adminNote}</div>
-                )}
-                <div className={styles.dateLine}>
-                  <span>{`저장일 ${formatDate(channel.createdAt)}`}</span>
-                  {channel.requestedAt && (
-                    <span>{`요청 ${formatDateTime(channel.requestedAt)}`}</span>
+                <div className={styles.cardActions}>
+                  {!channel.primary && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void handlePrimary(channel)}
+                      loading={busyKey === `primary-${channel.id}`}
+                    >
+                      {'대표 설정'}
+                    </Button>
                   )}
-                  {channel.exportedAt && (
-                    <span>{`외부 전달 ${formatDateTime(channel.exportedAt)}`}</span>
+                  {REQUESTABLE_STATUSES.has(channel.status) && (
+                    <Button
+                      size="sm"
+                      onClick={() => void handleRequest(channel)}
+                      loading={busyKey === `request-${channel.id}`}
+                      disabled={
+                        hasSubscription &&
+                        usedSlots >= maxSlots &&
+                        !LIMIT_COUNT_STATUSES.has(channel.status)
+                      }
+                    >
+                      {channel.status === 'REVISION_REQUESTED' ? '수정 후 재요청' : '등록 요청'}
+                    </Button>
                   )}
+                  {isWhitelistChannelEditable(channel.status) && (
+                    <Button variant="ghost" size="sm" onClick={() => startEdit(channel)}>
+                      {'수정'}
+                    </Button>
+                  )}
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => void handleDelete(channel)}
+                    loading={busyKey === `delete-${channel.id}`}
+                  >
+                    {channel.status === 'EXPORTED' || channel.status === 'REGISTERED'
+                      ? '해제 요청'
+                      : '삭제'}
+                  </Button>
                 </div>
-              </div>
-              <div className={styles.cardActions}>
-                {!channel.primary && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => void handlePrimary(channel)}
-                    loading={busyKey === `primary-${channel.id}`}
-                  >
-                    {'대표 설정'}
-                  </Button>
-                )}
-                {REQUESTABLE_STATUSES.has(channel.status) && (
-                  <Button
-                    size="sm"
-                    onClick={() => void handleRequest(channel)}
-                    loading={busyKey === `request-${channel.id}`}
-                    disabled={hasSubscription && usedSlots >= maxSlots && !LIMIT_COUNT_STATUSES.has(channel.status)}
-                  >
-                    {channel.status === 'REVISION_REQUESTED' ? '수정 후 재요청' : '등록 요청'}
-                  </Button>
-                )}
-                <Button variant="ghost" size="sm" onClick={() => startEdit(channel)}>
-                  {'수정'}
-                </Button>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => void handleDelete(channel)}
-                  loading={busyKey === `delete-${channel.id}`}
-                >
-                  {channel.status === 'EXPORTED' || channel.status === 'REGISTERED'
-                    ? '해제 요청'
-                    : '삭제'}
-                </Button>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
     </div>
@@ -416,7 +493,7 @@ function Field({
 
 function errorMessage(err: unknown, fallback: string): string {
   return (
-    (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-    ?? (err instanceof Error ? err.message : fallback)
+    (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+    (err instanceof Error ? err.message : fallback)
   );
 }

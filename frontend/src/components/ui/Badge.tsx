@@ -9,14 +9,8 @@ interface BadgeProps {
   className?: string;
 }
 
-export default function Badge({
-  variant = 'accent',
-  children,
-  className,
-}: BadgeProps) {
-  const classes = [styles.badge, styles[variant], className ?? '']
-    .filter(Boolean)
-    .join(' ');
+export default function Badge({ variant = 'accent', children, className }: BadgeProps) {
+  const classes = [styles.badge, styles[variant], className ?? ''].filter(Boolean).join(' ');
 
   return <span className={classes}>{children}</span>;
 }

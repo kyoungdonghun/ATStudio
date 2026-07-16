@@ -110,11 +110,15 @@ export default function QuestionListPage() {
         <button
           className={`${styles.tab} ${tab === 'all' ? styles.tabActive : ''}`}
           onClick={() => updateParam('tab', '')}
-        >{'전체 문의'}</button>
+        >
+          {'전체 문의'}
+        </button>
         <button
           className={`${styles.tab} ${tab === 'mine' ? styles.tabActive : ''}`}
           onClick={() => updateParam('tab', 'mine')}
-        >{'내 문의'}</button>
+        >
+          {'내 문의'}
+        </button>
       </div>
 
       {/* Filter Bar */}
@@ -125,7 +129,9 @@ export default function QuestionListPage() {
           onChange={(e) => updateParam('category', e.target.value)}
         >
           {CATEGORY_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
           ))}
         </select>
         <select
@@ -134,7 +140,9 @@ export default function QuestionListPage() {
           onChange={(e) => updateParam('status', e.target.value)}
         >
           {STATUS_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
           ))}
         </select>
       </div>

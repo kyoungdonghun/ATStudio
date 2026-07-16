@@ -7,8 +7,10 @@ import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.PaymentReconciliationIssueType;
+import com.atstudio.atstudio.entity.enums.PaymentRefundStatus;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.repository.PaymentOrderRepository;
+import com.atstudio.atstudio.repository.PaymentRefundRepository;
 import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.service.payment.provider.recurring.ProviderPaymentLookupResult;
@@ -40,47 +42,50 @@ public class PaymentReconciliationTransactionService {
     private final PaymentOrderRepository paymentOrderRepository;
     private final BillingAgreementRepository billingAgreementRepository;
     private final SubscriptionPaymentRepository subscriptionPaymentRepository;
+    private final PaymentRefundRepository paymentRefundRepository;
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final PaymentCommandTransactionService paymentCommandTransactionService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
-    public PaymentReconciliationService.ReconciliationResult reconcileLocalLedger() {
-        List<PaymentOrder> recentOrders = paymentOrderRepository
-                .findAllByOrderByCreatedAtDesc(PageRequest.of(0, 100))
-                .getContent();
-        int doneOrdersWithoutPayment = 0;
+    public LocalReconciliationBatch reconcileDoneOrderBatch(
+            Long lastSeenID,
+            int pageSize) {
+        List<PaymentOrder> orders = paymentOrderRepository.findLocalReconciliationCandidates(
+                PaymentOrderStatus.DONE,
+                FINAL_PAYMENT_PURPOSES,
+                lastSeenID,
+                PageRequest.of(0, pageSize));
         List<PaymentReconciliationService.LocalReconciliationIssue> issues = new ArrayList<>();
 
-        for (PaymentOrder order : recentOrders) {
-            if (order.getStatus() == PaymentOrderStatus.DONE
-                    && FINAL_PAYMENT_PURPOSES.contains(order.getPurpose())
-                    && !subscriptionPaymentRepository.existsByPaymentOrder(order)) {
-                doneOrdersWithoutPayment++;
+        for (PaymentOrder order : orders) {
+            if (!subscriptionPaymentRepository.existsByPaymentOrder(order)) {
                 issues.add(localIssue(order, PaymentReconciliationIssueType.DONE_ORDER_WITHOUT_PAYMENT));
             }
         }
 
-        List<BillingAgreement> activeAgreements =
-                billingAgreementRepository.findByStatus(BillingAgreementStatus.ACTIVE);
-        int activeAgreementsWithoutSubscription = 0;
-        LocalDate today = LocalDate.now();
+        return localBatch(lastSeenID, pageSize, orders, issues);
+    }
 
-        for (BillingAgreement agreement : activeAgreements) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public LocalReconciliationBatch reconcileActiveAgreementBatch(
+            Long lastSeenID,
+            int pageSize,
+            LocalDate today) {
+        List<BillingAgreement> agreements = billingAgreementRepository.findLocalReconciliationCandidates(
+                BillingAgreementStatus.ACTIVE,
+                lastSeenID,
+                PageRequest.of(0, pageSize));
+        List<PaymentReconciliationService.LocalReconciliationIssue> issues = new ArrayList<>();
+        for (BillingAgreement agreement : agreements) {
             boolean hasActiveSubscription = userSubscriptionRepository
                     .findActiveByUser(agreement.getUser(), today)
                     .isPresent();
             if (!hasActiveSubscription) {
-                activeAgreementsWithoutSubscription++;
                 issues.add(localIssue(agreement));
             }
         }
 
-        return new PaymentReconciliationService.ReconciliationResult(
-                recentOrders.size(),
-                activeAgreements.size(),
-                doneOrdersWithoutPayment,
-                activeAgreementsWithoutSubscription,
-                List.copyOf(issues));
+        return localBatch(lastSeenID, pageSize, agreements, issues);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
@@ -92,6 +97,31 @@ public class PaymentReconciliationTransactionService {
                 staleBefore,
                 lastSeenID,
                 PageRequest.of(0, pageSize));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public List<Long> findCompletedProviderCandidateIDs(
+            LocalDateTime createdAfter,
+            Long lastSeenID,
+            int pageSize) {
+        return paymentOrderRepository.findCompletedProviderReconciliationCandidateIDs(
+                createdAfter,
+                lastSeenID,
+                PageRequest.of(0, pageSize));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public Optional<CompletedProviderLookupClaim> loadCompletedProviderLookup(
+            Long paymentOrderID,
+            LocalDateTime createdAfter) {
+        return paymentOrderRepository.findById(paymentOrderID)
+                .filter(order -> order.getStatus() == PaymentOrderStatus.DONE)
+                .filter(order -> FINAL_PAYMENT_PURPOSES.contains(order.getPurpose()))
+                .filter(order -> order.getCreatedAt() != null && !order.getCreatedAt().isBefore(createdAfter))
+                .map(order -> new CompletedProviderLookupClaim(
+                        toClaim(order, true, null),
+                        paymentRefundRepository.existsByPaymentOrder_IdAndStatus(
+                                order.getId(), PaymentRefundStatus.SUCCEEDED)));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -134,6 +164,47 @@ public class PaymentReconciliationTransactionService {
                 && !isBlank(order.getCommandKey());
         String failureCode = mutationEligible ? null : "LOCAL_EVIDENCE_INVALID";
         return Optional.of(toClaim(order, mutationEligible, failureCode));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public Optional<ProviderLookupClaim> loadProviderLookup(
+            Long paymentOrderID,
+            LocalDateTime staleBefore) {
+        PaymentOrder order = paymentOrderRepository.findById(paymentOrderID).orElse(null);
+        if (order == null || !isCandidateState(order, staleBefore)) {
+            return Optional.empty();
+        }
+
+        PaymentOrderRepository.CommandLockProjection projection = paymentOrderRepository
+                .findCommandLockProjectionByOrderId(order.getOrderId())
+                .orElse(null);
+        if (projection == null || projection.getBillingAgreementID() == null) {
+            return Optional.of(toClaim(order, false, "LOCAL_RELATIONSHIP_MISMATCH"));
+        }
+
+        BillingAgreement agreement = billingAgreementRepository
+                .findById(projection.getBillingAgreementID())
+                .orElse(null);
+        UserSubscription subscription = projection.getUserSubscriptionID() == null
+                ? null
+                : userSubscriptionRepository.findById(projection.getUserSubscriptionID()).orElse(null);
+        boolean validRelationships = agreement != null
+                && Objects.equals(order.getId(), paymentOrderID)
+                && order.getBillingAgreement() != null
+                && Objects.equals(order.getBillingAgreement().getId(), agreement.getId())
+                && Objects.equals(order.getUser().getId(), projection.getUserID())
+                && order.getPurpose() == projection.getPurpose()
+                && Objects.equals(entityID(order.getUserSubscription()), projection.getUserSubscriptionID())
+                && Objects.equals(entityID(subscription), projection.getUserSubscriptionID());
+        boolean validPurposeState = agreement != null
+                && validPurposeState(order, agreement, subscription);
+        boolean mutationEligible = validRelationships
+                && validPurposeState
+                && !isBlank(order.getCommandKey());
+        return Optional.of(toClaim(
+                order,
+                mutationEligible,
+                mutationEligible ? null : "LOCAL_EVIDENCE_INVALID"));
     }
 
     public EvidenceAssessment assessProviderEvidence(
@@ -287,6 +358,31 @@ public class PaymentReconciliationTransactionService {
                 null);
     }
 
+    private LocalReconciliationBatch localBatch(
+            Long previousLastSeenID,
+            int pageSize,
+            List<?> candidates,
+            List<PaymentReconciliationService.LocalReconciliationIssue> issues) {
+        long lastSeenID = candidates.isEmpty()
+                ? previousLastSeenID
+                : entityID(candidates.get(candidates.size() - 1));
+        return new LocalReconciliationBatch(
+                candidates.size(),
+                lastSeenID,
+                candidates.size() < pageSize,
+                List.copyOf(issues));
+    }
+
+    private long entityID(Object candidate) {
+        if (candidate instanceof PaymentOrder paymentOrder) {
+            return paymentOrder.getId();
+        }
+        if (candidate instanceof BillingAgreement billingAgreement) {
+            return billingAgreement.getId();
+        }
+        throw new IllegalArgumentException("Unsupported reconciliation candidate type.");
+    }
+
     private EvidenceAssessment strictMismatch(String failureCode, String failureMessage) {
         return EvidenceAssessment.mismatch(
                 PaymentReconciliationIssueType.PROVIDER_DONE_LOCAL_NOT_FINALIZED,
@@ -321,6 +417,18 @@ public class PaymentReconciliationTransactionService {
             String providerTransactionID,
             boolean mutationEligible,
             String localEligibilityFailure) {
+    }
+
+    public record CompletedProviderLookupClaim(
+            ProviderLookupClaim claim,
+            boolean locallyRefundedOrCancelled) {
+    }
+
+    public record LocalReconciliationBatch(
+            int checked,
+            long lastSeenID,
+            boolean exhausted,
+            List<PaymentReconciliationService.LocalReconciliationIssue> issues) {
     }
 
     public record EvidenceAssessment(

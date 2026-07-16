@@ -163,6 +163,95 @@ class SecurityFilterChainTest {
     }
 
     @Test
+    @DisplayName("POST /api/users - registration budget exceeded => 429 without blocking public signup")
+    void registration_rateLimitExceeded_returns429() throws Exception {
+        when(userService.register(any())).thenReturn(
+                new UserResponse(
+                        1L,
+                        "public_user",
+                        "public-user@test.com",
+                        "010-1234-5678",
+                        null,
+                        null,
+                        null,
+                        "INDIVIDUAL",
+                        "USER",
+                        false,
+                        null
+                )
+        );
+
+        String body = """
+                {
+                  "nickname":"public_user",
+                  "email":"public-user@test.com",
+                  "password":"password123",
+                  "phonePersonal":"010-1234-5678",
+                  "job":"EDITOR",
+                  "userType":"INDIVIDUAL"
+                }
+                """;
+
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(post("/api/users")
+                            .with(remoteAddr("10.0.1.25"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isCreated());
+        }
+
+        mockMvc.perform(post("/api/users")
+                        .with(remoteAddr("10.0.1.25"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.errorCode").value("RATE_LIMIT_EXCEEDED"));
+    }
+
+    @Test
+    @DisplayName("GET /api/utils/check-email - availability budget exceeded => 429")
+    void emailAvailability_rateLimitExceeded_returns429() throws Exception {
+        when(userService.isEmailAvailable("candidate@test.com")).thenReturn(true);
+
+        for (int i = 0; i < 30; i++) {
+            mockMvc.perform(get("/api/utils/check-email")
+                            .with(remoteAddr("10.0.1.26"))
+                            .param("email", "candidate@test.com"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.available").value(true));
+        }
+
+        mockMvc.perform(get("/api/utils/check-email")
+                        .with(remoteAddr("10.0.1.26"))
+                        .param("email", "candidate@test.com"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.errorCode").value("RATE_LIMIT_EXCEEDED"));
+    }
+
+    @Test
+    @DisplayName("GET /api/utils/check-email - rotating identifiers still exhaust client budget")
+    void emailAvailability_rotatingIdentifiers_rateLimitExceeded_returns429() throws Exception {
+        when(userService.isEmailAvailable(any())).thenReturn(true);
+
+        for (int i = 0; i < 30; i++) {
+            mockMvc.perform(get("/api/utils/check-email")
+                            .with(remoteAddr("10.0.1.27"))
+                            .param("email", "candidate-" + i + "@test.com"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.available").value(true));
+        }
+
+        mockMvc.perform(get("/api/utils/check-email")
+                        .with(remoteAddr("10.0.1.27"))
+                        .param("email", "candidate-30@test.com"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.errorCode").value("RATE_LIMIT_EXCEEDED"));
+    }
+
+    @Test
     @DisplayName("GET /api/users/me - 유효한 토큰 → 401 아님 (필터 통과)")
     void protectedEndpoint_validToken_filterPasses() throws Exception {
         String token = jwtTokenProvider.generateAccessToken(1L, UserRole.USER);

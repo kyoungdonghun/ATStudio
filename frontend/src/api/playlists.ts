@@ -36,19 +36,13 @@ export async function fetchMyPlaylists(): Promise<{ dataList: Playlist[] }> {
 }
 
 /** GET /api/playlists/{playlistId} -- playlist detail with tracks */
-export async function fetchPlaylistDetail(
-  playlistId: number,
-): Promise<PlaylistDetail> {
-  const { data } = await client.get<ApiResponse<PlaylistDetail>>(
-    `/playlists/${playlistId}`,
-  );
+export async function fetchPlaylistDetail(playlistId: number): Promise<PlaylistDetail> {
+  const { data } = await client.get<ApiResponse<PlaylistDetail>>(`/playlists/${playlistId}`);
   return data.data;
 }
 
 /** POST /api/playlists -- create a new playlist (multipart/form-data) */
-export async function createPlaylist(
-  req: PlaylistCreateRequest,
-): Promise<Playlist> {
+export async function createPlaylist(req: PlaylistCreateRequest): Promise<Playlist> {
   const formData = new FormData();
   formData.append('title', req.title);
   if (req.description) formData.append('description', req.description);
@@ -79,10 +73,7 @@ export async function deletePlaylist(playlistId: number): Promise<void> {
 }
 
 /** POST /api/playlists/{playlistId}/tracks -- add track */
-export async function addTrackToPlaylist(
-  playlistId: number,
-  trackId: number,
-): Promise<void> {
+export async function addTrackToPlaylist(playlistId: number, trackId: number): Promise<void> {
   await client.post(`/playlists/${playlistId}/tracks`, { trackId });
 }
 
@@ -99,17 +90,13 @@ export async function addTracksToPlaylistBatch(
   playlistId: number,
   trackIds: number[],
 ): Promise<number> {
-  const { data } = await client.post<ApiResponse<number>>(
-    `/playlists/${playlistId}/tracks/batch`,
-    { trackIds },
-  );
+  const { data } = await client.post<ApiResponse<number>>(`/playlists/${playlistId}/tracks/batch`, {
+    trackIds,
+  });
   return data.data;
 }
 
 /** DELETE /api/playlists/{playlistId}/tracks/{trackId} -- remove track */
-export async function removeTrackFromPlaylist(
-  playlistId: number,
-  trackId: number,
-): Promise<void> {
+export async function removeTrackFromPlaylist(playlistId: number, trackId: number): Promise<void> {
   await client.delete(`/playlists/${playlistId}/tracks/${trackId}`);
 }

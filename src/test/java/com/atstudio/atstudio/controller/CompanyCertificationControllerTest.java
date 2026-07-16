@@ -6,6 +6,8 @@ import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationDocumentDownload;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationResponse;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationSummaryResponse;
+import com.atstudio.atstudio.entity.enums.UserRole;
+import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.security.CustomUserDetailsService;
 import com.atstudio.atstudio.service.CompanyCertificationService;
 import org.junit.jupiter.api.DisplayName;
@@ -26,6 +28,9 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.same;
+import static org.mockito.Mockito.verify;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -45,14 +50,14 @@ class CompanyCertificationControllerTest {
             new CompanyCertificationResponse(
                     1L, 1L, "user1", "user1@test.com", "ATStudio Biz", "02-1234-5678",
                     "PENDING", null, null,
-                    null, List.of(), null,
+                    List.of(), null,
                     LocalDateTime.now());
 
     private static final CompanyCertificationResponse MOCK_APPROVED_RESPONSE =
             new CompanyCertificationResponse(
                     1L, 1L, "user1", "user1@test.com", "ATStudio Biz", "02-1234-5678",
                     "APPROVED", "서류 확인 완료", "BIZ-test-uuid",
-                    null, List.of(), LocalDateTime.now(),
+                    List.of(), LocalDateTime.now(),
                     LocalDateTime.now());
 
     // ── 13.1 POST /api/company-certifications ────────────────────────────────
@@ -78,6 +83,19 @@ class CompanyCertificationControllerTest {
 
         mockMvc.perform(multipart("/api/company-certifications").file(doc))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("POST /api/company-certifications - BUSINESS 자격과 무관하게 ADMIN 사용자 API 거부")
+    void apply_adminRole_returns403BeforeService() throws Exception {
+        MockMultipartFile doc = new MockMultipartFile(
+                "documents", "doc.pdf", "application/pdf", new byte[]{1, 2, 3});
+
+        mockMvc.perform(multipart("/api/company-certifications").file(doc))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(certificationService);
     }
 
     @Test
@@ -128,6 +146,16 @@ class CompanyCertificationControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("GET /api/company-certifications/me - ADMIN 사용자 API 거부")
+    void getMyStatus_adminRole_returns403BeforeService() throws Exception {
+        mockMvc.perform(get("/api/company-certifications/me"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(certificationService);
+    }
+
+    @Test
     @WithMockUser(roles = "USER")
     @DisplayName("POST /api/company-certifications/me/documents - 보완 재제출 -> 200")
     void resubmit_success() throws Exception {
@@ -138,6 +166,19 @@ class CompanyCertificationControllerTest {
 
         mockMvc.perform(multipart("/api/company-certifications/me/documents").file(doc))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("POST /api/company-certifications/me/documents - ADMIN 사용자 API 거부")
+    void resubmit_adminRole_returns403BeforeService() throws Exception {
+        MockMultipartFile doc = new MockMultipartFile(
+                "documents", "doc.pdf", "application/pdf", new byte[]{1, 2, 3});
+
+        mockMvc.perform(multipart("/api/company-certifications/me/documents").file(doc))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(certificationService);
     }
 
     // ── 13.3 GET /api/company-certifications ─────────────────────────────────
@@ -208,7 +249,7 @@ class CompanyCertificationControllerTest {
     @WithMockUser(roles = "ADMIN")
     @DisplayName("GET /api/company-certifications/1/documents/1 - ADMIN -> 200")
     void downloadDocument_success() throws Exception {
-        given(certificationService.downloadDocument(1L, 1L))
+        given(certificationService.downloadDocument(eq(1L), eq(1L), any()))
                 .willReturn(new CompanyCertificationDocumentDownload(
                         new ByteArrayResource(new byte[]{1, 2, 3}),
                         "doc.pdf"
@@ -234,7 +275,7 @@ class CompanyCertificationControllerTest {
     @DisplayName("GET /api/company-certifications/1/documents/1 - Range 요청도 attachment 전체 응답 유지")
     void downloadDocument_rangeRequestStillReturnsSafeAttachment() throws Exception {
         byte[] body = new byte[]{1, 2, 3, 4};
-        given(certificationService.downloadDocument(1L, 1L))
+        given(certificationService.downloadDocument(eq(1L), eq(1L), any()))
                 .willReturn(new CompanyCertificationDocumentDownload(
                         new ByteArrayResource(body),
                         "doc.pdf"
@@ -315,7 +356,7 @@ class CompanyCertificationControllerTest {
     @WithMockUser(roles = "ADMIN")
     @DisplayName("PUT /api/company-certifications/1 - ADMIN 승인 -> 200")
     void processReview_approve() throws Exception {
-        given(certificationService.processReview(anyLong(), any()))
+        given(certificationService.processReview(anyLong(), any(), any()))
                 .willReturn(MOCK_APPROVED_RESPONSE);
 
         mockMvc.perform(put("/api/company-certifications/1")
@@ -328,12 +369,41 @@ class CompanyCertificationControllerTest {
     @WithMockUser(roles = "ADMIN")
     @DisplayName("PUT /api/company-certifications/99 - 미존재 -> 404")
     void processReview_notFound() throws Exception {
-        given(certificationService.processReview(anyLong(), any()))
+        given(certificationService.processReview(anyLong(), any(), any()))
                 .willThrow(new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
         mockMvc.perform(put("/api/company-certifications/99")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"APPROVED\",\"adminNote\":\"OK\"}"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("admin actor is forwarded to guarded download and review services")
+    void adminActor_forwardedToDownloadAndReviewServices() throws Exception {
+        CustomUserDetails actor = CustomUserDetails.builder()
+                .id(7L)
+                .email("admin@test.com")
+                .password("pw")
+                .role(UserRole.ADMIN)
+                .isDeleted(false)
+                .isProfileComplete(true)
+                .build();
+        given(certificationService.downloadDocument(eq(1L), eq(1L), same(actor)))
+                .willReturn(new CompanyCertificationDocumentDownload(
+                        new ByteArrayResource(new byte[]{1}), "doc.pdf"));
+        given(certificationService.processReview(eq(1L), same(actor), any()))
+                .willReturn(MOCK_APPROVED_RESPONSE);
+
+        mockMvc.perform(get("/api/company-certifications/1/documents/1").with(user(actor)))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/company-certifications/1")
+                        .with(user(actor))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"APPROVED\",\"adminNote\":\"OK\"}"))
+                .andExpect(status().isOk());
+
+        verify(certificationService).downloadDocument(1L, 1L, actor);
+        verify(certificationService).processReview(eq(1L), same(actor), any());
     }
 }

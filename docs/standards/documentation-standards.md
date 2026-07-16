@@ -1,6 +1,6 @@
 ---
-version: 1.4
-last_updated: 2026-04-15
+version: 1.5
+last_updated: 2026-07-16
 project: system
 owner: EO
 category: standard
@@ -52,8 +52,8 @@ version: 1.0
 last_updated: YYYY-MM-DD
 project: [PRJ-...] | system | (optional, required for project-related docs)
 owner: [role or assignee]
-category: architecture | design | guide | policy | standard | template | registry | adr | eval | audit | agent
-status: draft | stable | deprecated | archived
+category: architecture | design | guide | policy | standard | template | registry | reference | adr | eval | audit | agent | evidence-pack | work-summary
+status: draft | active | stable | confirmed | accepted | deprecated | archived
 dependencies:
   - path: [relative path]
     reason: [dependency reason]
@@ -77,8 +77,8 @@ task_types:                # Task types that require this document
   - `PRJ-...`: Specific project document (required for project-related docs)
   - `system`: System-wide document (standards, policies, guides, etc.)
 - **owner**: Document owner/assignee (role or name)
-- **category**: Document category (see classification below)
-- **status**: Document status (`draft` / `stable` / `deprecated` / `archived`)
+- **category**: Document category (see classification below). `reference`, `evidence-pack`, and `work-summary` are valid for reference inventories and the two deliverable sets.
+- **status**: Document lifecycle status. Use `draft`, `stable`, `deprecated`, or `archived` by default. `active` is valid for a live registry/work item, `confirmed` for a verified specification, and `accepted` for an approved decision record.
 - **dependencies**: List of documents this document depends on
 
 **Optional Fields (3 fields for dynamic context injection):**

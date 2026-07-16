@@ -73,7 +73,9 @@ export default function NoticeEditPage() {
     // File size check
     const oversized = added.filter((f) => !isFileSizeOk(f, ATTACHMENT_MAX_SIZE_MB));
     if (oversized.length > 0) {
-      setError(`첨부파일은 ${ATTACHMENT_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다. (초과: ${oversized.map((f) => f.name).join(', ')})`);
+      setError(
+        `첨부파일은 ${ATTACHMENT_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다. (초과: ${oversized.map((f) => f.name).join(', ')})`,
+      );
       e.target.value = '';
       return;
     }
@@ -233,19 +235,11 @@ export default function NoticeEditPage() {
         </div>
 
         <div className={styles.formActions}>
-          <Button
-            variant="danger"
-            type="button"
-            onClick={() => setDeleteOpen(true)}
-          >
+          <Button variant="danger" type="button" onClick={() => setDeleteOpen(true)}>
             Delete
           </Button>
           <div className={styles.formActionsRight}>
-            <Button
-              variant="ghost"
-              type="button"
-              onClick={() => navigate(-1)}
-            >
+            <Button variant="ghost" type="button" onClick={() => navigate(-1)}>
               Cancel
             </Button>
             <Button type="submit" loading={saving}>
@@ -256,29 +250,15 @@ export default function NoticeEditPage() {
       </form>
 
       {/* Delete confirm modal */}
-      <Modal
-        open={deleteOpen}
-        onClose={() => setDeleteOpen(false)}
-        title="Delete Notice"
-      >
+      <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Delete Notice">
         <div className={styles.deleteText}>
-          Are you sure you want to delete this notice? This action cannot be
-          undone.
+          Are you sure you want to delete this notice? This action cannot be undone.
         </div>
         <div className={styles.modalActions}>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setDeleteOpen(false)}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setDeleteOpen(false)}>
             Cancel
           </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            loading={deleting}
-            onClick={confirmDelete}
-          >
+          <Button variant="danger" size="sm" loading={deleting} onClick={confirmDelete}>
             Delete
           </Button>
         </div>

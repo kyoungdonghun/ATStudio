@@ -1,6 +1,6 @@
 ---
-version: 1.5
-last_updated: 2026-06-18
+version: 1.6
+last_updated: 2026-07-16
 project: ATS
 owner: EO
 category: registry
@@ -26,16 +26,18 @@ dependencies:
 
 | Project ID | Name/Alias | Repo (URL or path) | Status | Owner | Last Updated | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| PRJ-ATS-001 | ATStudio | TBD | active | MA | 2026-06-18 | Shorts Music Marketplace (Java 17 + Spring Boot 4.x + React 18 + TypeScript) |
+| PRJ-ATS-001 | ATStudio | `.` (this repository) | active | MA | 2026-07-16 | AT.M customer-facing display brand; ATStudio is the internal project identifier. Shorts Music Marketplace (Java 17 + Spring Boot 4.x + React 18 + TypeScript) |
 
 ## ATStudio Project Stats (PRJ-ATS-001)
 
-> Last verified: 2026-06-18
+> Last verified from the current working tree: 2026-07-16
 
 | Category | Count | Reference |
 | :-- | :-- | :-- |
-| Backend REST APIs | 147 | `docs/design/api-spec.md` v18 |
-| DB Tables | 39 | `docs/design/db-schema.md` |
-| Frontend Screens | 53 | `docs/index.md` |
+| Backend REST APIs | 149 method-level mappings | `docs/design/api-spec.md` v25 |
+| DB Tables / JPA Entities | 41 / 41 | `docs/design/db-schema.md` v20 |
+| Frontend Screens | 53 distinct visual page UIs | `docs/ui/atstudio-front-list.md` |
 | Agents | 13 | `docs/architecture/system-design.md` §2.4 |
 | SR Items completed | 82 | `docs/SR/index.md` |
+
+Current ATStudio work tracking uses `deliverables/user/` for approved REQs and user summaries, and `deliverables/agent/` for WI handoffs and Evidence Packs. Registry/workboard examples are navigation aids, not a replacement source of truth.

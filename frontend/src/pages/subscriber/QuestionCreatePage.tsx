@@ -55,7 +55,9 @@ export default function QuestionCreatePage() {
     // File size check
     const oversized = added.filter((f) => !isFileSizeOk(f, ATTACHMENT_MAX_SIZE_MB));
     if (oversized.length > 0) {
-      setError(`첨부파일은 ${ATTACHMENT_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다. (초과: ${oversized.map((f) => f.name).join(', ')})`);
+      setError(
+        `첨부파일은 ${ATTACHMENT_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다. (초과: ${oversized.map((f) => f.name).join(', ')})`,
+      );
       e.target.value = '';
       return;
     }
@@ -112,7 +114,9 @@ export default function QuestionCreatePage() {
 
         {/* Title */}
         <div className={styles.field}>
-          <label className={styles.label} htmlFor="q-title">{'제목'}</label>
+          <label className={styles.label} htmlFor="q-title">
+            {'제목'}
+          </label>
           <input
             id="q-title"
             className={styles.input}
@@ -122,12 +126,16 @@ export default function QuestionCreatePage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
-          <span className={styles.charCount}>{title.length}/{TITLE_QUESTION_MAX}</span>
+          <span className={styles.charCount}>
+            {title.length}/{TITLE_QUESTION_MAX}
+          </span>
         </div>
 
         {/* Category */}
         <div className={styles.field}>
-          <label className={styles.label} htmlFor="q-category">{'카테고리'}</label>
+          <label className={styles.label} htmlFor="q-category">
+            {'카테고리'}
+          </label>
           <select
             id="q-category"
             className={styles.select}
@@ -135,14 +143,18 @@ export default function QuestionCreatePage() {
             onChange={(e) => setCategory(e.target.value)}
           >
             {CATEGORY_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
             ))}
           </select>
         </div>
 
         {/* Content */}
         <div className={styles.field}>
-          <label className={styles.label} htmlFor="q-content">{'내용'}</label>
+          <label className={styles.label} htmlFor="q-content">
+            {'내용'}
+          </label>
           <textarea
             id="q-content"
             className={styles.textarea}
@@ -204,18 +216,10 @@ export default function QuestionCreatePage() {
 
         {/* Actions */}
         <div className={styles.actions}>
-          <Button
-            variant="ghost"
-            type="button"
-            onClick={() => navigate(-1)}
-          >
+          <Button variant="ghost" type="button" onClick={() => navigate(-1)}>
             {'취소'}
           </Button>
-          <Button
-            variant="primary"
-            type="submit"
-            loading={submitting}
-          >
+          <Button variant="primary" type="submit" loading={submitting}>
             {'등록'}
           </Button>
         </div>

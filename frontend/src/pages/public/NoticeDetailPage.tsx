@@ -61,9 +61,7 @@ export default function NoticeDetailPage() {
       {/* Header */}
       <header className={styles.header}>
         <div className={styles.headerTop}>
-          {notice.isPinned && (
-            <span className={styles.pinBadge}>고정</span>
-          )}
+          {notice.isPinned && <span className={styles.pinBadge}>고정</span>}
           <h1 className={styles.title}>{notice.title}</h1>
         </div>
         <div className={styles.meta}>
@@ -90,15 +88,11 @@ export default function NoticeDetailPage() {
                 <button
                   type="button"
                   className={styles.attachLink}
-                  onClick={() =>
-                    downloadNoticeAttachment(notice.id, att.id, att.originalName)
-                  }
+                  onClick={() => downloadNoticeAttachment(notice.id, att.id, att.originalName)}
                 >
                   {att.originalName}
                 </button>
-                <span className={styles.attachSize}>
-                  {formatFileSize(att.fileSize)}
-                </span>
+                <span className={styles.attachSize}>{formatFileSize(att.fileSize)}</span>
               </li>
             ))}
           </ul>

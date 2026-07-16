@@ -39,7 +39,8 @@ public class DownloadService {
 
     @Transactional
     public Resource download(Long trackId, CustomUserDetails userDetails) {
-        User user = userRepository.findById(userDetails.getId())
+        // One user-row lock serializes first-download quota and license decisions.
+        User user = userRepository.findByIdForUpdate(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
         Track track = trackRepository.findById(trackId)
@@ -76,7 +77,10 @@ public class DownloadService {
                     .licenseCode(UUID.randomUUID().toString())
                     .build());
 
-            track.incrementDownloadCount();
+            int updatedRows = trackRepository.incrementDownloadCountAtomically(track.getId());
+            if (updatedRows != 1) {
+                throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
+            }
         }
 
         String audioFile = track.getAudioFile();

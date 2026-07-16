@@ -6,6 +6,10 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
+
 @Getter
 @Setter
 @Component
@@ -13,9 +17,14 @@ import org.springframework.stereotype.Component;
 public class PaymentProperties {
 
     private PaymentProviderType provider = PaymentProviderType.MOCK;
+    private String schedulerZone = "Asia/Seoul";
     private Toss toss = new Toss();
     private Billing billing = new Billing();
     private Operations operations = new Operations();
+
+    public ZoneId schedulerZoneId() {
+        return ZoneId.of(schedulerZone);
+    }
 
     @Getter
     @Setter
@@ -34,6 +43,8 @@ public class PaymentProperties {
     @Setter
     public static class Billing {
         private String encryptionSecret = "";
+        private String activeKeyId = "";
+        private List<EncryptionKey> encryptionKeys = new ArrayList<>();
         private String authSuccessUrl = "";
         private String authFailUrl = "";
         private String issueUrl = "https://api.tosspayments.com/v1/billing/authorizations/issue";
@@ -46,8 +57,25 @@ public class PaymentProperties {
 
     @Getter
     @Setter
+    public static class EncryptionKey {
+        private String id = "";
+        private String secret = "";
+    }
+
+    @Getter
+    @Setter
     public static class Operations {
         private boolean reconciliationNotificationEnabled = false;
         private String operatorEmail = "";
+        private Reconciliation reconciliation = new Reconciliation();
+    }
+
+    @Getter
+    @Setter
+    public static class Reconciliation {
+        private int batchSize = 100;
+        private int issueDetailLimit = 100;
+        private int completedOrderLookbackDays = 30;
+        private int completedOrderMaxPerRun = 500;
     }
 }

@@ -1,6 +1,6 @@
 ---
-version: 1.3
-last_updated: 2026-07-15
+version: 1.5
+last_updated: 2026-07-16
 project: ATS
 owner: docops
 category: guide
@@ -46,6 +46,8 @@ Current payment-integrity rules:
 - Provider success is durable before subscription/payment finalization, and retries from that state are finalize-only.
 - Refund recovery retains one refund row and idempotency key, protected by a 15-minute processing lease and stale-result fencing.
 - Reconciliation may mutate only after exact provider evidence; every mismatch remains Incident-only.
+- Local and provider reconciliation use bounded ID-keyset batches. Full mismatch counters are separate from capped API issue details, and scheduled local batches persist every Incident.
+- New encrypted billing keys use a v2 key-ID envelope. Legacy v1 ciphertext remains decryptable while its legacy secret is retained.
 
 ## 2. Main Layers
 
@@ -70,7 +72,7 @@ Current payment-integrity rules:
 | `subscription_payments` | Finalized subscription charge records. |
 | `user_subscriptions` | Current user access state, plan, billing cycle, expiration, and pending change state. |
 | `payment_reconciliation_incidents` | Persistent local/provider mismatch and withdrawal-cleanup Incident workflow. |
-| `payment_receipts` | Safe receipt/cash-receipt evidence captured from successful provider responses. |
+| `payment_receipts` | Receipt/cash-receipt evidence captured from successful provider responses; actionable URLs use the provider-neutral absolute-HTTPS/no-credentials/default-port contract. |
 | `payment_operation_audit_logs` | Append-only admin/system operation audit log. |
 | `payment_refunds` | Admin refund request, approval, provider execution, idempotency, processing lease, and fenced result ledger. |
 | `payment_entitlement_corrections` | Refund-linked local access correction workflow. |
@@ -80,7 +82,7 @@ Runtime DB note:
 
 - The backend defaults to `spring.jpa.hibernate.ddl-auto=validate`.
 - `src/main/resources/schema.sql` is a full fresh-DB reference, not an automatic migration runner for existing MySQL databases.
-- Existing local/staging/production databases must be patched before server startup when payment or whitelist tables/columns are missing. The ordered references include `20260615_align_payment_whitelist_schema.sql` and `20260714_payment_db_integrity.sql`; rehearse them on an approved copied database before any shared DB. The final fresh disposable MySQL run passed schema creation, Hibernate validation, and 7/7 races, but it does not prove a retained database.
+- Existing local/staging/production databases must be patched before server startup when payment or whitelist tables/columns are missing. The ordered references include `20260615_align_payment_whitelist_schema.sql`, `20260714_payment_db_integrity.sql`, and `20260716_payment_reconciliation_indexes.sql`; rehearse them on an approved copied database before any shared DB. Prior fresh disposable MySQL evidence passed schema creation, Hibernate validation, and 7/7 races, but the new reconciliation indexes have source/static contract evidence only in WI-006. Neither result proves a retained database.
 
 ## 4. User APIs
 
@@ -134,6 +136,8 @@ Provider-facing operations are isolated through interfaces:
 
 This keeps the current Toss implementation open to future provider adapters without making user subscription logic depend directly on provider-specific code.
 
+Provider evidence is not trusted merely because it came from a configured adapter. Receipt URLs are normalized and suppressed unless they satisfy the provider-neutral safe-link contract. Reconciliation application logs expose aggregate counts only, while issue-level investigation uses support-safe ADMIN responses and masked structured Incidents. Unknown Toss cancel transport failures log only exception-class metadata.
+
 Provider mutation/lookup methods covered by the current remediation use
 `Propagation.NEVER` or an equivalent fail-fast boundary. An active caller
 transaction is rejected instead of suspended. Local claim, result, and
@@ -150,9 +154,16 @@ Important fields:
 | `app.payment.provider` | Legacy one-time provider selector. Current subscription billing uses `TOSS_BILLING` provider flow. |
 | `app.payment.toss.client-key` | Toss client key used by frontend billing auth metadata. |
 | `app.payment.toss.secret-key` | Server-side Toss API secret key. Must never be exposed to frontend. |
-| `app.payment.billing.encryption-secret` | Secret used to encrypt stored billing keys. |
+| `app.payment.billing.encryption-secret` | Legacy v1 decryption secret. Retain while any v1 ciphertext may exist. |
+| `app.payment.billing.active-key-id` | Key ID used for new v2 ciphertext. |
+| `app.payment.billing.encryption-keys` | Ordered key-ring entries (`id`, `secret`) for active and retained v2 decryption keys. |
 | `app.payment.billing.auth-success-url` | Toss billing auth success callback URL. |
 | `app.payment.billing.auth-fail-url` | Toss billing auth failure callback URL. |
+| `app.payment.scheduler-zone` | Payment cron zone; default `Asia/Seoul`. |
+| `app.payment.operations.reconciliation.batch-size` | Requested reconciliation keyset batch size; runtime cap 1000. |
+| `app.payment.operations.reconciliation.issue-detail-limit` | Returned API issue-detail cap; runtime cap 500. |
+| `app.payment.operations.reconciliation.completed-order-lookback-days` | Age window for rechecking locally `DONE` provider orders; default 30 days, runtime cap 365. |
+| `app.payment.operations.reconciliation.completed-order-max-per-run` | Maximum recent locally `DONE` provider orders rechecked per run; default 500, runtime cap 5000. |
 | `app.payment.operations.reconciliation-notification-enabled` | Enables optional operator notification for reconciliation incidents. |
 | `app.payment.operations.operator-email` | Operator email target when notification is enabled. |
 
@@ -163,10 +174,12 @@ Important fields:
 | 00:00 daily | `SubscriptionScheduler.processRecurringRenewals()` | Process due recurring charges. |
 | 00:10 daily | `SubscriptionScheduler.processExpiredPaymentOrders()` | Expire stale `READY` and `IN_PROGRESS` payment orders. |
 | 00:30 daily | `SubscriptionScheduler.processExpiredSubscriptions()` | Expire subscriptions after renewal/grace handling. |
-| 01:00 daily | `PaymentReconciliationService.scheduledReconciliation()` | Compare local/provider ledgers and persist incidents when mismatches are found. |
+| 01:00 daily | `PaymentReconciliationService.scheduledReconciliation()` | Reconcile nonterminal/finalization candidates plus a bounded recent window of locally `DONE` provider orders, and persist incidents when mismatches are found. Locally succeeded refunds are excluded from the `DONE` payment-state comparison. |
 | 01:15 daily | `WithdrawalBillingCleanupCoordinator.retryFailedCleanups()` | Retry only deleted-user `CANCELLED` agreements that still retain encrypted key material. |
 
 Current deployment assumption is single server. Multi-server scheduler locking is intentionally deferred.
+
+Every payment cron declares `zone = "${app.payment.scheduler-zone:Asia/Seoul}"`; server JVM default timezone does not select cron fire time.
 
 ## 9. Security Rules
 
@@ -180,10 +193,12 @@ The following values must never be returned to frontend/admin screens or stored 
 - Raw provider payload containing sensitive fields
 - Mail recipient, subject/body, verification/reset URL or token, raw delivery exception message, or stack trace
 
+When `app.payment.provider=TOSS_BILLING`, startup validates the legacy secret, active key ID, and every key-ring entry. Blank, placeholder, duplicate, or missing active-key configuration fails closed. Validation errors identify only the configuration class of failure and never print secret values.
+
 Allowed support-safe values include:
 
 - Order ID
-- Masked provider transaction reference for support. The exact provider transaction ID remains only in protected structured ownership fields and is excluded from serialized lookup evidence and Incident/audit free text.
+- Deterministic masked provider support references in `REF-*` form. Exact provider payment, refund, receipt, and settlement identifiers remain only in protected structured server/entity fields required for provider operations and are excluded from ADMIN response DTOs, serialized lookup evidence, and Incident/audit free text.
 - Masked payment method
 - Receipt URL or receipt key when provider returns it
 - Reconciliation status, incident metadata, and audit workflow fields

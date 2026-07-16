@@ -1,7 +1,13 @@
 import { useState, type FormEvent, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createAlbum } from '@/api/albums';
-import { TITLE_ALBUM_MAX, DESCRIPTION_MAX, IMAGE_MAX_SIZE_MB, isFileSizeOk, validateImageDimensions } from '@/utils/validation';
+import {
+  TITLE_ALBUM_MAX,
+  DESCRIPTION_MAX,
+  IMAGE_MAX_SIZE_MB,
+  isFileSizeOk,
+  validateImageDimensions,
+} from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import styles from './AlbumCreatePage.module.css';
 
@@ -75,8 +81,7 @@ export default function AlbumCreatePage() {
       await createAlbum(formData);
       navigate('/admin/albums');
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : '앨범 생성에 실패했습니다.';
+      const msg = err instanceof Error ? err.message : '앨범 생성에 실패했습니다.';
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -120,15 +125,9 @@ export default function AlbumCreatePage() {
           <span className={styles.label}>{'썸네일'}</span>
           <div className={styles.thumbArea}>
             {thumbPreview && (
-              <img
-                src={thumbPreview}
-                alt="썸네일 미리보기"
-                className={styles.thumbPreview}
-              />
+              <img src={thumbPreview} alt="썸네일 미리보기" className={styles.thumbPreview} />
             )}
-            <label
-              className={`${styles.fileLabel} ${thumbnail ? styles.fileLabelSelected : ''}`}
-            >
+            <label className={`${styles.fileLabel} ${thumbnail ? styles.fileLabelSelected : ''}`}>
               <input
                 type="file"
                 accept="image/*"
@@ -142,12 +141,7 @@ export default function AlbumCreatePage() {
 
         {/* Actions */}
         <div className={styles.actions}>
-          <Button
-            variant="ghost"
-            type="button"
-            onClick={() => navigate(-1)}
-            disabled={submitting}
-          >
+          <Button variant="ghost" type="button" onClick={() => navigate(-1)} disabled={submitting}>
             {'취소'}
           </Button>
           <Button type="submit" loading={submitting}>

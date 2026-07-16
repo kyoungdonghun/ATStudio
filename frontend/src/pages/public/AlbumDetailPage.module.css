@@ -89,14 +89,7 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    #888 30%,
-    #555 31%,
-    #666 50%,
-    #555 51%,
-    #444 100%
-  );
+  background: radial-gradient(circle, #888 30%, #555 31%, #666 50%, #555 51%, #444 100%);
 }
 
 .cover {
@@ -399,7 +392,9 @@
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 
 .trActBtn:hover {
@@ -527,5 +522,4 @@
     padding: 2px 6px;
     font-size: 10px;
   }
-
 }

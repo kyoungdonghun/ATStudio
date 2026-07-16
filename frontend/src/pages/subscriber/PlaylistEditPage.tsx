@@ -102,9 +102,7 @@ export default function PlaylistEditPage() {
 
       /* Update title / description / thumbnail */
       const infoChanged =
-        title !== detail.title ||
-        description !== (detail.description ?? '') ||
-        thumbFile !== null;
+        title !== detail.title || description !== (detail.description ?? '') || thumbFile !== null;
 
       if (infoChanged) {
         await updatePlaylist(id, {
@@ -187,19 +185,10 @@ export default function PlaylistEditPage() {
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>{'재생목록 편집'}</h1>
         <div className={styles.headerActions}>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(`/playlists/${id}`)}
-          >
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/playlists/${id}`)}>
             {'취소'}
           </Button>
-          <Button
-            size="sm"
-            onClick={handleSave}
-            loading={saving}
-            disabled={!isDirty && !saving}
-          >
+          <Button size="sm" onClick={handleSave} loading={saving} disabled={!isDirty && !saving}>
             {'저장'}
           </Button>
         </div>
@@ -326,9 +315,7 @@ export default function PlaylistEditPage() {
       <section className={styles.dangerZone}>
         <div className={styles.dangerInfo}>
           <div className={styles.dangerTitle}>{'재생목록 삭제'}</div>
-          <div className={styles.dangerDesc}>
-            {'삭제된 재생목록은 복구할 수 없습니다.'}
-          </div>
+          <div className={styles.dangerDesc}>{'삭제된 재생목록은 복구할 수 없습니다.'}</div>
         </div>
         <Button variant="danger" size="sm" onClick={() => setShowDeletePl(true)}>
           {'삭제'}
@@ -336,11 +323,7 @@ export default function PlaylistEditPage() {
       </section>
 
       {/* ── Remove Track Modal ── */}
-      <Modal
-        open={removeTarget !== null}
-        onClose={() => setRemoveTarget(null)}
-        title="곡 삭제"
-      >
+      <Modal open={removeTarget !== null} onClose={() => setRemoveTarget(null)} title="곡 삭제">
         <div className={styles.modalBody}>
           <p>
             {'정말 '}
@@ -359,11 +342,7 @@ export default function PlaylistEditPage() {
       </Modal>
 
       {/* ── Delete Playlist Modal ── */}
-      <Modal
-        open={showDeletePl}
-        onClose={() => setShowDeletePl(false)}
-        title="재생목록 삭제"
-      >
+      <Modal open={showDeletePl} onClose={() => setShowDeletePl(false)} title="재생목록 삭제">
         <div className={styles.modalBody}>
           <p>
             {'정말 '}
@@ -377,11 +356,7 @@ export default function PlaylistEditPage() {
           <Button variant="ghost" onClick={() => setShowDeletePl(false)}>
             {'취소'}
           </Button>
-          <Button
-            variant="danger"
-            onClick={handleDeletePlaylist}
-            loading={deletingPl}
-          >
+          <Button variant="danger" onClick={handleDeletePlaylist} loading={deletingPl}>
             {'삭제'}
           </Button>
         </div>

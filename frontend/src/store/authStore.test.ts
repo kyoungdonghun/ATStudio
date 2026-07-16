@@ -50,6 +50,7 @@ const track: Track = {
 
 describe('authStore', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     logoutSessionMock.mockReset();
     logoutSessionMock.mockResolvedValue(undefined);
     localStorage.clear();
@@ -74,6 +75,33 @@ describe('authStore', () => {
     expect(localStorage.getItem('user')).toBeTruthy();
     expect(useAuthStore.getState().user?.email).toBe('user@test.com');
     expect(useAuthStore.getState().role).toBe('USER');
+  });
+
+  it('updates the active and persisted user together after a profile save', () => {
+    localStorage.setItem('accessToken', 'access-token');
+    localStorage.setItem('user', JSON.stringify(user));
+    useAuthStore.setState({ user, accessToken: 'access-token', role: 'USER' });
+    const updatedUser = { ...user, nickname: 'updated-name' };
+
+    expect(useAuthStore.getState().updateUser(updatedUser)).toBe(true);
+
+    expect(useAuthStore.getState().user).toEqual(updatedUser);
+    expect(JSON.parse(localStorage.getItem('user') ?? 'null')).toEqual(updatedUser);
+  });
+
+  it('keeps the active and persisted user unchanged when profile persistence fails', () => {
+    localStorage.setItem('accessToken', 'access-token');
+    localStorage.setItem('user', JSON.stringify(user));
+    useAuthStore.setState({ user, accessToken: 'access-token', role: 'USER' });
+    const persistedBefore = localStorage.getItem('user');
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('storage unavailable');
+    });
+
+    expect(useAuthStore.getState().updateUser({ ...user, nickname: 'not-committed' })).toBe(false);
+
+    expect(useAuthStore.getState().user).toEqual(user);
+    expect(localStorage.getItem('user')).toBe(persistedBefore);
   });
 
   it('calls server logout before clearing persisted auth and dependent stores', async () => {

@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-07-13
+version: 1.2
+last_updated: 2026-07-16
 project: ATS
 owner: docops
 category: guide
@@ -258,6 +258,7 @@ Expected result:
 
 - The withdrawn account is never charged by the renewal scheduler; deleted users are excluded before decryption, order creation, or Provider charge.
 - Withdrawal does not create a refund. A refund requires the separate admin request, approval, and execution workflow for a specific payment.
+- Social-only withdrawal remains `POLICY-PENDING`. The current password-confirmation flow is not a substitute for fresh provider reauthentication and linked provider-ID matching.
 
 ## 13. Refund and Entitlement Correction
 

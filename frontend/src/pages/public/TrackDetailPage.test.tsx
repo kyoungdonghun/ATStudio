@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TrackDetail } from '@/api/tracks';
 import type { Track } from '@/types';
@@ -95,11 +95,27 @@ const expectedPlayerTrack: Track = { ...detail };
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/tracks/7']}>
+      <RouteSwitcher />
       <Routes>
         <Route path="/tracks/:trackId" element={<TrackDetailPage />} />
       </Routes>
     </MemoryRouter>,
   );
+}
+
+function RouteSwitcher() {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate('/tracks/8')}>next track</button>;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
 }
 
 async function clickPlay() {
@@ -146,5 +162,40 @@ describe('TrackDetailPage player mapping', () => {
 
     expect(mocks.resume).toHaveBeenCalledTimes(1);
     expect(mocks.play).not.toHaveBeenCalled();
+  });
+
+  it('ignores an old successful detail response after navigation', async () => {
+    const first = deferred<TrackDetail>();
+    const second = deferred<TrackDetail>();
+    const nextDetail = { ...detail, id: 8, title: 'Current track' };
+    mocks.fetchTrackDetail.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+
+    renderPage();
+    const firstSignal = mocks.fetchTrackDetail.mock.calls[0][1] as AbortSignal;
+    fireEvent.click(screen.getByRole('button', { name: 'next track' }));
+    expect(firstSignal.aborted).toBe(true);
+
+    await act(async () => second.resolve(nextDetail));
+    expect(await screen.findByRole('heading', { name: nextDetail.title })).toBeInTheDocument();
+
+    await act(async () => first.resolve(detail));
+    expect(screen.getByRole('heading', { name: nextDetail.title })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: detail.title })).not.toBeInTheDocument();
+  });
+
+  it('ignores an old failed detail response after the current response succeeds', async () => {
+    const first = deferred<TrackDetail>();
+    const second = deferred<TrackDetail>();
+    const nextDetail = { ...detail, id: 8, title: 'Current after stale failure' };
+    mocks.fetchTrackDetail.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'next track' }));
+    await act(async () => second.resolve(nextDetail));
+    expect(await screen.findByRole('heading', { name: nextDetail.title })).toBeInTheDocument();
+
+    await act(async () => first.reject(new Error('old failure')));
+    expect(screen.getByRole('heading', { name: nextDetail.title })).toBeInTheDocument();
+    expect(screen.queryByText('Failed to load track')).not.toBeInTheDocument();
   });
 });

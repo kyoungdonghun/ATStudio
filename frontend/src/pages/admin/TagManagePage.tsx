@@ -143,52 +143,44 @@ export default function TagManagePage() {
 
       {/* Table */}
       <div className={styles.tableWrap}>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Type</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredTags.length === 0 && (
+        <table className={styles.table}>
+          <thead>
             <tr>
-              <td colSpan={4} className={styles.empty}>
-                No tags found.
-              </td>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Actions</th>
             </tr>
-          )}
-          {filteredTags.map((tag) => (
-            <tr key={tag.id} className={styles.row}>
-              <td>{tag.id}</td>
-              <td>{tag.name}</td>
-              <td>
-                <span className={styles.typeBadge}>{tag.type}</span>
-              </td>
-              <td>
-                <div className={styles.actionBtns}>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEdit(tag)}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => setDeleteTarget(tag)}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {filteredTags.length === 0 && (
+              <tr>
+                <td colSpan={4} className={styles.empty}>
+                  No tags found.
+                </td>
+              </tr>
+            )}
+            {filteredTags.map((tag) => (
+              <tr key={tag.id} className={styles.row}>
+                <td>{tag.id}</td>
+                <td>{tag.name}</td>
+                <td>
+                  <span className={styles.typeBadge}>{tag.type}</span>
+                </td>
+                <td>
+                  <div className={styles.actionBtns}>
+                    <Button variant="outline" size="sm" onClick={() => openEdit(tag)}>
+                      Edit
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={() => setDeleteTarget(tag)}>
+                      Delete
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {/* Create / Edit Modal */}
@@ -234,29 +226,15 @@ export default function TagManagePage() {
       </Modal>
 
       {/* Delete confirm modal */}
-      <Modal
-        open={deleteTarget !== null}
-        onClose={() => setDeleteTarget(null)}
-        title="Delete Tag"
-      >
+      <Modal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} title="Delete Tag">
         <div className={styles.deleteText}>
-          Are you sure you want to delete tag{' '}
-          <strong>{deleteTarget?.name}</strong>?
+          Are you sure you want to delete tag <strong>{deleteTarget?.name}</strong>?
         </div>
         <div className={styles.modalActions}>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setDeleteTarget(null)}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(null)}>
             Cancel
           </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            loading={deleteLoading}
-            onClick={confirmDelete}
-          >
+          <Button variant="danger" size="sm" loading={deleteLoading} onClick={confirmDelete}>
             Delete
           </Button>
         </div>

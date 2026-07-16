@@ -13,21 +13,14 @@ export interface WhitelistChannelRequest {
 /* ── API functions ── */
 
 /** POST /api/whitelist-channels -- save a YouTube channel draft */
-export async function registerChannel(
-  req: WhitelistChannelRequest,
-): Promise<WhitelistChannel> {
-  const { data } = await client.post<ApiResponse<WhitelistChannel>>(
-    '/whitelist-channels',
-    req,
-  );
+export async function registerChannel(req: WhitelistChannelRequest): Promise<WhitelistChannel> {
+  const { data } = await client.post<ApiResponse<WhitelistChannel>>('/whitelist-channels', req);
   return data.data;
 }
 
 /** GET /api/whitelist-channels -- my saved whitelist channels */
 export async function fetchWhitelistChannels(): Promise<{ dataList: WhitelistChannel[] }> {
-  const { data } = await client.get<{ dataList: WhitelistChannel[] }>(
-    '/whitelist-channels',
-  );
+  const { data } = await client.get<{ dataList: WhitelistChannel[] }>('/whitelist-channels');
   return data;
 }
 
@@ -44,9 +37,7 @@ export async function updateChannel(
 }
 
 /** POST /api/whitelist-channels/{channelId}/request -- request whitelist registration */
-export async function requestWhitelistRegistration(
-  channelId: number,
-): Promise<WhitelistChannel> {
+export async function requestWhitelistRegistration(channelId: number): Promise<WhitelistChannel> {
   const { data } = await client.post<ApiResponse<WhitelistChannel>>(
     `/whitelist-channels/${channelId}/request`,
   );
@@ -54,9 +45,7 @@ export async function requestWhitelistRegistration(
 }
 
 /** PUT /api/whitelist-channels/{channelId}/primary -- set primary channel */
-export async function setPrimaryWhitelistChannel(
-  channelId: number,
-): Promise<WhitelistChannel> {
+export async function setPrimaryWhitelistChannel(channelId: number): Promise<WhitelistChannel> {
   const { data } = await client.put<ApiResponse<WhitelistChannel>>(
     `/whitelist-channels/${channelId}/primary`,
   );

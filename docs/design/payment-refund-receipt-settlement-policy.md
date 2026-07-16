@@ -45,7 +45,7 @@ Tax invoice policy in this document is a system policy baseline, not tax advice.
 
 | Area | Current implementation |
 |---|---|
-| Charge ledger | `payment_orders` records attempts and stores provider transaction ID plus sanitized provider payload. |
+| Charge ledger | `payment_orders` records attempts and stores the exact provider transaction ID as a protected server-side operation field plus sanitized provider payload. ADMIN responses expose only a masked support reference. |
 | Finalized payment | `subscription_payments` stores successful subscription payment records. |
 | Provider lookup | Reconciliation compares recent orders with Toss state by `orderId` when lookup is configured. |
 | Admin view | `/admin/payments` lists orders, billing agreements, subscription payments, and reconciliation incidents. |
@@ -53,12 +53,12 @@ Tax invoice policy in this document is a system policy baseline, not tax advice.
 | Operation audit | `payment_operation_audit_logs` stores reconciliation incident status changes, system-created receipt evidence audit rows, admin refund workflow transitions, and admin entitlement correction workflow transitions. |
 | Refund state | `payment_refunds` stores admin refund request, approval, provider execution, idempotency, provider cancel transaction, and failure/pending-confirmation state. |
 | Entitlement correction state | `payment_entitlement_corrections` stores refund-linked local access correction requests, before/target snapshots, approvals, execution actor, and result state. |
-| Receipt state | `payment_receipts` stores safe provider receipt/cash receipt evidence after successful charges when Toss returns receipt metadata. |
+| Receipt state | `payment_receipts` stores provider receipt/cash receipt evidence after successful charges. Actionable URLs must be absolute HTTPS without credentials or non-standard ports; unsafe URLs are suppressed at ingestion and read mapping. |
 | Settlement state | `payment_settlements` stores CSV/manual settlement evidence, generated missing-provider review rows, amount/refund/fee/VAT/net comparisons, ignore state, and support-safe source payload. |
 
 ### Current data gap
 
-`PaymentOrder.pgTransactionId` is used as the provider transaction identifier after Toss billing charge. In Toss billing charge responses, this value may be the `paymentKey`. This value is copied into `payment_receipts.provider_payment_key` when receipt evidence exists and into `payment_refunds.provider_payment_key` when a refund request is created.
+`PaymentOrder.pgTransactionId` is used as the provider transaction identifier after Toss billing charge. In Toss billing charge responses, this value may be the `paymentKey`. This value is copied into `payment_receipts.provider_payment_key` when receipt evidence exists and into `payment_refunds.provider_payment_key` when a refund request is created. These exact values are protected server/entity operation fields; ADMIN DTOs and UI expose only deterministic masked `REF-*` support references.
 
 Current implementation introduced explicit ledgers for receipt evidence, refund workflow, refund-linked entitlement correction, settlement reconciliation, and payment operation audit logs. Tax invoice request ledgers should be introduced only if ATStudio later approves B2B invoice, bank-transfer, postpaid, or contract purchase payments.
 
@@ -71,7 +71,7 @@ Current implementation introduced explicit ledgers for receipt evidence, refund 
 | Refund is exceptional support operation | Normal user cancellation stops next renewal and preserves paid access until `expiresAt`; it is not the same as refund. |
 | Evidence records are append-only first | Refund/receipt/settlement/tax invoice operations need audit records before destructive or financial mutation. |
 | Separate financial evidence types | Card receipt, cash receipt, settlement, and tax invoice are different evidence types and must not be collapsed into one status. |
-| No raw secrets | No raw billing key, auth key, customer key, Toss secret key, raw card data, or raw provider payload in responses, logs, screenshots, or documents. |
+| No raw secrets | No raw billing key, auth key, customer key, Toss secret key, exact provider transaction ID, raw card data, raw provider payload, full reconciliation issue object, or transport exception message/stack in application logs, screenshots, or documents. |
 | Tax handling requires external confirmation and a matching payment scope | Tax invoice workflow must not be enabled for the current card-only recurring subscription scope by default. Reopen it only after business type, VAT treatment, evidence duplication policy, and B2B invoice/payment scope are confirmed. |
 
 ## 5. Refund Policy
@@ -258,6 +258,8 @@ Policy:
 
 - User-facing subscription payment history should eventually expose a provider receipt URL when available.
 - Receipt evidence is stored explicitly in `payment_receipts` when Toss returns safe receipt metadata; it is not kept only inside sanitized provider payload.
+- A receipt URL is safe only when it is an absolute HTTPS URL, has no embedded credentials, and uses the default HTTPS port or explicit port 443. The rule is provider-neutral and does not impose a Toss-only host allowlist.
+- Unsafe new URLs are not retained as actionable receipt URLs. Existing unsafe rows are suppressed by ADMIN response mapping and rendered as a non-clickable reference state rather than rewritten silently.
 - If Toss sends customer payment result emails through `customerEmail`, that email is provider notification, not ATStudio's own receipt ledger.
 
 ### 6.3 Cash receipt boundary

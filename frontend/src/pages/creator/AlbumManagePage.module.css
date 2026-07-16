@@ -100,7 +100,9 @@
   font-size: 12px;
   padding: 5px 0;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
   font-family: inherit;
 }
 
@@ -178,7 +180,9 @@
   cursor: pointer;
   color: var(--text2);
   font-size: 13px;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .fileLabel:hover {

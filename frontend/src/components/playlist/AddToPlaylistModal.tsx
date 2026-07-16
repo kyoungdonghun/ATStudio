@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchMyPlaylists, addTrackToPlaylist } from '@/api/playlists';
 import { isSubscriptionRequired } from '@/api/client';
 import type { Playlist } from '@/types';
@@ -24,11 +24,31 @@ export default function AddToPlaylistModal({
   const [adding, setAdding] = useState(false);
   const [result, setResult] = useState<'success' | 'error' | 'duplicate' | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const lifecycleGenerationRef = useRef(0);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onCloseRef = useRef(onClose);
+  const onSubscriptionRequiredRef = useRef(onSubscriptionRequired);
 
   useEffect(() => {
+    onCloseRef.current = onClose;
+    onSubscriptionRequiredRef.current = onSubscriptionRequired;
+  }, [onClose, onSubscriptionRequired]);
+
+  function clearCloseTimer() {
+    if (closeTimerRef.current !== null) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }
+
+  useEffect(() => {
+    const generation = ++lifecycleGenerationRef.current;
+    clearCloseTimer();
+
     if (!open) {
       setReady(false);
       setSelectedId(null);
+      setAdding(false);
       setResult(null);
       setLoadError(null);
       return;
@@ -36,33 +56,52 @@ export default function AddToPlaylistModal({
 
     fetchMyPlaylists()
       .then((res) => {
+        if (lifecycleGenerationRef.current !== generation) return;
         setPlaylists(res.dataList ?? []);
         setLoadError(null);
         setReady(true);
       })
       .catch((err) => {
+        if (lifecycleGenerationRef.current !== generation) return;
         if (isSubscriptionRequired(err)) {
-          onClose();
-          onSubscriptionRequired?.();
+          onCloseRef.current();
+          onSubscriptionRequiredRef.current?.();
           return;
         }
         setPlaylists([]);
         setLoadError('재생목록을 불러오지 못했습니다.');
         setReady(true);
       });
-  }, [open, onClose, onSubscriptionRequired]);
+
+    return () => {
+      if (lifecycleGenerationRef.current === generation) {
+        lifecycleGenerationRef.current += 1;
+      }
+      clearCloseTimer();
+    };
+  }, [open]);
+
+  useEffect(() => () => clearCloseTimer(), []);
 
   async function handleAdd() {
     if (!selectedId || !trackId) return;
+    const generation = lifecycleGenerationRef.current;
     setAdding(true);
     try {
       await addTrackToPlaylist(selectedId, trackId);
+      if (lifecycleGenerationRef.current !== generation) return;
       setResult('success');
-      setTimeout(() => onClose(), 800);
+      clearCloseTimer();
+      closeTimerRef.current = setTimeout(() => {
+        if (lifecycleGenerationRef.current === generation) {
+          onCloseRef.current();
+        }
+      }, 800);
     } catch (err) {
+      if (lifecycleGenerationRef.current !== generation) return;
       if (isSubscriptionRequired(err)) {
-        onClose();
-        onSubscriptionRequired?.();
+        onCloseRef.current();
+        onSubscriptionRequiredRef.current?.();
         return;
       }
       const axErr = err as import('axios').AxiosError<{ errorCode?: string }>;
@@ -72,7 +111,9 @@ export default function AddToPlaylistModal({
       }
       setResult('error');
     } finally {
-      setAdding(false);
+      if (lifecycleGenerationRef.current === generation) {
+        setAdding(false);
+      }
     }
   }
 
@@ -109,18 +150,12 @@ export default function AddToPlaylistModal({
               </li>
             ))}
           </ul>
-          {result === 'error' && (
-            <div className={styles.errorMsg}>추가에 실패했습니다.</div>
-          )}
+          {result === 'error' && <div className={styles.errorMsg}>추가에 실패했습니다.</div>}
           <div className={styles.footer}>
             <button className={styles.cancelBtn} onClick={onClose}>
               취소
             </button>
-            <button
-              className={styles.addBtn}
-              onClick={handleAdd}
-              disabled={!selectedId || adding}
-            >
+            <button className={styles.addBtn} onClick={handleAdd} disabled={!selectedId || adding}>
               {adding ? '...' : '추가'}
             </button>
           </div>

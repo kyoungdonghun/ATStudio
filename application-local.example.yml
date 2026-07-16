@@ -81,9 +81,18 @@ app:
       connect-timeout-millis: 3000
       # Toss automatic billing approval can take up to 60 seconds.
       read-timeout-millis: 60000
+    operations:
+      reconciliation:
+        batch-size: 100
+        issue-detail-limit: 100
+        completed-order-lookback-days: 30
+        completed-order-max-per-run: 500
   security:
     rate-limit:
       enabled: true
+      registration:
+        limit: 10
+        window-seconds: 900
       login:
         limit: 30
         window-seconds: 60
@@ -96,6 +105,27 @@ app:
       refresh:
         limit: 60
         window-seconds: 60
+      email-availability:
+        client:
+          limit: 60
+          window-seconds: 60
+        identifier:
+          limit: 60
+          window-seconds: 60
+      phone-availability:
+        client:
+          limit: 60
+          window-seconds: 60
+        identifier:
+          limit: 60
+          window-seconds: 60
+      nickname-availability:
+        client:
+          limit: 60
+          window-seconds: 60
+        identifier:
+          limit: 60
+          window-seconds: 60
 
 # When app.bootstrap.test-users.enabled=true, these non-prod QA accounts are created/reset on boot:
 # - qa.admin@atstudio.local      (ADMIN, no subscription)

@@ -61,7 +61,11 @@ export default function DataTable<T>({
               <th
                 key={col.key}
                 className={`${alignClass(col.align)} ${col.thClassName ?? ''}`}
-                style={col.width ? { width: typeof col.width === 'number' ? `${col.width}px` : col.width } : undefined}
+                style={
+                  col.width
+                    ? { width: typeof col.width === 'number' ? `${col.width}px` : col.width }
+                    : undefined
+                }
               >
                 {col.label}
               </th>

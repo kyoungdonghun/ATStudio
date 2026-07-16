@@ -28,11 +28,14 @@ export default function Pagination({ pageInfo, currentPage, onPageChange }: Pagi
   if (pageInfo.total === 0) return null;
 
   return (
-    <div className={styles.pagination}>
+    <nav className={styles.pagination} aria-label="페이지 탐색">
       <button
+        type="button"
         className={styles.btn}
         disabled={!pageInfo.prev}
         onClick={() => onPageChange(currentPage - 1)}
+        aria-label="이전 페이지"
+        title="이전 페이지"
       >
         {'\u2039'}
       </button>
@@ -44,9 +47,12 @@ export default function Pagination({ pageInfo, currentPage, onPageChange }: Pagi
           </span>
         ) : (
           <button
+            type="button"
             key={item}
             className={`${styles.btn} ${item === currentPage ? styles.btnActive : ''}`}
             onClick={() => onPageChange(item)}
+            aria-label={`${item}페이지`}
+            aria-current={item === currentPage ? 'page' : undefined}
           >
             {item}
           </button>
@@ -54,12 +60,15 @@ export default function Pagination({ pageInfo, currentPage, onPageChange }: Pagi
       )}
 
       <button
+        type="button"
         className={styles.btn}
         disabled={!pageInfo.next}
         onClick={() => onPageChange(currentPage + 1)}
+        aria-label="다음 페이지"
+        title="다음 페이지"
       >
         {'\u203A'}
       </button>
-    </div>
+    </nav>
   );
 }

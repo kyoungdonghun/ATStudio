@@ -1,6 +1,6 @@
 ---
-version: 0.2
-last_updated: 2026-07-13
+version: 0.3
+last_updated: 2026-07-16
 project: ATS
 owner: docops
 category: guide
@@ -43,6 +43,8 @@ Users select a plan and billing cycle, register a card through Toss, and the sub
 
 When a user upgrades to a higher plan, ATStudio charges the remaining-period difference immediately through the registered automatic payment method. The higher plan is applied immediately after successful charge.
 
+If an existing subscriber needs to re-register a payment method first, the registration order has `amount=0`. Registration itself does not charge the card or change the current plan/period; the user returns to the intended upgrade or waits for renewal afterward.
+
 ### 2.3 Downgrade
 
 When a user moves to a lower plan, ATStudio schedules the change for the next billing date. The current paid plan remains available until the current period ends.
@@ -62,6 +64,8 @@ If the user changes their mind before the paid period expires, the subscription 
 ### 2.7 Account Withdrawal
 
 Account withdrawal stops local automatic renewal before the account is marked deleted. ATStudio then removes the Provider billing key after the local change commits. If Provider cleanup temporarily fails, local renewal remains blocked and the system records and retries the cleanup. Withdrawal does not automatically refund an earlier payment.
+
+The current withdrawal flow requires password confirmation. A social-only withdrawal flow remains policy-pending and must not substitute the password path for provider reauthentication.
 
 ## 3. Admin Operation Support
 

@@ -36,7 +36,10 @@ import java.util.Objects;
                 @Index(name = "idx_payment_orders_user_status", columnList = "user_id,status"),
                 @Index(
                         name = "idx_payment_orders_status_processing",
-                        columnList = "status,processing_started_at")
+                        columnList = "status,processing_started_at"),
+                @Index(
+                        name = "idx_payment_orders_local_reconciliation",
+                        columnList = "status,id,purpose")
         },
         uniqueConstraints = {
                 @UniqueConstraint(

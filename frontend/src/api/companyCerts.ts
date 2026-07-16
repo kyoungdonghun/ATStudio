@@ -1,6 +1,29 @@
 import client from './client';
 import type { ApiResponse, CompanyCertification } from '@/types';
 
+export function getCompanyCertErrorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object' || !('response' in error)) return undefined;
+  return (error as { response?: { status?: number } }).response?.status;
+}
+
+export function getCompanyCertErrorMessage(error: unknown, fallback: string): string {
+  const status = getCompanyCertErrorStatus(error);
+  if (status === 403) {
+    return '기업 회원만 기업 인증을 이용할 수 있습니다. 계정 유형을 확인해주세요.';
+  }
+
+  const message =
+    error && typeof error === 'object' && 'response' in error
+      ? (error as { response?: { data?: { message?: unknown } } }).response?.data?.message
+      : undefined;
+  if (typeof message === 'string' && message.trim()) return message.trim();
+
+  if (status === 400 || status === 422) {
+    return '서류 형식, 개수, 용량을 확인한 뒤 다시 시도해주세요.';
+  }
+  return fallback;
+}
+
 /* ── API Functions ── */
 
 /** 13.1 POST /api/company-certifications — apply (multipart) */

@@ -90,9 +90,7 @@ export default function PlayHistoryPage() {
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>
           {'재생 기록'}
-          {allItems.length > 0 && (
-            <span className={styles.count}>{allItems.length}곡</span>
-          )}
+          {allItems.length > 0 && <span className={styles.count}>{allItems.length}곡</span>}
         </h1>
         {allItems.length > 0 && (
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -103,10 +101,7 @@ export default function PlayHistoryPage() {
             >
               {`선택 삭제 (${selected.size})`}
             </button>
-            <button
-              className={styles.btnDelete}
-              onClick={handleClearAll}
-            >
+            <button className={styles.btnDelete} onClick={handleClearAll}>
               전체 삭제
             </button>
           </div>
@@ -148,45 +143,31 @@ export default function PlayHistoryPage() {
                         onChange={() => handleSelect(item.trackId)}
                       />
                     </td>
-                    <td className={styles.cellNum}>
-                      {startIdx + idx + 1}
-                    </td>
+                    <td className={styles.cellNum}>{startIdx + idx + 1}</td>
                     <td className={styles.cellInfo}>
                       <div className={styles.info}>
                         <div className={styles.thumb}>
                           {item.thumbnail ? (
-                            <img
-                              src={toUploadUrl(item.thumbnail)!}
-                              alt={item.title}
-                            />
+                            <img src={toUploadUrl(item.thumbnail)!} alt={item.title} />
                           ) : (
                             '\u266A'
                           )}
                         </div>
                         <div className={styles.infoText}>
-                          <Link
-                            to={`/tracks/${item.trackId}`}
-                            className={styles.titleLink}
-                          >
+                          <Link to={`/tracks/${item.trackId}`} className={styles.titleLink}>
                             {item.title}
                           </Link>
                         </div>
                       </div>
                     </td>
-                    <td className={styles.cellDate}>
-                      {formatDateTime(item.playedAt)}
-                    </td>
+                    <td className={styles.cellDate}>{formatDateTime(item.playedAt)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <div className={styles.paginationWrap}>
-            <Pagination
-              pageInfo={pageInfo}
-              currentPage={page}
-              onPageChange={handlePageChange}
-            />
+            <Pagination pageInfo={pageInfo} currentPage={page} onPageChange={handlePageChange} />
           </div>
         </>
       )}

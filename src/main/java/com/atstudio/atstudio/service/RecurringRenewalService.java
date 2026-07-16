@@ -2,6 +2,7 @@ package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.config.PaymentProperties;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
@@ -16,10 +17,12 @@ import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeRes
 import com.atstudio.atstudio.service.payment.provider.recurring.RecurringPaymentProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -40,24 +43,44 @@ public class RecurringRenewalService {
     private final BillingKeyCrypto billingKeyCrypto;
     private final EmailService emailService;
     private final Map<PaymentProviderType, RecurringPaymentProvider> recurringProviders;
+    private final Clock paymentClock;
 
+    @Autowired
     public RecurringRenewalService(
             BillingAgreementRepository billingAgreementRepository,
             PaymentCommandTransactionService paymentCommandTransactions,
             BillingKeyCrypto billingKeyCrypto,
             EmailService emailService,
-            List<RecurringPaymentProvider> recurringProviders) {
+            List<RecurringPaymentProvider> recurringProviders,
+            PaymentProperties paymentProperties) {
+        this(
+                billingAgreementRepository,
+                paymentCommandTransactions,
+                billingKeyCrypto,
+                emailService,
+                recurringProviders,
+                Clock.system(paymentProperties.schedulerZoneId()));
+    }
+
+    RecurringRenewalService(
+            BillingAgreementRepository billingAgreementRepository,
+            PaymentCommandTransactionService paymentCommandTransactions,
+            BillingKeyCrypto billingKeyCrypto,
+            EmailService emailService,
+            List<RecurringPaymentProvider> recurringProviders,
+            Clock paymentClock) {
         this.billingAgreementRepository = billingAgreementRepository;
         this.paymentCommandTransactions = paymentCommandTransactions;
         this.billingKeyCrypto = billingKeyCrypto;
         this.emailService = emailService;
         this.recurringProviders = recurringProviders.stream()
                 .collect(Collectors.toUnmodifiableMap(RecurringPaymentProvider::getProviderType, Function.identity()));
+        this.paymentClock = paymentClock;
     }
 
     @Transactional(propagation = Propagation.NEVER)
     public RenewalRunResult processDueRenewals() {
-        return processDueRenewals(LocalDate.now());
+        return processDueRenewals(LocalDate.now(paymentClock));
     }
 
     @Transactional(propagation = Propagation.NEVER)
@@ -105,7 +128,7 @@ public class RecurringRenewalService {
             claim = paymentCommandTransactions.claimRenewal(
                     billingAgreementID,
                     today,
-                    LocalDateTime.now());
+                    LocalDateTime.now(paymentClock));
             return processClaim(claim, today);
         } catch (BusinessException exception) {
             log.warn(
@@ -145,6 +168,9 @@ public class RecurringRenewalService {
     }
 
     private RenewalOutcome chargeClaim(RenewalClaim claim, LocalDate today) {
+        paymentCommandTransactions.authorizeRenewalProviderCall(
+                claim.agreementID(),
+                claim.orderID());
         BillingChargeResult chargeResult;
         try {
             chargeResult = recurringProvider().charge(new BillingChargeCommand(

@@ -18,11 +18,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,9 +39,28 @@ import static org.mockito.Mockito.verify;
 @DisplayName("SubscriptionScheduler unit tests")
 class SubscriptionSchedulerTest {
 
+    private static final Clock PAYMENT_CLOCK = Clock.fixed(
+            Instant.parse("2026-07-16T00:00:00Z"),
+            ZoneId.of("Asia/Seoul"));
+
     @Mock UserSubscriptionRepository userSubscriptionRepository;
     @Mock RecurringRenewalService recurringRenewalService;
     @Mock PaymentOrderRepository paymentOrderRepository;
+
+    @Test
+    @DisplayName("all subscription payment crons use the configurable Asia/Seoul zone")
+    void paymentCronsUseConfiguredZone() throws Exception {
+        List<String> methodNames = List.of(
+                "processRecurringRenewals",
+                "processExpiredPaymentOrders",
+                "processExpiredSubscriptions");
+
+        for (String methodName : methodNames) {
+            Method method = SubscriptionScheduler.class.getMethod(methodName);
+            Scheduled scheduled = method.getAnnotation(Scheduled.class);
+            assertThat(scheduled.zone()).isEqualTo("${app.payment.scheduler-zone:Asia/Seoul}");
+        }
+    }
 
     @Test
     @DisplayName("processRecurringRenewals delegates to recurring renewal service")
@@ -44,7 +68,8 @@ class SubscriptionSchedulerTest {
         SubscriptionScheduler scheduler = new SubscriptionScheduler(
                 userSubscriptionRepository,
                 recurringRenewalService,
-                paymentOrderRepository);
+                paymentOrderRepository,
+                PAYMENT_CLOCK);
         given(recurringRenewalService.processDueRenewals())
                 .willReturn(new RecurringRenewalService.RenewalRunResult(0, 0, 0, 0));
 
@@ -59,7 +84,8 @@ class SubscriptionSchedulerTest {
         SubscriptionScheduler scheduler = new SubscriptionScheduler(
                 userSubscriptionRepository,
                 recurringRenewalService,
-                paymentOrderRepository);
+                paymentOrderRepository,
+                PAYMENT_CLOCK);
         User user = buildUser(1L);
         Subscription subscription = buildSubscription(10L);
         PaymentOrder ready = buildOrder("ATS-READY", user, subscription);
@@ -82,7 +108,8 @@ class SubscriptionSchedulerTest {
         SubscriptionScheduler scheduler = new SubscriptionScheduler(
                 userSubscriptionRepository,
                 recurringRenewalService,
-                paymentOrderRepository);
+                paymentOrderRepository,
+                PAYMENT_CLOCK);
         User user = buildUser(1L);
         Subscription subscription = buildSubscription(10L);
         UserSubscription expired = UserSubscription.builder()
@@ -106,7 +133,8 @@ class SubscriptionSchedulerTest {
         SubscriptionScheduler scheduler = new SubscriptionScheduler(
                 userSubscriptionRepository,
                 recurringRenewalService,
-                paymentOrderRepository);
+                paymentOrderRepository,
+                PAYMENT_CLOCK);
         User user = buildUser(1L);
         Subscription currentPlan = buildSubscription(10L);
         Subscription pendingPlan = buildSubscription(20L);
@@ -128,6 +156,25 @@ class SubscriptionSchedulerTest {
         assertThat(expired.getBillingCycle()).isEqualTo(BillingCycle.YEARLY);
         assertThat(expired.getPendingSubscription()).isNull();
         assertThat(expired.getPendingBillingCycle()).isNull();
+    }
+
+    @Test
+    @DisplayName("expiration jobs use the injected non-default business-zone date")
+    void processExpiredSubscriptions_usesInjectedBusinessZone() {
+        Clock losAngelesClock = Clock.fixed(
+                Instant.parse("2026-07-16T06:59:59Z"),
+                ZoneId.of("America/Los_Angeles"));
+        SubscriptionScheduler scheduler = new SubscriptionScheduler(
+                userSubscriptionRepository,
+                recurringRenewalService,
+                paymentOrderRepository,
+                losAngelesClock);
+        given(userSubscriptionRepository.findExpired(LocalDate.of(2026, 7, 15)))
+                .willReturn(List.of());
+
+        scheduler.processExpiredSubscriptions();
+
+        verify(userSubscriptionRepository).findExpired(LocalDate.of(2026, 7, 15));
     }
 
     private User buildUser(Long id) {

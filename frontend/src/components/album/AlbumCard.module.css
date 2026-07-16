@@ -8,7 +8,6 @@
   border-color: rgba(198, 167, 94, 0.5);
 }
 
-
 /* ── Thumbnail ── */
 
 .thumb {
@@ -52,7 +51,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.15s, color 0.15s;
+  transition:
+    opacity 0.15s,
+    color 0.15s;
 }
 
 .likeBtnActive {

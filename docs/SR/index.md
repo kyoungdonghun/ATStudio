@@ -1,6 +1,6 @@
 # Screen Review (SR) Index
 
-> **Sub-folder:** `confirm/` — Code quality findings flagged during documentation audits (SR-C-xx format). These are not user-visible screen changes; they are backend code correctness issues pending developer review.
+> **Current index contract (2026-07-16):** 92 numbered SR files are indexed below: 82 DONE, 7 OPEN, 2 NOT CONFIRMED, and 1 DROPPED. `confirm/` is reserved and currently empty. Historical SR-C identifiers are aliases stored in numbered SR files, not additional files or open work items.
 
 | SR | Title | Status |
 |----|-------|--------|
@@ -97,9 +97,12 @@
 | SR-92 | Toss 결제위젯 인라인 렌더링 UX 분리 | DROPPED |
 | SR-93 | Toss 정기결제 운영 서버 체크포인트 및 개발 포인트 | OPEN |
 
-## Code Confirmation Reports (docs/SR/confirm/)
+## Historical Code Confirmation Aliases
 
-| SR-C | 대상 | 상태 |
-|------|------|------|
-| SR-C-01 | DATA_INTEGRITY_VIOLATION 오용 (4개 서비스) | OPEN |
-| SR-C-02 | router/index.tsx 화�
+| Alias | Stored document | Current index status |
+|---|---|---|
+| SR-C-01 | [SR-35](SR-35.md) | DONE |
+| SR-C-02 | [SR-36](SR-36.md) | DONE |
+| SR-C-04 | [SR-37](SR-37.md) | DONE |
+
+No SR-C-03 was issued. The `confirm/` directory contains no files and is not a parallel source of truth.

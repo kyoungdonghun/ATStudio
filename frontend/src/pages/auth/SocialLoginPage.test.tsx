@@ -8,6 +8,7 @@ import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import { useAuthStore } from '@/store/authStore';
 import { useLikeStore } from '@/store/likeStore';
 import { usePlayerStore } from '@/store/playerStore';
+import { createOAuthAttempt } from '@/utils/oauthAttempt';
 
 const { fetchMeMock, logoutSessionMock, socialLoginMock } = vi.hoisted(() => ({
   fetchMeMock: vi.fn(),
@@ -36,20 +37,18 @@ const profile: MeResponse = {
 };
 
 function prepareCallbackStorage() {
-  sessionStorage.setItem('oauth_state', 'expected-state');
-  sessionStorage.setItem('oauth_code_verifier', 'pkce-verifier');
+  createOAuthAttempt('expected-state-1234', 'pkce-verifier', '/');
 }
 
 function renderPage(strict = false) {
   const routes = (
     <MemoryRouter
-      initialEntries={[
-        '/social-login/google?code=authorization-code&state=expected-state',
-      ]}
+      initialEntries={['/social-login/google?code=authorization-code&state=expected-state-1234']}
     >
       <Routes>
         <Route path="/social-login/:provider" element={<SocialLoginPage />} />
         <Route path="/" element={<p>home</p>} />
+        <Route path="/profile" element={<p>profile destination</p>} />
         <Route path="/complete-profile" element={<p>complete profile</p>} />
       </Routes>
     </MemoryRouter>
@@ -108,11 +107,7 @@ describe('SocialLoginPage', () => {
     expect(await screen.findByText('home')).toBeInTheDocument();
     expect(requestOrder).toEqual(['exchange', 'fetchMe']);
     expect(socialLoginMock).toHaveBeenCalledTimes(1);
-    expect(socialLoginMock).toHaveBeenCalledWith(
-      'google',
-      'authorization-code',
-      'pkce-verifier',
-    );
+    expect(socialLoginMock).toHaveBeenCalledWith('google', 'authorization-code', 'pkce-verifier');
     expect(useAuthStore.getState()).toMatchObject({
       accessToken: 'issued-access-token',
       user: profile,
@@ -141,6 +136,32 @@ describe('SocialLoginPage', () => {
     });
   });
 
+  it('returns a complete social login to the stored safe internal target', async () => {
+    createOAuthAttempt('expected-state-1234', 'pkce-verifier', '/profile?tab=edit');
+    socialLoginMock.mockResolvedValue({
+      accessToken: 'issued-access-token',
+      refreshToken: 'issued-refresh-token',
+      tokenType: 'Bearer',
+      expiresIn: 3600,
+      isProfileComplete: true,
+    });
+    fetchMeMock.mockResolvedValue(profile);
+
+    renderPage();
+
+    expect(await screen.findByText('profile destination')).toBeInTheDocument();
+    expect(sessionStorage.getItem('oauth_attempt:expected-state-1234')).toBeNull();
+  });
+
+  it('rejects a missing or already consumed callback attempt before provider exchange', async () => {
+    renderPage();
+
+    expect(
+      await screen.findByText('보안 검증에 실패했습니다. 다시 로그인해주세요.'),
+    ).toBeInTheDocument();
+    expect(socialLoginMock).not.toHaveBeenCalled();
+  });
+
   it('best-effort revokes and always clears a staged session when fetchMe fails', async () => {
     prepareCallbackStorage();
     useLikeStore.setState({ likedIds: new Set([1]), loaded: true });
@@ -164,9 +185,7 @@ describe('SocialLoginPage', () => {
 
     renderPage();
 
-    expect(
-      await screen.findByText('사용자 정보를 불러오지 못했습니다.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('사용자 정보를 불러오지 못했습니다.')).toBeInTheDocument();
     expect(logoutSessionMock).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem('accessToken')).toBeNull();
     expect(localStorage.getItem('refreshToken')).toBeNull();

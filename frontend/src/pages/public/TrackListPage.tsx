@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { fetchTracks, type TrackListParams } from '@/api/tracks';
 import { fetchTags, fetchAvailableTags } from '@/api/tags';
 import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import { getApiErrorCode } from '@/api/client';
+import { classifyLoadError, getLoadErrorMessage } from '@/api/loadError';
 import { fetchDownloadCount } from '@/api/downloads';
 import type { Track, TrackListItem, TagItem, PageInfo } from '@/types';
 import TrackRow from '@/components/track/TrackRow';
@@ -18,14 +19,15 @@ import { useToastStore } from '@/store/toastStore';
 import styles from './TrackListPage.module.css';
 
 /* ── BPM filter presets ── */
-const BPM_PRESETS: readonly { label: string; min: number | undefined; max: number | undefined }[] = [
-  { label: '~ 59', min: undefined, max: 59 },
-  { label: '60 \u2013 79', min: 60, max: 79 },
-  { label: '80 \u2013 99', min: 80, max: 99 },
-  { label: '100 \u2013 119', min: 100, max: 119 },
-  { label: '120 \u2013 139', min: 120, max: 139 },
-  { label: '140 ~', min: 140, max: undefined },
-];
+const BPM_PRESETS: readonly { label: string; min: number | undefined; max: number | undefined }[] =
+  [
+    { label: '~ 59', min: undefined, max: 59 },
+    { label: '60 \u2013 79', min: 60, max: 79 },
+    { label: '80 \u2013 99', min: 80, max: 99 },
+    { label: '100 \u2013 119', min: 100, max: 119 },
+    { label: '120 \u2013 139', min: 120, max: 139 },
+    { label: '140 ~', min: 140, max: undefined },
+  ];
 
 const PAGE_SIZE = 20;
 
@@ -63,6 +65,10 @@ export default function TrackListPage() {
   const [usageTags, setUsageTags] = useState<TagItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const trackRequestGenerationRef = useRef(0);
+  const trackRequestControllerRef = useRef<AbortController | null>(null);
+  const trackRetryInFlightRef = useRef(false);
+  const availableTagsRequestGenerationRef = useRef(0);
 
   const toast = useToastStore((s) => s.show);
   const navigate = useNavigate();
@@ -82,7 +88,22 @@ export default function TrackListPage() {
   const activeMoodsKey = activeMoods.join(',');
   const activeUsagesKey = activeUsages.join(',');
   const activeBpmLabel = searchParams.get('bpm') ?? '';
-  const sortValue = (searchParams.get('sort') ?? 'latest') as 'latest' | 'popular' | 'likes' | 'downloads';
+  const sortValue = (searchParams.get('sort') ?? 'latest') as
+    | 'latest'
+    | 'popular'
+    | 'likes'
+    | 'downloads';
+  const trackRequestKey = [
+    currentPage,
+    sortValue,
+    activeKeyword,
+    activeGenresKey,
+    activeMoodsKey,
+    activeUsagesKey,
+    activeBpmLabel,
+  ].join('\u001f');
+  const latestTrackRequestKeyRef = useRef(trackRequestKey);
+  latestTrackRequestKeyRef.current = trackRequestKey;
 
   /* Player store for playing state */
   const currentTrack = usePlayerStore((s) => s.currentTrack);
@@ -109,7 +130,11 @@ export default function TrackListPage() {
   const [genreExpanded, setGenreExpanded] = useState(false);
   const [moodExpanded, setMoodExpanded] = useState(false);
   const [usageExpanded, setUsageExpanded] = useState(false);
-  const hasActiveFilters = activeGenresKey !== '' || activeMoodsKey !== '' || activeUsagesKey !== '' || activeBpmLabel !== '';
+  const hasActiveFilters =
+    activeGenresKey !== '' ||
+    activeMoodsKey !== '' ||
+    activeUsagesKey !== '' ||
+    activeBpmLabel !== '';
   const [availableGenres, setAvailableGenres] = useState<Set<string>>(new Set());
   const [availableMoods, setAvailableMoods] = useState<Set<string>>(new Set());
   const [availableUsages, setAvailableUsages] = useState<Set<string>>(new Set());
@@ -119,7 +144,6 @@ export default function TrackListPage() {
       void loadLikes();
     }
   }, [isAuthenticated, likeLoaded, loadLikes]);
-
 
   /* ── Load tags once ── */
   useEffect(() => {
@@ -150,6 +174,16 @@ export default function TrackListPage() {
 
   /* ── Load tracks when filters/page change ── */
   const loadTracks = useCallback(async () => {
+    trackRequestControllerRef.current?.abort();
+    const controller = new AbortController();
+    trackRequestControllerRef.current = controller;
+    const requestGeneration = ++trackRequestGenerationRef.current;
+    const requestKey = trackRequestKey;
+    const isCurrentRequest = () =>
+      requestGeneration === trackRequestGenerationRef.current &&
+      requestKey === latestTrackRequestKeyRef.current &&
+      !controller.signal.aborted;
+
     setLoading(true);
     setError(null);
 
@@ -171,40 +205,97 @@ export default function TrackListPage() {
     }
 
     try {
-      const res = await fetchTracks(params);
+      const res = await fetchTracks(params, controller.signal);
+      if (!isCurrentRequest()) {
+        return;
+      }
       setTracks(res.dataList);
       setPageInfo(res.pageInfo);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load tracks');
+      if (!isCurrentRequest()) {
+        return;
+      }
+      if (classifyLoadError(err) === 'cancelled') {
+        return;
+      }
+      setTracks([]);
+      setPageInfo(null);
+      setError(getLoadErrorMessage(err, '음원 목록'));
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) {
+        setLoading(false);
+        trackRequestControllerRef.current = null;
+      }
     }
-  }, [currentPage, sortValue, activeKeyword, activeGenresKey, activeMoodsKey, activeUsagesKey, activeBpmLabel]);
+  }, [
+    currentPage,
+    sortValue,
+    activeKeyword,
+    activeGenresKey,
+    activeMoodsKey,
+    activeUsagesKey,
+    activeBpmLabel,
+    trackRequestKey,
+  ]);
 
   useEffect(() => {
-    loadTracks();
+    void loadTracks();
+    return () => {
+      trackRequestControllerRef.current?.abort();
+      trackRequestControllerRef.current = null;
+      trackRequestGenerationRef.current += 1;
+    };
   }, [loadTracks]);
+
+  const retryLoadTracks = useCallback(() => {
+    if (trackRetryInFlightRef.current || loading) {
+      return;
+    }
+    trackRetryInFlightRef.current = true;
+    void loadTracks().finally(() => {
+      trackRetryInFlightRef.current = false;
+    });
+  }, [loadTracks, loading]);
 
   /* ── Tag recombination: fetch available tags when filters change ── */
   useEffect(() => {
+    const requestGeneration = ++availableTagsRequestGenerationRef.current;
     if (!hasActiveFilters) {
       setAvailableGenres(new Set());
       setAvailableMoods(new Set());
       setAvailableUsages(new Set());
       return;
     }
+    const controller = new AbortController();
     const bpmPreset = BPM_PRESETS.find((p) => p.label === activeBpmLabel);
-    fetchAvailableTags({
-      genre: activeGenresKey || undefined,
-      mood: activeMoodsKey || undefined,
-      usage: activeUsagesKey || undefined,
-      bpmMin: bpmPreset?.min,
-      bpmMax: bpmPreset?.max,
-    }).then((tags) => {
-      setAvailableGenres(new Set(tags.filter((t) => t.type === 'GENRE').map((t) => t.name)));
-      setAvailableMoods(new Set(tags.filter((t) => t.type === 'MOOD').map((t) => t.name)));
-      setAvailableUsages(new Set(tags.filter((t) => t.type === 'USAGE').map((t) => t.name)));
-    }).catch(() => { /* ignore */ });
+    fetchAvailableTags(
+      {
+        genre: activeGenresKey || undefined,
+        mood: activeMoodsKey || undefined,
+        usage: activeUsagesKey || undefined,
+        bpmMin: bpmPreset?.min,
+        bpmMax: bpmPreset?.max,
+      },
+      controller.signal,
+    )
+      .then((tags) => {
+        if (
+          controller.signal.aborted ||
+          requestGeneration !== availableTagsRequestGenerationRef.current
+        ) {
+          return;
+        }
+        setAvailableGenres(new Set(tags.filter((t) => t.type === 'GENRE').map((t) => t.name)));
+        setAvailableMoods(new Set(tags.filter((t) => t.type === 'MOOD').map((t) => t.name)));
+        setAvailableUsages(new Set(tags.filter((t) => t.type === 'USAGE').map((t) => t.name)));
+      })
+      .catch(() => {
+        /* ignore */
+      });
+
+    return () => {
+      controller.abort();
+    };
   }, [activeGenresKey, activeMoodsKey, activeUsagesKey, activeBpmLabel, hasActiveFilters]);
 
   /* ── Filter helpers ── */
@@ -318,11 +409,7 @@ export default function TrackListPage() {
         </div>
         <div className={styles.sortBar}>
           <span className={styles.sortLabel}>{'정렬'}</span>
-          <select
-            className={styles.sortSelect}
-            value={sortValue}
-            onChange={handleSortChange}
-          >
+          <select className={styles.sortSelect} value={sortValue} onChange={handleSortChange}>
             <option value="latest">{'최신순'}</option>
             <option value="popular">{'인기순'}</option>
             <option value="likes">{'좋아요순'}</option>
@@ -366,10 +453,11 @@ export default function TrackListPage() {
               }}
             />
             {sortedGenreTags
-              .filter((tag) =>
-                activeGenres.includes(tag.name) ||
-                availableGenres.size === 0 ||
-                availableGenres.has(tag.name)
+              .filter(
+                (tag) =>
+                  activeGenres.includes(tag.name) ||
+                  availableGenres.size === 0 ||
+                  availableGenres.has(tag.name),
               )
               .map((tag) => (
                 <FilterChip
@@ -392,10 +480,11 @@ export default function TrackListPage() {
           <span className={styles.filterLabel}>{'분위기'}</span>
           <div className={styles.filterChips}>
             {sortedMoodTags
-              .filter((tag) =>
-                activeMoods.includes(tag.name) ||
-                availableMoods.size === 0 ||
-                availableMoods.has(tag.name)
+              .filter(
+                (tag) =>
+                  activeMoods.includes(tag.name) ||
+                  availableMoods.size === 0 ||
+                  availableMoods.has(tag.name),
               )
               .map((tag) => (
                 <FilterChip
@@ -419,10 +508,11 @@ export default function TrackListPage() {
             <span className={styles.filterLabel}>{'용도'}</span>
             <div className={styles.filterChips}>
               {sortedUsageTags
-                .filter((tag) =>
-                  activeUsages.includes(tag.name) ||
-                  availableUsages.size === 0 ||
-                  availableUsages.has(tag.name)
+                .filter(
+                  (tag) =>
+                    activeUsages.includes(tag.name) ||
+                    availableUsages.size === 0 ||
+                    availableUsages.has(tag.name),
                 )
                 .map((tag) => (
                   <FilterChip
@@ -490,72 +580,85 @@ export default function TrackListPage() {
 
       {/* Track Table */}
       {loading ? (
-        <div className={styles.loading}>{'Loading...'}</div>
+        <div className={styles.loading}>{'음원 목록을 불러오는 중...'}</div>
       ) : error ? (
-        <div className={styles.error}>{error}</div>
+        <div className={styles.error} role="alert">
+          <p className={styles.errorMessage}>{error}</p>
+          <button
+            className={styles.retryButton}
+            disabled={loading}
+            onClick={retryLoadTracks}
+            type="button"
+          >
+            {'다시 시도'}
+          </button>
+        </div>
       ) : tracks.length === 0 ? (
         <div className={styles.empty}>{'검색 결과가 없습니다.'}</div>
       ) : (
         <>
           <div className={styles.tableWrap}>
-          <table className={styles.trackTable}>
-            <thead>
-              <tr>
-                <th className={`${styles.thCenter} ${styles.thNum}`}>#</th>
-                <th>{'음원'}</th>
-                <th className={styles.thTag}>{'장르 / 태그'}</th>
-                <th className={`${styles.thRight} ${styles.thBpm}`}>BPM</th>
-                <th className={`${styles.thCenter} ${styles.thKey}`}>{'조성'}</th>
-                <th className={`${styles.thRight} ${styles.thDur}`}>{'길이'}</th>
-                <th className={`${styles.thRight} ${styles.thActs}`}>{'액션'}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tracks.map((track, idx) => (
-                <TrackRow
-                  key={track.id}
-                  index={(currentPage - 1) * PAGE_SIZE + idx + 1}
-                  track={track}
-                  playing={currentTrack?.id === track.id && isPlaying}
-                  liked={likedIds.has(track.id)}
-                  showAuthActions={isAuthenticated}
-                  onGuestAction={handleGuestAction}
-                  onPlay={(t) => {
-                    if (currentTrack?.id === t.id) {
-                      if (isPlaying) pauseTrack();
-                      else resumeTrack();
-                    } else {
-                      playTrack(trackListItemToTrack(t));
-                    }
-                  }}
-                  onLike={(t) => toggleLike(t.id)}
-                  onAddToPlaylist={(t) => setAddToPlTrackId(t.id)}
-                  onDownload={async (t) => {
-                    try {
-                      const blob = await downloadTrack(t.id);
-                      triggerBlobDownload(blob, `${t.title}.mp3`);
-                      try {
-                        const count = await fetchDownloadCount();
-                        toast('success', `다운로드 완료! 오늘 남은 횟수: ${count.remaining}/${count.dailyLimit}`);
-                      } catch {
-                        toast('success', '다운로드가 완료되었습니다.');
-                      }
-                    } catch (err) {
-                      const code = await getApiErrorCode(err);
-                      if (code === 'NO_ACTIVE_SUBSCRIPTION') {
-                        toast('warning', '구독이 필요한 기능입니다.');
-                        navigate('/subscriptions');
-                      } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
-                        toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
+            <table className={styles.trackTable}>
+              <thead>
+                <tr>
+                  <th className={`${styles.thCenter} ${styles.thNum}`}>#</th>
+                  <th>{'음원'}</th>
+                  <th className={styles.thTag}>{'장르 / 태그'}</th>
+                  <th className={`${styles.thRight} ${styles.thBpm}`}>BPM</th>
+                  <th className={`${styles.thCenter} ${styles.thKey}`}>{'조성'}</th>
+                  <th className={`${styles.thRight} ${styles.thDur}`}>{'길이'}</th>
+                  <th className={`${styles.thRight} ${styles.thActs}`}>{'액션'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tracks.map((track, idx) => (
+                  <TrackRow
+                    key={track.id}
+                    index={(currentPage - 1) * PAGE_SIZE + idx + 1}
+                    track={track}
+                    playing={currentTrack?.id === track.id && isPlaying}
+                    liked={likedIds.has(track.id)}
+                    showAuthActions={isAuthenticated}
+                    onGuestAction={handleGuestAction}
+                    onPlay={(t) => {
+                      if (currentTrack?.id === t.id) {
+                        if (isPlaying) pauseTrack();
+                        else resumeTrack();
                       } else {
-                        toast('error', '다운로드에 실패했습니다.');
+                        playTrack(trackListItemToTrack(t));
                       }
-                    }
-                  }}
-                />
-              ))}
-            </tbody>
-          </table>
+                    }}
+                    onLike={(t) => toggleLike(t.id)}
+                    onAddToPlaylist={(t) => setAddToPlTrackId(t.id)}
+                    onDownload={async (t) => {
+                      try {
+                        const blob = await downloadTrack(t.id);
+                        triggerBlobDownload(blob, `${t.title}.mp3`);
+                        try {
+                          const count = await fetchDownloadCount();
+                          toast(
+                            'success',
+                            `다운로드 완료! 오늘 남은 횟수: ${count.remaining}/${count.dailyLimit}`,
+                          );
+                        } catch {
+                          toast('success', '다운로드가 완료되었습니다.');
+                        }
+                      } catch (err) {
+                        const code = await getApiErrorCode(err);
+                        if (code === 'NO_ACTIVE_SUBSCRIPTION') {
+                          toast('warning', '구독이 필요한 기능입니다.');
+                          navigate('/subscriptions');
+                        } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
+                          toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
+                        } else {
+                          toast('error', '다운로드에 실패했습니다.');
+                        }
+                      }
+                    }}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {pageInfo && (

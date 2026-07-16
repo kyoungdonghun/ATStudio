@@ -2,6 +2,7 @@ package com.atstudio.atstudio.config;
 
 import com.atstudio.atstudio.bootstrap.TestUserBootstrapProperties;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
+import com.atstudio.atstudio.service.payment.billing.BillingKeyCrypto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -46,6 +47,10 @@ public class AcceptanceStartupGuard implements ApplicationRunner, Ordered {
     }
 
     void validate() {
+        if (paymentProperties.getProvider() == PaymentProviderType.TOSS_BILLING) {
+            BillingKeyCrypto.validateConfiguration(paymentProperties);
+        }
+
         Set<String> activeProfiles = activeProfiles();
         boolean acceptanceProfileActive = activeProfiles.contains(ACCEPTANCE_PROFILE);
         boolean acceptanceFlagEnabled = acceptanceProperties.isEnabled();

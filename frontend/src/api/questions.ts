@@ -95,16 +95,17 @@ export async function updateQuestionStatus(
   id: number,
   status: QuestionStatus,
 ): Promise<QuestionDetail> {
-  const { data } = await client.put<ApiResponse<QuestionDetail>>(`/questions/${id}/status`, { status });
+  const { data } = await client.put<ApiResponse<QuestionDetail>>(`/questions/${id}/status`, {
+    status,
+  });
   return data.data;
 }
 
 /** 8.2 POST /api/questions/{id}/answers — create answer */
-export async function createAnswer(
-  questionId: number,
-  content: string,
-): Promise<AnswerInfo> {
-  const { data } = await client.post<ApiResponse<AnswerInfo>>(`/questions/${questionId}/answers`, { content });
+export async function createAnswer(questionId: number, content: string): Promise<AnswerInfo> {
+  const { data } = await client.post<ApiResponse<AnswerInfo>>(`/questions/${questionId}/answers`, {
+    content,
+  });
   return data.data;
 }
 
@@ -114,10 +115,9 @@ export async function downloadAttachment(
   attachmentId: number,
   filename: string,
 ): Promise<void> {
-  const { data } = await client.get<Blob>(
-    `/questions/${questionId}/attachments/${attachmentId}`,
-    { responseType: 'blob' },
-  );
+  const { data } = await client.get<Blob>(`/questions/${questionId}/attachments/${attachmentId}`, {
+    responseType: 'blob',
+  });
   const url = URL.createObjectURL(data);
   const a = document.createElement('a');
   a.href = url;

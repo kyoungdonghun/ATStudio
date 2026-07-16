@@ -131,6 +131,7 @@ beforeEach(() => {
   usePlayerStore.setState({
     currentTrack: null,
     isPlaying: false,
+    isStalled: false,
     playbackError: null,
     currentTime: 0,
     duration: 0,
@@ -241,7 +242,7 @@ describe('playerStore playback lifecycle', () => {
     vi.useRealTimers();
   });
 
-  it('keeps stalled transient and clears a fatal media error after retry', async () => {
+  it('surfaces stalled playback without stopping and clears it on recovery or retry', async () => {
     act(() => usePlayerStore.getState().play(firstTrack));
     await vi.waitFor(() => expect(usePlayerStore.getState().isPlaying).toBe(true));
 
@@ -250,17 +251,26 @@ describe('playerStore playback lifecycle', () => {
     expect(audio.pause).not.toHaveBeenCalled();
     expect(usePlayerStore.getState()).toMatchObject({
       isPlaying: true,
+      isStalled: true,
       playbackError: null,
     });
+
+    act(() => audio.dispatch('canplay'));
+    expect(usePlayerStore.getState().isStalled).toBe(false);
+
+    act(() => audio.dispatch('waiting'));
+    expect(usePlayerStore.getState().isStalled).toBe(true);
 
     act(() => audio.dispatch('error'));
     expect(usePlayerStore.getState()).toMatchObject({
       isPlaying: false,
+      isStalled: false,
       playbackError: MEDIA_ERROR,
     });
 
     act(() => usePlayerStore.getState().resume());
     expect(usePlayerStore.getState().playbackError).toBeNull();
+    expect(usePlayerStore.getState().isStalled).toBe(false);
     await vi.waitFor(() => expect(usePlayerStore.getState().isPlaying).toBe(true));
   });
 
@@ -304,5 +314,34 @@ describe('playerStore playback lifecycle', () => {
     expect(audio.currentTime).toBe(0);
     expect(audio.play).toHaveBeenCalledTimes(1);
     await vi.waitFor(() => expect(usePlayerStore.getState().isPlaying).toBe(true));
+  });
+
+  it('preserves queue, shuffle, and repeat mode behavior', async () => {
+    usePlayerStore.setState({
+      currentTrack: firstTrack,
+      queue: [firstTrack, secondTrack],
+      trackListContext: [],
+    });
+
+    act(() => usePlayerStore.getState().toggleShuffle());
+    expect(usePlayerStore.getState().shuffle).toBe(true);
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    act(() => usePlayerStore.getState().next());
+    await vi.waitFor(() => expect(usePlayerStore.getState().currentTrack?.id).toBe(2));
+    randomSpy.mockRestore();
+
+    expect(usePlayerStore.getState().repeat).toBe('off');
+    act(() => usePlayerStore.getState().cycleRepeat());
+    expect(usePlayerStore.getState().repeat).toBe('all');
+    act(() => usePlayerStore.getState().cycleRepeat());
+    expect(usePlayerStore.getState().repeat).toBe('one');
+    act(() => usePlayerStore.getState().cycleRepeat());
+    expect(usePlayerStore.getState().repeat).toBe('off');
+
+    act(() => usePlayerStore.getState().reorderQueue(1, 0));
+    expect(usePlayerStore.getState().queue.map((item) => item.id)).toEqual([2, 1]);
+    act(() => usePlayerStore.getState().removeFromQueue(1));
+    expect(usePlayerStore.getState().queue.map((item) => item.id)).toEqual([2]);
   });
 });

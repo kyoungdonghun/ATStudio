@@ -1,5 +1,8 @@
 package com.atstudio.atstudio.dto.payment;
 
+import com.atstudio.atstudio.service.payment.ProviderSupportReference;
+
+import com.atstudio.atstudio.common.validation.ProviderReceiptUrlPolicy;
 import com.atstudio.atstudio.entity.PaymentReceipt;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentReceiptStatus;
@@ -17,8 +20,8 @@ public record AdminPaymentReceiptResponse(
         PaymentProviderType provider,
         PaymentReceiptType type,
         PaymentReceiptStatus status,
-        String providerPaymentKey,
-        String receiptKey,
+        String providerReference,
+        String receiptReference,
         String receiptUrl,
         LocalDateTime issuedAt,
         LocalDateTime cancelledAt,
@@ -36,9 +39,9 @@ public record AdminPaymentReceiptResponse(
                 receipt.getProvider(),
                 receipt.getType(),
                 receipt.getStatus(),
-                receipt.getProviderPaymentKey(),
-                receipt.getReceiptKey(),
-                receipt.getReceiptUrl(),
+                ProviderSupportReference.from(receipt.getProviderPaymentKey()),
+                ProviderSupportReference.from(receipt.getReceiptKey()),
+                ProviderReceiptUrlPolicy.normalizeOrNull(receipt.getReceiptUrl()),
                 receipt.getIssuedAt(),
                 receipt.getCancelledAt(),
                 receipt.getCreatedAt()

@@ -258,7 +258,9 @@
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .removeBtn:hover {

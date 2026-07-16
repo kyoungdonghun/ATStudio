@@ -37,11 +37,14 @@ export const ATTACHMENT_MAX_COUNT = 5;
 export const TRACK_UPLOAD_MAX_COUNT = 20;
 
 // ── Company Certification ──
-export const CERT_DOC_ACCEPT = '.pdf,.hwp,.hwpx,.doc,.docx,.jpg,.jpeg,.png';
-export const CERT_DOC_EXTENSIONS = ['pdf', 'hwp', 'hwpx', 'doc', 'docx', 'jpg', 'jpeg', 'png'];
+export const CERT_DOC_ACCEPT = '.pdf,.jpg,.jpeg,.png';
+export const CERT_DOC_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png'];
 export const CERT_DOC_MAX_SIZE_MB = 20;
 export const CERT_DOC_MAX_COUNT = 10;
-export const CERT_DOC_LABEL = 'PDF, HWP, DOCX, JPG, PNG';
+export const CERT_DOC_MAX_TOTAL_SIZE_MB = 50;
+export const CERT_DOC_FILENAME_MAX = 255;
+export const CERT_DOC_LABEL = 'PDF, JPG, JPEG, PNG';
+export const CERT_REVIEW_NOTE_MAX = 500;
 
 // ── Search ──
 export const SEARCH_KEYWORD_MAX = 100;
@@ -88,6 +91,40 @@ export function isFileSizeOk(file: File, maxMb: number): boolean {
   return file.size <= maxMb * 1024 * 1024;
 }
 
+export function validateCompanyCertFileSelection(
+  existingFiles: File[],
+  selectedFiles: File[],
+): string | null {
+  const combinedFiles = [...existingFiles, ...selectedFiles];
+
+  if (combinedFiles.length > CERT_DOC_MAX_COUNT) {
+    return `첨부파일은 최대 ${CERT_DOC_MAX_COUNT}개까지 가능합니다.`;
+  }
+
+  for (const file of selectedFiles) {
+    if (file.name.length > CERT_DOC_FILENAME_MAX) {
+      return `파일 이름은 ${CERT_DOC_FILENAME_MAX}자 이하여야 합니다: ${file.name}`;
+    }
+    const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+    if (!CERT_DOC_EXTENSIONS.includes(extension)) {
+      return `${CERT_DOC_LABEL} 파일만 첨부할 수 있습니다: ${file.name}`;
+    }
+    if (file.size === 0) {
+      return `내용이 비어 있는 파일은 첨부할 수 없습니다: ${file.name}`;
+    }
+    if (!isFileSizeOk(file, CERT_DOC_MAX_SIZE_MB)) {
+      return `파일당 최대 ${CERT_DOC_MAX_SIZE_MB}MB까지 첨부할 수 있습니다: ${file.name}`;
+    }
+  }
+
+  const totalBytes = combinedFiles.reduce((sum, file) => sum + file.size, 0);
+  if (totalBytes > CERT_DOC_MAX_TOTAL_SIZE_MB * 1024 * 1024) {
+    return `첨부파일 전체 용량은 ${CERT_DOC_MAX_TOTAL_SIZE_MB}MB를 초과할 수 없습니다.`;
+  }
+
+  return null;
+}
+
 /**
  * Detect iOS Safari.
  * iOS Safari has a known bug where audio file inputs with specific `accept` values
@@ -96,8 +133,10 @@ export function isFileSizeOk(file: File, maxMb: number): boolean {
  */
 export function isIOS(): boolean {
   if (typeof navigator === 'undefined') return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent)
-    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
 }
 
 /** Audio file extensions allowed for upload */

@@ -1,5 +1,7 @@
 package com.atstudio.atstudio.dto.payment;
 
+import com.atstudio.atstudio.service.payment.ProviderSupportReference;
+
 import com.atstudio.atstudio.entity.PaymentReconciliationIncident;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
@@ -27,7 +29,7 @@ public record AdminPaymentReconciliationIncidentResponse(
         String providerStatus,
         BigDecimal localAmount,
         BigDecimal providerAmount,
-        String providerTransactionId,
+        String providerReference,
         String failureCode,
         String failureMessage,
         int occurrenceCount,
@@ -57,15 +59,15 @@ public record AdminPaymentReconciliationIncidentResponse(
                 incident.getProviderStatus(),
                 incident.getLocalAmount(),
                 incident.getProviderAmount(),
-                incident.getProviderTransactionId(),
+                ProviderSupportReference.from(incident.getProviderTransactionId()),
                 incident.getFailureCode(),
-                incident.getFailureMessage(),
+                ProviderSupportReference.sanitizeFreeText(incident.getFailureMessage()),
                 incident.getOccurrenceCount(),
                 incident.getFirstDetectedAt(),
                 incident.getLastDetectedAt(),
                 incident.getNotifiedAt(),
                 incident.getResolvedAt(),
-                incident.getResolutionNote(),
+                ProviderSupportReference.sanitizeFreeText(incident.getResolutionNote()),
                 incident.getCreatedAt()
         );
     }

@@ -59,7 +59,9 @@
   font-size: 13px;
   color: var(--text1);
   text-decoration: none;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   border-left: 3px solid transparent;
   cursor: pointer;
 }
@@ -138,7 +140,10 @@
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .logoutBtn:hover {
@@ -157,8 +162,8 @@
   margin-left: 220px;
   margin-top: var(--header-h);
   flex: 1;
-  min-width: 0;        /* flex 아이템이 콘텐츠 최소 너비 이하로 줄어들 수 있게 */
-  overflow-x: hidden;  /* 자식 요소의 가로 overflow 봉쇄 */
+  min-width: 0; /* flex 아이템이 콘텐츠 최소 너비 이하로 줄어들 수 있게 */
+  overflow-x: hidden; /* 자식 요소의 가로 overflow 봉쇄 */
   padding: 24px 32px;
   min-height: calc(100vh - var(--header-h));
 }

@@ -64,7 +64,9 @@ const PlayHistoryPage = lazyPage(() => import('@/pages/subscriber/PlayHistoryPag
 const LicenseListPage = lazyPage(() => import('@/pages/subscriber/LicenseListPage'));
 const LicenseDetailPage = lazyPage(() => import('@/pages/subscriber/LicenseDetailPage'));
 const DownloadHistoryPage = lazyPage(() => import('@/pages/subscriber/DownloadQueuePage'));
-const SubscriptionPaymentPage = lazyPage(() => import('@/pages/subscriber/SubscriptionPaymentPage'));
+const SubscriptionPaymentPage = lazyPage(
+  () => import('@/pages/subscriber/SubscriptionPaymentPage'),
+);
 const SubscriptionManagePage = lazyPage(() => import('@/pages/subscriber/SubscriptionManagePage'));
 const WhitelistChannelPage = lazyPage(() => import('@/pages/subscriber/WhitelistChannelPage'));
 const CompanyCertApplyPage = lazyPage(() => import('@/pages/subscriber/CompanyCertApplyPage'));
@@ -91,9 +93,13 @@ const TagManagePage = lazyPage(() => import('@/pages/admin/TagManagePage'));
 const TrackManagePage = lazyPage(() => import('@/pages/admin/TrackManagePage'));
 const NoticeCreatePage = lazyPage(() => import('@/pages/admin/NoticeCreatePage'));
 const NoticeEditPage = lazyPage(() => import('@/pages/admin/NoticeEditPage'));
-const UserSubscriptionManagePage = lazyPage(() => import('@/pages/admin/UserSubscriptionManagePage'));
+const UserSubscriptionManagePage = lazyPage(
+  () => import('@/pages/admin/UserSubscriptionManagePage'),
+);
 const PaymentReadOnlyPage = lazyPage(() => import('@/pages/admin/PaymentReadOnlyPage'));
-const WhitelistChannelManagePage = lazyPage(() => import('@/pages/admin/WhitelistChannelManagePage'));
+const WhitelistChannelManagePage = lazyPage(
+  () => import('@/pages/admin/WhitelistChannelManagePage'),
+);
 const SiteSettingsPage = lazyPage(() => import('@/pages/admin/SiteSettingsPage'));
 
 // Error
@@ -114,9 +120,25 @@ function adminOnly(element: ReactNode): ReactNode {
   return <ProtectedRoute minRole="ADMIN">{element}</ProtectedRoute>;
 }
 
-/* ── Route definitions (49 screens + 2 error pages) ── */
+function userPaymentOnly(element: ReactNode): ReactNode {
+  return (
+    <ProtectedRoute minRole="USER" maxRole="USER" deniedRedirect="/admin/payments">
+      {element}
+    </ProtectedRoute>
+  );
+}
 
-const routes: RouteObject[] = [
+function businessOnly(element: ReactNode): ReactNode {
+  return (
+    <ProtectedRoute minRole="USER" maxRole="USER" requiredUserType="BUSINESS" deniedRedirect="/">
+      {element}
+    </ProtectedRoute>
+  );
+}
+
+/* Route declarations; see docs/ui/atstudio-front-list.md for the counting contract. */
+
+export const routes: RouteObject[] = [
   {
     element: <MainLayout />,
     children: [
@@ -150,26 +172,50 @@ const routes: RouteObject[] = [
       { path: '/licenses', element: authRequired(<LicenseListPage />) },
       { path: '/licenses/:licenseId', element: authRequired(<LicenseDetailPage />) },
       { path: '/download-queue', element: subscriberOnly(<DownloadHistoryPage />) },
-      { path: '/subscriptions/checkout', element: authRequired(<SubscriptionPaymentPage />) },
-      { path: '/subscriptions/checkout/success', element: authRequired(<SubscriptionPaymentPage />) },
-      { path: '/subscriptions/checkout/fail', element: authRequired(<SubscriptionPaymentPage />) },
-      { path: '/subscriptions/payment', element: authRequired(<SubscriptionPaymentPage />) },
-      { path: '/subscriptions/payment/success', element: authRequired(<SubscriptionPaymentPage />) },
-      { path: '/subscriptions/payment/fail', element: authRequired(<SubscriptionPaymentPage />) },
-      { path: '/subscriptions/billing/success', element: authRequired(<SubscriptionPaymentPage />) },
-      { path: '/subscriptions/billing/fail', element: authRequired(<SubscriptionPaymentPage />) },
+      { path: '/subscriptions/checkout', element: userPaymentOnly(<SubscriptionPaymentPage />) },
+      {
+        path: '/subscriptions/checkout/success',
+        element: userPaymentOnly(<SubscriptionPaymentPage />),
+      },
+      {
+        path: '/subscriptions/checkout/fail',
+        element: userPaymentOnly(<SubscriptionPaymentPage />),
+      },
+      { path: '/subscriptions/payment', element: userPaymentOnly(<SubscriptionPaymentPage />) },
+      {
+        path: '/subscriptions/payment/success',
+        element: userPaymentOnly(<SubscriptionPaymentPage />),
+      },
+      {
+        path: '/subscriptions/payment/fail',
+        element: userPaymentOnly(<SubscriptionPaymentPage />),
+      },
+      {
+        path: '/subscriptions/billing/success',
+        element: userPaymentOnly(<SubscriptionPaymentPage />),
+      },
+      {
+        path: '/subscriptions/billing/fail',
+        element: userPaymentOnly(<SubscriptionPaymentPage />),
+      },
       { path: '/subscriptions/manage', element: authRequired(<SubscriptionManagePage />) },
       { path: '/whitelist-channels', element: authRequired(<WhitelistChannelPage />) },
-      { path: '/company-certification/apply', element: authRequired(<CompanyCertApplyPage />) },
-      { path: '/company-certification/status', element: authRequired(<CompanyCertStatusPage />) },
-      { path: '/questions', element: authRequired(<QuestionListPage />), loader: () => {
-        try {
-          const raw = safeStorage.getItem('user');
-          const user = raw ? JSON.parse(raw) : null;
-          if (user?.role === 'ADMIN') return redirect('/admin/questions');
-        } catch { /* ignore */ }
-        return null;
-      } },
+      { path: '/company-certification/apply', element: businessOnly(<CompanyCertApplyPage />) },
+      { path: '/company-certification/status', element: businessOnly(<CompanyCertStatusPage />) },
+      {
+        path: '/questions',
+        element: authRequired(<QuestionListPage />),
+        loader: () => {
+          try {
+            const raw = safeStorage.getItem('user');
+            const user = raw ? JSON.parse(raw) : null;
+            if (user?.role === 'ADMIN') return redirect('/admin/questions');
+          } catch {
+            /* ignore */
+          }
+          return null;
+        },
+      },
       { path: '/questions/new', element: authRequired(<QuestionCreatePage />) },
       { path: '/questions/:questionId', element: authRequired(<QuestionDetailPage />) },
 

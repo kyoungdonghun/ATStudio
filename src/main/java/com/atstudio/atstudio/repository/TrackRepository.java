@@ -28,4 +28,9 @@ public interface TrackRepository extends JpaRepository<Track, Long>, JpaSpecific
     @Modifying
     @Query("UPDATE Track t SET t.playCount = t.playCount + 1 WHERE t.id = :trackId")
     void incrementPlayCount(@Param("trackId") Long trackId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE Track t SET t.downloadCount = t.downloadCount + 1 "
+            + "WHERE t.id = :trackId AND t.isActive = true")
+    int incrementDownloadCountAtomically(@Param("trackId") Long trackId);
 }

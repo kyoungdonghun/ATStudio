@@ -105,8 +105,13 @@ app:
   mail:
     from: ${MAIL_FROM:noreply@atstudio.com}
     base-url: ${APP_BASE_URL:http://localhost:5173}
+  whitelist:
+    max-saved-channels: ${APP_WHITELIST_MAX_SAVED_CHANNELS:100}
+    export:
+      max-items: ${APP_WHITELIST_EXPORT_MAX_ITEMS:500}
   payment:
     provider: ${APP_PAYMENT_PROVIDER:MOCK}
+    scheduler-zone: ${APP_PAYMENT_SCHEDULER_ZONE:Asia/Seoul}
     toss:
       client-key: ${TOSS_CLIENT_KEY:}
       secret-key: ${TOSS_SECRET_KEY:}
@@ -118,6 +123,7 @@ app:
       read-timeout-millis: ${TOSS_READ_TIMEOUT_MILLIS:10000}
     billing:
       encryption-secret: ${PAYMENT_BILLING_KEY_ENCRYPTION_SECRET:}
+      active-key-id: ${PAYMENT_BILLING_KEY_ACTIVE_KEY_ID:}
       auth-success-url: ${TOSS_BILLING_AUTH_SUCCESS_URL:http://localhost:5173/subscriptions/checkout/success}
       auth-fail-url: ${TOSS_BILLING_AUTH_FAIL_URL:http://localhost:5173/subscriptions/checkout/fail}
       issue-url: ${TOSS_BILLING_ISSUE_URL:https://api.tosspayments.com/v1/billing/authorizations/issue}
@@ -129,12 +135,20 @@ app:
     operations:
       reconciliation-notification-enabled: ${PAYMENT_RECONCILIATION_NOTIFICATION_ENABLED:false}
       operator-email: ${PAYMENT_OPERATIONS_OPERATOR_EMAIL:}
+      reconciliation:
+        batch-size: ${PAYMENT_RECONCILIATION_BATCH_SIZE:100}
+        issue-detail-limit: ${PAYMENT_RECONCILIATION_ISSUE_DETAIL_LIMIT:100}
+        completed-order-lookback-days: ${PAYMENT_RECONCILIATION_COMPLETED_ORDER_LOOKBACK_DAYS:30}
+        completed-order-max-per-run: ${PAYMENT_RECONCILIATION_COMPLETED_ORDER_MAX_PER_RUN:500}
   security:
     trusted-client-identity:
       enabled: ${APP_SECURITY_TRUSTED_CLIENT_IDENTITY_ENABLED:false}
       trusted-proxy-addresses: ${APP_SECURITY_TRUSTED_PROXY_ADDRESSES:127.0.0.1,::1}
     rate-limit:
       enabled: ${APP_SECURITY_RATE_LIMIT_ENABLED:true}
+      registration:
+        limit: ${APP_SECURITY_RATE_LIMIT_REGISTRATION_LIMIT:5}
+        window-seconds: ${APP_SECURITY_RATE_LIMIT_REGISTRATION_WINDOW_SECONDS:900}
       login:
         limit: ${APP_SECURITY_RATE_LIMIT_LOGIN_LIMIT:10}
         window-seconds: ${APP_SECURITY_RATE_LIMIT_LOGIN_WINDOW_SECONDS:60}
@@ -147,6 +161,27 @@ app:
       refresh:
         limit: ${APP_SECURITY_RATE_LIMIT_REFRESH_LIMIT:30}
         window-seconds: ${APP_SECURITY_RATE_LIMIT_REFRESH_WINDOW_SECONDS:60}
+      email-availability:
+        client:
+          limit: ${APP_SECURITY_RATE_LIMIT_EMAIL_AVAILABILITY_CLIENT_LIMIT:${APP_SECURITY_RATE_LIMIT_EMAIL_AVAILABILITY_LIMIT:30}}
+          window-seconds: ${APP_SECURITY_RATE_LIMIT_EMAIL_AVAILABILITY_CLIENT_WINDOW_SECONDS:${APP_SECURITY_RATE_LIMIT_EMAIL_AVAILABILITY_WINDOW_SECONDS:60}}
+        identifier:
+          limit: ${APP_SECURITY_RATE_LIMIT_EMAIL_AVAILABILITY_IDENTIFIER_LIMIT:30}
+          window-seconds: ${APP_SECURITY_RATE_LIMIT_EMAIL_AVAILABILITY_IDENTIFIER_WINDOW_SECONDS:60}
+      phone-availability:
+        client:
+          limit: ${APP_SECURITY_RATE_LIMIT_PHONE_AVAILABILITY_CLIENT_LIMIT:${APP_SECURITY_RATE_LIMIT_PHONE_AVAILABILITY_LIMIT:30}}
+          window-seconds: ${APP_SECURITY_RATE_LIMIT_PHONE_AVAILABILITY_CLIENT_WINDOW_SECONDS:${APP_SECURITY_RATE_LIMIT_PHONE_AVAILABILITY_WINDOW_SECONDS:60}}
+        identifier:
+          limit: ${APP_SECURITY_RATE_LIMIT_PHONE_AVAILABILITY_IDENTIFIER_LIMIT:30}
+          window-seconds: ${APP_SECURITY_RATE_LIMIT_PHONE_AVAILABILITY_IDENTIFIER_WINDOW_SECONDS:60}
+      nickname-availability:
+        client:
+          limit: ${APP_SECURITY_RATE_LIMIT_NICKNAME_AVAILABILITY_CLIENT_LIMIT:${APP_SECURITY_RATE_LIMIT_NICKNAME_AVAILABILITY_LIMIT:30}}
+          window-seconds: ${APP_SECURITY_RATE_LIMIT_NICKNAME_AVAILABILITY_CLIENT_WINDOW_SECONDS:${APP_SECURITY_RATE_LIMIT_NICKNAME_AVAILABILITY_WINDOW_SECONDS:60}}
+        identifier:
+          limit: ${APP_SECURITY_RATE_LIMIT_NICKNAME_AVAILABILITY_IDENTIFIER_LIMIT:30}
+          window-seconds: ${APP_SECURITY_RATE_LIMIT_NICKNAME_AVAILABILITY_IDENTIFIER_WINDOW_SECONDS:60}
 
 # 로깅 설정
 logging:

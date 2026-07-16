@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  fetchPublicCapabilities,
-  type PublicCapabilitiesResponse,
-} from '@/api/auth';
+import { fetchPublicCapabilities, type PublicCapabilitiesResponse } from '@/api/auth';
 
 export function usePublicCapabilities() {
   const [capabilities, setCapabilities] = useState<PublicCapabilitiesResponse | null>(null);

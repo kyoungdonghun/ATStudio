@@ -20,6 +20,22 @@ dependencies:
     reason: Financial transaction traceability principle
 ---
 
+---
+version: 2.0
+last_updated: 2026-07-16
+project: ATS
+owner: sa
+category: design
+status: stable
+dependencies:
+  - path: api-spec.md
+    reason: Current payment API DTO contract
+  - path: db-schema.md
+    reason: Current payment persistence contract
+  - path: payment-operations-runbook.md
+    reason: Operational recovery boundary
+---
+
 # Payment Integration Design
 
 > Purpose: Define a recurring-first subscription payment architecture that supports local mock/testing flows, Toss billing-key subscriptions, and future PG extension without repeatedly changing the subscription domain model.
@@ -41,11 +57,11 @@ Current implementation facts:
 - Downgrade is scheduled as a pending change and applied at the next renewal charge.
 - Toss one-time checkout remains a provider capability, but subscription `SUBSCRIBE`/`UPGRADE` prepare and confirm are blocked for user-facing subscription scope.
 - Expired `READY`/`IN_PROGRESS` payment orders are closed by scheduler.
-- A local reconciliation job reports ledger mismatches such as `DONE` payment orders without finalized subscription payment rows.
-- Provider API reconciliation compares recent Toss billing payment orders with Toss payment state by `orderId` when lookup configuration is available.
-- Reconciliation exposes on-demand diagnostics through the admin read-only reconciliation endpoint and persists scheduled mismatch incidents for operator workflow.
+- Local reconciliation keyset-scans eligible ledger rows and `ACTIVE` billing agreements in bounded configurable batches. Scheduled execution persists every detected Incident batch while API issue details use a separate bounded cap.
+- Provider API reconciliation keyset-scans nonterminal/finalization candidates and compares Toss payment state by `orderId` when lookup configuration is available. Locally `DONE` orders are rechecked only within the configured age window and per-run cap, and orders with a locally succeeded refund are excluded from that completed-payment comparison.
+- Reconciliation separates an on-demand ADMIN observation path from scheduled recovery. The read-only endpoint performs provider/local comparisons without claiming orders, changing payment or entitlement state, or creating/updating/resolving Incidents; only scheduled recovery persists and resolves mismatch Incidents.
 - Admins have a payment operations view for payment orders, billing agreements, finalized subscription payments, and reconciliation incidents.
-- Account withdrawal authenticates first, cancels local renewal eligibility before soft deletion, and dispatches billing-key cleanup only after commit.
+- Account withdrawal authenticates first, locks the billing agreement before the subscription, rejects withdrawal while a provider-outcome-pending charge order exists, cancels local renewal eligibility before soft deletion, and dispatches billing-key cleanup only after commit.
 - Withdrawal cleanup failure retains encrypted key material for a daily agreement-specific retry and creates a deduplicated reconciliation Incident; it never triggers an automatic refund.
 
 The payment layer separates:
@@ -303,6 +319,8 @@ Security notes:
 - Keep a non-reversible fingerprint for lookup/debugging.
 - Never expose billing keys to the frontend.
 - `billing_key_ciphertext` and `billing_key_fingerprint` are nullable while an agreement is `READY`, but must be present before the agreement becomes `ACTIVE`.
+- New ciphertext uses `v2:<keyId>:<nonce>:<ciphertext>` with the key ID bound into AES-GCM AAD. Existing `v1:<nonce>:<ciphertext>` remains decryptable with the legacy secret.
+- When `app.payment.provider=TOSS_BILLING`, startup validates the legacy v1 secret, active key ID, and every configured decryption key. Blank, placeholder, duplicate, or missing active-key entries fail startup without logging secret values.
 
 ### 9.3 Existing Table: `subscription_payments`
 
@@ -320,6 +338,12 @@ Recommended additions:
 These additions can be deferred if `pg_transaction_id` and `payment_order_id` are enough for the first release.
 
 ## 10. API Design Draft
+
+### 10.0 Role Boundary
+
+- User payment endpoints under `/api/payments/**` require a `USER` authority and explicitly reject any principal carrying `ADMIN` with `403 Forbidden` before controller invocation.
+- ADMIN payment support and audited operations remain under `/api/admin/payments/**`; the user payment controller is not an alternate ADMIN operation path.
+- Existing USER recurring billing prepare, confirm, read, and cancellation behavior remains unchanged.
 
 ### 10.1 Prepare Subscription Payment
 
@@ -404,18 +428,33 @@ Response:
 
 ```json
 {
-  "agreementId": 10,
+  "orderId": "ATS-BILL-20260716-ABC123",
   "provider": "TOSS_BILLING",
-  "authUrl": "https://...",
-  "expiresAt": "2026-05-16T23:10:00"
+  "purpose": "BILLING_AGREEMENT",
+  "agreementStatus": "READY",
+  "subscriptionId": 1,
+  "billingCycle": "MONTHLY",
+  "amount": 0,
+  "currency": "KRW",
+  "expiresAt": "2026-07-16T23:10:00",
+  "checkout": {
+    "type": "TOSS_BILLING_AUTH",
+    "clientKey": "test_ck_...",
+    "customerKey": "ats_user_1_xxxxx",
+    "method": "CARD",
+    "successUrl": "http://localhost:5173/subscriptions/checkout/success",
+    "failUrl": "http://localhost:5173/subscriptions/checkout/fail"
+  }
 }
 ```
+
+For a new subscription, `purpose=SUBSCRIBE` and `amount` is the first-period charge. For an existing active or grace-period subscription's payment-method re-registration, `purpose=BILLING_AGREEMENT` and `amount=0`.
 
 ### 10.5 Confirm Billing Agreement
 
 `POST /api/payments/billing-agreements/confirm`
 
-Stores the billing key after provider callback verification. This endpoint must not activate a subscription by itself unless the same flow also confirms an initial payment.
+Stores the billing key after provider callback verification. The request fields are `orderId`, `authKey`, `customerKey`, and `amount`. The flat response fields are `orderId`, `orderStatus`, `provider`, `agreementStatus`, `nextBillingAt`, and nullable `subscription`; there is no nested billing-agreement object. This endpoint must not activate a subscription by itself unless the same flow also confirms an initial payment.
 
 ### 10.6 Cancel Billing Agreement
 
@@ -425,7 +464,7 @@ Provider-level billing agreement cancellation endpoint. Current subscriber UX do
 
 When this provider-level endpoint is used, the provider billing key is deleted and the local issued-key fields are cleared. Such a cancellation cannot be reactivated until the user completes the payment-method re-registration flow.
 
-Account withdrawal through `DELETE /api/users/me` is a separate path. It marks the local agreement and ACTIVE subscription `CANCELLED` in the withdrawal transaction, soft-deletes the user, and requests Provider cleanup after commit. The withdrawal path does not preserve paid access for the deleted account and does not create a refund.
+Account withdrawal through `DELETE /api/users/me` is a separate path. After password validation, it locks the local billing agreement before the subscription and user, then rejects the operation if a `SUBSCRIBE`, `UPGRADE`, or `RENEWAL` order is still awaiting a Provider outcome or local finalization. Otherwise, it marks the agreement and ACTIVE subscription `CANCELLED`, soft-deletes the user, and requests Provider cleanup after commit. The withdrawal path does not preserve paid access for the deleted account and does not create a refund.
 
 ### 10.7 Deprecated Compatibility Endpoint
 
@@ -436,7 +475,7 @@ Blocked legacy policy:
 - Returns `410 Gone` / `SUBSCRIPTION_CHECKOUT_REQUIRED`.
 - Must not create subscriptions or payment rows.
 - Must not be used by production real-PG checkout or current frontend code.
-- Remove the endpoint entirely after stale clients and bookmarked callers are no longer a concern.
+- Remove the endpoint only in a separately approved change after current frontend and supported clients have no callers, callback/bookmark telemetry or an agreed observation window shows no stale use, recurring replacements are documented and tested, and the API/route/test/client-document removal has rollback guidance.
 
 ## 11. Process Flows
 
@@ -540,15 +579,17 @@ sequenceDiagram
 ### 11.6 Account Withdrawal and Billing-Key Cleanup
 
 1. Backend verifies the submitted password before any billing mutation.
-2. In the withdrawal transaction, a non-terminal Toss billing agreement and an ACTIVE subscription are marked `CANCELLED`.
-3. When encrypted key material exists, Backend publishes `WithdrawalBillingCleanupRequestedEvent` containing only `billingAgreementID`.
-4. Backend removes transient user-owned rows and marks the user deleted.
-5. An `AFTER_COMMIT` listener calls `WithdrawalBillingCleanupService.cleanup()` in an agreement-specific `REQUIRES_NEW` transaction.
-6. Provider success clears the encrypted key, fingerprint, masked-method metadata, next billing date, and last charged timestamp, then resolves any matching Incident.
-7. Provider failure or an exception keeps the agreement `CANCELLED`, retains encrypted key material, and creates or increments a `WARNING` `LOCAL_DONE_PROVIDER_NOT_DONE` Incident deduplicated by agreement ID.
-8. At 01:15 daily, a single-server retry selects only deleted users with `CANCELLED` agreements and nonblank encrypted keys.
-9. `ALREADY_REMOVED_BILLING_KEY` is treated as convergent success because the Provider-side objective is already complete.
-10. The renewal query excludes deleted users, and `RecurringRenewalService` repeats the deleted-user guard before key decryption, order creation, or charge.
+2. The withdrawal transaction acquires locks in the canonical billing-agreement, subscription, then user order and revalidates the password against the locked user.
+3. Withdrawal fails with `PAYMENT_ORDER_INVALID_STATE` while a `SUBSCRIBE`, `UPGRADE`, or `RENEWAL` order is `PROCESSING`, `PROVIDER_SUCCEEDED`, or `PENDING_PROVIDER_CONFIRMATION` for the agreement.
+4. A non-terminal Toss billing agreement and an ACTIVE subscription are marked `CANCELLED` only after those fences pass.
+5. When encrypted key material exists, Backend publishes `WithdrawalBillingCleanupRequestedEvent` containing only `billingAgreementID`.
+6. Backend removes transient user-owned rows and marks the user deleted.
+7. An `AFTER_COMMIT` listener calls `WithdrawalBillingCleanupService.cleanup()` in an agreement-specific `REQUIRES_NEW` transaction.
+8. Provider success clears the encrypted key, fingerprint, masked-method metadata, next billing date, and last charged timestamp, then resolves any matching Incident.
+9. Provider failure or an exception keeps the agreement `CANCELLED`, retains encrypted key material, and creates or increments a `WARNING` `LOCAL_DONE_PROVIDER_NOT_DONE` Incident deduplicated by agreement ID.
+10. At 01:15 daily, a single-server retry selects only deleted users with `CANCELLED` agreements and nonblank encrypted keys.
+11. `ALREADY_REMOVED_BILLING_KEY` is treated as convergent success because the Provider-side objective is already complete.
+12. The renewal query excludes deleted users. Renewal claim, immediate pre-Provider authorization, Provider-success recording, and entitlement finalization each recheck the agreement, user, subscription, and order fences so cancellation or deletion cannot charge or reactivate access.
 
 Withdrawal does not call the refund workflow. Any refund remains a separate support-approved admin operation with its own ledger, approval, and Provider execution.
 
@@ -568,12 +609,16 @@ Withdrawal does not call the refund workflow. Any refund remains a separate supp
 12. Account withdrawal must make the local agreement and subscription non-renewable before user soft deletion, regardless of Provider cleanup outcome.
 13. Deleted users must be excluded at both renewal-query and service boundaries before a Provider charge is possible.
 14. Account withdrawal must not create an automatic refund; refund and entitlement correction remain separate audited admin workflows.
+15. Withdrawal and entitlement correction must acquire the billing-agreement lock before the subscription lock and must reject mutation while a Provider charge result is non-terminal.
+16. A recorded Provider success must remain visible for reconciliation even when a later cancellation fence prevents local entitlement finalization.
 
 ## 13. Frontend Design
 
 ### 13.1 Subscription Checkout Page
 
 Current user-facing checkout uses recurring billing only:
+
+- All `/subscriptions/checkout*`, legacy `/subscriptions/payment*`, and `/subscriptions/billing/*` callback routes are USER-only. ADMIN is redirected to `/admin/payments` before the checkout page renders.
 
 1. Load selected plan and billing cycle.
 2. Call `POST /api/payments/billing-agreements/prepare`.
@@ -661,7 +706,7 @@ Status: Implemented for the billing-key registration, immediate first charge, en
 
 Status: Implemented for the 2026-05-21 hardening slice plus the 2026-05-23 billing-method recovery patch.
 
-The one-time Toss Widget inline UX concern was retired because subscription purchase and upgrade now use recurring billing auth/charge instead of one-time checkout. The 2026-05-21 hardening slice adds a dedicated checkout/callback route, backend one-time subscription blocking, stale order expiration, local ledger reconciliation logging, renewal failure email notices, and a read-only admin payment view. The 2026-05-23 recovery patch adds removed billing-key detection and active-subscription payment-method re-registration. The 2026-07-13 P0 slice adds local-first account-withdrawal cancellation, after-commit Provider cleanup, durable Incident/retry handling, already-removed convergence, and deleted-user renewal guards.
+The one-time Toss Widget inline UX concern was retired because subscription purchase and upgrade now use recurring billing auth/charge instead of one-time checkout. The 2026-05-21 hardening slice adds a dedicated checkout/callback route, backend one-time subscription blocking, stale order expiration, local ledger reconciliation logging, renewal failure email notices, and a read-only admin payment view. The 2026-05-23 recovery patch adds removed billing-key detection and active-subscription payment-method re-registration. The 2026-07-13 P0 slice adds local-first account-withdrawal cancellation, after-commit Provider cleanup, durable Incident/retry handling, already-removed convergence, and deleted-user renewal guards. The 2026-07-16 operations slice replaces fixed/local unbounded reconciliation reads with bounded keyset batches, adds key-ID billing-key rotation compatibility, and fixes every payment cron and date calculation to a configurable `Asia/Seoul` default business-zone clock. The acceptance-hardening remediation also separates read-only reconciliation diagnostics from scheduled mutation and adds cross-flow cancellation and payment-result fences.
 
 Recommended checkout surface:
 
@@ -689,7 +734,7 @@ Operator-facing minimum visibility:
 - Related `subscription_payments` for finalized charges.
 - Related `payment_receipts` for safe provider receipt/cash receipt evidence when successful charges return receipt metadata.
 - Current `billing_agreements` status, masked method, next billing date, failure count, and cancellation date.
-- Persisted `payment_reconciliation_incidents` for scheduled local/provider mismatch detection, including status, severity, dedupe key, occurrence count, safe order/provider fields, and resolution note.
+- Persisted `payment_reconciliation_incidents` for scheduled local/provider mismatch detection, including status, severity, dedupe key, occurrence count, safe order/provider fields, and resolution note. Structured Provider identifiers are stored only as deterministic `REF-*` support references.
 - Withdrawal cleanup failures appear in the same Incident ledger as `LOCAL_DONE_PROVIDER_NOT_DONE`, with the billing agreement/user references and no raw billing key.
 - Append-only `payment_operation_audit_logs` for incident status changes, system-created receipt evidence events, admin refund workflow transitions, admin entitlement correction workflow transitions, and settlement import/reconcile/ignore transitions.
 - Related `payment_entitlement_corrections` for refund-linked local access correction with before/target subscription state snapshots.
@@ -700,15 +745,17 @@ Sensitive-data boundary:
 
 - Ordinary users must not see raw `authKey`, `customerKey`, `billingKey`, Toss secret key, or raw provider payload.
 - Operators may see internal `orderId`, sanitized failure code/message, provider, purpose, amount, timestamps, and masked payment method.
-- Operators may see safe receipt URLs, cash receipt keys, provider payment keys, and audit status transitions in admin-only payment operations APIs.
+- Operators may see safe receipt URLs, deterministic masked `REF-*` support references, and audit status transitions in admin-only payment operations APIs. Raw provider payment, refund, receipt, and settlement identifiers remain protected server-side fields used only where provider operations require them. Newly persisted Incident/audit free text omits raw identifiers completely, and response serialization sanitizes labelled raw identifiers retained in legacy free text without exposing prefixes or suffixes.
 - Operators may see reconciliation incident workflow metadata such as `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, `IGNORED`, occurrence count, and resolution note.
 - Billing keys remain encrypted server-side only; only fingerprint/masked method may appear in diagnostics.
 - Withdrawal cleanup logs may contain the billing agreement ID, aggregate retry counts, outcome, and exception class/simple failure type. They must not contain the decrypted key or raw exception message.
 
 ### Phase E: Remaining Production Hardening
 
-- Provider API-backed reconciliation is implemented for recent Toss billing payment orders by `orderId`.
-- Scheduled reconciliation persists mismatch incidents and can send optional operator email when explicitly configured.
+- Provider API-backed reconciliation is implemented for bounded keyset batches of eligible Toss billing payment orders by `orderId`; recent locally `DONE` verification has an independent age window and per-run cap and skips locally succeeded refunds. The ADMIN GET diagnostic uses non-claiming reads and returns observations only.
+- Scheduled reconciliation is the explicit mutating recovery path: it may claim/finalize eligible state, persists mismatch incidents, and can send optional operator email when explicitly configured.
+- Local and provider API response issue details are capped independently from total mismatch counters; truncation is explicit in the admin response.
+- Deployment remains single-server. No distributed scheduler lock is present or approved in this slice.
 - Provider success plus local persistence failure is covered by the payment operations runbook; admin refund ledger/provider cancel APIs are available when a support-approved refund is needed, and local access correction is available through the separate entitlement correction APIs after refund success.
 - Receipt evidence storage and payment operation audit logs are implemented as the first P2-A foundation without provider mutation.
 - Refund, settlement, and tax invoice operating policy is documented in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md); refund backend, entitlement correction backend, settlement import/reconciliation, and first-class admin payment operation UI are complete. Tax invoice workflow is on hold for the current card-only recurring subscription scope.

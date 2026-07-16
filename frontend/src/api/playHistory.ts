@@ -19,8 +19,6 @@ export async function fetchPlayHistory(params?: {
 }
 
 /** DELETE /api/play-histories — 재생 기록 삭제 (빈 배열이면 전체 삭제) */
-export async function deletePlayHistory(
-  historyIds: number[],
-): Promise<void> {
+export async function deletePlayHistory(historyIds: number[]): Promise<void> {
   await client.delete('/play-histories', { data: { historyIds } });
 }

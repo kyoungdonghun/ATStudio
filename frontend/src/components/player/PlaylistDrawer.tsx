@@ -64,10 +64,7 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
     setPlLoading(true);
     setPlaylistError(null);
     try {
-      const [plRes, subRes] = await Promise.allSettled([
-        fetchMyPlaylists(),
-        fetchMySubscription(),
-      ]);
+      const [plRes, subRes] = await Promise.allSettled([fetchMyPlaylists(), fetchMySubscription()]);
       if (plRes.status === 'rejected') {
         throw plRes.reason;
       }
@@ -92,7 +89,9 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
     try {
       const res = await fetchLikes();
       setLikes(res.dataList ?? []);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setLikesLoading(false);
   }, [isAuthenticated]);
 
@@ -114,7 +113,9 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
     try {
       const detail = await fetchPlaylistDetail(pl.id);
       setSelectedPl(detail);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   async function handleCreate() {
@@ -141,7 +142,9 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
       await deletePlaylist(id);
       setSelectedPl(null);
       await loadPlaylists();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   async function handleRemoveTrack(trackId: number) {
@@ -150,7 +153,9 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
       await removeTrackFromPlaylist(selectedPl.id, trackId);
       const detail = await fetchPlaylistDetail(selectedPl.id);
       setSelectedPl(detail);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   function handlePlayTrack(t: PlaylistTrack) {
@@ -287,7 +292,10 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
         <div className={styles.tabs}>
           <button
             className={`${styles.tab} ${tab === 'playlists' ? styles.tabActive : ''}`}
-            onClick={() => { setTab('playlists'); setSelectedPl(null); }}
+            onClick={() => {
+              setTab('playlists');
+              setSelectedPl(null);
+            }}
           >
             재생목록
           </button>
@@ -311,16 +319,11 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
           /* Detail view */
           <div className={styles.body}>
             <div className={styles.detailHeader}>
-              <button
-                className={styles.backBtn}
-                onClick={() => setSelectedPl(null)}
-              >
+              <button className={styles.backBtn} onClick={() => setSelectedPl(null)}>
                 {'\u2190'}
               </button>
               <span className={styles.detailTitle}>{selectedPl.title}</span>
-              <span className={styles.detailCount}>
-                {selectedPl.tracks.length}곡
-              </span>
+              <span className={styles.detailCount}>{selectedPl.tracks.length}곡</span>
               <button
                 className={styles.deletePlaylistBtn}
                 onClick={() => handleDeletePlaylist(selectedPl.id)}
@@ -332,7 +335,12 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
             {selectedPl.tracks.length === 0 ? (
               <div className={styles.empty}>곡이 없습니다.</div>
             ) : (
-              <ul className={styles.trackList} ref={trackListRef} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+              <ul
+                className={styles.trackList}
+                ref={trackListRef}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+              >
                 {selectedPl.tracks.map((t, idx) => (
                   <li
                     key={t.trackId}
@@ -351,10 +359,7 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
                     >
                       {'\u2630'}
                     </span>
-                    <button
-                      className={styles.trackPlayBtn}
-                      onClick={() => handlePlayTrack(t)}
-                    >
+                    <button className={styles.trackPlayBtn} onClick={() => handlePlayTrack(t)}>
                       {'\u25B6'}
                     </button>
                     <div className={styles.trackInfo}>
@@ -389,16 +394,11 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
                 <ul className={styles.plList}>
                   {playlists.map((pl) => (
                     <li key={pl.id} className={styles.plItem}>
-                      <button
-                        className={styles.plItemBtn}
-                        onClick={() => openPlaylist(pl)}
-                      >
+                      <button className={styles.plItemBtn} onClick={() => openPlaylist(pl)}>
                         <span className={styles.plIcon}>{'\u266A'}</span>
                         <div className={styles.plItemInfo}>
                           <span className={styles.plItemName}>{pl.title}</span>
-                          <span className={styles.plItemCount}>
-                            {pl.trackCount}곡
-                          </span>
+                          <span className={styles.plItemCount}>{pl.trackCount}곡</span>
                         </div>
                         <span className={styles.plArrow}>{'\u203A'}</span>
                       </button>
@@ -408,10 +408,7 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
 
                 {/* Create new */}
                 {playlists.length < maxPlaylists && !showCreate && (
-                  <button
-                    className={styles.createBtn}
-                    onClick={() => setShowCreate(true)}
-                  >
+                  <button className={styles.createBtn} onClick={() => setShowCreate(true)}>
                     + 새 재생목록
                   </button>
                 )}
@@ -463,10 +460,7 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
             <ul className={styles.histList}>
               {likes.map((item) => (
                 <li key={item.trackId} className={styles.histItem}>
-                  <button
-                    className={styles.histPlayBtn}
-                    onClick={() => handlePlayLike(item)}
-                  >
+                  <button className={styles.histPlayBtn} onClick={() => handlePlayLike(item)}>
                     {'\u25B6'}
                   </button>
                   <div className={styles.histInfo}>

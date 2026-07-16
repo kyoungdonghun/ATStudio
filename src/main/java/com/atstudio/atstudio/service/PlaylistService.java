@@ -21,8 +21,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,7 +46,7 @@ public class PlaylistService {
     public PlaylistResponse createPlaylist(PlaylistCreateRequest request,
                                            MultipartFile thumbnailFile,
                                            CustomUserDetails userDetails) {
-        User user = validateSubscriber(userDetails);
+        User user = validateSubscriberForPlaylistCreation(userDetails);
 
         int maxPlaylists = userSubscriptionRepository.findActiveByUser(user, LocalDate.now())
                 .map(us -> us.getSubscription().getMaxPlaylists())
@@ -119,7 +121,7 @@ public class PlaylistService {
                          PlaylistAddTrackRequest request,
                          CustomUserDetails userDetails) {
         validateSubscriber(userDetails);
-        Playlist playlist = getOwnedPlaylist(playlistId, userDetails.getId());
+        Playlist playlist = getOwnedPlaylistForUpdate(playlistId, userDetails.getId());
 
         Track track = trackRepository.findById(request.trackId())
                 .filter(Track::isActive)
@@ -149,12 +151,16 @@ public class PlaylistService {
                               PlaylistBatchAddTrackRequest request,
                               CustomUserDetails userDetails) {
         validateSubscriber(userDetails);
-        Playlist playlist = getOwnedPlaylist(playlistId, userDetails.getId());
+        Playlist playlist = getOwnedPlaylistForUpdate(playlistId, userDetails.getId());
 
         int currentOrder = (int) playlistTrackRepository.countByIdPlaylistId(playlistId);
         int added = 0;
+        Set<Long> requestedTrackIds = new HashSet<>();
 
         for (Long trackId : request.trackIds()) {
+            if (!requestedTrackIds.add(trackId)) {
+                continue;
+            }
             PlaylistTrackId id = new PlaylistTrackId(playlistId, trackId);
             if (playlistTrackRepository.existsById(id)) {
                 continue; // skip duplicates silently
@@ -189,7 +195,7 @@ public class PlaylistService {
                                            MultipartFile thumbnailFile,
                                            CustomUserDetails userDetails) {
         validateSubscriber(userDetails);
-        Playlist playlist = getOwnedPlaylist(playlistId, userDetails.getId());
+        Playlist playlist = getOwnedPlaylistForUpdate(playlistId, userDetails.getId());
 
         String thumbnailUrl = playlist.getThumbnail();
         if (thumbnailFile != null && !thumbnailFile.isEmpty()) {
@@ -214,21 +220,16 @@ public class PlaylistService {
                               PlaylistReorderRequest request,
                               CustomUserDetails userDetails) {
         validateSubscriber(userDetails);
-        Playlist playlist = getOwnedPlaylist(playlistId, userDetails.getId());
+        getOwnedPlaylistForUpdate(playlistId, userDetails.getId());
+        List<PlaylistTrack> playlistTracks = playlistTrackRepository
+                .findAllByIdPlaylistIdOrderByTrackOrderAsc(playlistId);
+        validatePlaylistReorderRequest(request, playlistTracks);
 
-        playlistTrackRepository.deleteAllByIdPlaylistId(playlistId);
-        playlistTrackRepository.flush();
-
-        List<PlaylistTrack> reordered = request.tracks().stream()
-                .map(item -> PlaylistTrack.builder()
-                        .id(new PlaylistTrackId(playlistId, item.trackId()))
-                        .playlist(playlist)
-                        .track(trackRepository.getReferenceById(item.trackId()))
-                        .trackOrder(item.trackOrder())
-                        .build())
-                .toList();
-
-        playlistTrackRepository.saveAll(reordered);
+        Map<Long, PlaylistTrack> tracksById = playlistTracks.stream()
+                .collect(Collectors.toMap(track -> track.getTrack().getId(), track -> track));
+        for (PlaylistTrackOrderItem item : request.tracks()) {
+            tracksById.get(item.trackId()).updateOrder(item.trackOrder());
+        }
     }
 
     // ── 3.7 DELETE /api/playlists/{id}/tracks/{trackId} ──────────────────────
@@ -237,13 +238,14 @@ public class PlaylistService {
     public void removeTrack(Long playlistId, Long trackId,
                             CustomUserDetails userDetails) {
         validateSubscriber(userDetails);
-        getOwnedPlaylist(playlistId, userDetails.getId());
+        getOwnedPlaylistForUpdate(playlistId, userDetails.getId());
 
         PlaylistTrackId id = new PlaylistTrackId(playlistId, trackId);
         PlaylistTrack playlistTrack = playlistTrackRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
         playlistTrackRepository.delete(playlistTrack);
+        compactTrackOrders(playlistTrackRepository.findAllByIdPlaylistIdOrderByTrackOrderAsc(playlistId), trackId);
     }
 
     // ── 3.8 DELETE /api/playlists/{id} ───────────────────────────────────────
@@ -251,7 +253,7 @@ public class PlaylistService {
     @Transactional
     public void deletePlaylist(Long playlistId, CustomUserDetails userDetails) {
         validateSubscriber(userDetails);
-        Playlist playlist = getOwnedPlaylist(playlistId, userDetails.getId());
+        Playlist playlist = getOwnedPlaylistForUpdate(playlistId, userDetails.getId());
         playlistTrackRepository.deleteAllByIdPlaylistId(playlistId);
         playlist.deactivate();
         storageMutationCoordinator.deleteAfterCommit(
@@ -280,6 +282,16 @@ public class PlaylistService {
     private User validateSubscriber(CustomUserDetails userDetails) {
         User user = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        return requireActiveSubscription(user);
+    }
+
+    private User validateSubscriberForPlaylistCreation(CustomUserDetails userDetails) {
+        User user = userRepository.findByIdForUpdate(userDetails.getId())
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        return requireActiveSubscription(user);
+    }
+
+    private User requireActiveSubscription(User user) {
         userSubscriptionRepository.findActiveByUser(user, LocalDate.now())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
         return user;
@@ -295,5 +307,54 @@ public class PlaylistService {
             throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND);
         }
         return playlist;
+    }
+
+    private Playlist getOwnedPlaylistForUpdate(Long playlistId, Long userId) {
+        Playlist playlist = playlistRepository.findByIdForUpdate(playlistId)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        if (!playlist.getUser().getId().equals(userId)) {
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
+        }
+        if (!playlist.isActive()) {
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND);
+        }
+        return playlist;
+    }
+
+    private void validatePlaylistReorderRequest(PlaylistReorderRequest request, List<PlaylistTrack> playlistTracks) {
+        if (request == null || request.tracks() == null || request.tracks().size() != playlistTracks.size()) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
+        Set<Long> requestedTrackIds = new HashSet<>();
+        Set<Integer> requestedOrders = new HashSet<>();
+        for (PlaylistTrackOrderItem item : request.tracks()) {
+            if (item == null || item.trackId() == null || item.trackOrder() == null
+                    || item.trackOrder() < 0 || !requestedTrackIds.add(item.trackId())
+                    || !requestedOrders.add(item.trackOrder())) {
+                throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+            }
+        }
+
+        Set<Long> existingTrackIds = playlistTracks.stream()
+                .map(track -> track.getTrack().getId())
+                .collect(Collectors.toSet());
+        if (!requestedTrackIds.equals(existingTrackIds)) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+        for (int order = 0; order < playlistTracks.size(); order++) {
+            if (!requestedOrders.contains(order)) {
+                throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+            }
+        }
+    }
+
+    private void compactTrackOrders(List<PlaylistTrack> playlistTracks, Long removedTrackId) {
+        int order = 0;
+        for (PlaylistTrack playlistTrack : playlistTracks) {
+            if (!playlistTrack.getTrack().getId().equals(removedTrackId)) {
+                playlistTrack.updateOrder(order++);
+            }
+        }
     }
 }

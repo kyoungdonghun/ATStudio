@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "document": {
+    "title": "AT.M 클라이언트 테스트 가이드",
+    "document_date": "2026-07-16",
+    "generated_at": "2026-07-16T00:00:00+09:00",
+    "language": "ko-KR"
+  },
+  "generator": {
+    "path": "scripts/docs/generate_client_testing_pdf.py",
+    "version": "1.3.0",
+    "command": "\"C:/Users/jm991/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe\" scripts/docs/generate_client_testing_pdf.py",
+    "python_executable": "C:/Users/jm991/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe",
+    "python_version": "3.12.13",
+    "reportlab_version": "4.4.9",
+    "pypdf_version": "6.10.0",
+    "deterministic": true,
+    "reportlab_invariant": 1
+  },
+  "verification": {
+    "script": "scripts/docs/verify_client_testing_pdf.py",
+    "render_tool": "C:/Users/jm991/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/pdftoppm.exe",
+    "render_tool_version": "26.05.0",
+    "render_command": "pdftoppm.exe -png -r 144 output/pdf/atstudio-client-testing-guide.pdf tmp/pdfs/atstudio-client-testing-guide-v13",
+    "intermediate_directory": "tmp/pdfs/",
+    "override_wrapper_note": "The provided override/pdftoppm.cmd resolves to a missing native/poppler/bin path in this runtime; the bundled Library/bin executable is used."
+  },
+  "layout": {
+    "heading_keep_with_next": true,
+    "heading_and_contiguous_list_keep_together": true,
+    "later_source_conditional_page_break_mm": 75,
+    "later_source_spacing_mm": 6
+  },
+  "fonts": [
+    {
+      "name": "Malgun Gothic",
+      "path": "C:/Windows/Fonts/malgun.ttf",
+      "sha256": "0086c19e81d293a542e7d75564c645fb58070cc850aefebf8fa1c397858e510c"
+    },
+    {
+      "name": "Malgun Gothic Bold",
+      "path": "C:/Windows/Fonts/malgunbd.ttf",
+      "sha256": "a541834fb9cdde9bd6d2c3ff1565cb0bb5ccf7a15e4e9daf2cb58d9b1cf282aa"
+    }
+  ],
+  "sources": [
+    {
+      "path": "docs/client/testing-guide.md",
+      "sha256": "543468f2d0244a54e396e0bb9724d06ef2cad763b5a6ba53ac72dacf1a5809a9",
+      "bytes": 4211
+    },
+    {
+      "path": "docs/client/1-quick-checklist.md",
+      "sha256": "d4dcdca8556684b26c5235f79846e88f0f4ce19e622266d2b0c8263a092e3f89",
+      "bytes": 2828
+    },
+    {
+      "path": "docs/client/2-full-feature-checklist.md",
+      "sha256": "3e2c02a55e9dd853d62ad4a7f0e0e6b095801d7654b0783374bdd96121a24e68",
+      "bytes": 6695
+    },
+    {
+      "path": "docs/client/3-admin-checklist.md",
+      "sha256": "c393e33760c8e86f7ac6671b9a19d87e94bd50fe58e7d925d4974acd28638460",
+      "bytes": 4021
+    },
+    {
+      "path": "docs/client/4-sr-format.md",
+      "sha256": "fdf33be93cc584770925a25ba755c1a502358edcf465c7d162254f38dc34a3dd",
+      "bytes": 1686
+    },
+    {
+      "path": "docs/client/5-ai-prompt.md",
+      "sha256": "ac1ec26b1676265a55d09081e13f7453d86b12de74197d9a483837dc563be6be",
+      "bytes": 1168
+    },
+    {
+      "path": "docs/client/0-site-policy.md",
+      "sha256": "ca8abf8d8a2b5f8a0c50fb4dd0308278d787e52c960928c90f71ff96d7d9f4a1",
+      "bytes": 2870
+    }
+  ],
+  "excluded_from_body": [
+    "docs/client/index.md",
+    "docs/client/_internal-feature-map.md"
+  ],
+  "output": {
+    "path": "output/pdf/atstudio-client-testing-guide.pdf",
+    "sha256": "afba32cce2460d5d38b80f4a88278e31d1f7344a2258e240bfd61df74f4c6095",
+    "bytes": 172009,
+    "pages": 12,
+    "pdf_title": "AT.M 클라이언트 테스트 가이드"
+  }
+}

@@ -1,5 +1,5 @@
 /** Admin payment operations view */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   approveAdminPaymentEntitlementCorrection,
   approveAdminPaymentRefund,
@@ -46,6 +46,7 @@ import Pagination from '@/components/ui/Pagination';
 import { useToastStore } from '@/store/toastStore';
 import type { PageInfo } from '@/types';
 import { formatDate, formatDateTime, formatPrice } from '@/utils/format';
+import { getSafeReceiptUrl } from '@/utils/safeReceiptUrl';
 import styles from './PaymentReadOnlyPage.module.css';
 
 type TabKey =
@@ -117,6 +118,16 @@ interface CorrectionForm {
   reasonNote: string;
 }
 
+interface PaymentViewRequest {
+  tab: TabKey;
+  page: number;
+  incidentStatus: AdminPaymentReconciliationIncidentStatus | '';
+  settlementStatus: AdminPaymentSettlementStatus | '';
+  settlementSource: AdminPaymentSettlementSource | '';
+  settlementBaseDateFrom: string;
+  settlementBaseDateTo: string;
+}
+
 export default function PaymentReadOnlyPage() {
   const [tab, setTab] = useState<TabKey>('orders');
   const [page, setPage] = useState(1);
@@ -175,66 +186,132 @@ export default function PaymentReadOnlyPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const showToast = useToastStore((s) => s.show);
+  const paymentRequestGenerationRef = useRef(0);
+  const paymentRequestControllerRef = useRef<AbortController | null>(null);
+  const paymentViewRequest: PaymentViewRequest = {
+    tab,
+    page,
+    incidentStatus: incidentStatusFilter,
+    settlementStatus: settlementStatusFilter,
+    settlementSource: settlementSourceFilter,
+    settlementBaseDateFrom,
+    settlementBaseDateTo,
+  };
+  const paymentViewRequestKey = JSON.stringify(paymentViewRequest);
+  const latestPaymentViewRequestRef = useRef(paymentViewRequest);
+  const latestPaymentViewRequestKeyRef = useRef(paymentViewRequestKey);
+  latestPaymentViewRequestRef.current = paymentViewRequest;
+  latestPaymentViewRequestKeyRef.current = paymentViewRequestKey;
 
   const loadData = useCallback(async () => {
+    paymentRequestControllerRef.current?.abort();
+    const controller = new AbortController();
+    paymentRequestControllerRef.current = controller;
+    const requestGeneration = ++paymentRequestGenerationRef.current;
+    const request = latestPaymentViewRequestRef.current;
+    const requestKey = latestPaymentViewRequestKeyRef.current;
+    const isCurrentRequest = () =>
+      requestGeneration === paymentRequestGenerationRef.current &&
+      requestKey === latestPaymentViewRequestKeyRef.current &&
+      !controller.signal.aborted;
+
     setLoading(true);
     setError(null);
     try {
-      if (tab === 'orders') {
-        const result = await fetchAdminPaymentOrders(page, 20);
+      if (request.tab === 'orders') {
+        const result = await fetchAdminPaymentOrders(request.page, 20, controller.signal);
+        if (!isCurrentRequest()) return;
         setOrders(result.dataList);
         setPageInfo(result.pageInfo);
-      } else if (tab === 'agreements') {
-        const result = await fetchAdminBillingAgreements(page, 20);
+      } else if (request.tab === 'agreements') {
+        const result = await fetchAdminBillingAgreements(request.page, 20, controller.signal);
+        if (!isCurrentRequest()) return;
         setAgreements(result.dataList);
         setPageInfo(result.pageInfo);
-      } else if (tab === 'payments') {
-        const result = await fetchAdminSubscriptionPayments(page, 20);
+      } else if (request.tab === 'payments') {
+        const result = await fetchAdminSubscriptionPayments(request.page, 20, controller.signal);
+        if (!isCurrentRequest()) return;
         setPayments(result.dataList);
         setPageInfo(result.pageInfo);
-      } else if (tab === 'incidents') {
+      } else if (request.tab === 'incidents') {
         const result = await fetchAdminPaymentReconciliationIncidents(
-          page,
+          request.page,
           20,
-          incidentStatusFilter || undefined,
+          request.incidentStatus || undefined,
+          controller.signal,
         );
+        if (!isCurrentRequest()) return;
         setIncidents(result.dataList);
         setIncidentEdits(buildIncidentEdits(result.dataList));
         setPageInfo(result.pageInfo);
-      } else if (tab === 'receipts') {
-        const result = await fetchAdminPaymentReceipts(page, 20);
+      } else if (request.tab === 'receipts') {
+        const result = await fetchAdminPaymentReceipts(request.page, 20, controller.signal);
+        if (!isCurrentRequest()) return;
         setReceipts(result.dataList);
         setPageInfo(result.pageInfo);
-      } else if (tab === 'audits') {
-        const result = await fetchAdminPaymentOperationAuditLogs(page, 20);
+      } else if (request.tab === 'audits') {
+        const result = await fetchAdminPaymentOperationAuditLogs(
+          request.page,
+          20,
+          controller.signal,
+        );
+        if (!isCurrentRequest()) return;
         setAudits(result.dataList);
         setPageInfo(result.pageInfo);
-      } else if (tab === 'settlements') {
-        const result = await fetchAdminPaymentSettlements(page, 20, {
-          status: settlementStatusFilter || undefined,
-          source: settlementSourceFilter || undefined,
-          baseDateFrom: settlementBaseDateFrom || undefined,
-          baseDateTo: settlementBaseDateTo || undefined,
-        });
+      } else if (request.tab === 'settlements') {
+        const result = await fetchAdminPaymentSettlements(
+          request.page,
+          20,
+          {
+            status: request.settlementStatus || undefined,
+            source: request.settlementSource || undefined,
+            baseDateFrom: request.settlementBaseDateFrom || undefined,
+            baseDateTo: request.settlementBaseDateTo || undefined,
+          },
+          controller.signal,
+        );
+        if (!isCurrentRequest()) return;
         setSettlements(result.dataList);
         setPageInfo(result.pageInfo);
-      } else if (tab === 'refunds') {
-        const result = await fetchAdminPaymentRefunds(page, 20);
+      } else if (request.tab === 'refunds') {
+        const result = await fetchAdminPaymentRefunds(request.page, 20, controller.signal);
+        if (!isCurrentRequest()) return;
         setRefunds(result.dataList);
         setPageInfo(result.pageInfo);
       } else {
-        const result = await fetchAdminPaymentEntitlementCorrections(page, 20);
+        const result = await fetchAdminPaymentEntitlementCorrections(
+          request.page,
+          20,
+          controller.signal,
+        );
+        if (!isCurrentRequest()) return;
         setCorrections(result.dataList);
         setPageInfo(result.pageInfo);
       }
     } catch {
+      if (!isCurrentRequest()) {
+        return;
+      }
       setError('결제 정보를 불러오지 못했습니다.');
       setPageInfo(null);
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) {
+        setLoading(false);
+        paymentRequestControllerRef.current = null;
+      }
     }
+  }, []);
+
+  useEffect(() => {
+    void loadData();
+    return () => {
+      paymentRequestControllerRef.current?.abort();
+      paymentRequestControllerRef.current = null;
+      paymentRequestGenerationRef.current += 1;
+    };
   }, [
     incidentStatusFilter,
+    loadData,
     page,
     settlementBaseDateFrom,
     settlementBaseDateTo,
@@ -242,10 +319,6 @@ export default function PaymentReadOnlyPage() {
     settlementStatusFilter,
     tab,
   ]);
-
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
 
   useEffect(() => {
     if (tab !== 'corrections' || plans.length > 0) {
@@ -1376,7 +1449,7 @@ function ReceiptTable({ receipts }: { receipts: AdminPaymentReceipt[] }) {
             <th>{'결제내역'}</th>
             <th>{'유형'}</th>
             <th>{'상태'}</th>
-            <th>{'Provider Key'}</th>
+            <th>{'지원 참조'}</th>
             <th>{'영수증'}</th>
             <th>{'발급일'}</th>
             <th>{'생성일'}</th>
@@ -1384,30 +1457,33 @@ function ReceiptTable({ receipts }: { receipts: AdminPaymentReceipt[] }) {
         </thead>
         <tbody>
           {receipts.length === 0 && <EmptyRow colSpan={10} />}
-          {receipts.map((receipt) => (
-            <tr key={receipt.id}>
-              <td>{receipt.id}</td>
-              <td>{receipt.userNickname}</td>
-              <td>{receipt.orderId}</td>
-              <td>{receipt.subscriptionPaymentId}</td>
-              <td>{receipt.type}</td>
-              <td>
-                <span className={statusClass(receipt.status)}>{receipt.status}</span>
-              </td>
-              <td>{receipt.providerPaymentKey ?? '-'}</td>
-              <td>
-                {receipt.receiptUrl ? (
-                  <a href={receipt.receiptUrl} rel="noreferrer" target="_blank">
-                    {'열기'}
-                  </a>
-                ) : (
-                  (receipt.receiptKey ?? '-')
-                )}
-              </td>
-              <td>{formatDateTime(receipt.issuedAt)}</td>
-              <td>{formatDateTime(receipt.createdAt)}</td>
-            </tr>
-          ))}
+          {receipts.map((receipt) => {
+            const safeReceiptUrl = getSafeReceiptUrl(receipt.receiptUrl);
+            return (
+              <tr key={receipt.id}>
+                <td>{receipt.id}</td>
+                <td>{receipt.userNickname}</td>
+                <td>{receipt.orderId}</td>
+                <td>{receipt.subscriptionPaymentId}</td>
+                <td>{receipt.type}</td>
+                <td>
+                  <span className={statusClass(receipt.status)}>{receipt.status}</span>
+                </td>
+                <td>{receipt.providerReference ?? '-'}</td>
+                <td>
+                  {safeReceiptUrl ? (
+                    <a href={safeReceiptUrl} rel="noreferrer" target="_blank">
+                      {'열기'}
+                    </a>
+                  ) : (
+                    (receipt.receiptReference ?? (receipt.receiptUrl ? '링크 확인 필요' : '-'))
+                  )}
+                </td>
+                <td>{formatDateTime(receipt.issuedAt)}</td>
+                <td>{formatDateTime(receipt.createdAt)}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -1502,7 +1578,7 @@ function SettlementTable({
               </td>
               <td>
                 <div>{settlement.orderId}</div>
-                <div className={styles.subtle}>{settlement.providerPaymentKey ?? '-'}</div>
+                <div className={styles.subtle}>{settlement.providerReference ?? '-'}</div>
               </td>
               <td>{settlement.userNickname ?? settlement.userId ?? '-'}</td>
               <td>
@@ -1617,7 +1693,7 @@ function RefundTable({
               </td>
               <td>
                 <div>{refund.provider}</div>
-                <div className={styles.subtle}>{refund.providerRefundTransactionId ?? '-'}</div>
+                <div className={styles.subtle}>{refund.providerRefundReference ?? '-'}</div>
               </td>
               <td>
                 <div>{formatDateTime(refund.createdAt)}</div>
@@ -1843,7 +1919,7 @@ function IncidentTable({
                 <td>{incident.localStatus ?? '-'}</td>
                 <td>
                   <div>{incident.providerStatus ?? '-'}</div>
-                  <div className={styles.subtle}>{incident.providerTransactionId ?? '-'}</div>
+                  <div className={styles.subtle}>{incident.providerReference ?? '-'}</div>
                 </td>
                 <td>
                   <div>{formatNullablePrice(incident.localAmount)}</div>

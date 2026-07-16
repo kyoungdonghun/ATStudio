@@ -1,6 +1,6 @@
 ---
-version: 2.2
-last_updated: 2026-07-15
+version: 2.3
+last_updated: 2026-07-16
 project: ATS
 owner: EO
 category: registry
@@ -17,7 +17,7 @@ status: stable
 | Category | Document Count | Index File | Description |
 | ---------- | ------- | ------------------------------------------ | -------------------- |
 | Architecture | 1 | [Architecture Index](architecture/index.md) | High-level design/principles |
-| Design | 28 | [Design Index](design/index.md) | Meta + ATStudio domain design (API, DB, use cases, protocol references) |
+| Design | 29 | [Design Index](design/index.md) | Meta + ATStudio domain design (API, DB, use cases, protocol references) |
 | Policies | 8 | [Policies Index](policies/index.md) | Operational policy documents |
 | Standards | 12 | [Standards Index](standards/index.md) | Standard documents and reference assets |
 | Templates | 18 | [Templates Index](templates/index.md) | Document/artifact templates |
@@ -31,7 +31,7 @@ status: stable
 | UI | 3 | [UI Index](ui/index.md) | Screen inventory, flow, and modal planning documents |
 | Eval | 0 | [Eval Index](eval/index.md) | Evaluation documents |
 
-**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **192**.
+**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **193**.
 
 ## Required Documents Mapping by Role
 
@@ -68,7 +68,9 @@ status: stable
 | Config | `.claude/config/workspace.json`, `.claude/config/context-injection-rules.json` | ATStudio routing, tech_stack, context injection |
 
 - **Tech Stack**: Java 17, Spring Boot 4.x, MySQL 8.x + React 18, TypeScript 5.6, Vite 6 (Phase 2 — active)
-- **Project Stats**: 147 APIs, 39 DB tables, 53 screens, 13 agents
+- **Project Stats**: 149 method-level REST mappings, 41 DB tables / 41 JPA entities, 53 distinct screen UIs, 13 agents
+- **Screen Count Unit**: 53 distinct visual page UIs = 54 lazy route-level page components minus the `/playlists/new` modal adapter. This includes 2 error screens. The router separately contains 62 path routes plus 1 index redirect; aliases are not additional screens.
+- **Phase 2 Freshness**: React/Vite SPA is active. The development branch resolves Vite 6.4.3 with production and unfiltered npm audits both at 0. The frozen client-demo branch remains a separate read-only environment at Vite 6.4.1 with unresolved audit findings and is not an approved public dev-server target.
 - **Project Registry**: See [Project Registry](registry/project-registry.md)
 
 ## Starting Point Guides

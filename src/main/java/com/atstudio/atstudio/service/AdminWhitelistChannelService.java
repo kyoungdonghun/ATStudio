@@ -4,8 +4,10 @@ import com.atstudio.atstudio.common.dto.PageInfo;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.config.WhitelistExportProperties;
 import com.atstudio.atstudio.dto.whitelist.AdminWhitelistChannelResponse;
 import com.atstudio.atstudio.dto.whitelist.AdminWhitelistExportFile;
+import com.atstudio.atstudio.dto.whitelist.AdminWhitelistExportRequest;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.WhitelistChannel;
@@ -30,6 +32,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -37,20 +41,42 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AdminWhitelistChannelService {
 
+    private static final int ADMIN_PAGE_MAX_SIZE = 100;
     private static final DateTimeFormatter FILE_TS = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
-    private static final Set<WhitelistChannelStatus> ADMIN_MUTABLE_STATUSES = Set.of(
-            WhitelistChannelStatus.REGISTERED,
-            WhitelistChannelStatus.REVISION_REQUESTED,
-            WhitelistChannelStatus.REJECTED,
-            WhitelistChannelStatus.REMOVAL_REQUESTED,
-            WhitelistChannelStatus.CANCELLED
-    );
+    private static final Map<WhitelistChannelStatus, Set<WhitelistChannelStatus>> STATUS_TRANSITIONS = Map.of(
+            WhitelistChannelStatus.DRAFT, Set.of(),
+            WhitelistChannelStatus.PENDING, Set.of(
+                    WhitelistChannelStatus.REGISTERED,
+                    WhitelistChannelStatus.REVISION_REQUESTED,
+                    WhitelistChannelStatus.REJECTED),
+            WhitelistChannelStatus.EXPORTED, Set.of(
+                    WhitelistChannelStatus.REGISTERED,
+                    WhitelistChannelStatus.REVISION_REQUESTED,
+                    WhitelistChannelStatus.REJECTED,
+                    WhitelistChannelStatus.REMOVAL_REQUESTED),
+            WhitelistChannelStatus.REGISTERED, Set.of(
+                    WhitelistChannelStatus.REVISION_REQUESTED,
+                    WhitelistChannelStatus.REMOVAL_REQUESTED),
+            WhitelistChannelStatus.REVISION_REQUESTED, Set.of(
+                    WhitelistChannelStatus.REGISTERED,
+                    WhitelistChannelStatus.REJECTED),
+            WhitelistChannelStatus.REJECTED, Set.of(),
+            WhitelistChannelStatus.REMOVAL_REQUESTED, Set.of(WhitelistChannelStatus.CANCELLED),
+            WhitelistChannelStatus.CANCELLED, Set.of());
 
     private final WhitelistChannelRepository whitelistChannelRepository;
     private final WhitelistExportBatchRepository whitelistExportBatchRepository;
     private final WhitelistExportItemRepository whitelistExportItemRepository;
     private final UserRepository userRepository;
     private final UserSubscriptionRepository userSubscriptionRepository;
+    private final WhitelistExportProperties whitelistExportProperties;
+
+    static boolean isStatusTransitionAllowed(
+            WhitelistChannelStatus source,
+            WhitelistChannelStatus target
+    ) {
+        return source == target || STATUS_TRANSITIONS.getOrDefault(source, Set.of()).contains(target);
+    }
 
     public ResponseDTO<AdminWhitelistChannelResponse> listChannels(
             WhitelistChannelStatus status,
@@ -59,8 +85,8 @@ public class AdminWhitelistChannelService {
             int size
     ) {
         int safePage = Math.max(1, page);
-        int safeSize = Math.max(1, size);
-        String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
+        int safeSize = Math.min(ADMIN_PAGE_MAX_SIZE, Math.max(1, size));
+        String normalizedKeyword = normalizeBlank(keyword);
 
         Page<WhitelistChannel> channelPage = whitelistChannelRepository.searchForAdmin(
                 status,
@@ -79,24 +105,38 @@ public class AdminWhitelistChannelService {
 
     @Transactional
     public AdminWhitelistChannelResponse updateStatus(
-            Long channelId,
+            Long channelID,
             CustomUserDetails userDetails,
-            WhitelistChannelStatus status,
+            WhitelistChannelStatus targetStatus,
             String adminNote
     ) {
-        WhitelistChannel channel = whitelistChannelRepository.findById(channelId)
+        WhitelistChannel initial = whitelistChannelRepository.findById(channelID)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        userRepository.findByIdForUpdate(initial.getUser().getId())
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+
+        WhitelistChannel channel = whitelistChannelRepository.findByIdForUpdate(channelID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         User admin = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
-        if (!ADMIN_MUTABLE_STATUSES.contains(status)) {
+        WhitelistChannelStatus currentStatus = channel.getStatus();
+        if (currentStatus == targetStatus) {
+            return AdminWhitelistChannelResponse.from(channel, activeSubscription(channel.getUser()));
+        }
+        if (!isStatusTransitionAllowed(currentStatus, targetStatus)) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_STATE_TRANSITION);
         }
 
-        if (status == WhitelistChannelStatus.REMOVAL_REQUESTED) {
+        boolean wasPrimary = channel.isPrimary();
+        if (targetStatus == WhitelistChannelStatus.REMOVAL_REQUESTED) {
             channel.requestRemoval();
         }
-        channel.updateAdminStatus(status, admin, normalizeBlank(adminNote));
+        channel.updateAdminStatus(targetStatus, admin, normalizeBlank(adminNote));
+
+        if (wasPrimary && !channel.isPrimaryEligible()) {
+            promoteReplacementPrimary(channel);
+        }
 
         return AdminWhitelistChannelResponse.from(channel, activeSubscription(channel.getUser()));
     }
@@ -104,41 +144,63 @@ public class AdminWhitelistChannelService {
     @Transactional
     public AdminWhitelistExportFile exportChannels(
             CustomUserDetails userDetails,
-            WhitelistChannelStatus status,
-            String note
+            AdminWhitelistExportRequest request
     ) {
-        WhitelistChannelStatus exportStatus = status == null ? WhitelistChannelStatus.PENDING : status;
-        List<WhitelistChannel> channels = whitelistChannelRepository.findByStatusOrderByRequestedAtAsc(exportStatus);
-        String fileName = "whitelist-channels-" + FILE_TS.format(LocalDateTime.now()) + ".csv";
-
-        if (channels.isEmpty()) {
-            return new AdminWhitelistExportFile(fileName, csvWithRows(List.of()).getBytes(StandardCharsets.UTF_8));
+        String keyword = normalizeBlank(request.keyword());
+        if (request.status() == null && keyword == null) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
+
+        int maxItems = whitelistExportProperties.getMaxItems();
+        List<WhitelistChannel> candidates = whitelistChannelRepository.findExportCandidates(
+                request.status(),
+                keyword,
+                PageRequest.of(0, maxItems + 1));
+        if (candidates.size() > maxItems) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
+        List<Long> candidateIDs = candidates.stream()
+                .map(WhitelistChannel::getId)
+                .toList();
+        candidates.stream()
+                .map(channel -> channel.getUser().getId())
+                .distinct()
+                .sorted()
+                .forEach(userID -> userRepository.findByIdForUpdate(userID)
+                        .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND)));
+
+        List<WhitelistChannel> channels = candidateIDs.isEmpty()
+                ? List.of()
+                : whitelistChannelRepository.findAllByIdForUpdate(candidateIDs).stream()
+                        .filter(channel -> matchesExportScope(channel, request.status(), keyword))
+                        .toList();
 
         User admin = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        LocalDateTime exportedAt = LocalDateTime.now();
+        String fileName = "whitelist-channels-" + FILE_TS.format(exportedAt) + ".csv";
         WhitelistExportBatch batch = whitelistExportBatchRepository.save(WhitelistExportBatch.builder()
                 .fileName(fileName)
                 .itemCount(channels.size())
                 .exportedBy(admin)
-                .note(normalizeBlank(note))
+                .note(normalizeBlank(request.note()))
+                .statusFilter(request.status())
+                .keywordFilter(keyword)
                 .build());
 
-        List<CsvRow> rows = new ArrayList<>();
-        List<WhitelistExportItem> items = new ArrayList<>();
-        LocalDateTime exportedAt = LocalDateTime.now();
-        for (WhitelistChannel channel : channels) {
+        List<WhitelistExportItem> items = new ArrayList<>(channels.size());
+        for (int index = 0; index < channels.size(); index++) {
+            WhitelistChannel channel = channels.get(index);
             UserSubscription subscription = activeSubscription(channel.getUser());
             WhitelistChannelStatus statusAtExport = channel.getStatus();
-            CsvRow row = CsvRow.from(channel, subscription, exportedAt);
-            rows.add(row);
             items.add(WhitelistExportItem.builder()
                     .batch(batch)
                     .whitelistChannel(channel)
                     .statusAtExport(statusAtExport)
-                    .userIdSnapshot(channel.getUser().getId())
+                    .itemOrder(index + 1)
+                    .channelIdSnapshot(channel.getId())
                     .userEmailSnapshot(channel.getUser().getEmail())
-                    .userNicknameSnapshot(channel.getUser().getNickname())
                     .channelNameSnapshot(channel.getChannelName())
                     .youtubeHandleSnapshot(channel.getYoutubeHandle())
                     .channelUrlSnapshot(channel.getChannelUrl())
@@ -148,17 +210,83 @@ public class AdminWhitelistChannelService {
                     .requestedAtSnapshot(channel.getRequestedAt())
                     .exportedAtSnapshot(exportedAt)
                     .build());
+
             if (statusAtExport == WhitelistChannelStatus.PENDING) {
                 channel.markExported();
             }
         }
         whitelistExportItemRepository.saveAll(items);
 
-        return new AdminWhitelistExportFile(fileName, csvWithRows(rows).getBytes(StandardCharsets.UTF_8));
+        return exportFile(batch, items);
+    }
+
+    public AdminWhitelistExportFile downloadExportBatch(Long batchID) {
+        WhitelistExportBatch batch = whitelistExportBatchRepository.findById(batchID)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        int maxItems = whitelistExportProperties.getMaxItems();
+        if (batch.getItemCount() > maxItems) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+        List<WhitelistExportItem> items = whitelistExportItemRepository.findImmutableBatchItems(
+                batchID,
+                PageRequest.of(0, maxItems + 1));
+        if (items.size() != batch.getItemCount()) {
+            throw new IllegalStateException("Whitelist export batch item count mismatch");
+        }
+        return exportFile(batch, items);
+    }
+
+    private AdminWhitelistExportFile exportFile(
+            WhitelistExportBatch batch,
+            List<WhitelistExportItem> items
+    ) {
+        List<CsvRow> rows = items.stream().map(CsvRow::from).toList();
+        return new AdminWhitelistExportFile(
+                batch.getId(),
+                batch.getFileName(),
+                csvWithRows(rows).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void promoteReplacementPrimary(WhitelistChannel channel) {
+        channel.setPrimary(false);
+        whitelistChannelRepository.clearPrimaryByUserID(channel.getUser().getId());
+        whitelistChannelRepository.findPrimaryReplacement(
+                        channel.getUser(),
+                        channel.getId(),
+                        PageRequest.of(0, 1))
+                .stream()
+                .findFirst()
+                .ifPresent(candidate -> candidate.setPrimary(true));
     }
 
     private UserSubscription activeSubscription(User user) {
         return userSubscriptionRepository.findActiveByUser(user, LocalDate.now()).orElse(null);
+    }
+
+    private boolean matchesExportScope(
+            WhitelistChannel channel,
+            WhitelistChannelStatus status,
+            String keyword
+    ) {
+        if (status != null && channel.getStatus() != status) {
+            return false;
+        }
+        if (keyword == null) {
+            return true;
+        }
+
+        String normalizedKeyword = keyword.toLowerCase(Locale.ROOT);
+        User user = channel.getUser();
+        return containsIgnoreCase(user.getEmail(), normalizedKeyword)
+                || containsIgnoreCase(user.getNickname(), normalizedKeyword)
+                || containsIgnoreCase(channel.getChannelName(), normalizedKeyword)
+                || containsIgnoreCase(channel.getChannelUrl(), normalizedKeyword)
+                || containsIgnoreCase(channel.getYoutubeHandle(), normalizedKeyword)
+                || containsIgnoreCase(channel.getYoutubeChannelId(), normalizedKeyword);
+    }
+
+    private boolean containsIgnoreCase(String value, String normalizedKeyword) {
+        return value != null && value.toLowerCase(Locale.ROOT).contains(normalizedKeyword);
     }
 
     private String normalizeBlank(String value) {
@@ -169,27 +297,26 @@ public class AdminWhitelistChannelService {
     }
 
     private String csvWithRows(List<CsvRow> rows) {
-        StringBuilder sb = new StringBuilder();
-        sb.append('\uFEFF');
-        sb.append("requestId,userId,userEmail,userNickname,channelName,youtubeHandle,channelUrl,youtubeChannelId,requestedAt,planName,billingCycle,exportedAt\n");
+        StringBuilder csv = new StringBuilder();
+        csv.append('\uFEFF');
+        csv.append("requestId,userEmail,channelName,youtubeHandle,channelUrl,youtubeChannelId,")
+                .append("requestedAt,planName,billingCycle,exportedAt\n");
         for (CsvRow row : rows) {
-            sb.append(csv(row.requestId())).append(',')
-                    .append(csv(row.userId())).append(',')
-                    .append(csvUserText(row.userEmail())).append(',')
-                    .append(csvUserText(row.userNickname())).append(',')
-                    .append(csvUserText(row.channelName())).append(',')
-                    .append(csvUserText(row.youtubeHandle())).append(',')
-                    .append(csvUserText(row.channelUrl())).append(',')
-                    .append(csvUserText(row.youtubeChannelId())).append(',')
+            csv.append(csv(row.requestID())).append(',')
+                    .append(csvText(row.userEmail())).append(',')
+                    .append(csvText(row.channelName())).append(',')
+                    .append(csvText(row.youtubeHandle())).append(',')
+                    .append(csvText(row.channelUrl())).append(',')
+                    .append(csvText(row.youtubeChannelID())).append(',')
                     .append(csv(row.requestedAt())).append(',')
-                    .append(csv(row.planName())).append(',')
+                    .append(csvText(row.planName())).append(',')
                     .append(csv(row.billingCycle())).append(',')
                     .append(csv(row.exportedAt())).append('\n');
         }
-        return sb.toString();
+        return csv.toString();
     }
 
-    private String csvUserText(String value) {
+    private String csvText(String value) {
         return csv(neutralizeFormulaCell(value));
     }
 
@@ -231,38 +358,29 @@ public class AdminWhitelistChannelService {
     }
 
     private record CsvRow(
-            Long requestId,
-            Long userId,
+            Long requestID,
             String userEmail,
-            String userNickname,
             String channelName,
             String youtubeHandle,
             String channelUrl,
-            String youtubeChannelId,
+            String youtubeChannelID,
             LocalDateTime requestedAt,
             String planName,
             Object billingCycle,
             LocalDateTime exportedAt
     ) {
-        static CsvRow from(
-                WhitelistChannel channel,
-                UserSubscription subscription,
-                LocalDateTime exportedAt
-        ) {
+        static CsvRow from(WhitelistExportItem item) {
             return new CsvRow(
-                    channel.getId(),
-                    channel.getUser().getId(),
-                    channel.getUser().getEmail(),
-                    channel.getUser().getNickname(),
-                    channel.getChannelName(),
-                    channel.getYoutubeHandle(),
-                    channel.getChannelUrl(),
-                    channel.getYoutubeChannelId(),
-                    channel.getRequestedAt(),
-                    subscription != null ? subscription.getSubscription().getName() : null,
-                    subscription != null ? subscription.getBillingCycle() : null,
-                    exportedAt
-            );
+                    item.getChannelIdSnapshot(),
+                    item.getUserEmailSnapshot(),
+                    item.getChannelNameSnapshot(),
+                    item.getYoutubeHandleSnapshot(),
+                    item.getChannelUrlSnapshot(),
+                    item.getYoutubeChannelIdSnapshot(),
+                    item.getRequestedAtSnapshot(),
+                    item.getPlanNameSnapshot(),
+                    item.getBillingCycleSnapshot(),
+                    item.getExportedAtSnapshot());
         }
     }
 }

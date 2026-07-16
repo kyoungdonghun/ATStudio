@@ -25,6 +25,7 @@ interface AuthState {
   role: UserRole;
   stageTokens: (accessToken: string, refreshToken: string) => void;
   login: (accessToken: string, user: User, refreshToken?: string | null) => void;
+  updateUser: (user: User) => boolean;
   logout: () => Promise<boolean>;
   clearSession: () => void;
   isAuthenticated: () => boolean;
@@ -59,6 +60,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     safeStorage.setItem('user', JSON.stringify(user));
     set({ accessToken, user, role: user.role });
+  },
+
+  updateUser: (user: User) => {
+    if (!get().accessToken || !safeStorage.setItem('user', JSON.stringify(user))) {
+      return false;
+    }
+
+    set({ user, role: user.role });
+    return true;
   },
 
   logout: async () => {

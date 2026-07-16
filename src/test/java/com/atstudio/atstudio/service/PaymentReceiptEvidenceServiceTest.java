@@ -20,6 +20,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -144,6 +146,60 @@ class PaymentReceiptEvidenceServiceTest {
                 """);
 
         verify(paymentReceiptRepository, never()).save(any(PaymentReceipt.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "javascript:alert(1)",
+            "data:text/html,test",
+            "file:///tmp/receipt",
+            "ftp://receipts.example.com/r/1",
+            "//receipts.example.com/r/1",
+            "https://user:password@receipts.example.com/r/1",
+            "https://receipts.example.com:8443/r/1",
+            "not a url"
+    })
+    @DisplayName("recordCommittedPayment rejects unsafe provider receipt URLs")
+    void recordCommittedPayment_rejectsUnsafeReceiptUrls(String receiptUrl) {
+        Fixture fixture = fixture();
+        given(paymentOrderRepository.findById(1L)).willReturn(Optional.of(fixture.order()));
+        given(subscriptionPaymentRepository.findById(2L)).willReturn(Optional.of(fixture.payment()));
+
+        service.recordCommittedPayment(1L, 2L, """
+                {
+                  "paymentKey": "payment_key",
+                  "receipt": {"url": "%s"}
+                }
+                """.formatted(receiptUrl));
+
+        verify(paymentReceiptRepository, never()).save(any(PaymentReceipt.class));
+    }
+
+    @Test
+    @DisplayName("recordCommittedPayment keeps cash receipt evidence but suppresses its unsafe URL")
+    void recordCommittedPayment_suppressesUnsafeCashReceiptUrl() {
+        Fixture fixture = fixture();
+        given(paymentOrderRepository.findById(1L)).willReturn(Optional.of(fixture.order()));
+        given(subscriptionPaymentRepository.findById(2L)).willReturn(Optional.of(fixture.payment()));
+        given(paymentReceiptRepository.existsByPaymentOrderAndType(
+                fixture.order(), PaymentReceiptType.CASH_RECEIPT)).willReturn(false);
+        given(paymentReceiptRepository.save(any(PaymentReceipt.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        service.recordCommittedPayment(1L, 2L, """
+                {
+                  "paymentKey": "payment_key",
+                  "cashReceipt": {
+                    "receiptKey": "cash_receipt_key",
+                    "receiptUrl": "javascript:alert('provider_key')"
+                  }
+                }
+                """);
+
+        ArgumentCaptor<PaymentReceipt> captor = ArgumentCaptor.forClass(PaymentReceipt.class);
+        verify(paymentReceiptRepository).save(captor.capture());
+        assertThat(captor.getValue().getReceiptUrl()).isNull();
+        assertThat(captor.getValue().getEvidencePayload()).doesNotContain("javascript", "provider_key");
     }
 
     private Fixture fixture() {

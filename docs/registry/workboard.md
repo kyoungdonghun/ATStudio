@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-04-15
+version: 1.2
+last_updated: 2026-07-16
 project: system
 owner: MA
 category: registry
@@ -20,8 +20,7 @@ dependencies:
 > Purpose: See at a glance "what are the current requirements (REQ) → what work (WI) they decomposed into → how far we've progressed".
 > In MVP, operate as **manually updatable single file**, expand to dashboard/automatic aggregation in Phase 2+.
 
-> Scope: This document is the **system-wide (all projects)** workboard.
-> Manages REQ, WI, CTX for all projects in this document.
+> Scope: This is an optional manually maintained cross-project summary. It is not guaranteed to enumerate every active ATStudio REQ/WI and is not the current tracking source of truth.
 
 ---
 
@@ -32,8 +31,7 @@ dependencies:
 - **Parallel Execution Units**: `CTX-...` (Context Instances)
 - **Progress Status/Triggers**: What events enable starting next work
 
-> Source of Truth (Principle): Detailed design/decisions/verification are in each WI/ADR/PR, and this document only plays **summary index** role.
-> WI documents are located at `docs/project/WI-YYYYMMDD-###.md` in each project repo, and this Workboard integrates WIs from all projects.
+> Source of Truth: ATStudio approval and user reporting live in `deliverables/user/`; WI handoffs and reproducible Evidence Packs live in `deliverables/agent/`. This workboard is an advisory summary only.
 
 ---
 
@@ -84,7 +82,7 @@ Recommended operation:
 
 | PRJ | CTX | WI | Title | Status | Depends/Blocked by | Parallelizable with | Trigger event(s) | WI Link | Evidence Pack | PR/Link | Progress |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| PRJ-EXAMPLE | CTX-EXAMPLE | WI-EXAMPLE | Example: "Expand impact-analysis" | In Review | WI-... | WI-... | PR merge | `{project repo}/docs/.../WI-EXAMPLE.md` | `deliverables/agent/WI-EXAMPLE-evidence-pack.md` | (PR link) | 70% |
+| PRJ-EXAMPLE | CTX-EXAMPLE | WI-EXAMPLE | Example: "Expand impact-analysis" | In Review | WI-... | WI-... | PR merge | `deliverables/agent/WI-EXAMPLE-handoff.md` | `deliverables/agent/WI-EXAMPLE-evidence-pack.md` | (PR link) | 70% |
 | system | CTX-DOCOPS | WI-20260127-001 | Index display name Korean/meaning unification + link consistency check | Done | - | - | Artifact Done | `docs/work-items/WI-20260127-001-index-display-name-koreanize.md` | `deliverables/agent/WI-20260127-001-evidence-pack.md` | - | 100% |
 | system | CTX-DOCOPS | WI-20260127-002 | Agent-facing document set organization/operation standardization | In Review | WI-20260127-001 (Done) | - | Approval Done (user approval) → Artifact Done | `docs/work-items/WI-20260127-002-agent-facing-docset-ops-standardization.md` | `deliverables/agent/WI-20260127-002-evidence-pack.md` | - | 80% |
 

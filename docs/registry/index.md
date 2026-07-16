@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-04-15
+version: 1.3
+last_updated: 2026-07-16
 project: system
 owner: EO
 category: registry
@@ -24,8 +24,8 @@ status: stable
 
 - **asset-registry.md**: Asset and capability registry, criteria for all asset registration
 - **project-registry.md**: Project ID issuance and management criteria
-- **context-registry.md**: Project context instance management
-- **workboard.md**: Workboard management
+- **context-registry.md**: Optional project context instance management
+- **workboard.md**: Advisory cross-project work summary; current ATStudio tracking SoT remains `deliverables/`
 
 ## Related Guides
 

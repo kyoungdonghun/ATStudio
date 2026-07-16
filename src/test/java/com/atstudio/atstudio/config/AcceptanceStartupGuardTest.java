@@ -206,6 +206,37 @@ class AcceptanceStartupGuardTest {
                 .hasMessageContaining("TOSS_CLIENT_KEY");
     }
 
+    @Test
+    @DisplayName("TOSS_BILLING refuses an invalid key ring in every profile")
+    void tossBillingRefusesInvalidKeyRingOutsideAcceptance() {
+        PaymentProperties payment = new PaymentProperties();
+        payment.setProvider(PaymentProviderType.TOSS_BILLING);
+        payment.getBilling().setEncryptionSecret("legacy-test-secret-material");
+        payment.getBilling().setActiveKeyId("active-key");
+        AcceptanceStartupGuard guard = new AcceptanceStartupGuard(
+                new MockEnvironment(),
+                new AcceptanceProperties(),
+                new TestUserBootstrapProperties(),
+                payment);
+
+        assertThatThrownBy(guard::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("key ring")
+                .hasMessageNotContaining("legacy-test-secret-material");
+    }
+
+    @Test
+    @DisplayName("MOCK keeps the non-payment development path independent from billing key configuration")
+    void mockDoesNotRequireBillingKeyRing() {
+        AcceptanceStartupGuard guard = new AcceptanceStartupGuard(
+                new MockEnvironment(),
+                new AcceptanceProperties(),
+                new TestUserBootstrapProperties(),
+                new PaymentProperties());
+
+        assertThatCode(guard::validate).doesNotThrowAnyException();
+    }
+
     private GuardFixture validAcceptanceFixture() {
         MockEnvironment environment = coreEnvironment("acceptance")
                 .withProperty("app.mail.base-url", PUBLIC_BASE_URL)

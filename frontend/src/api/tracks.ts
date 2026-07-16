@@ -48,6 +48,7 @@ export interface TrackListParams {
 /** GET /api/tracks -- public track list with filters & pagination */
 export async function fetchTracks(
   params: TrackListParams = {},
+  signal?: AbortSignal,
 ): Promise<PagedResponse<TrackListItem>> {
   const query: Record<string, string | number> = {};
 
@@ -65,13 +66,17 @@ export async function fetchTracks(
 
   const { data } = await client.get<PagedResponse<TrackListItem>>('/tracks', {
     params: query,
+    signal,
   });
   return data;
 }
 
 /** GET /api/tracks/{trackId} -- track detail */
-export async function fetchTrackDetail(trackId: number): Promise<TrackDetail> {
-  const { data } = await client.get<ApiResponse<TrackDetail>>(`/tracks/${trackId}`);
+export async function fetchTrackDetail(
+  trackId: number,
+  signal?: AbortSignal,
+): Promise<TrackDetail> {
+  const { data } = await client.get<ApiResponse<TrackDetail>>(`/tracks/${trackId}`, { signal });
   return data.data;
 }
 

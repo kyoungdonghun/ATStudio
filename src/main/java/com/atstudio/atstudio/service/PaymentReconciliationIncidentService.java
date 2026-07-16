@@ -16,6 +16,7 @@ import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.repository.PaymentOrderRepository;
 import com.atstudio.atstudio.repository.PaymentReconciliationIncidentRepository;
 import com.atstudio.atstudio.repository.UserRepository;
+import com.atstudio.atstudio.service.payment.ProviderSupportReference;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -68,8 +69,13 @@ public class PaymentReconciliationIncidentService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordLocalIssues(PaymentReconciliationService.ReconciliationResult localResult) {
+        recordLocalIssues(localResult.issues());
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordLocalIssues(List<PaymentReconciliationService.LocalReconciliationIssue> issues) {
         LocalDateTime detectedAt = LocalDateTime.now();
-        localResult.issues().forEach(issue -> recordLocalIssue(issue, detectedAt));
+        issues.forEach(issue -> recordLocalIssue(issue, detectedAt));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -218,7 +224,7 @@ public class PaymentReconciliationIncidentService {
                 issue.providerStatus(),
                 issue.localAmount(),
                 issue.providerAmount(),
-                maskProviderTransactionID(issue.providerTransactionId()),
+                ProviderSupportReference.from(issue.providerTransactionId()),
                 issue.failureCode(),
                 issue.failureMessage(),
                 detectedAt);
@@ -315,24 +321,11 @@ public class PaymentReconciliationIncidentService {
                 .formatted(
                         nullText(issue.providerStatus()),
                         nullText(issue.localAmount()))
-                + "providerAmount=%s, localCurrency=%s, providerCurrency=%s, transactionId=%s."
+                + "providerAmount=%s, localCurrency=%s, providerCurrency=%s."
                 .formatted(
                         nullText(issue.providerAmount()),
                         nullText(issue.localCurrency()),
-                        nullText(issue.providerCurrency()),
-                        nullText(maskProviderTransactionID(issue.providerTransactionId())));
-    }
-
-    private String maskProviderTransactionID(String providerTransactionID) {
-        if (providerTransactionID == null || providerTransactionID.isBlank()) {
-            return null;
-        }
-        if (providerTransactionID.length() <= 8) {
-            return "***";
-        }
-        return providerTransactionID.substring(0, 4)
-                + "..."
-                + providerTransactionID.substring(providerTransactionID.length() - 4);
+                        nullText(issue.providerCurrency()));
     }
 
     private PaymentOrder findPaymentOrder(Long paymentOrderId) {

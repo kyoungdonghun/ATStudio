@@ -7,6 +7,8 @@ import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.SocialProvider;
 import com.atstudio.atstudio.repository.SocialAccountRepository;
 import com.atstudio.atstudio.repository.UserRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -17,7 +19,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.RestClient;
 
-import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -90,7 +91,7 @@ class OAuth2ServiceTest {
             when(requestBodySpec.header(anyString(), anyString())).thenReturn(requestBodySpec);
             when(requestBodySpec.body(any(Object.class))).thenReturn(requestBodySpec);
             when(requestBodySpec.retrieve()).thenReturn(tokenResponseSpec);
-            when(tokenResponseSpec.body(Map.class)).thenReturn(null);
+            when(tokenResponseSpec.body(OAuth2Service.OAuthTokenResponse.class)).thenReturn(null);
         }
     }
 
@@ -104,7 +105,7 @@ class OAuth2ServiceTest {
         @DisplayName("Google userInfo null 응답 -> SOCIAL_AUTH_FAILED 예외")
         void fetchGoogleUserInfo_nullResponse_throwsSocialAuthFailed() {
             mockTokenExchangeReturningValidToken();
-            mockUserInfoReturningNull();
+            mockGoogleUserInfoReturningNull();
 
             assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.GOOGLE, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
@@ -116,7 +117,7 @@ class OAuth2ServiceTest {
         @DisplayName("Kakao userInfo null 응답 -> SOCIAL_AUTH_FAILED 예외")
         void fetchKakaoUserInfo_nullResponse_throwsSocialAuthFailed() {
             mockTokenExchangeReturningValidToken();
-            mockUserInfoReturningNull();
+            mockKakaoUserInfoReturningNull();
 
             assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.KAKAO, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
@@ -128,7 +129,7 @@ class OAuth2ServiceTest {
         @DisplayName("Naver userInfo null 응답 -> SOCIAL_AUTH_FAILED 예외")
         void fetchNaverUserInfo_nullResponse_throwsSocialAuthFailed() {
             mockTokenExchangeReturningValidToken();
-            mockUserInfoReturningNull();
+            mockNaverUserInfoReturningNull();
 
             assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.NAVER, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
@@ -141,7 +142,7 @@ class OAuth2ServiceTest {
         void fetchKakaoUserInfo_nullAccount_throwsSocialAuthFailed() {
             mockTokenExchangeReturningValidToken();
             // userInfo 응답은 있지만 kakao_account가 null
-            mockUserInfoReturning(Map.of("id", "12345"));
+            mockKakaoUserInfo(new OAuth2Service.KakaoUserInfoResponse(text("12345"), null, null, null));
 
             assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.KAKAO, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
@@ -154,7 +155,7 @@ class OAuth2ServiceTest {
         void fetchNaverUserInfo_nullResponseInBody_throwsSocialAuthFailed() {
             mockTokenExchangeReturningValidToken();
             // body는 있지만 response 키가 없음
-            mockUserInfoReturning(Map.of("result", "success"));
+            mockNaverUserInfo(new OAuth2Service.NaverUserInfoResponse(null, null, null));
 
             assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.NAVER, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
@@ -168,23 +169,40 @@ class OAuth2ServiceTest {
             when(requestBodySpec.header(anyString(), anyString())).thenReturn(requestBodySpec);
             when(requestBodySpec.body(any(Object.class))).thenReturn(requestBodySpec);
             when(requestBodySpec.retrieve()).thenReturn(tokenResponseSpec);
-            when(tokenResponseSpec.body(Map.class)).thenReturn(Map.of("access_token", "valid-token"));
+            when(tokenResponseSpec.body(OAuth2Service.OAuthTokenResponse.class))
+                    .thenReturn(new OAuth2Service.OAuthTokenResponse(text("valid-token"), null));
         }
 
-        private void mockUserInfoReturningNull() {
+        private void mockGoogleUserInfoReturningNull() {
             when(restClient.get()).thenReturn(requestHeadersUriSpec);
             when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.header(anyString(), anyString())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(userInfoResponseSpec);
-            when(userInfoResponseSpec.body(Map.class)).thenReturn(null);
+            when(userInfoResponseSpec.body(OAuth2Service.GoogleUserInfoResponse.class)).thenReturn(null);
         }
 
-        private void mockUserInfoReturning(Map<String, Object> response) {
+        private void mockKakaoUserInfoReturningNull() {
             when(restClient.get()).thenReturn(requestHeadersUriSpec);
             when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.header(anyString(), anyString())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(userInfoResponseSpec);
-            when(userInfoResponseSpec.body(Map.class)).thenReturn(response);
+            when(userInfoResponseSpec.body(OAuth2Service.KakaoUserInfoResponse.class)).thenReturn(null);
+        }
+
+        private void mockNaverUserInfoReturningNull() {
+            when(restClient.get()).thenReturn(requestHeadersUriSpec);
+            when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.header(anyString(), anyString())).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(userInfoResponseSpec);
+            when(userInfoResponseSpec.body(OAuth2Service.NaverUserInfoResponse.class)).thenReturn(null);
+        }
+
+        private void mockKakaoUserInfo(OAuth2Service.KakaoUserInfoResponse response) {
+            when(restClient.get()).thenReturn(requestHeadersUriSpec);
+            when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.header(anyString(), anyString())).thenReturn(requestHeadersSpec);
+            when(requestHeadersSpec.retrieve()).thenReturn(userInfoResponseSpec);
+            when(userInfoResponseSpec.body(OAuth2Service.KakaoUserInfoResponse.class)).thenReturn(response);
         }
     }
 
@@ -203,15 +221,17 @@ class OAuth2ServiceTest {
             when(requestBodySpec.header(anyString(), anyString())).thenReturn(requestBodySpec);
             when(requestBodySpec.body(any(Object.class))).thenReturn(requestBodySpec);
             when(requestBodySpec.retrieve()).thenReturn(tokenResponseSpec);
-            when(tokenResponseSpec.body(Map.class)).thenReturn(Map.of("access_token", "valid-token"));
+            when(tokenResponseSpec.body(OAuth2Service.OAuthTokenResponse.class))
+                    .thenReturn(new OAuth2Service.OAuthTokenResponse(text("valid-token"), null));
 
             // userInfo 응답: kakao_account 존재하지만 profile이 null
             when(restClient.get()).thenReturn(requestHeadersUriSpec);
             when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.header(anyString(), anyString())).thenReturn(requestHeadersSpec);
             when(requestHeadersSpec.retrieve()).thenReturn(userInfoResponseSpec);
-            when(userInfoResponseSpec.body(Map.class)).thenReturn(
-                    Map.of("id", "12345", "kakao_account", new java.util.HashMap<>(Map.of("email", "user@kakao.com"))));
+            JsonNode account = JsonNodeFactory.instance.objectNode().put("email", "user@kakao.com");
+            when(userInfoResponseSpec.body(OAuth2Service.KakaoUserInfoResponse.class)).thenReturn(
+                    new OAuth2Service.KakaoUserInfoResponse(text("12345"), account, null, null));
 
             assertThatThrownBy(() -> oAuth2Service.processSocialLogin(SocialProvider.KAKAO, "auth-code", null))
                     .isInstanceOf(BusinessException.class)
@@ -231,15 +251,17 @@ class OAuth2ServiceTest {
         when(requestBodySpec.header(anyString(), anyString())).thenReturn(requestBodySpec);
         when(requestBodySpec.body(any(Object.class))).thenReturn(requestBodySpec);
         when(requestBodySpec.retrieve()).thenReturn(tokenResponseSpec);
-        when(tokenResponseSpec.body(Map.class)).thenReturn(Map.of("access_token", "valid-token"));
+        when(tokenResponseSpec.body(OAuth2Service.OAuthTokenResponse.class))
+                .thenReturn(new OAuth2Service.OAuthTokenResponse(text("valid-token"), null));
 
         // userInfo (Google)
         when(restClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
         when(requestHeadersSpec.header(anyString(), anyString())).thenReturn(requestHeadersSpec);
         when(requestHeadersSpec.retrieve()).thenReturn(userInfoResponseSpec);
-        when(userInfoResponseSpec.body(Map.class)).thenReturn(
-                Map.of("id", "google-123", "email", "user@gmail.com", "name", "Test User"));
+        when(userInfoResponseSpec.body(OAuth2Service.GoogleUserInfoResponse.class)).thenReturn(
+                new OAuth2Service.GoogleUserInfoResponse(
+                        text("google-123"), text("user@gmail.com"), text("Test User"), null));
 
         User existingUser = User.builder().email("user@gmail.com").nickname("tester").build();
         SocialAccount socialAccount = SocialAccount.builder()
@@ -255,5 +277,80 @@ class OAuth2ServiceTest {
 
         assertThat(result).isEqualTo(existingUser);
         verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("blank access token is rejected with SOCIAL_AUTH_FAILED")
+    void processSocialLogin_blankAccessToken_throwsSocialAuthFailed() {
+        mockTokenExchange(new OAuth2Service.OAuthTokenResponse(text("  "), null));
+
+        assertSocialAuthFailed(() -> oAuth2Service.processSocialLogin(SocialProvider.GOOGLE, "auth-code", null));
+    }
+
+    @Test
+    @DisplayName("provider token error is rejected with SOCIAL_AUTH_FAILED")
+    void processSocialLogin_providerTokenError_throwsSocialAuthFailed() {
+        mockTokenExchange(new OAuth2Service.OAuthTokenResponse(null, text("invalid_grant")));
+
+        assertSocialAuthFailed(() -> oAuth2Service.processSocialLogin(SocialProvider.GOOGLE, "auth-code", null));
+    }
+
+    @Test
+    @DisplayName("wrong-type Google provider id is rejected with SOCIAL_AUTH_FAILED")
+    void processSocialLogin_wrongTypeGoogleProviderId_throwsSocialAuthFailed() {
+        mockTokenExchange(new OAuth2Service.OAuthTokenResponse(text("valid-token"), null));
+        mockGoogleUserInfo(new OAuth2Service.GoogleUserInfoResponse(number(123), null, null, null));
+
+        assertSocialAuthFailed(() -> oAuth2Service.processSocialLogin(SocialProvider.GOOGLE, "auth-code", null));
+    }
+
+    @Test
+    @DisplayName("Naver missing resultcode is rejected with SOCIAL_AUTH_FAILED")
+    void processSocialLogin_naverMissingResultCode_throwsSocialAuthFailed() {
+        mockTokenExchange(new OAuth2Service.OAuthTokenResponse(text("valid-token"), null));
+        mockNaverUserInfo(new OAuth2Service.NaverUserInfoResponse(
+                null, null, JsonNodeFactory.instance.objectNode().put("id", "naver-123")));
+
+        assertSocialAuthFailed(() -> oAuth2Service.processSocialLogin(SocialProvider.NAVER, "auth-code", null));
+    }
+
+    private void mockTokenExchange(OAuth2Service.OAuthTokenResponse response) {
+        when(restClient.post()).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
+        when(requestBodySpec.header(anyString(), anyString())).thenReturn(requestBodySpec);
+        when(requestBodySpec.body(any(Object.class))).thenReturn(requestBodySpec);
+        when(requestBodySpec.retrieve()).thenReturn(tokenResponseSpec);
+        when(tokenResponseSpec.body(OAuth2Service.OAuthTokenResponse.class)).thenReturn(response);
+    }
+
+    private void mockGoogleUserInfo(OAuth2Service.GoogleUserInfoResponse response) {
+        when(restClient.get()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.header(anyString(), anyString())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(userInfoResponseSpec);
+        when(userInfoResponseSpec.body(OAuth2Service.GoogleUserInfoResponse.class)).thenReturn(response);
+    }
+
+    private void mockNaverUserInfo(OAuth2Service.NaverUserInfoResponse response) {
+        when(restClient.get()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.header(anyString(), anyString())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(userInfoResponseSpec);
+        when(userInfoResponseSpec.body(OAuth2Service.NaverUserInfoResponse.class)).thenReturn(response);
+    }
+
+    private static JsonNode text(String value) {
+        return JsonNodeFactory.instance.textNode(value);
+    }
+
+    private static JsonNode number(int value) {
+        return JsonNodeFactory.instance.numberNode(value);
+    }
+
+    private static void assertSocialAuthFailed(org.assertj.core.api.ThrowableAssert.ThrowingCallable action) {
+        assertThatThrownBy(action)
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.SOCIAL_AUTH_FAILED));
     }
 }

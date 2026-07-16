@@ -374,11 +374,12 @@ ALTER TABLE payment_operation_audit_logs
 `payment_refunds.idempotency_key` is already unique; no new refund-table
 constraint is required for P1-10.
 
-### 7.2 Existing-DB manual patch
+### 7.2 Existing-DB manual patches
 
-Future implementation owns one new file:
+The payment command patch and the later reconciliation index patch are:
 
-`src/main/resources/db/manual/20260714_payment_db_integrity.sql`
+- `src/main/resources/db/manual/20260714_payment_db_integrity.sql`
+- `src/main/resources/db/manual/20260716_payment_reconciliation_indexes.sql`
 
 Existing-DB order is:
 
@@ -386,7 +387,8 @@ Existing-DB order is:
 2. `20260615_align_payment_whitelist_schema.sql`
 3. `20260618_company_certification_documents.sql`
 4. `20260714_payment_db_integrity.sql`
-5. Start with `ddl-auto=validate`.
+5. `20260716_payment_reconciliation_indexes.sql`
+6. Start with `ddl-auto=validate`.
 
 The 2026-07-14 patch must execute in this internal order:
 
@@ -409,6 +411,15 @@ The 2026-07-14 patch must execute in this internal order:
 The three-day backfill formula is a current-code compatibility assumption, not
 proof of historical production policy. A mismatch or duplicate is a migration
 blocker requiring an approved, row-specific disposition.
+
+The 2026-07-16 patch is additive and data-preserving. It adds
+`idx_payment_orders_local_reconciliation (status, id, purpose)` and
+`idx_billing_agreements_local_reconciliation (status, id)`, then provides
+`EXPLAIN FORMAT=JSON` statements for the two keyset scans. Run those statements
+only on an approved copied/disposable MySQL 8 database with representative row
+counts. Source and static contract tests do not close retained-database
+compatibility or production query-plan evidence; `ATS020-X-01` remains
+environment-conditional.
 
 ## 8. Failure Recovery and Observability
 

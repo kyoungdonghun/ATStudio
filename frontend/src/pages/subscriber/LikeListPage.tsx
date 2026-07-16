@@ -200,86 +200,85 @@ export default function LikeListPage() {
             </div>
           ) : (
             <div className={styles.tableWrap}>
-            <table className={styles.trackTable}>
-              <thead>
-                <tr>
-                  <th className={styles.thCenter}>#</th>
-                  <th>{'음원'}</th>
-                  <th className={`${styles.thRight} ${styles.cellBpm}`}>BPM</th>
-                  <th className={`${styles.thCenter} ${styles.cellKey}`}>Key</th>
-                  <th className={`${styles.thRight} ${styles.cellDate}`}>{'추가일'}</th>
-                  <th className={styles.cellActions}>{'관리'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item, idx) => (
-                  <tr
-                    key={item.trackId}
-                    className={`${styles.row} ${currentTrack?.id === item.trackId && isPlayerPlaying ? styles.rowPlaying : ''}`}
-                  >
-                    <td className={styles.cellNum}>
-                      <span className={styles.num}>{idx + 1}</span>
-                      <button
-                        className={styles.playBtn}
-                        onClick={() => handlePlay(item)}
-                        aria-label={currentTrack?.id === item.trackId && isPlayerPlaying ? 'Pause' : 'Play'}
-                      >
-                        {currentTrack?.id === item.trackId && isPlayerPlaying ? '\u23F8' : '\u25B6'}
-                      </button>
-                    </td>
-                    <td className={styles.cellInfo}>
-                      <div className={styles.info}>
-                        <div className={styles.thumb}>
-                          {item.thumbnail ? (
-                            <img src={toUploadUrl(item.thumbnail)!} alt={item.title} />
-                          ) : (
-                            '\u266A'
-                          )}
-                        </div>
-                        <div className={styles.infoText}>
-                          <Link
-                            to={`/tracks/${item.trackId}`}
-                            className={styles.titleLink}
-                          >
-                            {item.title}
-                          </Link>
-                        </div>
-                      </div>
-                    </td>
-                    <td className={styles.cellBpm}>{item.bpm ?? '-'}</td>
-                    <td className={styles.cellKey}>{item.tonality ?? '-'}</td>
-                    <td className={styles.cellDate}>
-                      {formatDate(item.createdAt)}
-                    </td>
-                    <td className={styles.cellActions}>
-                      <span className={styles.hoverActions}>
-                        <button
-                          className={styles.addPlBtn}
-                          onClick={() => setAddToPlTrackId(item.trackId)}
-                          title="재생목록에 추가"
-                        >
-                          +
-                        </button>
-                        <button
-                          className={styles.dlBtn}
-                          onClick={() => handleDownload(item)}
-                          title="다운로드"
-                        >
-                          {'\u2193'}
-                        </button>
-                      </span>
-                      <button
-                        className={styles.unlikeBtn}
-                        onClick={() => handleUnlike(item.trackId)}
-                        title="좋아요 해제"
-                      >
-                        {'\u2665'}
-                      </button>
-                    </td>
+              <table className={styles.trackTable}>
+                <thead>
+                  <tr>
+                    <th className={styles.thCenter}>#</th>
+                    <th>{'음원'}</th>
+                    <th className={`${styles.thRight} ${styles.cellBpm}`}>BPM</th>
+                    <th className={`${styles.thCenter} ${styles.cellKey}`}>Key</th>
+                    <th className={`${styles.thRight} ${styles.cellDate}`}>{'추가일'}</th>
+                    <th className={styles.cellActions}>{'관리'}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {items.map((item, idx) => (
+                    <tr
+                      key={item.trackId}
+                      className={`${styles.row} ${currentTrack?.id === item.trackId && isPlayerPlaying ? styles.rowPlaying : ''}`}
+                    >
+                      <td className={styles.cellNum}>
+                        <span className={styles.num}>{idx + 1}</span>
+                        <button
+                          className={styles.playBtn}
+                          onClick={() => handlePlay(item)}
+                          aria-label={
+                            currentTrack?.id === item.trackId && isPlayerPlaying ? 'Pause' : 'Play'
+                          }
+                        >
+                          {currentTrack?.id === item.trackId && isPlayerPlaying
+                            ? '\u23F8'
+                            : '\u25B6'}
+                        </button>
+                      </td>
+                      <td className={styles.cellInfo}>
+                        <div className={styles.info}>
+                          <div className={styles.thumb}>
+                            {item.thumbnail ? (
+                              <img src={toUploadUrl(item.thumbnail)!} alt={item.title} />
+                            ) : (
+                              '\u266A'
+                            )}
+                          </div>
+                          <div className={styles.infoText}>
+                            <Link to={`/tracks/${item.trackId}`} className={styles.titleLink}>
+                              {item.title}
+                            </Link>
+                          </div>
+                        </div>
+                      </td>
+                      <td className={styles.cellBpm}>{item.bpm ?? '-'}</td>
+                      <td className={styles.cellKey}>{item.tonality ?? '-'}</td>
+                      <td className={styles.cellDate}>{formatDate(item.createdAt)}</td>
+                      <td className={styles.cellActions}>
+                        <span className={styles.hoverActions}>
+                          <button
+                            className={styles.addPlBtn}
+                            onClick={() => setAddToPlTrackId(item.trackId)}
+                            title="재생목록에 추가"
+                          >
+                            +
+                          </button>
+                          <button
+                            className={styles.dlBtn}
+                            onClick={() => handleDownload(item)}
+                            title="다운로드"
+                          >
+                            {'\u2193'}
+                          </button>
+                        </span>
+                        <button
+                          className={styles.unlikeBtn}
+                          onClick={() => handleUnlike(item.trackId)}
+                          title="좋아요 해제"
+                        >
+                          {'\u2665'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
           <AddToPlaylistModal
@@ -307,56 +306,54 @@ export default function LikeListPage() {
             </div>
           ) : (
             <div className={styles.tableWrap}>
-            <table className={styles.trackTable}>
-              <thead>
-                <tr>
-                  <th>{'앨범'}</th>
-                  <th className={`${styles.thRight} ${styles.cellCount}`}>{'곡 수'}</th>
-                  <th className={`${styles.thRight} ${styles.cellDate}`}>{'추가일'}</th>
-                  <th className={styles.cellActions}>{'관리'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {albumItems.map((item) => (
-                  <tr
-                    key={item.albumId}
-                    className={styles.row}
-                    onClick={() => navigate(`/albums/${item.albumId}`)}
-                  >
-                    <td className={styles.cellInfo}>
-                      <div className={styles.info}>
-                        <div className={styles.thumb}>
-                          {item.thumbnailUrl ? (
-                            <img src={toUploadUrl(item.thumbnailUrl)!} alt={item.title} />
-                          ) : (
-                            '\u266A'
-                          )}
-                        </div>
-                        <div className={styles.infoText}>
-                          <span className={styles.titleLink}>{item.title}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className={styles.cellCount}>{`${item.trackCount}곡`}</td>
-                    <td className={styles.cellDate}>
-                      {formatDate(item.createdAt)}
-                    </td>
-                    <td className={styles.cellActions}>
-                      <button
-                        className={styles.unlikeBtn}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleUnlikeAlbum(item.albumId);
-                        }}
-                        title="좋아요 해제"
-                      >
-                        {'\u2665'}
-                      </button>
-                    </td>
+              <table className={styles.trackTable}>
+                <thead>
+                  <tr>
+                    <th>{'앨범'}</th>
+                    <th className={`${styles.thRight} ${styles.cellCount}`}>{'곡 수'}</th>
+                    <th className={`${styles.thRight} ${styles.cellDate}`}>{'추가일'}</th>
+                    <th className={styles.cellActions}>{'관리'}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {albumItems.map((item) => (
+                    <tr
+                      key={item.albumId}
+                      className={styles.row}
+                      onClick={() => navigate(`/albums/${item.albumId}`)}
+                    >
+                      <td className={styles.cellInfo}>
+                        <div className={styles.info}>
+                          <div className={styles.thumb}>
+                            {item.thumbnailUrl ? (
+                              <img src={toUploadUrl(item.thumbnailUrl)!} alt={item.title} />
+                            ) : (
+                              '\u266A'
+                            )}
+                          </div>
+                          <div className={styles.infoText}>
+                            <span className={styles.titleLink}>{item.title}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className={styles.cellCount}>{`${item.trackCount}곡`}</td>
+                      <td className={styles.cellDate}>{formatDate(item.createdAt)}</td>
+                      <td className={styles.cellActions}>
+                        <button
+                          className={styles.unlikeBtn}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUnlikeAlbum(item.albumId);
+                          }}
+                          title="좋아요 해제"
+                        >
+                          {'\u2665'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </>

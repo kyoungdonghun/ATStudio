@@ -8,6 +8,7 @@ import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.CompanyCertificationDocumentRepository;
+import com.atstudio.atstudio.repository.CompanyCertificationAuditLogRepository;
 import com.atstudio.atstudio.repository.CompanyCertificationRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
@@ -51,6 +52,7 @@ class CompanyCertificationSecurityVerificationTest {
 
     @Mock CompanyCertificationRepository certificationRepository;
     @Mock CompanyCertificationDocumentRepository documentRepository;
+    @Mock CompanyCertificationAuditLogRepository auditLogRepository;
     @Mock UserRepository userRepository;
     @Mock StorageService storageService;
     @Mock StorageMutationCoordinator storageMutationCoordinator;
@@ -66,7 +68,7 @@ class CompanyCertificationSecurityVerificationTest {
                 "image/png",
                 pngWithTrailingPayload());
 
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList())).willReturn(false);
         given(storageMutationCoordinator.storeAll(
                 eq(StorageDomain.COMPANY_CERTIFICATION),
@@ -98,7 +100,6 @@ class CompanyCertificationSecurityVerificationTest {
         assertThat(new String(stored.getBytes(), StandardCharsets.ISO_8859_1))
                 .doesNotContain("<script>")
                 .doesNotContain("</svg>");
-        assertThat(response.documentPath()).isNull();
         assertThat(response.documents()).singleElement().satisfies(document -> {
             assertThat(document.originalFilename()).isEqualTo("biz.png");
             assertThat(document.contentType()).isEqualTo("image/jpeg");
@@ -116,7 +117,7 @@ class CompanyCertificationSecurityVerificationTest {
                 "application/pdf",
                 pngBytes());
 
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList())).willReturn(false);
 
         assertThatThrownBy(() -> service.apply(actor(1L), List.of(forged)))
@@ -141,7 +142,7 @@ class CompanyCertificationSecurityVerificationTest {
                         (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00
                 });
 
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList())).willReturn(false);
 
         assertThatThrownBy(() -> service.apply(actor(1L), List.of(truncated)))
@@ -157,6 +158,7 @@ class CompanyCertificationSecurityVerificationTest {
         return new CompanyCertificationService(
                 certificationRepository,
                 documentRepository,
+                auditLogRepository,
                 userRepository,
                 storageService,
                 storageMutationCoordinator,

@@ -1,5 +1,7 @@
 package com.atstudio.atstudio.dto.payment;
 
+import com.atstudio.atstudio.service.payment.ProviderSupportReference;
+
 import com.atstudio.atstudio.entity.PaymentOperationAuditLog;
 import com.atstudio.atstudio.entity.enums.PaymentOperationAuditAction;
 import com.atstudio.atstudio.entity.enums.PaymentOperationAuditTargetType;
@@ -21,7 +23,7 @@ public record AdminPaymentOperationAuditLogResponse(
         Long subscriptionPaymentId,
         Long reconciliationIncidentId,
         PaymentProviderType provider,
-        String providerTransactionId,
+        String providerReference,
         String beforeStatus,
         String afterStatus,
         String reasonCode,
@@ -44,11 +46,11 @@ public record AdminPaymentOperationAuditLogResponse(
                 log.getSubscriptionPayment() == null ? null : log.getSubscriptionPayment().getId(),
                 log.getReconciliationIncident() == null ? null : log.getReconciliationIncident().getId(),
                 log.getProvider(),
-                log.getProviderTransactionId(),
+                ProviderSupportReference.from(log.getProviderTransactionId()),
                 log.getBeforeStatus(),
                 log.getAfterStatus(),
                 log.getReasonCode(),
-                log.getNote(),
+                ProviderSupportReference.sanitizeFreeText(log.getNote()),
                 log.getCreatedAt()
         );
     }

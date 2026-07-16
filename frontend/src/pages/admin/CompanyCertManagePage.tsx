@@ -1,5 +1,5 @@
 /** Screen K-5: Company certification review */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   downloadCompanyCertDocument,
   fetchCompanyCert,
@@ -14,6 +14,7 @@ import type {
   PageInfo,
 } from '@/types';
 import { formatDate, formatDateTime } from '@/utils/format';
+import { CERT_REVIEW_NOTE_MAX } from '@/utils/validation';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Pagination from '@/components/ui/Pagination';
@@ -56,6 +57,23 @@ function formatBytes(sizeBytes: number): string {
   return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function getAdminReviewErrorMessage(error: unknown): string {
+  const response =
+    error && typeof error === 'object' && 'response' in error
+      ? (error as { response?: { status?: number; data?: { message?: unknown } } }).response
+      : undefined;
+  if (response?.status === 403) return '기업 인증 심사 권한이 없습니다.';
+  if (response?.status === 409) {
+    return '다른 처리로 신청 상태가 변경되었습니다. 상세를 닫고 다시 확인해주세요.';
+  }
+  const message = response?.data?.message;
+  if (typeof message === 'string' && message.trim()) return message.trim();
+  if (response?.status === 400 || response?.status === 422) {
+    return '심사 상태와 처리 사유를 확인해주세요.';
+  }
+  return '기업 인증 심사 처리에 실패했습니다.';
+}
+
 export default function CompanyCertManagePage() {
   const [certs, setCerts] = useState<CompanyCertificationSummary[]>([]);
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
@@ -63,60 +81,95 @@ export default function CompanyCertManagePage() {
   const [statusFilter, setStatusFilter] = useState<CertificationStatus | ''>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const listRequestId = useRef(0);
 
+  const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<CompanyCertification | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [downloadId, setDownloadId] = useState<number | null>(null);
+  const detailRequestId = useRef(0);
 
   const [reviewAction, setReviewAction] = useState<Exclude<CertificationStatus, 'PENDING'> | null>(
     null,
   );
   const [adminNote, setAdminNote] = useState('');
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
 
   const loadCerts = useCallback(() => {
+    const currentRequestId = ++listRequestId.current;
     setLoading(true);
     setError(null);
     const params: Record<string, unknown> = { page, size: 20 };
     if (statusFilter) params.status = statusFilter;
     fetchCompanyCerts(params as Parameters<typeof fetchCompanyCerts>[0])
       .then((result) => {
+        if (currentRequestId !== listRequestId.current) return;
         setCerts(result.dataList);
         setPageInfo(result.pageInfo);
       })
-      .catch(() => setError('기업 인증 신청 목록을 불러오지 못했습니다.'))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (currentRequestId === listRequestId.current) {
+          setError('기업 인증 신청 목록을 불러오지 못했습니다.');
+        }
+      })
+      .finally(() => {
+        if (currentRequestId === listRequestId.current) {
+          setLoading(false);
+        }
+      });
   }, [page, statusFilter]);
 
   useEffect(() => {
     loadCerts();
+    return () => {
+      listRequestId.current += 1;
+    };
   }, [loadCerts]);
 
+  useEffect(
+    () => () => {
+      detailRequestId.current += 1;
+    },
+    [],
+  );
+
   async function openDetail(certId: number) {
+    const currentRequestId = ++detailRequestId.current;
+    setDetailOpen(true);
     setDetail(null);
     setDetailError(null);
     setDetailLoading(true);
     try {
       const data = await fetchCompanyCert(certId);
+      if (currentRequestId !== detailRequestId.current) return;
       setDetail(data);
     } catch {
+      if (currentRequestId !== detailRequestId.current) return;
       setDetailError('기업 인증 신청 상세를 불러오지 못했습니다.');
     } finally {
-      setDetailLoading(false);
+      if (currentRequestId === detailRequestId.current) {
+        setDetailLoading(false);
+      }
     }
   }
 
   function closeDetail() {
+    detailRequestId.current += 1;
+    setDetailOpen(false);
     setDetail(null);
+    setDetailLoading(false);
     setDetailError(null);
     setReviewAction(null);
     setAdminNote('');
+    setReviewError(null);
   }
 
   function openReview(action: Exclude<CertificationStatus, 'PENDING'>) {
     setReviewAction(action);
     setAdminNote('');
+    setReviewError(null);
   }
 
   async function refreshDetail(certId: number) {
@@ -126,18 +179,30 @@ export default function CompanyCertManagePage() {
 
   async function confirmReview() {
     if (!detail || !reviewAction) return;
+    const normalizedNote = adminNote.trim();
+    const requiresReason = reviewAction === 'REVISION_REQUESTED' || reviewAction === 'REJECTED';
+    if (requiresReason && !normalizedNote) {
+      setReviewError(`${REVIEW_ACTION_LABELS[reviewAction]} 사유를 입력해주세요.`);
+      return;
+    }
+    if (normalizedNote.length > CERT_REVIEW_NOTE_MAX) {
+      setReviewError(`처리 사유는 최대 ${CERT_REVIEW_NOTE_MAX}자까지 입력할 수 있습니다.`);
+      return;
+    }
+
+    setReviewError(null);
     setReviewLoading(true);
     try {
       await processCompanyCert(detail.id, {
         status: reviewAction,
-        adminNote: adminNote || undefined,
+        adminNote: normalizedNote || undefined,
       });
       setReviewAction(null);
       setAdminNote('');
       await refreshDetail(detail.id);
       loadCerts();
-    } catch {
-      setDetailError('기업 인증 심사 처리에 실패했습니다.');
+    } catch (error) {
+      setReviewError(getAdminReviewErrorMessage(error));
     } finally {
       setReviewLoading(false);
     }
@@ -248,11 +313,7 @@ export default function CompanyCertManagePage() {
         <Pagination pageInfo={pageInfo} currentPage={page} onPageChange={setPage} />
       )}
 
-      <Modal
-        open={detailLoading || detail !== null || detailError !== null}
-        onClose={closeDetail}
-        title="기업 인증 상세"
-      >
+      <Modal open={detailOpen} onClose={closeDetail} title="기업 인증 상세">
         <div className={styles.modalBody}>
           {detailLoading && <div className={styles.loadingInline}>상세를 불러오는 중...</div>}
           {detailError && <div className={styles.modalError}>{detailError}</div>}
@@ -340,7 +401,10 @@ export default function CompanyCertManagePage() {
 
       <Modal
         open={reviewAction !== null}
-        onClose={() => setReviewAction(null)}
+        onClose={() => {
+          setReviewAction(null);
+          setReviewError(null);
+        }}
         title={reviewAction ? `${REVIEW_ACTION_LABELS[reviewAction]} 처리` : '심사 처리'}
       >
         <div className={styles.modalBody}>
@@ -349,15 +413,47 @@ export default function CompanyCertManagePage() {
               ? `${detail?.userNickname ?? '신청자'}의 기업 인증을 ${REVIEW_ACTION_LABELS[reviewAction]} 처리합니다.`
               : ''}
           </p>
+          <label className={styles.noteLabel} htmlFor="company-cert-review-note">
+            {reviewAction === 'REVISION_REQUESTED' || reviewAction === 'REJECTED'
+              ? '처리 사유 (필수)'
+              : '관리자 메모 (선택)'}
+          </label>
           <textarea
+            id="company-cert-review-note"
             className={styles.noteInput}
-            placeholder="관리자 메모 (보완 요청/반려 시 사유를 적어주세요)"
+            placeholder="신청자에게 전달할 처리 사유를 입력해주세요."
             value={adminNote}
-            onChange={(e) => setAdminNote(e.target.value)}
+            maxLength={CERT_REVIEW_NOTE_MAX}
+            aria-invalid={reviewError !== null}
+            aria-describedby="company-cert-review-note-help"
+            onChange={(e) => {
+              setAdminNote(e.target.value);
+              setReviewError(null);
+            }}
           />
+          <div id="company-cert-review-note-help" className={styles.noteMeta}>
+            <span>
+              {reviewAction === 'REVISION_REQUESTED' || reviewAction === 'REJECTED'
+                ? '보완 요청과 반려는 사유가 반드시 필요합니다.'
+                : '승인 메모는 입력하지 않아도 됩니다.'}
+            </span>
+            <span>{`${adminNote.length}/${CERT_REVIEW_NOTE_MAX}`}</span>
+          </div>
+          {reviewError && (
+            <div className={styles.modalError} role="alert">
+              {reviewError}
+            </div>
+          )}
         </div>
         <div className={styles.modalActions}>
-          <Button variant="ghost" size="sm" onClick={() => setReviewAction(null)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setReviewAction(null);
+              setReviewError(null);
+            }}
+          >
             취소
           </Button>
           <Button

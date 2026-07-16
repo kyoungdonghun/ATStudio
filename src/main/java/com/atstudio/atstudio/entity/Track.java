@@ -108,7 +108,4 @@ public class Track extends BaseEntity {
         if (this.likeCount > 0) this.likeCount--;
     }
 
-    public void incrementDownloadCount() {
-        this.downloadCount++;
-    }
 }

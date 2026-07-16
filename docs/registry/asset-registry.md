@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-04-15
+version: 1.2
+last_updated: 2026-07-16
 project: system
 owner: EO
 category: registry
@@ -19,7 +19,7 @@ dependencies:
 
 The registry is an "index" that enforces the following **3 linking chains**.
 
-- **Work Item (WI)**: Unit of change (request/impact/verification) — `docs/work-items/`
+- **Work Item (WI)**: Unit of change. Current ATStudio handoffs/evidence live under `deliverables/agent/`; user approval/summaries live under `deliverables/user/`.
 - **ADR**: Decision rationale (alternatives/risks/rollback) — `docs/adr/`
 - **Asset**: Reusable unit (policy/template/code/tool) — This document
 
@@ -30,6 +30,8 @@ Minimum rules:
 - **Register in registry with Asset ID for new/reused assets, and update Consumers**
 
 For practical flow, use `AGENTS.md` for Codex sessions and `CLAUDE.md` for Claude sessions. Shared work-tracking rules must remain aligned across both entry points.
+
+The registry records reusable assets. It is not an exhaustive live work tracker and does not supersede the current deliverable chain.
 
 ## 1) Rules (Required)
 

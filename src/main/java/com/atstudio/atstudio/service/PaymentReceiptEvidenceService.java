@@ -1,5 +1,6 @@
 package com.atstudio.atstudio.service;
 
+import com.atstudio.atstudio.common.validation.ProviderReceiptUrlPolicy;
 import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.PaymentReceipt;
 import com.atstudio.atstudio.entity.SubscriptionPayment;
@@ -97,7 +98,7 @@ public class PaymentReceiptEvidenceService {
             PaymentOrder order,
             SubscriptionPayment subscriptionPayment,
             JsonNode root) {
-        String receiptUrl = text(root.path("receipt"), "url");
+        String receiptUrl = ProviderReceiptUrlPolicy.normalizeOrNull(text(root.path("receipt"), "url"));
         if (isBlank(receiptUrl)
                 || paymentReceiptRepository.existsByPaymentOrderAndType(order, PaymentReceiptType.PAYMENT_RECEIPT)) {
             return;
@@ -127,7 +128,7 @@ public class PaymentReceiptEvidenceService {
             return;
         }
         String receiptKey = text(cashReceipt, "receiptKey");
-        String receiptUrl = text(cashReceipt, "receiptUrl");
+        String receiptUrl = ProviderReceiptUrlPolicy.normalizeOrNull(text(cashReceipt, "receiptUrl"));
         if (isBlank(receiptKey) && isBlank(receiptUrl)) {
             return;
         }

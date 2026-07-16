@@ -17,7 +17,7 @@
 | `REGISTERED` | Operator confirmed external whitelist registration | Yes |
 | `REVISION_REQUESTED` | Operator requested user-side correction | Yes |
 | `REJECTED` | Operator rejected the request | No |
-| `CANCELLED` | Request was cancelled before external registration | No |
+| `CANCELLED` | Operator confirmed completed external removal; terminal | No |
 | `REMOVAL_REQUESTED` | User requested removal for an exported/registered channel | Yes |
 
 ---
@@ -37,13 +37,17 @@
 **Main Flow**
 1. User enters `channelName`, `channelUrl`, and optional `youtubeHandle` / `youtubeChannelId`.
 2. Frontend sends the input to the backend.
-3. Backend validates that `channelUrl` host is exactly `youtube.com` or ends with `.youtube.com`.
-4. Backend creates a `whitelist_channels` row with status `DRAFT`.
-5. If this is the user's first saved channel, backend marks it as `is_primary = true`.
-6. Backend returns the saved channel response.
+3. Backend parses and normalizes `channelUrl`, then accepts only HTTPS URLs with
+   no user info, no explicit port other than standard HTTPS port 443, and a
+   lowercase host equal to `youtube.com` or ending with `.youtube.com`.
+4. Backend locks the owning user and rejects the save when the separate configured saved-row technical cap is already reached.
+5. Backend creates a `whitelist_channels` row with status `DRAFT`.
+6. If this is the user's first saved channel, backend marks it as `is_primary = true`.
+7. Backend returns the saved channel response.
 
 **Exception / Alternative Flow**
 - Invalid channel URL: 400 `INVALID_ARGUMENT`.
+- Saved-row technical cap reached: 403 `WHITELIST_CHANNEL_LIMIT_EXCEEDED`. This is independent of subscription registration slots.
 
 **Postconditions**
 - A draft channel profile exists and can be edited, deleted, set as primary, or submitted for registration.
@@ -64,12 +68,12 @@
 
 **Main Flow**
 1. Frontend sends a request with the auth token.
-2. Backend extracts userId from JWT and queries the user's channels ordered by primary flag and creation time.
+2. Backend extracts userId from JWT and queries at most `APP_WHITELIST_MAX_SAVED_CHANNELS` rows ordered by primary flag and creation time.
 3. Backend returns channel metadata, status, primary flag, operator note, and status timestamps.
-4. Frontend displays saved channels and the registration slot usage based on plan-counting statuses.
+4. Frontend displays saved channels and the registration slot usage based on plan-counting statuses. It applies the same safe-link predicate before creating an `href`; a retained unsafe value is shown as text only.
 
 **Postconditions**
-- The user can see draft, requested, exported, registered, revision, rejected, cancelled, and removal-requested channels in one list.
+- Normal users see their bounded channel list in the existing response shape. A retained user above the technical cap sees only the deterministic primary-first/newest-first leading window; older rows are not claimed as returned.
 
 ---
 
@@ -88,20 +92,27 @@
 **Main Flow**
 1. User changes channel metadata.
 2. Frontend sends `channelId` and updated data to the backend.
-3. Backend validates ownership and channel URL.
-4. Backend updates the channel.
-5. If a previously exported/registered/revision-requested channel is edited, backend treats the edit as a reprocessing request.
-6. For that reprocessing path, backend checks active subscription and plan limit using the same self-slot exclusion rule as WL-005.
-7. If allowed, backend moves the channel back to `PENDING` for operator reprocessing.
+3. Frontend and backend apply the same HTTPS-only YouTube URL contract defined
+   by WL-001. The backend remains authoritative.
+4. Backend validates ownership and channel URL.
+5. Backend updates the channel.
+6. If a previously exported/registered/revision-requested channel is edited, backend treats the edit as a reprocessing request.
+7. For that reprocessing path, backend checks active subscription and plan limit using the same self-slot exclusion rule as WL-005.
+8. If allowed, backend moves the channel back to `PENDING` for operator reprocessing.
 
 **Exception / Alternative Flow**
 - Attempt to update another user's channel: 403 `RESOURCE_NOT_ACCESS`.
 - Invalid channel URL: 400 `INVALID_ARGUMENT`.
+- Attempt to edit `REMOVAL_REQUESTED` or terminal `CANCELLED`: 400 `INVALID_STATE_TRANSITION`; external removal metadata remains stable.
 - No active subscription when the update would requeue an externally processed channel: 403 `NO_ACTIVE_SUBSCRIPTION`.
 - Plan limit exceeded when the update would requeue an externally processed channel: 403 `WHITELIST_CHANNEL_LIMIT_EXCEEDED`.
 
 **Postconditions**
 - Updated channel info is reflected in DB and may require operator reprocessing depending on prior status.
+- Subscriber and admin screens create a clickable link only when the persisted
+  value still satisfies the current safe-link predicate. Retained unsafe values
+  remain visible as text for operator correction and are never auto-mutated by
+  the read path.
 
 ---
 
@@ -123,7 +134,13 @@
 3. For `DRAFT`, `PENDING`, `REVISION_REQUESTED`, `REJECTED`, or `CANCELLED`, backend deletes the row.
 4. If the deleted row was the primary channel and another saved channel remains, backend promotes one remaining channel as primary.
 5. For `EXPORTED` or `REGISTERED`, backend keeps the row and changes status to `REMOVAL_REQUESTED`.
-6. Operator handles the external removal and updates status later.
+6. Repeating removal for `REMOVAL_REQUESTED` is idempotent and preserves the original request timestamp.
+7. Operator completes external removal through `REMOVAL_REQUESTED -> CANCELLED`.
+
+**Account Withdrawal Flow**
+1. Backend deletes local-only `DRAFT`, `PENDING`, `REVISION_REQUESTED`, `REJECTED`, and `CANCELLED` rows.
+2. Backend changes `EXPORTED` and `REGISTERED` rows to `REMOVAL_REQUESTED`.
+3. Backend preserves existing `REMOVAL_REQUESTED` rows and clears primary flags before soft-deleting the user.
 
 **Exception / Alternative Flow**
 - Attempt to delete another user's channel: 403 `RESOURCE_NOT_ACCESS`.
@@ -149,7 +166,7 @@
 1. Frontend calls `POST /api/whitelist-channels/{channelId}/request`.
 2. Backend verifies ownership and active subscription.
 3. If the channel is already `PENDING`, backend returns the current response idempotently.
-4. Backend rejects direct request attempts from `EXPORTED`, `REGISTERED`, or `REMOVAL_REQUESTED`.
+4. Backend rejects direct request attempts from `EXPORTED`, `REGISTERED`, `REMOVAL_REQUESTED`, or terminal `CANCELLED`.
 5. Backend counts channels in `PENDING`, `EXPORTED`, `REGISTERED`, `REVISION_REQUESTED`, and `REMOVAL_REQUESTED`.
 6. If the target channel is already a counted correction state such as `REVISION_REQUESTED`, backend excludes that channel's own slot before comparing the count with the plan limit.
 7. If the adjusted count is below the active plan limit, backend changes the channel status to `PENDING` and sets `requested_at`.
@@ -183,6 +200,9 @@
 3. Backend marks the selected channel as primary.
 4. Backend returns the updated channel.
 
+**Exception / Alternative Flow**
+- `REMOVAL_REQUESTED` or `CANCELLED`: 400 `INVALID_STATE_TRANSITION`.
+
 **Postconditions**
 - Exactly one saved channel is treated as the user's representative channel where possible.
 
@@ -203,8 +223,20 @@
 **Main Flow**
 1. Admin filters channels by status and keyword.
 2. Backend returns channel request data including `userEmail`, user nickname, channel metadata, active plan, billing cycle, and timestamps.
-3. Admin changes a channel to `REGISTERED`, `REVISION_REQUESTED`, `REJECTED`, `REMOVAL_REQUESTED`, or `CANCELLED`.
-4. Backend records the admin, note, and processed timestamp.
+3. Backend accepts only the source-to-target transitions below and treats a repeated current status as idempotent.
+4. Backend records the admin, note, and processed timestamp only for a real transition.
+5. Invalidating a primary channel promotes the newest eligible channel by creation time and ID.
+
+| Source | Allowed target |
+|---|---|
+| `DRAFT` | none |
+| `PENDING` | `REGISTERED`, `REVISION_REQUESTED`, `REJECTED` |
+| `EXPORTED` | `REGISTERED`, `REVISION_REQUESTED`, `REJECTED`, `REMOVAL_REQUESTED` |
+| `REGISTERED` | `REVISION_REQUESTED`, `REMOVAL_REQUESTED` |
+| `REVISION_REQUESTED` | `REGISTERED`, `REJECTED` |
+| `REJECTED` | none |
+| `REMOVAL_REQUESTED` | `CANCELLED` |
+| `CANCELLED` | none |
 
 **Postconditions**
 - Manual external processing decisions are reflected in the local workflow.
@@ -224,12 +256,15 @@
 | **Related UC** | WL-005, WL-007 |
 
 **Main Flow**
-1. Admin calls `POST /api/admin/whitelist-channels/export`.
-2. Backend loads channels in the selected status. Keyword filtering from the admin list view is not applied to CSV export in the current implementation.
-3. Backend creates a `whitelist_export_batches` row and `whitelist_export_items` snapshot rows.
-4. Backend returns a UTF-8 BOM CSV file with `userEmail`, user/channel metadata, plan, billing cycle, requested time, and exported time.
-5. If the exported status is `PENDING`, backend marks exported channels as `EXPORTED`.
-6. If the exported status is not `PENDING`, backend keeps the current workflow status and records only the CSV/export snapshots.
+1. Admin calls `POST /api/admin/whitelist-channels/export` with an explicit status and/or applied keyword filter.
+2. Backend reads at most the configured hard maximum plus one candidate in deterministic `requestedAt`, `id` order.
+3. An oversized selection fails before user/channel locks, status changes, or any partial batch.
+4. For an accepted selection, backend locks distinct owning users in ID order and then locks the selected channel rows.
+5. Backend creates an immutable `whitelist_export_batches` row with the recorded filters and ordered `whitelist_export_items` snapshots.
+6. Backend returns a UTF-8 BOM CSV plus batch ID. CSV includes `userEmail` and operational channel/subscription fields but omits user ID and nickname.
+7. If the exported status is `PENDING`, backend marks exported channels as `EXPORTED`.
+8. If the exported status is not `PENDING`, backend keeps the current workflow status and records only the CSV/export snapshots.
+9. Admin may call `GET /api/admin/whitelist-channels/exports/{batchID}` to rebuild the same bytes from stored items without current-data re-query drift; the stored count and item query remain bounded by the configured maximum.
 
 **Postconditions**
 - The CSV can be handed to the external processing party and the local export is auditable.

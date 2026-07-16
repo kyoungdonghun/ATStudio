@@ -35,9 +35,7 @@ export default function LicenseListPage() {
       setLicenses(res.dataList);
       setPageInfo(res.pageInfo);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : '라이선스를 불러오지 못했습니다.',
-      );
+      setError(err instanceof Error ? err.message : '라이선스를 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
@@ -108,12 +106,8 @@ export default function LicenseListPage() {
               {licenses.map((lic) => (
                 <tr key={lic.id}>
                   <td className={styles.cellTitle}>{lic.track.title}</td>
-                  <td className={styles.cellCode}>
-                    {truncateCode(lic.licenseCode)}
-                  </td>
-                  <td className={styles.cellDate}>
-                    {formatDate(lic.issuedAt)}
-                  </td>
+                  <td className={styles.cellCode}>{truncateCode(lic.licenseCode)}</td>
+                  <td className={styles.cellDate}>{formatDate(lic.issuedAt)}</td>
                   <td className={styles.cellActions}>
                     <button
                       className={styles.dlBtn}
@@ -122,10 +116,7 @@ export default function LicenseListPage() {
                     >
                       {'↓ 다운로드'}
                     </button>
-                    <button
-                      className={styles.detailLink}
-                      onClick={() => setModalLicense(lic)}
-                    >
+                    <button className={styles.detailLink} onClick={() => setModalLicense(lic)}>
                       {'상세'}
                     </button>
                   </td>
@@ -167,10 +158,7 @@ export default function LicenseListPage() {
                 <span className={styles.modalLabel}>{'라이선스 코드'}</span>
               </div>
               <div className={styles.codeBox}>{modalLicense.licenseCode}</div>
-              <button
-                className={styles.copyBtn}
-                onClick={() => copyCode(modalLicense.licenseCode)}
-              >
+              <button className={styles.copyBtn} onClick={() => copyCode(modalLicense.licenseCode)}>
                 {'코드 복사'}
               </button>
             </div>

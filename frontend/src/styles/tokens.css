@@ -13,16 +13,16 @@
 :root {
   --bg0: #121826;
   --bg1: #111827;
-  --bg2: #1F2937;
+  --bg2: #1f2937;
   --bg3: #253244;
-  --text0: #F9FAFB;
-  --text1: #9CA3AF;
-  --text2: #6B7280;
-  --accent: #19B981;
+  --text0: #f9fafb;
+  --text1: #9ca3af;
+  --text2: #6b7280;
+  --accent: #19b981;
   --accent-dim: rgba(25, 185, 129, 0.12);
   --accent-border: rgba(25, 185, 129, 0.3);
-  --border: #1E293B;
-  --border2: #2D3748;
+  --border: #1e293b;
+  --border2: #2d3748;
   --header-bg: rgba(17, 24, 39, 0.95);
   --error: #f87171;
   --error-dim: rgba(239, 68, 68, 0.12);
@@ -38,31 +38,31 @@
   --info-border: rgba(96, 165, 250, 0.3);
   --backdrop: rgba(0, 0, 0, 0.6);
   --player-bg: rgba(17, 24, 39, 0.97);
-  --player-text: #F9FAFB;
-  --player-text2: #9CA3AF;
+  --player-text: #f9fafb;
+  --player-text2: #9ca3af;
   --hero-gradient-start: #162236;
 
   /* Layout */
   --header-h: 58px;
   --player-h: 72px;
-  --page-px: 48px;           /* page horizontal padding */
+  --page-px: 48px; /* page horizontal padding */
   --page-max-w: 1280px;
 }
 
 /* ── Light theme ── */
-[data-theme="light"] {
-  --bg0: #FFFFFF;
-  --bg1: #F9FAFB;
-  --bg2: #F3F4F6;
-  --bg3: #E5E7EB;
+[data-theme='light'] {
+  --bg0: #ffffff;
+  --bg1: #f9fafb;
+  --bg2: #f3f4f6;
+  --bg3: #e5e7eb;
   --text0: #111827;
-  --text1: #6B7280;
-  --text2: #9CA3AF;
-  --accent: #16A34A;
+  --text1: #6b7280;
+  --text2: #9ca3af;
+  --accent: #16a34a;
   --accent-dim: rgba(22, 163, 74, 0.08);
   --accent-border: rgba(22, 163, 74, 0.2);
-  --border: #E5E7EB;
-  --border2: #D1D5DB;
+  --border: #e5e7eb;
+  --border2: #d1d5db;
   --header-bg: rgba(255, 255, 255, 0.95);
   --error: #dc2626;
   --error-dim: rgba(220, 38, 38, 0.08);
@@ -79,8 +79,8 @@
   --backdrop: rgba(0, 0, 0, 0.5);
   --player-bg: rgba(255, 255, 255, 0.97);
   --player-text: #111827;
-  --player-text2: #6B7280;
-  --hero-gradient-start: #E8EDF3;
+  --player-text2: #6b7280;
+  --hero-gradient-start: #e8edf3;
 }
 
 *,
@@ -97,7 +97,11 @@ html {
 }
 
 body {
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'Pretendard',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   background: var(--bg0);
   color: var(--text0);
   font-size: 14px;

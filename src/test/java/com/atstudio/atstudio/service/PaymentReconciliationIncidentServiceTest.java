@@ -13,6 +13,7 @@ import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.repository.PaymentOrderRepository;
 import com.atstudio.atstudio.repository.PaymentReconciliationIncidentRepository;
 import com.atstudio.atstudio.repository.UserRepository;
+import com.atstudio.atstudio.service.payment.ProviderSupportReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -131,8 +132,9 @@ class PaymentReconciliationIncidentServiceTest {
                 ArgumentCaptor.forClass(PaymentReconciliationIncident.class);
         verify(incidentRepository).save(incidentCaptor.capture());
         assertThat(incidentCaptor.getValue().getProviderTransactionId())
-                .isNotBlank()
-                .doesNotContain(rawPaymentKey);
+                .isEqualTo(ProviderSupportReference.from(rawPaymentKey))
+                .doesNotContain(rawPaymentKey.substring(0, 4))
+                .doesNotContain(rawPaymentKey.substring(rawPaymentKey.length() - 4));
         ArgumentCaptor<String> noteCaptor = ArgumentCaptor.forClass(String.class);
         verify(auditLogService).recordReconciliationIncidentStatusUpdate(
                 eq(null),
@@ -140,7 +142,11 @@ class PaymentReconciliationIncidentServiceTest {
                 eq(null),
                 eq(PaymentReconciliationIncidentStatus.OPEN),
                 noteCaptor.capture());
-        assertThat(noteCaptor.getValue()).doesNotContain(rawPaymentKey);
+        assertThat(noteCaptor.getValue())
+                .doesNotContain(rawPaymentKey)
+                .doesNotContain(rawPaymentKey.substring(0, 4))
+                .doesNotContain(rawPaymentKey.substring(rawPaymentKey.length() - 4))
+                .doesNotContain("transactionId=");
     }
 
     @Test
@@ -322,7 +328,14 @@ class PaymentReconciliationIncidentServiceTest {
     }
 
     private PaymentReconciliationService.ReconciliationResult emptyLocalResult() {
-        return new PaymentReconciliationService.ReconciliationResult(0, 0, 0, 0, List.of());
+        return new PaymentReconciliationService.ReconciliationResult(
+                0,
+                0,
+                0,
+                0,
+                0,
+                false,
+                List.of());
     }
 
     private PaymentReconciliationService.ProviderReconciliationResult providerResult(
@@ -354,6 +367,8 @@ class PaymentReconciliationIncidentServiceTest {
                 0,
                 0,
                 0,
+                1,
+                false,
                 List.of(issue));
     }
 

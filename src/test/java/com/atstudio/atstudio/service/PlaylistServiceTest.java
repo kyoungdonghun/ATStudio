@@ -60,13 +60,14 @@ class PlaylistServiceTest {
         PlaylistCreateRequest request = new PlaylistCreateRequest();
         request.setTitle("Test Playlist");
 
-        setupSubscriberMocks(user);
+        setupPlaylistCreationSubscriberMocks(user);
         given(playlistRepository.save(any(Playlist.class))).willReturn(saved);
 
         PlaylistResponse result = playlistService.createPlaylist(request, null, buildUserDetails(1L));
 
         assertThat(result.id()).isEqualTo(1L);
         assertThat(result.title()).isEqualTo("Test Playlist");
+        verify(userRepository).findByIdForUpdate(1L);
     }
 
     @Test
@@ -80,7 +81,7 @@ class PlaylistServiceTest {
         MockMultipartFile canonicalThumbnail = new MockMultipartFile(
                 "thumbnail", "thumbnail.jpg", "image/jpeg", new byte[]{(byte) 0xFF, (byte) 0xD8});
 
-        setupSubscriberMocks(user);
+        setupPlaylistCreationSubscriberMocks(user);
         given(canonicalImageService.canonicalizeThumbnail(thumbnail)).willReturn(canonicalThumbnail);
         given(storageMutationCoordinator.store(
                 StorageDomain.PLAYLIST,
@@ -107,7 +108,7 @@ class PlaylistServiceTest {
         PlaylistCreateRequest request = new PlaylistCreateRequest();
         request.setTitle("Fourth Playlist");
 
-        setupSubscriberMocks(user);
+        setupPlaylistCreationSubscriberMocks(user);
         given(playlistRepository.countByUserAndIsActiveTrue(user)).willReturn(3);
 
         // when & then
@@ -126,7 +127,7 @@ class PlaylistServiceTest {
         PlaylistCreateRequest request = new PlaylistCreateRequest();
         request.setTitle("Third Playlist");
 
-        setupSubscriberMocks(user);
+        setupPlaylistCreationSubscriberMocks(user);
         given(playlistRepository.countByUserAndIsActiveTrue(user)).willReturn(2);
         given(playlistRepository.save(any(Playlist.class))).willReturn(saved);
 
@@ -145,7 +146,7 @@ class PlaylistServiceTest {
         PlaylistCreateRequest request = new PlaylistCreateRequest();
         request.setTitle("Third Playlist");
 
-        setupSubscriberMocks(user, 2);
+        setupPlaylistCreationSubscriberMocks(user, 2);
         given(playlistRepository.countByUserAndIsActiveTrue(user)).willReturn(2);
 
         assertThatThrownBy(() -> playlistService.createPlaylist(request, null, buildUserDetails(1L)))
@@ -161,7 +162,7 @@ class PlaylistServiceTest {
         PlaylistCreateRequest request = new PlaylistCreateRequest();
         request.setTitle("Test Playlist");
 
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(userSubscriptionRepository.findActiveByUser(any(User.class), any(LocalDate.class)))
                 .willReturn(Optional.empty());
 
@@ -292,7 +293,7 @@ class PlaylistServiceTest {
         PlaylistAddTrackRequest request = new PlaylistAddTrackRequest(5L);
 
         setupSubscriberMocks(user);
-        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+        given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
         given(trackRepository.findById(5L)).willReturn(Optional.of(track));
         given(playlistTrackRepository.existsById(any(PlaylistTrackId.class))).willReturn(false);
         given(playlistTrackRepository.countByIdPlaylistId(1L)).willReturn(2L);
@@ -311,7 +312,7 @@ class PlaylistServiceTest {
         PlaylistAddTrackRequest request = new PlaylistAddTrackRequest(5L);
 
         setupSubscriberMocks(user);
-        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+        given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
         given(trackRepository.findById(5L)).willReturn(Optional.of(track));
         given(playlistTrackRepository.existsById(any(PlaylistTrackId.class))).willReturn(true);
 
@@ -332,7 +333,7 @@ class PlaylistServiceTest {
         request.setTitle("New Title");
 
         setupSubscriberMocks(user);
-        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+        given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
         given(playlistTrackRepository.countByIdPlaylistId(1L)).willReturn(0L);
 
         PlaylistResponse result = playlistService.updatePlaylist(1L, request, null, buildUserDetails(1L));
@@ -352,7 +353,7 @@ class PlaylistServiceTest {
                 "thumbnail", "thumbnail.jpg", "image/jpeg", new byte[]{(byte) 0xFF, (byte) 0xD8});
 
         setupSubscriberMocks(user);
-        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+        given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
         given(canonicalImageService.canonicalizeThumbnail(thumbnail)).willReturn(canonicalThumbnail);
         given(storageMutationCoordinator.replace(
                 StorageDomain.PLAYLIST,
@@ -381,7 +382,7 @@ class PlaylistServiceTest {
         request.setTitle("Hacked Title");
 
         setupSubscriberMocks(buildUser(1L));
-        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+        given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
 
         assertThatThrownBy(() -> playlistService.updatePlaylist(1L, request, null, buildUserDetails(1L)))
                 .isInstanceOf(BusinessException.class)
@@ -396,15 +397,45 @@ class PlaylistServiceTest {
     void reorderTracks_success() {
         User user = buildUser(1L);
         Playlist playlist = buildPlaylist(1L, user, "My Playlist");
-        PlaylistReorderRequest request = new PlaylistReorderRequest(List.of());
+        Track track = buildTrack(5L, true);
+        PlaylistTrack playlistTrack = PlaylistTrack.builder()
+                .id(new PlaylistTrackId(1L, 5L)).playlist(playlist).track(track).trackOrder(0).build();
+        PlaylistReorderRequest request = new PlaylistReorderRequest(
+                List.of(new PlaylistTrackOrderItem(5L, 0)));
 
         setupSubscriberMocks(user);
-        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+        given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
+        given(playlistTrackRepository.findAllByIdPlaylistIdOrderByTrackOrderAsc(1L))
+                .willReturn(List.of(playlistTrack));
 
         playlistService.reorderTracks(1L, request, buildUserDetails(1L));
 
-        verify(playlistTrackRepository).deleteAllByIdPlaylistId(1L);
-        verify(playlistTrackRepository).saveAll(anyList());
+        assertThat(playlistTrack.getTrackOrder()).isZero();
+    }
+
+    @Test
+    void reorderTracks_rejectsDuplicateOrder() {
+        User user = buildUser(1L);
+        Playlist playlist = buildPlaylist(1L, user, "My Playlist");
+        PlaylistTrack first = PlaylistTrack.builder()
+                .id(new PlaylistTrackId(1L, 1L)).playlist(playlist).track(buildTrack(1L, true)).trackOrder(0).build();
+        PlaylistTrack second = PlaylistTrack.builder()
+                .id(new PlaylistTrackId(1L, 2L)).playlist(playlist).track(buildTrack(2L, true)).trackOrder(1).build();
+
+        setupSubscriberMocks(user);
+        given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
+        given(playlistTrackRepository.findAllByIdPlaylistIdOrderByTrackOrderAsc(1L))
+                .willReturn(List.of(first, second));
+
+        assertThatThrownBy(() -> playlistService.reorderTracks(
+                1L,
+                new PlaylistReorderRequest(List.of(
+                        new PlaylistTrackOrderItem(1L, 0),
+                        new PlaylistTrackOrderItem(2L, 0))),
+                buildUserDetails(1L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
     }
 
     // ── removeTrack() ─────────────────────────────────────────────────────────
@@ -419,8 +450,9 @@ class PlaylistServiceTest {
                 .track(buildTrack(5L, true)).trackOrder(0).build();
 
         setupSubscriberMocks(user);
-        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+        given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
         given(playlistTrackRepository.findById(any(PlaylistTrackId.class))).willReturn(Optional.of(pt));
+        given(playlistTrackRepository.findAllByIdPlaylistIdOrderByTrackOrderAsc(1L)).willReturn(List.of());
 
         playlistService.removeTrack(1L, 5L, buildUserDetails(1L));
 
@@ -436,7 +468,7 @@ class PlaylistServiceTest {
         Playlist playlist = buildPlaylist(1L, user, "My Playlist");
 
         setupSubscriberMocks(user);
-        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+        given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
 
         playlistService.deletePlaylist(1L, buildUserDetails(1L));
 
@@ -451,7 +483,7 @@ class PlaylistServiceTest {
         Playlist playlist = spy(buildPlaylist(1L, user, "My Playlist"));
 
         setupSubscriberMocks(user);
-        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+        given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
 
         playlistService.deletePlaylist(1L, buildUserDetails(1L));
 
@@ -467,7 +499,7 @@ class PlaylistServiceTest {
         Playlist playlist = buildPlaylist(1L, owner, "Other's Playlist");
 
         setupSubscriberMocks(buildUser(1L));
-        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+        given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
 
         assertThatThrownBy(() -> playlistService.deletePlaylist(1L, buildUserDetails(1L)))
                 .isInstanceOf(BusinessException.class)
@@ -487,6 +519,20 @@ class PlaylistServiceTest {
     private void setupSubscriberMocks(User user, int maxPlaylists) {
         UserSubscription sub = buildSubscription(user, maxPlaylists);
         given(userRepository.findById(user.getId())).willReturn(Optional.of(user));
+        given(userSubscriptionRepository.findActiveByUser(any(User.class), any(LocalDate.class)))
+                .willReturn(Optional.of(sub));
+    }
+
+    private void setupPlaylistCreationSubscriberMocks(User user) {
+        UserSubscription sub = buildSubscription(user);
+        given(userRepository.findByIdForUpdate(user.getId())).willReturn(Optional.of(user));
+        given(userSubscriptionRepository.findActiveByUser(any(User.class), any(LocalDate.class)))
+                .willReturn(Optional.of(sub));
+    }
+
+    private void setupPlaylistCreationSubscriberMocks(User user, int maxPlaylists) {
+        UserSubscription sub = buildSubscription(user, maxPlaylists);
+        given(userRepository.findByIdForUpdate(user.getId())).willReturn(Optional.of(user));
         given(userSubscriptionRepository.findActiveByUser(any(User.class), any(LocalDate.class)))
                 .willReturn(Optional.of(sub));
     }

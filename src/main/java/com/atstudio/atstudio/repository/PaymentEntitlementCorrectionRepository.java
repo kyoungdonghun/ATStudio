@@ -1,6 +1,7 @@
 package com.atstudio.atstudio.repository;
 
 import com.atstudio.atstudio.entity.PaymentEntitlementCorrection;
+import com.atstudio.atstudio.entity.enums.PaymentEntitlementCorrectionStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -11,6 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.Set;
 
 public interface PaymentEntitlementCorrectionRepository
         extends JpaRepository<PaymentEntitlementCorrection, Long> {
@@ -48,4 +50,9 @@ public interface PaymentEntitlementCorrectionRepository
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from PaymentEntitlementCorrection c where c.id = :id")
     Optional<PaymentEntitlementCorrection> findByIdForUpdate(@Param("id") Long id);
+
+    boolean existsByPaymentRefund_IdAndUserSubscription_IdAndStatusIn(
+            Long paymentRefundId,
+            Long userSubscriptionId,
+            Set<PaymentEntitlementCorrectionStatus> statuses);
 }

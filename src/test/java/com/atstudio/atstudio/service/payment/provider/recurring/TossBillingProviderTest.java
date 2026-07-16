@@ -1,5 +1,8 @@
 package com.atstudio.atstudio.service.payment.provider.recurring;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.config.PaymentProperties;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
@@ -9,6 +12,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -521,6 +525,40 @@ class TossBillingProviderTest {
         assertThat(result.success()).isFalse();
         assertThat(result.pendingConfirmation()).isTrue();
         assertThat(result.providerRefundTransactionId()).isNull();
+    }
+
+    @Test
+    @DisplayName("cancelPayment unknown transport failure logs exception class without URI or provider key")
+    void cancelPaymentUnknownFailureLogsBoundedMetadata() {
+        String rawProviderPaymentKey = "provider-payment-key-secret";
+        PaymentProperties properties = properties("http://localhost:1");
+        properties.getToss().setCancelUrl("http://localhost/%zz/{paymentKey}");
+        TossBillingProvider provider = new TossBillingProvider(properties);
+        Logger logger = (Logger) LoggerFactory.getLogger(TossBillingProvider.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        PaymentRefundProviderResult result;
+        try {
+            result = provider.cancelPayment(new PaymentRefundProviderCommand(
+                    rawProviderPaymentKey,
+                    "ORDER-SECRET-1",
+                    BigDecimal.valueOf(9900),
+                    "CUSTOMER_REQUEST",
+                    "ATS-REFUND-SECRET-1"));
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+
+        assertThat(result.pendingConfirmation()).isTrue();
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getFormattedMessage())
+                    .contains("exceptionClass=IllegalArgumentException")
+                    .doesNotContain(rawProviderPaymentKey, "%zz", "http://");
+            assertThat(event.getThrowableProxy()).isNull();
+        });
     }
 
     private PaymentProperties properties(String baseUrl) {

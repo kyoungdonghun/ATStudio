@@ -27,11 +27,15 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class AlbumService {
+
+    private static final int MAX_CATALOG_PAGE_SIZE = 100;
 
     private final AlbumRepository albumRepository;
     private final AlbumTrackRepository albumTrackRepository;
@@ -69,29 +73,18 @@ public class AlbumService {
 
     // -- 15.2 GET /api/albums -------------------------------------------------
 
-    public List<AlbumListItemResponse> getAlbums() {
-        List<Album> albums = albumRepository.findAllByIsActiveTrueOrderByCreatedAtDesc();
-        Map<Long, Integer> countMap = albumTrackRepository.countMapByAlbums(albums);
-        return albums.stream()
-                .map(album -> AlbumListItemResponse.from(album, countMap.getOrDefault(album.getId(), 0)))
-                .toList();
-    }
-
     public ResponseDTO<AlbumListItemResponse> getAlbumsPaged(int page, int size, String sort) {
-        Page<Album> albumPage = albumRepository.findAllByIsActiveTrueOrderByCreatedAtDesc(
-                PageRequest.of(page - 1, size));
+        validateCatalogPage(page, size);
+
+        PageRequest pageRequest = PageRequest.of(page - 1, size);
+        Page<Album> albumPage = "trackCount".equals(sort)
+                ? albumRepository.findAllActiveOrderByTrackCount(pageRequest)
+                : albumRepository.findAllActiveOrderByCreatedAt(pageRequest);
         List<Album> albums = albumPage.getContent();
         Map<Long, Integer> countMap = albumTrackRepository.countMapByAlbums(albums);
         List<AlbumListItemResponse> dataList = albums.stream()
                 .map(album -> AlbumListItemResponse.from(album, countMap.getOrDefault(album.getId(), 0)))
                 .toList();
-
-        // Sort by trackCount in-memory (computed field, not in DB)
-        if ("trackCount".equals(sort)) {
-            dataList = dataList.stream()
-                    .sorted((a, b) -> Integer.compare(b.trackCount(), a.trackCount()))
-                    .toList();
-        }
 
         return ResponseDTO.<AlbumListItemResponse>builder()
                 .message("Albums retrieved")
@@ -120,7 +113,7 @@ public class AlbumService {
     public AlbumResponse updateAlbum(Long id,
                                      AlbumUpdateRequest request,
                                      MultipartFile thumbnailFile) {
-        Album album = getActiveAlbum(id);
+        Album album = getActiveAlbumForUpdate(id);
 
         String thumbnailUrl = null;
         if (thumbnailFile != null && !thumbnailFile.isEmpty()) {
@@ -142,7 +135,7 @@ public class AlbumService {
 
     @Transactional
     public void deleteAlbum(Long id) {
-        Album album = getActiveAlbum(id);
+        Album album = getActiveAlbumForUpdate(id);
         album.softDelete();
         storageMutationCoordinator.deleteAfterCommit(
                 StorageDomain.ALBUM,
@@ -154,7 +147,7 @@ public class AlbumService {
 
     @Transactional
     public AlbumDetailResponse addTrack(Long albumId, AlbumTrackAddRequest request) {
-        Album album = getActiveAlbum(albumId);
+        Album album = getActiveAlbumForUpdate(albumId);
 
         Track track = trackRepository.findById(request.trackId())
                 .filter(Track::isActive)
@@ -182,31 +175,33 @@ public class AlbumService {
 
     @Transactional
     public void removeTrack(Long albumId, Long trackId) {
-        getActiveAlbum(albumId);
+        Album album = getActiveAlbumForUpdate(albumId);
 
         AlbumTrackId id = new AlbumTrackId(albumId, trackId);
         AlbumTrack albumTrack = albumTrackRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
         albumTrackRepository.delete(albumTrack);
+        compactTrackOrders(albumTrackRepository.findAllByAlbumOrderByTrackOrder(album), trackId);
     }
 
     // -- 15.8 PUT /api/albums/{id}/tracks -------------------------------------
 
     @Transactional
     public AlbumDetailResponse reorderTracks(Long albumId, AlbumTrackOrderRequest request) {
-        Album album = getActiveAlbum(albumId);
+        Album album = getActiveAlbumForUpdate(albumId);
+        List<AlbumTrack> albumTracks = albumTrackRepository.findAllByAlbumOrderByTrackOrder(album);
+        validateAlbumReorderRequest(request, albumTracks);
+
+        Map<Long, AlbumTrack> tracksById = albumTracks.stream()
+                .collect(java.util.stream.Collectors.toMap(track -> track.getTrack().getId(), track -> track));
 
         for (AlbumTrackOrderItem item : request.trackOrders()) {
-            AlbumTrackId id = new AlbumTrackId(albumId, item.trackId());
-            AlbumTrack albumTrack = albumTrackRepository.findById(id)
-                    .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
-            albumTrack.updateOrder(item.order());
+            tracksById.get(item.trackId()).updateOrder(item.order());
         }
 
-        List<AlbumTrackItemResponse> tracks = albumTrackRepository
-                .findAllByAlbumOrderByTrackOrder(album)
-                .stream()
+        List<AlbumTrackItemResponse> tracks = albumTracks.stream()
+                .sorted(java.util.Comparator.comparingInt(AlbumTrack::getTrackOrder))
                 .map(AlbumTrackItemResponse::from)
                 .toList();
 
@@ -218,9 +213,62 @@ public class AlbumService {
     private Album getActiveAlbum(Long id) {
         Album album = albumRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        return requireActive(album);
+    }
+
+    private Album getActiveAlbumForUpdate(Long id) {
+        Album album = albumRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        return requireActive(album);
+    }
+
+    private Album requireActive(Album album) {
         if (!album.isActive()) {
             throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND);
         }
         return album;
+    }
+
+    private void validateCatalogPage(int page, int size) {
+        if (page < 1 || size < 1 || size > MAX_CATALOG_PAGE_SIZE) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+    }
+
+    private void validateAlbumReorderRequest(AlbumTrackOrderRequest request, List<AlbumTrack> albumTracks) {
+        if (request == null || request.trackOrders() == null || request.trackOrders().size() != albumTracks.size()) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
+        Set<Long> requestedTrackIds = new HashSet<>();
+        Set<Integer> requestedOrders = new HashSet<>();
+        for (AlbumTrackOrderItem item : request.trackOrders()) {
+            if (item == null || item.trackId() == null || item.order() == null
+                    || item.order() < 0 || !requestedTrackIds.add(item.trackId())
+                    || !requestedOrders.add(item.order())) {
+                throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+            }
+        }
+
+        Set<Long> existingTrackIds = albumTracks.stream()
+                .map(track -> track.getTrack().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        if (!requestedTrackIds.equals(existingTrackIds)) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+        for (int order = 0; order < albumTracks.size(); order++) {
+            if (!requestedOrders.contains(order)) {
+                throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+            }
+        }
+    }
+
+    private void compactTrackOrders(List<AlbumTrack> albumTracks, Long removedTrackId) {
+        int order = 0;
+        for (AlbumTrack albumTrack : albumTracks) {
+            if (!albumTrack.getTrack().getId().equals(removedTrackId)) {
+                albumTrack.updateOrder(order++);
+            }
+        }
     }
 }

@@ -213,7 +213,9 @@
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 
 .actBtn:hover {
@@ -304,5 +306,4 @@
     height: 24px;
     font-size: 12px;
   }
-
 }

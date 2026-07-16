@@ -33,7 +33,9 @@
   font-family: inherit;
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
   text-align: left;
 }
 

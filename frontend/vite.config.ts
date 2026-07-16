@@ -142,6 +142,13 @@ export function createViteConfig(environment: Record<string, string | undefined>
       environment: 'jsdom',
       setupFiles: './src/test/setup.ts',
       css: true,
+      coverage: {
+        provider: 'v8',
+        reportsDirectory: 'coverage',
+        reporter: ['text', 'html', 'json-summary'],
+        include: ['src/**/*.{ts,tsx}'],
+        exclude: ['src/**/*.d.ts', 'src/**/*.test.{ts,tsx}', 'src/test/**', 'src/main.tsx'],
+      },
     },
   };
 }

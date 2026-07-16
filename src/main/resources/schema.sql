@@ -144,6 +144,7 @@ CREATE TABLE IF NOT EXISTS user_subscriptions
 CREATE TABLE IF NOT EXISTS company_certifications
 (
     id                 BIGINT                                                          NOT NULL AUTO_INCREMENT,
+    version            BIGINT                                                          NOT NULL DEFAULT 0,
     user_id            BIGINT                                                          NOT NULL,
     status             ENUM ('PENDING', 'APPROVED', 'REVISION_REQUESTED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
     admin_note         TEXT                                                            NULL     COMMENT 'Reason for revision request, etc.',
@@ -154,6 +155,7 @@ CREATE TABLE IF NOT EXISTS company_certifications
     updated_at         DATETIME                                                        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_company_certification_code (certification_code),
+    KEY idx_company_certifications_user_status_id (user_id, status, id),
     CONSTRAINT fk_company_certifications_user FOREIGN KEY (user_id) REFERENCES users (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
@@ -174,6 +176,28 @@ CREATE TABLE IF NOT EXISTS company_certification_documents
     CONSTRAINT fk_company_certification_documents_certification
         FOREIGN KEY (certification_id) REFERENCES company_certifications (id)
         ON DELETE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS company_certification_audit_logs
+(
+    id               BIGINT                                      NOT NULL AUTO_INCREMENT,
+    certification_id BIGINT                                      NOT NULL,
+    actor_user_id    BIGINT                                      NOT NULL,
+    action           ENUM ('REVIEWED', 'DOCUMENT_ACCESS_GRANTED') NOT NULL,
+    document_id      BIGINT                                      NULL COMMENT 'Opaque document ID only; no document path or content is stored.',
+    from_status      VARCHAR(30)                                 NULL,
+    to_status        VARCHAR(30)                                 NULL,
+    created_at       DATETIME                                    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at       DATETIME                                    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_company_certification_audit_logs_certification_created (certification_id, created_at),
+    KEY idx_company_certification_audit_logs_actor_created (actor_user_id, created_at),
+    CONSTRAINT fk_company_certification_audit_logs_certification
+        FOREIGN KEY (certification_id) REFERENCES company_certifications (id),
+    CONSTRAINT fk_company_certification_audit_logs_actor
+        FOREIGN KEY (actor_user_id) REFERENCES users (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
@@ -231,6 +255,7 @@ CREATE TABLE IF NOT EXISTS playlists
 CREATE TABLE IF NOT EXISTS whitelist_channels
 (
     id                   BIGINT       NOT NULL AUTO_INCREMENT,
+    version              BIGINT       NOT NULL DEFAULT 0,
     user_id              BIGINT       NOT NULL,
     channel_url          VARCHAR(255) NOT NULL COMMENT 'YouTube channel URL.',
     channel_name         VARCHAR(100) NOT NULL,
@@ -248,7 +273,7 @@ CREATE TABLE IF NOT EXISTS whitelist_channels
     updated_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     KEY idx_whitelist_channels_user_status (user_id, status),
-    KEY idx_whitelist_channels_status_requested (status, requested_at),
+    KEY idx_whitelist_channels_status_requested (status, requested_at, id),
     CONSTRAINT fk_whitelist_channels_user FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_whitelist_channels_processed_by FOREIGN KEY (processed_by) REFERENCES users (id)
 ) ENGINE = InnoDB
@@ -262,6 +287,8 @@ CREATE TABLE IF NOT EXISTS whitelist_export_batches
     item_count  INT          NOT NULL,
     exported_by BIGINT       NULL,
     note        VARCHAR(500) NULL,
+    status_filter ENUM ('DRAFT', 'PENDING', 'EXPORTED', 'REGISTERED', 'REVISION_REQUESTED', 'REJECTED', 'CANCELLED', 'REMOVAL_REQUESTED') NULL,
+    keyword_filter VARCHAR(100) NULL,
     created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -276,9 +303,11 @@ CREATE TABLE IF NOT EXISTS whitelist_export_items
     batch_id                    BIGINT       NOT NULL,
     whitelist_channel_id        BIGINT       NULL,
     status_at_export            ENUM ('DRAFT', 'PENDING', 'EXPORTED', 'REGISTERED', 'REVISION_REQUESTED', 'REJECTED', 'CANCELLED', 'REMOVAL_REQUESTED') NOT NULL,
-    user_id_snapshot            BIGINT       NOT NULL,
+    item_order                   INT          NULL,
+    channel_id_snapshot         BIGINT       NULL,
+    user_id_snapshot            BIGINT       NULL,
     user_email_snapshot         VARCHAR(100) NOT NULL,
-    user_nickname_snapshot      VARCHAR(20)  NOT NULL,
+    user_nickname_snapshot      VARCHAR(20)  NULL,
     channel_name_snapshot       VARCHAR(100) NOT NULL,
     youtube_handle_snapshot     VARCHAR(100) NULL,
     channel_url_snapshot        VARCHAR(255) NOT NULL,
@@ -489,6 +518,7 @@ CREATE TABLE IF NOT EXISTS billing_agreements
     KEY idx_billing_agreements_status_next (status, next_billing_at),
     KEY idx_billing_agreements_renewal_retry (status, renewal_retry_at, id),
     KEY idx_billing_agreements_cleanup (billing_key_cleanup_status, billing_key_cleanup_started_at, id),
+    KEY idx_billing_agreements_local_reconciliation (status, id),
     CONSTRAINT fk_billing_agreements_user FOREIGN KEY (user_id) REFERENCES users (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
@@ -529,6 +559,7 @@ CREATE TABLE IF NOT EXISTS payment_orders
     UNIQUE KEY uq_payment_orders_renewal_period (billing_agreement_id, user_subscription_id, purpose, billing_period_start),
     KEY idx_payment_orders_user_status (user_id, status),
     KEY idx_payment_orders_status_processing (status, processing_started_at),
+    KEY idx_payment_orders_local_reconciliation (status, id, purpose),
     CONSTRAINT fk_payment_orders_user              FOREIGN KEY (user_id)              REFERENCES users              (id),
     CONSTRAINT fk_payment_orders_subscription      FOREIGN KEY (subscription_id)      REFERENCES subscriptions      (id),
     CONSTRAINT fk_payment_orders_user_subscription FOREIGN KEY (user_subscription_id) REFERENCES user_subscriptions (id),

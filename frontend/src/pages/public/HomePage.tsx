@@ -66,9 +66,7 @@ export default function HomePage() {
         setMoodTags(Array.isArray(moodTagsRes) ? moodTagsRes : []);
       } catch (err) {
         if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : 'Failed to load data',
-          );
+          setError(err instanceof Error ? err.message : 'Failed to load data');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -108,9 +106,7 @@ export default function HomePage() {
   }
 
   function handleGenreExplore() {
-    const names = genreTags
-      .filter((t) => selectedGenres.has(t.id))
-      .map((t) => t.name);
+    const names = genreTags.filter((t) => selectedGenres.has(t.id)).map((t) => t.name);
     if (names.length > 0) {
       const params = new URLSearchParams();
       names.forEach((name) => params.append('genre', name));
@@ -121,9 +117,7 @@ export default function HomePage() {
   }
 
   function handleMoodExplore() {
-    const names = moodTags
-      .filter((t) => selectedMoods.has(t.id))
-      .map((t) => t.name);
+    const names = moodTags.filter((t) => selectedMoods.has(t.id)).map((t) => t.name);
     if (names.length > 0) {
       const params = new URLSearchParams();
       names.forEach((name) => params.append('mood', name));
@@ -166,9 +160,7 @@ export default function HomePage() {
       {/* ── HERO ── */}
       <section className={styles.hero}>
         <div className={styles.heroBody}>
-          <div className={styles.heroBadge}>
-            {'\u2726'} New Release
-          </div>
+          <div className={styles.heroBadge}>{'\u2726'} New Release</div>
           <h1 className={styles.heroTitle}>
             {'쇼츠를 위한'}
             <br />
@@ -230,11 +222,7 @@ export default function HomePage() {
                 {'\u2039'}
               </button>
             )}
-            <div
-              className={styles.carousel}
-              ref={carouselRef}
-              onScroll={updateScrollState}
-            >
+            <div className={styles.carousel} ref={carouselRef} onScroll={updateScrollState}>
               {newAlbums.map((album) => (
                 <AlbumCard
                   key={album.id}
@@ -283,11 +271,7 @@ export default function HomePage() {
         ) : (
           <div className={styles.albumGrid}>
             {popularAlbums.map((album) => (
-              <AlbumCard
-                key={album.id}
-                album={album}
-                onClick={handleAlbumClick}
-              />
+              <AlbumCard key={album.id} album={album} onClick={handleAlbumClick} />
             ))}
           </div>
         )}
@@ -320,17 +304,19 @@ export default function HomePage() {
         ) : (
           <div className={styles.trackList}>
             {newTracks.map((track, idx) => (
-              <Link
-                key={track.id}
-                to={`/tracks/${track.id}`}
-                className={styles.trackItem}
-              >
+              <Link key={track.id} to={`/tracks/${track.id}`} className={styles.trackItem}>
                 <span className={styles.trackNum}>{idx + 1}</span>
                 <span className={styles.trackTitle}>{track.title}</span>
                 <span className={styles.trackMeta}>
                   {track.tags.some((t) => t.type === 'USAGE')
-                    ? track.tags.filter((t) => t.type === 'USAGE').map((t) => `#${t.name}`).join(', ')
-                    : track.tags.filter((t) => t.type === 'GENRE').map((t) => t.name).join(', ')}
+                    ? track.tags
+                        .filter((t) => t.type === 'USAGE')
+                        .map((t) => `#${t.name}`)
+                        .join(', ')
+                    : track.tags
+                        .filter((t) => t.type === 'GENRE')
+                        .map((t) => t.name)
+                        .join(', ')}
                 </span>
                 <span className={styles.trackDur}>
                   {track.duration
@@ -401,20 +387,26 @@ export default function HomePage() {
         </div>
         <div>
           <div className={styles.ftHead}>{'음원'}</div>
-          <Link to="/tracks" className={styles.ftLink}>{'음원 목록'}</Link>
-          <Link to="/albums" className={styles.ftLink}>{'앨범'}</Link>
+          <Link to="/tracks" className={styles.ftLink}>
+            {'음원 목록'}
+          </Link>
+          <Link to="/albums" className={styles.ftLink}>
+            {'앨범'}
+          </Link>
         </div>
         <div>
           <div className={styles.ftHead}>{'구독'}</div>
-          <Link to="/subscriptions" className={styles.ftLink}>{'구독 플랜'}</Link>
+          <Link to="/subscriptions" className={styles.ftLink}>
+            {'구독 플랜'}
+          </Link>
         </div>
         <div>
           <div className={styles.ftHead}>{'고객지원'}</div>
-          <Link to="/notices" className={styles.ftLink}>{'공지사항'}</Link>
+          <Link to="/notices" className={styles.ftLink}>
+            {'공지사항'}
+          </Link>
         </div>
-        <div className={styles.ftCopy}>
-          {'\u00A9 2026 AT.M. All rights reserved.'}
-        </div>
+        <div className={styles.ftCopy}>{'\u00A9 2026 AT.M. All rights reserved.'}</div>
       </footer>
     </>
   );

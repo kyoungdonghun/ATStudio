@@ -11,20 +11,26 @@ export async function fetchTags(type?: string): Promise<TagItem[]> {
 }
 
 /** GET /api/tags/available -- tags from tracks matching current filters */
-export async function fetchAvailableTags(params: {
-  genre?: string;
-  mood?: string;
-  usage?: string;
-  bpmMin?: number;
-  bpmMax?: number;
-}): Promise<TagItem[]> {
+export async function fetchAvailableTags(
+  params: {
+    genre?: string;
+    mood?: string;
+    usage?: string;
+    bpmMin?: number;
+    bpmMax?: number;
+  },
+  signal?: AbortSignal,
+): Promise<TagItem[]> {
   const query: Record<string, string | number> = {};
   if (params.genre) query.genre = params.genre;
   if (params.mood) query.mood = params.mood;
   if (params.usage) query.usage = params.usage;
   if (params.bpmMin !== undefined) query.bpmMin = params.bpmMin;
   if (params.bpmMax !== undefined) query.bpmMax = params.bpmMax;
-  const { data } = await client.get<{ dataList: TagItem[] }>('/tags/available', { params: query });
+  const { data } = await client.get<{ dataList: TagItem[] }>('/tags/available', {
+    params: query,
+    signal,
+  });
   return data.dataList;
 }
 
@@ -45,10 +51,7 @@ export async function createTag(body: TagCreateRequest): Promise<TagItem> {
   return data.data;
 }
 
-export async function updateTag(
-  tagId: number,
-  body: TagUpdateRequest,
-): Promise<TagItem> {
+export async function updateTag(tagId: number, body: TagUpdateRequest): Promise<TagItem> {
   const { data } = await client.put<{ data: TagItem }>(`/tags/${tagId}`, body);
   return data.data;
 }

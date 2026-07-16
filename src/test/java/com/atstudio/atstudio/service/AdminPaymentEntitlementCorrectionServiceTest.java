@@ -27,6 +27,7 @@ import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.repository.PaymentEntitlementCorrectionRepository;
+import com.atstudio.atstudio.repository.PaymentOrderRepository;
 import com.atstudio.atstudio.repository.PaymentRefundRepository;
 import com.atstudio.atstudio.repository.SubscriptionRepository;
 import com.atstudio.atstudio.repository.UserRepository;
@@ -52,13 +53,20 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.inOrder;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AdminPaymentEntitlementCorrectionService unit tests")
 class AdminPaymentEntitlementCorrectionServiceTest {
 
+    private static final LocalDateTime CORRECTION_CREATED_AT =
+            LocalDateTime.of(2026, 7, 16, 10, 0);
+    private static final LocalDateTime AGREEMENT_UPDATED_BEFORE_CORRECTION =
+            CORRECTION_CREATED_AT.minusSeconds(1);
+
     @Mock PaymentEntitlementCorrectionRepository correctionRepository;
     @Mock PaymentRefundRepository paymentRefundRepository;
+    @Mock PaymentOrderRepository paymentOrderRepository;
     @Mock SubscriptionRepository subscriptionRepository;
     @Mock UserSubscriptionRepository userSubscriptionRepository;
     @Mock BillingAgreementRepository billingAgreementRepository;
@@ -72,6 +80,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
         service = new AdminPaymentEntitlementCorrectionService(
                 correctionRepository,
                 paymentRefundRepository,
+                paymentOrderRepository,
                 subscriptionRepository,
                 userSubscriptionRepository,
                 billingAgreementRepository,
@@ -86,7 +95,8 @@ class AdminPaymentEntitlementCorrectionServiceTest {
         AdminPaymentEntitlementCorrectionRequest request = request(fixture.standard().getId());
         given(paymentRefundRepository.findWithGraphById(77L)).willReturn(Optional.of(fixture.refund()));
         given(subscriptionRepository.findById(fixture.standard().getId())).willReturn(Optional.of(fixture.standard()));
-        given(billingAgreementRepository.findByUserAndProvider(fixture.user(), PaymentProviderType.TOSS_BILLING))
+        given(billingAgreementRepository.findByUserAndProvider(
+                fixture.user(), PaymentProviderType.TOSS_BILLING))
                 .willReturn(Optional.of(fixture.agreement()));
 
         var response = service.previewCorrection(request).getData();
@@ -107,7 +117,10 @@ class AdminPaymentEntitlementCorrectionServiceTest {
         User admin = admin();
         given(paymentRefundRepository.findWithGraphById(77L)).willReturn(Optional.of(fixture.refund()));
         given(subscriptionRepository.findById(fixture.standard().getId())).willReturn(Optional.of(fixture.standard()));
-        given(billingAgreementRepository.findByUserAndProvider(fixture.user(), PaymentProviderType.TOSS_BILLING))
+        given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
+                .willReturn(Optional.of(fixture.userSubscription()));
+        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
+                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
                 .willReturn(Optional.of(fixture.agreement()));
         given(userRepository.findById(99L)).willReturn(Optional.of(admin));
         given(correctionRepository.save(any(PaymentEntitlementCorrection.class)))
@@ -135,6 +148,10 @@ class AdminPaymentEntitlementCorrectionServiceTest {
                 org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.eq(PaymentEntitlementCorrectionStatus.REQUESTED),
                 org.mockito.ArgumentMatchers.eq("full refund correction"));
+        org.mockito.InOrder lockOrder = inOrder(billingAgreementRepository, userSubscriptionRepository);
+        lockOrder.verify(billingAgreementRepository).findByUserIDAndProviderForUpdate(
+                fixture.user().getId(), PaymentProviderType.TOSS_BILLING);
+        lockOrder.verify(userSubscriptionRepository).findByIdForUpdate(fixture.userSubscription().getId());
     }
 
     @Test
@@ -143,6 +160,28 @@ class AdminPaymentEntitlementCorrectionServiceTest {
         Fixture fixture = fixture(PaymentRefundStatus.PENDING_PROVIDER_CONFIRMATION);
         given(paymentRefundRepository.findWithGraphById(77L)).willReturn(Optional.of(fixture.refund()));
         given(subscriptionRepository.findById(fixture.standard().getId())).willReturn(Optional.of(fixture.standard()));
+        given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
+                .willReturn(Optional.of(fixture.userSubscription()));
+
+        assertThatThrownBy(() -> service.createCorrection(actor(), request(fixture.standard().getId())))
+                .isInstanceOf(BusinessException.class);
+
+        verify(correctionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("createCorrection rejects another non-terminal correction for the refund and subscription")
+    void createCorrectionRejectsDuplicateNonTerminalCorrection() {
+        Fixture fixture = fixture(PaymentRefundStatus.SUCCEEDED);
+        given(paymentRefundRepository.findWithGraphById(77L)).willReturn(Optional.of(fixture.refund()));
+        given(subscriptionRepository.findById(fixture.standard().getId())).willReturn(Optional.of(fixture.standard()));
+        given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
+                .willReturn(Optional.of(fixture.userSubscription()));
+        given(correctionRepository.existsByPaymentRefund_IdAndUserSubscription_IdAndStatusIn(
+                org.mockito.ArgumentMatchers.eq(77L),
+                org.mockito.ArgumentMatchers.eq(fixture.userSubscription().getId()),
+                any()))
+                .willReturn(true);
 
         assertThatThrownBy(() -> service.createCorrection(actor(), request(fixture.standard().getId())))
                 .isInstanceOf(BusinessException.class);
@@ -177,7 +216,8 @@ class AdminPaymentEntitlementCorrectionServiceTest {
         given(userRepository.findById(99L)).willReturn(Optional.of(admin));
         given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
                 .willReturn(Optional.of(fixture.userSubscription()));
-        given(billingAgreementRepository.findByUserAndProvider(fixture.user(), PaymentProviderType.TOSS_BILLING))
+        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
+                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
                 .willReturn(Optional.of(fixture.agreement()));
 
         service.executeCorrection(
@@ -206,6 +246,191 @@ class AdminPaymentEntitlementCorrectionServiceTest {
                 org.mockito.ArgumentMatchers.eq(PaymentEntitlementCorrectionStatus.PROCESSING),
                 org.mockito.ArgumentMatchers.eq(PaymentEntitlementCorrectionStatus.SUCCEEDED),
                 org.mockito.ArgumentMatchers.isNull());
+    }
+
+    @Test
+    @DisplayName("executeCorrection rejects a stale before-state snapshot")
+    void executeCorrectionRejectsStaleBeforeState() {
+        Fixture fixture = fixture(PaymentRefundStatus.SUCCEEDED);
+        PaymentEntitlementCorrection correction =
+                correction(fixture, PaymentEntitlementCorrectionStatus.APPROVED);
+        fixture.userSubscription().applyEntitlementCorrection(
+                fixture.standard(),
+                BillingCycle.MONTHLY,
+                SubscriptionStatus.ACTIVE,
+                LocalDate.now().plusMonths(1),
+                true);
+        given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(correction));
+        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
+                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
+                .willReturn(Optional.of(fixture.agreement()));
+        given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
+                .willReturn(Optional.of(fixture.userSubscription()));
+
+        assertThatThrownBy(() -> service.executeCorrection(
+                88L,
+                actor(),
+                new AdminPaymentEntitlementCorrectionExecuteRequest("stale")))
+                .isInstanceOf(BusinessException.class);
+
+        assertThat(correction.getStatus()).isEqualTo(PaymentEntitlementCorrectionStatus.APPROVED);
+        verify(auditLogService, never()).recordPaymentEntitlementCorrectionEvent(
+                any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("executeCorrection rejects billing agreement drift from the captured before-state")
+    void executeCorrectionRejectsAgreementDrift() {
+        Fixture fixture = fixture(PaymentRefundStatus.SUCCEEDED);
+        PaymentEntitlementCorrection correction =
+                correction(fixture, PaymentEntitlementCorrectionStatus.APPROVED);
+        fixture.agreement().cancel();
+        given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(correction));
+        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
+                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
+                .willReturn(Optional.of(fixture.agreement()));
+        given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
+                .willReturn(Optional.of(fixture.userSubscription()));
+
+        assertThatThrownBy(() -> service.executeCorrection(
+                88L,
+                actor(),
+                new AdminPaymentEntitlementCorrectionExecuteRequest("stale agreement")))
+                .isInstanceOf(BusinessException.class);
+
+        assertThat(correction.getStatus()).isEqualTo(PaymentEntitlementCorrectionStatus.APPROVED);
+        assertThat(fixture.userSubscription().getSubscription()).isEqualTo(fixture.premium());
+    }
+
+    @Test
+    @DisplayName("executeCorrection rejects a completed same-status billing agreement replacement")
+    void executeCorrectionRejectsSameStatusAgreementReplacement() {
+        Fixture fixture = fixture(PaymentRefundStatus.SUCCEEDED);
+        PaymentEntitlementCorrection correction =
+                correction(fixture, PaymentEntitlementCorrectionStatus.APPROVED);
+        fixture.agreement().prepareRegistration("replacement-customer-key");
+        fixture.agreement().activate(
+                "replacement-encrypted",
+                "replacement-fingerprint",
+                "CARD",
+                "**** 4321",
+                LocalDate.of(2027, 5, 25));
+        ReflectionTestUtils.setField(
+                fixture.agreement(),
+                "updatedAt",
+                CORRECTION_CREATED_AT.plusSeconds(1));
+        given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(correction));
+        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
+                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
+                .willReturn(Optional.of(fixture.agreement()));
+        given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
+                .willReturn(Optional.of(fixture.userSubscription()));
+
+        assertThatThrownBy(() -> service.executeCorrection(
+                88L,
+                actor(),
+                new AdminPaymentEntitlementCorrectionExecuteRequest("stale replacement")))
+                .isInstanceOf(BusinessException.class);
+
+        assertThat(correction.getStatus()).isEqualTo(PaymentEntitlementCorrectionStatus.APPROVED);
+        assertThat(fixture.userSubscription().getSubscription()).isEqualTo(fixture.premium());
+        assertThat(fixture.agreement().getStatus()).isEqualTo(BillingAgreementStatus.ACTIVE);
+        assertThat(fixture.agreement().getBillingKeyFingerprint()).isEqualTo("replacement-fingerprint");
+        verify(auditLogService, never()).recordPaymentEntitlementCorrectionEvent(
+                any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("executeCorrection treats equal agreement and correction timestamps as stale")
+    void executeCorrectionRejectsEqualAgreementRevisionTimestamp() {
+        Fixture fixture = fixture(PaymentRefundStatus.SUCCEEDED);
+        PaymentEntitlementCorrection correction =
+                correction(fixture, PaymentEntitlementCorrectionStatus.APPROVED);
+        ReflectionTestUtils.setField(fixture.agreement(), "updatedAt", CORRECTION_CREATED_AT);
+        given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(correction));
+        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
+                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
+                .willReturn(Optional.of(fixture.agreement()));
+        given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
+                .willReturn(Optional.of(fixture.userSubscription()));
+
+        assertThatThrownBy(() -> service.executeCorrection(
+                88L,
+                actor(),
+                new AdminPaymentEntitlementCorrectionExecuteRequest("ambiguous revision")))
+                .isInstanceOf(BusinessException.class);
+
+        assertThat(fixture.agreement().getStatus()).isEqualTo(BillingAgreementStatus.ACTIVE);
+        assertThat(correction.getStatus()).isEqualTo(PaymentEntitlementCorrectionStatus.APPROVED);
+    }
+
+    @Test
+    @DisplayName("executeCorrection treats missing agreement revision timestamps as stale")
+    void executeCorrectionRejectsMissingAgreementRevisionTimestamp() {
+        Fixture fixture = fixture(PaymentRefundStatus.SUCCEEDED);
+        PaymentEntitlementCorrection correction =
+                correction(fixture, PaymentEntitlementCorrectionStatus.APPROVED);
+        ReflectionTestUtils.setField(fixture.agreement(), "updatedAt", null);
+        given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(correction));
+        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
+                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
+                .willReturn(Optional.of(fixture.agreement()));
+        given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
+                .willReturn(Optional.of(fixture.userSubscription()));
+
+        assertThatThrownBy(() -> service.executeCorrection(
+                88L,
+                actor(),
+                new AdminPaymentEntitlementCorrectionExecuteRequest("missing revision")))
+                .isInstanceOf(BusinessException.class);
+
+        assertThat(fixture.agreement().getStatus()).isEqualTo(BillingAgreementStatus.ACTIVE);
+        assertThat(correction.getStatus()).isEqualTo(PaymentEntitlementCorrectionStatus.APPROVED);
+    }
+
+    @Test
+    @DisplayName("executeCorrection rejects an order that can still receive a Provider outcome")
+    void executeCorrectionRejectsNonTerminalPayment() {
+        Fixture fixture = fixture(PaymentRefundStatus.SUCCEEDED);
+        PaymentEntitlementCorrection correction =
+                correction(fixture, PaymentEntitlementCorrectionStatus.APPROVED);
+        given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(correction));
+        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
+                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
+                .willReturn(Optional.of(fixture.agreement()));
+        given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
+                .willReturn(Optional.of(fixture.userSubscription()));
+        given(paymentOrderRepository.existsByBillingAgreementAndPurposeInAndStatusIn(any(), any(), any()))
+                .willReturn(true);
+
+        assertThatThrownBy(() -> service.executeCorrection(
+                88L,
+                actor(),
+                new AdminPaymentEntitlementCorrectionExecuteRequest("in flight")))
+                .isInstanceOf(BusinessException.class);
+
+        assertThat(correction.getStatus()).isEqualTo(PaymentEntitlementCorrectionStatus.APPROVED);
+        verify(auditLogService, never()).recordPaymentEntitlementCorrectionEvent(
+                any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("executeCorrection returns an already succeeded correction without applying it again")
+    void executeCorrectionSucceededRetryIsIdempotent() {
+        Fixture fixture = fixture(PaymentRefundStatus.SUCCEEDED);
+        PaymentEntitlementCorrection correction =
+                correction(fixture, PaymentEntitlementCorrectionStatus.SUCCEEDED);
+        given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(correction));
+
+        var response = service.executeCorrection(
+                88L,
+                actor(),
+                new AdminPaymentEntitlementCorrectionExecuteRequest("retry"));
+
+        assertThat(response.getData().status()).isEqualTo(PaymentEntitlementCorrectionStatus.SUCCEEDED);
+        verify(userSubscriptionRepository, never()).findByIdForUpdate(any());
+        verify(auditLogService, never()).recordPaymentEntitlementCorrectionEvent(
+                any(), any(), any(), any(), any(), any());
     }
 
     private AdminPaymentEntitlementCorrectionRequest request(Long targetSubscriptionId) {
@@ -248,6 +473,8 @@ class AdminPaymentEntitlementCorrectionServiceTest {
                 .reasonNote("full refund correction")
                 .build();
         ReflectionTestUtils.setField(correction, "id", 88L);
+        ReflectionTestUtils.setField(correction, "createdAt", CORRECTION_CREATED_AT);
+        ReflectionTestUtils.setField(correction, "updatedAt", CORRECTION_CREATED_AT);
         return correction;
     }
 
@@ -339,6 +566,14 @@ class AdminPaymentEntitlementCorrectionServiceTest {
                 .billingKeyFingerprint("fingerprint")
                 .nextBillingAt(LocalDate.of(2027, 5, 25))
                 .build();
+        ReflectionTestUtils.setField(
+                agreement,
+                "createdAt",
+                AGREEMENT_UPDATED_BEFORE_CORRECTION.minusDays(1));
+        ReflectionTestUtils.setField(
+                agreement,
+                "updatedAt",
+                AGREEMENT_UPDATED_BEFORE_CORRECTION);
         return new Fixture(user, standard, premium, userSubscription, order, payment, refund, agreement);
     }
 

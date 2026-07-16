@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-07-15
+version: 1.3
+last_updated: 2026-07-16
 project: ATS
 owner: docops
 category: guide
@@ -36,9 +36,9 @@ dependencies:
 | Toss recurring subscription checkout | Implemented | User-facing subscription purchase uses Toss billing-key flow through `/subscriptions/checkout`. |
 | Billing-key registration | Implemented | Toss `authKey` and `customerKey` are exchanged server-side for a billing key. |
 | Immediate first charge | Implemented | A new subscription charges the first period immediately after billing-key registration succeeds. |
-| Billing method re-registration | Implemented | Existing subscribers can register a new automatic payment method without changing the current plan during registration. |
+| Billing method re-registration | Implemented | Existing subscribers use a zero-amount `BILLING_AGREEMENT` order. Registration does not charge the card or change the current plan/period. |
 | Mock payment provider separation | Implemented with constraint | Mock provider remains for legacy/non-subscription test paths. User-facing subscription checkout does not fall back to mock payment. |
-| One-time subscription payment | Implemented with constraint | Legacy prepare/confirm paths are blocked for subscription `SUBSCRIBE` and `UPGRADE` purposes. |
+| One-time subscription payment | Implemented with constraint | Legacy prepare/confirm paths are retained only to block subscription `SUBSCRIBE` and `UPGRADE`. Removal requires caller/telemetry evidence, replacement-route coverage, coordinated docs/tests, approval, and rollback guidance. |
 | Direct subscription creation endpoint | Implemented with constraint | `POST /api/user-subscriptions` is blocked with `SUBSCRIPTION_CHECKOUT_REQUIRED`. |
 
 ## 3. Plan Change and Cancellation
@@ -61,7 +61,7 @@ dependencies:
 
 | Capability | Status | Notes |
 | :-- | :-- | :-- |
-| Daily recurring renewal scheduler | Implemented | Runs at 00:00 server time through `SubscriptionScheduler.processRecurringRenewals()`. |
+| Daily recurring renewal scheduler | Implemented | Runs at 00:00 in `app.payment.scheduler-zone`, default `Asia/Seoul`, through `SubscriptionScheduler.processRecurringRenewals()`. |
 | Stale payment order expiration | Implemented | Runs at 00:10 and expires `READY` or `IN_PROGRESS` payment orders past `expiresAt`. |
 | Subscription expiration scheduler | Implemented | Runs at 00:30 after renewal/grace handling. |
 | Renewal failure grace period | Implemented | 3-day grace period. |
@@ -107,11 +107,11 @@ dependencies:
 | Capability | Status | Notes |
 | :-- | :-- | :-- |
 | Local ledger reconciliation | Implemented | Admin/API and scheduled process can compare local payment ledger consistency. |
-| Toss provider reconciliation | Implemented | Recent Toss billing payment orders can be checked against provider lookup by order ID when configured. |
+| Toss provider reconciliation | Implemented | Nonterminal/finalization candidates are scanned by ascending-ID keyset batches. Locally `DONE` Toss billing orders are rechecked only within the configured age window and per-run cap; locally succeeded refunds are skipped because a completed cancellation can legitimately make the original provider payment non-`DONE`. Full mismatch counters are independent from capped returned issue details. |
 | Finalize-only reconciliation | Implemented | Exact provider evidence may persist success and dispatch the existing purpose finalizer; contradictory evidence remains Incident-only. |
 | Persistent reconciliation incidents | Implemented | `payment_reconciliation_incidents` stores deduped incident state, severity, occurrence count, and operator workflow. |
 | Withdrawal cleanup incidents | Implemented | The same Incident ledger records Provider billing-key deletion failure without storing the raw key; repeated failures increment one agreement-scoped row. |
-| Scheduled reconciliation | Implemented | Runs daily at 01:00 server time. |
+| Scheduled reconciliation | Implemented | Runs daily at 01:00 in `app.payment.scheduler-zone`, default `Asia/Seoul`. |
 | Optional operator notification | Implemented with constraint | Sends notification only when explicitly configured. |
 | Settlement CSV import | Implemented | Admin uploads CSV settlement evidence into `payment_settlements`. Excel sources must be exported to CSV first. |
 | Settlement mismatch detection | Implemented | Compares gross, refund, fee, VAT, and net settlement amounts against local payment/refund ledgers. |
@@ -150,6 +150,8 @@ dependencies:
 - The current code/test gate passed independent follow-up review in `WI-20260715-ATS-012`.
 - The final disposable MySQL 8/InnoDB proof passed schema creation, Hibernate validation, all seven required races, and cleanup.
 - Retained-database migration, live Toss, production deployment, and client acceptance remain open; see [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md).
+- The active development branch uses Vite 6.4.3 and reports 0 production and 0 unfiltered npm audit findings. Coverage remains an observed baseline, not a release threshold.
+- The frozen `codex/client-demo-stable` branch remains read-only at Vite 6.4.1 with 5 production and 13 total audit findings. That branch-specific environment is not approved for public Vite exposure without user-authorized remediation or controlled access.
 
 ## Related Documents
 

@@ -1,8 +1,9 @@
 /** Screen B-1: Track detail */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { fetchTrackDetail, type TrackDetail } from '@/api/tracks';
 import { toUploadUrl, getApiErrorCode } from '@/api/client';
+import { classifyLoadError } from '@/api/loadError';
 import { downloadTrack, triggerBlobDownload, fetchDownloadCount } from '@/api/downloads';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
@@ -19,6 +20,7 @@ export default function TrackDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [showPlModal, setShowPlModal] = useState(false);
   const [dlStatus, setDlStatus] = useState<'idle' | 'downloading'>('idle');
+  const loadGenerationRef = useRef(0);
 
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlayerPlaying = usePlayerStore((s) => s.isPlaying);
@@ -36,12 +38,31 @@ export default function TrackDetailPage() {
   useEffect(() => {
     if (!trackId) return;
 
+    const generation = ++loadGenerationRef.current;
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
-    fetchTrackDetail(Number(trackId))
-      .then(setTrack)
-      .catch(() => setError('Failed to load track'))
-      .finally(() => setLoading(false));
+    setTrack(null);
+    fetchTrackDetail(Number(trackId), controller.signal)
+      .then((nextTrack) => {
+        if (loadGenerationRef.current === generation) setTrack(nextTrack);
+      })
+      .catch((loadError: unknown) => {
+        if (
+          loadGenerationRef.current === generation &&
+          classifyLoadError(loadError) !== 'cancelled'
+        ) {
+          setError('Failed to load track');
+        }
+      })
+      .finally(() => {
+        if (loadGenerationRef.current === generation) setLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+      if (loadGenerationRef.current === generation) loadGenerationRef.current += 1;
+    };
   }, [trackId]);
 
   useEffect(() => {

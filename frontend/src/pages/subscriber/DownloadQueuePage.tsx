@@ -1,5 +1,5 @@
 /** SR-79: 다운로드 기록 (download history), served on the legacy /download-queue route. */
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   downloadTrack,
@@ -11,6 +11,7 @@ import {
   type DownloadHistoryItem,
 } from '@/api/downloads';
 import { toUploadUrl } from '@/api/client';
+import { classifyLoadError } from '@/api/loadError';
 import { formatDateTime } from '@/utils/format';
 import { usePlayerStore } from '@/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
@@ -50,6 +51,7 @@ export default function DownloadHistoryPage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [keywordInput, setKeywordInput] = useState(urlKeyword);
   const [confirmDownloadAllIds, setConfirmDownloadAllIds] = useState<number[] | null>(null);
+  const loadGenerationRef = useRef(0);
 
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlayerPlaying = usePlayerStore((s) => s.isPlaying);
@@ -66,32 +68,56 @@ export default function DownloadHistoryPage() {
     setKeywordInput(urlKeyword);
   }, [urlKeyword]);
 
-  const load = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const [historyResult, countResult] = await Promise.all([
-        fetchDownloadHistory({
-          page: currentPage,
-          size: PAGE_SIZE,
-          keyword: urlKeyword || undefined,
-          sort: urlSort,
-        }),
-        isAdmin ? Promise.resolve(null) : fetchDownloadCount().catch(() => null),
-      ]);
-      setItems(historyResult.dataList ?? []);
-      setPageInfo(historyResult.pageInfo ?? defaultPageInfo);
-      setDlCount(countResult);
-      setSelectedIds(new Set());
-    } catch {
-      setError('다운로드 기록을 불러오지 못했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  }, [currentPage, urlKeyword, urlSort, isAdmin]);
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      const generation = ++loadGenerationRef.current;
+      try {
+        setLoading(true);
+        setError(null);
+        const [historyResult, countResult] = await Promise.all([
+          fetchDownloadHistory(
+            {
+              page: currentPage,
+              size: PAGE_SIZE,
+              keyword: urlKeyword || undefined,
+              sort: urlSort,
+            },
+            signal,
+          ),
+          isAdmin
+            ? Promise.resolve(null)
+            : fetchDownloadCount(signal).catch((loadError: unknown) => {
+                if (classifyLoadError(loadError) === 'cancelled') throw loadError;
+                return null;
+              }),
+        ]);
+        if (loadGenerationRef.current === generation) {
+          setItems(historyResult.dataList ?? []);
+          setPageInfo(historyResult.pageInfo ?? defaultPageInfo);
+          setDlCount(countResult);
+          setSelectedIds(new Set());
+        }
+      } catch (loadError: unknown) {
+        if (
+          loadGenerationRef.current === generation &&
+          classifyLoadError(loadError) !== 'cancelled'
+        ) {
+          setError('다운로드 기록을 불러오지 못했습니다.');
+        }
+      } finally {
+        if (loadGenerationRef.current === generation) setLoading(false);
+      }
+    },
+    [currentPage, urlKeyword, urlSort, isAdmin],
+  );
 
   useEffect(() => {
-    load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => {
+      controller.abort();
+      loadGenerationRef.current += 1;
+    };
   }, [load]);
 
   /* SR-83: Publish downloaded tracks as player context so Next/Prev traverses them.
@@ -188,7 +214,9 @@ export default function DownloadHistoryPage() {
         toast('error', `${ok}곡 성공, ${fail}곡 실패`);
       }
       if (!isAdmin) {
-        fetchDownloadCount().then(setDlCount).catch(() => {});
+        fetchDownloadCount()
+          .then(setDlCount)
+          .catch(() => {});
       }
     } finally {
       setBulkBusy(false);
@@ -266,9 +294,7 @@ export default function DownloadHistoryPage() {
   }
 
   const allSelected = useMemo(
-    () =>
-      items.length > 0 &&
-      items.every((i) => selectedIds.has(i.downloadId)),
+    () => items.length > 0 && items.every((i) => selectedIds.has(i.downloadId)),
     [items, selectedIds],
   );
   // Derive selected unique track count for button label.
@@ -285,9 +311,7 @@ export default function DownloadHistoryPage() {
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>
           {'다운로드 기록'}
-          {pageInfo.total > 0 && (
-            <span className={styles.count}>{pageInfo.total}건</span>
-          )}
+          {pageInfo.total > 0 && <span className={styles.count}>{pageInfo.total}건</span>}
         </h1>
       </div>
 
@@ -320,11 +344,7 @@ export default function DownloadHistoryPage() {
             {'검색'}
           </button>
         </form>
-        <select
-          className={styles.sortSelect}
-          value={urlSort}
-          onChange={handleSortChange}
-        >
+        <select className={styles.sortSelect} value={urlSort} onChange={handleSortChange}>
           <option value="latest">{'최신순'}</option>
           <option value="oldest">{'오래된순'}</option>
         </select>
@@ -354,11 +374,7 @@ export default function DownloadHistoryPage() {
         <div className={styles.error}>{error}</div>
       ) : items.length === 0 ? (
         <div className={styles.empty}>
-          <p>
-            {urlKeyword
-              ? '검색 결과가 없습니다.'
-              : '다운로드 기록이 없습니다.'}
-          </p>
+          <p>{urlKeyword ? '검색 결과가 없습니다.' : '다운로드 기록이 없습니다.'}</p>
           <Link to="/tracks" className={styles.emptyLink}>
             {'음원 둘러보기'}
           </Link>
@@ -398,24 +414,15 @@ export default function DownloadHistoryPage() {
                       </td>
                       <td className={styles.cellInfo}>
                         <div className={styles.info}>
-                          <div
-                            className={styles.thumb}
-                            onClick={() => handlePlay(item)}
-                          >
+                          <div className={styles.thumb} onClick={() => handlePlay(item)}>
                             {item.thumbnail ? (
-                              <img
-                                src={toUploadUrl(item.thumbnail)!}
-                                alt={item.title}
-                              />
+                              <img src={toUploadUrl(item.thumbnail)!} alt={item.title} />
                             ) : (
                               '\u266A'
                             )}
                           </div>
                           <div className={styles.infoText}>
-                            <Link
-                              to={`/tracks/${item.trackId}`}
-                              className={styles.titleLink}
-                            >
+                            <Link to={`/tracks/${item.trackId}`} className={styles.titleLink}>
                               {item.title}
                             </Link>
                           </div>
@@ -436,9 +443,7 @@ export default function DownloadHistoryPage() {
                       </td>
                       <td className={styles.cellBpm}>{item.bpm ?? '-'}</td>
                       <td className={styles.cellKey}>{item.tonality ?? '-'}</td>
-                      <td className={styles.cellDate}>
-                        {formatDateTime(item.downloadedAt)}
-                      </td>
+                      <td className={styles.cellDate}>{formatDateTime(item.downloadedAt)}</td>
                       <td className={styles.cellActs}>
                         <button
                           className={styles.dlBtn}

@@ -52,7 +52,9 @@
   border: 1px solid var(--border2);
   background: var(--bg1);
   color: var(--text1);
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .userTypeTab:first-child {
@@ -108,7 +110,9 @@
   height: 18px;
   background: var(--bg0);
   border-radius: 50%;
-  transition: left 0.2s, right 0.2s;
+  transition:
+    left 0.2s,
+    right 0.2s;
 }
 
 .badgeSave {

@@ -1,14 +1,17 @@
 package com.atstudio.atstudio.service;
 
+import com.atstudio.atstudio.config.PaymentProperties;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.PaymentReconciliationIssueType;
 import com.atstudio.atstudio.service.PaymentReconciliationTransactionService.EvidenceAssessment;
+import com.atstudio.atstudio.service.PaymentReconciliationTransactionService.CompletedProviderLookupClaim;
+import com.atstudio.atstudio.service.PaymentReconciliationTransactionService.LocalReconciliationBatch;
 import com.atstudio.atstudio.service.PaymentReconciliationTransactionService.ProviderLookupClaim;
 import com.atstudio.atstudio.service.payment.provider.recurring.PaymentStatusLookupProvider;
 import com.atstudio.atstudio.service.payment.provider.recurring.ProviderPaymentLookupResult;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -16,45 +19,266 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class PaymentReconciliationService {
 
-    private static final int PROVIDER_CANDIDATE_PAGE_SIZE = 100;
+    private static final int MAX_RECONCILIATION_BATCH_SIZE = 1000;
+    private static final int MAX_ISSUE_DETAIL_LIMIT = 500;
+    private static final int MAX_COMPLETED_ORDER_LOOKBACK_DAYS = 365;
+    private static final int MAX_COMPLETED_ORDER_CHECKS_PER_RUN = 5000;
     private static final int STALE_PROCESSING_MINUTES = 15;
+    private static final long FIRST_CANDIDATE_ID = 0L;
 
     private final PaymentReconciliationTransactionService reconciliationTransactions;
     private final List<PaymentStatusLookupProvider> paymentStatusLookupProviders;
     private final PaymentReconciliationIncidentService incidentService;
     private final PaymentCommandTransactionService paymentCommandTransactions;
+    private final PaymentProperties paymentProperties;
+    private final Clock paymentClock;
 
-    @Scheduled(cron = "0 0 1 * * *")
+    @Autowired
+    public PaymentReconciliationService(
+            PaymentReconciliationTransactionService reconciliationTransactions,
+            List<PaymentStatusLookupProvider> paymentStatusLookupProviders,
+            PaymentReconciliationIncidentService incidentService,
+            PaymentCommandTransactionService paymentCommandTransactions,
+            PaymentProperties paymentProperties) {
+        this(
+                reconciliationTransactions,
+                paymentStatusLookupProviders,
+                incidentService,
+                paymentCommandTransactions,
+                paymentProperties,
+                Clock.system(paymentProperties.schedulerZoneId()));
+    }
+
+    PaymentReconciliationService(
+            PaymentReconciliationTransactionService reconciliationTransactions,
+            List<PaymentStatusLookupProvider> paymentStatusLookupProviders,
+            PaymentReconciliationIncidentService incidentService,
+            PaymentCommandTransactionService paymentCommandTransactions,
+            PaymentProperties paymentProperties,
+            Clock paymentClock) {
+        this.reconciliationTransactions = reconciliationTransactions;
+        this.paymentStatusLookupProviders = paymentStatusLookupProviders;
+        this.incidentService = incidentService;
+        this.paymentCommandTransactions = paymentCommandTransactions;
+        this.paymentProperties = paymentProperties;
+        this.paymentClock = paymentClock;
+    }
+
+    @Scheduled(cron = "0 0 1 * * *", zone = "${app.payment.scheduler-zone:Asia/Seoul}")
     @Transactional(propagation = Propagation.NEVER)
     public void reconcilePaymentLedgersOnSchedule() {
-        ReconciliationResult local = reconcileLocalLedger();
-        incidentService.recordLocalIssues(local);
+        reconcileLocalLedger(true);
         reconcileProviderLedger();
     }
 
     public ReconciliationResult reconcileLocalLedger() {
-        ReconciliationResult result = reconciliationTransactions.reconcileLocalLedger();
+        return reconcileLocalLedger(false);
+    }
+
+    private ReconciliationResult reconcileLocalLedger(boolean persistIncidents) {
+        int batchSize = reconciliationBatchSize();
+        int issueDetailLimit = issueDetailLimit();
+        int checkedOrders = 0;
+        int checkedAgreements = 0;
+        int doneOrdersWithoutPayment = 0;
+        int activeAgreementsWithoutSubscription = 0;
+        List<LocalReconciliationIssue> issueDetails = new ArrayList<>();
+
+        long lastSeenOrderID = FIRST_CANDIDATE_ID;
+        while (true) {
+            LocalReconciliationBatch batch = reconciliationTransactions.reconcileDoneOrderBatch(
+                    lastSeenOrderID,
+                    batchSize);
+            checkedOrders += batch.checked();
+            doneOrdersWithoutPayment += batch.issues().size();
+            persistLocalIssues(persistIncidents, batch.issues());
+            appendIssueDetails(issueDetails, batch.issues(), issueDetailLimit);
+            if (batch.exhausted()) {
+                break;
+            }
+            lastSeenOrderID = batch.lastSeenID();
+        }
+
+        long lastSeenAgreementID = FIRST_CANDIDATE_ID;
+        LocalDate today = LocalDate.now(paymentClock);
+        while (true) {
+            LocalReconciliationBatch batch = reconciliationTransactions.reconcileActiveAgreementBatch(
+                    lastSeenAgreementID,
+                    batchSize,
+                    today);
+            checkedAgreements += batch.checked();
+            activeAgreementsWithoutSubscription += batch.issues().size();
+            persistLocalIssues(persistIncidents, batch.issues());
+            appendIssueDetails(issueDetails, batch.issues(), issueDetailLimit);
+            if (batch.exhausted()) {
+                break;
+            }
+            lastSeenAgreementID = batch.lastSeenID();
+        }
+
+        int totalIssues = doneOrdersWithoutPayment + activeAgreementsWithoutSubscription;
+        ReconciliationResult result = new ReconciliationResult(
+                checkedOrders,
+                checkedAgreements,
+                doneOrdersWithoutPayment,
+                activeAgreementsWithoutSubscription,
+                totalIssues,
+                totalIssues > issueDetails.size(),
+                List.copyOf(issueDetails));
         if (result.hasMismatch()) {
-            log.warn("Payment reconciliation completed with mismatches: {}", result);
+            log.warn(
+                    "Payment reconciliation completed with mismatches. checkedOrders={}, checkedBillingAgreements={}, doneOrdersWithoutPayment={}, activeAgreementsWithoutSubscription={}, totalIssues={}, issueDetailsTruncated={}",
+                    result.checkedOrders(),
+                    result.checkedBillingAgreements(),
+                    result.doneOrdersWithoutPayment(),
+                    result.activeAgreementsWithoutSubscription(),
+                    result.totalIssues(),
+                    result.issueDetailsTruncated());
         } else {
-            log.info("Payment reconciliation completed: {}", result);
+            log.info(
+                    "Payment reconciliation completed. checkedOrders={}, checkedBillingAgreements={}, totalIssues={}",
+                    result.checkedOrders(),
+                    result.checkedBillingAgreements(),
+                    result.totalIssues());
         }
         return result;
     }
 
     @Transactional(propagation = Propagation.NEVER)
+    public ProviderReconciliationResult diagnoseProviderLedger() {
+        LocalDateTime staleBefore = LocalDateTime.now(paymentClock).minusMinutes(STALE_PROCESSING_MINUTES);
+        int batchSize = reconciliationBatchSize();
+        int issueDetailLimit = issueDetailLimit();
+        long lastSeenID = FIRST_CANDIDATE_ID;
+        int skipped = 0;
+        int checked = 0;
+        int providerNotFound = 0;
+        int lookupFailures = 0;
+        int providerDoneWithoutLocalFinalization = 0;
+        int localDoneButProviderNotDone = 0;
+        int amountMismatches = 0;
+        int totalIssues = 0;
+        List<ProviderReconciliationIssue> issues = new ArrayList<>();
+        Set<Long> providerOrdersCheckedThisRun = new HashSet<>();
+
+        while (true) {
+            List<Long> candidateIDs = reconciliationTransactions.findProviderCandidateIDs(
+                    staleBefore,
+                    lastSeenID,
+                    batchSize);
+            if (candidateIDs.isEmpty()) {
+                break;
+            }
+
+            for (Long candidateID : candidateIDs) {
+                lastSeenID = candidateID;
+                Optional<ProviderLookupClaim> claim =
+                        reconciliationTransactions.loadProviderLookup(candidateID, staleBefore);
+                if (claim.isEmpty()) {
+                    skipped++;
+                    continue;
+                }
+
+                checked++;
+                providerOrdersCheckedThisRun.add(candidateID);
+                OrderReconciliationOutcome outcome = diagnoseProviderOrder(claim.get());
+                skipped += outcome.skipped() ? 1 : 0;
+                providerNotFound += outcome.providerNotFound() ? 1 : 0;
+                lookupFailures += outcome.lookupFailure() ? 1 : 0;
+                providerDoneWithoutLocalFinalization += outcome.providerDoneWithoutLocalFinalization() ? 1 : 0;
+                localDoneButProviderNotDone += outcome.localDoneButProviderNotDone() ? 1 : 0;
+                amountMismatches += outcome.amountMismatch() ? 1 : 0;
+                if (outcome.issue() != null) {
+                    totalIssues++;
+                    appendIssueDetail(issues, outcome.issue(), issueDetailLimit);
+                }
+            }
+
+            if (candidateIDs.size() < batchSize) {
+                break;
+            }
+        }
+
+        LocalDateTime completedCreatedAfter = LocalDateTime.now(paymentClock)
+                .minusDays(completedOrderLookbackDays());
+        int completedRemaining = completedOrderMaxPerRun();
+        lastSeenID = FIRST_CANDIDATE_ID;
+        while (completedRemaining > 0) {
+            int pageSize = Math.min(batchSize, completedRemaining);
+            List<Long> candidateIDs = reconciliationTransactions.findCompletedProviderCandidateIDs(
+                    completedCreatedAfter,
+                    lastSeenID,
+                    pageSize);
+            if (candidateIDs.isEmpty()) {
+                break;
+            }
+
+            for (Long candidateID : candidateIDs) {
+                lastSeenID = candidateID;
+                completedRemaining--;
+                if (providerOrdersCheckedThisRun.contains(candidateID)) {
+                    skipped++;
+                    continue;
+                }
+                Optional<CompletedProviderLookupClaim> completedClaim =
+                        reconciliationTransactions.loadCompletedProviderLookup(
+                                candidateID, completedCreatedAfter);
+                if (completedClaim.isEmpty() || completedClaim.get().locallyRefundedOrCancelled()) {
+                    skipped++;
+                    continue;
+                }
+
+                checked++;
+                OrderReconciliationOutcome outcome = diagnoseCompletedProviderOrder(completedClaim.get());
+                skipped += outcome.skipped() ? 1 : 0;
+                providerNotFound += outcome.providerNotFound() ? 1 : 0;
+                lookupFailures += outcome.lookupFailure() ? 1 : 0;
+                localDoneButProviderNotDone += outcome.localDoneButProviderNotDone() ? 1 : 0;
+                amountMismatches += outcome.amountMismatch() ? 1 : 0;
+                if (outcome.issue() != null) {
+                    totalIssues++;
+                    appendIssueDetail(issues, outcome.issue(), issueDetailLimit);
+                }
+            }
+
+            if (candidateIDs.size() < pageSize) {
+                break;
+            }
+        }
+
+        return new ProviderReconciliationResult(
+                checked,
+                skipped,
+                providerNotFound,
+                lookupFailures,
+                providerDoneWithoutLocalFinalization,
+                localDoneButProviderNotDone,
+                amountMismatches,
+                0,
+                totalIssues,
+                totalIssues > issues.size(),
+                List.copyOf(issues));
+    }
+
+    @Transactional(propagation = Propagation.NEVER)
     public ProviderReconciliationResult reconcileProviderLedger() {
-        LocalDateTime staleBefore = LocalDateTime.now().minusMinutes(STALE_PROCESSING_MINUTES);
+        LocalDateTime staleBefore = LocalDateTime.now(paymentClock).minusMinutes(STALE_PROCESSING_MINUTES);
+        int batchSize = reconciliationBatchSize();
+        int issueDetailLimit = issueDetailLimit();
         long lastSeenID = 0L;
         int skipped = 0;
         int checked = 0;
@@ -64,13 +288,15 @@ public class PaymentReconciliationService {
         int localDoneButProviderNotDone = 0;
         int amountMismatches = 0;
         int finalizedOrders = 0;
+        int totalIssues = 0;
         List<ProviderReconciliationIssue> issues = new ArrayList<>();
+        Set<Long> providerOrdersCheckedThisRun = new HashSet<>();
 
         while (true) {
             List<Long> candidateIDs = reconciliationTransactions.findProviderCandidateIDs(
                     staleBefore,
                     lastSeenID,
-                    PROVIDER_CANDIDATE_PAGE_SIZE);
+                    batchSize);
             if (candidateIDs.isEmpty()) {
                 break;
             }
@@ -85,6 +311,7 @@ public class PaymentReconciliationService {
                 }
 
                 checked++;
+                providerOrdersCheckedThisRun.add(candidateID);
                 OrderReconciliationOutcome outcome = reconcileProviderOrder(claim.get(), staleBefore);
                 skipped += outcome.skipped() ? 1 : 0;
                 providerNotFound += outcome.providerNotFound() ? 1 : 0;
@@ -94,11 +321,59 @@ public class PaymentReconciliationService {
                 amountMismatches += outcome.amountMismatch() ? 1 : 0;
                 finalizedOrders += outcome.finalized() ? 1 : 0;
                 if (outcome.issue() != null) {
-                    issues.add(outcome.issue());
+                    totalIssues++;
+                    appendIssueDetail(issues, outcome.issue(), issueDetailLimit);
                 }
             }
 
-            if (candidateIDs.size() < PROVIDER_CANDIDATE_PAGE_SIZE) {
+            if (candidateIDs.size() < batchSize) {
+                break;
+            }
+        }
+
+        LocalDateTime completedCreatedAfter = LocalDateTime.now(paymentClock)
+                .minusDays(completedOrderLookbackDays());
+        int completedRemaining = completedOrderMaxPerRun();
+        lastSeenID = FIRST_CANDIDATE_ID;
+        while (completedRemaining > 0) {
+            int pageSize = Math.min(batchSize, completedRemaining);
+            List<Long> candidateIDs = reconciliationTransactions.findCompletedProviderCandidateIDs(
+                    completedCreatedAfter,
+                    lastSeenID,
+                    pageSize);
+            if (candidateIDs.isEmpty()) {
+                break;
+            }
+
+            for (Long candidateID : candidateIDs) {
+                lastSeenID = candidateID;
+                completedRemaining--;
+                if (providerOrdersCheckedThisRun.contains(candidateID)) {
+                    skipped++;
+                    continue;
+                }
+                Optional<CompletedProviderLookupClaim> completedClaim =
+                        reconciliationTransactions.loadCompletedProviderLookup(
+                                candidateID, completedCreatedAfter);
+                if (completedClaim.isEmpty() || completedClaim.get().locallyRefundedOrCancelled()) {
+                    skipped++;
+                    continue;
+                }
+
+                checked++;
+                OrderReconciliationOutcome outcome = reconcileCompletedProviderOrder(completedClaim.get());
+                skipped += outcome.skipped() ? 1 : 0;
+                providerNotFound += outcome.providerNotFound() ? 1 : 0;
+                lookupFailures += outcome.lookupFailure() ? 1 : 0;
+                localDoneButProviderNotDone += outcome.localDoneButProviderNotDone() ? 1 : 0;
+                amountMismatches += outcome.amountMismatch() ? 1 : 0;
+                if (outcome.issue() != null) {
+                    totalIssues++;
+                    appendIssueDetail(issues, outcome.issue(), issueDetailLimit);
+                }
+            }
+
+            if (candidateIDs.size() < pageSize) {
                 break;
             }
         }
@@ -112,13 +387,174 @@ public class PaymentReconciliationService {
                 localDoneButProviderNotDone,
                 amountMismatches,
                 finalizedOrders,
+                totalIssues,
+                totalIssues > issues.size(),
                 List.copyOf(issues));
         if (result.hasMismatch()) {
-            log.warn("Payment provider reconciliation completed with unresolved mismatches: {}", result);
+            log.warn(
+                    "Payment provider reconciliation completed with unresolved mismatches. checkedOrders={}, skippedOrders={}, providerNotFound={}, lookupFailures={}, providerDoneWithoutLocalFinalization={}, localDoneButProviderNotDone={}, amountMismatches={}, finalizedOrders={}, totalIssues={}, issueDetailsTruncated={}",
+                    result.checkedOrders(),
+                    result.skippedOrders(),
+                    result.providerNotFound(),
+                    result.lookupFailures(),
+                    result.providerDoneWithoutLocalFinalization(),
+                    result.localDoneButProviderNotDone(),
+                    result.amountMismatches(),
+                    result.finalizedOrders(),
+                    result.totalIssues(),
+                    result.issueDetailsTruncated());
         } else {
-            log.info("Payment provider reconciliation completed: {}", result);
+            log.info(
+                    "Payment provider reconciliation completed. checkedOrders={}, skippedOrders={}, finalizedOrders={}, totalIssues={}",
+                    result.checkedOrders(),
+                    result.skippedOrders(),
+                    result.finalizedOrders(),
+                    result.totalIssues());
         }
         return result;
+    }
+
+    private void persistLocalIssues(
+            boolean persistIncidents,
+            List<LocalReconciliationIssue> issues) {
+        if (persistIncidents && !issues.isEmpty()) {
+            incidentService.recordLocalIssues(issues);
+        }
+    }
+
+    private <T> void appendIssueDetails(List<T> target, List<T> source, int limit) {
+        int remaining = limit - target.size();
+        if (remaining <= 0 || source.isEmpty()) {
+            return;
+        }
+        target.addAll(source.subList(0, Math.min(remaining, source.size())));
+    }
+
+    private <T> void appendIssueDetail(List<T> target, T issue, int limit) {
+        if (target.size() < limit) {
+            target.add(issue);
+        }
+    }
+
+    private int reconciliationBatchSize() {
+        int configured = paymentProperties.getOperations().getReconciliation().getBatchSize();
+        return Math.max(1, Math.min(configured, MAX_RECONCILIATION_BATCH_SIZE));
+    }
+
+    private int issueDetailLimit() {
+        int configured = paymentProperties.getOperations().getReconciliation().getIssueDetailLimit();
+        return Math.max(0, Math.min(configured, MAX_ISSUE_DETAIL_LIMIT));
+    }
+
+    private int completedOrderLookbackDays() {
+        int configured = paymentProperties.getOperations().getReconciliation()
+                .getCompletedOrderLookbackDays();
+        return Math.max(1, Math.min(configured, MAX_COMPLETED_ORDER_LOOKBACK_DAYS));
+    }
+
+    private int completedOrderMaxPerRun() {
+        int configured = paymentProperties.getOperations().getReconciliation()
+                .getCompletedOrderMaxPerRun();
+        return Math.max(1, Math.min(configured, MAX_COMPLETED_ORDER_CHECKS_PER_RUN));
+    }
+
+    private OrderReconciliationOutcome diagnoseProviderOrder(ProviderLookupClaim claim) {
+        Optional<PaymentStatusLookupProvider> provider = lookupProvider(claim.provider());
+        ProviderPaymentLookupResult providerResult;
+        if (provider.isEmpty()) {
+            providerResult = ProviderPaymentLookupResult.failure(
+                    claim.provider(),
+                    claim.orderID(),
+                    "PROVIDER_LOOKUP_NOT_CONFIGURED",
+                    "Provider lookup is not configured.");
+        } else {
+            try {
+                assertNoTransactionAtProviderBoundary();
+                providerResult = provider.get().findPaymentByOrderId(claim.orderID());
+            } catch (RuntimeException exception) {
+                providerResult = ProviderPaymentLookupResult.failure(
+                        claim.provider(),
+                        claim.orderID(),
+                        "PROVIDER_LOOKUP_EXCEPTION",
+                        exception.getClass().getSimpleName());
+            }
+        }
+
+        EvidenceAssessment assessment = reconciliationTransactions.assessProviderEvidence(claim, providerResult);
+        if (assessment.exactDone()) {
+            ProviderReconciliationIssue detectedIssue = issue(
+                    claim,
+                    providerResult,
+                    PaymentReconciliationIssueType.PROVIDER_DONE_LOCAL_NOT_FINALIZED,
+                    null,
+                    null);
+            return OrderReconciliationOutcome.unresolved(
+                    detectedIssue,
+                    false,
+                    false,
+                    false,
+                    true,
+                    false,
+                    false);
+        }
+        return diagnosticMismatch(claim, providerResult, false, false, assessment);
+    }
+
+    private OrderReconciliationOutcome diagnoseCompletedProviderOrder(
+            CompletedProviderLookupClaim completedClaim) {
+        ProviderLookupClaim claim = completedClaim.claim();
+        Optional<PaymentStatusLookupProvider> provider = lookupProvider(claim.provider());
+        if (provider.isEmpty()) {
+            return OrderReconciliationOutcome.skippedWithoutLookup();
+        }
+
+        ProviderPaymentLookupResult providerResult;
+        try {
+            assertNoTransactionAtProviderBoundary();
+            providerResult = provider.get().findPaymentByOrderId(claim.orderID());
+        } catch (RuntimeException exception) {
+            providerResult = ProviderPaymentLookupResult.failure(
+                    claim.provider(),
+                    claim.orderID(),
+                    "PROVIDER_LOOKUP_EXCEPTION",
+                    exception.getClass().getSimpleName());
+        }
+        EvidenceAssessment assessment = assessCompletedProviderEvidence(claim, providerResult);
+        return assessment.exactDone()
+                ? OrderReconciliationOutcome.verifiedCompleted()
+                : diagnosticMismatch(
+                        claim,
+                        providerResult,
+                        false,
+                        assessment.issueType() == PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_DONE,
+                        assessment);
+    }
+
+    private OrderReconciliationOutcome diagnosticMismatch(
+            ProviderLookupClaim claim,
+            ProviderPaymentLookupResult providerResult,
+            boolean skipped,
+            boolean localDoneButProviderNotDone,
+            EvidenceAssessment assessment) {
+        ProviderReconciliationIssue mismatch = issue(
+                claim,
+                providerResult,
+                assessment.issueType(),
+                assessment.failureCode(),
+                assessment.failureMessage());
+        boolean providerNotFound = providerResult != null
+                && !providerResult.found()
+                && !providerResult.lookupFailure();
+        boolean lookupFailure = providerResult == null || providerResult.lookupFailure();
+        boolean providerDone = providerResult != null && providerResult.providerDone();
+        return OrderReconciliationOutcome.unresolved(
+                mismatch,
+                skipped,
+                providerNotFound,
+                lookupFailure,
+                providerDone,
+                localDoneButProviderNotDone,
+                assessment.issueType() == PaymentReconciliationIssueType.AMOUNT_MISMATCH);
     }
 
     private OrderReconciliationOutcome reconcileProviderOrder(
@@ -196,6 +632,82 @@ public class PaymentReconciliationService {
                     exception.getClass().getSimpleName());
             return OrderReconciliationOutcome.finalizedWithIssue(resolutionIssue);
         }
+    }
+
+    private OrderReconciliationOutcome reconcileCompletedProviderOrder(
+            CompletedProviderLookupClaim completedClaim) {
+        ProviderLookupClaim claim = completedClaim.claim();
+        Optional<PaymentStatusLookupProvider> provider = lookupProvider(claim.provider());
+        if (provider.isEmpty()) {
+            return OrderReconciliationOutcome.skippedWithoutLookup();
+        }
+
+        ProviderPaymentLookupResult providerResult;
+        try {
+            assertNoTransactionAtProviderBoundary();
+            providerResult = provider.get().findPaymentByOrderId(claim.orderID());
+        } catch (RuntimeException exception) {
+            providerResult = ProviderPaymentLookupResult.failure(
+                    claim.provider(),
+                    claim.orderID(),
+                    "PROVIDER_LOOKUP_EXCEPTION",
+                    exception.getClass().getSimpleName());
+        }
+
+        EvidenceAssessment assessment = assessCompletedProviderEvidence(claim, providerResult);
+        if (!assessment.exactDone()) {
+            return recordMismatch(
+                    claim,
+                    providerResult,
+                    false,
+                    assessment.issueType() == PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_DONE,
+                    assessment);
+        }
+
+        incidentService.resolveProviderRecoveryIncidents(claim.orderID());
+        return OrderReconciliationOutcome.verifiedCompleted();
+    }
+
+    private EvidenceAssessment assessCompletedProviderEvidence(
+            ProviderLookupClaim claim,
+            ProviderPaymentLookupResult result) {
+        if (result == null || result.lookupFailure()) {
+            return EvidenceAssessment.mismatch(
+                    PaymentReconciliationIssueType.PROVIDER_LOOKUP_FAILED,
+                    result == null ? "PROVIDER_LOOKUP_RESULT_MISSING" : result.failureCode(),
+                    result == null ? "Provider lookup returned no evidence." : result.failureMessage());
+        }
+        if (!result.found()) {
+            return EvidenceAssessment.mismatch(
+                    PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_FOUND,
+                    result.failureCode(),
+                    result.failureMessage());
+        }
+        if (result.provider() != claim.provider()
+                || !Objects.equals(result.orderId(), claim.orderID())
+                || !Objects.equals(result.currency(), claim.currency())
+                || result.transactionId() == null
+                || result.transactionId().isBlank()
+                || (claim.providerTransactionID() != null
+                && !Objects.equals(result.transactionId(), claim.providerTransactionID()))) {
+            return EvidenceAssessment.mismatch(
+                    PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_DONE,
+                    "PROVIDER_EVIDENCE_MISMATCH",
+                    "Provider identity, order, currency, or transaction evidence does not match local DONE state.");
+        }
+        if (!"DONE".equals(result.status())) {
+            return EvidenceAssessment.mismatch(
+                    PaymentReconciliationIssueType.LOCAL_DONE_PROVIDER_NOT_DONE,
+                    "PROVIDER_STATUS_MISMATCH",
+                    "Provider payment is not DONE while the local order is DONE.");
+        }
+        if (result.totalAmount() == null || claim.amount().compareTo(result.totalAmount()) != 0) {
+            return EvidenceAssessment.mismatch(
+                    PaymentReconciliationIssueType.AMOUNT_MISMATCH,
+                    "AMOUNT_MISMATCH",
+                    "Provider amount does not match the local DONE order.");
+        }
+        return EvidenceAssessment.exact();
     }
 
     private OrderReconciliationOutcome recordMismatch(
@@ -296,9 +808,11 @@ public class PaymentReconciliationService {
             int checkedBillingAgreements,
             int doneOrdersWithoutPayment,
             int activeAgreementsWithoutSubscription,
+            int totalIssues,
+            boolean issueDetailsTruncated,
             List<LocalReconciliationIssue> issues) {
         public boolean hasMismatch() {
-            return doneOrdersWithoutPayment > 0 || activeAgreementsWithoutSubscription > 0;
+            return totalIssues > 0;
         }
     }
 
@@ -311,9 +825,11 @@ public class PaymentReconciliationService {
             int localDoneButProviderNotDone,
             int amountMismatches,
             int finalizedOrders,
+            int totalIssues,
+            boolean issueDetailsTruncated,
             List<ProviderReconciliationIssue> issues) {
         public boolean hasMismatch() {
-            return !issues.isEmpty();
+            return totalIssues > 0;
         }
     }
 
@@ -364,6 +880,14 @@ public class PaymentReconciliationService {
 
         static OrderReconciliationOutcome finalizedWithIssue(ProviderReconciliationIssue issue) {
             return new OrderReconciliationOutcome(false, false, false, true, false, false, true, issue);
+        }
+
+        static OrderReconciliationOutcome verifiedCompleted() {
+            return new OrderReconciliationOutcome(false, false, false, false, false, false, false, null);
+        }
+
+        static OrderReconciliationOutcome skippedWithoutLookup() {
+            return new OrderReconciliationOutcome(true, false, false, false, false, false, false, null);
         }
 
         static OrderReconciliationOutcome unresolved(

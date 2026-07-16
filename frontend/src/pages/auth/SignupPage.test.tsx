@@ -113,10 +113,14 @@ describe('SignupPage', () => {
 
     expect(screen.getByText('AT.M에 가입하고 음악을 시작하세요')).toBeInTheDocument();
     expect(
-      screen.getByText('현재 이 환경에서는 이메일 인증 메일이 비활성화되어 있습니다. 가입 전에 운영자에게 메일 설정을 요청해주세요.'),
+      screen.getByText(
+        '현재 이 환경에서는 이메일 인증 메일이 비활성화되어 있습니다. 가입 전에 운영자에게 메일 설정을 요청해주세요.',
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '가입하기' })).toBeDisabled();
-    expect(screen.queryByText('* 외부 테스트 환경에서는 이메일 인증이 자동으로 건너뛰어집니다.')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('* 외부 테스트 환경에서는 이메일 인증이 자동으로 건너뛰어집니다.'),
+    ).not.toBeInTheDocument();
   });
 
   it('shows local mail guidance instead of the old auto-skip claim', () => {
@@ -134,10 +138,14 @@ describe('SignupPage', () => {
     renderPage();
 
     expect(
-      screen.getByText('현재 이 환경에서는 로컬 메일 수신 환경(MailHog 등)에서만 인증 링크를 확인할 수 있습니다.'),
+      screen.getByText(
+        '현재 이 환경에서는 로컬 메일 수신 환경(MailHog 등)에서만 인증 링크를 확인할 수 있습니다.',
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '가입하기' })).toBeEnabled();
-    expect(screen.queryByText('* 외부 테스트 환경에서는 이메일 인증이 자동으로 건너뛰어집니다.')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('* 외부 테스트 환경에서는 이메일 인증이 자동으로 건너뛰어집니다.'),
+    ).not.toBeInTheDocument();
   });
   it('disables signup when the server turns off password login entirely', () => {
     usePublicCapabilitiesMock.mockReturnValue({

@@ -1,10 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import {
-  fetchAdminTracks,
-  deleteTrack,
-  type AdminTrackListItem,
-} from '@/api/tracks';
+import { fetchAdminTracks, deleteTrack, type AdminTrackListItem } from '@/api/tracks';
 import type { PageInfo } from '@/types';
 import { toUploadUrl } from '@/api/client';
 import { formatDate } from '@/utils/format';
@@ -26,9 +22,7 @@ export default function TrackManagePage() {
   const [error, setError] = useState<string | null>(null);
 
   /* ── Delete modal ── */
-  const [deleteTarget, setDeleteTarget] = useState<AdminTrackListItem | null>(
-    null,
-  );
+  const [deleteTarget, setDeleteTarget] = useState<AdminTrackListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   /* ── Filters from URL ── */
@@ -109,9 +103,7 @@ export default function TrackManagePage() {
         <div>
           <span className={styles.pageTitle}>{'음원 관리'}</span>
           {pageInfo && (
-            <span className={styles.pageTitleCount}>
-              {`(${pageInfo.total.toLocaleString()})`}
-            </span>
+            <span className={styles.pageTitleCount}>{`(${pageInfo.total.toLocaleString()})`}</span>
           )}
         </div>
         <div className={styles.headerActions}>
@@ -164,69 +156,65 @@ export default function TrackManagePage() {
       ) : (
         <>
           <div className={styles.tableWrap}>
-          <table className={styles.trackTable}>
-            <thead>
-              <tr>
-                <th className={styles.thCenter}>ID</th>
-                <th>{'음원'}</th>
-                <th className={styles.thRight}>BPM</th>
-                <th className={styles.thCenter}>{'조성'}</th>
-                <th className={styles.thRight}>{'재생수'}</th>
-                <th>{'상태'}</th>
-                <th>{'등록일'}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {tracks.map((track) => (
-                <tr key={track.id}>
-                  <td className={styles.cellId}>{track.id}</td>
-                  <td className={styles.cellInfo}>
-                    <div className={styles.info}>
-                      <div className={styles.thumb}>
-                        {track.thumbnail ? (
-                          <img src={toUploadUrl(track.thumbnail)!} alt={track.title} />
-                        ) : (
-                          '\u266A'
-                        )}
-                      </div>
-                      <span className={styles.trackTitle}>{track.title}</span>
-                    </div>
-                  </td>
-                  <td className={styles.cellBpm}>{track.bpm}</td>
-                  <td className={styles.cellKey}>{track.tonality}</td>
-                  <td className={styles.cellPlays}>
-                    {track.playCount.toLocaleString()}
-                  </td>
-                  <td>
-                    <span
-                      className={`${styles.statusBadge} ${
-                        track.isActive ? styles.statusActive : styles.statusInactive
-                      }`}
-                    >
-                      {track.isActive ? '활성' : '비활성'}
-                    </span>
-                  </td>
-                  <td className={styles.cellDate}>
-                    {formatDate(track.createdAt)}
-                  </td>
-                  <td className={styles.cellActions}>
-                    <div className={styles.actionBtns}>
-                      <Link to={`/admin/tracks/${track.id}/edit`}>
-                        <button className={styles.actBtn}>{'수정'}</button>
-                      </Link>
-                      <button
-                        className={styles.actBtnDanger}
-                        onClick={() => setDeleteTarget(track)}
-                      >
-                        {'삭제'}
-                      </button>
-                    </div>
-                  </td>
+            <table className={styles.trackTable}>
+              <thead>
+                <tr>
+                  <th className={styles.thCenter}>ID</th>
+                  <th>{'음원'}</th>
+                  <th className={styles.thRight}>BPM</th>
+                  <th className={styles.thCenter}>{'조성'}</th>
+                  <th className={styles.thRight}>{'재생수'}</th>
+                  <th>{'상태'}</th>
+                  <th>{'등록일'}</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {tracks.map((track) => (
+                  <tr key={track.id}>
+                    <td className={styles.cellId}>{track.id}</td>
+                    <td className={styles.cellInfo}>
+                      <div className={styles.info}>
+                        <div className={styles.thumb}>
+                          {track.thumbnail ? (
+                            <img src={toUploadUrl(track.thumbnail)!} alt={track.title} />
+                          ) : (
+                            '\u266A'
+                          )}
+                        </div>
+                        <span className={styles.trackTitle}>{track.title}</span>
+                      </div>
+                    </td>
+                    <td className={styles.cellBpm}>{track.bpm}</td>
+                    <td className={styles.cellKey}>{track.tonality}</td>
+                    <td className={styles.cellPlays}>{track.playCount.toLocaleString()}</td>
+                    <td>
+                      <span
+                        className={`${styles.statusBadge} ${
+                          track.isActive ? styles.statusActive : styles.statusInactive
+                        }`}
+                      >
+                        {track.isActive ? '활성' : '비활성'}
+                      </span>
+                    </td>
+                    <td className={styles.cellDate}>{formatDate(track.createdAt)}</td>
+                    <td className={styles.cellActions}>
+                      <div className={styles.actionBtns}>
+                        <Link to={`/admin/tracks/${track.id}/edit`}>
+                          <button className={styles.actBtn}>{'수정'}</button>
+                        </Link>
+                        <button
+                          className={styles.actBtnDanger}
+                          onClick={() => setDeleteTarget(track)}
+                        >
+                          {'삭제'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {pageInfo && (
@@ -236,11 +224,7 @@ export default function TrackManagePage() {
       )}
 
       {/* Delete Confirm Modal */}
-      <Modal
-        open={deleteTarget !== null}
-        onClose={() => setDeleteTarget(null)}
-        title="음원 삭제"
-      >
+      <Modal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} title="음원 삭제">
         <div className={styles.modalBody}>
           <strong>{deleteTarget?.title}</strong>
           {' 음원을 삭제하시겠습니까?'}
@@ -256,12 +240,7 @@ export default function TrackManagePage() {
           >
             {'취소'}
           </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={handleDelete}
-            loading={deleting}
-          >
+          <Button variant="danger" size="sm" onClick={handleDelete} loading={deleting}>
             {'삭제'}
           </Button>
         </div>

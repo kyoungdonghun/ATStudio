@@ -1,5 +1,7 @@
 package com.atstudio.atstudio.dto.payment;
 
+import com.atstudio.atstudio.service.payment.ProviderSupportReference;
+
 import com.atstudio.atstudio.entity.SubscriptionPayment;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
@@ -18,7 +20,7 @@ public record AdminSubscriptionPaymentResponse(
         PaymentProviderType provider,
         BigDecimal amount,
         PaymentStatus paymentStatus,
-        String pgTransactionId,
+        String providerReference,
         LocalDateTime createdAt
 ) {
 
@@ -33,7 +35,7 @@ public record AdminSubscriptionPaymentResponse(
                 payment.getProvider(),
                 payment.getAmount(),
                 payment.getPaymentStatus(),
-                payment.getPgTransactionId(),
+                ProviderSupportReference.from(payment.getPgTransactionId()),
                 payment.getCreatedAt()
         );
     }

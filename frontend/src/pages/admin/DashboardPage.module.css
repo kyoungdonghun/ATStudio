@@ -20,6 +20,27 @@
   font-size: 15px;
 }
 
+.error p {
+  margin-bottom: 14px;
+}
+
+.retryButton {
+  min-height: 36px;
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  padding: 8px 14px;
+  background: var(--accent);
+  color: var(--bg0);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.retryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 /* ── Stat Cards ── */
 
 .statsGrid {

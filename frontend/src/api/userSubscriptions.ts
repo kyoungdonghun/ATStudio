@@ -1,4 +1,5 @@
 import client from '@/api/client';
+import { getApiErrorCode } from '@/api/loadError';
 import type { ApiResponse, PagedResponse } from '@/types';
 import type { SubscriptionPlan } from '@/api/subscriptions';
 
@@ -47,9 +48,16 @@ export interface ChangeSubscriptionRequest {
 /* ── API functions ── */
 
 /** GET /api/user-subscriptions/me -- my current subscription */
-export async function fetchMySubscription(): Promise<MySubscription> {
-  const { data } = await client.get<ApiResponse<MySubscription>>('/user-subscriptions/me');
+export async function fetchMySubscription(signal?: AbortSignal): Promise<MySubscription> {
+  const { data } = await client.get<ApiResponse<MySubscription>>('/user-subscriptions/me', {
+    signal,
+  });
   return data.data;
+}
+
+export function isNoActiveSubscriptionError(error: unknown): boolean {
+  const status = (error as { response?: { status?: number } })?.response?.status;
+  return status === 403 && getApiErrorCode(error) === 'NO_ACTIVE_SUBSCRIPTION';
 }
 
 /** PUT /api/user-subscriptions/me -- change (upgrade/downgrade) subscription */
@@ -82,9 +90,11 @@ export async function reactivateMySubscription(): Promise<MySubscription> {
 export async function fetchAdminUserSubscriptions(
   page = 1,
   size = 20,
+  signal?: AbortSignal,
 ): Promise<PagedResponse<MySubscription>> {
   const { data } = await client.get<PagedResponse<MySubscription>>('/user-subscriptions', {
     params: { page, size },
+    signal,
   });
   return data;
 }

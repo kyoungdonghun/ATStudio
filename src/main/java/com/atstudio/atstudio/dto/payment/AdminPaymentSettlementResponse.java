@@ -1,5 +1,7 @@
 package com.atstudio.atstudio.dto.payment;
 
+import com.atstudio.atstudio.service.payment.ProviderSupportReference;
+
 import com.atstudio.atstudio.entity.PaymentSettlement;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentSettlementSource;
@@ -15,8 +17,8 @@ public record AdminPaymentSettlementResponse(
         PaymentProviderType provider,
         PaymentSettlementStatus status,
         String orderId,
-        String providerPaymentKey,
-        String providerSettlementId,
+        String providerReference,
+        String providerSettlementReference,
         Long paymentOrderId,
         Long subscriptionPaymentId,
         Long userId,
@@ -46,8 +48,8 @@ public record AdminPaymentSettlementResponse(
                 settlement.getProvider(),
                 settlement.getStatus(),
                 settlement.getOrderId(),
-                settlement.getProviderPaymentKey(),
-                settlement.getProviderSettlementId(),
+                ProviderSupportReference.from(settlement.getProviderPaymentKey()),
+                ProviderSupportReference.from(settlement.getProviderSettlementId()),
                 settlement.getPaymentOrder() == null ? null : settlement.getPaymentOrder().getId(),
                 settlement.getSubscriptionPayment() == null ? null : settlement.getSubscriptionPayment().getId(),
                 settlement.getUser() == null ? null : settlement.getUser().getId(),

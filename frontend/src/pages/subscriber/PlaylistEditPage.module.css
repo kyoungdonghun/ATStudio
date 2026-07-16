@@ -201,7 +201,9 @@
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .thumbChangeBtn:hover {
@@ -281,7 +283,9 @@
   justify-content: center;
   font-size: 8px;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .orderBtn:hover:not(:disabled) {
@@ -307,7 +311,9 @@
   font-size: 10px;
   cursor: pointer;
   margin-left: 4px;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .removeBtn:hover {

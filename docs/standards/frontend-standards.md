@@ -302,7 +302,13 @@ function subscriberOnly(element: ReactNode): ReactNode {
 }
 ```
 
-### 6.4 Route Categories (49 screens)
+### 6.4 Route Categories and Counting Contract
+
+The authoritative current count and its definitions live in
+`docs/ui/atstudio-front-list.md`. Route objects, lazy page components, redirects,
+modal adapters, and distinct visual page UIs are different units and must not be
+collapsed into one fixed number in source comments. The table below is a routing
+category guide, not a screen-count source of truth.
 
 | Guard | Count | Example paths |
 |-------|-------|---------------|

@@ -135,6 +135,8 @@ Use when:
 Current scope:
 
 - Receipt evidence capture exists.
+- Only normalized absolute HTTPS receipt links without embedded credentials or non-standard ports are clickable.
+- A retained unsafe URL appears as a non-clickable support reference or review-needed state. Do not copy it into the address bar or an incident note.
 - Cash receipt issue/cancel mutation is not implemented for the current card-only recurring scope.
 
 ## 8. Audit Log Tab

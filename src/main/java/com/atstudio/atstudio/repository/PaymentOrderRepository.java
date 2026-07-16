@@ -78,11 +78,39 @@ public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long
             @Param("lastSeenID") Long lastSeenID,
             Pageable pageable);
 
+    @Query("select paymentOrder.id from PaymentOrder paymentOrder "
+            + "where paymentOrder.id > :lastSeenID "
+            + "and paymentOrder.status = 'DONE' "
+            + "and paymentOrder.purpose in ('SUBSCRIBE', 'UPGRADE', 'RENEWAL') "
+            + "and paymentOrder.createdAt >= :createdAfter "
+            + "order by paymentOrder.id asc")
+    List<Long> findCompletedProviderReconciliationCandidateIDs(
+            @Param("createdAfter") LocalDateTime createdAfter,
+            @Param("lastSeenID") Long lastSeenID,
+            Pageable pageable);
+
+    @EntityGraph(attributePaths = {"user", "billingAgreement"})
+    @Query("select paymentOrder from PaymentOrder paymentOrder "
+            + "where paymentOrder.status = :status "
+            + "and paymentOrder.purpose in :purposes "
+            + "and paymentOrder.id > :lastSeenID "
+            + "order by paymentOrder.id asc")
+    List<PaymentOrder> findLocalReconciliationCandidates(
+            @Param("status") PaymentOrderStatus status,
+            @Param("purposes") Collection<PaymentPurpose> purposes,
+            @Param("lastSeenID") Long lastSeenID,
+            Pageable pageable);
+
     boolean existsByOrderId(String orderId);
 
     Optional<PaymentOrder> findFirstByBillingAgreementAndPurposeAndStatusInOrderByCreatedAtDesc(
             BillingAgreement billingAgreement,
             PaymentPurpose purpose,
+            Collection<PaymentOrderStatus> statuses);
+
+    boolean existsByBillingAgreementAndPurposeInAndStatusIn(
+            BillingAgreement billingAgreement,
+            Collection<PaymentPurpose> purposes,
             Collection<PaymentOrderStatus> statuses);
 
     List<PaymentOrder> findByStatusInAndExpiresAtBefore(

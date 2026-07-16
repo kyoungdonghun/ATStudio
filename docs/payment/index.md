@@ -1,6 +1,6 @@
 ---
-version: 1.4
-last_updated: 2026-07-15
+version: 1.5
+last_updated: 2026-07-16
 project: ATS
 owner: docops
 category: guide
@@ -26,7 +26,7 @@ dependencies:
 
 ## 1. Scope
 
-This directory explains the ATStudio payment system as of 2026-07-15.
+This directory explains the ATStudio payment system as of 2026-07-16.
 
 The current payment system is recurring-subscription first:
 
@@ -37,6 +37,7 @@ The current payment system is recurring-subscription first:
 - Account withdrawal cancels local renewal eligibility before soft deletion, then attempts Provider billing-key cleanup after commit.
 - Withdrawal cleanup failure is visible as a deduplicated Incident and retried daily; withdrawal never creates an automatic refund.
 - Admins can review payment ledgers, reconciliation incidents, receipt evidence, refund workflow, entitlement correction workflow, and settlement reconciliation from `/admin/payments`.
+- Existing subscribers re-register a payment method through a zero-amount `BILLING_AGREEMENT` order; registration itself does not charge or change the current plan.
 - Existing MySQL databases must be patched separately from `schema.sql` when running with `ddl-auto=validate`; see [System Overview](system-overview.md) and [DB Schema](../design/db-schema.md).
 
 This directory is a guide layer. Detailed source-of-truth design documents remain in `docs/design/`.
@@ -65,6 +66,10 @@ Not blockers for closure:
 - Multi-PG expansion.
 - Legacy endpoint removal.
 - Additional operator notification channels.
+
+Legacy removal is deferred, not undefined: a separately approved removal must prove no current frontend/supported-client callers, complete an agreed stale-callback observation window or equivalent telemetry check, update route/API/tests/client documents together, and include rollback guidance.
+
+Development-branch quality note: `codex/p1-acceptance-hardening` resolves Vite to 6.4.3 and reports zero production and zero unfiltered npm audit findings. The frozen `codex/client-demo-stable` worktree remains a separate, unmodified environment boundary at Vite 6.4.1 with 5 production findings and 13 total findings; it must not be treated as approved for public dev-server exposure until the user authorizes an update or an access-controlled alternative is used.
 
 On hold under the current card-only recurring subscription premise:
 

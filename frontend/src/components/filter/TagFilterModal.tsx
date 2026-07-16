@@ -52,18 +52,10 @@ export default function TagFilterModal({
 
   const q = query.trim().toLowerCase();
 
-  const filteredGenres = q
-    ? genreTags.filter((t) => t.name.toLowerCase().includes(q))
-    : genreTags;
-  const filteredMoods = q
-    ? moodTags.filter((t) => t.name.toLowerCase().includes(q))
-    : moodTags;
-  const filteredUsages = q
-    ? usageTags.filter((t) => t.name.toLowerCase().includes(q))
-    : usageTags;
-  const filteredBpm = q
-    ? bpmPresets.filter((p) => p.label.toLowerCase().includes(q))
-    : bpmPresets;
+  const filteredGenres = q ? genreTags.filter((t) => t.name.toLowerCase().includes(q)) : genreTags;
+  const filteredMoods = q ? moodTags.filter((t) => t.name.toLowerCase().includes(q)) : moodTags;
+  const filteredUsages = q ? usageTags.filter((t) => t.name.toLowerCase().includes(q)) : usageTags;
+  const filteredBpm = q ? bpmPresets.filter((p) => p.label.toLowerCase().includes(q)) : bpmPresets;
 
   function toggleGenre(name: string) {
     setSelectedGenres((prev) =>
@@ -117,19 +109,14 @@ export default function TagFilterModal({
             onChange={(e) => setQuery(e.target.value)}
           />
           {query && (
-            <button
-              className={styles.searchClear}
-              onClick={() => setQuery('')}
-            >
+            <button className={styles.searchClear} onClick={() => setQuery('')}>
               {'\u2715'}
             </button>
           )}
         </div>
 
         {noResults ? (
-          <div className={styles.noResults}>
-            {`"${query}"에 해당하는 태그가 없습니다.`}
-          </div>
+          <div className={styles.noResults}>{`"${query}"에 해당하는 태그가 없습니다.`}</div>
         ) : (
           <>
             {/* Genre */}
@@ -194,9 +181,7 @@ export default function TagFilterModal({
                       label={preset.label}
                       active={selectedBpm === preset.label}
                       onClick={() =>
-                        setSelectedBpm((prev) =>
-                          prev === preset.label ? '' : preset.label,
-                        )
+                        setSelectedBpm((prev) => (prev === preset.label ? '' : preset.label))
                       }
                     />
                   ))}
@@ -209,9 +194,7 @@ export default function TagFilterModal({
         {/* Footer */}
         <div className={styles.footer}>
           {totalSelected > 0 && (
-            <span className={styles.selectedCount}>
-              {`${totalSelected}개 선택됨`}
-            </span>
+            <span className={styles.selectedCount}>{`${totalSelected}개 선택됨`}</span>
           )}
           <button className={styles.clearBtn} onClick={handleClear}>
             {'초기화'}

@@ -35,6 +35,17 @@ class CorsConfigTest {
         assertThat(configuration.getAllowedOriginPatterns()).isNullOrEmpty();
     }
 
+    @Test
+    void exposesWhitelistExportResponseHeaders() {
+        AcceptanceProperties acceptance = new AcceptanceProperties();
+        CorsConfiguration configuration = configuration(
+                new CorsConfig(acceptance, "http://localhost:5173")
+        );
+
+        assertThat(configuration.getExposedHeaders())
+                .containsExactly("Content-Disposition", "X-Whitelist-Export-Batch-Id");
+    }
+
     private CorsConfiguration configuration(CorsConfig config) {
         CorsConfigurationSource source = config.corsConfigurationSource();
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/tracks");

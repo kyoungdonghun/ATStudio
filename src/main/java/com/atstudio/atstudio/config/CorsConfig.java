@@ -42,6 +42,8 @@ public class CorsConfig {
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of(
                 "Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+        config.setExposedHeaders(List.of(
+                "Content-Disposition", "X-Whitelist-Export-Batch-Id"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 

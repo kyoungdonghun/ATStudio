@@ -110,6 +110,7 @@ export function clearPlayHistory(): void {
 interface PlayerState {
   currentTrack: Track | null;
   isPlaying: boolean;
+  isStalled: boolean;
   playbackError: string | null;
   currentTime: number;
   duration: number;
@@ -147,19 +148,19 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     if (!get().currentTrack) return;
     playbackAttempt += 1;
     audio.pause();
-    set({ isPlaying: false, playbackError: message });
+    set({ isPlaying: false, isStalled: false, playbackError: message });
   };
 
   const startPlayback = (onSuccess?: () => void) => {
     const attempt = ++playbackAttempt;
-    set({ isPlaying: false, playbackError: null });
+    set({ isPlaying: false, isStalled: false, playbackError: null });
 
     let playPromise: Promise<void>;
     try {
       playPromise = audio.play();
     } catch {
       if (attempt === playbackAttempt) {
-        set({ isPlaying: false, playbackError: PLAYBACK_ERROR });
+        set({ isPlaying: false, isStalled: false, playbackError: PLAYBACK_ERROR });
       }
       return;
     }
@@ -167,19 +168,19 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     void playPromise.then(
       () => {
         if (attempt !== playbackAttempt) return;
-        set({ isPlaying: true, playbackError: null });
+        set({ isPlaying: true, isStalled: false, playbackError: null });
         onSuccess?.();
       },
       () => {
         if (attempt !== playbackAttempt) return;
-        set({ isPlaying: false, playbackError: PLAYBACK_ERROR });
+        set({ isPlaying: false, isStalled: false, playbackError: PLAYBACK_ERROR });
       },
     );
   };
 
   // Audio event listeners
   audio.addEventListener('timeupdate', () => {
-    set({ currentTime: audio.currentTime, duration: audio.duration || 0 });
+    set({ currentTime: audio.currentTime, duration: audio.duration || 0, isStalled: false });
   });
 
   audio.addEventListener('ended', () => {
@@ -197,6 +198,23 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     set({ duration: audio.duration || 0 });
   });
 
+  const markStalled = () => {
+    if (get().currentTrack) {
+      set({ isStalled: true });
+    }
+  };
+
+  const clearStalled = () => {
+    if (get().isStalled) {
+      set({ isStalled: false });
+    }
+  };
+
+  audio.addEventListener('stalled', markStalled);
+  audio.addEventListener('waiting', markStalled);
+  audio.addEventListener('canplay', clearStalled);
+  audio.addEventListener('playing', clearStalled);
+
   audio.addEventListener('error', () => {
     stopWithError(MEDIA_ERROR);
   });
@@ -208,6 +226,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
   return {
     currentTrack: savedState?.currentTrack ?? null,
     isPlaying: false,
+    isStalled: false,
     playbackError: null,
     currentTime: savedState?.currentTime ?? 0,
     duration: 0,
@@ -228,6 +247,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       set({
         currentTrack: track,
         isPlaying: false,
+        isStalled: false,
         playbackError: null,
         currentTime: 0,
         ...(inQueue ? {} : { queue: newQueue }),
@@ -243,7 +263,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     pause: () => {
       playbackAttempt += 1;
       audio.pause();
-      set({ isPlaying: false });
+      set({ isPlaying: false, isStalled: false });
     },
 
     resume: () => {
@@ -418,6 +438,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         queue: [],
         currentTrack: null,
         isPlaying: false,
+        isStalled: false,
         playbackError: null,
         currentTime: 0,
         duration: 0,

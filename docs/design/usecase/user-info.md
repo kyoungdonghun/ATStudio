@@ -79,17 +79,31 @@
 
 **Main Flow**
 1. User clicks a social login button.
-2. Frontend obtains the OAuth authorization code (authorizationCode).
-3. Frontend sends provider and authorizationCode to the backend.
-4. Backend retrieves user information (email, name, etc.) from the social server.
-5. Checks for an existing link in the social_accounts table by (provider, provider_id).
-6. If linked: logs in as the existing user. isProfileComplete=true. Issues Access/Refresh Token and returns.
-7. If not linked (new sign-up):
+2. Before redirecting, frontend validates the requested post-login target as an
+   internal path and stores one session-scoped attempt keyed by OAuth `state`.
+   The record contains the state, PKCE verifier, validated target, and creation
+   time.
+3. Frontend obtains the OAuth authorization code (authorizationCode). The
+   callback consumes and removes the matching attempt before provider exchange;
+   missing, malformed, older-than-10-minute, or replayed attempts fail closed.
+4. Frontend sends provider, a required nonblank authorizationCode, and the
+   consumed PKCE codeVerifier to the backend.
+5. Backend exchanges the code and reads user information through provider-specific typed response records, not a raw response map.
+6. The provider access token and required provider identity are mandatory. Text fields must be nonblank; Kakao's documented integral identity is normalized, while other wrong-type required fields fail closed. Provider errors and malformed, missing, or blank required fields return `SOCIAL_AUTH_FAILED`; no local session is issued.
+7. The backend does not log or retain real authorization codes, PKCE verifiers, provider access tokens, provider identifiers, or raw provider response bodies as error evidence. Tests use synthetic scalar fixtures only, never captured provider payloads or secrets.
+8. Checks for an existing link in the social_accounts table by (provider, provider_id).
+9. If linked: logs in as the existing user. isProfileComplete=true. Issues Access/Refresh Token and returns.
+10. If not linked (new sign-up):
    a. Creates a users record with minimal information (email, social name only; password=NULL, phonePersonal=NULL, job=NULL allowed).
    b. Creates a social_accounts record and links it.
    c. Issues Access/Refresh Token.
    d. Returns response with isProfileComplete=false.
-8. Frontend checks isProfileComplete=false and navigates to the INFO-014 (complete social profile) screen.
+11. For a complete profile, frontend revalidates and navigates to the consumed
+    internal target. For an incomplete profile, it stores a separate one-time
+    profile-continuation target and navigates to INFO-014.
+
+**Environment Boundary**
+- Google, Kakao, and Naver happy paths are locally verified with typed-response tests. Real-provider payload compatibility remains `ENVIRONMENT-CONDITIONAL` until an approved environment run; no live provider call is part of this flow's evidence.
 
 **Postconditions**
 - Tokens issued.
@@ -121,7 +135,9 @@
 6. Backend verifies isProfileComplete=false and repeats the uniqueness checks for nickname and phone number.
 7. Backend updates the users record (nickname, phonePersonal, userType, and either job or companyName depending on member type).
 8. Backend returns the updated user information (same format as 5.4 view my info).
-9. Frontend navigates to the main screen.
+9. Frontend consumes the one-time profile-continuation target and navigates to
+   that revalidated internal path. Missing, stale, malformed, or replayed
+   continuation data falls back to `/`.
 
 **Exception / Alternative Flow**
 - Nickname duplicate: UTIL-012 returns available=false. Prompts re-entry.
@@ -283,6 +299,7 @@
 
 **Exception / Alternative Flow**
 - Password mismatch: 401 response.
+- Social-only withdrawal is `POLICY-PENDING`. The existing password-only flow remains unchanged and cannot be used as a substitute for social proof. A future social-only path requires user approval of fresh provider reauthentication and linked provider-ID matching before implementation.
 - Provider cleanup fails or throws: withdrawal remains complete and local renewal remains blocked. The encrypted key is retained for retry and a deduplicated `WARNING` Incident is recorded.
 - Provider reports `ALREADY_REMOVED_BILLING_KEY`: cleanup converges to success, local key fields are cleared, and the matching Incident is resolved.
 

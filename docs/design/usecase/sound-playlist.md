@@ -18,15 +18,16 @@
 | **Related UC** | SOUND-019 (add track), SOUND-008 (view detail) |
 
 **Main Flow**
-1. User enters the playlist title (title, required) and description (optional).
-2. Attaches a thumbnail image (optional).
-3. Frontend performs validation.
-4. Frontend sends data as multipart/form-data to the backend.
-5. Backend performs validation.
-6. Backend creates a playlists record (is_active=1) and returns a 201 response.
+1. Direct navigation to `/playlists/new` replaces the URL with `/playlists` and opens the existing creation modal; it does not render a second creation page.
+2. User enters the playlist title (title, required) and description (optional).
+3. Attaches a thumbnail image (optional).
+4. Frontend performs validation.
+5. Frontend sends data as multipart/form-data to the backend.
+6. Backend performs validation.
+7. Backend creates a playlists record (is_active=1) and returns a 201 response.
 
 **Exception / Alternative Flow**
-- Active playlist count already at the current plan's `subscriptions.max_playlists`: 409 `PLAYLIST_LIMIT_EXCEEDED`. Frontend pre-empts this by hiding the 'Create Playlist' button when the active playlist count reaches the subscribed tier limit (client-side guard before API call).
+- Active playlist count already at the current plan's `subscriptions.max_playlists`: 409 `PLAYLIST_LIMIT_EXCEEDED`. The backend locks the owning user row before checking the active count and creating the playlist, so concurrent creates cannot exceed the plan. Frontend pre-empts this by hiding the 'Create Playlist' button when the active playlist count reaches the subscribed tier limit (client-side guard before API call).
 
 **Postconditions**
 - playlists record created. No tracks yet (empty playlist).
@@ -95,7 +96,9 @@
 2. Selects the target playlist.
 3. Frontend sends playlistId and trackId to the backend.
 4. Backend verifies the playlist belongs to the user.
-5. Backend creates a record in playlist_tracks (trackOrder = current last order + 1) and returns a 201 response.
+5. Backend locks the playlist row, creates a record in playlist_tracks (trackOrder = current last order + 1), and returns a 201 response.
+
+The modal treats close/reopen as a new lifecycle generation. Stale list/add responses and delayed success-close timers cannot affect a later modal session, while parent rerenders alone do not restart the playlist query.
 
 **Exception / Alternative Flow**
 - Track already in playlist: 409 response.
@@ -125,7 +128,7 @@
 **Main Flow B -- Track Order Change**
 1. User reorders tracks via drag-and-drop.
 2. Frontend sends [{trackId, trackOrder}, ...] array to the backend.
-3. Backend batch-updates track_order in playlist_tracks and returns a 200 response.
+3. Backend locks the playlist row, validates that the payload contains every current member exactly once with unique contiguous orders from 0 through n-1, batch-updates track_order in playlist_tracks, and returns a 200 response.
 
 **Postconditions**
 - Updated playlist information reflected in DB.
@@ -148,7 +151,7 @@
 1. User clicks the 'Remove' button on a specific track in the playlist detail.
 2. Frontend sends a remove request including playlistId and trackId to the backend.
 3. Backend verifies the playlist belongs to the user.
-4. Backend deletes the record from playlist_tracks and returns 204 No Content.
+4. Backend locks the playlist row, deletes the record from playlist_tracks, compacts remaining orders, and returns 204 No Content.
 
 **Postconditions**
 - Record deleted from playlist_tracks. Playlist track count decreased.
@@ -172,7 +175,10 @@
 2. Frontend displays a deletion confirmation dialog.
 3. Upon confirmation, frontend sends a delete request including playlistId to the backend.
 4. Backend verifies the playlist belongs to the user.
-5. Backend deletes playlist_tracks records, then deletes the playlists record and returns 204 No Content.
+5. Backend locks the playlist row, physically deletes its `playlist_tracks`
+   membership rows, soft-deletes the parent through `playlist.deactivate()`, and
+   returns 204 No Content.
 
 **Postconditions**
-- playlists and associated playlist_tracks records deleted.
+- The parent `playlists` row remains as an inactive soft-deleted record, while
+  associated `playlist_tracks` rows are physically deleted.

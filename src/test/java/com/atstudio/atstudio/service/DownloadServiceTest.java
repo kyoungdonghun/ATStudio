@@ -10,9 +10,11 @@ import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.storage.StorageService;
 import com.atstudio.atstudio.service.storage.StorageRoot;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.Resource;
@@ -25,6 +27,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -44,6 +47,11 @@ class DownloadServiceTest {
 
     @InjectMocks DownloadService downloadService;
 
+    @BeforeEach
+    void setUp() {
+        lenient().when(trackRepository.incrementDownloadCountAtomically(anyLong())).thenReturn(1);
+    }
+
     // ── download() 성공 ────────────────────────────────────────────────────────
 
     @Test
@@ -54,7 +62,7 @@ class DownloadServiceTest {
         Resource mockResource = mock(Resource.class);
 
         given(userDetails.getId()).willReturn(1L);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
         given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(buildSubscription(5)));
@@ -67,9 +75,24 @@ class DownloadServiceTest {
         Resource result = downloadService.download(1L, userDetails);
 
         assertThat(result).isEqualTo(mockResource);
-        verify(trackDownloadRepository).save(any(TrackDownload.class));
-        verify(licenseRepository).save(any(License.class));
-        verify(storageService).loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3");
+
+        InOrder inOrder = inOrder(
+                userRepository,
+                trackRepository,
+                licenseRepository,
+                userSubscriptionRepository,
+                trackDownloadRepository,
+                storageService);
+        inOrder.verify(userRepository).findByIdForUpdate(1L);
+        inOrder.verify(trackRepository).findById(1L);
+        inOrder.verify(licenseRepository).findByUserAndTrack(user, track);
+        inOrder.verify(userSubscriptionRepository).findActiveByUser(eq(user), any(LocalDate.class));
+        inOrder.verify(trackDownloadRepository).countByUserAndDownloadedAtBetween(eq(user), any(), any());
+        inOrder.verify(trackDownloadRepository).save(any(TrackDownload.class));
+        inOrder.verify(licenseRepository).save(any(License.class));
+        inOrder.verify(trackRepository).incrementDownloadCountAtomically(1L);
+        inOrder.verify(storageService).loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3");
+        inOrder.verifyNoMoreInteractions();
     }
 
     @Test
@@ -79,7 +102,7 @@ class DownloadServiceTest {
         Track track = buildTrack(1L, true);
 
         given(userDetails.getId()).willReturn(1L);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
         given(licenseRepository.findByUserAndTrack(user, track)).willReturn(Optional.of(buildLicense(user, track)));
         given(storageService.loadAsResource(eq(StorageRoot.PUBLIC), anyString())).willReturn(mock(Resource.class));
@@ -88,6 +111,8 @@ class DownloadServiceTest {
 
         verify(trackDownloadRepository, never()).save(any());
         verify(licenseRepository, never()).save(any());
+        verify(trackRepository, never()).incrementDownloadCountAtomically(anyLong());
+        verifyNoInteractions(userSubscriptionRepository);
     }
 
     @Test
@@ -98,7 +123,7 @@ class DownloadServiceTest {
         Resource mockResource = mock(Resource.class);
 
         given(userDetails.getId()).willReturn(1L);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
         given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(buildSubscription(-1)));
@@ -122,7 +147,7 @@ class DownloadServiceTest {
         Resource mockResource = mock(Resource.class);
 
         given(userDetails.getId()).willReturn(1L);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
         given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(buildSubscription(-1)));
@@ -146,7 +171,7 @@ class DownloadServiceTest {
         Resource mockResource = mock(Resource.class);
 
         given(userDetails.getId()).willReturn(1L);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
         given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(buildSubscription(5)));
@@ -168,7 +193,7 @@ class DownloadServiceTest {
         User user = buildUser(1L);
 
         given(userDetails.getId()).willReturn(1L);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(buildTrack(1L, true)));
         given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(buildSubscription(0)));
@@ -186,7 +211,7 @@ class DownloadServiceTest {
     @DisplayName("download() 실패 - 존재하지 않는 사용자 → RESOURCE_NOT_FOUND")
     void download_fail_userNotFound() {
         given(userDetails.getId()).willReturn(99L);
-        given(userRepository.findById(99L)).willReturn(Optional.empty());
+        given(userRepository.findByIdForUpdate(99L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> downloadService.download(1L, userDetails))
                 .isInstanceOf(BusinessException.class)
@@ -198,7 +223,7 @@ class DownloadServiceTest {
     @DisplayName("download() 실패 - 비활성 트랙 → TRACK_NOT_FOUND")
     void download_fail_inactiveTrack() {
         given(userDetails.getId()).willReturn(1L);
-        given(userRepository.findById(1L)).willReturn(Optional.of(buildUser(1L)));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(buildUser(1L)));
         given(trackRepository.findById(1L)).willReturn(Optional.of(buildTrack(1L, false)));
 
         assertThatThrownBy(() -> downloadService.download(1L, userDetails))
@@ -211,7 +236,7 @@ class DownloadServiceTest {
     @DisplayName("download() 실패 - 활성 구독 없음 → NO_ACTIVE_SUBSCRIPTION")
     void download_fail_noSubscription() {
         given(userDetails.getId()).willReturn(1L);
-        given(userRepository.findById(1L)).willReturn(Optional.of(buildUser(1L)));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(buildUser(1L)));
         given(trackRepository.findById(1L)).willReturn(Optional.of(buildTrack(1L, true)));
         given(userSubscriptionRepository.findActiveByUser(any(), any(LocalDate.class))).willReturn(Optional.empty());
 
@@ -227,7 +252,7 @@ class DownloadServiceTest {
         User user = buildUser(1L);
 
         given(userDetails.getId()).willReturn(1L);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(buildTrack(1L, true)));
         given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(buildSubscription(5)));

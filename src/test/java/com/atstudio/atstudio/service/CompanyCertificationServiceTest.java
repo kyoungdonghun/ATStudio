@@ -8,11 +8,15 @@ import com.atstudio.atstudio.dto.certification.CompanyCertificationResponse;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationReviewRequest;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationSummaryResponse;
 import com.atstudio.atstudio.entity.CompanyCertification;
+import com.atstudio.atstudio.entity.CompanyCertificationAuditLog;
+import com.atstudio.atstudio.entity.CompanyCertificationDocument;
+import com.atstudio.atstudio.entity.enums.CompanyCertificationAuditAction;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.CompanyCertificationStatus;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.CompanyCertificationDocumentRepository;
+import com.atstudio.atstudio.repository.CompanyCertificationAuditLogRepository;
 import com.atstudio.atstudio.repository.CompanyCertificationRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
@@ -22,14 +26,18 @@ import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
 import com.atstudio.atstudio.service.storage.StorageRoot;
 import com.atstudio.atstudio.service.storage.StorageService;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -44,6 +52,9 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("CompanyCertificationService 단위 테스트")
@@ -51,12 +62,26 @@ class CompanyCertificationServiceTest {
 
     @Mock CompanyCertificationRepository certificationRepository;
     @Mock CompanyCertificationDocumentRepository documentRepository;
+    @Mock CompanyCertificationAuditLogRepository auditLogRepository;
     @Mock UserRepository userRepository;
     @Mock StorageService storageService;
     @Mock StorageMutationCoordinator storageMutationCoordinator;
     @Mock CanonicalImageService canonicalImageService;
 
     @InjectMocks CompanyCertificationService certificationService;
+
+    @BeforeEach
+    void mirrorLockRepositoryStubs() {
+        lenient().when(userRepository.findByIdForUpdate(anyLong()))
+                .thenAnswer(invocation -> userRepository.findById(invocation.getArgument(0)));
+        lenient().when(certificationRepository.findByUserForUpdate(any(), any()))
+                .thenAnswer(invocation -> certificationRepository
+                        .findTopByUserOrderByCreatedAtDescIdDesc(invocation.getArgument(0))
+                        .map(List::of)
+                        .orElseGet(List::of));
+        lenient().when(certificationRepository.findByIdForUpdate(anyLong()))
+                .thenAnswer(invocation -> certificationRepository.findById(invocation.getArgument(0)));
+    }
 
     // ── 13.1 apply ───────────────────────────────────────────────────────────
 
@@ -93,7 +118,6 @@ class CompanyCertificationServiceTest {
 
             assertThat(result.id()).isEqualTo(1L);
             assertThat(result.status()).isEqualTo("PENDING");
-            assertThat(result.documentPath()).isNull();
             assertThat(result.documents()).hasSize(1);
             assertThat(result.documents().get(0).contentType()).isEqualTo("application/pdf");
             verify(storageMutationCoordinator).storeAll(
@@ -101,6 +125,28 @@ class CompanyCertificationServiceTest {
                     eq(StorageRoot.PRIVATE),
                     anyList(),
                     startsWith("company-docs/1/"));
+            InOrder lockOrder = inOrder(userRepository, certificationRepository);
+            lockOrder.verify(userRepository).findByIdForUpdate(1L);
+            lockOrder.verify(certificationRepository).existsByUserAndStatusIn(eq(user), anyList());
+        }
+
+        @Test
+        @DisplayName("mixed empty multipart part is rejected before storage")
+        void apply_mixedEmptyPart_rejectedBeforeStorage() {
+            User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+            given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList())).willReturn(false);
+
+            assertThatThrownBy(() -> certificationService.apply(
+                    buildUserDetails(1L, UserRole.USER),
+                    List.of(
+                            new MockMultipartFile("documents", "valid.pdf", "application/pdf", pdfBytes()),
+                            new MockMultipartFile("documents", "empty.pdf", "application/pdf", new byte[0]))))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.INVALID_VALID));
+
+            verify(storageMutationCoordinator, never()).storeAll(any(), any(), anyList(), anyString());
         }
 
         @Test
@@ -217,6 +263,9 @@ class CompanyCertificationServiceTest {
                     eq(StorageRoot.PRIVATE),
                     anyList(),
                     startsWith("company-docs/1/"));
+            InOrder lockOrder = inOrder(userRepository, certificationRepository);
+            lockOrder.verify(userRepository).findByIdForUpdate(1L);
+            lockOrder.verify(certificationRepository).findByUserForUpdate(eq(user), any());
         }
 
         @Test
@@ -553,14 +602,27 @@ class CompanyCertificationServiceTest {
                     CompanyCertificationStatus.PENDING, "/uploads/company-docs/1/");
 
             given(certificationRepository.findById(10L)).willReturn(Optional.of(cert));
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
 
             CompanyCertificationResponse result = certificationService.processReview(10L,
+                    buildUserDetails(1L, UserRole.ADMIN),
                     new CompanyCertificationReviewRequest(
                             CompanyCertificationStatus.APPROVED, "서류 확인 완료"));
 
             assertThat(result.status()).isEqualTo("APPROVED");
             assertThat(result.certificationCode()).startsWith("BIZ-");
             assertThat(result.approvedAt()).isNotNull();
+            ArgumentCaptor<CompanyCertificationAuditLog> auditCaptor =
+                    ArgumentCaptor.forClass(CompanyCertificationAuditLog.class);
+            verify(auditLogRepository).save(auditCaptor.capture());
+            assertThat(auditCaptor.getValue().getAction())
+                    .isEqualTo(CompanyCertificationAuditAction.REVIEWED);
+            assertThat(auditCaptor.getValue().getActorUser()).isEqualTo(user);
+            assertThat(auditCaptor.getValue().getFromStatus()).isEqualTo("PENDING");
+            assertThat(auditCaptor.getValue().getToStatus()).isEqualTo("APPROVED");
+            InOrder lockOrder = inOrder(userRepository, certificationRepository);
+            lockOrder.verify(userRepository).findByIdForUpdate(1L);
+            lockOrder.verify(certificationRepository).findByIdForUpdate(10L);
             assertThat(result.adminNote()).isEqualTo("서류 확인 완료");
         }
 
@@ -572,8 +634,10 @@ class CompanyCertificationServiceTest {
                     CompanyCertificationStatus.PENDING, "/uploads/company-docs/1/");
 
             given(certificationRepository.findById(10L)).willReturn(Optional.of(cert));
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
 
             CompanyCertificationResponse result = certificationService.processReview(10L,
+                    buildUserDetails(1L, UserRole.ADMIN),
                     new CompanyCertificationReviewRequest(
                             CompanyCertificationStatus.REVISION_REQUESTED, "서류 보완 필요"));
 
@@ -591,8 +655,10 @@ class CompanyCertificationServiceTest {
                     CompanyCertificationStatus.PENDING, "/uploads/company-docs/1/");
 
             given(certificationRepository.findById(10L)).willReturn(Optional.of(cert));
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
 
             CompanyCertificationResponse result = certificationService.processReview(10L,
+                    buildUserDetails(1L, UserRole.ADMIN),
                     new CompanyCertificationReviewRequest(
                             CompanyCertificationStatus.REJECTED, "부적격"));
 
@@ -604,10 +670,32 @@ class CompanyCertificationServiceTest {
 
         @Test
         @DisplayName("실패 - 미존재 인증 심사 → RESOURCE_NOT_FOUND")
+        void processReview_blankRejectionReason_rejectedBeforeMutation() {
+            User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+            CompanyCertification cert = buildCertification(10L, user,
+                    CompanyCertificationStatus.PENDING, "/uploads/company-docs/1/");
+            given(certificationRepository.findById(10L)).willReturn(Optional.of(cert));
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+
+            assertThatThrownBy(() -> certificationService.processReview(
+                    10L,
+                    buildUserDetails(1L, UserRole.ADMIN),
+                    new CompanyCertificationReviewRequest(CompanyCertificationStatus.REJECTED, "  ")))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.INVALID_VALID));
+
+            assertThat(cert.getStatus()).isEqualTo(CompanyCertificationStatus.PENDING);
+            verifyNoInteractions(auditLogRepository);
+        }
+
+        @Test
+        @DisplayName("missing certification is rejected")
         void processReview_notFound() {
             given(certificationRepository.findById(99L)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> certificationService.processReview(99L,
+                    buildUserDetails(1L, UserRole.ADMIN),
                     new CompanyCertificationReviewRequest(
                             CompanyCertificationStatus.APPROVED, null)))
                     .isInstanceOf(BusinessException.class)
@@ -617,6 +705,35 @@ class CompanyCertificationServiceTest {
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("guarded document download records only actor, target, and opaque document ID")
+    void downloadDocument_recordsMinimumAuditEvidence() {
+        User applicant = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+        User admin = buildUser(2L, UserRole.ADMIN, UserType.INDIVIDUAL);
+        CompanyCertification cert = buildCertification(10L, applicant,
+                CompanyCertificationStatus.PENDING, "/uploads/company-docs/1/");
+        cert.addDocument("license.pdf", "company-docs/1/license.pdf", "application/pdf", 4L);
+        CompanyCertificationDocument document = cert.getDocuments().get(0);
+        ReflectionTestUtils.setField(document, "id", 77L);
+        given(documentRepository.findByIdAndCertificationId(77L, 10L)).willReturn(Optional.of(document));
+        given(userRepository.findById(2L)).willReturn(Optional.of(admin));
+        given(storageService.loadAsResource(StorageRoot.PRIVATE, "company-docs/1/license.pdf"))
+                .willReturn(new ByteArrayResource(new byte[]{1, 2, 3, 4}));
+
+        certificationService.downloadDocument(10L, 77L, buildUserDetails(2L, UserRole.ADMIN));
+
+        ArgumentCaptor<CompanyCertificationAuditLog> auditCaptor =
+                ArgumentCaptor.forClass(CompanyCertificationAuditLog.class);
+        verify(auditLogRepository).save(auditCaptor.capture());
+        assertThat(auditCaptor.getValue().getAction())
+                .isEqualTo(CompanyCertificationAuditAction.DOCUMENT_ACCESS_GRANTED);
+        assertThat(auditCaptor.getValue().getActorUser()).isEqualTo(admin);
+        assertThat(auditCaptor.getValue().getCertification()).isEqualTo(cert);
+        assertThat(auditCaptor.getValue().getDocumentId()).isEqualTo(77L);
+        assertThat(auditCaptor.getValue().getFromStatus()).isNull();
+        assertThat(auditCaptor.getValue().getToStatus()).isNull();
+    }
 
     private User buildUser(Long id, UserRole role, UserType userType) {
         User user = User.builder()

@@ -27,4 +27,8 @@ public class PlaylistTrack {
 
     @Column(nullable = false)
     private int trackOrder;
+
+    public void updateOrder(int trackOrder) {
+        this.trackOrder = trackOrder;
+    }
 }

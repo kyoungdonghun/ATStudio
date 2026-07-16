@@ -89,6 +89,10 @@ class TestUserBootstrapRunnerTest {
         verify(userSubscriptionRepository, times(3)).save(any(UserSubscription.class));
         verify(companyCertificationRepository, times(1)).save(any());
         verify(playlistService, times(3)).createDefaultPlaylist(any(User.class));
+        verify(userRepository).save(org.mockito.ArgumentMatchers.argThat(user ->
+                "AT.M QA Biz".equals(user.getCompanyName())
+                        && "qa.business@atstudio.local".equals(user.getEmail())
+        ));
         assertThat(output)
                 .contains("Non-prod QA bootstrap ready: fixtureUserCount=5")
                 .doesNotContain("@atstudio.local");

@@ -111,10 +111,15 @@ export async function checkEmailAvailability(email: string): Promise<CheckAvaila
   return data.data;
 }
 
-export async function checkNicknameAvailability(nickname: string): Promise<CheckAvailabilityResponse> {
-  const { data } = await client.get<ApiResponse<CheckAvailabilityResponse>>('/utils/check-nickname', {
-    params: { nickname },
-  });
+export async function checkNicknameAvailability(
+  nickname: string,
+): Promise<CheckAvailabilityResponse> {
+  const { data } = await client.get<ApiResponse<CheckAvailabilityResponse>>(
+    '/utils/check-nickname',
+    {
+      params: { nickname },
+    },
+  );
   return data.data;
 }
 
@@ -126,20 +131,18 @@ export async function socialLogin(
 ): Promise<LoginResponse & { isProfileComplete: boolean }> {
   const body: Record<string, string> = { authorizationCode };
   if (codeVerifier) body.codeVerifier = codeVerifier;
-  const { data } = await client.post<
-    ApiResponse<LoginResponse & { isProfileComplete: boolean }>
-  >(`/auth/social/${provider}`, body);
+  const { data } = await client.post<ApiResponse<LoginResponse & { isProfileComplete: boolean }>>(
+    `/auth/social/${provider}`,
+    body,
+  );
   return data.data;
 }
 
 /** GET /api/utils/check-phone -- phone availability check */
-export async function checkPhoneAvailability(
-  phone: string,
-): Promise<CheckAvailabilityResponse> {
-  const { data } = await client.get<ApiResponse<CheckAvailabilityResponse>>(
-    '/utils/check-phone',
-    { params: { phone } },
-  );
+export async function checkPhoneAvailability(phone: string): Promise<CheckAvailabilityResponse> {
+  const { data } = await client.get<ApiResponse<CheckAvailabilityResponse>>('/utils/check-phone', {
+    params: { phone },
+  });
   return data.data;
 }
 

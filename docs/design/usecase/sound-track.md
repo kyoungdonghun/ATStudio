@@ -210,10 +210,10 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-019 |
-| **Version** | 26-03-07 |
+| **Version** | 26-07-16 |
 | **Description** | User adds a track to an existing playlist from the track list or track detail screen. Canonical definition is in `sound-playlist.md`. This entry exists as a trigger-side reference for track-context UX flows. |
 | **Actor** | User (subscriber), Backend |
-| **Preconditions** | Logged in. Has active subscription (user_subscriptions.status=ACTIVE). Must own the target playlist. |
+| **Preconditions** | Logged in. Has a service-enabled subscription (`user_subscriptions.status=ACTIVE`, or `status=CANCELLED` before `expiresAt`). Must own the target playlist. |
 | **Trigger** | User clicks the 'Add to Playlist' button on the track list (Screen 1/3) or track detail screen (B-1). |
 | **Related UC** | SOUND-005 (list tracks), SOUND-006 (view track detail), SOUND-008 (view playlist detail) |
 

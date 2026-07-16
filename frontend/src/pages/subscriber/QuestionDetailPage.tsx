@@ -124,7 +124,9 @@ export default function QuestionDetailPage() {
     return (
       <div className={styles.page}>
         <div className={styles.error}>{error ?? '문의를 찾을 수 없습니다.'}</div>
-        <Link to="/questions" className={styles.backLink}>{'목록으로'}</Link>
+        <Link to="/questions" className={styles.backLink}>
+          {'목록으로'}
+        </Link>
       </div>
     );
   }
@@ -135,7 +137,9 @@ export default function QuestionDetailPage() {
   return (
     <div className={styles.page}>
       {/* Back */}
-      <Link to="/questions" className={styles.backLink}>{'< 목록으로'}</Link>
+      <Link to="/questions" className={styles.backLink}>
+        {'< 목록으로'}
+      </Link>
 
       {/* Header */}
       <div className={styles.header}>
@@ -179,7 +183,9 @@ export default function QuestionDetailPage() {
       {/* Answers */}
       {answers.length > 0 && (
         <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>{'답변'} ({answers.length})</h2>
+          <h2 className={styles.sectionTitle}>
+            {'답변'} ({answers.length})
+          </h2>
           <div className={styles.answerList}>
             {answers.map((answer) => (
               <div key={answer.id} className={styles.answerCard}>
@@ -215,9 +221,7 @@ export default function QuestionDetailPage() {
                 required
                 disabled={answerSubmitting}
               />
-              {answerError && (
-                <p className={styles.answerFormError}>{answerError}</p>
-              )}
+              {answerError && <p className={styles.answerFormError}>{answerError}</p>}
               <div className={styles.answerFormActions}>
                 <Button
                   type="submit"
@@ -242,11 +246,7 @@ export default function QuestionDetailPage() {
       )}
 
       {/* Delete confirm modal */}
-      <Modal
-        open={deleteOpen}
-        onClose={() => setDeleteOpen(false)}
-        title="문의 삭제"
-      >
+      <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="문의 삭제">
         <div className={styles.modalBody}>
           {'이 문의를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.'}
         </div>

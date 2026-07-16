@@ -52,8 +52,10 @@
 **Sort Parameter**
 | Value | Sort behavior |
 |-------|--------------|
-| `latest` (default) | `createdAt DESC` (DB-level ordering) |
-| `trackCount` | Track count DESC (in-memory sort on computed field) |
+| `latest` (default) | `createdAt DESC`, then `id DESC` (DB-level ordering) |
+| `trackCount` | Global track count DESC, then `createdAt DESC` and `id DESC` before pagination (DB-level aggregate ordering) |
+
+The paged catalog validates positive page/size values and bounds size to 100. It never loads the full album catalog for in-memory sorting.
 
 **Response Fields (AlbumListItemResponse)**
 Includes `likeCount` field (from `albums.like_count`) in addition to id, title, thumbnail, and trackCount.
@@ -155,7 +157,7 @@ Includes `likeCount` field (from `albums.like_count`) in addition to id, title, 
 1. Admin selects a track to add from the track list.
 2. Frontend sends albumId and trackId to the backend.
 3. Backend verifies the album and track exist.
-4. Backend creates a record in album_tracks (track_order = current track count + 1) and returns a 200 response with the updated album detail.
+4. Backend locks the album row, then creates a record in album_tracks (track_order = the current 0-based track count) and returns a 200 response with the updated album detail.
 
 **Exception / Alternative Flow**
 - Track already in album: 409 RESOURCE_DUPLICATE response.
@@ -181,7 +183,7 @@ Includes `likeCount` field (from `albums.like_count`) in addition to id, title, 
 **Main Flow**
 1. Admin clicks the 'Remove' button on a specific track in the album detail.
 2. Frontend sends a remove request including albumId and trackId to the backend.
-3. Backend deletes the album_tracks record and returns 204 No Content.
+3. Backend locks the album row, deletes the album_tracks record, compacts remaining orders, and returns 204 No Content.
 
 **Exception / Alternative Flow**
 - Album or track not found: 404 response.
@@ -206,7 +208,7 @@ Includes `likeCount` field (from `albums.like_count`) in addition to id, title, 
 **Main Flow**
 1. Admin reorders tracks via drag-and-drop.
 2. Frontend sends [{trackId, order}, ...] array to the backend.
-3. Backend updates track_order in album_tracks for each entry and returns a 200 response with the updated album detail.
+3. Backend locks the album row, validates that the payload contains every current member exactly once with unique contiguous orders from 0 through n-1, updates track_order for each entry, and returns a 200 response with the updated album detail.
 
 **Exception / Alternative Flow**
 - Album not found: 404 response.

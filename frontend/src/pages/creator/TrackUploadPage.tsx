@@ -20,8 +20,30 @@ import Tag from '@/components/ui/Tag';
 import styles from './TrackUploadPage.module.css';
 
 const TONALITIES = [
-  'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
-  'Cm', 'C#m', 'Dm', 'D#m', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'A#m', 'Bm',
+  'C',
+  'C#',
+  'D',
+  'D#',
+  'E',
+  'F',
+  'F#',
+  'G',
+  'G#',
+  'A',
+  'A#',
+  'B',
+  'Cm',
+  'C#m',
+  'Dm',
+  'D#m',
+  'Em',
+  'Fm',
+  'F#m',
+  'Gm',
+  'G#m',
+  'Am',
+  'A#m',
+  'Bm',
 ];
 
 interface TrackEntry {
@@ -85,76 +107,89 @@ export default function TrackUploadPage() {
       }
     }
     loadTags();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   /* ── Add audio files ── */
-  const handleAudioSelect = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files;
-    if (!selected) return;
+  const handleAudioSelect = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const selected = e.target.files;
+      if (!selected) return;
 
-    const newFiles = Array.from(selected);
+      const newFiles = Array.from(selected);
 
-    // File extension check (iOS Safari workaround — accept 속성으로 걸러지지 않는 케이스 대응)
-    const invalidType = newFiles.filter((f) => !hasValidAudioExtension(f.name));
-    if (invalidType.length > 0) {
-      setError(`지원하지 않는 파일 형식입니다: ${invalidType.map((f) => f.name).join(', ')} (MP3, WAV, M4A, AAC, FLAC, OGG만 업로드 가능)`);
+      // File extension check (iOS Safari workaround — accept 속성으로 걸러지지 않는 케이스 대응)
+      const invalidType = newFiles.filter((f) => !hasValidAudioExtension(f.name));
+      if (invalidType.length > 0) {
+        setError(
+          `지원하지 않는 파일 형식입니다: ${invalidType.map((f) => f.name).join(', ')} (MP3, WAV, M4A, AAC, FLAC, OGG만 업로드 가능)`,
+        );
+        if (audioInputRef.current) audioInputRef.current.value = '';
+        return;
+      }
+
+      // File size check
+      const oversized = newFiles.filter((f) => !isFileSizeOk(f, AUDIO_MAX_SIZE_MB));
+      if (oversized.length > 0) {
+        setError(
+          `오디오 파일은 ${AUDIO_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다. (초과: ${oversized.map((f) => f.name).join(', ')})`,
+        );
+        return;
+      }
+
+      const remaining = TRACK_UPLOAD_MAX_COUNT - tracks.length;
+      if (remaining <= 0) {
+        setError(`최대 ${TRACK_UPLOAD_MAX_COUNT}곡까지 업로드할 수 있습니다.`);
+        return;
+      }
+
+      const filesToAdd = newFiles.slice(0, remaining);
+      if (newFiles.length > remaining) {
+        setError(
+          `최대 ${TRACK_UPLOAD_MAX_COUNT}곡 제한으로 ${newFiles.length - remaining}개 파일이 제외되었습니다.`,
+        );
+      }
+
+      const newEntries: TrackEntry[] = filesToAdd.map((file) => ({
+        id: crypto.randomUUID(),
+        audioFile: file,
+        thumbnail: null,
+        title: file.name.replace(/\.[^.]+$/, ''),
+        bpm: '',
+        tonality: '',
+        description: '',
+        tagIds: [],
+      }));
+
+      setTracks((prev) => [...prev, ...newEntries]);
+      // Expand first new track if nothing expanded
+      if (expandedIdx === null && newEntries.length > 0) {
+        setExpandedIdx(tracks.length);
+      }
+
       if (audioInputRef.current) audioInputRef.current.value = '';
-      return;
-    }
-
-    // File size check
-    const oversized = newFiles.filter((f) => !isFileSizeOk(f, AUDIO_MAX_SIZE_MB));
-    if (oversized.length > 0) {
-      setError(`오디오 파일은 ${AUDIO_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다. (초과: ${oversized.map((f) => f.name).join(', ')})`);
-      return;
-    }
-
-    const remaining = TRACK_UPLOAD_MAX_COUNT - tracks.length;
-    if (remaining <= 0) {
-      setError(`최대 ${TRACK_UPLOAD_MAX_COUNT}곡까지 업로드할 수 있습니다.`);
-      return;
-    }
-
-    const filesToAdd = newFiles.slice(0, remaining);
-    if (newFiles.length > remaining) {
-      setError(`최대 ${TRACK_UPLOAD_MAX_COUNT}곡 제한으로 ${newFiles.length - remaining}개 파일이 제외되었습니다.`);
-    }
-
-    const newEntries: TrackEntry[] = filesToAdd.map((file) => ({
-      id: crypto.randomUUID(),
-      audioFile: file,
-      thumbnail: null,
-      title: file.name.replace(/\.[^.]+$/, ''),
-      bpm: '',
-      tonality: '',
-      description: '',
-      tagIds: [],
-    }));
-
-    setTracks((prev) => [...prev, ...newEntries]);
-    // Expand first new track if nothing expanded
-    if (expandedIdx === null && newEntries.length > 0) {
-      setExpandedIdx(tracks.length);
-    }
-
-    if (audioInputRef.current) audioInputRef.current.value = '';
-  }, [tracks.length, expandedIdx]);
+    },
+    [tracks.length, expandedIdx],
+  );
 
   /* ── Update track field ── */
   function updateTrack(idx: number, updates: Partial<TrackEntry>) {
-    setTracks((prev) => prev.map((t, i) => i === idx ? { ...t, ...updates } : t));
+    setTracks((prev) => prev.map((t, i) => (i === idx ? { ...t, ...updates } : t)));
   }
 
   /* ── Toggle tag ── */
   function toggleTag(idx: number, tagId: number) {
-    setTracks((prev) => prev.map((t, i) => {
-      if (i !== idx) return t;
-      const tagIds = t.tagIds.includes(tagId)
-        ? t.tagIds.filter((id) => id !== tagId)
-        : [...t.tagIds, tagId];
-      return { ...t, tagIds };
-    }));
+    setTracks((prev) =>
+      prev.map((t, i) => {
+        if (i !== idx) return t;
+        const tagIds = t.tagIds.includes(tagId)
+          ? t.tagIds.filter((id) => id !== tagId)
+          : [...t.tagIds, tagId];
+        return { ...t, tagIds };
+      }),
+    );
   }
 
   /* ── Remove track ── */
@@ -265,9 +300,7 @@ export default function TrackUploadPage() {
 
         {/* File select */}
         <div className={styles.field}>
-          <span className={`${styles.label} ${styles.required}`}>
-            {'오디오 파일 선택'}
-          </span>
+          <span className={`${styles.label} ${styles.required}`}>{'오디오 파일 선택'}</span>
           <label className={styles.fileLabel}>
             <input
               ref={audioInputRef}
@@ -296,9 +329,13 @@ export default function TrackUploadPage() {
               const state = uploadStates[track.id];
               const isExpanded = expandedIdx === idx;
               const statusIcon =
-                state?.status === 'done' ? '\u2705' :
-                state?.status === 'error' ? '\u274C' :
-                state?.status === 'uploading' ? '\u23F3' : '';
+                state?.status === 'done'
+                  ? '\u2705'
+                  : state?.status === 'error'
+                    ? '\u274C'
+                    : state?.status === 'uploading'
+                      ? '\u23F3'
+                      : '';
 
               return (
                 <div
@@ -316,14 +353,15 @@ export default function TrackUploadPage() {
                     <span className={styles.trackFileName}>
                       {statusIcon} {track.title || track.audioFile.name}
                     </span>
-                    <span className={styles.trackChevron}>
-                      {isExpanded ? '\u25B2' : '\u25BC'}
-                    </span>
+                    <span className={styles.trackChevron}>{isExpanded ? '\u25B2' : '\u25BC'}</span>
                     {state?.status !== 'done' && (
                       <button
                         type="button"
                         className={styles.trackRemove}
-                        onClick={(e) => { e.stopPropagation(); removeTrack(idx); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeTrack(idx);
+                        }}
                       >
                         {'×'}
                       </button>
@@ -373,7 +411,9 @@ export default function TrackUploadPage() {
                           >
                             <option value="">{'선택'}</option>
                             {TONALITIES.map((t) => (
-                              <option key={t} value={t}>{t}</option>
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
                             ))}
                           </select>
                         </div>
@@ -392,7 +432,9 @@ export default function TrackUploadPage() {
                             onChange={(e) => {
                               const file = e.target.files?.[0] ?? null;
                               if (file && !isFileSizeOk(file, IMAGE_MAX_SIZE_MB)) {
-                                setError(`썸네일 이미지는 ${IMAGE_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`);
+                                setError(
+                                  `썸네일 이미지는 ${IMAGE_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`,
+                                );
                                 return;
                               }
                               updateTrack(idx, { thumbnail: file });
@@ -480,18 +522,11 @@ export default function TrackUploadPage() {
 
         {/* Actions */}
         <div className={styles.actions}>
-          <Button
-            variant="ghost"
-            type="button"
-            onClick={() => navigate(-1)}
-            disabled={submitting}
-          >
+          <Button variant="ghost" type="button" onClick={() => navigate(-1)} disabled={submitting}>
             {'취소'}
           </Button>
           <Button type="submit" loading={submitting} disabled={tracks.length === 0}>
-            {tracks.length <= 1
-              ? '업로드'
-              : `${tracks.length}곡 업로드`}
+            {tracks.length <= 1 ? '업로드' : `${tracks.length}곡 업로드`}
           </Button>
         </div>
       </form>

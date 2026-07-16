@@ -100,10 +100,12 @@ public class CompanyCertificationController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<byte[]> downloadDocument(
             @PathVariable Long certificationId,
-            @PathVariable Long documentId) throws IOException {
+            @PathVariable Long documentId,
+            @AuthenticationPrincipal CustomUserDetails actorDetails) throws IOException {
         CompanyCertificationDocumentDownload download = certificationService.downloadDocument(
                 certificationId,
-                documentId
+                documentId,
+                actorDetails
         );
         String filename = UriUtils.encode(download.originalFilename(), StandardCharsets.UTF_8);
         byte[] body = StreamUtils.copyToByteArray(download.resource().getInputStream());
@@ -124,9 +126,10 @@ public class CompanyCertificationController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<CompanyCertificationResponse>> processReview(
             @PathVariable Long certificationId,
+            @AuthenticationPrincipal CustomUserDetails actorDetails,
             @Valid @RequestBody CompanyCertificationReviewRequest request) {
         CompanyCertificationResponse response = certificationService.processReview(
-                certificationId, request);
+                certificationId, actorDetails, request);
         return ResponseEntity.ok(ResponseDTO.<CompanyCertificationResponse>withSingleData()
                 .message("Certification review processed")
                 .data(response)

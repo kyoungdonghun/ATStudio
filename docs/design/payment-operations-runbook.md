@@ -1,8 +1,22 @@
+---
+version: 1.0
+last_updated: 2026-07-16
+project: ATS
+owner: docops
+category: guide
+status: stable
+dependencies:
+  - path: payment-integration-design.md
+    reason: Payment state and provider design
+  - path: ../payment/system-overview.md
+    reason: Current implementation overview
+---
+
 # Payment Operations Runbook
 
 > Purpose: Define production-facing operational procedures for Toss billing-key recurring payment reconciliation and incident response.
 > Scope: ATStudio subscription payments only. This document covers reconciliation, withdrawal billing-key cleanup, receipt evidence storage, payment operation audit visibility, the admin refund ledger/provider cancel workflow, the separate refund-linked entitlement correction workflow, and settlement import/reconciliation operations. It does not introduce tax invoice workflow, cash receipt issue/cancel automation, automatic entitlement correction, or automatic withdrawal refund. Refund/receipt/settlement/tax invoice policy is defined separately in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md).
-> Last updated: 2026-07-13
+> Last updated: 2026-07-16
 
 ## 1. Operating Model
 
@@ -12,7 +26,7 @@ ATStudio subscription payment is recurring-first.
 - Upgrade: ATStudio charges the remaining-period difference through the active billing agreement, then applies the higher plan immediately.
 - Downgrade or billing-cycle-only change: ATStudio schedules the change for the next renewal without immediate payment.
 - Renewal: ATStudio scheduler calls Toss billing charge with the stored encrypted billing key and provider customer key.
-- Account withdrawal: ATStudio cancels the local agreement and ACTIVE subscription before soft deletion, then attempts Provider billing-key cleanup after the local transaction commits.
+- Account withdrawal: ATStudio locks the billing agreement before the subscription, rejects the request while a charge order is awaiting its Provider outcome or local finalization, cancels local renewal eligibility before soft deletion, then attempts Provider billing-key cleanup after the local transaction commits.
 
 Toss does not run ATStudio subscription scheduling. ATStudio owns renewal timing, retry, grace-period handling, and local subscription mutation.
 
@@ -38,12 +52,16 @@ Local subscription access must not be changed solely from webhook data. Provider
 
 ### Scheduled
 
-`PaymentReconciliationService` runs daily at 01:00 server time.
+`PaymentReconciliationService` runs daily at 01:00 in the configured payment scheduler zone. The default zone is `Asia/Seoul`. Scheduled `LocalDate` and `LocalDateTime` decisions use the same injected business-zone clock, including renewal due dates and subscription expiration.
 
 It performs:
 
 - Local ledger reconciliation.
-- Provider-backed reconciliation for recent subscription payment orders when a lookup-capable provider is configured.
+- Provider-backed reconciliation for eligible subscription payment orders when a lookup-capable provider is configured.
+- Nonterminal/finalization candidates and `ACTIVE` agreement candidates are read with `id > lastSeenID` keyset batches.
+- Locally `DONE` provider orders are rechecked only inside `completed-order-lookback-days` and `completed-order-max-per-run`; defaults are 30 days and 500 rows, with runtime caps of 365 days and 5000 rows.
+- A locally succeeded refund excludes its original `DONE` order from this payment-state comparison because provider cancellation can legitimately change the original payment status.
+- Scheduled local mismatch Incidents are persisted batch by batch. The API response keeps only the configured issue-detail limit and reports `totalIssues` plus `issueDetailsTruncated`; detail truncation never suppresses scheduled Incident persistence.
 - If a mismatch is detected, the current implementation writes WARN-level server logs.
 - The scheduled job creates or updates `payment_reconciliation_incidents` by deterministic `dedupeKey`.
 - Repeated detection increments `occurrenceCount` and updates `lastDetectedAt`.
@@ -55,9 +73,9 @@ It performs:
 
 `GET /api/admin/payments/reconciliation`
 
-This endpoint runs the same read-only checks and returns support-safe counts and issue records. It must remain read-only.
+This endpoint runs a dedicated observation-only path and returns support-safe counts and issue records. It uses non-claiming reads and Provider lookups but never calls payment finalizers, mutates agreements/subscriptions/orders, or creates, updates, resolves, or reopens Incidents.
 
-Operators can use this endpoint to check the current state on demand. It does not create, acknowledge, or resolve incident records.
+Operators can use this endpoint to check the current state on demand. Recovery and Incident persistence remain exclusive to the scheduled reconciliation path.
 
 Safe fields include:
 
@@ -66,8 +84,9 @@ Safe fields include:
 - purpose
 - local status
 - provider status
-- local/provider amount
-- provider transaction ID
+- local amount and local currency
+- provider amount and provider currency
+- masked provider support reference (`REF-*`)
 - sanitized failure code/message
 
 Forbidden fields:
@@ -76,6 +95,8 @@ Forbidden fields:
 - Toss secret key
 - raw card number, CVC, expiry
 - raw `authKey`
+- raw provider payment, refund, receipt, or settlement identifier
+- full or partial raw Provider identifiers copied into Incident/audit free text
 - raw provider payload
 
 ### Admin Incident Workflow
@@ -111,12 +132,14 @@ Status guidance:
 
 Current automation is limited to detection, persistent incident visibility, optional email notification, explicit admin-approved refund execution, explicit admin-approved local entitlement correction, and admin-triggered settlement evidence import/review. It does not automatically perform entitlement correction, tax invoice mutation, cash receipt issue/cancel, or provider settlement API import.
 
+Application logging is intentionally less detailed than the ADMIN API and Incident ledger. Local/provider reconciliation logs contain bounded aggregate counters only; they do not serialize issue lists, exact provider transaction identifiers, or free-text issue details. Structured Incidents persist deterministic `REF-*` support references, never raw identifier fragments. New audit/Incident free text omits Provider identifiers, and ADMIN serialization sanitizes labelled raw identifiers in retained legacy notes. An unknown Toss cancel transport failure logs only the exception class, never the exception message, stack trace, request URI, or provider payment key.
+
 | Capability | Current state |
 |---|---|
-| Scheduled execution | Runs daily at 01:00 server time. |
+| Scheduled execution | Runs daily at 01:00 in `app.payment.scheduler-zone`, default `Asia/Seoul`. |
 | Provider comparison | Available when Toss lookup configuration is present. |
 | Automatic log output | WARN-level logs are written for detected mismatches. |
-| Admin read-only check | `GET /api/admin/payments/reconciliation` returns current mismatch counts and issue records. |
+| Admin read-only check | `GET /api/admin/payments/reconciliation` returns current mismatch counts and issue records without claims, finalization, entitlement mutation, or Incident writes. |
 | Persistent incident storage | Implemented through `payment_reconciliation_incidents`. |
 | Receipt evidence storage | Implemented through `payment_receipts` after successful subscription charges when provider receipt fields are present. |
 | Refund ledger/provider cancel | Implemented through admin refund APIs backed by `payment_refunds`; provider execution requires an approved refund and reuses the persisted idempotency key. |
@@ -145,8 +168,8 @@ Collect only support-safe evidence:
 - payment purpose (`SUBSCRIBE`, `UPGRADE`, `RENEWAL`)
 - local order status
 - local subscription status and plan
-- expected amount and billing cycle
-- provider status, amount, and `paymentKey`
+- expected amount, local currency, and billing cycle
+- provider status, provider amount, provider currency, and masked support reference (`REF-*`)
 - receipt URL or cash receipt key if `GET /api/admin/payments/receipts` has a matching row
 - audit log rows from `GET /api/admin/payments/operation-audit-logs` when an operator status change occurred
 - relevant application log timestamps
@@ -204,6 +227,9 @@ Admin entitlement correction workflow:
 
 Execution safety notes:
 
+- Create and execute acquire the billing-agreement lock before the subscription lock.
+- The stored agreement and subscription before-state snapshots must still match at execution; drift rejects execution without applying the target.
+- A `SUBSCRIBE`, `UPGRADE`, or `RENEWAL` order in `PROCESSING`, `PROVIDER_SUCCEEDED`, or `PENDING_PROVIDER_CONFIRMATION` rejects correction creation or execution until reconciliation/finalization makes its outcome terminal.
 - `EXPIRED` target status must not use a future expiration date.
 - `ACTIVE` or `CANCELLED` target status must not use a past expiration date.
 - The target plan must match the user's type and be active.
@@ -233,12 +259,14 @@ Settlement safety notes:
 
 ### 7.1 Normal Path
 
-1. `DELETE /api/users/me` authenticates the submitted password.
-2. The local transaction marks a non-terminal Toss billing agreement and an ACTIVE subscription `CANCELLED`, publishes an event containing only `billingAgreementID` when encrypted key material exists, removes transient user-owned rows, and soft-deletes the user.
-3. Only after commit, `WithdrawalBillingCleanupCoordinator` starts agreement-specific cleanup through `WithdrawalBillingCleanupService` in `REQUIRES_NEW`.
-4. Provider success clears the encrypted key and related issued-key metadata, including `next_billing_at`, and resolves the matching Incident if one exists.
+1. `DELETE /api/users/me` authenticates the submitted password before billing locks or mutation.
+2. The local transaction locks the Toss billing agreement, subscription, and user in that order, then revalidates the password against the locked user.
+3. If a `SUBSCRIBE`, `UPGRADE`, or `RENEWAL` order is `PROCESSING`, `PROVIDER_SUCCEEDED`, or `PENDING_PROVIDER_CONFIRMATION`, withdrawal returns `PAYMENT_ORDER_INVALID_STATE` and makes no cancellation/deletion change. Retry only after reconciliation or finalization reaches a terminal outcome.
+4. After the fence passes, the transaction marks a non-terminal agreement and an ACTIVE subscription `CANCELLED`, publishes an event containing only `billingAgreementID` when encrypted key material exists, removes transient user-owned rows, and soft-deletes the user.
+5. Only after commit, `WithdrawalBillingCleanupCoordinator` starts agreement-specific cleanup through `WithdrawalBillingCleanupService` in `REQUIRES_NEW`.
+6. Provider success clears the encrypted key and related issued-key metadata, including `next_billing_at`, and resolves the matching Incident if one exists.
 
-Local renewal blocking does not wait for Provider cleanup. The due-renewal repository query excludes deleted users, and the renewal service repeats the deleted-user guard before key decryption, order creation, or charge.
+Local renewal blocking does not wait for Provider cleanup. The due-renewal repository query excludes deleted users. Renewal claim and an immediate pre-Provider authorization both require an ACTIVE agreement, non-deleted user, ACTIVE subscription, and `PROCESSING` renewal order. Provider-success recording preserves Provider evidence but refuses local finalization after cancellation/deletion, and the finalizer repeats the fence so it cannot reactivate cancelled access.
 
 ### 7.2 Failure and Retry Path
 
@@ -269,23 +297,31 @@ Before enabling live Toss recurring billing:
 - Confirm test keys are not present in production.
 - Set billing auth success/fail URLs to the production frontend origin.
 - Confirm production CORS allows only intended frontend origins.
-- Set `PAYMENT_BILLING_KEY_ENCRYPTION_SECRET` through a secret manager or environment variable.
+- Keep `PAYMENT_BILLING_KEY_ENCRYPTION_SECRET` available for legacy v1 ciphertext decryption until a separately approved migration proves no retained v1 row depends on it.
+- Set `PAYMENT_BILLING_KEY_ACTIVE_KEY_ID` to the key ID used for new v2 ciphertext.
+- Configure one or more `app.payment.billing.encryption-keys` entries through the secret manager. With Spring environment binding, list entries use names such as `APP_PAYMENT_BILLING_ENCRYPTIONKEYS_0_ID` and `APP_PAYMENT_BILLING_ENCRYPTIONKEYS_0_SECRET`. Never place the secret values in repository files or command output.
+- Confirm the active key ID exists in the key ring and every retained v2 ciphertext key ID remains available. `TOSS_BILLING` startup fails on blank, placeholder, duplicate, unknown, or missing key configuration without printing secret values.
+- Set `APP_PAYMENT_SCHEDULER_ZONE` only when the approved payment business zone differs from `Asia/Seoul`.
+- Verify renewal, reconciliation, and expiration boundary tests against the configured business-zone clock when changing `APP_PAYMENT_SCHEDULER_ZONE`; host-default midnight must not determine payment dates.
+- Tune `PAYMENT_RECONCILIATION_BATCH_SIZE` and `PAYMENT_RECONCILIATION_ISSUE_DETAIL_LIMIT` within operational memory/query budgets. Runtime caps are 1000 rows per batch and 500 returned issue details.
+- Set `PAYMENT_RECONCILIATION_COMPLETED_ORDER_LOOKBACK_DAYS` and `PAYMENT_RECONCILIATION_COMPLETED_ORDER_MAX_PER_RUN` for the bounded recent-`DONE` verification path. Defaults are 30 and 500; runtime caps are 365 and 5000.
 - Confirm `TOSS_PAYMENT_LOOKUP_BY_ORDER_ID_URL` or `app.payment.billing.payment-lookup-by-order-id-url` points to the Toss production API.
 - Confirm `TOSS_CANCEL_URL` or `app.payment.toss.cancel-url` points to the Toss production cancel API.
 - If email notification is desired, set `PAYMENT_RECONCILIATION_NOTIFICATION_ENABLED=true` and `PAYMENT_OPERATIONS_OPERATOR_EMAIL`.
-- Confirm application logs do not include raw billing keys, raw provider payloads, or raw card data.
+- Confirm application logs do not include raw billing keys, exact provider transaction identifiers, provider request URIs, full reconciliation issue objects, transport exception messages/stacks, raw provider payloads, or raw card data.
 - Confirm admin payment pages are restricted to `ROLE_ADMIN`.
-- Confirm WARN-level reconciliation logs are collected by the production log monitoring system.
+- Confirm WARN-level reconciliation aggregate logs are collected by the production log monitoring system, and use masked structured Incidents rather than logs for issue-level investigation.
 - Confirm the 01:15 withdrawal cleanup retry has exactly one scheduler owner and its aggregate result logs are monitored.
 - Rehearse withdrawal with a test user and Provider test double: local cancellation must remain effective during simulated cleanup failure, and a later success or already-removed result must clear key material and resolve the Incident.
 - Run `GET /api/admin/payments/reconciliation` after a staging payment rehearsal.
 - Run `GET /api/admin/payments/reconciliation-incidents?status=OPEN` after a staging payment rehearsal.
-- Run `GET /api/admin/payments/receipts` after a successful staging charge and confirm only safe receipt evidence is returned.
+- Run `GET /api/admin/payments/receipts` after a successful staging charge and confirm only normalized absolute HTTPS receipt links are actionable. Credential-bearing, malformed, non-HTTPS, and non-standard-port retained values must return `null` or remain non-clickable.
 - Run `GET /api/admin/payments/operation-audit-logs` after changing a reconciliation incident status and confirm an audit row exists.
 - For refund rehearsal in a safe Toss test/staging environment, run preview → create → approve → execute and confirm `payment_refunds` plus audit logs update without exposing raw provider/card data.
 - For entitlement correction rehearsal, use a safe succeeded refund row and run preview → create → approve → execute. Confirm `payment_entitlement_corrections`, `user_subscriptions`, optional local `billing_agreements`, and audit logs update without provider billing-key delete calls.
 - For settlement rehearsal, import a safe CSV and confirm `payment_settlements`, settlement status counts, ignore workflow, and audit logs update without changing subscription/payment/refund/provider state.
 - Keep the deployment on one application scheduler instance. Scheduler lock remains out of active scope unless more than one application instance will run.
+- Before a retained-DB rollout, apply `20260716_payment_reconciliation_indexes.sql` only to an approved copy and capture its two `EXPLAIN FORMAT=JSON` plans. Repository/static test evidence does not close `ATS020-X-01`.
 
 ## 9. Webhook Boundary
 

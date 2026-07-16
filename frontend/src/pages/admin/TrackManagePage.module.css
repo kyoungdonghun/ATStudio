@@ -224,7 +224,9 @@
   font-size: 12px;
   padding: 3px 8px;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
   font-family: inherit;
 }
 
@@ -264,7 +266,9 @@
   font-size: 13px;
   cursor: pointer;
   font-family: inherit;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .pgBtn:hover:not(:disabled) {
@@ -357,8 +361,12 @@
   }
 
   /* Mobile cell width overrides */
-  .cellId { width: 36px; }
-  .cellActions { width: 76px; }
+  .cellId {
+    width: 36px;
+  }
+  .cellActions {
+    width: 76px;
+  }
 
   .trackTable th,
   .trackTable td {

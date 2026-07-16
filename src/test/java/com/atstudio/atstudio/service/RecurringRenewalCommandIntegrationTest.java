@@ -1,6 +1,7 @@
 package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.config.JpaConfig;
+import com.atstudio.atstudio.config.PaymentProperties;
 import com.atstudio.atstudio.entity.BillingAgreement;
 import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.Subscription;
@@ -21,6 +22,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Propagation;
@@ -42,11 +45,23 @@ import static org.mockito.BDDMockito.given;
         PaymentCommandKeyFactory.class,
         PaymentCommandTransactionService.class,
         RecurringRenewalService.class,
+        RecurringRenewalCommandIntegrationTest.PaymentConfiguration.class,
         BillingAgreementCommandIntegrationTestSupport.ProviderConfiguration.class
 })
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DisplayName("Recurring renewal payment command integration tests")
 class RecurringRenewalCommandIntegrationTest {
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class PaymentConfiguration {
+
+        @Bean
+        PaymentProperties paymentProperties() {
+            PaymentProperties properties = new PaymentProperties();
+            properties.setSchedulerZone("Asia/Seoul");
+            return properties;
+        }
+    }
 
     @Autowired RecurringRenewalService service;
     @Autowired com.atstudio.atstudio.repository.UserRepository userRepository;

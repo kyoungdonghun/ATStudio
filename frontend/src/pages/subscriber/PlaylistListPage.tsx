@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchMyPlaylists, createPlaylist, deletePlaylist } from '@/api/playlists';
 import { fetchMySubscription } from '@/api/userSubscriptions';
 import { toUploadUrl, getApiErrorCode } from '@/api/client';
@@ -15,7 +15,9 @@ const NOTES = ['\u266A', '\u266B', '\u2669', '\u266C'];
 
 export default function PlaylistListPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const showToast = useToastStore((s) => s.show);
+  const createRequested = (location.state as { openCreate?: boolean } | null)?.openCreate === true;
 
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [maxPlaylists, setMaxPlaylists] = useState(DEFAULT_MAX_PLAYLISTS);
@@ -48,20 +50,13 @@ export default function PlaylistListPage() {
 
       setPlaylists(playlistRes.value.dataList);
 
-      if (
-        subRes.status === 'fulfilled' &&
-        subRes.value.subscription?.maxPlaylists
-      ) {
+      if (subRes.status === 'fulfilled' && subRes.value.subscription?.maxPlaylists) {
         setMaxPlaylists(subRes.value.subscription.maxPlaylists);
       } else {
         setMaxPlaylists(DEFAULT_MAX_PLAYLISTS);
       }
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : '재생목록을 불러오지 못했습니다.',
-      );
+      setError(err instanceof Error ? err.message : '재생목록을 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
@@ -83,6 +78,29 @@ export default function PlaylistListPage() {
     setNewThumbPreview(null);
     setShowCreate(true);
   }
+
+  function closeCreateModal() {
+    setShowCreate(false);
+    if (createRequested) {
+      navigate('/playlists', { replace: true });
+    }
+  }
+
+  useEffect(() => {
+    if (loading || error || !createRequested) return;
+
+    if (!canCreate) {
+      showToast('error', '구독 플랜의 재생목록 한도를 초과했습니다. 플랜을 업그레이드해 주세요.');
+      navigate('/playlists', { replace: true });
+      return;
+    }
+
+    setNewTitle('');
+    setNewDesc('');
+    setNewThumbFile(null);
+    setNewThumbPreview(null);
+    setShowCreate(true);
+  }, [canCreate, createRequested, error, loading, navigate, showToast]);
 
   function handleThumbChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
@@ -107,23 +125,16 @@ export default function PlaylistListPage() {
         description: newDesc.trim() || undefined,
         thumbnail: newThumbFile ?? undefined,
       });
-      setShowCreate(false);
+      closeCreateModal();
       await load();
     } catch (err) {
       const code = await getApiErrorCode(err);
       if (code === 'PLAYLIST_LIMIT_EXCEEDED') {
-        showToast(
-          'error',
-          '구독 플랜의 재생목록 한도를 초과했습니다. 플랜을 업그레이드해 주세요.',
-        );
+        showToast('error', '구독 플랜의 재생목록 한도를 초과했습니다. 플랜을 업그레이드해 주세요.');
         return;
       }
 
-      setError(
-        err instanceof Error
-          ? err.message
-          : '재생목록을 생성하지 못했습니다.',
-      );
+      setError(err instanceof Error ? err.message : '재생목록을 생성하지 못했습니다.');
     } finally {
       setCreating(false);
     }
@@ -138,11 +149,7 @@ export default function PlaylistListPage() {
       setDeleteTarget(null);
       await load();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : '재생목록을 삭제하지 못했습니다.',
-      );
+      setError(err instanceof Error ? err.message : '재생목록을 삭제하지 못했습니다.');
     } finally {
       setDeleting(false);
     }
@@ -162,11 +169,7 @@ export default function PlaylistListPage() {
           </span>
         </div>
         {canCreate && (
-          <button
-            type="button"
-            className={styles.btnNewPl}
-            onClick={openCreateModal}
-          >
+          <button type="button" className={styles.btnNewPl} onClick={openCreateModal}>
             + 새 재생목록
           </button>
         )}
@@ -184,10 +187,7 @@ export default function PlaylistListPage() {
         </div>
         <div className={styles.pnBarWrap}>
           <div className={styles.pnBar}>
-            <div
-              className={styles.pnBarFill}
-              style={{ width: `${fillPercent}%` }}
-            />
+            <div className={styles.pnBarFill} style={{ width: `${fillPercent}%` }} />
           </div>
           <span className={styles.pnCount}>
             {count} / {maxPlaylists}
@@ -202,11 +202,7 @@ export default function PlaylistListPage() {
       ) : (
         <div className={styles.plGrid}>
           {playlists.map((pl) => (
-            <div
-              key={pl.id}
-              className={styles.myCard}
-              onClick={() => handleCardClick(pl)}
-            >
+            <div key={pl.id} className={styles.myCard} onClick={() => handleCardClick(pl)}>
               <div className={styles.plThumb}>
                 {pl.thumbnail ? (
                   <img
@@ -261,11 +257,7 @@ export default function PlaylistListPage() {
         </div>
       )}
 
-      <Modal
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        title="새 재생목록 만들기"
-      >
+      <Modal open={showCreate} onClose={closeCreateModal} title="새 재생목록 만들기">
         <div className={styles.modalBody}>
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>이름</label>
@@ -321,7 +313,7 @@ export default function PlaylistListPage() {
           </div>
         </div>
         <div className={styles.modalFooter}>
-          <Button variant="ghost" onClick={() => setShowCreate(false)}>
+          <Button variant="ghost" onClick={closeCreateModal}>
             취소
           </Button>
           <Button

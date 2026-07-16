@@ -175,7 +175,9 @@
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   margin-left: auto;
 }
 
@@ -199,12 +201,24 @@
 }
 
 /* Column widths — drive table-layout:fixed from thead */
-.trackTable thead .thNum { width: 42px; }
-.trackTable thead .thTag { width: 450px; }
-.trackTable thead .thBpm { width: 70px; }
-.trackTable thead .thKey { width: 70px; }
-.trackTable thead .thDur { width: 66px; }
-.trackTable thead .thActs { width: 120px; }
+.trackTable thead .thNum {
+  width: 42px;
+}
+.trackTable thead .thTag {
+  width: 450px;
+}
+.trackTable thead .thBpm {
+  width: 70px;
+}
+.trackTable thead .thKey {
+  width: 70px;
+}
+.trackTable thead .thDur {
+  width: 66px;
+}
+.trackTable thead .thActs {
+  width: 120px;
+}
 /* '음원' th has no width → gets remaining space */
 
 .trackTable thead th {
@@ -250,7 +264,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .pgBtn:hover {
@@ -291,11 +307,39 @@
 
 .error {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   padding: 64px;
   color: var(--error);
   font-size: 14px;
+  text-align: center;
+}
+
+.errorMessage {
+  margin: 0;
+}
+
+.retryButton {
+  min-height: 36px;
+  padding: 8px 16px;
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  background: var(--bg2);
+  color: var(--text0);
+  font: inherit;
+  cursor: pointer;
+}
+
+.retryButton:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.retryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .empty {
@@ -359,7 +403,9 @@
 
 /* ══ Mid-desktop (narrow desktop) ══ */
 @media (max-width: 1200px) {
-  .trackTable thead .thTag { width: 350px; }
+  .trackTable thead .thTag {
+    width: 350px;
+  }
 }
 
 /* ══ Tablet ══ */

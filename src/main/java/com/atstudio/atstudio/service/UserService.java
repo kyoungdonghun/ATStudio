@@ -9,10 +9,13 @@ import com.atstudio.atstudio.entity.BillingAgreement;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
+import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
+import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
+import com.atstudio.atstudio.entity.enums.WhitelistChannelStatus;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.service.auth.PasswordLoginPolicy;
 import lombok.RequiredArgsConstructor;
@@ -23,10 +26,28 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.Set;
+
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class UserService {
+
+    private static final Set<WhitelistChannelStatus> WITHDRAWAL_DELETABLE_WHITELIST_STATUSES = Set.of(
+            WhitelistChannelStatus.DRAFT,
+            WhitelistChannelStatus.PENDING,
+            WhitelistChannelStatus.REVISION_REQUESTED,
+            WhitelistChannelStatus.REJECTED,
+            WhitelistChannelStatus.CANCELLED);
+    private static final Set<PaymentPurpose> PROVIDER_CHARGE_PURPOSES = Set.of(
+            PaymentPurpose.SUBSCRIBE,
+            PaymentPurpose.UPGRADE,
+            PaymentPurpose.RENEWAL);
+    private static final Set<PaymentOrderStatus> PROVIDER_OUTCOME_PENDING_STATUSES = Set.of(
+            PaymentOrderStatus.PROCESSING,
+            PaymentOrderStatus.PROVIDER_SUCCEEDED,
+            PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION);
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -39,6 +60,7 @@ public class UserService {
     private final WhitelistChannelRepository whitelistChannelRepository;
     private final PasswordLoginPolicy passwordLoginPolicy;
     private final BillingAgreementRepository billingAgreementRepository;
+    private final PaymentOrderRepository paymentOrderRepository;
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -112,22 +134,31 @@ public class UserService {
 
     @Transactional
     public void withdraw(Long userID, WithdrawRequest request) {
+        User authenticationSnapshot = userRepository.findById(userID)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        validateWithdrawalPassword(authenticationSnapshot, request);
+
+        BillingAgreement billingAgreement = billingAgreementRepository
+                .findByUserIDAndProviderForUpdate(userID, PaymentProviderType.TOSS_BILLING)
+                .orElse(null);
+        UserSubscription userSubscription = userSubscriptionRepository
+                .findByUserIDForUpdate(userID)
+                .orElse(null);
         User user = userRepository.findByIdForUpdate(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
-        if (user.getPassword() == null
-                || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new BusinessException(BUSINESS_ERROR.INVALID_CREDENTIALS);
+        validateWithdrawalPassword(user, request);
+        if (billingAgreement != null && paymentOrderRepository
+                .existsByBillingAgreementAndPurposeInAndStatusIn(
+                        billingAgreement,
+                        PROVIDER_CHARGE_PURPOSES,
+                        PROVIDER_OUTCOME_PENDING_STATUSES)) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
         }
-
-        BillingAgreement billingAgreement = billingAgreementRepository
-                .findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING)
-                .orElse(null);
         if (billingAgreement != null && !isTerminal(billingAgreement.getStatus())) {
             billingAgreement.cancel();
         }
 
-        UserSubscription userSubscription = userSubscriptionRepository.findByUser(user).orElse(null);
         if (userSubscription != null && userSubscription.getStatus() == SubscriptionStatus.ACTIVE) {
             userSubscription.cancel();
         }
@@ -142,9 +173,20 @@ public class UserService {
         playHistoryRepository.deleteAllByUser(user);
         trackDownloadRepository.deleteAllByUser(user);
         licenseRepository.deleteAllByUser(user);
-        whitelistChannelRepository.deleteAllByUser(user);
+        whitelistChannelRepository.requestExternalRemovalForWithdrawal(user, LocalDateTime.now());
+        whitelistChannelRepository.clearPrimaryByUserID(user.getId());
+        whitelistChannelRepository.deleteAllByUserAndStatusIn(
+                user,
+                WITHDRAWAL_DELETABLE_WHITELIST_STATUSES);
 
         user.withdraw();
+    }
+
+    private void validateWithdrawalPassword(User user, WithdrawRequest request) {
+        if (user.getPassword() == null
+                || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_CREDENTIALS);
+        }
     }
 
     private boolean isTerminal(BillingAgreementStatus status) {

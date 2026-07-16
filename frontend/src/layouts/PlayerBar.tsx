@@ -5,13 +5,18 @@ import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
-import { fetchMySubscription } from '@/api/userSubscriptions';
+import { fetchMySubscription, isNoActiveSubscriptionError } from '@/api/userSubscriptions';
 import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import HistoryModal from '@/components/player/HistoryModal';
 import PlaylistDrawer from '@/components/player/PlaylistDrawer';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import WaveformCanvas from '@/components/player/WaveformCanvas';
 import styles from './PlayerBar.module.css';
+
+const STALLED_MESSAGE = '재생이 지연되고 있습니다. 연결을 확인한 뒤 다시 시도해 주세요.';
+const SEEK_STEP_SECONDS = 5;
+const MOBILE_EXPANDED_ID = 'player-mobile-expanded-controls';
+type SubscriptionStatus = 'idle' | 'loading' | 'active' | 'inactive' | 'error';
 
 function formatTime(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return '0:00';
@@ -23,6 +28,7 @@ function formatTime(seconds: number): string {
 export default function PlayerBar() {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const isStalled = usePlayerStore((s) => s.isStalled);
   const playbackError = usePlayerStore((s) => s.playbackError);
   const currentTime = usePlayerStore((s) => s.currentTime);
   const duration = usePlayerStore((s) => s.duration);
@@ -39,6 +45,7 @@ export default function PlayerBar() {
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const role = useAuthStore((s) => s.role);
+  const authIdentity = useAuthStore((s) => s.user?.id ?? s.accessToken ?? null);
   const likeLoaded = useLikeStore((s) => s.loaded);
   const loadLikes = useLikeStore((s) => s.load);
   const likedIds = useLikeStore((s) => s.likedIds);
@@ -53,18 +60,14 @@ export default function PlayerBar() {
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [showPlModal, setShowPlModal] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [hasSubscription, setHasSubscription] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>('idle');
+  const [subscriptionRetryKey, setSubscriptionRetryKey] = useState(0);
+  const subscriptionGenerationRef = useRef(0);
   const [downloading, setDownloading] = useState(false);
   const [volumeOpen, setVolumeOpen] = useState(false);
   const mobileMiniProgressRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (playbackError) {
-      toast('error', playbackError);
-    }
-  }, [playbackError, toast]);
 
   // Close volume popup when clicking outside
   useEffect(() => {
@@ -86,13 +89,62 @@ export default function PlayerBar() {
 
   useEffect(() => {
     if (!isAuthenticated || role === 'ADMIN') {
-      setHasSubscription(false);
+      subscriptionGenerationRef.current += 1;
+      setSubscriptionStatus('idle');
       return;
     }
-    fetchMySubscription()
-      .then(() => setHasSubscription(true))
-      .catch(() => setHasSubscription(false));
-  }, [isAuthenticated, role]);
+
+    const generation = ++subscriptionGenerationRef.current;
+    const controller = new AbortController();
+    setSubscriptionStatus('loading');
+    fetchMySubscription(controller.signal)
+      .then(() => {
+        if (subscriptionGenerationRef.current === generation) {
+          setSubscriptionStatus('active');
+        }
+      })
+      .catch((error: unknown) => {
+        if (subscriptionGenerationRef.current !== generation || controller.signal.aborted) return;
+        setSubscriptionStatus(isNoActiveSubscriptionError(error) ? 'inactive' : 'error');
+      });
+
+    return () => {
+      controller.abort();
+      if (subscriptionGenerationRef.current === generation) {
+        subscriptionGenerationRef.current += 1;
+      }
+    };
+  }, [authIdentity, isAuthenticated, role, subscriptionRetryKey]);
+
+  const hasSubscription = subscriptionStatus === 'active';
+  const renderSubscriptionAction = (guestTarget: '/login' | '/subscriptions') => {
+    if (!isAuthenticated) {
+      return (
+        <button className={styles.buyBtn} onClick={() => navigate(guestTarget)}>
+          {'구독하기'}
+        </button>
+      );
+    }
+    if (role !== 'USER') return null;
+    if (subscriptionStatus === 'inactive') {
+      return (
+        <button className={styles.buyBtn} onClick={() => navigate('/subscriptions')}>
+          {'구독하기'}
+        </button>
+      );
+    }
+    if (subscriptionStatus === 'error') {
+      return (
+        <button
+          className={styles.buyBtn}
+          onClick={() => setSubscriptionRetryKey((value) => value + 1)}
+        >
+          {'구독 상태 다시 확인'}
+        </button>
+      );
+    }
+    return null;
+  };
 
   const handlePlayPause = useCallback(() => {
     if (isPlaying) pause();
@@ -147,13 +199,35 @@ export default function PlayerBar() {
   }, [currentTrack, downloading, toast]);
 
   const handleMobileMiniProgressClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+    (e: React.MouseEvent<HTMLElement>) => {
       if (!mobileMiniProgressRef.current || !trackDuration) return;
       const rect = mobileMiniProgressRef.current.getBoundingClientRect();
       const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       seek(ratio * trackDuration);
     },
     [trackDuration, seek],
+  );
+
+  const handleSeekKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLElement>) => {
+      if (!trackDuration) return;
+
+      let targetTime: number | null = null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+        targetTime = currentTime + SEEK_STEP_SECONDS;
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+        targetTime = currentTime - SEEK_STEP_SECONDS;
+      } else if (e.key === 'Home') {
+        targetTime = 0;
+      } else if (e.key === 'End') {
+        targetTime = trackDuration;
+      }
+
+      if (targetTime === null) return;
+      e.preventDefault();
+      seek(Math.max(0, Math.min(trackDuration, targetTime)));
+    },
+    [currentTime, seek, trackDuration],
   );
 
   /* ── Repeat icon SVG helper ── */
@@ -271,9 +345,12 @@ export default function PlayerBar() {
             <div className={styles.rightActions}>
               <div className={styles.volumeGroup} ref={volumeRef}>
                 <button
+                  type="button"
                   className={`${styles.volumeBtn} ${volumeOpen ? styles.volumeBtnActive : ''}`}
                   onClick={() => setVolumeOpen((v) => !v)}
-                  aria-label="Volume"
+                  aria-label={volumeOpen ? '볼륨 설정 닫기' : '볼륨 설정 열기'}
+                  aria-expanded={volumeOpen}
+                  title={volumeOpen ? '볼륨 설정 닫기' : '볼륨 설정 열기'}
                 >
                   {volumeIcon}
                 </button>
@@ -291,18 +368,22 @@ export default function PlayerBar() {
                         step={0.01}
                         value={muted ? 0 : volume}
                         onChange={(e) => setVolume(parseFloat(e.target.value))}
-                        aria-label="Volume"
+                        aria-label="볼륨"
                       />
                     </div>
-                    <button className={styles.volumeMuteSmall} onClick={toggleMute}>
+                    <button
+                      type="button"
+                      className={styles.volumeMuteSmall}
+                      onClick={toggleMute}
+                      aria-label={muted ? '음소거 해제' : '음소거'}
+                      title={muted ? '음소거 해제' : '음소거'}
+                    >
                       {muted ? '\uD83D\uDD07' : '\uD83D\uDD0A'}
                     </button>
                   </div>
                 )}
               </div>
-              <button className={styles.buyBtn} onClick={() => navigate('/subscriptions')}>
-                {'구독하기'}
-              </button>
+              {renderSubscriptionAction('/subscriptions')}
             </div>
           </div>
 
@@ -316,9 +397,7 @@ export default function PlayerBar() {
                 </div>
               </div>
               <div className={styles.mobileControls}>
-                <button className={styles.buyBtn} onClick={() => navigate('/subscriptions')}>
-                  {'구독하기'}
-                </button>
+                {renderSubscriptionAction('/subscriptions')}
               </div>
             </div>
           </div>
@@ -337,13 +416,31 @@ export default function PlayerBar() {
             </div>
           </div>
           <div className={styles.controls}>
-            <button className={styles.ctrlBtn} disabled style={{ opacity: 0.3 }}>
+            <button
+              type="button"
+              className={styles.ctrlBtn}
+              disabled
+              style={{ opacity: 0.3 }}
+              aria-label="이전 곡"
+            >
               {'\u23EE'}
             </button>
-            <button className={styles.playBtn} disabled style={{ opacity: 0.4 }}>
+            <button
+              type="button"
+              className={styles.playBtn}
+              disabled
+              style={{ opacity: 0.4 }}
+              aria-label="재생"
+            >
               {'\u25B6'}
             </button>
-            <button className={styles.ctrlBtn} disabled style={{ opacity: 0.3 }}>
+            <button
+              type="button"
+              className={styles.ctrlBtn}
+              disabled
+              style={{ opacity: 0.3 }}
+              aria-label="다음 곡"
+            >
               {'\u23ED'}
             </button>
             <div className={styles.waveformWrap}>
@@ -357,17 +454,33 @@ export default function PlayerBar() {
           </div>
           <div className={styles.rightActions}>
             <div className={styles.modeGroup}>
-              <button className={styles.ctrlBtn} disabled style={{ opacity: 0.3 }}>
+              <button
+                type="button"
+                className={styles.ctrlBtn}
+                disabled
+                style={{ opacity: 0.3 }}
+                aria-label="셔플"
+              >
                 {'\u21CC'}
               </button>
-              <button className={styles.ctrlBtn} disabled style={{ opacity: 0.3 }}>
+              <button
+                type="button"
+                className={styles.ctrlBtn}
+                disabled
+                style={{ opacity: 0.3 }}
+                aria-label="반복 재생"
+              >
                 {repeatIcon}
               </button>
             </div>
             <div className={styles.volumeGroup} ref={volumeRef}>
               <button
+                type="button"
                 className={`${styles.volumeBtn} ${volumeOpen ? styles.volumeBtnActive : ''}`}
                 onClick={() => setVolumeOpen((v) => !v)}
+                aria-label={volumeOpen ? '볼륨 설정 닫기' : '볼륨 설정 열기'}
+                aria-expanded={volumeOpen}
+                title={volumeOpen ? '볼륨 설정 닫기' : '볼륨 설정 열기'}
               >
                 {volumeIcon}
               </button>
@@ -385,10 +498,16 @@ export default function PlayerBar() {
                       step={0.01}
                       value={muted ? 0 : volume}
                       onChange={(e) => setVolume(parseFloat(e.target.value))}
-                      aria-label="Volume"
+                      aria-label="볼륨"
                     />
                   </div>
-                  <button className={styles.volumeMuteSmall} onClick={toggleMute}>
+                  <button
+                    type="button"
+                    className={styles.volumeMuteSmall}
+                    onClick={toggleMute}
+                    aria-label={muted ? '음소거 해제' : '음소거'}
+                    title={muted ? '음소거 해제' : '음소거'}
+                  >
                     {muted ? '\uD83D\uDD07' : '\uD83D\uDD0A'}
                   </button>
                 </div>
@@ -425,7 +544,13 @@ export default function PlayerBar() {
               </div>
             </div>
             <div className={styles.mobileControls}>
-              <button className={styles.mobileExpandBtn} onClick={() => setExpanded((v) => !v)}>
+              <button
+                type="button"
+                className={styles.mobileExpandBtn}
+                onClick={() => setExpanded((v) => !v)}
+                aria-label={expanded ? '플레이어 상세 접기' : '플레이어 상세 펼치기'}
+                aria-expanded={expanded}
+              >
                 {expanded ? '\u25BC' : '\u25B2'}
               </button>
             </div>
@@ -467,39 +592,63 @@ export default function PlayerBar() {
     .filter((tag) => tag.type === 'USAGE')
     .map((tag) => `#${tag.name}`)
     .join(' ');
+  const playbackFeedback = playbackError ?? (isStalled ? STALLED_MESSAGE : null);
+  const repeatLabel =
+    repeat === 'one'
+      ? '한 곡 반복 사용 중'
+      : repeat === 'all'
+        ? '전체 반복 사용 중'
+        : '반복 재생 사용 안 함';
 
   return (
     <>
+      {playbackFeedback && (
+        <div
+          className={`${styles.playbackFeedback} ${playbackError ? styles.playbackFeedbackError : ''}`}
+          role={playbackError ? 'alert' : 'status'}
+          aria-live={playbackError ? 'assertive' : 'polite'}
+        >
+          <span>{playbackFeedback}</span>
+          <button type="button" className={styles.retryButton} onClick={resume}>
+            다시 시도
+          </button>
+        </div>
+      )}
+
       {/* ── Desktop / Tablet: full bar ── */}
       <div className={styles.player}>
         {/* Left: Track info */}
         <div className={styles.trackInfo}>
-          <div
-            className={styles.thumb}
+          <button
+            type="button"
+            className={`${styles.thumb} ${styles.trackThumbButton}`}
             onClick={() => navigate(`/tracks/${currentTrack.id}`)}
-            style={{ cursor: 'pointer' }}
-            role="button"
-            aria-label="트랙 상세 보기"
+            aria-label={`${currentTrack.title} 상세 보기`}
+            title="트랙 상세 보기"
           >
             {currentTrack.thumbnail ? (
-              <img src={toUploadUrl(currentTrack.thumbnail)!} alt={currentTrack.title} />
+              <img src={toUploadUrl(currentTrack.thumbnail)!} alt="" />
             ) : (
               '\u266B'
             )}
-          </div>
+          </button>
           <div className={styles.trackMeta}>
-            <div
-              className={styles.trackName}
+            <button
+              type="button"
+              className={`${styles.trackName} ${styles.trackNameButton}`}
               onClick={() => navigate(`/tracks/${currentTrack.id}`)}
-              style={{ cursor: 'pointer' }}
+              aria-label={`${currentTrack.title} 상세 보기`}
+              title={`${currentTrack.title} 상세 보기`}
             >
               {currentTrack.title}
-            </div>
+            </button>
             {currentUsageText && <div className={styles.trackUsage}>{currentUsageText}</div>}
           </div>
           <button
             className={`${styles.heartBtn} ${likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
-            aria-label="Like"
+            aria-label={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
+            aria-pressed={likedIds.has(currentTrack.id)}
+            title={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
             onClick={() => {
               if (!isAuthenticated) {
                 toast('warning', '로그인 후 이용 가능합니다.');
@@ -513,7 +662,7 @@ export default function PlayerBar() {
           </button>
           <button
             className={styles.addToPlBtn}
-            aria-label="Add to playlist"
+            aria-label="재생목록에 추가"
             onClick={() => {
               if (!isAuthenticated) {
                 toast('warning', '로그인 후 이용 가능합니다.');
@@ -530,20 +679,43 @@ export default function PlayerBar() {
 
         {/* Center: Prev + Play + Next + Waveform + Time */}
         <div className={styles.controls}>
-          <button className={styles.ctrlBtn} onClick={prev} title="Previous">
+          <button
+            type="button"
+            className={styles.ctrlBtn}
+            onClick={prev}
+            aria-label="이전 곡"
+            title="이전 곡"
+          >
             {'\u23EE'}
           </button>
           <button
             className={styles.playBtn}
             onClick={handlePlayPause}
-            aria-label={isPlaying ? 'Pause' : 'Play'}
+            aria-label={isPlaying ? '일시정지' : '재생'}
+            title={isPlaying ? '일시정지' : '재생'}
           >
             {isPlaying ? '\u275A\u275A' : '\u25B6'}
           </button>
-          <button className={styles.ctrlBtn} onClick={next} title="Next">
+          <button
+            type="button"
+            className={styles.ctrlBtn}
+            onClick={next}
+            aria-label="다음 곡"
+            title="다음 곡"
+          >
             {'\u23ED'}
           </button>
-          <div className={styles.waveformWrap}>
+          <div
+            className={styles.waveformWrap}
+            role="slider"
+            tabIndex={0}
+            aria-label="재생 위치"
+            aria-valuemin={0}
+            aria-valuemax={trackDuration}
+            aria-valuenow={Math.max(0, Math.min(trackDuration, currentTime))}
+            aria-valuetext={`${formatTime(currentTime)} / ${formatTime(trackDuration)}`}
+            onKeyDown={handleSeekKeyDown}
+          >
             <WaveformCanvas peaks={parsedPeaks} progress={progressRatio} onSeek={handleSeek} />
           </div>
           <div className={styles.timeDisplay}>
@@ -557,25 +729,33 @@ export default function PlayerBar() {
         <div className={styles.rightActions}>
           <div className={styles.modeGroup}>
             <button
+              type="button"
               className={`${styles.ctrlBtn} ${shuffle ? styles.ctrlBtnActive : ''}`}
               onClick={toggleShuffle}
-              title="Shuffle"
+              aria-label={shuffle ? '셔플 사용 중' : '셔플 사용 안 함'}
+              aria-pressed={shuffle}
+              title={shuffle ? '셔플 끄기' : '셔플 켜기'}
             >
               {'\u21CC'}
             </button>
             <button
+              type="button"
               className={`${styles.ctrlBtn} ${repeat !== 'off' ? styles.ctrlBtnActive : ''}`}
               onClick={cycleRepeat}
-              title={repeat === 'one' ? 'Repeat One' : repeat === 'all' ? 'Repeat All' : 'Repeat'}
+              aria-label={repeatLabel}
+              title="반복 모드 변경"
             >
               {repeatIcon}
             </button>
           </div>
           <div className={styles.volumeGroup} ref={volumeRef}>
             <button
+              type="button"
               className={`${styles.volumeBtn} ${volumeOpen ? styles.volumeBtnActive : ''}`}
               onClick={() => setVolumeOpen((v) => !v)}
-              aria-label={muted ? 'Unmute' : 'Mute'}
+              aria-label={volumeOpen ? '볼륨 설정 닫기' : '볼륨 설정 열기'}
+              aria-expanded={volumeOpen}
+              title={volumeOpen ? '볼륨 설정 닫기' : '볼륨 설정 열기'}
             >
               {volumeIcon}
             </button>
@@ -593,10 +773,16 @@ export default function PlayerBar() {
                     step={0.01}
                     value={muted ? 0 : volume}
                     onChange={(e) => setVolume(parseFloat(e.target.value))}
-                    aria-label="Volume"
+                    aria-label="볼륨"
                   />
                 </div>
-                <button className={styles.volumeMuteSmall} onClick={toggleMute}>
+                <button
+                  type="button"
+                  className={styles.volumeMuteSmall}
+                  onClick={toggleMute}
+                  aria-label={muted ? '음소거 해제' : '음소거'}
+                  title={muted ? '음소거 해제' : '음소거'}
+                >
                   {muted ? '\uD83D\uDD07' : '\uD83D\uDD0A'}
                 </button>
               </div>
@@ -630,16 +816,7 @@ export default function PlayerBar() {
               {downloading ? '...' : '다운로드'}
             </button>
           )}
-          {!isAuthenticated && (
-            <button className={styles.buyBtn} onClick={() => navigate('/login')}>
-              {'구독하기'}
-            </button>
-          )}
-          {isAuthenticated && role === 'USER' && !hasSubscription && (
-            <button className={styles.buyBtn} onClick={() => navigate('/subscriptions')}>
-              {'구독하기'}
-            </button>
-          )}
+          {renderSubscriptionAction('/login')}
         </div>
       </div>
 
@@ -649,40 +826,44 @@ export default function PlayerBar() {
         <div
           className={styles.mobileProgressTrack}
           onClick={handleMobileMiniProgressClick}
+          onKeyDown={handleSeekKeyDown}
           ref={mobileMiniProgressRef}
+          role="slider"
+          tabIndex={0}
+          aria-label="모바일 재생 위치"
+          aria-valuemin={0}
+          aria-valuemax={trackDuration}
+          aria-valuenow={Math.max(0, Math.min(trackDuration, currentTime))}
+          aria-valuetext={`${formatTime(currentTime)} / ${formatTime(trackDuration)}`}
         >
           <div className={styles.mobileProgressFill} style={{ width: `${progressPercent}%` }} />
         </div>
 
         <div className={styles.mobileBar}>
-          <div className={styles.mobileInfo} onClick={() => setExpanded((v) => !v)}>
-            <div
-              className={styles.thumb}
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/tracks/${currentTrack.id}`);
-              }}
-              style={{ cursor: 'pointer' }}
-              role="button"
-              aria-label="트랙 상세 보기"
+          <div className={styles.mobileInfo}>
+            <button
+              type="button"
+              className={`${styles.thumb} ${styles.trackThumbButton}`}
+              onClick={() => navigate(`/tracks/${currentTrack.id}`)}
+              aria-label={`${currentTrack.title} 상세 보기`}
+              title="트랙 상세 보기"
             >
               {currentTrack.thumbnail ? (
-                <img src={toUploadUrl(currentTrack.thumbnail)!} alt={currentTrack.title} />
+                <img src={toUploadUrl(currentTrack.thumbnail)!} alt="" />
               ) : (
                 '\u266B'
               )}
-            </div>
+            </button>
             <div className={styles.trackMeta}>
-              <div
-                className={styles.trackName}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate(`/tracks/${currentTrack.id}`);
-                }}
-                style={{ cursor: 'pointer' }}
+              <button
+                type="button"
+                className={`${styles.trackName} ${styles.trackNameButton}`}
+                onClick={() => navigate(`/tracks/${currentTrack.id}`)}
+                aria-label={`${currentTrack.title} 상세 보기`}
+                title={`${currentTrack.title} 상세 보기`}
               >
                 {currentTrack.title}
-              </div>
+              </button>
               {currentUsageText && <div className={styles.trackUsage}>{currentUsageText}</div>}
             </div>
           </div>
@@ -691,7 +872,9 @@ export default function PlayerBar() {
               <>
                 <button
                   className={`${styles.heartBtn} ${likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
-                  aria-label="Like"
+                  aria-label={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
+                  aria-pressed={likedIds.has(currentTrack.id)}
+                  title={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
                   onClick={() => {
                     if (!isAuthenticated) {
                       toast('warning', '로그인 후 이용 가능합니다.');
@@ -706,7 +889,8 @@ export default function PlayerBar() {
                 <button
                   className={styles.playBtn}
                   onClick={handlePlayPause}
-                  aria-label={isPlaying ? 'Pause' : 'Play'}
+                  aria-label={isPlaying ? '일시정지' : '재생'}
+                  title={isPlaying ? '일시정지' : '재생'}
                 >
                   {isPlaying ? '\u275A\u275A' : '\u25B6'}
                 </button>
@@ -715,7 +899,10 @@ export default function PlayerBar() {
             <button
               className={styles.mobileExpandBtn}
               onClick={() => setExpanded((v) => !v)}
-              aria-label={expanded ? 'Collapse' : 'Expand'}
+              aria-label={expanded ? '플레이어 상세 접기' : '플레이어 상세 펼치기'}
+              aria-expanded={expanded}
+              aria-controls={MOBILE_EXPANDED_ID}
+              title={expanded ? '플레이어 상세 접기' : '플레이어 상세 펼치기'}
             >
               {expanded ? '\u25BC' : '\u25B2'}
             </button>
@@ -723,27 +910,55 @@ export default function PlayerBar() {
         </div>
 
         {/* Expanded panel */}
-        <div className={`${styles.mobileExpanded} ${expanded ? styles.mobileExpandedOpen : ''}`}>
+        <div
+          id={MOBILE_EXPANDED_ID}
+          className={`${styles.mobileExpanded} ${expanded ? styles.mobileExpandedOpen : ''}`}
+        >
           {/* Transport controls */}
           <div className={styles.mobileFullControls}>
             <button
+              type="button"
               className={`${styles.ctrlBtn} ${shuffle ? styles.ctrlBtnActive : ''}`}
               onClick={toggleShuffle}
+              aria-label={shuffle ? '셔플 사용 중' : '셔플 사용 안 함'}
+              aria-pressed={shuffle}
+              title={shuffle ? '셔플 끄기' : '셔플 켜기'}
             >
               {'\u21CC'}
             </button>
-            <button className={styles.ctrlBtn} onClick={prev}>
+            <button
+              type="button"
+              className={styles.ctrlBtn}
+              onClick={prev}
+              aria-label="이전 곡"
+              title="이전 곡"
+            >
               {'\u23EE'}
             </button>
-            <button className={styles.playBtn} onClick={handlePlayPause}>
+            <button
+              type="button"
+              className={styles.playBtn}
+              onClick={handlePlayPause}
+              aria-label={isPlaying ? '일시정지' : '재생'}
+              title={isPlaying ? '일시정지' : '재생'}
+            >
               {isPlaying ? '\u275A\u275A' : '\u25B6'}
             </button>
-            <button className={styles.ctrlBtn} onClick={next}>
+            <button
+              type="button"
+              className={styles.ctrlBtn}
+              onClick={next}
+              aria-label="다음 곡"
+              title="다음 곡"
+            >
               {'\u23ED'}
             </button>
             <button
+              type="button"
               className={`${styles.ctrlBtn} ${repeat !== 'off' ? styles.ctrlBtnActive : ''}`}
               onClick={cycleRepeat}
+              aria-label={repeatLabel}
+              title="반복 모드 변경"
             >
               {repeatIcon}
             </button>
@@ -752,7 +967,17 @@ export default function PlayerBar() {
           {/* Waveform seek (replaces plain progress bar) */}
           <div className={styles.mobileWaveform}>
             <span className={styles.mobileSeekTime}>{formatTime(currentTime)}</span>
-            <div className={styles.mobileWaveformWrap}>
+            <div
+              className={styles.mobileWaveformWrap}
+              role="slider"
+              tabIndex={0}
+              aria-label="모바일 상세 재생 위치"
+              aria-valuemin={0}
+              aria-valuemax={trackDuration}
+              aria-valuenow={Math.max(0, Math.min(trackDuration, currentTime))}
+              aria-valuetext={`${formatTime(currentTime)} / ${formatTime(trackDuration)}`}
+              onKeyDown={handleSeekKeyDown}
+            >
               <WaveformCanvas
                 peaks={parsedPeaks}
                 progress={progressRatio}
@@ -769,6 +994,7 @@ export default function PlayerBar() {
               className={styles.volumeBtn}
               onClick={toggleMute}
               aria-label={muted ? '음소거 해제' : '음소거'}
+              title={muted ? '음소거 해제' : '음소거'}
             >
               {volumeIcon}
             </button>
@@ -780,7 +1006,7 @@ export default function PlayerBar() {
               step={0.01}
               value={muted ? 0 : volume}
               onChange={(e) => setVolume(parseFloat(e.target.value))}
-              aria-label="Volume"
+              aria-label="볼륨"
             />
           </div>
 
@@ -814,14 +1040,7 @@ export default function PlayerBar() {
                 {downloading ? '...' : '\u2193 다운로드'}
               </button>
             )}
-            {(!isAuthenticated || (isAuthenticated && role === 'USER' && !hasSubscription)) && (
-              <button
-                className={styles.buyBtn}
-                onClick={() => navigate(isAuthenticated ? '/subscriptions' : '/login')}
-              >
-                {'구독하기'}
-              </button>
-            )}
+            {renderSubscriptionAction('/login')}
           </div>
         </div>
       </div>

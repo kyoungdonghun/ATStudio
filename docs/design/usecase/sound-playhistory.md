@@ -1,83 +1,69 @@
-# Sound -- Play History Use Cases
-
-> **API Reference**: `docs/design/api-spec.md` Section 4 (Play History)
-> **DB Reference**: `docs/design/db-schema.md` Section 6.2 (`play_histories`)
->
-> **Original UC codes**: SOUND-004 (save play history), SOUND-009 (view), SOUND-015 (delete)
-> Originally labeled as "playlog" in the source; corrected to "play history (play_histories)" per the API spec.
-
+---
+version: 2.0
+last_updated: 2026-07-16
+project: ATS
+owner: docops
+category: design
+status: stable
+dependencies:
+  - path: ../api-spec.md
+    reason: Server compatibility API contract
+  - path: ../db-schema.md
+    reason: Retained play_histories table contract
+  - path: ../../../frontend/src/store/playerStore.ts
+    reason: Active SPA play-history source of truth
+  - path: ../../../frontend/src/pages/subscriber/PlayHistoryPage.tsx
+    reason: Active screen behavior
 ---
 
-## SOUND-004: Save Play History
+# Sound - Play History Use Cases
+
+## Current Boundary
+
+The active React SPA uses browser `localStorage`, not the server API, for the play-history screen.
+
+- Storage key: `playHistory`.
+- Maximum: 100 tracks.
+- A track is recorded only after playback starts successfully.
+- Replaying a track moves the de-duplicated item to the newest position.
+- Login is not required for recording; the `/play-history` route itself is authenticated.
+- Data is browser/profile/device local and may be lost when browser storage is cleared.
+- There is no synchronization with `play_histories` or `/api/play-histories`.
+
+The backend controller, entity, and table remain compatibility surfaces for legacy callers. They must not be described as the active SPA screen source until a separately approved synchronization design exists.
+
+## SOUND-004: Record Browser-Local Play History
 
 | Field | Value |
-|-------|-------|
-| **Code** | SOUND-004 |
-| **Version** | 26-02-20 |
-| **Description** | When track playback starts in QueBar, the frontend explicitly calls this endpoint to save play history and increment play_count. Members only. |
-| **Actor** | User (Member), Backend |
-| **Preconditions** | Logged in. |
-| **Trigger** | After SOUND-010 (play track), frontend detects QueBar playback start and calls automatically. |
-| **Related UC** | SOUND-010 (play track), SOUND-009 (view play history) |
+|---|---|
+| Code | SOUND-004 |
+| Actor | Listener, React player store |
+| Trigger | Track playback starts successfully |
+| Source of truth | Browser `localStorage` |
 
-**Main Flow**
-1. Frontend detects that playback has started in QueBar.
-2. Frontend calls `POST /api/play-histories` with auth token and trackId.
-3. Backend creates a (user_id, track_id, played_at) record in the play_histories table.
-4. Backend increments tracks.play_count by 1.
-5. Backend returns a 201 response.
+Flow:
 
-**Exception / Alternative Flow**
-- Non-member: Frontend does not call this endpoint. No play history recorded, no play_count increment.
+1. The player starts the selected track.
+2. The store removes an older entry for the same track ID.
+3. The store prepends the new entry and caps the list at 100.
+4. The store persists the list under `playHistory`.
 
-**Postconditions**
-- Record added to play_histories. tracks.play_count incremented.
+No server play-history request is sent by the active SPA.
 
----
+## SOUND-009: View Browser-Local Play History
 
-## SOUND-009: View Play History
+The authenticated `/play-history` screen reads the current browser-local list in newest-first order. Empty, malformed, or unavailable storage falls back safely to an empty list.
 
-| Field | Value |
-|-------|-------|
-| **Code** | SOUND-009 |
-| **Version** | 26-02-20 |
-| **Description** | Logged-in user views their own play history list in reverse chronological order. |
-| **Actor** | User (Member), Backend |
-| **Preconditions** | Logged in. |
-| **Trigger** | User navigates to the play history screen. |
-| **Related UC** | SOUND-015 (delete play history) |
+## SOUND-015: Delete Browser-Local Play History
 
-**Main Flow**
-1. Frontend sends a request including auth token and page parameters to the backend.
-2. Backend returns the user's play_histories paginated in reverse chronological order.
+The screen removes one local item or clears the local list through the player store. This does not delete retained server-side `play_histories` rows.
 
-**Postconditions**
-- Play history (track info, played_at) displayed in reverse chronological order on screen.
+## Retained Server Compatibility API
 
----
+| Endpoint | Retained behavior | Active SPA use |
+|---|---|---|
+| `POST /api/play-histories` | Creates a server row and increments `tracks.play_count` | None |
+| `GET /api/play-histories` | Returns authenticated user's server history | None |
+| `DELETE /api/play-histories` | Deletes selected/all server rows | None |
 
-## SOUND-015: Delete Play History
-
-| Field | Value |
-|-------|-------|
-| **Code** | SOUND-015 |
-| **Version** | 26-02-20 |
-| **Description** | Logged-in user selectively deletes or bulk-deletes their own play history. |
-| **Actor** | User (Member), Backend |
-| **Preconditions** | Logged in. |
-| **Trigger** | User clicks the 'Delete' button on the play history screen. |
-| **Related UC** | SOUND-009 (view play history) |
-
-**Main Flow A -- Selective Delete**
-1. User selects records to delete via checkboxes.
-2. Clicks the 'Delete' button.
-3. Frontend sends a delete request including historyIds array to the backend.
-4. Backend deletes the corresponding play_histories records and returns 204 No Content.
-
-**Main Flow B -- Delete All**
-1. User clicks the 'Delete All' button.
-2. Frontend sends a delete request with historyIds=[] to the backend.
-3. Backend deletes all play_histories for the user and returns 204 No Content.
-
-**Postconditions**
-- Selected or all play_histories records deleted.
+Removal or synchronization requires a separate approved requirement covering migration, privacy, count semantics, and client compatibility.

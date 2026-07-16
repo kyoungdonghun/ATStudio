@@ -10,11 +10,14 @@ import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
+import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
+import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserJob;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
+import com.atstudio.atstudio.entity.enums.WhitelistChannelStatus;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.service.auth.PasswordLoginPolicy;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -57,6 +61,7 @@ class UserServiceTest {
     @Mock PlaylistService playlistService;
     @Mock PasswordLoginPolicy passwordLoginPolicy;
     @Mock BillingAgreementRepository billingAgreementRepository;
+    @Mock PaymentOrderRepository paymentOrderRepository;
     @Mock UserSubscriptionRepository userSubscriptionRepository;
     @Mock ApplicationEventPublisher eventPublisher;
 
@@ -84,11 +89,12 @@ class UserServiceTest {
         WithdrawRequest request = new WithdrawRequest();
         request.setPassword("password123");
 
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(passwordEncoder.matches("password123", "encoded")).willReturn(true);
-        given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(1L, PaymentProviderType.TOSS_BILLING))
                 .willReturn(Optional.of(agreement));
-        given(userSubscriptionRepository.findByUser(user)).willReturn(Optional.of(subscription));
+        given(userSubscriptionRepository.findByUserIDForUpdate(1L)).willReturn(Optional.of(subscription));
         org.mockito.Mockito.doAnswer(invocation -> {
             Object event = invocation.getArgument(0);
             assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.CANCELLED);
@@ -109,7 +115,36 @@ class UserServiceTest {
         verify(playHistoryRepository).deleteAllByUser(user);
         verify(trackDownloadRepository).deleteAllByUser(user);
         verify(licenseRepository).deleteAllByUser(user);
-        verify(whitelistChannelRepository).deleteAllByUser(user);
+        verify(whitelistChannelRepository).requestExternalRemovalForWithdrawal(eq(user), any());
+        verify(whitelistChannelRepository).clearPrimaryByUserID(1L);
+        verify(whitelistChannelRepository).deleteAllByUserAndStatusIn(
+                eq(user),
+                eq(java.util.Set.of(
+                        WhitelistChannelStatus.DRAFT,
+                        WhitelistChannelStatus.PENDING,
+                        WhitelistChannelStatus.REVISION_REQUESTED,
+                        WhitelistChannelStatus.REJECTED,
+                        WhitelistChannelStatus.CANCELLED)));
+        org.mockito.InOrder lockOrder = inOrder(
+                billingAgreementRepository,
+                userSubscriptionRepository,
+                userRepository,
+                paymentOrderRepository);
+        lockOrder.verify(billingAgreementRepository)
+                .findByUserIDAndProviderForUpdate(1L, PaymentProviderType.TOSS_BILLING);
+        lockOrder.verify(userSubscriptionRepository).findByUserIDForUpdate(1L);
+        lockOrder.verify(userRepository).findByIdForUpdate(1L);
+        lockOrder.verify(paymentOrderRepository)
+                .existsByBillingAgreementAndPurposeInAndStatusIn(
+                        eq(agreement),
+                        eq(java.util.Set.of(
+                                PaymentPurpose.SUBSCRIBE,
+                                PaymentPurpose.UPGRADE,
+                                PaymentPurpose.RENEWAL)),
+                        eq(java.util.Set.of(
+                                PaymentOrderStatus.PROCESSING,
+                                PaymentOrderStatus.PROVIDER_SUCCEEDED,
+                                PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION)));
     }
 
     @Test
@@ -119,7 +154,7 @@ class UserServiceTest {
         user.updateRefreshToken("stored-refresh-hash");
         WithdrawRequest request = new WithdrawRequest();
         request.setPassword("wrong-password");
-        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(passwordEncoder.matches("wrong-password", "encoded")).willReturn(false);
 
         assertThatThrownBy(() -> userService.withdraw(1L, request))
@@ -129,9 +164,50 @@ class UserServiceTest {
 
         assertThat(user.isDeleted()).isFalse();
         assertThat(user.getRefreshToken()).isEqualTo("stored-refresh-hash");
-        verify(billingAgreementRepository, never()).findByUserAndProvider(any(), any());
-        verify(userSubscriptionRepository, never()).findByUser(any());
+        verify(billingAgreementRepository, never()).findByUserIDAndProviderForUpdate(anyLong(), any());
+        verify(userSubscriptionRepository, never()).findByUserIDForUpdate(anyLong());
         verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    @DisplayName("withdraw() rejects an in-flight provider outcome before cancellation or deletion")
+    void withdraw_inFlightPaymentFencesDeletion() {
+        User user = buildUser(1L, "withdraw@test.com", "withdraw-user", null, UserJob.EDITOR);
+        BillingAgreement agreement = BillingAgreement.builder()
+                .user(user)
+                .provider(PaymentProviderType.TOSS_BILLING)
+                .providerCustomerKey("customer-key")
+                .build();
+        agreement.activate("encrypted-key", "fingerprint", "CARD", "****1234", LocalDate.now());
+        UserSubscription subscription = UserSubscription.builder()
+                .user(user)
+                .billingCycle(BillingCycle.MONTHLY)
+                .status(SubscriptionStatus.ACTIVE)
+                .startedAt(LocalDate.now())
+                .expiresAt(LocalDate.now().plusMonths(1))
+                .build();
+        WithdrawRequest request = new WithdrawRequest();
+        request.setPassword("password123");
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
+        given(passwordEncoder.matches("password123", "encoded")).willReturn(true);
+        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(1L, PaymentProviderType.TOSS_BILLING))
+                .willReturn(Optional.of(agreement));
+        given(userSubscriptionRepository.findByUserIDForUpdate(1L)).willReturn(Optional.of(subscription));
+        given(paymentOrderRepository.existsByBillingAgreementAndPurposeInAndStatusIn(any(), any(), any()))
+                .willReturn(true);
+
+        assertThatThrownBy(() -> userService.withdraw(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE));
+
+        assertThat(user.isDeleted()).isFalse();
+        assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.ACTIVE);
+        assertThat(subscription.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        verify(eventPublisher, never()).publishEvent(any());
+        verify(likeRepository, never()).deleteAllByUser(any());
     }
 
     // ── register() ────────────────────────────────────────────────────────────

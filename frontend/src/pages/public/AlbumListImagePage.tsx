@@ -87,19 +87,13 @@ export default function AlbumListImagePage() {
         </div>
         <div className={styles.headerRight}>
           <div className={styles.sortBar}>
-            <select
-              className={styles.sortSelect}
-              value={sortValue}
-              onChange={handleSortChange}
-            >
+            <select className={styles.sortSelect} value={sortValue} onChange={handleSortChange}>
               <option value="latest">{'최신순'}</option>
               <option value="trackCount">{'곡 수순'}</option>
             </select>
           </div>
           <div className={styles.viewToggle}>
-            <span className={`${styles.viewBtn} ${styles.viewBtnActive}`}>
-              {'카드'}
-            </span>
+            <span className={`${styles.viewBtn} ${styles.viewBtnActive}`}>{'카드'}</span>
             <Link to="/albums/list" className={styles.viewBtn}>
               {'리스트'}
             </Link>
@@ -126,13 +120,13 @@ export default function AlbumListImagePage() {
         <>
           <div className={styles.albumGrid}>
             {albums.map((album) => (
-                <AlbumCard
-                  key={album.id}
-                  album={album}
-                  onClick={handleAlbumClick}
-                  isLiked={likedAlbumIds.has(album.id)}
-                  onToggleLike={isAuthenticated ? (id) => toggleAlbumLike(id) : undefined}
-                />
+              <AlbumCard
+                key={album.id}
+                album={album}
+                onClick={handleAlbumClick}
+                isLiked={likedAlbumIds.has(album.id)}
+                onToggleLike={isAuthenticated ? (id) => toggleAlbumLike(id) : undefined}
+              />
             ))}
           </div>
 

@@ -194,7 +194,9 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
                     e.getMessage(),
                     null);
         } catch (IOException | IllegalArgumentException | ArithmeticException e) {
-            log.warn("Toss payment cancel result is unknown.", e);
+            log.warn(
+                    "Toss payment cancel result is unknown. exceptionClass={}",
+                    e.getClass().getSimpleName());
             return PaymentRefundProviderResult.pending(
                     "TOSS_PAYMENT_CANCEL_UNKNOWN",
                     "Toss payment cancel request result is unknown.",

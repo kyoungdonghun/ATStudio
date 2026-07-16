@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { StrictMode } from 'react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SubscriberRoute from '@/router/SubscriberRoute';
@@ -20,12 +21,27 @@ vi.mock('@/store/toastStore', () => ({
   },
 }));
 
-vi.mock('@/api/userSubscriptions', () => ({
-  fetchMySubscription: (...args: unknown[]) => fetchMySubscription(...args),
-}));
+vi.mock('@/api/userSubscriptions', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/api/userSubscriptions')>('@/api/userSubscriptions');
+  return {
+    ...actual,
+    fetchMySubscription: (...args: unknown[]) => fetchMySubscription(...args),
+  };
+});
 
-function renderSubscriber() {
-  return render(
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+function renderSubscriber({ strict = false } = {}) {
+  const tree = (
     <MemoryRouter initialEntries={['/subscriber']}>
       <Routes>
         <Route
@@ -39,8 +55,10 @@ function renderSubscriber() {
         <Route path="/login" element={<div>Login Page</div>} />
         <Route path="/subscriptions" element={<div>Subscriptions Page</div>} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
+
+  return render(strict ? <StrictMode>{tree}</StrictMode> : tree);
 }
 
 describe('SubscriberRoute', () => {
@@ -73,9 +91,14 @@ describe('SubscriberRoute', () => {
     expect(showToast).not.toHaveBeenCalled();
   });
 
-  it('redirects inactive users to subscriptions and shows a warning toast', async () => {
+  it('redirects only the approved no-subscription domain outcome', async () => {
     authState.isAuthenticated = () => true;
-    fetchMySubscription.mockRejectedValue(new Error('inactive'));
+    fetchMySubscription.mockRejectedValue({
+      response: {
+        status: 403,
+        data: { errorCode: 'NO_ACTIVE_SUBSCRIPTION' },
+      },
+    });
 
     renderSubscriber();
 
@@ -83,5 +106,100 @@ describe('SubscriberRoute', () => {
       expect(screen.getByText('Subscriptions Page')).toBeInTheDocument();
     });
     expect(showToast).toHaveBeenCalledWith('warning', '구독이 필요한 기능입니다.');
+  });
+
+  it.each([
+    ['401', { response: { status: 401 } }],
+    ['other 403', { response: { status: 403, data: { errorCode: 'FORBIDDEN' } } }],
+    ['500', { response: { status: 500 } }],
+  ])('does not grant access or redirect to subscriptions for %s failures', async (_, error) => {
+    authState.isAuthenticated = () => true;
+    fetchMySubscription.mockRejectedValue(error);
+
+    renderSubscriber();
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '다시 시도' })).toBeEnabled();
+    expect(screen.queryByText('Subscriber Page')).not.toBeInTheDocument();
+    expect(screen.queryByText('Subscriptions Page')).not.toBeInTheDocument();
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('retries a timeout once, fences duplicate clicks, and renders children after success', async () => {
+    authState.isAuthenticated = () => true;
+    fetchMySubscription
+      .mockRejectedValueOnce({ code: 'ECONNABORTED' })
+      .mockResolvedValueOnce({ id: 1 });
+
+    renderSubscriber();
+
+    const retryButton = await screen.findByRole('button', { name: '다시 시도' });
+    fireEvent.click(retryButton);
+    fireEvent.click(retryButton);
+
+    expect(retryButton).toBeDisabled();
+    expect(fetchMySubscription).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      expect(screen.getByText('Subscriber Page')).toBeInTheDocument();
+    });
+  });
+
+  it('ignores stale success from a signal-ignoring request after a newer failure', async () => {
+    authState.isAuthenticated = () => true;
+    const staleRequest = createDeferred<{ id: number }>();
+    const currentRequest = createDeferred<{ id: number }>();
+    fetchMySubscription
+      .mockImplementationOnce(() => staleRequest.promise)
+      .mockImplementationOnce(() => currentRequest.promise);
+
+    renderSubscriber({ strict: true });
+
+    await waitFor(() => {
+      expect(fetchMySubscription).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      currentRequest.reject({ response: { status: 500 } });
+      await currentRequest.promise.catch(() => undefined);
+    });
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+
+    await act(async () => {
+      staleRequest.resolve({ id: 1 });
+      await staleRequest.promise;
+    });
+
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByText('Subscriber Page')).not.toBeInTheDocument();
+  });
+
+  it('ignores stale failure from a signal-ignoring request after a newer success', async () => {
+    authState.isAuthenticated = () => true;
+    const staleRequest = createDeferred<{ id: number }>();
+    const currentRequest = createDeferred<{ id: number }>();
+    fetchMySubscription
+      .mockImplementationOnce(() => staleRequest.promise)
+      .mockImplementationOnce(() => currentRequest.promise);
+
+    renderSubscriber({ strict: true });
+
+    await waitFor(() => {
+      expect(fetchMySubscription).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      currentRequest.resolve({ id: 2 });
+      await currentRequest.promise;
+    });
+    expect(await screen.findByText('Subscriber Page')).toBeInTheDocument();
+
+    await act(async () => {
+      staleRequest.reject({ response: { status: 500 } });
+      await staleRequest.promise.catch(() => undefined);
+    });
+
+    expect(screen.getByText('Subscriber Page')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText('Subscriptions Page')).not.toBeInTheDocument();
   });
 });

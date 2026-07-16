@@ -84,11 +84,7 @@ export default function AlbumListPage() {
         </div>
         <div className={styles.headerRight}>
           <div className={styles.sortBar}>
-            <select
-              className={styles.sortSelect}
-              value={sortValue}
-              onChange={handleSortChange}
-            >
+            <select className={styles.sortSelect} value={sortValue} onChange={handleSortChange}>
               <option value="latest">{'최신순'}</option>
               <option value="trackCount">{'곡 수순'}</option>
             </select>
@@ -97,9 +93,7 @@ export default function AlbumListPage() {
             <Link to="/albums" className={styles.viewBtn}>
               {'카드'}
             </Link>
-            <span className={`${styles.viewBtn} ${styles.viewBtnActive}`}>
-              {'리스트'}
-            </span>
+            <span className={`${styles.viewBtn} ${styles.viewBtnActive}`}>{'리스트'}</span>
           </div>
         </div>
       </div>
@@ -141,19 +135,13 @@ export default function AlbumListPage() {
                       <div>
                         <div className={styles.albumTitle}>{album.title}</div>
                         {album.description && (
-                          <div className={styles.albumDesc}>
-                            {album.description}
-                          </div>
+                          <div className={styles.albumDesc}>{album.description}</div>
                         )}
                       </div>
                     </div>
                   </td>
-                  <td className={styles.cellCount}>
-                    {`${album.trackCount}곡`}
-                  </td>
-                  <td className={styles.cellDate}>
-                    {formatDate(album.createdAt)}
-                  </td>
+                  <td className={styles.cellCount}>{`${album.trackCount}곡`}</td>
+                  <td className={styles.cellDate}>{formatDate(album.createdAt)}</td>
                   {isAuthenticated && (
                     <td className={styles.cellLike}>
                       <button

@@ -16,6 +16,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -25,7 +27,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.stream.LongStream;
 
@@ -56,7 +61,45 @@ class RecurringRenewalServiceTest {
                 paymentCommandTransactions,
                 billingKeyCrypto,
                 emailService,
-                List.of(recurringPaymentProvider));
+                List.of(recurringPaymentProvider),
+                Clock.fixed(Instant.parse("2026-05-17T00:00:00Z"), ZoneId.of("UTC")));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "2026-07-15T14:59:59Z, Asia/Seoul, 2026-07-15",
+            "2026-07-15T15:00:00Z, Asia/Seoul, 2026-07-16",
+            "2026-07-16T06:59:59Z, America/Los_Angeles, 2026-07-15",
+            "2026-07-16T07:00:00Z, America/Los_Angeles, 2026-07-16"
+    })
+    @DisplayName("configured payment clock controls renewal dates across business-zone midnight")
+    void processDueRenewals_usesConfiguredBusinessDate(
+            String instantValue,
+            String zoneValue,
+            String expectedDateValue) {
+        LocalDate expectedDate = LocalDate.parse(expectedDateValue);
+        service = new RecurringRenewalService(
+                billingAgreementRepository,
+                paymentCommandTransactions,
+                billingKeyCrypto,
+                emailService,
+                List.of(recurringPaymentProvider),
+                Clock.fixed(Instant.parse(instantValue), ZoneId.of(zoneValue)));
+        given(billingAgreementRepository.findDueRenewalCandidateIDs(
+                BillingAgreementStatus.ACTIVE,
+                expectedDate,
+                expectedDate.minusDays(3),
+                0L,
+                PageRequest.of(0, 100))).willReturn(List.of());
+
+        service.processDueRenewals();
+
+        verify(billingAgreementRepository).findDueRenewalCandidateIDs(
+                BillingAgreementStatus.ACTIVE,
+                expectedDate,
+                expectedDate.minusDays(3),
+                0L,
+                PageRequest.of(0, 100));
     }
 
     @Test
@@ -103,8 +146,28 @@ class RecurringRenewalServiceTest {
         ArgumentCaptor<BillingChargeCommand> chargeCaptor = ArgumentCaptor.forClass(BillingChargeCommand.class);
         verify(recurringPaymentProvider).charge(chargeCaptor.capture());
         assertThat(chargeCaptor.getValue().idempotencyKey()).isEqualTo("renewal-ORDER-7-attempt-1");
+        verify(paymentCommandTransactions).authorizeRenewalProviderCall(7L, "ORDER-7");
         verify(paymentCommandTransactions).recordProviderSuccess(7L, "ORDER-7", "tx_renewal", "{}", null, null);
         verify(paymentCommandTransactions).finalizeRenewal(7L, "ORDER-7");
+    }
+
+    @Test
+    @DisplayName("a closed renewal fence prevents billing-key decryption and Provider charge")
+    void processDueRenewals_closedFenceNeverCallsProvider() {
+        LocalDate today = LocalDate.of(2026, 5, 17);
+        givenSingleDueAgreement(7L, today);
+        given(paymentCommandTransactions.claimRenewal(eq(7L), eq(today), any()))
+                .willReturn(callProviderClaim());
+        org.mockito.Mockito.doThrow(new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE))
+                .when(paymentCommandTransactions)
+                .authorizeRenewalProviderCall(7L, "ORDER-7");
+
+        RecurringRenewalService.RenewalRunResult result = service.processDueRenewals(today);
+
+        assertThat(result.failed()).isEqualTo(1);
+        verify(billingKeyCrypto, never()).decrypt(any());
+        verify(recurringPaymentProvider, never()).charge(any());
+        verify(paymentCommandTransactions, never()).recordProviderSuccess(any(), any(), any(), any(), any(), any());
     }
 
     @Test

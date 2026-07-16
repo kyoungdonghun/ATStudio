@@ -44,7 +44,9 @@ export default function AlbumCard({
       </div>
       <div className={styles.name}>{album.title}</div>
       <div className={styles.meta}>
-        {genre ?? ''}{genre && album.trackCount ? ' \u00B7 ' : ''}{album.trackCount ? `${album.trackCount}곡` : ''}
+        {genre ?? ''}
+        {genre && album.trackCount ? ' \u00B7 ' : ''}
+        {album.trackCount ? `${album.trackCount}곡` : ''}
         {album.likeCount > 0 && (
           <span className={styles.likeCount}>{` \u2665 ${album.likeCount}`}</span>
         )}

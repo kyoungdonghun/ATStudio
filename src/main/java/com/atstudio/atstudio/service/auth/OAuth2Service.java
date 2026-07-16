@@ -1,5 +1,8 @@
 package com.atstudio.atstudio.service.auth;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.entity.SocialAccount;
@@ -15,11 +18,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 @Service
 @Transactional(readOnly = true)
@@ -117,46 +121,49 @@ public class OAuth2Service {
         };
     }
 
-    @SuppressWarnings("unchecked")
     private String exchangeGoogleToken(String code, String codeVerifier) {
-        Map<String, Object> response = restClient.post()
-                .uri("https://oauth2.googleapis.com/token")
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .body(buildTokenRequestBody(code, googleClientId, googleClientSecret, googleRedirectUri, codeVerifier))
-                .retrieve()
-                .body(Map.class);
-        if (response == null) {
-            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
-        }
-        return (String) response.get("access_token");
+        return executeProviderRequest(() -> requireResponse(restClient.post()
+                        .uri("https://oauth2.googleapis.com/token")
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                        .body(buildTokenRequestBody(
+                                code,
+                                googleClientId,
+                                googleClientSecret,
+                                googleRedirectUri,
+                                codeVerifier))
+                        .retrieve()
+                        .body(OAuthTokenResponse.class))
+                .requiredAccessToken());
     }
 
-    @SuppressWarnings("unchecked")
     private String exchangeKakaoToken(String code, String codeVerifier) {
-        Map<String, Object> response = restClient.post()
-                .uri("https://kauth.kakao.com/oauth/token")
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .body(buildTokenRequestBody(code, kakaoClientId, kakaoClientSecret, kakaoRedirectUri, codeVerifier))
-                .retrieve()
-                .body(Map.class);
-        if (response == null) {
-            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
-        }
-        return (String) response.get("access_token");
+        return executeProviderRequest(() -> requireResponse(restClient.post()
+                        .uri("https://kauth.kakao.com/oauth/token")
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                        .body(buildTokenRequestBody(
+                                code,
+                                kakaoClientId,
+                                kakaoClientSecret,
+                                kakaoRedirectUri,
+                                codeVerifier))
+                        .retrieve()
+                        .body(OAuthTokenResponse.class))
+                .requiredAccessToken());
     }
 
-    @SuppressWarnings("unchecked")
     private String exchangeNaverToken(String code, String codeVerifier) {
-        Map<String, Object> response = restClient.post()
-                .uri("https://nid.naver.com/oauth2.0/token")
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .body(buildTokenRequestBody(code, naverClientId, naverClientSecret, naverRedirectUri, codeVerifier))
-                .retrieve()
-                .body(Map.class);
-        if (response == null) {
-            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
-        }
-        return (String) response.get("access_token");
+        return executeProviderRequest(() -> requireResponse(restClient.post()
+                        .uri("https://nid.naver.com/oauth2.0/token")
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                        .body(buildTokenRequestBody(
+                                code,
+                                naverClientId,
+                                naverClientSecret,
+                                naverRedirectUri,
+                                codeVerifier))
+                        .retrieve()
+                        .body(OAuthTokenResponse.class))
+                .requiredAccessToken());
     }
 
     private String buildTokenRequestBody(String code, String clientId, String clientSecret,
@@ -181,63 +188,153 @@ public class OAuth2Service {
         };
     }
 
-    @SuppressWarnings("unchecked")
     private SocialUserInfo fetchGoogleUserInfo(String accessToken) {
-        Map<String, Object> info = restClient.get()
-                .uri("https://www.googleapis.com/oauth2/v2/userinfo")
-                .header("Authorization", "Bearer " + accessToken)
-                .retrieve()
-                .body(Map.class);
-        if (info == null) {
-            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
-        }
-        return new SocialUserInfo(
-                (String) info.get("id"),
-                (String) info.get("email"),
-                (String) info.get("name"));
+        return executeProviderRequest(() -> requireResponse(restClient.get()
+                        .uri("https://www.googleapis.com/oauth2/v2/userinfo")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .retrieve()
+                        .body(GoogleUserInfoResponse.class))
+                .toSocialUserInfo());
     }
 
-    @SuppressWarnings("unchecked")
     private SocialUserInfo fetchKakaoUserInfo(String accessToken) {
-        Map<String, Object> info = restClient.get()
-                .uri("https://kapi.kakao.com/v2/user/me")
-                .header("Authorization", "Bearer " + accessToken)
-                .retrieve()
-                .body(Map.class);
-        if (info == null) {
-            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
-        }
-        Map<String, Object> account = (Map<String, Object>) info.get("kakao_account");
-        if (account == null) {
-            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
-        }
-        Map<String, Object> profile = (Map<String, Object>) account.get("profile");
-        if (profile == null) {
-            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
-        }
-        return new SocialUserInfo(
-                String.valueOf(info.get("id")),
-                (String) account.get("email"),
-                (String) profile.get("nickname"));
+        return executeProviderRequest(() -> requireResponse(restClient.get()
+                        .uri("https://kapi.kakao.com/v2/user/me")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .retrieve()
+                        .body(KakaoUserInfoResponse.class))
+                .toSocialUserInfo());
     }
 
-    @SuppressWarnings("unchecked")
     private SocialUserInfo fetchNaverUserInfo(String accessToken) {
-        Map<String, Object> body = restClient.get()
-                .uri("https://openapi.naver.com/v1/nid/me")
-                .header("Authorization", "Bearer " + accessToken)
-                .retrieve()
-                .body(Map.class);
-        if (body == null) {
+        return executeProviderRequest(() -> requireResponse(restClient.get()
+                        .uri("https://openapi.naver.com/v1/nid/me")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .retrieve()
+                        .body(NaverUserInfoResponse.class))
+                .toSocialUserInfo());
+    }
+
+    private <T> T executeProviderRequest(Supplier<T> request) {
+        try {
+            return request.get();
+        } catch (RestClientException | IllegalArgumentException exception) {
             throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
         }
-        Map<String, Object> response = (Map<String, Object>) body.get("response");
+    }
+
+    private static <T> T requireResponse(T response) {
         if (response == null) {
-            throw new BusinessException(BUSINESS_ERROR.SOCIAL_AUTH_FAILED);
+            throw invalidProviderResponse();
         }
-        return new SocialUserInfo(
-                (String) response.get("id"),
-                (String) response.get("email"),
-                (String) response.get("name"));
+        return response;
+    }
+
+    private static String requiredText(JsonNode value) {
+        if (value == null || !value.isTextual() || value.textValue().isBlank()) {
+            throw invalidProviderResponse();
+        }
+        return value.textValue();
+    }
+
+    private static String requiredKakaoId(JsonNode value) {
+        if (value == null) {
+            throw invalidProviderResponse();
+        }
+        if (value.isTextual()) {
+            return requiredText(value);
+        }
+        if (value.isIntegralNumber()) {
+            return value.bigIntegerValue().toString();
+        }
+        throw invalidProviderResponse();
+    }
+
+    private static String optionalText(JsonNode value) {
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        return requiredText(value);
+    }
+
+    private static JsonNode requiredObject(JsonNode value) {
+        if (value == null || !value.isObject()) {
+            throw invalidProviderResponse();
+        }
+        return value;
+    }
+
+    private static void rejectProviderError(JsonNode... errorFields) {
+        for (JsonNode errorField : errorFields) {
+            if (errorField != null && !errorField.isNull()) {
+                throw invalidProviderResponse();
+            }
+        }
+    }
+
+    private static IllegalArgumentException invalidProviderResponse() {
+        return new IllegalArgumentException("Invalid OAuth provider response");
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record OAuthTokenResponse(
+            @JsonProperty("access_token") JsonNode accessToken,
+            JsonNode error) {
+
+        String requiredAccessToken() {
+            rejectProviderError(error);
+            return requiredText(accessToken);
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record GoogleUserInfoResponse(
+            JsonNode id,
+            JsonNode email,
+            JsonNode name,
+            JsonNode error) {
+
+        SocialUserInfo toSocialUserInfo() {
+            rejectProviderError(error);
+            return new SocialUserInfo(requiredText(id), optionalText(email), optionalText(name));
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record KakaoUserInfoResponse(
+            JsonNode id,
+            @JsonProperty("kakao_account") JsonNode kakaoAccount,
+            JsonNode code,
+            JsonNode msg) {
+
+        SocialUserInfo toSocialUserInfo() {
+            rejectProviderError(code, msg);
+            JsonNode account = requiredObject(kakaoAccount);
+            JsonNode profile = requiredObject(account.get("profile"));
+            return new SocialUserInfo(
+                    requiredKakaoId(id),
+                    optionalText(account.get("email")),
+                    optionalText(profile.get("nickname")));
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record NaverUserInfoResponse(
+            @JsonProperty("resultcode") JsonNode resultCode,
+            JsonNode message,
+            JsonNode response) {
+
+        SocialUserInfo toSocialUserInfo() {
+            if (resultCode == null
+                    || !resultCode.isTextual()
+                    || !"00".equals(resultCode.textValue())) {
+                throw invalidProviderResponse();
+            }
+            JsonNode userInfo = requiredObject(response);
+            return new SocialUserInfo(
+                    requiredText(userInfo.get("id")),
+                    optionalText(userInfo.get("email")),
+                    optionalText(userInfo.get("name")));
+        }
     }
 }

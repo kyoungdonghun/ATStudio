@@ -28,7 +28,7 @@ public class WithdrawalBillingCleanupCoordinator {
         }
     }
 
-    @Scheduled(cron = "0 15 1 * * *")
+    @Scheduled(cron = "0 15 1 * * *", zone = "${app.payment.scheduler-zone:Asia/Seoul}")
     public RetryRunResult retryFailedCleanups() {
         int staleMarkedPending = cleanupService.detectStaleCleanupClaims();
         List<Long> candidateIDs = cleanupService.findRetryCandidateIDs();

@@ -33,10 +33,9 @@ export async function fetchUserLicenses(
   page = 1,
   size = 20,
 ): Promise<PagedResponse<LicenseListItem>> {
-  const { data } = await client.get<PagedResponse<LicenseListItem>>(
-    `/users/${userId}/licenses`,
-    { params: { page, size } },
-  );
+  const { data } = await client.get<PagedResponse<LicenseListItem>>(`/users/${userId}/licenses`, {
+    params: { page, size },
+  });
   return data;
 }
 
@@ -45,17 +44,14 @@ export async function fetchMyLicenses(
   page = 1,
   size = 20,
 ): Promise<PagedResponse<LicenseListItem>> {
-  const { data } = await client.get<PagedResponse<LicenseListItem>>(
-    '/licenses/me',
-    { params: { page, size } },
-  );
+  const { data } = await client.get<PagedResponse<LicenseListItem>>('/licenses/me', {
+    params: { page, size },
+  });
   return data;
 }
 
 /** GET /api/licenses/{licenseId} -- license detail */
-export async function fetchLicenseDetail(
-  licenseId: number,
-): Promise<LicenseDetail> {
+export async function fetchLicenseDetail(licenseId: number): Promise<LicenseDetail> {
   const { data } = await client.get<ApiResponse<LicenseDetail>>(`/licenses/${licenseId}`);
   return data.data;
 }

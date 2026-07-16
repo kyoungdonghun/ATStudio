@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SocialCompleteProfilePage from '@/pages/auth/SocialCompleteProfilePage';
 import type { CheckAvailabilityResponse, MeResponse } from '@/api/auth';
+import { storeOAuthProfileReturnTarget } from '@/utils/oauthAttempt';
 
 const authState = {
   login: vi.fn(),
@@ -49,8 +50,12 @@ function buildProfile(overrides: Partial<MeResponse> = {}): MeResponse {
 
 function renderPage() {
   return render(
-    <MemoryRouter>
-      <SocialCompleteProfilePage />
+    <MemoryRouter initialEntries={['/complete-profile']}>
+      <Routes>
+        <Route path="/complete-profile" element={<SocialCompleteProfilePage />} />
+        <Route path="/tracks/7" element={<p>stored destination</p>} />
+        <Route path="/" element={<p>home destination</p>} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -62,9 +67,14 @@ describe('SocialCompleteProfilePage', () => {
     checkNicknameAvailabilityMock.mockReset();
     checkPhoneAvailabilityMock.mockReset();
     clientPutMock.mockReset();
+    sessionStorage.clear();
 
-    checkNicknameAvailabilityMock.mockResolvedValue({ available: true } satisfies CheckAvailabilityResponse);
-    checkPhoneAvailabilityMock.mockResolvedValue({ available: true } satisfies CheckAvailabilityResponse);
+    checkNicknameAvailabilityMock.mockResolvedValue({
+      available: true,
+    } satisfies CheckAvailabilityResponse);
+    checkPhoneAvailabilityMock.mockResolvedValue({
+      available: true,
+    } satisfies CheckAvailabilityResponse);
   });
 
   it('submits the individual complete-profile payload with job', async () => {
@@ -91,20 +101,25 @@ describe('SocialCompleteProfilePage', () => {
       });
     });
 
-    expect(authState.login).toHaveBeenCalledWith('access-token', expect.objectContaining({
-      nickname: 'creator02',
-      job: 'ARTIST',
-    }));
+    expect(authState.login).toHaveBeenCalledWith(
+      'access-token',
+      expect.objectContaining({
+        nickname: 'creator02',
+        job: 'ARTIST',
+      }),
+    );
   });
 
   it('submits the business complete-profile payload with companyName and no job', async () => {
-    fetchMeMock.mockResolvedValue(buildProfile({
-      nickname: 'bizcreator',
-      phoneCompany: '02-1234-5678',
-      job: null,
-      companyName: 'ATStudio Biz',
-      userType: 'BUSINESS',
-    }));
+    fetchMeMock.mockResolvedValue(
+      buildProfile({
+        nickname: 'bizcreator',
+        phoneCompany: '02-1234-5678',
+        job: null,
+        companyName: 'ATStudio Biz',
+        userType: 'BUSINESS',
+      }),
+    );
     clientPutMock.mockResolvedValue({ data: {} });
 
     renderPage();
@@ -114,7 +129,9 @@ describe('SocialCompleteProfilePage', () => {
 
     fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: 'bizcreator' } });
     fireEvent.change(screen.getByLabelText('연락처'), { target: { value: '01012345678' } });
-    fireEvent.change(screen.getByLabelText('회사 연락처 (선택)'), { target: { value: '0212345678' } });
+    fireEvent.change(screen.getByLabelText('회사 연락처 (선택)'), {
+      target: { value: '0212345678' },
+    });
     fireEvent.change(screen.getByLabelText('회사명'), { target: { value: 'ATStudio Biz' } });
     fireEvent.click(screen.getByRole('button', { name: '완료' }));
 
@@ -129,10 +146,13 @@ describe('SocialCompleteProfilePage', () => {
       });
     });
 
-    expect(authState.login).toHaveBeenCalledWith('access-token', expect.objectContaining({
-      companyName: 'ATStudio Biz',
-      userType: 'BUSINESS',
-    }));
+    expect(authState.login).toHaveBeenCalledWith(
+      'access-token',
+      expect.objectContaining({
+        companyName: 'ATStudio Biz',
+        userType: 'BUSINESS',
+      }),
+    );
   });
 
   it('blocks business submit when companyName is blank', async () => {
@@ -145,5 +165,20 @@ describe('SocialCompleteProfilePage', () => {
 
     expect(await screen.findByText('기업 회원은 회사명을 입력해주세요.')).toBeInTheDocument();
     expect(clientPutMock).not.toHaveBeenCalled();
+  });
+
+  it('consumes the stored OAuth return target after profile completion', async () => {
+    storeOAuthProfileReturnTarget('expected-state-1234', '/tracks/7');
+    fetchMeMock.mockResolvedValue(buildProfile({ nickname: 'creator02', job: 'ARTIST' }));
+    clientPutMock.mockResolvedValue({ data: {} });
+
+    renderPage();
+    fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: 'creator02' } });
+    fireEvent.change(screen.getByLabelText('연락처'), { target: { value: '01012345678' } });
+    fireEvent.change(screen.getByLabelText('직업'), { target: { value: 'ARTIST' } });
+    fireEvent.click(screen.getByRole('button', { name: '완료' }));
+
+    expect(await screen.findByText('stored destination')).toBeInTheDocument();
+    expect(sessionStorage.getItem('oauth_profile_return')).toBeNull();
   });
 });

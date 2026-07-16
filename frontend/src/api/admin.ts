@@ -33,8 +33,11 @@ interface UserListParams {
   userType?: string;
 }
 
-export async function fetchUsers(params: UserListParams = {}): Promise<PagedResponse<User>> {
-  const { data } = await client.get<PagedResponse<User>>('/users', { params });
+export async function fetchUsers(
+  params: UserListParams = {},
+  signal?: AbortSignal,
+): Promise<PagedResponse<User>> {
+  const { data } = await client.get<PagedResponse<User>>('/users', { params, signal });
   return data;
 }
 
@@ -173,14 +176,38 @@ export async function updateAdminWhitelistChannelStatus(
   return data.data;
 }
 
+export interface AdminWhitelistExportRequest {
+  status?: WhitelistChannelStatus;
+  keyword?: string;
+  note?: string;
+}
+
 export async function exportAdminWhitelistChannels(
-  status?: WhitelistChannelStatus,
-  note?: string,
-): Promise<{ blob: Blob; fileName: string }> {
-  const response = await client.post<Blob>('/admin/whitelist-channels/export', null, {
-    params: { status, note },
+  request: AdminWhitelistExportRequest,
+): Promise<{ batchId: number; blob: Blob; fileName: string }> {
+  const response = await client.post<Blob>('/admin/whitelist-channels/export', request, {
     responseType: 'blob',
   });
+  return whitelistExportResponse(response);
+}
+
+export async function downloadAdminWhitelistExportBatch(
+  batchId: number,
+): Promise<{ batchId: number; blob: Blob; fileName: string }> {
+  const response = await client.get<Blob>(`/admin/whitelist-channels/exports/${batchId}`, {
+    responseType: 'blob',
+  });
+  return whitelistExportResponse(response, batchId);
+}
+
+function whitelistExportResponse(
+  response: { data: Blob; headers: Record<string, unknown> },
+  expectedBatchId?: number,
+): {
+  batchId: number;
+  blob: Blob;
+  fileName: string;
+} {
   const disposition = response.headers['content-disposition'];
   const fileNameMatch =
     typeof disposition === 'string'
@@ -188,7 +215,27 @@ export async function exportAdminWhitelistChannels(
       : null;
   const encodedName = fileNameMatch?.[1] ?? fileNameMatch?.[2];
   const fileName = encodedName ? decodeURIComponent(encodedName) : 'whitelist-channels.csv';
-  return { blob: response.data, fileName };
+  const responseBatchId = parseWhitelistExportBatchId(
+    response.headers['x-whitelist-export-batch-id'],
+  );
+  const batchId = responseBatchId ?? expectedBatchId;
+  if (
+    batchId === undefined ||
+    !Number.isSafeInteger(batchId) ||
+    batchId <= 0 ||
+    (responseBatchId !== null &&
+      expectedBatchId !== undefined &&
+      responseBatchId !== expectedBatchId)
+  ) {
+    throw new Error('Whitelist export response has an invalid batch ID');
+  }
+  return { batchId, blob: response.data, fileName };
+}
+
+function parseWhitelistExportBatchId(value: unknown): number | null {
+  if (typeof value !== 'string' || !/^\d+$/.test(value)) return null;
+  const batchId = Number(value);
+  return Number.isSafeInteger(batchId) && batchId > 0 ? batchId : null;
 }
 
 /* ── Payment Operations ── */
@@ -237,7 +284,7 @@ export interface AdminSubscriptionPayment {
   provider: string | null;
   amount: number;
   paymentStatus: string;
-  pgTransactionId: string | null;
+  providerReference: string | null;
   createdAt: string;
 }
 
@@ -251,8 +298,8 @@ export interface AdminPaymentReceipt {
   provider: string;
   type: string;
   status: string;
-  providerPaymentKey: string | null;
-  receiptKey: string | null;
+  providerReference: string | null;
+  receiptReference: string | null;
   receiptUrl: string | null;
   issuedAt: string | null;
   cancelledAt: string | null;
@@ -273,7 +320,7 @@ export interface AdminPaymentOperationAuditLog {
   subscriptionPaymentId: number | null;
   reconciliationIncidentId: number | null;
   provider: string | null;
-  providerTransactionId: string | null;
+  providerReference: string | null;
   beforeStatus: string | null;
   afterStatus: string | null;
   reasonCode: string | null;
@@ -296,8 +343,8 @@ export interface AdminPaymentSettlement {
   provider: string;
   status: AdminPaymentSettlementStatus;
   orderId: string;
-  providerPaymentKey: string | null;
-  providerSettlementId: string | null;
+  providerReference: string | null;
+  providerSettlementReference: string | null;
   paymentOrderId: number | null;
   subscriptionPaymentId: number | null;
   userId: number | null;
@@ -354,7 +401,7 @@ export interface AdminPaymentRefundPreview {
   originalAmount: number;
   alreadyRefundedOrReservedAmount: number;
   refundableAmount: number;
-  providerPaymentKey: string | null;
+  providerReference: string | null;
   refundable: boolean;
   reason: string | null;
 }
@@ -373,8 +420,8 @@ export interface AdminPaymentRefund {
   reasonCode: AdminPaymentRefundReasonCode;
   reasonNote: string | null;
   idempotencyKey: string;
-  providerPaymentKey: string;
-  providerRefundTransactionId: string | null;
+  providerReference: string;
+  providerRefundReference: string | null;
   failureCode: string | null;
   failureMessage: string | null;
   requestedById: number | null;
@@ -491,7 +538,7 @@ export interface AdminPaymentReconciliationIncident {
   providerStatus: string | null;
   localAmount: number | null;
   providerAmount: number | null;
-  providerTransactionId: string | null;
+  providerReference: string | null;
   failureCode: string | null;
   failureMessage: string | null;
   occurrenceCount: number;
@@ -506,9 +553,11 @@ export interface AdminPaymentReconciliationIncident {
 export async function fetchAdminPaymentOrders(
   page = 1,
   size = 20,
+  signal?: AbortSignal,
 ): Promise<PagedResponse<AdminPaymentOrder>> {
   const { data } = await client.get<PagedResponse<AdminPaymentOrder>>('/admin/payments/orders', {
     params: { page, size },
+    signal,
   });
   return data;
 }
@@ -517,6 +566,7 @@ export async function fetchAdminPaymentReconciliationIncidents(
   page = 1,
   size = 20,
   status?: AdminPaymentReconciliationIncidentStatus,
+  signal?: AbortSignal,
 ): Promise<PagedResponse<AdminPaymentReconciliationIncident>> {
   const params: { page: number; size: number; status?: AdminPaymentReconciliationIncidentStatus } =
     { page, size };
@@ -526,7 +576,7 @@ export async function fetchAdminPaymentReconciliationIncidents(
 
   const { data } = await client.get<PagedResponse<AdminPaymentReconciliationIncident>>(
     '/admin/payments/reconciliation-incidents',
-    { params },
+    { params, signal },
   );
   return data;
 }
@@ -550,10 +600,11 @@ export async function updateAdminPaymentReconciliationIncidentStatus(
 export async function fetchAdminBillingAgreements(
   page = 1,
   size = 20,
+  signal?: AbortSignal,
 ): Promise<PagedResponse<AdminBillingAgreement>> {
   const { data } = await client.get<PagedResponse<AdminBillingAgreement>>(
     '/admin/payments/billing-agreements',
-    { params: { page, size } },
+    { params: { page, size }, signal },
   );
   return data;
 }
@@ -561,10 +612,11 @@ export async function fetchAdminBillingAgreements(
 export async function fetchAdminSubscriptionPayments(
   page = 1,
   size = 20,
+  signal?: AbortSignal,
 ): Promise<PagedResponse<AdminSubscriptionPayment>> {
   const { data } = await client.get<PagedResponse<AdminSubscriptionPayment>>(
     '/admin/payments/subscription-payments',
-    { params: { page, size } },
+    { params: { page, size }, signal },
   );
   return data;
 }
@@ -572,10 +624,11 @@ export async function fetchAdminSubscriptionPayments(
 export async function fetchAdminPaymentReceipts(
   page = 1,
   size = 20,
+  signal?: AbortSignal,
 ): Promise<PagedResponse<AdminPaymentReceipt>> {
   const { data } = await client.get<PagedResponse<AdminPaymentReceipt>>(
     '/admin/payments/receipts',
-    { params: { page, size } },
+    { params: { page, size }, signal },
   );
   return data;
 }
@@ -583,10 +636,11 @@ export async function fetchAdminPaymentReceipts(
 export async function fetchAdminPaymentOperationAuditLogs(
   page = 1,
   size = 20,
+  signal?: AbortSignal,
 ): Promise<PagedResponse<AdminPaymentOperationAuditLog>> {
   const { data } = await client.get<PagedResponse<AdminPaymentOperationAuditLog>>(
     '/admin/payments/operation-audit-logs',
-    { params: { page, size } },
+    { params: { page, size }, signal },
   );
   return data;
 }
@@ -602,10 +656,11 @@ export async function fetchAdminPaymentSettlements(
   page = 1,
   size = 20,
   filters: AdminPaymentSettlementListParams = {},
+  signal?: AbortSignal,
 ): Promise<PagedResponse<AdminPaymentSettlement>> {
   const { data } = await client.get<PagedResponse<AdminPaymentSettlement>>(
     '/admin/payments/settlements',
-    { params: { page, size, ...filters } },
+    { params: { page, size, ...filters }, signal },
   );
   return data;
 }
@@ -665,9 +720,11 @@ interface CreateAdminPaymentRefundRequest {
 export async function fetchAdminPaymentRefunds(
   page = 1,
   size = 20,
+  signal?: AbortSignal,
 ): Promise<PagedResponse<AdminPaymentRefund>> {
   const { data } = await client.get<PagedResponse<AdminPaymentRefund>>('/admin/payments/refunds', {
     params: { page, size },
+    signal,
   });
   return data;
 }
@@ -728,10 +785,11 @@ export async function previewAdminPaymentEntitlementCorrection(
 export async function fetchAdminPaymentEntitlementCorrections(
   page = 1,
   size = 20,
+  signal?: AbortSignal,
 ): Promise<PagedResponse<AdminPaymentEntitlementCorrection>> {
   const { data } = await client.get<PagedResponse<AdminPaymentEntitlementCorrection>>(
     '/admin/payments/entitlement-corrections',
-    { params: { page, size } },
+    { params: { page, size }, signal },
   );
   return data;
 }

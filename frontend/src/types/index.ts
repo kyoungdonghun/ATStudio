@@ -260,7 +260,6 @@ export interface CompanyCertification {
   phoneCompany: string | null;
   status: CertificationStatus;
   adminNote: string | null;
-  documentPath: string | null;
   documents: CompanyCertificationDocument[];
   certificationCode: string | null;
   approvedAt: string | null;

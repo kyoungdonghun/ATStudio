@@ -31,9 +31,7 @@ export default function TrackRow({
   onDownload,
   onGuestAction,
 }: TrackRowProps) {
-  const rowClass = [styles.row, playing ? styles.playing : '']
-    .filter(Boolean)
-    .join(' ');
+  const rowClass = [styles.row, playing ? styles.playing : ''].filter(Boolean).join(' ');
 
   const genreTags = track.tags.filter((t) => t.type === 'GENRE');
   const moodTags = track.tags.filter((t) => t.type === 'MOOD');
@@ -82,9 +80,7 @@ export default function TrackRow({
                 </>
               )}
             </div>
-            {usageText && (
-              <div className={styles.usageLine}>{usageText}</div>
-            )}
+            {usageText && <div className={styles.usageLine}>{usageText}</div>}
           </div>
         </div>
       </td>
@@ -92,10 +88,14 @@ export default function TrackRow({
       {/* Tags */}
       <td className={styles.cellTag}>
         {genreTags.map((t) => (
-          <span key={t.id} className={styles.tagChip}>{t.name}</span>
+          <span key={t.id} className={styles.tagChip}>
+            {t.name}
+          </span>
         ))}
         {moodTags.map((t) => (
-          <span key={t.id} className={styles.tagChip}>{t.name}</span>
+          <span key={t.id} className={styles.tagChip}>
+            {t.name}
+          </span>
         ))}
       </td>
 
@@ -141,11 +141,7 @@ export default function TrackRow({
             </>
           ) : (
             <>
-              <button
-                className={styles.actBtn}
-                onClick={() => onGuestAction?.()}
-                title="Like"
-              >
+              <button className={styles.actBtn} onClick={() => onGuestAction?.()} title="Like">
                 {'\u2661'}
               </button>
               <button
@@ -155,11 +151,7 @@ export default function TrackRow({
               >
                 +
               </button>
-              <button
-                className={styles.actBtn}
-                onClick={() => onGuestAction?.()}
-                title="Download"
-              >
+              <button className={styles.actBtn} onClick={() => onGuestAction?.()} title="Download">
                 &#8595;
               </button>
             </>

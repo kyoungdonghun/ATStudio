@@ -19,6 +19,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -67,20 +69,34 @@ class AlbumServiceTest {
 
     @Test
     @DisplayName("getAlbums() 성공 - 활성 앨범만 반환")
-    void getAlbums_returnsActiveOnly() {
+    void getAlbumsPaged_trackCountUsesGlobalDatabaseOrdering() {
         User user = buildUser(1L);
         Album album = buildAlbum(1L, user, "Active Album");
 
-        given(albumRepository.findAllByIsActiveTrueOrderByCreatedAtDesc())
-                .willReturn(List.of(album));
+        given(albumRepository.findAllActiveOrderByTrackCount(PageRequest.of(1, 2)))
+                .willReturn(new PageImpl<>(List.of(album), PageRequest.of(1, 2), 3));
         given(albumTrackRepository.countMapByAlbums(List.of(album)))
                 .willReturn(Map.of());
 
-        List<AlbumListItemResponse> result = albumService.getAlbums();
+        var result = albumService.getAlbumsPaged(2, 2, "trackCount");
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).title()).isEqualTo("Active Album");
-        assertThat(result.get(0).trackCount()).isZero();
+        assertThat(result.getDataList()).hasSize(1);
+        assertThat(result.getDataList().get(0).title()).isEqualTo("Active Album");
+        verify(albumRepository).findAllActiveOrderByTrackCount(PageRequest.of(1, 2));
+    }
+
+    @Test
+    void getAlbumsPaged_latestUsesDeterministicDatabaseOrdering() {
+        User user = buildUser(1L);
+        Album album = buildAlbum(2L, user, "Latest Album");
+
+        given(albumRepository.findAllActiveOrderByCreatedAt(PageRequest.of(0, 2)))
+                .willReturn(new PageImpl<>(List.of(album), PageRequest.of(0, 2), 1));
+        given(albumTrackRepository.countMapByAlbums(List.of(album))).willReturn(Map.of());
+
+        albumService.getAlbumsPaged(1, 2, "latest");
+
+        verify(albumRepository).findAllActiveOrderByCreatedAt(PageRequest.of(0, 2));
     }
 
     // -- getAlbum() -----------------------------------------------------------
@@ -121,7 +137,7 @@ class AlbumServiceTest {
         AlbumUpdateRequest request = new AlbumUpdateRequest();
         request.setTitle("New Title");
 
-        given(albumRepository.findById(1L)).willReturn(Optional.of(album));
+        given(albumRepository.findByIdForUpdate(1L)).willReturn(Optional.of(album));
         given(albumTrackRepository.countByAlbum(album))
                 .willReturn(0L);
 
@@ -138,7 +154,7 @@ class AlbumServiceTest {
         User user = buildUser(1L);
         Album album = buildAlbum(1L, user, "To Delete");
 
-        given(albumRepository.findById(1L)).willReturn(Optional.of(album));
+        given(albumRepository.findByIdForUpdate(1L)).willReturn(Optional.of(album));
 
         albumService.deleteAlbum(1L);
 
@@ -154,6 +170,7 @@ class AlbumServiceTest {
         Album album = buildAlbum(1L, user, "My Album");
         Track track = buildTrack(5L, true);
 
+        given(albumRepository.findByIdForUpdate(1L)).willReturn(Optional.of(album));
         given(albumRepository.findById(1L)).willReturn(Optional.of(album));
         given(trackRepository.findById(5L)).willReturn(Optional.of(track));
         given(albumTrackRepository.existsByAlbumAndTrack(album, track)).willReturn(false);
@@ -173,7 +190,7 @@ class AlbumServiceTest {
         Album album = buildAlbum(1L, user, "My Album");
         Track track = buildTrack(5L, true);
 
-        given(albumRepository.findById(1L)).willReturn(Optional.of(album));
+        given(albumRepository.findByIdForUpdate(1L)).willReturn(Optional.of(album));
         given(trackRepository.findById(5L)).willReturn(Optional.of(track));
         given(albumTrackRepository.existsByAlbumAndTrack(album, track)).willReturn(true);
 
@@ -195,8 +212,9 @@ class AlbumServiceTest {
         AlbumTrack albumTrack = AlbumTrack.builder()
                 .id(atId).album(album).track(track).trackOrder(0).build();
 
-        given(albumRepository.findById(1L)).willReturn(Optional.of(album));
+        given(albumRepository.findByIdForUpdate(1L)).willReturn(Optional.of(album));
         given(albumTrackRepository.findById(atId)).willReturn(Optional.of(albumTrack));
+        given(albumTrackRepository.findAllByAlbumOrderByTrackOrder(album)).willReturn(List.of());
 
         albumService.removeTrack(1L, 5L);
 
@@ -218,11 +236,9 @@ class AlbumServiceTest {
         AlbumTrack at1 = AlbumTrack.builder().id(atId1).album(album).track(track1).trackOrder(0).build();
         AlbumTrack at2 = AlbumTrack.builder().id(atId2).album(album).track(track2).trackOrder(1).build();
 
-        given(albumRepository.findById(1L)).willReturn(Optional.of(album));
-        given(albumTrackRepository.findById(atId1)).willReturn(Optional.of(at1));
-        given(albumTrackRepository.findById(atId2)).willReturn(Optional.of(at2));
+        given(albumRepository.findByIdForUpdate(1L)).willReturn(Optional.of(album));
         given(albumTrackRepository.findAllByAlbumOrderByTrackOrder(album))
-                .willReturn(List.of(at2, at1));
+                .willReturn(List.of(at1, at2));
 
         AlbumTrackOrderRequest request = new AlbumTrackOrderRequest(List.of(
                 new AlbumTrackOrderItem(1L, 1),
@@ -234,6 +250,25 @@ class AlbumServiceTest {
         assertThat(at1.getTrackOrder()).isEqualTo(1);
         assertThat(at2.getTrackOrder()).isEqualTo(0);
         assertThat(result.tracks()).hasSize(2);
+    }
+
+    @Test
+    void reorderTracks_rejectsIncompleteMembership() {
+        User user = buildUser(1L);
+        Album album = buildAlbum(1L, user, "My Album");
+        Track track = buildTrack(1L, true);
+        AlbumTrack albumTrack = AlbumTrack.builder()
+                .id(new AlbumTrackId(1L, 1L)).album(album).track(track).trackOrder(0).build();
+
+        given(albumRepository.findByIdForUpdate(1L)).willReturn(Optional.of(album));
+        given(albumTrackRepository.findAllByAlbumOrderByTrackOrder(album)).willReturn(List.of(albumTrack));
+
+        assertThatThrownBy(() -> albumService.reorderTracks(
+                1L,
+                new AlbumTrackOrderRequest(List.of(new AlbumTrackOrderItem(2L, 0)))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
     }
 
     // -- helpers --------------------------------------------------------------

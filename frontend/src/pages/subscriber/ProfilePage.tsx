@@ -19,6 +19,7 @@ import {
   PASSWORD_MIN,
 } from '@/utils/validation';
 import Button from '@/components/ui/Button';
+import { useAuthStore } from '@/store/authStore';
 import styles from './ProfilePage.module.css';
 
 const SUB_STATUS_LABELS: Record<string, string> = {
@@ -50,7 +51,16 @@ const JOB_OPTIONS: Array<{ value: UserJob; label: string }> = [
   { value: 'FREELANCER', label: '프리랜서' },
 ];
 
-type TabKey = 'account' | 'subscription' | 'edit' | 'password' | 'likes' | 'downloads' | 'playlists' | 'history' | 'licenses';
+type TabKey =
+  | 'account'
+  | 'subscription'
+  | 'edit'
+  | 'password'
+  | 'likes'
+  | 'downloads'
+  | 'playlists'
+  | 'history'
+  | 'licenses';
 
 interface MenuItem {
   key: TabKey;
@@ -72,6 +82,7 @@ const MENU_ITEMS: MenuItem[] = [
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const updateAuthUser = useAuthStore((state) => state.updateUser);
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') as TabKey) || 'account';
 
@@ -111,6 +122,10 @@ export default function ProfilePage() {
         if (!cancelled) {
           setProfile(me);
           setNickname(me.nickname);
+          setPhonePersonal(me.phonePersonal ?? '');
+          setPhoneCompany(me.phoneCompany ?? '');
+          setJob(me.job ?? '');
+          setCompanyName(me.companyName ?? '');
         }
         try {
           const sub = await fetchMySubscription();
@@ -120,9 +135,7 @@ export default function ProfilePage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : '프로필을 불러오지 못했습니다.',
-          );
+          setError(err instanceof Error ? err.message : '프로필을 불러오지 못했습니다.');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -135,15 +148,6 @@ export default function ProfilePage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!profile) return;
-    setNickname(profile.nickname);
-    setPhonePersonal(profile.phonePersonal ?? '');
-    setPhoneCompany(profile.phoneCompany ?? '');
-    setJob(profile.job ?? '');
-    setCompanyName(profile.companyName ?? '');
-  }, [profile]);
-
   const isBusinessUser = profile?.userType === 'BUSINESS';
   const normalizedNickname = nickname.trim();
   const normalizedPhoneCompany = phoneCompany.trim();
@@ -153,11 +157,11 @@ export default function ProfilePage() {
   const originalCompanyName = profile?.companyName ?? '';
   const originalJob = profile?.job ?? '';
   const isProfileDirty = profile
-    ? normalizedNickname !== profile.nickname
-      || phonePersonal !== originalPhonePersonal
-      || normalizedPhoneCompany !== originalPhoneCompany
-      || job !== originalJob
-      || normalizedCompanyName !== originalCompanyName
+    ? normalizedNickname !== profile.nickname ||
+      phonePersonal !== originalPhonePersonal ||
+      normalizedPhoneCompany !== originalPhoneCompany ||
+      job !== originalJob ||
+      normalizedCompanyName !== originalCompanyName
     : false;
 
   /* ── Save profile ── */
@@ -216,16 +220,28 @@ export default function ProfilePage() {
       const response = await client.put<ApiResponse<MeResponse>>('/users/me', {
         nickname: normalizedNickname,
         phonePersonal,
-        phoneCompany: isBusinessUser ? (normalizedPhoneCompany || null) : null,
+        phoneCompany: isBusinessUser ? normalizedPhoneCompany || null : null,
         job: isBusinessUser ? null : job,
         companyName: isBusinessUser ? normalizedCompanyName : null,
       });
-      setProfile(response.data.data);
+      const updatedProfile = response.data.data;
+      if (!updateAuthUser(updatedProfile)) {
+        setProfileError(
+          '프로필 저장값을 브라우저와 동기화하지 못했습니다. 다시 로그인한 뒤 재시도해주세요.',
+        );
+        return;
+      }
+      setProfile(updatedProfile);
+      setNickname(updatedProfile.nickname);
+      setPhonePersonal(updatedProfile.phonePersonal ?? '');
+      setPhoneCompany(updatedProfile.phoneCompany ?? '');
+      setJob(updatedProfile.job ?? '');
+      setCompanyName(updatedProfile.companyName ?? '');
       setProfileMsg('프로필이 저장되었습니다.');
     } catch (err) {
       const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-        ?? (err instanceof Error ? err.message : '프로필 저장에 실패했습니다.');
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        (err instanceof Error ? err.message : '프로필 저장에 실패했습니다.');
       setProfileError(msg);
     } finally {
       setSavingProfile(false);
@@ -258,11 +274,7 @@ export default function ProfilePage() {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      setPasswordError(
-        err instanceof Error
-          ? err.message
-          : '비밀번호 변경에 실패했습니다.',
-      );
+      setPasswordError(err instanceof Error ? err.message : '비밀번호 변경에 실패했습니다.');
     } finally {
       setSavingPassword(false);
     }
@@ -378,9 +390,7 @@ export default function ProfilePage() {
               </div>
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>{'가입일'}</span>
-                <span className={styles.infoValue}>
-                  {formatDate(profile.createdAt)}
-                </span>
+                <span className={styles.infoValue}>{formatDate(profile.createdAt)}</span>
               </div>
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>{'YouTube 채널'}</span>
@@ -429,7 +439,13 @@ export default function ProfilePage() {
                   <div className={styles.infoRow}>
                     <span className={styles.infoLabel}>{'상태'}</span>
                     <span className={styles.infoValue}>
-                      <span className={(mySub.status === 'ACTIVE' || mySub.status === 'CANCELLED') ? styles.statusActive : styles.statusInactive}>
+                      <span
+                        className={
+                          mySub.status === 'ACTIVE' || mySub.status === 'CANCELLED'
+                            ? styles.statusActive
+                            : styles.statusInactive
+                        }
+                      >
                         {SUB_STATUS_LABELS[mySub.status] ?? mySub.status}
                       </span>
                     </span>
@@ -439,7 +455,11 @@ export default function ProfilePage() {
                     <span className={styles.infoValue}>{formatDate(mySub.expiresAt)}</span>
                   </div>
                   <div className={styles.buttonRow}>
-                    <Button variant="ghost" size="sm" onClick={() => navigate('/subscriptions/manage')}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate('/subscriptions/manage')}
+                    >
                       {'구독 관리'}
                     </Button>
                   </div>
@@ -472,9 +492,7 @@ export default function ProfilePage() {
                     value={USER_TYPE_LABELS[profile.userType] ?? profile.userType}
                     disabled
                   />
-                  <div className={styles.formHint}>
-                    {'회원 유형은 변경할 수 없습니다.'}
-                  </div>
+                  <div className={styles.formHint}>{'회원 유형은 변경할 수 없습니다.'}</div>
                 </div>
               </div>
               <div className={styles.formGroup}>
@@ -572,8 +590,9 @@ export default function ProfilePage() {
                 </Button>
               </div>
               <div className={styles.formHint}>
-                {'YouTube 채널 정보는 화이트리스트 채널 관리 화면에서 언제든지 추가하거나 수정할 수 있습니다.'}
-                {' '}
+                {
+                  'YouTube 채널 정보는 화이트리스트 채널 관리 화면에서 언제든지 추가하거나 수정할 수 있습니다.'
+                }{' '}
                 <Link to="/whitelist-channels">{'채널 관리로 이동'}</Link>
               </div>
               {profileMsg && <div className={styles.successMsg}>{profileMsg}</div>}
@@ -621,12 +640,8 @@ export default function ProfilePage() {
                   {'비밀번호 변경'}
                 </Button>
               </div>
-              {passwordMsg && (
-                <div className={styles.successMsg}>{passwordMsg}</div>
-              )}
-              {passwordError && (
-                <div className={styles.errorMsg}>{passwordError}</div>
-              )}
+              {passwordMsg && <div className={styles.successMsg}>{passwordMsg}</div>}
+              {passwordError && <div className={styles.errorMsg}>{passwordError}</div>}
             </div>
           )}
         </div>

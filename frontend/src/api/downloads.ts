@@ -19,10 +19,10 @@ export async function downloadTrack(trackId: number): Promise<Blob> {
 }
 
 /** GET /api/utils/download-count -- today's download stats */
-export async function fetchDownloadCount(): Promise<DownloadCount> {
-  const { data } = await client.get<ApiResponse<DownloadCount>>(
-    '/utils/download-count',
-  );
+export async function fetchDownloadCount(signal?: AbortSignal): Promise<DownloadCount> {
+  const { data } = await client.get<ApiResponse<DownloadCount>>('/utils/download-count', {
+    signal,
+  });
   return data.data;
 }
 
@@ -51,29 +51,27 @@ export interface DownloadHistoryParams {
 /** GET /api/downloads/history -- paginated download history */
 export async function fetchDownloadHistory(
   params: DownloadHistoryParams = {},
+  signal?: AbortSignal,
 ): Promise<PagedResponse<DownloadHistoryItem>> {
   const query: Record<string, string | number> = {};
   if (params.page !== undefined) query.page = params.page;
   if (params.size !== undefined) query.size = params.size;
   if (params.keyword) query.keyword = params.keyword;
   if (params.sort) query.sort = params.sort;
-  const { data } = await client.get<PagedResponse<DownloadHistoryItem>>(
-    '/downloads/history',
-    { params: query },
-  );
+  const { data } = await client.get<PagedResponse<DownloadHistoryItem>>('/downloads/history', {
+    params: query,
+    signal,
+  });
   return data;
 }
 
 /** GET /api/downloads/history/track-ids -- all matching track ids for bulk re-download */
-export async function fetchDownloadHistoryTrackIds(
-  keyword?: string,
-): Promise<number[]> {
+export async function fetchDownloadHistoryTrackIds(keyword?: string): Promise<number[]> {
   const query: Record<string, string> = {};
   if (keyword) query.keyword = keyword;
-  const { data } = await client.get<{ dataList: number[] }>(
-    '/downloads/history/track-ids',
-    { params: query },
-  );
+  const { data } = await client.get<{ dataList: number[] }>('/downloads/history/track-ids', {
+    params: query,
+  });
   return data.dataList ?? [];
 }
 

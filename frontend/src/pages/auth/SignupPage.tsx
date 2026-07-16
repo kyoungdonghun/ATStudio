@@ -32,8 +32,11 @@ const JOB_OPTIONS = [
 export default function SignupPage() {
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
-  const { capabilities, loading: capabilitiesLoading, error: capabilitiesError } =
-    usePublicCapabilities();
+  const {
+    capabilities,
+    loading: capabilitiesLoading,
+    error: capabilitiesError,
+  } = usePublicCapabilities();
 
   useEffect(() => {
     if (isAuthenticated) navigate('/', { replace: true });
@@ -245,7 +248,9 @@ export default function SignupPage() {
             />
             {password.length > 0 && (
               <div className={styles.pwHints}>
-                <span className={password.length >= PASSWORD_MIN ? styles.pwValid : styles.pwInvalid}>
+                <span
+                  className={password.length >= PASSWORD_MIN ? styles.pwValid : styles.pwInvalid}
+                >
                   {`${PASSWORD_MIN}자 이상`}
                 </span>
               </div>
@@ -341,11 +346,15 @@ export default function SignupPage() {
 
           {!capabilitiesLoading && capabilities && !isPasswordLoginEnabled ? (
             <p className={styles.noticeText}>
-              현재 이 환경에서는 이메일 로그인과 회원가입이 비활성화되어 있습니다. 운영자에게 소셜 로그인 또는 테스트 계정을 확인해주세요.
+              현재 이 환경에서는 이메일 로그인과 회원가입이 비활성화되어 있습니다. 운영자에게 소셜
+              로그인 또는 테스트 계정을 확인해주세요.
             </p>
           ) : null}
 
-          {!capabilitiesLoading && capabilities && isPasswordLoginEnabled && !isEmailVerificationAvailable ? (
+          {!capabilitiesLoading &&
+          capabilities &&
+          isPasswordLoginEnabled &&
+          !isEmailVerificationAvailable ? (
             <p className={styles.noticeText}>
               현재 이 환경에서는 이메일 인증 메일이 비활성화되어 있습니다. 가입 전에 운영자에게 메일
               설정을 요청해주세요.
@@ -354,13 +363,15 @@ export default function SignupPage() {
 
           {isPasswordLoginEnabled && isLocalMailMode ? (
             <p className={styles.noticeText}>
-              현재 이 환경에서는 로컬 메일 수신 환경(MailHog 등)에서만 인증 링크를 확인할 수 있습니다.
+              현재 이 환경에서는 로컬 메일 수신 환경(MailHog 등)에서만 인증 링크를 확인할 수
+              있습니다.
             </p>
           ) : null}
 
           {capabilitiesError ? (
             <p className={styles.noticeText}>
-              이메일 인증 환경을 확인하지 못했습니다. 메일 수신 여부는 현재 운영 환경 기준으로 확인해주세요.
+              이메일 인증 환경을 확인하지 못했습니다. 메일 수신 여부는 현재 운영 환경 기준으로
+              확인해주세요.
             </p>
           ) : null}
 

@@ -1,6 +1,7 @@
 /** Screen K-1: User management */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { fetchUsers, updateUserAdmin } from '@/api/admin';
+import { classifyLoadError } from '@/api/loadError';
 import type { User, PageInfo, UserRole } from '@/types';
 import { formatDate } from '@/utils/format';
 import Modal from '@/components/ui/Modal';
@@ -18,6 +19,7 @@ export default function UserManagePage() {
   const [searchInput, setSearchInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loadGenerationRef = useRef(0);
 
   /* Role change modal */
   const [roleTarget, setRoleTarget] = useState<{
@@ -26,20 +28,40 @@ export default function UserManagePage() {
   } | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
 
-  const loadUsers = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    fetchUsers({ page, size: 20, keyword: keyword || undefined })
-      .then((result) => {
-        setUsers(result.dataList);
-        setPageInfo(result.pageInfo);
-      })
-      .catch(() => setError('Failed to load users'))
-      .finally(() => setLoading(false));
-  }, [page, keyword]);
+  const loadUsers = useCallback(
+    (signal?: AbortSignal) => {
+      const generation = ++loadGenerationRef.current;
+      setLoading(true);
+      setError(null);
+      fetchUsers({ page, size: 20, keyword: keyword || undefined }, signal)
+        .then((result) => {
+          if (loadGenerationRef.current === generation) {
+            setUsers(result.dataList);
+            setPageInfo(result.pageInfo);
+          }
+        })
+        .catch((loadError: unknown) => {
+          if (
+            loadGenerationRef.current === generation &&
+            classifyLoadError(loadError) !== 'cancelled'
+          ) {
+            setError('Failed to load users');
+          }
+        })
+        .finally(() => {
+          if (loadGenerationRef.current === generation) setLoading(false);
+        });
+    },
+    [page, keyword],
+  );
 
   useEffect(() => {
-    loadUsers();
+    const controller = new AbortController();
+    loadUsers(controller.signal);
+    return () => {
+      controller.abort();
+      loadGenerationRef.current += 1;
+    };
   }, [loadUsers]);
 
   const handleSearch = () => {
@@ -106,53 +128,51 @@ export default function UserManagePage() {
 
       {/* Table */}
       <div className={styles.tableWrap}>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Email</th>
-            <th>Nickname</th>
-            <th>Role</th>
-            <th>Change Role</th>
-            <th>Joined</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.length === 0 && (
+        <table className={styles.table}>
+          <thead>
             <tr>
-              <td colSpan={6} className={styles.empty}>
-                No users found.
-              </td>
+              <th>ID</th>
+              <th>Email</th>
+              <th>Nickname</th>
+              <th>Role</th>
+              <th>Change Role</th>
+              <th>Joined</th>
             </tr>
-          )}
-          {users.map((u) => (
-            <tr key={u.id} className={styles.row}>
-              <td>{u.id}</td>
-              <td>{u.email}</td>
-              <td>{u.nickname}</td>
-              <td>
-                <span className={styles.roleBadge}>{u.role}</span>
-              </td>
-              <td>
-                <select
-                  className={styles.roleSelect}
-                  value={u.role}
-                  onChange={(e) =>
-                    handleRoleChange(u, e.target.value as UserRole)
-                  }
-                >
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>{formatDate(u.createdAt)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {users.length === 0 && (
+              <tr>
+                <td colSpan={6} className={styles.empty}>
+                  No users found.
+                </td>
+              </tr>
+            )}
+            {users.map((u) => (
+              <tr key={u.id} className={styles.row}>
+                <td>{u.id}</td>
+                <td>{u.email}</td>
+                <td>{u.nickname}</td>
+                <td>
+                  <span className={styles.roleBadge}>{u.role}</span>
+                </td>
+                <td>
+                  <select
+                    className={styles.roleSelect}
+                    value={u.role}
+                    onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
+                  >
+                    {ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td>{formatDate(u.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {pageInfo && pageInfo.total > pageInfo.size && (
@@ -167,18 +187,13 @@ export default function UserManagePage() {
       >
         <div className={styles.modalBody}>
           Change <strong>{roleTarget?.user.nickname}</strong> role from{' '}
-          <strong>{roleTarget?.user.role}</strong> to{' '}
-          <strong>{roleTarget?.newRole}</strong>?
+          <strong>{roleTarget?.user.role}</strong> to <strong>{roleTarget?.newRole}</strong>?
         </div>
         <div className={styles.modalActions}>
           <Button variant="ghost" size="sm" onClick={() => setRoleTarget(null)}>
             Cancel
           </Button>
-          <Button
-            size="sm"
-            loading={roleLoading}
-            onClick={confirmRoleChange}
-          >
+          <Button size="sm" loading={roleLoading} onClick={confirmRoleChange}>
             Confirm
           </Button>
         </div>

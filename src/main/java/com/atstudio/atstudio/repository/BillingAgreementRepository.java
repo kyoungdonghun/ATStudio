@@ -44,6 +44,13 @@ public interface BillingAgreementRepository extends JpaRepository<BillingAgreeme
     @EntityGraph(attributePaths = {"user"})
     Optional<BillingAgreement> findByUserAndProvider(User user, PaymentProviderType provider);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT ba FROM BillingAgreement ba JOIN FETCH ba.user "
+            + "WHERE ba.user.id = :userID AND ba.provider = :provider")
+    Optional<BillingAgreement> findByUserIDAndProviderForUpdate(
+            @Param("userID") Long userID,
+            @Param("provider") PaymentProviderType provider);
+
     @EntityGraph(attributePaths = {"user"})
     Optional<BillingAgreement> findByProviderAndProviderCustomerKey(
             PaymentProviderType provider,
@@ -103,8 +110,15 @@ public interface BillingAgreementRepository extends JpaRepository<BillingAgreeme
             Pageable pageable);
 
     @EntityGraph(attributePaths = {"user"})
-    Page<BillingAgreement> findAllByOrderByCreatedAtDesc(Pageable pageable);
+    @Query("SELECT ba FROM BillingAgreement ba "
+            + "WHERE ba.status = :status AND ba.id > :lastSeenID "
+            + "ORDER BY ba.id ASC")
+    List<BillingAgreement> findLocalReconciliationCandidates(
+            @Param("status") BillingAgreementStatus status,
+            @Param("lastSeenID") Long lastSeenID,
+            Pageable pageable);
 
     @EntityGraph(attributePaths = {"user"})
-    List<BillingAgreement> findByStatus(BillingAgreementStatus status);
+    Page<BillingAgreement> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
 }

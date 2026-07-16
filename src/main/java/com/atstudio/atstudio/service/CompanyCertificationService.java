@@ -10,11 +10,14 @@ import com.atstudio.atstudio.dto.certification.CompanyCertificationResponse;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationReviewRequest;
 import com.atstudio.atstudio.dto.certification.CompanyCertificationSummaryResponse;
 import com.atstudio.atstudio.entity.CompanyCertification;
+import com.atstudio.atstudio.entity.CompanyCertificationAuditLog;
 import com.atstudio.atstudio.entity.CompanyCertificationDocument;
 import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.enums.CompanyCertificationAuditAction;
 import com.atstudio.atstudio.entity.enums.CompanyCertificationStatus;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.CompanyCertificationDocumentRepository;
+import com.atstudio.atstudio.repository.CompanyCertificationAuditLogRepository;
 import com.atstudio.atstudio.repository.CompanyCertificationRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
@@ -57,6 +60,7 @@ public class CompanyCertificationService {
 
     private final CompanyCertificationRepository certificationRepository;
     private final CompanyCertificationDocumentRepository documentRepository;
+    private final CompanyCertificationAuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
     private final StorageService storageService;
     private final StorageMutationCoordinator storageMutationCoordinator;
@@ -67,7 +71,7 @@ public class CompanyCertificationService {
     @Transactional
     public CompanyCertificationResponse apply(CustomUserDetails userDetails,
                                                List<MultipartFile> documents) {
-        User user = findUser(userDetails);
+        User user = findUserForUpdate(userDetails);
 
         if (user.getUserType() != UserType.BUSINESS) {
             throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
@@ -107,13 +111,17 @@ public class CompanyCertificationService {
     @Transactional
     public CompanyCertificationResponse resubmit(CustomUserDetails userDetails,
                                                  List<MultipartFile> documents) {
-        User user = findUser(userDetails);
+        User user = findUserForUpdate(userDetails);
 
         if (user.getUserType() != UserType.BUSINESS) {
             throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
         }
 
-        CompanyCertification certification = certificationRepository.findTopByUserOrderByCreatedAtDescIdDesc(user)
+        CompanyCertification certification = certificationRepository.findByUserForUpdate(
+                        user,
+                        PageRequest.of(0, 1))
+                .stream()
+                .findFirst()
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         if (certification.getStatus() != CompanyCertificationStatus.REVISION_REQUESTED) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_STATE_TRANSITION);
@@ -158,7 +166,11 @@ public class CompanyCertificationService {
 
     public ResponseDTO<CompanyCertificationSummaryResponse> listAll(String status,
                                                                      int page, int size) {
-        Pageable pageable = PageRequest.of(Math.max(0, page - 1), Math.max(1, size),
+        int effectivePage = Math.max(1, page);
+        int effectiveSize = Math.min(
+                ValidationConstants.CERTIFICATION_ADMIN_MAX_PAGE_SIZE,
+                Math.max(1, size));
+        Pageable pageable = PageRequest.of(effectivePage - 1, effectiveSize,
                 Sort.by(Sort.Direction.DESC, "createdAt")
                         .and(Sort.by(Sort.Direction.DESC, "id")));
 
@@ -182,7 +194,7 @@ public class CompanyCertificationService {
 
         return ResponseDTO.<CompanyCertificationSummaryResponse>builder()
                 .dataList(dataList)
-                .pageInfo(PageInfo.of(page, size, total, 10))
+                .pageInfo(PageInfo.of(effectivePage, effectiveSize, total, 10))
                 .build();
     }
 
@@ -197,13 +209,24 @@ public class CompanyCertificationService {
 
     // ── 13.6 GET /api/company-certifications/{certificationId}/documents/{documentId}
 
-    public CompanyCertificationDocumentDownload downloadDocument(Long certificationId, Long documentId) {
+    @Transactional
+    public CompanyCertificationDocumentDownload downloadDocument(
+            Long certificationId,
+            Long documentId,
+            CustomUserDetails actorDetails) {
         CompanyCertificationDocument document = documentRepository.findByIdAndCertificationId(
                         documentId,
                         certificationId
                 )
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        User actor = findActor(actorDetails);
         Resource resource = storageService.loadAsResource(StorageRoot.PRIVATE, document.getStoredPath());
+        auditLogRepository.save(CompanyCertificationAuditLog.builder()
+                .certification(document.getCertification())
+                .actorUser(actor)
+                .action(CompanyCertificationAuditAction.DOCUMENT_ACCESS_GRANTED)
+                .documentId(document.getId())
+                .build());
         return new CompanyCertificationDocumentDownload(
                 resource,
                 document.getOriginalFilename()
@@ -214,9 +237,17 @@ public class CompanyCertificationService {
 
     @Transactional
     public CompanyCertificationResponse processReview(Long certificationId,
+                                                       CustomUserDetails actorDetails,
                                                        CompanyCertificationReviewRequest request) {
-        CompanyCertification certification = certificationRepository.findById(certificationId)
+        CompanyCertification initial = certificationRepository.findById(certificationId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        userRepository.findByIdForUpdate(initial.getUser().getId())
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        CompanyCertification certification = certificationRepository.findByIdForUpdate(certificationId)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        User actor = findActor(actorDetails);
+        String adminNote = normalizeReviewNote(request.status(), request.adminNote());
+        CompanyCertificationStatus beforeStatus = certification.getStatus();
 
         String certificationCode = null;
         LocalDateTime approvedAt = null;
@@ -226,8 +257,15 @@ public class CompanyCertificationService {
             approvedAt = LocalDateTime.now();
         }
 
-        certification.process(request.status(), request.adminNote(),
+        certification.process(request.status(), adminNote,
                 certificationCode, approvedAt);
+        auditLogRepository.save(CompanyCertificationAuditLog.builder()
+                .certification(certification)
+                .actorUser(actor)
+                .action(CompanyCertificationAuditAction.REVIEWED)
+                .fromStatus(beforeStatus.name())
+                .toStatus(certification.getStatus().name())
+                .build());
 
         return CompanyCertificationResponse.from(certification);
     }
@@ -235,7 +273,26 @@ public class CompanyCertificationService {
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private User findUser(CustomUserDetails userDetails) {
+        if (userDetails == null || userDetails.getId() == null) {
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
+        }
         return userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+    }
+
+    private User findUserForUpdate(CustomUserDetails userDetails) {
+        if (userDetails == null || userDetails.getId() == null) {
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
+        }
+        return userRepository.findByIdForUpdate(userDetails.getId())
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+    }
+
+    private User findActor(CustomUserDetails actorDetails) {
+        if (actorDetails == null || actorDetails.getId() == null) {
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
+        }
+        return userRepository.findById(actorDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
     }
 
@@ -244,12 +301,10 @@ public class CompanyCertificationService {
             throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
         }
 
-        List<MultipartFile> validDocuments = documents.stream()
-                .filter(doc -> doc != null && !doc.isEmpty())
-                .toList();
-        if (validDocuments.isEmpty()) {
+        if (documents.stream().anyMatch(document -> document == null || document.isEmpty())) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
         }
+        List<MultipartFile> validDocuments = List.copyOf(documents);
         if (validDocuments.size() > ValidationConstants.CERT_DOC_MAX_COUNT) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
         }
@@ -292,6 +347,9 @@ public class CompanyCertificationService {
             throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
         }
         String trimmed = originalFilename.trim();
+        if (trimmed.length() > ValidationConstants.CERT_DOC_FILENAME_MAX) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+        }
         if (trimmed.indexOf('\0') >= 0
                 || trimmed.contains("/")
                 || trimmed.contains("\\")
@@ -323,12 +381,12 @@ public class CompanyCertificationService {
             MultipartFile storageFile = new VerifiedMultipartFile(
                     document.getName(),
                     originalFilename,
-                    format.storedMimeType(),
+                    format.verifiedInputMimeType(),
                     bytes);
             return new VerifiedCertificationDocument(
                     originalFilename,
                     storageFile,
-                    format.storedMimeType(),
+                    format.verifiedInputMimeType(),
                     storageFile.getSize());
         }
 
@@ -423,6 +481,20 @@ public class CompanyCertificationService {
         throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
     }
 
+    private String normalizeReviewNote(CompanyCertificationStatus status, String adminNote) {
+        String normalized = adminNote == null ? null : adminNote.trim();
+        if (normalized != null
+                && normalized.length() > ValidationConstants.CERTIFICATION_REVIEW_NOTE_MAX) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+        }
+        boolean requiresReason = status == CompanyCertificationStatus.REVISION_REQUESTED
+                || status == CompanyCertificationStatus.REJECTED;
+        if (requiresReason && (normalized == null || normalized.isBlank())) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_VALID);
+        }
+        return normalized == null || normalized.isBlank() ? null : normalized;
+    }
+
     private record VerifiedCertificationDocument(
             String originalFilename,
             MultipartFile storageFile,
@@ -440,18 +512,18 @@ public class CompanyCertificationService {
     private enum VerifiedFormat {
         PDF("application/pdf", List.of("application/pdf")),
         JPEG("image/jpeg", List.of("image/jpeg")),
-        PNG("image/jpeg", List.of("image/png"));
+        PNG("image/png", List.of("image/png"));
 
-        private final String storedMimeType;
+        private final String verifiedInputMimeType;
         private final List<String> submittedMimeTypes;
 
-        VerifiedFormat(String storedMimeType, List<String> submittedMimeTypes) {
-            this.storedMimeType = storedMimeType;
+        VerifiedFormat(String verifiedInputMimeType, List<String> submittedMimeTypes) {
+            this.verifiedInputMimeType = verifiedInputMimeType;
             this.submittedMimeTypes = submittedMimeTypes;
         }
 
-        String storedMimeType() {
-            return storedMimeType;
+        String verifiedInputMimeType() {
+            return verifiedInputMimeType;
         }
 
         List<String> submittedMimeTypes() {

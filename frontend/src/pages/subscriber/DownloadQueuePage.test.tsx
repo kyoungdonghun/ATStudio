@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DownloadHistoryPage from '@/pages/subscriber/DownloadQueuePage';
 import type { DownloadCount, DownloadHistoryItem } from '@/api/downloads';
@@ -72,9 +72,7 @@ function buildDownloadCount(): DownloadCount {
   };
 }
 
-function buildHistoryItem(
-  overrides: Partial<DownloadHistoryItem> = {},
-): DownloadHistoryItem {
+function buildHistoryItem(overrides: Partial<DownloadHistoryItem> = {}): DownloadHistoryItem {
   return {
     downloadId: 1,
     trackId: 101,
@@ -93,9 +91,25 @@ function buildHistoryItem(
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/download-queue']}>
+      <HistorySwitcher />
       <DownloadHistoryPage />
     </MemoryRouter>,
   );
+}
+
+function HistorySwitcher() {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate('/download-queue?page=2')}>next history</button>;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
 }
 
 describe('DownloadHistoryPage', () => {
@@ -179,9 +193,55 @@ describe('DownloadHistoryPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '전체 재다운로드' }));
 
     expect(fetchDownloadHistoryTrackIdsMock).toHaveBeenCalledWith(undefined);
-    expect(
-      await screen.findByText('2곡을 다운로드합니다. 계속하시겠습니까?'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('2곡을 다운로드합니다. 계속하시겠습니까?')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: '다운로드' })).toBeInTheDocument();
+  });
+
+  it('ignores an old successful history response after the page changes', async () => {
+    const first = deferred<{ dataList: DownloadHistoryItem[]; pageInfo: PageInfo }>();
+    const second = deferred<{ dataList: DownloadHistoryItem[]; pageInfo: PageInfo }>();
+    fetchDownloadHistoryMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+
+    renderPage();
+    const firstSignal = fetchDownloadHistoryMock.mock.calls[0][1] as AbortSignal;
+    fireEvent.click(screen.getByRole('button', { name: 'next history' }));
+    expect(firstSignal.aborted).toBe(true);
+
+    await act(async () =>
+      second.resolve({
+        dataList: [buildHistoryItem({ downloadId: 2, title: 'Current history' })],
+        pageInfo: { ...buildPageInfo(1), page: 2 },
+      }),
+    );
+    expect(await screen.findByText('Current history')).toBeInTheDocument();
+
+    await act(async () =>
+      first.resolve({
+        dataList: [buildHistoryItem({ downloadId: 1, title: 'Old history' })],
+        pageInfo: buildPageInfo(1),
+      }),
+    );
+    expect(screen.getByText('Current history')).toBeInTheDocument();
+    expect(screen.queryByText('Old history')).not.toBeInTheDocument();
+  });
+
+  it('ignores an old failed history response after the current response succeeds', async () => {
+    const first = deferred<{ dataList: DownloadHistoryItem[]; pageInfo: PageInfo }>();
+    const second = deferred<{ dataList: DownloadHistoryItem[]; pageInfo: PageInfo }>();
+    fetchDownloadHistoryMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'next history' }));
+    await act(async () =>
+      second.resolve({
+        dataList: [buildHistoryItem({ downloadId: 2, title: 'Current after failure' })],
+        pageInfo: { ...buildPageInfo(1), page: 2 },
+      }),
+    );
+    expect(await screen.findByText('Current after failure')).toBeInTheDocument();
+
+    await act(async () => first.reject(new Error('old failure')));
+    expect(screen.getByText('Current after failure')).toBeInTheDocument();
+    expect(screen.queryByText('다운로드 기록을 불러오지 못했습니다.')).not.toBeInTheDocument();
   });
 });

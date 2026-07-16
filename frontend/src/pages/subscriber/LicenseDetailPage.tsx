@@ -26,11 +26,7 @@ export default function LicenseDetailPage() {
         if (!cancelled) setDetail(data);
       } catch (err) {
         if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : '라이선스 정보를 불러오지 못했습니다.',
-          );
+          setError(err instanceof Error ? err.message : '라이선스 정보를 불러오지 못했습니다.');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -56,9 +52,7 @@ export default function LicenseDetailPage() {
   if (error || !detail) {
     return (
       <div className={styles.page}>
-        <div className={styles.error}>
-          {error ?? '라이선스를 찾을 수 없습니다.'}
-        </div>
+        <div className={styles.error}>{error ?? '라이선스를 찾을 수 없습니다.'}</div>
       </div>
     );
   }
@@ -94,9 +88,7 @@ export default function LicenseDetailPage() {
         </div>
         <div className={styles.infoRow}>
           <span className={styles.infoLabel}>{'발급일'}</span>
-          <span className={styles.infoValue}>
-            {formatDate(detail.issuedAt)}
-          </span>
+          <span className={styles.infoValue}>{formatDate(detail.issuedAt)}</span>
         </div>
         <div className={styles.infoRow}>
           <span className={styles.infoLabel}>{'소유자'}</span>

@@ -128,7 +128,7 @@ public class TestUserBootstrapRunner implements ApplicationRunner {
                         UserRole.USER,
                         UserJob.EDITOR,
                         UserType.BUSINESS,
-                        "ATStudio QA Biz"
+                        "AT.M QA Biz"
                 ),
                 encodedPassword
         );

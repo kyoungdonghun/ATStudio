@@ -109,9 +109,7 @@ export default function AlbumManagePage() {
       setFormOpen(false);
       loadAlbums();
     } catch (err) {
-      setFormError(
-        err instanceof Error ? err.message : '저장에 실패했습니다.',
-      );
+      setFormError(err instanceof Error ? err.message : '저장에 실패했습니다.');
     } finally {
       setFormSubmitting(false);
     }
@@ -148,9 +146,7 @@ export default function AlbumManagePage() {
         <div>
           <span className={styles.pageTitle}>{'앨범 관리'}</span>
           {albums.length > 0 && (
-            <span className={styles.pageTitleCount}>
-              {`(${albums.length})`}
-            </span>
+            <span className={styles.pageTitleCount}>{`(${albums.length})`}</span>
           )}
         </div>
         <Button size="sm" onClick={openCreateModal}>
@@ -188,10 +184,7 @@ export default function AlbumManagePage() {
                   >
                     {'음원 관리'}
                   </button>
-                  <button
-                    className={styles.albumActBtn}
-                    onClick={() => openEditModal(album)}
-                  >
+                  <button className={styles.albumActBtn} onClick={() => openEditModal(album)}>
                     {'수정'}
                   </button>
                   <button
@@ -217,9 +210,7 @@ export default function AlbumManagePage() {
           {formError && <div className={styles.modalError}>{formError}</div>}
 
           <div className={styles.field}>
-            <label className={`${styles.label} ${styles.required}`}>
-              {'제목'}
-            </label>
+            <label className={`${styles.label} ${styles.required}`}>{'제목'}</label>
             <input
               className={styles.input}
               type="text"
@@ -273,11 +264,7 @@ export default function AlbumManagePage() {
       </Modal>
 
       {/* Delete Confirm Modal */}
-      <Modal
-        open={deleteTarget !== null}
-        onClose={() => setDeleteTarget(null)}
-        title="앨범 삭제"
-      >
+      <Modal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} title="앨범 삭제">
         <div className={styles.modalBody}>
           <strong>{deleteTarget?.title}</strong>
           {' 앨범을 삭제하시겠습니까?'}
@@ -293,12 +280,7 @@ export default function AlbumManagePage() {
           >
             {'취소'}
           </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={handleDelete}
-            loading={deleting}
-          >
+          <Button variant="danger" size="sm" onClick={handleDelete} loading={deleting}>
             {'삭제'}
           </Button>
         </div>
