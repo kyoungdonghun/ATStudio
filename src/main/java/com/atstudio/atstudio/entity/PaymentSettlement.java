@@ -16,6 +16,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,12 +30,15 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
         name = "payment_settlements",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_payment_settlements_deduplication_key",
+                columnNames = "deduplication_key"
+        ),
         indexes = {
                 @Index(name = "idx_payment_settlements_status_created", columnList = "status,created_at"),
                 @Index(name = "idx_payment_settlements_order_id", columnList = "order_id"),
                 @Index(name = "idx_payment_settlements_payment_key", columnList = "provider_payment_key"),
-                @Index(name = "idx_payment_settlements_base_date", columnList = "settlement_base_date"),
-                @Index(name = "idx_payment_settlements_dedup", columnList = "deduplication_key", unique = true)
+                @Index(name = "idx_payment_settlements_base_date", columnList = "settlement_base_date")
         }
 )
 @Getter
@@ -60,7 +64,7 @@ public class PaymentSettlement extends BaseEntity {
     @Column(nullable = false, length = 40)
     private PaymentSettlementStatus status = PaymentSettlementStatus.IMPORTED;
 
-    @Column(name = "deduplication_key", nullable = false, unique = true, length = 64)
+    @Column(name = "deduplication_key", nullable = false, length = 64)
     private String deduplicationKey;
 
     @Column(name = "import_batch_key", nullable = false, length = 64)

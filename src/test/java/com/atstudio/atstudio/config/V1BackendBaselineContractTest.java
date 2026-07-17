@@ -1,11 +1,14 @@
 package com.atstudio.atstudio.config;
 
+import com.atstudio.atstudio.entity.PaymentSettlement;
+import com.atstudio.atstudio.entity.SocialAccount;
 import com.atstudio.atstudio.entity.SubscriptionPayment;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.service.payment.provider.recurring.PaymentStatusLookupProvider;
 import com.atstudio.atstudio.service.payment.provider.recurring.RecurringPaymentProvider;
 import com.atstudio.atstudio.service.payment.provider.refund.PaymentRefundProvider;
 import jakarta.persistence.Column;
+import jakarta.persistence.Table;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.env.YamlPropertySourceLoader;
@@ -62,6 +65,39 @@ class V1BackendBaselineContractTest {
                         "TOSS_BILLING",
                         "KAKAOPAY")
                 .contains("provider             ENUM ('TOSS') NOT NULL");
+    }
+
+    @Test
+    @DisplayName("entity unique keys exactly match the fresh schema")
+    void entityUniqueKeysMatchFreshSchema() throws Exception {
+        String schema = Files.readString(SCHEMA);
+        Table settlementTable = PaymentSettlement.class.getAnnotation(Table.class);
+        Table socialAccountTable = SocialAccount.class.getAnnotation(Table.class);
+        Column deduplicationKey = PaymentSettlement.class
+                .getDeclaredField("deduplicationKey")
+                .getAnnotation(Column.class);
+
+        assertSingleUniqueConstraint(
+                settlementTable,
+                "uq_payment_settlements_deduplication_key",
+                "deduplication_key");
+        assertThat(settlementTable.indexes())
+                .noneMatch(index -> index.unique());
+        assertThat(deduplicationKey.unique()).isFalse();
+
+        assertSingleUniqueConstraint(
+                socialAccountTable,
+                "uq_social_accounts_provider_id",
+                "provider",
+                "provider_id");
+
+        assertThat(schema)
+                .contains(
+                        "UNIQUE KEY uq_payment_settlements_deduplication_key (deduplication_key)",
+                        "UNIQUE KEY uq_social_accounts_provider_id (provider, provider_id)")
+                .doesNotContain(
+                        "idx_payment_settlements_dedup",
+                        "uq_social_accounts_provider_provider_id");
     }
 
     @Test
@@ -138,5 +174,17 @@ class V1BackendBaselineContractTest {
         assertThat(referenceOnly)
                 .as("%s must reference only %s without a fallback", field, environmentVariable)
                 .isTrue();
+    }
+
+    private static void assertSingleUniqueConstraint(
+            Table table,
+            String expectedName,
+            String... expectedColumns) {
+        assertThat(table.uniqueConstraints())
+                .singleElement()
+                .satisfies(constraint -> {
+                    assertThat(constraint.name()).isEqualTo(expectedName);
+                    assertThat(constraint.columnNames()).containsExactly(expectedColumns);
+                });
     }
 }

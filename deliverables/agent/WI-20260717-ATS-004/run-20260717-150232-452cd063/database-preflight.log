@@ -1,0 +1,8 @@
+database.hostClass=loopback
+database.sourceName=atstudio
+database.name=atstudio
+database.exists=1
+disposable.databases=0
+database.activeSessions=0
+manager.result=PASS
+

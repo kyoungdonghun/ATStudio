@@ -9,7 +9,7 @@ import lombok.*;
 @Table(
         name = "social_accounts",
         uniqueConstraints = @UniqueConstraint(
-                name = "uq_social_accounts_provider_provider_id",
+                name = "uq_social_accounts_provider_id",
                 columnNames = {"provider", "provider_id"}
         )
 )
