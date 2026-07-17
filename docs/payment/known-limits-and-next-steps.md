@@ -1,5 +1,5 @@
 ---
-version: 1.4
+version: 1.5
 last_updated: 2026-07-17
 project: ATS
 owner: docops
@@ -41,9 +41,9 @@ The following capabilities are implemented and code/test verified for the curren
 - Billing-key V2 key-ID envelopes with fail-closed active/retained V2 key-ring validation.
 - Explicit configurable payment cron zone with `Asia/Seoul` default under the approved single-server deployment.
 
-This is not production-readiness closure or a full financial back-office suite. V1 uses a fresh-only 39-table schema; retained-data migration is not supplied. Live Toss configuration, production deployment/monitoring, client acceptance, non-payment gates, and final release approval remain open environment work.
+This is not production-readiness closure or a full financial back-office suite. V1 uses a fresh-only 39-table schema; retained-data migration is not supplied. Local automated quality gates are closed, while production data strategy, live Toss configuration, production deployment/monitoring, client acceptance, and final release approval remain open.
 
-Dependency boundary: the official V1 branch candidate currently resolves Vite 6.4.3. Public access requires a newly verified operator-controlled acceptance runtime.
+Dependency boundary: the official V1 baseline branch `codex/p1-acceptance-hardening` currently resolves Vite 6.4.3, and no separate client-demo branch is maintained. Public access requires a newly verified operator-controlled acceptance runtime.
 
 ## 2. Planned Features
 

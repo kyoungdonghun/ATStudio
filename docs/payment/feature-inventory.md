@@ -1,5 +1,5 @@
 ---
-version: 1.4
+version: 1.5
 last_updated: 2026-07-17
 project: ATS
 owner: docops
@@ -147,9 +147,11 @@ dependencies:
 ## 10. Verification Boundary
 
 - The current code/test gate passed independent follow-up review in `WI-20260715-ATS-012`.
-- WI-20260717-ATS-004 proved the 39-table fresh MySQL baseline, Hibernate validation, payment races, and cleanup.
-- Live Toss, production deployment, and client acceptance remain separate environment gates.
-- The official V1 branch candidate currently resolves Vite 6.4.3. Coverage remains an observed baseline, not a release threshold.
+- The exact fresh V1 DB baseline is 39 tables, 449 columns, 153 indexes, and 80 foreign keys with manifest SHA-256 `c48d3c75378aaf2364d89ed06833ba68e27a5a334dbc4670d1443bd938c6c506`.
+- Backend verification completed 1,208 tests with 0 failures/errors and 9 environment-dependent skips; JaCoCo is instruction 85.673%, branch 71.682%, line 85.726%, and method 82.931%.
+- Frontend verification completed 468 tests with 0 failures; coverage is statements 86.73%, branches 76.98%, functions 85.41%, and lines 88.75%. Typecheck, ESLint, Prettier, and build PASS.
+- Live Toss, production data strategy, deployment/monitoring, client acceptance, and explicit release approval remain separate production gates.
+- The official V1 baseline branch is `codex/p1-acceptance-hardening` and currently resolves Vite 6.4.3. No separate client-demo branch is maintained. Coverage remains an observed baseline, not a release threshold.
 
 ## Related Documents
 

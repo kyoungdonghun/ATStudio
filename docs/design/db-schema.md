@@ -1,5 +1,5 @@
 ---
-version: 21.0
+version: 21.1
 last_updated: 2026-07-17
 project: ATS
 owner: SA
@@ -41,6 +41,21 @@ The retired manual SQL directory is not part of the current runtime,
 bootstrap, or operator workflow. Existing databases are not upgraded by this
 repository baseline. Any retained-data migration requires a separate approved
 requirement and migration design.
+
+### Exact Verified Manifest
+
+The recreated local V1 baseline passed Hibernate validation and exact manifest
+comparison on 2026-07-17:
+
+| Object | Count |
+|---|---:|
+| Tables | 39 |
+| Columns | 449 |
+| Indexes | 153 |
+| Foreign keys | 80 |
+
+Manifest SHA-256:
+`c48d3c75378aaf2364d89ed06833ba68e27a5a334dbc4670d1443bd938c6c506`.
 
 ## Baseline Data Ownership
 

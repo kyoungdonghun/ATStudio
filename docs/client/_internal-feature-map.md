@@ -1,5 +1,5 @@
 ---
-version: 2.1
+version: 2.2
 last_updated: 2026-07-17
 project: ATS
 owner: docops
@@ -30,6 +30,16 @@ This file is excluded from the client PDF.
 | Modal occurrences | 23 | `<Modal>` renders across 17 non-test TSX files |
 | SR items | 92 | 82 DONE, 7 OPEN, 2 NOT CONFIRMED, 1 DROPPED |
 
+## Verified V1 Quality Baseline
+
+| Gate | Final verified result |
+|---|---|
+| Backend tests | 1,208 tests, 0 failures/errors, 9 environment-dependent skips |
+| Backend JaCoCo | Instruction 85.673%, branch 71.682%, line 85.726%, method 82.931% |
+| Frontend tests | 468 tests, 0 failures |
+| Frontend coverage | Statements 86.73%, branches 76.98%, functions 85.41%, lines 88.75% |
+| Frontend static/build gates | Typecheck, ESLint, Prettier, and build PASS |
+
 ## Semantic Hotspots
 
 | Client topic | Current source |
@@ -43,7 +53,7 @@ This file is excluded from the client PDF.
 
 ## Dependency And Environment Boundary
 
-- Official V1 branch candidate: `codex/p1-acceptance-hardening`; current install resolves Vite 6.4.3.
-- Coverage is a low observed baseline, not a threshold: backend branch 59.05%; frontend statements 34.49%, branches 34.00%, functions 27.82%, lines 35.43%.
+- Official V1 baseline branch: `codex/p1-acceptance-hardening`; current install resolves Vite 6.4.3. No separate client-demo branch is maintained.
+- The verified coverage values above are observations, not release thresholds.
 - Public runtime evidence is valid only for the current operator-controlled acceptance lifecycle and its newly verified URL. Historical captures are reference-only.
 - Retained DB rehearsal, live provider/secrets, production proxy/CORS/monitoring, and final client acceptance remain open environment gates.

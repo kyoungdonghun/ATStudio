@@ -1,5 +1,5 @@
 ---
-version: 1.1
+version: 1.2
 last_updated: 2026-07-17
 project: ATS
 owner: docops
@@ -16,7 +16,7 @@ dependencies:
 
 > Purpose: Define production-facing operational procedures for Toss billing-key recurring payment reconciliation and incident response.
 > Scope: ATStudio subscription payments only. This document covers reconciliation, withdrawal billing-key cleanup, receipt evidence storage, payment operation audit visibility, the admin refund ledger/provider cancel workflow, the separate refund-linked entitlement correction workflow, and settlement import/reconciliation operations. It does not introduce tax invoice workflow, cash receipt issue/cancel automation, automatic entitlement correction, or automatic withdrawal refund. Refund/receipt/settlement/tax invoice policy is defined separately in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md).
-> Last updated: 2026-07-16
+> Last updated: 2026-07-17
 
 ## 1. Operating Model
 
@@ -297,10 +297,10 @@ Before enabling live Toss recurring billing:
 - Confirm test keys are not present in production.
 - Set billing auth success/fail URLs to the production frontend origin.
 - Confirm production CORS allows only intended frontend origins.
-- Keep `PAYMENT_BILLING_KEY_ENCRYPTION_SECRET` available for legacy v1 ciphertext decryption until a separately approved migration proves no retained v1 row depends on it.
 - Set `PAYMENT_BILLING_KEY_ACTIVE_KEY_ID` to the key ID used for new v2 ciphertext.
 - Configure one or more `app.payment.billing.encryption-keys` entries through the secret manager. With Spring environment binding, list entries use names such as `APP_PAYMENT_BILLING_ENCRYPTIONKEYS_0_ID` and `APP_PAYMENT_BILLING_ENCRYPTIONKEYS_0_SECRET`. Never place the secret values in repository files or command output.
 - Confirm the active key ID exists in the key ring and every retained V2 ciphertext key ID remains available. TOSS recurring startup fails on blank, placeholder, duplicate, unknown, or missing key configuration without printing secret values.
+- Treat any retained pre-V2 ciphertext as a production data-strategy blocker requiring a separately approved migration; the fresh-only V1 baseline does not supply or require a legacy decryption path.
 - Set `APP_PAYMENT_SCHEDULER_ZONE` only when the approved payment business zone differs from `Asia/Seoul`.
 - Verify renewal, reconciliation, and expiration boundary tests against the configured business-zone clock when changing `APP_PAYMENT_SCHEDULER_ZONE`; host-default midnight must not determine payment dates.
 - Tune `PAYMENT_RECONCILIATION_BATCH_SIZE` and `PAYMENT_RECONCILIATION_ISSUE_DETAIL_LIMIT` within operational memory/query budgets. Runtime caps are 1000 rows per batch and 500 returned issue details.
@@ -344,7 +344,6 @@ Separate REQ/SR items are still needed for:
 - Slack/SMS/in-app operator notification channels.
 - Tax invoice request implementation only after B2B invoice, bank-transfer, postpaid, or contract purchase scope is approved.
 - Toss Settlement API adapter automation, if manual CSV import becomes insufficient.
-- Legacy endpoint removal.
 - Any additional PG adapter selected by a future approved product requirement.
 
 Cash receipt issue/cancel automation is intentionally on hold while ATStudio uses card-only recurring billing. Reopen it only if a cash-like payment method or a separate cash receipt request flow is approved.

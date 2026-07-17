@@ -1,5 +1,5 @@
 ---
-version: 1.6
+version: 1.7
 last_updated: 2026-07-17
 project: ATS
 owner: docops
@@ -26,7 +26,7 @@ dependencies:
 
 ## 1. Scope
 
-This directory explains the ATStudio payment system as of 2026-07-16.
+This directory explains the ATStudio payment system as of 2026-07-17.
 
 The current payment system is recurring-subscription first:
 
@@ -48,7 +48,7 @@ The three 2026-07-13 P0 behaviors are implemented and focused-test verified in i
 
 The later payment-integrity findings F-01 through F-05 are closed at the current repository code/test boundary. Packages A-G, the WI-008/WI-011 corrections, WI-012 independent PASS, and the disposable MySQL 7/7 proof are mapped in [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md).
 
-Production readiness remains OPEN in [SR-93](../SR/SR-93.md), and the broader full-system release verdict remains NO-GO while retained-database, live Toss, deployment, client-acceptance, non-payment, and final quality gates are open.
+Production readiness remains OPEN in [SR-93](../SR/SR-93.md). The local backend, frontend, schema, and tooling gates are closed, but the broader release remains NO-GO until production data strategy, live Toss, deployment/monitoring, client acceptance, and explicit release approval are complete.
 
 Closed scope:
 
@@ -67,7 +67,7 @@ Not blockers for closure:
 - A future provider adapter, if selected by an approved product requirement.
 - Additional operator notification channels.
 
-Removed payment aliases and direct-subscription creation are not V1 compatibility paths. The official V1 branch candidate is `codex/p1-acceptance-hardening`; its current frontend install resolves Vite 6.4.3. Public access still requires a newly verified operator-controlled acceptance runtime.
+Removed payment aliases and direct-subscription creation are absent, not V1 compatibility paths. The official V1 baseline branch is `codex/p1-acceptance-hardening`; its current frontend install resolves Vite 6.4.3. No separate client-demo branch is maintained. Public access still requires a newly verified operator-controlled acceptance runtime.
 
 On hold under the current card-only recurring subscription premise:
 

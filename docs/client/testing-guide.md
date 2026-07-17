@@ -1,5 +1,5 @@
 ---
-version: 2.1
+version: 2.2
 last_updated: 2026-07-17
 project: ATS
 owner: docops
@@ -25,10 +25,11 @@ dependencies:
 - Use Toss test configuration only.
 - Do not repost the test URL in a public channel.
 
-The official V1 branch candidate is `codex/p1-acceptance-hardening`; its current
-frontend install resolves Vite 6.4.3. This is not by itself proof that a public
-environment is current. The operator must verify the local page, proxied API,
-and newly issued public URL for each acceptance run.
+The official V1 baseline branch is `codex/p1-acceptance-hardening`; its current
+frontend install resolves Vite 6.4.3. No separate client-demo branch is
+maintained. This is not by itself proof that a public environment is current.
+The operator must verify the local page, proxied API, and newly issued public
+URL for each acceptance run.
 
 ## Recommended Order
 
