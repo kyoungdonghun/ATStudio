@@ -24,7 +24,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 | Test | JUnit5 + Mockito |
 | Utility | Lombok, ModelMapper |
 | API Docs | Springdoc OpenAPI / Swagger |
-| Template | Thymeleaf (legacy SSR / compatibility) |
+| Template | None (React SPA is the only active UI) |
 
 ### Frontend (활성)
 
@@ -37,7 +37,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 | HTTP | Axios |
 | Lint/Format | ESLint, Prettier |
 
-> **현재 상태:** Phase 2 React SPA가 `frontend/`에서 활성 운영 중이며, 기존 Thymeleaf UI는 레거시/호환 맥락으로만 간주한다.
+> **현재 상태:** Phase 2 React SPA가 `frontend/`에서 유일한 활성 UI로 운영된다. 서버 렌더링/Thymeleaf 호환 경로는 없다.
 > React/TypeScript/ESLint/Prettier 관련 스킬은 현재 활성 상태다.
 
 ## Package Structure

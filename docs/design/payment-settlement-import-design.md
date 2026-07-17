@@ -1,17 +1,17 @@
 ---
-version: 1.0
-last_updated: 2026-05-26
+version: 1.1
+last_updated: 2026-07-17
 project: ATS
 owner: SA
 category: design
-status: draft
+status: stable
 source_req: REQ-20260526-ATS-001
 ---
 
 # Payment Settlement Import and Reconciliation Design
 
 > Scope: ATStudio subscription payment settlement import and reconciliation.
-> This design covers ATStudio's own PG-to-merchant settlement evidence. It does not cover creator royalty settlement, seller payout, tax invoice issuance, cash receipt mutation, bank statement import, or Toss Settlement API automation in the first implementation.
+> This implemented design covers ATStudio's own PG-to-merchant CSV settlement evidence. It does not cover creator royalty settlement, seller payout, tax invoice issuance, cash receipt mutation, bank statement import, or Toss Settlement API automation.
 
 ## 1. Purpose
 
@@ -44,7 +44,7 @@ Initial template columns:
 
 | Column | Required | Meaning |
 |---|---|---|
-| `provider` | yes | `TOSS_BILLING` for current recurring subscription settlement evidence. |
+| `provider` | yes | `TOSS` for current recurring subscription settlement evidence. |
 | `provider_payment_key` | conditional | Toss payment key or equivalent provider payment identifier. Required when available. |
 | `order_id` | yes | Merchant order ID used by ATStudio payment orders. |
 | `provider_settlement_id` | optional | Provider settlement row identifier if available. |

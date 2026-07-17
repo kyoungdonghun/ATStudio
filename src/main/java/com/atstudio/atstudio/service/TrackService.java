@@ -54,8 +54,6 @@ public class TrackService {
     private final StorageService storageService;
     private final StorageMutationCoordinator storageMutationCoordinator;
     private final LikeRepository likeRepository;
-    private final DownloadQueueRepository downloadQueueRepository;
-    private final PlayHistoryRepository playHistoryRepository;
     private final TrackDownloadRepository trackDownloadRepository;
     private final LicenseRepository licenseRepository;
     private final PlaylistTrackRepository playlistTrackRepository;
@@ -210,8 +208,6 @@ public class TrackService {
 
         // 관련 레코드 정리 (고아 레코드 방지)
         likeRepository.deleteAllByTrack(track);
-        downloadQueueRepository.deleteAllByTrack(track);
-        playHistoryRepository.deleteAllByTrack(track);
         trackDownloadRepository.deleteAllByTrack(track);
         licenseRepository.deleteAllByTrack(track);
         playlistTrackRepository.deleteAllByIdTrackId(track.getId());

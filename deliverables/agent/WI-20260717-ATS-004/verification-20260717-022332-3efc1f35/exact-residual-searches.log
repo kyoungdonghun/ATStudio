@@ -1,0 +1,12 @@
+oldProviderEnumConstants.matches=0
+oldProviderSerializedFixtures.matches=0
+oldProviderProductionValues.matches=0
+oldProviderConfig.matches=0
+legacyBillingCrypto.matches=0
+oldOneTimePaymentTypes.matches=0
+oldOneTimePaymentEndpoints.matches=0
+baseAutoLocalImport.matches=0
+schemaCompatibilityOrObsolete.matches=0
+seedNonBaselineWrites.matches=0
+manualSql.files=0
+scope.note=active documentation excluded by WI-004 constraint; downstream WI-005/WI-006 owns documentation references

@@ -209,7 +209,7 @@ class SubscriptionSchedulerTest {
                 .orderId(orderId)
                 .user(user)
                 .purpose(PaymentPurpose.SUBSCRIBE)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .subscription(subscription)
                 .billingCycle(BillingCycle.MONTHLY)
                 .amount(BigDecimal.valueOf(9900))

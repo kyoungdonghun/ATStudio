@@ -88,6 +88,20 @@ class JwtTokenProviderTest {
     }
 
     @Test
+    @DisplayName("A non-expired token is accepted by the expiry-tolerant subject reader")
+    void getUserIDAllowExpired_validToken_extractsId() {
+        String token = provider.generateRefreshToken(77L);
+
+        assertThat(provider.getUserIDAllowExpired(token)).isEqualTo(77L);
+    }
+
+    @Test
+    @DisplayName("Configured access-token lifetime is exposed in milliseconds")
+    void getAccessTokenExpiration_returnsConfiguredLifetime() {
+        assertThat(provider.getAccessTokenExpiration()).isEqualTo(3600000L);
+    }
+
+    @Test
     @DisplayName("Access Token에 email claim 없음 (PII 보호 - SEC-02)")
     void generateAccessToken_noEmailClaim() {
         String token = provider.generateAccessToken(1L, UserRole.USER);

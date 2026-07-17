@@ -344,4 +344,124 @@ describe('playerStore playback lifecycle', () => {
     act(() => usePlayerStore.getState().removeFromQueue(1));
     expect(usePlayerStore.getState().queue.map((item) => item.id)).toEqual([2]);
   });
+
+  it('plays a complete list, ignores duplicates, and clears playback state', async () => {
+    act(() => usePlayerStore.getState().playAll([]));
+    expect(audio.play).not.toHaveBeenCalled();
+    act(() => usePlayerStore.getState().playAll([firstTrack, secondTrack]));
+    await vi.waitFor(() => expect(usePlayerStore.getState().currentTrack?.id).toBe(1));
+    expect(usePlayerStore.getState().queue.map((track) => track.id)).toEqual([1, 2]);
+
+    act(() => usePlayerStore.getState().addToQueue(secondTrack));
+    expect(usePlayerStore.getState().queue).toHaveLength(2);
+    const thirdTrack = { ...firstTrack, id: 3, title: 'Third track' };
+    act(() => usePlayerStore.getState().addToQueue(thirdTrack));
+    expect(usePlayerStore.getState().queue.map((track) => track.id)).toEqual([1, 2, 3]);
+
+    act(() => usePlayerStore.getState().clearQueue());
+    expect(audio.pause).toHaveBeenCalled();
+    expect(audio.src).toBe('');
+    expect(usePlayerStore.getState()).toMatchObject({
+      currentTrack: null,
+      queue: [],
+      isPlaying: false,
+      currentTime: 0,
+      duration: 0,
+    });
+  });
+
+  it('clamps volume and restores an audible level when unmuting zero volume', () => {
+    act(() => usePlayerStore.getState().setVolume(2));
+    expect(audio.volume).toBe(1);
+    expect(localStorage.getItem('playerVolume')).toBe('1');
+    act(() => usePlayerStore.getState().setVolume(-1));
+    expect(audio.volume).toBe(0);
+    act(() => usePlayerStore.getState().toggleMute());
+    expect(audio.muted).toBe(true);
+    act(() => usePlayerStore.getState().toggleMute());
+    expect(audio.muted).toBe(false);
+    expect(audio.volume).toBe(0.5);
+    expect(usePlayerStore.getState().volume).toBe(0.5);
+  });
+
+  it('navigates backward through time, visible context, and queue wrapping', async () => {
+    usePlayerStore.setState({
+      currentTrack: secondTrack,
+      queue: [firstTrack, secondTrack],
+      trackListContext: [firstTrack, secondTrack],
+    });
+    audio.currentTime = 10;
+    act(() => usePlayerStore.getState().prev());
+    expect(audio.currentTime).toBe(0);
+    expect(usePlayerStore.getState().currentTrack?.id).toBe(2);
+
+    act(() => usePlayerStore.getState().prev());
+    await vi.waitFor(() => expect(usePlayerStore.getState().currentTrack?.id).toBe(1));
+    audio.currentTime = 0;
+    act(() => usePlayerStore.getState().prev());
+    expect(audio.currentTime).toBe(0);
+
+    usePlayerStore.setState({
+      currentTrack: firstTrack,
+      queue: [firstTrack, secondTrack],
+      trackListContext: [],
+    });
+    act(() => usePlayerStore.getState().prev());
+    await vi.waitFor(() => expect(usePlayerStore.getState().currentTrack?.id).toBe(2));
+    usePlayerStore.setState({ queue: [] });
+    act(() => usePlayerStore.getState().prev());
+    expect(usePlayerStore.getState().currentTrack?.id).toBe(2);
+  });
+
+  it('advances through visible context and wraps repeat-all queues', async () => {
+    usePlayerStore.setState({
+      currentTrack: firstTrack,
+      queue: [firstTrack, secondTrack],
+      trackListContext: [firstTrack, secondTrack],
+    });
+    act(() => usePlayerStore.getState().next());
+    await vi.waitFor(() => expect(usePlayerStore.getState().currentTrack?.id).toBe(2));
+
+    usePlayerStore.setState({
+      currentTrack: secondTrack,
+      queue: [firstTrack, secondTrack],
+      trackListContext: [],
+      repeat: 'all',
+    });
+    act(() => usePlayerStore.getState().next());
+    await vi.waitFor(() => expect(usePlayerStore.getState().currentTrack?.id).toBe(1));
+
+    usePlayerStore.setState({
+      currentTrack: firstTrack,
+      queue: [firstTrack],
+      shuffle: true,
+      repeat: 'off',
+    });
+    act(() => usePlayerStore.getState().next());
+    await vi.waitFor(() => expect(usePlayerStore.getState().currentTrack?.id).toBe(1));
+  });
+
+  it('ignores ended events while a seek is settling', () => {
+    vi.useFakeTimers();
+    usePlayerStore.setState({
+      currentTrack: firstTrack,
+      queue: [firstTrack, secondTrack],
+    });
+    act(() => usePlayerStore.getState().seek(40));
+    act(() => audio.dispatch('ended'));
+    expect(usePlayerStore.getState().currentTrack?.id).toBe(1);
+    act(() => vi.advanceTimersByTime(100));
+    vi.useRealTimers();
+  });
+
+  it('reports a synchronous browser play failure', () => {
+    audio.play.mockImplementationOnce(() => {
+      throw new Error('synchronous failure');
+    });
+    act(() => usePlayerStore.getState().play(firstTrack));
+    expect(usePlayerStore.getState()).toMatchObject({
+      isPlaying: false,
+      playbackError: PLAYBACK_ERROR,
+    });
+  });
 });

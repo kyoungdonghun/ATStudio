@@ -73,6 +73,16 @@ jacoco {
     toolVersion = '0.8.14'
 }
 
+def criticalSecurityClasses = [
+    'com.atstudio.atstudio.config.JwtConfig',
+    'com.atstudio.atstudio.security.AuthRateLimitFilter',
+    'com.atstudio.atstudio.security.CustomUserDetailsService',
+    'com.atstudio.atstudio.security.JwtAuthenticationFilter',
+    'com.atstudio.atstudio.security.JwtTokenProvider',
+    'com.atstudio.atstudio.service.auth.AuthService',
+    'com.atstudio.atstudio.service.payment.billing.BillingKeyCrypto'
+]
+
 tasks.named('jacocoTestReport') {
     dependsOn tasks.named('test')
 
@@ -81,4 +91,50 @@ tasks.named('jacocoTestReport') {
         html.required = true
         csv.required = false
     }
+}
+
+tasks.named('jacocoTestCoverageVerification') {
+    dependsOn tasks.named('jacocoTestReport')
+
+    violationRules {
+        rule {
+            element = 'BUNDLE'
+
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.80
+            }
+            limit {
+                counter = 'METHOD'
+                value = 'COVEREDRATIO'
+                minimum = 0.80
+            }
+            limit {
+                counter = 'BRANCH'
+                value = 'COVEREDRATIO'
+                minimum = 0.70
+            }
+        }
+
+        rule {
+            element = 'CLASS'
+            includes = criticalSecurityClasses
+
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 1.00
+            }
+            limit {
+                counter = 'METHOD'
+                value = 'COVEREDRATIO'
+                minimum = 1.00
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
 }

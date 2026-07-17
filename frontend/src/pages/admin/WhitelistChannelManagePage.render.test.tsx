@@ -1,16 +1,18 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import WhitelistChannelManagePage from '@/pages/admin/WhitelistChannelManagePage';
 import type { AdminWhitelistChannel } from '@/api/admin';
 
 const mocks = vi.hoisted(() => ({
   fetchChannels: vi.fn(),
+  updateChannelStatus: vi.fn(),
+  exportChannels: vi.fn(),
 }));
 
 vi.mock('@/api/admin', () => ({
   fetchAdminWhitelistChannels: (...args: unknown[]) => mocks.fetchChannels(...args),
-  updateAdminWhitelistChannelStatus: vi.fn(),
-  exportAdminWhitelistChannels: vi.fn(),
+  updateAdminWhitelistChannelStatus: (...args: unknown[]) => mocks.updateChannelStatus(...args),
+  exportAdminWhitelistChannels: (...args: unknown[]) => mocks.exportChannels(...args),
   downloadAdminWhitelistExportBatch: vi.fn(),
 }));
 
@@ -63,6 +65,8 @@ function deferred<T>() {
 describe('WhitelistChannelManagePage persisted URL defense', () => {
   beforeEach(() => {
     mocks.fetchChannels.mockReset();
+    mocks.updateChannelStatus.mockReset();
+    mocks.exportChannels.mockReset();
   });
 
   it('renders an unsafe retained channel URL as text instead of an anchor', async () => {
@@ -138,5 +142,47 @@ describe('WhitelistChannelManagePage persisted URL defense', () => {
 
     await act(async () => latest.resolve(channelPage(unsafeChannel)));
     expect(await screen.findByText(unsafeChannel.channelName)).toBeInTheDocument();
+  });
+
+  it('confirms a status change once and keeps the dialog pending until completion', async () => {
+    const mutation = deferred<void>();
+    mocks.fetchChannels.mockResolvedValue(channelPage(unsafeChannel));
+    mocks.updateChannelStatus.mockReturnValueOnce(mutation.promise);
+
+    render(<WhitelistChannelManagePage />);
+    await screen.findByText(unsafeChannel.channelName);
+
+    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'REGISTERED' } });
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+
+    expect(mocks.updateChannelStatus).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog', { name: '채널 상태 변경' });
+    const confirmButton = within(dialog).getByRole('button', { name: '변경' });
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
+
+    expect(mocks.updateChannelStatus).toHaveBeenCalledTimes(1);
+    expect(mocks.updateChannelStatus).toHaveBeenCalledWith(unsafeChannel.id, {
+      status: 'REGISTERED',
+      adminNote: undefined,
+    });
+    expect(confirmButton).toBeDisabled();
+
+    await act(async () => mutation.resolve());
+    await waitFor(() => expect(mocks.fetchChannels).toHaveBeenCalledTimes(2));
+  });
+
+  it('cancels CSV export without calling the API', async () => {
+    mocks.fetchChannels.mockResolvedValue(channelPage(unsafeChannel));
+
+    render(<WhitelistChannelManagePage />);
+    await screen.findByText(unsafeChannel.channelName);
+    fireEvent.click(screen.getByRole('button', { name: 'CSV 내보내기' }));
+
+    const dialog = screen.getByRole('dialog', { name: '화이트리스트 CSV 내보내기' });
+    fireEvent.click(within(dialog).getByRole('button', { name: '취소' }));
+
+    expect(mocks.exportChannels).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

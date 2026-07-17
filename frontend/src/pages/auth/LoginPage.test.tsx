@@ -245,6 +245,32 @@ describe('LoginPage', () => {
     expect(authState.login).toHaveBeenCalledWith('access-token', me, 'refresh-token');
   });
 
+  it('stays logged out when durable session persistence fails', async () => {
+    usePublicCapabilitiesMock.mockReturnValue({
+      capabilities: buildCapabilities(),
+      loading: false,
+      error: '',
+    });
+    loginRequestMock.mockResolvedValue({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      tokenType: 'Bearer',
+      expiresIn: 900,
+    });
+    fetchMeMock.mockResolvedValue(me);
+    authState.login.mockImplementationOnce(() => {
+      throw new Error('storage unavailable');
+    });
+
+    renderPage('/login?returnTo=%2Fprofile');
+    await submitPasswordLogin();
+
+    expect(
+      await screen.findByText('로그인에 실패했습니다. 잠시 후 다시 시도해주세요.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Destination: /profile')).not.toBeInTheDocument();
+  });
+
   it.each([
     'https://evil.example/steal',
     '//evil.example/steal',

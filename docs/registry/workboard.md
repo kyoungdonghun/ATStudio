@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-07-16
+version: 1.3
+last_updated: 2026-07-17
 project: system
 owner: MA
 category: registry
@@ -20,7 +20,7 @@ dependencies:
 > Purpose: See at a glance "what are the current requirements (REQ) → what work (WI) they decomposed into → how far we've progressed".
 > In MVP, operate as **manually updatable single file**, expand to dashboard/automatic aggregation in Phase 2+.
 
-> Scope: This is an optional manually maintained cross-project summary. It is not guaranteed to enumerate every active ATStudio REQ/WI and is not the current tracking source of truth.
+> Scope: This is a reusable advisory example, not a live ATStudio progress board. Approved REQs and WI handoff/Evidence Pack files under `deliverables/` are the only current tracking source of truth.
 
 ---
 

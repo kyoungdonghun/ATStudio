@@ -334,7 +334,7 @@ class PaymentCommandIndependentVerificationIntegrationTest
                 .build());
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("ats_upgrade_customer_wi018")
                 .build();
         agreement.activate("encrypted-key", "fingerprint", "CARD", "1234", subscription.getExpiresAt());
@@ -377,7 +377,7 @@ class PaymentCommandIndependentVerificationIntegrationTest
                 .build());
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("customer-" + label)
                 .build();
         agreement.activate("encrypted-key", "fingerprint", "CARD", "1234", due);

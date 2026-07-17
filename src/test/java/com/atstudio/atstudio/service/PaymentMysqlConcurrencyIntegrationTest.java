@@ -119,7 +119,7 @@ import static org.mockito.Mockito.reset;
 class PaymentMysqlConcurrencyIntegrationTest {
 
     private static final Pattern DISPOSABLE_DATABASE =
-            Pattern.compile("^ats_wi007_\\d{8}_[a-z0-9]{8}$");
+            Pattern.compile("^ats_wi(?:004|007)_\\d{8}_[a-z0-9]{8}$");
     private static final BigDecimal MONTHLY_AMOUNT = BigDecimal.valueOf(9900);
     private static final List<String> TESTED_TABLES = List.of(
             "users",
@@ -607,7 +607,7 @@ class PaymentMysqlConcurrencyIntegrationTest {
                 .build());
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("customer-" + label)
                 .build();
         agreement.activate("encrypted-key", "fingerprint", "CARD", "****1234", due);
@@ -629,7 +629,7 @@ class PaymentMysqlConcurrencyIntegrationTest {
                 .build());
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("customer-" + label)
                 .build();
         agreement.activate(
@@ -658,7 +658,7 @@ class PaymentMysqlConcurrencyIntegrationTest {
                 .build());
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("customer-" + label)
                 .build();
         agreement.activate("encrypted-key", "fingerprint", "CARD", "****1234", expiresAt);
@@ -668,7 +668,7 @@ class PaymentMysqlConcurrencyIntegrationTest {
                 .commandKey("SUBSCRIBE:" + label)
                 .user(user)
                 .purpose(PaymentPurpose.SUBSCRIBE)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .status(PaymentOrderStatus.DONE)
                 .subscription(plan)
                 .userSubscription(userSubscription)
@@ -686,7 +686,7 @@ class PaymentMysqlConcurrencyIntegrationTest {
                 .paymentOrder(order)
                 .billingAgreement(agreement)
                 .billingCycle(BillingCycle.MONTHLY)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .amount(paymentAmount)
                 .paymentStatus(PaymentStatus.DONE)
                 .pgTransactionId("payment-key-" + label)
@@ -704,7 +704,7 @@ class PaymentMysqlConcurrencyIntegrationTest {
                         source.subscriptionPaymentID()).orElseThrow())
                 .paymentOrder(paymentOrderRepository.findById(source.paymentOrderID()).orElseThrow())
                 .user(userRepository.findById(source.userID()).orElseThrow())
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .status(PaymentRefundStatus.APPROVED)
                 .amount(refundAmount)
                 .currency("KRW")
@@ -737,7 +737,7 @@ class PaymentMysqlConcurrencyIntegrationTest {
                         agreement.getId(), userSubscription.getId(), periodStart))
                 .user(user)
                 .purpose(PaymentPurpose.RENEWAL)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .status(PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION)
                 .subscription(userSubscription.getSubscription())
                 .userSubscription(userSubscription)
@@ -818,7 +818,7 @@ class PaymentMysqlConcurrencyIntegrationTest {
     private void assertDisposableTarget() {
         String database = jdbcTemplate.queryForObject("SELECT DATABASE()", String.class);
         if (database == null || !DISPOSABLE_DATABASE.matcher(database).matches()) {
-            throw new AssertionError("Datasource target failed the WI007 disposable-name guard.");
+            throw new AssertionError("Datasource target failed the guarded disposable-name check.");
         }
     }
 
@@ -930,7 +930,7 @@ class PaymentMysqlConcurrencyIntegrationTest {
 
         @Override
         public PaymentProviderType getProviderType() {
-            return PaymentProviderType.TOSS_BILLING;
+            return PaymentProviderType.TOSS;
         }
 
         @Override
@@ -969,7 +969,7 @@ class PaymentMysqlConcurrencyIntegrationTest {
 
         @Override
         public PaymentProviderType getProviderType() {
-            return PaymentProviderType.TOSS_BILLING;
+            return PaymentProviderType.TOSS;
         }
 
         @Override

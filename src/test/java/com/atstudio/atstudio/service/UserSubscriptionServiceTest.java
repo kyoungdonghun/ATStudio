@@ -91,18 +91,6 @@ class UserSubscriptionServiceTest {
         );
     }
 
-    // -- 6.3 subscribe -------------------------------------------------------
-
-    @Test
-    @DisplayName("subscribe() - legacy direct subscription creation is blocked")
-    void subscribe_blocked() {
-        assertThatThrownBy(() -> userSubscriptionService.subscribe(
-                buildUserDetails(1L), new UserSubscriptionRequest(10L, BillingCycle.MONTHLY)))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
-                        .isEqualTo(BUSINESS_ERROR.SUBSCRIPTION_CHECKOUT_REQUIRED));
-    }
-
     // -- 6.4 getMySubscription -----------------------------------------------
 
     @Nested
@@ -166,39 +154,6 @@ class UserSubscriptionServiceTest {
 
             assertThat(result.getDataList()).hasSize(1);
             assertThat(result.getDataList().get(0).id()).isEqualTo(100L);
-        }
-    }
-
-    // -- 6.6 getDetail -------------------------------------------------------
-
-    @Nested
-    @DisplayName("getDetail()")
-    class GetDetail {
-
-        @Test
-        @DisplayName("성공 - 구독 상세 조회")
-        void getDetail_success() {
-            User user = buildUser(1L, UserType.INDIVIDUAL);
-            Subscription sub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
-            UserSubscription us = buildUserSubscription(100L, user, sub,
-                    BillingCycle.MONTHLY, SubscriptionStatus.ACTIVE);
-
-            given(userSubscriptionRepository.findById(100L)).willReturn(Optional.of(us));
-
-            UserSubscriptionResponse result = userSubscriptionService.getDetail(100L);
-
-            assertThat(result.id()).isEqualTo(100L);
-        }
-
-        @Test
-        @DisplayName("실패 - 미존재 → SUBSCRIPTION_NOT_FOUND")
-        void getDetail_notFound() {
-            given(userSubscriptionRepository.findById(99L)).willReturn(Optional.empty());
-
-            assertThatThrownBy(() -> userSubscriptionService.getDetail(99L))
-                    .isInstanceOf(BusinessException.class)
-                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
-                            .isEqualTo(BUSINESS_ERROR.SUBSCRIPTION_NOT_FOUND));
         }
     }
 
@@ -474,7 +429,7 @@ class UserSubscriptionServiceTest {
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
-            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
                     .willReturn(Optional.of(agreement));
 
             ChangeSubscriptionResponse result = userSubscriptionService.changeSubscription(
@@ -788,7 +743,7 @@ class UserSubscriptionServiceTest {
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
-            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
                     .willReturn(Optional.of(agreement));
 
             userSubscriptionService.selfCancel(buildUserDetails(1L));
@@ -833,7 +788,7 @@ class UserSubscriptionServiceTest {
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
-            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
                     .willReturn(Optional.of(agreement));
 
             UserSubscriptionResponse result = userSubscriptionService.reactivate(buildUserDetails(1L));
@@ -853,7 +808,7 @@ class UserSubscriptionServiceTest {
                     BillingCycle.MONTHLY, SubscriptionStatus.CANCELLED);
             BillingAgreement agreement = BillingAgreement.builder()
                     .user(user)
-                    .provider(PaymentProviderType.TOSS_BILLING)
+                    .provider(PaymentProviderType.TOSS)
                     .providerCustomerKey("ats_billing_customer_1")
                     .build();
             agreement.cancel();
@@ -861,7 +816,7 @@ class UserSubscriptionServiceTest {
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
             given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
-            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
                     .willReturn(Optional.of(agreement));
 
             assertThatThrownBy(() -> userSubscriptionService.reactivate(buildUserDetails(1L)))
@@ -1014,7 +969,7 @@ class UserSubscriptionServiceTest {
     private BillingAgreement buildActiveAgreement(User user) {
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("ats_billing_customer_1")
                 .build();
         agreement.activate("encrypted-key", "fingerprint", "CARD", "1234", LocalDate.now().plusDays(15));

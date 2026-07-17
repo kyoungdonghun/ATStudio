@@ -1,6 +1,6 @@
 ---
-version: 2.2
-last_updated: 2026-04-15
+version: 2.3
+last_updated: 2026-07-17
 project: ATS
 owner: SE
 category: standard
@@ -289,7 +289,7 @@ public abstract class BaseEntity {
 
 - Sensitive config (`application.yml`): Use environment variables for secrets.
 - JWT secret, DB password: **Never hardcode.**
-- CSRF: Disabled for REST API (JWT-based auth), re-enable for Thymeleaf form pages.
+- CSRF: Disabled for the JWT-based REST API. The active React SPA has no server-rendered form path.
 - CORS: Configure explicitly per environment.
 
 ### 2A.7 MySQL / JPA Rules

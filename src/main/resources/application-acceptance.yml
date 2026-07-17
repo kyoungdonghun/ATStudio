@@ -39,9 +39,6 @@ app:
     toss:
       client-key: ${TOSS_CLIENT_KEY:}
       secret-key: ${TOSS_SECRET_KEY:}
-      success-url: ${APP_PUBLIC_BASE_URL}/subscriptions/payment/success
-      fail-url: ${APP_PUBLIC_BASE_URL}/subscriptions/payment/fail
     billing:
-      encryption-secret: ${PAYMENT_BILLING_KEY_ENCRYPTION_SECRET:}
       auth-success-url: ${APP_PUBLIC_BASE_URL}/subscriptions/checkout/success
       auth-fail-url: ${APP_PUBLIC_BASE_URL}/subscriptions/checkout/fail

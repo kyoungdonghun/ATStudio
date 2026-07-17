@@ -17,9 +17,7 @@ import java.util.List;
 /**
  * SR-79 — 다운로드 기록 (download history) endpoints.
  * <p>
- * Distinct from {@link DownloadQueueController} which handles the legacy
- * "cart"-style download queue. This controller reads from the
- * {@code track_downloads} log table and exposes paginated, searchable history
+ * Reads from the {@code track_downloads} log table and exposes paginated, searchable history
  * plus a helper for "전체 재다운로드".
  */
 @RestController

@@ -47,11 +47,9 @@ class WhitelistConcurrencyContractTest {
     }
 
     @Test
-    @DisplayName("fresh and retained schema sources contain whitelist integrity columns")
-    void schemaSourcesContainWhitelistIntegrityColumns() throws Exception {
+    @DisplayName("fresh baseline contains whitelist integrity columns")
+    void baselineContainsWhitelistIntegrityColumns() throws Exception {
         String schema = Files.readString(Path.of("src/main/resources/schema.sql"));
-        String patch = Files.readString(Path.of(
-                "src/main/resources/db/manual/20260716_whitelist_integrity_and_exports.sql"));
 
         assertThat(schema)
                 .contains("version              BIGINT       NOT NULL DEFAULT 0")
@@ -59,9 +57,5 @@ class WhitelistConcurrencyContractTest {
                 .contains("status_filter ENUM")
                 .contains("item_order                   INT")
                 .contains("channel_id_snapshot         BIGINT");
-        assertThat(patch)
-                .contains("ADD COLUMN version BIGINT NOT NULL DEFAULT 0")
-                .contains("idx_whitelist_channels_export_scope")
-                .contains("channel_id_snapshot");
     }
 }

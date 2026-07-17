@@ -8,7 +8,6 @@ import com.atstudio.atstudio.dto.subscription.AdminUpdateSubscriptionRequest;
 import com.atstudio.atstudio.dto.subscription.ChangeSubscriptionRequest;
 import com.atstudio.atstudio.dto.subscription.ChangeSubscriptionResponse;
 import com.atstudio.atstudio.dto.subscription.SubscriptionResponse;
-import com.atstudio.atstudio.dto.subscription.UserSubscriptionRequest;
 import com.atstudio.atstudio.dto.subscription.UserSubscriptionResponse;
 import com.atstudio.atstudio.entity.BillingAgreement;
 import com.atstudio.atstudio.entity.PaymentOrder;
@@ -59,7 +58,7 @@ import java.util.UUID;
 @Slf4j
 public class UserSubscriptionService {
 
-    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS_BILLING;
+    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS;
     private static final int PAYMENT_EXPIRY_MINUTES = 10;
     private static final String CHANGE_TYPE_UPGRADE = "UPGRADE";
     private static final String CHANGE_TYPE_SCHEDULED_CHANGE = "SCHEDULED_CHANGE";
@@ -77,14 +76,6 @@ public class UserSubscriptionService {
     private final PaymentCommandTransactionService paymentCommandTransactionService;
     private final SubscriptionUpgradePaymentExecutor subscriptionUpgradePaymentExecutor;
     private final List<RecurringPaymentProvider> recurringProviders;
-
-    // 6.3 POST /api/user-subscriptions
-    @Transactional
-    public UserSubscriptionResponse subscribe(
-            CustomUserDetails userDetails,
-            UserSubscriptionRequest request) {
-        throw new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_CHECKOUT_REQUIRED);
-    }
 
     // 6.4 GET /api/user-subscriptions/me
     public UserSubscriptionResponse getMySubscription(CustomUserDetails userDetails) {
@@ -110,13 +101,6 @@ public class UserSubscriptionService {
                 .dataList(dataList)
                 .pageInfo(PageInfo.of(page, size, total, 10))
                 .build();
-    }
-
-    // 6.6 GET /api/user-subscriptions/{id}
-    public UserSubscriptionResponse getDetail(Long id) {
-        UserSubscription userSubscription = userSubscriptionRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_NOT_FOUND));
-        return UserSubscriptionResponse.from(userSubscription);
     }
 
     // 6.7 PUT /api/user-subscriptions/me

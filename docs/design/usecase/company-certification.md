@@ -207,5 +207,5 @@
 
 - Certification documents remain in private storage and are delivered only through the guarded attachment endpoint.
 - `POLICY-PENDING`: this workflow does not introduce automatic retention deletion, withdrawal deletion, a retention scheduler, or a retention duration.
-- `ENVIRONMENT-CONDITIONAL`: retained MySQL databases need the dated manual patch and rehearsal/backfill assessment before Hibernate validation. No DDL is run by this use case.
+- This use case relies on the fresh-only V1 database baseline: apply `schema.sql` and `seed.sql` once to a verified-empty MySQL 8 database, then start with Hibernate validation. It does not run DDL, and retained-data migration requires a separate approved requirement.
 - `POLICY-PENDING`: signature and canonical-image validation reduce malformed-content risk but are not malware scanning. No scanner dependency is selected or required here.

@@ -1,6 +1,6 @@
 ---
-version: 1.5
-last_updated: 2026-07-16
+version: 1.6
+last_updated: 2026-07-17
 project: ATS
 owner: docops
 category: guide
@@ -47,7 +47,7 @@ Current payment-integrity rules:
 - Refund recovery retains one refund row and idempotency key, protected by a 15-minute processing lease and stale-result fencing.
 - Reconciliation may mutate only after exact provider evidence; every mismatch remains Incident-only.
 - Local and provider reconciliation use bounded ID-keyset batches. Full mismatch counters are separate from capped API issue details, and scheduled local batches persist every Incident.
-- New encrypted billing keys use a v2 key-ID envelope. Legacy v1 ciphertext remains decryptable while its legacy secret is retained.
+- Encrypted billing keys use the V2 key-ID envelope and configured active/retained V2 key ring.
 
 ## 2. Main Layers
 
@@ -81,8 +81,8 @@ Current payment-integrity rules:
 Runtime DB note:
 
 - The backend defaults to `spring.jpa.hibernate.ddl-auto=validate`.
-- `src/main/resources/schema.sql` is a full fresh-DB reference, not an automatic migration runner for existing MySQL databases.
-- Existing local/staging/production databases must be patched before server startup when payment or whitelist tables/columns are missing. The ordered references include `20260615_align_payment_whitelist_schema.sql`, `20260714_payment_db_integrity.sql`, and `20260716_payment_reconciliation_indexes.sql`; rehearse them on an approved copied database before any shared DB. Prior fresh disposable MySQL evidence passed schema creation, Hibernate validation, and 7/7 races, but the new reconciliation indexes have source/static contract evidence only in WI-006. Neither result proves a retained database.
+- `src/main/resources/schema.sql` is the fail-closed fresh V1 baseline, not an automatic migration runner for an existing MySQL database.
+- Apply `schema.sql` and the six-plan `seed.sql` exactly once to a verified-empty database, then start with `ddl-auto=validate`. Retained-data migration is outside the V1 operator path and requires a separate approved design.
 
 ## 4. User APIs
 
@@ -97,7 +97,7 @@ Runtime DB note:
 | `POST /api/user-subscriptions/me/reactivate` | Reactivate a cancelled grace-period subscription. |
 | `DELETE /api/users/me` | Withdraw the account, cancel local renewal eligibility, and request Provider billing-key cleanup after commit. No refund is created. |
 
-Legacy one-time subscription payment APIs exist in controller shape, but subscription `SUBSCRIBE` and `UPGRADE` direct confirmation is blocked for the current recurring-subscription scope.
+Direct subscription creation and legacy payment prepare/confirm/cancel APIs are absent from V1.
 
 ## 5. Admin APIs
 
@@ -126,7 +126,7 @@ Legacy one-time subscription payment APIs exist in controller shape, but subscri
 
 ## 6. Provider Boundary
 
-The current provider is `TOSS_BILLING` for user-facing recurring subscription payment.
+The current persisted provider is `TOSS` for user-facing recurring subscription payment.
 
 Provider-facing operations are isolated through interfaces:
 
@@ -151,10 +151,8 @@ Important fields:
 
 | Property Area | Purpose |
 | :-- | :-- |
-| `app.payment.provider` | Legacy one-time provider selector. Current subscription billing uses `TOSS_BILLING` provider flow. |
 | `app.payment.toss.client-key` | Toss client key used by frontend billing auth metadata. |
 | `app.payment.toss.secret-key` | Server-side Toss API secret key. Must never be exposed to frontend. |
-| `app.payment.billing.encryption-secret` | Legacy v1 decryption secret. Retain while any v1 ciphertext may exist. |
 | `app.payment.billing.active-key-id` | Key ID used for new v2 ciphertext. |
 | `app.payment.billing.encryption-keys` | Ordered key-ring entries (`id`, `secret`) for active and retained v2 decryption keys. |
 | `app.payment.billing.auth-success-url` | Toss billing auth success callback URL. |
@@ -193,7 +191,7 @@ The following values must never be returned to frontend/admin screens or stored 
 - Raw provider payload containing sensitive fields
 - Mail recipient, subject/body, verification/reset URL or token, raw delivery exception message, or stack trace
 
-When `app.payment.provider=TOSS_BILLING`, startup validates the legacy secret, active key ID, and every key-ring entry. Blank, placeholder, duplicate, or missing active-key configuration fails closed. Validation errors identify only the configuration class of failure and never print secret values.
+TOSS recurring startup validates the active key ID and every configured V2 key-ring entry. Blank, placeholder, duplicate, unknown, or missing active-key configuration fails closed. Validation errors identify only the configuration class of failure and never print secret values.
 
 Allowed support-safe values include:
 

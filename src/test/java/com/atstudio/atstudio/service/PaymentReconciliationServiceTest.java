@@ -157,7 +157,7 @@ class PaymentReconciliationServiceTest {
                 .willReturn(Optional.of(claim));
         given(reconciliationTransactions.findCompletedProviderCandidateIDs(any(), anyLong(), anyInt()))
                 .willReturn(List.of());
-        given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+        given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS);
         given(paymentStatusLookupProvider.isLookupConfigured()).willReturn(true);
         given(paymentStatusLookupProvider.findPaymentByOrderId(claim.orderID())).willReturn(providerResult);
         given(reconciliationTransactions.assessProviderEvidence(claim, providerResult))
@@ -191,7 +191,7 @@ class PaymentReconciliationServiceTest {
                 .willReturn(List.of(claim.paymentOrderID()));
         given(reconciliationTransactions.claimProviderLookup(anyLong(), any()))
                 .willReturn(Optional.of(claim));
-        given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+        given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS);
         given(paymentStatusLookupProvider.isLookupConfigured()).willReturn(true);
         given(paymentStatusLookupProvider.findPaymentByOrderId(claim.orderID())).willReturn(providerResult);
         given(reconciliationTransactions.assessProviderEvidence(claim, providerResult))
@@ -234,7 +234,7 @@ class PaymentReconciliationServiceTest {
                 .willReturn(List.of(claim.paymentOrderID()));
         given(reconciliationTransactions.claimProviderLookup(anyLong(), any()))
                 .willReturn(Optional.of(claim));
-        given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+        given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS);
         given(paymentStatusLookupProvider.isLookupConfigured()).willReturn(true);
         given(paymentStatusLookupProvider.findPaymentByOrderId(claim.orderID())).willReturn(providerResult);
         given(reconciliationTransactions.assessProviderEvidence(claim, providerResult)).willReturn(mismatch);
@@ -276,7 +276,7 @@ class PaymentReconciliationServiceTest {
                 .willReturn(List.of(claim.paymentOrderID()));
         given(reconciliationTransactions.claimProviderLookup(anyLong(), any()))
                 .willReturn(Optional.of(claim));
-        given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+        given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS);
         given(paymentStatusLookupProvider.isLookupConfigured()).willReturn(true);
         given(paymentStatusLookupProvider.findPaymentByOrderId(claim.orderID())).willReturn(providerResult);
         given(reconciliationTransactions.assessProviderEvidence(claim, providerResult)).willReturn(mismatch);
@@ -377,7 +377,7 @@ class PaymentReconciliationServiceTest {
         CompletedProviderLookupClaim second = new CompletedProviderLookupClaim(
                 new ProviderLookupClaim(
                         2L, 7L, 11L, 13L, "ORDER-DONE-2", "COMMAND-DONE-2",
-                        PaymentProviderType.TOSS_BILLING, PaymentPurpose.RENEWAL,
+                        PaymentProviderType.TOSS, PaymentPurpose.RENEWAL,
                         PaymentOrderStatus.DONE, BigDecimal.valueOf(9900), "KRW", "tx-done-2", true, null),
                 false);
         given(reconciliationTransactions.findCompletedProviderCandidateIDs(any(), eq(0L), anyInt()))
@@ -386,7 +386,7 @@ class PaymentReconciliationServiceTest {
                 .willReturn(Optional.of(first));
         given(reconciliationTransactions.loadCompletedProviderLookup(eq(2L), any()))
                 .willReturn(Optional.of(second));
-        given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+        given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS);
         given(paymentStatusLookupProvider.isLookupConfigured()).willReturn(true);
         given(paymentStatusLookupProvider.findPaymentByOrderId(first.claim().orderID()))
                 .willReturn(ProviderPaymentLookupResult.found(
@@ -434,7 +434,7 @@ class PaymentReconciliationServiceTest {
                 purpose == PaymentPurpose.SUBSCRIBE ? null : 13L,
                 "ORDER-" + purpose,
                 "COMMAND-" + purpose,
-                PaymentProviderType.TOSS_BILLING,
+                PaymentProviderType.TOSS,
                 purpose,
                 PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION,
                 BigDecimal.valueOf(9900),
@@ -453,7 +453,7 @@ class PaymentReconciliationServiceTest {
                         13L,
                         "ORDER-DONE-1",
                         "COMMAND-DONE-1",
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         PaymentPurpose.RENEWAL,
                         PaymentOrderStatus.DONE,
                         BigDecimal.valueOf(9900),
@@ -471,7 +471,7 @@ class PaymentReconciliationServiceTest {
                 .willReturn(List.of(completed.claim().paymentOrderID()));
         given(reconciliationTransactions.loadCompletedProviderLookup(anyLong(), any()))
                 .willReturn(Optional.of(completed));
-        given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+        given(paymentStatusLookupProvider.getProviderType()).willReturn(PaymentProviderType.TOSS);
         given(paymentStatusLookupProvider.isLookupConfigured()).willReturn(true);
         given(paymentStatusLookupProvider.findPaymentByOrderId(completed.claim().orderID()))
                 .willReturn(providerResult);
@@ -500,7 +500,7 @@ class PaymentReconciliationServiceTest {
                     (long) index,
                     (long) index,
                     "ORDER-" + index,
-                    PaymentProviderType.TOSS_BILLING,
+                    PaymentProviderType.TOSS,
                     PaymentPurpose.RENEWAL,
                     PaymentOrderStatus.DONE.name(),
                     BigDecimal.valueOf(9900)));

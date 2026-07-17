@@ -4,6 +4,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Base64;
+
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DisplayName("JwtConfig validation")
@@ -19,7 +22,8 @@ class JwtConfigTest {
         assertThatThrownBy(config::validate)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Missing JWT secret")
-                .hasMessageContaining("application-local.yml");
+                .hasMessageContaining("application-local.yml")
+                .hasMessageContaining("SPRING_CONFIG_ADDITIONAL_LOCATION=file:./application-local.yml");
     }
 
     @Test
@@ -31,7 +35,8 @@ class JwtConfigTest {
 
         assertThatThrownBy(config::validate)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Base64-encoded");
+                .hasMessageContaining("Base64-encoded")
+                .hasMessageContaining("SPRING_CONFIG_ADDITIONAL_LOCATION");
     }
 
     @Test
@@ -44,5 +49,18 @@ class JwtConfigTest {
         assertThatThrownBy(config::validate)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("at least 256 bits");
+    }
+
+    @Test
+    @DisplayName("A Base64-encoded 256-bit secret passes validation")
+    void validate_256BitSecret_passes() {
+        JwtConfig config = new JwtConfig();
+
+        ReflectionTestUtils.setField(
+                config,
+                "secret",
+                Base64.getEncoder().encodeToString(new byte[32]));
+
+        assertThatCode(config::validate).doesNotThrowAnyException();
     }
 }

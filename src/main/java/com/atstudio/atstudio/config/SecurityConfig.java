@@ -83,7 +83,6 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/notices/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/notices/*/attachments/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/settings/*").permitAll()
-                .requestMatchers(HttpMethod.PUT, "/api/settings/*").hasRole("ADMIN")
                 .requestMatchers("/uploads/tracks/audio/**").denyAll()
                 .requestMatchers("/uploads/company-docs/**").denyAll()
                 .requestMatchers("/uploads/questions/**").denyAll()
@@ -132,7 +131,6 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/api/user-subscriptions/me").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/api/user-subscriptions/me").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/user-subscriptions").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/user-subscriptions/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/user-subscriptions/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/user-subscriptions/*").hasRole("ADMIN")
                 // Admin dashboard

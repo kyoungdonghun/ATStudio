@@ -1,8 +1,8 @@
 node_modules/
 dist/
 dist-ssr/
-coverage/
-*.tsbuildinfo
+/coverage/
+/tsconfig.tsbuildinfo
 *.local
 .env
 .env.*

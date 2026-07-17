@@ -44,7 +44,7 @@ class TossBillingProviderTest {
         BillingAgreementPrepareResult result = provider.prepareAgreement(
                 new BillingAgreementPrepareCommand("ats_billing_customer"));
 
-        assertThat(result.provider()).isEqualTo(PaymentProviderType.TOSS_BILLING);
+        assertThat(result.provider()).isEqualTo(PaymentProviderType.TOSS);
         assertThat(result.checkoutType()).isEqualTo("TOSS_BILLING_AUTH");
         assertThat(result.checkoutMetadata())
                 .containsEntry("clientKey", "test_ck_sample")
@@ -528,6 +528,167 @@ class TossBillingProviderTest {
     }
 
     @Test
+    @DisplayName("provider input guards fail before any Toss network request")
+    void providerInputGuards() {
+        PaymentProperties missing = new PaymentProperties();
+        missing.getToss().setClientKey("client-only");
+        TossBillingProvider missingProvider = new TossBillingProvider(missing);
+
+        assertThat(missingProvider.getProviderType()).isEqualTo(PaymentProviderType.TOSS);
+        assertThat(missingProvider.isLookupConfigured()).isFalse();
+        assertThatThrownBy(() -> missingProvider.prepareAgreement(
+                new BillingAgreementPrepareCommand("customer")))
+                .isInstanceOf(BusinessException.class);
+        assertThat(missingProvider.confirmAgreement(
+                        new BillingAgreementConfirmCommand("auth", "customer"))
+                .failureCode()).isEqualTo("TOSS_SECRET_KEY_MISSING");
+        assertThat(missingProvider.charge(chargeCommand("billing", "customer", BigDecimal.valueOf(9900)))
+                .failureCode()).isEqualTo("TOSS_SECRET_KEY_MISSING");
+        assertThat(missingProvider.cancelAgreement(new BillingAgreementCancelCommand("billing"))
+                .failureCode()).isEqualTo("TOSS_SECRET_KEY_MISSING");
+        assertThat(missingProvider.cancelPayment(refundCommand("payment", "idempotency"))
+                .failureCode()).isEqualTo("TOSS_SECRET_KEY_MISSING");
+        assertThat(missingProvider.findPaymentByOrderId("ORDER-1").failureCode())
+                .isEqualTo("TOSS_SECRET_KEY_MISSING");
+
+        TossBillingProvider configured = new TossBillingProvider(properties("http://localhost:1"));
+        assertThat(configured.isLookupConfigured()).isTrue();
+        assertThatThrownBy(() -> configured.prepareAgreement(new BillingAgreementPrepareCommand(" ")))
+                .isInstanceOf(BusinessException.class);
+        assertThat(configured.confirmAgreement(new BillingAgreementConfirmCommand(" ", "customer"))
+                .failureCode()).isEqualTo("TOSS_BILLING_AUTH_INVALID");
+        assertThat(configured.confirmAgreement(new BillingAgreementConfirmCommand("auth", " "))
+                .failureCode()).isEqualTo("TOSS_BILLING_AUTH_INVALID");
+        assertThat(configured.charge(chargeCommand(" ", "customer", BigDecimal.valueOf(9900)))
+                .failureCode()).isEqualTo("TOSS_BILLING_CHARGE_INVALID");
+        assertThat(configured.charge(chargeCommand("billing", " ", BigDecimal.valueOf(9900)))
+                .failureCode()).isEqualTo("TOSS_BILLING_CHARGE_INVALID");
+        assertThat(configured.cancelAgreement(new BillingAgreementCancelCommand(" "))
+                .failureCode()).isEqualTo("TOSS_BILLING_KEY_MISSING");
+        assertThat(configured.cancelPayment(refundCommand(" ", "idempotency"))
+                .failureCode()).isEqualTo("TOSS_PAYMENT_CANCEL_INVALID_ARGUMENT");
+        assertThat(configured.cancelPayment(refundCommand("payment", " "))
+                .failureCode()).isEqualTo("TOSS_PAYMENT_CANCEL_INVALID_ARGUMENT");
+        assertThat(configured.findPaymentByOrderId(" ").failureCode()).isEqualTo("TOSS_ORDER_ID_MISSING");
+    }
+
+    @Test
+    @DisplayName("Toss client errors remain final failures while a missing payment remains not found")
+    void providerClientErrorsAreClassified() throws IOException {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v1/billing/authorizations/issue", exchange -> send(
+                exchange, 400, "{\"code\":\"INVALID_AUTH\",\"message\":\"bad auth\"}"));
+        server.createContext("/v1/billing/billing_secret_key", exchange -> send(
+                exchange,
+                400,
+                "DELETE".equals(exchange.getRequestMethod())
+                        ? "{\"code\":\"ALREADY_REMOVED_BILLING_KEY\",\"message\":\"removed\"}"
+                        : "{\"code\":\"REJECT_CARD_PAYMENT\",\"message\":\"rejected\"}"));
+        server.createContext("/v1/payments/orders/ORDER-404", exchange -> send(
+                exchange, 404, "{\"code\":\"NOT_FOUND_PAYMENT\",\"message\":\"missing\"}"));
+        server.createContext("/v1/payments/orders/ORDER-FAIL", exchange -> send(
+                exchange, 400, "{\"code\":\"INVALID_REQUEST\",\"message\":\"bad request\"}"));
+        server.createContext("/v1/payments/payment_key/cancel", exchange -> send(
+                exchange, 400, "{\"code\":\"NOT_CANCELABLE_AMOUNT\",\"message\":\"too much\"}"));
+        server.start();
+        TossBillingProvider provider = new TossBillingProvider(properties(baseUrl()));
+
+        assertThat(provider.confirmAgreement(new BillingAgreementConfirmCommand("auth", "customer")))
+                .satisfies(result -> {
+                    assertThat(result.success()).isFalse();
+                    assertThat(result.failureCode()).isEqualTo("INVALID_AUTH");
+                });
+        assertThat(provider.charge(chargeCommand("billing_secret_key", "customer", BigDecimal.valueOf(9900))))
+                .satisfies(result -> {
+                    assertThat(result.success()).isFalse();
+                    assertThat(result.failureCode()).isEqualTo("REJECT_CARD_PAYMENT");
+                });
+        assertThat(provider.cancelAgreement(new BillingAgreementCancelCommand("billing_secret_key")))
+                .satisfies(result -> {
+                    assertThat(result.success()).isFalse();
+                    assertThat(result.failureCode()).isEqualTo("ALREADY_REMOVED_BILLING_KEY");
+                });
+        assertThat(provider.findPaymentByOrderId("ORDER-404"))
+                .satisfies(result -> {
+                    assertThat(result.found()).isFalse();
+                    assertThat(result.lookupFailure()).isFalse();
+                });
+        assertThat(provider.findPaymentByOrderId("ORDER-FAIL"))
+                .satisfies(result -> {
+                    assertThat(result.found()).isFalse();
+                    assertThat(result.lookupFailure()).isTrue();
+                    assertThat(result.failureCode()).isEqualTo("INVALID_REQUEST");
+                });
+        assertThat(provider.cancelPayment(refundCommand("payment_key", "ATS-REFUND-CLIENT-1")))
+                .satisfies(result -> {
+                    assertThat(result.success()).isFalse();
+                    assertThat(result.pendingConfirmation()).isFalse();
+                    assertThat(result.failureCode()).isEqualTo("NOT_CANCELABLE_AMOUNT");
+                });
+    }
+
+    @Test
+    @DisplayName("lookup and billing authorization sanitize sparse transfer evidence")
+    void sparseTransferEvidenceIsSanitized() throws IOException {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v1/billing/authorizations/issue", exchange -> send(exchange, 200, """
+                {
+                  "billingKey": "billing_secret_key",
+                  "method": "TRANSFER",
+                  "transfers": [{"bankName": "Test Bank", "bankAccountNumber": "123456789012"}]
+                }
+                """));
+        server.createContext("/v1/payments/orders/ORDER-SPARSE", exchange -> send(exchange, 200, """
+                {
+                  "orderId": "ORDER-SPARSE",
+                  "status": "WAITING_FOR_DEPOSIT",
+                  "transfers": [{"bankName": "Test Bank", "bankAccountNumber": "short"}],
+                  "receipt": {},
+                  "cashReceipt": {}
+                }
+                """));
+        server.start();
+        TossBillingProvider provider = new TossBillingProvider(properties(baseUrl()));
+
+        BillingAgreementConfirmResult agreement = provider.confirmAgreement(
+                new BillingAgreementConfirmCommand("auth", "customer"));
+        ProviderPaymentLookupResult lookup = provider.findPaymentByOrderId("ORDER-SPARSE");
+
+        assertThat(agreement.success()).isTrue();
+        assertThat(agreement.maskedMethod()).isEqualTo("Test Bank 1234-****-****-9012");
+        assertThat(agreement.providerPayload()).doesNotContain("123456789012");
+        assertThat(lookup.found()).isTrue();
+        assertThat(lookup.providerDone()).isFalse();
+        assertThat(lookup.totalAmount()).isNull();
+        assertThat(lookup.currency()).isNull();
+        assertThat(lookup.providerPayload()).doesNotContain("short");
+    }
+
+    @Test
+    @DisplayName("successful responses without durable identity remain unknown or pending")
+    void successfulResponsesRequireDurableIdentity() throws IOException {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v1/billing/authorizations/issue", exchange -> send(
+                exchange, 200, "{\"method\":\"CARD\"}"));
+        server.createContext("/v1/payments/payment_key/cancel", exchange -> send(
+                exchange,
+                200,
+                "{\"orderId\":\"OTHER-ORDER\",\"lastTransactionKey\":\"cancel-key\",\"status\":\"CANCELED\"}"));
+        server.start();
+        TossBillingProvider provider = new TossBillingProvider(properties(baseUrl()));
+
+        assertThatThrownBy(() -> provider.confirmAgreement(
+                new BillingAgreementConfirmCommand("auth", "customer")))
+                .isInstanceOf(PaymentProviderOutcomeUnknownException.class);
+        assertThat(provider.cancelPayment(refundCommand("payment_key", "ATS-REFUND-EVIDENCE-1")))
+                .satisfies(result -> {
+                    assertThat(result.success()).isFalse();
+                    assertThat(result.pendingConfirmation()).isTrue();
+                    assertThat(result.failureCode()).isEqualTo("TOSS_PAYMENT_CANCEL_EVIDENCE_MISSING");
+                });
+    }
+
+    @Test
     @DisplayName("cancelPayment unknown transport failure logs exception class without URI or provider key")
     void cancelPaymentUnknownFailureLogsBoundedMetadata() {
         String rawProviderPaymentKey = "provider-payment-key-secret";
@@ -573,6 +734,27 @@ class TossBillingProviderTest {
         properties.getBilling().setDeleteUrl(baseUrl + "/v1/billing/{billingKey}");
         properties.getBilling().setPaymentLookupByOrderIdUrl(baseUrl + "/v1/payments/orders/{orderId}");
         return properties;
+    }
+
+    private BillingChargeCommand chargeCommand(String billingKey, String customerKey, BigDecimal amount) {
+        return new BillingChargeCommand(
+                billingKey,
+                customerKey,
+                "ORDER-1",
+                "AT.M STANDARD Subscription",
+                amount,
+                null,
+                null,
+                "charge-idempotency");
+    }
+
+    private PaymentRefundProviderCommand refundCommand(String paymentKey, String idempotencyKey) {
+        return new PaymentRefundProviderCommand(
+                paymentKey,
+                "ORDER-1",
+                BigDecimal.valueOf(9900),
+                "CUSTOMER_REQUEST",
+                idempotencyKey);
     }
 
     private String baseUrl() {

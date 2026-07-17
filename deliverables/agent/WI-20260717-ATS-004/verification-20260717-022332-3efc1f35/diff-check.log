@@ -1,0 +1,6 @@
+branch=codex/p1-acceptance-hardening
+git.diffCheck.exitCode=0
+git.cachedDiffCheck.exitCode=0
+deliverable.trailingWhitespaceLines=0
+git.refWrites=NONE_BY_WI004_COMPLETION
+diffCheck.result=PASS

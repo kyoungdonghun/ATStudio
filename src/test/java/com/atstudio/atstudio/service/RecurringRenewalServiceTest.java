@@ -55,7 +55,7 @@ class RecurringRenewalServiceTest {
 
     @BeforeEach
     void setUp() {
-        given(recurringPaymentProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+        given(recurringPaymentProvider.getProviderType()).willReturn(PaymentProviderType.TOSS);
         service = new RecurringRenewalService(
                 billingAgreementRepository,
                 paymentCommandTransactions,

@@ -43,6 +43,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,6 +57,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("CompanyCertificationService 단위 테스트")
@@ -735,6 +738,175 @@ class CompanyCertificationServiceTest {
         assertThat(auditCaptor.getValue().getToStatus()).isNull();
     }
 
+    @Test
+    @DisplayName("company certification identity lookups fail closed")
+    void identityLookupsFailClosed() {
+        assertThatThrownBy(() -> certificationService.getMyStatus(null))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> certificationService.getMyStatus(
+                CustomUserDetails.builder().role(UserRole.USER).build()))
+                .isInstanceOf(BusinessException.class);
+
+        given(userRepository.findById(404L)).willReturn(Optional.empty());
+        assertThatThrownBy(() -> certificationService.getMyStatus(buildUserDetails(404L, UserRole.USER)))
+                .isInstanceOf(BusinessException.class);
+
+        assertThatThrownBy(() -> certificationService.apply(null, List.of()))
+                .isInstanceOf(BusinessException.class);
+
+        User applicant = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+        CompanyCertification certification = buildCertification(
+                10L, applicant, CompanyCertificationStatus.PENDING, "company-docs/1/");
+        given(certificationRepository.findById(10L)).willReturn(Optional.of(certification));
+        assertThatThrownBy(() -> certificationService.processReview(
+                10L,
+                null,
+                new CompanyCertificationReviewRequest(CompanyCertificationStatus.APPROVED, null)))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("document collection policy rejects null, empty, and excessive batches")
+    void documentCollectionPolicyRejectsInvalidBatches() {
+        User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList())).willReturn(false);
+
+        assertThatThrownBy(() -> certificationService.apply(buildUserDetails(1L, UserRole.USER), null))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> certificationService.apply(buildUserDetails(1L, UserRole.USER), List.of()))
+                .isInstanceOf(BusinessException.class);
+
+        List<MultipartFile> tooMany = java.util.stream.IntStream
+                .rangeClosed(1, ValidationConstants.CERT_DOC_MAX_COUNT + 1)
+                .mapToObj(index -> new MockMultipartFile(
+                        "documents",
+                        "doc-" + index + ".pdf",
+                        "application/pdf",
+                        pdfBytes()))
+                .map(MultipartFile.class::cast)
+                .toList();
+        assertThatThrownBy(() -> certificationService.apply(buildUserDetails(1L, UserRole.USER), tooMany))
+                .isInstanceOf(BusinessException.class);
+        verify(storageMutationCoordinator, never()).storeAll(any(), any(), anyList(), anyString());
+    }
+
+    @Test
+    @DisplayName("document policy rejects unsafe names, extensions, content, MIME, and read failures")
+    void documentPolicyRejectsUnsafeEvidence() throws IOException {
+        User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList())).willReturn(false);
+
+        List<MultipartFile> invalidDocuments = List.of(
+                new MockMultipartFile("documents", null, "application/pdf", pdfBytes()),
+                new MockMultipartFile("documents", " ", "application/pdf", pdfBytes()),
+                new MockMultipartFile("documents", "x".repeat(ValidationConstants.CERT_DOC_FILENAME_MAX + 1) + ".pdf",
+                        "application/pdf", pdfBytes()),
+                new MockMultipartFile("documents", "folder\\doc.pdf", "application/pdf", pdfBytes()),
+                new MockMultipartFile("documents", "drive:doc.pdf", "application/pdf", pdfBytes()),
+                new MockMultipartFile("documents", ".", "application/pdf", pdfBytes()),
+                new MockMultipartFile("documents", "..", "application/pdf", pdfBytes()),
+                new MockMultipartFile("documents", "document", "application/pdf", pdfBytes()),
+                new MockMultipartFile("documents", "document.", "application/pdf", pdfBytes()),
+                new MockMultipartFile("documents", "document.txt", "text/plain", pdfBytes()),
+                new MockMultipartFile("documents", "document.png", "image/png", pdfBytes()),
+                new MockMultipartFile("documents", "document.pdf", "image/png", pdfBytes()),
+                new MockMultipartFile("documents", "document.pdf", "application/pdf", new byte[] {1, 2, 3}));
+
+        invalidDocuments.forEach(document -> assertThatThrownBy(() -> certificationService.apply(
+                buildUserDetails(1L, UserRole.USER), List.of(document)))
+                .isInstanceOf(BusinessException.class));
+
+        MultipartFile oversized = mock(MultipartFile.class);
+        given(oversized.isEmpty()).willReturn(false);
+        given(oversized.getSize()).willReturn(ValidationConstants.CERT_DOC_MAX_SIZE_BYTES + 1);
+        assertThatThrownBy(() -> certificationService.apply(
+                buildUserDetails(1L, UserRole.USER), List.of(oversized)))
+                .isInstanceOf(BusinessException.class);
+
+        MultipartFile unreadable = mock(MultipartFile.class);
+        given(unreadable.isEmpty()).willReturn(false);
+        given(unreadable.getSize()).willReturn(100L);
+        given(unreadable.getOriginalFilename()).willReturn("document.pdf");
+        given(unreadable.getBytes()).willThrow(new IOException("unreadable"));
+        assertThatThrownBy(() -> certificationService.apply(
+                buildUserDetails(1L, UserRole.USER), List.of(unreadable)))
+                .isInstanceOf(BusinessException.class);
+        verify(storageMutationCoordinator, never()).storeAll(any(), any(), anyList(), anyString());
+    }
+
+    @Test
+    @DisplayName("PDF whitespace and JPEG documents are accepted only after verified normalization")
+    void verifiedPdfAndJpegEvidenceIsAccepted() throws IOException {
+        User user = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(certificationRepository.existsByUserAndStatusIn(eq(user), anyList())).willReturn(false);
+        byte[] pdfWithAllowedWhitespace = concat(
+                "%PDF-1.7\n%%EOF".getBytes(StandardCharsets.US_ASCII),
+                new byte[] {0x00, 0x09, 0x0A, 0x0C, 0x0D, 0x20});
+        MockMultipartFile pdf = new MockMultipartFile(
+                "documents", " verified.PDF ", null, pdfWithAllowedWhitespace);
+        MockMultipartFile jpeg = new MockMultipartFile(
+                "documents", "photo.jpeg", "application/octet-stream",
+                new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00});
+        MockMultipartFile canonical = new MockMultipartFile(
+                "documents", "photo.jpg", "image/jpeg", new byte[] {1, 2, 3});
+        given(canonicalImageService.canonicalizeThumbnail(jpeg)).willReturn(canonical);
+        given(storageMutationCoordinator.storeAll(
+                eq(StorageDomain.COMPANY_CERTIFICATION),
+                eq(StorageRoot.PRIVATE),
+                anyList(),
+                startsWith("company-docs/1/")))
+                .willReturn(List.of("company-docs/1/document.pdf", "company-docs/1/photo.jpg"));
+        given(certificationRepository.save(any(CompanyCertification.class)))
+                .willAnswer(invocation -> {
+                    CompanyCertification saved = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(saved, "id", 99L);
+                    return saved;
+                });
+
+        CompanyCertificationResponse result = certificationService.apply(
+                buildUserDetails(1L, UserRole.USER), List.of(pdf, jpeg));
+
+        assertThat(result.documents()).hasSize(2);
+        assertThat(result.documents().get(0).originalFilename()).isEqualTo("verified.PDF");
+        assertThat(result.documents().get(0).contentType()).isEqualTo("application/pdf");
+        assertThat(result.documents().get(1).contentType()).isEqualTo("image/jpeg");
+        verify(canonicalImageService).canonicalizeThumbnail(jpeg);
+    }
+
+    @Test
+    @DisplayName("review note validation rejects oversized notes and normalizes blank approval notes")
+    void reviewNoteValidation() {
+        User applicant = buildUser(1L, UserRole.USER, UserType.BUSINESS);
+        User admin = buildUser(2L, UserRole.ADMIN, UserType.INDIVIDUAL);
+        CompanyCertification oversized = buildCertification(
+                10L, applicant, CompanyCertificationStatus.PENDING, "company-docs/1/");
+        given(certificationRepository.findById(10L)).willReturn(Optional.of(oversized));
+        given(userRepository.findById(1L)).willReturn(Optional.of(applicant));
+        given(userRepository.findById(2L)).willReturn(Optional.of(admin));
+
+        assertThatThrownBy(() -> certificationService.processReview(
+                10L,
+                buildUserDetails(2L, UserRole.ADMIN),
+                new CompanyCertificationReviewRequest(
+                        CompanyCertificationStatus.REJECTED,
+                        "x".repeat(ValidationConstants.CERTIFICATION_REVIEW_NOTE_MAX + 1))))
+                .isInstanceOf(BusinessException.class);
+
+        CompanyCertification approved = buildCertification(
+                11L, applicant, CompanyCertificationStatus.PENDING, "company-docs/1/");
+        given(certificationRepository.findById(11L)).willReturn(Optional.of(approved));
+        CompanyCertificationResponse result = certificationService.processReview(
+                11L,
+                buildUserDetails(2L, UserRole.ADMIN),
+                new CompanyCertificationReviewRequest(CompanyCertificationStatus.APPROVED, "   "));
+
+        assertThat(result.status()).isEqualTo("APPROVED");
+        assertThat(result.adminNote()).isNull();
+    }
+
     private User buildUser(Long id, UserRole role, UserType userType) {
         User user = User.builder()
                 .email("user" + id + "@test.com")
@@ -778,5 +950,12 @@ class CompanyCertificationServiceTest {
         return new byte[]{
                 (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00
         };
+    }
+
+    private byte[] concat(byte[] left, byte[] right) {
+        byte[] result = new byte[left.length + right.length];
+        System.arraycopy(left, 0, result, 0, left.length);
+        System.arraycopy(right, 0, result, left.length, right.length);
+        return result;
     }
 }

@@ -1,6 +1,6 @@
 ---
-version: 3.0
-last_updated: 2026-07-16
+version: 4.0
+last_updated: 2026-07-17
 project: ATS
 owner: docops
 category: design
@@ -33,14 +33,13 @@ The main layout serves public and authenticated user workflows with the shared p
 1. Public users browse tracks, tags, and albums.
 2. Streaming uses the controller-mediated public stream endpoint; storage keys are not exposed.
 3. After playback starts, the SPA records the track in browser `localStorage` under `playHistory`.
-4. The local list is capped at 100 and is not synchronized to the retained server play-history API.
+4. The local list is capped at 100; no server Play History API or table participates.
 
 ## Playlist
 
 1. A subscriber opens the playlist list.
 2. Create actions use the existing modal.
-3. `/playlists/new` is a compatibility adapter that opens that modal and does not add another screen UI.
-4. Detail/edit pages add, remove, and reorder tracks under current plan limits.
+3. Detail/edit pages add, remove, and reorder tracks under current plan limits.
 
 ## Subscription And Payment
 
@@ -50,7 +49,7 @@ The main layout serves public and authenticated user workflows with the shared p
 4. Existing subscriber payment-method re-registration prepares `purpose=BILLING_AGREEMENT` with `amount=0`; confirmation updates the method without changing the plan or period.
 5. Upgrade charges the prorated difference through the active billing agreement. Downgrade/cycle-only changes remain pending until successful renewal.
 6. Cancel stops the next renewal while paid access remains through `expiresAt`; valid grace-period cancellation can be reactivated.
-7. Legacy one-time routes remain blocked compatibility paths and must not mutate subscription state.
+7. Removed payment aliases have no compatibility redirect or mutation path.
 
 ## Whitelist And Company Certification
 
@@ -69,4 +68,4 @@ The main layout serves public and authenticated user workflows with the shared p
 
 ## Environment Boundary
 
-Public dev-server exposure is allowed only after the operator confirms a compatible dependency state or an access-controlled alternative. Development Vite 6.4.3 currently audits at 0; the frozen client-demo Vite 6.4.1 branch retains findings and was not modified.
+Public access is allowed only through an operator-controlled acceptance runtime whose local page, API proxy, and newly issued public URL were verified together. Historical demo URLs and captures are not current runtime evidence.

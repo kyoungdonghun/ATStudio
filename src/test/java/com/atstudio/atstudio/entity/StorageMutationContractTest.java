@@ -23,8 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class StorageMutationContractTest {
 
     private static final Path FRESH_SCHEMA = Path.of("src/main/resources/schema.sql");
-    private static final Path MANUAL_PATCH = Path.of(
-            "src/main/resources/db/manual/20260714_storage_mutations_journal.sql");
 
     @Test
     void entityAndEnumsMatchApprovedJournalContract() {
@@ -80,25 +78,9 @@ class StorageMutationContractTest {
                 "payment_operation_audit_logs");
     }
 
-    @Test
-    void manualPatchIsAdditiveAndContainsNoLegacyMutation() throws IOException {
-        String patch = Files.readString(MANUAL_PATCH);
-        String journal = normalizeSql(tableDefinition(patch, "storage_mutations"));
-
-        assertThat(journal).contains(
-                "KEY idx_storage_mutations_recovery (state, next_attempt_at, id)",
-                "KEY idx_storage_mutations_operation_id (operation_id)");
-        assertThat(patch).doesNotContain(
-                "DELETE FROM",
-                "TRUNCATE TABLE",
-                "DROP TABLE",
-                "INSERT INTO storage_mutations SELECT",
-                "UPDATE storage_mutations SET");
-    }
-
     private static String tableDefinition(String sql, String tableName) {
         Pattern pattern = Pattern.compile(
-                "CREATE TABLE IF NOT EXISTS " + Pattern.quote(tableName)
+                "CREATE TABLE " + Pattern.quote(tableName)
                         + "\\s*\\((.*?)\\) ENGINE = InnoDB",
                 Pattern.DOTALL);
         Matcher matcher = pattern.matcher(sql);

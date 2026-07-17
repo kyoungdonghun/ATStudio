@@ -51,8 +51,6 @@ class TrackServiceTest {
     @Mock StorageMutationCoordinator storageMutationCoordinator;
     @Mock CustomUserDetails userDetails;
     @Mock LikeRepository likeRepository;
-    @Mock DownloadQueueRepository downloadQueueRepository;
-    @Mock PlayHistoryRepository playHistoryRepository;
     @Mock TrackDownloadRepository trackDownloadRepository;
     @Mock LicenseRepository licenseRepository;
     @Mock PlaylistTrackRepository playlistTrackRepository;
@@ -283,24 +281,6 @@ class TrackServiceTest {
     }
 
     // ── getStreamResource() ──────────────────────────────────────────────────
-
-    @Test
-    @DisplayName("getStreamResource() - previewFile이 있어도 원본 리소스의 전체 길이 제공")
-    void getStreamResource_previewFileStillUsesFullOriginal() {
-        Track track = buildTrack(1L, true);
-        ReflectionTestUtils.setField(track, "previewFile", "tracks/preview/test.mp3");
-        ByteArrayResource originalResource = new ByteArrayResource(new byte[1_000]);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
-        given(storageService.loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3"))
-                .willReturn(originalResource);
-
-        TrackService.StreamResource result = trackService.getStreamResource(1L);
-
-        assertThat(result.resource()).isSameAs(originalResource);
-        assertThat(result.publicLength()).isEqualTo(1_000L);
-        verify(storageService).loadAsResource(StorageRoot.PUBLIC, "tracks/audio/test.mp3");
-        verify(storageService, never()).loadAsResource(StorageRoot.PUBLIC, "tracks/preview/test.mp3");
-    }
 
     @Test
     @DisplayName("getStreamResource() - 재생시간과 무관하게 원본 리소스 전체 길이 제공")

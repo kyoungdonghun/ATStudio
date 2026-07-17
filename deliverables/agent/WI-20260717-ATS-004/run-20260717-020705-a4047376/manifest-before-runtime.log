@@ -1,0 +1,14 @@
+database.hostClass=loopback
+database.sourceName=atstudio
+manifest.tables=39
+manifest.columns=449
+manifest.indexes=153
+manifest.foreignKeys=80
+manifest.forbiddenTables=0
+manifest.forbiddenColumns=0
+manifest.plans=6
+manifest.providerColumns=9
+manifest.providerTossOnly=9
+manifest.sha256=c48d3c75378aaf2364d89ed06833ba68e27a5a334dbc4670d1443bd938c6c506
+manager.result=PASS
+

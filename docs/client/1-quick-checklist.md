@@ -1,6 +1,6 @@
 ---
-version: 2.0
-last_updated: 2026-07-16
+version: 2.1
+last_updated: 2026-07-17
 project: ATS
 owner: docops
 category: guide
@@ -48,7 +48,7 @@ dependencies:
 ## 구독자 기능
 
 - [ ] 재생목록을 만들고 음악을 추가할 수 있습니다.
-- [ ] `/playlists/new`는 별도 새 화면이 아니라 기존 만들기 창을 엽니다.
+- [ ] 재생목록 화면의 만들기 버튼을 누르면 새 재생목록 만들기 창이 열립니다.
 - [ ] 구독 권한이 있는 계정만 공식 다운로드를 할 수 있습니다.
 - [ ] 다운로드 기록과 라이선스를 확인할 수 있습니다.
 

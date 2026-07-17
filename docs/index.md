@@ -1,6 +1,6 @@
 ---
-version: 2.3
-last_updated: 2026-07-16
+version: 2.4
+last_updated: 2026-07-17
 project: ATS
 owner: EO
 category: registry
@@ -68,9 +68,9 @@ status: stable
 | Config | `.claude/config/workspace.json`, `.claude/config/context-injection-rules.json` | ATStudio routing, tech_stack, context injection |
 
 - **Tech Stack**: Java 17, Spring Boot 4.x, MySQL 8.x + React 18, TypeScript 5.6, Vite 6 (Phase 2 — active)
-- **Project Stats**: 149 method-level REST mappings, 41 DB tables / 41 JPA entities, 53 distinct screen UIs, 13 agents
-- **Screen Count Unit**: 53 distinct visual page UIs = 54 lazy route-level page components minus the `/playlists/new` modal adapter. This includes 2 error screens. The router separately contains 62 path routes plus 1 index redirect; aliases are not additional screens.
-- **Phase 2 Freshness**: React/Vite SPA is active. The development branch resolves Vite 6.4.3 with production and unfiltered npm audits both at 0. The frozen client-demo branch remains a separate read-only environment at Vite 6.4.1 with unresolved audit findings and is not an approved public dev-server target.
+- **Project Stats**: 137 method-level REST mappings, 39 DB tables / 39 JPA entities, 53 distinct screen UIs, 13 agents
+- **Screen Count Unit**: 53 distinct visual page UIs = 53 `lazyPage(...)` declarations, including 2 error screens. The router separately contains 56 path routes plus 1 index redirect; reused pages are not additional screens.
+- **Phase 2 Freshness**: React/Vite SPA is active on the official V1 branch candidate `codex/p1-acceptance-hardening`. The current install resolves Vite 6.4.3. Public access requires the operator-controlled acceptance lifecycle and a newly verified URL; historical demo URLs are never current runtime evidence.
 - **Project Registry**: See [Project Registry](registry/project-registry.md)
 
 ## Starting Point Guides

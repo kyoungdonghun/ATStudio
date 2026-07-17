@@ -37,10 +37,8 @@ class AcceptanceProfileConfigurationTest {
                 .isEqualTo("${APP_PUBLIC_BASE_URL}/social-login/kakao");
         assertThat(source.getProperty("oauth2.naver.redirect-uri"))
                 .isEqualTo("${APP_PUBLIC_BASE_URL}/social-login/naver");
-        assertThat(source.getProperty("app.payment.toss.success-url"))
-                .isEqualTo("${APP_PUBLIC_BASE_URL}/subscriptions/payment/success");
-        assertThat(source.getProperty("app.payment.toss.fail-url"))
-                .isEqualTo("${APP_PUBLIC_BASE_URL}/subscriptions/payment/fail");
+        assertThat(source.getProperty("app.payment.toss.success-url")).isNull();
+        assertThat(source.getProperty("app.payment.toss.fail-url")).isNull();
         assertThat(source.getProperty("app.payment.billing.auth-success-url"))
                 .isEqualTo("${APP_PUBLIC_BASE_URL}/subscriptions/checkout/success");
         assertThat(source.getProperty("app.payment.billing.auth-fail-url"))
@@ -57,8 +55,6 @@ class AcceptanceProfileConfigurationTest {
         PaymentProperties payment = new PaymentProperties();
 
         assertThat(bootstrap.getDefaultPassword()).isEmpty();
-        assertThat(payment.getToss().getSuccessUrl()).isEmpty();
-        assertThat(payment.getToss().getFailUrl()).isEmpty();
         assertThat(payment.getBilling().getAuthSuccessUrl()).isEmpty();
         assertThat(payment.getBilling().getAuthFailUrl()).isEmpty();
     }

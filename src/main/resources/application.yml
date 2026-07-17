@@ -2,9 +2,6 @@ spring:
   application:
     name: ATStudio
 
-  config:
-    import: optional:file:./application-local.yml
-
   # 데이터베이스 설정
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -22,12 +19,6 @@ spring:
       hibernate:
         format_sql: true
         default_batch_fetch_size: 100
-
-  # Thymeleaf 템플릿 엔진 설정
-  thymeleaf:
-    cache: false
-    prefix: classpath:/templates/
-    suffix: .html
 
   # 이메일 발송 설정 (개발: localhost:1025 / 프로덕션: 실제 SMTP)
   mail:
@@ -110,20 +101,18 @@ app:
     export:
       max-items: ${APP_WHITELIST_EXPORT_MAX_ITEMS:500}
   payment:
-    provider: ${APP_PAYMENT_PROVIDER:MOCK}
     scheduler-zone: ${APP_PAYMENT_SCHEDULER_ZONE:Asia/Seoul}
     toss:
       client-key: ${TOSS_CLIENT_KEY:}
       secret-key: ${TOSS_SECRET_KEY:}
-      success-url: ${TOSS_SUCCESS_URL:http://localhost:5173/subscriptions/payment/success}
-      fail-url: ${TOSS_FAIL_URL:http://localhost:5173/subscriptions/payment/fail}
-      confirm-url: ${TOSS_CONFIRM_URL:https://api.tosspayments.com/v1/payments/confirm}
       cancel-url: ${TOSS_CANCEL_URL:https://api.tosspayments.com/v1/payments/{paymentKey}/cancel}
       connect-timeout-millis: ${TOSS_CONNECT_TIMEOUT_MILLIS:3000}
       read-timeout-millis: ${TOSS_READ_TIMEOUT_MILLIS:10000}
     billing:
-      encryption-secret: ${PAYMENT_BILLING_KEY_ENCRYPTION_SECRET:}
       active-key-id: ${PAYMENT_BILLING_KEY_ACTIVE_KEY_ID:}
+      encryption-keys:
+        - id: ${PAYMENT_BILLING_KEY_0_ID:}
+          secret: ${PAYMENT_BILLING_KEY_0_SECRET:}
       auth-success-url: ${TOSS_BILLING_AUTH_SUCCESS_URL:http://localhost:5173/subscriptions/checkout/success}
       auth-fail-url: ${TOSS_BILLING_AUTH_FAIL_URL:http://localhost:5173/subscriptions/checkout/fail}
       issue-url: ${TOSS_BILLING_ISSUE_URL:https://api.tosspayments.com/v1/billing/authorizations/issue}

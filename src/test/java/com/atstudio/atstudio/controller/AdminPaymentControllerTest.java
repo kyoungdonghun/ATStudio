@@ -96,7 +96,7 @@ class AdminPaymentControllerTest {
                         12L,
                         10L,
                         "ATS-REN-20260716-CONTROLLER",
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         PaymentPurpose.RENEWAL,
                         "IN_PROGRESS",
                         "DONE",

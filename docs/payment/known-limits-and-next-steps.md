@@ -1,6 +1,6 @@
 ---
-version: 1.3
-last_updated: 2026-07-16
+version: 1.4
+last_updated: 2026-07-17
 project: ATS
 owner: docops
 category: guide
@@ -38,12 +38,12 @@ The following capabilities are implemented and code/test verified for the curren
 - Stable payment command identity, strict Provider transaction boundaries, retry-gate consumption, refund lease fencing, and exact finalize-only reconciliation.
 - Fresh disposable MySQL 8/InnoDB schema validation and all seven required concurrency races.
 - Bounded local/provider reconciliation keyset batches, capped API issue details with full mismatch counters, and query-aligned fresh-schema indexes.
-- Billing-key v2 key-ID envelopes with legacy v1 decryption compatibility and `TOSS_BILLING` startup key-ring validation.
+- Billing-key V2 key-ID envelopes with fail-closed active/retained V2 key-ring validation.
 - Explicit configurable payment cron zone with `Asia/Seoul` default under the approved single-server deployment.
 
-This is not production-readiness closure or a full financial back-office suite. The 2026-07-16 reconciliation index patch and `EXPLAIN` templates have source/static contract evidence, not retained-database query-plan evidence. Retained-database migration rehearsal, live Toss configuration, production deployment/monitoring, client acceptance, non-payment gates, and final release approval remain open under `ATS020-X-01`. See [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md) and [SR-93](../SR/SR-93.md).
+This is not production-readiness closure or a full financial back-office suite. V1 uses a fresh-only 39-table schema; retained-data migration is not supplied. Live Toss configuration, production deployment/monitoring, client acceptance, non-payment gates, and final release approval remain open environment work.
 
-Dependency boundary: the active development branch resolves Vite 6.4.3 and both production-only and unfiltered npm audits return 0. The frozen `codex/client-demo-stable` branch was inspected read-only and remains at Vite 6.4.1 with 5 production findings and 13 total findings. No file on that branch was changed; public dev-server use remains blocked until user-approved remediation or a controlled-access alternative.
+Dependency boundary: the official V1 branch candidate currently resolves Vite 6.4.3. Public access requires a newly verified operator-controlled acceptance runtime.
 
 ## 2. Planned Features
 
@@ -51,7 +51,7 @@ Dependency boundary: the active development branch resolves Vite 6.4.3 and both 
 | :-- | :-- | :-- |
 | Toss Settlement API adapter | Current settlement import is CSV/manual. Direct Toss adapter can reduce manual import when operation volume grows. | After CSV process is accepted and real operation volume justifies automation. |
 | Toss webhook hardening | Webhook can provide auxiliary provider event visibility. It should complement, not replace, ATStudio-owned renewal and reconciliation state. | After current provider reconciliation is stable. |
-| Multi-PG expansion | Provider interfaces allow future KakaoPay/NaverPay-like adapters, but only Toss recurring billing is implemented now. | When a business requirement selects another provider. |
+| Multi-PG expansion | Provider interfaces allow a future adapter, but only Toss recurring billing is implemented now. | When a business requirement selects another provider. |
 | Admin receipt/audit polish | Admin UI can be refined around current receipt evidence and audit operation needs. | After client acceptance if operators need a more polished back-office workflow. |
 
 ## 3. On-Hold Items
@@ -63,7 +63,6 @@ Dependency boundary: the active development branch resolves Vite 6.4.3 and both 
 | Multi-server scheduler lock | Current deployment assumption is single server. Add locking only if ATStudio runs multiple backend instances that can execute the same scheduler. |
 | Manual withdrawal cleanup endpoint | Not implemented. Current recovery is the targeted daily retry; add a controlled operator trigger only under a separately approved operations requirement. |
 | Creator royalty settlement / seller payout | Current settlement import compares PG-to-ATStudio payment settlement evidence. Creator payout is a different business process. |
-| User-facing one-time subscription payment | Subscription payment is recurring-first. One-time subscription prepare/confirm is blocked for current scope. |
 
 ## 4. Future Documentation Update Rule
 

@@ -13,17 +13,12 @@ import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.core.annotation.Order;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,60 +35,33 @@ class AcceptanceSubscriptionPlanBootstrapRunnerTest {
     AcceptanceSubscriptionPlanBootstrapRunner runner;
 
     @Test
-    @DisplayName("Fresh acceptance data receives the six canonical plans")
-    void run_seedsSixCanonicalPlansForFreshAcceptanceData() throws Exception {
-        AtomicReference<List<Subscription>> capturedPlans = new AtomicReference<>();
+    @DisplayName("Missing baseline plans refuse startup")
+    void run_refusesMissingBaselinePlans() {
         given(subscriptionRepository.findAll()).willReturn(List.of());
-        given(subscriptionRepository.saveAll(any())).willAnswer(invocation -> {
-            Iterable<Subscription> plans = invocation.getArgument(0);
-            List<Subscription> savedPlans = StreamSupport.stream(plans.spliterator(), false).toList();
-            capturedPlans.set(savedPlans);
-            return savedPlans;
-        });
 
-        runner.run(NO_ARGUMENTS);
-
-        verify(subscriptionRepository).saveAll(any());
-        List<Subscription> savedPlans = capturedPlans.get();
-
-        assertThat(savedPlans).hasSize(6);
-        assertThat(savedPlans)
-                .extracting(plan -> plan.getName() + ":" + plan.getUserType())
-                .containsExactly(
-                        "STANDARD:INDIVIDUAL",
-                        "DELUXE:INDIVIDUAL",
-                        "PREMIUM:INDIVIDUAL",
-                        "STANDARD:BUSINESS",
-                        "DELUXE:BUSINESS",
-                        "PREMIUM:BUSINESS"
-                );
-        assertPlan(savedPlans, "STANDARD", UserType.INDIVIDUAL, "9900.00", "99000.00", 5, 1, 3);
-        assertPlan(savedPlans, "DELUXE", UserType.INDIVIDUAL, "19900.00", "199000.00", 20, 2, 10);
-        assertPlan(savedPlans, "PREMIUM", UserType.INDIVIDUAL, "29900.00", "299000.00", -1, 2, 10);
-        assertPlan(savedPlans, "STANDARD", UserType.BUSINESS, "19900.00", "199000.00", 10, 1, 3);
-        assertPlan(savedPlans, "DELUXE", UserType.BUSINESS, "49900.00", "499000.00", 50, 2, 10);
-        assertPlan(savedPlans, "PREMIUM", UserType.BUSINESS, "99900.00", "999000.00", -1, 2, 10);
+        assertThatThrownBy(() -> runner.run(NO_ARGUMENTS))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("reason=MISSING")
+                .hasMessageContaining("plan=STANDARD")
+                .hasMessageContaining("userType=INDIVIDUAL");
+        verify(subscriptionRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
-    @DisplayName("Restart preserves canonical rows without a second write")
-    void run_isIdempotentAcrossRestart() throws Exception {
-        List<Subscription> storedPlans = new ArrayList<>();
-        given(subscriptionRepository.findAll()).willAnswer(ignored -> List.copyOf(storedPlans));
-        given(subscriptionRepository.saveAll(any())).willAnswer(invocation -> {
-            Iterable<Subscription> plans = invocation.getArgument(0);
-            List<Subscription> savedPlans = StreamSupport.stream(plans.spliterator(), false).toList();
-            storedPlans.addAll(savedPlans);
-            return savedPlans;
-        });
-
-        runner.run(NO_ARGUMENTS);
-        List<Subscription> firstRunPlans = List.copyOf(storedPlans);
+    @DisplayName("The six seed-owned canonical plans pass without writes")
+    void run_validatesSixCanonicalPlansWithoutWrites() throws Exception {
+        List<Subscription> storedPlans = canonicalPlans();
+        given(subscriptionRepository.findAll()).willReturn(storedPlans);
         runner.run(NO_ARGUMENTS);
 
-        assertThat(storedPlans).containsExactlyElementsOf(firstRunPlans);
         assertThat(storedPlans).hasSize(6);
-        verify(subscriptionRepository, times(1)).saveAll(any());
+        assertPlan(storedPlans, "STANDARD", UserType.INDIVIDUAL, "9900.00", "99000.00", 5, 1, 3);
+        assertPlan(storedPlans, "DELUXE", UserType.INDIVIDUAL, "19900.00", "199000.00", 20, 2, 10);
+        assertPlan(storedPlans, "PREMIUM", UserType.INDIVIDUAL, "29900.00", "299000.00", -1, 2, 10);
+        assertPlan(storedPlans, "STANDARD", UserType.BUSINESS, "19900.00", "199000.00", 10, 1, 3);
+        assertPlan(storedPlans, "DELUXE", UserType.BUSINESS, "49900.00", "499000.00", 50, 2, 10);
+        assertPlan(storedPlans, "PREMIUM", UserType.BUSINESS, "99900.00", "999000.00", -1, 2, 10);
+        verify(subscriptionRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -108,13 +76,14 @@ class AcceptanceSubscriptionPlanBootstrapRunnerTest {
                 .hasMessageContaining("reason=INACTIVE")
                 .hasMessageContaining("plan=STANDARD")
                 .hasMessageContaining("userType=INDIVIDUAL");
-        verify(subscriptionRepository, never()).saveAll(any());
+        verify(subscriptionRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
     @DisplayName("A conflicting canonical property refuses startup")
     void run_refusesConflictingCanonicalPlan() {
         given(subscriptionRepository.findAll()).willReturn(List.of(
+                plan("STANDARD", UserType.INDIVIDUAL, "9900.00", "99000.00", 5, 1, 3, true),
                 plan("DELUXE", UserType.INDIVIDUAL, "1.00", "199000.00", 20, 2, 10, true)
         ));
 
@@ -124,7 +93,7 @@ class AcceptanceSubscriptionPlanBootstrapRunnerTest {
                 .hasMessageContaining("plan=DELUXE")
                 .hasMessageContaining("userType=INDIVIDUAL")
                 .hasMessageNotContaining("199000.00");
-        verify(subscriptionRepository, never()).saveAll(any());
+        verify(subscriptionRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -145,7 +114,7 @@ class AcceptanceSubscriptionPlanBootstrapRunnerTest {
         assertThatThrownBy(() -> runner.run(NO_ARGUMENTS))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("reason=DUPLICATE");
-        verify(subscriptionRepository, never()).saveAll(any());
+        verify(subscriptionRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -180,6 +149,17 @@ class AcceptanceSubscriptionPlanBootstrapRunnerTest {
         assertThat(plan.getMaxWhitelistChannels()).isEqualTo(maxWhitelistChannels);
         assertThat(plan.getMaxPlaylists()).isEqualTo(maxPlaylists);
         assertThat(plan.isActive()).isTrue();
+    }
+
+    private static List<Subscription> canonicalPlans() {
+        return List.of(
+                plan("STANDARD", UserType.INDIVIDUAL, "9900.00", "99000.00", 5, 1, 3, true),
+                plan("DELUXE", UserType.INDIVIDUAL, "19900.00", "199000.00", 20, 2, 10, true),
+                plan("PREMIUM", UserType.INDIVIDUAL, "29900.00", "299000.00", -1, 2, 10, true),
+                plan("STANDARD", UserType.BUSINESS, "19900.00", "199000.00", 10, 1, 3, true),
+                plan("DELUXE", UserType.BUSINESS, "49900.00", "499000.00", 50, 2, 10, true),
+                plan("PREMIUM", UserType.BUSINESS, "99900.00", "999000.00", -1, 2, 10, true)
+        );
     }
 
     private static Subscription plan(

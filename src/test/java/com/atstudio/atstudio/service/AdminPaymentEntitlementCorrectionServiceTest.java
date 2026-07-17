@@ -40,11 +40,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -96,7 +99,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
         given(paymentRefundRepository.findWithGraphById(77L)).willReturn(Optional.of(fixture.refund()));
         given(subscriptionRepository.findById(fixture.standard().getId())).willReturn(Optional.of(fixture.standard()));
         given(billingAgreementRepository.findByUserAndProvider(
-                fixture.user(), PaymentProviderType.TOSS_BILLING))
+                fixture.user(), PaymentProviderType.TOSS))
                 .willReturn(Optional.of(fixture.agreement()));
 
         var response = service.previewCorrection(request).getData();
@@ -120,7 +123,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
         given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
                 .willReturn(Optional.of(fixture.userSubscription()));
         given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
-                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
+                fixture.user().getId(), PaymentProviderType.TOSS))
                 .willReturn(Optional.of(fixture.agreement()));
         given(userRepository.findById(99L)).willReturn(Optional.of(admin));
         given(correctionRepository.save(any(PaymentEntitlementCorrection.class)))
@@ -150,7 +153,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
                 org.mockito.ArgumentMatchers.eq("full refund correction"));
         org.mockito.InOrder lockOrder = inOrder(billingAgreementRepository, userSubscriptionRepository);
         lockOrder.verify(billingAgreementRepository).findByUserIDAndProviderForUpdate(
-                fixture.user().getId(), PaymentProviderType.TOSS_BILLING);
+                fixture.user().getId(), PaymentProviderType.TOSS);
         lockOrder.verify(userSubscriptionRepository).findByIdForUpdate(fixture.userSubscription().getId());
     }
 
@@ -217,7 +220,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
         given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
                 .willReturn(Optional.of(fixture.userSubscription()));
         given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
-                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
+                fixture.user().getId(), PaymentProviderType.TOSS))
                 .willReturn(Optional.of(fixture.agreement()));
 
         service.executeCorrection(
@@ -262,7 +265,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
                 true);
         given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(correction));
         given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
-                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
+                fixture.user().getId(), PaymentProviderType.TOSS))
                 .willReturn(Optional.of(fixture.agreement()));
         given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
                 .willReturn(Optional.of(fixture.userSubscription()));
@@ -287,7 +290,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
         fixture.agreement().cancel();
         given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(correction));
         given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
-                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
+                fixture.user().getId(), PaymentProviderType.TOSS))
                 .willReturn(Optional.of(fixture.agreement()));
         given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
                 .willReturn(Optional.of(fixture.userSubscription()));
@@ -321,7 +324,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
                 CORRECTION_CREATED_AT.plusSeconds(1));
         given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(correction));
         given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
-                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
+                fixture.user().getId(), PaymentProviderType.TOSS))
                 .willReturn(Optional.of(fixture.agreement()));
         given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
                 .willReturn(Optional.of(fixture.userSubscription()));
@@ -349,7 +352,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
         ReflectionTestUtils.setField(fixture.agreement(), "updatedAt", CORRECTION_CREATED_AT);
         given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(correction));
         given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
-                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
+                fixture.user().getId(), PaymentProviderType.TOSS))
                 .willReturn(Optional.of(fixture.agreement()));
         given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
                 .willReturn(Optional.of(fixture.userSubscription()));
@@ -373,7 +376,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
         ReflectionTestUtils.setField(fixture.agreement(), "updatedAt", null);
         given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(correction));
         given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
-                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
+                fixture.user().getId(), PaymentProviderType.TOSS))
                 .willReturn(Optional.of(fixture.agreement()));
         given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
                 .willReturn(Optional.of(fixture.userSubscription()));
@@ -396,7 +399,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
                 correction(fixture, PaymentEntitlementCorrectionStatus.APPROVED);
         given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(correction));
         given(billingAgreementRepository.findByUserIDAndProviderForUpdate(
-                fixture.user().getId(), PaymentProviderType.TOSS_BILLING))
+                fixture.user().getId(), PaymentProviderType.TOSS))
                 .willReturn(Optional.of(fixture.agreement()));
         given(userSubscriptionRepository.findByIdForUpdate(fixture.userSubscription().getId()))
                 .willReturn(Optional.of(fixture.userSubscription()));
@@ -433,6 +436,177 @@ class AdminPaymentEntitlementCorrectionServiceTest {
                 any(), any(), any(), any(), any(), any());
     }
 
+    @Test
+    @DisplayName("listCorrections and getCorrection return the persisted operator workflow")
+    void listAndGetCorrections() {
+        PaymentEntitlementCorrection correction = correction(
+                fixture(PaymentRefundStatus.SUCCEEDED),
+                PaymentEntitlementCorrectionStatus.REQUESTED);
+        given(correctionRepository.findAllByOrderByCreatedAtDesc(any()))
+                .willReturn(new PageImpl<>(List.of(correction), PageRequest.of(0, 1), 1));
+        given(correctionRepository.findDetailedById(88L)).willReturn(Optional.of(correction));
+
+        var list = service.listCorrections(0, 0);
+        var detail = service.getCorrection(88L);
+
+        assertThat(list.getDataList()).hasSize(1);
+        assertThat(detail.getData().id()).isEqualTo(88L);
+        assertThat(detail.getData().status()).isEqualTo(PaymentEntitlementCorrectionStatus.REQUESTED);
+    }
+
+    @Test
+    @DisplayName("getCorrection and approveCorrection reject missing or non-requested records")
+    void correctionLookupAndApprovalRejectInvalidRecords() {
+        given(correctionRepository.findDetailedById(404L)).willReturn(Optional.empty());
+        given(correctionRepository.findByIdForUpdate(404L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getCorrection(404L))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.approveCorrection(
+                404L, actor(), new AdminPaymentEntitlementCorrectionApproveRequest("approve")))
+                .isInstanceOf(BusinessException.class);
+
+        PaymentEntitlementCorrection approved = correction(
+                fixture(PaymentRefundStatus.SUCCEEDED),
+                PaymentEntitlementCorrectionStatus.APPROVED);
+        given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(approved));
+
+        assertThatThrownBy(() -> service.approveCorrection(
+                88L, actor(), new AdminPaymentEntitlementCorrectionApproveRequest("duplicate")))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("approveCorrection records the approving administrator")
+    void approveCorrection() {
+        Fixture fixture = fixture(PaymentRefundStatus.SUCCEEDED);
+        PaymentEntitlementCorrection correction = correction(
+                fixture,
+                PaymentEntitlementCorrectionStatus.REQUESTED);
+        User admin = admin();
+        given(correctionRepository.findByIdForUpdate(88L)).willReturn(Optional.of(correction));
+        given(userRepository.findById(99L)).willReturn(Optional.of(admin));
+
+        var response = service.approveCorrection(
+                88L,
+                actor(),
+                new AdminPaymentEntitlementCorrectionApproveRequest("reviewed evidence"));
+
+        assertThat(response.getData().status()).isEqualTo(PaymentEntitlementCorrectionStatus.APPROVED);
+        assertThat(correction.getApprovedBy()).isEqualTo(admin);
+        verify(auditLogService).recordPaymentEntitlementCorrectionEvent(
+                any(),
+                any(PaymentEntitlementCorrection.class),
+                org.mockito.ArgumentMatchers.eq(PaymentOperationAuditAction.PAYMENT_ENTITLEMENT_CORRECTION_APPROVED),
+                org.mockito.ArgumentMatchers.eq(PaymentEntitlementCorrectionStatus.REQUESTED),
+                org.mockito.ArgumentMatchers.eq(PaymentEntitlementCorrectionStatus.APPROVED),
+                org.mockito.ArgumentMatchers.eq("reviewed evidence"));
+    }
+
+    @Test
+    @DisplayName("previewCorrection explains unsafe owner, plan, date, and no-op targets")
+    void previewCorrectionExplainsInvalidTargets() {
+        Fixture ownerMismatch = fixture(PaymentRefundStatus.SUCCEEDED);
+        User otherUser = User.builder()
+                .id(17L)
+                .nickname("other")
+                .email("other@test.com")
+                .userType(UserType.INDIVIDUAL)
+                .role(UserRole.USER)
+                .build();
+        ReflectionTestUtils.setField(ownerMismatch.userSubscription(), "user", otherUser);
+        assertThat(previewReason(ownerMismatch, ownerMismatch.standard(), request(ownerMismatch.standard().getId())))
+                .contains("owner do not match");
+
+        Fixture wrongType = fixture(PaymentRefundStatus.SUCCEEDED);
+        Subscription business = Subscription.builder()
+                .id(40L)
+                .name("BUSINESS")
+                .userType(UserType.BUSINESS)
+                .priceMonthly(BigDecimal.valueOf(49900))
+                .priceYearly(BigDecimal.valueOf(499000))
+                .downloadPerDay(100)
+                .maxWhitelistChannels(20)
+                .isActive(true)
+                .build();
+        assertThat(previewReason(wrongType, business, request(business.getId())))
+                .contains("user type");
+
+        Fixture inactiveTarget = fixture(PaymentRefundStatus.SUCCEEDED);
+        Subscription inactive = Subscription.builder()
+                .id(41L)
+                .name("INACTIVE")
+                .userType(UserType.INDIVIDUAL)
+                .priceMonthly(BigDecimal.valueOf(9900))
+                .priceYearly(BigDecimal.valueOf(99000))
+                .downloadPerDay(20)
+                .maxWhitelistChannels(3)
+                .isActive(false)
+                .build();
+        assertThat(previewReason(inactiveTarget, inactive, request(inactive.getId())))
+                .contains("inactive");
+
+        Fixture expiredFuture = fixture(PaymentRefundStatus.SUCCEEDED);
+        AdminPaymentEntitlementCorrectionRequest expiredFutureRequest = new AdminPaymentEntitlementCorrectionRequest(
+                77L,
+                expiredFuture.standard().getId(),
+                BillingCycle.MONTHLY,
+                SubscriptionStatus.EXPIRED,
+                LocalDate.now().plusDays(1),
+                true,
+                true,
+                "future expiry");
+        assertThat(previewReason(expiredFuture, expiredFuture.standard(), expiredFutureRequest))
+                .contains("must not have a future");
+
+        Fixture activePast = fixture(PaymentRefundStatus.SUCCEEDED);
+        AdminPaymentEntitlementCorrectionRequest activePastRequest = new AdminPaymentEntitlementCorrectionRequest(
+                77L,
+                activePast.standard().getId(),
+                BillingCycle.MONTHLY,
+                SubscriptionStatus.ACTIVE,
+                LocalDate.now().minusDays(1),
+                true,
+                false,
+                "past active");
+        assertThat(previewReason(activePast, activePast.standard(), activePastRequest))
+                .contains("must not have a past");
+
+        Fixture noOp = fixture(PaymentRefundStatus.SUCCEEDED);
+        AdminPaymentEntitlementCorrectionRequest noOpRequest = new AdminPaymentEntitlementCorrectionRequest(
+                77L,
+                noOp.premium().getId(),
+                BillingCycle.YEARLY,
+                SubscriptionStatus.ACTIVE,
+                LocalDate.of(2027, 5, 25),
+                false,
+                false,
+                "unchanged");
+        assertThat(previewReason(noOp, noOp.premium(), noOpRequest))
+                .contains("identical");
+    }
+
+    @Test
+    @DisplayName("previewCorrection reports a refund that is not finalized")
+    void previewCorrectionReportsPendingRefund() {
+        Fixture pending = fixture(PaymentRefundStatus.PENDING_PROVIDER_CONFIRMATION);
+
+        assertThat(previewReason(pending, pending.standard(), request(pending.standard().getId())))
+                .contains("Only succeeded refund");
+    }
+
+    private String previewReason(
+            Fixture fixture,
+            Subscription target,
+            AdminPaymentEntitlementCorrectionRequest request) {
+        given(paymentRefundRepository.findWithGraphById(77L)).willReturn(Optional.of(fixture.refund()));
+        given(subscriptionRepository.findById(target.getId())).willReturn(Optional.of(target));
+        given(billingAgreementRepository.findByUserAndProvider(
+                fixture.user(), PaymentProviderType.TOSS))
+                .willReturn(Optional.of(fixture.agreement()));
+        return service.previewCorrection(request).getData().reason();
+    }
+
     private AdminPaymentEntitlementCorrectionRequest request(Long targetSubscriptionId) {
         return new AdminPaymentEntitlementCorrectionRequest(
                 77L,
@@ -454,7 +628,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
                 .paymentOrder(fixture.order())
                 .userSubscription(fixture.userSubscription())
                 .user(fixture.user())
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .status(status)
                 .beforeSubscription(fixture.premium())
                 .beforeBillingCycle(BillingCycle.YEARLY)
@@ -522,7 +696,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
                 .orderId("ORDER-1")
                 .user(user)
                 .purpose(PaymentPurpose.SUBSCRIBE)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .status(PaymentOrderStatus.DONE)
                 .subscription(premium)
                 .userSubscription(userSubscription)
@@ -538,7 +712,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
                 .subscription(premium)
                 .paymentOrder(order)
                 .billingCycle(BillingCycle.YEARLY)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .amount(BigDecimal.valueOf(299000))
                 .paymentStatus(PaymentStatus.DONE)
                 .pgTransactionId("payment_key")
@@ -547,7 +721,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
                 .subscriptionPayment(payment)
                 .paymentOrder(order)
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .status(refundStatus)
                 .amount(BigDecimal.valueOf(299000))
                 .reasonCode(PaymentRefundReasonCode.CUSTOMER_REQUEST)
@@ -559,7 +733,7 @@ class AdminPaymentEntitlementCorrectionServiceTest {
         BillingAgreement agreement = BillingAgreement.builder()
                 .id(7L)
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .status(BillingAgreementStatus.ACTIVE)
                 .providerCustomerKey("customer_key")
                 .billingKeyCiphertext("encrypted")

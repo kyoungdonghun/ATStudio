@@ -1,8 +1,6 @@
 package com.atstudio.atstudio.controller;
 
 import com.atstudio.atstudio.common.dto.ResponseDTO;
-import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
-import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.subscription.*;
 import com.atstudio.atstudio.security.CustomUserDetailsService;
 import com.atstudio.atstudio.service.UserSubscriptionService;
@@ -55,56 +53,6 @@ class UserSubscriptionControllerTest {
             BigDecimal.valueOf(5000),
             LocalDate.now(), LocalDate.now().plusMonths(1));
 
-    // -- 6.3 POST /api/user-subscriptions ------------------------------------
-
-    @Test
-    @DisplayName("POST /api/user-subscriptions - 비인증 -> 401")
-    void subscribe_unauthenticated() throws Exception {
-        mockMvc.perform(post("/api/user-subscriptions")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"subscriptionId\":1,\"billingCycle\":\"MONTHLY\"}"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @WithMockUser(roles = "USER")
-    @DisplayName("POST /api/user-subscriptions - 인증 유저 -> 410")
-    void subscribe_blocked() throws Exception {
-        given(userSubscriptionService.subscribe(any(), any()))
-                .willThrow(new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_CHECKOUT_REQUIRED));
-
-        mockMvc.perform(post("/api/user-subscriptions")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"subscriptionId\":1,\"billingCycle\":\"MONTHLY\"}"))
-                .andExpect(status().isGone());
-    }
-
-    @Test
-    @WithMockUser(roles = "USER")
-    @DisplayName("POST /api/user-subscriptions - BUSINESS 미인증 -> 403")
-    void subscribe_certRequired() throws Exception {
-        given(userSubscriptionService.subscribe(any(), any()))
-                .willThrow(new BusinessException(BUSINESS_ERROR.COMPANY_CERTIFICATION_REQUIRED));
-
-        mockMvc.perform(post("/api/user-subscriptions")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"subscriptionId\":1,\"billingCycle\":\"MONTHLY\"}"))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @WithMockUser(roles = "USER")
-    @DisplayName("POST /api/user-subscriptions - 중복 구독 -> 409")
-    void subscribe_duplicate() throws Exception {
-        given(userSubscriptionService.subscribe(any(), any()))
-                .willThrow(new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_ALREADY_EXISTS));
-
-        mockMvc.perform(post("/api/user-subscriptions")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"subscriptionId\":1,\"billingCycle\":\"MONTHLY\"}"))
-                .andExpect(status().isConflict());
-    }
-
     // -- 6.4 GET /api/user-subscriptions/me ----------------------------------
 
     @Test
@@ -152,34 +100,6 @@ class UserSubscriptionControllerTest {
 
         mockMvc.perform(get("/api/user-subscriptions"))
                 .andExpect(status().isOk());
-    }
-
-    // -- 6.6 GET /api/user-subscriptions/{id} (ADMIN) ------------------------
-
-    @Test
-    @DisplayName("GET /api/user-subscriptions/100 - 비인증 -> 401")
-    void getDetail_unauthenticated() throws Exception {
-        mockMvc.perform(get("/api/user-subscriptions/100"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @WithMockUser(roles = "USER")
-    @DisplayName("GET /api/user-subscriptions/100 - 일반 유저 -> 403")
-    void getDetail_forbidden() throws Exception {
-        mockMvc.perform(get("/api/user-subscriptions/100"))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @WithMockUser(roles = "ADMIN")
-    @DisplayName("GET /api/user-subscriptions/100 - ADMIN -> 200")
-    void getDetail_success() throws Exception {
-        given(userSubscriptionService.getDetail(100L)).willReturn(MOCK_RESPONSE);
-
-        mockMvc.perform(get("/api/user-subscriptions/100"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").value(100));
     }
 
     // -- 6.7 PUT /api/user-subscriptions/me ----------------------------------

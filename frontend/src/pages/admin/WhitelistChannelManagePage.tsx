@@ -8,6 +8,7 @@ import {
   type AdminWhitelistChannel,
 } from '@/api/admin';
 import Button from '@/components/ui/Button';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Pagination from '@/components/ui/Pagination';
 import type { PageInfo, WhitelistChannelStatus } from '@/types';
 import { formatDateTime } from '@/utils/format';
@@ -43,6 +44,14 @@ interface StatusEdit {
   adminNote: string;
 }
 
+interface ConfirmationState {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  confirmVariant?: 'primary' | 'danger';
+  action: () => Promise<void>;
+}
+
 function downloadBlob(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -67,6 +76,8 @@ export default function WhitelistChannelManagePage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [batchIDInput, setBatchIDInput] = useState('');
+  const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
+  const [confirmationBusy, setConfirmationBusy] = useState(false);
   const listRequestId = useRef(0);
 
   const load = useCallback(async () => {
@@ -113,61 +124,89 @@ export default function WhitelistChannelManagePage() {
     setPage(1);
   }
 
-  async function handleStatusUpdate(channel: AdminWhitelistChannel) {
-    const edit = edits[channel.id];
-    if (!edit) return;
-    const ok = window.confirm(
-      `${channel.channelName} 상태를 ${STATUS_LABELS[edit.status]}(으)로 변경할까요?`,
-    );
-    if (!ok) return;
+  function requestConfirmation(next: ConfirmationState) {
+    setConfirmation((current) => current ?? next);
+  }
 
+  async function confirmOperation() {
+    const current = confirmation;
+    if (!current || confirmationBusy) return;
+    setConfirmationBusy(true);
     try {
-      setBusy(`status-${channel.id}`);
-      setError(null);
-      setMessage(null);
-      await updateAdminWhitelistChannelStatus(channel.id, {
-        status: edit.status,
-        adminNote: edit.adminNote.trim() || undefined,
-      });
-      setMessage('상태가 저장되었습니다.');
-      await load();
-    } catch {
-      setError('상태 저장에 실패했습니다.');
+      await current.action();
+      setConfirmation(null);
     } finally {
-      setBusy(null);
+      setConfirmationBusy(false);
     }
   }
 
-  async function handleExport() {
+  function cancelConfirmation() {
+    if (!confirmationBusy) setConfirmation(null);
+  }
+
+  function handleStatusUpdate(channel: AdminWhitelistChannel) {
+    const edit = edits[channel.id];
+    if (!edit) return;
+    const request = {
+      status: edit.status,
+      adminNote: edit.adminNote.trim() || undefined,
+    };
+    requestConfirmation({
+      title: '채널 상태 변경',
+      message: `${channel.channelName} 상태를 ${STATUS_LABELS[edit.status]}(으)로 변경할까요?`,
+      confirmLabel: '변경',
+      confirmVariant: 'danger',
+      action: async () => {
+        try {
+          setBusy(`status-${channel.id}`);
+          setError(null);
+          setMessage(null);
+          await updateAdminWhitelistChannelStatus(channel.id, request);
+          setMessage('상태가 저장되었습니다.');
+          await load();
+        } catch {
+          setError('상태 저장에 실패했습니다.');
+        } finally {
+          setBusy(null);
+        }
+      },
+    });
+  }
+
+  function handleExport() {
     if (!statusFilter && !keyword) {
       setError('CSV 범위를 기록하려면 상태 또는 검색어를 적용해주세요.');
       return;
     }
 
-    const ok = window.confirm(
-      statusFilter === 'PENDING'
-        ? '등록 요청 상태의 채널을 CSV로 내보내고 외부 처리 중 상태로 전환할까요?'
-        : '현재 선택한 상태의 채널을 CSV로 내보낼까요? 상태는 변경되지 않습니다.',
-    );
-    if (!ok) return;
-
-    try {
-      setBusy('export');
-      setError(null);
-      setMessage(null);
-      const { batchId, blob, fileName } = await exportAdminWhitelistChannels({
-        status: statusFilter || undefined,
-        keyword: keyword || undefined,
-      });
-      downloadBlob(blob, fileName);
-      setBatchIDInput(String(batchId));
-      setMessage(`CSV export가 완료되었습니다. Batch ${batchId}`);
-      await load();
-    } catch {
-      setError('CSV export에 실패했습니다.');
-    } finally {
-      setBusy(null);
-    }
+    const request = {
+      status: statusFilter || undefined,
+      keyword: keyword || undefined,
+    };
+    requestConfirmation({
+      title: '화이트리스트 CSV 내보내기',
+      message:
+        statusFilter === 'PENDING'
+          ? '등록 요청 상태의 채널을 CSV로 내보내고 외부 처리 중 상태로 전환할까요?'
+          : '현재 선택한 상태의 채널을 CSV로 내보낼까요? 상태는 변경되지 않습니다.',
+      confirmLabel: '내보내기',
+      action: async () => {
+        try {
+          setBusy('export');
+          setError(null);
+          setMessage(null);
+          const { batchId, blob, fileName } = await exportAdminWhitelistChannels(request);
+          downloadBlob(blob, fileName);
+          setBatchIDInput(String(batchId));
+          setMessage(`CSV export가 완료되었습니다. Batch ${batchId}`);
+          await load();
+        } catch {
+          setError('CSV export에 실패했습니다.');
+        } finally {
+          setBusy(null);
+        }
+      },
+    });
   }
 
   async function handleBatchDownload() {
@@ -381,6 +420,17 @@ export default function WhitelistChannelManagePage() {
       {pageInfo && pageInfo.total > pageInfo.size && (
         <Pagination pageInfo={pageInfo} currentPage={page} onPageChange={setPage} />
       )}
+
+      <ConfirmDialog
+        open={confirmation !== null}
+        title={confirmation?.title ?? ''}
+        message={confirmation?.message ?? ''}
+        confirmLabel={confirmation?.confirmLabel}
+        confirmVariant={confirmation?.confirmVariant}
+        busy={confirmationBusy}
+        onConfirm={() => void confirmOperation()}
+        onCancel={cancelConfirmation}
+      />
     </div>
   );
 }

@@ -94,8 +94,7 @@ public class DownloadService {
     /**
      * SR-79 — "다운로드 기록" page. Paged + keyword-searchable + sortable
      * by download timestamp. Returns one row per historical download event
-     * from the {@code track_downloads} table (not the legacy
-     * {@code download_queue}).
+     * from the {@code track_downloads} table.
      *
      * @param sort "latest" (default, DESC) or "oldest" (ASC)
      */

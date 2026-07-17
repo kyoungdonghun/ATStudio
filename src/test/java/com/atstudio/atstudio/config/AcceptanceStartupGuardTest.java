@@ -1,7 +1,6 @@
 package com.atstudio.atstudio.config;
 
 import com.atstudio.atstudio.bootstrap.TestUserBootstrapProperties;
-import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
@@ -27,8 +26,6 @@ class AcceptanceStartupGuardTest {
         assertThat(urls.googleRedirectUri()).isEqualTo(PUBLIC_BASE_URL + "/social-login/google");
         assertThat(urls.kakaoRedirectUri()).isEqualTo(PUBLIC_BASE_URL + "/social-login/kakao");
         assertThat(urls.naverRedirectUri()).isEqualTo(PUBLIC_BASE_URL + "/social-login/naver");
-        assertThat(urls.tossSuccessUrl()).isEqualTo(PUBLIC_BASE_URL + "/subscriptions/payment/success");
-        assertThat(urls.tossFailUrl()).isEqualTo(PUBLIC_BASE_URL + "/subscriptions/payment/fail");
         assertThat(urls.tossBillingAuthSuccessUrl())
                 .isEqualTo(PUBLIC_BASE_URL + "/subscriptions/checkout/success");
         assertThat(urls.tossBillingAuthFailUrl())
@@ -77,7 +74,7 @@ class AcceptanceStartupGuardTest {
                 environment,
                 acceptance,
                 bootstrap,
-                new PaymentProperties());
+                validPaymentProperties());
 
         assertThatCode(guard::validate).doesNotThrowAnyException();
     }
@@ -92,7 +89,7 @@ class AcceptanceStartupGuardTest {
                 new MockEnvironment(),
                 acceptance,
                 new TestUserBootstrapProperties(),
-                new PaymentProperties());
+                validPaymentProperties());
 
         assertThatThrownBy(guard::validate)
                 .isInstanceOf(IllegalStateException.class)
@@ -149,7 +146,7 @@ class AcceptanceStartupGuardTest {
                 environment,
                 new AcceptanceProperties(),
                 bootstrap,
-                new PaymentProperties());
+                validPaymentProperties());
 
         assertThatThrownBy(guard::validate)
                 .isInstanceOf(IllegalStateException.class)
@@ -199,7 +196,7 @@ class AcceptanceStartupGuardTest {
     @DisplayName("Toss acceptance mode refuses missing externally supplied credentials")
     void tossAcceptanceRefusesMissingExternalCredentials() {
         GuardFixture fixture = validAcceptanceFixture();
-        fixture.payment().setProvider(PaymentProviderType.TOSS);
+        fixture.payment().getToss().setClientKey("");
 
         assertThatThrownBy(fixture.guard()::validate)
                 .isInstanceOf(IllegalStateException.class)
@@ -207,11 +204,9 @@ class AcceptanceStartupGuardTest {
     }
 
     @Test
-    @DisplayName("TOSS_BILLING refuses an invalid key ring in every profile")
-    void tossBillingRefusesInvalidKeyRingOutsideAcceptance() {
+    @DisplayName("Toss recurring billing refuses an invalid key ring in every profile")
+    void tossRecurringRefusesInvalidKeyRingOutsideAcceptance() {
         PaymentProperties payment = new PaymentProperties();
-        payment.setProvider(PaymentProviderType.TOSS_BILLING);
-        payment.getBilling().setEncryptionSecret("legacy-test-secret-material");
         payment.getBilling().setActiveKeyId("active-key");
         AcceptanceStartupGuard guard = new AcceptanceStartupGuard(
                 new MockEnvironment(),
@@ -221,20 +216,21 @@ class AcceptanceStartupGuardTest {
 
         assertThatThrownBy(guard::validate)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("key ring")
-                .hasMessageNotContaining("legacy-test-secret-material");
+                .hasMessageContaining("key ring");
     }
 
     @Test
-    @DisplayName("MOCK keeps the non-payment development path independent from billing key configuration")
-    void mockDoesNotRequireBillingKeyRing() {
+    @DisplayName("Missing V2 key configuration refuses the recurring provider")
+    void missingV2KeyRingRefusesRecurringProvider() {
         AcceptanceStartupGuard guard = new AcceptanceStartupGuard(
                 new MockEnvironment(),
                 new AcceptanceProperties(),
                 new TestUserBootstrapProperties(),
                 new PaymentProperties());
 
-        assertThatCode(guard::validate).doesNotThrowAnyException();
+        assertThatThrownBy(guard::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("PAYMENT_BILLING_KEY_ACTIVE_KEY_ID");
     }
 
     private GuardFixture validAcceptanceFixture() {
@@ -249,10 +245,8 @@ class AcceptanceStartupGuardTest {
         acceptance.setPublicBaseUrl(PUBLIC_BASE_URL);
 
         TestUserBootstrapProperties bootstrap = new TestUserBootstrapProperties();
-        PaymentProperties payment = new PaymentProperties();
+        PaymentProperties payment = validPaymentProperties();
         AcceptancePublicUrls urls = AcceptancePublicUrls.from(PUBLIC_BASE_URL);
-        payment.getToss().setSuccessUrl(urls.tossSuccessUrl());
-        payment.getToss().setFailUrl(urls.tossFailUrl());
         payment.getBilling().setAuthSuccessUrl(urls.tossBillingAuthSuccessUrl());
         payment.getBilling().setAuthFailUrl(urls.tossBillingAuthFailUrl());
 
@@ -262,6 +256,18 @@ class AcceptanceStartupGuardTest {
                 bootstrap,
                 payment);
         return new GuardFixture(environment, payment, guard);
+    }
+
+    private PaymentProperties validPaymentProperties() {
+        PaymentProperties payment = new PaymentProperties();
+        payment.getToss().setClientKey("fixture-toss-client-key");
+        payment.getToss().setSecretKey("fixture-toss-secret-key");
+        payment.getBilling().setActiveKeyId("fixture-v2");
+        PaymentProperties.EncryptionKey key = new PaymentProperties.EncryptionKey();
+        key.setId("fixture-v2");
+        key.setSecret("fixture-v2-key-material-not-for-runtime");
+        payment.getBilling().setEncryptionKeys(List.of(key));
+        return payment;
     }
 
     private MockEnvironment coreEnvironment(String profile) {

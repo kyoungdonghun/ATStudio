@@ -49,7 +49,7 @@ import java.util.Set;
 @Transactional(readOnly = true)
 public class AdminPaymentEntitlementCorrectionService {
 
-    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS_BILLING;
+    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS;
     private static final Set<PaymentEntitlementCorrectionStatus> NON_TERMINAL_CORRECTION_STATUSES = Set.of(
             PaymentEntitlementCorrectionStatus.REQUESTED,
             PaymentEntitlementCorrectionStatus.APPROVED,

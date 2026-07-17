@@ -232,7 +232,7 @@ class PaymentReceiptEvidenceServiceTest {
                 .orderId("ORDER-1")
                 .user(user)
                 .purpose(PaymentPurpose.RENEWAL)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .subscription(subscription)
                 .userSubscription(userSubscription)
                 .billingCycle(BillingCycle.MONTHLY)
@@ -244,7 +244,7 @@ class PaymentReceiptEvidenceServiceTest {
 
         SubscriptionPayment payment = SubscriptionPayment.builder()
                 .paymentOrder(order)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .user(user)
                 .userSubscription(userSubscription)
                 .subscription(subscription)

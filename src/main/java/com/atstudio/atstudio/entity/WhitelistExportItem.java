@@ -38,14 +38,8 @@ public class WhitelistExportItem extends BaseEntity {
     @Column(name = "channel_id_snapshot")
     private Long channelIdSnapshot;
 
-    @Column(name = "user_id_snapshot")
-    private Long userIdSnapshot;
-
     @Column(name = "user_email_snapshot", nullable = false, length = 100)
     private String userEmailSnapshot;
-
-    @Column(name = "user_nickname_snapshot", length = 20)
-    private String userNicknameSnapshot;
 
     @Column(name = "channel_name_snapshot", nullable = false, length = 100)
     private String channelNameSnapshot;

@@ -1,0 +1,11 @@
+wi=WI-20260717-ATS-004
+mode=Disposable
+runtimePreflight=PASS
+datasourcePreflight=PASS
+firstApply=PASS
+secondApply=EXPECTED_FAILURE
+manifest=PASS
+hibernateValidate=PASS
+mysqlRaces=PASS
+cleanup=PASS
+result=PASS

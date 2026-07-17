@@ -6,6 +6,7 @@ import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.security.CustomUserDetailsService;
 import com.atstudio.atstudio.security.JwtTokenProvider;
+import com.atstudio.atstudio.service.SiteSettingService;
 import com.atstudio.atstudio.service.UserService;
 import com.atstudio.atstudio.service.auth.AuthService;
 import org.junit.jupiter.api.DisplayName;
@@ -42,6 +43,7 @@ class SecurityFilterChainTest {
 
     @MockitoBean AuthService authService;
     @MockitoBean UserService userService;
+    @MockitoBean SiteSettingService siteSettingService;
     @MockitoBean CustomUserDetailsService customUserDetailsService;
 
     // ── 인증 보호 ─────────────────────────────────────────────────────────────
@@ -87,6 +89,36 @@ class SecurityFilterChainTest {
                 .andExpect(jsonPath("$.data.passwordLoginEnabled").value(true))
                 .andExpect(jsonPath("$.data.passwordReset.enabled").value(true))
                 .andExpect(jsonPath("$.data.socialLogin.google.enabled").value(false));
+    }
+
+    @Test
+    @DisplayName("GET /api/settings/{key} - 토큰 없이 접근 가능 (PUBLIC)")
+    void getSetting_publicEndpoint_notBlocked() throws Exception {
+        when(siteSettingService.getValue("COMPANY_CERT_GUIDE", "")).thenReturn("guide");
+
+        mockMvc.perform(get("/api/settings/COMPANY_CERT_GUIDE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.value").value("guide"));
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("PUT /api/admin/settings/{key} - USER 요청 차단")
+    void updateSetting_userRole_isDenied() throws Exception {
+        mockMvc.perform(put("/api/admin/settings/COMPANY_CERT_GUIDE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"value\":\"updated\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("PUT /api/admin/settings/{key} - ADMIN 요청 허용")
+    void updateSetting_adminRole_isAllowed() throws Exception {
+        mockMvc.perform(put("/api/admin/settings/COMPANY_CERT_GUIDE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"value\":\"updated\"}"))
+                .andExpect(status().isOk());
     }
 
     @Test

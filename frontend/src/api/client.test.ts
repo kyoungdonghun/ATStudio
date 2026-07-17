@@ -1,9 +1,10 @@
 import axios from 'axios';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { clearSessionMock, navigateMock, showToastMock } = vi.hoisted(() => ({
+const { clearSessionMock, navigateMock, setAuthStateMock, showToastMock } = vi.hoisted(() => ({
   clearSessionMock: vi.fn(),
   navigateMock: vi.fn(),
+  setAuthStateMock: vi.fn(),
   showToastMock: vi.fn(),
 }));
 
@@ -20,10 +21,31 @@ vi.mock('@/store/toastStore', () => ({
 vi.mock('@/store/authStore', () => ({
   useAuthStore: {
     getState: () => ({ clearSession: clearSessionMock }),
+    setState: setAuthStateMock,
   },
 }));
 
-import client, { shouldSkipRefresh } from '@/api/client';
+import client, {
+  getApiErrorCode,
+  isSubscriptionRequired,
+  shouldSkipRefresh,
+  toUploadUrl,
+} from '@/api/client';
+import { safeStorage } from '@/utils/safeStorage';
+
+function getRequestInterceptors() {
+  const requestInterceptors = client.interceptors.request as unknown as {
+    handlers: Array<{
+      fulfilled?: (config: Record<string, unknown>) => Record<string, unknown>;
+      rejected?: (error: unknown) => Promise<never>;
+    }>;
+  };
+  const handler = requestInterceptors.handlers[requestInterceptors.handlers.length - 1];
+  if (!handler?.fulfilled || !handler.rejected) {
+    throw new Error('Expected the axios request interceptor to be registered.');
+  }
+  return handler as Required<typeof handler>;
+}
 
 function getRejectedResponseInterceptor() {
   const responseInterceptors = client.interceptors.response as unknown as {
@@ -41,8 +63,10 @@ function getRejectedResponseInterceptor() {
 
 describe('client auth refresh exclusions', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     clearSessionMock.mockReset();
     navigateMock.mockReset();
+    setAuthStateMock.mockReset();
     showToastMock.mockReset();
     localStorage.clear();
     sessionStorage.clear();
@@ -63,6 +87,136 @@ describe('client auth refresh exclusions', () => {
     expect(shouldSkipRefresh({ url: '/tracks' })).toBe(false);
     expect(shouldSkipRefresh({ url: '/users/me' })).toBe(false);
     expect(shouldSkipRefresh({ url: undefined })).toBe(false);
+  });
+
+  it('attaches a stored token without replacing explicit authorization', () => {
+    localStorage.setItem('accessToken', 'stored-token');
+    const { fulfilled } = getRequestInterceptors();
+    const first = fulfilled({ headers: {} }) as { headers: Record<string, string> };
+    expect(first.headers.Authorization).toBe('Bearer stored-token');
+    const explicit = fulfilled({ headers: { Authorization: 'Bearer explicit' } }) as {
+      headers: Record<string, string>;
+    };
+    expect(explicit.headers.Authorization).toBe('Bearer explicit');
+  });
+
+  it('lets Axios set multipart boundaries and propagates request setup errors', async () => {
+    const { fulfilled, rejected } = getRequestInterceptors();
+    const config = fulfilled({
+      headers: { 'Content-Type': 'application/json' },
+      data: new FormData(),
+    }) as { headers: Record<string, string> };
+    expect(config.headers['Content-Type']).toBeUndefined();
+    const error = new Error('request setup failed');
+    await expect(rejected(error)).rejects.toBe(error);
+  });
+
+  it('rejects 401s without a refresh token after clearing local auth state', async () => {
+    const error = {
+      config: { url: '/users/me', headers: {} },
+      response: { status: 401 },
+    };
+    await expect(getRejectedResponseInterceptor()(error)).rejects.toBe(error);
+    expect(clearSessionMock).toHaveBeenCalledOnce();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('does not refresh excluded, retried, non-401, or configless failures', async () => {
+    const rejected = getRejectedResponseInterceptor();
+    const cases = [
+      { response: { status: 401 } },
+      { config: { url: '/users/me' }, response: { status: 500 } },
+      { config: { url: '/users/me', _retry: true }, response: { status: 401 } },
+      { config: { url: '/auth/login' }, response: { status: 401 } },
+    ];
+    for (const error of cases) {
+      await expect(rejected(error)).rejects.toBe(error);
+    }
+    expect(clearSessionMock).not.toHaveBeenCalled();
+  });
+
+  it('stores rotated tokens and retries the protected request after refresh', async () => {
+    localStorage.setItem('refreshToken', 'old-refresh');
+    const postSpy = vi.spyOn(axios, 'post').mockResolvedValue({
+      data: { data: { accessToken: 'new-access', refreshToken: 'new-refresh' } },
+    });
+    const adapter = vi.fn().mockResolvedValue({
+      data: { ok: true },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    });
+    const result = await getRejectedResponseInterceptor()({
+      config: { url: '/users/me', method: 'get', headers: {}, adapter },
+      response: { status: 401 },
+    });
+    expect(postSpy).toHaveBeenCalledWith('/api/auth/refresh', { refreshToken: 'old-refresh' });
+    expect(localStorage.getItem('accessToken')).toBe('new-access');
+    expect(localStorage.getItem('refreshToken')).toBe('new-refresh');
+    expect(setAuthStateMock).toHaveBeenCalledWith({ accessToken: 'new-access' });
+    expect(adapter).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({ data: { ok: true } });
+  });
+
+  it('fails closed without retrying when the refreshed access token cannot be stored', async () => {
+    localStorage.setItem('accessToken', 'expired-access');
+    localStorage.setItem('refreshToken', 'old-refresh');
+    const postSpy = vi.spyOn(axios, 'post').mockResolvedValue({
+      data: { data: { accessToken: 'new-access', refreshToken: 'new-refresh' } },
+    });
+    vi.spyOn(safeStorage, 'setItem').mockImplementation((key, value) => {
+      if (key === 'accessToken') return false;
+      localStorage.setItem(key, value);
+      return true;
+    });
+    const adapter = vi.fn();
+
+    await expect(
+      getRejectedResponseInterceptor()({
+        config: { url: '/users/me', method: 'get', headers: {}, adapter },
+        response: { status: 401 },
+      }),
+    ).rejects.toThrow('Failed to persist refreshed authentication session');
+
+    expect(postSpy).toHaveBeenCalledWith('/api/auth/refresh', { refreshToken: 'old-refresh' });
+    expect(adapter).not.toHaveBeenCalled();
+    expect(localStorage.getItem('accessToken')).toBeNull();
+    expect(localStorage.getItem('refreshToken')).toBeNull();
+    expect(setAuthStateMock).not.toHaveBeenCalled();
+    expect(clearSessionMock).toHaveBeenCalledOnce();
+    expect(showToastMock).toHaveBeenCalledOnce();
+    expect(navigateMock).toHaveBeenCalledWith('/login');
+  });
+
+  it('fails closed without retrying when the rotated refresh token cannot be stored', async () => {
+    localStorage.setItem('accessToken', 'expired-access');
+    localStorage.setItem('refreshToken', 'old-refresh');
+    const postSpy = vi.spyOn(axios, 'post').mockResolvedValue({
+      data: { data: { accessToken: 'new-access', refreshToken: 'new-refresh' } },
+    });
+    vi.spyOn(safeStorage, 'setItem').mockImplementation((key, value) => {
+      if (key === 'refreshToken' && value === 'new-refresh') return false;
+      localStorage.setItem(key, value);
+      return true;
+    });
+    const adapter = vi.fn();
+
+    await expect(
+      getRejectedResponseInterceptor()({
+        config: { url: '/users/me', method: 'get', headers: {}, adapter },
+        response: { status: 401 },
+      }),
+    ).rejects.toThrow('Failed to persist refreshed authentication session');
+
+    expect(postSpy).toHaveBeenCalledWith('/api/auth/refresh', { refreshToken: 'old-refresh' });
+    expect(adapter).not.toHaveBeenCalled();
+    expect(localStorage.getItem('accessToken')).toBeNull();
+    expect(localStorage.getItem('refreshToken')).toBeNull();
+    expect(setAuthStateMock).not.toHaveBeenCalled();
+    expect(clearSessionMock).toHaveBeenCalledOnce();
+    expect(showToastMock).toHaveBeenCalledOnce();
+    expect(navigateMock).toHaveBeenCalledWith('/login');
   });
 
   it('clears the session and redirects when refresh fails on a protected request', async () => {
@@ -90,5 +244,45 @@ describe('client auth refresh exclusions', () => {
     expect(clearSessionMock).toHaveBeenCalledTimes(1);
     expect(showToastMock).toHaveBeenCalledTimes(1);
     expect(navigateMock).toHaveBeenCalledWith('/login');
+  });
+});
+
+describe('client response helpers', () => {
+  it('recognizes subscription-required JSON errors but not blobs or unrelated codes', () => {
+    expect(
+      isSubscriptionRequired({ response: { data: { errorCode: 'NO_ACTIVE_SUBSCRIPTION' } } }),
+    ).toBe(true);
+    expect(isSubscriptionRequired({ response: { data: { errorCode: 'FORBIDDEN' } } })).toBe(false);
+    expect(isSubscriptionRequired({ response: { data: new Blob(['error']) } })).toBe(false);
+    expect(isSubscriptionRequired(null)).toBe(false);
+  });
+
+  it('extracts error codes from JSON and blob responses', async () => {
+    await expect(
+      getApiErrorCode({ response: { data: { errorCode: 'NO_ACTIVE_SUBSCRIPTION' } } }),
+    ).resolves.toBe('NO_ACTIVE_SUBSCRIPTION');
+    await expect(
+      getApiErrorCode({
+        response: { data: new Blob([JSON.stringify({ errorCode: 'DOWNLOAD_LIMIT_EXCEEDED' })]) },
+      }),
+    ).resolves.toBe('DOWNLOAD_LIMIT_EXCEEDED');
+    await expect(
+      getApiErrorCode({ response: { data: new Blob(['not-json']) } }),
+    ).resolves.toBeNull();
+    await expect(
+      getApiErrorCode({ response: { data: { message: 'no code' } } }),
+    ).resolves.toBeNull();
+    await expect(getApiErrorCode(new Error('offline'))).resolves.toBeNull();
+  });
+
+  it('normalizes only relative upload paths', () => {
+    expect(toUploadUrl(null)).toBeNull();
+    expect(toUploadUrl('')).toBeNull();
+    expect(toUploadUrl('/uploads/cover.png')).toBe('/uploads/cover.png');
+    expect(toUploadUrl('https://cdn.example.com/cover.png')).toBe(
+      'https://cdn.example.com/cover.png',
+    );
+    expect(toUploadUrl('blob:preview')).toBe('blob:preview');
+    expect(toUploadUrl('albums/cover.png')).toBe('/uploads/albums/cover.png');
   });
 });

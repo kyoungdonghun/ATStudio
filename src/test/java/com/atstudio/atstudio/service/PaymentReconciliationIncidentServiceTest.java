@@ -114,7 +114,7 @@ class PaymentReconciliationIncidentServiceTest {
                         null,
                         null,
                         "ATS-REN-MASK",
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         PaymentPurpose.RENEWAL,
                         "PENDING_PROVIDER_CONFIRMATION",
                         "DONE",
@@ -347,7 +347,7 @@ class PaymentReconciliationIncidentServiceTest {
                         1L,
                         null,
                         "ATS-REN-1",
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         PaymentPurpose.RENEWAL,
                         "IN_PROGRESS",
                         "DONE",
@@ -381,7 +381,7 @@ class PaymentReconciliationIncidentServiceTest {
         user.withdraw();
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("customer-key-" + id)
                 .build();
         ReflectionTestUtils.setField(agreement, "id", id);

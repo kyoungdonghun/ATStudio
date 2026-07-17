@@ -1,24 +1,18 @@
 -- =============================================================================
--- ATStudio Database Schema v13
+-- ATStudio V1 Fresh Database Baseline
 -- =============================================================================
--- Source  : docs/design/db-schema.md + docs/design/p1-payment-db-integrity-design.md
+-- Source  : Current JPA entity model after WI-20260717-ATS-002
 -- Engine  : InnoDB
 -- Charset : utf8mb4 / utf8mb4_unicode_ci
 -- DB      : atstudio  (see application.yml)
 --
--- NOTE: Base application.yml uses ddl-auto=validate.
---       Local development may override this via application-local.yml.
---       This file is for MANUAL setup / reference only.
---       Spring Boot does NOT auto-execute this for external DBs by default.
---       For an existing DB, do not assume this file performs migrations.
---       Apply a reviewed ALTER/CREATE patch such as:
---       src/main/resources/db/manual/20260615_align_payment_whitelist_schema.sql
+-- NOTE: This is a fresh-only, fail-closed baseline.
+--       Apply it exactly once to an empty atstudio database, then apply seed.sql.
+--       Existing databases require a separately reviewed migration path.
 --
 -- Usage:
 --   mysql -u root -p atstudio < src/main/resources/schema.sql
 -- =============================================================================
-
-SET FOREIGN_KEY_CHECKS = 0;
 
 -- =============================================================================
 -- SECTION 1. INDEPENDENT TABLES (no FK dependencies)
@@ -27,7 +21,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- ─────────────────────────────────────────────
 -- 1.1  users
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS users
+CREATE TABLE users
 (
     id             BIGINT                                     NOT NULL AUTO_INCREMENT,
     nickname       VARCHAR(20)                                NOT NULL,
@@ -54,7 +48,7 @@ CREATE TABLE IF NOT EXISTS users
 -- ─────────────────────────────────────────────
 -- 1.2  subscriptions
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS subscriptions
+CREATE TABLE subscriptions
 (
     id                     BIGINT                          NOT NULL AUTO_INCREMENT,
     name                   VARCHAR(30)                     NOT NULL                    COMMENT 'STANDARD / DELUXE / PREMIUM',
@@ -77,7 +71,7 @@ CREATE TABLE IF NOT EXISTS subscriptions
 -- ─────────────────────────────────────────────
 -- 1.3  tags
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS tags
+CREATE TABLE tags
 (
     id         BIGINT                                 NOT NULL AUTO_INCREMENT,
     name       VARCHAR(50)                            NOT NULL,
@@ -98,7 +92,7 @@ CREATE TABLE IF NOT EXISTS tags
 -- ─────────────────────────────────────────────
 -- 2.1  social_accounts  (→ users)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS social_accounts
+CREATE TABLE social_accounts
 (
     id          BIGINT                              NOT NULL AUTO_INCREMENT,
     user_id     BIGINT                              NOT NULL,
@@ -116,7 +110,7 @@ CREATE TABLE IF NOT EXISTS social_accounts
 -- ─────────────────────────────────────────────
 -- 2.2  user_subscriptions  (→ users, subscriptions)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS user_subscriptions
+CREATE TABLE user_subscriptions
 (
     id              BIGINT                                  NOT NULL AUTO_INCREMENT,
     user_id         BIGINT                                  NOT NULL,
@@ -141,7 +135,7 @@ CREATE TABLE IF NOT EXISTS user_subscriptions
 -- ─────────────────────────────────────────────
 -- 2.3  company_certifications  (→ users)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS company_certifications
+CREATE TABLE company_certifications
 (
     id                 BIGINT                                                          NOT NULL AUTO_INCREMENT,
     version            BIGINT                                                          NOT NULL DEFAULT 0,
@@ -161,7 +155,7 @@ CREATE TABLE IF NOT EXISTS company_certifications
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS company_certification_documents
+CREATE TABLE company_certification_documents
 (
     id                BIGINT       NOT NULL AUTO_INCREMENT,
     certification_id  BIGINT       NOT NULL,
@@ -180,7 +174,7 @@ CREATE TABLE IF NOT EXISTS company_certification_documents
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS company_certification_audit_logs
+CREATE TABLE company_certification_audit_logs
 (
     id               BIGINT                                      NOT NULL AUTO_INCREMENT,
     certification_id BIGINT                                      NOT NULL,
@@ -205,7 +199,7 @@ CREATE TABLE IF NOT EXISTS company_certification_audit_logs
 -- ─────────────────────────────────────────────
 -- 2.4  tracks  (→ users)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS tracks
+CREATE TABLE tracks
 (
     id           BIGINT       NOT NULL AUTO_INCREMENT,
     title        VARCHAR(100) NOT NULL,
@@ -214,7 +208,6 @@ CREATE TABLE IF NOT EXISTS tracks
     tonality     VARCHAR(10)  NOT NULL COMMENT 'e.g. C, Am, F#m',
     description  TEXT         NULL,
     audio_file   VARCHAR(255) NOT NULL COMMENT 'Original storage path for entitled download; never expose through the public static route.',
-    preview_file VARCHAR(255) NULL     COMMENT 'Optional dedicated preview path. If absent or invalid, public streaming exposes only a bounded original prefix.',
     duration     INT          NOT NULL DEFAULT 0 COMMENT 'Duration in seconds, auto-extracted from audio file.',
     waveform_data TEXT        NULL     COMMENT 'Waveform peak data extracted from the uploaded audio file.',
     user_id      BIGINT       NOT NULL COMMENT 'Copyright holder (currently admin/artist only).',
@@ -233,7 +226,7 @@ CREATE TABLE IF NOT EXISTS tracks
 -- ─────────────────────────────────────────────
 -- 2.5  playlists  (→ users)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS playlists
+CREATE TABLE playlists
 (
     id          BIGINT       NOT NULL AUTO_INCREMENT,
     title       VARCHAR(50)  NOT NULL,
@@ -252,7 +245,7 @@ CREATE TABLE IF NOT EXISTS playlists
 -- ─────────────────────────────────────────────
 -- 2.6  whitelist_channels  (→ users)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS whitelist_channels
+CREATE TABLE whitelist_channels
 (
     id                   BIGINT       NOT NULL AUTO_INCREMENT,
     version              BIGINT       NOT NULL DEFAULT 0,
@@ -280,7 +273,7 @@ CREATE TABLE IF NOT EXISTS whitelist_channels
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS whitelist_export_batches
+CREATE TABLE whitelist_export_batches
 (
     id          BIGINT       NOT NULL AUTO_INCREMENT,
     file_name   VARCHAR(255) NOT NULL,
@@ -297,7 +290,7 @@ CREATE TABLE IF NOT EXISTS whitelist_export_batches
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS whitelist_export_items
+CREATE TABLE whitelist_export_items
 (
     id                          BIGINT       NOT NULL AUTO_INCREMENT,
     batch_id                    BIGINT       NOT NULL,
@@ -305,9 +298,7 @@ CREATE TABLE IF NOT EXISTS whitelist_export_items
     status_at_export            ENUM ('DRAFT', 'PENDING', 'EXPORTED', 'REGISTERED', 'REVISION_REQUESTED', 'REJECTED', 'CANCELLED', 'REMOVAL_REQUESTED') NOT NULL,
     item_order                   INT          NULL,
     channel_id_snapshot         BIGINT       NULL,
-    user_id_snapshot            BIGINT       NULL,
     user_email_snapshot         VARCHAR(100) NOT NULL,
-    user_nickname_snapshot      VARCHAR(20)  NULL,
     channel_name_snapshot       VARCHAR(100) NOT NULL,
     youtube_handle_snapshot     VARCHAR(100) NULL,
     channel_url_snapshot        VARCHAR(255) NOT NULL,
@@ -329,7 +320,7 @@ CREATE TABLE IF NOT EXISTS whitelist_export_items
 -- ─────────────────────────────────────────────
 -- 2.7  questions  (→ users)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS questions
+CREATE TABLE questions
 (
     id         BIGINT                                                       NOT NULL AUTO_INCREMENT,
     user_id    BIGINT                                                       NOT NULL,
@@ -349,7 +340,7 @@ CREATE TABLE IF NOT EXISTS questions
 -- ─────────────────────────────────────────────
 -- 2.8  notices  (→ users)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS notices
+CREATE TABLE notices
 (
     id         BIGINT       NOT NULL AUTO_INCREMENT,
     user_id    BIGINT       NOT NULL COMMENT 'ADMIN author.',
@@ -373,7 +364,7 @@ CREATE TABLE IF NOT EXISTS notices
 -- ─────────────────────────────────────────────
 -- 3.1  track_tags  (→ tracks, tags)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS track_tags
+CREATE TABLE track_tags
 (
     track_id BIGINT NOT NULL,
     tag_id   BIGINT NOT NULL,
@@ -387,7 +378,7 @@ CREATE TABLE IF NOT EXISTS track_tags
 -- ─────────────────────────────────────────────
 -- 3.2  playlist_tracks  (→ playlists, tracks)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS playlist_tracks
+CREATE TABLE playlist_tracks
 (
     playlist_id BIGINT NOT NULL,
     track_id    BIGINT NOT NULL,
@@ -402,7 +393,7 @@ CREATE TABLE IF NOT EXISTS playlist_tracks
 -- ─────────────────────────────────────────────
 -- 3.3  track_downloads  (→ users, tracks)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS track_downloads
+CREATE TABLE track_downloads
 (
     id            BIGINT   NOT NULL AUTO_INCREMENT,
     user_id       BIGINT   NOT NULL,
@@ -417,26 +408,9 @@ CREATE TABLE IF NOT EXISTS track_downloads
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 3.4  play_histories  (→ users, tracks)
--- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS play_histories
-(
-    id        BIGINT   NOT NULL AUTO_INCREMENT,
-    user_id   BIGINT   NOT NULL,
-    track_id  BIGINT   NOT NULL,
-    played_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    INDEX idx_play_histories_user_date (user_id, played_at),
-    CONSTRAINT fk_play_histories_user  FOREIGN KEY (user_id)  REFERENCES users  (id),
-    CONSTRAINT fk_play_histories_track FOREIGN KEY (track_id) REFERENCES tracks (id)
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_unicode_ci;
-
--- ─────────────────────────────────────────────
 -- 3.5  likes  (→ users, tracks)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS likes
+CREATE TABLE likes
 (
     user_id    BIGINT   NOT NULL,
     track_id   BIGINT   NOT NULL,
@@ -449,24 +423,9 @@ CREATE TABLE IF NOT EXISTS likes
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 3.6  download_queue  (→ users, tracks)
--- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS download_queue
-(
-    user_id    BIGINT   NOT NULL,
-    track_id   BIGINT   NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (user_id, track_id),
-    CONSTRAINT fk_download_queue_user  FOREIGN KEY (user_id)  REFERENCES users  (id),
-    CONSTRAINT fk_download_queue_track FOREIGN KEY (track_id) REFERENCES tracks (id)
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_unicode_ci;
-
--- ─────────────────────────────────────────────
 -- 3.7  licenses  (→ users, tracks)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS licenses
+CREATE TABLE licenses
 (
     id           BIGINT      NOT NULL AUTO_INCREMENT,
     user_id      BIGINT      NOT NULL,
@@ -486,11 +445,11 @@ CREATE TABLE IF NOT EXISTS licenses
 -- ─────────────────────────────────────────────
 -- 3.8  billing_agreements / payment_orders / subscription_payments / payment_settlements / payment_refunds / payment_entitlement_corrections / payment_reconciliation_incidents / payment_receipts / payment_operation_audit_logs
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS billing_agreements
+CREATE TABLE billing_agreements
 (
     id                      BIGINT                                                         NOT NULL AUTO_INCREMENT,
     user_id                 BIGINT                                                         NOT NULL,
-    provider                ENUM ('TOSS_BILLING', 'KAKAOPAY')                              NOT NULL,
+    provider                ENUM ('TOSS')                              NOT NULL,
     status                  ENUM ('READY', 'ACTIVE', 'SUSPENDED', 'CANCELLED', 'EXPIRED')   NOT NULL DEFAULT 'READY',
     provider_customer_key   VARCHAR(300)                                                    NOT NULL,
     billing_key_ciphertext  VARCHAR(1000)                                                   NULL,
@@ -524,14 +483,14 @@ CREATE TABLE IF NOT EXISTS billing_agreements
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS payment_orders
+CREATE TABLE payment_orders
 (
     id                       BIGINT                                                               NOT NULL AUTO_INCREMENT,
     order_id                 VARCHAR(64)                                                          NOT NULL,
     command_key              VARCHAR(191)                                                         NULL,
     user_id                  BIGINT                                                               NOT NULL,
     purpose                  ENUM ('SUBSCRIBE', 'UPGRADE', 'RENEWAL', 'BILLING_AGREEMENT')         NOT NULL,
-    provider                 ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY')                     NOT NULL,
+    provider                 ENUM ('TOSS')                     NOT NULL,
     status                   ENUM ('READY', 'IN_PROGRESS', 'PROCESSING', 'PROVIDER_SUCCEEDED', 'PENDING_PROVIDER_CONFIRMATION', 'DONE', 'FAILED', 'CANCELLED', 'EXPIRED') NOT NULL DEFAULT 'READY',
     subscription_id          BIGINT                                                               NOT NULL,
     user_subscription_id     BIGINT                                                               NULL,
@@ -568,7 +527,7 @@ CREATE TABLE IF NOT EXISTS payment_orders
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS subscription_payments
+CREATE TABLE subscription_payments
 (
     id                   BIGINT                          NOT NULL AUTO_INCREMENT,
     user_id              BIGINT                          NOT NULL,
@@ -577,7 +536,7 @@ CREATE TABLE IF NOT EXISTS subscription_payments
     payment_order_id     BIGINT                          NULL,
     billing_agreement_id BIGINT                          NULL,
     billing_cycle        ENUM ('MONTHLY', 'YEARLY')      NOT NULL,
-    provider             ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NULL,
+    provider             ENUM ('TOSS') NOT NULL,
     amount               DECIMAL(10, 2)                  NOT NULL COMMENT 'Prorated amount for upgrades.',
     payment_status       ENUM ('READY', 'DONE', 'REFUND') NOT NULL DEFAULT 'READY',
     pg_transaction_id    VARCHAR(200)                    NULL     COMMENT 'PG provider transaction ID.',
@@ -595,11 +554,11 @@ CREATE TABLE IF NOT EXISTS subscription_payments
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS payment_settlements
+CREATE TABLE payment_settlements
 (
     id                      BIGINT NOT NULL AUTO_INCREMENT,
     source                  ENUM ('CSV_MANUAL', 'TOSS_API', 'SYSTEM_RECONCILIATION') NOT NULL,
-    provider                ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NOT NULL,
+    provider                ENUM ('TOSS') NOT NULL,
     status                  ENUM ('IMPORTED', 'MATCHED', 'MISMATCHED', 'LOCAL_PAYMENT_NOT_FOUND', 'PROVIDER_SETTLEMENT_NOT_FOUND', 'IGNORED') NOT NULL DEFAULT 'IMPORTED',
     deduplication_key       VARCHAR(64) NOT NULL,
     import_batch_key        VARCHAR(64) NOT NULL,
@@ -642,13 +601,13 @@ CREATE TABLE IF NOT EXISTS payment_settlements
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS payment_refunds
+CREATE TABLE payment_refunds
 (
     id                             BIGINT NOT NULL AUTO_INCREMENT,
     subscription_payment_id        BIGINT NOT NULL,
     payment_order_id               BIGINT NOT NULL,
     user_id                        BIGINT NOT NULL,
-    provider                       ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NOT NULL,
+    provider                       ENUM ('TOSS') NOT NULL,
     status                         ENUM (
         'REQUESTED',
         'APPROVED',
@@ -705,7 +664,7 @@ CREATE TABLE IF NOT EXISTS payment_refunds
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS payment_entitlement_corrections
+CREATE TABLE payment_entitlement_corrections
 (
     id                              BIGINT NOT NULL AUTO_INCREMENT,
     payment_refund_id               BIGINT NOT NULL,
@@ -713,7 +672,7 @@ CREATE TABLE IF NOT EXISTS payment_entitlement_corrections
     payment_order_id                BIGINT NOT NULL,
     user_subscription_id            BIGINT NOT NULL,
     user_id                         BIGINT NOT NULL,
-    provider                        ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NOT NULL,
+    provider                        ENUM ('TOSS') NOT NULL,
     status                          ENUM ('REQUESTED', 'APPROVED', 'PROCESSING', 'SUCCEEDED', 'FAILED', 'CANCELLED') NOT NULL DEFAULT 'REQUESTED',
     action                          ENUM ('SET_SUBSCRIPTION_STATE') NOT NULL DEFAULT 'SET_SUBSCRIPTION_STATE',
     before_subscription_id          BIGINT NOT NULL,
@@ -770,7 +729,7 @@ CREATE TABLE IF NOT EXISTS payment_entitlement_corrections
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS payment_reconciliation_incidents
+CREATE TABLE payment_reconciliation_incidents
 (
     id                      BIGINT NOT NULL AUTO_INCREMENT,
     dedupe_key              VARCHAR(255) NOT NULL,
@@ -789,7 +748,7 @@ CREATE TABLE IF NOT EXISTS payment_reconciliation_incidents
     billing_agreement_id    BIGINT NULL,
     user_id                 BIGINT NULL,
     order_id                VARCHAR(64) NULL,
-    provider                ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NULL,
+    provider                ENUM ('TOSS') NULL,
     purpose                 ENUM ('SUBSCRIBE', 'UPGRADE', 'RENEWAL', 'BILLING_AGREEMENT') NULL,
     local_status            VARCHAR(50) NULL,
     provider_status         VARCHAR(50) NULL,
@@ -820,13 +779,13 @@ CREATE TABLE IF NOT EXISTS payment_reconciliation_incidents
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS payment_receipts
+CREATE TABLE payment_receipts
 (
     id                      BIGINT NOT NULL AUTO_INCREMENT,
     payment_order_id        BIGINT NOT NULL,
     subscription_payment_id BIGINT NOT NULL,
     user_id                 BIGINT NOT NULL,
-    provider                ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NOT NULL,
+    provider                ENUM ('TOSS') NOT NULL,
     type                    ENUM ('PAYMENT_RECEIPT', 'CASH_RECEIPT') NOT NULL,
     status                  ENUM ('ISSUED', 'CANCELLED', 'PARTIAL_CANCELLED', 'FAILED') NOT NULL DEFAULT 'ISSUED',
     provider_payment_key    VARCHAR(200) NULL,
@@ -851,7 +810,7 @@ CREATE TABLE IF NOT EXISTS payment_receipts
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS payment_operation_audit_logs
+CREATE TABLE payment_operation_audit_logs
 (
     id                         BIGINT NOT NULL AUTO_INCREMENT,
     action                     ENUM (
@@ -879,7 +838,7 @@ CREATE TABLE IF NOT EXISTS payment_operation_audit_logs
     payment_order_id           BIGINT NULL,
     subscription_payment_id    BIGINT NULL,
     reconciliation_incident_id BIGINT NULL,
-    provider                   ENUM ('MOCK', 'TOSS', 'TOSS_BILLING', 'KAKAOPAY') NULL,
+    provider                   ENUM ('TOSS') NULL,
     order_id                   VARCHAR(64) NULL,
     provider_transaction_id    VARCHAR(200) NULL,
     before_status              VARCHAR(60) NULL,
@@ -909,7 +868,7 @@ CREATE TABLE IF NOT EXISTS payment_operation_audit_logs
 -- ─────────────────────────────────────────────
 -- 3.9  answers  (→ questions, users)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS answers
+CREATE TABLE answers
 (
     id          BIGINT   NOT NULL AUTO_INCREMENT,
     question_id BIGINT   NOT NULL,
@@ -927,7 +886,7 @@ CREATE TABLE IF NOT EXISTS answers
 -- ─────────────────────────────────────────────
 -- 3.10  question_attachments  (→ questions)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS question_attachments
+CREATE TABLE question_attachments
 (
     id            BIGINT       NOT NULL AUTO_INCREMENT,
     question_id   BIGINT       NOT NULL,
@@ -946,7 +905,7 @@ CREATE TABLE IF NOT EXISTS question_attachments
 -- ─────────────────────────────────────────────
 -- 3.11  notice_attachments  (→ notices)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS notice_attachments
+CREATE TABLE notice_attachments
 (
     id            BIGINT       NOT NULL AUTO_INCREMENT,
     notice_id     BIGINT       NOT NULL,
@@ -965,7 +924,7 @@ CREATE TABLE IF NOT EXISTS notice_attachments
 -- ─────────────────────────────────────────────
 -- 3.12  albums  (→ users)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS albums
+CREATE TABLE albums
 (
     id          BIGINT       NOT NULL AUTO_INCREMENT,
     title       VARCHAR(100) NOT NULL,
@@ -985,7 +944,7 @@ CREATE TABLE IF NOT EXISTS albums
 -- ─────────────────────────────────────────────
 -- 3.12  album_tracks  (→ albums, tracks)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS album_tracks
+CREATE TABLE album_tracks
 (
     album_id    BIGINT NOT NULL,
     track_id    BIGINT NOT NULL,
@@ -1001,7 +960,7 @@ CREATE TABLE IF NOT EXISTS album_tracks
 -- ─────────────────────────────────────────────
 -- 3.12b  album_likes  (→ users, albums)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS album_likes
+CREATE TABLE album_likes
 (
     user_id    BIGINT   NOT NULL,
     album_id   BIGINT   NOT NULL,
@@ -1016,7 +975,7 @@ CREATE TABLE IF NOT EXISTS album_likes
 -- ─────────────────────────────────────────────
 -- 3.13  email_verification_tokens  (→ users)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS email_verification_tokens
+CREATE TABLE email_verification_tokens
 (
     id         BIGINT       NOT NULL AUTO_INCREMENT,
     user_id    BIGINT       NOT NULL,
@@ -1035,7 +994,7 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens
 -- ─────────────────────────────────────────────
 -- 3.14  password_reset_tokens  (→ users)
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS password_reset_tokens
+CREATE TABLE password_reset_tokens
 (
     id         BIGINT       NOT NULL AUTO_INCREMENT,
     user_id    BIGINT       NOT NULL,
@@ -1055,7 +1014,7 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens
 -- ─────────────────────────────────────────────
 -- 1.x  site_settings
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS site_settings
+CREATE TABLE site_settings
 (
     id            BIGINT       NOT NULL AUTO_INCREMENT,
     setting_key   VARCHAR(100) NOT NULL,
@@ -1069,7 +1028,7 @@ CREATE TABLE IF NOT EXISTS site_settings
   COLLATE = utf8mb4_unicode_ci;
 
 -- Durable file/DB lifecycle journal. This table contains opaque generated keys only.
-CREATE TABLE IF NOT EXISTS storage_mutations
+CREATE TABLE storage_mutations
 (
     id              BIGINT                                                                                              NOT NULL AUTO_INCREMENT,
     operation_id    CHAR(36)                                                                                            NOT NULL,
@@ -1097,9 +1056,7 @@ CREATE TABLE IF NOT EXISTS storage_mutations
   COLLATE = utf8mb4_unicode_ci;
 
 
-SET FOREIGN_KEY_CHECKS = 1;
-
 -- =============================================================================
 -- END OF SCHEMA
--- Total: 38 tables
+-- Total: 39 tables
 -- =============================================================================

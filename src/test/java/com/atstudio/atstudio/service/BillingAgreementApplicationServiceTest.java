@@ -89,7 +89,7 @@ class BillingAgreementApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
-        given(recurringPaymentProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+        given(recurringPaymentProvider.getProviderType()).willReturn(PaymentProviderType.TOSS);
         service = new BillingAgreementApplicationService(
                 userRepository,
                 subscriptionRepository,
@@ -116,7 +116,7 @@ class BillingAgreementApplicationServiceTest {
         given(subscriptionRepository.findById(10L)).willReturn(Optional.of(subscription));
         given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.empty());
-        given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+        given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
                 .willReturn(Optional.empty());
         given(billingCustomerKeyGenerator.generate()).willReturn("ats_billing_customer_1");
         given(billingAgreementRepository.save(any(BillingAgreement.class)))
@@ -126,7 +126,7 @@ class BillingAgreementApplicationServiceTest {
                 .willAnswer(invocation -> invocation.getArgument(0));
         given(recurringPaymentProvider.prepareAgreement(any()))
                 .willReturn(new BillingAgreementPrepareResult(
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         "TOSS_BILLING_AUTH",
                         "{\"phase\":\"prepare\"}",
                         Map.of(
@@ -141,7 +141,7 @@ class BillingAgreementApplicationServiceTest {
                 buildUserDetails(1L),
                 new BillingAgreementPrepareRequest(10L, BillingCycle.MONTHLY));
 
-        assertThat(response.provider()).isEqualTo(PaymentProviderType.TOSS_BILLING);
+        assertThat(response.provider()).isEqualTo(PaymentProviderType.TOSS);
         assertThat(response.agreementStatus()).isEqualTo(BillingAgreementStatus.READY);
         assertThat(response.amount()).isEqualByComparingTo(BigDecimal.valueOf(9900));
         assertThat(response.checkout().customerKey()).isEqualTo("ats_billing_customer_1");
@@ -167,14 +167,14 @@ class BillingAgreementApplicationServiceTest {
         given(subscriptionRepository.findById(10L)).willReturn(Optional.of(subscription));
         given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.of(activeSubscription));
-        given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+        given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
                 .willReturn(Optional.of(agreement));
         given(paymentOrderRepository.existsByOrderId(anyString())).willReturn(false);
         given(paymentOrderRepository.save(any(PaymentOrder.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
         given(recurringPaymentProvider.prepareAgreement(any()))
                 .willReturn(new BillingAgreementPrepareResult(
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         "TOSS_BILLING_AUTH",
                         "{\"phase\":\"prepare\"}",
                         Map.of(
@@ -213,7 +213,7 @@ class BillingAgreementApplicationServiceTest {
         BillingAgreementConfirmResponse finalized = new BillingAgreementConfirmResponse(
                 "ORDER-1",
                 PaymentOrderStatus.DONE,
-                PaymentProviderType.TOSS_BILLING,
+                PaymentProviderType.TOSS,
                 BillingAgreementStatus.ACTIVE,
                 saved.getExpiresAt(),
                 UserSubscriptionResponse.from(saved));
@@ -305,7 +305,7 @@ class BillingAgreementApplicationServiceTest {
         BillingAgreementConfirmResponse finalized = new BillingAgreementConfirmResponse(
                 "ORDER-REAUTH",
                 PaymentOrderStatus.DONE,
-                PaymentProviderType.TOSS_BILLING,
+                PaymentProviderType.TOSS,
                 BillingAgreementStatus.ACTIVE,
                 activeSubscription.getExpiresAt(),
                 UserSubscriptionResponse.from(activeSubscription));
@@ -462,7 +462,7 @@ class BillingAgreementApplicationServiceTest {
         given(subscriptionRepository.findById(10L)).willReturn(Optional.of(subscription));
         given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
                 .willReturn(Optional.empty());
-        given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+        given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
                 .willReturn(Optional.of(agreement));
 
         assertThatThrownBy(() -> service.prepareBillingAgreement(
@@ -489,13 +489,13 @@ class BillingAgreementApplicationServiceTest {
         BillingAgreementCleanupTransactionService.UserCancellationClaim claim =
                 BillingAgreementCleanupTransactionService.UserCancellationClaim.callProvider(
                         200L,
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         "encrypted-key",
                         leaseStartedAt);
         BillingAgreementCleanupProviderExecutor.CleanupProviderResult providerResult =
                 BillingAgreementCleanupProviderExecutor.CleanupProviderResult.succeeded();
         BillingAgreementResponse expectedResponse = new BillingAgreementResponse(
-                PaymentProviderType.TOSS_BILLING,
+                PaymentProviderType.TOSS,
                 BillingAgreementStatus.CANCELLED,
                 null,
                 null,
@@ -507,7 +507,7 @@ class BillingAgreementApplicationServiceTest {
                 eq(1L),
                 any(LocalDateTime.class))).willReturn(claim);
         given(billingAgreementCleanupProviderExecutor.deleteBillingKey(
-                PaymentProviderType.TOSS_BILLING,
+                PaymentProviderType.TOSS,
                 "encrypted-key")).willReturn(providerResult);
         given(billingAgreementCleanupTransactionService.recordUserCancellationResult(
                 1L,
@@ -526,7 +526,7 @@ class BillingAgreementApplicationServiceTest {
         ordering.verify(billingAgreementCleanupTransactionService)
                 .claimUserCancellation(eq(1L), any(LocalDateTime.class));
         ordering.verify(billingAgreementCleanupProviderExecutor)
-                .deleteBillingKey(PaymentProviderType.TOSS_BILLING, "encrypted-key");
+                .deleteBillingKey(PaymentProviderType.TOSS, "encrypted-key");
         ordering.verify(billingAgreementCleanupTransactionService)
                 .recordUserCancellationResult(1L, claim, providerResult);
     }
@@ -579,7 +579,7 @@ class BillingAgreementApplicationServiceTest {
     private BillingAgreement buildReadyAgreement(User user) {
         return BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("ats_billing_customer_1")
                 .build();
     }
@@ -589,7 +589,7 @@ class BillingAgreementApplicationServiceTest {
                 .orderId("ORDER-1")
                 .user(user)
                 .purpose(PaymentPurpose.SUBSCRIBE)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .subscription(subscription)
                 .billingAgreement(agreement)
                 .billingCycle(BillingCycle.MONTHLY)

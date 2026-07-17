@@ -311,7 +311,7 @@ class SubscriptionUpgradeCommandIntegrationTest {
                 .build());
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("ats_upgrade_customer")
                 .build();
         agreement.activate("encrypted-key", "fingerprint", "CARD", "1234", subscription.getExpiresAt());

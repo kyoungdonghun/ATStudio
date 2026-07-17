@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 @Service
 public class RecurringRenewalService {
 
-    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS_BILLING;
+    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS;
     private static final int DUE_SCAN_PAGE_SIZE = 100;
     private static final int RENEWAL_GRACE_DAYS = 3;
 

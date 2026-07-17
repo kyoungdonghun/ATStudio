@@ -77,6 +77,26 @@ describe('authStore', () => {
     expect(useAuthStore.getState().role).toBe('USER');
   });
 
+  it('fails atomically when durable login persistence is unavailable', () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('storage unavailable');
+    });
+
+    expect(() => useAuthStore.getState().login('access-token', user, 'refresh-token')).toThrow(
+      'Failed to persist authentication session',
+    );
+
+    setItem.mockRestore();
+    expect(localStorage.getItem('accessToken')).toBeNull();
+    expect(localStorage.getItem('refreshToken')).toBeNull();
+    expect(localStorage.getItem('user')).toBeNull();
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: null,
+      user: null,
+      role: 'GUEST',
+    });
+  });
+
   it('updates the active and persisted user together after a profile save', () => {
     localStorage.setItem('accessToken', 'access-token');
     localStorage.setItem('user', JSON.stringify(user));

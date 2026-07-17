@@ -194,14 +194,12 @@ class AdminWhitelistChannelServiceTest {
 
         List<WhitelistExportItem> items = savedItems.get();
         assertThat(items.get(0).getUserEmailSnapshot()).isEqualTo("=2+3");
-        assertThat(items.get(0).getUserNicknameSnapshot()).isNull();
         assertThat(items.get(0).getChannelNameSnapshot()).isEqualTo("-legitimate");
         assertThat(items.get(0).getYoutubeHandleSnapshot()).isEqualTo("@shorts");
         assertThat(items.get(0).getChannelUrlSnapshot())
                 .isEqualTo(" =HYPERLINK(\"https://example.com\")");
         assertThat(items.get(0).getYoutubeChannelIdSnapshot()).isEqualTo("\t=channel");
         assertThat(items.get(1).getUserEmailSnapshot()).isEqualTo("\uFEFF=hidden");
-        assertThat(items.get(1).getUserNicknameSnapshot()).isNull();
         assertThat(items.get(1).getChannelNameSnapshot()).isEqualTo("\r=carriage");
         assertThat(items.get(1).getYoutubeHandleSnapshot()).isEqualTo("\n=line-feed");
         assertThat(items.get(1).getChannelUrlSnapshot()).isEqualTo("\tplain-control");
@@ -240,7 +238,6 @@ class AdminWhitelistChannelServiceTest {
 
         WhitelistExportItem item = savedItems.get().get(0);
         assertThat(item.getUserEmailSnapshot()).isEqualTo("normal@test.com");
-        assertThat(item.getUserNicknameSnapshot()).isNull();
         assertThat(item.getChannelNameSnapshot()).isEqualTo("일반 \"채널\"\n두번째 줄");
         assertThat(item.getYoutubeHandleSnapshot()).isEqualTo("'@already-safe");
         assertThat(item.getChannelUrlSnapshot()).isEmpty();
@@ -431,8 +428,6 @@ class AdminWhitelistChannelServiceTest {
         assertThat(replay.fileName()).isEqualTo(original.fileName());
         assertThat(replay.content()).containsExactly(original.content());
         assertThat(savedItems.get().get(0).getChannelIdSnapshot()).isEqualTo(7L);
-        assertThat(savedItems.get().get(0).getUserIdSnapshot()).isNull();
-        assertThat(savedItems.get().get(0).getUserNicknameSnapshot()).isNull();
     }
 
     @Test

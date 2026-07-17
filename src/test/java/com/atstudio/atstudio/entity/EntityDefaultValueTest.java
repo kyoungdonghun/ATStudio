@@ -105,7 +105,7 @@ class EntityDefaultValueTest {
     @DisplayName("BillingAgreement: status=READY, failureCount=0")
     void billingAgreement_defaults() {
         BillingAgreement agreement = BillingAgreement.builder()
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("ats_billing_random")
                 .build();
 

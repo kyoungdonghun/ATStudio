@@ -25,15 +25,23 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const handleCancel = () => {
+    if (!busy) onCancel();
+  };
+
+  const handleConfirm = () => {
+    if (!busy) onConfirm();
+  };
+
   return (
-    <Modal open={open} onClose={onCancel} title={title}>
+    <Modal open={open} onClose={handleCancel} title={title}>
       <div className={styles.body}>
         <p className={styles.message}>{message}</p>
         <div className={styles.actions}>
-          <Button variant="ghost" onClick={onCancel} disabled={busy}>
+          <Button variant="ghost" onClick={handleCancel} disabled={busy}>
             {cancelLabel}
           </Button>
-          <Button variant={confirmVariant} onClick={onConfirm} loading={busy}>
+          <Button variant={confirmVariant} onClick={handleConfirm} loading={busy}>
             {confirmLabel}
           </Button>
         </div>

@@ -189,7 +189,7 @@ describe('SubscriptionManagePage', () => {
       newBillingCycle: 'MONTHLY',
     });
     fetchMyBillingAgreementMock.mockResolvedValue({
-      provider: 'TOSS_BILLING',
+      provider: 'TOSS',
       status: 'ACTIVE',
       payMethod: 'CARD',
       maskedMethod: '1234',
@@ -357,7 +357,7 @@ describe('SubscriptionManagePage', () => {
       pendingBillingCycle: null,
     });
     fetchMyBillingAgreementMock.mockResolvedValue({
-      provider: 'TOSS_BILLING',
+      provider: 'TOSS',
       status: 'ACTIVE',
       payMethod: 'CARD',
       maskedMethod: '1234',
@@ -397,7 +397,7 @@ describe('SubscriptionManagePage', () => {
       pendingBillingCycle: null,
     });
     fetchMyBillingAgreementMock.mockResolvedValue({
-      provider: 'TOSS_BILLING',
+      provider: 'TOSS',
       status: 'EXPIRED',
       payMethod: null,
       maskedMethod: null,
@@ -439,7 +439,7 @@ describe('SubscriptionManagePage', () => {
       pendingBillingCycle: null,
     });
     fetchMyBillingAgreementMock.mockResolvedValue({
-      provider: 'TOSS_BILLING',
+      provider: 'TOSS',
       status: 'READY',
       payMethod: null,
       maskedMethod: null,
@@ -521,7 +521,7 @@ describe('SubscriptionManagePage', () => {
       newBillingCycle: 'MONTHLY',
     });
     fetchMyBillingAgreementMock.mockResolvedValue({
-      provider: 'TOSS_BILLING',
+      provider: 'TOSS',
       status: 'READY',
       payMethod: null,
       maskedMethod: null,
@@ -574,7 +574,7 @@ describe('SubscriptionManagePage', () => {
       pendingBillingCycle: null,
     });
     fetchMyBillingAgreementMock.mockResolvedValue({
-      provider: 'TOSS_BILLING',
+      provider: 'TOSS',
       status: 'CANCELLED',
       payMethod: 'CARD',
       maskedMethod: '1234',

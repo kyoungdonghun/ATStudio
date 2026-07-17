@@ -18,7 +18,7 @@
 | **Related UC** | SOUND-019 (add track), SOUND-008 (view detail) |
 
 **Main Flow**
-1. Direct navigation to `/playlists/new` replaces the URL with `/playlists` and opens the existing creation modal; it does not render a second creation page.
+1. User opens `/playlists` and selects the visible create button or create card, which opens the creation modal without navigating to a second page.
 2. User enters the playlist title (title, required) and description (optional).
 3. Attaches a thumbnail image (optional).
 4. Frontend performs validation.

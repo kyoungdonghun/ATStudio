@@ -52,7 +52,7 @@ class WithdrawalBillingCleanupServiceTest {
         BillingAgreementCleanupTransactionService.WithdrawalCleanupClaim claim =
                 BillingAgreementCleanupTransactionService.WithdrawalCleanupClaim.callProvider(
                         11L,
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         "encrypted-key",
                         leaseStartedAt);
         BillingAgreementCleanupProviderExecutor.CleanupProviderResult providerResult =
@@ -60,7 +60,7 @@ class WithdrawalBillingCleanupServiceTest {
         given(cleanupTransactionService.claimWithdrawalCleanup(eq(11L), any(LocalDateTime.class)))
                 .willReturn(claim);
         given(cleanupProviderExecutor.deleteBillingKey(
-                PaymentProviderType.TOSS_BILLING,
+                PaymentProviderType.TOSS,
                 "encrypted-key")).willReturn(providerResult);
 
         WithdrawalBillingCleanupService.CleanupOutcome outcome = service.cleanup(11L);
@@ -70,7 +70,7 @@ class WithdrawalBillingCleanupServiceTest {
         ordering.verify(cleanupTransactionService)
                 .claimWithdrawalCleanup(eq(11L), any(LocalDateTime.class));
         ordering.verify(cleanupProviderExecutor)
-                .deleteBillingKey(PaymentProviderType.TOSS_BILLING, "encrypted-key");
+                .deleteBillingKey(PaymentProviderType.TOSS, "encrypted-key");
         ordering.verify(cleanupTransactionService)
                 .recordWithdrawalCleanupResult(claim, providerResult);
     }
@@ -81,7 +81,7 @@ class WithdrawalBillingCleanupServiceTest {
         BillingAgreementCleanupTransactionService.WithdrawalCleanupClaim claim =
                 BillingAgreementCleanupTransactionService.WithdrawalCleanupClaim.callProvider(
                         12L,
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         "encrypted-key",
                         LocalDateTime.now().withNano(0));
         BillingAgreementCleanupProviderExecutor.CleanupProviderResult providerResult =

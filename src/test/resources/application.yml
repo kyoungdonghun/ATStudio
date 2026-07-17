@@ -36,3 +36,11 @@ oauth2:
     client-id:
     client-secret:
     redirect-uri: http://localhost:8080/oauth2/callback/naver
+
+app:
+  payment:
+    billing:
+      active-key-id: test-v2
+      encryption-keys:
+        - id: test-v2
+          secret: test-only-key-material-not-for-runtime

@@ -5,8 +5,6 @@ import com.atstudio.atstudio.dto.util.CheckResponse;
 import com.atstudio.atstudio.dto.util.DownloadCountResponse;
 import com.atstudio.atstudio.dto.util.PublicCapabilitiesResponse;
 import com.atstudio.atstudio.dto.util.SubscriptionChangePreviewResponse;
-import com.atstudio.atstudio.dto.util.SubscriptionStatusResponse;
-import com.atstudio.atstudio.dto.util.UserTypeResponse;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.UserService;
 import com.atstudio.atstudio.service.UtilService;
@@ -57,27 +55,11 @@ public class UtilController {
                 .build());
     }
 
-    @GetMapping("/subscription-status")
-    public ResponseEntity<ResponseDTO<SubscriptionStatusResponse>> getSubscriptionStatus(
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return ResponseEntity.ok(ResponseDTO.<SubscriptionStatusResponse>withSingleData()
-                .data(utilService.getSubscriptionStatus(userDetails))
-                .build());
-    }
-
     @GetMapping("/download-count")
     public ResponseEntity<ResponseDTO<DownloadCountResponse>> getDownloadCount(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         return ResponseEntity.ok(ResponseDTO.<DownloadCountResponse>withSingleData()
                 .data(utilService.getDownloadCount(userDetails))
-                .build());
-    }
-
-    @GetMapping("/user-type")
-    public ResponseEntity<ResponseDTO<UserTypeResponse>> getUserType(
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return ResponseEntity.ok(ResponseDTO.<UserTypeResponse>withSingleData()
-                .data(utilService.getUserType(userDetails))
                 .build());
     }
 

@@ -287,7 +287,7 @@ export default function ProfilePage() {
   /* ── Navigation shortcuts for activity tabs ── */
   const ACTIVITY_ROUTES: Record<string, string> = {
     likes: '/likes',
-    downloads: '/download-queue',
+    downloads: '/downloads',
     playlists: '/playlists',
     history: '/play-history',
     licenses: '/licenses',

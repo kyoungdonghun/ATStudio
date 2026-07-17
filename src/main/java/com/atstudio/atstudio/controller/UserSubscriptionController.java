@@ -19,20 +19,6 @@ public class UserSubscriptionController {
 
     private final UserSubscriptionService userSubscriptionService;
 
-    // -- 6.3 POST /api/user-subscriptions ------------------------------------
-
-    @PostMapping
-    public ResponseEntity<ResponseDTO<UserSubscriptionResponse>> subscribe(
-            @Valid @RequestBody UserSubscriptionRequest request,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-        UserSubscriptionResponse response = userSubscriptionService.subscribe(userDetails, request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ResponseDTO.<UserSubscriptionResponse>withSingleData()
-                        .message("Subscription created")
-                        .data(response)
-                        .build());
-    }
-
     // -- 6.4 GET /api/user-subscriptions/me ----------------------------------
 
     @GetMapping("/me")
@@ -53,19 +39,6 @@ public class UserSubscriptionController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(userSubscriptionService.listAll(page, size));
-    }
-
-    // -- 6.6 GET /api/user-subscriptions/{id} --------------------------------
-
-    @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ResponseDTO<UserSubscriptionResponse>> getDetail(
-            @PathVariable Long id) {
-        UserSubscriptionResponse response = userSubscriptionService.getDetail(id);
-        return ResponseEntity.ok(ResponseDTO.<UserSubscriptionResponse>withSingleData()
-                .message("User subscription detail retrieved")
-                .data(response)
-                .build());
     }
 
     // -- 6.7 PUT /api/user-subscriptions/me ----------------------------------

@@ -72,7 +72,7 @@ describe('SubscriptionPaymentPage', () => {
     ]);
     prepareBillingAgreementMock.mockResolvedValue({
       orderId: 'ATS-BILL-1',
-      provider: 'TOSS_BILLING',
+      provider: 'TOSS',
       purpose: 'SUBSCRIBE',
       agreementStatus: 'READY',
       subscriptionId: 1,
@@ -92,7 +92,7 @@ describe('SubscriptionPaymentPage', () => {
     confirmBillingAgreementMock.mockResolvedValue({
       orderId: 'ATS-BILL-1',
       orderStatus: 'DONE',
-      provider: 'TOSS_BILLING',
+      provider: 'TOSS',
       agreementStatus: 'ACTIVE',
       nextBillingAt: '2026-06-16',
       subscription: null,
@@ -132,7 +132,7 @@ describe('SubscriptionPaymentPage', () => {
   it('prepares payment-method re-registration without an immediate charge label', async () => {
     prepareBillingAgreementMock.mockResolvedValue({
       orderId: 'ATS-BILL-REAUTH',
-      provider: 'TOSS_BILLING',
+      provider: 'TOSS',
       purpose: 'BILLING_AGREEMENT',
       agreementStatus: 'READY',
       subscriptionId: 1,
@@ -171,7 +171,7 @@ describe('SubscriptionPaymentPage', () => {
   it('keeps upgrade context visible while re-registering a payment method', async () => {
     prepareBillingAgreementMock.mockResolvedValue({
       orderId: 'ATS-BILL-REAUTH',
-      provider: 'TOSS_BILLING',
+      provider: 'TOSS',
       purpose: 'BILLING_AGREEMENT',
       agreementStatus: 'READY',
       subscriptionId: 1,
@@ -232,7 +232,7 @@ describe('SubscriptionPaymentPage', () => {
         amount: 9900,
       });
     });
-    expect(navigateMock).toHaveBeenCalledWith('/subscriptions/manage');
+    expect(navigateMock).toHaveBeenCalledWith('/subscriptions/manage', { replace: true });
   });
 
   it('returns to the selected upgrade preview after payment-method registration succeeds', async () => {
@@ -248,15 +248,22 @@ describe('SubscriptionPaymentPage', () => {
         amount: 0,
       });
     });
-    expect(navigateMock).toHaveBeenCalledWith('/subscriptions/manage?plan=PREMIUM&cycle=YEARLY');
+    expect(navigateMock).toHaveBeenCalledWith('/subscriptions/manage?plan=PREMIUM&cycle=YEARLY', {
+      replace: true,
+    });
   });
 
-  it('blocks legacy one-time payment redirect routes', async () => {
-    renderPage('/subscriptions/payment/success?paymentKey=toss-key&orderId=ATS-TOSS-1&amount=9900');
-
-    await screen.findByText(
-      '지원이 종료된 구독 결제 경로입니다. 구독 페이지에서 새 결제를 시작해주세요.',
+  it.each([
+    ['missing', ''],
+    ['empty', '&amount='],
+    ['negative', '&amount=-1'],
+    ['fractional', '&amount=1.5'],
+  ])('rejects a %s callback amount before confirmation', async (_label, amountQuery) => {
+    renderPage(
+      `/subscriptions/checkout/success?authKey=auth-key&customerKey=customer&orderId=order${amountQuery}`,
     );
+
+    expect(await screen.findByText('자동결제 인증 정보가 올바르지 않습니다.')).toBeInTheDocument();
     expect(confirmBillingAgreementMock).not.toHaveBeenCalled();
   });
 });

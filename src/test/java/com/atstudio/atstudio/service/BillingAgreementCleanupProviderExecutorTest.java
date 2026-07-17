@@ -34,7 +34,7 @@ class BillingAgreementCleanupProviderExecutorTest {
 
     @BeforeEach
     void setUp() {
-        given(recurringPaymentProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+        given(recurringPaymentProvider.getProviderType()).willReturn(PaymentProviderType.TOSS);
         executor = new BillingAgreementCleanupProviderExecutor(
                 billingKeyCrypto,
                 List.of(recurringPaymentProvider));
@@ -62,7 +62,7 @@ class BillingAgreementCleanupProviderExecutorTest {
                         "Already removed."));
 
         var result = executor.deleteBillingKey(
-                PaymentProviderType.TOSS_BILLING,
+                PaymentProviderType.TOSS,
                 "encrypted-key");
 
         assertThat(result.disposition())
@@ -76,7 +76,7 @@ class BillingAgreementCleanupProviderExecutorTest {
                 .willThrow(new IllegalStateException("secret detail"));
 
         var result = executor.deleteBillingKey(
-                PaymentProviderType.TOSS_BILLING,
+                PaymentProviderType.TOSS,
                 "encrypted-key");
 
         assertThat(result.disposition())
@@ -94,7 +94,7 @@ class BillingAgreementCleanupProviderExecutorTest {
                 .willThrow(new PaymentProviderOutcomeUnknownException("raw transport detail"));
 
         var result = executor.deleteBillingKey(
-                PaymentProviderType.TOSS_BILLING,
+                PaymentProviderType.TOSS,
                 "encrypted-key");
 
         assertThat(result.disposition()).isEqualTo(

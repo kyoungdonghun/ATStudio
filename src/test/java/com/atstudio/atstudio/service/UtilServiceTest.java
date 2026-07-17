@@ -6,13 +6,10 @@ import com.atstudio.atstudio.bootstrap.TestUserBootstrapProperties;
 import com.atstudio.atstudio.dto.util.DownloadCountResponse;
 import com.atstudio.atstudio.dto.util.PublicCapabilitiesResponse;
 import com.atstudio.atstudio.dto.util.SubscriptionChangePreviewResponse;
-import com.atstudio.atstudio.dto.util.SubscriptionStatusResponse;
-import com.atstudio.atstudio.dto.util.UserTypeResponse;
 import com.atstudio.atstudio.entity.Subscription;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
-import com.atstudio.atstudio.entity.enums.UserJob;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.SubscriptionRepository;
@@ -53,36 +50,6 @@ class UtilServiceTest {
     @Mock PasswordLoginPolicy passwordLoginPolicy;
 
     @InjectMocks UtilService utilService;
-
-    // ── getSubscriptionStatus() ───────────────────────────────────────────────
-
-    @Test
-    @DisplayName("getSubscriptionStatus() 구독 있음 - 구독 정보 반환")
-    void getSubscriptionStatus_withSubscription() {
-        User user = buildUser(1L);
-        UserSubscription userSubscription = buildUserSubscription(user, 10);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                .willReturn(Optional.of(userSubscription));
-
-        SubscriptionStatusResponse result = utilService.getSubscriptionStatus(buildUserDetails(1L));
-
-        assertThat(result.hasSubscription()).isTrue();
-        assertThat(result.downloadPerDay()).isEqualTo(10);
-    }
-
-    @Test
-    @DisplayName("getSubscriptionStatus() 구독 없음 - noSubscription 응답 반환")
-    void getSubscriptionStatus_noSubscription() {
-        User user = buildUser(1L);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(userSubscriptionRepository.findActiveByUser(any(), any(LocalDate.class)))
-                .willReturn(Optional.empty());
-
-        SubscriptionStatusResponse result = utilService.getSubscriptionStatus(buildUserDetails(1L));
-
-        assertThat(result.hasSubscription()).isFalse();
-    }
 
     // ── getDownloadCount() ────────────────────────────────────────────────────
 
@@ -138,37 +105,6 @@ class UtilServiceTest {
         assertThat(result.dailyLimit()).isEqualTo(0);
         assertThat(result.remaining()).isEqualTo(0);
         assertThat(result.nextResetAt()).isEqualTo(LocalDate.now().plusDays(1).atStartOfDay());
-    }
-
-    // ── getUserType() ─────────────────────────────────────────────────────────
-
-    @Test
-    @DisplayName("getUserType() 성공 - userType과 job 반환")
-    void getUserType_success() {
-        User user = buildUser(1L);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-
-        UserTypeResponse result = utilService.getUserType(buildUserDetails(1L));
-
-        assertThat(result.userType()).isEqualTo("INDIVIDUAL");
-        assertThat(result.job()).isNull();
-    }
-
-    @Test
-    @DisplayName("getUserType() 성공 - job이 있는 경우 job 반환")
-    void getUserType_withJob() {
-        User user = User.builder()
-                .email("test@test.com").nickname("nick").password("pw")
-                .userType(UserType.BUSINESS).job(UserJob.EDITOR)
-                .role(UserRole.USER).build();
-        ReflectionTestUtils.setField(user, "id", 1L);
-
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-
-        UserTypeResponse result = utilService.getUserType(buildUserDetails(1L));
-
-        assertThat(result.userType()).isEqualTo("BUSINESS");
-        assertThat(result.job()).isEqualTo("EDITOR");
     }
 
     // ── getPublicCapabilities() ──────────────────────────────────────────────

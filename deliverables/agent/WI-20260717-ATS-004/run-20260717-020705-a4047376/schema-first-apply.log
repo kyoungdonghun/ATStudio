@@ -1,0 +1,9 @@
+database.hostClass=loopback
+database.sourceName=atstudio
+schema.statements=39
+schema.sha256=8c179a8f7257305d52277a98631fe4dc5b17df4fdac54a6526cf1f2305b67ac5
+seed.statements=1
+seed.sha256=c848e0da6b9b35eb26563d6af3666b67fc119430c1afd888ea7b0246800a579a
+schema.firstApply=PASS
+manager.result=PASS
+

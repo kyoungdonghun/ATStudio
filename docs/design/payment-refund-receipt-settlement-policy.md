@@ -1,10 +1,10 @@
 ---
-version: 1.1
-last_updated: 2026-05-30
+version: 1.2
+last_updated: 2026-07-17
 project: ATS
 owner: SA
 category: design
-status: draft
+status: stable
 source_req: REQ-20260525-ATS-002, REQ-20260525-ATS-004, REQ-20260525-ATS-005, REQ-20260526-ATS-001
 ---
 
@@ -170,7 +170,7 @@ Implemented table: `payment_refunds`
 | `payment_order_id` | Original order |
 | `subscription_payment_id` | Original finalized payment |
 | `reconciliation_incident_id` | Nullable incident linkage |
-| `provider` | `TOSS_BILLING` first |
+| `provider` | `TOSS` |
 | `provider_payment_key` | Provider payment key, not a secret |
 | `provider_refund_transaction_id` | Provider cancellation transaction key if available |
 | `amount` | Refund amount |
@@ -208,7 +208,7 @@ Implemented table: `payment_entitlement_corrections`
 | `subscription_payment_id` | Original finalized payment |
 | `user_subscription_id` | Local access row to correct |
 | `user_id` | Payment/access owner |
-| `provider` | Provider context, currently `TOSS_BILLING` for executable refund-linked corrections |
+| `provider` | Provider context, currently `TOSS` for executable refund-linked corrections |
 | `status` | `REQUESTED`, `APPROVED`, `PROCESSING`, `SUCCEEDED`, `FAILED`, `CANCELLED` |
 | `action` | Current value: `SET_SUBSCRIPTION_STATE` |
 | `before_*` fields | Snapshot of current subscription plan, cycle, status, expiration, and pending change before execution |

@@ -1,6 +1,6 @@
 ---
-version: 2.1
-last_updated: 2026-07-16
+version: 2.2
+last_updated: 2026-07-17
 project: system
 owner: SA
 category: registry
@@ -25,15 +25,15 @@ status: stable
 
 | Document | Description | Status |
 |---|---|---|
-| **[API Specification](api-spec.md)** | REST API spec v25 — 149 method-level mappings | stable |
-| **[DB Schema](db-schema.md)** | Database schema v20 — 41 tables / 41 JPA entities | stable |
+| **[API Specification](api-spec.md)** | REST API spec v27 - 137 current method-level mappings | confirmed |
+| **[DB Schema](db-schema.md)** | Database schema v21 - fresh-only 39 tables / 39 JPA entities | confirmed |
 | **[Use Case Index](usecase/index.md)** | Domain use case documents | stable |
-| **[Payment Integration Design](payment-integration-design.md)** | Recurring-first subscription payment, legacy/mock payment compatibility, and provider architecture | draft |
-| **[Payment Operations Runbook](payment-operations-runbook.md)** | Toss recurring payment reconciliation and production incident response | draft |
-| **[Remaining Remediation Design (2026-07-16)](remaining-remediation-design-20260716.md)** | Product invariants, ownership, environment holds, and verification contracts for REQ-20260716-ATS-002 | active |
-| **[Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md)** | Payment operations policy for refund, receipt, settlement, tax invoice, and future admin mutation boundaries | draft |
-| **[Payment Settlement Import and Reconciliation Design](payment-settlement-import-design.md)** | Settlement source adapter, CSV-first import, reconciliation, and admin operation design | draft |
+| **[Payment Integration Design](payment-integration-design.md)** | TOSS recurring-only V1 with provider-neutral extension interfaces | stable |
+| **[Payment Operations Runbook](payment-operations-runbook.md)** | Toss recurring payment reconciliation and production incident response | stable |
+| **[Remaining Remediation Design (2026-07-16)](remaining-remediation-design-20260716.md)** | Completed REQ-002 remediation design retained in place; current contracts are in API/DB/UI/payment SoT | archived |
+| **[Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md)** | Implemented refund/receipt/settlement policy; tax invoice boundary remains deferred | stable |
+| **[Payment Settlement Import and Reconciliation Design](payment-settlement-import-design.md)** | Implemented CSV settlement import and reconciliation design | stable |
 | **[P0 Release Blocker Remediation Design](p0-release-blocker-remediation-design.md)** | Protected track media, secret-free mail logging, and withdrawal billing-stop contracts | stable |
 | **[P1 Payment Integrity Remediation Design](p1-payment-integrity-remediation-design.md)** | Implemented payment command, transaction, refund recovery, reconciliation, lock-order, and MySQL proof contract | stable |
 | **[P1 Payment and Database Integrity Design](p1-payment-db-integrity-design.md)** | Superseded 2026-07-14 payment/DB baseline retained for migration cautions and historical reference | archived |
-| **[P1 Security and Acceptance Hardening Design](p1-security-acceptance-hardening-design.md)** | Security, file, session, proxy, and acceptance-environment hardening contract | draft |
+| **[P1 Security and Acceptance Hardening Design](p1-security-acceptance-hardening-design.md)** | Pre-implementation hardening contract retained in place; current controls live in security/API/operations SoT | archived |

@@ -53,8 +53,6 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final LikeRepository likeRepository;
-    private final DownloadQueueRepository downloadQueueRepository;
-    private final PlayHistoryRepository playHistoryRepository;
     private final TrackDownloadRepository trackDownloadRepository;
     private final LicenseRepository licenseRepository;
     private final WhitelistChannelRepository whitelistChannelRepository;
@@ -139,7 +137,7 @@ public class UserService {
         validateWithdrawalPassword(authenticationSnapshot, request);
 
         BillingAgreement billingAgreement = billingAgreementRepository
-                .findByUserIDAndProviderForUpdate(userID, PaymentProviderType.TOSS_BILLING)
+                .findByUserIDAndProviderForUpdate(userID, PaymentProviderType.TOSS)
                 .orElse(null);
         UserSubscription userSubscription = userSubscriptionRepository
                 .findByUserIDForUpdate(userID)
@@ -169,8 +167,6 @@ public class UserService {
 
         // 관련 레코드 정리 (고아 레코드 방지)
         likeRepository.deleteAllByUser(user);
-        downloadQueueRepository.deleteAllByUser(user);
-        playHistoryRepository.deleteAllByUser(user);
         trackDownloadRepository.deleteAllByUser(user);
         licenseRepository.deleteAllByUser(user);
         whitelistChannelRepository.requestExternalRemovalForWithdrawal(user, LocalDateTime.now());

@@ -1,10 +1,13 @@
 ---
-version: 1.0
-last_updated: 2026-07-14
+version: 1.1
+last_updated: 2026-07-17
 project: ATS
 owner: PG
 category: design
-status: draft
+status: archived
+archived_date: 2026-07-17
+archive_reason: Pre-implementation hardening contract completed and replaced by current security and runtime sources
+replacement_path: ../policies/security-policy.md
 dependencies:
   - path: ../../deliverables/user/REQ-20260714-ATS-001.md
     reason: Approved P1 remediation and acceptance-environment scope
@@ -19,6 +22,8 @@ dependencies:
 ---
 
 # P1 Security and Acceptance Hardening Design
+
+> **Archived:** This pre-implementation contract is retained in place for historical design context. Current controls are defined by `docs/policies/security-policy.md`, `docs/design/api-spec.md`, the acceptance scripts, and current code/tests.
 
 > Purpose: Define implementation-ready security contracts for WI-20260714-ATS-003 without claiming that any control is implemented or live-verified.
 

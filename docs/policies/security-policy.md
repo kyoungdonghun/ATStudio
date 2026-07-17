@@ -1,6 +1,6 @@
 ---
-version: 1.7
-last_updated: 2026-07-16
+version: 1.8
+last_updated: 2026-07-17
 project: ATS
 owner: PG
 category: policy
@@ -89,13 +89,13 @@ task_types:
 
 **Rules:**
 - Production DB credentials must never appear in committed files.
-- Use `application-local.yml` (gitignored, repository root) for local development.
-- `src/main/resources/application.yml` imports `optional:file:./application-local.yml`, so the local override is applied automatically when present.
+- Use `application-local.yml` (gitignored, repository root) for local development only when the operator loads it explicitly.
+- The committed base configuration does not import the ignored local file. Use an explicit additional-location argument or equivalent external configuration; never infer or copy local values.
 - Production uses environment variables or external secret store.
 
 ### 6.3 Spring Security Configuration
 
-- CSRF: Disabled for all endpoints (REST API + JWT-based; Thymeleaf pages are legacy dev-only scaffolding).
+- CSRF: Disabled for the JWT-based REST API. The active UI is the React SPA; no server-rendered form path exists.
 - CORS: Explicitly configured per environment (dev/staging/prod).
 - Password encoding: BCryptPasswordEncoder (strength 10+).
 
@@ -143,11 +143,11 @@ Local password auth availability is controlled by `APP_AUTH_PASSWORD_LOGIN_ENABL
 
 ### 6.4 Environment Baseline
 
-Use the committed `application.yml` as the safe shared baseline, and override per environment through environment variables or the gitignored root `application-local.yml`.
+Use the committed `application.yml` as the safe shared baseline. Override through environment variables or an explicitly loaded gitignored root `application-local.yml`.
 
 | Setting | Local | Stage | Production | Notes |
 |--------|-------|-------|------------|-------|
-| `SPRING_JPA_HIBERNATE_DDL_AUTO` | `update` allowed | `validate` | `validate` | Non-local environments must not auto-mutate schema |
+| `SPRING_JPA_HIBERNATE_DDL_AUTO` | `validate` | `validate` | `validate` | V1 uses an externally applied fresh schema; runtime must not auto-mutate it |
 | `SPRING_JPA_SHOW_SQL` | `true` optional | `false` | `false` | SQL logs increase noise and leakage risk |
 | `SWAGGER_ENABLED` | `true` allowed | `false` by default | `false` | If temporarily enabled outside local, protect separately |
 | `MAIL_HOST` | `localhost` / MailHog | stage SMTP | production SMTP | Do not rely on localhost outside local dev |
@@ -212,7 +212,7 @@ Email delivery logs are correlation metadata, not a payload fallback.
 - Applicant-visible review reasons are normalized before mutation. `REVISION_REQUESTED` and `REJECTED` require a nonblank reason of at most 500 characters; an `APPROVED` note is optional but has the same bound. Illegal transitions are rejected before status or review-audit mutation.
 - Upload validation accepts only PDF/JPG/JPEG/PNG, rejects null or empty multipart parts, enforces count/size/filename bounds, and checks extension, signature, and compatible MIME. PNG input is verified as `image/png`, then decoded and canonicalized to private JPEG output with `image/jpeg`; submitted PNG bytes are not retained. Canonical image handling remains part of validation; it is not malware scanning.
 - `POLICY-PENDING`: no automatic certification-document purge, withdrawal deletion, retention duration, or scheduler is authorized. A retention policy must name owner, duration, legal/operational basis, and failed-delete handling before implementation.
-- `ENVIRONMENT-CONDITIONAL`: existing MySQL databases require the dated additive manual patch plus a copied-DB rehearsal/backfill assessment before `ddl-auto=validate`. The patch is not application-startup DDL and does not delete records or files.
+- The V1 database baseline is fresh-only: apply `schema.sql` and `seed.sql` once to a verified-empty MySQL 8 database, then start with `ddl-auto=validate`. Retained-data migration is outside the V1 operator path and requires a separate approved requirement, rehearsal, and rollback plan.
 
 ### 6.9 Whitelist Channel URL Safety
 

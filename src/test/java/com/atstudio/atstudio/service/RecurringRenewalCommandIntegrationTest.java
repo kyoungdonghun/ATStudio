@@ -102,7 +102,7 @@ class RecurringRenewalCommandIntegrationTest {
                         currentDue.minusMonths(1)))
                 .user(fixture.user())
                 .purpose(PaymentPurpose.RENEWAL)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .subscription(fixture.subscription())
                 .userSubscription(fixture.userSubscription())
                 .billingAgreement(fixture.agreement())
@@ -329,7 +329,7 @@ class RecurringRenewalCommandIntegrationTest {
                 .build());
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("customer-" + label)
                 .build();
         agreement.activate("encrypted-key", "fingerprint", "CARD", "1234", due);

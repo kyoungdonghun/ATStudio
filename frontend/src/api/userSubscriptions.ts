@@ -99,12 +99,6 @@ export async function fetchAdminUserSubscriptions(
   return data;
 }
 
-/** GET /api/user-subscriptions/{id} -- admin: subscription detail */
-export async function fetchAdminUserSubscriptionDetail(id: number): Promise<MySubscription> {
-  const { data } = await client.get<ApiResponse<MySubscription>>(`/user-subscriptions/${id}`);
-  return data.data;
-}
-
 export interface AdminUpdateSubscriptionRequest {
   status?: string;
   billingCycle?: 'MONTHLY' | 'YEARLY';

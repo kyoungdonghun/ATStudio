@@ -51,14 +51,6 @@ public record AcceptancePublicUrls(String baseUrl, String publicHost) {
         return resolve("/social-login/naver");
     }
 
-    public String tossSuccessUrl() {
-        return resolve("/subscriptions/payment/success");
-    }
-
-    public String tossFailUrl() {
-        return resolve("/subscriptions/payment/fail");
-    }
-
     public String tossBillingAuthSuccessUrl() {
         return resolve("/subscriptions/checkout/success");
     }

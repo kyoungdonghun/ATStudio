@@ -109,7 +109,7 @@ abstract class BillingAgreementCleanupIntegrationTestSupport {
                         .build());
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("cleanup-customer-" + user.getId())
                 .build();
         agreement.activate(
@@ -197,7 +197,7 @@ abstract class BillingAgreementCleanupIntegrationTestSupport {
 
         @Override
         public PaymentProviderType getProviderType() {
-            return PaymentProviderType.TOSS_BILLING;
+            return PaymentProviderType.TOSS;
         }
 
         @Override

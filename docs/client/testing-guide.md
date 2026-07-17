@@ -1,6 +1,6 @@
 ---
-version: 2.0
-last_updated: 2026-07-16
+version: 2.1
+last_updated: 2026-07-17
 project: ATS
 owner: docops
 category: guide
@@ -14,64 +14,79 @@ dependencies:
     reason: Current screen and workflow source
 ---
 
-# AT.M 클라이언트 테스트 안내
+# AT.M Client Testing Guide
 
-## 테스트 전 준비
+## Before Testing
 
-- 운영 담당자가 전달한 테스트 주소만 사용합니다.
-- 개인용, 사업자용, 관리자용 테스트 계정을 구분합니다.
-- 실제 카드, 실제 개인정보, 실제 사업자 문서는 사용하지 않습니다.
-- 결제는 Toss 테스트 환경에서만 진행합니다.
-- 테스트 주소를 메신저나 공개 게시판에 다시 공유하지 않습니다.
+- Use only the URL supplied by the operator for the current acceptance run.
+- Do not reuse a URL from a screenshot, ZIP, old message, or historical report.
+- Keep personal, business, and ADMIN test accounts separate.
+- Do not use real cards, real personal data, or real business documents.
+- Use Toss test configuration only.
+- Do not repost the test URL in a public channel.
 
-운영 담당자는 공개 테스트 전에 개발 환경이 안전한지 확인해야 합니다. 현재 개발 브랜치는 Vite 6.4.3과 보안 점검 0건 상태입니다. 별도로 동결된 client-demo 브랜치는 Vite 6.4.1이며 점검 항목이 남아 있어, 사용자 승인 없는 공개 개발 서버로 사용하면 안 됩니다. 클라이언트는 운영 담당자가 공개 가능하다고 확인한 주소만 이용하면 됩니다.
+The official V1 branch candidate is `codex/p1-acceptance-hardening`; its current
+frontend install resolves Vite 6.4.3. This is not by itself proof that a public
+environment is current. The operator must verify the local page, proxied API,
+and newly issued public URL for each acceptance run.
 
-## 권장 테스트 순서
+## Recommended Order
 
-1. 빠른 점검표로 로그인, 음악 재생, 구독, 주요 관리자 화면을 확인합니다.
-2. 전체 기능 점검표로 역할별 기능을 자세히 확인합니다.
-3. 관리자 계정이 있으면 관리자 점검표를 진행합니다.
-4. 문제가 있으면 문제 제보 양식에 맞춰 기록합니다.
+1. Run the quick checklist for login, playback, subscription, and primary ADMIN
+   screens.
+2. Run the full feature checklist for detailed workflows.
+3. Run the ADMIN checklist with an ADMIN account.
+4. Report each issue using the SR format.
 
-## 꼭 알아둘 현재 동작
+## Current Behavior Notes
 
-### 음악 재생 기록
+### Play History
 
-재생 기록은 현재 브라우저 안에 저장됩니다.
+Play History is stored in the current browser under `localStorage` key
+`playHistory`.
 
-- 음악이 실제로 재생되기 시작한 뒤 기록됩니다.
-- 같은 음악은 중복으로 쌓이지 않고 최신 위치로 이동합니다.
-- 최대 100곡을 보관합니다.
-- 다른 브라우저나 다른 기기와 자동으로 합쳐지지 않습니다.
-- 브라우저 데이터를 지우면 기록이 사라질 수 있습니다.
-- 서버의 예전 재생 기록 기능과는 연결되지 않습니다.
+- Recording starts only after playback starts.
+- Replaying a Track moves it to the newest position.
+- At most 100 Tracks are retained.
+- Clearing browser storage removes this history.
+- Another browser or device does not receive it.
+- No server Play History API or table participates.
 
-### 결제수단 다시 등록
+### Downloads
 
-이미 구독 중인 사용자가 결제수단을 다시 등록할 때 등록 금액은 0원입니다. 카드 등록 단계에서는 즉시 결제되지 않고, 현재 요금제와 이용 기간도 바뀌지 않습니다. 이후 갱신이나 업그레이드에서 새 결제수단을 사용합니다.
+The subscriber route is `/downloads`. It shows Official Download history from
+`/api/downloads/history`. License, plan quota, download history, and Track
+count rules remain enforced by the backend. There is no Download Queue screen
+or API.
 
-### 구독 변경
+### Subscription Payment
 
-- 새 구독은 카드 등록 뒤 첫 결제가 성공해야 시작됩니다.
-- 상위 요금제로 변경하면 남은 기간 차액을 결제한 뒤 바로 적용됩니다.
-- 하위 요금제 또는 결제 주기만 바꾸면 다음 갱신일부터 적용됩니다.
-- 해지는 다음 자동결제를 멈추며, 이미 결제한 기간은 만료일까지 이용합니다.
+Subscription payment uses Toss card recurring billing only.
 
-### 관리자 영수증 링크
+- Checkout starts at `/subscriptions/checkout`.
+- A new subscription charges the first period after billing-key issue.
+- Payment-method registration uses a zero-amount billing-agreement order.
+- Upgrade may charge immediately; downgrade/cycle-only changes are scheduled.
+- Removed payment aliases do not redirect to another checkout.
+- Provider identity shown by current APIs is `TOSS`.
 
-관리자 결제 운영의 영수증 탭에서는 안전한 HTTPS 영수증 링크만 `열기`로 표시됩니다. 주소가 손상됐거나 HTTPS가 아니거나, 주소에 계정 정보 또는 특수 포트가 들어간 예전 값은 클릭되지 않고 지원 참조값 또는 `링크 확인 필요`로 보입니다. 이런 값은 주소창에 직접 붙여 넣지 말고 문제로 기록합니다.
+### ADMIN Payment Operations
 
-### 재생과 다운로드
+`/admin/payments` provides payment ledgers, incidents, receipts, audit logs,
+refunds, entitlement corrections, and settlement operations. Typed
+confirmation is required for emergency mutation flows. ADMIN subscription
+update/cancel remains a separate emergency control.
 
-공개 음악은 로그인 없이 전체 재생할 수 있습니다. 다운로드는 별도의 구독 권한과 일일 한도를 따릅니다. 재생이 된다고 해서 다운로드 권한이 생기는 것은 아닙니다.
+## Reporting
 
-## 테스트 중 주의
+Record:
 
-- 비밀번호, 인증번호, 카드 정보, 결제 키, 영수증 원문 주소를 화면 캡처나 제보 글에 넣지 않습니다.
-- 결제나 삭제 버튼을 여러 번 빠르게 누르지 않습니다.
-- 오류가 나면 같은 동작을 반복하기 전에 화면, 시각, 계정 종류, 진행 순서를 기록합니다.
-- 서버 또는 결제사 설정이 필요한 문제는 기능 결함과 구분해 제보합니다.
+- test account role, without passwords or tokens;
+- current route;
+- exact action;
+- expected and actual result;
+- timestamp;
+- screenshot with personal or payment data redacted.
 
-## 완료 기준
-
-점검표의 각 항목에 정상, 문제, 확인 불가 중 하나를 표시합니다. 확인 불가는 실패로 숨기지 말고, 필요한 계정이나 환경이 무엇인지 적습니다.
+Never include passwords, access tokens, billing keys, provider secrets, raw
+card data, ignored local configuration, or credential-file paths.

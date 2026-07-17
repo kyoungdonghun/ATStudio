@@ -2,17 +2,22 @@ import client from '@/api/client';
 import type { ApiResponse } from '@/types';
 import type { MySubscription } from '@/api/userSubscriptions';
 
-export type PaymentProvider = 'MOCK' | 'TOSS' | 'TOSS_BILLING' | 'KAKAOPAY';
-export type PaymentOrderStatus =
-  | 'READY'
-  | 'IN_PROGRESS'
-  | 'DONE'
-  | 'FAILED'
-  | 'CANCELLED'
-  | 'EXPIRED';
+export const PAYMENT_ORDER_STATUSES = [
+  'READY',
+  'IN_PROGRESS',
+  'PROCESSING',
+  'PROVIDER_SUCCEEDED',
+  'PENDING_PROVIDER_CONFIRMATION',
+  'DONE',
+  'FAILED',
+  'CANCELLED',
+  'EXPIRED',
+] as const;
+
+export type PaymentOrderStatus = (typeof PAYMENT_ORDER_STATUSES)[number];
 
 export interface PaymentCheckout {
-  type: 'MOCK' | string;
+  type: 'TOSS_BILLING_AUTH';
   confirmToken?: string;
   clientKey?: string;
   customerKey?: string;
@@ -29,7 +34,7 @@ export interface BillingAgreementPrepareRequest {
 
 export interface BillingAgreementPrepareResponse {
   orderId: string;
-  provider: 'TOSS_BILLING';
+  provider: 'TOSS';
   purpose: 'SUBSCRIBE' | 'BILLING_AGREEMENT';
   agreementStatus: 'READY' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'EXPIRED';
   subscriptionId: number;
@@ -50,14 +55,14 @@ export interface BillingAgreementConfirmRequest {
 export interface BillingAgreementConfirmResponse {
   orderId: string;
   orderStatus: PaymentOrderStatus;
-  provider: 'TOSS_BILLING';
+  provider: 'TOSS';
   agreementStatus: 'READY' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'EXPIRED';
   nextBillingAt: string | null;
   subscription: MySubscription | null;
 }
 
 export interface BillingAgreementResponse {
-  provider: 'TOSS_BILLING';
+  provider: 'TOSS';
   status: 'READY' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'EXPIRED';
   payMethod: string | null;
   maskedMethod: string | null;
@@ -89,13 +94,6 @@ export async function confirmBillingAgreement(
 
 export async function fetchMyBillingAgreement(): Promise<BillingAgreementResponse> {
   const { data } = await client.get<ApiResponse<BillingAgreementResponse>>(
-    '/payments/billing-agreements/me',
-  );
-  return data.data;
-}
-
-export async function cancelMyBillingAgreement(): Promise<BillingAgreementResponse> {
-  const { data } = await client.delete<ApiResponse<BillingAgreementResponse>>(
     '/payments/billing-agreements/me',
   );
   return data.data;

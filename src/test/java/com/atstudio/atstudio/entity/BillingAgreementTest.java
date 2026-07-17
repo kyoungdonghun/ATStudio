@@ -17,7 +17,7 @@ class BillingAgreementTest {
     @DisplayName("defaults to READY with zero failures")
     void defaults() {
         BillingAgreement agreement = BillingAgreement.builder()
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("ats_billing_random")
                 .build();
 
@@ -29,7 +29,7 @@ class BillingAgreementTest {
     @DisplayName("activate stores protected billing metadata only")
     void activate() {
         BillingAgreement agreement = BillingAgreement.builder()
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("ats_billing_random")
                 .build();
 
@@ -51,7 +51,7 @@ class BillingAgreementTest {
     @DisplayName("activate requires ciphertext and fingerprint")
     void activateRequiresProtectedValues() {
         BillingAgreement agreement = BillingAgreement.builder()
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("ats_billing_random")
                 .build();
 
@@ -68,7 +68,7 @@ class BillingAgreementTest {
     @DisplayName("charge success resets failure count and updates next billing date")
     void recordSuccessfulCharge() {
         BillingAgreement agreement = BillingAgreement.builder()
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("ats_billing_random")
                 .build();
         agreement.activate("v1:nonce:ciphertext", "fingerprint", "카드", "masked", LocalDate.now());
@@ -86,7 +86,7 @@ class BillingAgreementTest {
     @DisplayName("expireIssuedKey clears only reusable key metadata")
     void expireIssuedKey() {
         BillingAgreement agreement = BillingAgreement.builder()
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("ats_billing_random")
                 .build();
         agreement.activate("v1:nonce:ciphertext", "fingerprint", "CARD", "masked", LocalDate.now());
@@ -107,7 +107,7 @@ class BillingAgreementTest {
     @DisplayName("cancel marks agreement non-chargeable")
     void cancel() {
         BillingAgreement agreement = BillingAgreement.builder()
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("ats_billing_random")
                 .build();
         agreement.activate("v1:nonce:ciphertext", "fingerprint", "카드", "masked", LocalDate.now());

@@ -56,22 +56,4 @@ class CompositeKeyEqualityTest {
         assertThat(a).isNotEqualTo(b);
     }
 
-    @Test
-    @DisplayName("DownloadQueueId: 동일 값이면 equal")
-    void downloadQueueId_sameValues_areEqual() {
-        DownloadQueueId a = new DownloadQueueId(3L, 4L);
-        DownloadQueueId b = new DownloadQueueId(3L, 4L);
-
-        assertThat(a).isEqualTo(b);
-        assertThat(a.hashCode()).isEqualTo(b.hashCode());
-    }
-
-    @Test
-    @DisplayName("서로 다른 타입의 복합 키는 not equal")
-    void differentKeyTypes_areNotEqual() {
-        LikeId likeId = new LikeId(1L, 2L);
-        DownloadQueueId downloadQueueId = new DownloadQueueId(1L, 2L);
-
-        assertThat(likeId).isNotEqualTo(downloadQueueId);
-    }
 }

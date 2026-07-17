@@ -43,12 +43,10 @@ class DownloadConcurrencyContractTest {
     }
 
     @Test
-    @DisplayName("one license per user-track pair is retained in JPA and schema sources")
-    void licenseUserTrackInvariantIsPresentInJpaAndSchemaSources() throws Exception {
+    @DisplayName("one license per user-track pair is retained in JPA and the baseline schema")
+    void licenseUserTrackInvariantIsPresentInJpaAndBaselineSchema() throws Exception {
         Table table = License.class.getAnnotation(Table.class);
         String schema = Files.readString(Path.of("src/main/resources/schema.sql"));
-        String patch = Files.readString(Path.of(
-                "src/main/resources/db/manual/20260716_download_atomicity.sql"));
 
         assertThat(table).isNotNull();
         assertThat(Arrays.stream(table.uniqueConstraints())
@@ -56,7 +54,6 @@ class DownloadConcurrencyContractTest {
                         constraint.columnNames(), new String[]{"user_id", "track_id"})))
                 .isTrue();
         assertThat(schema).contains("UNIQUE KEY uq_licenses_user_track (user_id, track_id)");
-        assertThat(patch).contains("ADD CONSTRAINT uq_licenses_user_track UNIQUE (user_id, track_id)");
     }
 
     @Test

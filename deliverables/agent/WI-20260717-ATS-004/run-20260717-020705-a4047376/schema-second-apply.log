@@ -1,0 +1,6 @@
+database.hostClass=loopback
+database.sourceName=atstudio
+schema.secondApply=EXPECTED_FAILURE
+schema.secondApply.sqlState=42S01
+manager.result=PASS
+

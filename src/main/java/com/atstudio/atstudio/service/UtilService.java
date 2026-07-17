@@ -6,8 +6,6 @@ import com.atstudio.atstudio.bootstrap.TestUserBootstrapProperties;
 import com.atstudio.atstudio.dto.util.DownloadCountResponse;
 import com.atstudio.atstudio.dto.util.PublicCapabilitiesResponse;
 import com.atstudio.atstudio.dto.util.SubscriptionChangePreviewResponse;
-import com.atstudio.atstudio.dto.util.SubscriptionStatusResponse;
-import com.atstudio.atstudio.dto.util.UserTypeResponse;
 import com.atstudio.atstudio.entity.Subscription;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
@@ -104,27 +102,6 @@ public class UtilService {
         );
     }
 
-    public SubscriptionStatusResponse getSubscriptionStatus(CustomUserDetails userDetails) {
-        User user = findUser(userDetails.getId());
-        Optional<UserSubscription> subscriptionOpt = userSubscriptionRepository
-                .findActiveByUser(user, LocalDate.now());
-
-        if (subscriptionOpt.isEmpty()) {
-            return SubscriptionStatusResponse.noSubscription();
-        }
-
-        UserSubscription userSubscription = subscriptionOpt.get();
-        Subscription plan = userSubscription.getSubscription();
-
-        return new SubscriptionStatusResponse(
-                true,
-                plan.getName(),
-                plan.getUserType().name(),
-                plan.getDownloadPerDay(),
-                plan.getMaxWhitelistChannels()
-        );
-    }
-
     public DownloadCountResponse getDownloadCount(CustomUserDetails userDetails) {
         User user = findUser(userDetails.getId());
         Optional<UserSubscription> subscriptionOpt = userSubscriptionRepository
@@ -150,14 +127,6 @@ public class UtilService {
         }
 
         return new DownloadCountResponse(todayDownloads, dailyLimit, remaining, nextResetAt);
-    }
-
-    public UserTypeResponse getUserType(CustomUserDetails userDetails) {
-        User user = findUser(userDetails.getId());
-        return new UserTypeResponse(
-                user.getUserType().name(),
-                user.getJob() != null ? user.getJob().name() : null
-        );
     }
 
     public SubscriptionChangePreviewResponse previewSubscriptionChange(

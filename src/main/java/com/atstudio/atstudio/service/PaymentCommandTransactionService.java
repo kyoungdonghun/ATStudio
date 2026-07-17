@@ -45,7 +45,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PaymentCommandTransactionService {
 
-    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS_BILLING;
+    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS;
     private static final int STALE_PROCESSING_MINUTES = 15;
     private static final int RENEWAL_GRACE_DAYS = 3;
     private static final int RENEWAL_MAX_RETRY_COUNT = 3;
@@ -605,16 +605,6 @@ public class PaymentCommandTransactionService {
             Long userID,
             Long agreementID,
             String orderID) {
-        return finalizeUpgradeLocked(userID, agreementID, orderID);
-    }
-
-    @Deprecated
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public com.atstudio.atstudio.dto.subscription.ChangeSubscriptionResponse finalizeUpgrade(
-            Long userID,
-            Long agreementID,
-            String orderID,
-            BillingCycle ignoredCallerTargetBillingCycle) {
         return finalizeUpgradeLocked(userID, agreementID, orderID);
     }
 

@@ -177,7 +177,7 @@ class PaymentCommandTransactionFenceTest {
         ReflectionTestUtils.setField(subscription, "id", 13L);
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("customer-11")
                 .build();
         ReflectionTestUtils.setField(agreement, "id", 11L);
@@ -187,7 +187,7 @@ class PaymentCommandTransactionFenceTest {
                 .commandKey("renewal-command-11")
                 .user(user)
                 .purpose(PaymentPurpose.RENEWAL)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .subscription(plan)
                 .userSubscription(subscription)
                 .billingAgreement(agreement)

@@ -4,7 +4,9 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -14,6 +16,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 class LocalStorageServiceTest {
 
@@ -98,6 +102,137 @@ class LocalStorageServiceTest {
 
         assertThatThrownBy(storage::init)
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void rejectsEqualReverseNestedBlankAndFileStorageRoots() throws IOException {
+        Path shared = Files.createDirectories(tempDirectory.resolve("same"));
+        assertThatThrownBy(() -> {
+            LocalStorageService storage = new LocalStorageService(shared.toString(), shared.toString());
+            storage.init();
+        }).isInstanceOf(IllegalStateException.class);
+
+        Path privateParent = Files.createDirectories(tempDirectory.resolve("private-parent"));
+        Path publicChild = Files.createDirectories(privateParent.resolve("public-child"));
+        assertThatThrownBy(() -> {
+            LocalStorageService storage = new LocalStorageService(publicChild.toString(), privateParent.toString());
+            storage.init();
+        }).isInstanceOf(IllegalStateException.class);
+
+        assertThatThrownBy(() -> new LocalStorageService(" ", privateParent.toString()).init())
+                .isInstanceOf(IllegalStateException.class);
+
+        Path regularFile = Files.writeString(tempDirectory.resolve("not-a-directory"), "data");
+        assertThatThrownBy(() -> new LocalStorageService(
+                regularFile.toString(),
+                tempDirectory.resolve("private-file-case").toString()).init())
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void generatedKeysKeepOnlySafeNormalizedExtensions() {
+        LocalStorageService storage = storage();
+
+        assertThat(storage.generateKey("tracks/audio", null)).doesNotContain(".");
+        assertThat(storage.generateKey("tracks/audio", "README")).doesNotContain(".");
+        assertThat(storage.generateKey("tracks/audio", "song.MP3")).endsWith(".mp3");
+        assertThat(storage.generateKey("tracks/audio", "song.toolongextension")).doesNotContain(".toolongextension");
+        assertThat(storage.generateKey("tracks/audio", "song.exe/path")).doesNotContain(".exe/path");
+    }
+
+    @Test
+    void stageRejectsMissingEmptyUnreadableAndDuplicateUploads() throws IOException {
+        LocalStorageService storage = storage();
+        String operationId = UUID.randomUUID().toString();
+        String key = "tracks/audio/song.mp3";
+
+        assertThatThrownBy(() -> storage.stage(StorageRoot.PUBLIC, operationId, key, null))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> storage.stage(
+                StorageRoot.PUBLIC,
+                operationId,
+                key,
+                new MockMultipartFile("file", new byte[0])))
+                .isInstanceOf(RuntimeException.class);
+
+        MultipartFile unreadable = mock(MultipartFile.class);
+        given(unreadable.isEmpty()).willReturn(false);
+        given(unreadable.getInputStream()).willThrow(new IOException("unreadable"));
+        assertThatThrownBy(() -> storage.stage(StorageRoot.PUBLIC, operationId, key, unreadable))
+                .isInstanceOf(RuntimeException.class);
+
+        MockMultipartFile payload = new MockMultipartFile(
+                "file", "song.mp3", "audio/mpeg", new ByteArrayInputStream(new byte[] {1, 2, 3}));
+        storage.stage(StorageRoot.PUBLIC, operationId, key, payload);
+        assertThatThrownBy(() -> storage.stage(StorageRoot.PUBLIC, operationId, key, payload))
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    void stagingRejectsInvalidOperationIdsAndBlockedDirectories() throws IOException {
+        LocalStorageService storage = storage();
+        MockMultipartFile payload = new MockMultipartFile("file", "data".getBytes(StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> storage.stage(StorageRoot.PUBLIC, null, "tracks/file.mp3", payload))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> storage.stage(StorageRoot.PUBLIC, "not-a-uuid", "tracks/file.mp3", payload))
+                .isInstanceOf(RuntimeException.class);
+
+        String operationId = UUID.randomUUID().toString();
+        Path blocker = tempDirectory.resolve("public/.staging").resolve(operationId).resolve("blocked");
+        Files.createDirectories(blocker.getParent());
+        Files.writeString(blocker, "not a directory");
+
+        assertThatThrownBy(() -> storage.stage(
+                StorageRoot.PUBLIC,
+                operationId,
+                "blocked/file.mp3",
+                payload))
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    void promoteAndDeleteStagedHandleMissingAndNonEmptyStagingTrees() throws IOException {
+        LocalStorageService storage = storage();
+        String operationId = UUID.randomUUID().toString();
+        MockMultipartFile first = new MockMultipartFile("file", "first".getBytes(StandardCharsets.UTF_8));
+        MockMultipartFile second = new MockMultipartFile("file", "second".getBytes(StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> storage.promote(
+                StorageRoot.PUBLIC, operationId, "tracks/missing.mp3"))
+                .isInstanceOf(RuntimeException.class);
+
+        storage.stage(StorageRoot.PUBLIC, operationId, "tracks/first.mp3", first);
+        storage.stage(StorageRoot.PUBLIC, operationId, "tracks/second.mp3", second);
+        storage.promote(StorageRoot.PUBLIC, operationId, "tracks/first.mp3");
+
+        assertThat(storage.deleteStaged(StorageRoot.PUBLIC, operationId, "tracks/second.mp3"))
+                .isEqualTo(StorageDeleteResult.DELETED);
+        assertThat(storage.deleteStaged(StorageRoot.PUBLIC, operationId, "tracks/second.mp3"))
+                .isEqualTo(StorageDeleteResult.NOT_FOUND);
+    }
+
+    @Test
+    void uninitializedStorageAndAdditionalUnsafeKeysFailClosed() {
+        LocalStorageService uninitialized = new LocalStorageService(
+                tempDirectory.resolve("unused-public").toString(),
+                tempDirectory.resolve("unused-private").toString());
+        MockMultipartFile payload = new MockMultipartFile("file", "data".getBytes(StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> uninitialized.stage(
+                StorageRoot.PUBLIC,
+                UUID.randomUUID().toString(),
+                "tracks/file.mp3",
+                payload))
+                .isInstanceOf(RuntimeException.class);
+
+        LocalStorageService storage = storage();
+        List<String> additionalInvalidKeys = List.of("", " ", "tracks/", "tracks/.", "tracks/..");
+        additionalInvalidKeys.forEach(key -> assertThatThrownBy(
+                () -> storage.getUrl(StorageRoot.PUBLIC, key))
+                .isInstanceOf(RuntimeException.class));
+        assertThatThrownBy(() -> storage.loadAsResource(StorageRoot.PUBLIC, "tracks/missing.mp3"))
+                .isInstanceOf(RuntimeException.class);
     }
 
     private LocalStorageService storage() {

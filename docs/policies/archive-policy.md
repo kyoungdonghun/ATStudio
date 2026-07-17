@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-04-15
+version: 1.1
+last_updated: 2026-07-17
 project: system
 owner: EO
 category: policy
@@ -80,6 +80,7 @@ Notes:
 
 - `validate-docs` gates live operational documents strictly.
 - Historical record directories may remain indexed for discoverability, but they must never be treated as the primary operational source.
+- An exact historical-file count may be used as a release or preservation gate only when a saved path/hash manifest defines the counted set and makes the result reproducible. Without that artifact, report preservation qualitatively and use Git diff/status evidence rather than asserting an exact count.
 - Snapshot paths such as `.claude/worktrees/` are excluded from live validation.
 - Future long-term archive storage under `docs/archive/` should also be excluded from live validation.
 

@@ -20,7 +20,6 @@ public class StorageReferenceChecker {
             case TRACK -> """
                     SELECT COUNT(track) FROM Track track
                     WHERE track.audioFile = :key
-                       OR track.previewFile = :key
                        OR track.thumbnail = :key
                     """;
             case PLAYLIST -> """

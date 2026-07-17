@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-07-15
+version: 1.3
+last_updated: 2026-07-17
 project: ATS
 owner: qa
 category: guide
@@ -25,10 +25,10 @@ dependencies:
 | Check | Expected Result | Done |
 | :-- | :-- | :-- |
 | The environment is an approved local/test/staging environment using Toss test configuration. | No live key, real-money payment, retained production DB, or production deployment is used by this checklist. | [ ] |
-| Any remotely shared frontend uses the active development branch with Vite 6.4.3 and zero npm audit findings, or an operator-approved access-controlled alternative. | The frozen Vite 6.4.1 client-demo branch is not publicly exposed; no client URL is shared until the operator confirms the branch/environment gate. | [ ] |
+| Any remotely shared frontend is started from the official V1 branch candidate through the operator-controlled acceptance lifecycle. | Local page and API proxy pass before a newly issued public URL is shared; historical URLs are not reused. | [ ] |
 | Backend and frontend are running against the intended local or staging environment. | User can open `/subscriptions` and admin can open `/admin/payments`. | [ ] |
 | Toss test client key and secret key are configured for recurring billing. | Checkout opens Toss billing auth instead of provider-not-configured error. | [ ] |
-| Billing-key encryption secret is configured. | Billing-key confirmation does not fail due to missing encryption secret. | [ ] |
+| Billing-key active ID and V2 key ring are configured outside the repository. | Billing-key confirmation does not fail due to missing or invalid key-ring configuration. | [ ] |
 | Test user has no active subscription for new-subscription tests. | New checkout starts from a clean state. | [ ] |
 | Admin account can access `/admin/payments`. | Payment operations tabs are visible. | [ ] |
 

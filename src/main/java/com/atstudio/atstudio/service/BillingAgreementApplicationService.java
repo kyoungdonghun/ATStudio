@@ -57,7 +57,7 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class BillingAgreementApplicationService {
 
-    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS_BILLING;
+    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS;
     private static final DateTimeFormatter ORDER_DATE = DateTimeFormatter.BASIC_ISO_DATE;
     private static final int PAYMENT_EXPIRY_MINUTES = 15;
     private static final String ALREADY_REMOVED_BILLING_KEY = "ALREADY_REMOVED_BILLING_KEY";

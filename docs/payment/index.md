@@ -1,6 +1,6 @@
 ---
-version: 1.5
-last_updated: 2026-07-16
+version: 1.6
+last_updated: 2026-07-17
 project: ATS
 owner: docops
 category: guide
@@ -38,7 +38,7 @@ The current payment system is recurring-subscription first:
 - Withdrawal cleanup failure is visible as a deduplicated Incident and retried daily; withdrawal never creates an automatic refund.
 - Admins can review payment ledgers, reconciliation incidents, receipt evidence, refund workflow, entitlement correction workflow, and settlement reconciliation from `/admin/payments`.
 - Existing subscribers re-register a payment method through a zero-amount `BILLING_AGREEMENT` order; registration itself does not charge or change the current plan.
-- Existing MySQL databases must be patched separately from `schema.sql` when running with `ddl-auto=validate`; see [System Overview](system-overview.md) and [DB Schema](../design/db-schema.md).
+- V1 starts from the fresh-only `schema.sql` plus the six-plan `seed.sql`, then runs with `ddl-auto=validate`; see [System Overview](system-overview.md) and [DB Schema](../design/db-schema.md).
 
 This directory is a guide layer. Detailed source-of-truth design documents remain in `docs/design/`.
 
@@ -64,12 +64,10 @@ Not blockers for closure:
 - Toss webhook hardening.
 - Toss Settlement API adapter.
 - Multi-PG expansion.
-- Legacy endpoint removal.
+- A future provider adapter, if selected by an approved product requirement.
 - Additional operator notification channels.
 
-Legacy removal is deferred, not undefined: a separately approved removal must prove no current frontend/supported-client callers, complete an agreed stale-callback observation window or equivalent telemetry check, update route/API/tests/client documents together, and include rollback guidance.
-
-Development-branch quality note: `codex/p1-acceptance-hardening` resolves Vite to 6.4.3 and reports zero production and zero unfiltered npm audit findings. The frozen `codex/client-demo-stable` worktree remains a separate, unmodified environment boundary at Vite 6.4.1 with 5 production findings and 13 total findings; it must not be treated as approved for public dev-server exposure until the user authorizes an update or an access-controlled alternative is used.
+Removed payment aliases and direct-subscription creation are not V1 compatibility paths. The official V1 branch candidate is `codex/p1-acceptance-hardening`; its current frontend install resolves Vite 6.4.3. Public access still requires a newly verified operator-controlled acceptance runtime.
 
 On hold under the current card-only recurring subscription premise:
 

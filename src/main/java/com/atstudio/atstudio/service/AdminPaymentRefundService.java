@@ -231,7 +231,7 @@ public class AdminPaymentRefundService {
     private boolean canRefund(SubscriptionPayment payment) {
         return payment.getPaymentStatus() == PaymentStatus.DONE
                 && payment.getPaymentOrder() != null
-                && payment.getProvider() == PaymentProviderType.TOSS_BILLING
+                && payment.getProvider() == PaymentProviderType.TOSS
                 && !isBlank(payment.getPgTransactionId());
     }
 
@@ -242,7 +242,7 @@ public class AdminPaymentRefundService {
         if (payment.getPaymentOrder() == null) {
             return "Subscription payment has no linked payment order.";
         }
-        if (payment.getProvider() != PaymentProviderType.TOSS_BILLING) {
+        if (payment.getProvider() != PaymentProviderType.TOSS) {
             return "Only Toss recurring billing payments are refundable in this phase.";
         }
         if (isBlank(payment.getPgTransactionId())) {

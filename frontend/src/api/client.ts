@@ -96,10 +96,13 @@ client.interceptors.response.use(
       const { data } = await axios.post('/api/auth/refresh', { refreshToken });
       const newAccessToken: string = data.data.accessToken;
 
-      safeStorage.setItem('accessToken', newAccessToken);
-      if (data.data.refreshToken) {
-        safeStorage.setItem('refreshToken', data.data.refreshToken);
+      if (!safeStorage.setItem('accessToken', newAccessToken)) {
+        throw new Error('Failed to persist refreshed authentication session');
       }
+      if (data.data.refreshToken && !safeStorage.setItem('refreshToken', data.data.refreshToken)) {
+        throw new Error('Failed to persist refreshed authentication session');
+      }
+      useAuthStore.setState({ accessToken: newAccessToken });
 
       processQueue(null, newAccessToken);
       if (originalRequest.headers) {

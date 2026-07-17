@@ -1,6 +1,6 @@
 ---
-version: 2.1
-last_updated: 2026-04-15
+version: 2.3
+last_updated: 2026-07-17
 project: ATS
 owner: SA
 category: standard
@@ -54,12 +54,11 @@ frontend/src/
 ├── api/                  # Axios client + domain API functions
 │   ├── client.ts         # Single Axios instance (JWT interceptor, refresh logic, toUploadUrl)
 │   ├── likes.ts
-│   ├── playHistory.ts
+│   ├── downloads.ts
 │   ├── userSubscriptions.ts
 │   └── ...               # One file per API domain
-├── components/           # Shared UI components (DataTable, Pagination, Toast, TrackRow, etc.)
-├── features/             # Reserved for feature-local composition (currently placeholder only)
-├── hooks/                # Reserved for shared hooks (currently placeholder only)
+├── components/           # Shared UI components (Pagination, Modal, Toast, TrackRow, etc.)
+├── hooks/                # Shared hooks (for example, usePublicCapabilities)
 ├── layouts/              # MainLayout, AdminLayout
 ├── pages/                # Route-level page components, grouped by role
 │   ├── public/           # Unauthenticated pages (HomePage, TrackListPage, etc.)
@@ -88,7 +87,8 @@ frontend/src/
 └── main.tsx              # Entry point
 ```
 
-**No `contexts/` or `schemas/` directories.** `features/` and `hooks/` currently exist as placeholders, while reusable frontend helpers live in `store/`, `api/`, and `utils/`.
+**No `contexts/`, `schemas/`, or `features/` directories.** Reusable frontend
+helpers live in `hooks/`, `store/`, `api/`, and `utils/`.
 
 ---
 
@@ -156,7 +156,7 @@ Manages a singleton `Audio` element. Key state:
 
 Key methods: `play(track)`, `pause()`, `resume()`, `next()`, `prev()`, `addToQueue(track)`, `reorderQueue(from, to)`, `clearQueue()`.
 
-- `play()` auto-records play history (fire-and-forget) if the user is logged in.
+- `play()` records browser-local play history in `localStorage`; this is not a server API call.
 - `volume` is persisted in `localStorage` under key `'playerVolume'`.
 
 ---
@@ -215,7 +215,7 @@ Converts a relative backend storage path to a full frontend URL by prepending `/
 
 ### 4.7 Direct API Calls (No Wrapper Functions)
 
-Pages call `client.get(...)`, `client.post(...)`, etc. directly, or via thin domain API files (e.g., `api/likes.ts`, `api/playHistory.ts`). There are no generic `apiGet`/`apiPost`/`apiPatch` wrapper functions with `HandleConfig`.
+Pages call `client.get(...)`, `client.post(...)`, etc. directly, or via thin domain API files (e.g., `api/likes.ts`, `api/downloads.ts`). There are no generic `apiGet`/`apiPost`/`apiPatch` wrapper functions with `HandleConfig`.
 
 ---
 
@@ -315,7 +315,7 @@ category guide, not a screen-count source of truth.
 | Public (no guard) | 9 | `/`, `/tracks`, `/albums`, `/notices` |
 | Auth (no guard, page handles redirect) | 6 | `/login`, `/signup` |
 | `authRequired` (`minRole="USER"`) | ~13 | `/profile`, `/likes`, `/licenses` |
-| `subscriberOnly` | ~6 | `/playlists`, `/download-queue` |
+| `subscriberOnly` | ~4 | `/playlists`, `/downloads` |
 | `adminOnly` (`minRole="ADMIN"`) | Admin layout + children | `/admin/*` |
 
 ### 6.5 Layouts

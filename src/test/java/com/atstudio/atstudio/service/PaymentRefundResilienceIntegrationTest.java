@@ -156,7 +156,7 @@ class PaymentRefundResilienceIntegrationTest {
                         firstClaimAt);
 
         assertThat(abandonedClaim.refundId()).isEqualTo(fixture.refundID());
-        assertThat(abandonedClaim.provider()).isEqualTo(PaymentProviderType.TOSS_BILLING);
+        assertThat(abandonedClaim.provider()).isEqualTo(PaymentProviderType.TOSS);
         assertThat(abandonedClaim.providerPaymentKey()).isEqualTo("payment_key_wi018");
         assertThat(abandonedClaim.orderId()).isEqualTo("ORDER-REFUND-WI018");
         assertThat(abandonedClaim.amount()).isEqualByComparingTo("4000");
@@ -576,7 +576,7 @@ class PaymentRefundResilienceIntegrationTest {
                 .subscriptionPayment(subscriptionPaymentRepository.findById(fixture.subscriptionPaymentID()).orElseThrow())
                 .paymentOrder(paymentOrderRepository.findById(fixture.paymentOrderID()).orElseThrow())
                 .user(userRepository.findById(fixture.userID()).orElseThrow())
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .status(PaymentRefundStatus.APPROVED)
                 .amount(BigDecimal.valueOf(100))
                 .currency("KRW")
@@ -595,7 +595,7 @@ class PaymentRefundResilienceIntegrationTest {
                 .subscriptionPayment(subscriptionPaymentRepository.findById(fixture.subscriptionPaymentID()).orElseThrow())
                 .paymentOrder(paymentOrderRepository.findById(fixture.paymentOrderID()).orElseThrow())
                 .user(userRepository.findById(fixture.userID()).orElseThrow())
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .status(PaymentRefundStatus.APPROVED)
                 .amount(refundAmount)
                 .currency("KRW")
@@ -649,7 +649,7 @@ class PaymentRefundResilienceIntegrationTest {
                 .build());
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("refund-customer")
                 .build();
         agreement.activate("encrypted-key", "fingerprint", "CARD", "1234", userSubscription.getExpiresAt());
@@ -658,7 +658,7 @@ class PaymentRefundResilienceIntegrationTest {
                 .orderId("ORDER-REFUND-WI018")
                 .user(user)
                 .purpose(PaymentPurpose.SUBSCRIBE)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .status(PaymentOrderStatus.DONE)
                 .subscription(subscription)
                 .userSubscription(userSubscription)
@@ -677,7 +677,7 @@ class PaymentRefundResilienceIntegrationTest {
                 .paymentOrder(order)
                 .billingAgreement(agreement)
                 .billingCycle(BillingCycle.MONTHLY)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .amount(paymentAmount)
                 .paymentStatus(PaymentStatus.DONE)
                 .pgTransactionId("payment_key_wi018")
@@ -757,7 +757,7 @@ class PaymentRefundResilienceIntegrationTest {
 
         @Override
         public PaymentProviderType getProviderType() {
-            return PaymentProviderType.TOSS_BILLING;
+            return PaymentProviderType.TOSS;
         }
 
         @Override

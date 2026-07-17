@@ -3,7 +3,7 @@ param(
     [ValidateSet('Seed', 'Verify', 'Cleanup')]
     [string]$Mode = 'Seed',
     [string]$ApiBase = 'http://127.0.0.1:8080',
-    [string]$RuntimeCredentialsPath = 'C:\Users\jm991\AppData\Local\ATStudio\acceptance-preview-64db91c\backend-environment-credentials.json',
+    [string]$RuntimeCredentialsPath = '',
     [string]$WorkDirectory = '',
     [switch]$DryRun
 )
@@ -16,13 +16,19 @@ if ([string]::IsNullOrWhiteSpace($WorkDirectory)) {
     $WorkDirectory = Join-Path $repoRoot 'output\demo-seed'
 }
 
+if (-not $DryRun -and [string]::IsNullOrWhiteSpace($RuntimeCredentialsPath)) {
+    throw 'RuntimeCredentialsPath is required for non-dry-run demo seed operations.'
+}
+
 $arguments = @(
     $scriptPath,
     '--mode', $Mode.ToLowerInvariant(),
     '--api-base', $ApiBase,
-    '--credentials', $RuntimeCredentialsPath,
     '--work-dir', $WorkDirectory
 )
+if (-not [string]::IsNullOrWhiteSpace($RuntimeCredentialsPath)) {
+    $arguments += @('--credentials', $RuntimeCredentialsPath)
+}
 if ($DryRun) {
     $arguments += '--dry-run'
 }

@@ -54,14 +54,14 @@ class BillingAgreementRepositoryTest {
         User user = userRepository.save(user("billing-user", "billing@test.com"));
         BillingAgreement saved = billingAgreementRepository.save(BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("ats_billing_random")
                 .build());
 
-        assertThat(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS_BILLING))
+        assertThat(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
                 .contains(saved);
         assertThat(billingAgreementRepository.findByProviderAndProviderCustomerKey(
-                PaymentProviderType.TOSS_BILLING,
+                PaymentProviderType.TOSS,
                 "ats_billing_random"))
                 .contains(saved);
     }
@@ -155,7 +155,7 @@ class BillingAgreementRepositoryTest {
         noKeyUser.withdraw();
         BillingAgreement noKeyAgreement = BillingAgreement.builder()
                 .user(noKeyUser)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("ats_billing_cleanup_no_key")
                 .build();
         noKeyAgreement.cancel();
@@ -260,7 +260,7 @@ class BillingAgreementRepositoryTest {
                         periodStart))
                 .user(fixture.user())
                 .purpose(PaymentPurpose.RENEWAL)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .subscription(fixture.subscription())
                 .userSubscription(fixture.userSubscription())
                 .billingAgreement(fixture.agreement())
@@ -286,7 +286,7 @@ class BillingAgreementRepositoryTest {
     private BillingAgreement activeAgreement(User user, String customerKey, LocalDate nextBillingAt) {
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey(customerKey)
                 .build();
         agreement.activate("v1:nonce:ciphertext", "fingerprint-" + customerKey, "카드", "masked", nextBillingAt);

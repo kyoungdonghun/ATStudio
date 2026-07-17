@@ -9,22 +9,23 @@ import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.env.SystemEnvironmentPropertySource;
 
 import javax.crypto.Cipher;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
+import javax.crypto.Mac;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mockStatic;
 
 @DisplayName("BillingKeyCrypto unit tests")
 class BillingKeyCryptoTest {
 
-    private static final String LEGACY_SECRET = "legacy-test-billing-key-secret-32-bytes-minimum";
     private static final String KEY_A_SECRET = "rotation-key-a-secret-material-32-bytes-minimum";
     private static final String KEY_B_SECRET = "rotation-key-b-secret-material-32-bytes-minimum";
 
@@ -57,15 +58,14 @@ class BillingKeyCryptoTest {
     }
 
     @Test
-    @DisplayName("legacy v1 ciphertext remains decryptable")
-    void legacyCiphertextRemainsDecryptable() throws Exception {
+    @DisplayName("legacy v1 ciphertext is rejected")
+    void legacyCiphertextIsRejected() {
         BillingKeyCrypto crypto = new BillingKeyCrypto(properties("key-a", key("key-a", KEY_A_SECRET)));
-        String rawBillingKey = "billing_legacy_123";
 
-        String legacyEnvelope = legacyEnvelope(rawBillingKey, LEGACY_SECRET);
-
-        assertThat(legacyEnvelope).startsWith("v1:");
-        assertThat(crypto.decrypt(legacyEnvelope)).isEqualTo(rawBillingKey);
+        assertThatThrownBy(() -> crypto.decrypt("v1:nonce:ciphertext"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported billing key ciphertext format")
+                .hasMessageNotContaining(KEY_A_SECRET);
     }
 
     @Test
@@ -98,7 +98,7 @@ class BillingKeyCryptoTest {
     }
 
     @Test
-    @DisplayName("startup validation checks legacy secret, active ID, and every key ring entry")
+    @DisplayName("startup validation checks the active ID and every V2 key ring entry")
     void startupValidationChecksEntireKeyRing() {
         PaymentProperties valid = properties(
                 "key-b",
@@ -134,6 +134,155 @@ class BillingKeyCryptoTest {
     }
 
     @Test
+    @DisplayName("blank plaintext, ciphertext, and fingerprint inputs fail closed")
+    void blankInputsFailClosed() {
+        BillingKeyCrypto crypto = new BillingKeyCrypto(properties("key-a", key("key-a", KEY_A_SECRET)));
+
+        assertThatThrownBy(() -> crypto.encrypt(" "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Billing key is required.");
+        assertThatThrownBy(() -> crypto.decrypt(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Billing key ciphertext is required.");
+        assertThatThrownBy(() -> crypto.fingerprint(""))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Billing key is required.");
+    }
+
+    @Test
+    @DisplayName("malformed v2 envelopes and invalid nonces are rejected")
+    void malformedEnvelopeFailsClosed() {
+        BillingKeyCrypto crypto = new BillingKeyCrypto(properties("key-a", key("key-a", KEY_A_SECRET)));
+        String shortNonce = Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[11]);
+
+        assertThatThrownBy(() -> crypto.decrypt("v2:key-a:incomplete"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported billing key ciphertext format");
+        assertThatThrownBy(() -> crypto.decrypt("v2:key-a:" + shortNonce + ":AA"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Failed to decrypt billing key.")
+                .hasCauseInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("authenticated encryption rejects a structurally valid but forged ciphertext")
+    void forgedCiphertextFailsAuthentication() {
+        BillingKeyCrypto crypto = new BillingKeyCrypto(properties("key-a", key("key-a", KEY_A_SECRET)));
+        String[] parts = crypto.encrypt("billing_authentic").ciphertext().split(":", 4);
+        String forgedCiphertext = Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[16]);
+        String forgedEnvelope = String.join(":", parts[0], parts[1], parts[2], forgedCiphertext);
+
+        assertThatThrownBy(() -> crypto.decrypt(forgedEnvelope))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Failed to decrypt billing key.")
+                .hasMessageNotContaining(KEY_A_SECRET)
+                .hasMessageNotContaining("billing_authentic");
+    }
+
+    @Test
+    @DisplayName("missing and malformed key-ring entries block cryptographic use")
+    void malformedKeyRingFailsClosed() {
+        PaymentProperties unavailableActive = properties("key-b", key("key-a", KEY_A_SECRET));
+        assertThatThrownBy(() -> new BillingKeyCrypto(unavailableActive).encrypt("billing_test"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("not present");
+
+        PaymentProperties emptyRing = new PaymentProperties();
+        emptyRing.getBilling().setActiveKeyId("key-a");
+        assertThatThrownBy(() -> BillingKeyCrypto.validateConfiguration(emptyRing))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("key ring is not configured");
+
+        PaymentProperties nullEntry = new PaymentProperties();
+        nullEntry.getBilling().setActiveKeyId("key-a");
+        nullEntry.getBilling().setEncryptionKeys(Collections.singletonList(null));
+        assertThatThrownBy(() -> BillingKeyCrypto.validateConfiguration(nullEntry))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("entry is missing");
+
+        PaymentProperties duplicateIDs = properties(
+                "key-a",
+                key("key-a", KEY_A_SECRET),
+                key("key-a", KEY_B_SECRET));
+        assertThatThrownBy(() -> BillingKeyCrypto.validateConfiguration(duplicateIDs))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("IDs must be unique")
+                .hasMessageNotContaining(KEY_A_SECRET)
+                .hasMessageNotContaining(KEY_B_SECRET);
+    }
+
+    @Test
+    @DisplayName("null key IDs and secrets are rejected as missing configuration")
+    void nullConfigurationValuesFailClosed() {
+        PaymentProperties nullActiveID = properties(null, key("key-a", KEY_A_SECRET));
+        assertThatThrownBy(() -> BillingKeyCrypto.validateConfiguration(nullActiveID))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("valid key ID")
+                .hasMessageNotContaining(KEY_A_SECRET);
+
+        PaymentProperties.EncryptionKey nullSecretKey = key("key-a", null);
+        PaymentProperties nullSecret = properties("key-a", nullSecretKey);
+        assertThatThrownBy(() -> BillingKeyCrypto.validateConfiguration(nullSecret))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("secret is not configured")
+                .hasMessageNotContaining("key-a");
+    }
+
+    @Test
+    @DisplayName("cipher provider failure is translated without exposing plaintext")
+    void cipherProviderFailureFailsClosed() {
+        BillingKeyCrypto crypto = new BillingKeyCrypto(properties("key-a", key("key-a", KEY_A_SECRET)));
+
+        try (var ciphers = mockStatic(Cipher.class)) {
+            ciphers.when(() -> Cipher.getInstance("AES/GCM/NoPadding"))
+                    .thenThrow(new NoSuchAlgorithmException("AES/GCM unavailable"));
+
+            assertThatThrownBy(() -> crypto.encrypt("billing_private"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Failed to encrypt billing key.")
+                    .hasMessageNotContaining("billing_private")
+                    .hasMessageNotContaining(KEY_A_SECRET)
+                    .hasCauseInstanceOf(NoSuchAlgorithmException.class);
+        }
+    }
+
+    @Test
+    @DisplayName("MAC provider failure is translated without exposing plaintext")
+    void macProviderFailureFailsClosed() {
+        BillingKeyCrypto crypto = new BillingKeyCrypto(properties("key-a", key("key-a", KEY_A_SECRET)));
+
+        try (var macs = mockStatic(Mac.class)) {
+            macs.when(() -> Mac.getInstance("HmacSHA256"))
+                    .thenThrow(new NoSuchAlgorithmException("HMAC unavailable"));
+
+            assertThatThrownBy(() -> crypto.fingerprint("billing_private"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Failed to fingerprint billing key.")
+                    .hasMessageNotContaining("billing_private")
+                    .hasMessageNotContaining(KEY_A_SECRET)
+                    .hasCauseInstanceOf(NoSuchAlgorithmException.class);
+        }
+    }
+
+    @Test
+    @DisplayName("digest provider failure is translated without exposing key material")
+    void digestProviderFailureFailsClosed() {
+        BillingKeyCrypto crypto = new BillingKeyCrypto(properties("key-a", key("key-a", KEY_A_SECRET)));
+
+        try (var messageDigests = mockStatic(MessageDigest.class, CALLS_REAL_METHODS)) {
+            messageDigests.when(() -> MessageDigest.getInstance("SHA-256"))
+                    .thenThrow(new NoSuchAlgorithmException("SHA-256 unavailable"));
+
+            assertThatThrownBy(() -> crypto.encrypt("billing_private"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Failed to derive billing key material.")
+                    .hasMessageNotContaining("billing_private")
+                    .hasMessageNotContaining(KEY_A_SECRET)
+                    .hasCauseInstanceOf(NoSuchAlgorithmException.class);
+        }
+    }
+
+    @Test
     @DisplayName("Spring environment binding accepts indexed billing encryption key entries")
     void environmentBindingAcceptsIndexedKeyRing() {
         StandardEnvironment environment = new StandardEnvironment();
@@ -160,7 +309,6 @@ class BillingKeyCryptoTest {
             String activeKeyID,
             PaymentProperties.EncryptionKey... encryptionKeys) {
         PaymentProperties properties = new PaymentProperties();
-        properties.getBilling().setEncryptionSecret(LEGACY_SECRET);
         properties.getBilling().setActiveKeyId(activeKeyID);
         properties.getBilling().setEncryptionKeys(List.of(encryptionKeys));
         return properties;
@@ -173,23 +321,4 @@ class BillingKeyCryptoTest {
         return key;
     }
 
-    private String legacyEnvelope(String rawBillingKey, String secret) throws Exception {
-        byte[] nonce = new byte[12];
-        for (int index = 0; index < nonce.length; index++) {
-            nonce[index] = (byte) (index + 1);
-        }
-        byte[] encryptionKey = MessageDigest.getInstance("SHA-256").digest(
-                ("ATStudio:encryption:" + secret).getBytes(StandardCharsets.UTF_8));
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(
-                Cipher.ENCRYPT_MODE,
-                new SecretKeySpec(encryptionKey, "AES"),
-                new GCMParameterSpec(128, nonce));
-        cipher.updateAAD("v1".getBytes(StandardCharsets.UTF_8));
-        byte[] ciphertext = cipher.doFinal(rawBillingKey.getBytes(StandardCharsets.UTF_8));
-        return "v1:"
-                + Base64.getUrlEncoder().withoutPadding().encodeToString(nonce)
-                + ":"
-                + Base64.getUrlEncoder().withoutPadding().encodeToString(ciphertext);
-    }
 }

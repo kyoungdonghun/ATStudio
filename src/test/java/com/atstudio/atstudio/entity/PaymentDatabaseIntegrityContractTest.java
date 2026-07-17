@@ -37,10 +37,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PaymentDatabaseIntegrityContractTest {
 
     private static final Path FRESH_SCHEMA = Path.of("src/main/resources/schema.sql");
-    private static final Path MANUAL_PATCH = Path.of(
-            "src/main/resources/db/manual/20260714_payment_db_integrity.sql");
-    private static final Path RECONCILIATION_INDEX_PATCH = Path.of(
-            "src/main/resources/db/manual/20260716_payment_reconciliation_indexes.sql");
 
     @Test
     @DisplayName("PaymentOrder exposes the command lifecycle mapping")
@@ -141,7 +137,7 @@ class PaymentDatabaseIntegrityContractTest {
         LocalDate retryAt = billingPeriodStart.plusDays(1);
         LocalDateTime cleanupStartedAt = LocalDateTime.of(2026, 7, 15, 12, 0, 0, 123_000_000);
         BillingAgreement agreement = BillingAgreement.builder()
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("ats_billing_random")
                 .build();
         agreement.activate("ciphertext", "fingerprint", "CARD", "masked", billingPeriodStart);
@@ -295,96 +291,6 @@ class PaymentDatabaseIntegrityContractTest {
         assertAuditEnumValues(auditLogs);
     }
 
-    @Test
-    @DisplayName("manual patch is guarded, ordered, non-destructive, and audit aligned")
-    void manualPatchIsGuardedAndOrdered() throws IOException {
-        String patch = Files.readString(MANUAL_PATCH);
-
-        assertThat(patch)
-                .contains("SIGNAL SQLSTATE '45000'"
-                        , "information_schema.columns"
-                        , "information_schema.statistics"
-                        , "DATE_SUB(DATE(expires_at), INTERVAL 3 DAY)"
-                        , "'RENEWAL:'"
-                        , "CONCAT('LEGACY:', order_id)"
-                        , "agreement.renewal_retry_at = agreement.next_billing_at"
-                        , "agreement.next_billing_at = failed_order.billing_period_start"
-                        , "SET processing_started_at = updated_at"
-                        , "billing_key_cleanup_status ENUM (''NONE'', ''REQUIRED'', ''PROCESSING'', ''PENDING_PROVIDER_CONFIRMATION'', ''FAILED'')"
-                        , "upgrade_target_billing_cycle ENUM (''MONTHLY'', ''YEARLY'')"
-                        , "ADD COLUMN processing_started_at DATETIME NULL AFTER approved_at"
-                        , "idx_billing_agreements_renewal_retry"
-                        , "idx_billing_agreements_cleanup"
-                        , "idx_payment_refunds_status_processing");
-        assertThat(patch).doesNotContain("DELETE FROM", "TRUNCATE TABLE", "DROP TABLE");
-        assertThat(patch).doesNotContain(
-                "UPDATE subscription_payments",
-                "UPDATE payment_operation_audit_logs",
-                "SET upgrade_target_billing_cycle");
-
-        int columnSection = patch.indexOf("-- 2. Add command columns and expand ENUMs");
-        int packageAPreflight = patch.indexOf("-- 4. Preflight Package A legacy state");
-        int packageAColumns = patch.indexOf("-- 5. Add Package A columns");
-        String preColumnSection = patch.substring(0, columnSection);
-        String packageAPreflightSql = patch.substring(packageAPreflight, packageAColumns);
-        assertThat(preColumnSection).doesNotContain(
-                "renewal_retry_at",
-                "billing_key_cleanup_status",
-                "billing_key_cleanup_started_at",
-                "upgrade_target_billing_cycle",
-                "processing_started_at");
-        assertThat(packageAPreflightSql).doesNotContain(
-                "renewal_retry_at",
-                "billing_key_cleanup_status",
-                "billing_key_cleanup_started_at",
-                "upgrade_target_billing_cycle",
-                "processing_started_at");
-        assertThat(patch.indexOf("SET billing_period_start = DATE_SUB"))
-                .isLessThan(patch.indexOf("CALL ats_check_legacy_renewal_retry_repair()"));
-        assertThat(patch.indexOf("CALL ats_check_legacy_renewal_retry_repair()"))
-                .isLessThan(patch.indexOf("ADD COLUMN renewal_retry_at"));
-        assertThat(patch.indexOf("FROM payment_refunds"))
-                .isLessThan(patch.indexOf("SET billing_period_start = DATE_SUB"));
-        assertThat(patch.indexOf("ADD COLUMN renewal_retry_at"))
-                .isLessThan(patch.indexOf("agreement.renewal_retry_at = agreement.next_billing_at"));
-        assertThat(patch.indexOf("agreement.next_billing_at = failed_order.billing_period_start"))
-                .isLessThan(patch.indexOf("ADD KEY idx_billing_agreements_renewal_retry"));
-        assertThat(patch.indexOf("ADD COLUMN processing_started_at DATETIME NULL AFTER approved_at"))
-                .isLessThan(patch.indexOf("SET processing_started_at = updated_at"));
-        assertThat(patch.indexOf("SET processing_started_at = updated_at"))
-                .isLessThan(patch.indexOf("ADD KEY idx_payment_refunds_status_processing"));
-
-        assertSectionsInOrder(
-                patch,
-                "-- 1. Preflight inventory and blocking checks",
-                "-- 2. Add command columns and expand ENUMs",
-                "-- 3. Backfill legacy command identity",
-                "-- 4. Preflight Package A legacy state",
-                "-- 5. Add Package A columns",
-                "-- 6. Repair and backfill Package A state",
-                "-- 7. Block ambiguous renewal groups",
-                "-- 8. Add final constraints and indexes",
-                "-- 9. Post-apply contract comparison");
-        assertAuditEnumValues(patch);
-    }
-
-    @Test
-    @DisplayName("reconciliation index patch is additive, guarded, and includes reproducible EXPLAIN queries")
-    void reconciliationIndexPatchIsAdditiveAndReproducible() throws IOException {
-        String patch = Files.readString(RECONCILIATION_INDEX_PATCH);
-
-        assertThat(patch)
-                .contains(
-                        "SIGNAL SQLSTATE '45000'",
-                        "information_schema.statistics",
-                        "idx_payment_orders_local_reconciliation (status, id, purpose)",
-                        "idx_billing_agreements_local_reconciliation (status, id)",
-                        "EXPLAIN FORMAT=JSON",
-                        "payment_order.id > @ats_last_seen_id",
-                        "agreement.id > @ats_last_seen_id")
-                .doesNotContain("DELETE FROM", "UPDATE payment_orders", "UPDATE billing_agreements", "DROP TABLE");
-    }
-
     private static void assertColumn(
             Class<?> entityType,
             String fieldName,
@@ -418,7 +324,7 @@ class PaymentDatabaseIntegrityContractTest {
 
     private static String tableDefinition(String schema, String tableName) {
         Pattern pattern = Pattern.compile(
-                "CREATE TABLE IF NOT EXISTS " + Pattern.quote(tableName)
+                "CREATE TABLE " + Pattern.quote(tableName)
                         + "\\s*\\((.*?)\\) ENGINE = InnoDB",
                 Pattern.DOTALL);
         Matcher matcher = pattern.matcher(schema);
@@ -444,12 +350,4 @@ class PaymentDatabaseIntegrityContractTest {
                 .toArray(String[]::new));
     }
 
-    private static void assertSectionsInOrder(String sql, String... sections) {
-        int previousIndex = -1;
-        for (String section : sections) {
-            int currentIndex = sql.indexOf(section);
-            assertThat(currentIndex).as("section %s exists", section).isGreaterThan(previousIndex);
-            previousIndex = currentIndex;
-        }
-    }
 }

@@ -144,9 +144,9 @@
   color: var(--error);
 }
 
-/* ── Mock payment ── */
+/* ── Payment provider status ── */
 
-.mockPanel {
+.providerPanel {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
@@ -154,7 +154,7 @@
   background: var(--bg1);
 }
 
-.mockHeader {
+.providerHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -162,19 +162,19 @@
   margin-bottom: 10px;
 }
 
-.mockTitle {
+.providerTitle {
   font-size: 14px;
   font-weight: 700;
   color: var(--text0);
 }
 
-.mockStatus {
+.providerStatus {
   font-size: 12px;
   font-weight: 700;
   color: var(--accent);
 }
 
-.mockMeta {
+.providerMeta {
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -183,7 +183,7 @@
   word-break: break-all;
 }
 
-.mockError {
+.providerError {
   margin-top: 10px;
   font-size: 13px;
   color: var(--error);
@@ -201,7 +201,7 @@
 
 @media (max-width: 560px) {
   .btnGroup,
-  .mockMeta {
+  .providerMeta {
     flex-direction: column;
   }
 

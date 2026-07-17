@@ -1,7 +1,6 @@
 package com.atstudio.atstudio.config;
 
 import com.atstudio.atstudio.bootstrap.TestUserBootstrapProperties;
-import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.service.payment.billing.BillingKeyCrypto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
@@ -47,10 +46,6 @@ public class AcceptanceStartupGuard implements ApplicationRunner, Ordered {
     }
 
     void validate() {
-        if (paymentProperties.getProvider() == PaymentProviderType.TOSS_BILLING) {
-            BillingKeyCrypto.validateConfiguration(paymentProperties);
-        }
-
         Set<String> activeProfiles = activeProfiles();
         boolean acceptanceProfileActive = activeProfiles.contains(ACCEPTANCE_PROFILE);
         boolean acceptanceFlagEnabled = acceptanceProperties.isEnabled();
@@ -69,6 +64,9 @@ public class AcceptanceStartupGuard implements ApplicationRunner, Ordered {
         if (bootstrapEnabled && activeProfiles.stream().noneMatch(EXPLICIT_NON_PRODUCTION_PROFILES::contains)) {
             refuse("Test-user bootstrap requires an explicit non-production profile.");
         }
+
+        BillingKeyCrypto.validateConfiguration(paymentProperties);
+
         if (!acceptanceProfileActive && !bootstrapEnabled) {
             return;
         }
@@ -107,14 +105,6 @@ public class AcceptanceStartupGuard implements ApplicationRunner, Ordered {
                 environment.getProperty("oauth2.naver.redirect-uri"),
                 expected.naverRedirectUri());
         requireExpected(
-                "app.payment.toss.success-url",
-                paymentProperties.getToss().getSuccessUrl(),
-                expected.tossSuccessUrl());
-        requireExpected(
-                "app.payment.toss.fail-url",
-                paymentProperties.getToss().getFailUrl(),
-                expected.tossFailUrl());
-        requireExpected(
                 "app.payment.billing.auth-success-url",
                 paymentProperties.getBilling().getAuthSuccessUrl(),
                 expected.tossBillingAuthSuccessUrl());
@@ -125,16 +115,8 @@ public class AcceptanceStartupGuard implements ApplicationRunner, Ordered {
     }
 
     private void validateTossSecretsWhenEnabled() {
-        PaymentProviderType provider = paymentProperties.getProvider();
-        if (provider != PaymentProviderType.TOSS && provider != PaymentProviderType.TOSS_BILLING) {
-            return;
-        }
-
         requireResolvedValue(paymentProperties.getToss().getClientKey(), "TOSS_CLIENT_KEY");
         requireResolvedValue(paymentProperties.getToss().getSecretKey(), "TOSS_SECRET_KEY");
-        requireResolvedValue(
-                paymentProperties.getBilling().getEncryptionSecret(),
-                "PAYMENT_BILLING_KEY_ENCRYPTION_SECRET");
     }
 
     private Set<String> activeProfiles() {

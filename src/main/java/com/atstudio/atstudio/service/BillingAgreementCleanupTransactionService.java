@@ -30,7 +30,7 @@ import java.util.Optional;
 public class BillingAgreementCleanupTransactionService {
 
     static final Duration CLEANUP_LEASE = Duration.ofMinutes(15);
-    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS_BILLING;
+    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS;
     private static final String STALE_CLEANUP = "STALE_BILLING_KEY_CLEANUP";
     private static final String STALE_CLEANUP_MESSAGE =
             "Billing key cleanup outcome is unknown after its lease expired.";

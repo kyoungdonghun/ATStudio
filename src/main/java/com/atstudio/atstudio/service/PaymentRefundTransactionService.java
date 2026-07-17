@@ -306,7 +306,7 @@ public class PaymentRefundTransactionService {
             return RefundExecutionMode.PROVIDER_MUTATION;
         }
         LocalDateTime createdAt = refund.getCreatedAt();
-        boolean sameKeyReplayAllowed = refund.getProvider() == PaymentProviderType.TOSS_BILLING
+        boolean sameKeyReplayAllowed = refund.getProvider() == PaymentProviderType.TOSS
                 && createdAt != null
                 && now.isBefore(createdAt.plus(TOSS_SAME_KEY_REPLAY_CEILING));
         return sameKeyReplayAllowed

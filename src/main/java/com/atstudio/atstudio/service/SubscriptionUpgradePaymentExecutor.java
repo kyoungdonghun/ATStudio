@@ -18,7 +18,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SubscriptionUpgradePaymentExecutor {
 
-    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS_BILLING;
+    private static final PaymentProviderType RECURRING_PROVIDER = PaymentProviderType.TOSS;
 
     private final BillingKeyCrypto billingKeyCrypto;
     private final List<RecurringPaymentProvider> recurringProviders;

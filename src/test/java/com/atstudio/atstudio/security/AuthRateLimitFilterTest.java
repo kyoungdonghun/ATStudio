@@ -17,11 +17,15 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.BufferedReader;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mockStatic;
 
 class AuthRateLimitFilterTest {
 
@@ -256,6 +260,34 @@ class AuthRateLimitFilterTest {
         }
 
         assertThat(filter.trackedWindowCount()).isEqualTo(256);
+    }
+
+    @Test
+    void passwordAndTokenRecoveryEndpointsHaveIndependentClientLimits() throws Exception {
+        for (String uri : List.of(
+                "/api/auth/forgot-password",
+                "/api/auth/reset-password",
+                "/api/auth/refresh")) {
+            MockHttpServletRequest first = request("POST", uri, "203.0.113.60");
+            MockHttpServletRequest second = request("POST", uri, "203.0.113.60");
+
+            assertThat(invoke(first).getStatus()).isEqualTo(200);
+            assertRateLimited(invoke(second));
+        }
+    }
+
+    @Test
+    void missingFingerprintAlgorithmFailsClosed() {
+        try (var messageDigests = mockStatic(MessageDigest.class)) {
+            messageDigests.when(() -> MessageDigest.getInstance("SHA-256"))
+                    .thenThrow(new NoSuchAlgorithmException("SHA-256 unavailable"));
+
+            MockHttpServletRequest request = request("POST", "/api/auth/login", "203.0.113.61");
+            assertThatThrownBy(() -> invoke(request))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("SHA-256 is unavailable")
+                    .hasCauseInstanceOf(NoSuchAlgorithmException.class);
+        }
     }
 
     private AuthRateLimitFilter createFilter() {

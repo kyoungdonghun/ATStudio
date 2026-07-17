@@ -1,0 +1,528 @@
+/* ── Page ── */
+
+.page {
+  padding: 32px var(--page-px);
+  max-width: var(--page-max-w);
+  margin: 0 auto;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.limitInfo {
+  margin-bottom: 20px;
+}
+
+.limitBadge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--bg2);
+  color: var(--text1);
+}
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.count {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text2);
+  margin-left: 10px;
+}
+
+.btnDownloadAll {
+  background: var(--accent);
+  color: var(--bg0);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btnDownloadAll:hover {
+  opacity: 0.88;
+}
+
+/* ── Filter bar (SR-79) ── */
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.searchForm {
+  display: flex;
+  gap: 6px;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg1);
+  color: var(--text0);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.searchBtn {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text0);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.searchBtn:hover {
+  background: var(--bg3);
+}
+
+.sortSelect {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg1);
+  color: var(--text0);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.bulkActions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.bulkBtn,
+.bulkBtnPrimary {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.bulkBtn {
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text0);
+}
+
+.bulkBtn:hover:not(:disabled) {
+  background: var(--bg3);
+}
+
+.bulkBtnPrimary {
+  border: none;
+  background: var(--accent);
+  color: var(--bg0);
+  font-weight: 600;
+}
+
+.bulkBtnPrimary:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.bulkBtn:disabled,
+.bulkBtnPrimary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── States ── */
+
+.loading,
+.error,
+.empty {
+  text-align: center;
+  padding: 80px 0;
+  color: var(--text2);
+  font-size: 14px;
+  line-height: 2;
+}
+
+.error {
+  color: var(--error);
+}
+
+.emptyLink {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.emptyLink:hover {
+  text-decoration: underline;
+}
+
+/* ── Table ── */
+
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table thead th {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* Override base th alignment with higher specificity */
+.table thead .thNum {
+  width: 42px;
+  text-align: center;
+}
+
+.table thead .thCheck {
+  width: 40px;
+  text-align: center;
+}
+
+.table thead .thRight {
+  text-align: right;
+}
+
+.table thead .thCenter {
+  text-align: center;
+}
+
+.table thead .thStatus {
+  width: 80px;
+  text-align: center;
+}
+
+.table thead .thActs {
+  width: 72px;
+  text-align: center;
+}
+
+/* SR-79: tags column — match TrackRow.module.css .cellTag sizing */
+.table thead .thTags {
+  min-width: 132px;
+  max-width: 242px;
+}
+
+.table thead .thDate {
+  width: 160px;
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: 10px 12px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text1);
+}
+
+.row {
+  transition: background 0.12s;
+}
+
+.row:hover {
+  background: var(--bg1);
+}
+
+/* ── Cells ── */
+
+.cellNum {
+  text-align: center;
+  width: 42px;
+  color: var(--text2);
+}
+
+.cellInfo {
+  /* no extra styles needed */
+}
+
+.cellBpm {
+  width: 70px;
+  text-align: right;
+}
+
+.cellKey {
+  width: 70px;
+  text-align: center;
+}
+
+.cellStatus {
+  width: 80px;
+  text-align: center;
+}
+
+.cellActs {
+  width: 72px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.cellCheck {
+  width: 40px;
+  text-align: center;
+}
+
+/* ── Tags cell (SR-79) — match TrackRow .cellTag ── */
+.cellTags {
+  min-width: 132px;
+  max-width: 242px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tagList {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.tagChip {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  background: var(--bg2);
+  color: var(--text1);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tagEmpty {
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.cellDate {
+  width: 160px;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.paginationWrap {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+/* ── Status badges ── */
+
+.rowDone {
+  opacity: 0.75;
+}
+
+.badgeDone {
+  font-size: 12px;
+  color: var(--success);
+  font-weight: 500;
+}
+
+.badgePending {
+  font-size: 12px;
+  color: var(--text2);
+}
+
+/* ── Info ── */
+
+.info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.infoText {
+  min-width: 0;
+  flex: 1;
+}
+
+.thumb {
+  appearance: none;
+  padding: 0;
+  font: inherit;
+  width: 40px;
+  height: 40px;
+  background: var(--bg3);
+  border-radius: 5px;
+  border: 1px solid var(--border2);
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--border2);
+  cursor: pointer;
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.titleLink {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text0);
+  text-decoration: none;
+  transition: color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.titleLink:hover {
+  color: var(--accent);
+}
+
+/* ── Action Buttons ── */
+
+.dlBtn,
+.removeBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 14px;
+  transition: color 0.15s;
+}
+
+.dlBtn {
+  color: var(--accent);
+}
+
+.dlBtn:hover {
+  opacity: 0.7;
+}
+
+.dlBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.removeBtn {
+  color: var(--text2);
+  margin-left: 4px;
+}
+
+.removeBtn:hover {
+  color: var(--error);
+}
+
+/* ══ Tablet ══ */
+@media (max-width: 1023px) {
+  .thBpm,
+  .cellBpm,
+  .thKey,
+  .cellKey {
+    display: none;
+  }
+
+  .thStatus,
+  .cellStatus {
+    display: none;
+  }
+
+  /* Match TrackRow tablet sizing */
+  .cellTags,
+  .table thead .thTags {
+    min-width: 88px;
+    max-width: 132px;
+  }
+
+  .thDate,
+  .cellDate {
+    width: auto;
+    font-size: 11px;
+  }
+}
+
+/* ══ Mobile ══ */
+@media (max-width: 767px) {
+  .pageTitle {
+    font-size: 18px;
+  }
+
+  .pageHeader {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .thBpm,
+  .cellBpm,
+  .thKey,
+  .cellKey {
+    display: none;
+  }
+
+  /* Hide tags column on mobile, matching TrackRow */
+  .thTags,
+  .cellTags {
+    display: none;
+  }
+
+  .table thead th,
+  .table tbody td {
+    padding: 8px 8px;
+  }
+
+  .tagChip {
+    padding: 1px 5px;
+    font-size: 10px;
+  }
+
+  .thumb {
+    width: 32px;
+    height: 32px;
+  }
+}

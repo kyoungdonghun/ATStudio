@@ -1,0 +1,5 @@
+database.hostClass=loopback
+database.sourceName=atstudio
+disposable.create=PASS
+manager.result=PASS
+

@@ -1,10 +1,13 @@
 ---
-version: 1.1
-last_updated: 2026-07-16
+version: 1.2
+last_updated: 2026-07-17
 project: ATS
 owner: sa
 category: design
-status: accepted
+status: archived
+archived_date: 2026-07-17
+archive_reason: Completed implementation contract superseded by current V1 source-of-truth documents
+replacement_path: index.md
 dependencies:
   - path: ../../deliverables/user/REQ-20260716-ATS-002.md
     reason: Approved remediation requirement
@@ -15,6 +18,8 @@ dependencies:
 ---
 
 # Remaining Remediation Design
+
+> **Archived:** This completed REQ-20260716-ATS-002 design is retained in place for reference. Current behavior is defined by `api-spec.md`, `db-schema.md`, `payment-integration-design.md`, `docs/ui/atstudio-front-list.md`, and current code.
 
 **Design WI:** WI-20260716-ATS-004
 **Closure WI:** WI-20260716-ATS-017

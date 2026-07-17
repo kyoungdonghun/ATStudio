@@ -5,13 +5,15 @@ import WhitelistChannelPage from '@/pages/subscriber/WhitelistChannelPage';
 const fetchWhitelistChannels = vi.fn();
 const fetchMySubscription = vi.fn();
 const deleteChannel = vi.fn();
+const requestWhitelistRegistration = vi.fn();
+const setPrimaryWhitelistChannel = vi.fn();
 
 vi.mock('@/api/whitelistChannels', () => ({
   deleteChannel: (...args: unknown[]) => deleteChannel(...args),
   fetchWhitelistChannels: (...args: unknown[]) => fetchWhitelistChannels(...args),
   registerChannel: vi.fn(),
-  requestWhitelistRegistration: vi.fn(),
-  setPrimaryWhitelistChannel: vi.fn(),
+  requestWhitelistRegistration: (...args: unknown[]) => requestWhitelistRegistration(...args),
+  setPrimaryWhitelistChannel: (...args: unknown[]) => setPrimaryWhitelistChannel(...args),
   updateChannel: vi.fn(),
 }));
 
@@ -59,6 +61,8 @@ describe('WhitelistChannelPage load states', () => {
     fetchWhitelistChannels.mockReset();
     fetchMySubscription.mockReset();
     deleteChannel.mockReset();
+    requestWhitelistRegistration.mockReset();
+    setPrimaryWhitelistChannel.mockReset();
   });
 
   it('retries one failed channel load and preserves the whitelist data state', async () => {
@@ -145,10 +149,8 @@ describe('WhitelistChannelPage load states', () => {
       .mockImplementationOnce(() => firstRefresh.promise)
       .mockResolvedValueOnce({ dataList: [finalChannel] });
     fetchMySubscription.mockResolvedValue(subscription);
-    deleteChannel
-      .mockImplementationOnce(() => firstMutation.promise)
-      .mockImplementationOnce(() => secondMutation.promise);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    requestWhitelistRegistration.mockImplementationOnce(() => firstMutation.promise);
+    setPrimaryWhitelistChannel.mockImplementationOnce(() => secondMutation.promise);
 
     render(<WhitelistChannelPage />);
     const firstCard = (await screen.findByText(channel.channelName)).closest('article');
@@ -156,11 +158,10 @@ describe('WhitelistChannelPage load states', () => {
     expect(firstCard).not.toBeNull();
     expect(secondCard).not.toBeNull();
 
-    const firstButtons = within(firstCard as HTMLElement).getAllByRole('button');
-    const secondButtons = within(secondCard as HTMLElement).getAllByRole('button');
-    fireEvent.click(firstButtons[firstButtons.length - 1]);
-    fireEvent.click(secondButtons[secondButtons.length - 1]);
-    await waitFor(() => expect(deleteChannel).toHaveBeenCalledTimes(2));
+    fireEvent.click(within(firstCard as HTMLElement).getByRole('button', { name: '등록 요청' }));
+    fireEvent.click(within(secondCard as HTMLElement).getByRole('button', { name: '대표 설정' }));
+    await waitFor(() => expect(requestWhitelistRegistration).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(setPrimaryWhitelistChannel).toHaveBeenCalledTimes(1));
 
     await act(async () => firstMutation.resolve());
     await waitFor(() => expect(fetchWhitelistChannels).toHaveBeenCalledTimes(2));
@@ -172,5 +173,30 @@ describe('WhitelistChannelPage load states', () => {
     expect(await screen.findByText('Final server state')).toBeInTheDocument();
     expect(screen.queryByText('Intermediate state')).not.toBeInTheDocument();
     expect(fetchWhitelistChannels).toHaveBeenCalledTimes(3);
+  });
+
+  it('confirms channel deletion once and keeps the dialog pending', async () => {
+    const mutation = deferred<void>();
+    fetchWhitelistChannels.mockResolvedValue({ dataList: [channel] });
+    fetchMySubscription.mockResolvedValue(subscription);
+    deleteChannel.mockReturnValueOnce(mutation.promise);
+
+    render(<WhitelistChannelPage />);
+    const card = (await screen.findByText(channel.channelName)).closest('article');
+    expect(card).not.toBeNull();
+    fireEvent.click(within(card as HTMLElement).getByRole('button', { name: '삭제' }));
+
+    expect(deleteChannel).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog', { name: '채널 삭제' });
+    const confirmButton = within(dialog).getByRole('button', { name: '삭제' });
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
+
+    expect(deleteChannel).toHaveBeenCalledTimes(1);
+    expect(deleteChannel).toHaveBeenCalledWith(channel.id);
+    expect(confirmButton).toBeDisabled();
+
+    await act(async () => mutation.resolve());
+    await waitFor(() => expect(fetchWhitelistChannels).toHaveBeenCalledTimes(2));
   });
 });

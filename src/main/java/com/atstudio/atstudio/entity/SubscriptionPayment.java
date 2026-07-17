@@ -56,7 +56,7 @@ public class SubscriptionPayment extends BaseEntity {
     private BillingCycle billingCycle;
 
     @Enumerated(EnumType.STRING)
-    @Column(length = 30)
+    @Column(nullable = false, length = 30)
     private PaymentProviderType provider;
 
     @Column(nullable = false, precision = 10, scale = 2)

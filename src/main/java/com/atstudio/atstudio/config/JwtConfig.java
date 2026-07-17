@@ -24,7 +24,10 @@ public class JwtConfig {
     public void validate() {
         if (secret == null || secret.isBlank()) {
             throw new IllegalStateException(
-                "Missing JWT secret. Set JWT_SECRET or create application-local.yml at the repository root from application-local.example.yml.");
+                "Missing JWT secret. Set JWT_SECRET, or explicitly load the repository-root "
+                    + "application-local.yml with "
+                    + "SPRING_CONFIG_ADDITIONAL_LOCATION=file:./application-local.yml after creating it "
+                    + "from application-local.example.yml.");
         }
 
         byte[] keyBytes;
@@ -32,7 +35,9 @@ public class JwtConfig {
             keyBytes = Decoders.BASE64.decode(secret);
         } catch (DecodingException e) {
             throw new IllegalStateException(
-                "JWT secret must be Base64-encoded. Update JWT_SECRET or application-local.yml with a Base64 32-byte secret.",
+                "JWT secret must be Base64-encoded. Update JWT_SECRET, or update application-local.yml "
+                    + "and explicitly load it with SPRING_CONFIG_ADDITIONAL_LOCATION, using a Base64 "
+                    + "32-byte secret.",
                 e);
         }
 

@@ -16,6 +16,7 @@ import {
 } from '@/api/userSubscriptions';
 import { classifyLoadError, getLoadErrorMessage } from '@/api/loadError';
 import Button from '@/components/ui/Button';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { formatDate, formatDateTime } from '@/utils/format';
 import { getSafeYoutubeUrl } from '@/utils/safeYoutubeUrl';
 import type { WhitelistChannel, WhitelistChannelStatus } from '@/types';
@@ -60,6 +61,11 @@ interface FormState {
   youtubeChannelId: string;
 }
 
+interface DeleteConfirmation {
+  channel: WhitelistChannel;
+  removalFlow: boolean;
+}
+
 const EMPTY_FORM: FormState = {
   channelName: '',
   youtubeHandle: '',
@@ -77,6 +83,8 @@ export default function WhitelistChannelPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [editId, setEditId] = useState<number | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null);
+  const [deleteConfirmationBusy, setDeleteConfirmationBusy] = useState(false);
   const requestId = useRef(0);
   const loadBlocked = useRef(false);
   const loadQueued = useRef(false);
@@ -242,15 +250,17 @@ export default function WhitelistChannelPage() {
     }
   }
 
-  async function handleDelete(channel: WhitelistChannel) {
+  function handleDelete(channel: WhitelistChannel) {
     const removalFlow = channel.status === 'EXPORTED' || channel.status === 'REGISTERED';
-    const ok = window.confirm(
-      removalFlow
-        ? '이미 외부 처리 중이거나 등록 완료된 채널입니다. 삭제 대신 등록 해제를 요청할까요?'
-        : '이 채널을 삭제할까요?',
-    );
-    if (!ok) return;
+    setDeleteConfirmation((current) => current ?? { channel, removalFlow });
+  }
 
+  async function confirmDelete() {
+    const current = deleteConfirmation;
+    if (!current || deleteConfirmationBusy) return;
+    const { channel, removalFlow } = current;
+
+    setDeleteConfirmationBusy(true);
     try {
       setBusyKey(`delete-${channel.id}`);
       setError(null);
@@ -262,6 +272,8 @@ export default function WhitelistChannelPage() {
       setError(errorMessage(err, '채널 삭제에 실패했습니다.'));
     } finally {
       setBusyKey(null);
+      setDeleteConfirmationBusy(false);
+      setDeleteConfirmation(null);
     }
   }
 
@@ -454,6 +466,21 @@ export default function WhitelistChannelPage() {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteConfirmation !== null}
+        title={deleteConfirmation?.removalFlow ? '등록 해제 요청' : '채널 삭제'}
+        message={
+          deleteConfirmation?.removalFlow
+            ? '이미 외부 처리 중이거나 등록 완료된 채널입니다. 삭제 대신 등록 해제를 요청할까요?'
+            : '이 채널을 삭제할까요?'
+        }
+        confirmLabel={deleteConfirmation?.removalFlow ? '해제 요청' : '삭제'}
+        confirmVariant="danger"
+        busy={deleteConfirmationBusy}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleteConfirmation(null)}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-07-15
+version: 1.2
+last_updated: 2026-07-17
 project: ATS
 owner: SA
 category: design
@@ -23,8 +23,8 @@ dependencies:
 > **Current implementation status (2026-07-15):** This design is implemented by
 > Packages A-G and the WI-008/WI-011 corrections. Independent follow-up review
 > passed in WI-012. This status closes the repository payment-integrity
-> code/test gate only; retained-database, live-provider, deployment, and client
-> acceptance gates remain open. See
+> code/test gate only; retained-database migration is outside the V1 baseline,
+> while live-provider, deployment, and client acceptance gates remain open. See
 > [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md).
 
 ## 1. Decision Summary
@@ -499,45 +499,13 @@ ALTER TABLE payment_refunds
 Existing command, renewal-period, payment-order, provider-transaction, and
 refund-idempotency unique keys remain unchanged.
 
-### 9.2 Existing-DB manual patch contract
+### 9.2 V1 fresh-only schema contract
 
-No existing database is modified by this WI. The implementation extends
-`20260714_payment_db_integrity.sql` and rehearses it only on an approved copied
-database. The ordered patch must:
-
-1. Extend preflight inventory to `payment_refunds` and the new columns/indexes.
-2. Retain the existing stop on nonterminal payment orders. This also guarantees
-   that no retained upgrade needs an unavailable target-cycle backfill.
-3. Before changing renewal dates, list every active agreement whose
-   `next_billing_at` differs from exactly one `FAILED` renewal order's
-   `billing_period_start` by one to three days. Abort if an agreement has zero
-   or multiple plausible failed-period rows while its date is inside a retry
-   window.
-4. List every existing `PROCESSING` refund for operator review before any
-   backfill. This preflight query must not assume that the new lease column
-   already exists.
-5. List and abort on every cancelled agreement that retains billing-key
-   ciphertext. Its provider cleanup outcome is ambiguous and must receive an
-   approved row-specific disposition before assigning cleanup state.
-6. Add the three groups of nullable/defaulted columns, without their new
-   indexes, through the existing idempotent helper procedures.
-7. For each unique exact legacy retry row, copy the old agreement
-   `next_billing_at` to `renewal_retry_at`, then restore `next_billing_at` from
-   that order's `billing_period_start`. Do not choose a "latest" row outside
-   the exact agreement/subscription/purpose/grace predicate.
-8. Leave historical terminal `UPGRADE` rows with
-   `upgrade_target_billing_cycle = NULL`; they are not recovery candidates.
-9. Backfill `payment_refunds.processing_started_at = updated_at` only for
-   existing `PROCESSING` rows with a null lease. List those rows for operator
-   review first. Other refund states remain null.
-10. Add the new indexes through the existing idempotent helper procedures only
-    after the repair and backfill statements complete.
-11. Compare `information_schema` column types and index order to this contract,
-    then run Hibernate `ddl-auto=validate` on the disposable copy.
-
-The patch remains additive except for the narrowly proven legacy renewal-date
-repair in step 7. It does not delete, merge, or automatically finalize a
-payment/refund/incident row.
+The final V1 baseline is the fail-closed `src/main/resources/schema.sql` applied
+once to a verified-empty MySQL 8 database, followed by the six-plan `seed.sql`
+and Hibernate `ddl-auto=validate`. No retained-data migration is part of the V1
+runtime or operator path. Such a migration requires a separate approved
+requirement, explicit data disposition, rehearsal, and rollback.
 
 ## 10. Test and Proof Contract
 
@@ -590,7 +558,7 @@ failure only.
 
 H2 tests remain useful for state transitions and service orchestration. They do
 not prove InnoDB lock ordering, MySQL isolation behavior, ENUM compatibility,
-DDL implicit commits, or the manual patch.
+DDL implicit commits, or a separately approved retained-data migration.
 
 ## 11. Exact Implementation Impact
 
@@ -617,7 +585,7 @@ DDL implicit commits, or the manual patch.
 | `service/PaymentReconciliationTransactionService.java` | New claim/result evidence gate and Incident transitions |
 | provider lookup result/adapter | Exact provider/order/amount/currency/transaction evidence |
 | `schema.sql` | Additive columns/indexes in Section 9.1 |
-| `db/manual/20260714_payment_db_integrity.sql` | Preflight, exact legacy retry repair, additive DDL, post-check |
+| `schema.sql` | Complete fresh-only V1 schema; apply once and validate |
 
 ## 12. Disjoint Implementation Work Items
 
@@ -645,8 +613,9 @@ Post-package evidence:
 - `WI-20260715-ATS-012` (`14053e6`) independently reviewed those four corrections and returned PASS with one non-blocking P3 test gap.
 
 This implementation and review chain closes F-01 through F-05 at the current
-code/test boundary. It does not unblock retained-database application, live Toss,
-production deployment, client acceptance, or non-payment release gates.
+code/test boundary. Retained-database migration remains outside the V1 baseline;
+the chain does not unblock live Toss, production deployment, client acceptance,
+or non-payment release gates.
 
 ## 13. Rollout, Rollback, and Residual Risk
 
@@ -655,8 +624,10 @@ production deployment, client acceptance, or non-payment release gates.
 1. Implement and validate the additive fresh-schema contract.
 2. Run all behavior tests with fake providers.
 3. Run the concurrency suite on an empty disposable MySQL 8/InnoDB schema.
-4. Rehearse the ordered manual patch on an approved copied database only.
-5. Deploy schema expansion before code that writes new columns.
+4. Apply the fresh-only `schema.sql` and `seed.sql` baseline once to a
+   verified-empty MySQL 8 database, then start with `ddl-auto=validate`.
+5. Treat any future retained-data migration as a separate approved requirement
+   with its own rehearsal and rollback plan.
 6. Deploy code with renewal, reconciliation mutation, cleanup worker, charged
    upgrade, and refund execution initially paused; enable after validation.
 

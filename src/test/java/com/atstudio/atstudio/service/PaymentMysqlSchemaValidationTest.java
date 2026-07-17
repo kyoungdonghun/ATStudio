@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PaymentMysqlSchemaValidationTest {
 
     private static final Pattern DISPOSABLE_DATABASE =
-            Pattern.compile("^ats_wi007_\\d{8}_[a-z0-9]{8}$");
+            Pattern.compile("^ats_wi(?:004|007)_\\d{8}_[a-z0-9]{8}$");
 
     @Autowired JdbcTemplate jdbcTemplate;
 
@@ -38,8 +38,13 @@ class PaymentMysqlSchemaValidationTest {
     @DisplayName("Hibernate validates the disposable MySQL schema before race execution")
     void hibernateValidatePassesOnGuardedDisposableDatabase() {
         String database = jdbcTemplate.queryForObject("SELECT DATABASE()", String.class);
-        if (database == null || !DISPOSABLE_DATABASE.matcher(database).matches()) {
-            throw new AssertionError("Datasource target failed the WI007 disposable-name guard.");
+        boolean localRecreateProof = "local-atstudio".equals(
+                System.getenv("ATSTUDIO_MYSQL_PROOF_TARGET"));
+        boolean guardedTarget = localRecreateProof
+                ? "atstudio".equals(database)
+                : database != null && DISPOSABLE_DATABASE.matcher(database).matches();
+        if (!guardedTarget) {
+            throw new AssertionError("Datasource target failed the guarded MySQL proof name check.");
         }
         assertThat(jdbcTemplate.queryForObject("SELECT 1", Integer.class)).isEqualTo(1);
         System.out.println("hibernate.schemaValidation=PASS");

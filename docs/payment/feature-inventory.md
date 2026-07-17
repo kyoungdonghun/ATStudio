@@ -1,6 +1,6 @@
 ---
-version: 1.3
-last_updated: 2026-07-16
+version: 1.4
+last_updated: 2026-07-17
 project: ATS
 owner: docops
 category: guide
@@ -37,9 +37,8 @@ dependencies:
 | Billing-key registration | Implemented | Toss `authKey` and `customerKey` are exchanged server-side for a billing key. |
 | Immediate first charge | Implemented | A new subscription charges the first period immediately after billing-key registration succeeds. |
 | Billing method re-registration | Implemented | Existing subscribers use a zero-amount `BILLING_AGREEMENT` order. Registration does not charge the card or change the current plan/period. |
-| Mock payment provider separation | Implemented with constraint | Mock provider remains for legacy/non-subscription test paths. User-facing subscription checkout does not fall back to mock payment. |
-| One-time subscription payment | Implemented with constraint | Legacy prepare/confirm paths are retained only to block subscription `SUBSCRIBE` and `UPGRADE`. Removal requires caller/telemetry evidence, replacement-route coverage, coordinated docs/tests, approval, and rollback guidance. |
-| Direct subscription creation endpoint | Implemented with constraint | `POST /api/user-subscriptions` is blocked with `SUBSCRIPTION_CHECKOUT_REQUIRED`. |
+| Provider identity | Implemented | Persisted V1 provider is `TOSS`; no alternate provider is active. |
+| Multi-PG interface boundary | Implemented with constraint | Recurring, lookup, and refund interfaces remain provider-neutral, but they do not advertise an unimplemented provider. |
 
 ## 3. Plan Change and Cancellation
 
@@ -148,10 +147,9 @@ dependencies:
 ## 10. Verification Boundary
 
 - The current code/test gate passed independent follow-up review in `WI-20260715-ATS-012`.
-- The final disposable MySQL 8/InnoDB proof passed schema creation, Hibernate validation, all seven required races, and cleanup.
-- Retained-database migration, live Toss, production deployment, and client acceptance remain open; see [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md).
-- The active development branch uses Vite 6.4.3 and reports 0 production and 0 unfiltered npm audit findings. Coverage remains an observed baseline, not a release threshold.
-- The frozen `codex/client-demo-stable` branch remains read-only at Vite 6.4.1 with 5 production and 13 total audit findings. That branch-specific environment is not approved for public Vite exposure without user-authorized remediation or controlled access.
+- WI-20260717-ATS-004 proved the 39-table fresh MySQL baseline, Hibernate validation, payment races, and cleanup.
+- Live Toss, production deployment, and client acceptance remain separate environment gates.
+- The official V1 branch candidate currently resolves Vite 6.4.3. Coverage remains an observed baseline, not a release threshold.
 
 ## Related Documents
 

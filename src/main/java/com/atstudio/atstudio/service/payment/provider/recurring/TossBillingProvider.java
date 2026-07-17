@@ -43,7 +43,7 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
 
     @Override
     public PaymentProviderType getProviderType() {
-        return PaymentProviderType.TOSS_BILLING;
+        return PaymentProviderType.TOSS;
     }
 
     @Override
@@ -70,7 +70,7 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
         metadata.put("method", AUTH_METHOD);
 
         return new BillingAgreementPrepareResult(
-                PaymentProviderType.TOSS_BILLING,
+                PaymentProviderType.TOSS,
                 CHECKOUT_TYPE,
                 "tossBillingClientKeyConfigured=true",
                 metadata

@@ -54,18 +54,9 @@ Every request under `/uploads/tracks/audio/**` is denied before static-resource 
 
 The original file remains in its current physical location during this WI. Moving existing files or changing stored paths is a separate, destructive migration that requires explicit approval. The route denial is therefore the immediate enforcement boundary.
 
-### 2.3 Public stream compatibility (historical, superseded)
+### 2.3 Public stream
 
-The 2026-07-13 contract did not allow the public stream endpoint to fall back to the complete original file. The bullets in this subsection record that historical closure contract and must not be implemented as current listening policy after REQ-20260715-ATS-001.
-
-- If `preview_file` normalizes under `tracks/preview/` and differs from `audio_file`, the endpoint serves that dedicated resource with the existing Range behavior.
-- If `preview_file` is absent, invalid, outside the dedicated directory, or resolves to the original key, the endpoint exposes a bounded prefix of the original as a compatibility preview.
-- The compatibility boundary is the smaller of 30 seconds and 50 percent of the track duration, estimated proportionally from resource length. If duration is unavailable, 25 percent of the resource is used.
-- At least one byte remains outside the public boundary whenever the resource contains more than one byte.
-- A Range request starting at or beyond the preview boundary returns `416 Range Not Satisfiable`.
-- A request without a Range header returns only the bounded preview region.
-
-This fallback closes full-original retrieval without introducing a new transcoder dependency. Dedicated low-quality preview generation remains a separate follow-up; WI-012 corrected active documents that had claimed it already ran asynchronously.
+The current public stream endpoint serves the complete active Track resource through the controller with normal Range behavior. It uses the private `audio_file` storage key internally, does not expose that key in public DTOs, and does not create Official Download history or a License.
 
 ### 2.4 Subscriber download
 
@@ -147,14 +138,14 @@ The due-renewal query excludes deleted users at the database query boundary. `Re
 
 ## 6. Acceptance-Test Matrix
 
-MEDIA-03, MEDIA-04, and the preview wording in REGRESSION-01 are historical closure criteria superseded only for listening length by REQ-20260715-ATS-001. MEDIA-01, MEDIA-02, MEDIA-05, and all non-media criteria retain their original meaning.
+MEDIA-03 and MEDIA-04 use the current complete-resource listening contract. MEDIA-01, MEDIA-02, MEDIA-05, and all non-media criteria retain their original meaning.
 
 | ID | Verification |
 |---|---|
 | MEDIA-01 | Public track detail returns `audioFile: null`; admin detail retains the key. |
 | MEDIA-02 | Authenticated USER and ADMIN requests to `/uploads/tracks/audio/**` are denied. |
-| MEDIA-03 | Historical 2026-07-13 criterion: a stream backed by `preview_file` preserves normal Range behavior. Superseded for current listening behavior. |
-| MEDIA-04 | Historical 2026-07-13 criterion: an original-backed stream never returns a region beyond the bounded preview and rejects an out-of-bound Range. Superseded for current listening behavior. |
+| MEDIA-03 | Public Listening serves the complete active resource with normal valid Range behavior. |
+| MEDIA-04 | Public Listening never exposes the private storage key or creates Official Download/License state. |
 | MEDIA-05 | Subscriber download still returns the original after existing entitlement checks. |
 | MAIL-01 | Simulated SMTP failure logs a delivery ID and outcome. |
 | MAIL-02 | Captured logs do not contain recipient, subject, body, token, URL, provider exception message, or stack trace. |

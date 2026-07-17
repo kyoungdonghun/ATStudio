@@ -1,6 +1,6 @@
 ---
-version: 1.6
-last_updated: 2026-07-16
+version: 1.7
+last_updated: 2026-07-17
 project: ATS
 owner: EO
 category: registry
@@ -30,12 +30,12 @@ dependencies:
 
 ## ATStudio Project Stats (PRJ-ATS-001)
 
-> Last verified from the current working tree: 2026-07-16
+> Last verified from the current working tree: 2026-07-17
 
 | Category | Count | Reference |
 | :-- | :-- | :-- |
-| Backend REST APIs | 149 method-level mappings | `docs/design/api-spec.md` v25 |
-| DB Tables / JPA Entities | 41 / 41 | `docs/design/db-schema.md` v20 |
+| Backend REST APIs | 137 method-level mappings | `docs/design/api-spec.md` v27 |
+| DB Tables / JPA Entities | 39 / 39 | `docs/design/db-schema.md` v21 |
 | Frontend Screens | 53 distinct visual page UIs | `docs/ui/atstudio-front-list.md` |
 | Agents | 13 | `docs/architecture/system-design.md` §2.4 |
 | SR Items completed | 82 | `docs/SR/index.md` |

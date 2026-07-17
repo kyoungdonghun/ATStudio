@@ -181,26 +181,6 @@ export interface Notice {
   updatedAt: string;
 }
 
-/* ── Play History ── */
-
-export interface PlayHistory {
-  id: number;
-  track: { id: number; title: string; artistName: string; thumbnail: string | null };
-  playedAt: string;
-}
-
-/* ── Legacy Download Queue (pre-SR-79) ── */
-
-/** @deprecated Legacy queue item. Subscriber-facing page uses download history items. */
-export interface DownloadQueueItem {
-  trackId: number;
-  title: string;
-  bpm: number;
-  tonality: string;
-  thumbnail: string | null;
-  createdAt: string;
-}
-
 /* ── Like ── */
 
 export interface LikeItem {

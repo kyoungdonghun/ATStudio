@@ -53,8 +53,6 @@ class UserServiceTest {
     @Mock PasswordEncoder passwordEncoder;
     @Mock EmailService emailService;
     @Mock LikeRepository likeRepository;
-    @Mock DownloadQueueRepository downloadQueueRepository;
-    @Mock PlayHistoryRepository playHistoryRepository;
     @Mock TrackDownloadRepository trackDownloadRepository;
     @Mock LicenseRepository licenseRepository;
     @Mock WhitelistChannelRepository whitelistChannelRepository;
@@ -74,7 +72,7 @@ class UserServiceTest {
         user.updateRefreshToken("stored-refresh-hash");
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("customer-key")
                 .build();
         ReflectionTestUtils.setField(agreement, "id", 11L);
@@ -92,7 +90,7 @@ class UserServiceTest {
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(passwordEncoder.matches("password123", "encoded")).willReturn(true);
-        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(1L, PaymentProviderType.TOSS_BILLING))
+        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(1L, PaymentProviderType.TOSS))
                 .willReturn(Optional.of(agreement));
         given(userSubscriptionRepository.findByUserIDForUpdate(1L)).willReturn(Optional.of(subscription));
         org.mockito.Mockito.doAnswer(invocation -> {
@@ -111,8 +109,6 @@ class UserServiceTest {
         assertThat(agreement.getBillingKeyCiphertext()).isEqualTo("encrypted-key");
         verify(eventPublisher).publishEvent(new WithdrawalBillingCleanupRequestedEvent(11L));
         verify(likeRepository).deleteAllByUser(user);
-        verify(downloadQueueRepository).deleteAllByUser(user);
-        verify(playHistoryRepository).deleteAllByUser(user);
         verify(trackDownloadRepository).deleteAllByUser(user);
         verify(licenseRepository).deleteAllByUser(user);
         verify(whitelistChannelRepository).requestExternalRemovalForWithdrawal(eq(user), any());
@@ -131,7 +127,7 @@ class UserServiceTest {
                 userRepository,
                 paymentOrderRepository);
         lockOrder.verify(billingAgreementRepository)
-                .findByUserIDAndProviderForUpdate(1L, PaymentProviderType.TOSS_BILLING);
+                .findByUserIDAndProviderForUpdate(1L, PaymentProviderType.TOSS);
         lockOrder.verify(userSubscriptionRepository).findByUserIDForUpdate(1L);
         lockOrder.verify(userRepository).findByIdForUpdate(1L);
         lockOrder.verify(paymentOrderRepository)
@@ -175,7 +171,7 @@ class UserServiceTest {
         User user = buildUser(1L, "withdraw@test.com", "withdraw-user", null, UserJob.EDITOR);
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("customer-key")
                 .build();
         agreement.activate("encrypted-key", "fingerprint", "CARD", "****1234", LocalDate.now());
@@ -192,7 +188,7 @@ class UserServiceTest {
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
         given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(passwordEncoder.matches("password123", "encoded")).willReturn(true);
-        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(1L, PaymentProviderType.TOSS_BILLING))
+        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(1L, PaymentProviderType.TOSS))
                 .willReturn(Optional.of(agreement));
         given(userSubscriptionRepository.findByUserIDForUpdate(1L)).willReturn(Optional.of(subscription));
         given(paymentOrderRepository.existsByBillingAgreementAndPurposeInAndStatusIn(any(), any(), any()))

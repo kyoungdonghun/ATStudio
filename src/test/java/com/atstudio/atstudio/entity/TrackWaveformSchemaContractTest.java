@@ -15,8 +15,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TrackWaveformSchemaContractTest {
 
     private static final Path FRESH_SCHEMA = Path.of("src/main/resources/schema.sql");
-    private static final Path MANUAL_PATCH = Path.of(
-            "src/main/resources/db/manual/20260715_track_waveform_data.sql");
 
     @Test
     void entityMapsWaveformDataAsNullableText() throws NoSuchFieldException {
@@ -40,30 +38,9 @@ class TrackWaveformSchemaContractTest {
                 .isGreaterThan(tracks.indexOf("waveform_data TEXT NULL"));
     }
 
-    @Test
-    void manualPatchIsGuardedAdditiveAndNotAutomatic() throws IOException {
-        String patch = Files.readString(MANUAL_PATCH);
-
-        assertThat(patch).contains(
-                "This file is NOT auto-run by Spring Boot.",
-                "Apply only after separate operator approval.",
-                "information_schema.tables",
-                "information_schema.columns",
-                "SIGNAL SQLSTATE '45000'",
-                "ALTER TABLE tracks ADD COLUMN waveform_data TEXT NULL AFTER duration",
-                "v_data_type <> 'text'",
-                "v_is_nullable <> 'YES'");
-        assertThat(patch).doesNotContain(
-                "DELETE FROM",
-                "INSERT INTO tracks",
-                "UPDATE tracks",
-                "TRUNCATE TABLE",
-                "DROP TABLE");
-    }
-
     private static String tableDefinition(String schema, String tableName) {
         Pattern pattern = Pattern.compile(
-                "CREATE TABLE IF NOT EXISTS " + Pattern.quote(tableName)
+                "CREATE TABLE " + Pattern.quote(tableName)
                         + "\\s*\\((.*?)\\) ENGINE = InnoDB",
                 Pattern.DOTALL);
         Matcher matcher = pattern.matcher(schema);

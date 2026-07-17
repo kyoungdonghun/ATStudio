@@ -1,348 +1,53 @@
+---
+version: 15.0
+last_updated: 2026-07-17
+project: ATS
+owner: docops
+category: registry
+status: stable
+dependencies:
+  - path: ../api-spec.md
+    reason: Current method/path contract
+  - path: ../db-schema.md
+    reason: Current persistence contract
+---
+
 # Use Case Specification Index
 
-> **Version**: v14
-> **Confirmed date**: 2026-07-15
-> **Reference documents**: `docs/design/db-schema.md` (v15), `docs/design/api-spec.md` (v19)
-> **Source**: `docs/ui/usecase-spec csv/`
-
----
-
-## Current Track Media Contract
-
-- SOUND-010 provides complete active-Track Public Listening through `GET /api/tracks/{trackId}/stream`, with valid Ranges resolved against the full resource length.
-- Public responses expose no original storage key, `/uploads/tracks/audio/**` remains denied, and listening creates no download record or License.
-- SOUND-011 Official Download remains separate: a first download requires an active Subscription and available plan quota; an existing License permits entitled re-download.
-- SOUND-001 and SOUND-012 require no separate preview-generation workflow. The legacy nullable schema column is not a current listening dependency.
-
----
-
-## File List
-
-| File | Category | UC Count |
-|------|----------|----------|
-| `sound-track.md` | Track (create/list/detail/update/delete/play/download/admin list) | 8 |
-| `sound-tag.md` | Tag (create/list/update/delete) | 4 |
-| `sound-playlist.md` | Playlist (create/list/detail/update/delete/add track/remove track) | 7 |
-| `sound-playhistory.md` | Play history (save/list/delete) | 3 |
-| `user-info.md` | User info (register/login/social login/social profile completion/view/update/withdraw/change password/admin dashboard) | 12 |
-| `user-subscription.md` | Subscription (subscribe/list/change/cancel/admin management/admin plan list) | 11 |
-| `user-license.md` | Track usage license (view) | 4 |
-| `user-question.md` | Inquiry (create/list/answer/delete/attachment/admin status change) | 7 |
-| `user-notice.md` | Notice (create/list/detail/update/delete) | 5 |
-| `likes.md` | Likes (add/list/remove, track + album) | 6 |
-| `download-queue.md` | Download queue (add/list/remove) | 3 |
-| `whitelist.md` | Whitelist channel (save/list/update/delete/request/primary/admin/export) | 8 |
-| `company-certification.md` | Company certification (apply/resubmit/view status/admin review/protected documents) | 7 |
-| `business-license.md` | Legacy redirect stub (moved to `company-certification.md`) | - |
-| `util.md` | Utility (duplicate check/token/subscription status/download count/email verify/password reset/public capabilities/site settings) | 14 |
-| `sound-album.md` | Album (create/list/detail/update/delete/add track/remove track/reorder/likes cross-ref) | 9 |
-
-**Total UC count: 109** (unchanged from v12; v13 corrects Track preview, mail logging, and withdrawal behavior without adding a UC)
-
----
-
-## Full UC Code List
-
-### Sound
-
-| Code | Title | File |
-|------|-------|------|
-| SOUND-001 | Create track | `sound-track.md` |
-| SOUND-002 | Create playlist | `sound-playlist.md` |
-| SOUND-003 | Create tag | `sound-tag.md` |
-| SOUND-004 | Save play history | `sound-playhistory.md` |
-| SOUND-005 | List tracks | `sound-track.md` |
-| SOUND-006 | View track detail | `sound-track.md` |
-| SOUND-007 | List playlists | `sound-playlist.md` |
-| SOUND-008 | View playlist detail | `sound-playlist.md` |
-| SOUND-009 | View play history | `sound-playhistory.md` |
-| SOUND-010 | Play track | `sound-track.md` |
-| SOUND-011 | Download track | `sound-track.md` |
-| SOUND-012 | Update track | `sound-track.md` |
-| SOUND-013 | Update playlist | `sound-playlist.md` |
-| SOUND-014 | Update tag | `sound-tag.md` |
-| SOUND-015 | Delete play history | `sound-playhistory.md` |
-| SOUND-016 | Delete track | `sound-track.md` |
-| SOUND-017 | Delete playlist | `sound-playlist.md` |
-| SOUND-018 | Delete tag | `sound-tag.md` |
-| SOUND-019 | Add track to playlist | `sound-playlist.md` |
-| SOUND-020 | Remove track from playlist | `sound-playlist.md` |
-| SOUND-021 | List tracks (Admin) | `sound-track.md` |
-
-### User Info
-
-| Code | Title | File |
-|------|-------|------|
-| INFO-001 | Register | `user-info.md` |
-| INFO-002 | View my info | `user-info.md` |
-| INFO-003 | List members (Admin) | `user-info.md` |
-| INFO-004 | View member detail (Admin) | `user-info.md` |
-| INFO-005 | Update my info | `user-info.md` |
-| INFO-006 | Update member info (Admin) | `user-info.md` |
-| INFO-007 | Withdraw account | `user-info.md` |
-| INFO-008 | Login | `user-info.md` |
-| INFO-009 | View my license list | `user-license.md` |
-| INFO-010 | View member license list (Admin) | `user-license.md` |
-| INFO-011 | View my license detail | `user-license.md` |
-| INFO-012 | View member license detail (Admin) | `user-license.md` |
-| INFO-013 | Social login | `user-info.md` |
-| INFO-014 | Complete social profile | `user-info.md` |
-| INFO-015 | Change password | `user-info.md` |
-| INFO-016 | View admin dashboard stats | `user-info.md` |
-
-### Payment / Subscription
-
-| Code | Title | File |
-|------|-------|------|
-| PAYMENT-001 | Subscribe | `user-subscription.md` |
-| PAYMENT-002 | List subscription plans | `user-subscription.md` |
-| PAYMENT-003 | View subscription plan detail | `user-subscription.md` |
-| PAYMENT-004 | List member subscriptions (Admin) | `user-subscription.md` |
-| PAYMENT-005 | View member subscription detail (Admin) | `user-subscription.md` |
-| PAYMENT-006 | View my subscription | `user-subscription.md` |
-| PAYMENT-007 | Change my subscription | `user-subscription.md` |
-| PAYMENT-008 | Update member subscription (Admin) | `user-subscription.md` |
-| PAYMENT-009 | Delete/cancel member subscription (Admin) | `user-subscription.md` |
-| PAYMENT-010 | Cancel my subscription | `user-subscription.md` |
-| PAYMENT-002A | List all subscription plans (Admin) | `user-subscription.md` |
-
-### Question / Notice
-
-| Code | Title | File |
-|------|-------|------|
-| QUESTION-001 | Create inquiry | `user-question.md` |
-| QUESTION-002 | Write answer | `user-question.md` |
-| QUESTION-003 | List inquiries | `user-question.md` |
-| QUESTION-004 | View inquiry detail | `user-question.md` |
-| QUESTION-005 | Download attachment | `user-question.md` |
-| QUESTION-006 | Delete inquiry | `user-question.md` |
-| QUESTION-007 | Change inquiry status (Admin) | `user-question.md` |
-| ANNOUNCE-001 | Create notice | `user-notice.md` |
-| ANNOUNCE-002 | List notices | `user-notice.md` |
-| ANNOUNCE-003 | View notice detail | `user-notice.md` |
-| ANNOUNCE-004 | Update notice | `user-notice.md` |
-| ANNOUNCE-005 | Delete notice | `user-notice.md` |
-
-### Likes / Download Queue / Whitelist
-
-| Code | Title | File |
-|------|-------|------|
-| LIKE-001 | Add track to likes | `likes.md` |
-| LIKE-002 | List track likes | `likes.md` |
-| LIKE-003 | Remove track from likes | `likes.md` |
-| LIKE-004 | Add album to likes | `likes.md` |
-| LIKE-005 | List album likes | `likes.md` |
-| LIKE-006 | Remove album from likes | `likes.md` |
-| DLQ-001 | Add to download queue | `download-queue.md` |
-| DLQ-002 | View download queue | `download-queue.md` |
-| DLQ-003 | Remove from download queue | `download-queue.md` |
-| WL-001 | Save channel draft | `whitelist.md` |
-| WL-002 | List my channels | `whitelist.md` |
-| WL-003 | Update channel | `whitelist.md` |
-| WL-004 | Delete or request removal | `whitelist.md` |
-| WL-005 | Request whitelist registration | `whitelist.md` |
-| WL-006 | Set primary channel | `whitelist.md` |
-| WL-007 | Admin list/process channels | `whitelist.md` |
-| WL-008 | Admin CSV export | `whitelist.md` |
-
-### Company Certification
-
-| Code | Title | File |
-|------|-------|------|
-| CC-001 | Apply for company certification | `company-certification.md` |
-| CC-002 | Resubmit documents after revision request | `company-certification.md` |
-| CC-003 | View my application status | `company-certification.md` |
-| CC-004 | List applications (Admin) | `company-certification.md` |
-| CC-005 | View application detail and documents (Admin) | `company-certification.md` |
-| CC-006 | Process review (Admin) | `company-certification.md` |
-| CC-007 | Protect company certification documents | `company-certification.md` |
-
-### Album
-
-| Code | Title | File |
-|------|-------|------|
-| ALBUM-001 | Create album | `sound-album.md` |
-| ALBUM-002 | List albums | `sound-album.md` |
-| ALBUM-003 | View album detail | `sound-album.md` |
-| ALBUM-004 | Update album | `sound-album.md` |
-| ALBUM-005 | Delete album | `sound-album.md` |
-| ALBUM-006 | Add track to album | `sound-album.md` |
-| ALBUM-007 | Remove track from album | `sound-album.md` |
-| ALBUM-008 | Reorder album tracks | `sound-album.md` |
-| ALBUM-009 | Album likes (cross-reference) | `sound-album.md` |
-
-### Util
-
-| Code | Title | File |
-|------|-------|------|
-| UTIL-002 | Check email duplicate | `util.md` |
-| UTIL-003 | Check phone duplicate | `util.md` |
-| UTIL-004 | Reissue token | `util.md` |
-| UTIL-005 | Check subscription tier | `util.md` |
-| UTIL-006 | Check download count | `util.md` |
-| UTIL-007 | Check member type | `util.md` |
-| UTIL-012 | Check nickname duplicate | `util.md` |
-| UTIL-013 | Subscription change preview | `util.md` |
-| UTIL-014 | Verify email | `util.md` |
-| UTIL-015 | Request password reset | `util.md` |
-| UTIL-016 | Reset password | `util.md` |
-| UTIL-017 | Get site setting | `util.md` |
-| UTIL-018 | Update site setting (Admin) | `util.md` |
-| UTIL-019 | Get public capabilities | `util.md` |
-
-> New in v3 (vs original)
-> New in v4 (cross-review additions)
-
----
-
-## Change History (v9 to v10)
-
-### UC v10 Modifications (2026-04-18)
-
-| # | UC | Change |
-|---|----|--------|
-| 1 | UTIL-019 | **New** — Get public auth/runtime capabilities. `GET /api/utils/public-capabilities` [PUBLIC]. Returns password-login toggle, mail delivery modes, social provider capability, and QA bootstrap exposure. |
-
----
-
-## Change History (v8 to v9)
-
-### UC v9 Modifications (2026-04-04)
-
-| # | UC | Change |
-|---|----|--------|
-| 1 | UTIL-017 | **New** — Get site setting. `GET /api/settings/{key}` [PUBLIC]. Returns key-value config entry. 404 if key not found. `util.md` updated. |
-| 2 | UTIL-018 | **New** — Update site setting (Admin). `PUT /api/admin/settings/{key}` [ADMIN]. Upsert operation. `util.md` updated. |
-
----
-
-## Change History (v7 to v8)
-
-### UC v8 Modifications (2026-03-29)
-
-| # | UC | Change |
-|---|----|--------|
-| 1 | LIKE-004 | **New** — Add Album to Likes. `POST /api/likes/albums/{albumId}`. 201 Created; 409 if already liked; increments `albums.likeCount`. |
-| 2 | LIKE-005 | **New** — List Album Likes. `GET /api/likes/albums`. Returns `dataList` of `AlbumLikeResponse` (albumId, title, description, thumbnailUrl, trackCount, likeCount, createdAt). |
-| 3 | LIKE-006 | **New** — Remove Album from Likes. `DELETE /api/likes/albums/{albumId}`. 204 No Content; decrements `albums.likeCount` (floor 0). |
-| 4 | SOUND-005 | **Updated** — Sort parameter documented: `latest` (createdAt DESC, default), `popular` (playCount DESC), `likes` (likeCount DESC), `downloads` (downloadCount DESC). Response now includes `likeCount` and `downloadCount` fields. |
-| 5 | ANNOUNCE-002 | **Updated** — Sort parameter documented: `latest` (isPinned DESC + createdAt DESC, default), `views` (isPinned DESC + viewCount DESC). Response includes `viewCount` field. |
-| 6 | ANNOUNCE-003 | **Updated** — Detail access increments `notices.viewCount` (same transaction). Response includes `viewCount` field. |
-| 7 | ALBUM-002 | **Updated** — Sort parameter documented: `latest` (DB-level createdAt DESC, default), `trackCount` (in-memory DESC). Response includes `likeCount` field from `albums.like_count`. |
-| 8 | ALBUM-009 | **New** — Album Likes cross-reference entry. `albums.likeCount` field documented. Canonical definitions at LIKE-004/005/006. |
-
----
-
-## Change History (v6 to v7)
-
-### UC v7 Modifications (2026-03-14)
-
-| # | Field | Value |
-|---|-------|-------|
-| 1 | UTIL-013 | **Indexed** — Subscription change preview UC existed in `util.md` but was missing from index. Now indexed. |
-| 2 | UTIL-014 | **New** — Verify email UC. `GET /api/auth/verify-email` [PUBLIC]. Token-based email verification (24h expiry, single-use). `util.md` updated. |
-| 3 | UTIL-015 | **New** — Request password reset UC. `POST /api/auth/forgot-password` [PUBLIC]. Sends reset email, always returns 200. `util.md` updated. |
-| 4 | UTIL-016 | **New** — Reset password UC. `POST /api/auth/reset-password` [PUBLIC]. Token-based password reset (1h expiry, single-use). `util.md` updated. |
-| 5 | PAYMENT-002A | **New** — Admin subscription plan list UC. `GET /api/subscriptions/admin` [ADMIN]. Returns all plans including inactive. `user-subscription.md` updated. |
-| 6 | INFO-016 | **New** — Admin dashboard stats UC. `GET /api/admin/stats` [ADMIN]. Aggregated statistics for admin dashboard. `user-info.md` updated. |
-
----
-
-## Change History (v5 to v6)
-
-### UC v6 Modifications (2026-03-08)
-
-| # | Field | Value |
-|---|-------|-------|
-| 1 | SOUND-021 | **New** — Admin track list UC. `GET /api/tracks/admin` [ADMIN]. Returns AdminTrackListItemResponse list including isActive field. `sound-track.md` updated. |
-| 2 | INFO-015 | **New** — Change password UC. `PUT /api/users/me/password` [Auth]. Verifies current password then updates to new password. `user-info.md` updated. |
-
----
-
-## Change History (v4 to v5)
-
-### UC v5 Modifications (2026-03-04)
-
-| # | Field | Value |
-|---|-------|-------|
-| 1 | ALBUM-001~008 | **New** — Album domain (admin curated album). 8 UCs added. `sound-album.md` created. |
-
----
-
-## Change History (v3 to v4)
-
-### UC v4 Modifications (cross-review confirmed)
-
-| # | Field | Value |
-|---|-------|-------|
-| 1 | INFO-013 Social login | Added isProfileComplete derived field. New sign-ups branch to 2-step profile completion flow. See INFO-014. |
-| 2 | INFO-014 Social profile completion | **New** -- `PUT /api/users/me/complete-profile`. Required profile input for first-time social sign-ups. |
-| 3 | SOUND-010 Play track | Removed play_histories recording from stream API. Changed to frontend calling SOUND-004 separately. |
-| 4 | SOUND-004 Save play history | Trigger changed: "automatic inside SOUND-010" to "frontend explicitly calls when QueBar playback starts". |
-| 5 | SOUND-002/007/008/013/017/019/020 | Added "has active subscription (ACTIVE)" to preconditions. All playlist features confirmed subscriber-only. |
-| 6 | QUESTION-006 edit removed | Inquiry edit feature removed. No-edit policy -- guide users to delete and rewrite. |
-| 7 | QUESTION-006 delete (renumbered) | Former QUESTION-007 (delete) renumbered to QUESTION-006 (delete). |
-| 8 | QUESTION-007 status change | **New** -- Admin inquiry status change UC (maps to existing API 8.7 to v4 API 8.6). |
-| 9 | PAYMENT-010 Cancel my subscription | **New** -- `DELETE /api/user-subscriptions/me`. Member directly cancels subscription. |
-| 10 | BL-001 precondition updated | "No PENDING or APPROVED" to "No PENDING/APPROVED; reapplication allowed after rejected/rework cases" in the former business-license wording. Current CC policy is: `REVISION_REQUESTED` resubmits the same application, while `REJECTED` allows a new application. |
-
-### Removed UC (v3 to v4)
-
-| Original Code | Reason |
-|---------------|--------|
-| QUESTION-006 (edit inquiry) | Inquiry edit feature removed. Frontend shows no-edit notice and guides to delete and rewrite. |
-
----
-
-## Change History (original to v3)
-
-### Major modifications from original
-
-| # | Field | Value |
-|---|-------|-------|
-| 1 | INFO-001 | Fixed duplicate flow numbers, added job/userType fields, added nickname duplicate check step |
-| 2 | INFO-005 | Specified editable fields (nickname/phonePersonal/phoneCompany/job), marked email/userType as immutable |
-| 3 | INFO-007 | Changed to soft delete (is_deleted=1), added password re-confirmation |
-| 4 | INFO-009 | Fixed description error ("specific member's" to "own"), removed active subscription precondition |
-| 5 | INFO-011 | Fixed code typo (IFNO-011 to INFO-011) |
-| 6 | SOUND-001 | **Historical v3 record, superseded by v14** - changed upload to direct multipart and introduced a separate preview-generation design. Current SOUND-001 stores the original and waveform metadata; no preview-generation workflow is required. |
-| 7 | SOUND-002 | Fixed actor (admin/artist to User (Member)) |
-| 8 | SOUND-004/009/015 | Renamed "playlog" to "play history (play_histories)" |
-| 9 | SOUND-010 | Added play_histories recording + play_count increment as postconditions |
-| 10 | SOUND-011 | Updated preconditions (active subscription + COUNT query check), changed download count deduction to COUNT-based approach, added automatic license issuance |
-| 11 | SOUND-016 | Fixed flow numbers, explicitly included track_tags deletion |
-| 12 | PAYMENT-001 | Added billingCycle, added business license approval precondition, removed track usage license confusion |
-| 13 | PAYMENT-007 | Removed license change content from postconditions |
-| 14 | QUESTION-001 | Added category/isPublic/attachment fields |
-| 15 | QUESTION-002 | Specified who can answer (member: own inquiry only, admin: all inquiries) |
-
-### Newly Added UC (19)
-
-| Code | Title | Reason |
-|------|-------|--------|
-| INFO-013 | Social login | Present in API spec section 5.3 but missing from original |
-| SOUND-019 | Add track to playlist | Present in API spec section 4.5 but missing from original |
-| SOUND-020 | Remove track from playlist | Present in API spec section 4.6 but missing from original |
-| LIKE-001~003 | Likes CRUD | DB likes table + API section 10 present but missing from original |
-| DLQ-001~003 | Download queue | DB download_queue table + API section 11 present but missing from original |
-| WL-001~008 | Whitelist channels | DB whitelist tables + API section 12 present but missing from original |
-| BL-001~005 | Business license review | DB business_license_requests table + API section 13 present but missing from original |
-| UTIL-012 | Check nickname duplicate | Required by INFO-001/005 but missing from original. Added as API 14.7 |
-
-### Removed UC (5)
-
-| Original Code | Reason |
-|---------------|--------|
-| UTIL-001 (token issuance) | Merged into INFO-008 (login) |
-| UTIL-008 (license issuance) | Merged into SOUND-011 (track download) |
-| UTIL-009 (input validation - BE) | Spring Bean Validation standard feature |
-| UTIL-010 (input validation - FE) | Frontend code level, outside UC scope |
-| UTIL-011 (file storage) | Merged into SOUND-001 (create track) |
-
-### DB/API Spec Changes (v2 to v3)
-
-| # | Field | Value |
-|---|-------|-------|
-| 1 | `tracks.preview_file` column added | **Historical v3 schema statement, superseded by v14** - the legacy nullable column remains for compatibility, but current Public Listening serves the complete active Track through the controller and does not select or depend on it. |
-| 2 | `GET /api/utils/check-nickname` API added | Nickname duplicate check API (UTIL-012) |
-| 3 | `track_tags` join table | Physical deletion confirmed when track is soft-deleted |
+> Purpose: Navigate current domain use cases. API and DB counts are owned by the
+> current API and DB specifications; this index does not maintain a second
+> aggregate count.
+
+## Current Files
+
+| File | Current subject |
+|---|---|
+| [sound-track.md](sound-track.md) | Track create/list/detail/update/delete, Public Listening, Official Download |
+| [sound-tag.md](sound-tag.md) | Tag management and available-tag reads |
+| [sound-playlist.md](sound-playlist.md) | Subscriber playlist CRUD and Track membership |
+| [sound-playhistory.md](sound-playhistory.md) | Browser-local Play History |
+| [sound-album.md](sound-album.md) | Album CRUD, Track membership/order, and likes |
+| [likes.md](likes.md) | Track and album likes |
+| [download-queue.md](download-queue.md) | Official Download History; legacy filename retained for link stability |
+| [user-info.md](user-info.md) | Registration, auth/profile, password, withdrawal, ADMIN users/stats |
+| [user-subscription.md](user-subscription.md) | Recurring subscription lifecycle and emergency ADMIN controls |
+| [user-license.md](user-license.md) | User and ADMIN License reads |
+| [user-question.md](user-question.md) | Inquiry, answer, attachment, and ADMIN status |
+| [user-notice.md](user-notice.md) | Notice reads and ADMIN mutations |
+| [whitelist.md](whitelist.md) | User whitelist and ADMIN export workflow |
+| [company-certification.md](company-certification.md) | BUSINESS certification and protected review documents |
+| [business-license.md](business-license.md) | Redirect/reference to company certification |
+| [util.md](util.md) | Six current Utility API use cases |
+
+## Current Cross-Cutting Rules
+
+- Public Listening serves the complete active Track through the controller and
+  does not create download or License records.
+- Official Download remains subscription/License/quota controlled and records
+  `track_downloads`.
+- Play History is browser-local.
+- The subscriber download screen is `/downloads`.
+- Subscription purchase and change use TOSS recurring billing only.
+- Direct subscription creation and removed compatibility APIs/routes are not
+  current use cases.
+- Site settings are read publicly and updated through the ADMIN path.

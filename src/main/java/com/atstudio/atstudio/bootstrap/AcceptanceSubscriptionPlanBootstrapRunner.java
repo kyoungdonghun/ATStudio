@@ -43,23 +43,17 @@ public class AcceptanceSubscriptionPlanBootstrapRunner implements ApplicationRun
     @Transactional
     public void run(ApplicationArguments args) {
         Map<PlanKey, List<Subscription>> existingPlans = findExistingCanonicalPlans();
-        List<Subscription> missingPlans = new ArrayList<>();
 
         for (CanonicalPlan canonicalPlan : CANONICAL_PLANS) {
             List<Subscription> matches = existingPlans.getOrDefault(canonicalPlan.key(), List.of());
             if (matches.isEmpty()) {
-                missingPlans.add(canonicalPlan.toEntity());
-                continue;
+                refuse(canonicalPlan.key(), "MISSING");
             }
             if (matches.size() > 1) {
                 refuse(canonicalPlan.key(), "DUPLICATE");
             }
 
             validateExistingPlan(canonicalPlan, matches.get(0));
-        }
-
-        if (!missingPlans.isEmpty()) {
-            subscriptionRepository.saveAll(missingPlans);
         }
     }
 
@@ -141,19 +135,6 @@ public class AcceptanceSubscriptionPlanBootstrapRunner implements ApplicationRun
 
         private PlanKey key() {
             return new PlanKey(name, userType);
-        }
-
-        private Subscription toEntity() {
-            return Subscription.builder()
-                    .name(name)
-                    .userType(userType)
-                    .priceMonthly(priceMonthly)
-                    .priceYearly(priceYearly)
-                    .downloadPerDay(downloadPerDay)
-                    .maxWhitelistChannels(maxWhitelistChannels)
-                    .maxPlaylists(maxPlaylists)
-                    .isActive(true)
-                    .build();
         }
 
         private boolean matches(Subscription subscription) {

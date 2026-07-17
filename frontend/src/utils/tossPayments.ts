@@ -51,7 +51,7 @@ export function loadTossPaymentsSdk(): Promise<TossPaymentsFactory> {
     return sdkPromise;
   }
 
-  sdkPromise = new Promise((resolve, reject) => {
+  const loadPromise = new Promise<TossPaymentsFactory>((resolve, reject) => {
     const existingScript = document.querySelector<HTMLScriptElement>(
       `script[src="${TOSS_SDK_URL}"]`,
     );
@@ -80,6 +80,13 @@ export function loadTossPaymentsSdk(): Promise<TossPaymentsFactory> {
       once: true,
     });
     document.head.appendChild(script);
+  });
+
+  sdkPromise = loadPromise.catch((error: unknown) => {
+    sdkPromise = null;
+    const failedScript = document.querySelector<HTMLScriptElement>(`script[src="${TOSS_SDK_URL}"]`);
+    failedScript?.remove();
+    throw error;
   });
 
   return sdkPromise;

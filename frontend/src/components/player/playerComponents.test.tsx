@@ -1,0 +1,213 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const api = vi.hoisted(() => ({
+  fetchMyPlaylists: vi.fn(),
+  fetchPlaylistDetail: vi.fn(),
+  createPlaylist: vi.fn(),
+  deletePlaylist: vi.fn(),
+  removeTrackFromPlaylist: vi.fn(),
+  reorderTracks: vi.fn(),
+  fetchMySubscription: vi.fn(),
+  fetchLikes: vi.fn(),
+  getApiErrorCode: vi.fn(),
+}));
+
+vi.mock('@/api/playlists', () => ({
+  fetchMyPlaylists: api.fetchMyPlaylists,
+  fetchPlaylistDetail: api.fetchPlaylistDetail,
+  createPlaylist: api.createPlaylist,
+  deletePlaylist: api.deletePlaylist,
+  removeTrackFromPlaylist: api.removeTrackFromPlaylist,
+  reorderTracks: api.reorderTracks,
+}));
+vi.mock('@/api/userSubscriptions', () => ({ fetchMySubscription: api.fetchMySubscription }));
+vi.mock('@/api/likes', () => ({ fetchLikes: api.fetchLikes }));
+vi.mock('@/api/client', () => ({
+  getApiErrorCode: api.getApiErrorCode,
+  toUploadUrl: (value: string | null) => value,
+}));
+
+import HistoryModal from '@/components/player/HistoryModal';
+import PlaylistDrawer from '@/components/player/PlaylistDrawer';
+import { useAuthStore } from '@/store/authStore';
+import { usePlayerStore } from '@/store/playerStore';
+import { useToastStore } from '@/store/toastStore';
+
+const playlist = {
+  id: 3,
+  title: 'Focus List',
+  description: null,
+  thumbnail: null,
+  trackCount: 2,
+  createdAt: '2026-07-17T00:00:00Z',
+};
+const detail = {
+  ...playlist,
+  tracks: [
+    { trackOrder: 1, trackId: 11, title: 'Song A', bpm: 100, tonality: 'C' },
+    { trackOrder: 2, trackId: 12, title: 'Song B', bpm: 110, tonality: 'D' },
+  ],
+  updatedAt: '2026-07-17T00:00:00Z',
+};
+
+describe('player auxiliary components', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAuthStore.setState({ user: null, accessToken: 'token', role: 'USER' });
+    usePlayerStore.setState({
+      currentTrack: null,
+      isPlaying: false,
+      queue: [],
+      trackListContext: [],
+    });
+    useToastStore.setState({ toasts: [] });
+    api.fetchMyPlaylists.mockResolvedValue({ dataList: [playlist] });
+    api.fetchMySubscription.mockResolvedValue({ subscription: { maxPlaylists: 5 } });
+    api.fetchPlaylistDetail.mockResolvedValue(detail);
+    api.fetchLikes.mockResolvedValue({
+      dataList: [
+        {
+          trackId: 21,
+          title: 'Liked Song',
+          bpm: 90,
+          tonality: 'A',
+          thumbnail: null,
+          createdAt: '2026-07-17T00:00:00Z',
+        },
+      ],
+    });
+    api.createPlaylist.mockResolvedValue({ id: 4 });
+    api.deletePlaylist.mockResolvedValue(undefined);
+    api.removeTrackFromPlaylist.mockResolvedValue(undefined);
+    api.reorderTracks.mockResolvedValue(undefined);
+  });
+
+  it('loads local history, plays an entry, and deletes it', async () => {
+    localStorage.setItem(
+      'playHistory',
+      JSON.stringify([
+        {
+          trackId: 7,
+          title: 'Yesterday',
+          thumbnail: '/yesterday.png',
+          playedAt: '2026-07-17T01:00:00Z',
+        },
+      ]),
+    );
+    const play = vi.fn();
+    usePlayerStore.setState({ play });
+    const { container } = render(<HistoryModal open onClose={vi.fn()} />);
+
+    expect(await screen.findByText('Yesterday')).toBeInTheDocument();
+    expect(screen.getByAltText('Yesterday')).toHaveAttribute('src', '/yesterday.png');
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    expect(play).toHaveBeenCalledWith(expect.objectContaining({ id: 7, title: 'Yesterday' }));
+    const item = screen.getByText('Yesterday').closest('li')!;
+    fireEvent.click(within(item).getAllByRole('button')[1]!);
+    expect(screen.queryByText('Yesterday')).not.toBeInTheDocument();
+    expect(localStorage.getItem('playHistory')).toBe('[]');
+    expect(container).toBeInTheDocument();
+  });
+
+  it('clears all local history entries', async () => {
+    localStorage.setItem(
+      'playHistory',
+      JSON.stringify([
+        { trackId: 8, title: 'Today', thumbnail: null, playedAt: '2026-07-17T02:00:00Z' },
+      ]),
+    );
+    render(<HistoryModal open onClose={vi.fn()} />);
+    await screen.findByText('Today');
+    const clearButton = screen
+      .getAllByRole('button')
+      .find((button) => button.textContent?.includes('전체'));
+    fireEvent.click(clearButton!);
+    expect(screen.queryByText('Today')).not.toBeInTheDocument();
+    expect(localStorage.getItem('playHistory')).toBeNull();
+  });
+
+  it('hides the drawer when closed and blocks anonymous playlist data', async () => {
+    const first = render(<PlaylistDrawer open={false} onClose={vi.fn()} />);
+    expect(first.container).toBeEmptyDOMElement();
+    first.unmount();
+    useAuthStore.setState({ accessToken: null });
+    render(<PlaylistDrawer open onClose={vi.fn()} />);
+    expect(api.fetchMyPlaylists).not.toHaveBeenCalled();
+  });
+
+  it('loads a playlist, plays a track, removes it, and deletes the playlist', async () => {
+    const play = vi.fn();
+    usePlayerStore.setState({ play });
+    const { container } = render(<PlaylistDrawer open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    expect(await screen.findByText('Song A')).toBeInTheDocument();
+
+    const firstTrack = screen.getByText('Song A').closest('li')!;
+    fireEvent.click(within(firstTrack).getAllByRole('button')[0]!);
+    expect(play).toHaveBeenCalledWith(expect.objectContaining({ id: 11, bpm: 100 }));
+    fireEvent.click(within(firstTrack).getAllByRole('button')[1]!);
+    await waitFor(() => expect(api.removeTrackFromPlaylist).toHaveBeenCalledWith(3, 11));
+
+    const deletePlaylistButton = container.querySelector(
+      '[class*="deletePlaylistBtn"]',
+    ) as HTMLButtonElement;
+    fireEvent.click(deletePlaylistButton);
+    await waitFor(() => expect(api.deletePlaylist).toHaveBeenCalledWith(3));
+  });
+
+  it('creates a trimmed playlist and refreshes the list', async () => {
+    const { container } = render(<PlaylistDrawer open onClose={vi.fn()} />);
+    await screen.findByText('Focus List');
+    const createButton = container.querySelector('[class*="createBtn"]') as HTMLButtonElement;
+    fireEvent.click(createButton);
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: '  New Mix  ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(api.createPlaylist).toHaveBeenCalledWith({ title: 'New Mix' }));
+    expect(api.fetchMyPlaylists).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows the playlist-limit toast when creation is rejected', async () => {
+    api.createPlaylist.mockRejectedValueOnce(new Error('limit'));
+    api.getApiErrorCode.mockResolvedValueOnce('PLAYLIST_LIMIT_EXCEEDED');
+    const show = vi.fn();
+    useToastStore.setState({ show });
+    const { container } = render(<PlaylistDrawer open onClose={vi.fn()} />);
+    await screen.findByText('Focus List');
+    fireEvent.click(container.querySelector('[class*="createBtn"]')!);
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'Overflow' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(show).toHaveBeenCalledWith('error', expect.any(String)));
+  });
+
+  it('reorders playlist tracks through drag and drop', async () => {
+    render(<PlaylistDrawer open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    await screen.findByText('Song B');
+    const firstTrack = screen.getByText('Song A').closest('li')!;
+    const secondTrack = screen.getByText('Song B').closest('li')!;
+    fireEvent.dragStart(firstTrack);
+    fireEvent.dragOver(secondTrack);
+    fireEvent.drop(secondTrack);
+    await waitFor(() =>
+      expect(api.reorderTracks).toHaveBeenCalledWith(3, [
+        { trackId: 12, trackOrder: 1 },
+        { trackId: 11, trackOrder: 2 },
+      ]),
+    );
+  });
+
+  it('loads liked tracks and plays the selected item', async () => {
+    const play = vi.fn();
+    usePlayerStore.setState({ play });
+    render(<PlaylistDrawer open onClose={vi.fn()} />);
+    await screen.findByText('Focus List');
+    fireEvent.click(screen.getByRole('button', { name: '좋아요' }));
+    expect(await screen.findByText('Liked Song')).toBeInTheDocument();
+    const likedRow = screen.getByText('Liked Song').closest('li')!;
+    fireEvent.click(within(likedRow).getByRole('button'));
+    expect(play).toHaveBeenCalledWith(expect.objectContaining({ id: 21, title: 'Liked Song' }));
+  });
+});

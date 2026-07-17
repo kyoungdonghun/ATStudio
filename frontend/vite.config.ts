@@ -148,6 +148,12 @@ export function createViteConfig(environment: Record<string, string | undefined>
         reporter: ['text', 'html', 'json-summary'],
         include: ['src/**/*.{ts,tsx}'],
         exclude: ['src/**/*.d.ts', 'src/**/*.test.{ts,tsx}', 'src/test/**', 'src/main.tsx'],
+        thresholds: {
+          statements: 80,
+          lines: 80,
+          functions: 80,
+          branches: 70,
+        },
       },
     },
   };

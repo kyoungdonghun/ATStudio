@@ -22,7 +22,6 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class BillingKeyCrypto {
 
-    private static final String LEGACY_VERSION = "v1";
     private static final String KEY_ID_VERSION = "v2";
     private static final String CIPHER_ALGORITHM = "AES/GCM/NoPadding";
     private static final int GCM_TAG_BITS = 128;
@@ -64,9 +63,6 @@ public class BillingKeyCrypto {
             throw new IllegalArgumentException("Billing key ciphertext is required.");
         }
 
-        if (envelope.startsWith(LEGACY_VERSION + ":")) {
-            return decryptLegacy(envelope);
-        }
         if (envelope.startsWith(KEY_ID_VERSION + ":")) {
             return decryptKeyIDEnvelope(envelope);
         }
@@ -75,9 +71,6 @@ public class BillingKeyCrypto {
 
     public static void validateConfiguration(PaymentProperties paymentProperties) {
         PaymentProperties.Billing billing = paymentProperties.getBilling();
-        requireConfiguredSecret(
-                billing.getEncryptionSecret(),
-                "PAYMENT_BILLING_KEY_ENCRYPTION_SECRET");
         String activeKeyID = requireValidKeyID(
                 billing.getActiveKeyId(),
                 "PAYMENT_BILLING_KEY_ACTIVE_KEY_ID");
@@ -85,17 +78,6 @@ public class BillingKeyCrypto {
         if (!keyRing.containsKey(activeKeyID)) {
             throw new IllegalStateException("Active billing key ID is not present in the configured key ring.");
         }
-    }
-
-    private String decryptLegacy(String envelope) {
-        String[] parts = envelope.split(":", 3);
-        if (parts.length != 3) {
-            throw new IllegalArgumentException("Unsupported billing key ciphertext format.");
-        }
-        String legacySecret = requireConfiguredSecret(
-                paymentProperties.getBilling().getEncryptionSecret(),
-                "PAYMENT_BILLING_KEY_ENCRYPTION_SECRET");
-        return decrypt(parts[1], parts[2], legacySecret, LEGACY_VERSION.getBytes(StandardCharsets.UTF_8));
     }
 
     private String decryptKeyIDEnvelope(String envelope) {
@@ -206,14 +188,14 @@ public class BillingKeyCrypto {
     }
 
     private static String requireValidKeyID(String value, String propertyName) {
-        if (isBlank(value) || isPlaceholder(value) || !KEY_ID_PATTERN.matcher(value.trim()).matches()) {
+        if (isPlaceholder(value) || isBlank(value) || !KEY_ID_PATTERN.matcher(value.trim()).matches()) {
             throw new IllegalStateException(propertyName + " is not configured with a valid key ID.");
         }
         return value.trim();
     }
 
     private static String requireConfiguredSecret(String value, String propertyName) {
-        if (isBlank(value) || isPlaceholder(value)) {
+        if (isPlaceholder(value) || isBlank(value)) {
             throw new IllegalStateException(propertyName + " is not configured.");
         }
         return value;

@@ -56,14 +56,13 @@ const SocialCompleteProfilePage = lazyPage(() => import('@/pages/auth/SocialComp
 // Subscriber
 const PlaylistListPage = lazyPage(() => import('@/pages/subscriber/PlaylistListPage'));
 const PlaylistDetailPage = lazyPage(() => import('@/pages/subscriber/PlaylistDetailPage'));
-const PlaylistCreatePage = lazyPage(() => import('@/pages/subscriber/PlaylistCreatePage'));
 const PlaylistEditPage = lazyPage(() => import('@/pages/subscriber/PlaylistEditPage'));
 const ProfilePage = lazyPage(() => import('@/pages/subscriber/ProfilePage'));
 const LikeListPage = lazyPage(() => import('@/pages/subscriber/LikeListPage'));
 const PlayHistoryPage = lazyPage(() => import('@/pages/subscriber/PlayHistoryPage'));
 const LicenseListPage = lazyPage(() => import('@/pages/subscriber/LicenseListPage'));
 const LicenseDetailPage = lazyPage(() => import('@/pages/subscriber/LicenseDetailPage'));
-const DownloadHistoryPage = lazyPage(() => import('@/pages/subscriber/DownloadQueuePage'));
+const DownloadHistoryPage = lazyPage(() => import('@/pages/subscriber/DownloadHistoryPage'));
 const SubscriptionPaymentPage = lazyPage(
   () => import('@/pages/subscriber/SubscriptionPaymentPage'),
 );
@@ -96,7 +95,7 @@ const NoticeEditPage = lazyPage(() => import('@/pages/admin/NoticeEditPage'));
 const UserSubscriptionManagePage = lazyPage(
   () => import('@/pages/admin/UserSubscriptionManagePage'),
 );
-const PaymentReadOnlyPage = lazyPage(() => import('@/pages/admin/PaymentReadOnlyPage'));
+const PaymentOperationsPage = lazyPage(() => import('@/pages/admin/PaymentOperationsPage'));
 const WhitelistChannelManagePage = lazyPage(
   () => import('@/pages/admin/WhitelistChannelManagePage'),
 );
@@ -164,14 +163,13 @@ export const routes: RouteObject[] = [
       /* ── Subscriber / auth-required (19 routes) ── */
       { path: '/playlists', element: subscriberOnly(<PlaylistListPage />) },
       { path: '/playlists/:playlistId', element: subscriberOnly(<PlaylistDetailPage />) },
-      { path: '/playlists/new', element: subscriberOnly(<PlaylistCreatePage />) },
       { path: '/playlists/:playlistId/edit', element: subscriberOnly(<PlaylistEditPage />) },
       { path: '/profile', element: authRequired(<ProfilePage />) },
       { path: '/likes', element: authRequired(<LikeListPage />) },
       { path: '/play-history', element: authRequired(<PlayHistoryPage />) },
       { path: '/licenses', element: authRequired(<LicenseListPage />) },
       { path: '/licenses/:licenseId', element: authRequired(<LicenseDetailPage />) },
-      { path: '/download-queue', element: subscriberOnly(<DownloadHistoryPage />) },
+      { path: '/downloads', element: subscriberOnly(<DownloadHistoryPage />) },
       { path: '/subscriptions/checkout', element: userPaymentOnly(<SubscriptionPaymentPage />) },
       {
         path: '/subscriptions/checkout/success',
@@ -179,23 +177,6 @@ export const routes: RouteObject[] = [
       },
       {
         path: '/subscriptions/checkout/fail',
-        element: userPaymentOnly(<SubscriptionPaymentPage />),
-      },
-      { path: '/subscriptions/payment', element: userPaymentOnly(<SubscriptionPaymentPage />) },
-      {
-        path: '/subscriptions/payment/success',
-        element: userPaymentOnly(<SubscriptionPaymentPage />),
-      },
-      {
-        path: '/subscriptions/payment/fail',
-        element: userPaymentOnly(<SubscriptionPaymentPage />),
-      },
-      {
-        path: '/subscriptions/billing/success',
-        element: userPaymentOnly(<SubscriptionPaymentPage />),
-      },
-      {
-        path: '/subscriptions/billing/fail',
         element: userPaymentOnly(<SubscriptionPaymentPage />),
       },
       { path: '/subscriptions/manage', element: authRequired(<SubscriptionManagePage />) },
@@ -238,7 +219,7 @@ export const routes: RouteObject[] = [
       { path: 'albums/new', element: <AlbumCreatePage /> },
       { path: 'albums/:albumId/edit', element: <AlbumEditPage /> },
 
-      /* ── Admin (9 routes) ── */
+      /* ── Admin (14 routes) ── */
       { path: 'dashboard', element: <DashboardPage /> },
       { path: 'users', element: <UserManagePage /> },
       { path: 'subscriptions', element: <AdminSubscriptionManagePage /> },
@@ -248,7 +229,7 @@ export const routes: RouteObject[] = [
       { path: 'tags', element: <TagManagePage /> },
       { path: 'track-manage', element: <TrackManagePage /> },
       { path: 'user-subscriptions', element: <UserSubscriptionManagePage /> },
-      { path: 'payments', element: <PaymentReadOnlyPage /> },
+      { path: 'payments', element: <PaymentOperationsPage /> },
       { path: 'whitelist-channels', element: <WhitelistChannelManagePage /> },
       { path: 'notices/new', element: <NoticeCreatePage /> },
       { path: 'notices/:noticeId/edit', element: <NoticeEditPage /> },

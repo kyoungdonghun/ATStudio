@@ -15,6 +15,7 @@ type RepeatMode = 'off' | 'all' | 'one';
 /* ── localStorage persistence helpers ── */
 
 interface PersistedPlayerState {
+  version: 1;
   currentTrack: Track | null;
   queue: Track[];
   queueIndex: number;
@@ -27,6 +28,7 @@ function persistState(state: { currentTrack: Track | null; queue: Track[]; curre
       ? state.queue.findIndex((t) => t.id === state.currentTrack!.id)
       : 0;
     const saved: PersistedPlayerState = {
+      version: 1,
       currentTrack: state.currentTrack,
       queue: state.queue,
       queueIndex: Math.max(0, idx),
@@ -38,16 +40,93 @@ function persistState(state: { currentTrack: Track | null; queue: Track[]; curre
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function isTrack(value: unknown): value is Track {
+  if (!isRecord(value)) return false;
+  const tags = value.tags;
+  return (
+    Number.isSafeInteger(value.id) &&
+    Number(value.id) > 0 &&
+    typeof value.title === 'string' &&
+    typeof value.artistName === 'string' &&
+    typeof value.duration === 'number' &&
+    Number.isFinite(value.duration) &&
+    typeof value.bpm === 'number' &&
+    Number.isFinite(value.bpm) &&
+    typeof value.tonality === 'string' &&
+    isNullableString(value.description) &&
+    isNullableString(value.audioFile) &&
+    isNullableString(value.thumbnail) &&
+    (value.waveformData === undefined || isNullableString(value.waveformData)) &&
+    Array.isArray(tags) &&
+    tags.every(
+      (tag) =>
+        isRecord(tag) &&
+        Number.isSafeInteger(tag.id) &&
+        typeof tag.name === 'string' &&
+        ['GENRE', 'MOOD', 'INSTRUMENT', 'USAGE'].includes(String(tag.type)),
+    ) &&
+    typeof value.isActive === 'boolean' &&
+    [value.playCount, value.likeCount, value.downloadCount].every(
+      (count) => typeof count === 'number' && Number.isFinite(count),
+    ) &&
+    typeof value.createdAt === 'string' &&
+    typeof value.updatedAt === 'string'
+  );
+}
+
+function normalizePersistedState(value: unknown): PersistedPlayerState | null {
+  if (!isRecord(value) || value.version !== 1) return null;
+
+  const currentTrack = isTrack(value.currentTrack) ? value.currentTrack : null;
+  const queue = Array.isArray(value.queue) ? value.queue.filter(isTrack) : [];
+  if (currentTrack && !queue.some((track) => track.id === currentTrack.id)) {
+    queue.push(currentTrack);
+  }
+  const currentTime =
+    currentTrack &&
+    typeof value.currentTime === 'number' &&
+    Number.isFinite(value.currentTime) &&
+    value.currentTime >= 0
+      ? value.currentTime
+      : 0;
+  const queueIndex = currentTrack ? queue.findIndex((track) => track.id === currentTrack.id) : 0;
+
+  return { version: 1, currentTrack, queue, queueIndex: Math.max(0, queueIndex), currentTime };
+}
+
 function loadPersistedState(): PersistedPlayerState | null {
   try {
     const raw = safeStorage.getItem('playerState');
-    return raw ? (JSON.parse(raw) as PersistedPlayerState) : null;
+    return raw ? normalizePersistedState(JSON.parse(raw)) : null;
   } catch {
     return null;
   }
 }
 
 const savedState = loadPersistedState();
+
+if (savedState?.currentTrack) {
+  audio.src = `${STREAM_BASE}/${savedState.currentTrack.id}/stream`;
+  try {
+    audio.currentTime = savedState.currentTime;
+  } catch {
+    audio.addEventListener(
+      'loadedmetadata',
+      () => {
+        audio.currentTime = savedState.currentTime;
+      },
+      { once: true },
+    );
+  }
+}
 
 /* ── Play history (localStorage, SR-89) ── */
 
@@ -58,13 +137,32 @@ export interface LocalPlayEntry {
   playedAt: string;
 }
 
+function isLocalPlayEntry(value: unknown): value is LocalPlayEntry {
+  return (
+    isRecord(value) &&
+    Number.isSafeInteger(value.trackId) &&
+    Number(value.trackId) > 0 &&
+    typeof value.title === 'string' &&
+    isNullableString(value.thumbnail) &&
+    typeof value.playedAt === 'string' &&
+    Number.isFinite(Date.parse(value.playedAt))
+  );
+}
+
+function parsePlayHistory(raw: string | null): LocalPlayEntry[] {
+  if (!raw) return [];
+  const parsed: unknown = JSON.parse(raw);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(isLocalPlayEntry).slice(0, HISTORY_MAX);
+}
+
 const HISTORY_KEY = 'playHistory';
 const HISTORY_MAX = 100;
 
 export function savePlayHistory(track: Track): void {
   try {
     const raw = safeStorage.getItem(HISTORY_KEY);
-    const list: LocalPlayEntry[] = raw ? (JSON.parse(raw) as LocalPlayEntry[]) : [];
+    const list = parsePlayHistory(raw);
     const entry: LocalPlayEntry = {
       trackId: track.id,
       title: track.title,
@@ -82,7 +180,7 @@ export function savePlayHistory(track: Track): void {
 export function loadPlayHistory(): LocalPlayEntry[] {
   try {
     const raw = safeStorage.getItem(HISTORY_KEY);
-    return raw ? (JSON.parse(raw) as LocalPlayEntry[]) : [];
+    return parsePlayHistory(raw);
   } catch {
     return [];
   }

@@ -5,7 +5,9 @@ import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.auth.AuthResponse;
 import com.atstudio.atstudio.dto.auth.LoginRequest;
 import com.atstudio.atstudio.dto.auth.RefreshRequest;
+import com.atstudio.atstudio.dto.auth.SocialAuthResponse;
 import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.enums.SocialProvider;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
@@ -25,6 +27,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Optional;
 
@@ -103,6 +106,49 @@ class AuthServiceTest {
         verifyNoInteractions(authenticationManager);
     }
 
+    @Test
+    @DisplayName("socialLogin() stores a hashed refresh token and returns profile state")
+    void socialLogin_success_storesHashedTokenAndReturnsResponse() {
+        User user = buildUser(2L, false);
+        when(oAuth2Service.processSocialLogin(SocialProvider.GOOGLE, "code", "verifier"))
+                .thenReturn(user);
+        when(jwtTokenProvider.generateAccessToken(2L, UserRole.USER)).thenReturn("social-access");
+        when(jwtTokenProvider.generateRefreshToken(2L)).thenReturn("social-refresh");
+        when(jwtTokenProvider.getAccessTokenExpiration()).thenReturn(7200000L);
+
+        SocialAuthResponse response = authService.socialLogin(
+                SocialProvider.GOOGLE,
+                "code",
+                "verifier");
+
+        assertThat(response.accessToken()).isEqualTo("social-access");
+        assertThat(response.refreshToken()).isEqualTo("social-refresh");
+        assertThat(response.expiresIn()).isEqualTo(7200L);
+        assertThat(response.isProfileComplete()).isFalse();
+        assertThat(user.getRefreshToken()).isEqualTo(sha256("social-refresh"));
+    }
+
+    @Test
+    @DisplayName("socialLogin() fails closed when SHA-256 is unavailable")
+    void socialLogin_missingDigest_doesNotPersistRawRefreshToken() {
+        User user = buildUser(3L, false);
+        when(oAuth2Service.processSocialLogin(SocialProvider.KAKAO, "code", null)).thenReturn(user);
+        when(jwtTokenProvider.generateAccessToken(3L, UserRole.USER)).thenReturn("social-access");
+        when(jwtTokenProvider.generateRefreshToken(3L)).thenReturn("social-refresh");
+
+        try (var messageDigests = mockStatic(MessageDigest.class)) {
+            messageDigests.when(() -> MessageDigest.getInstance("SHA-256"))
+                    .thenThrow(new NoSuchAlgorithmException("SHA-256 unavailable"));
+
+            assertThatThrownBy(() -> authService.socialLogin(SocialProvider.KAKAO, "code", null))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("SHA-256 not available")
+                    .hasCauseInstanceOf(NoSuchAlgorithmException.class);
+        }
+
+        assertThat(user.getRefreshToken()).isNull();
+    }
+
     // ── refresh() ─────────────────────────────────────────────────────────────
 
     @Test
@@ -153,6 +199,22 @@ class AuthServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.REFRESH_TOKEN_INVALID));
+    }
+
+    @Test
+    @DisplayName("refresh() rejects a valid token whose user no longer exists")
+    void refresh_missingUser_throwsResourceNotFound() {
+        when(jwtTokenProvider.validateToken("orphan-refresh")).thenReturn(TokenValidationResult.VALID);
+        when(jwtTokenProvider.getUserID("orphan-refresh")).thenReturn(404L);
+        when(userRepository.findByIdForUpdate(404L)).thenReturn(Optional.empty());
+
+        RefreshRequest request = new RefreshRequest();
+        request.setRefreshToken("orphan-refresh");
+
+        assertThatThrownBy(() -> authService.refresh(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
     }
 
     @Test

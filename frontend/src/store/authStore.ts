@@ -50,15 +50,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   login: (accessToken: string, user: User, refreshToken) => {
-    safeStorage.setItem('accessToken', accessToken);
+    const accessTokenStored = safeStorage.setItem('accessToken', accessToken);
+    let refreshTokenStored = true;
     if (refreshToken !== undefined) {
       if (refreshToken) {
-        safeStorage.setItem('refreshToken', refreshToken);
+        refreshTokenStored = safeStorage.setItem('refreshToken', refreshToken);
       } else {
         safeStorage.removeItem('refreshToken');
       }
     }
-    safeStorage.setItem('user', JSON.stringify(user));
+    const userStored = safeStorage.setItem('user', JSON.stringify(user));
+    if (!accessTokenStored || !refreshTokenStored || !userStored) {
+      get().clearSession();
+      throw new Error('Failed to persist authentication session');
+    }
     set({ accessToken, user, role: user.role });
   },
 

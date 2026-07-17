@@ -37,9 +37,6 @@ public class Track extends BaseEntity {
     @Column(nullable = false, length = 255)
     private String audioFile;
 
-    @Column(length = 255)
-    private String previewFile;
-
     /** Duration in seconds — auto-extracted from audio file on upload */
     @Builder.Default
     @Column(nullable = false)

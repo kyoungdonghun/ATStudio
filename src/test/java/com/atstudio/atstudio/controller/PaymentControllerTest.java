@@ -11,7 +11,6 @@ import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.security.CustomUserDetailsService;
 import com.atstudio.atstudio.service.BillingAgreementApplicationService;
-import com.atstudio.atstudio.service.PaymentApplicationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +42,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PaymentControllerTest {
 
     @Autowired MockMvc mockMvc;
-    @MockitoBean PaymentApplicationService paymentApplicationService;
     @MockitoBean BillingAgreementApplicationService billingAgreementApplicationService;
     @MockitoBean CustomUserDetailsService customUserDetailsService;
 
@@ -63,7 +61,7 @@ class PaymentControllerTest {
         given(billingAgreementApplicationService.prepareBillingAgreement(any(), any()))
                 .willReturn(new BillingAgreementPrepareResponse(
                         "ORDER-1",
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         PaymentPurpose.SUBSCRIBE,
                         BillingAgreementStatus.READY,
                         10L,
@@ -83,7 +81,7 @@ class PaymentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"subscriptionId\":10,\"billingCycle\":\"MONTHLY\"}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.provider").value("TOSS_BILLING"))
+                .andExpect(jsonPath("$.data.provider").value("TOSS"))
                 .andExpect(jsonPath("$.data.purpose").value("SUBSCRIBE"))
                 .andExpect(jsonPath("$.data.checkout.customerKey").value("ats_billing_customer_1"));
     }
@@ -96,7 +94,7 @@ class PaymentControllerTest {
                 .willReturn(new BillingAgreementConfirmResponse(
                         "ORDER-1",
                         PaymentOrderStatus.DONE,
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         BillingAgreementStatus.ACTIVE,
                         LocalDate.now().plusMonths(1),
                         null));
@@ -122,7 +120,7 @@ class PaymentControllerTest {
     void getMyBillingAgreement_success() throws Exception {
         given(billingAgreementApplicationService.getMyBillingAgreement(any()))
                 .willReturn(new BillingAgreementResponse(
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         BillingAgreementStatus.ACTIVE,
                         "CARD",
                         "1234",
@@ -144,7 +142,7 @@ class PaymentControllerTest {
     void cancelMyBillingAgreement_success() throws Exception {
         given(billingAgreementApplicationService.cancelMyBillingAgreement(any()))
                 .willReturn(new BillingAgreementResponse(
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         BillingAgreementStatus.CANCELLED,
                         "CARD",
                         "1234",
@@ -163,15 +161,6 @@ class PaymentControllerTest {
     @DisplayName("ADMIN cannot invoke any user payment mutation")
     void userPaymentMutations_adminRole_areForbidden() throws Exception {
         List<MockHttpServletRequestBuilder> requests = List.of(
-                post("/api/payments/subscriptions/prepare")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"purpose\":\"SUBSCRIBE\",\"subscriptionId\":10,\"billingCycle\":\"MONTHLY\"}"),
-                post("/api/payments/confirm")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"orderId\":\"ORDER-1\",\"amount\":9900,\"provider\":\"MOCK\"}"),
-                post("/api/payments/cancel")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"orderId\":\"ORDER-1\",\"status\":\"CANCELLED\"}"),
                 post("/api/payments/billing-agreements/prepare")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"subscriptionId\":10,\"billingCycle\":\"MONTHLY\"}"),
@@ -185,7 +174,7 @@ class PaymentControllerTest {
             mockMvc.perform(request).andExpect(status().isForbidden());
         }
 
-        verifyNoInteractions(paymentApplicationService, billingAgreementApplicationService);
+        verifyNoInteractions(billingAgreementApplicationService);
     }
 
     @Test
@@ -197,6 +186,6 @@ class PaymentControllerTest {
                         .content("{\"subscriptionId\":10,\"billingCycle\":\"MONTHLY\"}"))
                 .andExpect(status().isForbidden());
 
-        verifyNoInteractions(paymentApplicationService, billingAgreementApplicationService);
+        verifyNoInteractions(billingAgreementApplicationService);
     }
 }

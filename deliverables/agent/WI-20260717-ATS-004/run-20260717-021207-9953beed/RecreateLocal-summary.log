@@ -1,0 +1,11 @@
+wi=WI-20260717-ATS-004
+mode=RecreateLocal
+runtimePreflight=PASS
+datasourcePreflight=PASS
+firstApply=PASS
+secondApply=PROVEN_ON_DISPOSABLE
+manifest=PASS
+hibernateValidate=PASS
+mysqlRaces=NOT_REQUIRED
+cleanup=NOT_REQUIRED
+result=PASS

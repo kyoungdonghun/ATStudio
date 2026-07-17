@@ -110,14 +110,14 @@ abstract class BillingAgreementCommandIntegrationTestSupport {
                 .build());
         BillingAgreement agreement = billingAgreementRepository.saveAndFlush(BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey(CUSTOMER_KEY)
                 .build());
         PaymentOrder order = PaymentOrder.builder()
                 .orderId(ORDER_ID)
                 .user(user)
                 .purpose(PaymentPurpose.SUBSCRIBE)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .subscription(subscription)
                 .billingAgreement(agreement)
                 .billingCycle(BillingCycle.MONTHLY)
@@ -240,7 +240,7 @@ abstract class BillingAgreementCommandIntegrationTestSupport {
 
         @Override
         public PaymentProviderType getProviderType() {
-            return PaymentProviderType.TOSS_BILLING;
+            return PaymentProviderType.TOSS;
         }
 
         @Override

@@ -28,12 +28,8 @@ export default function SubscriptionPaymentPage() {
   const returnCycle = toBillingCycle(searchParams.get('returnCycle'));
   const returnAmount = toOptionalNumber(searchParams.get('returnAmount'));
   const hasReturnContext = isBillingAgreementOnly && Boolean(returnPlan && returnCycle);
-  const isSupportedRedirect =
-    location.pathname.includes('/subscriptions/checkout/') ||
-    location.pathname.includes('/subscriptions/billing/');
-  const isLegacyPaymentRedirect = location.pathname.includes('/subscriptions/payment/');
-  const isSuccessRedirect = location.pathname.endsWith('/success');
-  const isFailRedirect = location.pathname.endsWith('/fail');
+  const isSuccessRedirect = location.pathname === '/subscriptions/checkout/success';
+  const isFailRedirect = location.pathname === '/subscriptions/checkout/fail';
   const isRedirect = isSuccessRedirect || isFailRedirect;
   const redirectHandledRef = useRef(false);
 
@@ -52,15 +48,6 @@ export default function SubscriptionPaymentPage() {
       setLoading(true);
       setErrorMessage(null);
 
-      if (isLegacyPaymentRedirect || !isSupportedRedirect) {
-        const message =
-          '지원이 종료된 구독 결제 경로입니다. 구독 페이지에서 새 결제를 시작해주세요.';
-        setErrorMessage(message);
-        showToast('error', message);
-        setLoading(false);
-        return;
-      }
-
       const orderId = searchParams.get('orderId');
       if (isFailRedirect) {
         const message = searchParams.get('message') ?? '카드 등록이 완료되지 않았습니다.';
@@ -72,8 +59,8 @@ export default function SubscriptionPaymentPage() {
 
       const authKey = searchParams.get('authKey');
       const customerKey = searchParams.get('customerKey');
-      const amount = Number(searchParams.get('amount'));
-      if (!orderId || !authKey || !customerKey || !Number.isFinite(amount)) {
+      const amount = parseCallbackAmount(searchParams.get('amount'), purpose);
+      if (!orderId || !authKey || !customerKey || amount === null) {
         const message = '자동결제 인증 정보가 올바르지 않습니다.';
         setErrorMessage(message);
         showToast('error', message);
@@ -94,7 +81,9 @@ export default function SubscriptionPaymentPage() {
             ? '결제수단이 다시 등록되었습니다.'
             : '자동결제가 등록되고 구독이 시작되었습니다.',
         );
-        navigate(buildReturnUrl(returnPlan, returnCycle) ?? '/subscriptions/manage');
+        navigate(buildReturnUrl(returnPlan, returnCycle) ?? '/subscriptions/manage', {
+          replace: true,
+        });
       } catch (err: unknown) {
         const msg =
           (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -109,10 +98,9 @@ export default function SubscriptionPaymentPage() {
   }, [
     isFailRedirect,
     isBillingAgreementOnly,
-    isLegacyPaymentRedirect,
     isRedirect,
-    isSupportedRedirect,
     navigate,
+    purpose,
     returnCycle,
     returnPlan,
     searchParams,
@@ -318,20 +306,20 @@ export default function SubscriptionPaymentPage() {
         </div>
       </div>
 
-      <div className={styles.mockPanel}>
-        <div className={styles.mockHeader}>
-          <span className={styles.mockTitle}>{'Toss 자동결제'}</span>
-          <span className={styles.mockStatus}>{paymentOrder ? 'READY' : 'PREPARING'}</span>
+      <div className={styles.providerPanel}>
+        <div className={styles.providerHeader}>
+          <span className={styles.providerTitle}>{'Toss 자동결제'}</span>
+          <span className={styles.providerStatus}>{paymentOrder ? 'READY' : 'PREPARING'}</span>
         </div>
         {paymentOrder ? (
-          <div className={styles.mockMeta}>
+          <div className={styles.providerMeta}>
             <span>{paymentOrder.orderId}</span>
             <span>{paymentOrder.provider}</span>
           </div>
         ) : (
-          <div className={styles.mockMeta}>{'결제 주문을 준비 중입니다.'}</div>
+          <div className={styles.providerMeta}>{'결제 주문을 준비 중입니다.'}</div>
         )}
-        {errorMessage && <div className={styles.mockError}>{errorMessage}</div>}
+        {errorMessage && <div className={styles.providerError}>{errorMessage}</div>}
       </div>
 
       <div className={styles.btnGroup}>
@@ -352,6 +340,17 @@ export default function SubscriptionPaymentPage() {
       </div>
     </div>
   );
+}
+
+function parseCallbackAmount(
+  rawAmount: string | null,
+  purpose: 'SUBSCRIBE' | 'UPGRADE' | 'BILLING_AGREEMENT',
+): number | null {
+  if (!rawAmount || !/^\d+$/.test(rawAmount)) return null;
+  const amount = Number(rawAmount);
+  if (!Number.isSafeInteger(amount)) return null;
+  if (purpose === 'BILLING_AGREEMENT') return amount;
+  return amount > 0 ? amount : null;
 }
 
 interface BillingReturnContext {

@@ -41,11 +41,6 @@ export async function fetchUsers(
   return data;
 }
 
-export async function fetchUser(userId: number): Promise<User> {
-  const { data } = await client.get<ApiResponse<User>>(`/users/${userId}`);
-  return data.data;
-}
-
 interface UpdateUserAdminRequest {
   role?: UserRole;
   isVerified?: boolean;

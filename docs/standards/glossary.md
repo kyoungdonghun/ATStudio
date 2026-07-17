@@ -1,6 +1,6 @@
 ---
-version: 1.4
-last_updated: 2026-07-16
+version: 1.5
+last_updated: 2026-07-17
 project: ATS
 owner: EO
 category: standard
@@ -81,7 +81,7 @@ task_types:
 | upload | Upload | Process of creator submitting a track to the platform | submit, publish | post (ambiguous) | - | Includes file validation, original storage, duration extraction, and waveform extraction |
 | subscription | Subscription | Paid plan that grants download and playlist access | plan, membership | purchase (different) | - | DB table `user_subscriptions`; required for downloads |
 | whitelist-channel | Whitelist Channel | YouTube channel profile saved by a member and optionally submitted for manual whitelist registration | channel | account (ambiguous) | - | DB table `whitelist_channels`; request/registered/removal states are limited by subscription plan |
-| download-queue | Download Queue | Temporary collection of tracks queued for sequential download | cart (incorrect) | cart (no purchase concept) | - | DB table `download_queue`; frontend calls SOUND-011 per track |
+| download-history | Download History | Server record of completed Official Downloads for the current user | downloads | download queue, cart | - | DB table `track_downloads`; SPA route `/downloads` |
 | company-certification | Company Certification | Document review process for BUSINESS-type members to unlock subscription | corporate review | personal license (different) | - | DB table `company_certifications`; required before BUSINESS subscription |
 | royalty | Royalty | Revenue share paid to creator per sale | commission, revenue share | profit (broader) | - | Platform takes commission % |
 | playlist | Playlist | Curated collection of tracks for subscribers | collection, mix | album (different) | - | DB table `playlists`; subscriber-only feature |

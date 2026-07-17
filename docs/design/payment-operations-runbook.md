@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-07-16
+version: 1.1
+last_updated: 2026-07-17
 project: ATS
 owner: docops
 category: guide
@@ -124,7 +124,7 @@ Status guidance:
 |---|---|---|
 | `PROVIDER_DONE_LOCAL_NOT_FINALIZED` | Toss shows payment `DONE`, but local order is not `DONE`. | Treat as potential provider success + local persistence failure. |
 | `LOCAL_DONE_PROVIDER_NOT_DONE` | Local payment state is complete while Provider payment state is not complete, or a withdrawn user's local agreement is `CANCELLED` while Provider billing-key deletion is not complete. | For payment mismatches, verify the Provider dashboard before changing access. For withdrawal cleanup, keep local cancellation in place and allow the targeted cleanup retry; do not restore renewal eligibility. |
-| `LOCAL_DONE_PROVIDER_NOT_FOUND` | Local order is `DONE`, but provider lookup by `orderId` failed as not found. | Check whether the order was legacy/mock/non-provider data or a provider mismatch. |
+| `LOCAL_DONE_PROVIDER_NOT_FOUND` | Local order is `DONE`, but provider lookup by `orderId` failed as not found. | Check provider evidence and local order identity; keep uncertainty Incident-only. |
 | `AMOUNT_MISMATCH` | Provider amount differs from local order amount. | Do not mutate subscription until amount source is verified. |
 | `PROVIDER_LOOKUP_FAILED` | Provider lookup failed due to config, network, auth, or provider error. | Fix lookup failure and rerun reconciliation. |
 
@@ -300,7 +300,7 @@ Before enabling live Toss recurring billing:
 - Keep `PAYMENT_BILLING_KEY_ENCRYPTION_SECRET` available for legacy v1 ciphertext decryption until a separately approved migration proves no retained v1 row depends on it.
 - Set `PAYMENT_BILLING_KEY_ACTIVE_KEY_ID` to the key ID used for new v2 ciphertext.
 - Configure one or more `app.payment.billing.encryption-keys` entries through the secret manager. With Spring environment binding, list entries use names such as `APP_PAYMENT_BILLING_ENCRYPTIONKEYS_0_ID` and `APP_PAYMENT_BILLING_ENCRYPTIONKEYS_0_SECRET`. Never place the secret values in repository files or command output.
-- Confirm the active key ID exists in the key ring and every retained v2 ciphertext key ID remains available. `TOSS_BILLING` startup fails on blank, placeholder, duplicate, unknown, or missing key configuration without printing secret values.
+- Confirm the active key ID exists in the key ring and every retained V2 ciphertext key ID remains available. TOSS recurring startup fails on blank, placeholder, duplicate, unknown, or missing key configuration without printing secret values.
 - Set `APP_PAYMENT_SCHEDULER_ZONE` only when the approved payment business zone differs from `Asia/Seoul`.
 - Verify renewal, reconciliation, and expiration boundary tests against the configured business-zone clock when changing `APP_PAYMENT_SCHEDULER_ZONE`; host-default midnight must not determine payment dates.
 - Tune `PAYMENT_RECONCILIATION_BATCH_SIZE` and `PAYMENT_RECONCILIATION_ISSUE_DETAIL_LIMIT` within operational memory/query budgets. Runtime caps are 1000 rows per batch and 500 returned issue details.
@@ -321,7 +321,7 @@ Before enabling live Toss recurring billing:
 - For entitlement correction rehearsal, use a safe succeeded refund row and run preview → create → approve → execute. Confirm `payment_entitlement_corrections`, `user_subscriptions`, optional local `billing_agreements`, and audit logs update without provider billing-key delete calls.
 - For settlement rehearsal, import a safe CSV and confirm `payment_settlements`, settlement status counts, ignore workflow, and audit logs update without changing subscription/payment/refund/provider state.
 - Keep the deployment on one application scheduler instance. Scheduler lock remains out of active scope unless more than one application instance will run.
-- Before a retained-DB rollout, apply `20260716_payment_reconciliation_indexes.sql` only to an approved copy and capture its two `EXPLAIN FORMAT=JSON` plans. Repository/static test evidence does not close `ATS020-X-01`.
+- V1 uses only the fresh `schema.sql` baseline. Retained-data migration or query-plan rehearsal is outside the operator path and requires a separate approved migration requirement.
 
 ## 9. Webhook Boundary
 
@@ -345,6 +345,6 @@ Separate REQ/SR items are still needed for:
 - Tax invoice request implementation only after B2B invoice, bank-transfer, postpaid, or contract purchase scope is approved.
 - Toss Settlement API adapter automation, if manual CSV import becomes insufficient.
 - Legacy endpoint removal.
-- KakaoPay, NaverPay, or other PG adapters.
+- Any additional PG adapter selected by a future approved product requirement.
 
 Cash receipt issue/cancel automation is intentionally on hold while ATStudio uses card-only recurring billing. Reopen it only if a cash-like payment method or a separate cash receipt request flow is approved.

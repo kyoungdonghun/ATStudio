@@ -263,7 +263,7 @@ class PaymentReconciliationRecoveryIntegrationTest {
     void mismatchThenExactEvidence_convergesWithoutCharge() {
         RecoveryFixture renewal = persistRenewalFixture();
         paymentProvider.respond(renewal.order().getOrderId(), ProviderPaymentLookupResult.found(
-                PaymentProviderType.TOSS_BILLING,
+                PaymentProviderType.TOSS,
                 renewal.order().getOrderId(),
                 transactionID(renewal.order()),
                 "DONE",
@@ -421,7 +421,7 @@ class PaymentReconciliationRecoveryIntegrationTest {
         Subscription plan = persistPlan("Reconcile Subscribe", MONTHLY_AMOUNT);
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("customer-reconcile-subscribe")
                 .build();
         agreement.storeIssuedKey("encrypted-subscribe", "fingerprint-subscribe", "CARD", "****1111");
@@ -465,7 +465,7 @@ class PaymentReconciliationRecoveryIntegrationTest {
                 .build());
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("customer-reconcile-upgrade")
                 .build();
         agreement.activate("encrypted-upgrade", "fingerprint-upgrade", "CARD", "****2222", current.getExpiresAt());
@@ -507,7 +507,7 @@ class PaymentReconciliationRecoveryIntegrationTest {
                 .build());
         BillingAgreement agreement = BillingAgreement.builder()
                 .user(user)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .providerCustomerKey("customer-reconcile-renewal")
                 .build();
         agreement.activate("encrypted-renewal", "fingerprint-renewal", "CARD", "****3333", periodStart);
@@ -548,7 +548,7 @@ class PaymentReconciliationRecoveryIntegrationTest {
                 .commandKey(commandKey)
                 .user(user)
                 .purpose(purpose)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .status(status)
                 .subscription(plan)
                 .userSubscription(userSubscription)
@@ -656,7 +656,7 @@ class PaymentReconciliationRecoveryIntegrationTest {
 
         @Override
         public PaymentProviderType getProviderType() {
-            return PaymentProviderType.TOSS_BILLING;
+            return PaymentProviderType.TOSS;
         }
 
         @Override

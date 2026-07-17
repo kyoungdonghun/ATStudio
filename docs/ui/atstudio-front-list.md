@@ -1,6 +1,6 @@
 ---
-version: 7.0
-last_updated: 2026-07-16
+version: 8.0
+last_updated: 2026-07-17
 project: ATS
 owner: docops
 category: reference
@@ -22,18 +22,17 @@ The stable product count is **53 distinct visual page UIs**.
 
 | Unit | Count | Rule |
 |---|---:|---|
-| Path-bearing route objects | 62 | Every `path:` entry in `frontend/src/router/index.tsx` |
+| Path-bearing route objects | 56 | Every `path:` entry in `frontend/src/router/index.tsx` |
 | Index redirects | 1 | `/admin` redirects to `dashboard` |
-| Routable declarations | 63 | 62 paths plus 1 index redirect |
-| Lazy route-level page components | 54 | Every `lazyPage(...)` declaration |
-| Modal-only route adapter | 1 | `/playlists/new` opens the existing playlist-create modal |
-| Distinct visual page UIs | 53 | 54 lazy pages minus the modal-only adapter; includes 2 error screens |
+| Routable declarations | 57 | 56 paths plus 1 index redirect |
+| Lazy route-level page components | 53 | Every `lazyPage(...)` declaration |
+| Distinct visual page UIs | 53 | Every lazy page is a distinct UI; includes 2 error screens |
 
 `frontend/src/router/index.tsx` points to this inventory instead of embedding a
 fixed screen total. This inventory is derived from the route and
 `lazyPage(...)` declarations themselves.
 
-Route aliases do not create new screens. Eight payment routes reuse one `SubscriptionPaymentPage`, and the admin index is a redirect rather than a screen.
+Repeated callback paths do not create new screens. Three checkout paths reuse one `SubscriptionPaymentPage`, and the admin index is a redirect rather than a screen.
 
 ## Screen Groups
 
@@ -51,11 +50,11 @@ Route aliases do not create new screens. Eight payment routes reuse one `Subscri
 
 ### Play History
 
-`/play-history` reads browser `localStorage` key `playHistory`. It keeps at most 100 de-duplicated tracks and records only after playback starts. The retained `/api/play-histories` endpoints and `play_histories` table are not synchronized with the SPA.
+`/play-history` reads browser `localStorage` key `playHistory`. It keeps at most 100 de-duplicated tracks and records only after playback starts. No server Play History API or table participates in this screen.
 
 ### Subscription Checkout
 
-`/subscriptions/checkout`, its success/fail callbacks, and five legacy callback aliases render one `SubscriptionPaymentPage`. New subscription checkout charges the first period after billing-key issue. Payment-method re-registration uses `purpose=BILLING_AGREEMENT` and `amount=0`, so it does not charge or change the current subscription.
+`/subscriptions/checkout` and its success/fail callbacks render one `SubscriptionPaymentPage`. New subscription checkout charges the first period after billing-key issue. Payment-method re-registration uses `purpose=BILLING_AGREEMENT` and `amount=0`, so it does not charge or change the current subscription.
 
 ### Admin Dashboard
 
@@ -76,4 +75,4 @@ Route aliases do not create new screens. Eight payment routes reuse one `Subscri
 
 ## Freshness Boundary
 
-The React/Vite SPA is Phase 2 active. The development branch resolves Vite 6.4.3 and both production-only and unfiltered npm audits report 0. The frozen `codex/client-demo-stable` branch remains read-only at Vite 6.4.1 with 5 production and 13 total audit findings; it is not an approved public dev-server target until user-authorized remediation or controlled access.
+The React/Vite SPA is Phase 2 active on `codex/p1-acceptance-hardening`. The current install resolves Vite 6.4.3. A public URL is current only after the operator-controlled acceptance lifecycle verifies that exact runtime.

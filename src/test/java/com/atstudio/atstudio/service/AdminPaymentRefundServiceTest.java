@@ -213,7 +213,7 @@ class AdminPaymentRefundServiceTest {
     private static Stream<Arguments> invalidLockedSourceFields() {
         return Stream.of(
                 Arguments.of("status changed after preview", "paymentStatus", PaymentStatus.READY),
-                Arguments.of("provider changed after preview", "provider", PaymentProviderType.TOSS),
+                Arguments.of("provider cleared after preview", "provider", null),
                 Arguments.of("provider key cleared after preview", "pgTransactionId", " "));
     }
 
@@ -272,7 +272,7 @@ class AdminPaymentRefundServiceTest {
                 any(LocalDateTime.class)))
                 .willReturn(new PaymentRefundTransactionService.RefundExecutionClaim(
                         77L,
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         "payment_key",
                         "ORDER-1",
                         BigDecimal.valueOf(5000),
@@ -281,7 +281,7 @@ class AdminPaymentRefundServiceTest {
                         "ATS-REFUND-77",
                         leaseStartedAt,
                         PaymentRefundTransactionService.RefundExecutionMode.PROVIDER_MUTATION));
-        given(refundProvider.getProviderType()).willReturn(PaymentProviderType.TOSS_BILLING);
+        given(refundProvider.getProviderType()).willReturn(PaymentProviderType.TOSS);
         given(refundProvider.cancelPayment(any(PaymentRefundProviderCommand.class)))
                 .willReturn(providerResult);
         given(refundTransactionService.recordExecutionResult(
@@ -317,7 +317,7 @@ class AdminPaymentRefundServiceTest {
         PaymentRefundTransactionService.RefundExecutionClaim claim =
                 new PaymentRefundTransactionService.RefundExecutionClaim(
                         77L,
-                        PaymentProviderType.TOSS_BILLING,
+                        PaymentProviderType.TOSS,
                         "payment_key",
                         "ORDER-1",
                         BigDecimal.valueOf(5000),
@@ -372,7 +372,7 @@ class AdminPaymentRefundServiceTest {
                 .subscriptionPayment(fixture.payment())
                 .paymentOrder(fixture.order())
                 .user(fixture.user())
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .status(status)
                 .amount(BigDecimal.valueOf(5000))
                 .reasonCode(PaymentRefundReasonCode.CUSTOMER_REQUEST)
@@ -414,7 +414,7 @@ class AdminPaymentRefundServiceTest {
                 .orderId("ORDER-1")
                 .user(user)
                 .purpose(PaymentPurpose.SUBSCRIBE)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .status(PaymentOrderStatus.DONE)
                 .subscription(subscription)
                 .userSubscription(userSubscription)
@@ -430,7 +430,7 @@ class AdminPaymentRefundServiceTest {
                 .subscription(subscription)
                 .paymentOrder(order)
                 .billingCycle(BillingCycle.MONTHLY)
-                .provider(PaymentProviderType.TOSS_BILLING)
+                .provider(PaymentProviderType.TOSS)
                 .amount(BigDecimal.valueOf(9900))
                 .paymentStatus(PaymentStatus.DONE)
                 .pgTransactionId("payment_key")

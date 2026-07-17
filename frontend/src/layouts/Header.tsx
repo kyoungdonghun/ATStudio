@@ -23,7 +23,7 @@ const USER_NAV_ITEMS: NavItem[] = [
   { label: '문의', path: '/questions' },
   { label: '좋아요', path: '/likes' },
   { label: '재생목록', path: '/playlists' },
-  { label: '다운로드 기록', path: '/download-queue' },
+  { label: '다운로드 기록', path: '/downloads' },
   { label: '라이선스', path: '/licenses' },
 ];
 

@@ -1,6 +1,6 @@
 ---
-version: 2.0
-last_updated: 2026-07-16
+version: 2.1
+last_updated: 2026-07-17
 project: ATS
 owner: docops
 category: reference
@@ -8,8 +8,8 @@ status: stable
 dependencies:
   - path: ../../frontend/src/components/ui/Modal.tsx
     reason: Shared modal implementation
-  - path: ../../frontend/src/router/index.tsx
-    reason: Route adapter boundary
+  - path: ../../frontend/src/pages/subscriber/PlaylistListPage.tsx
+    reason: Playlist creation modal entry point
   - path: atstudio-front-list.md
     reason: Screen count contract
 ---
@@ -40,9 +40,11 @@ Shared wrappers are `TagFilterModal`, `AddToPlaylistModal`, `HistoryModal`, and 
 - Async list/detail modals must ignore superseded responses.
 - Modal labels and buttons must describe the action, not implementation details.
 
-## Route Adapter
+## Playlist Creation Entry Point
 
-`/playlists/new` renders `PlaylistCreatePage`, which opens the existing playlist-create modal and returns to `/playlists` when closed. It is counted as a route-level lazy component but not as a second distinct visual screen.
+The `/playlists` page opens its creation modal from the visible create button or
+create card. Playlist creation is a modal interaction owned by
+`PlaylistListPage`; it is not a separate route-level page or lazy component.
 
 ## Verification Command
 
