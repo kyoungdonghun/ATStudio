@@ -120,15 +120,49 @@ try {
         APP_BOOTSTRAP_TEST_USERS_ENABLED = "true"
         APP_BOOTSTRAP_TEST_USERS_DEFAULT_PASSWORD = "bootstrap_$marker"
     }
+    $currentOptionalNames = @(
+        "PAYMENT_BILLING_KEY_ACTIVE_KEY_ID",
+        "PAYMENT_BILLING_KEY_0_ID",
+        "PAYMENT_BILLING_KEY_0_SECRET",
+        "APP_PAYMENT_SCHEDULER_ZONE"
+    )
+    $currentOptional = [ordered]@{
+        PAYMENT_BILLING_KEY_ACTIVE_KEY_ID = "active_$marker"
+        PAYMENT_BILLING_KEY_0_ID = "key_$marker"
+        PAYMENT_BILLING_KEY_0_SECRET = "key_secret_$marker"
+        APP_PAYMENT_SCHEDULER_ZONE = "Asia/Seoul"
+    }
+    $allowlistContract = Invoke-InAcceptanceModule -ScriptBlock {
+        return [pscustomobject]@{
+            optional = @($script:OptionalBackendEnvironmentVariableNames)
+            allowed = @($script:BackendEnvironmentVariableNames)
+        }
+    }
+    foreach ($name in $currentOptionalNames) {
+        Assert-True `
+            -Condition ($allowlistContract.optional -ccontains $name) `
+            -Message "Current backend environment name should be optional and allowlisted: $name"
+    }
+    Assert-True `
+        -Condition (-not ($allowlistContract.allowed -ccontains "PAYMENT_BILLING_KEY_ENCRYPTION_SECRET")) `
+        -Message "Obsolete billing-key encryption secret name should not be allowlisted."
 
     $validPath = Join-Path $testRoot "valid.json"
     $valid = [ordered]@{} + $required
+    foreach ($name in $currentOptionalNames) {
+        $valid[$name] = $currentOptional[$name]
+    }
     $valid.MAIL_PASSWORD = "mail_$marker"
     Write-JsonFixture -Path $validPath -Value $valid
     $loaded = Invoke-BundleRead -Path $validPath
     Assert-True `
-        -Condition ($loaded.Count -eq 7) `
+        -Condition ($loaded.Count -eq ($required.Count + $currentOptional.Count + 1)) `
         -Message "Valid bundle should return required and optional allowlisted names."
+    foreach ($name in $currentOptionalNames) {
+        Assert-True `
+            -Condition ($loaded.ContainsKey($name)) `
+            -Message "Bundle validation should accept current backend environment name: $name"
+    }
 
     $forbidden = @($testRoot, $marker, $required.SPRING_DATASOURCE_URL)
     Assert-BundleFailure `
@@ -160,6 +194,15 @@ try {
     Write-JsonFixture -Path $unknownPath -Value $unknown
     Assert-BundleFailure -Path $unknownPath -Case "unknown-key" -ForbiddenText $forbidden
 
+    $obsoletePath = Join-Path $testRoot "obsolete.json"
+    $obsolete = [ordered]@{} + $required
+    $obsolete.PAYMENT_BILLING_KEY_ENCRYPTION_SECRET = "obsolete_$marker"
+    Write-JsonFixture -Path $obsoletePath -Value $obsolete
+    Assert-BundleFailure `
+        -Path $obsoletePath `
+        -Case "obsolete-billing-key-encryption-secret" `
+        -ForbiddenText $forbidden
+
     $blankPath = Join-Path $testRoot "blank.json"
     $blank = [ordered]@{} + $required
     $blank.SPRING_DATASOURCE_PASSWORD = "   "
@@ -184,13 +227,23 @@ try {
         -Case "disabled-bootstrap" `
         -ForbiddenText $forbidden
 
+    $propagatedBundle = [ordered]@{} + $required
+    foreach ($name in $currentOptionalNames) {
+        $propagatedBundle[$name] = $currentOptional[$name]
+    }
     $isolation = Invoke-InAcceptanceModule `
-        -ArgumentList @($required, $marker, $testRoot) `
+        -ArgumentList @($propagatedBundle, $marker, $testRoot) `
         -ScriptBlock {
-            param([hashtable] $Required, [string] $Marker, [string] $TestRoot)
+            param([hashtable] $BackendBundle, [string] $Marker, [string] $TestRoot)
 
             $script:SpawnChecks = New-Object System.Collections.ArrayList
-            $parentNames = @("SPRING_DATASOURCE_PASSWORD", "JWT_SECRET")
+            $currentOptionalNames = @(
+                "PAYMENT_BILLING_KEY_ACTIVE_KEY_ID",
+                "PAYMENT_BILLING_KEY_0_ID",
+                "PAYMENT_BILLING_KEY_0_SECRET",
+                "APP_PAYMENT_SCHEDULER_ZONE"
+            )
+            $parentNames = @("SPRING_DATASOURCE_PASSWORD", "JWT_SECRET") + $currentOptionalNames
             $saved = @{}
             foreach ($name in $parentNames) {
                 $saved[$name] = [System.Environment]::GetEnvironmentVariable($name, "Process")
@@ -216,8 +269,8 @@ try {
                 )
                 $matchesExpected = $true
                 if ($FilePath -eq "backend") {
-                    foreach ($name in $Required.Keys) {
-                        if ([System.Environment]::GetEnvironmentVariable($name, "Process") -cne $Required[$name]) {
+                    foreach ($name in $BackendBundle.Keys) {
+                        if ([System.Environment]::GetEnvironmentVariable($name, "Process") -cne $BackendBundle[$name]) {
                             $matchesExpected = $false
                         }
                     }
@@ -225,6 +278,7 @@ try {
                 [void] $script:SpawnChecks.Add([pscustomobject]@{
                     role = $FilePath
                     backendNameCount = $present.Count
+                    backendNames = @($present)
                     matchesExpected = $matchesExpected
                 })
                 return [pscustomobject]@{ Id = 100 }
@@ -246,7 +300,7 @@ try {
                     -PublicBaseUrl "https://abc-123.trycloudflare.com"
                 $backend = New-AcceptanceBackendEnvironment `
                     -ChildEnvironment $common `
-                    -BackendEnvironmentBundle $Required
+                    -BackendEnvironmentBundle $BackendBundle
                 foreach ($role in @("tunnel", "backend", "frontend")) {
                     $environment = if ($role -eq "backend") { $backend } else { $common }
                     if ($role -eq "tunnel") {
@@ -268,6 +322,9 @@ try {
                     parentRestored = @($parentNames | Where-Object {
                         [System.Environment]::GetEnvironmentVariable($_, "Process") -ceq "parent_$Marker"
                     }).Count -eq $parentNames.Count
+                    currentOptionalNamesRestored = @($currentOptionalNames | Where-Object {
+                        [System.Environment]::GetEnvironmentVariable($_, "Process") -ceq "parent_$Marker"
+                    }).Count -eq $currentOptionalNames.Count
                 }
             } finally {
                 foreach ($name in $parentNames) {
@@ -287,8 +344,8 @@ try {
         -Condition ($isolation.checks[0].backendNameCount -eq 0) `
         -Message "Tunnel spawn should receive no backend-only variable names."
     Assert-True `
-        -Condition ($isolation.checks[1].backendNameCount -eq $required.Count) `
-        -Message "Backend spawn should receive every required backend variable name."
+        -Condition ($isolation.checks[1].backendNameCount -eq $propagatedBundle.Count) `
+        -Message "Backend spawn should receive every supplied backend variable name."
     Assert-True `
         -Condition $isolation.checks[1].matchesExpected `
         -Message "Backend spawn should receive the supplied synthetic values."
@@ -298,6 +355,20 @@ try {
     Assert-True `
         -Condition $isolation.parentRestored `
         -Message "Launcher environment should be restored before frontend spawn."
+    foreach ($name in $currentOptionalNames) {
+        Assert-True `
+            -Condition ($isolation.checks[1].backendNames -ccontains $name) `
+            -Message "Backend spawn should receive current backend environment name: $name"
+        Assert-True `
+            -Condition (-not ($isolation.checks[0].backendNames -ccontains $name)) `
+            -Message "Tunnel spawn should not receive current backend environment name: $name"
+        Assert-True `
+            -Condition (-not ($isolation.checks[2].backendNames -ccontains $name)) `
+            -Message "Frontend spawn should not receive current backend environment name: $name"
+    }
+    Assert-True `
+        -Condition $isolation.currentOptionalNamesRestored `
+        -Message "Launcher environment should restore all current optional backend names."
 
     $order = Invoke-InAcceptanceModule `
         -ArgumentList @($repoRoot, (Join-Path $testRoot "order"), $validPath, $required) `
@@ -443,6 +514,8 @@ if ($script:Failures.Count -gt 0) {
     checks = @(
         "external-bundle-validation",
         "required-and-allowlisted-names",
+        "current-v2-and-scheduler-name-acceptance",
+        "obsolete-billing-key-name-rejection",
         "safe-validation-errors",
         "child-process-environment-isolation",
         "backend-environment-restoration",
