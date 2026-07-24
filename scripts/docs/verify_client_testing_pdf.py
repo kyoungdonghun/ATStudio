@@ -10,6 +10,7 @@ import re
 import unicodedata
 from pathlib import Path
 
+from pdf_provenance import normalized_text_sha256, normalized_text_size
 from pypdf import PdfReader
 
 EXPECTED_TITLE = "AT.M 클라이언트 테스트 가이드"
@@ -17,11 +18,6 @@ EXPECTED_TITLE = "AT.M 클라이언트 테스트 가이드"
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def normalized_text_sha256(path: Path) -> str:
-    normalized = path.read_text(encoding="utf-8").replace("\r\n", "\n")
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 def strip_frontmatter(text: str) -> str:
@@ -116,7 +112,8 @@ def main() -> int:
     matched_segments = 0
     for source in manifest["sources"]:
         path = repo_root / source["path"]
-        assert sha256(path) == source["sha256"]
+        assert normalized_text_sha256(path) == source["sha256"]
+        assert normalized_text_size(path) == source["bytes"]
         body = strip_frontmatter(path.read_text(encoding="utf-8"))
         title = next(line.lstrip("# ").strip() for line in body.splitlines() if line.startswith("# "))
         source_titles.append(title)

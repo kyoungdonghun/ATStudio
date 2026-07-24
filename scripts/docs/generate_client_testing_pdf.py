@@ -15,6 +15,14 @@ import sys
 from pathlib import Path
 
 import reportlab
+from pdf_provenance import (
+    MALGUN_GOTHIC_BOLD_SHA256,
+    MALGUN_GOTHIC_REGULAR_SHA256,
+    normalized_text_sha256,
+    normalized_text_size,
+    validate_font_input,
+    write_utf8_lf_text,
+)
 from pypdf import PdfReader
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
@@ -66,11 +74,6 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def normalized_text_sha256(path: Path) -> str:
-    normalized = path.read_text(encoding="utf-8").replace("\r\n", "\n")
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 def resolve_executable(executable: str) -> Path:
@@ -447,7 +450,13 @@ def write_manifest(
     source_records = []
     for source in SOURCE_PATHS:
         path = repo_root / source
-        source_records.append({"path": source, "sha256": sha256(path), "bytes": path.stat().st_size})
+        source_records.append(
+            {
+                "path": source,
+                "sha256": normalized_text_sha256(path),
+                "bytes": normalized_text_size(path),
+            }
+        )
     manifest = {
         "schema_version": 3,
         "document": {
@@ -507,7 +516,10 @@ def write_manifest(
             "pdf_title": reader.metadata.title,
         },
     }
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    write_utf8_lf_text(
+        manifest_path,
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+    )
 
 
 def main() -> int:
@@ -529,10 +541,20 @@ def main() -> int:
     for source in SOURCE_PATHS:
         if not (repo_root / source).is_file():
             raise FileNotFoundError(source)
+    font_regular = validate_font_input(
+        args.font_regular,
+        label="Malgun Gothic regular",
+        expected_sha256=MALGUN_GOTHIC_REGULAR_SHA256,
+    )
+    font_bold = validate_font_input(
+        args.font_bold,
+        label="Malgun Gothic bold",
+        expected_sha256=MALGUN_GOTHIC_BOLD_SHA256,
+    )
     render_tool = resolve_executable(args.render_tool)
     output.parent.mkdir(parents=True, exist_ok=True)
-    build_pdf(repo_root, output, args.font_regular, args.font_bold)
-    write_manifest(repo_root, output, manifest, args.font_regular, args.font_bold, render_tool)
+    build_pdf(repo_root, output, font_regular, font_bold)
+    write_manifest(repo_root, output, manifest, font_regular, font_bold, render_tool)
     print(f"PDF={output}")
     print(f"MANIFEST={manifest}")
     print(f"SHA256={sha256(output)}")
