@@ -7,9 +7,9 @@ Blocks: WI-20260724-ATS-015, WI-20260724-ATS-016
 
 [WI SUMMARY]
 Why: Verify the fresh clone and fresh DB as a running application before any external Provider mutation.
-Scope (in/out): Start backend and frontend on isolated loopback ports from the fresh clone and runtime DB. Exercise public, authentication, subscriber, business, admin, media, whitelist, certification, and non-mutating payment/admin reads through API and browser smoke. No Toss mutation or real email.
+Scope (in/out): Start backend and frontend as owned loopback-only processes from the fresh clone and runtime DB. The repository Vite proxy fixes its backend target at `127.0.0.1:8080`, so use backend port 8080 and override only the frontend CLI port to 15173; do not start Cloudflare. Exercise public, authentication, subscriber, business, admin, media, whitelist, certification, and non-mutating payment/admin reads through API and browser smoke. Controlled QA demo data creation through the supported seed CLI is allowed only in the disposable runtime DB. No Toss mutation or real email.
 DoD: Readiness, representative role/API/UI paths, proxying, file access boundaries, and secret-safe output pass.
-Constraints/Forbidden: Do not use Cloudflare or fixed client ports in this phase. Do not use current DB, existing server processes, destructive admin mutations, or external Provider calls.
+Constraints/Forbidden: Do not use Cloudflare, public listeners, the acceptance lifecycle runtime root, the protected/current DB, unrelated server processes, destructive admin mutations outside supported QA demo setup, or external Provider calls.
 
 [ACCEPTANCE CRITERIA]
 - [ ] Isolated backend/frontend ports become ready.

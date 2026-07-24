@@ -502,6 +502,36 @@ class CompanyCertificationServiceTest {
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                             .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         }
+
+        @Test
+        @DisplayName("INDIVIDUAL member is rejected before certification lookup")
+        void getMyStatus_individualRejectedBeforeCertificationLookup() {
+            User user = buildUser(1L, UserRole.USER, UserType.INDIVIDUAL);
+            given(userRepository.findById(1L)).willReturn(Optional.of(user));
+
+            assertThatThrownBy(() -> certificationService.getMyStatus(
+                    buildUserDetails(1L, UserRole.USER)))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_ACCESS));
+
+            verifyNoInteractions(certificationRepository);
+        }
+
+        @Test
+        @DisplayName("ADMIN caller is rejected before certification lookup")
+        void getMyStatus_adminRejectedBeforeCertificationLookup() {
+            User admin = buildUser(2L, UserRole.ADMIN, UserType.INDIVIDUAL);
+            given(userRepository.findById(2L)).willReturn(Optional.of(admin));
+
+            assertThatThrownBy(() -> certificationService.getMyStatus(
+                    buildUserDetails(2L, UserRole.ADMIN)))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_ACCESS));
+
+            verifyNoInteractions(certificationRepository);
+        }
     }
 
     // ── 13.3 listAll ─────────────────────────────────────────────────────────

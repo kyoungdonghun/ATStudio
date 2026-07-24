@@ -43,8 +43,10 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("WI-019 Company certification independent security verification")
@@ -154,6 +156,27 @@ class CompanyCertificationSecurityVerificationTest {
         verify(certificationRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("Changed account cannot read its historical BUSINESS certification")
+    void getMyStatus_changedAccountCannotReadHistoricalCertification() {
+        CompanyCertificationService service = service();
+        User changedAccount = individualUser(1L);
+        CompanyCertification historicalCertification = CompanyCertification.builder()
+                .user(changedAccount)
+                .build();
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(changedAccount));
+        lenient().when(certificationRepository.findTopByUserOrderByCreatedAtDescIdDesc(changedAccount))
+                .thenReturn(Optional.of(historicalCertification));
+
+        assertThatThrownBy(() -> service.getMyStatus(actor(1L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_ACCESS));
+
+        verifyNoInteractions(certificationRepository);
+    }
+
     private CompanyCertificationService service() {
         return new CompanyCertificationService(
                 certificationRepository,
@@ -172,6 +195,18 @@ class CompanyCertificationSecurityVerificationTest {
                 .password("pw")
                 .role(UserRole.USER)
                 .userType(UserType.BUSINESS)
+                .build();
+        ReflectionTestUtils.setField(user, "id", id);
+        return user;
+    }
+
+    private User individualUser(Long id) {
+        User user = User.builder()
+                .email("member@test.com")
+                .nickname("member")
+                .password("pw")
+                .role(UserRole.USER)
+                .userType(UserType.INDIVIDUAL)
                 .build();
         ReflectionTestUtils.setField(user, "id", id);
         return user;

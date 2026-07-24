@@ -146,6 +146,17 @@ class CompanyCertificationControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("GET /api/company-certifications/me - non-BUSINESS member -> 403")
+    void getMyStatus_nonBusiness_returns403() throws Exception {
+        given(certificationService.getMyStatus(any()))
+                .willThrow(new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS));
+
+        mockMvc.perform(get("/api/company-certifications/me"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @WithMockUser(roles = "ADMIN")
     @DisplayName("GET /api/company-certifications/me - ADMIN 사용자 API 거부")
     void getMyStatus_adminRole_returns403BeforeService() throws Exception {

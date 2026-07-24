@@ -157,6 +157,10 @@ public class CompanyCertificationService {
     public CompanyCertificationResponse getMyStatus(CustomUserDetails userDetails) {
         User user = findUser(userDetails);
 
+        if (user.getUserType() != UserType.BUSINESS) {
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
+        }
+
         return certificationRepository.findTopByUserOrderByCreatedAtDescIdDesc(user)
                 .map(CompanyCertificationResponse::from)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
