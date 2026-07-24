@@ -138,6 +138,30 @@ class EmailServiceTest {
     }
 
     @Test
+    @DisplayName("verification email escapes an adversarial nickname and preserves its callback URL")
+    void sendVerificationEmail_escapesNicknameAndPreservesCallbackUrl() throws Exception {
+        String nickname = "<img src=x onerror=\"alert('verify')\"> & user";
+        User user = mock(User.class);
+        MimeMessage message = newMimeMessage();
+        setMailProperties();
+        when(user.getEmail()).thenReturn("verification@atstudio.test");
+        when(user.getNickname()).thenReturn(nickname);
+        when(mailSender.createMimeMessage()).thenReturn(message);
+
+        emailService.sendVerificationEmail(user);
+
+        ArgumentCaptor<EmailVerificationToken> tokenCaptor =
+                ArgumentCaptor.forClass(EmailVerificationToken.class);
+        verify(emailTokenRepository).save(tokenCaptor.capture());
+        String verifyUrl = BASE_URL + "/email-verify?token=" + tokenCaptor.getValue().getToken();
+        assertThat(bodyText(message))
+                .contains("&lt;img src=x onerror=&quot;alert(&#39;verify&#39;)&quot;&gt; &amp; user")
+                .contains("href=\"" + verifyUrl + "\"")
+                .contains("<br/>" + verifyUrl)
+                .doesNotContain(nickname);
+    }
+
+    @Test
     @DisplayName("password reset email failure logs correlation metadata without secrets or stack trace")
     void sendPasswordResetEmail_failure_logsCorrelationWithoutSecretsOrStackTrace(CapturedOutput output)
             throws Exception {
@@ -178,6 +202,31 @@ class EmailServiceTest {
     }
 
     @Test
+    @DisplayName("password reset email escapes an adversarial nickname and preserves its callback URL")
+    void sendPasswordResetEmail_escapesNicknameAndPreservesCallbackUrl() throws Exception {
+        String recipient = "reset@atstudio.test";
+        String nickname = "\"><svg onload='reset()'> & user";
+        User user = mock(User.class);
+        MimeMessage message = newMimeMessage();
+        setMailProperties();
+        when(user.getEmail()).thenReturn(recipient);
+        when(user.getNickname()).thenReturn(nickname);
+        when(userRepository.findByEmail(recipient)).thenReturn(Optional.of(user));
+        when(mailSender.createMimeMessage()).thenReturn(message);
+
+        emailService.sendPasswordResetEmail(recipient);
+
+        ArgumentCaptor<PasswordResetToken> tokenCaptor =
+                ArgumentCaptor.forClass(PasswordResetToken.class);
+        verify(resetTokenRepository).save(tokenCaptor.capture());
+        String resetUrl = BASE_URL + "/password-reset?token=" + tokenCaptor.getValue().getToken();
+        assertThat(bodyText(message))
+                .contains("&quot;&gt;&lt;svg onload=&#39;reset()&#39;&gt; &amp; user")
+                .contains("href=\"" + resetUrl + "\"")
+                .doesNotContain(nickname);
+    }
+
+    @Test
     @DisplayName("subscription payment email uses the AT.M subject and fallback recipient name")
     void sendSubscriptionPaymentFailureEmail_usesAtMBrand() throws Exception {
         User user = mock(User.class);
@@ -195,19 +244,48 @@ class EmailServiceTest {
     }
 
     @Test
-    @DisplayName("payment reconciliation alert uses the AT.M subject")
-    void sendPaymentReconciliationIncidentAlert_usesAtMBrand() throws Exception {
+    @DisplayName("subscription payment email escapes every adversarial dynamic field")
+    void sendSubscriptionPaymentFailureEmail_escapesAllDynamicFields() throws Exception {
+        String nickname = "<b onclick=\"nickname()\">N & N</b>";
+        String failureSummary = "</p><script>alert('summary')</script>";
+        String retryGuide = "<a href=\"https://evil.invalid\">retry & pay</a>";
+        User user = mock(User.class);
+        MimeMessage message = newMimeMessage();
+        setMailProperties();
+        when(user.getEmail()).thenReturn("subscriber@atstudio.test");
+        when(user.getNickname()).thenReturn(nickname);
+        when(mailSender.createMimeMessage()).thenReturn(message);
+
+        emailService.sendSubscriptionPaymentFailureEmail(user, failureSummary, retryGuide);
+
+        String body = bodyText(message);
+        assertThat(body)
+                .contains("&lt;b onclick=&quot;nickname()&quot;&gt;N &amp; N&lt;/b&gt;")
+                .contains("&lt;/p&gt;&lt;script&gt;alert(&#39;summary&#39;)&lt;/script&gt;")
+                .contains("&lt;a href=&quot;https://evil.invalid&quot;&gt;retry &amp; pay&lt;/a&gt;")
+                .doesNotContain(nickname, failureSummary, retryGuide);
+    }
+
+    @Test
+    @DisplayName("payment reconciliation alert preserves AT.M branding and escaping")
+    void sendPaymentReconciliationIncidentAlert_preservesAtMBrandAndEscaping() throws Exception {
         MimeMessage message = newMimeMessage();
         setMailProperties();
         when(mailSender.createMimeMessage()).thenReturn(message);
 
+        String summary = "<strong>summary & detail</strong>";
+        String details = "\"><script>alert('incident')</script>";
         emailService.sendPaymentReconciliationIncidentAlert(
                 "operator@atstudio.test",
-                "summary",
-                "details");
+                summary,
+                details);
 
         verify(mailSender).send(message);
         assertThat(message.getSubject()).isEqualTo("[AT.M] Payment reconciliation incident");
+        assertThat(bodyText(message))
+                .contains("&lt;strong&gt;summary &amp; detail&lt;/strong&gt;")
+                .contains("&quot;&gt;&lt;script&gt;alert(&#39;incident&#39;)&lt;/script&gt;")
+                .doesNotContain(summary, details);
     }
 
     private void setMailProperties() {

@@ -198,7 +198,7 @@ public class EmailService {
                   <p style="color:#888;font-size:13px;">이 링크는 24시간 후 만료됩니다.</p>
                   <p style="color:#888;font-size:13px;">버튼이 작동하지 않으면 아래 URL을 브라우저에 복사해주세요:<br/>%s</p>
                 </div>
-                """.formatted(nickname, verifyUrl, verifyUrl);
+                """.formatted(escapeHtml(nickname), verifyUrl, verifyUrl);
     }
 
     private String buildResetEmailBody(String nickname, String resetUrl) {
@@ -215,7 +215,7 @@ public class EmailService {
                   <p style="color:#888;font-size:13px;">이 링크는 1시간 후 만료됩니다.</p>
                   <p style="color:#888;font-size:13px;">본인이 요청하지 않은 경우 이 이메일을 무시해주세요.</p>
                 </div>
-                """.formatted(nickname, resetUrl, resetUrl);
+                """.formatted(escapeHtml(nickname), resetUrl, resetUrl);
     }
 
     private String buildSubscriptionPaymentFailureEmailBody(
@@ -233,9 +233,13 @@ public class EmailService {
                   </p>
                 </div>
                 """.formatted(
-                defaultText(nickname, "AT.M user"),
-                defaultText(failureSummary, "Your subscription renewal payment could not be completed."),
-                defaultText(retryGuide, "Please check your payment method and try again from My Subscription."));
+                escapeHtml(defaultText(nickname, "AT.M user")),
+                escapeHtml(defaultText(
+                        failureSummary,
+                        "Your subscription renewal payment could not be completed.")),
+                escapeHtml(defaultText(
+                        retryGuide,
+                        "Please check your payment method and try again from My Subscription.")));
     }
 
     private String buildPaymentReconciliationIncidentEmailBody(String summary, String details) {
