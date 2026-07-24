@@ -43,7 +43,7 @@ REQ/Context Docs:
 Files:
 - .gitattributes
 - scripts/docs/
-- scripts/db/
+- scripts/database/
 - scripts/acceptance/
 
 [OUTPUT CONTRACT]
