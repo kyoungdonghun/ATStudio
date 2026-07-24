@@ -19,6 +19,11 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def normalized_text_sha256(path: Path) -> str:
+    normalized = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
 def strip_frontmatter(text: str) -> str:
     lines = text.splitlines()
     if lines and lines[0].strip() == "---":
@@ -61,7 +66,40 @@ def main() -> int:
     repo_root = args.repo_root.resolve()
     pdf = (args.pdf or repo_root / "output/pdf/atstudio-client-testing-guide.pdf").resolve()
     manifest_path = (args.manifest or repo_root / "output/pdf/atstudio-client-testing-guide.manifest.json").resolve()
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+    manifest = json.loads(manifest_text)
+    normalized_manifest = manifest_text.replace("\\", "/").lower()
+    assert "/users/" not in normalized_manifest, "user-specific path detected in manifest"
+    assert "/home/" not in normalized_manifest, "user-specific path detected in manifest"
+    assert manifest["schema_version"] == 3
+    assert manifest["generator"]["python_implementation"]
+    assert "python_executable" not in manifest["generator"]
+    replay = manifest["replay"]
+    expected_replay_command = (
+        "powershell -NoProfile -ExecutionPolicy Bypass -File "
+        "scripts/docs/replay-client-testing-pdf.ps1 "
+        "-PythonExecutable $env:ATSTUDIO_PDF_PYTHON "
+        "-RenderTool $env:ATSTUDIO_PDF_RENDER_TOOL"
+    )
+    assert replay["script"] == "scripts/docs/replay-client-testing-pdf.ps1"
+    assert normalized_text_sha256(repo_root / replay["script"]) == replay["script_sha256"]
+    assert replay["command"] == expected_replay_command
+    assert replay["dependency_lock"] == "scripts/docs/client-testing-pdf-requirements.txt"
+    assert normalized_text_sha256(repo_root / replay["dependency_lock"]) == replay["dependency_lock_sha256"]
+    assert replay["text_hash_contract"] == "SHA-256 of UTF-8 text with LF line endings"
+    assert replay["python_input"].endswith("explicit Python 3.10+ executable path")
+    assert replay["render_tool_input"].endswith("explicit pdftoppm executable path")
+    assert manifest["verification"]["render_tool"] == "pdftoppm"
+    assert (
+        manifest["verification"]["render_tool_input_contract"]
+        == "explicit executable path supplied to replay wrapper"
+    )
+    assert manifest["verification"]["render_command"].startswith(
+        f"{manifest['verification']['render_tool']} "
+    )
+    render_tool_version = manifest["verification"]["render_tool_version"]
+    assert re.fullmatch(r"\d+(?:\.\d+){1,3}", render_tool_version)
+    assert manifest["verification"]["version_source"] == "queried from the explicit --render-tool path"
     assert manifest["document"]["title"] == EXPECTED_TITLE
     assert manifest["output"]["sha256"] == sha256(pdf)
     reader = PdfReader(str(pdf))

@@ -132,6 +132,11 @@ try {
         PAYMENT_BILLING_KEY_0_SECRET = "key_secret_$marker"
         APP_PAYMENT_SCHEDULER_ZONE = "Asia/Seoul"
     }
+    $obsoleteNames = @(
+        "PAYMENT_BILLING_KEY_ENCRYPTION_SECRET",
+        "APP_PAYMENT_PROVIDER",
+        "TOSS_CONFIRM_URL"
+    )
     $allowlistContract = Invoke-InAcceptanceModule -ScriptBlock {
         return [pscustomobject]@{
             optional = @($script:OptionalBackendEnvironmentVariableNames)
@@ -143,9 +148,11 @@ try {
             -Condition ($allowlistContract.optional -ccontains $name) `
             -Message "Current backend environment name should be optional and allowlisted: $name"
     }
-    Assert-True `
-        -Condition (-not ($allowlistContract.allowed -ccontains "PAYMENT_BILLING_KEY_ENCRYPTION_SECRET")) `
-        -Message "Obsolete billing-key encryption secret name should not be allowlisted."
+    foreach ($name in $obsoleteNames) {
+        Assert-True `
+            -Condition (-not ($allowlistContract.allowed -ccontains $name)) `
+            -Message "Obsolete backend environment name should not be allowlisted: $name"
+    }
 
     $validPath = Join-Path $testRoot "valid.json"
     $valid = [ordered]@{} + $required
@@ -194,14 +201,16 @@ try {
     Write-JsonFixture -Path $unknownPath -Value $unknown
     Assert-BundleFailure -Path $unknownPath -Case "unknown-key" -ForbiddenText $forbidden
 
-    $obsoletePath = Join-Path $testRoot "obsolete.json"
-    $obsolete = [ordered]@{} + $required
-    $obsolete.PAYMENT_BILLING_KEY_ENCRYPTION_SECRET = "obsolete_$marker"
-    Write-JsonFixture -Path $obsoletePath -Value $obsolete
-    Assert-BundleFailure `
-        -Path $obsoletePath `
-        -Case "obsolete-billing-key-encryption-secret" `
-        -ForbiddenText $forbidden
+    foreach ($name in $obsoleteNames) {
+        $obsoletePath = Join-Path $testRoot "obsolete-$($name.ToLowerInvariant()).json"
+        $obsolete = [ordered]@{} + $required
+        $obsolete[$name] = "obsolete_$marker"
+        Write-JsonFixture -Path $obsoletePath -Value $obsolete
+        Assert-BundleFailure `
+            -Path $obsoletePath `
+            -Case "obsolete-$($name.ToLowerInvariant())" `
+            -ForbiddenText $forbidden
+    }
 
     $blankPath = Join-Path $testRoot "blank.json"
     $blank = [ordered]@{} + $required
@@ -515,7 +524,7 @@ if ($script:Failures.Count -gt 0) {
         "external-bundle-validation",
         "required-and-allowlisted-names",
         "current-v2-and-scheduler-name-acceptance",
-        "obsolete-billing-key-name-rejection",
+        "obsolete-payment-name-rejection",
         "safe-validation-errors",
         "child-process-environment-isolation",
         "backend-environment-restoration",

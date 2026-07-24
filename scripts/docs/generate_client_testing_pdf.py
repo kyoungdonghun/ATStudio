@@ -7,7 +7,10 @@ import argparse
 import hashlib
 import html
 import json
+import platform
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -33,10 +36,18 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-GENERATOR_VERSION = "1.3.0"
+GENERATOR_VERSION = "1.5.0"
 DOCUMENT_TITLE = "AT.M 클라이언트 테스트 가이드"
 DOCUMENT_DATE = "2026-07-16"
 FIXED_TIMESTAMP = "2026-07-16T00:00:00+09:00"
+REPLAY_SCRIPT = "scripts/docs/replay-client-testing-pdf.ps1"
+DEPENDENCY_LOCK = "scripts/docs/client-testing-pdf-requirements.txt"
+REPLAY_COMMAND = (
+    "powershell -NoProfile -ExecutionPolicy Bypass -File "
+    "scripts/docs/replay-client-testing-pdf.ps1 "
+    "-PythonExecutable $env:ATSTUDIO_PDF_PYTHON "
+    "-RenderTool $env:ATSTUDIO_PDF_RENDER_TOOL"
+)
 SOURCE_PATHS = [
     "docs/client/testing-guide.md",
     "docs/client/1-quick-checklist.md",
@@ -55,6 +66,37 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def normalized_text_sha256(path: Path) -> str:
+    normalized = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def resolve_executable(executable: str) -> Path:
+    candidate = Path(executable).expanduser()
+    if candidate.is_file():
+        return candidate.resolve()
+    resolved = shutil.which(executable)
+    if resolved:
+        return Path(resolved).resolve()
+    raise FileNotFoundError(f"Executable path or PATH command not found: {executable}")
+
+
+def executable_version(executable: Path) -> str:
+    result = subprocess.run(
+        [str(executable), "-v"],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    output = "\n".join(part for part in (result.stdout, result.stderr) if part).strip()
+    match = re.search(r"\b(\d+(?:\.\d+){1,3})\b", output)
+    if not match:
+        raise RuntimeError(f"Unable to determine version for {executable.name}")
+    return match.group(1)
 
 
 def strip_frontmatter(text: str) -> str:
@@ -393,14 +435,21 @@ def build_pdf(repo_root: Path, output: Path, font_regular: Path, font_bold: Path
     document.build(story, onFirstPage=decoration, onLaterPages=decoration, canvasmaker=DeterministicCanvas)
 
 
-def write_manifest(repo_root: Path, output: Path, manifest_path: Path, font_regular: Path, font_bold: Path) -> None:
+def write_manifest(
+    repo_root: Path,
+    output: Path,
+    manifest_path: Path,
+    font_regular: Path,
+    font_bold: Path,
+    render_tool: Path,
+) -> None:
     reader = PdfReader(str(output))
     source_records = []
     for source in SOURCE_PATHS:
         path = repo_root / source
         source_records.append({"path": source, "sha256": sha256(path), "bytes": path.stat().st_size})
     manifest = {
-        "schema_version": 1,
+        "schema_version": 3,
         "document": {
             "title": DOCUMENT_TITLE,
             "document_date": DOCUMENT_DATE,
@@ -410,21 +459,33 @@ def write_manifest(repo_root: Path, output: Path, manifest_path: Path, font_regu
         "generator": {
             "path": "scripts/docs/generate_client_testing_pdf.py",
             "version": GENERATOR_VERSION,
-            "command": '"C:/Users/jm991/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe" scripts/docs/generate_client_testing_pdf.py',
-            "python_executable": sys.executable.replace("\\", "/"),
+            "python_implementation": platform.python_implementation(),
             "python_version": sys.version.split()[0],
             "reportlab_version": reportlab.Version,
             "pypdf_version": __import__("pypdf").__version__,
             "deterministic": True,
             "reportlab_invariant": 1,
         },
+        "replay": {
+            "script": REPLAY_SCRIPT,
+            "script_sha256": normalized_text_sha256(repo_root / REPLAY_SCRIPT),
+            "command": REPLAY_COMMAND,
+            "dependency_lock": DEPENDENCY_LOCK,
+            "dependency_lock_sha256": normalized_text_sha256(repo_root / DEPENDENCY_LOCK),
+            "text_hash_contract": "SHA-256 of UTF-8 text with LF line endings",
+            "python_input": "ATSTUDIO_PDF_PYTHON: explicit Python 3.10+ executable path",
+            "render_tool_input": "ATSTUDIO_PDF_RENDER_TOOL: explicit pdftoppm executable path",
+            "isolated_environment": "temporary venv created and removed by the replay script",
+        },
         "verification": {
             "script": "scripts/docs/verify_client_testing_pdf.py",
-            "render_tool": "C:/Users/jm991/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/pdftoppm.exe",
-            "render_tool_version": "26.05.0",
-            "render_command": 'pdftoppm.exe -png -r 144 output/pdf/atstudio-client-testing-guide.pdf tmp/pdfs/atstudio-client-testing-guide-v13',
-            "intermediate_directory": "tmp/pdfs/",
-            "override_wrapper_note": "The provided override/pdftoppm.cmd resolves to a missing native/poppler/bin path in this runtime; the bundled Library/bin executable is used.",
+            "render_tool": "pdftoppm",
+            "render_tool_version": executable_version(render_tool),
+            "render_tool_input_contract": "explicit executable path supplied to replay wrapper",
+            "render_command": "pdftoppm -png -r 144 "
+            "output/pdf/atstudio-client-testing-guide.pdf <temporary-render-prefix>",
+            "intermediate_directory": "operating-system temporary directory",
+            "version_source": "queried from the explicit --render-tool path",
         },
         "layout": {
             "heading_keep_with_next": True,
@@ -456,6 +517,11 @@ def main() -> int:
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--font-regular", type=Path, default=Path("C:/Windows/Fonts/malgun.ttf"))
     parser.add_argument("--font-bold", type=Path, default=Path("C:/Windows/Fonts/malgunbd.ttf"))
+    parser.add_argument(
+        "--render-tool",
+        required=True,
+        help="Explicit pdftoppm executable path used to query its version.",
+    )
     args = parser.parse_args()
     repo_root = args.repo_root.resolve()
     output = (args.output or repo_root / "output/pdf/atstudio-client-testing-guide.pdf").resolve()
@@ -463,9 +529,10 @@ def main() -> int:
     for source in SOURCE_PATHS:
         if not (repo_root / source).is_file():
             raise FileNotFoundError(source)
+    render_tool = resolve_executable(args.render_tool)
     output.parent.mkdir(parents=True, exist_ok=True)
     build_pdf(repo_root, output, args.font_regular, args.font_bold)
-    write_manifest(repo_root, output, manifest, args.font_regular, args.font_bold)
+    write_manifest(repo_root, output, manifest, args.font_regular, args.font_bold, render_tool)
     print(f"PDF={output}")
     print(f"MANIFEST={manifest}")
     print(f"SHA256={sha256(output)}")

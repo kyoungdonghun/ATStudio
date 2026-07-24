@@ -1,6 +1,6 @@
 ---
-version: 2.0
-last_updated: 2026-07-16
+version: 2.1
+last_updated: 2026-07-24
 project: ATS
 owner: docops
 category: guide
@@ -29,3 +29,26 @@ dependencies:
 내부 유지보수용 현재 수치와 코드 포인터는 [_internal-feature-map.md](_internal-feature-map.md)에 있습니다. 클라이언트 PDF에는 포함하지 않습니다.
 
 테스트 주소와 계정은 운영 담당자가 전달한 것만 사용하세요. 주소가 열리더라도 운영 담당자가 공개 테스트 가능 상태라고 확인하기 전에는 다른 사람에게 전달하지 않습니다.
+
+## PDF 유지보수
+
+PDF와 매니페스트는 직접 수정하지 않고 저장소 루트에서 함께 재생성하고
+검증합니다. Python 3.10 이상과 Poppler `pdftoppm` 실행 파일의 절대경로를
+현재 셸에만 설정합니다. 이 값은 저장소 파일이나 매니페스트에 기록하지
+않습니다.
+
+```powershell
+$env:ATSTUDIO_PDF_PYTHON = "<Python 3.10+ executable path>"
+$env:ATSTUDIO_PDF_RENDER_TOOL = "<pdftoppm executable path>"
+```
+
+다음 명령이 공식 재생 계약입니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/docs/replay-client-testing-pdf.ps1 -PythonExecutable $env:ATSTUDIO_PDF_PYTHON -RenderTool $env:ATSTUDIO_PDF_RENDER_TOOL
+```
+
+래퍼는 `scripts/docs/client-testing-pdf-requirements.txt`의 고정 버전
+의존성으로 임시 가상환경을 만들고, PDF 생성, Poppler 렌더링, 매니페스트
+검증을 수행한 뒤 임시 환경을 제거합니다. 매니페스트에는 이 재생 명령,
+의존성 파일 해시, 실제 Python/라이브러리/Poppler 버전만 기록합니다.

@@ -1,6 +1,6 @@
 ---
-version: 1.4
-last_updated: 2026-07-17
+version: 1.5
+last_updated: 2026-07-24
 project: ATS
 owner: qa
 category: guide
@@ -27,6 +27,7 @@ dependencies:
 | The environment is an approved local/test/staging environment using Toss test configuration. | No live key, real-money payment, retained production DB, or production deployment is used by this checklist. | [ ] |
 | Any remotely shared frontend is started from the official V1 baseline branch `codex/p1-acceptance-hardening` through the operator-controlled acceptance lifecycle. | Local page and API proxy pass before a newly issued public URL is shared; historical URLs are not reused. No separate client-demo branch is used. | [ ] |
 | Backend and frontend are running against the intended local or staging environment. | User can open `/subscriptions` and admin can open `/admin/payments`. | [ ] |
+| The external acceptance backend-environment bundle uses only current allowlisted names. | Obsolete `APP_PAYMENT_PROVIDER`, `TOSS_CONFIRM_URL`, and `PAYMENT_BILLING_KEY_ENCRYPTION_SECRET` entries are absent; a bundle containing one of them is rejected instead of being treated as a compatibility configuration. | [ ] |
 | Toss test client key and secret key are configured for recurring billing. | Checkout opens Toss billing auth instead of provider-not-configured error. | [ ] |
 | Billing-key active ID and V2 key ring are configured outside the repository. | Billing-key confirmation does not fail due to missing or invalid key-ring configuration. | [ ] |
 | Test user has no active subscription for new-subscription tests. | New checkout starts from a clean state. | [ ] |

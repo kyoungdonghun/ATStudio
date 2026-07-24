@@ -16,6 +16,10 @@ if ([string]::IsNullOrWhiteSpace($WorkDirectory)) {
     $WorkDirectory = Join-Path $repoRoot 'output\demo-seed'
 }
 
+if ($DryRun -and $Mode -eq 'Verify') {
+    throw 'DryRun is supported only for Seed and Cleanup modes. Verify is already non-destructive.'
+}
+
 if (-not $DryRun -and [string]::IsNullOrWhiteSpace($RuntimeCredentialsPath)) {
     throw 'RuntimeCredentialsPath is required for non-dry-run demo seed operations.'
 }

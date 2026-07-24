@@ -128,8 +128,7 @@ function parseArgs(argv) {
   const options = {
     mode: "seed",
     apiBase: "http://127.0.0.1:8080",
-    credentials:
-      "C:/Users/jm991/AppData/Local/ATStudio/acceptance-preview-64db91c/backend-environment-credentials.json",
+    credentials: null,
     workDir: path.resolve("output/demo-seed"),
     dryRun: false,
   };
@@ -153,6 +152,14 @@ function parseArgs(argv) {
 
   if (!["seed", "verify", "cleanup"].includes(options.mode)) {
     throw new Error(`Unsupported mode: ${options.mode}`);
+  }
+  if (options.mode === "verify" && options.dryRun) {
+    throw new Error("--dry-run is supported only for seed and cleanup modes");
+  }
+  if (!options.dryRun && !options.credentials) {
+    throw new Error(
+      "--credentials is required for non-dry-run demo seed operations",
+    );
   }
   return options;
 }
@@ -838,6 +845,12 @@ async function main() {
     return;
   }
 
+  const manifest = await loadManifest(manifestPath);
+  if (options.dryRun && options.mode === "cleanup") {
+    await cleanup(options, null, null, null, manifest, manifestPath);
+    return;
+  }
+
   const credentials = JSON.parse(await readFile(options.credentials, "utf8"));
   const password = credentials.APP_BOOTSTRAP_TEST_USERS_DEFAULT_PASSWORD;
   if (!password)
@@ -848,7 +861,6 @@ async function main() {
     login(options.apiBase, ADMIN_EMAIL, password),
     login(options.apiBase, PLAYLIST_EMAIL, password),
   ]);
-  const manifest = await loadManifest(manifestPath);
 
   if (options.mode === "cleanup") {
     await cleanup(

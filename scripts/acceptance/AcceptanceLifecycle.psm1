@@ -15,10 +15,8 @@ $script:RequiredBackendEnvironmentVariableNames = @(
     "APP_BOOTSTRAP_TEST_USERS_DEFAULT_PASSWORD"
 )
 $script:OptionalBackendEnvironmentVariableNames = @(
-    "APP_PAYMENT_PROVIDER",
     "TOSS_CLIENT_KEY",
     "TOSS_SECRET_KEY",
-    "TOSS_CONFIRM_URL",
     "TOSS_CANCEL_URL",
     "TOSS_CONNECT_TIMEOUT_MILLIS",
     "TOSS_READ_TIMEOUT_MILLIS",

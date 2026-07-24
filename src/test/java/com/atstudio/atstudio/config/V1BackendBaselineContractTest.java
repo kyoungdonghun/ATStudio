@@ -27,6 +27,8 @@ class V1BackendBaselineContractTest {
     private static final Path SCHEMA = Path.of("src/main/resources/schema.sql");
     private static final Path SEED = Path.of("src/main/resources/seed.sql");
     private static final Path LOCAL_EXAMPLE = Path.of("application-local.example.yml");
+    private static final Path ACCEPTANCE_LIFECYCLE =
+            Path.of("scripts/acceptance/AcceptanceLifecycle.psm1");
 
     @Test
     @DisplayName("Toss is the sole V1 provider while multi-PG interfaces remain")
@@ -122,22 +124,36 @@ class V1BackendBaselineContractTest {
     }
 
     @Test
-    @DisplayName("local config loading is explicit and all runtime profiles validate schema")
+    @DisplayName("local and acceptance config contracts are explicit and validate-only")
     void runtimeConfigurationIsExplicitAndValidateOnly() throws Exception {
         String application = Files.readString(Path.of("src/main/resources/application.yml"));
         String acceptance = Files.readString(Path.of("src/main/resources/application-acceptance.yml"));
         String localExample = Files.readString(LOCAL_EXAMPLE);
+        String acceptanceLifecycle = Files.readString(ACCEPTANCE_LIFECYCLE);
 
         assertThat(application)
                 .doesNotContain(
                         "optional:file:./application-local.yml",
                         "APP_PAYMENT_PROVIDER",
                         "PAYMENT_BILLING_KEY_ENCRYPTION_SECRET",
+                        "APP_SECURITY_RATE_LIMIT_EMAIL_AVAILABILITY_LIMIT",
+                        "APP_SECURITY_RATE_LIMIT_EMAIL_AVAILABILITY_WINDOW_SECONDS",
+                        "APP_SECURITY_RATE_LIMIT_PHONE_AVAILABILITY_LIMIT",
+                        "APP_SECURITY_RATE_LIMIT_PHONE_AVAILABILITY_WINDOW_SECONDS",
+                        "APP_SECURITY_RATE_LIMIT_NICKNAME_AVAILABILITY_LIMIT",
+                        "APP_SECURITY_RATE_LIMIT_NICKNAME_AVAILABILITY_WINDOW_SECONDS",
                         "TOSS_SUCCESS_URL",
                         "TOSS_FAIL_URL",
                         "TOSS_CONFIRM_URL",
                         "thymeleaf:")
-                .contains("ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}");
+                .contains(
+                        "ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}",
+                        "APP_SECURITY_RATE_LIMIT_EMAIL_AVAILABILITY_CLIENT_LIMIT",
+                        "APP_SECURITY_RATE_LIMIT_EMAIL_AVAILABILITY_CLIENT_WINDOW_SECONDS",
+                        "APP_SECURITY_RATE_LIMIT_PHONE_AVAILABILITY_CLIENT_LIMIT",
+                        "APP_SECURITY_RATE_LIMIT_PHONE_AVAILABILITY_CLIENT_WINDOW_SECONDS",
+                        "APP_SECURITY_RATE_LIMIT_NICKNAME_AVAILABILITY_CLIENT_LIMIT",
+                        "APP_SECURITY_RATE_LIMIT_NICKNAME_AVAILABILITY_CLIENT_WINDOW_SECONDS");
         assertThat(acceptance)
                 .contains("ddl-auto: validate")
                 .doesNotContain("subscriptions/payment/success", "subscriptions/payment/fail");
@@ -147,6 +163,16 @@ class V1BackendBaselineContractTest {
                         "ddl-auto: validate",
                         "enabled: false")
                 .doesNotContain("createDatabaseIfNotExist", "ddl-auto: update", "provider: MOCK");
+        assertThat(acceptanceLifecycle)
+                .contains(
+                        "\"PAYMENT_BILLING_KEY_ACTIVE_KEY_ID\"",
+                        "\"PAYMENT_BILLING_KEY_0_ID\"",
+                        "\"PAYMENT_BILLING_KEY_0_SECRET\"",
+                        "\"APP_PAYMENT_SCHEDULER_ZONE\"")
+                .doesNotContain(
+                        "\"APP_PAYMENT_PROVIDER\"",
+                        "\"TOSS_CONFIRM_URL\"",
+                        "\"PAYMENT_BILLING_KEY_ENCRYPTION_SECRET\"");
     }
 
     @Test
@@ -156,7 +182,7 @@ class V1BackendBaselineContractTest {
                 .load("local-example", new FileSystemResource(LOCAL_EXAMPLE))
                 .get(0);
 
-        assertReferenceOnly(source, "spring.datasource.password", "DB_PASSWORD");
+        assertReferenceOnly(source, "spring.datasource.password", "SPRING_DATASOURCE_PASSWORD");
         assertReferenceOnly(source, "jwt.secret", "JWT_SECRET");
         assertReferenceOnly(
                 source,
