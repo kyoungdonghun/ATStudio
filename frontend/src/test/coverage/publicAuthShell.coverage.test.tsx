@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import type { ReactElement } from 'react';
+import { StrictMode, type ReactElement } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Album, Notice, TagItem, Track, TrackListItem, User } from '@/types';
@@ -426,14 +426,20 @@ beforeEach(() => {
 });
 
 describe('public authentication recovery', () => {
-  it('handles missing, successful, and provider-rejected email verification links', async () => {
+  it('handles missing links and verifies successfully once under StrictMode', async () => {
     const first = renderAt(<EmailVerifyPage />, '/verify-email');
     expect(mocks.verifyEmail).not.toHaveBeenCalled();
     expect(screen.getByRole('heading', { name: '이메일 인증' })).toBeInTheDocument();
     first.unmount();
 
-    renderAt(<EmailVerifyPage />, '/verify-email?token=valid-token');
+    renderAt(
+      <StrictMode>
+        <EmailVerifyPage />
+      </StrictMode>,
+      '/verify-email?token=valid-token',
+    );
     expect(await screen.findByRole('heading', { name: '인증 완료' })).toBeInTheDocument();
+    expect(mocks.verifyEmail).toHaveBeenCalledTimes(1);
     expect(mocks.verifyEmail).toHaveBeenCalledWith('valid-token');
 
     renderAt(<div />).unmount();

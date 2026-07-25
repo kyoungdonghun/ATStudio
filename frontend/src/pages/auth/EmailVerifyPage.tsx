@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { verifyEmail } from '@/api/auth';
 import styles from './EmailVerifyPage.module.css';
@@ -11,10 +11,12 @@ export default function EmailVerifyPage() {
     token ? 'loading' : 'no-token',
   );
   const [errorMessage, setErrorMessage] = useState('');
+  const verificationStartedRef = useRef(false);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || verificationStartedRef.current) return;
 
+    verificationStartedRef.current = true;
     verifyEmail(token)
       .then(() => setStatus('success'))
       .catch((err) => {
