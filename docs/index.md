@@ -1,6 +1,6 @@
 ---
-version: 2.5
-last_updated: 2026-07-17
+version: 2.7
+last_updated: 2026-08-08
 project: ATS
 owner: EO
 category: registry
@@ -25,13 +25,13 @@ status: stable
 | Audit | 6 | [Audit Index](audit/index.md) | Audit reports and remediation baselines |
 | Client | 8 | [Client Index](client/index.md) | Easy client acceptance testing guides and SR intake references |
 | Payment | 7 | [Payment Index](payment/index.md) | Payment system guide, flows, operations, acceptance checklist, and client brief |
-| SR | 92 | [SR Index](SR/index.md) | Screen Review items (SR-01~90, SR-92~93) |
+| SR | 100 | [SR Index](SR/index.md) | Screen Review items (SR-01~90, SR-92~101) |
 | Retrospective | 4 | [Retrospective Index](retrospective/index.md) | Engineering lessons, domain design, kick.md, process |
 | ADR | 1 | [ADR Index](adr/index.md) | Decision records |
 | UI | 3 | [UI Index](ui/index.md) | Screen inventory, flow, and modal planning documents |
 | Eval | 0 | [Eval Index](eval/index.md) | Evaluation documents |
 
-**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **194**.
+**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **202**.
 
 ## Required Documents Mapping by Role
 

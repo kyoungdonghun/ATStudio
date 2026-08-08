@@ -1,6 +1,6 @@
 # Screen Review (SR) Index
 
-> **Current index contract (2026-07-16):** 92 numbered SR files are indexed below: 82 DONE, 7 OPEN, 2 NOT CONFIRMED, and 1 DROPPED. `confirm/` is reserved and currently empty. Historical SR-C identifiers are aliases stored in numbered SR files, not additional files or open work items.
+> **Current index contract (2026-08-08):** 100 numbered SR files are indexed below: 82 DONE, 15 OPEN, 2 NOT CONFIRMED, and 1 DROPPED. `confirm/` is reserved and currently empty. Historical SR-C identifiers are aliases stored in numbered SR files, not additional files or open work items.
 
 | SR | Title | Status |
 |----|-------|--------|
@@ -96,6 +96,14 @@
 | SR-90 | 음원 플레이어바 파형(waveform) 디자인 전환 | OPEN |
 | SR-92 | Toss 결제위젯 인라인 렌더링 UX 분리 | DROPPED |
 | SR-93 | Toss 정기결제 운영 서버 체크포인트 및 개발 포인트 | OPEN |
+| SR-94 | 관리자 태그 중복 저장 실패 처리 개선 | OPEN |
+| SR-95 | 태그 이름 공백·특수문자 입력 규칙 정립 | OPEN |
+| SR-96 | 관리자 역할 변경 시 마지막 관리자 상실 방지 | OPEN |
+| SR-97 | 관리자 구독 편집의 플랜 선택과 상태·만료일 정합성 보강 | OPEN |
+| SR-98 | 음원 썸네일 업로드 비율 안내와 잘림 미리보기 추가 | OPEN |
+| SR-99 | 음원 길이 오출력과 저장 메타데이터 정합성 개선 | OPEN |
+| SR-100 | 메인 태그 탐색을 Usage 우선 통합 탐색으로 개편 | OPEN |
+| SR-101 | 재생 지연 안내와 집계 화면 waveform 전달 누락 개선 | OPEN |
 
 ## Historical Code Confirmation Aliases
 
