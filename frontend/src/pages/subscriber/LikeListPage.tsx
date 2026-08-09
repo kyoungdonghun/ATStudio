@@ -11,6 +11,7 @@ import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import { useToastStore } from '@/store/toastStore';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import type { LikeItem, AlbumLikeItem } from '@/types';
+import { toPlayableTrack } from '@/utils/playableTrack';
 import styles from './LikeListPage.module.css';
 
 type TabKey = 'tracks' | 'albums';
@@ -76,25 +77,7 @@ export default function LikeListPage() {
   /* SR-83: Publish liked tracks as player context so Next/Prev traverses them. */
   useEffect(() => {
     if (tab !== 'tracks') return;
-    const tracks = items.map((item) => ({
-      id: item.trackId,
-      title: item.title,
-      artistName: '',
-      duration: 0,
-      bpm: item.bpm,
-      tonality: item.tonality,
-      description: null,
-      audioFile: null,
-      thumbnail: item.thumbnail,
-      waveformData: null,
-      tags: [],
-      isActive: true,
-      playCount: 0,
-      likeCount: 0,
-      downloadCount: 0,
-      createdAt: item.createdAt,
-      updatedAt: item.createdAt,
-    }));
+    const tracks = items.map((item) => toPlayableTrack(item));
     setTrackListContext(tracks);
   }, [tab, items, setTrackListContext]);
 
@@ -124,25 +107,7 @@ export default function LikeListPage() {
       else resumeTrack();
       return;
     }
-    playTrack({
-      id: item.trackId,
-      title: item.title,
-      artistName: '',
-      duration: 0,
-      bpm: item.bpm,
-      tonality: item.tonality,
-      description: null,
-      audioFile: null,
-      thumbnail: item.thumbnail,
-      waveformData: null,
-      tags: [],
-      isActive: true,
-      playCount: 0,
-      likeCount: 0,
-      downloadCount: 0,
-      createdAt: item.createdAt,
-      updatedAt: item.createdAt,
-    });
+    playTrack(toPlayableTrack(item));
   }
 
   /* ── Album handlers ── */

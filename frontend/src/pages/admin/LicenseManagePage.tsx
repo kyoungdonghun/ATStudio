@@ -2,8 +2,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { fetchUserLicenses, type LicenseListItem } from '@/api/licenses';
-import { fetchUsers } from '@/api/admin';
-import type { PageInfo, User } from '@/types';
+import { fetchUsers, type AdminUserListItem } from '@/api/admin';
+import type { PageInfo } from '@/types';
 import { formatDate } from '@/utils/format';
 import Button from '@/components/ui/Button';
 import Pagination from '@/components/ui/Pagination';
@@ -15,9 +15,9 @@ export default function LicenseManagePage() {
   const activeUserId = searchParams.get('userId') || '';
 
   const [keyword, setKeyword] = useState('');
-  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [searchResults, setSearchResults] = useState<AdminUserListItem[]>([]);
   const [showResults, setShowResults] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUserListItem | null>(null);
   const [licenses, setLicenses] = useState<LicenseListItem[]>([]);
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -64,7 +64,7 @@ export default function LicenseManagePage() {
     if (e.key === 'Enter') handleSearch();
   };
 
-  const selectUser = (user: User) => {
+  const selectUser = (user: AdminUserListItem) => {
     setSelectedUser(user);
     setShowResults(false);
     setKeyword(user.email);

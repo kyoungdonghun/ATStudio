@@ -1,6 +1,6 @@
 ---
-version: 3.0
-last_updated: 2026-07-17
+version: 4.0
+last_updated: 2026-08-09
 project: ATS
 owner: docops
 category: design
@@ -24,6 +24,11 @@ Play History is a React SPA and browser-storage feature.
 - Replaying a Track moves it to the newest position.
 - Recording itself does not require login; the `/play-history` screen is
   authenticated.
+- New entries persist Track ID plus `playedAt`; legacy entries may temporarily
+  include a full Track object.
+- On read, unique IDs are hydrated once through `POST /api/tracks/batch`.
+  Missing/inactive IDs are omitted, and the result is persisted only if the
+  latest storage snapshot still matches.
 - Empty, malformed, unavailable, or cleared storage falls back to an empty
   list.
 - There is no server API, entity, repository, service, or database table for
@@ -33,8 +38,8 @@ Play History is a React SPA and browser-storage feature.
 
 1. The player starts the selected Track.
 2. The store removes an older entry for the same Track ID.
-3. The store prepends the current entry and caps the list at 100.
-4. The store persists the list in browser storage.
+3. The store prepends the Track ID and timestamp and caps the list at 100.
+4. The store persists the ID-based list in browser storage.
 
 ## SOUND-009: View Play History
 

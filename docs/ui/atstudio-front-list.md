@@ -1,6 +1,6 @@
 ---
-version: 8.0
-last_updated: 2026-07-17
+version: 8.4
+last_updated: 2026-08-09
 project: ATS
 owner: docops
 category: reference
@@ -50,7 +50,36 @@ Repeated callback paths do not create new screens. Three checkout paths reuse on
 
 ### Play History
 
-`/play-history` reads browser `localStorage` key `playHistory`. It keeps at most 100 de-duplicated tracks and records only after playback starts. No server Play History API or table participates in this screen.
+`/play-history` reads browser `localStorage` key `playHistory`. It keeps at most
+100 de-duplicated Track IDs and records only after playback starts. Current and
+legacy entries are hydrated through one public `POST /api/tracks/batch` request;
+inactive/missing IDs are omitted and stale results cannot overwrite a newer
+storage snapshot. No server Play History table participates.
+
+### Discovery and Playback
+
+- Home contains one accessible Tag module ordered Usage, Genre, Mood,
+  Instrument. Usage remains visible even when empty; initial selection falls
+  forward to the first category with active-Track results.
+- Track-list URLs and API requests preserve repeated values for all four Tag
+  types with AND semantics. Each taxonomy loads and fails independently, with
+  an error and manual retry scoped to that type. Active URL values remain
+  visible as removable fallback chips when a request fails or omits them.
+- Genre, Mood, and Instrument labels render their raw values. Usage keeps its
+  raw value in URL and API parameters and adds `#` only to the visible label.
+- The player shows non-fatal buffering status only after 2 seconds. Actual
+  playback errors use a separate assertive state.
+- Album, playlist, likes, download history, queue, and persisted player state
+  use the shared PlayableTrack fields. Omitted nullable thumbnail or waveform
+  keys normalize to `null`, and a selected Track's duration becomes the player
+  duration in the same transition that resets current time.
+
+### Track Authoring
+
+New and replacement Track thumbnails require a square JPEG/PNG. The field shows
+the selected image in the same 1:1 centered `cover` viewport as the card. An
+existing non-square thumbnail is shown with a replacement recommendation and is
+not uploaded, rewritten, or removed unless the operator selects a new file.
 
 ### Subscription Checkout
 
@@ -59,6 +88,25 @@ Repeated callback paths do not create new screens. Three checkout paths reuse on
 ### Admin Dashboard
 
 `/admin/dashboard` calls `GET /api/admin/stats` and displays `totalUsers`, `totalTracks`, `totalSubscribers`, and the five most recent users.
+
+### Admin User and Subscription Safety
+
+- User management disables self-demotion, requires an operator reason for role
+  changes, shows stable row/modal errors, and refreshes current session role
+  state after mutation or ADMIN API 403. List rows use the exact ADMIN list DTO,
+  while update results use the detail DTO; only `USER` and `ADMIN` are
+  assignable.
+- User subscription management opens one resumable local correction modal. Its
+  visible stages are preview, request, approve, and execute. This is not a Toss
+  charge/refund UI and does not imply provider success. An HTTP 4xx response is
+  a definite rejection that keeps its stable error without reconciliation.
+  Network/timeout/no-response failures and HTTP 5xx responses are ambiguous and
+  trigger one open/detail read. A request read returning 204 remains unknown,
+  preserves the draft and preview, blocks duplicate mutation, and keeps one
+  read-only status-retry action; repeated 204 remains unknown. Known-ID approval
+  and execution reads may restore terminal state. Browser checks cover only
+  required and calendar-valid date input; server preview owns Seoul business
+  date validation. Normalized reason and stage notes are visibly confirmed.
 
 ### Site Settings
 
@@ -72,6 +120,8 @@ Repeated callback paths do not create new screens. Three checkout paths reuse on
 - Company certification application/status is BUSINESS-only.
 - Subscription payment routes are USER-only; ADMIN is redirected to `/admin/payments`.
 - Admin routes require ADMIN.
+- The public PlayableTrack batch is intentionally public but returns active
+  Track display/playback metadata only; it does not expose storage keys.
 
 ## Freshness Boundary
 

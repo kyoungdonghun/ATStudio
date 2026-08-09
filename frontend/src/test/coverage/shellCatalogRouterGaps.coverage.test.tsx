@@ -518,7 +518,12 @@ beforeEach(() => {
     if (type === 'USAGE') return Promise.resolve(usageTags);
     return Promise.resolve([]);
   });
-  mocks.fetchAvailableTags.mockResolvedValue([...genreTags, ...moodTags, ...usageTags]);
+  mocks.fetchAvailableTags.mockResolvedValue([
+    ...genreTags,
+    ...moodTags,
+    ...instrumentTags,
+    ...usageTags,
+  ]);
   mocks.downloadTrack.mockResolvedValue(new Blob(['audio'], { type: 'audio/mpeg' }));
   mocks.fetchDownloadCount.mockResolvedValue({ remaining: 4, dailyLimit: 5 });
   mocks.getApiErrorCode.mockResolvedValue(undefined);
@@ -812,7 +817,7 @@ describe('player transport, subscription, and recovery behavior', () => {
 describe('catalog filters, actions, and pagination', () => {
   it('applies URL filters, toggles every filter family, clears search, and changes pages', async () => {
     const route =
-      '/tracks?keyword=spring&genre=genre-1&mood=mood-1&usage=usage-1&bpm=60%20%E2%80%93%2079&sort=popular&page=2';
+      '/tracks?keyword=spring&genre=genre-1&mood=mood-1&instrument=Piano&usage=usage-1&bpm=60%20%E2%80%93%2079&sort=popular&page=2';
     renderCatalog(route);
 
     expect(await screen.findByText('First catalog track')).toBeInTheDocument();
@@ -821,9 +826,10 @@ describe('catalog filters, actions, and pagination', () => {
         page: 2,
         sort: 'popular',
         keyword: 'spring',
-        genre: 'genre-1',
-        mood: 'mood-1',
-        usage: 'usage-1',
+        genre: ['genre-1'],
+        mood: ['mood-1'],
+        instrument: ['Piano'],
+        usage: ['usage-1'],
         bpmMin: 60,
         bpmMax: 79,
       }),
@@ -837,6 +843,7 @@ describe('catalog filters, actions, and pagination', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'genre-1' }));
     fireEvent.click(screen.getByRole('button', { name: 'mood-1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Piano' }));
     fireEvent.click(screen.getByRole('button', { name: '#usage-1' }));
     fireEvent.click(screen.getByRole('button', { name: '60 \u2013 79' }));
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'downloads' } });
@@ -1092,11 +1099,29 @@ describe('track upload validation and recovery behavior', () => {
     fireEvent.change(firstThumbnailInput, {
       target: { files: [new File(['large'], 'large.png', { type: 'image/png' })] },
     });
-    expect(screen.getByText(/썸네일 이미지는 .*MB 이하/)).toBeInTheDocument();
+    expect(screen.getByText('트랙 썸네일은 10MB 이하만 업로드할 수 있습니다.')).toBeInTheDocument();
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:track-thumbnail'),
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    });
     fireEvent.change(firstThumbnailInput, {
       target: { files: [new File(['image'], 'cover.png', { type: 'image/png' })] },
     });
     expect(screen.getByText('cover.png')).toBeInTheDocument();
+    expect(screen.getByText('이미지 크기를 확인하는 중입니다.')).toBeInTheDocument();
+    const thumbnailPreview = screen.getByRole('img', { name: '선택한 트랙 썸네일 미리보기' });
+    Object.defineProperties(thumbnailPreview, {
+      naturalWidth: { configurable: true, value: 1200 },
+      naturalHeight: { configurable: true, value: 1200 },
+    });
+    fireEvent.load(thumbnailPreview);
+    await waitFor(() =>
+      expect(screen.queryByText('이미지 크기를 확인하는 중입니다.')).not.toBeInTheDocument(),
+    );
 
     const collapsedHeader = screen.getByText('retry').closest('[class*="trackHeader"]')!;
     fireEvent.click(collapsedHeader);

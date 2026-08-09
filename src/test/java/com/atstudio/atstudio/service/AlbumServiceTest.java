@@ -75,14 +75,16 @@ class AlbumServiceTest {
 
         given(albumRepository.findAllActiveOrderByTrackCount(PageRequest.of(1, 2)))
                 .willReturn(new PageImpl<>(List.of(album), PageRequest.of(1, 2), 3));
-        given(albumTrackRepository.countMapByAlbums(List.of(album)))
-                .willReturn(Map.of());
+        given(albumTrackRepository.countActiveMapByAlbums(List.of(album)))
+                .willReturn(Map.of(1L, 1));
 
         var result = albumService.getAlbumsPaged(2, 2, "trackCount");
 
         assertThat(result.getDataList()).hasSize(1);
         assertThat(result.getDataList().get(0).title()).isEqualTo("Active Album");
+        assertThat(result.getDataList().get(0).trackCount()).isEqualTo(1);
         verify(albumRepository).findAllActiveOrderByTrackCount(PageRequest.of(1, 2));
+        verify(albumTrackRepository).countActiveMapByAlbums(List.of(album));
     }
 
     @Test
@@ -92,7 +94,7 @@ class AlbumServiceTest {
 
         given(albumRepository.findAllActiveOrderByCreatedAt(PageRequest.of(0, 2)))
                 .willReturn(new PageImpl<>(List.of(album), PageRequest.of(0, 2), 1));
-        given(albumTrackRepository.countMapByAlbums(List.of(album))).willReturn(Map.of());
+        given(albumTrackRepository.countActiveMapByAlbums(List.of(album))).willReturn(Map.of());
 
         albumService.getAlbumsPaged(1, 2, "latest");
 
@@ -125,6 +127,32 @@ class AlbumServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("getAlbum() returns only the active membership projection")
+    void getAlbum_mixedMembershipReturnsOnlyActiveTrack() {
+        User user = buildUser(1L);
+        Album album = buildAlbum(1L, user, "Mixed Album");
+        Track activeTrack = buildTrack(10L, true);
+        Track inactiveTrack = buildTrack(20L, false);
+        AlbumTrack activeMembership = AlbumTrack.builder()
+                .id(new AlbumTrackId(1L, 10L))
+                .album(album)
+                .track(activeTrack)
+                .trackOrder(0)
+                .build();
+
+        given(albumRepository.findById(1L)).willReturn(Optional.of(album));
+        given(albumTrackRepository.findAllPlayableByAlbumOrderByTrackOrder(album))
+                .willReturn(List.of(activeMembership));
+
+        AlbumDetailResponse result = albumService.getAlbum(1L);
+
+        assertThat(result.tracks())
+                .extracting(AlbumTrackItemResponse::trackId)
+                .containsExactly(activeTrack.getId())
+                .doesNotContain(inactiveTrack.getId());
     }
 
     // -- updateAlbum() --------------------------------------------------------
@@ -175,7 +203,7 @@ class AlbumServiceTest {
         given(trackRepository.findById(5L)).willReturn(Optional.of(track));
         given(albumTrackRepository.existsByAlbumAndTrack(album, track)).willReturn(false);
         given(albumTrackRepository.countByAlbum(album)).willReturn(0L);
-        given(albumTrackRepository.findAllByAlbumOrderByTrackOrder(album))
+        given(albumTrackRepository.findAllPlayableByAlbumOrderByTrackOrder(album))
                 .willReturn(List.of());
 
         albumService.addTrack(1L, new AlbumTrackAddRequest(5L));
@@ -290,6 +318,7 @@ class AlbumServiceTest {
     private Track buildTrack(Long id, boolean active) {
         Track track = Track.builder()
                 .title("Test Track").bpm(120).tonality("C").audioFile("audio.mp3")
+                .user(User.builder().nickname("Artist " + id).email("artist" + id + "@test.com").build())
                 .isActive(active).build();
         ReflectionTestUtils.setField(track, "id", id);
         return track;

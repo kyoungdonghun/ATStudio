@@ -4,7 +4,6 @@ import com.atstudio.atstudio.common.dto.PageInfo;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
-import com.atstudio.atstudio.dto.subscription.AdminUpdateSubscriptionRequest;
 import com.atstudio.atstudio.dto.subscription.ChangeSubscriptionRequest;
 import com.atstudio.atstudio.dto.subscription.ChangeSubscriptionResponse;
 import com.atstudio.atstudio.dto.subscription.SubscriptionResponse;
@@ -191,23 +190,6 @@ public class UserSubscriptionService {
                 current.getStartedAt(),
                 current.getExpiresAt()
         ));
-    }
-
-    // 6.8 PUT /api/user-subscriptions/{id}
-    @Transactional
-    public UserSubscriptionResponse adminUpdate(Long id, AdminUpdateSubscriptionRequest request) {
-        UserSubscription userSubscription = userSubscriptionRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_NOT_FOUND));
-        userSubscription.adminUpdate(request.status(), request.billingCycle(), request.expiresAt());
-        return UserSubscriptionResponse.from(userSubscription);
-    }
-
-    // 6.9 DELETE /api/user-subscriptions/{id}
-    @Transactional
-    public void adminCancel(Long id) {
-        UserSubscription userSubscription = userSubscriptionRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_NOT_FOUND));
-        userSubscription.cancel();
     }
 
     // 6.10 DELETE /api/user-subscriptions/me

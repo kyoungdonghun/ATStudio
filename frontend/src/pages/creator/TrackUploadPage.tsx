@@ -9,7 +9,6 @@ import {
   BPM_MAX,
   DESCRIPTION_MAX,
   AUDIO_MAX_SIZE_MB,
-  IMAGE_MAX_SIZE_MB,
   TRACK_UPLOAD_MAX_COUNT,
   isFileSizeOk,
   AUDIO_ACCEPT,
@@ -17,6 +16,8 @@ import {
 } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import Tag from '@/components/ui/Tag';
+import TrackThumbnailField from './TrackThumbnailField';
+import { emptyTrackThumbnailSelection, type TrackThumbnailSelection } from './trackThumbnail';
 import styles from './TrackUploadPage.module.css';
 
 const TONALITIES = [
@@ -49,7 +50,7 @@ const TONALITIES = [
 interface TrackEntry {
   id: string; // client-side key
   audioFile: File;
-  thumbnail: File | null;
+  thumbnail: TrackThumbnailSelection;
   title: string;
   bpm: string;
   tonality: string;
@@ -155,7 +156,7 @@ export default function TrackUploadPage() {
       const newEntries: TrackEntry[] = filesToAdd.map((file) => ({
         id: crypto.randomUUID(),
         audioFile: file,
-        thumbnail: null,
+        thumbnail: emptyTrackThumbnailSelection(),
         title: file.name.replace(/\.[^.]+$/, ''),
         bpm: '',
         tonality: '',
@@ -209,6 +210,10 @@ export default function TrackUploadPage() {
 
   /* ── Validate ── */
   function validateTrack(track: TrackEntry): string | null {
+    if (track.thumbnail.status === 'pending') return '썸네일 이미지 크기를 확인하고 있습니다.';
+    if (track.thumbnail.status === 'invalid') {
+      return track.thumbnail.error ?? '썸네일 이미지를 다시 선택해주세요.';
+    }
     if (!track.title.trim()) return '제목을 입력해주세요.';
     if (!track.bpm || Number(track.bpm) <= 0) return 'BPM을 올바르게 입력해주세요.';
     if (!track.tonality) return '조성을 선택해주세요.';
@@ -256,8 +261,8 @@ export default function TrackUploadPage() {
         formData.append('description', track.description.trim());
       }
       formData.append('audioFile', track.audioFile);
-      if (track.thumbnail) {
-        formData.append('thumbnail', track.thumbnail);
+      if (track.thumbnail.file) {
+        formData.append('thumbnail', track.thumbnail.file);
       }
       track.tagIds.forEach((tagId) => {
         formData.append('tagIds', String(tagId));
@@ -290,6 +295,9 @@ export default function TrackUploadPage() {
   }
 
   const doneCount = Object.values(uploadStates).filter((s) => s.status === 'done').length;
+  const hasBlockingThumbnail = tracks.some(
+    (track) => track.thumbnail.status === 'pending' || track.thumbnail.status === 'invalid',
+  );
 
   return (
     <div className={styles.page}>
@@ -420,29 +428,11 @@ export default function TrackUploadPage() {
                       </div>
 
                       {/* Thumbnail */}
-                      <div className={styles.field}>
-                        <span className={styles.label}>{'썸네일'}</span>
-                        <label
-                          className={`${styles.fileLabel} ${track.thumbnail ? styles.fileLabelSelected : ''}`}
-                        >
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className={styles.fileHidden}
-                            onChange={(e) => {
-                              const file = e.target.files?.[0] ?? null;
-                              if (file && !isFileSizeOk(file, IMAGE_MAX_SIZE_MB)) {
-                                setError(
-                                  `썸네일 이미지는 ${IMAGE_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`,
-                                );
-                                return;
-                              }
-                              updateTrack(idx, { thumbnail: file });
-                            }}
-                          />
-                          {track.thumbnail ? track.thumbnail.name : '이미지 선택'}
-                        </label>
-                      </div>
+                      <TrackThumbnailField
+                        value={track.thumbnail}
+                        onChange={(thumbnail) => updateTrack(idx, { thumbnail })}
+                        disabled={submitting}
+                      />
 
                       {/* Description */}
                       <div className={styles.field}>
@@ -525,7 +515,11 @@ export default function TrackUploadPage() {
           <Button variant="ghost" type="button" onClick={() => navigate(-1)} disabled={submitting}>
             {'취소'}
           </Button>
-          <Button type="submit" loading={submitting} disabled={tracks.length === 0}>
+          <Button
+            type="submit"
+            loading={submitting}
+            disabled={tracks.length === 0 || hasBlockingThumbnail}
+          >
             {tracks.length <= 1 ? '업로드' : `${tracks.length}곡 업로드`}
           </Button>
         </div>

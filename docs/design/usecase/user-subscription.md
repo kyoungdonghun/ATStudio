@@ -1,6 +1,6 @@
 ---
-version: 2.0
-last_updated: 2026-07-17
+version: 3.2
+last_updated: 2026-08-09
 project: ATS
 owner: docops
 category: design
@@ -58,13 +58,65 @@ grace period before `expiresAt`.
 - removed/invalid billing key: expire local agreement metadata and require
   payment-method registration without mutating the subscription.
 
-## PAYMENT-008/009: Emergency ADMIN Control
+## PAYMENT-012: General ADMIN Local Subscription Correction
 
-- `PUT /api/user-subscriptions/{id}`
-- `DELETE /api/user-subscriptions/{id}`
+Direct ADMIN `PUT`/`DELETE /api/user-subscriptions/{id}` mappings are retired.
+The management screen uses this explicit local workflow:
 
-These authorized operations remain emergency controls. They are not a general
-checkout or payment substitute.
+1. `POST /api/admin/user-subscription-corrections/preview` validates a complete
+   target plan, cycle, status, expiration date, pending-change action, and
+   optional local billing-agreement cancellation.
+2. `POST /api/admin/user-subscription-corrections` creates a `REQUESTED` row
+   with a required operator reason.
+3. `POST .../{correctionId}/approve` records explicit approval.
+4. `POST .../{correctionId}/execute` reacquires ordered pessimistic locks,
+   revalidates snapshots and payment-order safety, applies the local target,
+   and records success or failure.
+5. `GET .../open?userSubscriptionId={id}` resumes a non-terminal workflow and
+   returns 204 when none exists. List/detail reads use `dataList/pageInfo` or
+   `data` as appropriate.
+
+The SPA treats an HTTP 4xx mutation response as a definite rejection and keeps
+the stable response error without reconciliation. A network, timeout, or other
+no-response failure and an HTTP 5xx response have an ambiguous commit outcome,
+so the SPA performs one bounded read. Request reconciliation uses the
+non-terminal open-state endpoint; its 204 response is inconclusive because a
+committed correction may already have advanced. The SPA therefore retains the
+draft and preview, keeps the unknown-outcome duplicate fence, and exposes one
+read-only status retry. A repeated 204 remains unknown. Approval and execution
+use the known correction ID and may converge through detail, including terminal
+state. This flow does not poll and adds no backend correlation protocol.
+
+One ADMIN may perform all stages; this is explicit single-operator confirmation,
+not two-person approval. Mutation locks use these fixed orders:
+
+- request: BillingAgreement -> UserSubscription -> target Subscription ->
+  non-terminal correction rows -> actor User;
+- approval: correction -> actor User;
+- execution: BillingAgreement -> UserSubscription -> target Subscription ->
+  correction -> actor User.
+
+The actor is reloaded with the shared pessimistic User-row lock after all
+domain/correction locks and immediately before mutation. Withdrawal retains
+BillingAgreement -> UserSubscription -> active ADMIN rows. Correction takes no
+domain lock after its actor lock, so these paths do not introduce a lock-order
+cycle. Duplicate open requests and concurrent execution are rejected or
+converge on the persisted workflow state rather than applying the entitlement
+twice.
+
+Success audit joins the mutation transaction. Rejection audit uses an
+independent transaction and must not replace the original domain error if the
+audit write itself fails. Request, approval, and execution `BusinessException`
+rejections use phase-appropriate actions and retain only the actor ID when
+available, the target UserSubscription or correction ID, the stable error
+code, and bounded state. Every rejection row stores a null `reasonNote` and
+does not copy request bodies or operator notes. The required request reason and
+optional approval/execution notes remain in the authoritative correction
+workflow, and the successful correction audit retains its approved operator
+reason. The workflow may change local subscription and local billing-agreement
+status, but it makes no Toss charge/refund/billing-key-delete or email call.
+Refund-linked `payment_entitlement_corrections` remains a separate payment
+workflow.
 
 ## PAYMENT-010: Cancel My Subscription
 

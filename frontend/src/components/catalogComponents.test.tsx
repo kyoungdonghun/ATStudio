@@ -14,6 +14,9 @@ const genreTags: TagItem[] = [
 ];
 const moodTags: TagItem[] = [{ id: 3, name: 'Bright', type: 'MOOD' }];
 const usageTags: TagItem[] = [{ id: 4, name: 'Shorts', type: 'USAGE' }];
+const instrumentTags: TagItem[] = [{ id: 5, name: 'Piano', type: 'INSTRUMENT' }];
+const asFilterOptions = (tags: TagItem[]) =>
+  tags.map((tag) => ({ key: `tag:${tag.type}:${tag.id}`, name: tag.name, type: tag.type }));
 
 describe('catalog interaction components', () => {
   it('edits, clears, filters, and applies tag selections', () => {
@@ -24,11 +27,13 @@ describe('catalog interaction components', () => {
       <TagFilterModal
         open
         onClose={onClose}
-        genreTags={genreTags}
-        moodTags={moodTags}
-        usageTags={usageTags}
+        genreTags={asFilterOptions(genreTags)}
+        moodTags={asFilterOptions(moodTags)}
+        instrumentTags={asFilterOptions(instrumentTags)}
+        usageTags={asFilterOptions(usageTags)}
         activeGenres={['Rock']}
         activeMoods={[]}
+        activeInstruments={[]}
         activeUsages={[]}
         activeBpmLabel="80-99"
         bpmPresets={[{ label: '80-99' }, { label: '100-119' }]}
@@ -39,11 +44,18 @@ describe('catalog interaction components', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Jazz' }));
     fireEvent.click(screen.getByRole('button', { name: 'Bright' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Piano' }));
     fireEvent.click(screen.getByRole('button', { name: '#Shorts' }));
     fireEvent.click(screen.getByRole('button', { name: '100-119' }));
     const footerButtons = screen.getAllByRole('button');
     fireEvent.click(footerButtons[footerButtons.length - 1]!);
-    expect(onApply).toHaveBeenCalledWith(['Rock', 'Jazz'], ['Bright'], ['Shorts'], '100-119');
+    expect(onApply).toHaveBeenCalledWith(
+      ['Rock', 'Jazz'],
+      ['Bright'],
+      ['Piano'],
+      ['Shorts'],
+      '100-119',
+    );
     expect(onClose).toHaveBeenCalledOnce();
     vi.useRealTimers();
   });
@@ -54,11 +66,13 @@ describe('catalog interaction components', () => {
       <TagFilterModal
         open
         onClose={vi.fn()}
-        genreTags={genreTags}
-        moodTags={moodTags}
-        usageTags={usageTags}
+        genreTags={asFilterOptions(genreTags)}
+        moodTags={asFilterOptions(moodTags)}
+        instrumentTags={asFilterOptions(instrumentTags)}
+        usageTags={asFilterOptions(usageTags)}
         activeGenres={['Rock']}
         activeMoods={['Bright']}
+        activeInstruments={['Piano']}
         activeUsages={['Shorts']}
         activeBpmLabel="80-99"
         bpmPresets={[{ label: '80-99' }]}
@@ -74,7 +88,7 @@ describe('catalog interaction components', () => {
     const buttons = screen.getAllByRole('button');
     fireEvent.click(buttons[buttons.length - 2]!);
     fireEvent.click(buttons[buttons.length - 1]!);
-    expect(onApply).toHaveBeenCalledWith([], [], [], '');
+    expect(onApply).toHaveBeenCalledWith([], [], [], [], '');
   });
 
   it('renders track metadata and dispatches authenticated actions', () => {
@@ -89,6 +103,7 @@ describe('catalog interaction components', () => {
       playCount: 3,
       likeCount: 4,
       downloadCount: 5,
+      waveformData: '[0.2,0.8]',
       tags: [...genreTags.slice(0, 1), ...moodTags, ...usageTags],
       createdAt: '2026-07-17',
     };
@@ -145,6 +160,7 @@ describe('catalog interaction components', () => {
       playCount: 0,
       likeCount: 0,
       downloadCount: 0,
+      waveformData: null,
       tags: [],
       createdAt: '2026-07-17',
     };

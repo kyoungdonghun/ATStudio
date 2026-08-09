@@ -81,7 +81,7 @@ public class AlbumService {
                 ? albumRepository.findAllActiveOrderByTrackCount(pageRequest)
                 : albumRepository.findAllActiveOrderByCreatedAt(pageRequest);
         List<Album> albums = albumPage.getContent();
-        Map<Long, Integer> countMap = albumTrackRepository.countMapByAlbums(albums);
+        Map<Long, Integer> countMap = albumTrackRepository.countActiveMapByAlbums(albums);
         List<AlbumListItemResponse> dataList = albums.stream()
                 .map(album -> AlbumListItemResponse.from(album, countMap.getOrDefault(album.getId(), 0)))
                 .toList();
@@ -99,7 +99,7 @@ public class AlbumService {
         Album album = getActiveAlbum(id);
 
         List<AlbumTrackItemResponse> tracks = albumTrackRepository
-                .findAllByAlbumOrderByTrackOrder(album)
+                .findAllPlayableByAlbumOrderByTrackOrder(album)
                 .stream()
                 .map(AlbumTrackItemResponse::from)
                 .toList();

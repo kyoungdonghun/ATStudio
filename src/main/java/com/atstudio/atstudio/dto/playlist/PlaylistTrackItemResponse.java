@@ -8,6 +8,10 @@ public record PlaylistTrackItemResponse(
         int trackOrder,
         Long trackId,
         String title,
+        String artistName,
+        int duration,
+        String thumbnail,
+        String waveformData,
         Integer bpm,
         String tonality
 ) {
@@ -16,6 +20,10 @@ public record PlaylistTrackItemResponse(
                 pt.getTrackOrder(),
                 pt.getTrack().getId(),
                 pt.getTrack().getTitle(),
+                pt.getTrack().getUser().getNickname(),
+                pt.getTrack().getDuration(),
+                pt.getTrack().getThumbnail(),
+                pt.getTrack().getWaveformData(),
                 pt.getTrack().getBpm(),
                 pt.getTrack().getTonality()
         );

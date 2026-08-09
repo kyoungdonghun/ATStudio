@@ -16,6 +16,7 @@ import { fetchLikes } from '@/api/likes';
 import { getApiErrorCode } from '@/api/client';
 import { useToastStore } from '@/store/toastStore';
 import type { Playlist, LikeItem } from '@/types';
+import { toPlayableTrack } from '@/utils/playableTrack';
 import styles from './PlaylistDrawer.module.css';
 
 const DEFAULT_MAX_PLAYLISTS = 3;
@@ -159,24 +160,7 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
   }
 
   function handlePlayTrack(t: PlaylistTrack) {
-    playTrack({
-      id: t.trackId,
-      title: t.title,
-      artistName: '',
-      duration: 0,
-      bpm: t.bpm,
-      tonality: t.tonality,
-      description: null,
-      audioFile: null,
-      thumbnail: null,
-      tags: [],
-      isActive: true,
-      playCount: 0,
-      likeCount: 0,
-      downloadCount: 0,
-      createdAt: '',
-      updatedAt: '',
-    });
+    playTrack(toPlayableTrack(t));
   }
 
   /* ── Drag & Drop reorder ── */
@@ -261,24 +245,7 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
   /* ── Like handlers ── */
 
   function handlePlayLike(item: LikeItem) {
-    playTrack({
-      id: item.trackId,
-      title: item.title,
-      artistName: '',
-      duration: 0,
-      bpm: item.bpm,
-      tonality: item.tonality,
-      description: null,
-      audioFile: null,
-      thumbnail: item.thumbnail,
-      tags: [],
-      isActive: true,
-      playCount: 0,
-      likeCount: 0,
-      downloadCount: 0,
-      createdAt: '',
-      updatedAt: '',
-    });
+    playTrack(toPlayableTrack(item));
   }
 
   /* ── History handlers (SR-89: localStorage) ── */

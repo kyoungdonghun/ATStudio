@@ -1,0 +1,9 @@
+package com.atstudio.atstudio.entity.enums;
+
+public enum AdminOperationAuditAction {
+    USER_ROLE_CHANGE,
+    ADMIN_WITHDRAWAL,
+    USER_SUBSCRIPTION_CORRECTION,
+    USER_SUBSCRIPTION_CORRECTION_REQUEST,
+    USER_SUBSCRIPTION_CORRECTION_APPROVAL
+}

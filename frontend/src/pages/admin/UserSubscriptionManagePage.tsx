@@ -1,19 +1,13 @@
 /** Screen K-4: Admin user subscription management */
 import { useEffect, useState, useCallback, useRef } from 'react';
-import {
-  fetchAdminUserSubscriptions,
-  updateAdminUserSubscription,
-  deleteAdminUserSubscription,
-  type MySubscription,
-  type AdminUpdateSubscriptionRequest,
-} from '@/api/userSubscriptions';
+import { fetchAdminUserSubscriptions, type MySubscription } from '@/api/userSubscriptions';
 import { fetchAdminSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
 import { classifyLoadError } from '@/api/loadError';
 import type { PageInfo } from '@/types';
 import { formatDate } from '@/utils/format';
-import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Pagination from '@/components/ui/Pagination';
+import UserSubscriptionCorrectionModal from './UserSubscriptionCorrectionModal';
 import styles from './UserSubscriptionManagePage.module.css';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -32,115 +26,85 @@ export default function UserSubscriptionManagePage() {
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const loadGenerationRef = useRef(0);
+  const loadControllerRef = useRef<AbortController | null>(null);
 
-  /* Plans for change modal */
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const planGenerationRef = useRef(0);
 
-  /* Edit modal */
-  const [editTarget, setEditTarget] = useState<MySubscription | null>(null);
-  const [editStatus, setEditStatus] = useState('');
-  const [editBilling, setEditBilling] = useState('');
-  const [editExpires, setEditExpires] = useState('');
-  const [editLoading, setEditLoading] = useState(false);
+  const [correctionTarget, setCorrectionTarget] = useState<MySubscription | null>(null);
 
-  /* Cancel modal */
-  const [cancelTarget, setCancelTarget] = useState<MySubscription | null>(null);
-  const [cancelLoading, setCancelLoading] = useState(false);
-
-  const loadData = useCallback(
-    (signal?: AbortSignal) => {
-      const generation = ++loadGenerationRef.current;
-      setLoading(true);
-      setError(null);
-      fetchAdminUserSubscriptions(page, 20, signal)
-        .then((result) => {
-          if (loadGenerationRef.current === generation) {
-            setSubscriptions(result.dataList);
-            setPageInfo(result.pageInfo);
-          }
-        })
-        .catch((loadError: unknown) => {
-          if (
-            loadGenerationRef.current === generation &&
-            classifyLoadError(loadError) !== 'cancelled'
-          ) {
-            setError('구독 목록을 불러오지 못했습니다.');
-          }
-        })
-        .finally(() => {
-          if (loadGenerationRef.current === generation) setLoading(false);
-        });
-    },
-    [page],
-  );
+  const loadData = useCallback(async (): Promise<boolean> => {
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    const generation = ++loadGenerationRef.current;
+    loadControllerRef.current = controller;
+    setLoading(true);
+    setListError(null);
+    try {
+      const result = await fetchAdminUserSubscriptions(page, 20, controller.signal);
+      if (loadGenerationRef.current !== generation || controller.signal.aborted) return false;
+      setSubscriptions(result.dataList);
+      setPageInfo(result.pageInfo);
+      return true;
+    } catch (loadError: unknown) {
+      if (
+        loadGenerationRef.current === generation &&
+        classifyLoadError(loadError) !== 'cancelled'
+      ) {
+        setListError('구독 목록을 불러오지 못했습니다. 기존 목록은 유지됩니다.');
+      }
+      return false;
+    } finally {
+      if (loadGenerationRef.current === generation) setLoading(false);
+    }
+  }, [page]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    loadData(controller.signal);
+    void loadData();
     return () => {
-      controller.abort();
+      loadControllerRef.current?.abort();
       loadGenerationRef.current += 1;
     };
   }, [loadData]);
 
   useEffect(() => {
     const controller = new AbortController();
+    const generation = ++planGenerationRef.current;
+    setPlanError(null);
     fetchAdminSubscriptionPlans(controller.signal)
-      .then((plans) => setPlans(plans))
+      .then((result) => {
+        if (planGenerationRef.current === generation && !controller.signal.aborted) {
+          setPlans(result);
+        }
+      })
       .catch((loadError: unknown) => {
-        if (classifyLoadError(loadError) !== 'cancelled') setPlans([]);
+        if (
+          planGenerationRef.current === generation &&
+          classifyLoadError(loadError) !== 'cancelled'
+        ) {
+          setPlanError('플랜 목록을 불러오지 못했습니다. 현재 활성 플랜만 선택할 수 있습니다.');
+        }
       });
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      planGenerationRef.current += 1;
+    };
   }, []);
 
-  /* ── Edit handlers ── */
-
-  function openEdit(sub: MySubscription) {
-    setEditTarget(sub);
-    setEditStatus(sub.status);
-    setEditBilling(sub.billingCycle);
-    setEditExpires(sub.expiresAt);
+  async function handleSucceeded(correctionId: number) {
+    const refreshed = await loadData();
+    setSuccess(
+      refreshed
+        ? `권한 보정 #${correctionId} 실행이 완료되어 최신 구독 목록에 반영했습니다.`
+        : `권한 보정 #${correctionId} 실행은 완료되었지만 목록 새로고침에 실패했습니다.`,
+    );
   }
 
-  async function confirmEdit() {
-    if (!editTarget) return;
-    setEditLoading(true);
-    try {
-      const req: AdminUpdateSubscriptionRequest = {};
-      if (editStatus !== editTarget.status) req.status = editStatus;
-      if (editBilling !== editTarget.billingCycle)
-        req.billingCycle = editBilling as 'MONTHLY' | 'YEARLY';
-      if (editExpires !== editTarget.expiresAt) req.expiresAt = editExpires;
-
-      await updateAdminUserSubscription(editTarget.id, req);
-      setEditTarget(null);
-      loadData();
-    } catch {
-      setError('구독 수정에 실패했습니다.');
-    } finally {
-      setEditLoading(false);
-    }
-  }
-
-  /* ── Cancel handlers ── */
-
-  async function confirmCancel() {
-    if (!cancelTarget) return;
-    setCancelLoading(true);
-    try {
-      await deleteAdminUserSubscription(cancelTarget.id);
-      setCancelTarget(null);
-      loadData();
-    } catch {
-      setError('구독 취소에 실패했습니다.');
-    } finally {
-      setCancelLoading(false);
-    }
-  }
-
-  if (loading) {
+  if (loading && pageInfo === null && subscriptions.length === 0 && !listError) {
     return (
       <div className={styles.page}>
         <div className={styles.loading}>{'불러오는 중...'}</div>
@@ -152,7 +116,16 @@ export default function UserSubscriptionManagePage() {
     <div className={styles.page}>
       <h1 className={styles.title}>{'사용자 구독 관리'}</h1>
 
-      {error && <div className={styles.error}>{error}</div>}
+      {success ? (
+        <div className={styles.successBanner} role="status">
+          {success}
+        </div>
+      ) : null}
+      {listError ? (
+        <div className={styles.errorBanner} role="alert">
+          {listError}
+        </div>
+      ) : null}
 
       <div className={styles.tableWrap}>
         <table className={styles.table}>
@@ -180,7 +153,7 @@ export default function UserSubscriptionManagePage() {
             {subscriptions.map((sub) => (
               <tr key={sub.id} className={styles.row}>
                 <td>{sub.id}</td>
-                <td>{sub.userNickname ?? `User #${sub.userId}`}</td>
+                <td>{sub.userNickname ?? `사용자 #${sub.userId}`}</td>
                 <td>{sub.subscription.name}</td>
                 <td>{BILLING_LABELS[sub.billingCycle] ?? sub.billingCycle}</td>
                 <td>
@@ -193,20 +166,19 @@ export default function UserSubscriptionManagePage() {
                 <td>
                   {sub.pendingSubscriptionId
                     ? (plans.find((p) => p.id === sub.pendingSubscriptionId)?.name ??
-                      `Plan #${sub.pendingSubscriptionId}`)
+                      `플랜 #${sub.pendingSubscriptionId}`)
                     : '-'}
                 </td>
                 <td>
-                  <div className={styles.actionBtns}>
-                    <Button size="sm" onClick={() => openEdit(sub)}>
-                      {'수정'}
-                    </Button>
-                    {sub.status === 'ACTIVE' && (
-                      <Button size="sm" variant="danger" onClick={() => setCancelTarget(sub)}>
-                        {'취소'}
-                      </Button>
-                    )}
-                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setSuccess(null);
+                      setCorrectionTarget(sub);
+                    }}
+                  >
+                    권한 보정
+                  </Button>
                 </td>
               </tr>
             ))}
@@ -218,89 +190,13 @@ export default function UserSubscriptionManagePage() {
         <Pagination pageInfo={pageInfo} currentPage={page} onPageChange={setPage} />
       )}
 
-      {/* Edit modal */}
-      <Modal open={editTarget !== null} onClose={() => setEditTarget(null)} title="구독 수정">
-        {editTarget && (
-          <>
-            <div className={styles.modalBody}>
-              <div className={styles.modalInfo}>
-                <strong>{editTarget.userNickname}</strong>
-                {' — '}
-                {editTarget.subscription.name}
-              </div>
-
-              <div className={styles.modalField}>
-                <label className={styles.modalLabel}>{'상태'}</label>
-                <select
-                  className={styles.modalSelect}
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value)}
-                >
-                  <option value="ACTIVE">{'활성'}</option>
-                  <option value="CANCELLED">{'취소됨'}</option>
-                  <option value="EXPIRED">{'만료'}</option>
-                </select>
-              </div>
-
-              <div className={styles.modalField}>
-                <label className={styles.modalLabel}>{'결제 주기'}</label>
-                <select
-                  className={styles.modalSelect}
-                  value={editBilling}
-                  onChange={(e) => setEditBilling(e.target.value)}
-                >
-                  <option value="MONTHLY">{'월간'}</option>
-                  <option value="YEARLY">{'연간'}</option>
-                </select>
-              </div>
-
-              <div className={styles.modalField}>
-                <label className={styles.modalLabel}>{'만료일'}</label>
-                <input
-                  type="date"
-                  className={styles.modalInput}
-                  value={editExpires}
-                  onChange={(e) => setEditExpires(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className={styles.modalActions}>
-              <Button variant="ghost" size="sm" onClick={() => setEditTarget(null)}>
-                {'취소'}
-              </Button>
-              <Button size="sm" loading={editLoading} onClick={confirmEdit}>
-                {'저장'}
-              </Button>
-            </div>
-          </>
-        )}
-      </Modal>
-
-      {/* Cancel modal */}
-      <Modal open={cancelTarget !== null} onClose={() => setCancelTarget(null)} title="구독 취소">
-        {cancelTarget && (
-          <>
-            <div className={styles.modalBody}>
-              <strong>{cancelTarget.userNickname}</strong>
-              {'님의 '}
-              <strong>{cancelTarget.subscription.name}</strong>
-              {' 구독을 취소하시겠습니까?'}
-              <br />
-              {'만료일('}
-              {formatDate(cancelTarget.expiresAt)}
-              {')까지는 서비스가 유지됩니다.'}
-            </div>
-            <div className={styles.modalActions}>
-              <Button variant="ghost" size="sm" onClick={() => setCancelTarget(null)}>
-                {'아니오'}
-              </Button>
-              <Button variant="danger" size="sm" loading={cancelLoading} onClick={confirmCancel}>
-                {'구독 취소'}
-              </Button>
-            </div>
-          </>
-        )}
-      </Modal>
+      <UserSubscriptionCorrectionModal
+        target={correctionTarget}
+        plans={plans}
+        planError={planError}
+        onClose={() => setCorrectionTarget(null)}
+        onSucceeded={(correction) => handleSucceeded(correction.id)}
+      />
     </div>
   );
 }

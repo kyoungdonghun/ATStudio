@@ -1,6 +1,6 @@
 ---
-version: 15.0
-last_updated: 2026-07-17
+version: 16.0
+last_updated: 2026-08-09
 project: ATS
 owner: docops
 category: registry
@@ -30,7 +30,7 @@ dependencies:
 | [likes.md](likes.md) | Track and album likes |
 | [download-queue.md](download-queue.md) | Official Download History; legacy filename retained for link stability |
 | [user-info.md](user-info.md) | Registration, auth/profile, password, withdrawal, ADMIN users/stats |
-| [user-subscription.md](user-subscription.md) | Recurring subscription lifecycle and emergency ADMIN controls |
+| [user-subscription.md](user-subscription.md) | Recurring subscription lifecycle and explicit local ADMIN correction |
 | [user-license.md](user-license.md) | User and ADMIN License reads |
 | [user-question.md](user-question.md) | Inquiry, answer, attachment, and ADMIN status |
 | [user-notice.md](user-notice.md) | Notice reads and ADMIN mutations |
@@ -46,6 +46,11 @@ dependencies:
 - Official Download remains subscription/License/quota controlled and records
   `track_downloads`.
 - Play History is browser-local.
+- All collection playback paths use the shared PlayableTrack contract. Local
+  player/history persistence stores IDs and hydrates at most 100 active Tracks
+  through one public batch request with stale-result fencing.
+- Track Tag search uses repeated Genre, Mood, Instrument, and Usage parameters
+  with AND semantics and `dataList/pageInfo` wrappers where paginated.
 - The subscriber download screen is `/downloads`.
 - Subscription purchase and change use TOSS recurring billing only.
 - Direct subscription creation and removed compatibility APIs/routes are not

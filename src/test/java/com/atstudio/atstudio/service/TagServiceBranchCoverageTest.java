@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,7 +41,13 @@ class TagServiceBranchCoverageTest {
         given(entityManager.createNativeQuery(anyString(), eq(Tag.class))).willReturn(query);
         given(query.getResultList()).willReturn(List.of());
 
-        assertThat(tagService.getAvailableTags(null, "   ", ", ,", null, null)).isEmpty();
+        assertThat(tagService.getAvailableTags(
+                null,
+                List.of("   "),
+                List.of(),
+                List.of("", "  "),
+                null,
+                null)).isEmpty();
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(entityManager).createNativeQuery(sql.capture(), eq(Tag.class));
@@ -55,33 +62,74 @@ class TagServiceBranchCoverageTest {
 
     @Test
     void combinedTagAndBpmFiltersPreserveAndSemanticsAndParameterOrder() {
-        Tag matched = tag(7L, "Shorts", TagType.USAGE);
+        Tag matched = tag(7L, "Piano, Synth", TagType.INSTRUMENT);
         given(entityManager.createNativeQuery(anyString(), eq(Tag.class))).willReturn(query);
         given(query.setParameter(org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.any())).willReturn(query);
         given(query.getResultList()).willReturn(List.of(matched));
 
         var result = tagService.getAvailableTags(
-                " Rock, Pop ", "Energetic", "Shorts, Tutorial", 60, 140);
+                List.of(" Rock ", "Pop"),
+                List.of("Energetic"),
+                List.of("Piano, Synth", "808 #Kit"),
+                List.of("Shorts", "Tutorial"),
+                60,
+                140);
 
         assertThat(result).singleElement().satisfies(tag -> {
             assertThat(tag.id()).isEqualTo(7L);
-            assertThat(tag.type()).isEqualTo(TagType.USAGE);
+            assertThat(tag.type()).isEqualTo(TagType.INSTRUMENT);
         });
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(entityManager).createNativeQuery(sql.capture(), eq(Tag.class));
         assertThat(sql.getValue())
-                .contains("tg1.type = 'GENRE'", "tg2.type = 'GENRE'")
-                .contains("tg3.type = 'MOOD'")
-                .contains("tg4.type = 'USAGE'", "tg5.type = 'USAGE'")
-                .contains("tr.bpm >= ?", "tr.bpm <= ?");
-        verify(query).setParameter(1, "Rock");
-        verify(query).setParameter(2, "Pop");
-        verify(query).setParameter(3, "Energetic");
-        verify(query).setParameter(4, "Shorts");
-        verify(query).setParameter(5, "Tutorial");
-        verify(query).setParameter(6, 60);
-        verify(query).setParameter(7, 140);
+                .contains("tg1.type = ?", "tg2.type = ?")
+                .contains("tg3.type = ?")
+                .contains("tg4.type = ?", "tg5.type = ?")
+                .contains("tg6.type = ?", "tg7.type = ?")
+                .contains("tr.bpm >= ?", "tr.bpm <= ?")
+                .doesNotContain("type = '");
+        verify(query).setParameter(1, "GENRE");
+        verify(query).setParameter(2, "Rock");
+        verify(query).setParameter(3, "GENRE");
+        verify(query).setParameter(4, "Pop");
+        verify(query).setParameter(5, "MOOD");
+        verify(query).setParameter(6, "Energetic");
+        verify(query).setParameter(7, "INSTRUMENT");
+        verify(query).setParameter(8, "Piano, Synth");
+        verify(query).setParameter(9, "INSTRUMENT");
+        verify(query).setParameter(10, "808 #Kit");
+        verify(query).setParameter(11, "USAGE");
+        verify(query).setParameter(12, "Shorts");
+        verify(query).setParameter(13, "USAGE");
+        verify(query).setParameter(14, "Tutorial");
+        verify(query).setParameter(15, 60);
+        verify(query).setParameter(16, 140);
+    }
+
+    @Test
+    void queryNamesCanonicalizeBeforeDistinctWithoutSplittingLegacySpecialCharacters() {
+        given(entityManager.createNativeQuery(anyString(), eq(Tag.class))).willReturn(query);
+        given(query.setParameter(org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.any())).willReturn(query);
+        given(query.getResultList()).willReturn(List.of());
+
+        tagService.getAvailableTags(
+                List.of("  Cafe\u0301\u00A0\u00A0Beat  ", "Caf\u00E9 Beat"),
+                null,
+                List.of(" Piano,  Synth ", "808 #Kit"),
+                null,
+                null,
+                null);
+
+        verify(query).setParameter(1, "GENRE");
+        verify(query).setParameter(2, "Caf\u00E9 Beat");
+        verify(query).setParameter(3, "INSTRUMENT");
+        verify(query).setParameter(4, "Piano, Synth");
+        verify(query).setParameter(5, "INSTRUMENT");
+        verify(query).setParameter(6, "808 #Kit");
+        verify(query, times(6)).setParameter(
+                org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test

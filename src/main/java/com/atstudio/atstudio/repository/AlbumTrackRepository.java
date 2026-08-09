@@ -7,6 +7,7 @@ import com.atstudio.atstudio.entity.key.AlbumTrackId;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,15 @@ public interface AlbumTrackRepository extends JpaRepository<AlbumTrack, AlbumTra
     @EntityGraph(attributePaths = {"track", "track.user"})
     List<AlbumTrack> findAllByAlbumOrderByTrackOrder(Album album);
 
+    @EntityGraph(attributePaths = {"track", "track.user"})
+    @Query("""
+            SELECT at FROM AlbumTrack at
+            WHERE at.album = :album
+              AND at.track.isActive = true
+            ORDER BY at.trackOrder
+            """)
+    List<AlbumTrack> findAllPlayableByAlbumOrderByTrackOrder(@Param("album") Album album);
+
     boolean existsByAlbumAndTrack(Album album, Track track);
 
     long countByAlbum(Album album);
@@ -26,8 +36,24 @@ public interface AlbumTrackRepository extends JpaRepository<AlbumTrack, AlbumTra
     @Query("SELECT at.album.id, COUNT(at) FROM AlbumTrack at WHERE at.album IN :albums GROUP BY at.album.id")
     List<Object[]> countByAlbumIn(List<Album> albums);
 
+    @Query("""
+            SELECT at.album.id, COUNT(at) FROM AlbumTrack at
+            WHERE at.album IN :albums
+              AND at.track.isActive = true
+            GROUP BY at.album.id
+            """)
+    List<Object[]> countActiveByAlbumIn(@Param("albums") List<Album> albums);
+
     default Map<Long, Integer> countMapByAlbums(List<Album> albums) {
         return countByAlbumIn(albums).stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> ((Long) row[1]).intValue()
+                ));
+    }
+
+    default Map<Long, Integer> countActiveMapByAlbums(List<Album> albums) {
+        return countActiveByAlbumIn(albums).stream()
                 .collect(Collectors.toMap(
                         row -> (Long) row[0],
                         row -> ((Long) row[1]).intValue()

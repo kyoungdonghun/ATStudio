@@ -27,12 +27,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class UserService {
+
+    private static final int MAX_ADMIN_OPERATION_REASON_LENGTH = 500;
 
     private static final Set<WhitelistChannelStatus> WITHDRAWAL_DELETABLE_WHITELIST_STATUSES = Set.of(
             WhitelistChannelStatus.DRAFT,
@@ -61,6 +64,8 @@ public class UserService {
     private final PaymentOrderRepository paymentOrderRepository;
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final AdminOperationAuditService adminOperationAuditService;
+    private final AdminOperationRejectionAuditService adminOperationRejectionAuditService;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -142,10 +147,21 @@ public class UserService {
         UserSubscription userSubscription = userSubscriptionRepository
                 .findByUserIDForUpdate(userID)
                 .orElse(null);
-        User user = userRepository.findByIdForUpdate(userID)
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        List<User> activeAdmins = userRepository.findActiveAdminsForRoleChange();
+        User user = findLockedUser(activeAdmins, userID);
+        boolean withdrawingActiveAdmin = user != null;
+        if (user == null) {
+            user = userRepository.findByIdForUpdate(userID)
+                    .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        }
 
         validateWithdrawalPassword(user, request);
+        if (user.isDeleted()) {
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND);
+        }
+        if (withdrawingActiveAdmin && activeAdmins.size() <= 1) {
+            rejectLastAdminWithdrawal(user);
+        }
         if (billingAgreement != null && paymentOrderRepository
                 .existsByBillingAgreementAndPurposeInAndStatusIn(
                         billingAgreement,
@@ -176,6 +192,9 @@ public class UserService {
                 WITHDRAWAL_DELETABLE_WHITELIST_STATUSES);
 
         user.withdraw();
+        if (withdrawingActiveAdmin) {
+            adminOperationAuditService.recordAdminWithdrawalSuccess(userID, UserRole.ADMIN);
+        }
     }
 
     private void validateWithdrawalPassword(User user, WithdrawRequest request) {
@@ -260,11 +279,124 @@ public class UserService {
     }
 
     @Transactional
-    public UserDetailResponse updateUserByAdmin(Long userID, UserAdminUpdateRequest request) {
-        User user = userRepository.findById(userID)
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
-        user.updateByAdmin(request.getRole(), request.getIsVerified());
-        return UserDetailResponse.from(user);
+    public UserDetailResponse updateUserByAdmin(
+            Long actorUserID,
+            Long targetUserID,
+            UserAdminUpdateRequest request) {
+        List<User> activeAdmins = userRepository.findActiveAdminsForRoleChange();
+        User actor = findLockedUser(activeAdmins, actorUserID);
+        User target = findLockedUser(activeAdmins, targetUserID);
+        if (target == null) {
+            target = userRepository.findByIdForUpdate(targetUserID)
+                    .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        }
+        if (target.isDeleted()) {
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND);
+        }
+
+        UserRole previousRole = target.getRole();
+        UserRole requestedRole = request.getRole();
+        boolean roleChanged = requestedRole != null && requestedRole != previousRole;
+        String reasonNote = normalizeOptionalAdminOperationReason(request.getReason());
+        boolean demotingActiveAdmin = previousRole == UserRole.ADMIN
+                && requestedRole == UserRole.USER
+                && !target.isDeleted();
+
+        if (demotingActiveAdmin && actorUserID.equals(targetUserID)) {
+            rejectRoleChange(
+                    BUSINESS_ERROR.SELF_ADMIN_DEMOTION_FORBIDDEN,
+                    actorUserID,
+                    targetUserID,
+                    target);
+        }
+        if (demotingActiveAdmin && activeAdmins.size() <= 1) {
+            rejectRoleChange(
+                    BUSINESS_ERROR.LAST_ADMIN_REQUIRED,
+                    actorUserID,
+                    targetUserID,
+                    target);
+        }
+
+        // The actor row is part of the deterministically locked admin set and is checked again
+        // immediately before applying any administrator-controlled mutation.
+        if (!isActiveAdmin(actor)) {
+            if (roleChanged) {
+                rejectRoleChange(
+                        BUSINESS_ERROR.ADMIN_ROLE_REQUIRED,
+                        actorUserID,
+                        targetUserID,
+                        target);
+            }
+            throw new BusinessException(BUSINESS_ERROR.ADMIN_ROLE_REQUIRED);
+        }
+        if (roleChanged && reasonNote == null) {
+            rejectRoleChange(
+                    BUSINESS_ERROR.ADMIN_OPERATION_REASON_REQUIRED,
+                    actorUserID,
+                    targetUserID,
+                    target);
+        }
+
+        target.updateByAdmin(requestedRole, request.getIsVerified());
+        if (demotingActiveAdmin) {
+            target.clearRefreshToken();
+        }
+        if (roleChanged) {
+            adminOperationAuditService.recordRoleChangeSuccess(
+                    actorUserID,
+                    targetUserID,
+                    previousRole,
+                    target.getRole(),
+                    target.isDeleted(),
+                    reasonNote);
+        }
+        return UserDetailResponse.from(target);
+    }
+
+    private User findLockedUser(List<User> users, Long userID) {
+        return users.stream()
+                .filter(user -> user.getId().equals(userID))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private boolean isActiveAdmin(User user) {
+        return user != null && !user.isDeleted() && user.getRole() == UserRole.ADMIN;
+    }
+
+    private void rejectRoleChange(
+            BUSINESS_ERROR error,
+            Long actorUserID,
+            Long targetUserID,
+            User target) {
+        adminOperationRejectionAuditService.recordRoleChangeRejected(
+                actorUserID,
+                targetUserID,
+                target.getRole(),
+                target.isDeleted(),
+                error,
+                null);
+        throw new BusinessException(error);
+    }
+
+    private void rejectLastAdminWithdrawal(User user) {
+        adminOperationRejectionAuditService.recordAdminWithdrawalRejected(
+                user.getId(),
+                user.getRole(),
+                user.isDeleted(),
+                BUSINESS_ERROR.LAST_ADMIN_REQUIRED);
+        throw new BusinessException(BUSINESS_ERROR.LAST_ADMIN_REQUIRED);
+    }
+
+    private String normalizeOptionalAdminOperationReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return null;
+        }
+        String normalized = reason.trim();
+        if (normalized.length() > MAX_ADMIN_OPERATION_REASON_LENGTH) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+        return normalized;
     }
 
     private void ensureNicknameAvailable(String nickname, Long currentUserId) {

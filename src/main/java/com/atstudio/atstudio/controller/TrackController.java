@@ -4,6 +4,7 @@ import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.track.*;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.DownloadService;
+import com.atstudio.atstudio.service.PlayableTrackService;
 import com.atstudio.atstudio.service.TrackService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ import java.util.List;
 public class TrackController {
 
     private final TrackService trackService;
+    private final PlayableTrackService playableTrackService;
     private final DownloadService downloadService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -48,6 +50,16 @@ public class TrackController {
     public ResponseEntity<ResponseDTO<TrackListItemResponse>> getTracks(
             @ModelAttribute TrackSearchRequest request) {
         return ResponseEntity.ok(trackService.getTracks(request));
+    }
+
+    @PostMapping("/batch")
+    public ResponseEntity<ResponseDTO<PlayableTrackResponse>> hydratePlayableTracks(
+            @Valid @RequestBody PlayableTrackBatchRequest request) {
+        List<PlayableTrackResponse> tracks = playableTrackService.hydrate(request.ids());
+        return ResponseEntity.ok(ResponseDTO.<PlayableTrackResponse>withAll()
+                .message("Playable tracks retrieved")
+                .dataList(tracks)
+                .build());
     }
 
     @GetMapping("/admin/{trackId}")

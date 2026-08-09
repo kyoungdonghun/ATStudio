@@ -49,6 +49,9 @@ import static org.mockito.Mockito.verify;
 @DisplayName("UserService 단위 테스트")
 class UserServiceTest {
 
+    private static final String ADVERSARIAL_OPERATOR_NOTE =
+            "contact=alice@example.test authorization=Bearer eyJhbGciOiJub25lIn0.fake.signature";
+
     @Mock UserRepository userRepository;
     @Mock PasswordEncoder passwordEncoder;
     @Mock EmailService emailService;
@@ -62,6 +65,8 @@ class UserServiceTest {
     @Mock PaymentOrderRepository paymentOrderRepository;
     @Mock UserSubscriptionRepository userSubscriptionRepository;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock AdminOperationAuditService adminOperationAuditService;
+    @Mock AdminOperationRejectionAuditService adminOperationRejectionAuditService;
 
     @InjectMocks UserService userService;
 
@@ -93,6 +98,7 @@ class UserServiceTest {
         given(billingAgreementRepository.findByUserIDAndProviderForUpdate(1L, PaymentProviderType.TOSS))
                 .willReturn(Optional.of(agreement));
         given(userSubscriptionRepository.findByUserIDForUpdate(1L)).willReturn(Optional.of(subscription));
+        given(userRepository.findActiveAdminsForRoleChange()).willReturn(List.of());
         org.mockito.Mockito.doAnswer(invocation -> {
             Object event = invocation.getArgument(0);
             assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.CANCELLED);
@@ -129,6 +135,7 @@ class UserServiceTest {
         lockOrder.verify(billingAgreementRepository)
                 .findByUserIDAndProviderForUpdate(1L, PaymentProviderType.TOSS);
         lockOrder.verify(userSubscriptionRepository).findByUserIDForUpdate(1L);
+        lockOrder.verify(userRepository).findActiveAdminsForRoleChange();
         lockOrder.verify(userRepository).findByIdForUpdate(1L);
         lockOrder.verify(paymentOrderRepository)
                 .existsByBillingAgreementAndPurposeInAndStatusIn(
@@ -141,6 +148,91 @@ class UserServiceTest {
                                 PaymentOrderStatus.PROCESSING,
                                 PaymentOrderStatus.PROVIDER_SUCCEEDED,
                                 PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION)));
+    }
+
+    @Test
+    @DisplayName("withdraw() rejects the last active ADMIN before any account mutation")
+    void withdraw_lastActiveAdmin_isRejected() {
+        User admin = buildUserWithRole(1L, "admin@test.com", "admin", UserRole.ADMIN);
+        admin.updateRefreshToken("stored-refresh-hash");
+        BillingAgreement agreement = BillingAgreement.builder()
+                .user(admin)
+                .provider(PaymentProviderType.TOSS)
+                .providerCustomerKey("customer-key")
+                .build();
+        UserSubscription subscription = UserSubscription.builder()
+                .user(admin)
+                .billingCycle(BillingCycle.MONTHLY)
+                .status(SubscriptionStatus.ACTIVE)
+                .startedAt(LocalDate.now())
+                .expiresAt(LocalDate.now().plusMonths(1))
+                .build();
+        WithdrawRequest request = new WithdrawRequest();
+        request.setPassword("password123");
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(admin));
+        given(passwordEncoder.matches("password123", "encoded")).willReturn(true);
+        given(billingAgreementRepository.findByUserIDAndProviderForUpdate(1L, PaymentProviderType.TOSS))
+                .willReturn(Optional.of(agreement));
+        given(userSubscriptionRepository.findByUserIDForUpdate(1L)).willReturn(Optional.of(subscription));
+        given(userRepository.findActiveAdminsForRoleChange()).willReturn(List.of(admin));
+
+        assertThatThrownBy(() -> userService.withdraw(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.LAST_ADMIN_REQUIRED));
+
+        assertThat(admin.isDeleted()).isFalse();
+        assertThat(admin.getRefreshToken()).isEqualTo("stored-refresh-hash");
+        assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.READY);
+        assertThat(subscription.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        org.mockito.InOrder lockOrder = inOrder(
+                billingAgreementRepository,
+                userSubscriptionRepository,
+                userRepository);
+        lockOrder.verify(billingAgreementRepository)
+                .findByUserIDAndProviderForUpdate(1L, PaymentProviderType.TOSS);
+        lockOrder.verify(userSubscriptionRepository).findByUserIDForUpdate(1L);
+        lockOrder.verify(userRepository).findActiveAdminsForRoleChange();
+        verify(userRepository, never()).findByIdForUpdate(1L);
+        verify(paymentOrderRepository, never())
+                .existsByBillingAgreementAndPurposeInAndStatusIn(any(), any(), any());
+        verify(eventPublisher, never()).publishEvent(any());
+        verify(likeRepository, never()).deleteAllByUser(any());
+        verify(adminOperationRejectionAuditService).recordAdminWithdrawalRejected(
+                1L,
+                UserRole.ADMIN,
+                false,
+                BUSINESS_ERROR.LAST_ADMIN_REQUIRED);
+        verify(adminOperationAuditService, never()).recordAdminWithdrawalSuccess(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("withdraw() 성공 - 다른 활성 ADMIN이 남으면 관리자 탈퇴 허용")
+    void withdraw_adminWithAnotherActiveAdmin_succeeds() {
+        User withdrawingAdmin = buildUserWithRole(
+                1L, "withdrawing@test.com", "withdrawing", UserRole.ADMIN);
+        User remainingAdmin = buildUserWithRole(
+                2L, "remaining@test.com", "remaining", UserRole.ADMIN);
+        withdrawingAdmin.updateRefreshToken("stored-refresh-hash");
+        WithdrawRequest request = new WithdrawRequest();
+        request.setPassword("password123");
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(withdrawingAdmin));
+        given(passwordEncoder.matches("password123", "encoded")).willReturn(true);
+        given(userRepository.findActiveAdminsForRoleChange())
+                .willReturn(List.of(withdrawingAdmin, remainingAdmin));
+
+        userService.withdraw(1L, request);
+
+        assertThat(withdrawingAdmin.isDeleted()).isTrue();
+        assertThat(withdrawingAdmin.getRefreshToken()).isNull();
+        assertThat(remainingAdmin.isDeleted()).isFalse();
+        assertThat(remainingAdmin.getRole()).isEqualTo(UserRole.ADMIN);
+        verify(userRepository, never()).findByIdForUpdate(1L);
+        verify(adminOperationAuditService).recordAdminWithdrawalSuccess(1L, UserRole.ADMIN);
+        verify(adminOperationRejectionAuditService, never())
+                .recordAdminWithdrawalRejected(anyLong(), any(), anyBoolean(), any());
     }
 
     @Test
@@ -661,17 +753,262 @@ class UserServiceTest {
     @Test
     @DisplayName("updateUserByAdmin() 성공 - role/isVerified 수정")
     void updateUserByAdmin_success() {
-        User user = buildUser(1L, "user@test.com", "nick", null, null);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        User actor = buildUserWithRole(1L, "admin@test.com", "admin", UserRole.ADMIN);
+        User user = buildUser(2L, "user@test.com", "nick", null, null);
+        given(userRepository.findActiveAdminsForRoleChange()).willReturn(List.of(actor));
+        given(userRepository.findByIdForUpdate(2L)).willReturn(Optional.of(user));
 
         UserAdminUpdateRequest request = new UserAdminUpdateRequest();
         request.setRole(UserRole.ADMIN);
         request.setIsVerified(true);
+        request.setReason("  Role promotion approved  ");
 
-        UserDetailResponse result = userService.updateUserByAdmin(1L, request);
+        UserDetailResponse result = userService.updateUserByAdmin(1L, 2L, request);
 
         assertThat(result).isNotNull();
-        assertThat(result.id()).isEqualTo(1L);
+        assertThat(result.id()).isEqualTo(2L);
+        assertThat(result.role()).isEqualTo("ADMIN");
+        verify(adminOperationAuditService).recordRoleChangeSuccess(
+                1L,
+                2L,
+                UserRole.USER,
+                UserRole.ADMIN,
+                false,
+                "Role promotion approved");
+    }
+
+    @Test
+    @DisplayName("updateUserByAdmin() 실패 - ADMIN 자기 강등은 명시적 오류로 거절")
+    void updateUserByAdmin_selfDemotion_isRejected() {
+        User actor = buildUserWithRole(1L, "admin@test.com", "admin", UserRole.ADMIN);
+        given(userRepository.findActiveAdminsForRoleChange()).willReturn(List.of(actor));
+
+        UserAdminUpdateRequest request = adminUpdate(UserRole.USER);
+        request.setReason(ADVERSARIAL_OPERATOR_NOTE);
+
+        assertThatThrownBy(() -> userService.updateUserByAdmin(1L, 1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.SELF_ADMIN_DEMOTION_FORBIDDEN));
+        assertThat(actor.getRole()).isEqualTo(UserRole.ADMIN);
+        verify(adminOperationRejectionAuditService).recordRoleChangeRejected(
+                1L,
+                1L,
+                UserRole.ADMIN,
+                false,
+                BUSINESS_ERROR.SELF_ADMIN_DEMOTION_FORBIDDEN,
+                null);
+    }
+
+    @Test
+    @DisplayName("updateUserByAdmin() 실패 - 마지막 활성 ADMIN 강등은 거절")
+    void updateUserByAdmin_lastAdmin_isRejected() {
+        User actor = buildUserWithRole(1L, "admin@test.com", "admin", UserRole.ADMIN);
+        User target = buildUserWithRole(2L, "target@test.com", "target", UserRole.ADMIN);
+        given(userRepository.findActiveAdminsForRoleChange()).willReturn(List.of(target));
+
+        UserAdminUpdateRequest request = adminUpdate(UserRole.USER);
+
+        assertThatThrownBy(() -> userService.updateUserByAdmin(1L, 2L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.LAST_ADMIN_REQUIRED));
+        assertThat(target.getRole()).isEqualTo(UserRole.ADMIN);
+        verify(adminOperationRejectionAuditService).recordRoleChangeRejected(
+                1L,
+                2L,
+                UserRole.ADMIN,
+                false,
+                BUSINESS_ERROR.LAST_ADMIN_REQUIRED,
+                null);
+    }
+
+    @Test
+    @DisplayName("updateUserByAdmin() 성공 - 다른 ADMIN 강등 시 refresh token 제거")
+    void updateUserByAdmin_validDemotion_clearsRefreshToken() {
+        User actor = buildUserWithRole(1L, "actor@test.com", "actor", UserRole.ADMIN);
+        User target = buildUserWithRole(2L, "target@test.com", "target", UserRole.ADMIN);
+        target.updateRefreshToken("stored-refresh-hash");
+        given(userRepository.findActiveAdminsForRoleChange()).willReturn(List.of(actor, target));
+
+        UserDetailResponse result = userService.updateUserByAdmin(1L, 2L, adminUpdate(UserRole.USER));
+
+        assertThat(result.role()).isEqualTo("USER");
+        assertThat(target.getRole()).isEqualTo(UserRole.USER);
+        assertThat(target.getRefreshToken()).isNull();
+        verify(userRepository, never()).findByIdForUpdate(2L);
+        verify(adminOperationAuditService).recordRoleChangeSuccess(
+                1L,
+                2L,
+                UserRole.ADMIN,
+                UserRole.USER,
+                false,
+                "Approved role change");
+    }
+
+    @Test
+    @DisplayName("updateUserByAdmin() 실패 - 적용 직전 요청자의 현재 DB 역할 재검사")
+    void updateUserByAdmin_actorRoleRecheck_rejectsStaleAdmin() {
+        User actor = buildUserWithRole(1L, "actor@test.com", "actor", UserRole.ADMIN);
+        User target = buildUserWithRole(2L, "target@test.com", "target", UserRole.ADMIN);
+        given(userRepository.findActiveAdminsForRoleChange()).willAnswer(invocation -> {
+            actor.updateByAdmin(UserRole.USER, null);
+            return List.of(actor, target);
+        });
+
+        assertThatThrownBy(() -> userService.updateUserByAdmin(1L, 2L, adminUpdate(UserRole.USER)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.ADMIN_ROLE_REQUIRED));
+        assertThat(target.getRole()).isEqualTo(UserRole.ADMIN);
+        verify(adminOperationRejectionAuditService).recordRoleChangeRejected(
+                1L,
+                2L,
+                UserRole.ADMIN,
+                false,
+                BUSINESS_ERROR.ADMIN_ROLE_REQUIRED,
+                null);
+    }
+
+    @Test
+    @DisplayName("updateUserByAdmin() 실패 - 삭제된 사용자는 승격하거나 수정할 수 없음")
+    void updateUserByAdmin_deletedTarget_isRejected() {
+        User actor = buildUserWithRole(1L, "actor@test.com", "actor", UserRole.ADMIN);
+        User deletedTarget = buildUserWithRole(
+                2L, "deleted@test.com", "deleted", UserRole.ADMIN);
+        deletedTarget.withdraw();
+        given(userRepository.findActiveAdminsForRoleChange()).willReturn(List.of(actor));
+        given(userRepository.findByIdForUpdate(2L)).willReturn(Optional.of(deletedTarget));
+
+        UserAdminUpdateRequest request = adminUpdate(UserRole.USER);
+        request.setIsVerified(true);
+
+        assertThatThrownBy(() -> userService.updateUserByAdmin(1L, 2L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        assertThat(deletedTarget.getRole()).isEqualTo(UserRole.ADMIN);
+        assertThat(deletedTarget.isVerified()).isFalse();
+        assertThat(deletedTarget.isDeleted()).isTrue();
+        verify(adminOperationAuditService, never()).recordRoleChangeSuccess(
+                anyLong(), anyLong(), any(), any(), anyBoolean(), any());
+        verify(adminOperationRejectionAuditService, never()).recordRoleChangeRejected(
+                anyLong(), anyLong(), any(), anyBoolean(), any(), any());
+    }
+
+    @Test
+    @DisplayName("updateUserByAdmin() 실패 - 실제 역할 변경에는 운영 사유 필수")
+    void updateUserByAdmin_roleChangeWithoutReason_isRejected() {
+        User actor = buildUserWithRole(1L, "actor@test.com", "actor", UserRole.ADMIN);
+        User target = buildUserWithRole(2L, "target@test.com", "target", UserRole.USER);
+        given(userRepository.findActiveAdminsForRoleChange()).willReturn(List.of(actor));
+        given(userRepository.findByIdForUpdate(2L)).willReturn(Optional.of(target));
+
+        UserAdminUpdateRequest request = new UserAdminUpdateRequest();
+        request.setRole(UserRole.ADMIN);
+
+        assertThatThrownBy(() -> userService.updateUserByAdmin(1L, 2L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.ADMIN_OPERATION_REASON_REQUIRED));
+        assertThat(target.getRole()).isEqualTo(UserRole.USER);
+        verify(adminOperationRejectionAuditService).recordRoleChangeRejected(
+                1L,
+                2L,
+                UserRole.USER,
+                false,
+                BUSINESS_ERROR.ADMIN_OPERATION_REASON_REQUIRED,
+                null);
+        verify(adminOperationAuditService, never()).recordRoleChangeSuccess(
+                anyLong(), anyLong(), any(), any(), anyBoolean(), any());
+    }
+
+    @Test
+    @DisplayName("updateUserByAdmin rejects a blank reason for an actual role change")
+    void updateUserByAdmin_roleChangeWithBlankReason_isRejected() {
+        User actor = buildUserWithRole(1L, "actor@test.com", "actor", UserRole.ADMIN);
+        User target = buildUserWithRole(2L, "target@test.com", "target", UserRole.USER);
+        given(userRepository.findActiveAdminsForRoleChange()).willReturn(List.of(actor));
+        given(userRepository.findByIdForUpdate(2L)).willReturn(Optional.of(target));
+        UserAdminUpdateRequest request = new UserAdminUpdateRequest();
+        request.setRole(UserRole.ADMIN);
+        request.setReason(" \t ");
+
+        assertThatThrownBy(() -> userService.updateUserByAdmin(1L, 2L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.ADMIN_OPERATION_REASON_REQUIRED));
+        verify(adminOperationRejectionAuditService).recordRoleChangeRejected(
+                1L,
+                2L,
+                UserRole.USER,
+                false,
+                BUSINESS_ERROR.ADMIN_OPERATION_REASON_REQUIRED,
+                null);
+    }
+
+    @Test
+    @DisplayName("updateUserByAdmin enforces the reason length in the service layer")
+    void updateUserByAdmin_roleChangeWithOverlongReason_isRejected() {
+        User actor = buildUserWithRole(1L, "actor@test.com", "actor", UserRole.ADMIN);
+        User target = buildUserWithRole(2L, "target@test.com", "target", UserRole.USER);
+        given(userRepository.findActiveAdminsForRoleChange()).willReturn(List.of(actor));
+        given(userRepository.findByIdForUpdate(2L)).willReturn(Optional.of(target));
+        UserAdminUpdateRequest request = new UserAdminUpdateRequest();
+        request.setRole(UserRole.ADMIN);
+        request.setReason("x".repeat(501));
+
+        assertThatThrownBy(() -> userService.updateUserByAdmin(1L, 2L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+        verify(adminOperationAuditService, never()).recordRoleChangeSuccess(
+                anyLong(), anyLong(), any(), any(), anyBoolean(), any());
+        verify(adminOperationRejectionAuditService, never()).recordRoleChangeRejected(
+                anyLong(), anyLong(), any(), anyBoolean(), any(), any());
+    }
+
+    @Test
+    @DisplayName("updateUserByAdmin() 성공 - verification-only 요청은 사유와 역할 감사를 요구하지 않음")
+    void updateUserByAdmin_verificationOnly_doesNotRequireReasonOrRoleAudit() {
+        User actor = buildUserWithRole(1L, "actor@test.com", "actor", UserRole.ADMIN);
+        User target = buildUserWithRole(2L, "target@test.com", "target", UserRole.USER);
+        given(userRepository.findActiveAdminsForRoleChange()).willReturn(List.of(actor));
+        given(userRepository.findByIdForUpdate(2L)).willReturn(Optional.of(target));
+
+        UserAdminUpdateRequest request = new UserAdminUpdateRequest();
+        request.setIsVerified(true);
+
+        UserDetailResponse result = userService.updateUserByAdmin(1L, 2L, request);
+
+        assertThat(result.role()).isEqualTo("USER");
+        assertThat(target.isVerified()).isTrue();
+        verify(adminOperationAuditService, never()).recordRoleChangeSuccess(
+                anyLong(), anyLong(), any(), any(), anyBoolean(), any());
+        verify(adminOperationRejectionAuditService, never()).recordRoleChangeRejected(
+                anyLong(), anyLong(), any(), anyBoolean(), any(), any());
+    }
+
+    @Test
+    @DisplayName("updateUserByAdmin() 성공 - 동일 역할 요청은 사유와 역할 감사를 요구하지 않음")
+    void updateUserByAdmin_unchangedRole_doesNotRequireReasonOrRoleAudit() {
+        User actor = buildUserWithRole(1L, "actor@test.com", "actor", UserRole.ADMIN);
+        User target = buildUserWithRole(2L, "target@test.com", "target", UserRole.USER);
+        given(userRepository.findActiveAdminsForRoleChange()).willReturn(List.of(actor));
+        given(userRepository.findByIdForUpdate(2L)).willReturn(Optional.of(target));
+
+        UserAdminUpdateRequest request = new UserAdminUpdateRequest();
+        request.setRole(UserRole.USER);
+        request.setIsVerified(true);
+
+        UserDetailResponse result = userService.updateUserByAdmin(1L, 2L, request);
+
+        assertThat(result.role()).isEqualTo("USER");
+        assertThat(target.isVerified()).isTrue();
+        verify(adminOperationAuditService, never()).recordRoleChangeSuccess(
+                anyLong(), anyLong(), any(), any(), anyBoolean(), any());
+        verify(adminOperationRejectionAuditService, never()).recordRoleChangeRejected(
+                anyLong(), anyLong(), any(), anyBoolean(), any(), any());
     }
 
     // ── helper ────────────────────────────────────────────────────────────────
@@ -699,5 +1036,18 @@ class UserServiceTest {
                 .build();
         ReflectionTestUtils.setField(user, "id", id);
         return user;
+    }
+
+    private User buildUserWithRole(Long id, String email, String nickname, UserRole role) {
+        User user = buildUser(id, email, nickname, null, UserJob.EDITOR);
+        user.updateByAdmin(role, null);
+        return user;
+    }
+
+    private UserAdminUpdateRequest adminUpdate(UserRole role) {
+        UserAdminUpdateRequest request = new UserAdminUpdateRequest();
+        request.setRole(role);
+        request.setReason("Approved role change");
+        return request;
     }
 }

@@ -31,6 +31,7 @@ public final class ValidationConstants {
     public static final int DESCRIPTION_MAX = 1000;
 
     public static final int TAG_NAME_MAX = 50;
+    public static final int TAG_NAME_RAW_MAX = 200;
 
     public static final int BPM_MIN = 1;
     public static final int BPM_MAX = 999;

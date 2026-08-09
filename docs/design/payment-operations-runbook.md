@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-07-17
+version: 1.3
+last_updated: 2026-08-09
 project: ATS
 owner: docops
 category: guide
@@ -235,7 +235,32 @@ Execution safety notes:
 - The target plan must match the user's type and be active.
 - If execution fails unexpectedly, the transaction rolls back and the correction remains retryable after investigation.
 
-### 6.5 Settlement Import/Reconciliation Boundary
+### 6.5 General Local Subscription Correction Boundary
+
+The user-subscription administration screen also provides a general local
+correction workflow under `/api/admin/user-subscription-corrections/**`. It is
+not tied to a refund row and does not belong to the payment provider ledger.
+
+1. Preview a complete target plan, billing cycle, status, expiration date,
+   pending-change policy, and optional local billing-agreement cancellation.
+2. Create the `REQUESTED` correction with a required support/operation reason.
+3. Explicitly approve it. The current V1 workflow permits the same ADMIN to
+   request, approve, and execute; it does not claim two-person approval.
+4. Execute once. The service locks BillingAgreement, UserSubscription, target
+   Subscription, and correction in the documented order, then revalidates the
+   persisted snapshots and non-terminal payment-order boundary.
+5. Verify the correction row, local subscription, optional local billing
+   agreement, and generic administrator audit. Do not infer provider activity
+   from the UI message.
+
+The correction ledger supplies workflow idempotency and resumability. Ordered
+locking and snapshot revalidation protect concurrent state. Success audit joins
+the local mutation transaction; rejected execution uses independent audit
+persistence. These are distinct controls and must not be described as provider
+idempotency. No Toss charge, refund, billing-key delete, receipt, settlement,
+or email operation is called by this workflow.
+
+### 6.6 Settlement Import/Reconciliation Boundary
 
 ATStudio provides admin APIs and UI for settlement evidence import and settlement review. These APIs operate only on `payment_settlements` and payment operation audit logs.
 

@@ -1027,6 +1027,91 @@ CREATE TABLE site_settings
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
+-- Append-only administrator security audit. IDs are snapshots, not foreign keys.
+CREATE TABLE admin_operation_audit_logs
+(
+    id            BIGINT       NOT NULL AUTO_INCREMENT,
+    action        VARCHAR(60)  NOT NULL,
+    target_type   VARCHAR(60)  NOT NULL,
+    target_id     BIGINT       NOT NULL,
+    actor_user_id BIGINT       NULL,
+    outcome       VARCHAR(30)  NOT NULL,
+    before_state  TEXT         NULL,
+    after_state   TEXT         NULL,
+    reason_code   VARCHAR(100) NULL,
+    reason_note   VARCHAR(500) NULL,
+    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_admin_operation_audit_logs_actor_created (actor_user_id, created_at),
+    KEY idx_admin_operation_audit_logs_target (target_type, target_id),
+    KEY idx_admin_operation_audit_logs_action_created (action, created_at)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+-- Administrator-only local subscription correction workflow.
+CREATE TABLE admin_subscription_corrections
+(
+    id                              BIGINT NOT NULL AUTO_INCREMENT,
+    user_subscription_id            BIGINT NOT NULL,
+    user_id                         BIGINT NOT NULL,
+    billing_agreement_id            BIGINT NULL,
+    status                          ENUM ('REQUESTED', 'APPROVED', 'PROCESSING', 'SUCCEEDED', 'FAILED', 'CANCELLED')
+                                    NOT NULL DEFAULT 'REQUESTED',
+    action                          ENUM ('SET_SUBSCRIPTION_STATE') NOT NULL DEFAULT 'SET_SUBSCRIPTION_STATE',
+    before_subscription_id          BIGINT NOT NULL,
+    before_billing_cycle            ENUM ('MONTHLY', 'YEARLY') NOT NULL,
+    before_status                   ENUM ('ACTIVE', 'CANCELLED', 'EXPIRED') NOT NULL,
+    before_expires_at               DATE NOT NULL,
+    before_pending_subscription_id  BIGINT NULL,
+    before_pending_billing_cycle    ENUM ('MONTHLY', 'YEARLY') NULL,
+    target_subscription_id          BIGINT NOT NULL,
+    target_billing_cycle            ENUM ('MONTHLY', 'YEARLY') NOT NULL,
+    target_status                   ENUM ('ACTIVE', 'CANCELLED', 'EXPIRED') NOT NULL,
+    target_expires_at               DATE NOT NULL,
+    clear_pending_change            BOOLEAN NOT NULL DEFAULT FALSE,
+    cancel_billing_agreement        BOOLEAN NOT NULL DEFAULT FALSE,
+    before_billing_agreement_status ENUM ('READY', 'ACTIVE', 'SUSPENDED', 'CANCELLED', 'EXPIRED') NULL,
+    after_billing_agreement_status  ENUM ('READY', 'ACTIVE', 'SUSPENDED', 'CANCELLED', 'EXPIRED') NULL,
+    reason_note                     VARCHAR(500) NOT NULL,
+    failure_code                    VARCHAR(100) NULL,
+    failure_message                 VARCHAR(500) NULL,
+    requested_by                    BIGINT NOT NULL,
+    approved_by                     BIGINT NULL,
+    executed_by                     BIGINT NULL,
+    approval_note                   VARCHAR(500) NULL,
+    execution_note                  VARCHAR(500) NULL,
+    approved_at                     DATETIME NULL,
+    executed_at                     DATETIME NULL,
+    created_at                      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at                      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_asc_status_created (status, created_at),
+    KEY idx_asc_user_created (user_id, created_at),
+    KEY idx_asc_subscription_created (user_subscription_id, created_at),
+    CONSTRAINT fk_asc_user_subscription
+        FOREIGN KEY (user_subscription_id) REFERENCES user_subscriptions (id),
+    CONSTRAINT fk_asc_user
+        FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT fk_asc_billing_agreement
+        FOREIGN KEY (billing_agreement_id) REFERENCES billing_agreements (id),
+    CONSTRAINT fk_asc_before_subscription
+        FOREIGN KEY (before_subscription_id) REFERENCES subscriptions (id),
+    CONSTRAINT fk_asc_before_pending_subscription
+        FOREIGN KEY (before_pending_subscription_id) REFERENCES subscriptions (id),
+    CONSTRAINT fk_asc_target_subscription
+        FOREIGN KEY (target_subscription_id) REFERENCES subscriptions (id),
+    CONSTRAINT fk_asc_requested_by
+        FOREIGN KEY (requested_by) REFERENCES users (id),
+    CONSTRAINT fk_asc_approved_by
+        FOREIGN KEY (approved_by) REFERENCES users (id),
+    CONSTRAINT fk_asc_executed_by
+        FOREIGN KEY (executed_by) REFERENCES users (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
 -- Durable file/DB lifecycle journal. This table contains opaque generated keys only.
 CREATE TABLE storage_mutations
 (
@@ -1058,5 +1143,5 @@ CREATE TABLE storage_mutations
 
 -- =============================================================================
 -- END OF SCHEMA
--- Total: 39 tables
+-- Total: 41 tables
 -- =============================================================================

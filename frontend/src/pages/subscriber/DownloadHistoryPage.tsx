@@ -19,6 +19,7 @@ import { useToastStore } from '@/store/toastStore';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Pagination from '@/components/ui/Pagination';
 import type { PageInfo } from '@/types';
+import { toPlayableTrack } from '@/utils/playableTrack';
 import styles from './DownloadHistoryPage.module.css';
 
 const PAGE_SIZE = 20;
@@ -131,25 +132,7 @@ export default function DownloadHistoryPage() {
         seen.add(item.trackId);
         return true;
       })
-      .map((item) => ({
-        id: item.trackId,
-        title: item.title,
-        artistName: item.artistName ?? '',
-        duration: item.duration,
-        bpm: item.bpm,
-        tonality: item.tonality,
-        description: null,
-        audioFile: `/api/tracks/${item.trackId}/stream`,
-        thumbnail: toUploadUrl(item.thumbnail),
-        waveformData: null,
-        tags: item.tags,
-        isActive: true,
-        playCount: 0,
-        likeCount: 0,
-        downloadCount: 0,
-        createdAt: item.downloadedAt,
-        updatedAt: item.downloadedAt,
-      }));
+      .map((item) => toPlayableTrack(item));
     setTrackListContext(tracks);
   }, [items, setTrackListContext]);
 
@@ -276,25 +259,7 @@ export default function DownloadHistoryPage() {
       else resumeTrack();
       return;
     }
-    playTrack({
-      id: item.trackId,
-      title: item.title,
-      artistName: item.artistName ?? '',
-      duration: item.duration,
-      bpm: item.bpm,
-      tonality: item.tonality,
-      description: null,
-      audioFile: `/api/tracks/${item.trackId}/stream`,
-      thumbnail: toUploadUrl(item.thumbnail),
-      waveformData: null,
-      tags: item.tags,
-      isActive: true,
-      playCount: 0,
-      likeCount: 0,
-      downloadCount: 0,
-      createdAt: item.downloadedAt,
-      updatedAt: item.downloadedAt,
-    });
+    playTrack(toPlayableTrack(item));
   }
 
   const allSelected = useMemo(

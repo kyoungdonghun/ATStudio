@@ -8,6 +8,7 @@ import { useLikeStore } from '@/store/likeStore';
 import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import { useAuthStore } from '@/store/authStore';
 import { formatDate } from '@/utils/format';
+import { toPlayableTrack } from '@/utils/playableTrack';
 import { useToastStore } from '@/store/toastStore';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import styles from './AlbumDetailPage.module.css';
@@ -64,25 +65,7 @@ export default function AlbumDetailPage() {
   /* SR-83: Publish album tracks as player context so Next/Prev traverses them. */
   useEffect(() => {
     if (!album) return;
-    const tracks = album.tracks.map((t) => ({
-      id: t.trackId,
-      title: t.title,
-      artistName: t.artistName ?? '',
-      duration: 0,
-      bpm: 0,
-      tonality: '',
-      description: null,
-      audioFile: null,
-      thumbnail: t.thumbnailUrl ?? null,
-      waveformData: null,
-      tags: [],
-      isActive: true,
-      playCount: 0,
-      likeCount: 0,
-      downloadCount: 0,
-      createdAt: '',
-      updatedAt: '',
-    }));
+    const tracks = album.tracks.map((track) => toPlayableTrack(track));
     setTrackListContext(tracks);
   }, [album, setTrackListContext]);
 
@@ -151,25 +134,7 @@ export default function AlbumDetailPage() {
             <button
               className={styles.btnPlayAll}
               onClick={() => {
-                const tracks = album.tracks.map((t) => ({
-                  id: t.trackId,
-                  title: t.title,
-                  artistName: t.artistName ?? '',
-                  duration: 0,
-                  bpm: 0,
-                  tonality: '',
-                  description: null,
-                  audioFile: null,
-                  thumbnail: t.thumbnailUrl ?? null,
-                  waveformData: null,
-                  tags: [],
-                  isActive: true,
-                  playCount: 0,
-                  likeCount: 0,
-                  downloadCount: 0,
-                  createdAt: '',
-                  updatedAt: '',
-                }));
+                const tracks = album.tracks.map((track) => toPlayableTrack(track));
                 playAll(tracks);
               }}
             >
@@ -225,25 +190,7 @@ export default function AlbumDetailPage() {
                           if (isPlayerPlaying) pauseTrack();
                           else resumeTrack();
                         } else {
-                          playTrack({
-                            id: t.trackId,
-                            title: t.title,
-                            artistName: t.artistName ?? '',
-                            duration: 0,
-                            bpm: 0,
-                            tonality: '',
-                            description: null,
-                            audioFile: null,
-                            thumbnail: t.thumbnailUrl ?? null,
-                            waveformData: null,
-                            tags: [],
-                            isActive: true,
-                            playCount: 0,
-                            likeCount: 0,
-                            downloadCount: 0,
-                            createdAt: '',
-                            updatedAt: '',
-                          });
+                          playTrack(toPlayableTrack(t));
                         }
                       }}
                       aria-label={

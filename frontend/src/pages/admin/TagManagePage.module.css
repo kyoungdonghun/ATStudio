@@ -161,6 +161,18 @@
   border-color: var(--accent-border);
 }
 
+.formInputInvalid,
+.formInputInvalid:focus {
+  border-color: var(--error);
+}
+
+.fieldError {
+  margin-top: 6px;
+  color: var(--error);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .formSelect {
   width: 100%;
   background: var(--bg2);
@@ -191,6 +203,17 @@
   font-size: 14px;
   color: var(--text0);
   line-height: 1.6;
+}
+
+.modalError {
+  margin: 0 20px 8px;
+  color: var(--error);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.modalBody .modalError {
+  margin: 0;
 }
 
 /* ── Mobile ── */

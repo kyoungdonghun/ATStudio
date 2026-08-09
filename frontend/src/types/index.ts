@@ -55,6 +55,19 @@ export interface User {
 
 /* ── Track ── */
 
+/** Minimum complete contract accepted by every player entry point. */
+export interface PlayableTrack {
+  id: number;
+  title: string;
+  artistName: string;
+  duration: number;
+  thumbnail: string | null;
+  waveformData: string | null;
+  bpm?: number;
+  tonality?: string;
+  tags?: TagItem[];
+}
+
 /** Track list item (from GET /api/tracks) */
 export interface TrackListItem {
   id: number;
@@ -67,7 +80,7 @@ export interface TrackListItem {
   playCount: number;
   likeCount: number;
   downloadCount: number;
-  waveformData?: string | null;
+  waveformData: string | null;
   tags: TagItem[];
   createdAt: string;
 }
@@ -83,7 +96,7 @@ export interface Track {
   description: string | null;
   audioFile: string | null;
   thumbnail: string | null;
-  waveformData?: string | null;
+  waveformData: string | null;
   tags: TagItem[];
   isActive: boolean;
   playCount: number;
@@ -186,9 +199,12 @@ export interface Notice {
 export interface LikeItem {
   trackId: number;
   title: string;
+  artistName: string;
+  duration: number;
   bpm: number;
   tonality: string;
-  thumbnail: string | null;
+  thumbnail?: string | null;
+  waveformData?: string | null;
   createdAt: string;
 }
 

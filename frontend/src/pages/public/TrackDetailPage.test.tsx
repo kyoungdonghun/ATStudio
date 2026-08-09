@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TrackDetail } from '@/api/tracks';
-import type { Track } from '@/types';
+import type { PlayableTrack } from '@/types';
 import TrackDetailPage from '@/pages/public/TrackDetailPage';
 
 const mocks = vi.hoisted(() => ({
@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   pause: vi.fn(),
   resume: vi.fn(),
   playerState: {
-    currentTrack: null as Track | null,
+    currentTrack: null as PlayableTrack | null,
     isPlaying: false,
   },
 }));
@@ -23,7 +23,7 @@ vi.mock('@/api/tracks', () => ({
 vi.mock('@/store/playerStore', () => ({
   usePlayerStore: (
     selector: (state: {
-      currentTrack: Track | null;
+      currentTrack: PlayableTrack | null;
       isPlaying: boolean;
       play: typeof mocks.play;
       pause: typeof mocks.pause;
@@ -90,7 +90,17 @@ const detail: TrackDetail = {
   updatedAt: '2026-07-16T01:00:00',
 };
 
-const expectedPlayerTrack: Track = { ...detail };
+const expectedPlayerTrack: PlayableTrack = {
+  id: detail.id,
+  title: detail.title,
+  artistName: detail.artistName,
+  duration: detail.duration,
+  thumbnail: detail.thumbnail,
+  waveformData: detail.waveformData,
+  bpm: detail.bpm,
+  tonality: detail.tonality,
+  tags: detail.tags,
+};
 
 function renderPage() {
   return render(

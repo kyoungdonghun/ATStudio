@@ -1,0 +1,114 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text1);
+}
+
+.guidance,
+.recommendation,
+.currentFile,
+.pending,
+.fieldError,
+.existingWarning {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.guidance {
+  color: var(--text1);
+}
+
+.recommendation,
+.currentFile,
+.pending {
+  color: var(--text2);
+}
+
+.preview {
+  width: 160px;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  background: var(--bg3);
+  flex: 0 0 auto;
+}
+
+.previewImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.fileLabel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 12px 16px;
+  overflow-wrap: anywhere;
+  text-align: center;
+  background: var(--bg2);
+  border: 1px dashed var(--border2);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text2);
+  font-size: 13px;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.fileLabel:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.fileLabelSelected {
+  border-color: var(--accent-border);
+  border-style: solid;
+  color: var(--accent);
+}
+
+.fileHidden {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.fileHidden:disabled {
+  cursor: not-allowed;
+}
+
+.fileLabel:has(.fileHidden:disabled) {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.fieldError {
+  color: var(--error);
+}
+
+.existingWarning {
+  color: var(--warning, #f59e0b);
+}
+
+@media (max-width: 767px) {
+  .preview {
+    width: min(160px, 100%);
+  }
+}

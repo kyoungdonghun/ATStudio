@@ -1,6 +1,6 @@
 ---
-version: 27.0
-last_updated: 2026-07-17
+version: 28.4
+last_updated: 2026-08-09
 project: ATS
 owner: SA
 category: design
@@ -16,11 +16,11 @@ dependencies:
     reason: Current persistence contract
 ---
 
-# ATStudio API Specification v27
+# ATStudio API Specification v28.4
 
 ## Current Contract
 
-The current V1 backend exposes **137 method-level mappings across 23 controller
+The current V1 backend exposes **144 method-level mappings across 25 controller
 classes**. This count is derived from the current Java source by counting
 method-level `@GetMapping`, `@PostMapping`, `@PutMapping`,
 `@PatchMapping`, and `@DeleteMapping` annotations. Class-level
@@ -28,12 +28,12 @@ method-level `@GetMapping`, `@PostMapping`, `@PutMapping`,
 
 | Verb | Count |
 |---|---:|
-| GET | 65 |
-| POST | 36 |
-| PUT | 21 |
-| DELETE | 15 |
+| GET | 69 |
+| POST | 41 |
+| PUT | 20 |
+| DELETE | 14 |
 | PATCH | 0 |
-| **Total** | **137** |
+| **Total** | **144** |
 
 `SecurityConfig` is authoritative for authorization. Controller annotations are
 authoritative for paths and verbs. OpenAPI output generated from the running
@@ -56,8 +56,21 @@ application is authoritative for request and response schemas.
   provider-neutral extension boundaries. No second provider is active in V1.
 - Direct user subscription creation and legacy payment prepare/confirm/cancel
   contracts do not exist.
-- ADMIN subscription update and cancel mappings remain documented emergency
-  operations.
+- Direct ADMIN update/cancel mappings under `/api/user-subscriptions/{id}` are
+  retired. General local entitlement correction uses the explicit ADMIN
+  preview, request, approval, and execution workflow and never charges or
+  refunds through a payment provider.
+- Each correction mutation pessimistically reloads the actor after its existing
+  domain/correction locks and immediately before changing state. Role-change,
+  ADMIN-withdrawal, and correction request/approval/execution rejections create
+  minimal audits in an independent transaction without replacing the API's
+  original stable business error.
+- Rejection audits retain stable action, target, actor when available, error
+  code, and bounded state while persisting a null `reasonNote`. Required
+  operator text remains in successful role-change audit and the authoritative
+  correction workflow/success context.
+- Existing-Track audio analysis is exposed only as a read-only ADMIN dry-run.
+  Applying a duration backfill remains a separately approved operation.
 
 ## Controller Inventory
 
@@ -66,6 +79,8 @@ application is authoritative for request and response schemas.
 | `AdminPaymentController` | 24 | ADMIN payment ledgers, incidents, settlement, refund, and entitlement correction |
 | `AdminSettingController` | 1 | ADMIN site-setting upsert |
 | `AdminStatsController` | 1 | ADMIN dashboard statistics |
+| `AdminTrackAudioAnalysisController` | 1 | ADMIN read-only existing-Track audio-analysis dry-run |
+| `AdminUserSubscriptionCorrectionController` | 7 | ADMIN local subscription correction workflow |
 | `AdminWhitelistChannelController` | 4 | ADMIN whitelist review and export |
 | `AlbumController` | 8 | Public album reads and ADMIN mutations |
 | `AuthController` | 7 | Login, logout, refresh, social auth, email and password flows |
@@ -81,9 +96,9 @@ application is authoritative for request and response schemas.
 | `SpaForwardController` | 1 | SPA deep-link forwarding |
 | `SubscriptionController` | 3 | Public active plans and ADMIN all-plan read |
 | `TagController` | 5 | Public reads and ADMIN mutations |
-| `TrackController` | 9 | Public Track reads/listening and protected create/update/download/admin reads |
+| `TrackController` | 10 | Public Track reads/listening/batch hydration and protected create/update/download/admin reads |
 | `UserController` | 9 | Registration, profile, password, withdrawal, and ADMIN user operations |
-| `UserSubscriptionController` | 7 | My subscription lifecycle plus ADMIN emergency list/update/cancel |
+| `UserSubscriptionController` | 5 | My subscription lifecycle plus ADMIN list read |
 | `UtilController` | 6 | Availability, download count, change preview, and public capabilities |
 | `WhitelistChannelController` | 6 | User whitelist draft/request/primary lifecycle |
 
@@ -125,13 +140,24 @@ application is authoritative for request and response schemas.
 - `POST /api/admin/whitelist-channels/export`
 - `GET /api/admin/whitelist-channels/exports/{batchID}`
 
-### Albums, Tracks, Tags, and Playlists (31)
+### ADMIN Subscription Correction and Track Analysis (8)
+
+- `POST /api/admin/user-subscription-corrections/preview`
+- `GET|POST /api/admin/user-subscription-corrections`
+- `GET /api/admin/user-subscription-corrections/open`
+- `GET /api/admin/user-subscription-corrections/{correctionId}`
+- `POST /api/admin/user-subscription-corrections/{correctionId}/approve`
+- `POST /api/admin/user-subscription-corrections/{correctionId}/execute`
+- `GET /api/admin/tracks/audio-analysis/dry-run`
+
+### Albums, Tracks, Tags, and Playlists (32)
 
 - `GET|POST /api/albums`
 - `GET|PUT|DELETE /api/albums/{id}`
 - `POST|PUT /api/albums/{id}/tracks`
 - `DELETE /api/albums/{id}/tracks/{trackId}`
 - `GET|POST /api/tracks`
+- `POST /api/tracks/batch`
 - `GET|PUT|DELETE /api/tracks/{trackId}`
 - `GET /api/tracks/{trackId}/stream`
 - `GET /api/tracks/{trackId}/download`
@@ -161,7 +187,14 @@ application is authoritative for request and response schemas.
 - `PUT /api/users/me/complete-profile`
 - `PUT /api/users/me/password`
 
-### Subscription and Recurring Payment (14)
+`GET /api/users` returns paginated `UserListItemResponse` rows with exactly
+`id`, `nickname`, `email`, `userType`, `role`, `isVerified`, and `createdAt`.
+`GET|PUT /api/users/{userId}` returns `UserDetailResponse`, which additionally
+contains `phonePersonal`, `phoneCompany`, `job`, and `companyName`. ADMIN role
+assignment accepts only backend roles `USER` and `ADMIN`; frontend-only `GUEST`
+is never an assignable wire value.
+
+### Subscription and Recurring Payment (12)
 
 - `GET /api/subscriptions`
 - `GET /api/subscriptions/{subscriptionId}`
@@ -172,10 +205,6 @@ application is authoritative for request and response schemas.
 - `GET /api/user-subscriptions`
 - `GET|PUT|DELETE /api/user-subscriptions/me`
 - `POST /api/user-subscriptions/me/reactivate`
-- `PUT|DELETE /api/user-subscriptions/{id}`
-
-The last two `{id}` operations are ADMIN emergency controls. They are not a
-general user checkout path.
 
 ### Download, License, and Likes (12)
 
@@ -233,6 +262,29 @@ general user checkout path.
   not migration scripts.
 - API examples and generated OpenAPI output must serialize payment provider as
   `TOSS`.
+- Paginated application responses use `dataList` plus `pageInfo`; non-paginated
+  collection responses such as Tag reads and PlayableTrack hydration use
+  `dataList` without inventing a `content` field.
+- Public Track search accepts `page >= 1` and `1 <= size <= 100`. Invalid
+  pagination returns 400 `INVALID_ARGUMENT` before repository access, while
+  `pageInfo.page` remains 1-based.
+- `genre`, `mood`, `instrument`, and `usage` search values are repeated query
+  parameters. Values are canonicalized, de-duplicated, and combined with AND
+  semantics within and across Tag types. Commas and `#` remain part of one Tag
+  value rather than acting as a CSV delimiter.
+- `POST /api/tracks/batch` is public, accepts 1 to 100 positive Track IDs,
+  de-duplicates in first-requested-ID order, returns active Tracks only, and
+  preserves that requested order in `dataList`.
+- Playlist list counts, detail rows, and owner reorder requests use active Track
+  memberships only. Reorder payloads contain every visible active Track exactly
+  once with zero-based contiguous orders `0..n-1`; inactive membership rows
+  remain persisted and are assigned deterministic orders after the active rows.
+- Public Album `trackCount`, detail rows, and `trackCount` sorting use active
+  Track memberships only. All-membership counts used by administrative
+  mutation paths remain separate.
+- The audio-analysis dry-run is ordered by Track ID, accepts `page >= 1` and
+  `1 <= size <= 100`, and returns report rows only. It exposes no storage key
+  and has no update/backfill side effect.
 
 ## Verification
 
@@ -243,4 +295,4 @@ $controllers = Get-ChildItem src/main/java/com/atstudio/atstudio/controller -Fil
 ($controllers | Select-String '^\s*@(Get|Post|Put|Patch|Delete)Mapping\b').Count
 ```
 
-Expected result: `137`.
+Expected result: `144`.

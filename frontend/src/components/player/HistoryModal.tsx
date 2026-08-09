@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   usePlayerStore,
   loadPlayHistory,
+  hydratePlayHistory,
   removePlayHistoryEntry,
   clearPlayHistory,
   type LocalPlayEntry,
@@ -22,33 +23,24 @@ export default function HistoryModal({ open, onClose }: HistoryModalProps) {
   const [history, setHistory] = useState<LocalPlayEntry[]>([]);
 
   useEffect(() => {
-    if (open) setHistory(loadPlayHistory());
+    if (!open) return;
+    let active = true;
+    setHistory(loadPlayHistory());
+    void hydratePlayHistory().then((entries) => {
+      if (active) setHistory(entries);
+    });
+    return () => {
+      active = false;
+    };
   }, [open]);
 
   function handlePlay(entry: LocalPlayEntry) {
-    play({
-      id: entry.trackId,
-      title: entry.title,
-      artistName: '',
-      duration: 0,
-      bpm: 0,
-      tonality: '',
-      description: null,
-      audioFile: null,
-      thumbnail: entry.thumbnail,
-      tags: [],
-      isActive: true,
-      playCount: 0,
-      likeCount: 0,
-      downloadCount: 0,
-      createdAt: '',
-      updatedAt: '',
-    });
+    play(entry.track);
   }
 
   function handleDelete(trackId: number) {
     removePlayHistoryEntry(trackId);
-    setHistory((prev) => prev.filter((e) => e.trackId !== trackId));
+    setHistory((prev) => prev.filter((entry) => entry.track.id !== trackId));
   }
 
   function handleClearAll() {
@@ -69,18 +61,18 @@ export default function HistoryModal({ open, onClose }: HistoryModalProps) {
           </div>
           <ul className={styles.list}>
             {history.map((entry) => {
-              const thumbUrl = toUploadUrl(entry.thumbnail);
-              const isActive = currentTrack?.id === entry.trackId;
+              const thumbUrl = toUploadUrl(entry.track.thumbnail);
+              const isActive = currentTrack?.id === entry.track.id;
               return (
                 <li
-                  key={`${entry.trackId}-${entry.playedAt}`}
+                  key={`${entry.track.id}-${entry.playedAt}`}
                   className={`${styles.item} ${isActive ? styles.itemActive : ''}`}
                 >
                   <div className={styles.thumb}>
-                    {thumbUrl ? <img src={thumbUrl} alt={entry.title} /> : '\u266B'}
+                    {thumbUrl ? <img src={thumbUrl} alt={entry.track.title} /> : '\u266B'}
                   </div>
                   <div className={styles.info}>
-                    <div className={styles.title}>{entry.title}</div>
+                    <div className={styles.title}>{entry.track.title}</div>
                     <div className={styles.time}>
                       {new Date(entry.playedAt).toLocaleString('ko-KR', {
                         month: 'short',
@@ -100,7 +92,7 @@ export default function HistoryModal({ open, onClose }: HistoryModalProps) {
                   </button>
                   <button
                     className={styles.deleteBtn}
-                    onClick={() => handleDelete(entry.trackId)}
+                    onClick={() => handleDelete(entry.track.id)}
                     aria-label="삭제"
                     title="삭제"
                   >

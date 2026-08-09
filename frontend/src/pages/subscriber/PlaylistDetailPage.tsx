@@ -11,6 +11,7 @@ import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
+import { toPlayableTrack } from '@/utils/playableTrack';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -73,25 +74,7 @@ export default function PlaylistDetailPage() {
   /* SR-83: Publish playlist tracks as player context so Next/Prev traverses them. */
   useEffect(() => {
     if (!detail) return;
-    const tracks = detail.tracks.map((track) => ({
-      id: track.trackId,
-      title: track.title,
-      artistName: '',
-      duration: 0,
-      bpm: track.bpm,
-      tonality: track.tonality,
-      description: null,
-      audioFile: null,
-      thumbnail: null,
-      waveformData: null,
-      tags: [],
-      isActive: true,
-      playCount: 0,
-      likeCount: 0,
-      downloadCount: 0,
-      createdAt: '',
-      updatedAt: '',
-    }));
+    const tracks = detail.tracks.map((track) => toPlayableTrack(track));
     setTrackListContext(tracks);
   }, [detail, setTrackListContext]);
 
@@ -102,25 +85,7 @@ export default function PlaylistDetailPage() {
       else resumeTrack();
       return;
     }
-    playTrack({
-      id: track.trackId,
-      title: track.title,
-      artistName: '',
-      duration: 0,
-      bpm: track.bpm,
-      tonality: track.tonality,
-      description: null,
-      audioFile: null,
-      thumbnail: null,
-      waveformData: null,
-      tags: [],
-      isActive: true,
-      playCount: 0,
-      likeCount: 0,
-      downloadCount: 0,
-      createdAt: '',
-      updatedAt: '',
-    });
+    playTrack(toPlayableTrack(track));
   }
 
   function handleToggleLike(trackId: number) {
@@ -155,25 +120,7 @@ export default function PlaylistDetailPage() {
   function handleAddAllToQueue() {
     if (!detail || detail.tracks.length === 0) return;
     for (const track of detail.tracks) {
-      addToPlayerQueue({
-        id: track.trackId,
-        title: track.title,
-        artistName: '',
-        duration: 0,
-        bpm: track.bpm,
-        tonality: track.tonality,
-        description: null,
-        audioFile: null,
-        thumbnail: null,
-        waveformData: null,
-        tags: [],
-        isActive: true,
-        playCount: 0,
-        likeCount: 0,
-        downloadCount: 0,
-        createdAt: '',
-        updatedAt: '',
-      });
+      addToPlayerQueue(toPlayableTrack(track));
     }
     toast('success', '전체 곡이 대기열에 추가되었습니다.');
   }

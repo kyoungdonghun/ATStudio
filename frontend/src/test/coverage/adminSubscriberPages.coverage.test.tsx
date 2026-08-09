@@ -58,6 +58,7 @@ const mocks = vi.hoisted(() => ({
   removeTrackFromPlaylist: vi.fn(),
   reorderTracks: vi.fn(),
   loadPlayHistory: vi.fn(),
+  hydratePlayHistory: vi.fn(),
   removePlayHistoryEntry: vi.fn(),
   clearPlayHistory: vi.fn(),
   toast: vi.fn(),
@@ -187,6 +188,7 @@ vi.mock('@/store/playerStore', () => ({
   usePlayerStore: (selector: (state: typeof storeState.player) => unknown) =>
     selector(storeState.player),
   loadPlayHistory: mocks.loadPlayHistory,
+  hydratePlayHistory: mocks.hydratePlayHistory,
   removePlayHistoryEntry: mocks.removePlayHistoryEntry,
   clearPlayHistory: mocks.clearPlayHistory,
 }));
@@ -263,8 +265,26 @@ function playlistDetail() {
     description: 'Work tracks',
     thumbnail: '/playlist.jpg',
     tracks: [
-      { trackOrder: 1, trackId: 11, title: 'First Track', bpm: 110, tonality: 'C' },
-      { trackOrder: 2, trackId: 12, title: 'Second Track', bpm: 120, tonality: 'D' },
+      {
+        trackOrder: 1,
+        trackId: 11,
+        title: 'First Track',
+        artistName: 'Artist',
+        duration: 180,
+        bpm: 110,
+        tonality: 'C',
+      },
+      {
+        trackOrder: 2,
+        trackId: 12,
+        title: 'Second Track',
+        artistName: 'Artist',
+        duration: 200,
+        thumbnail: null,
+        waveformData: '[0.1,0.9]',
+        bpm: 120,
+        tonality: 'D',
+      },
     ],
     createdAt: '2026-07-01T00:00:00Z',
     updatedAt: '2026-07-02T00:00:00Z',
@@ -289,6 +309,7 @@ beforeEach(() => {
   mocks.fetchAlbumLikes.mockResolvedValue({ dataList: [] });
   mocks.fetchPlaylistDetail.mockResolvedValue(playlistDetail());
   mocks.loadPlayHistory.mockReturnValue([]);
+  mocks.hydratePlayHistory.mockResolvedValue([]);
   mocks.downloadTrack.mockResolvedValue(new Blob(['audio'], { type: 'audio/mpeg' }));
   mocks.createQuestion.mockResolvedValue({ id: 1 });
   mocks.createAnswer.mockResolvedValue({ id: 2 });
@@ -368,7 +389,7 @@ describe('admin page behavior coverage', () => {
     expect(await screen.findByText('Rock')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /USAGE/ }));
     expect(screen.queryByText('Rock')).not.toBeInTheDocument();
-    expect(screen.getByText('Shorts')).toBeInTheDocument();
+    expect(screen.getByText('#Shorts')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '+ New Tag' }));
     fireEvent.change(screen.getByPlaceholderText('Tag name'), {
@@ -382,7 +403,7 @@ describe('admin page behavior coverage', () => {
     await waitFor(() =>
       expect(mocks.createTag).toHaveBeenCalledWith({ name: 'Tutorial', type: 'USAGE' }),
     );
-    expect(await screen.findByText('Tutorial')).toBeInTheDocument();
+    expect(await screen.findByText('#Tutorial')).toBeInTheDocument();
   });
 
   it('creates a notice with a selected attachment and trimmed fields', async () => {
@@ -723,10 +744,31 @@ describe('admin page behavior coverage', () => {
 describe('subscriber page behavior coverage', () => {
   it('deletes selected local play history entries and then clears all history', async () => {
     const entries = [
-      { trackId: 1, title: 'History One', thumbnail: null, playedAt: '2026-07-01T00:00:00Z' },
-      { trackId: 2, title: 'History Two', thumbnail: '/two.jpg', playedAt: '2026-07-02T00:00:00Z' },
+      {
+        track: {
+          id: 1,
+          title: 'History One',
+          artistName: 'Artist',
+          duration: 180,
+          thumbnail: null,
+          waveformData: '[0.2,0.8]',
+        },
+        playedAt: '2026-07-01T00:00:00Z',
+      },
+      {
+        track: {
+          id: 2,
+          title: 'History Two',
+          artistName: 'Artist',
+          duration: 200,
+          thumbnail: '/two.jpg',
+          waveformData: '[0.1,0.9]',
+        },
+        playedAt: '2026-07-02T00:00:00Z',
+      },
     ];
     mocks.loadPlayHistory.mockReturnValueOnce(entries).mockReturnValueOnce([entries[1]]);
+    mocks.hydratePlayHistory.mockResolvedValue(entries);
 
     renderRoute(<PlayHistoryPage />, '/history');
     expect(await screen.findByText('History One')).toBeInTheDocument();
@@ -876,14 +918,31 @@ describe('subscriber page behavior coverage', () => {
 
     renderRoute(<PlaylistDetailPage />, '/playlists/:playlistId', '/playlists/3');
     expect(await screen.findByText('Focus Mix')).toBeInTheDocument();
+    const normalizedFirstTrack = {
+      id: 11,
+      title: 'First Track',
+      artistName: 'Artist',
+      duration: 180,
+      thumbnail: null,
+      waveformData: null,
+      bpm: 110,
+      tonality: 'C',
+    };
+    await waitFor(() =>
+      expect(mocks.playerSetContext).toHaveBeenLastCalledWith([
+        normalizedFirstTrack,
+        expect.objectContaining({ id: 12 }),
+      ]),
+    );
     fireEvent.click(document.querySelector('button[aria-label="Play"]')!);
-    expect(mocks.playerPlay).toHaveBeenCalledWith(expect.objectContaining({ id: 11 }));
+    expect(mocks.playerPlay).toHaveBeenCalledWith(normalizedFirstTrack);
 
     fireEvent.click(screen.getAllByTitle('다운로드')[0]);
     await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledWith(11));
 
     fireEvent.click(screen.getByRole('button', { name: '전체 대기열 추가' }));
     expect(mocks.playerAddToQueue).toHaveBeenCalledTimes(2);
+    expect(mocks.playerAddToQueue).toHaveBeenNthCalledWith(1, normalizedFirstTrack);
 
     fireEvent.click(screen.getAllByRole('button', { name: '삭제' })[0]);
     const dialog = await screen.findByRole('dialog');
@@ -912,8 +971,8 @@ describe('subscriber page behavior coverage', () => {
       }),
     );
     expect(mocks.reorderTracks).toHaveBeenCalledWith(3, [
-      { trackId: 12, trackOrder: 1 },
-      { trackId: 11, trackOrder: 2 },
+      { trackId: 12, trackOrder: 0 },
+      { trackId: 11, trackOrder: 1 },
     ]);
     await waitFor(() => expect(router.state.location.pathname).toBe('/playlists/3'));
   });
@@ -924,9 +983,10 @@ describe('subscriber page behavior coverage', () => {
         {
           trackId: 21,
           title: 'Liked Track',
+          artistName: 'Liked Artist',
+          duration: 95,
           bpm: 100,
           tonality: 'Am',
-          thumbnail: null,
           createdAt: '2026-07-01T00:00:00Z',
         },
       ],
@@ -947,8 +1007,21 @@ describe('subscriber page behavior coverage', () => {
 
     renderRoute(<LikeListPage />, '/likes');
     expect(await screen.findByText('Liked Track')).toBeInTheDocument();
+    const normalizedLikedTrack = {
+      id: 21,
+      title: 'Liked Track',
+      artistName: 'Liked Artist',
+      duration: 95,
+      thumbnail: null,
+      waveformData: null,
+      bpm: 100,
+      tonality: 'Am',
+    };
+    await waitFor(() =>
+      expect(mocks.playerSetContext).toHaveBeenLastCalledWith([normalizedLikedTrack]),
+    );
     fireEvent.click(document.querySelector('button[aria-label="Play"]')!);
-    expect(mocks.playerPlay).toHaveBeenCalledWith(expect.objectContaining({ id: 21 }));
+    expect(mocks.playerPlay).toHaveBeenCalledWith(normalizedLikedTrack);
 
     fireEvent.click(screen.getByTitle('다운로드'));
     await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledWith(21));
@@ -1106,12 +1179,18 @@ describe('subscriber page behavior coverage', () => {
 
   it('moves to the final history page, selects all visible rows, and returns to page one after deletion', async () => {
     const entries = Array.from({ length: 21 }, (_, index) => ({
-      trackId: index + 1,
-      title: `History ${index + 1}`,
-      thumbnail: null,
+      track: {
+        id: index + 1,
+        title: `History ${index + 1}`,
+        artistName: 'Artist',
+        duration: 180,
+        thumbnail: null,
+        waveformData: '[0.2,0.8]',
+      },
       playedAt: `2026-07-${String((index % 9) + 1).padStart(2, '0')}T00:00:00Z`,
     }));
     mocks.loadPlayHistory.mockReturnValueOnce(entries).mockReturnValueOnce(entries.slice(0, 20));
+    mocks.hydratePlayHistory.mockResolvedValue(entries);
     renderRoute(<PlayHistoryPage />, '/history');
     expect(await screen.findByText('History 1')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '2페이지' }));

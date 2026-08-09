@@ -34,16 +34,27 @@ The supported entry point is
   an explicitly supplied repo-external acceptance JSON bundle. They are never
   passed as command-line arguments.
 
-The V1 validation contract is:
+The verified current V1 manifest is:
 
 | Metric | Expected |
 |---|---:|
-| Tables | 39 |
-| Columns | 449 |
-| Indexes | 153 |
-| Foreign keys | 80 |
+| Tables | 41 |
+| Columns | 493 |
+| Indexes | 168 |
+| Foreign keys | 89 |
 | Seeded subscription plans | 6 |
-| Manifest SHA-256 | `c48d3c75378aaf2364d89ed06833ba68e27a5a334dbc4670d1443bd938c6c506` |
+| Manifest SHA-256 | `c581bef61cfba143744882b0674daf8d8fe742d82adbbf66d6b61699f5b86333` |
+
+## Verified Current Manifest
+
+WI-20260809-ATS-001 observed this manifest on an isolated loopback disposable
+database, refreshed the validator constants, and passed independent `Create`
+and `Validate` checks before two exact `Drop` checks confirmed scoped absence.
+The initial expected-mismatch probe also cleaned up after its fail-closed
+refusal.
+
+This evidence applies only to a fresh disposable database. It does not verify a
+retained database, production migration, or deployment.
 
 ## Prerequisites
 
@@ -96,7 +107,7 @@ after the proof if they were set manually.
 Generate one exact disposable name. Do not reuse it:
 
 ```powershell
-$database = "ats_disposable_20260724_a1b2c3d4"
+$database = 'ats_disposable_' + (Get-Date -Format 'yyyyMMdd') + '_' + ([guid]::NewGuid().ToString('N').Substring(0, 8))
 ```
 
 1. Verify guards and current SQL inputs without loading credentials:
@@ -109,7 +120,7 @@ $database = "ats_disposable_20260724_a1b2c3d4"
 ```
 
 2. Create the empty database, apply `schema.sql` then `seed.sql`, and validate
-   the exact V1 manifest:
+   the verified V1 manifest:
 
 ```powershell
 .\scripts\database\bootstrap-disposable-mysql.ps1 `

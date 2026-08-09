@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   loadPlayHistory,
+  hydratePlayHistory,
   removePlayHistoryEntry,
   clearPlayHistory,
   type LocalPlayEntry,
@@ -35,6 +36,13 @@ export default function PlayHistoryPage() {
 
   useEffect(() => {
     setAllItems(loadPlayHistory());
+    let active = true;
+    void hydratePlayHistory().then((entries) => {
+      if (active) setAllItems(entries);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const pageInfo = buildPageInfo(allItems.length, page);
@@ -43,7 +51,7 @@ export default function PlayHistoryPage() {
 
   function handleSelectAll(checked: boolean) {
     if (checked) {
-      setSelected(new Set(items.map((i) => i.trackId)));
+      setSelected(new Set(items.map((item) => item.track.id)));
     } else {
       setSelected(new Set());
     }
@@ -83,7 +91,7 @@ export default function PlayHistoryPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  const allSelected = items.length > 0 && items.every((i) => selected.has(i.trackId));
+  const allSelected = items.length > 0 && items.every((item) => selected.has(item.track.id));
 
   return (
     <div className={styles.page}>
@@ -135,27 +143,27 @@ export default function PlayHistoryPage() {
               </thead>
               <tbody>
                 {items.map((item, idx) => (
-                  <tr key={`${item.trackId}-${item.playedAt}`} className={styles.row}>
+                  <tr key={`${item.track.id}-${item.playedAt}`} className={styles.row}>
                     <td className={styles.cellCheck}>
                       <input
                         type="checkbox"
-                        checked={selected.has(item.trackId)}
-                        onChange={() => handleSelect(item.trackId)}
+                        checked={selected.has(item.track.id)}
+                        onChange={() => handleSelect(item.track.id)}
                       />
                     </td>
                     <td className={styles.cellNum}>{startIdx + idx + 1}</td>
                     <td className={styles.cellInfo}>
                       <div className={styles.info}>
                         <div className={styles.thumb}>
-                          {item.thumbnail ? (
-                            <img src={toUploadUrl(item.thumbnail)!} alt={item.title} />
+                          {item.track.thumbnail ? (
+                            <img src={toUploadUrl(item.track.thumbnail)!} alt={item.track.title} />
                           ) : (
                             '\u266A'
                           )}
                         </div>
                         <div className={styles.infoText}>
-                          <Link to={`/tracks/${item.trackId}`} className={styles.titleLink}>
-                            {item.title}
+                          <Link to={`/tracks/${item.track.id}`} className={styles.titleLink}>
+                            {item.track.title}
                           </Link>
                         </div>
                       </div>

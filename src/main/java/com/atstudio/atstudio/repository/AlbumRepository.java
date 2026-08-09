@@ -20,7 +20,7 @@ public interface AlbumRepository extends JpaRepository<Album, Long> {
     Page<Album> findAllActiveOrderByCreatedAt(Pageable pageable);
 
     @Query(
-            value = "SELECT a FROM Album a LEFT JOIN a.albumTracks at "
+            value = "SELECT a FROM Album a LEFT JOIN a.albumTracks at ON at.track.isActive = true "
                     + "WHERE a.isActive = true "
                     + "GROUP BY a.id "
                     + "ORDER BY COUNT(at) DESC, a.createdAt DESC, a.id DESC",

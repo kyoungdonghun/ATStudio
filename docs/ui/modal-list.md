@@ -1,6 +1,6 @@
 ---
-version: 2.1
-last_updated: 2026-07-17
+version: 2.4
+last_updated: 2026-08-09
 project: ATS
 owner: docops
 category: reference
@@ -18,17 +18,22 @@ dependencies:
 
 ## Current Count Unit
 
-The production frontend contains **23 `<Modal>` render occurrences across 17 non-test TSX files**. This is an implementation-occurrence count, not a count of simultaneously visible dialogs or distinct business workflows.
+The production frontend contains **22 `<Modal>` render occurrences across 17 non-test TSX files**. This is an implementation-occurrence count, not a count of simultaneously visible dialogs or distinct business workflows.
 
 | Area | Files | Occurrences |
 |---|---:|---:|
 | Shared wrappers/components | 4 | 4 |
-| Admin pages | 6 | 9 |
+| Admin pages | 6 | 8 |
 | Creator pages | 1 | 2 |
 | Subscriber pages | 6 | 8 |
-| **Total** | **17** | **23** |
+| **Total** | **17** | **22** |
 
-Shared wrappers are `TagFilterModal`, `AddToPlaylistModal`, `HistoryModal`, and `ConfirmDialog`. Pages with multiple render occurrences include company certification review, album management, tag management, user subscription management, playlist edit, and playlist list.
+Shared wrappers are `TagFilterModal`, `AddToPlaylistModal`, `HistoryModal`, and
+`ConfirmDialog`. Pages with multiple render occurrences include company
+certification review, album management, tag management, playlist edit, and
+playlist list. User subscription management now owns one
+`UserSubscriptionCorrectionModal` render occurrence plus a nested shared typed
+confirmation; the removed direct update/cancel dialogs are not current flows.
 
 ## Interaction Rules
 
@@ -38,6 +43,17 @@ Shared wrappers are `TagFilterModal`, `AddToPlaylistModal`, `HistoryModal`, and 
 - Closing or completing a modal resets transient form state.
 - Reopened playlist create/edit modals refresh current limits and clear stale errors.
 - Async list/detail modals must ignore superseded responses.
+- Tag save/delete errors remain modal-local and preserve list/filter/input state.
+- The subscription-correction modal resumes persisted open workflow state and
+  fences superseded open/preview responses. HTTP 4xx mutation responses retain
+  their stable error without reconciliation. Network/timeout/no-response and
+  HTTP 5xx failures trigger one bounded state read: request uses the subscription
+  open-state endpoint, while approval and execution use correction detail. A
+  failed read or request 204 keeps the draft, preview, notes, and known ID,
+  blocks duplicate mutation, and exposes one read-only status-retry action.
+  Repeated request 204 remains unknown. Browser date bounds do not block server
+  preview, and normalized persisted text is shown at preview or confirmation.
+  Execute requires typed confirmation.
 - Modal labels and buttons must describe the action, not implementation details.
 
 ## Playlist Creation Entry Point

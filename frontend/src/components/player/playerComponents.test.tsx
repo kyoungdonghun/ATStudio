@@ -45,8 +45,28 @@ const playlist = {
 const detail = {
   ...playlist,
   tracks: [
-    { trackOrder: 1, trackId: 11, title: 'Song A', bpm: 100, tonality: 'C' },
-    { trackOrder: 2, trackId: 12, title: 'Song B', bpm: 110, tonality: 'D' },
+    {
+      trackOrder: 1,
+      trackId: 11,
+      title: 'Song A',
+      artistName: 'Artist',
+      duration: 180,
+      thumbnail: null,
+      waveformData: '[0.2,0.8]',
+      bpm: 100,
+      tonality: 'C',
+    },
+    {
+      trackOrder: 2,
+      trackId: 12,
+      title: 'Song B',
+      artistName: 'Artist',
+      duration: 210,
+      thumbnail: null,
+      waveformData: '[0.1,0.9]',
+      bpm: 110,
+      tonality: 'D',
+    },
   ],
   updatedAt: '2026-07-17T00:00:00Z',
 };
@@ -70,9 +90,12 @@ describe('player auxiliary components', () => {
         {
           trackId: 21,
           title: 'Liked Song',
+          artistName: 'Artist',
+          duration: 160,
           bpm: 90,
           tonality: 'A',
           thumbnail: null,
+          waveformData: '[0.3,0.7]',
           createdAt: '2026-07-17T00:00:00Z',
         },
       ],
@@ -88,9 +111,14 @@ describe('player auxiliary components', () => {
       'playHistory',
       JSON.stringify([
         {
-          trackId: 7,
-          title: 'Yesterday',
-          thumbnail: '/yesterday.png',
+          track: {
+            id: 7,
+            title: 'Yesterday',
+            artistName: 'Artist',
+            duration: 180,
+            thumbnail: '/yesterday.png',
+            waveformData: '[0.2,0.8]',
+          },
           playedAt: '2026-07-17T01:00:00Z',
         },
       ]),
@@ -114,7 +142,17 @@ describe('player auxiliary components', () => {
     localStorage.setItem(
       'playHistory',
       JSON.stringify([
-        { trackId: 8, title: 'Today', thumbnail: null, playedAt: '2026-07-17T02:00:00Z' },
+        {
+          track: {
+            id: 8,
+            title: 'Today',
+            artistName: 'Artist',
+            duration: 180,
+            thumbnail: null,
+            waveformData: '[0.2,0.8]',
+          },
+          playedAt: '2026-07-17T02:00:00Z',
+        },
       ]),
     );
     render(<HistoryModal open onClose={vi.fn()} />);

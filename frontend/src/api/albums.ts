@@ -7,7 +7,9 @@ export interface AlbumTrack {
   trackId: number;
   title: string;
   artistName: string;
-  thumbnailUrl: string | null;
+  thumbnailUrl?: string | null;
+  duration: number;
+  waveformData?: string | null;
   order: number;
 }
 

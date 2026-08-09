@@ -82,6 +82,7 @@ function buildHistoryItem(overrides: Partial<DownloadHistoryItem> = {}): Downloa
     bpm: 120,
     tonality: 'C Major',
     duration: 180,
+    waveformData: '[0.2,0.8]',
     tags: [],
     downloadedAt: '2026-04-17T10:00:00',
     ...overrides,

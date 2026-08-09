@@ -1,5 +1,7 @@
 package com.atstudio.atstudio.config;
 
+import com.atstudio.atstudio.entity.AdminOperationAuditLog;
+import com.atstudio.atstudio.entity.AdminSubscriptionCorrection;
 import com.atstudio.atstudio.entity.PaymentSettlement;
 import com.atstudio.atstudio.entity.SocialAccount;
 import com.atstudio.atstudio.entity.SubscriptionPayment;
@@ -17,6 +19,7 @@ import org.springframework.core.io.FileSystemResource;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,15 +48,23 @@ class V1BackendBaselineContractTest {
     }
 
     @Test
-    @DisplayName("schema is a fail-closed 39-table fresh baseline")
+    @DisplayName("schema is a fail-closed 41-table fresh baseline")
     void schemaIsFreshOnlyAndEntityAligned() throws Exception {
         String schema = Files.readString(SCHEMA);
         long tableCount = Pattern.compile("(?m)^CREATE TABLE ")
                 .matcher(schema)
                 .results()
                 .count();
+        List<String> oversizedIdentifiers = Pattern
+                .compile("(?m)^\\s*(?:CONSTRAINT|(?:UNIQUE )?KEY)\\s+([A-Za-z0-9_]+)")
+                .matcher(schema)
+                .results()
+                .map(result -> result.group(1))
+                .filter(identifier -> identifier.length() > 64)
+                .toList();
 
-        assertThat(tableCount).isEqualTo(39);
+        assertThat(tableCount).isEqualTo(41);
+        assertThat(oversizedIdentifiers).isEmpty();
         assertThat(schema)
                 .doesNotContain(
                         "CREATE TABLE IF NOT EXISTS",
@@ -66,7 +77,91 @@ class V1BackendBaselineContractTest {
                         "MOCK",
                         "TOSS_BILLING",
                         "KAKAOPAY")
-                .contains("provider             ENUM ('TOSS') NOT NULL");
+                .contains(
+                        "provider             ENUM ('TOSS') NOT NULL",
+                        "CREATE TABLE admin_operation_audit_logs",
+                        "CREATE TABLE admin_subscription_corrections",
+                        "KEY idx_admin_operation_audit_logs_actor_created (actor_user_id, created_at)",
+                        "KEY idx_admin_operation_audit_logs_target (target_type, target_id)",
+                        "KEY idx_admin_operation_audit_logs_action_created (action, created_at)");
+
+        int auditStart = schema.indexOf("CREATE TABLE admin_operation_audit_logs");
+        int auditEnd = schema.indexOf(") ENGINE = InnoDB", auditStart);
+        assertThat(schema.substring(auditStart, auditEnd))
+                .contains(
+                        "before_state  TEXT         NULL",
+                        "after_state   TEXT         NULL",
+                        "reason_code   VARCHAR(100) NULL")
+                .doesNotContain("FOREIGN KEY", "CONSTRAINT");
+
+        assertThat(AdminOperationAuditLog.class.getDeclaredField("beforeState")
+                .getAnnotation(Column.class).nullable()).isTrue();
+        assertThat(AdminOperationAuditLog.class.getDeclaredField("afterState")
+                .getAnnotation(Column.class).nullable()).isTrue();
+        assertThat(AdminOperationAuditLog.class.getDeclaredField("reasonCode")
+                .getAnnotation(Column.class).nullable()).isTrue();
+
+        int paymentCorrectionStart = schema.indexOf("CREATE TABLE payment_entitlement_corrections");
+        int paymentCorrectionEnd = schema.indexOf(") ENGINE = InnoDB", paymentCorrectionStart);
+        assertThat(schema.substring(paymentCorrectionStart, paymentCorrectionEnd))
+                .contains(
+                        "payment_refund_id               BIGINT NOT NULL",
+                        "subscription_payment_id         BIGINT NOT NULL",
+                        "payment_order_id                BIGINT NOT NULL",
+                        "provider                        ENUM ('TOSS') NOT NULL")
+                .doesNotContain("source_type");
+
+        int adminCorrectionStart = schema.indexOf("CREATE TABLE admin_subscription_corrections");
+        int adminCorrectionEnd = schema.indexOf(") ENGINE = InnoDB", adminCorrectionStart);
+        assertThat(schema.substring(adminCorrectionStart, adminCorrectionEnd))
+                .contains(
+                        "reason_note                     VARCHAR(500) NOT NULL",
+                        "approval_note                   VARCHAR(500) NULL",
+                        "execution_note                  VARCHAR(500) NULL",
+                        "KEY idx_asc_status_created (status, created_at)",
+                        "KEY idx_asc_subscription_created (user_subscription_id, created_at)")
+                .doesNotContain(
+                        "payment_refund_id",
+                        "subscription_payment_id",
+                        "payment_order_id",
+                        "provider_transaction_id");
+
+        assertThat(AdminSubscriptionCorrection.class.getAnnotation(Table.class).name())
+                .isEqualTo("admin_subscription_corrections");
+        assertThat(AdminSubscriptionCorrection.class.getDeclaredField("reasonNote")
+                .getAnnotation(Column.class).nullable()).isFalse();
+        assertThat(AdminSubscriptionCorrection.class.getDeclaredField("approvalNote")
+                .getAnnotation(Column.class))
+                .satisfies(column -> {
+                    assertThat(column.nullable()).isTrue();
+                    assertThat(column.length()).isEqualTo(500);
+                });
+        assertThat(AdminSubscriptionCorrection.class.getDeclaredField("executionNote")
+                .getAnnotation(Column.class))
+                .satisfies(column -> {
+                    assertThat(column.nullable()).isTrue();
+                    assertThat(column.length()).isEqualTo(500);
+                });
+    }
+
+    @Test
+    @DisplayName("local subscription correction has no provider, refund, HTTP, or payment-audit dependency")
+    void localSubscriptionCorrectionHasNoExternalPaymentDependency() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/com/atstudio/atstudio/service/AdminSubscriptionCorrectionService.java"));
+
+        assertThat(source).doesNotContain(
+                "TossBillingProvider",
+                "PaymentRefundProvider",
+                "PaymentRefundRepository",
+                "RecurringPaymentProvider",
+                "PaymentStatusLookupProvider",
+                "BillingKeyCrypto",
+                "PaymentOperationAuditLogService",
+                "ApplicationEventPublisher",
+                "RestClient",
+                "WebClient",
+                "HttpClient");
     }
 
     @Test

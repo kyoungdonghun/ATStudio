@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   fetchDownloadCount: vi.fn(),
   getApiErrorCode: vi.fn(),
   fetchTags: vi.fn(),
+  fetchAvailableTags: vi.fn(),
   fetchNotice: vi.fn(),
   downloadNoticeAttachment: vi.fn(),
   toast: vi.fn(),
@@ -135,6 +136,7 @@ vi.mock('@/api/downloads', () => ({
 
 vi.mock('@/api/tags', () => ({
   fetchTags: (...args: unknown[]) => mocks.fetchTags(...args),
+  fetchAvailableTags: (...args: unknown[]) => mocks.fetchAvailableTags(...args),
 }));
 
 vi.mock('@/api/notices', () => ({
@@ -320,8 +322,9 @@ function setDefaultApiResponses() {
     if (type === 'MOOD') return Promise.resolve([mood]);
     if (type === 'INSTRUMENT') return Promise.resolve([instrument]);
     if (type === 'USAGE') return Promise.resolve([usage]);
-    return Promise.resolve([]);
+    return Promise.resolve([genre, mood, instrument, usage]);
   });
+  mocks.fetchAvailableTags.mockResolvedValue([genre, mood, instrument, usage]);
   mocks.fetchAlbumDetail.mockResolvedValue({
     id: album.id,
     title: album.title,
@@ -330,12 +333,20 @@ function setDefaultApiResponses() {
     likeCount: album.likeCount,
     createdAt: album.createdAt,
     tracks: [
-      { trackId: 21, title: 'Fresh Track', artistName: 'Creator', thumbnailUrl: null, order: 1 },
+      {
+        trackId: 21,
+        title: 'Fresh Track',
+        artistName: 'Creator',
+        duration: 120,
+        order: 1,
+      },
       {
         trackId: 22,
         title: 'Second Track',
         artistName: 'Creator',
+        duration: 180,
         thumbnailUrl: 'b.jpg',
+        waveformData: '[0.1,0.9]',
         order: 2,
       },
     ],
@@ -613,13 +624,19 @@ describe('public discovery pages', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/albums/11');
     expect(screen.getByRole('link', { name: /Fresh Track/ })).toHaveAttribute('href', '/tracks/21');
 
+    fireEvent.click(await screen.findByRole('tab', { name: '장르' }));
     fireEvent.click(screen.getByRole('button', { name: 'Lo-fi' }));
-    fireEvent.click(screen.getAllByRole('button', { name: '탐색 →' })[0]);
-    expect(mocks.navigate).toHaveBeenCalledWith('/tracks?genre=Lo-fi');
+    expect(screen.getByRole('link', { name: '선택한 태그로 탐색' })).toHaveAttribute(
+      'href',
+      '/tracks?genre=Lo-fi',
+    );
 
+    fireEvent.click(screen.getByRole('tab', { name: '분위기' }));
     fireEvent.click(screen.getByRole('button', { name: 'Calm' }));
-    fireEvent.click(screen.getAllByRole('button', { name: '탐색 →' })[1]);
-    expect(mocks.navigate).toHaveBeenCalledWith('/tracks?mood=Calm');
+    expect(screen.getByRole('link', { name: '선택한 태그로 탐색' })).toHaveAttribute(
+      'href',
+      '/tracks?mood=Calm',
+    );
   });
 
   it('renders a home-feed failure without inventing fallback content', async () => {
@@ -671,14 +688,35 @@ describe('public discovery pages', () => {
     states.auth.isAuthenticated.mockReturnValue(true);
     const authenticated = renderAt(<AlbumDetailPage />, '/albums/11', '/albums/:albumId');
     expect(await screen.findByRole('heading', { name: 'Night Drive' })).toBeInTheDocument();
-    await waitFor(() => expect(states.player.setTrackListContext).toHaveBeenCalled());
+    const normalizedFirstTrack = {
+      id: 21,
+      title: 'Fresh Track',
+      artistName: 'Creator',
+      duration: 120,
+      thumbnail: null,
+      waveformData: null,
+    };
+    await waitFor(() =>
+      expect(states.player.setTrackListContext).toHaveBeenLastCalledWith([
+        normalizedFirstTrack,
+        expect.objectContaining({
+          id: 22,
+          duration: 180,
+          thumbnail: 'b.jpg',
+          waveformData: '[0.1,0.9]',
+        }),
+      ]),
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /전체 재생/ }));
     fireEvent.click(authenticated.container.querySelector('button[aria-label="Play"]')!);
     fireEvent.click(screen.getAllByRole('button', { name: 'Like' })[0]);
     fireEvent.click(screen.getAllByRole('button', { name: 'Add to playlist' })[0]);
-    expect(states.player.playAll).toHaveBeenCalled();
-    expect(states.player.play).toHaveBeenCalledWith(expect.objectContaining({ id: 21 }));
+    expect(states.player.playAll).toHaveBeenCalledWith([
+      normalizedFirstTrack,
+      expect.objectContaining({ id: 22 }),
+    ]);
+    expect(states.player.play).toHaveBeenCalledWith(normalizedFirstTrack);
     expect(states.likes.toggle).toHaveBeenCalledWith(21);
     expect(screen.getByText('playlist-modal-21')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'subscription-required' }));
@@ -1034,6 +1072,10 @@ describe('creator forms', () => {
     fireEvent.change(fileInputs[1], {
       target: { files: [new File(['image'], 'replacement.png', { type: 'image/png' })] },
     });
+    const replacementPreview = await screen.findByAltText('선택한 트랙 썸네일 미리보기');
+    Object.defineProperty(replacementPreview, 'naturalWidth', { configurable: true, value: 800 });
+    Object.defineProperty(replacementPreview, 'naturalHeight', { configurable: true, value: 800 });
+    fireEvent.load(replacementPreview);
     fireEvent.click(screen.getByRole('button', { name: '저장' }));
 
     await waitFor(() => expect(mocks.updateTrack).toHaveBeenCalledWith(21, expect.any(FormData)));

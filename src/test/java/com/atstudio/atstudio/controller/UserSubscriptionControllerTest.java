@@ -13,12 +13,15 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doNothing;
@@ -33,6 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class UserSubscriptionControllerTest {
 
     @Autowired MockMvc mockMvc;
+    @Autowired RequestMappingHandlerMapping requestMappingHandlerMapping;
     @MockitoBean UserSubscriptionService userSubscriptionService;
     @MockitoBean CustomUserDetailsService customUserDetailsService;
 
@@ -127,48 +131,15 @@ class UserSubscriptionControllerTest {
                 .andExpect(jsonPath("$.data.proratedAmount").value(5000));
     }
 
-    // -- 6.8 PUT /api/user-subscriptions/{id} (ADMIN) ------------------------
+    // -- Retired direct administrator mutation paths --------------------------
 
     @Test
-    @WithMockUser(roles = "USER")
-    @DisplayName("PUT /api/user-subscriptions/100 - 일반 유저 -> 403")
-    void adminUpdate_forbidden() throws Exception {
-        mockMvc.perform(put("/api/user-subscriptions/100")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"status\":\"CANCELLED\"}"))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @WithMockUser(roles = "ADMIN")
-    @DisplayName("PUT /api/user-subscriptions/100 - ADMIN -> 200")
-    void adminUpdate_success() throws Exception {
-        given(userSubscriptionService.adminUpdate(anyLong(), any())).willReturn(MOCK_RESPONSE);
-
-        mockMvc.perform(put("/api/user-subscriptions/100")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"status\":\"CANCELLED\"}"))
-                .andExpect(status().isOk());
-    }
-
-    // -- 6.9 DELETE /api/user-subscriptions/{id} (ADMIN) ---------------------
-
-    @Test
-    @WithMockUser(roles = "USER")
-    @DisplayName("DELETE /api/user-subscriptions/100 - 일반 유저 -> 403")
-    void adminCancel_forbidden() throws Exception {
-        mockMvc.perform(delete("/api/user-subscriptions/100"))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @WithMockUser(roles = "ADMIN")
-    @DisplayName("DELETE /api/user-subscriptions/100 - ADMIN -> 204")
-    void adminCancel_success() throws Exception {
-        doNothing().when(userSubscriptionService).adminCancel(100L);
-
-        mockMvc.perform(delete("/api/user-subscriptions/100"))
-                .andExpect(status().isNoContent());
+    @DisplayName("direct administrator PUT and DELETE mappings are retired")
+    void directAdminMutationMappingsAreRetired() {
+        assertThat(requestMappingHandlerMapping.getHandlerMethods().keySet())
+                .noneMatch(mapping -> mapping.getPatternValues().contains("/api/user-subscriptions/{id}")
+                        && (mapping.getMethodsCondition().getMethods().contains(RequestMethod.PUT)
+                        || mapping.getMethodsCondition().getMethods().contains(RequestMethod.DELETE)));
     }
 
     // -- 6.10 DELETE /api/user-subscriptions/me ------------------------------

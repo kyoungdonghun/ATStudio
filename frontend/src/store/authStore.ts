@@ -19,6 +19,19 @@ function loadRole(): UserRole {
   return user?.role ?? 'GUEST';
 }
 
+interface CurrentUserRefresh {
+  sessionGeneration: number;
+  userID: number;
+  promise: Promise<User>;
+}
+
+let sessionGeneration = 0;
+let currentUserRefresh: CurrentUserRefresh | null = null;
+
+function advanceSessionGeneration(): void {
+  sessionGeneration += 1;
+}
+
 interface AuthState {
   user: User | null;
   accessToken: string | null;
@@ -26,6 +39,7 @@ interface AuthState {
   stageTokens: (accessToken: string, refreshToken: string) => void;
   login: (accessToken: string, user: User, refreshToken?: string | null) => void;
   updateUser: (user: User) => boolean;
+  refreshCurrentUser: () => Promise<User>;
   logout: () => Promise<boolean>;
   clearSession: () => void;
   isAuthenticated: () => boolean;
@@ -64,6 +78,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       get().clearSession();
       throw new Error('Failed to persist authentication session');
     }
+    advanceSessionGeneration();
     set({ accessToken, user, role: user.role });
   },
 
@@ -74,6 +89,53 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     set({ user, role: user.role });
     return true;
+  },
+
+  refreshCurrentUser: () => {
+    const sessionAccessToken = get().accessToken;
+    const sessionUserID = get().user?.id;
+    const initiatingSessionGeneration = sessionGeneration;
+    if (!sessionAccessToken || sessionUserID === undefined) {
+      return Promise.reject(
+        new Error('Cannot refresh current user without an authenticated session'),
+      );
+    }
+    if (
+      currentUserRefresh?.sessionGeneration === initiatingSessionGeneration &&
+      currentUserRefresh.userID === sessionUserID
+    ) {
+      return currentUserRefresh.promise;
+    }
+
+    const promise = (async () => {
+      const { fetchMe } = await import('@/api/auth');
+      const refreshedUser = await fetchMe();
+      const currentSession = get();
+      if (
+        sessionGeneration !== initiatingSessionGeneration ||
+        currentSession.user?.id !== sessionUserID ||
+        refreshedUser.id !== sessionUserID
+      ) {
+        throw new Error('Stale current-user refresh result');
+      }
+      if (!get().updateUser(refreshedUser)) {
+        throw new Error('Failed to persist refreshed user');
+      }
+      return refreshedUser;
+    })();
+
+    const refresh = {
+      sessionGeneration: initiatingSessionGeneration,
+      userID: sessionUserID,
+      promise,
+    };
+    currentUserRefresh = refresh;
+    const clearRefresh = () => {
+      if (currentUserRefresh === refresh) currentUserRefresh = null;
+    };
+    void promise.then(clearRefresh, clearRefresh);
+
+    return promise;
   },
 
   logout: async () => {
@@ -90,6 +152,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   clearSession: () => {
+    advanceSessionGeneration();
     safeStorage.removeItem('accessToken');
     safeStorage.removeItem('refreshToken');
     safeStorage.removeItem('user');

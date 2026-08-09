@@ -41,6 +41,7 @@ class DownloadServiceTest {
     @Mock UserRepository userRepository;
     @Mock UserSubscriptionRepository userSubscriptionRepository;
     @Mock TrackDownloadRepository trackDownloadRepository;
+    @Mock TrackTagRepository trackTagRepository;
     @Mock LicenseRepository licenseRepository;
     @Mock StorageService storageService;
     @Mock CustomUserDetails userDetails;

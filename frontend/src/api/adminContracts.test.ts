@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 vi.mock('@/api/client', () => ({
   default: {
@@ -41,11 +41,31 @@ import {
   updateAdminPaymentReconciliationIncidentStatus,
   updateAdminWhitelistChannelStatus,
   updateUserAdmin,
+  type AdminAssignableRole,
+  type AdminUserDetail,
+  type AdminUserListItem,
 } from '@/api/admin';
 
 const mockedClient = vi.mocked(client);
 const entity = { id: 42, status: 'READY' };
 const page = { dataList: [entity], pageInfo: { currentPage: 1, totalPages: 1 } };
+const adminUserListItem: AdminUserListItem = {
+  id: 4,
+  nickname: 'AdminTarget',
+  email: 'admin-target@example.com',
+  userType: 'BUSINESS',
+  role: 'USER',
+  isVerified: true,
+  createdAt: '2026-08-09T09:00:00',
+};
+const adminUserDetail: AdminUserDetail = {
+  ...adminUserListItem,
+  role: 'ADMIN',
+  phonePersonal: null,
+  phoneCompany: '02-0000-0000',
+  job: null,
+  companyName: 'ATStudio Partner',
+};
 
 function response<T>(data: T) {
   return { data: { data } };
@@ -58,9 +78,15 @@ describe('admin API contracts', () => {
 
   it('uses dashboard, user, certification, and whitelist contracts', async () => {
     const controller = new AbortController();
+    const userPage = {
+      dataList: [adminUserListItem],
+      pageInfo: { page: 2, size: 25, total: 1, start: 1, end: 1, prev: false, next: false },
+    };
     mockedClient.get
-      .mockResolvedValueOnce(response({ totalUsers: 10 }))
-      .mockResolvedValueOnce({ data: page })
+      .mockResolvedValueOnce(
+        response({ totalUsers: 10, totalTracks: 20, totalSubscribers: 3, recentUsers: [] }),
+      )
+      .mockResolvedValueOnce({ data: userPage })
       .mockResolvedValueOnce({ data: page })
       .mockResolvedValueOnce(response(entity))
       .mockResolvedValueOnce({
@@ -68,21 +94,39 @@ describe('admin API contracts', () => {
         headers: { 'content-disposition': "attachment; filename*=UTF-8''business%20license.pdf" },
       })
       .mockResolvedValueOnce({ data: page });
-    mockedClient.put.mockResolvedValue(response(entity));
+    mockedClient.put
+      .mockResolvedValueOnce(response(adminUserDetail))
+      .mockResolvedValue(response(entity));
 
-    await expect(fetchDashboardStats()).resolves.toEqual({ totalUsers: 10 });
+    await expect(fetchDashboardStats()).resolves.toEqual({
+      totalUsers: 10,
+      totalTracks: 20,
+      totalSubscribers: 3,
+      recentUsers: [],
+    });
     await expect(
-      fetchUsers({ page: 2, size: 25, keyword: 'user', userType: 'COMPANY' }, controller.signal),
-    ).resolves.toEqual(page);
+      fetchUsers({ page: 2, size: 25, keyword: 'user', userType: 'BUSINESS' }, controller.signal),
+    ).resolves.toEqual(userPage);
     expect(mockedClient.get).toHaveBeenNthCalledWith(2, '/users', {
-      params: { page: 2, size: 25, keyword: 'user', userType: 'COMPANY' },
+      params: { page: 2, size: 25, keyword: 'user', userType: 'BUSINESS' },
       signal: controller.signal,
     });
-    await updateUserAdmin(4, { role: 'ADMIN', isVerified: true });
+    await expect(
+      updateUserAdmin(4, {
+        role: 'ADMIN',
+        isVerified: true,
+        reason: 'Approved access change',
+      }),
+    ).resolves.toEqual(adminUserDetail);
     expect(mockedClient.put).toHaveBeenNthCalledWith(1, '/users/4', {
       role: 'ADMIN',
       isVerified: true,
+      reason: 'Approved access change',
     });
+    expectTypeOf<AdminAssignableRole>().toEqualTypeOf<'USER' | 'ADMIN'>();
+    expectTypeOf<NonNullable<Parameters<typeof updateUserAdmin>[1]['role']>>().toEqualTypeOf<
+      'USER' | 'ADMIN'
+    >();
 
     await fetchCompanyCerts({ page: 3, size: 10, status: 'PENDING' });
     await fetchCompanyCert(9);

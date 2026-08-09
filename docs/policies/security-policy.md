@@ -1,6 +1,6 @@
 ---
-version: 1.8
-last_updated: 2026-07-17
+version: 1.9
+last_updated: 2026-08-09
 project: ATS
 owner: PG
 category: policy
@@ -262,6 +262,17 @@ Email delivery logs are correlation metadata, not a payload fallback.
 - Unknown provider cancel transport failures log only a bounded exception class
   name. Exception messages, stack traces, request URIs, and provider payment
   keys are forbidden because transport errors can embed the request URI.
+
+### 6.12 Administrator Rejection Audit Minimization
+
+- Rejected administrator role changes, last-ADMIN withdrawals, and local
+  subscription-correction request/approval/execution attempts persist a null
+  `reason_note`. Their audit rows retain only stable action, target, actor when
+  available, outcome, error code, and equal bounded before/after state.
+- Required role-change and correction operator text remains in the successful
+  role-change audit or authoritative correction workflow/success audit. This
+  boundary prevents automatic duplication into rejection rows; it does not add
+  free-text DLP or change retention in those approved source contexts.
 
 ---
 

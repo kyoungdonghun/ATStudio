@@ -12,12 +12,32 @@
   margin-bottom: 28px;
 }
 
-.loading,
-.error {
+.loading {
   text-align: center;
   padding: 80px 0;
   color: var(--text1);
   font-size: 15px;
+}
+
+.successBanner,
+.errorBanner {
+  margin-bottom: 18px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.successBanner {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.28);
+}
+
+.errorBanner {
+  color: var(--error);
+  background: var(--error-dim);
+  border: 1px solid var(--error-border);
 }
 
 /* ── Table ── */
@@ -94,25 +114,149 @@
   border: 1px solid var(--border2);
 }
 
-/* ── Action buttons ── */
-
-.actionBtns {
-  display: flex;
-  gap: 6px;
-}
-
 /* ── Modal ── */
 
-.modalBody {
-  padding: 16px 20px;
+.workflowBody {
+  width: min(480px, calc(100vw - 88px));
   font-size: 14px;
   color: var(--text0);
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
-.modalInfo {
-  margin-bottom: 16px;
+.targetSummary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.targetSummary strong {
   font-size: 15px;
+}
+
+.targetSummary span {
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.stageList {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.stageList li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--text2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.stageList li span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border2);
+  border-radius: 50%;
+  font-size: 10px;
+}
+
+.stageList .stageActive {
+  color: var(--text0);
+  font-weight: 600;
+}
+
+.stageList .stageActive span {
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.stageList .stageComplete {
+  color: #34d399;
+}
+
+.stageList .stageComplete span {
+  border-color: rgba(52, 211, 153, 0.4);
+}
+
+.operatorNotice {
+  margin: 0 0 12px;
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.boundaryNotice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 18px;
+  padding: 10px 12px;
+  border-left: 3px solid #f59e0b;
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--text1);
+  font-size: 12px;
+}
+
+.boundaryNotice strong {
+  color: var(--text0);
+}
+
+.lookupGate,
+.lookupGateError,
+.resumeNotice {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 9px 11px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.lookupGate {
+  color: var(--text1);
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+}
+
+.lookupGateError {
+  align-items: center;
+  justify-content: space-between;
+  color: var(--error);
+  background: var(--error-dim);
+  border: 1px solid var(--error-border);
+}
+
+.lookupGateError span {
+  min-width: 0;
+}
+
+.resumeNotice {
+  flex-direction: column;
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.28);
+}
+
+.resumeNotice span {
+  color: var(--text1);
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
 }
 
 .modalField {
@@ -149,17 +293,212 @@
   font-family: inherit;
 }
 
+.modalTextarea {
+  min-height: 72px;
+  resize: vertical;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  color: var(--text0);
+  border-radius: 5px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
 .modalInput:focus,
-.modalSelect:focus {
+.modalSelect:focus,
+.modalTextarea:focus {
   outline: none;
   border-color: var(--accent-border);
+}
+
+.modalInput:disabled,
+.modalSelect:disabled,
+.modalTextarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.fieldHelp,
+.fieldError,
+.characterCount {
+  font-size: 11px;
+}
+
+.fieldHelp,
+.characterCount {
+  color: var(--text2);
+}
+
+.fieldError {
+  color: var(--error);
+}
+
+.characterCount {
+  align-self: flex-end;
+}
+
+.checkFields {
+  margin: 2px 0 14px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.checkField {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 2px;
+  cursor: pointer;
+}
+
+.checkField + .checkField {
+  border-top: 1px solid var(--border);
+}
+
+.checkField input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.checkField input:disabled {
+  cursor: not-allowed;
+}
+
+.checkField span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.checkField strong {
+  font-size: 12px;
+}
+
+.checkField small {
+  color: var(--text2);
+  font-size: 11px;
+}
+
+.inlineHint {
+  margin-top: -4px;
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.previewSection {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border2);
+}
+
+.previewSection h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.persistedText {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  color: var(--text1);
+  font-size: 12px;
+}
+
+.persistedText code {
+  overflow-wrap: anywhere;
+  color: var(--text0);
+  white-space: pre-wrap;
+}
+
+.comparisonList {
+  margin: 0;
+}
+
+.comparisonList > div {
+  display: grid;
+  grid-template-columns: minmax(92px, 0.8fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.comparisonList dt {
+  color: var(--text2);
+}
+
+.comparisonList dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.comparisonList dd:last-child::before {
+  content: '→ ';
+  color: var(--text2);
+}
+
+.externalExecutionSafe,
+.externalExecutionWarning,
+.previewRejected,
+.workflowError,
+.workflowSuccess {
+  margin-top: 12px;
+  padding: 9px 11px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.externalExecutionSafe,
+.workflowSuccess {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.28);
+}
+
+.externalExecutionWarning,
+.previewRejected,
+.workflowError {
+  color: var(--error);
+  background: var(--error-dim);
+  border: 1px solid var(--error-border);
+}
+
+.previewRejected,
+.workflowSuccess {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stageAction {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border2);
+}
+
+.stageAction p {
+  margin: 0;
+  color: var(--text1);
+  font-size: 12px;
+}
+
+.stageAction button {
+  align-self: flex-end;
 }
 
 .modalActions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 12px 20px;
+  padding-top: 18px;
 }
 
 /* ══ Mobile ══ */
@@ -184,9 +523,37 @@
     white-space: nowrap;
   }
 
-  .actionBtns {
-    flex-wrap: wrap; /* 버튼 2개가 가로로 붙어 셀 최소폭 초과하는 것 방지 */
-    gap: 4px;
+  .workflowBody {
+    width: 100%;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .stageList {
+    gap: 3px;
+  }
+
+  .stageList li {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    white-space: normal;
+  }
+
+  .comparisonList > div {
+    grid-template-columns: 82px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .lookupGateError {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .lookupGateError button {
+    align-self: flex-end;
   }
 
   /* Hide ID(1), 주기(4), 시작일(6), 만료일(7), 대기플랜(8) on mobile */

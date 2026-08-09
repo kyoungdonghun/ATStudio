@@ -39,7 +39,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-007 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-09 |
 | **Description** | Logged-in user views their own playlist list. |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). |
@@ -48,7 +48,8 @@
 
 **Main Flow**
 1. Frontend sends a list request including auth token to the backend.
-2. Backend returns the user's playlist list (id, title, thumbnail, track count).
+2. Backend returns the user's playlist list (id, title, thumbnail, active Track
+   count). Persisted memberships whose Track is inactive are not counted.
 
 **Postconditions**
 - User's playlist list displayed on screen.
@@ -60,7 +61,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-008 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-09 |
 | **Description** | Logged-in user views playlist detail (included tracks + track order). |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). Owns the playlist. |
@@ -69,7 +70,12 @@
 
 **Main Flow**
 1. Frontend sends a detail request including playlistId to the backend.
-2. Backend returns the playlist information and included track list (with track order).
+2. Backend returns the playlist information and active Track membership rows
+   only (with track order and duration, plus nullable thumbnail and waveform
+   members when present). Inactive membership rows remain persisted but hidden.
+3. Frontend maps every playable row through the shared `PlayableTrack`
+   contract for individual play, list context, and queue operations, normalizing
+   omitted or null nullable media members to explicit `null`.
 
 **Exception / Alternative Flow**
 - Accessing another user's playlist: 403 response.
@@ -113,7 +119,7 @@ The modal treats close/reopen as a new lifecycle generation. Stale list/add resp
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-013 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-09 |
 | **Description** | User updates playlist metadata (title/description/thumbnail) or changes track order. |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). Owns the playlist. |
@@ -128,10 +134,16 @@ The modal treats close/reopen as a new lifecycle generation. Stale list/add resp
 **Main Flow B -- Track Order Change**
 1. User reorders tracks via drag-and-drop.
 2. Frontend sends [{trackId, trackOrder}, ...] array to the backend.
-3. Backend locks the playlist row, validates that the payload contains every current member exactly once with unique contiguous orders from 0 through n-1, batch-updates track_order in playlist_tracks, and returns a 200 response.
+3. Backend locks the playlist row and validates that the payload contains every
+   visible active Track exactly once with unique contiguous orders from 0
+   through n-1.
+4. Backend applies the requested active order first, then retains every inactive
+   membership in deterministic prior order (`trackOrder`, then `trackId`) after
+   the active rows. All persisted rows receive unique contiguous orders.
 
 **Postconditions**
-- Updated playlist information reflected in DB.
+- Updated playlist information is reflected in DB. An inactive Track that is
+  reactivated later appears after the actively reordered Tracks.
 
 ---
 
@@ -140,7 +152,7 @@ The modal treats close/reopen as a new lifecycle generation. Stale list/add resp
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-020 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-09 |
 | **Description** | User removes a specific track from a playlist. |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). Owns the playlist. The track must be in the playlist. |
@@ -151,7 +163,9 @@ The modal treats close/reopen as a new lifecycle generation. Stale list/add resp
 1. User clicks the 'Remove' button on a specific track in the playlist detail.
 2. Frontend sends a remove request including playlistId and trackId to the backend.
 3. Backend verifies the playlist belongs to the user.
-4. Backend locks the playlist row, deletes the record from playlist_tracks, compacts remaining orders, and returns 204 No Content.
+4. Backend locks the playlist row, deletes the requested `playlist_tracks` row,
+   compacts all retained active and inactive membership orders without
+   duplicates, and returns 204 No Content.
 
 **Postconditions**
 - Record deleted from playlist_tracks. Playlist track count decreased.

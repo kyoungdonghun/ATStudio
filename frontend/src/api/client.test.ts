@@ -1,9 +1,18 @@
 import axios from 'axios';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { clearSessionMock, navigateMock, setAuthStateMock, showToastMock } = vi.hoisted(() => ({
+const {
+  authState,
+  clearSessionMock,
+  navigateMock,
+  refreshCurrentUserMock,
+  setAuthStateMock,
+  showToastMock,
+} = vi.hoisted(() => ({
+  authState: { role: 'USER' },
   clearSessionMock: vi.fn(),
   navigateMock: vi.fn(),
+  refreshCurrentUserMock: vi.fn(),
   setAuthStateMock: vi.fn(),
   showToastMock: vi.fn(),
 }));
@@ -20,7 +29,11 @@ vi.mock('@/store/toastStore', () => ({
 
 vi.mock('@/store/authStore', () => ({
   useAuthStore: {
-    getState: () => ({ clearSession: clearSessionMock }),
+    getState: () => ({
+      clearSession: clearSessionMock,
+      refreshCurrentUser: refreshCurrentUserMock,
+      role: authState.role,
+    }),
     setState: setAuthStateMock,
   },
 }));
@@ -28,6 +41,7 @@ vi.mock('@/store/authStore', () => ({
 import client, {
   getApiErrorCode,
   isSubscriptionRequired,
+  shouldSkipAdminRoleSync,
   shouldSkipRefresh,
   toUploadUrl,
 } from '@/api/client';
@@ -66,8 +80,10 @@ describe('client auth refresh exclusions', () => {
     vi.restoreAllMocks();
     clearSessionMock.mockReset();
     navigateMock.mockReset();
+    refreshCurrentUserMock.mockReset();
     setAuthStateMock.mockReset();
     showToastMock.mockReset();
+    authState.role = 'USER';
     localStorage.clear();
     sessionStorage.clear();
   });
@@ -87,6 +103,14 @@ describe('client auth refresh exclusions', () => {
     expect(shouldSkipRefresh({ url: '/tracks' })).toBe(false);
     expect(shouldSkipRefresh({ url: '/users/me' })).toBe(false);
     expect(shouldSkipRefresh({ url: undefined })).toBe(false);
+  });
+
+  it('excludes /users/me and auth paths from centralized admin-role sync', () => {
+    expect(shouldSkipAdminRoleSync({ url: '/users/me' })).toBe(true);
+    expect(shouldSkipAdminRoleSync({ url: '/users/me?fresh=true' })).toBe(true);
+    expect(shouldSkipAdminRoleSync({ url: '/auth/logout' })).toBe(true);
+    expect(shouldSkipAdminRoleSync({ url: '/auth/social/google' })).toBe(true);
+    expect(shouldSkipAdminRoleSync({ url: '/admin/payments' })).toBe(false);
   });
 
   it('attaches a stored token without replacing explicit authorization', () => {
@@ -133,6 +157,67 @@ describe('client auth refresh exclusions', () => {
       await expect(rejected(error)).rejects.toBe(error);
     }
     expect(clearSessionMock).not.toHaveBeenCalled();
+  });
+
+  it('refreshes local ADMIN role on 403 without retrying and preserves the original error', async () => {
+    authState.role = 'ADMIN';
+    refreshCurrentUserMock.mockResolvedValue({ role: 'USER' });
+    const adapter = vi.fn();
+    const error = {
+      config: { url: '/admin/payments', method: 'get', headers: {}, adapter },
+      response: { status: 403 },
+    };
+
+    await expect(getRejectedResponseInterceptor()(error)).rejects.toBe(error);
+
+    expect(refreshCurrentUserMock).toHaveBeenCalledTimes(1);
+    expect(adapter).not.toHaveBeenCalled();
+  });
+
+  it('skips centralized 403 role sync for non-admin, /users/me, and auth requests', async () => {
+    const rejected = getRejectedResponseInterceptor();
+    const errors = [
+      { config: { url: '/admin/users' }, response: { status: 403 } },
+      { config: { url: '/users/me' }, response: { status: 403 } },
+      { config: { url: '/auth/logout' }, response: { status: 403 } },
+    ];
+
+    await expect(rejected(errors[0])).rejects.toBe(errors[0]);
+    authState.role = 'ADMIN';
+    await expect(rejected(errors[1])).rejects.toBe(errors[1]);
+    await expect(rejected(errors[2])).rejects.toBe(errors[2]);
+
+    expect(refreshCurrentUserMock).not.toHaveBeenCalled();
+  });
+
+  it('coalesces concurrent admin 403 role sync and preserves each original rejection', async () => {
+    authState.role = 'ADMIN';
+    let resolveRefresh!: () => void;
+    refreshCurrentUserMock.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
+    const rejected = getRejectedResponseInterceptor();
+    const firstError = { config: { url: '/admin/users' }, response: { status: 403 } };
+    const secondError = { config: { url: '/admin/payments' }, response: { status: 403 } };
+
+    const firstResult = rejected(firstError);
+    const secondResult = rejected(secondError);
+    await vi.waitFor(() => expect(refreshCurrentUserMock).toHaveBeenCalledTimes(1));
+    resolveRefresh();
+
+    await expect(firstResult).rejects.toBe(firstError);
+    await expect(secondResult).rejects.toBe(secondError);
+  });
+
+  it('preserves the original 403 when current-user resync fails', async () => {
+    authState.role = 'ADMIN';
+    refreshCurrentUserMock.mockRejectedValue(new Error('sync failed'));
+    const error = { config: { url: '/admin/users' }, response: { status: 403 } };
+
+    await expect(getRejectedResponseInterceptor()(error)).rejects.toBe(error);
+    expect(refreshCurrentUserMock).toHaveBeenCalledTimes(1);
   });
 
   it('stores rotated tokens and retries the protected request after refresh', async () => {

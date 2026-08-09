@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PlayerBar from '@/layouts/PlayerBar';
@@ -112,7 +112,9 @@ vi.mock('@/api/userSubscriptions', () => ({
 }));
 
 vi.mock('@/components/player/WaveformCanvas', () => ({
-  default: () => <div data-testid="waveform" />,
+  default: ({ progress, onSeek }: { progress: number; onSeek: (ratio: number) => void }) => (
+    <div data-testid="waveform" data-progress={progress} onClick={() => onSeek(0.5)} />
+  ),
 }));
 
 vi.mock('@/components/player/HistoryModal', () => ({
@@ -168,6 +170,14 @@ describe('PlayerBar playback feedback', () => {
     });
   });
 
+  it('renders no buffering feedback while the store remains pending', () => {
+    renderPlayerBar();
+
+    expect(screen.queryByText(/재생이 지연되고 있습니다/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('shows the Korean playback failure from the player store', () => {
     const message = '재생을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.';
     mocks.playerState.playbackError = message;
@@ -175,7 +185,9 @@ describe('PlayerBar playback feedback', () => {
     renderPlayerBar();
 
     expect(mocks.toastShow).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveAttribute('aria-live', 'assertive');
     expect(screen.getByRole('alert')).toHaveTextContent(message);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
     expect(mocks.playerState.resume).toHaveBeenCalledTimes(1);
@@ -186,9 +198,23 @@ describe('PlayerBar playback feedback', () => {
 
     renderPlayerBar();
 
+    expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite');
     expect(screen.getByRole('status')).toHaveTextContent('재생이 지연되고 있습니다.');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
     expect(mocks.playerState.resume).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a real playback error authoritative over stalled state', () => {
+    const message = '오디오를 재생하는 중 오류가 발생했습니다.';
+    mocks.playerState.isStalled = true;
+    mocks.playerState.playbackError = message;
+
+    renderPlayerBar();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(message);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByText(/재생이 지연되고 있습니다/)).not.toBeInTheDocument();
   });
 
   it('exposes native named controls and keyboard seeking', () => {
@@ -209,6 +235,38 @@ describe('PlayerBar playback feedback', () => {
     seekControl.focus();
     fireEvent.keyDown(seekControl, { key: 'ArrowRight' });
     expect(mocks.playerState.seek).toHaveBeenCalledWith(15);
+  });
+
+  it('drops the prior progress, ARIA maximum, and seek scale as soon as the track switches', () => {
+    mocks.playerState.currentTime = 50;
+    mocks.playerState.duration = 100;
+    const view = renderPlayerBar();
+    let seekControl = screen.getByRole('slider', { name: '재생 위치' });
+
+    expect(within(seekControl).getByTestId('waveform')).toHaveAttribute('data-progress', '0.5');
+    expect(seekControl).toHaveAttribute('aria-valuemax', '100');
+
+    mocks.playerState.currentTrack = { ...track, id: 2, title: 'Second track', duration: 45 };
+    mocks.playerState.currentTime = 0;
+    mocks.playerState.duration = 45;
+    view.rerender(
+      <MemoryRouter>
+        <PlayerBar />
+      </MemoryRouter>,
+    );
+
+    seekControl = screen.getByRole('slider', { name: '재생 위치' });
+    expect(screen.queryByText('1:40')).not.toBeInTheDocument();
+    expect(screen.getAllByText('0:45').length).toBeGreaterThan(0);
+    expect(within(seekControl).getByTestId('waveform')).toHaveAttribute('data-progress', '0');
+    expect(seekControl).toHaveAttribute('aria-valuemax', '45');
+    expect(seekControl).toHaveAttribute('aria-valuenow', '0');
+    expect(seekControl).toHaveAttribute('aria-valuetext', '0:00 / 0:45');
+
+    fireEvent.click(within(seekControl).getByTestId('waveform'));
+    expect(mocks.playerState.seek).toHaveBeenCalledWith(22.5);
+    fireEvent.keyDown(seekControl, { key: 'End' });
+    expect(mocks.playerState.seek).toHaveBeenLastCalledWith(45);
   });
 
   it('keeps focus on the mobile expand control while responsive controls change', () => {

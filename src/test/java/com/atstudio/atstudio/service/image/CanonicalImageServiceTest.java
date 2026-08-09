@@ -5,11 +5,13 @@ import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.common.validation.ValidationConstants;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.imageio.ImageIO;
 import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -61,6 +63,56 @@ class CanonicalImageServiceTest {
         BufferedImage output = ImageIO.read(new ByteArrayInputStream(result.getBytes()));
         assertThat(output.getWidth()).isEqualTo(2048);
         assertThat(output.getHeight()).isEqualTo(683);
+    }
+
+    @Test
+    @DisplayName("small square Track thumbnail is canonicalized without upscaling")
+    void canonicalizeSquareTrackThumbnail_smallSquare_notUpscaled() throws Exception {
+        MultipartFile result = service.canonicalizeSquareTrackThumbnail(
+                file("cover.png", "image/png", pngBytes(512, 512)));
+
+        BufferedImage output = ImageIO.read(new ByteArrayInputStream(result.getBytes()));
+        assertThat(output.getWidth()).isEqualTo(512);
+        assertThat(output.getHeight()).isEqualTo(512);
+        assertThat(result.getContentType()).isEqualTo("image/jpeg");
+    }
+
+    @Test
+    @DisplayName("large square Track thumbnail is scaled to 2048 by 2048")
+    void canonicalizeSquareTrackThumbnail_largeSquare_scaledTo2048() throws Exception {
+        MultipartFile result = service.canonicalizeSquareTrackThumbnail(
+                file("cover.jpg", "image/jpeg", jpegBytes(3000, 3000)));
+
+        BufferedImage output = ImageIO.read(new ByteArrayInputStream(result.getBytes()));
+        assertThat(output.getWidth()).isEqualTo(2048);
+        assertThat(output.getHeight()).isEqualTo(2048);
+    }
+
+    @Test
+    @DisplayName("non-square Track thumbnail is rejected with the stable domain error")
+    void canonicalizeSquareTrackThumbnail_nonSquare_rejectedWithStableError() throws Exception {
+        assertThatThrownBy(() -> service.canonicalizeSquareTrackThumbnail(
+                file("cover.png", "image/png", pngBytes(640, 480))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> {
+                    BusinessException businessException = (BusinessException) exception;
+                    assertThat(businessException.getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.TRACK_THUMBNAIL_NOT_SQUARE);
+                    assertThat(businessException.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(businessException.getClientMessage())
+                            .isEqualTo("트랙 썸네일은 가로와 세로 길이가 같은 1:1 이미지여야 합니다.");
+                });
+    }
+
+    @Test
+    @DisplayName("generic thumbnail canonicalization continues to accept non-square images")
+    void canonicalizeThumbnail_nonSquare_remainsSupported() throws Exception {
+        MultipartFile result = service.canonicalizeThumbnail(
+                file("playlist.png", "image/png", pngBytes(640, 480)));
+
+        BufferedImage output = ImageIO.read(new ByteArrayInputStream(result.getBytes()));
+        assertThat(output.getWidth()).isEqualTo(640);
+        assertThat(output.getHeight()).isEqualTo(480);
     }
 
     @Test
@@ -126,8 +178,30 @@ class CanonicalImageServiceTest {
                         .isEqualTo(BUSINESS_ERROR.IO_LARGE));
     }
 
+    @Test
+    @DisplayName("Track square path retains corrupt, MIME mismatch, and oversize defenses")
+    void canonicalizeSquareTrackThumbnail_invalidInputs_rejectedByExistingDefenses() throws Exception {
+        assertTrackInvalid(
+                file("corrupt.jpg", "image/jpeg", new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}));
+        assertTrackInvalid(file("mismatch.jpg", "image/png", jpegBytes(32, 32)));
+
+        byte[] oversized = new byte[(int) ValidationConstants.IMAGE_MAX_SIZE_BYTES + 1];
+        assertThatThrownBy(() -> service.canonicalizeSquareTrackThumbnail(
+                file("oversized.png", "image/png", oversized)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.IO_LARGE));
+    }
+
     private void assertInvalid(byte[] bytes) {
         assertThatThrownBy(() -> service.canonicalizeThumbnail(file("payload.bin", "application/octet-stream", bytes)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_VALID));
+    }
+
+    private void assertTrackInvalid(MultipartFile file) {
+        assertThatThrownBy(() -> service.canonicalizeSquareTrackThumbnail(file))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.INVALID_VALID));
@@ -148,10 +222,12 @@ class CanonicalImageServiceTest {
     private byte[] imageBytes(String format, int width, int height) throws Exception {
         int imageType = "jpg".equals(format) ? BufferedImage.TYPE_INT_RGB : BufferedImage.TYPE_INT_ARGB;
         BufferedImage image = new BufferedImage(width, height, imageType);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                image.setRGB(x, y, new Color(20, 80, 140, 180).getRGB());
-            }
+        Graphics2D graphics = image.createGraphics();
+        try {
+            graphics.setColor(new Color(20, 80, 140, 180));
+            graphics.fillRect(0, 0, width, height);
+        } finally {
+            graphics.dispose();
         }
 
         ByteArrayOutputStream output = new ByteArrayOutputStream();

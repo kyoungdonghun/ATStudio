@@ -4,6 +4,8 @@ import com.atstudio.atstudio.common.dto.RequestDTO;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
+
 @Getter
 @Setter
 public class TrackSearchRequest extends RequestDTO {
@@ -12,10 +14,10 @@ public class TrackSearchRequest extends RequestDTO {
         setSize(20);
     }
 
-    private String genre;
-    private String mood;
-    private String instrument;
-    private String usage;
+    private List<String> genre;
+    private List<String> mood;
+    private List<String> instrument;
+    private List<String> usage;
     private Integer bpmMin;
     private Integer bpmMax;
     private String tonality;

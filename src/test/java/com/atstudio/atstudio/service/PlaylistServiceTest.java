@@ -185,7 +185,7 @@ class PlaylistServiceTest {
                 .willReturn(List.of(playlist));
         List<Object[]> countResult = new ArrayList<>();
         countResult.add(new Object[]{1L, 3L});
-        given(playlistTrackRepository.countByPlaylistIdIn(List.of(1L)))
+        given(playlistTrackRepository.countActiveByPlaylistIdIn(List.of(1L)))
                 .willReturn(countResult);
 
         List<PlaylistListItemResponse> result = playlistService.getMyPlaylists(buildUserDetails(1L));
@@ -193,7 +193,28 @@ class PlaylistServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).id()).isEqualTo(1L);
         assertThat(result.get(0).trackCount()).isEqualTo(3);
-        verify(playlistTrackRepository).countByPlaylistIdIn(List.of(1L));
+        verify(playlistTrackRepository).countActiveByPlaylistIdIn(List.of(1L));
+    }
+
+    @Test
+    @DisplayName("getMyPlaylists() maps the active membership aggregate")
+    void getMyPlaylists_usesActiveMembershipCount() {
+        User user = buildUser(1L);
+        Playlist playlist = buildPlaylist(1L, user, "Mixed Playlist");
+        List<Object[]> activeCount = new ArrayList<>();
+        activeCount.add(new Object[]{1L, 1L});
+
+        setupSubscriberMocks(user);
+        given(playlistRepository.findAllByUserAndIsActiveTrueOrderByCreatedAtDesc(user))
+                .willReturn(List.of(playlist));
+        given(playlistTrackRepository.countActiveByPlaylistIdIn(List.of(1L)))
+                .willReturn(activeCount);
+
+        List<PlaylistListItemResponse> result = playlistService.getMyPlaylists(buildUserDetails(1L));
+
+        assertThat(result).singleElement()
+                .extracting(PlaylistListItemResponse::trackCount)
+                .isEqualTo(1);
     }
 
     @Test
@@ -210,7 +231,7 @@ class PlaylistServiceTest {
         List<Object[]> countResult = new ArrayList<>();
         countResult.add(new Object[]{1L, 5L});
         countResult.add(new Object[]{3L, 2L});
-        given(playlistTrackRepository.countByPlaylistIdIn(List.of(1L, 2L, 3L)))
+        given(playlistTrackRepository.countActiveByPlaylistIdIn(List.of(1L, 2L, 3L)))
                 .willReturn(countResult);
 
         List<PlaylistListItemResponse> result = playlistService.getMyPlaylists(buildUserDetails(1L));
@@ -233,7 +254,7 @@ class PlaylistServiceTest {
         List<PlaylistListItemResponse> result = playlistService.getMyPlaylists(buildUserDetails(1L));
 
         assertThat(result).isEmpty();
-        verify(playlistTrackRepository, org.mockito.Mockito.never()).countByPlaylistIdIn(anyList());
+        verify(playlistTrackRepository, org.mockito.Mockito.never()).countActiveByPlaylistIdIn(anyList());
     }
 
     // ── getPlaylistDetail() ───────────────────────────────────────────────────
@@ -246,13 +267,40 @@ class PlaylistServiceTest {
 
         setupSubscriberMocks(user);
         given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
-        given(playlistTrackRepository.findAllByIdPlaylistIdOrderByTrackOrderAsc(1L))
+        given(playlistTrackRepository.findAllPlayableByPlaylistIdOrderByTrackOrderAsc(1L))
                 .willReturn(List.of());
 
         PlaylistDetailResponse result = playlistService.getPlaylistDetail(1L, buildUserDetails(1L));
 
         assertThat(result.id()).isEqualTo(1L);
         assertThat(result.tracks()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("getPlaylistDetail() returns only the active membership projection")
+    void getPlaylistDetail_mixedMembershipReturnsOnlyActiveTrack() {
+        User user = buildUser(1L);
+        Playlist playlist = buildPlaylist(1L, user, "Mixed Playlist");
+        Track activeTrack = buildTrack(10L, true);
+        Track inactiveTrack = buildTrack(20L, false);
+        PlaylistTrack activeMembership = PlaylistTrack.builder()
+                .id(new PlaylistTrackId(1L, 10L))
+                .playlist(playlist)
+                .track(activeTrack)
+                .trackOrder(0)
+                .build();
+
+        setupSubscriberMocks(user);
+        given(playlistRepository.findById(1L)).willReturn(Optional.of(playlist));
+        given(playlistTrackRepository.findAllPlayableByPlaylistIdOrderByTrackOrderAsc(1L))
+                .willReturn(List.of(activeMembership));
+
+        PlaylistDetailResponse result = playlistService.getPlaylistDetail(1L, buildUserDetails(1L));
+
+        assertThat(result.tracks())
+                .extracting(PlaylistTrackItemResponse::trackId)
+                .containsExactly(activeTrack.getId())
+                .doesNotContain(inactiveTrack.getId());
     }
 
     @Test
@@ -334,7 +382,7 @@ class PlaylistServiceTest {
 
         setupSubscriberMocks(user);
         given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
-        given(playlistTrackRepository.countByIdPlaylistId(1L)).willReturn(0L);
+        given(playlistTrackRepository.countActiveByPlaylistId(1L)).willReturn(0L);
 
         PlaylistResponse result = playlistService.updatePlaylist(1L, request, null, buildUserDetails(1L));
 
@@ -414,6 +462,77 @@ class PlaylistServiceTest {
     }
 
     @Test
+    @DisplayName("reorderTracks() reorders visible active tracks and retains inactive rows at the end")
+    void reorderTracks_mixedMembershipKeepsInactiveTrackDeterministically() {
+        User user = buildUser(1L);
+        Playlist playlist = buildPlaylist(1L, user, "Mixed Playlist");
+        Track activeTrackOne = buildTrack(1L, true);
+        Track inactiveTrack = buildTrack(3L, false);
+        Track activeTrackTwo = buildTrack(2L, true);
+        PlaylistTrack activeOne = PlaylistTrack.builder()
+                .id(new PlaylistTrackId(1L, 1L)).playlist(playlist)
+                .track(activeTrackOne).trackOrder(0).build();
+        PlaylistTrack inactive = PlaylistTrack.builder()
+                .id(new PlaylistTrackId(1L, 3L)).playlist(playlist)
+                .track(inactiveTrack).trackOrder(1).build();
+        PlaylistTrack activeTwo = PlaylistTrack.builder()
+                .id(new PlaylistTrackId(1L, 2L)).playlist(playlist)
+                .track(activeTrackTwo).trackOrder(2).build();
+
+        setupSubscriberMocks(user);
+        given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
+        given(playlistTrackRepository.findAllByIdPlaylistIdOrderByTrackOrderAsc(1L))
+                .willReturn(List.of(activeOne, inactive, activeTwo));
+
+        playlistService.reorderTracks(
+                1L,
+                new PlaylistReorderRequest(List.of(
+                        new PlaylistTrackOrderItem(2L, 0),
+                        new PlaylistTrackOrderItem(1L, 1))),
+                buildUserDetails(1L));
+
+        assertThat(activeTwo.getTrackOrder()).isZero();
+        assertThat(activeOne.getTrackOrder()).isEqualTo(1);
+        assertThat(inactive.getTrackOrder()).isEqualTo(2);
+        assertThat(List.of(activeOne, activeTwo, inactive))
+                .extracting(PlaylistTrack::getTrackOrder)
+                .containsExactlyInAnyOrder(0, 1, 2);
+
+        inactiveTrack.updateIsActive(true);
+        assertThat(List.of(activeOne, activeTwo, inactive).stream()
+                .sorted((left, right) -> Integer.compare(left.getTrackOrder(), right.getTrackOrder()))
+                .map(membership -> membership.getTrack().getId())
+                .toList())
+                .containsExactly(2L, 1L, 3L);
+    }
+
+    @Test
+    @DisplayName("reorderTracks() rejects an inactive membership ID in the visible payload")
+    void reorderTracks_rejectsInactiveMembershipId() {
+        User user = buildUser(1L);
+        Playlist playlist = buildPlaylist(1L, user, "Mixed Playlist");
+        PlaylistTrack active = PlaylistTrack.builder()
+                .id(new PlaylistTrackId(1L, 1L)).playlist(playlist)
+                .track(buildTrack(1L, true)).trackOrder(0).build();
+        PlaylistTrack inactive = PlaylistTrack.builder()
+                .id(new PlaylistTrackId(1L, 2L)).playlist(playlist)
+                .track(buildTrack(2L, false)).trackOrder(1).build();
+
+        setupSubscriberMocks(user);
+        given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
+        given(playlistTrackRepository.findAllByIdPlaylistIdOrderByTrackOrderAsc(1L))
+                .willReturn(List.of(active, inactive));
+
+        assertThatThrownBy(() -> playlistService.reorderTracks(
+                1L,
+                new PlaylistReorderRequest(List.of(new PlaylistTrackOrderItem(2L, 0))),
+                buildUserDetails(1L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+    }
+
+    @Test
     void reorderTracks_rejectsDuplicateOrder() {
         User user = buildUser(1L);
         Playlist playlist = buildPlaylist(1L, user, "My Playlist");
@@ -457,6 +576,35 @@ class PlaylistServiceTest {
         playlistService.removeTrack(1L, 5L, buildUserDetails(1L));
 
         verify(playlistTrackRepository).delete(pt);
+    }
+
+    @Test
+    @DisplayName("removeTrack() compacts retained active and inactive memberships without duplicate orders")
+    void removeTrack_mixedMembershipCompactsRetainedRows() {
+        User user = buildUser(1L);
+        Playlist playlist = buildPlaylist(1L, user, "Mixed Playlist");
+        PlaylistTrackId removedId = new PlaylistTrackId(1L, 1L);
+        PlaylistTrack removed = PlaylistTrack.builder().id(removedId).playlist(playlist)
+                .track(buildTrack(1L, true)).trackOrder(0).build();
+        PlaylistTrack retainedActive = PlaylistTrack.builder()
+                .id(new PlaylistTrackId(1L, 2L)).playlist(playlist)
+                .track(buildTrack(2L, true)).trackOrder(1).build();
+        PlaylistTrack retainedInactive = PlaylistTrack.builder()
+                .id(new PlaylistTrackId(1L, 3L)).playlist(playlist)
+                .track(buildTrack(3L, false)).trackOrder(2).build();
+
+        setupSubscriberMocks(user);
+        given(playlistRepository.findByIdForUpdate(1L)).willReturn(Optional.of(playlist));
+        given(playlistTrackRepository.findById(removedId)).willReturn(Optional.of(removed));
+        given(playlistTrackRepository.findAllByIdPlaylistIdOrderByTrackOrderAsc(1L))
+                .willReturn(List.of(retainedActive, retainedInactive));
+
+        playlistService.removeTrack(1L, 1L, buildUserDetails(1L));
+
+        verify(playlistTrackRepository).delete(removed);
+        verify(playlistTrackRepository, org.mockito.Mockito.never()).delete(retainedInactive);
+        assertThat(retainedActive.getTrackOrder()).isZero();
+        assertThat(retainedInactive.getTrackOrder()).isEqualTo(1);
     }
 
     // ── deletePlaylist() ──────────────────────────────────────────────────────
@@ -570,6 +718,7 @@ class PlaylistServiceTest {
     private Track buildTrack(Long id, boolean active) {
         Track track = Track.builder()
                 .title("Test Track").bpm(120).tonality("C").audioFile("audio.mp3")
+                .user(User.builder().nickname("Artist " + id).email("artist" + id + "@test.com").build())
                 .isActive(active).build();
         ReflectionTestUtils.setField(track, "id", id);
         return track;

@@ -1,6 +1,6 @@
 ---
-version: 4.0
-last_updated: 2026-07-17
+version: 5.1
+last_updated: 2026-08-09
 project: ATS
 owner: docops
 category: design
@@ -30,10 +30,28 @@ The main layout serves public and authenticated user workflows with the shared p
 
 ## Discovery And Playback
 
-1. Public users browse tracks, tags, and albums.
-2. Streaming uses the controller-mediated public stream endpoint; storage keys are not exposed.
-3. After playback starts, the SPA records the track in browser `localStorage` under `playHistory`.
-4. The local list is capped at 100; no server Play History API or table participates.
+1. Home loads registered and active-result Tag sets separately and displays one
+   Usage, Genre, Mood, Instrument module. Usage stays visible; initial selection
+   uses the first result-bearing category and falls back to Usage only when all
+   categories are empty.
+2. Track-list URLs and requests use repeated `usage`, `genre`, `mood`, and
+   `instrument` values with AND semantics. Each taxonomy has independent
+   loading, error, and manual retry state. Active URL values remain visible and
+   removable when their request fails or omits them; Usage adds `#` only while
+   rendering and sends the raw value to the URL and Track API.
+3. Streaming uses the controller-mediated public stream endpoint; storage keys are not exposed.
+4. Album, playlist, likes, downloads, queue, and history map Track data through
+   one PlayableTrack contract. Omitted nullable thumbnail and waveform keys
+   normalize to explicit `null`. Persisted player/history state stores IDs and
+   hydrates at most 100 active Tracks through one public batch request.
+5. `waiting`/`stalled` stays pending for 2 seconds before a polite buffering
+   status appears. Selecting a Track atomically resets time and adopts that
+   Track's duration before metadata can refine the current source. Recovery,
+   pause, retry, Track change, or error cancels buffering; actual playback
+   errors use a separate assertive message.
+6. After playback starts, the SPA records the Track ID in browser
+   `localStorage` under `playHistory`.
+7. The local list is capped at 100; no server Play History table participates.
 
 ## Playlist
 
@@ -65,7 +83,17 @@ The main layout serves public and authenticated user workflows with the shared p
 - Site settings reads and upserts `COMPANY_CERT_GUIDE`.
 - Whitelist and certification review use current transition, audit, export, and private-document boundaries.
 - List screens use latest-request-wins behavior so stale responses cannot overwrite current filters/pages.
+- Role changes share server-side ADMIN locking and reject self-demotion,
+  last-admin removal, and stale actor authority. The UI preserves the list and
+  refreshes `/users/me` after a role mutation or ADMIN API 403.
+- General subscription correction is a local preview, request, approval, and
+  execution workflow. It may change local entitlement/billing-agreement state
+  after revalidation; it does not call Toss charge/refund/billing-key deletion.
+- Existing Track audio analysis is an ADMIN read-only dry-run. Running a real
+  existing-row backfill remains separately approved and outside this flow.
+- Track upload/edit requires square new/replacement thumbnails. Existing
+  non-square thumbnails remain visible and unchanged until explicit replacement.
 
 ## Environment Boundary
 
-Public access is allowed only through an operator-controlled acceptance runtime whose local page, API proxy, and newly issued public URL were verified together. Historical demo URLs and captures are not current runtime evidence.
+Public access is allowed only through an operator-controlled acceptance runtime whose local page, API proxy, and newly issued public URL were verified together. Historical demo URLs and captures are not current runtime evidence. WI-014~021 focused automated evidence is not a substitute for full browser acceptance or production deployment.

@@ -38,6 +38,14 @@ public class CanonicalImageService {
     private static final float JPEG_QUALITY = 0.90f;
 
     public MultipartFile canonicalizeThumbnail(MultipartFile file) {
+        return canonicalize(file, ThumbnailPolicy.ANY_ASPECT_RATIO);
+    }
+
+    public MultipartFile canonicalizeSquareTrackThumbnail(MultipartFile file) {
+        return canonicalize(file, ThumbnailPolicy.SQUARE_TRACK);
+    }
+
+    private MultipartFile canonicalize(MultipartFile file, ThumbnailPolicy policy) {
         if (file == null || file.isEmpty()) {
             throw invalidImage();
         }
@@ -52,7 +60,7 @@ public class CanonicalImageService {
             rejectApng(input);
         }
 
-        byte[] canonicalBytes = encodeCanonicalJpeg(input, format);
+        byte[] canonicalBytes = encodeCanonicalJpeg(input, format, policy);
         return new CanonicalMultipartFile(file.getName(), canonicalBytes);
     }
 
@@ -117,7 +125,10 @@ public class CanonicalImageService {
                 | ((long) input[offset + 3] & 0xFF);
     }
 
-    private byte[] encodeCanonicalJpeg(byte[] input, ImageFormat format) {
+    private byte[] encodeCanonicalJpeg(
+            byte[] input,
+            ImageFormat format,
+            ThumbnailPolicy policy) {
         Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName(format.readerFormatName);
         if (!readers.hasNext()) {
             throw invalidImage();
@@ -136,7 +147,14 @@ public class CanonicalImageService {
                 throw invalidImage();
             }
 
-            return writeJpeg(renderRgb(decoded, width, height));
+            int decodedWidth = decoded.getWidth();
+            int decodedHeight = decoded.getHeight();
+            validateBounds(decodedWidth, decodedHeight);
+            if (policy.requiresSquare && decodedWidth != decodedHeight) {
+                throw new BusinessException(BUSINESS_ERROR.TRACK_THUMBNAIL_NOT_SQUARE);
+            }
+
+            return writeJpeg(renderRgb(decoded, decodedWidth, decodedHeight));
         } catch (IOException | RuntimeException exception) {
             if (exception instanceof BusinessException businessException) {
                 throw businessException;
@@ -222,6 +240,17 @@ public class CanonicalImageService {
         ImageFormat(String readerFormatName, String mimeType) {
             this.readerFormatName = readerFormatName;
             this.mimeType = mimeType;
+        }
+    }
+
+    private enum ThumbnailPolicy {
+        ANY_ASPECT_RATIO(false),
+        SQUARE_TRACK(true);
+
+        private final boolean requiresSquare;
+
+        ThumbnailPolicy(boolean requiresSquare) {
+            this.requiresSquare = requiresSquare;
         }
     }
 

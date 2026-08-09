@@ -10,7 +10,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-001 |
-| **Version** | 26-07-15 |
+| **Version** | 26-08-09 |
 | **Description** | Admin registers a new track. The service stores the original and waveform metadata; public listening later uses the controller without exposing the storage key or a direct static URL. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Admin logged in. At least one tag exists in the tags DB. |
@@ -19,14 +19,22 @@
 
 **Main Flow**
 1. Admin enters metadata (title, BPM, key, description) and selects tags, including optional visible `USAGE` guide tags.
-2. Admin attaches the audio file (audioFile) and thumbnail (optional).
-3. Frontend performs client-side validation.
+2. Admin attaches the audio file and an optional square JPEG/PNG thumbnail.
+3. Frontend validates the thumbnail type, size, and 1:1 natural dimensions and
+   shows the selected image in the same centered square `cover` viewport used
+   by Track cards. The backend remains authoritative.
 4. Frontend sends metadata and files to the backend as multipart/form-data.
 5. Backend performs authorization and server-side validation.
-6. Backend saves files to file storage and obtains the paths.
-7. Backend creates the track record (is_active=0, play_count=0) and track_tags in the DB.
-8. Backend keeps the original storage key as private operational metadata and does not publish a direct static URL.
-9. Backend returns an admin response containing the original `audioFile` storage key (201 Created).
+6. Backend decodes the audio once through the Java Sound/mp3spi path and derives
+   rounded duration plus the 200-point waveform from the same PCM pass. Invalid
+   audio returns 400 `AUDIO_ANALYSIS_FAILED` before storage or DB mutation.
+7. Backend requires a new thumbnail to be square, downscales without upscaling
+   to at most 2048x2048, and canonicalizes it to JPEG.
+8. Backend stores files through the existing mutation coordinator and creates
+   the Track (`is_active=0`, `play_count=0`) with duration, waveform, and
+   `track_tags` in one transactional workflow.
+9. Backend keeps the original storage key as private operational metadata and does not publish a direct static URL.
+10. Backend returns an admin response containing the original `audioFile` storage key (201 Created).
 
 **Postconditions**
 - Track record (is_active=0) created in DB.
@@ -40,7 +48,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-005 |
-| **Version** | 26-07-13 |
+| **Version** | 26-08-09 |
 | **Description** | User (including non-members) views the track list. Only tracks with is_active=1 are returned. |
 | **Actor** | User (including non-members), Backend |
 | **Preconditions** | - |
@@ -48,11 +56,19 @@
 | **Related UC** | SOUND-010 (play track), SOUND-011 (download track), SOUND-006 (view track detail) |
 
 **Main Flow**
-1. User selects/enters search criteria (keyword, genre tag, mood tag, usage guide tag, BPM range, key, sort order). All optional.
-2. Frontend sends criteria as query parameters to the backend.
+1. User selects/enters search criteria (keyword, Genre, Mood, Instrument,
+   Usage Guide Tag, BPM range, key, sort order). All are optional.
+2. Frontend sends each selected Tag as a repeated `genre`, `mood`,
+   `instrument`, or `usage` query parameter. Commas and `#` remain inside one
+   encoded Tag value.
 3. Backend searches `keyword` against the track title and associated `USAGE` guide tag names only.
-4. Backend returns a paginated list of tracks matching the criteria where is_active=1.
-5. Frontend displays the track list on screen and renders `USAGE` tags as a visible hashtag subline below the track title.
+4. Backend canonicalizes and de-duplicates Tag values, combines every selected
+   value with AND semantics, and returns only matching active Tracks.
+5. Backend validates `page >= 1` and `1 <= size <= 100` before creating the
+   database page request. The paginated response uses `dataList` plus a
+   1-based `pageInfo`.
+6. Frontend restores all four Tag types from the URL, preserves them through
+   sort/page changes, and renders `USAGE` as a visible hashtag subline.
 
 **Sort Parameter**
 | Value | Sort behavior |
@@ -79,7 +95,11 @@
 | createdAt | LocalDateTime | Track creation timestamp |
 
 **Exception / Alternative Flow**
-- No search results: returns an empty content array.
+- No search results: returns an empty `dataList` with `pageInfo`.
+- Invalid page or size: returns 400 `INVALID_ARGUMENT` without querying Track
+  search results.
+- If available-Tag loading fails, every registered filter choice remains
+  selectable rather than being disabled from stale availability data.
 
 **Postconditions**
 - Track list matching criteria (title, tag names, BPM, key, thumbnail, playCount, likeCount, downloadCount, tags) and pageInfo displayed on screen.
@@ -116,7 +136,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-010 |
-| **Version** | 26-07-15 |
+| **Version** | 26-08-09 |
 | **Description** | User (including non-members) listens to the complete active Track through the public controller-mediated stream. Listening remains separate from official download and License entitlement. Play history recording is handled by the frontend calling SOUND-004 separately. |
 | **Actor** | User (including non-members), Backend |
 | **Preconditions** | Track exists in DB with is_active=1. audio_file exists in file storage. |
@@ -129,8 +149,13 @@
 3. Backend loads the active Track's `audio_file` through the stream controller without returning its storage key or publishing a direct static URL.
 4. Without a `Range` header, Backend returns the complete resource representation. With one valid Range, Backend resolves it against the full resource length.
 5. Frontend starts playback and marks the player as playing only after `HTMLAudioElement.play()` succeeds.
-6. If playback fails or the media emits an error, Frontend keeps the player in a non-playing state and shows an error notification.
-7. If member: frontend calls SOUND-004 (save play history) only after playback starts successfully.
+6. `waiting` or `stalled` starts a pending timer. A non-fatal buffering message
+   appears only after 2 seconds and is cancelled by recovery, pause, retry,
+   Track change, or error. A generation fence prevents an old timer from
+   affecting a newer Track.
+7. `audio.error` and rejected `play()` use the separate playback-error state;
+   an actual error takes precedence over the buffering status.
+8. Frontend records browser-local Play History only after playback starts.
 
 **Exception / Alternative Flow**
 - No `Range` header: returns `200` with the full resource length.
@@ -140,6 +165,22 @@
 
 **Postconditions**
 - The complete active Track is available for public listening through the controller. The original storage key is absent from public responses, `/uploads/tracks/audio/**` remains denied, and listening creates no download record or License. Play history and play_count updates are handled in SOUND-004.
+
+## PlayableTrack Batch Hydration
+
+`POST /api/tracks/batch` is a public, non-paginated hydration endpoint used by
+album, playlist, likes, download-history, queue, persisted player, and local
+Play History paths.
+
+- Request: `ids`, 1 to 100 positive non-null Track IDs.
+- Processing: de-duplicate in first-requested-ID order and query active Tracks
+  plus tags in bounded collection queries.
+- Response: `dataList` of `id`, `title`, `artistName`, `duration`, `thumbnail`,
+  `waveformData`, `bpm`, `tonality`, and `tags`, preserving requested ID order.
+- Missing or inactive IDs are omitted. No per-row Track-detail HTTP request is
+  issued.
+- Browser persistence stores Track IDs and current time, then hydrates on
+  restore. Generation/snapshot checks reject stale hydration results.
 
 ---
 
@@ -181,7 +222,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-012 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-09 |
 | **Description** | Admin updates track metadata and files. Includes publish/unpublish via is_active change. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Admin logged in. Target track exists in DB. |
@@ -192,9 +233,16 @@
 1. Admin modifies fields (title, BPM, key, description, tags, files, is_active).
 2. Frontend sends the changed data as multipart/form-data to the backend.
 3. Backend performs authorization and validation.
-4. If audioFile changed: saves the new file to storage, replaces the path, deletes the old original, and regenerates waveform metadata.
-5. If tags changed: updates track_tags + updates tracks.updated_at.
-6. Backend updates the DB record and returns the updated track information.
+4. If audio changes, Backend analyzes first, then replaces the storage key,
+   duration, and waveform as one logical change. Analysis/storage/DB failure
+   keeps all old values.
+5. If a new thumbnail is supplied, the same square/canonical-JPEG rule as
+   create applies before replacement. An existing non-square thumbnail is
+   preserved when no replacement file is supplied; the UI only warns that a
+   square replacement is recommended.
+6. If tags changed: updates track_tags + updates tracks.updated_at.
+7. Metadata-only update does not decode audio and preserves duration/waveform.
+8. Backend updates the DB record and returns the updated track information.
 
 **Exception / Alternative Flow**
 - -
@@ -312,7 +360,22 @@
 
 **Exception / Alternative Flow**
 - Non-admin access: 403 Forbidden.
-- No results matching filter: returns empty content array.
+- No results matching filter: returns an empty `dataList` with `pageInfo`.
 
 **Postconditions**
 - Paginated track list (including inactive tracks) displayed on admin management screen.
+
+---
+
+## ADMIN Track Audio Analysis Dry-Run
+
+- API: `GET /api/admin/tracks/audio-analysis/dry-run?page=1&size=20`.
+- Scope: active and inactive Tracks, sorted by Track ID ascending; page size is
+  limited to 1 through 100.
+- Response: `dataList` plus `pageInfo`, with readability, stored/analyzed
+  duration, delta, waveform presence, format, recommendation, decoded frames,
+  sample rate, and channel count.
+- Safety: the response contains no audio storage key/path. The service is
+  read-only and does not save, update, delete, or backfill a Track.
+- Boundary: no existing-row dry-run has been executed against current
+  persistent storage under WI-022, and no backfill has been approved or run.

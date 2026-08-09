@@ -32,11 +32,12 @@ export interface DownloadHistoryItem {
   downloadId: number;
   trackId: number;
   title: string;
-  artistName: string | null;
+  artistName: string;
   thumbnail: string | null;
   bpm: number;
   tonality: string;
   duration: number;
+  waveformData: string | null;
   tags: TagItem[];
   downloadedAt: string;
 }

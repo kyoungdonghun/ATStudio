@@ -77,11 +77,13 @@ public class Track extends BaseEntity {
         if (description != null) this.description = description;
     }
 
-    public void updateAudioFile(String audioFile) {
+    public void updateAudioAnalysis(String audioFile, int duration, String waveformData) {
+        if (audioFile == null || audioFile.isBlank() || duration < 1
+                || waveformData == null || waveformData.isBlank()) {
+            throw new IllegalArgumentException("Complete audio analysis metadata is required");
+        }
         this.audioFile = audioFile;
-    }
-
-    public void updateWaveformData(String waveformData) {
+        this.duration = duration;
         this.waveformData = waveformData;
     }
 

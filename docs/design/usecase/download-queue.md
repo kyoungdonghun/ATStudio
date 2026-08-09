@@ -1,6 +1,6 @@
 ---
-version: 2.0
-last_updated: 2026-07-17
+version: 2.1
+last_updated: 2026-08-09
 project: ATS
 owner: docops
 category: design
@@ -24,7 +24,10 @@ dependencies:
 - Route: `/downloads`.
 - API: `GET /api/downloads/history`.
 - Actor: subscriber.
-- Result: paginated completed Official Download records.
+- Result: paginated completed Official Download records in `dataList` plus
+  `pageInfo`. Playback maps the returned Track data to the shared
+  `PlayableTrack` contract; missing waveform data is hydrated in one bounded
+  batch rather than one detail request per row.
 
 ## DOWNLOAD-002: Read Downloaded Track IDs
 

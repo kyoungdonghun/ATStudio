@@ -37,7 +37,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | ALBUM-002 |
-| **Version** | 26-03-29 |
+| **Version** | 26-08-09 |
 | **Description** | Any user (including unauthenticated) views the list of active albums. Supports sort parameter. |
 | **Actor** | Anyone, Backend |
 | **Preconditions** | None. |
@@ -47,15 +47,19 @@
 **Main Flow**
 1. Frontend sends a list request with optional `sort` parameter to the backend.
 2. Backend retrieves active albums (is_active=true) and applies sort ordering.
-3. Backend returns the album list with track counts and likeCount per album.
+3. Backend returns the album list with active Track counts and `likeCount` per
+   album. Inactive Track memberships remain persisted but do not contribute to
+   the public count.
 
 **Sort Parameter**
 | Value | Sort behavior |
 |-------|--------------|
 | `latest` (default) | `createdAt DESC`, then `id DESC` (DB-level ordering) |
-| `trackCount` | Global track count DESC, then `createdAt DESC` and `id DESC` before pagination (DB-level aggregate ordering) |
+| `trackCount` | Global active Track count DESC, then `createdAt DESC` and `id DESC` before pagination (DB-level aggregate ordering) |
 
-The paged catalog validates positive page/size values and bounds size to 100. It never loads the full album catalog for in-memory sorting.
+The paged catalog validates positive page/size values and bounds size to 100. It
+never loads the full album catalog for in-memory sorting. Administrative
+all-membership totals remain separate from this public active-only projection.
 
 **Response Fields (AlbumListItemResponse)**
 Includes `likeCount` field (from `albums.like_count`) in addition to id, title, thumbnail, and trackCount.
@@ -70,7 +74,7 @@ Includes `likeCount` field (from `albums.like_count`) in addition to id, title, 
 | Field | Value |
 |-------|-------|
 | **Code** | ALBUM-003 |
-| **Version** | 26-03-04 |
+| **Version** | 26-08-09 |
 | **Description** | Any user views album detail including the included track list and track order. |
 | **Actor** | Anyone, Backend |
 | **Preconditions** | None. Album must be active (is_active=true). |
@@ -79,13 +83,18 @@ Includes `likeCount` field (from `albums.like_count`) in addition to id, title, 
 
 **Main Flow**
 1. Frontend sends a detail request including albumId to the backend.
-2. Backend returns album information and included track list (sorted by track_order).
+2. Backend returns album information and active Track membership rows only,
+   sorted by `track_order`. Inactive membership rows remain persisted.
 
 **Exception / Alternative Flow**
 - Album not found or inactive: 404 response.
 
 **Postconditions**
 - Album detail and included track list (sorted by track_order) displayed on screen.
+- Every album Track item used for playback includes duration and is mapped
+  through the shared `PlayableTrack` contract. Nullable thumbnail and waveform
+  members may be omitted by the API; the mapper normalizes omitted or null
+  values to explicit `null` without synthesizing `duration=0`.
 
 ---
 

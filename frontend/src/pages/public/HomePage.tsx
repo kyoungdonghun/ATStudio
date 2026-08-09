@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type KeyboardEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchAlbums } from '@/api/albums';
 import { fetchTracks } from '@/api/tracks';
-import { fetchTags } from '@/api/tags';
-import type { Album, TagItem, TrackListItem } from '@/types';
+import { fetchAvailableTags, fetchTags } from '@/api/tags';
+import type { Album, TagItem, TagType, TrackListItem } from '@/types';
 import AlbumCard from '@/components/album/AlbumCard';
 import Button from '@/components/ui/Button';
-import Tag from '@/components/ui/Tag';
+import { formatTagNameForDisplay } from '@/utils/tagName';
 import styles from './HomePage.module.css';
 
 /** Number of albums in the new releases carousel */
@@ -15,6 +15,32 @@ const CAROUSEL_SIZE = 7;
 const GRID_SIZE = 12;
 /** Number of tracks in the new tracks section */
 const NEW_TRACKS_SIZE = 6;
+const INITIAL_DISCOVERY_TAGS = 8;
+
+const TAG_CATEGORIES = [
+  { type: 'USAGE', label: '용도', queryKey: 'usage' },
+  { type: 'GENRE', label: '장르', queryKey: 'genre' },
+  { type: 'MOOD', label: '분위기', queryKey: 'mood' },
+  { type: 'INSTRUMENT', label: '악기', queryKey: 'instrument' },
+] as const satisfies ReadonlyArray<{
+  type: TagType;
+  label: string;
+  queryKey: 'usage' | 'genre' | 'mood' | 'instrument';
+}>;
+
+type TagCategory = (typeof TAG_CATEGORIES)[number];
+
+function emptyTagSelection(): Record<TagType, number[]> {
+  return { USAGE: [], GENRE: [], MOOD: [], INSTRUMENT: [] };
+}
+
+function buildTrackSearchPath(category: TagCategory, tags: TagItem[], selectedIds: number[]) {
+  const params = new URLSearchParams();
+  tags
+    .filter((tag) => selectedIds.includes(tag.id))
+    .forEach((tag) => params.append(category.queryKey, tag.name));
+  return `/tracks?${params.toString()}`;
+}
 
 function SkeletonCard() {
   return (
@@ -33,12 +59,17 @@ export default function HomePage() {
   const [newAlbums, setNewAlbums] = useState<Album[]>([]);
   const [popularAlbums, setPopularAlbums] = useState<Album[]>([]);
   const [newTracks, setNewTracks] = useState<TrackListItem[]>([]);
-  const [genreTags, setGenreTags] = useState<TagItem[]>([]);
-  const [moodTags, setMoodTags] = useState<TagItem[]>([]);
-  const [selectedGenres, setSelectedGenres] = useState<Set<number>>(new Set());
-  const [selectedMoods, setSelectedMoods] = useState<Set<number>>(new Set());
+  const [registeredTags, setRegisteredTags] = useState<TagItem[]>([]);
+  const [availableTags, setAvailableTags] = useState<TagItem[]>([]);
+  const [activeTagType, setActiveTagType] = useState<TagType>('USAGE');
+  const [selectedTagIds, setSelectedTagIds] =
+    useState<Record<TagType, number[]>>(emptyTagSelection);
+  const [expandedTagTypes, setExpandedTagTypes] = useState<Set<TagType>>(new Set());
+  const [tagStatus, setTagStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const tagLoadGenerationRef = useRef(0);
+  const tagTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   /* ── Data fetching ── */
   useEffect(() => {
@@ -49,12 +80,10 @@ export default function HomePage() {
         setLoading(true);
         setError(null);
 
-        const [newRes, popRes, trackRes, genreTagsRes, moodTagsRes] = await Promise.all([
+        const [newRes, popRes, trackRes] = await Promise.all([
           fetchAlbums({ page: 1, size: CAROUSEL_SIZE, sort: 'latest' }),
           fetchAlbums({ page: 1, size: GRID_SIZE, sort: 'popular' }),
           fetchTracks({ page: 1, size: NEW_TRACKS_SIZE, sort: 'latest' }),
-          fetchTags('GENRE'),
-          fetchTags('MOOD'),
         ]);
 
         if (cancelled) return;
@@ -62,8 +91,6 @@ export default function HomePage() {
         setNewAlbums(newRes.dataList ?? []);
         setPopularAlbums(popRes.dataList ?? []);
         setNewTracks(trackRes.dataList ?? []);
-        setGenreTags(Array.isArray(genreTagsRes) ? genreTagsRes : []);
-        setMoodTags(Array.isArray(moodTagsRes) ? moodTagsRes : []);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -79,52 +106,74 @@ export default function HomePage() {
     };
   }, []);
 
-  /* ── Genre tag toggle ── */
-  function toggleGenre(tagId: number) {
-    setSelectedGenres((prev) => {
-      const next = new Set(prev);
-      if (next.has(tagId)) {
-        next.delete(tagId);
-      } else {
-        next.add(tagId);
+  const loadTagDiscovery = useCallback(async () => {
+    const generation = ++tagLoadGenerationRef.current;
+    setTagStatus('loading');
+
+    try {
+      const [registered, available] = await Promise.all([fetchTags(), fetchAvailableTags({})]);
+      if (generation !== tagLoadGenerationRef.current) return;
+
+      const safeRegistered = Array.isArray(registered) ? registered : [];
+      const safeAvailable = Array.isArray(available) ? available : [];
+      const firstCategoryWithResults = TAG_CATEGORIES.find((category) =>
+        safeAvailable.some((tag) => tag.type === category.type),
+      );
+
+      setRegisteredTags(safeRegistered);
+      setAvailableTags(safeAvailable);
+      setActiveTagType(firstCategoryWithResults?.type ?? 'USAGE');
+      setSelectedTagIds(emptyTagSelection());
+      setExpandedTagTypes(new Set());
+      setTagStatus('ready');
+    } catch {
+      if (generation === tagLoadGenerationRef.current) {
+        setRegisteredTags([]);
+        setAvailableTags([]);
+        setTagStatus('error');
       }
-      return next;
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadTagDiscovery();
+    return () => {
+      tagLoadGenerationRef.current += 1;
+    };
+  }, [loadTagDiscovery]);
+
+  function toggleDiscoveryTag(tagId: number) {
+    setSelectedTagIds((previous) => {
+      const selected = previous[activeTagType];
+      const nextSelected = selected.includes(tagId)
+        ? selected.filter((id) => id !== tagId)
+        : [...selected, tagId];
+      return { ...previous, [activeTagType]: nextSelected };
     });
   }
 
-  /* ── Mood tag toggle ── */
-  function toggleMood(tagId: number) {
-    setSelectedMoods((prev) => {
-      const next = new Set(prev);
-      if (next.has(tagId)) {
-        next.delete(tagId);
-      } else {
-        next.add(tagId);
-      }
+  function handleTagTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, currentIndex: number) {
+    let nextIndex: number | null = null;
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % TAG_CATEGORIES.length;
+    if (event.key === 'ArrowLeft') {
+      nextIndex = (currentIndex - 1 + TAG_CATEGORIES.length) % TAG_CATEGORIES.length;
+    }
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = TAG_CATEGORIES.length - 1;
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    setActiveTagType(TAG_CATEGORIES[nextIndex].type);
+    tagTabRefs.current[nextIndex]?.focus();
+  }
+
+  function toggleTagExpansion() {
+    setExpandedTagTypes((previous) => {
+      const next = new Set(previous);
+      if (next.has(activeTagType)) next.delete(activeTagType);
+      else next.add(activeTagType);
       return next;
     });
-  }
-
-  function handleGenreExplore() {
-    const names = genreTags.filter((t) => selectedGenres.has(t.id)).map((t) => t.name);
-    if (names.length > 0) {
-      const params = new URLSearchParams();
-      names.forEach((name) => params.append('genre', name));
-      navigate(`/tracks?${params.toString()}`);
-    } else {
-      navigate('/tracks');
-    }
-  }
-
-  function handleMoodExplore() {
-    const names = moodTags.filter((t) => selectedMoods.has(t.id)).map((t) => t.name);
-    if (names.length > 0) {
-      const params = new URLSearchParams();
-      names.forEach((name) => params.append('mood', name));
-      navigate(`/tracks?${params.toString()}`);
-    } else {
-      navigate('/tracks');
-    }
   }
 
   /* ── Album click handler ── */
@@ -153,6 +202,90 @@ export default function HomePage() {
     if (!el) return;
     const amount = el.clientWidth * 0.8;
     el.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
+  }
+
+  const activeCategory = TAG_CATEGORIES.find((category) => category.type === activeTagType)!;
+  const activeRegisteredTags = registeredTags.filter((tag) => tag.type === activeTagType);
+  const activeAvailableTags = availableTags
+    .filter((tag) => tag.type === activeTagType)
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  const activeSelectedIds = selectedTagIds[activeTagType];
+  const activeExpanded = expandedTagTypes.has(activeTagType);
+  const visibleAvailableTags = activeExpanded
+    ? activeAvailableTags
+    : activeAvailableTags.slice(0, INITIAL_DISCOVERY_TAGS);
+  const trackSearchPath = buildTrackSearchPath(
+    activeCategory,
+    activeAvailableTags,
+    activeSelectedIds,
+  );
+
+  function renderTagPanel() {
+    if (tagStatus === 'loading') {
+      return (
+        <div className={styles.tagState} role="status">
+          {'태그를 불러오는 중...'}
+        </div>
+      );
+    }
+
+    if (tagStatus === 'error') {
+      return (
+        <div className={styles.tagError} role="alert">
+          <span>{'태그 탐색 정보를 불러오지 못했습니다.'}</span>
+          <button className={styles.tagRetry} type="button" onClick={() => void loadTagDiscovery()}>
+            {'다시 시도'}
+          </button>
+        </div>
+      );
+    }
+
+    if (registeredTags.length === 0 && availableTags.length === 0) {
+      return <div className={styles.tagState}>{'등록된 태그가 아직 없습니다.'}</div>;
+    }
+
+    if (activeAvailableTags.length === 0) {
+      const message =
+        activeRegisteredTags.length === 0
+          ? `등록된 ${activeCategory.label} 태그가 아직 없습니다.`
+          : `활성 음원에 연결된 ${activeCategory.label} 태그가 아직 없습니다.`;
+      return <div className={styles.tagState}>{message}</div>;
+    }
+
+    return (
+      <>
+        <div className={styles.tagOptions} aria-label={`${activeCategory.label} 태그`}>
+          {visibleAvailableTags.map((tag) => {
+            const selected = activeSelectedIds.includes(tag.id);
+            return (
+              <button
+                key={tag.id}
+                className={`${styles.tagOption} ${selected ? styles.tagOptionSelected : ''}`}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => toggleDiscoveryTag(tag.id)}
+              >
+                {formatTagNameForDisplay(tag.name, tag.type)}
+              </button>
+            );
+          })}
+        </div>
+        <div className={styles.tagActions}>
+          {activeAvailableTags.length > INITIAL_DISCOVERY_TAGS && (
+            <button className={styles.tagMore} type="button" onClick={toggleTagExpansion}>
+              {activeExpanded
+                ? '접기'
+                : `더보기 (${activeAvailableTags.length - INITIAL_DISCOVERY_TAGS})`}
+            </button>
+          )}
+          {activeSelectedIds.length > 0 && (
+            <Link className={styles.tagExplore} to={trackSearchPath}>
+              {'선택한 태그로 탐색'}
+            </Link>
+          )}
+        </div>
+      </>
+    );
   }
 
   return (
@@ -331,47 +464,42 @@ export default function HomePage() {
 
       <hr className={styles.divider} />
 
-      {/* ── GENRE TAGS ── */}
-      <section className={styles.section}>
+      {/* ── TAG DISCOVERY ── */}
+      <section className={`${styles.section} ${styles.tagExplorer}`}>
         <div className={styles.secHead}>
-          <div className={styles.secTitle}>{'장르별 탐색'}</div>
+          <div className={styles.secTitle}>{'태그별 탐색'}</div>
         </div>
-        <div className={styles.tags}>
-          {genreTags.map((tag) => (
-            <Tag
-              key={tag.id}
-              label={tag.name}
-              active={selectedGenres.has(tag.id)}
-              onClick={() => toggleGenre(tag.id)}
-            />
-          ))}
-          {selectedGenres.size > 0 && (
-            <Button variant="outline" size="sm" onClick={handleGenreExplore}>
-              {'탐색 \u2192'}
-            </Button>
-          )}
+        <div className={styles.tagTabs} role="tablist" aria-label="태그 탐색 범주">
+          {TAG_CATEGORIES.map((category, index) => {
+            const selected = category.type === activeTagType;
+            return (
+              <button
+                key={category.type}
+                ref={(element) => {
+                  tagTabRefs.current[index] = element;
+                }}
+                id={`home-tag-tab-${category.type.toLowerCase()}`}
+                className={`${styles.tagTab} ${selected ? styles.tagTabSelected : ''}`}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                aria-controls="home-tag-panel"
+                tabIndex={selected ? 0 : -1}
+                onClick={() => setActiveTagType(category.type)}
+                onKeyDown={(event) => handleTagTabKeyDown(event, index)}
+              >
+                {category.label}
+              </button>
+            );
+          })}
         </div>
-      </section>
-
-      {/* ── MOOD TAGS ── */}
-      <section className={styles.section}>
-        <div className={styles.secHead}>
-          <div className={styles.secTitle}>{'분위기별 탐색'}</div>
-        </div>
-        <div className={styles.tags}>
-          {moodTags.map((tag) => (
-            <Tag
-              key={tag.id}
-              label={tag.name}
-              active={selectedMoods.has(tag.id)}
-              onClick={() => toggleMood(tag.id)}
-            />
-          ))}
-          {selectedMoods.size > 0 && (
-            <Button variant="outline" size="sm" onClick={handleMoodExplore}>
-              {'탐색 \u2192'}
-            </Button>
-          )}
+        <div
+          className={styles.tagPanel}
+          id="home-tag-panel"
+          role="tabpanel"
+          aria-labelledby={`home-tag-tab-${activeTagType.toLowerCase()}`}
+        >
+          {renderTagPanel()}
         </div>
       </section>
 

@@ -35,12 +35,14 @@ public class TagController {
 
     @GetMapping("/available")
     public ResponseEntity<ResponseDTO<TagResponse>> getAvailableTags(
-            @RequestParam(required = false) String genre,
-            @RequestParam(required = false) String mood,
-            @RequestParam(required = false) String usage,
+            @RequestParam(required = false) List<String> genre,
+            @RequestParam(required = false) List<String> mood,
+            @RequestParam(required = false) List<String> instrument,
+            @RequestParam(required = false) List<String> usage,
             @RequestParam(required = false) Integer bpmMin,
             @RequestParam(required = false) Integer bpmMax) {
-        List<TagResponse> tags = tagService.getAvailableTags(genre, mood, usage, bpmMin, bpmMax);
+        List<TagResponse> tags = tagService.getAvailableTags(
+                genre, mood, instrument, usage, bpmMin, bpmMax);
         return ResponseEntity.ok(ResponseDTO.<TagResponse>builder()
                 .message("Available tags retrieved")
                 .dataList(tags)

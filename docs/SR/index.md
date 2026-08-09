@@ -1,6 +1,6 @@
 # Screen Review (SR) Index
 
-> **Current index contract (2026-08-08):** 100 numbered SR files are indexed below: 82 DONE, 15 OPEN, 2 NOT CONFIRMED, and 1 DROPPED. `confirm/` is reserved and currently empty. Historical SR-C identifiers are aliases stored in numbered SR files, not additional files or open work items.
+> **Current index contract (2026-08-09):** 100 numbered SR files are indexed below: 82 DONE, 15 OPEN, 2 NOT CONFIRMED, and 1 DROPPED. `confirm/` is reserved and currently empty. Historical SR-C identifiers are aliases stored in numbered SR files, not additional files or open work items.
 
 | SR | Title | Status |
 |----|-------|--------|
@@ -104,6 +104,12 @@
 | SR-99 | 음원 길이 오출력과 저장 메타데이터 정합성 개선 | OPEN |
 | SR-100 | 메인 태그 탐색을 Usage 우선 통합 탐색으로 개편 | OPEN |
 | SR-101 | 재생 지연 안내와 집계 화면 waveform 전달 누락 개선 | OPEN |
+
+SR-94~101 contain current WI-014~021 implementation evidence. They remain
+`OPEN` at index level until their documented full-suite/build/browser or
+manual/operational boundaries are closed. In particular, existing-row audio
+backfill, zero-ADMIN recovery drill, full browser acceptance, production
+deployment, and external provider actions are not marked complete.
 
 ## Historical Code Confirmation Aliases
 

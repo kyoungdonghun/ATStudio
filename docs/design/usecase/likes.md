@@ -46,7 +46,11 @@
 **Main Flow**
 1. Frontend sends a request with the auth token to the backend.
 2. Backend extracts userId from the JWT and queries the user's likes list.
-3. Backend returns the liked track list (trackId, title, bpm, tonality, thumbnail, createdAt).
+3. Backend returns the liked Track `dataList` with duration and waveform data in
+   addition to identity, display metadata, BPM, tonality, thumbnail, tags, and
+   creation time.
+4. Frontend maps each row through the shared `PlayableTrack` contract; it does
+   not synthesize missing duration/waveform fields.
 
 **Postconditions**
 - Liked track list displayed on screen.

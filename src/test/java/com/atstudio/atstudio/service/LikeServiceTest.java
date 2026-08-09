@@ -91,7 +91,7 @@ class LikeServiceTest {
     void getMyLikes_success() {
         User user = buildUser(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(likeRepository.findAllByUser(user)).willReturn(List.of());
+        given(likeRepository.findAllActiveByUser(user)).willReturn(List.of());
 
         List<LikeResponse> result = likeService.getMyLikes(buildUserDetails(1L));
 
@@ -141,6 +141,7 @@ class LikeServiceTest {
     private Track buildTrack(Long id, boolean active) {
         Track track = Track.builder()
                 .title("Test Track").bpm(120).tonality("C").audioFile("audio.mp3")
+                .user(User.builder().nickname("Artist " + id).email("artist" + id + "@test.com").build())
                 .isActive(active).build();
         ReflectionTestUtils.setField(track, "id", id);
         return track;

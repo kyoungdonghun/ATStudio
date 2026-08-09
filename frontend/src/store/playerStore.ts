@@ -1,11 +1,16 @@
 import { create } from 'zustand';
-import type { Track } from '@/types';
+import { fetchPlayableTracks } from '@/api/tracks';
+import type { PlayableTrack } from '@/types';
 import { safeStorage } from '@/utils/safeStorage';
 
 const audio = new Audio();
 const STREAM_BASE = '/api/tracks';
+const BUFFERING_THRESHOLD_MS = 2_000;
+const MAX_HYDRATION_IDS = 100;
 let isSeeking = false;
 let playbackAttempt = 0;
+let bufferingGeneration = 0;
+let bufferingTimer: ReturnType<typeof setTimeout> | null = null;
 
 const PLAYBACK_ERROR = '재생을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.';
 const MEDIA_ERROR = '오디오를 재생하는 중 오류가 발생했습니다.';
@@ -15,23 +20,32 @@ type RepeatMode = 'off' | 'all' | 'one';
 /* ── localStorage persistence helpers ── */
 
 interface PersistedPlayerState {
-  version: 1;
-  currentTrack: Track | null;
-  queue: Track[];
-  queueIndex: number;
+  version: 2;
+  currentTrackId: number | null;
+  queueTrackIds: number[];
   currentTime: number;
 }
 
-function persistState(state: { currentTrack: Track | null; queue: Track[]; currentTime: number }) {
+interface PendingPlayerState {
+  currentTrackId: number | null;
+  queueTrackIds: number[];
+  currentTime: number;
+}
+
+function persistState(state: {
+  currentTrack: PlayableTrack | null;
+  queue: PlayableTrack[];
+  currentTime: number;
+}) {
   try {
-    const idx = state.currentTrack
-      ? state.queue.findIndex((t) => t.id === state.currentTrack!.id)
-      : 0;
+    const queueTrackIds = Array.from(new Set(state.queue.map((track) => track.id)));
+    if (state.currentTrack && !queueTrackIds.includes(state.currentTrack.id)) {
+      queueTrackIds.unshift(state.currentTrack.id);
+    }
     const saved: PersistedPlayerState = {
-      version: 1,
-      currentTrack: state.currentTrack,
-      queue: state.queue,
-      queueIndex: Math.max(0, idx),
+      version: 2,
+      currentTrackId: state.currentTrack?.id ?? null,
+      queueTrackIds: queueTrackIds.slice(0, MAX_HYDRATION_IDS),
       currentTime: state.currentTime,
     };
     safeStorage.setItem('playerState', JSON.stringify(saved));
@@ -48,61 +62,59 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string';
 }
 
-function isTrack(value: unknown): value is Track {
+function isPositiveInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) > 0;
+}
+
+function isPlayableTrack(value: unknown): value is PlayableTrack {
   if (!isRecord(value)) return false;
-  const tags = value.tags;
   return (
-    Number.isSafeInteger(value.id) &&
-    Number(value.id) > 0 &&
+    isPositiveInteger(value.id) &&
     typeof value.title === 'string' &&
     typeof value.artistName === 'string' &&
     typeof value.duration === 'number' &&
     Number.isFinite(value.duration) &&
-    typeof value.bpm === 'number' &&
-    Number.isFinite(value.bpm) &&
-    typeof value.tonality === 'string' &&
-    isNullableString(value.description) &&
-    isNullableString(value.audioFile) &&
     isNullableString(value.thumbnail) &&
-    (value.waveformData === undefined || isNullableString(value.waveformData)) &&
-    Array.isArray(tags) &&
-    tags.every(
-      (tag) =>
-        isRecord(tag) &&
-        Number.isSafeInteger(tag.id) &&
-        typeof tag.name === 'string' &&
-        ['GENRE', 'MOOD', 'INSTRUMENT', 'USAGE'].includes(String(tag.type)),
-    ) &&
-    typeof value.isActive === 'boolean' &&
-    [value.playCount, value.likeCount, value.downloadCount].every(
-      (count) => typeof count === 'number' && Number.isFinite(count),
-    ) &&
-    typeof value.createdAt === 'string' &&
-    typeof value.updatedAt === 'string'
+    isNullableString(value.waveformData) &&
+    (value.bpm === undefined || (typeof value.bpm === 'number' && Number.isFinite(value.bpm))) &&
+    (value.tonality === undefined || typeof value.tonality === 'string') &&
+    (value.tags === undefined || Array.isArray(value.tags))
   );
 }
 
-function normalizePersistedState(value: unknown): PersistedPlayerState | null {
-  if (!isRecord(value) || value.version !== 1) return null;
+function readTrackId(value: unknown): number | null {
+  if (isPositiveInteger(value)) return value;
+  if (isRecord(value) && isPositiveInteger(value.id)) return value.id;
+  return null;
+}
 
-  const currentTrack = isTrack(value.currentTrack) ? value.currentTrack : null;
-  const queue = Array.isArray(value.queue) ? value.queue.filter(isTrack) : [];
-  if (currentTrack && !queue.some((track) => track.id === currentTrack.id)) {
-    queue.push(currentTrack);
+function normalizePersistedState(value: unknown): PendingPlayerState | null {
+  if (!isRecord(value) || (value.version !== 1 && value.version !== 2)) return null;
+
+  const currentTrackId =
+    value.version === 2 ? readTrackId(value.currentTrackId) : readTrackId(value.currentTrack);
+  const rawQueue = value.version === 2 ? value.queueTrackIds : value.queue;
+  const queueTrackIds = Array.isArray(rawQueue)
+    ? Array.from(
+        new Set(rawQueue.map(readTrackId).filter((trackId): trackId is number => trackId !== null)),
+      ).slice(0, MAX_HYDRATION_IDS)
+    : [];
+  if (currentTrackId && !queueTrackIds.includes(currentTrackId)) {
+    queueTrackIds.unshift(currentTrackId);
+    queueTrackIds.splice(MAX_HYDRATION_IDS);
   }
   const currentTime =
-    currentTrack &&
+    currentTrackId &&
     typeof value.currentTime === 'number' &&
     Number.isFinite(value.currentTime) &&
     value.currentTime >= 0
       ? value.currentTime
       : 0;
-  const queueIndex = currentTrack ? queue.findIndex((track) => track.id === currentTrack.id) : 0;
 
-  return { version: 1, currentTrack, queue, queueIndex: Math.max(0, queueIndex), currentTime };
+  return { currentTrackId, queueTrackIds, currentTime };
 }
 
-function loadPersistedState(): PersistedPlayerState | null {
+function loadPersistedState(): PendingPlayerState | null {
   try {
     const raw = safeStorage.getItem('playerState');
     return raw ? normalizePersistedState(JSON.parse(raw)) : null;
@@ -111,17 +123,19 @@ function loadPersistedState(): PersistedPlayerState | null {
   }
 }
 
-const savedState = loadPersistedState();
+let pendingPlayerState = loadPersistedState();
+let playerHydrationPromise: Promise<void> | null = null;
+let playerStateGeneration = 0;
 
-if (savedState?.currentTrack) {
-  audio.src = `${STREAM_BASE}/${savedState.currentTrack.id}/stream`;
+function restoreAudioSource(track: PlayableTrack, currentTime: number): void {
+  audio.src = `${STREAM_BASE}/${track.id}/stream`;
   try {
-    audio.currentTime = savedState.currentTime;
+    audio.currentTime = currentTime;
   } catch {
     audio.addEventListener(
       'loadedmetadata',
       () => {
-        audio.currentTime = savedState.currentTime;
+        audio.currentTime = currentTime;
       },
       { once: true },
     );
@@ -131,65 +145,129 @@ if (savedState?.currentTrack) {
 /* ── Play history (localStorage, SR-89) ── */
 
 export interface LocalPlayEntry {
-  trackId: number;
-  title: string;
-  thumbnail: string | null;
+  track: PlayableTrack;
   playedAt: string;
 }
 
-function isLocalPlayEntry(value: unknown): value is LocalPlayEntry {
-  return (
-    isRecord(value) &&
-    Number.isSafeInteger(value.trackId) &&
-    Number(value.trackId) > 0 &&
-    typeof value.title === 'string' &&
-    isNullableString(value.thumbnail) &&
-    typeof value.playedAt === 'string' &&
-    Number.isFinite(Date.parse(value.playedAt))
-  );
+interface PendingPlayEntry {
+  trackId: number;
+  track: PlayableTrack | null;
+  playedAt: string;
 }
 
-function parsePlayHistory(raw: string | null): LocalPlayEntry[] {
+function parsePlayHistory(raw: string | null): PendingPlayEntry[] {
   if (!raw) return [];
   const parsed: unknown = JSON.parse(raw);
   if (!Array.isArray(parsed)) return [];
-  return parsed.filter(isLocalPlayEntry).slice(0, HISTORY_MAX);
+  return parsed
+    .flatMap((value): PendingPlayEntry[] => {
+      if (!isRecord(value) || typeof value.playedAt !== 'string') return [];
+      if (!Number.isFinite(Date.parse(value.playedAt))) return [];
+      if (isPlayableTrack(value.track)) {
+        return [{ trackId: value.track.id, track: value.track, playedAt: value.playedAt }];
+      }
+      const trackId = readTrackId(value.trackId);
+      return trackId ? [{ trackId, track: null, playedAt: value.playedAt }] : [];
+    })
+    .slice(0, HISTORY_MAX);
 }
 
 const HISTORY_KEY = 'playHistory';
 const HISTORY_MAX = 100;
 
-export function savePlayHistory(track: Track): void {
+function loadPendingPlayHistory(): PendingPlayEntry[] {
   try {
-    const raw = safeStorage.getItem(HISTORY_KEY);
-    const list = parsePlayHistory(raw);
-    const entry: LocalPlayEntry = {
+    return parsePlayHistory(safeStorage.getItem(HISTORY_KEY));
+  } catch {
+    return [];
+  }
+}
+
+function persistPlayHistory(entries: LocalPlayEntry[]): void {
+  safeStorage.setItem(HISTORY_KEY, JSON.stringify(entries));
+}
+
+function persistPendingPlayHistory(entries: PendingPlayEntry[]): void {
+  safeStorage.setItem(
+    HISTORY_KEY,
+    JSON.stringify(
+      entries.map((entry) =>
+        entry.track
+          ? { track: entry.track, playedAt: entry.playedAt }
+          : { trackId: entry.trackId, playedAt: entry.playedAt },
+      ),
+    ),
+  );
+}
+
+export function savePlayHistory(track: PlayableTrack): void {
+  try {
+    const list = loadPendingPlayHistory();
+    const entry: PendingPlayEntry = {
       trackId: track.id,
-      title: track.title,
-      thumbnail: track.thumbnail ?? null,
+      track,
       playedAt: new Date().toISOString(),
     };
-    // Upsert: remove previous entry for same track, prepend latest
-    const updated = [entry, ...list.filter((e) => e.trackId !== track.id)].slice(0, HISTORY_MAX);
-    safeStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+    const updated = [
+      entry,
+      ...list.filter((historyEntry) => historyEntry.trackId !== track.id),
+    ].slice(0, HISTORY_MAX);
+    persistPendingPlayHistory(updated);
   } catch {
     /* quota exceeded — ignore */
   }
 }
 
 export function loadPlayHistory(): LocalPlayEntry[] {
-  try {
-    const raw = safeStorage.getItem(HISTORY_KEY);
-    return parsePlayHistory(raw);
-  } catch {
-    return [];
+  return loadPendingPlayHistory().flatMap((entry) =>
+    entry.track ? [{ track: entry.track, playedAt: entry.playedAt }] : [],
+  );
+}
+
+let historyHydrated = false;
+let historyHydrationPromise: Promise<LocalPlayEntry[]> | null = null;
+
+export function hydratePlayHistory(): Promise<LocalPlayEntry[]> {
+  if (historyHydrated) return Promise.resolve(loadPlayHistory());
+  if (historyHydrationPromise) return historyHydrationPromise;
+
+  const pendingEntries = loadPendingPlayHistory();
+  const ids = Array.from(new Set(pendingEntries.map((entry) => entry.trackId))).slice(
+    0,
+    MAX_HYDRATION_IDS,
+  );
+  if (ids.length === 0) {
+    historyHydrated = true;
+    return Promise.resolve([]);
   }
+
+  historyHydrationPromise = fetchPlayableTracks(ids)
+    .then((tracks) => {
+      const tracksById = new Map(tracks.map((track) => [track.id, track]));
+      const latestEntries = loadPendingPlayHistory();
+      const historyWasCleared =
+        latestEntries.length === 0 && safeStorage.getItem(HISTORY_KEY) === null;
+      const hydrated = latestEntries.flatMap((entry): LocalPlayEntry[] => {
+        const hydratedTrack = entry.track ?? tracksById.get(entry.trackId);
+        return hydratedTrack ? [{ track: hydratedTrack, playedAt: entry.playedAt }] : [];
+      });
+      if (!historyWasCleared) {
+        persistPlayHistory(hydrated);
+      }
+      historyHydrated = true;
+      return hydrated;
+    })
+    .catch(() => loadPlayHistory())
+    .finally(() => {
+      historyHydrationPromise = null;
+    });
+  return historyHydrationPromise;
 }
 
 export function removePlayHistoryEntry(trackId: number): void {
   try {
-    const list = loadPlayHistory().filter((e) => e.trackId !== trackId);
-    safeStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+    const list = loadPendingPlayHistory().filter((entry) => entry.trackId !== trackId);
+    persistPendingPlayHistory(list);
   } catch {
     /* ignore */
   }
@@ -198,6 +276,7 @@ export function removePlayHistoryEntry(trackId: number): void {
 export function clearPlayHistory(): void {
   try {
     safeStorage.removeItem(HISTORY_KEY);
+    historyHydrated = true;
   } catch {
     /* ignore */
   }
@@ -206,7 +285,7 @@ export function clearPlayHistory(): void {
 /* ── Store interface ── */
 
 interface PlayerState {
-  currentTrack: Track | null;
+  currentTrack: PlayableTrack | null;
   isPlaying: boolean;
   isStalled: boolean;
   playbackError: string | null;
@@ -214,7 +293,7 @@ interface PlayerState {
   duration: number;
   volume: number;
   muted: boolean;
-  queue: Track[];
+  queue: PlayableTrack[];
   shuffle: boolean;
   repeat: RepeatMode;
   /**
@@ -222,8 +301,10 @@ interface PlayerState {
    * When set, next()/prev() navigates through this list instead of the queue.
    * Falls back to queue-based navigation (shuffle/repeat) when empty.
    */
-  trackListContext: Track[];
-  play: (track: Track) => void;
+  trackListContext: PlayableTrack[];
+  persistedHydration: 'idle' | 'loading' | 'ready' | 'error';
+  hydratePersistedState: () => Promise<void>;
+  play: (track: PlayableTrack) => void;
   pause: () => void;
   resume: () => void;
   next: () => void;
@@ -233,32 +314,78 @@ interface PlayerState {
   toggleMute: () => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
-  playAll: (tracks: Track[]) => void;
-  addToQueue: (track: Track) => void;
+  playAll: (tracks: PlayableTrack[]) => void;
+  addToQueue: (track: PlayableTrack) => void;
   removeFromQueue: (trackId: number) => void;
   reorderQueue: (fromIndex: number, toIndex: number) => void;
   clearQueue: () => void;
-  setTrackListContext: (tracks: Track[]) => void;
+  setTrackListContext: (tracks: PlayableTrack[]) => void;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => {
+  const supersedePersistedHydration = () => {
+    playerStateGeneration += 1;
+    pendingPlayerState = null;
+  };
+
+  const cancelBuffering = (updates?: Partial<PlayerState>) => {
+    bufferingGeneration += 1;
+    if (bufferingTimer !== null) {
+      clearTimeout(bufferingTimer);
+      bufferingTimer = null;
+    }
+
+    if (updates) {
+      set({ ...updates, isStalled: false });
+    } else if (get().isStalled) {
+      set({ isStalled: false });
+    }
+  };
+
+  const beginBuffering = () => {
+    const { currentTrack, isStalled, playbackError } = get();
+    if (!currentTrack || isStalled || playbackError || bufferingTimer !== null) return;
+
+    const generation = ++bufferingGeneration;
+    const attempt = playbackAttempt;
+    const trackId = currentTrack.id;
+
+    bufferingTimer = setTimeout(() => {
+      const state = get();
+      if (
+        generation !== bufferingGeneration ||
+        attempt !== playbackAttempt ||
+        state.currentTrack?.id !== trackId ||
+        state.playbackError !== null
+      ) {
+        return;
+      }
+
+      bufferingTimer = null;
+      set({ isStalled: true });
+    }, BUFFERING_THRESHOLD_MS);
+  };
+
   const stopWithError = (message: string) => {
-    if (!get().currentTrack) return;
     playbackAttempt += 1;
+    if (!get().currentTrack) {
+      cancelBuffering();
+      return;
+    }
     audio.pause();
-    set({ isPlaying: false, isStalled: false, playbackError: message });
+    cancelBuffering({ isPlaying: false, playbackError: message });
   };
 
   const startPlayback = (onSuccess?: () => void) => {
     const attempt = ++playbackAttempt;
-    set({ isPlaying: false, isStalled: false, playbackError: null });
+    cancelBuffering({ isPlaying: false, playbackError: null });
 
     let playPromise: Promise<void>;
     try {
       playPromise = audio.play();
     } catch {
       if (attempt === playbackAttempt) {
-        set({ isPlaying: false, isStalled: false, playbackError: PLAYBACK_ERROR });
+        cancelBuffering({ isPlaying: false, playbackError: PLAYBACK_ERROR });
       }
       return;
     }
@@ -266,19 +393,19 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     void playPromise.then(
       () => {
         if (attempt !== playbackAttempt) return;
-        set({ isPlaying: true, isStalled: false, playbackError: null });
+        cancelBuffering({ isPlaying: true, playbackError: null });
         onSuccess?.();
       },
       () => {
         if (attempt !== playbackAttempt) return;
-        set({ isPlaying: false, isStalled: false, playbackError: PLAYBACK_ERROR });
+        cancelBuffering({ isPlaying: false, playbackError: PLAYBACK_ERROR });
       },
     );
   };
 
   // Audio event listeners
   audio.addEventListener('timeupdate', () => {
-    set({ currentTime: audio.currentTime, duration: audio.duration || 0, isStalled: false });
+    cancelBuffering({ currentTime: audio.currentTime, duration: audio.duration || 0 });
   });
 
   audio.addEventListener('ended', () => {
@@ -296,22 +423,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     set({ duration: audio.duration || 0 });
   });
 
-  const markStalled = () => {
-    if (get().currentTrack) {
-      set({ isStalled: true });
-    }
-  };
-
-  const clearStalled = () => {
-    if (get().isStalled) {
-      set({ isStalled: false });
-    }
-  };
-
-  audio.addEventListener('stalled', markStalled);
-  audio.addEventListener('waiting', markStalled);
-  audio.addEventListener('canplay', clearStalled);
-  audio.addEventListener('playing', clearStalled);
+  audio.addEventListener('stalled', beginBuffering);
+  audio.addEventListener('waiting', beginBuffering);
+  audio.addEventListener('canplay', () => cancelBuffering());
+  audio.addEventListener('playing', () => cancelBuffering());
 
   audio.addEventListener('error', () => {
     stopWithError(MEDIA_ERROR);
@@ -322,33 +437,105 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
   audio.volume = isNaN(savedVolume) ? 1 : savedVolume;
 
   return {
-    currentTrack: savedState?.currentTrack ?? null,
+    currentTrack: null,
     isPlaying: false,
     isStalled: false,
     playbackError: null,
-    currentTime: savedState?.currentTime ?? 0,
+    currentTime: 0,
     duration: 0,
     volume: audio.volume,
     muted: false,
-    queue: savedState?.queue ?? [],
+    queue: [],
     shuffle: false,
     repeat: 'off' as RepeatMode,
     trackListContext: [],
+    persistedHydration: 'idle',
 
-    play: (track: Track) => {
+    hydratePersistedState: () => {
+      if (!pendingPlayerState) {
+        set({ persistedHydration: 'ready' });
+        return Promise.resolve();
+      }
+      if (playerHydrationPromise) return playerHydrationPromise;
+
+      const snapshot = pendingPlayerState;
+      if (snapshot.queueTrackIds.length === 0) {
+        pendingPlayerState = null;
+        playbackAttempt += 1;
+        audio.pause();
+        audio.src = '';
+        cancelBuffering({
+          currentTrack: null,
+          isPlaying: false,
+          playbackError: null,
+          currentTime: 0,
+          duration: 0,
+          queue: [],
+          persistedHydration: 'ready',
+        });
+        return Promise.resolve();
+      }
+
+      const hydrationGeneration = playerStateGeneration;
+      set({ persistedHydration: 'loading' });
+      playerHydrationPromise = fetchPlayableTracks(snapshot.queueTrackIds)
+        .then((tracks) => {
+          if (hydrationGeneration !== playerStateGeneration || pendingPlayerState !== snapshot) {
+            return;
+          }
+          const tracksById = new Map(tracks.map((track) => [track.id, track]));
+          const queue = snapshot.queueTrackIds.flatMap((trackId) => {
+            const track = tracksById.get(trackId);
+            return track ? [track] : [];
+          });
+          const currentTrack = snapshot.currentTrackId
+            ? (tracksById.get(snapshot.currentTrackId) ?? null)
+            : null;
+          const currentTime = currentTrack ? snapshot.currentTime : 0;
+          if (currentTrack) {
+            restoreAudioSource(currentTrack, currentTime);
+          }
+          set({
+            currentTrack,
+            queue,
+            currentTime,
+            duration: currentTrack?.duration ?? 0,
+            persistedHydration: 'ready',
+          });
+          persistState({ currentTrack, queue, currentTime });
+          pendingPlayerState = null;
+        })
+        .catch(() => {
+          if (hydrationGeneration === playerStateGeneration && pendingPlayerState === snapshot) {
+            set({ persistedHydration: 'error' });
+          }
+        })
+        .finally(() => {
+          playerHydrationPromise = null;
+        });
+      return playerHydrationPromise;
+    },
+
+    play: (track: PlayableTrack) => {
+      supersedePersistedHydration();
+      cancelBuffering();
       audio.src = `${STREAM_BASE}/${track.id}/stream`;
 
       // Add to queue if not already present
       const { queue } = get();
       const inQueue = queue.some((t) => t.id === track.id);
-      const newQueue = inQueue ? queue : [...queue, track];
+      const newQueue = inQueue
+        ? queue.map((queuedTrack) => (queuedTrack.id === track.id ? track : queuedTrack))
+        : [...queue, track];
       set({
         currentTrack: track,
         isPlaying: false,
         isStalled: false,
         playbackError: null,
         currentTime: 0,
-        ...(inQueue ? {} : { queue: newQueue }),
+        duration: track.duration,
+        queue: newQueue,
+        persistedHydration: 'ready',
       });
       persistState({ currentTrack: track, queue: newQueue, currentTime: 0 });
 
@@ -361,7 +548,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     pause: () => {
       playbackAttempt += 1;
       audio.pause();
-      set({ isPlaying: false, isStalled: false });
+      cancelBuffering({ isPlaying: false });
     },
 
     resume: () => {
@@ -447,9 +634,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     seek: (time: number) => {
+      supersedePersistedHydration();
       isSeeking = true;
       audio.currentTime = time;
-      set({ currentTime: time });
+      set({ currentTime: time, persistedHydration: 'ready' });
       persistState({ ...get(), currentTime: time });
       setTimeout(() => {
         isSeeking = false;
@@ -476,21 +664,23 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       }
     },
 
-    playAll: (tracks: Track[]) => {
+    playAll: (tracks: PlayableTrack[]) => {
       if (tracks.length === 0) return;
+      supersedePersistedHydration();
       const { play } = get();
-      set({ queue: tracks });
+      set({ queue: tracks, persistedHydration: 'ready' });
       play(tracks[0]);
       // persistState is called inside play()
     },
 
-    addToQueue: (track: Track) => {
+    addToQueue: (track: PlayableTrack) => {
+      supersedePersistedHydration();
       set((state) => {
-        const newQueue = state.queue.some((t) => t.id === track.id)
-          ? state.queue
+        const newQueue = state.queue.some((queuedTrack) => queuedTrack.id === track.id)
+          ? state.queue.map((queuedTrack) => (queuedTrack.id === track.id ? track : queuedTrack))
           : [...state.queue, track];
         persistState({ ...state, queue: newQueue });
-        return { queue: newQueue };
+        return { queue: newQueue, persistedHydration: 'ready' };
       });
     },
 
@@ -507,39 +697,42 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     removeFromQueue: (trackId: number) => {
+      supersedePersistedHydration();
       set((state) => {
         const newQueue = state.queue.filter((t) => t.id !== trackId);
         persistState({ ...state, queue: newQueue });
-        return { queue: newQueue };
+        return { queue: newQueue, persistedHydration: 'ready' };
       });
     },
 
     reorderQueue: (fromIndex: number, toIndex: number) => {
+      supersedePersistedHydration();
       set((state) => {
         const next = [...state.queue];
         const [moved] = next.splice(fromIndex, 1);
         next.splice(toIndex, 0, moved);
         persistState({ ...state, queue: next });
-        return { queue: next };
+        return { queue: next, persistedHydration: 'ready' };
       });
     },
 
-    setTrackListContext: (tracks: Track[]) => {
+    setTrackListContext: (tracks: PlayableTrack[]) => {
       set({ trackListContext: tracks });
     },
 
     clearQueue: () => {
+      supersedePersistedHydration();
       playbackAttempt += 1;
       audio.pause();
       audio.src = '';
-      set({
+      cancelBuffering({
         queue: [],
         currentTrack: null,
         isPlaying: false,
-        isStalled: false,
         playbackError: null,
         currentTime: 0,
         duration: 0,
+        persistedHydration: 'ready',
       });
       persistState({ currentTrack: null, queue: [], currentTime: 0 });
     },

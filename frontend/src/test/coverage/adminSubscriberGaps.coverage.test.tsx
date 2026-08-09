@@ -17,7 +17,11 @@ import type {
 } from '@/api/admin';
 import type { DownloadCount, DownloadHistoryItem } from '@/api/downloads';
 import type { MeResponse } from '@/api/auth';
-import type { MySubscription } from '@/api/userSubscriptions';
+import type {
+  AdminSubscriptionCorrection,
+  AdminSubscriptionCorrectionPreview,
+  MySubscription,
+} from '@/api/userSubscriptions';
 import type { PageInfo, PagedResponse, Playlist, User, WhitelistChannel } from '@/types';
 import PaymentOperationsPage from '@/pages/admin/PaymentOperationsPage';
 import UserManagePage from '@/pages/admin/UserManagePage';
@@ -32,8 +36,11 @@ const last = <T,>(items: T[]): T => items[items.length - 1]!;
 
 const mocks = vi.hoisted(() => ({
   fetchAdminUserSubscriptions: vi.fn(),
-  updateAdminUserSubscription: vi.fn(),
-  deleteAdminUserSubscription: vi.fn(),
+  fetchOpenAdminSubscriptionCorrection: vi.fn(),
+  previewAdminSubscriptionCorrection: vi.fn(),
+  createAdminSubscriptionCorrection: vi.fn(),
+  approveAdminSubscriptionCorrection: vi.fn(),
+  executeAdminSubscriptionCorrection: vi.fn(),
   fetchAdminSubscriptionPlans: vi.fn(),
   fetchMyPlaylists: vi.fn(),
   createPlaylist: vi.fn(),
@@ -84,6 +91,7 @@ const mocks = vi.hoisted(() => ({
   triggerBlobDownload: vi.fn(),
   showToast: vi.fn(),
   updateAuthUser: vi.fn(),
+  refreshCurrentUser: vi.fn(),
   playerPlay: vi.fn(),
   playerPause: vi.fn(),
   playerResume: vi.fn(),
@@ -95,6 +103,7 @@ const storeState = vi.hoisted(() => ({
     role: 'USER',
     user: null as MeResponse | null,
     updateUser: mocks.updateAuthUser,
+    refreshCurrentUser: mocks.refreshCurrentUser,
   },
   player: {
     currentTrack: null as { id: number } | null,
@@ -108,8 +117,11 @@ const storeState = vi.hoisted(() => ({
 
 vi.mock('@/api/userSubscriptions', () => ({
   fetchAdminUserSubscriptions: mocks.fetchAdminUserSubscriptions,
-  updateAdminUserSubscription: mocks.updateAdminUserSubscription,
-  deleteAdminUserSubscription: mocks.deleteAdminUserSubscription,
+  fetchOpenAdminSubscriptionCorrection: mocks.fetchOpenAdminSubscriptionCorrection,
+  previewAdminSubscriptionCorrection: mocks.previewAdminSubscriptionCorrection,
+  createAdminSubscriptionCorrection: mocks.createAdminSubscriptionCorrection,
+  approveAdminSubscriptionCorrection: mocks.approveAdminSubscriptionCorrection,
+  executeAdminSubscriptionCorrection: mocks.executeAdminSubscriptionCorrection,
   fetchMySubscription: mocks.fetchMySubscription,
   isNoActiveSubscriptionError: (error: unknown) =>
     (error as { response?: { data?: { errorCode?: string } } })?.response?.data?.errorCode ===
@@ -191,9 +203,13 @@ vi.mock('@/store/toastStore', () => ({
     selector({ show: mocks.showToast }),
 }));
 
-vi.mock('@/store/authStore', () => ({
-  useAuthStore: (selector: (state: typeof storeState.auth) => unknown) => selector(storeState.auth),
-}));
+vi.mock('@/store/authStore', () => {
+  const useAuthStore = Object.assign(
+    (selector: (state: typeof storeState.auth) => unknown) => selector(storeState.auth),
+    { getState: () => storeState.auth },
+  );
+  return { useAuthStore };
+});
 
 vi.mock('@/store/playerStore', () => ({
   usePlayerStore: (selector: (state: typeof storeState.player) => unknown) =>
@@ -271,6 +287,80 @@ function subscription(overrides: Partial<MySubscription> = {}): MySubscription {
     pendingSubscriptionId: null,
     pendingBillingCycle: null,
     ...overrides,
+  };
+}
+
+function subscriptionCorrectionPreview(
+  overrides: Partial<AdminSubscriptionCorrectionPreview> = {},
+): AdminSubscriptionCorrectionPreview {
+  return {
+    userSubscriptionId: 71,
+    userId: 11,
+    userNickname: 'subscriber-a4',
+    currentSubscriptionId: 10,
+    currentPlanName: 'STANDARD',
+    currentBillingCycle: 'MONTHLY',
+    currentStatus: 'ACTIVE',
+    currentExpiresAt: '2099-08-01',
+    currentPendingSubscriptionId: null,
+    currentPendingPlanName: null,
+    currentPendingBillingCycle: null,
+    targetSubscriptionId: 10,
+    targetPlanName: 'STANDARD',
+    targetBillingCycle: 'YEARLY',
+    targetStatus: 'CANCELLED',
+    targetExpiresAt: '2099-09-01',
+    clearPendingChange: false,
+    cancelBillingAgreement: false,
+    currentBillingAgreementStatus: 'ACTIVE',
+    targetBillingAgreementStatus: 'ACTIVE',
+    externalPaymentExecuted: false,
+    executable: true,
+    reason: null,
+    ...overrides,
+  };
+}
+
+function subscriptionCorrection(
+  status: AdminSubscriptionCorrection['status'],
+): AdminSubscriptionCorrection {
+  return {
+    id: 901,
+    userSubscriptionId: 71,
+    userId: 11,
+    userNickname: 'subscriber-a4',
+    billingAgreementId: 17,
+    status,
+    action: 'SET_SUBSCRIPTION_STATE',
+    beforeSubscriptionId: 10,
+    beforePlanName: 'STANDARD',
+    beforeBillingCycle: 'MONTHLY',
+    beforeStatus: 'ACTIVE',
+    beforeExpiresAt: '2099-08-01',
+    beforePendingSubscriptionId: null,
+    beforePendingPlanName: null,
+    beforePendingBillingCycle: null,
+    targetSubscriptionId: 10,
+    targetPlanName: 'STANDARD',
+    targetBillingCycle: 'YEARLY',
+    targetStatus: 'CANCELLED',
+    targetExpiresAt: '2099-09-01',
+    clearPendingChange: false,
+    cancelBillingAgreement: false,
+    beforeBillingAgreementStatus: 'ACTIVE',
+    afterBillingAgreementStatus: 'ACTIVE',
+    reasonNote: 'coverage correction',
+    failureCode: null,
+    failureMessage: null,
+    requestedById: 1,
+    approvedById: status === 'REQUESTED' ? null : 1,
+    executedById: status === 'SUCCEEDED' ? 1 : null,
+    approvalNote: status === 'REQUESTED' ? null : 'coverage approval',
+    executionNote: status === 'SUCCEEDED' ? 'coverage execution' : null,
+    approvedAt: status === 'REQUESTED' ? null : '2026-08-08T12:01:00',
+    executedAt: status === 'SUCCEEDED' ? '2026-08-08T12:02:00' : null,
+    createdAt: '2026-08-08T12:00:00',
+    updatedAt: '2026-08-08T12:02:00',
   };
 }
 
@@ -357,6 +447,7 @@ function downloadItem(overrides: Partial<DownloadHistoryItem> = {}): DownloadHis
     bpm: 120,
     tonality: 'C',
     duration: 180,
+    waveformData: '[0.2,0.8]',
     tags: [{ id: 1, name: 'shorts', type: 'USAGE' }],
     downloadedAt: '2026-07-01T00:00:00',
     ...overrides,
@@ -473,6 +564,7 @@ beforeEach(() => {
   storeState.player.isPlaying = false;
 
   mocks.fetchAdminUserSubscriptions.mockResolvedValue(page([]));
+  mocks.fetchOpenAdminSubscriptionCorrection.mockResolvedValue(null);
   mocks.fetchAdminSubscriptionPlans.mockResolvedValue([]);
   mocks.fetchMyPlaylists.mockResolvedValue({ dataList: [] });
   mocks.fetchMySubscription.mockResolvedValue(subscription());
@@ -484,6 +576,7 @@ beforeEach(() => {
   mocks.checkNicknameAvailability.mockResolvedValue({ available: true });
   mocks.checkPhoneAvailability.mockResolvedValue({ available: true });
   mocks.updateAuthUser.mockReturnValue(true);
+  mocks.refreshCurrentUser.mockResolvedValue(profile());
   mocks.fetchWhitelistChannels.mockResolvedValue({ dataList: [] });
   mocks.fetchDownloadCount.mockResolvedValue(downloadCount);
   mocks.fetchDownloadHistory.mockResolvedValue(page([]));
@@ -496,86 +589,152 @@ beforeEach(() => {
 });
 
 describe('admin subscription and user management gaps', () => {
-  it('edits and then cancels an active subscription through both operation modals', async () => {
-    const item = subscription();
+  it('runs the local subscription correction workflow through preview, request, approval, and execution', async () => {
+    const item = subscription({ expiresAt: '2099-08-01' });
     mocks.fetchAdminUserSubscriptions.mockResolvedValue(page([item]));
-    mocks.updateAdminUserSubscription.mockResolvedValue(undefined);
-    mocks.deleteAdminUserSubscription.mockResolvedValue(undefined);
+    mocks.previewAdminSubscriptionCorrection.mockResolvedValue(subscriptionCorrectionPreview());
+    mocks.createAdminSubscriptionCorrection.mockResolvedValue(subscriptionCorrection('REQUESTED'));
+    mocks.approveAdminSubscriptionCorrection.mockResolvedValue(subscriptionCorrection('APPROVED'));
+    mocks.executeAdminSubscriptionCorrection.mockResolvedValue(subscriptionCorrection('SUCCEEDED'));
 
     render(<UserSubscriptionManagePage />);
     const row = (await screen.findByText('subscriber-a4')).closest('tr');
     expect(row).not.toBeNull();
 
-    fireEvent.click(within(row as HTMLElement).getAllByRole('button')[0]);
-    let dialog = screen.getByRole('dialog');
-    const selects = within(dialog).getAllByRole('combobox');
-    fireEvent.change(selects[0], { target: { value: 'CANCELLED' } });
-    fireEvent.change(selects[1], { target: { value: 'YEARLY' } });
-    fireEvent.change(within(dialog).getByDisplayValue('2026-08-01'), {
-      target: { value: '2026-09-01' },
+    fireEvent.click(within(row as HTMLElement).getByRole('button', { name: '권한 보정' }));
+    const dialog = screen.getByRole('dialog', { name: '사용자 구독 권한 보정' });
+    await waitFor(() => expect(within(dialog).getByLabelText('운영 사유 (필수)')).toBeEnabled());
+    expect(mocks.fetchOpenAdminSubscriptionCorrection).toHaveBeenCalledWith(
+      71,
+      expect.any(AbortSignal),
+    );
+    fireEvent.change(within(dialog).getByLabelText('목표 결제 주기'), {
+      target: { value: 'YEARLY' },
     });
-    fireEvent.click(last(within(dialog).getAllByRole('button')));
+    fireEvent.change(within(dialog).getByLabelText('목표 상태'), {
+      target: { value: 'CANCELLED' },
+    });
+    fireEvent.change(within(dialog).getByLabelText('목표 만료일'), {
+      target: { value: '2099-09-01' },
+    });
+    fireEvent.change(within(dialog).getByLabelText('운영 사유 (필수)'), {
+      target: { value: 'coverage correction' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: '미리보기' }));
 
-    await waitFor(() =>
-      expect(mocks.updateAdminUserSubscription).toHaveBeenCalledWith(71, {
-        status: 'CANCELLED',
-        billingCycle: 'YEARLY',
-        expiresAt: '2026-09-01',
+    expect(await within(dialog).findByText(/외부 결제 실행 없음/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: '요청 생성' }));
+    expect(await within(dialog).findByText(/요청 #901이 생성되었습니다/)).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText('승인 메모 (선택)'), {
+      target: { value: 'coverage approval' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: '승인 단계로 이동' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: '권한 보정 승인 확인' })).getByRole('button', {
+        name: '승인 확정',
       }),
     );
 
-    const refreshedRow = (await screen.findByText('subscriber-a4')).closest('tr');
-    fireEvent.click(last(within(refreshedRow as HTMLElement).getAllByRole('button')));
-    dialog = screen.getByRole('dialog');
-    fireEvent.click(last(within(dialog).getAllByRole('button')));
+    expect(await within(dialog).findByLabelText('실행 메모 (선택)')).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText('실행 메모 (선택)'), {
+      target: { value: 'coverage execution' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: '실행 확인' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: '권한 보정 실행 확인' })).getByRole('button', {
+        name: '권한 보정 실행',
+      }),
+    );
 
-    await waitFor(() => expect(mocks.deleteAdminUserSubscription).toHaveBeenCalledWith(71));
-    expect(mocks.fetchAdminUserSubscriptions.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(await within(dialog).findByText('권한 보정 실행 완료')).toBeInTheDocument();
+    expect(mocks.approveAdminSubscriptionCorrection).toHaveBeenCalledWith(
+      901,
+      { note: 'coverage approval' },
+      expect.any(AbortSignal),
+    );
+    expect(mocks.executeAdminSubscriptionCorrection).toHaveBeenCalledWith(
+      901,
+      { note: 'coverage execution' },
+      expect.any(AbortSignal),
+    );
+    expect(mocks.fetchAdminUserSubscriptions.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('surfaces subscription edit, cancel, and current-list failures without false success', async () => {
-    const item = subscription();
+  it('blocks rejected previews and preserves the current row after ambiguous request outcomes', async () => {
+    const item = subscription({ expiresAt: '2099-08-01' });
     mocks.fetchAdminUserSubscriptions.mockResolvedValueOnce(page([item]));
-    mocks.updateAdminUserSubscription.mockRejectedValueOnce(new Error('edit failed'));
-    mocks.deleteAdminUserSubscription.mockRejectedValueOnce(new Error('cancel failed'));
+    mocks.previewAdminSubscriptionCorrection.mockResolvedValueOnce(
+      subscriptionCorrectionPreview({
+        executable: false,
+        reason: 'The requested correction does not change local subscription state.',
+      }),
+    );
 
     render(<UserSubscriptionManagePage />);
     const row = (await screen.findByText('subscriber-a4')).closest('tr') as HTMLElement;
-    fireEvent.click(within(row).getAllByRole('button')[0]);
-    fireEvent.click(
-      last(
-        within(screen.getByRole('dialog', { name: /\uad6c\ub3c5 \uc218\uc815/ })).getAllByRole(
-          'button',
-        ),
-      ),
-    );
-    await waitFor(() => expect(mocks.updateAdminUserSubscription).toHaveBeenCalledTimes(1));
-    fireEvent.click(
-      within(screen.getByRole('dialog', { name: /\uad6c\ub3c5 \uc218\uc815/ })).getByRole(
-        'button',
-        {
-          name: /\ub2eb\uae30/,
-        },
-      ),
+    fireEvent.click(within(row).getByRole('button', { name: '권한 보정' }));
+    let dialog = screen.getByRole('dialog', { name: '사용자 구독 권한 보정' });
+    await waitFor(() => expect(within(dialog).getByLabelText('운영 사유 (필수)')).toBeEnabled());
+    fireEvent.change(within(dialog).getByLabelText('운영 사유 (필수)'), {
+      target: { value: 'coverage rejection' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: '미리보기' }));
+    expect(
+      await within(dialog).findByText('현재 로컬 구독 상태와 달라지는 항목이 없습니다.'),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: '요청 생성' })).toBeDisabled();
+    fireEvent.click(last(within(dialog).getAllByRole('button', { name: '닫기' })));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '사용자 구독 권한 보정' })).toBeNull(),
     );
 
-    fireEvent.click(last(within(row).getAllByRole('button')));
-    fireEvent.click(
-      last(
-        within(screen.getByRole('dialog', { name: /\uad6c\ub3c5 \ucde8\uc18c/ })).getAllByRole(
-          'button',
-        ),
+    mocks.fetchOpenAdminSubscriptionCorrection.mockClear();
+    mocks.previewAdminSubscriptionCorrection.mockResolvedValueOnce(subscriptionCorrectionPreview());
+    mocks.createAdminSubscriptionCorrection.mockRejectedValueOnce(new Error('request failed'));
+    fireEvent.click(within(row).getByRole('button', { name: '권한 보정' }));
+    dialog = screen.getByRole('dialog', { name: '사용자 구독 권한 보정' });
+    await waitFor(() => expect(within(dialog).getByLabelText('운영 사유 (필수)')).toBeEnabled());
+    fireEvent.change(within(dialog).getByLabelText('목표 결제 주기'), {
+      target: { value: 'YEARLY' },
+    });
+    fireEvent.change(within(dialog).getByLabelText('목표 상태'), {
+      target: { value: 'CANCELLED' },
+    });
+    fireEvent.change(within(dialog).getByLabelText('목표 만료일'), {
+      target: { value: '2099-09-01' },
+    });
+    fireEvent.change(within(dialog).getByLabelText('운영 사유 (필수)'), {
+      target: { value: 'coverage request failure' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: '미리보기' }));
+    await within(dialog).findByText(/외부 결제 실행 없음/);
+    fireEvent.click(within(dialog).getByRole('button', { name: '요청 생성' }));
+    expect(
+      await within(dialog).findByText(
+        '요청 생성 응답과 서버 상태를 모두 확인하지 못해 결과를 알 수 없습니다. 중복 요청 생성을 차단했습니다.',
       ),
+    ).toBeInTheDocument();
+    expect(within(dialog).getAllByRole('button', { name: '상태 다시 확인' })).toHaveLength(1);
+    const createButton = within(dialog).getByRole('button', { name: '요청 생성' });
+    expect(createButton).toBeDisabled();
+    fireEvent.click(createButton);
+    expect(mocks.createAdminSubscriptionCorrection).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchOpenAdminSubscriptionCorrection).toHaveBeenCalledTimes(2);
+    expect(mocks.fetchOpenAdminSubscriptionCorrection).toHaveBeenNthCalledWith(
+      2,
+      71,
+      expect.any(AbortSignal),
     );
-    await waitFor(() => expect(mocks.deleteAdminUserSubscription).toHaveBeenCalledTimes(1));
-
-    expect(document.querySelectorAll('[class*="error"]').length).toBeGreaterThan(0);
+    expect(mocks.fetchAdminUserSubscriptions).toHaveBeenCalledTimes(1);
+    expect(row).toBeInTheDocument();
   });
 
   it('searches users, cancels one role change, persists another, and reports update failure', async () => {
     const current = user();
     mocks.fetchUsers.mockResolvedValue(page([current]));
-    mocks.updateUserAdmin.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('fail'));
+    mocks.updateUserAdmin
+      .mockResolvedValueOnce({ ...current, role: 'ADMIN' })
+      .mockRejectedValueOnce(new Error('fail'));
 
     render(<UserManagePage />);
     const search = await screen.findByPlaceholderText('Search by email or nickname...');
@@ -596,12 +755,24 @@ describe('admin subscription and user management gaps', () => {
 
     fireEvent.change(roleSelect, { target: { value: 'ADMIN' } });
     dialog = screen.getByRole('dialog', { name: 'Confirm Role Change' });
+    fireEvent.change(within(dialog).getByLabelText('Operator reason'), {
+      target: { value: 'Access approved' },
+    });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }));
-    await waitFor(() => expect(mocks.updateUserAdmin).toHaveBeenCalledWith(9, { role: 'ADMIN' }));
+    await waitFor(() =>
+      expect(mocks.updateUserAdmin).toHaveBeenCalledWith(9, {
+        role: 'ADMIN',
+        reason: 'Access approved',
+      }),
+    );
 
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'ADMIN' } });
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm' }));
-    expect(await screen.findByText('Failed to update role')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'USER' } });
+    dialog = screen.getByRole('dialog', { name: 'Confirm Role Change' });
+    fireEvent.change(within(dialog).getByLabelText('Operator reason'), {
+      target: { value: 'Access revoked' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    expect(await screen.findAllByText('The role could not be changed. Try again.')).toHaveLength(2);
   });
 
   it('renders current empty and failed user-list states distinctly', async () => {

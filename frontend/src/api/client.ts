@@ -28,6 +28,7 @@ client.interceptors.request.use(
 
 /* ── Response Interceptor: 401 auto-refresh ── */
 let isRefreshing = false;
+let adminRoleSyncPromise: Promise<void> | null = null;
 let failedQueue: Array<{
   resolve: (token: string) => void;
   reject: (err: unknown) => void;
@@ -43,6 +44,25 @@ const AUTH_REFRESH_EXCLUDED_PATHS = [
 export function shouldSkipRefresh(config?: { url?: string | undefined }): boolean {
   const url = config?.url ?? '';
   return AUTH_REFRESH_EXCLUDED_PATHS.some((path) => url === path || url.startsWith(path));
+}
+
+export function shouldSkipAdminRoleSync(config?: { url?: string | undefined }): boolean {
+  const url = config?.url ?? '';
+  const path = url.split('?')[0];
+  return path === '/users/me' || path === '/auth' || path.startsWith('/auth/');
+}
+
+function synchronizeAdminRole(): Promise<void> {
+  if (adminRoleSyncPromise) return adminRoleSyncPromise;
+
+  adminRoleSyncPromise = Promise.resolve()
+    .then(() => useAuthStore.getState().refreshCurrentUser())
+    .then(() => undefined)
+    .catch(() => undefined)
+    .finally(() => {
+      adminRoleSyncPromise = null;
+    });
+  return adminRoleSyncPromise;
 }
 
 function processQueue(error: unknown, token: string | null) {
@@ -62,6 +82,16 @@ client.interceptors.response.use(
     const originalRequest = error.config as
       | (InternalAxiosRequestConfig & { _retry?: boolean })
       | undefined;
+
+    if (
+      originalRequest &&
+      error.response?.status === 403 &&
+      useAuthStore.getState().role === 'ADMIN' &&
+      !shouldSkipAdminRoleSync(originalRequest)
+    ) {
+      await synchronizeAdminRole();
+      return Promise.reject(error);
+    }
 
     if (
       !originalRequest ||

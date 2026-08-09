@@ -1,5 +1,5 @@
 import client from '@/api/client';
-import type { ApiResponse, PagedResponse, TagItem, TrackListItem } from '@/types';
+import type { ApiResponse, PagedResponse, PlayableTrack, TagItem, TrackListItem } from '@/types';
 
 /* ── Local detail types (not in shared types) ── */
 
@@ -13,7 +13,7 @@ export interface TrackDetail {
   description: string | null;
   audioFile: string | null;
   thumbnail: string | null;
-  waveformData?: string | null;
+  waveformData: string | null;
   isActive: boolean;
   playCount: number;
   likeCount: number;
@@ -33,10 +33,10 @@ export interface TrackListParams {
   page?: number;
   size?: number;
   keyword?: string;
-  genre?: string;
-  mood?: string;
-  instrument?: string;
-  usage?: string;
+  genre?: readonly string[];
+  mood?: readonly string[];
+  instrument?: readonly string[];
+  usage?: readonly string[];
   bpmMin?: number;
   bpmMax?: number;
   tonality?: string;
@@ -50,19 +50,19 @@ export async function fetchTracks(
   params: TrackListParams = {},
   signal?: AbortSignal,
 ): Promise<PagedResponse<TrackListItem>> {
-  const query: Record<string, string | number> = {};
+  const query = new URLSearchParams();
 
-  if (params.page !== undefined) query.page = params.page;
-  if (params.size !== undefined) query.size = params.size;
-  if (params.keyword) query.keyword = params.keyword;
-  if (params.genre) query.genre = params.genre;
-  if (params.mood) query.mood = params.mood;
-  if (params.instrument) query.instrument = params.instrument;
-  if (params.usage) query.usage = params.usage;
-  if (params.bpmMin !== undefined) query.bpmMin = params.bpmMin;
-  if (params.bpmMax !== undefined) query.bpmMax = params.bpmMax;
-  if (params.tonality) query.tonality = params.tonality;
-  if (params.sort) query.sort = params.sort;
+  if (params.page !== undefined) query.set('page', String(params.page));
+  if (params.size !== undefined) query.set('size', String(params.size));
+  if (params.keyword) query.set('keyword', params.keyword);
+  params.genre?.forEach((value) => query.append('genre', value));
+  params.mood?.forEach((value) => query.append('mood', value));
+  params.instrument?.forEach((value) => query.append('instrument', value));
+  params.usage?.forEach((value) => query.append('usage', value));
+  if (params.bpmMin !== undefined) query.set('bpmMin', String(params.bpmMin));
+  if (params.bpmMax !== undefined) query.set('bpmMax', String(params.bpmMax));
+  if (params.tonality) query.set('tonality', params.tonality);
+  if (params.sort) query.set('sort', params.sort);
 
   const { data } = await client.get<PagedResponse<TrackListItem>>('/tracks', {
     params: query,
@@ -78,6 +78,12 @@ export async function fetchTrackDetail(
 ): Promise<TrackDetail> {
   const { data } = await client.get<ApiResponse<TrackDetail>>(`/tracks/${trackId}`, { signal });
   return data.data;
+}
+
+/** POST /api/tracks/batch -- bounded public hydration for persisted player records. */
+export async function fetchPlayableTracks(ids: number[]): Promise<PlayableTrack[]> {
+  const { data } = await client.post<{ dataList: PlayableTrack[] }>('/tracks/batch', { ids });
+  return data.dataList ?? [];
 }
 
 /** GET /api/tracks/admin/{trackId} -- admin track detail (includes inactive) */

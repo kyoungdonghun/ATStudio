@@ -198,6 +198,24 @@ foreach ($remoteHost in @(
 }
 
 $javaSource = Get-Content -Raw -LiteralPath $javaSourcePath
+$manifestOutputKeys = @(
+    'safe("manifest.tables"',
+    'safe("manifest.columns"',
+    'safe("manifest.indexes"',
+    'safe("manifest.foreignKeys"',
+    'safe("manifest.plans"',
+    'safe("manifest.sha256"'
+)
+$matchesExpectedIndex = $javaSource.IndexOf('if (!manifest.matchesExpected())')
+Assert-True `
+    -Condition ($matchesExpectedIndex -ge 0) `
+    -Message "The manifest comparison must remain fail-closed."
+foreach ($manifestOutputKey in $manifestOutputKeys) {
+    $manifestOutputIndex = $javaSource.IndexOf($manifestOutputKey)
+    Assert-True `
+        -Condition ($manifestOutputIndex -ge 0 -and $manifestOutputIndex -lt $matchesExpectedIndex) `
+        -Message "Manifest output $manifestOutputKey must precede the fail-closed comparison."
+}
 Assert-True `
     -Condition ($javaSource.Contains('"src/main/resources/schema.sql"')) `
     -Message "The active helper should name current schema.sql."
@@ -210,6 +228,9 @@ Assert-True `
 Assert-True `
     -Condition (-not $javaSource.Contains("SHOW DATABASES")) `
     -Message "The active helper must not enumerate unrelated databases."
+Assert-True `
+    -Condition (-not $javaSource.Contains('safe("manifest.databaseName"')) `
+    -Message "Manifest observation must not emit the database name."
 
 if ($script:Failures.Count -gt 0) {
     [pscustomobject]@{
@@ -228,6 +249,8 @@ if ($script:Failures.Count -gt 0) {
         "malformed-name-refusal-before-connector",
         "non-loopback-refusal-before-connector",
         "target-name-redaction",
+        "manifest-observation-before-fail-closed-comparison",
+        "manifest-database-name-redaction",
         "fixed-current-sql-inputs",
         "retired-migration-absence",
         "unrelated-database-enumeration-absence"

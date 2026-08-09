@@ -95,9 +95,10 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<UserDetailResponse>> updateUser(
             @PathVariable Long userId,
+            @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody UserAdminUpdateRequest request) {
         return ResponseEntity.ok(ResponseDTO.<UserDetailResponse>withSingleData()
-                .data(userService.updateUserByAdmin(userId, request))
+                .data(userService.updateUserByAdmin(userDetails.getId(), userId, request))
                 .build());
     }
 }

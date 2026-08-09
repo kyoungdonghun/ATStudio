@@ -2,11 +2,9 @@ import client from '@/api/client';
 import type {
   ApiResponse,
   PagedResponse,
-  User,
   CompanyCertification,
   CompanyCertificationSummary,
   CertificationStatus,
-  UserRole,
   WhitelistChannelStatus,
 } from '@/types';
 
@@ -16,7 +14,7 @@ export interface DashboardStats {
   totalUsers: number;
   totalTracks: number;
   totalSubscribers: number;
-  recentUsers: User[];
+  recentUsers: AdminUserListItem[];
 }
 
 export async function fetchDashboardStats(): Promise<DashboardStats> {
@@ -26,28 +24,56 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
 
 /* ── User Management ── */
 
+export type AdminAssignableRole = 'USER' | 'ADMIN';
+export type AdminUserType = 'INDIVIDUAL' | 'BUSINESS';
+export type AdminUserJob = 'EDITOR' | 'ARTIST' | 'FREELANCER';
+
+export interface AdminUserListItem {
+  id: number;
+  nickname: string;
+  email: string;
+  userType: AdminUserType;
+  role: AdminAssignableRole;
+  isVerified: boolean;
+  createdAt: string;
+}
+
+export interface AdminUserDetail extends AdminUserListItem {
+  phonePersonal: string | null;
+  phoneCompany: string | null;
+  job: AdminUserJob | null;
+  companyName: string | null;
+}
+
 interface UserListParams {
   page?: number;
   size?: number;
   keyword?: string;
-  userType?: string;
+  userType?: AdminUserType;
 }
 
 export async function fetchUsers(
   params: UserListParams = {},
   signal?: AbortSignal,
-): Promise<PagedResponse<User>> {
-  const { data } = await client.get<PagedResponse<User>>('/users', { params, signal });
+): Promise<PagedResponse<AdminUserListItem>> {
+  const { data } = await client.get<PagedResponse<AdminUserListItem>>('/users', {
+    params,
+    signal,
+  });
   return data;
 }
 
-interface UpdateUserAdminRequest {
-  role?: UserRole;
+export interface UpdateUserAdminRequest {
+  role?: AdminAssignableRole;
   isVerified?: boolean;
+  reason?: string;
 }
 
-export async function updateUserAdmin(userId: number, body: UpdateUserAdminRequest): Promise<User> {
-  const { data } = await client.put<ApiResponse<User>>(`/users/${userId}`, body);
+export async function updateUserAdmin(
+  userId: number,
+  body: UpdateUserAdminRequest,
+): Promise<AdminUserDetail> {
+  const { data } = await client.put<ApiResponse<AdminUserDetail>>(`/users/${userId}`, body);
   return data.data;
 }
 

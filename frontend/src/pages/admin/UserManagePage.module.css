@@ -110,6 +110,33 @@
   cursor: pointer;
 }
 
+.roleSelect:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.roleControl {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.roleHint {
+  max-width: 230px;
+  color: var(--text2);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.roleFeedback {
+  max-width: 260px;
+  color: var(--error);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .empty {
   text-align: center;
   padding: 48px 0;
@@ -169,6 +196,68 @@
   font-size: 14px;
   color: var(--text0);
   line-height: 1.6;
+}
+
+.modalBody p {
+  margin: 0;
+}
+
+.roleImpact {
+  margin-top: 12px !important;
+  color: var(--warning);
+}
+
+.reasonLabel {
+  display: block;
+  margin-top: 16px;
+  color: var(--text1);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.reasonInput {
+  width: 100%;
+  min-height: 88px;
+  margin-top: 6px;
+  padding: 9px 10px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg1);
+  color: var(--text1);
+  font: inherit;
+  line-height: 1.45;
+}
+
+.reasonInput:focus {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-dim);
+  outline-offset: 1px;
+}
+
+.reasonCount {
+  margin-top: 4px;
+  color: var(--text2);
+  font-size: 11px;
+  text-align: right;
+}
+
+.reasonError {
+  margin-top: 6px;
+  color: var(--error);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.modalError {
+  margin-top: 12px;
+  padding: 9px 10px;
+  border: 1px solid var(--error-border);
+  border-radius: 5px;
+  background: var(--error-dim);
+  color: var(--error);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .modalActions {

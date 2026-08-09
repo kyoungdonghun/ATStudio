@@ -11,12 +11,19 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.List;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT u FROM User u WHERE u.id = :id")
     Optional<User> findByIdForUpdate(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM User u "
+            + "WHERE u.role = com.atstudio.atstudio.entity.enums.UserRole.ADMIN "
+            + "AND u.isDeleted = false ORDER BY u.id")
+    List<User> findActiveAdminsForRoleChange();
 
     Optional<User> findOneByEmail(String email);
 

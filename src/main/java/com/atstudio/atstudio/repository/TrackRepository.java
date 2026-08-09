@@ -12,16 +12,21 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.List;
 
 public interface TrackRepository extends JpaRepository<Track, Long>, JpaSpecificationExecutor<Track> {
 
-    @EntityGraph(attributePaths = {"trackTags", "trackTags.tag"})
+    @EntityGraph(attributePaths = {"user", "trackTags", "trackTags.tag"})
     @Override
     Page<Track> findAll(Specification<Track> spec, Pageable pageable);
 
-    @EntityGraph(attributePaths = {"trackTags", "trackTags.tag"})
+    @EntityGraph(attributePaths = {"user", "trackTags", "trackTags.tag"})
     @Query("SELECT t FROM Track t WHERE t.id = :id")
     Optional<Track> findByIdWithTags(@Param("id") Long id);
+
+    @EntityGraph(attributePaths = "user")
+    @Query("SELECT t FROM Track t WHERE t.id IN :ids AND t.isActive = true")
+    List<Track> findAllActiveByIdIn(@Param("ids") List<Long> ids);
 
     long countByIsActiveTrue();
 

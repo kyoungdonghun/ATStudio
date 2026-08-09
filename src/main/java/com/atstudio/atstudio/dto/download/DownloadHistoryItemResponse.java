@@ -1,9 +1,9 @@
 package com.atstudio.atstudio.dto.download;
 
 import com.atstudio.atstudio.dto.tag.TagResponse;
+import com.atstudio.atstudio.entity.Tag;
 import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.TrackDownload;
-import com.atstudio.atstudio.entity.TrackTag;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,25 +22,23 @@ public record DownloadHistoryItemResponse(
         int bpm,
         String tonality,
         int duration,
+        String waveformData,
         List<TagResponse> tags,
         LocalDateTime downloadedAt
 ) {
-    public static DownloadHistoryItemResponse from(TrackDownload td) {
+    public static DownloadHistoryItemResponse from(TrackDownload td, List<Tag> tags) {
         Track t = td.getTrack();
-        List<TagResponse> tagList = t.getTrackTags().stream()
-                .map(TrackTag::getTag)
-                .map(TagResponse::from)
-                .toList();
         return new DownloadHistoryItemResponse(
                 td.getId(),
                 t.getId(),
                 t.getTitle(),
-                t.getUser() != null ? t.getUser().getNickname() : null,
+                t.getUser().getNickname(),
                 t.getThumbnail(),
                 t.getBpm(),
                 t.getTonality(),
                 t.getDuration(),
-                tagList,
+                t.getWaveformData(),
+                tags.stream().map(TagResponse::from).toList(),
                 td.getDownloadedAt()
         );
     }

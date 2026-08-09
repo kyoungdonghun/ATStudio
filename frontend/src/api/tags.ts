@@ -13,20 +13,22 @@ export async function fetchTags(type?: string): Promise<TagItem[]> {
 /** GET /api/tags/available -- tags from tracks matching current filters */
 export async function fetchAvailableTags(
   params: {
-    genre?: string;
-    mood?: string;
-    usage?: string;
+    genre?: readonly string[];
+    mood?: readonly string[];
+    instrument?: readonly string[];
+    usage?: readonly string[];
     bpmMin?: number;
     bpmMax?: number;
   },
   signal?: AbortSignal,
 ): Promise<TagItem[]> {
-  const query: Record<string, string | number> = {};
-  if (params.genre) query.genre = params.genre;
-  if (params.mood) query.mood = params.mood;
-  if (params.usage) query.usage = params.usage;
-  if (params.bpmMin !== undefined) query.bpmMin = params.bpmMin;
-  if (params.bpmMax !== undefined) query.bpmMax = params.bpmMax;
+  const query = new URLSearchParams();
+  params.genre?.forEach((value) => query.append('genre', value));
+  params.mood?.forEach((value) => query.append('mood', value));
+  params.instrument?.forEach((value) => query.append('instrument', value));
+  params.usage?.forEach((value) => query.append('usage', value));
+  if (params.bpmMin !== undefined) query.set('bpmMin', String(params.bpmMin));
+  if (params.bpmMax !== undefined) query.set('bpmMax', String(params.bpmMax));
   const { data } = await client.get<{ dataList: TagItem[] }>('/tags/available', {
     params: query,
     signal,

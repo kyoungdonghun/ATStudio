@@ -7,6 +7,10 @@ export interface PlaylistTrack {
   trackOrder: number;
   trackId: number;
   title: string;
+  artistName: string;
+  duration: number;
+  thumbnail?: string | null;
+  waveformData?: string | null;
   bpm: number;
   tonality: string;
 }

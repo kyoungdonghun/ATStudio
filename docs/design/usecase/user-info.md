@@ -218,7 +218,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | INFO-005 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-09 |
 | **Description** | Member updates their own information. Editable fields: nickname, phonePersonal, phoneCompany, job, companyName (BUSINESS only). |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. |
@@ -263,12 +263,34 @@
 | **Related UC** | INFO-004 (view member detail) |
 
 **Main Flow**
-1. Admin modifies role (USER/ADMIN) and isVerified.
-2. Frontend sends userId and changed data to the backend.
-3. Backend verifies authorization, updates the users record, and returns a 200 response.
+1. Admin modifies role (USER/ADMIN) and/or isVerified. An actual role change
+   requires a nonblank operator reason of at most 500 characters.
+2. Frontend disables self-demotion, shows demotion impact in a confirmation
+   modal, and sends userId plus changed data to the backend.
+3. Backend locks all active ADMIN rows in deterministic ID order, rechecks the
+   actor's current DB role, then loads the target.
+4. Self-demotion returns `SELF_ADMIN_DEMOTION_FORBIDDEN`; a change that would
+   remove the last active ADMIN returns `LAST_ADMIN_REQUIRED`; a stale actor
+   returns `ADMIN_ROLE_REQUIRED`.
+5. A valid demotion clears the target's Refresh Token. Success and rejected
+   role changes write minimal append-only administrator audit evidence without
+   profile fields, passwords, or tokens. Rejection rows preserve stable
+   action/target/actor/error/state fields and store a null operator reason;
+   successful role-change audits retain the approved reason.
+6. Frontend refreshes `/api/users/me` after success and after an ADMIN API 403,
+   then reevaluates menus and protected routes. Stale refresh responses are
+   rejected by session generation and user ID.
 
 **Postconditions**
 - Member's role and isVerified reflected in DB.
+- At least one active, non-deleted ADMIN remains after every accepted role
+  change or ADMIN withdrawal.
+
+**Operational Boundary**
+
+- There is no public zero-ADMIN recovery API or production QA bootstrap.
+- A restricted offline recovery procedure and non-production recovery drill
+  remain separate operational work; WI-014 did not claim that drill complete.
 
 ---
 

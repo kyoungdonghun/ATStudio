@@ -1,6 +1,6 @@
 ---
-version: 1.5
-last_updated: 2026-07-17
+version: 1.6
+last_updated: 2026-08-09
 project: ATS
 owner: EO
 category: standard
@@ -80,6 +80,9 @@ task_types:
 | official-download | Official Download | Controller-mediated transfer of the original Track under download entitlement | entitled download, re-download | listening, static retrieval | - | A first download requires an active Subscription and available plan quota, records the download, and issues a License; an existing License permits entitled re-download |
 | upload | Upload | Process of creator submitting a track to the platform | submit, publish | post (ambiguous) | - | Includes file validation, original storage, duration extraction, and waveform extraction |
 | subscription | Subscription | Paid plan that grants download and playlist access | plan, membership | purchase (different) | - | DB table `user_subscriptions`; required for downloads |
+| local-subscription-correction | Local Subscription Correction | Explicit ADMIN workflow that changes local entitlement state without charging, refunding, or deleting a provider billing key | general entitlement correction, admin correction | payment, refund, provider correction | - | `admin_subscription_corrections`; preview, request, approve, execute |
+| playable-track | PlayableTrack | Complete Track projection required by player entry points | hydrated track, player track | track ID only (as a rendered playback object) | - | Includes identity, display metadata, duration, thumbnail, waveform, BPM, tonality, and tags; public batch API returns active Tracks only |
+| audio-analysis-dry-run | Audio Analysis Dry-Run | Read-only report comparing stored Track audio metadata with decoded analysis | duration report, analysis report | backfill, migration | - | ADMIN paginated report; does not update existing rows or expose storage keys |
 | whitelist-channel | Whitelist Channel | YouTube channel profile saved by a member and optionally submitted for manual whitelist registration | channel | account (ambiguous) | - | DB table `whitelist_channels`; request/registered/removal states are limited by subscription plan |
 | download-history | Download History | Server record of completed Official Downloads for the current user | downloads | download queue, cart | - | DB table `track_downloads`; SPA route `/downloads` |
 | company-certification | Company Certification | Document review process for BUSINESS-type members to unlock subscription | corporate review | personal license (different) | - | DB table `company_certifications`; required before BUSINESS subscription |

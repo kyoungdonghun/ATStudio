@@ -2,6 +2,7 @@ package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.common.validation.TagNamePolicy;
 import com.atstudio.atstudio.dto.tag.TagCreateRequest;
 import com.atstudio.atstudio.dto.tag.TagResponse;
 import com.atstudio.atstudio.entity.Tag;
@@ -10,6 +11,7 @@ import com.atstudio.atstudio.repository.TagRepository;
 import com.atstudio.atstudio.repository.TrackTagRepository;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,16 +29,21 @@ public class TagService {
 
     @Transactional
     public TagResponse createTag(TagCreateRequest request) {
-        if (tagRepository.existsByName(request.getName())) {
+        String canonicalName = canonicalizeAndValidate(request.getName());
+        if (tagRepository.existsByName(canonicalName)) {
             throw new BusinessException(BUSINESS_ERROR.TAG_NAME_DUPLICATED);
         }
 
         Tag tag = Tag.builder()
-                .name(request.getName())
+                .name(canonicalName)
                 .type(request.getType())
                 .build();
 
-        return TagResponse.from(tagRepository.save(tag));
+        try {
+            return TagResponse.from(tagRepository.saveAndFlush(tag));
+        } catch (DataIntegrityViolationException exception) {
+            throw TagNameConstraintTranslator.translate(exception);
+        }
     }
 
     public List<TagResponse> getAllTags(TagType type) {
@@ -50,25 +57,45 @@ public class TagService {
     public TagResponse updateTag(Long id, TagCreateRequest request) {
         Tag tag = tagRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TAG_NOT_FOUND));
+        String canonicalName = canonicalizeAndValidate(request.getName());
 
-        if (!tag.getName().equals(request.getName()) && tagRepository.existsByName(request.getName())) {
+        if (!tag.getName().equals(canonicalName) && tagRepository.existsByName(canonicalName)) {
             throw new BusinessException(BUSINESS_ERROR.TAG_NAME_DUPLICATED);
         }
 
-        tag.update(request.getName(), request.getType());
+        tag.update(canonicalName, request.getType());
+        try {
+            tagRepository.flush();
+        } catch (DataIntegrityViolationException exception) {
+            throw TagNameConstraintTranslator.translate(exception);
+        }
         return TagResponse.from(tag);
+    }
+
+    private String canonicalizeAndValidate(String rawName) {
+        if (!TagNamePolicy.isWithinRawLimit(rawName)) {
+            throw new BusinessException(BUSINESS_ERROR.TAG_NAME_INVALID);
+        }
+
+        String canonicalName = TagNamePolicy.canonicalize(rawName);
+        if (!TagNamePolicy.isValid(canonicalName)) {
+            throw new BusinessException(BUSINESS_ERROR.TAG_NAME_INVALID);
+        }
+        return canonicalName;
     }
 
     @SuppressWarnings("unchecked")
     public List<TagResponse> getAvailableTags(
-            String genre,
-            String mood,
-            String usage,
+            List<String> genre,
+            List<String> mood,
+            List<String> instrument,
+            List<String> usage,
             Integer bpmMin,
             Integer bpmMax) {
-        List<String> genreNames = splitCsv(genre);
-        List<String> moodNames = splitCsv(mood);
-        List<String> usageNames = splitCsv(usage);
+        List<String> genreNames = normalizeNames(genre);
+        List<String> moodNames = normalizeNames(mood);
+        List<String> instrumentNames = normalizeNames(instrument);
+        List<String> usageNames = normalizeNames(usage);
 
         // Build dynamic native SQL with AND logic: track must have ALL selected tags
         StringBuilder sql = new StringBuilder("""
@@ -81,9 +108,10 @@ public class TagService {
         List<Object> params = new ArrayList<>();
         int paramIdx = 1;
 
-        paramIdx = appendTagFilters(sql, params, paramIdx, genreNames, "GENRE");
-        paramIdx = appendTagFilters(sql, params, paramIdx, moodNames, "MOOD");
-        paramIdx = appendTagFilters(sql, params, paramIdx, usageNames, "USAGE");
+        paramIdx = appendTagFilters(sql, params, paramIdx, genreNames, TagType.GENRE);
+        paramIdx = appendTagFilters(sql, params, paramIdx, moodNames, TagType.MOOD);
+        paramIdx = appendTagFilters(sql, params, paramIdx, instrumentNames, TagType.INSTRUMENT);
+        appendTagFilters(sql, params, paramIdx, usageNames, TagType.USAGE);
 
         if (bpmMin != null) {
             sql.append(" AND tr.bpm >= ?");
@@ -103,10 +131,14 @@ public class TagService {
         return tags.stream().map(TagResponse::from).toList();
     }
 
-    private List<String> splitCsv(String csv) {
-        if (csv == null || csv.isBlank()) return List.of();
-        return java.util.Arrays.stream(csv.split(","))
-                .map(String::trim).filter(s -> !s.isEmpty()).toList();
+    private List<String> normalizeNames(List<String> names) {
+        if (names == null || names.isEmpty()) return List.of();
+        return names.stream()
+                .filter(name -> name != null && !name.isBlank())
+                .map(TagNamePolicy::canonicalize)
+                .filter(name -> name != null && !name.isBlank())
+                .distinct()
+                .toList();
     }
 
     private int appendTagFilters(
@@ -114,12 +146,13 @@ public class TagService {
             List<Object> params,
             int paramIdx,
             List<String> names,
-            String tagType) {
+            TagType tagType) {
         for (String name : names) {
             sql.append(" AND tr.id IN (SELECT tt").append(paramIdx).append(".track_id FROM track_tags tt")
                     .append(paramIdx).append(" JOIN tags tg").append(paramIdx).append(" ON tg").append(paramIdx)
                     .append(".id = tt").append(paramIdx).append(".tag_id WHERE tg").append(paramIdx)
-                    .append(".type = '").append(tagType).append("' AND tg").append(paramIdx).append(".name = ?)");
+                    .append(".type = ? AND tg").append(paramIdx).append(".name = ?)");
+            params.add(tagType.name());
             params.add(name);
             paramIdx++;
         }

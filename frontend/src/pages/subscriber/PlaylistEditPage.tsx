@@ -120,7 +120,7 @@ export default function PlaylistEditPage() {
       if (orderChanged && tracks.length > 0) {
         await reorderTracks(
           id,
-          tracks.map((t, i) => ({ trackId: t.trackId, trackOrder: i + 1 })),
+          tracks.map((t, i) => ({ trackId: t.trackId, trackOrder: i })),
         );
       }
 

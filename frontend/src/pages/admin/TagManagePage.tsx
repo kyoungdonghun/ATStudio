@@ -1,18 +1,35 @@
 /** Screen K-6: Tag management */
 import { useEffect, useState, useCallback } from 'react';
 import { fetchTags, createTag, updateTag, deleteTag } from '@/api/tags';
+import { getApiErrorCode } from '@/api/loadError';
 import type { TagItem, TagType } from '@/types';
-import { TAG_NAME_MAX } from '@/utils/validation';
+import {
+  formatTagNameForDisplay,
+  getTagNameValidationError,
+  isDuplicateTagName,
+  normalizeTagName,
+  TAG_NAME_DUPLICATE_MESSAGE,
+  TAG_NAME_RAW_MAX,
+} from '@/utils/tagName';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import styles from './TagManagePage.module.css';
 
 const TAG_TYPES: TagType[] = ['GENRE', 'MOOD', 'INSTRUMENT', 'USAGE'];
+const TAG_NAME_SERVER_INVALID_MESSAGE = '태그 이름 형식을 확인해주세요.';
+const TAG_SAVE_FAILURE_MESSAGE = '태그를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.';
+const TAG_DELETE_FAILURE_MESSAGE = '태그를 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.';
+
+function getSafeApiMessage(error: unknown, fallback: string): string {
+  const message = (error as { response?: { data?: { message?: unknown } } })?.response?.data
+    ?.message;
+  return typeof message === 'string' && message.trim() ? message : fallback;
+}
 
 export default function TagManagePage() {
   const [tags, setTags] = useState<TagItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   /* Create/Edit modal */
   const [editTag, setEditTag] = useState<TagItem | null>(null);
@@ -20,6 +37,8 @@ export default function TagManagePage() {
   const [formName, setFormName] = useState('');
   const [formType, setFormType] = useState<TagType>('GENRE');
   const [formLoading, setFormLoading] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   /* Type filter tab */
   const [activeType, setActiveType] = useState<string>('ALL');
@@ -27,13 +46,14 @@ export default function TagManagePage() {
   /* Delete modal */
   const [deleteTarget, setDeleteTarget] = useState<TagItem | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const loadTags = useCallback(() => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     fetchTags()
       .then(setTags)
-      .catch(() => setError('Failed to load tags'))
+      .catch(() => setLoadError('Failed to load tags'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -47,6 +67,8 @@ export default function TagManagePage() {
     setEditTag(null);
     setFormName('');
     setFormType('GENRE');
+    setNameError(null);
+    setFormError(null);
   };
 
   /* Open edit modal */
@@ -55,31 +77,78 @@ export default function TagManagePage() {
     setEditTag(tag);
     setFormName(tag.name);
     setFormType(tag.type);
+    setNameError(null);
+    setFormError(null);
   };
 
   /* Close form modal */
   const closeFormModal = () => {
     setEditTag(null);
     setIsCreateMode(false);
+    setNameError(null);
+    setFormError(null);
+  };
+
+  const handleNameChange = (nextName: string) => {
+    setFormName(nextName);
+    setFormError(null);
+
+    const validationError = getTagNameValidationError(nextName);
+    if (validationError) {
+      setNameError(validationError);
+      return;
+    }
+    setNameError(
+      isDuplicateTagName(tags, nextName, editTag?.id) ? TAG_NAME_DUPLICATE_MESSAGE : null,
+    );
   };
 
   /* Submit create/edit */
   const handleFormSubmit = async () => {
-    if (!formName.trim()) return;
+    const validationError = getTagNameValidationError(formName);
+    if (validationError) {
+      setNameError(validationError);
+      return;
+    }
+    if (isDuplicateTagName(tags, formName, editTag?.id)) {
+      setNameError(TAG_NAME_DUPLICATE_MESSAGE);
+      return;
+    }
+
+    const canonicalName = normalizeTagName(formName);
+    setNameError(null);
+    setFormError(null);
     setFormLoading(true);
     try {
       if (isCreateMode) {
-        await createTag({ name: formName.trim(), type: formType });
+        await createTag({ name: canonicalName, type: formType });
       } else if (editTag) {
-        await updateTag(editTag.id, { name: formName.trim(), type: formType });
+        await updateTag(editTag.id, { name: canonicalName, type: formType });
       }
       closeFormModal();
       loadTags();
-    } catch {
-      setError('Failed to save tag');
+    } catch (error) {
+      const errorCode = getApiErrorCode(error);
+      if (errorCode === 'TAG_NAME_DUPLICATED') {
+        setNameError(TAG_NAME_DUPLICATE_MESSAGE);
+      } else if (errorCode === 'TAG_NAME_INVALID') {
+        setNameError(TAG_NAME_SERVER_INVALID_MESSAGE);
+      } else {
+        setFormError(getSafeApiMessage(error, TAG_SAVE_FAILURE_MESSAGE));
+      }
     } finally {
       setFormLoading(false);
     }
+  };
+
+  const openDelete = (tag: TagItem) => {
+    setDeleteTarget(tag);
+    setDeleteError(null);
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteTarget(null);
+    setDeleteError(null);
   };
 
   /* Confirm delete */
@@ -88,10 +157,10 @@ export default function TagManagePage() {
     setDeleteLoading(true);
     try {
       await deleteTag(deleteTarget.id);
-      setDeleteTarget(null);
+      closeDeleteModal();
       loadTags();
-    } catch {
-      setError('Failed to delete tag');
+    } catch (error) {
+      setDeleteError(getSafeApiMessage(error, TAG_DELETE_FAILURE_MESSAGE));
     } finally {
       setDeleteLoading(false);
     }
@@ -105,10 +174,10 @@ export default function TagManagePage() {
     );
   }
 
-  if (error) {
+  if (loadError) {
     return (
       <div className={styles.page}>
-        <div className={styles.error}>{error}</div>
+        <div className={styles.error}>{loadError}</div>
       </div>
     );
   }
@@ -130,8 +199,10 @@ export default function TagManagePage() {
         {['ALL', ...TAG_TYPES].map((t) => (
           <button
             key={t}
+            type="button"
             className={`${styles.typeTab} ${activeType === t ? styles.typeTabActive : ''}`}
             onClick={() => setActiveType(t)}
+            aria-pressed={activeType === t}
           >
             {t === 'ALL' ? '전체' : t}
             <span className={styles.typeTabCount}>
@@ -163,7 +234,7 @@ export default function TagManagePage() {
             {filteredTags.map((tag) => (
               <tr key={tag.id} className={styles.row}>
                 <td>{tag.id}</td>
-                <td>{tag.name}</td>
+                <td>{formatTagNameForDisplay(tag.name, tag.type)}</td>
                 <td>
                   <span className={styles.typeBadge}>{tag.type}</span>
                 </td>
@@ -172,7 +243,7 @@ export default function TagManagePage() {
                     <Button variant="outline" size="sm" onClick={() => openEdit(tag)}>
                       Edit
                     </Button>
-                    <Button variant="danger" size="sm" onClick={() => setDeleteTarget(tag)}>
+                    <Button variant="danger" size="sm" onClick={() => openDelete(tag)}>
                       Delete
                     </Button>
                   </div>
@@ -191,21 +262,37 @@ export default function TagManagePage() {
       >
         <div className={styles.modalBody}>
           <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Name</label>
+            <label className={styles.formLabel} htmlFor="tag-name">
+              Name
+            </label>
             <input
-              className={styles.formInput}
+              id="tag-name"
+              className={`${styles.formInput} ${nameError ? styles.formInputInvalid : ''}`}
               placeholder="Tag name"
-              maxLength={TAG_NAME_MAX}
+              maxLength={TAG_NAME_RAW_MAX}
               value={formName}
-              onChange={(e) => setFormName(e.target.value)}
+              onChange={(event) => handleNameChange(event.target.value)}
+              aria-invalid={nameError ? 'true' : undefined}
+              aria-describedby={nameError ? 'tag-name-error' : undefined}
             />
+            {nameError ? (
+              <div id="tag-name-error" className={styles.fieldError} role="alert">
+                {nameError}
+              </div>
+            ) : null}
           </div>
           <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Type</label>
+            <label className={styles.formLabel} htmlFor="tag-type">
+              Type
+            </label>
             <select
+              id="tag-type"
               className={styles.formSelect}
               value={formType}
-              onChange={(e) => setFormType(e.target.value as TagType)}
+              onChange={(event) => {
+                setFormType(event.target.value as TagType);
+                setFormError(null);
+              }}
             >
               {TAG_TYPES.map((t) => (
                 <option key={t} value={t}>
@@ -214,6 +301,11 @@ export default function TagManagePage() {
               ))}
             </select>
           </div>
+          {formError ? (
+            <div className={styles.modalError} role="alert">
+              {formError}
+            </div>
+          ) : null}
         </div>
         <div className={styles.modalActions}>
           <Button variant="ghost" size="sm" onClick={closeFormModal}>
@@ -226,12 +318,23 @@ export default function TagManagePage() {
       </Modal>
 
       {/* Delete confirm modal */}
-      <Modal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} title="Delete Tag">
+      <Modal open={deleteTarget !== null} onClose={closeDeleteModal} title="Delete Tag">
         <div className={styles.deleteText}>
-          Are you sure you want to delete tag <strong>{deleteTarget?.name}</strong>?
+          Are you sure you want to delete tag{' '}
+          <strong>
+            {deleteTarget
+              ? formatTagNameForDisplay(deleteTarget.name, deleteTarget.type)
+              : undefined}
+          </strong>
+          ?
         </div>
+        {deleteError ? (
+          <div className={styles.modalError} role="alert">
+            {deleteError}
+          </div>
+        ) : null}
         <div className={styles.modalActions}>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(null)}>
+          <Button variant="ghost" size="sm" onClick={closeDeleteModal}>
             Cancel
           </Button>
           <Button variant="danger" size="sm" loading={deleteLoading} onClick={confirmDelete}>

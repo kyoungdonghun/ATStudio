@@ -12,6 +12,7 @@ import { useToastStore } from '@/store/toastStore';
 import { formatDate } from '@/utils/format';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import styles from './TrackDetailPage.module.css';
+import { toPlayableTrack } from '@/utils/playableTrack';
 
 export default function TrackDetailPage() {
   const { trackId } = useParams<{ trackId: string }>();
@@ -121,25 +122,7 @@ export default function TrackDetailPage() {
   const moodTags = track.tags.filter((t) => t.type === 'MOOD');
   const usageTags = track.tags.filter((t) => t.type === 'USAGE');
   const liked = likedIds.has(track.id);
-  const playerTrack = {
-    id: track.id,
-    title: track.title,
-    artistName: track.artistName ?? '',
-    duration: track.duration ?? 0,
-    bpm: track.bpm,
-    tonality: track.tonality,
-    description: track.description,
-    audioFile: track.audioFile,
-    thumbnail: track.thumbnail,
-    waveformData: track.waveformData,
-    tags: track.tags,
-    isActive: track.isActive,
-    playCount: track.playCount,
-    likeCount: track.likeCount,
-    downloadCount: track.downloadCount,
-    createdAt: track.createdAt,
-    updatedAt: track.updatedAt,
-  };
+  const playerTrack = toPlayableTrack(track);
   const hasCurrentWaveform = (currentTrack?.waveformData ?? null) === (track.waveformData ?? null);
 
   return (

@@ -1,6 +1,6 @@
 ---
-version: 2.2
-last_updated: 2026-07-17
+version: 2.3
+last_updated: 2026-08-09
 project: ATS
 owner: docops
 category: guide
@@ -76,7 +76,16 @@ Subscription payment uses Toss card recurring billing only.
 `/admin/payments` provides payment ledgers, incidents, receipts, audit logs,
 refunds, entitlement corrections, and settlement operations. Typed
 confirmation is required for emergency mutation flows. ADMIN subscription
-update/cancel remains a separate emergency control.
+correction is a separate local preview/request/approve/execute workflow. It
+does not charge, refund, or delete a billing key through Toss. A UI success
+message confirms only the local API workflow result; payment/provider evidence
+must be checked in the corresponding payment ledger and provider environment.
+
+### Current Acceptance Boundary
+
+Focused automated evidence exists for SR-94 through SR-101, but full browser
+acceptance, a real existing-row audio dry-run/backfill, production deployment,
+and live provider actions are not completed by that evidence.
 
 ## Reporting
 

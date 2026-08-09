@@ -50,7 +50,7 @@ public class LikeService {
 
     public List<LikeResponse> getMyLikes(CustomUserDetails userDetails) {
         User user = getUser(userDetails);
-        return likeRepository.findAllByUser(user).stream()
+        return likeRepository.findAllActiveByUser(user).stream()
                 .map(LikeResponse::from)
                 .toList();
     }

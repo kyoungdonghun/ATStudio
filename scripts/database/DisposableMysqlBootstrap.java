@@ -45,11 +45,11 @@ public final class DisposableMysqlBootstrap {
     private static final String SEED_RELATIVE_PATH =
             "src/main/resources/seed.sql";
     private static final String EXPECTED_MANIFEST_SHA256 =
-            "c48d3c75378aaf2364d89ed06833ba68e27a5a334dbc4670d1443bd938c6c506";
-    private static final long EXPECTED_TABLES = 39L;
-    private static final long EXPECTED_COLUMNS = 449L;
-    private static final long EXPECTED_INDEXES = 153L;
-    private static final long EXPECTED_FOREIGN_KEYS = 80L;
+            "c581bef61cfba143744882b0674daf8d8fe742d82adbbf66d6b61699f5b86333";
+    private static final long EXPECTED_TABLES = 41L;
+    private static final long EXPECTED_COLUMNS = 493L;
+    private static final long EXPECTED_INDEXES = 168L;
+    private static final long EXPECTED_FOREIGN_KEYS = 89L;
     private static final long EXPECTED_PLANS = 6L;
     private static final int DEFAULT_PORT = 3306;
 
@@ -320,15 +320,15 @@ public final class DisposableMysqlBootstrap {
             try (Connection database = openDatabaseConnection()) {
                 requireSelectedDatabase(database);
                 Manifest manifest = readManifest(database);
-                if (!manifest.matchesExpected()) {
-                    throw new GuardException("V1_MANIFEST_MISMATCH");
-                }
                 safe("manifest.tables", Long.toString(manifest.tables()));
                 safe("manifest.columns", Long.toString(manifest.columns()));
                 safe("manifest.indexes", Long.toString(manifest.indexes()));
                 safe("manifest.foreignKeys", Long.toString(manifest.foreignKeys()));
                 safe("manifest.plans", Long.toString(manifest.plans()));
                 safe("manifest.sha256", manifest.sha256());
+                if (!manifest.matchesExpected()) {
+                    throw new GuardException("V1_MANIFEST_MISMATCH");
+                }
                 safe("manifest", "PASS");
             }
         }

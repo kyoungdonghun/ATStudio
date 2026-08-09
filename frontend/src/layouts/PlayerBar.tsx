@@ -37,6 +37,7 @@ export default function PlayerBar() {
   const next = usePlayerStore((s) => s.next);
   const prev = usePlayerStore((s) => s.prev);
   const seek = usePlayerStore((s) => s.seek);
+  const hydratePersistedState = usePlayerStore((s) => s.hydratePersistedState);
 
   const volume = usePlayerStore((s) => s.volume);
   const muted = usePlayerStore((s) => s.muted);
@@ -68,6 +69,10 @@ export default function PlayerBar() {
   const mobileMiniProgressRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    void hydratePersistedState?.();
+  }, [hydratePersistedState]);
 
   // Close volume popup when clicking outside
   useEffect(() => {

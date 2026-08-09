@@ -249,15 +249,106 @@ describe('domain API contracts', () => {
     await userSubscriptions.cancelMySubscription();
     await userSubscriptions.reactivateMySubscription();
     await userSubscriptions.fetchAdminUserSubscriptions(2, 30, controller.signal);
-    await userSubscriptions.updateAdminUserSubscription(1, {
-      status: 'ACTIVE',
-      billingCycle: 'YEARLY',
-    });
-    await userSubscriptions.deleteAdminUserSubscription(1);
     await userSubscriptions.fetchSubscriptionChangePreview(2, 'YEARLY');
     expect(mockedClient.get).toHaveBeenCalledWith('/utils/subscription-change-preview', {
       params: { subscriptionId: 2, billingCycle: 'YEARLY' },
     });
+  });
+
+  it('uses the administrator subscription correction workflow contracts', async () => {
+    const controller = new AbortController();
+    const request: userSubscriptions.AdminSubscriptionCorrectionRequest = {
+      userSubscriptionId: 71,
+      targetSubscriptionId: 2,
+      targetBillingCycle: 'YEARLY',
+      targetStatus: 'CANCELLED',
+      targetExpiresAt: '2026-09-01',
+      clearPendingChange: true,
+      cancelBillingAgreement: true,
+      reasonNote: '지원 티켓 ATS-71',
+    };
+    const correction = { id: 91, status: 'REQUESTED' };
+
+    mockedClient.post
+      .mockResolvedValueOnce(apiResponse({ executable: true, externalPaymentExecuted: false }))
+      .mockResolvedValueOnce(apiResponse(correction))
+      .mockResolvedValueOnce(apiResponse({ ...correction, status: 'APPROVED' }))
+      .mockResolvedValueOnce(apiResponse({ ...correction, status: 'SUCCEEDED' }));
+    mockedClient.get
+      .mockResolvedValueOnce({ data: paged })
+      .mockResolvedValueOnce(apiResponse(correction));
+
+    await userSubscriptions.previewAdminSubscriptionCorrection(request, controller.signal);
+    await userSubscriptions.fetchAdminSubscriptionCorrections(2, 30, controller.signal);
+    await userSubscriptions.fetchAdminSubscriptionCorrection(91, controller.signal);
+    await userSubscriptions.createAdminSubscriptionCorrection(request, controller.signal);
+    await userSubscriptions.approveAdminSubscriptionCorrection(
+      91,
+      { note: '승인 메모' },
+      controller.signal,
+    );
+    await userSubscriptions.executeAdminSubscriptionCorrection(
+      91,
+      { note: '실행 메모' },
+      controller.signal,
+    );
+
+    expect(mockedClient.post).toHaveBeenNthCalledWith(
+      1,
+      '/admin/user-subscription-corrections/preview',
+      request,
+      { signal: controller.signal },
+    );
+    expect(mockedClient.get).toHaveBeenNthCalledWith(1, '/admin/user-subscription-corrections', {
+      params: { page: 2, size: 30 },
+      signal: controller.signal,
+    });
+    expect(mockedClient.get).toHaveBeenNthCalledWith(2, '/admin/user-subscription-corrections/91', {
+      signal: controller.signal,
+    });
+    expect(mockedClient.post).toHaveBeenNthCalledWith(
+      2,
+      '/admin/user-subscription-corrections',
+      request,
+      { signal: controller.signal },
+    );
+    expect(mockedClient.post).toHaveBeenNthCalledWith(
+      3,
+      '/admin/user-subscription-corrections/91/approve',
+      { note: '승인 메모' },
+      { signal: controller.signal },
+    );
+    expect(mockedClient.post).toHaveBeenNthCalledWith(
+      4,
+      '/admin/user-subscription-corrections/91/execute',
+      { note: '실행 메모' },
+      { signal: controller.signal },
+    );
+  });
+
+  it('returns the open correction and maps an Axios 204 response to null', async () => {
+    const controller = new AbortController();
+    const correction = { id: 91, status: 'REQUESTED' };
+    mockedClient.get
+      .mockResolvedValueOnce({ status: 200, ...apiResponse(correction) })
+      .mockResolvedValueOnce({ status: 204, data: '' });
+
+    await expect(
+      userSubscriptions.fetchOpenAdminSubscriptionCorrection(71, controller.signal),
+    ).resolves.toEqual(correction);
+    await expect(
+      userSubscriptions.fetchOpenAdminSubscriptionCorrection(72, controller.signal),
+    ).resolves.toBeNull();
+    expect(mockedClient.get).toHaveBeenNthCalledWith(
+      1,
+      '/admin/user-subscription-corrections/open',
+      { params: { userSubscriptionId: 71 }, signal: controller.signal },
+    );
+    expect(mockedClient.get).toHaveBeenNthCalledWith(
+      2,
+      '/admin/user-subscription-corrections/open',
+      { params: { userSubscriptionId: 72 }, signal: controller.signal },
+    );
   });
 
   it('matches every backend PaymentOrderStatus value', () => {
@@ -390,13 +481,26 @@ describe('domain API contracts', () => {
     await tags.fetchTags('GENRE');
     expect(mockedClient.get).toHaveBeenNthCalledWith(4, '/tags', { params: { type: 'GENRE' } });
     await tags.fetchAvailableTags(
-      { genre: 'rock', mood: 'bright', usage: 'shorts', bpmMin: 80, bpmMax: 120 },
+      {
+        genre: ['K-Pop', '한글 장르'],
+        mood: ['bright'],
+        instrument: ['guitar, synth'],
+        usage: ['#shorts'],
+        bpmMin: 80,
+        bpmMax: 120,
+      },
       controller.signal,
     );
     expect(mockedClient.get).toHaveBeenNthCalledWith(5, '/tags/available', {
-      params: { genre: 'rock', mood: 'bright', usage: 'shorts', bpmMin: 80, bpmMax: 120 },
+      params: expect.any(URLSearchParams),
       signal: controller.signal,
     });
+    const availableTagQuery = mockedClient.get.mock.calls[4]?.[1] as {
+      params: URLSearchParams;
+    };
+    expect(availableTagQuery.params.toString()).toBe(
+      'genre=K-Pop&genre=%ED%95%9C%EA%B8%80+%EC%9E%A5%EB%A5%B4&mood=bright&instrument=guitar%2C+synth&usage=%23shorts&bpmMin=80&bpmMax=120',
+    );
     await tags.createTag({ name: 'Rock', type: 'GENRE' });
     await tags.updateTag(7, { name: 'Indie', type: 'GENRE' });
     await tags.deleteTag(7);
@@ -405,10 +509,10 @@ describe('domain API contracts', () => {
       page: 2,
       size: 12,
       keyword: 'spring',
-      genre: 'rock',
-      mood: 'bright',
-      instrument: 'guitar',
-      usage: 'shorts',
+      genre: ['K-Pop', '한글 장르'],
+      mood: ['bright'],
+      instrument: ['guitar, synth'],
+      usage: ['#shorts'],
       bpmMin: 80,
       bpmMax: 120,
       tonality: 'C',
@@ -416,9 +520,13 @@ describe('domain API contracts', () => {
     };
     await tracks.fetchTracks(trackFilters, controller.signal);
     expect(mockedClient.get).toHaveBeenNthCalledWith(6, '/tracks', {
-      params: trackFilters,
+      params: expect.any(URLSearchParams),
       signal: controller.signal,
     });
+    const trackQuery = mockedClient.get.mock.calls[5]?.[1] as { params: URLSearchParams };
+    expect(trackQuery.params.toString()).toBe(
+      'page=2&size=12&keyword=spring&genre=K-Pop&genre=%ED%95%9C%EA%B8%80+%EC%9E%A5%EB%A5%B4&mood=bright&instrument=guitar%2C+synth&usage=%23shorts&bpmMin=80&bpmMax=120&tonality=C&sort=popular',
+    );
     await tracks.fetchTrackDetail(7, controller.signal);
     await tracks.fetchTrackDetailForAdmin(7);
     await tracks.fetchAdminTracks({ page: 2, size: 20, is_active: false, keyword: 'old' });
@@ -451,6 +559,22 @@ describe('domain API contracts', () => {
     expect(mockedClient.post).toHaveBeenCalledWith('/whitelist-channels', request);
     expect(mockedClient.put).toHaveBeenCalledWith('/whitelist-channels/4/primary');
     expect(mockedClient.delete).toHaveBeenCalledWith('/whitelist-channels/4');
+  });
+
+  it('hydrates multiple playable tracks with one bounded batch request', async () => {
+    const playable = {
+      id: 7,
+      title: 'Track',
+      artistName: 'Artist',
+      duration: 180,
+      thumbnail: null,
+      waveformData: '[0.2,0.8]',
+    };
+    mockedClient.post.mockResolvedValue({ data: { dataList: [playable] } });
+
+    await expect(tracks.fetchPlayableTracks([7, 8, 7])).resolves.toEqual([playable]);
+    expect(mockedClient.post).toHaveBeenCalledTimes(1);
+    expect(mockedClient.post).toHaveBeenCalledWith('/tracks/batch', { ids: [7, 8, 7] });
   });
 
   it('builds company certification multipart requests and maps errors', async () => {

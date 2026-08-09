@@ -45,7 +45,8 @@ public interface BillingAgreementRepository extends JpaRepository<BillingAgreeme
     Optional<BillingAgreement> findByUserAndProvider(User user, PaymentProviderType provider);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT ba FROM BillingAgreement ba JOIN FETCH ba.user "
+    // Keep the user association out of this lock so callers can acquire user rows later.
+    @Query("SELECT ba FROM BillingAgreement ba "
             + "WHERE ba.user.id = :userID AND ba.provider = :provider")
     Optional<BillingAgreement> findByUserIDAndProviderForUpdate(
             @Param("userID") Long userID,

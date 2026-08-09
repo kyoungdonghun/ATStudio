@@ -86,7 +86,7 @@ public class PlaylistService {
 
         Map<Long, Long> countMap = playlistIds.isEmpty()
                 ? Collections.emptyMap()
-                : playlistTrackRepository.countByPlaylistIdIn(playlistIds)
+                : playlistTrackRepository.countActiveByPlaylistIdIn(playlistIds)
                         .stream()
                         .collect(Collectors.toMap(
                                 row -> (Long) row[0],
@@ -106,7 +106,7 @@ public class PlaylistService {
         Playlist playlist = getOwnedPlaylist(playlistId, userDetails.getId());
 
         List<PlaylistTrackItemResponse> tracks = playlistTrackRepository
-                .findAllByIdPlaylistIdOrderByTrackOrderAsc(playlistId)
+                .findAllPlayableByPlaylistIdOrderByTrackOrderAsc(playlistId)
                 .stream()
                 .map(PlaylistTrackItemResponse::from)
                 .toList();
@@ -209,7 +209,7 @@ public class PlaylistService {
 
         playlist.update(request.getTitle(), request.getDescription(), thumbnailUrl);
 
-        int trackCount = (int) playlistTrackRepository.countByIdPlaylistId(playlistId);
+        int trackCount = (int) playlistTrackRepository.countActiveByPlaylistId(playlistId);
         return PlaylistResponse.from(playlist, trackCount);
     }
 
@@ -223,12 +223,22 @@ public class PlaylistService {
         getOwnedPlaylistForUpdate(playlistId, userDetails.getId());
         List<PlaylistTrack> playlistTracks = playlistTrackRepository
                 .findAllByIdPlaylistIdOrderByTrackOrderAsc(playlistId);
-        validatePlaylistReorderRequest(request, playlistTracks);
+        List<PlaylistTrack> activePlaylistTracks = playlistTracks.stream()
+                .filter(playlistTrack -> playlistTrack.getTrack().isActive())
+                .toList();
+        validatePlaylistReorderRequest(request, activePlaylistTracks);
 
-        Map<Long, PlaylistTrack> tracksById = playlistTracks.stream()
+        Map<Long, PlaylistTrack> tracksById = activePlaylistTracks.stream()
                 .collect(Collectors.toMap(track -> track.getTrack().getId(), track -> track));
         for (PlaylistTrackOrderItem item : request.tracks()) {
             tracksById.get(item.trackId()).updateOrder(item.trackOrder());
+        }
+
+        int nextInactiveOrder = activePlaylistTracks.size();
+        for (PlaylistTrack playlistTrack : playlistTracks) {
+            if (!playlistTrack.getTrack().isActive()) {
+                playlistTrack.updateOrder(nextInactiveOrder++);
+            }
         }
     }
 
@@ -321,8 +331,12 @@ public class PlaylistService {
         return playlist;
     }
 
-    private void validatePlaylistReorderRequest(PlaylistReorderRequest request, List<PlaylistTrack> playlistTracks) {
-        if (request == null || request.tracks() == null || request.tracks().size() != playlistTracks.size()) {
+    private void validatePlaylistReorderRequest(
+            PlaylistReorderRequest request,
+            List<PlaylistTrack> activePlaylistTracks) {
+        if (request == null
+                || request.tracks() == null
+                || request.tracks().size() != activePlaylistTracks.size()) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
 
@@ -336,13 +350,13 @@ public class PlaylistService {
             }
         }
 
-        Set<Long> existingTrackIds = playlistTracks.stream()
+        Set<Long> existingTrackIds = activePlaylistTracks.stream()
                 .map(track -> track.getTrack().getId())
                 .collect(Collectors.toSet());
         if (!requestedTrackIds.equals(existingTrackIds)) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
-        for (int order = 0; order < playlistTracks.size(); order++) {
+        for (int order = 0; order < activePlaylistTracks.size(); order++) {
             if (!requestedOrders.contains(order)) {
                 throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
             }

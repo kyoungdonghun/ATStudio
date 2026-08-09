@@ -1,6 +1,6 @@
 ---
-version: 21.1
-last_updated: 2026-07-17
+version: 22.1
+last_updated: 2026-08-09
 project: ATS
 owner: SA
 category: design
@@ -16,16 +16,16 @@ dependencies:
     reason: Current API persistence consumers
 ---
 
-# ATStudio DB Schema Definition v21
+# ATStudio DB Schema Definition v22.1
 
 ## V1 Baseline
 
-ATStudio V1 has **39 tables and 39 JPA entities**. Both counts are derived from
+ATStudio V1 has **41 tables and 41 JPA entities**. Both counts are derived from
 the current working tree:
 
-- 39 unique `CREATE TABLE` statements in
+- 41 unique `CREATE TABLE` statements in
   `src/main/resources/schema.sql`.
-- 39 Java types annotated with `@Entity` under
+- 41 Java types annotated with `@Entity` under
   `src/main/java/com/atstudio/atstudio/entity/`.
 
 The checked-in DDL is a fresh-only, fail-closed baseline:
@@ -42,20 +42,26 @@ bootstrap, or operator workflow. Existing databases are not upgraded by this
 repository baseline. Any retained-data migration requires a separate approved
 requirement and migration design.
 
-### Exact Verified Manifest
+### Verified Current Manifest
 
-The recreated local V1 baseline passed Hibernate validation and exact manifest
-comparison on 2026-07-17:
+WI-20260809-ATS-001 verified the current fresh disposable manifest on an
+isolated loopback database. The historical 2026-07-17 39-table manifest is a
+predecessor record only; it is not the current certification baseline.
 
 | Object | Count |
 |---|---:|
-| Tables | 39 |
-| Columns | 449 |
-| Indexes | 153 |
-| Foreign keys | 80 |
+| Tables | 41 |
+| Columns | 493 |
+| Indexes | 168 |
+| Foreign keys | 89 |
+| Seeded subscription plans | 6 |
+| Manifest SHA-256 | `c581bef61cfba143744882b0674daf8d8fe742d82adbbf66d6b61699f5b86333` |
 
-Manifest SHA-256:
-`c48d3c75378aaf2364d89ed06833ba68e27a5a334dbc4670d1443bd938c6c506`.
+The verified manifest matches the current source: 41 canonical `CREATE TABLE`
+statements, 41 JPA entities, and the listed column, index, foreign-key, and
+seeded-plan totals. The bootstrap validator now enforces these values and the
+SHA-256 above. The WI-022 source-derived reconciliation and its historical
+39-table baseline remain preserved in its evidence record.
 
 ## Baseline Data Ownership
 
@@ -81,6 +87,13 @@ notices are explicit non-baseline workflows.
 | `social_accounts` | Social identity linkage |
 | `email_verification_tokens` | Single-use email verification |
 | `password_reset_tokens` | Single-use password reset |
+
+### Administrator Operations (2)
+
+| Table | Primary role |
+|---|---|
+| `admin_operation_audit_logs` | Append-only role-change and local-correction security audit without foreign keys |
+| `admin_subscription_corrections` | Explicit local subscription correction request/approval/execution ledger |
 
 ### Subscription and Payment (12)
 
@@ -137,7 +150,7 @@ notices are explicit non-baseline workflows.
 | `notice_attachments` | Notice attachment metadata |
 | `storage_mutations` | Durable storage mutation journal |
 
-Total: **39 tables**.
+Total: **41 tables**.
 
 ## Current Contract Boundaries
 
@@ -148,6 +161,28 @@ Total: **39 tables**.
 - Public DTOs do not expose private storage keys.
 - There is no separate preview-column or preview-generation contract.
 - Browser-local Play History does not own a database table.
+- Track creation and audio replacement persist duration and waveform from one
+  decoded-PCM analysis result. Existing rows are not rewritten by the
+  read-only audio-analysis dry-run.
+- New or replacement Track thumbnails must be square and are canonicalized to
+  JPEG. Existing non-square thumbnail keys remain unchanged unless an operator
+  explicitly uploads a replacement.
+
+### Administrator Audit and Subscription Correction
+
+- `admin_operation_audit_logs` stores minimal before/after state and outcome
+  snapshots for administrator role changes and local subscription corrections.
+  IDs are snapshots rather than foreign keys.
+- Rejected role-change, ADMIN-withdrawal, and local-correction rows retain the
+  stable action, target, actor, error code, and equal bounded state snapshots,
+  but persist `reason_note` as null. Successful role-change/correction audits
+  may retain the approved operator reason.
+- `admin_subscription_corrections` is separate from refund-linked
+  `payment_entitlement_corrections`. It records a local entitlement target,
+  reason, approval/execution state, actors, timestamps, and failure state.
+- Local correction may update `user_subscriptions` and local
+  `billing_agreements` state after revalidation and ordered locking. It does not
+  create a provider charge, refund, billing-key deletion, or email side effect.
 
 ### Official Download
 
@@ -201,4 +236,4 @@ Get-ChildItem src/main/java/com/atstudio/atstudio/entity -Recurse -Filter *.java
   Measure-Object
 ```
 
-Expected results: `39` and `39`.
+Expected results: `41` and `41`.

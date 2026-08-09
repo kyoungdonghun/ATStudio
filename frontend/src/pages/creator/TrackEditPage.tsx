@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { toUploadUrl } from '@/api/client';
 import { fetchTrackDetailForAdmin, updateTrack } from '@/api/tracks';
 import { fetchTags } from '@/api/tags';
 import type { TagItem } from '@/types';
@@ -9,13 +10,14 @@ import {
   BPM_MAX,
   DESCRIPTION_MAX,
   AUDIO_MAX_SIZE_MB,
-  IMAGE_MAX_SIZE_MB,
   isFileSizeOk,
   AUDIO_ACCEPT,
   hasValidAudioExtension,
 } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import Tag from '@/components/ui/Tag';
+import TrackThumbnailField from './TrackThumbnailField';
+import { emptyTrackThumbnailSelection, type TrackThumbnailSelection } from './trackThumbnail';
 import styles from './TrackEditPage.module.css';
 
 const TONALITIES = [
@@ -57,7 +59,9 @@ export default function TrackEditPage() {
   const [description, setDescription] = useState('');
   const [isActive, setIsActive] = useState(false);
   const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [thumbnail, setThumbnail] = useState<File | null>(null);
+  const [thumbnail, setThumbnail] = useState<TrackThumbnailSelection>(() =>
+    emptyTrackThumbnailSelection(),
+  );
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
 
   /* ── Existing file paths ── */
@@ -145,21 +149,20 @@ export default function TrackEditPage() {
     setAudioFile(file);
   }
 
-  function handleThumbnailChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    if (file && !isFileSizeOk(file, IMAGE_MAX_SIZE_MB)) {
-      setError(`썸네일 이미지는 ${IMAGE_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`);
-      return;
-    }
-    setThumbnail(file);
-  }
-
   /* ── Submit ── */
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
 
     if (!trackId) return;
+    if (thumbnail.status === 'pending') {
+      setError('썸네일 이미지 크기를 확인하고 있습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+    if (thumbnail.status === 'invalid') {
+      setError(thumbnail.error ?? '썸네일 이미지를 다시 선택해주세요.');
+      return;
+    }
 
     const formData = new FormData();
     if (title.trim()) formData.append('title', title.trim());
@@ -171,8 +174,8 @@ export default function TrackEditPage() {
     if (audioFile) {
       formData.append('audioFile', audioFile);
     }
-    if (thumbnail) {
-      formData.append('thumbnail', thumbnail);
+    if (thumbnail.file) {
+      formData.append('thumbnail', thumbnail.file);
     }
     selectedTagIds.forEach((tagId) => {
       formData.append('tagIds', String(tagId));
@@ -229,24 +232,13 @@ export default function TrackEditPage() {
           </div>
 
           <div className={styles.fileBox}>
-            <div className={styles.field}>
-              <span className={styles.label}>{'썸네일'}</span>
-              <label className={`${styles.fileLabel} ${thumbnail ? styles.fileLabelSelected : ''}`}>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className={styles.fileHidden}
-                  onChange={handleThumbnailChange}
-                />
-                {thumbnail ? thumbnail.name : '새 이미지 선택'}
-              </label>
-              {currentThumbnail && !thumbnail && (
-                <span className={styles.currentFile}>
-                  {'현재: '}
-                  {currentThumbnail.split('/').pop()}
-                </span>
-              )}
-            </div>
+            <TrackThumbnailField
+              value={thumbnail}
+              onChange={setThumbnail}
+              existingImageUrl={toUploadUrl(currentThumbnail)}
+              existingFileName={currentThumbnail?.split('/').pop() ?? null}
+              disabled={submitting}
+            />
           </div>
         </div>
 
@@ -383,7 +375,11 @@ export default function TrackEditPage() {
           <Button variant="ghost" type="button" onClick={() => navigate(-1)} disabled={submitting}>
             {'취소'}
           </Button>
-          <Button type="submit" loading={submitting}>
+          <Button
+            type="submit"
+            loading={submitting}
+            disabled={thumbnail.status === 'pending' || thumbnail.status === 'invalid'}
+          >
             {'저장'}
           </Button>
         </div>

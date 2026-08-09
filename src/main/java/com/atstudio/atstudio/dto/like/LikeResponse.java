@@ -9,9 +9,12 @@ import java.time.LocalDateTime;
 public record LikeResponse(
         Long trackId,
         String title,
+        String artistName,
+        int duration,
         Integer bpm,
         String tonality,
         String thumbnail,
+        String waveformData,
         LocalDateTime createdAt
 ) {
 
@@ -19,9 +22,12 @@ public record LikeResponse(
         return new LikeResponse(
                 like.getTrack().getId(),
                 like.getTrack().getTitle(),
+                like.getTrack().getUser().getNickname(),
+                like.getTrack().getDuration(),
                 like.getTrack().getBpm(),
                 like.getTrack().getTonality(),
                 like.getTrack().getThumbnail(),
+                like.getTrack().getWaveformData(),
                 like.getCreatedAt()
         );
     }

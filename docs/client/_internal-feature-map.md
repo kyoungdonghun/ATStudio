@@ -1,6 +1,6 @@
 ---
-version: 2.2
-last_updated: 2026-07-17
+version: 2.3
+last_updated: 2026-08-09
 project: ATS
 owner: docops
 category: reference
@@ -22,15 +22,15 @@ This file is excluded from the client PDF.
 
 | Surface | Current count | Unit |
 |---|---:|---|
-| REST API | 137 | Method-level mappings across 23 controller classes |
-| Database | 39 | `CREATE TABLE` declarations; also 39 JPA entities |
+| REST API | 144 | Method-level mappings across 25 controller classes |
+| Database | 41 | `CREATE TABLE` declarations; also 41 JPA entities |
 | Frontend screens | 53 | Distinct visual page UIs, including 2 error screens |
 | Router declarations | 57 | 56 path routes plus 1 index redirect |
 | Lazy page components | 53 | Every current `lazyPage(...)` declaration |
-| Modal occurrences | 23 | `<Modal>` renders across 17 non-test TSX files |
-| SR items | 92 | 82 DONE, 7 OPEN, 2 NOT CONFIRMED, 1 DROPPED |
+| Modal occurrences | 22 | `<Modal>` renders across 17 non-test TSX files |
+| SR items | 100 | 82 DONE, 15 OPEN, 2 NOT CONFIRMED, 1 DROPPED |
 
-## Verified V1 Quality Baseline
+## Historical Verified V1 Quality Baseline
 
 | Gate | Final verified result |
 |---|---|
@@ -46,6 +46,10 @@ This file is excluded from the client PDF.
 |---|---|
 | Billing re-registration amount 0 and flat DTOs | Java billing DTOs, `frontend/src/api/payments.ts`, API spec 6.3.4-6.3.7 |
 | Browser-local play history | `playerStore.ts`, `PlayHistoryPage.tsx`; no server Play History contract |
+| Shared playback hydration | `POST /api/tracks/batch`, `PlayableTrackService`, ID-only `playerState`/`playHistory` persistence |
+| Tag discovery | Repeated Genre/Mood/Instrument/Usage parameters, AND semantics, Usage-first Home fallback |
+| ADMIN role safety | Deterministic active-ADMIN lock, role audit, `/users/me` resynchronization |
+| ADMIN local subscription correction | Separate `admin_subscription_corrections` workflow; no provider charge/refund |
 | Dashboard stats | `GET /api/admin/stats`, `DashboardPage.tsx` |
 | Site settings | `COMPANY_CERT_GUIDE`, public read + admin upsert |
 | Screen count | `frontend/src/router/index.tsx`, `docs/ui/atstudio-front-list.md` |
@@ -55,5 +59,8 @@ This file is excluded from the client PDF.
 
 - Official V1 baseline branch: `codex/p1-acceptance-hardening`; current install resolves Vite 6.4.3. No separate client-demo branch is maintained.
 - The verified coverage values above are observations, not release thresholds.
+- The current WI-014~021 implementation has focused test evidence only. Final
+  full suites, coverage, static/build gates, browser acceptance, and production
+  deployment remain later gates.
 - Public runtime evidence is valid only for the current operator-controlled acceptance lifecycle and its newly verified URL. Historical captures are reference-only.
 - Retained DB rehearsal, live provider/secrets, production proxy/CORS/monitoring, and final client acceptance remain open environment gates.

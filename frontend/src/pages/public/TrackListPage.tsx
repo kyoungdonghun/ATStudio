@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { fetchTracks, type TrackListParams } from '@/api/tracks';
 import { fetchTags, fetchAvailableTags } from '@/api/tags';
@@ -6,16 +6,18 @@ import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import { getApiErrorCode } from '@/api/client';
 import { classifyLoadError, getLoadErrorMessage } from '@/api/loadError';
 import { fetchDownloadCount } from '@/api/downloads';
-import type { Track, TrackListItem, TagItem, PageInfo } from '@/types';
+import type { TrackListItem, TagItem, PageInfo, TagType } from '@/types';
 import TrackRow from '@/components/track/TrackRow';
 import FilterChip from '@/components/ui/FilterChip';
-import TagFilterModal from '@/components/filter/TagFilterModal';
+import TagFilterModal, { type TagFilterOption } from '@/components/filter/TagFilterModal';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import Pagination from '@/components/ui/Pagination';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
+import { toPlayableTrack } from '@/utils/playableTrack';
+import { formatTagNameForDisplay } from '@/utils/tagName';
 import styles from './TrackListPage.module.css';
 
 /* ── BPM filter presets ── */
@@ -30,28 +32,113 @@ const BPM_PRESETS: readonly { label: string; min: number | undefined; max: numbe
   ];
 
 const PAGE_SIZE = 20;
+const TAXONOMY_TYPES: readonly TagType[] = ['GENRE', 'MOOD', 'INSTRUMENT', 'USAGE'];
+const TAXONOMY_LABELS: Record<TagType, string> = {
+  GENRE: '장르',
+  MOOD: '분위기',
+  INSTRUMENT: '악기',
+  USAGE: '용도',
+};
 
-/** SR-83: Map a TrackListItem to the Track shape used by the player store. */
-function trackListItemToTrack(t: TrackListItem): Track {
+type TaxonomyStatus = 'loading' | 'ready' | 'error';
+
+interface TaxonomyEntry {
+  tags: TagItem[];
+  status: TaxonomyStatus;
+}
+
+type TaxonomyState = Record<TagType, TaxonomyEntry>;
+
+function createInitialTaxonomyState(): TaxonomyState {
   return {
-    id: t.id,
-    title: t.title,
-    artistName: t.artistName ?? '',
-    duration: t.duration ?? 0,
-    bpm: t.bpm,
-    tonality: t.tonality,
-    description: null,
-    audioFile: null,
-    thumbnail: t.thumbnail,
-    waveformData: t.waveformData,
-    tags: t.tags,
-    isActive: true,
-    playCount: t.playCount,
-    likeCount: t.likeCount,
-    downloadCount: t.downloadCount,
-    createdAt: t.createdAt,
-    updatedAt: t.createdAt,
+    GENRE: { tags: [], status: 'loading' },
+    MOOD: { tags: [], status: 'loading' },
+    INSTRUMENT: { tags: [], status: 'loading' },
+    USAGE: { tags: [], status: 'loading' },
   };
+}
+
+function createTaxonomyRequestGenerations(): Record<TagType, number> {
+  return { GENRE: 0, MOOD: 0, INSTRUMENT: 0, USAGE: 0 };
+}
+
+function createTaxonomyRequestTokens(): Record<TagType, number | null> {
+  return { GENRE: null, MOOD: null, INSTRUMENT: null, USAGE: null };
+}
+
+function mergeTaxonomyOptions(
+  tags: TagItem[],
+  activeValues: string[],
+  type: TagType,
+): TagFilterOption[] {
+  const activeNames = new Set(activeValues);
+  const seenNames = new Set<string>();
+  const options: TagFilterOption[] = [];
+
+  for (const tag of tags) {
+    if (tag.type !== type || seenNames.has(tag.name)) continue;
+    seenNames.add(tag.name);
+    options.push({
+      key: `tag:${type}:${tag.id}:${tag.name.length}:${tag.name}`,
+      name: tag.name,
+      type,
+    });
+  }
+
+  options.sort(
+    (first, second) => Number(!activeNames.has(first.name)) - Number(!activeNames.has(second.name)),
+  );
+
+  for (const name of activeValues) {
+    if (seenNames.has(name)) continue;
+    seenNames.add(name);
+    options.push({ key: `url:${type}:${name.length}:${name}`, name, type });
+  }
+
+  return options;
+}
+
+function TaxonomyLoadState({
+  type,
+  status,
+  onRetry,
+}: {
+  type: TagType;
+  status: TaxonomyStatus;
+  onRetry: (type: TagType) => void;
+}) {
+  const label = TAXONOMY_LABELS[type];
+  if (status === 'ready') return null;
+  if (status === 'loading') {
+    return (
+      <span className={styles.taxonomyStatus} role="status">
+        {`${label} 불러오는 중`}
+      </span>
+    );
+  }
+  return (
+    <span className={styles.taxonomyRequestState}>
+      <span className={styles.taxonomyError} role="alert">
+        {`${label} 태그를 불러오지 못했습니다.`}
+      </span>
+      <button
+        aria-label={`${label} 태그 다시 시도`}
+        className={styles.taxonomyRetryButton}
+        onClick={() => onRetry(type)}
+        type="button"
+      >
+        {'다시 시도'}
+      </button>
+    </span>
+  );
+}
+
+function tagValuesKey(values: string[]) {
+  return JSON.stringify(values);
+}
+
+function tagValuesFromKey(key: string): string[] {
+  return JSON.parse(key) as string[];
 }
 
 export default function TrackListPage() {
@@ -60,15 +147,15 @@ export default function TrackListPage() {
   /* ── State ── */
   const [tracks, setTracks] = useState<TrackListItem[]>([]);
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
-  const [genreTags, setGenreTags] = useState<TagItem[]>([]);
-  const [moodTags, setMoodTags] = useState<TagItem[]>([]);
-  const [usageTags, setUsageTags] = useState<TagItem[]>([]);
+  const [taxonomies, setTaxonomies] = useState<TaxonomyState>(createInitialTaxonomyState);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const trackRequestGenerationRef = useRef(0);
   const trackRequestControllerRef = useRef<AbortController | null>(null);
   const trackRetryInFlightRef = useRef(false);
   const availableTagsRequestGenerationRef = useRef(0);
+  const taxonomyRequestGenerationRef = useRef(createTaxonomyRequestGenerations());
+  const taxonomyRequestTokenRef = useRef(createTaxonomyRequestTokens());
 
   const toast = useToastStore((s) => s.show);
   const navigate = useNavigate();
@@ -83,10 +170,12 @@ export default function TrackListPage() {
   const activeKeyword = searchParams.get('keyword') ?? '';
   const activeGenres = searchParams.getAll('genre');
   const activeMoods = searchParams.getAll('mood');
+  const activeInstruments = searchParams.getAll('instrument');
   const activeUsages = searchParams.getAll('usage');
-  const activeGenresKey = activeGenres.join(',');
-  const activeMoodsKey = activeMoods.join(',');
-  const activeUsagesKey = activeUsages.join(',');
+  const activeGenresKey = tagValuesKey(activeGenres);
+  const activeMoodsKey = tagValuesKey(activeMoods);
+  const activeInstrumentsKey = tagValuesKey(activeInstruments);
+  const activeUsagesKey = tagValuesKey(activeUsages);
   const activeBpmLabel = searchParams.get('bpm') ?? '';
   const sortValue = (searchParams.get('sort') ?? 'latest') as
     | 'latest'
@@ -99,11 +188,33 @@ export default function TrackListPage() {
     activeKeyword,
     activeGenresKey,
     activeMoodsKey,
+    activeInstrumentsKey,
     activeUsagesKey,
     activeBpmLabel,
   ].join('\u001f');
   const latestTrackRequestKeyRef = useRef(trackRequestKey);
   latestTrackRequestKeyRef.current = trackRequestKey;
+  const genreTags = taxonomies.GENRE.tags;
+  const moodTags = taxonomies.MOOD.tags;
+  const instrumentTags = taxonomies.INSTRUMENT.tags;
+  const usageTags = taxonomies.USAGE.tags;
+  const visibleGenreTags = useMemo(
+    () => mergeTaxonomyOptions(genreTags, tagValuesFromKey(activeGenresKey), 'GENRE'),
+    [activeGenresKey, genreTags],
+  );
+  const visibleMoodTags = useMemo(
+    () => mergeTaxonomyOptions(moodTags, tagValuesFromKey(activeMoodsKey), 'MOOD'),
+    [activeMoodsKey, moodTags],
+  );
+  const visibleInstrumentTags = useMemo(
+    () =>
+      mergeTaxonomyOptions(instrumentTags, tagValuesFromKey(activeInstrumentsKey), 'INSTRUMENT'),
+    [activeInstrumentsKey, instrumentTags],
+  );
+  const visibleUsageTags = useMemo(
+    () => mergeTaxonomyOptions(usageTags, tagValuesFromKey(activeUsagesKey), 'USAGE'),
+    [activeUsagesKey, usageTags],
+  );
 
   /* Player store for playing state */
   const currentTrack = usePlayerStore((s) => s.currentTrack);
@@ -116,7 +227,7 @@ export default function TrackListPage() {
   /* SR-83: Publish the currently visible track list as player context.
      The Next/Prev buttons and keyboard ↓/↑ both read from this context. */
   useEffect(() => {
-    setTrackListContext(tracks.map(trackListItemToTrack));
+    setTrackListContext(tracks.map((track) => toPlayableTrack(track)));
   }, [tracks, setTrackListContext]);
 
   /* Like store */
@@ -129,14 +240,17 @@ export default function TrackListPage() {
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [genreExpanded, setGenreExpanded] = useState(false);
   const [moodExpanded, setMoodExpanded] = useState(false);
+  const [instrumentExpanded, setInstrumentExpanded] = useState(false);
   const [usageExpanded, setUsageExpanded] = useState(false);
   const hasActiveFilters =
-    activeGenresKey !== '' ||
-    activeMoodsKey !== '' ||
-    activeUsagesKey !== '' ||
+    activeGenres.length > 0 ||
+    activeMoods.length > 0 ||
+    activeInstruments.length > 0 ||
+    activeUsages.length > 0 ||
     activeBpmLabel !== '';
   const [availableGenres, setAvailableGenres] = useState<Set<string>>(new Set());
   const [availableMoods, setAvailableMoods] = useState<Set<string>>(new Set());
+  const [availableInstruments, setAvailableInstruments] = useState<Set<string>>(new Set());
   const [availableUsages, setAvailableUsages] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -145,32 +259,54 @@ export default function TrackListPage() {
     }
   }, [isAuthenticated, likeLoaded, loadLikes]);
 
-  /* ── Load tags once ── */
-  useEffect(() => {
-    let cancelled = false;
+  const loadTaxonomy = useCallback(async (type: TagType) => {
+    const requestGeneration = ++taxonomyRequestGenerationRef.current[type];
+    taxonomyRequestTokenRef.current[type] = requestGeneration;
+    setTaxonomies((current) => ({
+      ...current,
+      [type]: { ...current[type], status: 'loading' },
+    }));
 
-    async function loadTags() {
-      try {
-        const [genres, moods, usages] = await Promise.all([
-          fetchTags('GENRE'),
-          fetchTags('MOOD'),
-          fetchTags('USAGE'),
-        ]);
-        if (!cancelled) {
-          setGenreTags(genres);
-          setMoodTags(moods);
-          setUsageTags(usages);
-        }
-      } catch {
-        /* tags are supplementary, ignore errors */
+    try {
+      const tags = await fetchTags(type);
+      if (taxonomyRequestGenerationRef.current[type] !== requestGeneration) return;
+      setTaxonomies((current) => ({
+        ...current,
+        [type]: { tags, status: 'ready' },
+      }));
+    } catch {
+      if (taxonomyRequestGenerationRef.current[type] !== requestGeneration) return;
+      setTaxonomies((current) => ({
+        ...current,
+        [type]: { ...current[type], status: 'error' },
+      }));
+    } finally {
+      if (taxonomyRequestTokenRef.current[type] === requestGeneration) {
+        taxonomyRequestTokenRef.current[type] = null;
       }
     }
-
-    loadTags();
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  /* ── Load each taxonomy independently ── */
+  useEffect(() => {
+    const requestGenerations = taxonomyRequestGenerationRef.current;
+    const requestTokens = taxonomyRequestTokenRef.current;
+    TAXONOMY_TYPES.forEach((type) => void loadTaxonomy(type));
+    return () => {
+      TAXONOMY_TYPES.forEach((type) => {
+        requestGenerations[type] += 1;
+        requestTokens[type] = null;
+      });
+    };
+  }, [loadTaxonomy]);
+
+  const retryTaxonomy = useCallback(
+    (type: TagType) => {
+      if (taxonomyRequestTokenRef.current[type] !== null) return;
+      void loadTaxonomy(type);
+    },
+    [loadTaxonomy],
+  );
 
   /* ── Load tracks when filters/page change ── */
   const loadTracks = useCallback(async () => {
@@ -194,9 +330,12 @@ export default function TrackListPage() {
     };
 
     if (activeKeyword) params.keyword = activeKeyword;
-    if (activeGenresKey) params.genre = activeGenresKey;
-    if (activeMoodsKey) params.mood = activeMoodsKey;
-    if (activeUsagesKey) params.usage = activeUsagesKey;
+    if (activeGenresKey !== '[]') params.genre = tagValuesFromKey(activeGenresKey);
+    if (activeMoodsKey !== '[]') params.mood = tagValuesFromKey(activeMoodsKey);
+    if (activeInstrumentsKey !== '[]') {
+      params.instrument = tagValuesFromKey(activeInstrumentsKey);
+    }
+    if (activeUsagesKey !== '[]') params.usage = tagValuesFromKey(activeUsagesKey);
 
     const bpmPreset = BPM_PRESETS.find((p) => p.label === activeBpmLabel);
     if (bpmPreset) {
@@ -233,6 +372,7 @@ export default function TrackListPage() {
     activeKeyword,
     activeGenresKey,
     activeMoodsKey,
+    activeInstrumentsKey,
     activeUsagesKey,
     activeBpmLabel,
     trackRequestKey,
@@ -260,19 +400,26 @@ export default function TrackListPage() {
   /* ── Tag recombination: fetch available tags when filters change ── */
   useEffect(() => {
     const requestGeneration = ++availableTagsRequestGenerationRef.current;
-    if (!hasActiveFilters) {
+    const showAllTags = () => {
       setAvailableGenres(new Set());
       setAvailableMoods(new Set());
+      setAvailableInstruments(new Set());
       setAvailableUsages(new Set());
+    };
+
+    showAllTags();
+    if (!hasActiveFilters) {
       return;
     }
     const controller = new AbortController();
     const bpmPreset = BPM_PRESETS.find((p) => p.label === activeBpmLabel);
     fetchAvailableTags(
       {
-        genre: activeGenresKey || undefined,
-        mood: activeMoodsKey || undefined,
-        usage: activeUsagesKey || undefined,
+        genre: activeGenresKey === '[]' ? undefined : tagValuesFromKey(activeGenresKey),
+        mood: activeMoodsKey === '[]' ? undefined : tagValuesFromKey(activeMoodsKey),
+        instrument:
+          activeInstrumentsKey === '[]' ? undefined : tagValuesFromKey(activeInstrumentsKey),
+        usage: activeUsagesKey === '[]' ? undefined : tagValuesFromKey(activeUsagesKey),
         bpmMin: bpmPreset?.min,
         bpmMax: bpmPreset?.max,
       },
@@ -287,16 +434,33 @@ export default function TrackListPage() {
         }
         setAvailableGenres(new Set(tags.filter((t) => t.type === 'GENRE').map((t) => t.name)));
         setAvailableMoods(new Set(tags.filter((t) => t.type === 'MOOD').map((t) => t.name)));
+        setAvailableInstruments(
+          new Set(tags.filter((t) => t.type === 'INSTRUMENT').map((t) => t.name)),
+        );
         setAvailableUsages(new Set(tags.filter((t) => t.type === 'USAGE').map((t) => t.name)));
       })
-      .catch(() => {
-        /* ignore */
+      .catch((requestError: unknown) => {
+        if (
+          controller.signal.aborted ||
+          requestGeneration !== availableTagsRequestGenerationRef.current ||
+          classifyLoadError(requestError) === 'cancelled'
+        ) {
+          return;
+        }
+        showAllTags();
       });
 
     return () => {
       controller.abort();
     };
-  }, [activeGenresKey, activeMoodsKey, activeUsagesKey, activeBpmLabel, hasActiveFilters]);
+  }, [
+    activeGenresKey,
+    activeMoodsKey,
+    activeInstrumentsKey,
+    activeUsagesKey,
+    activeBpmLabel,
+    hasActiveFilters,
+  ]);
 
   /* ── Filter helpers ── */
   function setFilter(key: string, value: string) {
@@ -333,6 +497,17 @@ export default function TrackListPage() {
     setSearchParams(next);
   }
 
+  function toggleInstrument(name: string) {
+    const next = new URLSearchParams(searchParams);
+    next.delete('instrument');
+    const updated = activeInstruments.includes(name)
+      ? activeInstruments.filter((instrument) => instrument !== name)
+      : [...activeInstruments, name];
+    updated.forEach((instrument) => next.append('instrument', instrument));
+    next.set('page', '1');
+    setSearchParams(next);
+  }
+
   function toggleUsage(name: string) {
     const next = new URLSearchParams(searchParams);
     next.delete('usage');
@@ -352,12 +527,20 @@ export default function TrackListPage() {
     setFilter('sort', e.target.value);
   }
 
-  function handleFilterApply(genres: string[], moods: string[], usages: string[], bpm: string) {
+  function handleFilterApply(
+    genres: string[],
+    moods: string[],
+    instruments: string[],
+    usages: string[],
+    bpm: string,
+  ) {
     const next = new URLSearchParams(searchParams);
     next.delete('genre');
     genres.forEach((g) => next.append('genre', g));
     next.delete('mood');
     moods.forEach((m) => next.append('mood', m));
+    next.delete('instrument');
+    instruments.forEach((instrument) => next.append('instrument', instrument));
     next.delete('usage');
     usages.forEach((u) => next.append('usage', u));
     if (bpm) {
@@ -368,25 +551,6 @@ export default function TrackListPage() {
     next.set('page', '1');
     setSearchParams(next);
   }
-
-  /* Sort tags: active ones first (CSS overflow hides the rest) */
-  const sortedGenreTags = [...genreTags].sort((a, b) => {
-    const aActive = activeGenres.includes(a.name) ? 0 : 1;
-    const bActive = activeGenres.includes(b.name) ? 0 : 1;
-    return aActive - bActive;
-  });
-
-  const sortedMoodTags = [...moodTags].sort((a, b) => {
-    const aActive = activeMoods.includes(a.name) ? 0 : 1;
-    const bActive = activeMoods.includes(b.name) ? 0 : 1;
-    return aActive - bActive;
-  });
-
-  const sortedUsageTags = [...usageTags].sort((a, b) => {
-    const aActive = activeUsages.includes(a.name) ? 0 : 1;
-    const bActive = activeUsages.includes(b.name) ? 0 : 1;
-    return aActive - bActive;
-  });
 
   function goToPage(page: number) {
     const next = new URLSearchParams(searchParams);
@@ -452,7 +616,7 @@ export default function TrackListPage() {
                 setSearchParams(next);
               }}
             />
-            {sortedGenreTags
+            {visibleGenreTags
               .filter(
                 (tag) =>
                   activeGenres.includes(tag.name) ||
@@ -461,14 +625,19 @@ export default function TrackListPage() {
               )
               .map((tag) => (
                 <FilterChip
-                  key={tag.id}
+                  key={tag.key}
                   label={tag.name}
                   active={activeGenres.includes(tag.name)}
                   onClick={() => toggleGenre(tag.name)}
                 />
               ))}
           </div>
-          {genreTags.length > 6 && (
+          <TaxonomyLoadState
+            type="GENRE"
+            status={taxonomies.GENRE.status}
+            onRetry={retryTaxonomy}
+          />
+          {visibleGenreTags.length > 6 && (
             <button className={styles.expandBtn} onClick={() => setGenreExpanded((v) => !v)}>
               {genreExpanded ? '\u25B2 접기' : '\u25BC 펼치기'}
             </button>
@@ -479,7 +648,7 @@ export default function TrackListPage() {
         <div className={`${styles.filterRow} ${moodExpanded ? styles.filterRowExpanded : ''}`}>
           <span className={styles.filterLabel}>{'분위기'}</span>
           <div className={styles.filterChips}>
-            {sortedMoodTags
+            {visibleMoodTags
               .filter(
                 (tag) =>
                   activeMoods.includes(tag.name) ||
@@ -488,48 +657,90 @@ export default function TrackListPage() {
               )
               .map((tag) => (
                 <FilterChip
-                  key={tag.id}
+                  key={tag.key}
                   label={tag.name}
                   active={activeMoods.includes(tag.name)}
                   onClick={() => toggleMood(tag.name)}
                 />
               ))}
           </div>
-          {moodTags.length > 6 && (
+          <TaxonomyLoadState type="MOOD" status={taxonomies.MOOD.status} onRetry={retryTaxonomy} />
+          {visibleMoodTags.length > 6 && (
             <button className={styles.expandBtn} onClick={() => setMoodExpanded((v) => !v)}>
               {moodExpanded ? '\u25B2 접기' : '\u25BC 펼치기'}
             </button>
           )}
         </div>
 
-        {/* Usage row */}
-        {usageTags.length > 0 && (
-          <div className={`${styles.filterRow} ${usageExpanded ? styles.filterRowExpanded : ''}`}>
-            <span className={styles.filterLabel}>{'용도'}</span>
-            <div className={styles.filterChips}>
-              {sortedUsageTags
-                .filter(
-                  (tag) =>
-                    activeUsages.includes(tag.name) ||
-                    availableUsages.size === 0 ||
-                    availableUsages.has(tag.name),
-                )
-                .map((tag) => (
-                  <FilterChip
-                    key={tag.id}
-                    label={`#${tag.name}`}
-                    active={activeUsages.includes(tag.name)}
-                    onClick={() => toggleUsage(tag.name)}
-                  />
-                ))}
-            </div>
-            {usageTags.length > 6 && (
-              <button className={styles.expandBtn} onClick={() => setUsageExpanded((v) => !v)}>
-                {usageExpanded ? '\u25B2 접기' : '\u25BC 펼치기'}
-              </button>
-            )}
+        {/* Instrument row */}
+        <div
+          className={`${styles.filterRow} ${instrumentExpanded ? styles.filterRowExpanded : ''}`}
+        >
+          <span className={styles.filterLabel}>{'악기'}</span>
+          <div className={styles.filterChips}>
+            {visibleInstrumentTags
+              .filter(
+                (tag) =>
+                  activeInstruments.includes(tag.name) ||
+                  availableInstruments.size === 0 ||
+                  availableInstruments.has(tag.name),
+              )
+              .map((tag) => (
+                <FilterChip
+                  key={tag.key}
+                  label={tag.name}
+                  active={activeInstruments.includes(tag.name)}
+                  onClick={() => toggleInstrument(tag.name)}
+                />
+              ))}
           </div>
-        )}
+          <TaxonomyLoadState
+            type="INSTRUMENT"
+            status={taxonomies.INSTRUMENT.status}
+            onRetry={retryTaxonomy}
+          />
+          {visibleInstrumentTags.length > 6 && (
+            <button
+              className={styles.expandBtn}
+              onClick={() => setInstrumentExpanded((value) => !value)}
+              type="button"
+            >
+              {instrumentExpanded ? '\u25B2 접기' : '\u25BC 펼치기'}
+            </button>
+          )}
+        </div>
+
+        {/* Usage row */}
+        <div className={`${styles.filterRow} ${usageExpanded ? styles.filterRowExpanded : ''}`}>
+          <span className={styles.filterLabel}>{'용도'}</span>
+          <div className={styles.filterChips}>
+            {visibleUsageTags
+              .filter(
+                (tag) =>
+                  activeUsages.includes(tag.name) ||
+                  availableUsages.size === 0 ||
+                  availableUsages.has(tag.name),
+              )
+              .map((tag) => (
+                <FilterChip
+                  key={tag.key}
+                  label={formatTagNameForDisplay(tag.name, tag.type)}
+                  active={activeUsages.includes(tag.name)}
+                  onClick={() => toggleUsage(tag.name)}
+                />
+              ))}
+          </div>
+          <TaxonomyLoadState
+            type="USAGE"
+            status={taxonomies.USAGE.status}
+            onRetry={retryTaxonomy}
+          />
+          {visibleUsageTags.length > 6 && (
+            <button className={styles.expandBtn} onClick={() => setUsageExpanded((v) => !v)}>
+              {usageExpanded ? '\u25B2 접기' : '\u25BC 펼치기'}
+            </button>
+          )}
+        </div>
 
         {/* BPM row + reset */}
         <div className={styles.filterRow}>
@@ -544,6 +755,13 @@ export default function TrackListPage() {
               />
             ))}
           </div>
+          <button
+            className={styles.filterSearchBtn}
+            onClick={() => setFilterModalOpen(true)}
+            type="button"
+          >
+            {'전체 필터'}
+          </button>
           {hasActiveFilters && (
             <button
               className={styles.resetBtn}
@@ -551,6 +769,7 @@ export default function TrackListPage() {
                 const next = new URLSearchParams(searchParams);
                 next.delete('genre');
                 next.delete('mood');
+                next.delete('instrument');
                 next.delete('usage');
                 next.delete('bpm');
                 next.set('page', '1');
@@ -567,11 +786,13 @@ export default function TrackListPage() {
       <TagFilterModal
         open={filterModalOpen}
         onClose={() => setFilterModalOpen(false)}
-        genreTags={genreTags}
-        moodTags={moodTags}
-        usageTags={usageTags}
+        genreTags={visibleGenreTags}
+        moodTags={visibleMoodTags}
+        instrumentTags={visibleInstrumentTags}
+        usageTags={visibleUsageTags}
         activeGenres={activeGenres}
         activeMoods={activeMoods}
+        activeInstruments={activeInstruments}
         activeUsages={activeUsages}
         activeBpmLabel={activeBpmLabel}
         bpmPresets={BPM_PRESETS}
@@ -625,7 +846,7 @@ export default function TrackListPage() {
                         if (isPlaying) pauseTrack();
                         else resumeTrack();
                       } else {
-                        playTrack(trackListItemToTrack(t));
+                        playTrack(toPlayableTrack(t));
                       }
                     }}
                     onLike={(t) => toggleLike(t.id)}

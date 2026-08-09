@@ -23,7 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -34,6 +36,7 @@ public class DownloadService {
     private final UserRepository userRepository;
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final TrackDownloadRepository trackDownloadRepository;
+    private final TrackTagRepository trackTagRepository;
     private final LicenseRepository licenseRepository;
     private final StorageService storageService;
 
@@ -121,8 +124,21 @@ public class DownloadService {
         Page<TrackDownload> result = trackDownloadRepository
                 .findMyDownloadHistory(user, normalizedKeyword, pageable);
 
+        List<Long> trackIds = result.getContent().stream()
+                .map(trackDownload -> trackDownload.getTrack().getId())
+                .distinct()
+                .toList();
+        Map<Long, List<Tag>> tagsByTrackId = trackIds.isEmpty()
+                ? Map.of()
+                : trackTagRepository.findAllWithTagByTrackIdIn(trackIds).stream()
+                        .collect(Collectors.groupingBy(
+                                trackTag -> trackTag.getId().getTrackId(),
+                                Collectors.mapping(TrackTag::getTag, Collectors.toList())
+                        ));
         List<DownloadHistoryItemResponse> dataList = result.getContent().stream()
-                .map(DownloadHistoryItemResponse::from)
+                .map(trackDownload -> DownloadHistoryItemResponse.from(
+                        trackDownload,
+                        tagsByTrackId.getOrDefault(trackDownload.getTrack().getId(), List.of())))
                 .toList();
 
         int total = (int) result.getTotalElements();

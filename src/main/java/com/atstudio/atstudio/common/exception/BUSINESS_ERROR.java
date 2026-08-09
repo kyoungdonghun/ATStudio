@@ -231,16 +231,51 @@ public enum BUSINESS_ERROR {
             "이미 등록된 전화번호입니다.",
             "회원가입/프로필 수정 시 전화번호 중복."),
 
+    SELF_ADMIN_DEMOTION_FORBIDDEN(
+            HttpStatus.FORBIDDEN,
+            "자신의 관리자 권한은 직접 해제할 수 없습니다.",
+            "관리자가 자신의 ADMIN 역할을 USER로 변경하려고 했습니다."),
+
+    LAST_ADMIN_REQUIRED(
+            HttpStatus.CONFLICT,
+            "최소 한 명의 관리자가 남아 있어야 합니다.",
+            "마지막 활성 관리자를 USER로 변경하려고 했습니다."),
+
+    ADMIN_ROLE_REQUIRED(
+            HttpStatus.FORBIDDEN,
+            "관리자 권한이 변경되었습니다. 다시 확인해주세요.",
+            "역할 변경 적용 직전 요청자의 현재 DB 역할이 ADMIN이 아닙니다."),
+
+    ADMIN_OPERATION_REASON_REQUIRED(
+            HttpStatus.BAD_REQUEST,
+            "역할 변경 사유를 입력해주세요.",
+            "실제 관리자 역할 변경 요청에 운영 사유가 없습니다."),
+
     // ── Track / Tag ───────────────────────────────────────────────────────────
     TRACK_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "트랙 정보를 찾을 수 없습니다.",
             "trackId에 해당하는 Track이 존재하지 않습니다."),
 
+    TRACK_THUMBNAIL_NOT_SQUARE(
+            HttpStatus.BAD_REQUEST,
+            "트랙 썸네일은 가로와 세로 길이가 같은 1:1 이미지여야 합니다.",
+            "Decoded Track thumbnail dimensions must be exactly square."),
+
+    AUDIO_ANALYSIS_FAILED(
+            HttpStatus.BAD_REQUEST,
+            "음원 파일을 분석할 수 없습니다. MP3 또는 WAV 파일을 확인해주세요.",
+            "업로드 음원에서 유효한 duration과 waveform을 함께 추출하지 못했습니다."),
+
     TAG_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "태그 정보를 찾을 수 없습니다.",
             "tagId에 해당하는 Tag가 존재하지 않습니다."),
+
+    TAG_NAME_INVALID(
+            HttpStatus.BAD_REQUEST,
+            "태그 이름 형식을 확인해주세요.",
+            "원시 태그 이름이 200자를 초과했거나 정규화된 이름이 비어 있거나 50자를 초과하거나 허용 문자 집합을 위반했습니다."),
 
     TAG_NAME_DUPLICATED(
             HttpStatus.CONFLICT,

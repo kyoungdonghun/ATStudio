@@ -1,17 +1,26 @@
 import { StrictMode } from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import UserManagePage from '@/pages/admin/UserManagePage';
+import ProtectedRoute from '@/router/ProtectedRoute';
+import { useAuthStore } from '@/store/authStore';
+import type { AdminAssignableRole, AdminUserDetail, AdminUserListItem } from '@/api/admin';
 import type { PagedResponse, User } from '@/types';
 
 const mocks = vi.hoisted(() => ({
   fetchUsers: vi.fn(),
+  fetchMe: vi.fn(),
   updateUserAdmin: vi.fn(),
 }));
 
 vi.mock('@/api/admin', () => ({
   fetchUsers: (...args: unknown[]) => mocks.fetchUsers(...args),
   updateUserAdmin: (...args: unknown[]) => mocks.updateUserAdmin(...args),
+}));
+
+vi.mock('@/api/auth', () => ({
+  fetchMe: (...args: unknown[]) => mocks.fetchMe(...args),
 }));
 
 function deferred<T>() {
@@ -24,27 +33,66 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function user(id: number, nickname: string): User {
+function adminUser(
+  id: number,
+  nickname: string,
+  role: AdminAssignableRole = 'USER',
+): AdminUserListItem {
   return {
     id,
     email: `${nickname.toLowerCase()}@example.com`,
     nickname,
-    role: 'USER',
-    phonePersonal: null,
-    phoneCompany: null,
-    job: null,
-    companyName: null,
+    role,
     userType: 'INDIVIDUAL',
     isVerified: true,
     createdAt: '2026-07-16T00:00:00',
   };
 }
 
-function page(entry: User): PagedResponse<User> {
+function adminUserDetail(item: AdminUserListItem): AdminUserDetail {
   return {
-    dataList: [entry],
-    pageInfo: { page: 1, size: 20, total: 1, start: 1, end: 1, prev: false, next: false },
+    ...item,
+    phonePersonal: null,
+    phoneCompany: null,
+    job: null,
+    companyName: null,
   };
+}
+
+function sessionUser(item: AdminUserListItem): User {
+  return adminUserDetail(item);
+}
+
+function page(...entries: AdminUserListItem[]): PagedResponse<AdminUserListItem> {
+  return {
+    dataList: entries,
+    pageInfo: {
+      page: 1,
+      size: 20,
+      total: entries.length,
+      start: entries.length === 0 ? 0 : 1,
+      end: entries.length,
+      prev: false,
+      next: false,
+    },
+  };
+}
+
+const currentAdminRow = adminUser(99, 'CurrentAdmin', 'ADMIN');
+const currentAdmin = sessionUser(currentAdminRow);
+
+function setSession(sessionUser: User) {
+  localStorage.setItem('accessToken', 'access-token');
+  localStorage.setItem('user', JSON.stringify(sessionUser));
+  useAuthStore.setState({
+    user: sessionUser,
+    accessToken: 'access-token',
+    role: sessionUser.role,
+  });
+}
+
+function renderPage() {
+  return render(<UserManagePage />);
 }
 
 function renderStrictPage() {
@@ -55,15 +103,37 @@ function renderStrictPage() {
   );
 }
 
+function renderProtectedPage() {
+  return render(
+    <MemoryRouter initialEntries={['/admin/users']}>
+      <Routes>
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute minRole="ADMIN">
+              <UserManagePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/" element={<div>Home Page</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
 describe('UserManagePage request fencing', () => {
   beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    useAuthStore.setState({ user: null, accessToken: null, role: 'GUEST' });
     mocks.fetchUsers.mockReset();
+    mocks.fetchMe.mockReset();
     mocks.updateUserAdmin.mockReset();
   });
 
   it('ignores an old successful list response after a newer search', async () => {
-    const first = deferred<PagedResponse<User>>();
-    const second = deferred<PagedResponse<User>>();
+    const first = deferred<PagedResponse<AdminUserListItem>>();
+    const second = deferred<PagedResponse<AdminUserListItem>>();
     mocks.fetchUsers.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
 
     renderStrictPage();
@@ -71,26 +141,162 @@ describe('UserManagePage request fencing', () => {
     const firstSignal = mocks.fetchUsers.mock.calls[0][1] as AbortSignal;
     expect(firstSignal.aborted).toBe(true);
 
-    await act(async () => second.resolve(page(user(2, 'CurrentUser'))));
+    await act(async () => second.resolve(page(adminUser(2, 'CurrentUser'))));
     expect(await screen.findByText('CurrentUser')).toBeInTheDocument();
 
-    await act(async () => first.resolve(page(user(1, 'OldUser'))));
+    await act(async () => first.resolve(page(adminUser(1, 'OldUser'))));
     expect(screen.getByText('CurrentUser')).toBeInTheDocument();
     expect(screen.queryByText('OldUser')).not.toBeInTheDocument();
   });
 
   it('ignores an old failed list response after a newer search succeeds', async () => {
-    const first = deferred<PagedResponse<User>>();
-    const second = deferred<PagedResponse<User>>();
+    const first = deferred<PagedResponse<AdminUserListItem>>();
+    const second = deferred<PagedResponse<AdminUserListItem>>();
     mocks.fetchUsers.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
 
     renderStrictPage();
     await waitFor(() => expect(mocks.fetchUsers).toHaveBeenCalledTimes(2));
-    await act(async () => second.resolve(page(user(2, 'CurrentAfterFailure'))));
+    await act(async () => second.resolve(page(adminUser(2, 'CurrentAfterFailure'))));
     expect(await screen.findByText('CurrentAfterFailure')).toBeInTheDocument();
 
     await act(async () => first.reject(new Error('old failure')));
     expect(screen.getByText('CurrentAfterFailure')).toBeInTheDocument();
     expect(screen.queryByText('Failed to load users')).not.toBeInTheDocument();
+  });
+});
+
+describe('UserManagePage administrator role safety', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    useAuthStore.setState({ user: null, accessToken: null, role: 'GUEST' });
+    mocks.fetchUsers.mockReset();
+    mocks.fetchMe.mockReset();
+    mocks.updateUserAdmin.mockReset();
+  });
+
+  it('disables the current administrator role control and explains why', async () => {
+    setSession(currentAdmin);
+    mocks.fetchUsers.mockResolvedValue(page(currentAdminRow));
+
+    renderPage();
+
+    expect(
+      await screen.findByRole('combobox', { name: 'Change role for CurrentAdmin' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText('Your own administrator role cannot be changed here.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'GUEST' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['SELF_ADMIN_DEMOTION_FORBIDDEN', 403, 'You cannot remove your own administrator role.'],
+    ['LAST_ADMIN_REQUIRED', 409, 'At least one active administrator must remain.'],
+    [
+      'ADMIN_ROLE_REQUIRED',
+      403,
+      'Your administrator access has changed. Your current role is being refreshed.',
+    ],
+  ])(
+    'keeps the list and maps %s into row and modal feedback',
+    async (errorCode, status, message) => {
+      const targetAdmin = adminUser(2, 'TargetAdmin', 'ADMIN');
+      setSession(currentAdmin);
+      mocks.fetchUsers.mockResolvedValue(page(targetAdmin));
+      mocks.updateUserAdmin.mockRejectedValue({
+        response: { status, data: { errorCode } },
+      });
+      mocks.fetchMe.mockResolvedValue(currentAdmin);
+      renderPage();
+
+      fireEvent.change(
+        await screen.findByRole('combobox', { name: 'Change role for TargetAdmin' }),
+        { target: { value: 'USER' } },
+      );
+      const dialog = await screen.findByRole('dialog', { name: 'Confirm Role Change' });
+      expect(
+        within(dialog).getByText(
+          'Administrator access ends immediately and the target must sign in again.',
+        ),
+      ).toBeInTheDocument();
+      fireEvent.change(within(dialog).getByLabelText('Operator reason'), {
+        target: { value: '  Access review ticket 14  ' },
+      });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+
+      await waitFor(() => expect(screen.getAllByText(message)).toHaveLength(2));
+      expect(mocks.updateUserAdmin).toHaveBeenCalledWith(2, {
+        role: 'USER',
+        reason: 'Access review ticket 14',
+      });
+      expect(screen.getByRole('heading', { name: 'User Management' })).toBeInTheDocument();
+      expect(screen.getAllByText('TargetAdmin')).not.toHaveLength(0);
+      expect(screen.getByRole('dialog', { name: 'Confirm Role Change' })).toBeInTheDocument();
+      expect(mocks.fetchMe).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refreshes /users/me once after a successful role mutation', async () => {
+    const targetAdmin = adminUser(2, 'TargetAdmin', 'ADMIN');
+    const demotedTarget = adminUserDetail({ ...targetAdmin, role: 'USER' });
+    setSession(currentAdmin);
+    mocks.fetchUsers.mockResolvedValue(page(targetAdmin));
+    mocks.updateUserAdmin.mockResolvedValue(demotedTarget);
+    mocks.fetchMe.mockResolvedValue(currentAdmin);
+    renderPage();
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Change role for TargetAdmin' }), {
+      target: { value: 'USER' },
+    });
+    fireEvent.change(within(await screen.findByRole('dialog')).getByLabelText('Operator reason'), {
+      target: { value: 'Role ownership changed' },
+    });
+    fireEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Confirm' }),
+    );
+
+    await waitFor(() => expect(mocks.fetchMe).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('combobox', { name: 'Change role for TargetAdmin' })).toHaveValue(
+      'USER',
+    );
+    expect(useAuthStore.getState().role).toBe('ADMIN');
+  });
+
+  it('requires a trimmed operator reason before sending a role mutation', async () => {
+    const targetUser = adminUser(2, 'TargetUser');
+    setSession(currentAdmin);
+    mocks.fetchUsers.mockResolvedValue(page(targetUser));
+    renderPage();
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Change role for TargetUser' }), {
+      target: { value: 'ADMIN' },
+    });
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm Role Change' });
+    fireEvent.change(within(dialog).getByLabelText('Operator reason'), {
+      target: { value: '   ' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+
+    expect(
+      within(dialog).getByText('Enter an operator reason for this role change.'),
+    ).toBeInTheDocument();
+    expect(mocks.updateUserAdmin).not.toHaveBeenCalled();
+  });
+
+  it('refreshes a current-user row mismatch and lets ProtectedRoute reevaluate', async () => {
+    const demotedCurrentUser: AdminUserListItem = { ...currentAdminRow, role: 'USER' };
+    setSession(currentAdmin);
+    mocks.fetchUsers.mockResolvedValue(page(demotedCurrentUser));
+    mocks.fetchMe.mockResolvedValue(demotedCurrentUser);
+
+    renderProtectedPage();
+
+    expect(await screen.findByText('Home Page')).toBeInTheDocument();
+    expect(useAuthStore.getState().role).toBe('USER');
+    expect(mocks.fetchUsers).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchMe).toHaveBeenCalledTimes(1);
   });
 });

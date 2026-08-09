@@ -2,6 +2,8 @@ package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.dto.track.TrackCreateRequest;
 import com.atstudio.atstudio.dto.track.TrackResponse;
+import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
+import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.repository.AlbumTrackRepository;
@@ -14,6 +16,8 @@ import com.atstudio.atstudio.repository.TrackRepository;
 import com.atstudio.atstudio.repository.TrackTagRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.audio.AudioAnalysisService;
+import com.atstudio.atstudio.service.image.CanonicalImageService;
 import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
 import com.atstudio.atstudio.service.storage.StorageService;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,9 +40,14 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TrackService audio metadata and waveform processing")
@@ -58,6 +67,7 @@ class TrackServiceAudioProcessingTest {
     @Mock CustomUserDetails userDetails;
 
     private TrackService service;
+    private final AudioAnalysisService audioAnalysisService = new AudioAnalysisService();
 
     @BeforeEach
     void setUp() {
@@ -66,6 +76,8 @@ class TrackServiceAudioProcessingTest {
                 trackTagRepository,
                 tagRepository,
                 userRepository,
+                audioAnalysisService,
+                new CanonicalImageService(),
                 storageService,
                 storageMutationCoordinator,
                 likeRepository,
@@ -78,9 +90,9 @@ class TrackServiceAudioProcessingTest {
         ReflectionTestUtils.setField(user, "id", 11L);
         given(userDetails.getId()).willReturn(11L);
         given(userRepository.findById(11L)).willReturn(Optional.of(user));
-        given(storageMutationCoordinator.writeAll(any(), any(), any()))
-                .willReturn(List.of("tracks/audio/generated.wav"));
-        given(trackRepository.save(any(Track.class))).willAnswer(invocation -> {
+        lenient().when(storageMutationCoordinator.writeAll(any(), any(), any()))
+                .thenReturn(List.of("tracks/audio/generated.wav"));
+        lenient().when(trackRepository.save(any(Track.class))).thenAnswer(invocation -> {
             Track track = invocation.getArgument(0);
             ReflectionTestUtils.setField(track, "id", 101L);
             return track;
@@ -96,7 +108,7 @@ class TrackServiceAudioProcessingTest {
 
         assertThat(response.duration()).isEqualTo(1);
         assertWaveform(response.waveformData());
-        assertThat(response.waveformData()).contains("0.500");
+        assertThat(response.waveformData()).contains("0.504");
     }
 
     @Test
@@ -132,67 +144,52 @@ class TrackServiceAudioProcessingTest {
     }
 
     @Test
-    @DisplayName("valid WAV bytes on a non-WAV extension use the Java Sound fallback")
-    void createTrack_nonWavExtension_usesAudioSystemFallback() throws IOException {
+    @DisplayName("valid WAV bytes with an unsupported extension fail closed")
+    void createTrack_nonWavExtension_failsClosed() throws IOException {
         byte[] wav = wav(8_000, 1, 16, 1_200, false);
 
-        TrackResponse response = create(new MockMultipartFile("audioFile", "audio.bin", "application/octet-stream", wav));
-
-        assertThat(response.duration()).isZero();
-        assertWaveform(response.waveformData());
+        assertAudioAnalysisFailure(new MockMultipartFile(
+                "audioFile", "audio.bin", "application/octet-stream", wav));
     }
 
     @Test
-    @DisplayName("MP3 duration uses the documented 128-kbps estimate and invalid audio has no waveform")
-    void createTrack_mp3_usesSizeEstimateAndSafeWaveformFallback() {
+    @DisplayName("malformed MP3 never persists a size-estimated duration or null waveform")
+    void createTrack_malformedMp3_failsClosed() {
         byte[] bytes = new byte[32_768];
 
-        TrackResponse response = create(new MockMultipartFile("audioFile", "sample.mp3", "audio/mpeg", bytes));
-
-        assertThat(response.duration()).isEqualTo(2);
-        assertThat(response.waveformData()).isNull();
+        assertAudioAnalysisFailure(new MockMultipartFile(
+                "audioFile", "sample.mp3", "audio/mpeg", bytes));
     }
 
     @Test
-    @DisplayName("truncated and non-RIFF WAV files fail closed without blocking upload metadata")
-    void createTrack_malformedWav_returnsNoWaveformOrDuration() {
-        TrackResponse truncated = create(new MockMultipartFile(
+    @DisplayName("truncated and non-RIFF WAV files fail closed before storage mutation")
+    void createTrack_malformedWav_failsClosed() {
+        assertAudioAnalysisFailure(new MockMultipartFile(
                 "audioFile", "short.wav", "audio/wav", new byte[8]));
         byte[] notRiff = new byte[44];
         System.arraycopy("NOPE".getBytes(StandardCharsets.US_ASCII), 0, notRiff, 0, 4);
         System.arraycopy("WAVE".getBytes(StandardCharsets.US_ASCII), 0, notRiff, 8, 4);
-        TrackResponse invalidHeader = create(new MockMultipartFile(
+        assertAudioAnalysisFailure(new MockMultipartFile(
                 "audioFile", "invalid.wav", "audio/wav", notRiff));
-
-        assertThat(truncated.duration()).isZero();
-        assertThat(truncated.waveformData()).isNull();
-        assertThat(invalidHeader.duration()).isZero();
-        assertThat(invalidHeader.waveformData()).isNull();
     }
 
     @Test
-    @DisplayName("I/O failures use safe zero/null fallbacks and never expose parser exceptions")
-    void createTrack_ioFailure_usesSafeFallbacks() throws IOException {
+    @DisplayName("I/O failures use the stable audio analysis business error")
+    void createTrack_ioFailure_failsClosed() throws IOException {
         MultipartFile file = mock(MultipartFile.class);
         given(file.getOriginalFilename()).willReturn("broken.wav");
         given(file.isEmpty()).willReturn(false);
         given(file.getInputStream()).willThrow(new IOException("synthetic read failure"));
 
-        TrackResponse response = create(file);
-
-        assertThat(response.duration()).isZero();
-        assertThat(response.waveformData()).isNull();
+        assertAudioAnalysisFailure(file);
     }
 
     @Test
-    @DisplayName("missing filename is treated as unsupported audio metadata")
-    void createTrack_missingFilename_usesSafeFallbacks() {
+    @DisplayName("missing filename is rejected as unsupported audio")
+    void createTrack_missingFilename_failsClosed() {
         MultipartFile file = new MockMultipartFile("audioFile", null, "application/octet-stream", new byte[] {1});
 
-        TrackResponse response = create(file);
-
-        assertThat(response.duration()).isZero();
-        assertThat(response.waveformData()).isNull();
+        assertAudioAnalysisFailure(file);
     }
 
     private TrackResponse create(MultipartFile file) {
@@ -201,6 +198,15 @@ class TrackServiceAudioProcessingTest {
         request.setBpm(120);
         request.setTonality("C");
         return service.createTrack(request, file, null, userDetails);
+    }
+
+    private void assertAudioAnalysisFailure(MultipartFile file) {
+        assertThatThrownBy(() -> create(file))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.AUDIO_ANALYSIS_FAILED));
+        verifyNoInteractions(storageMutationCoordinator);
+        verify(trackRepository, never()).save(any(Track.class));
     }
 
     private void assertWaveform(String waveform) {

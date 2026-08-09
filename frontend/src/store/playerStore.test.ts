@@ -1,5 +1,5 @@
 import { act } from '@testing-library/react';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Track } from '@/types';
 
 type PlayerStoreModule = typeof import('@/store/playerStore');
@@ -144,6 +144,15 @@ beforeEach(() => {
   });
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+  act(() => usePlayerStore.getState().clearQueue());
+  if (vi.isFakeTimers()) {
+    vi.clearAllTimers();
+  }
+  vi.useRealTimers();
+});
+
 describe('playerStore playback lifecycle', () => {
   it('sets playing state and history only after play resolves', async () => {
     let resolvePlay: (() => void) | undefined;
@@ -160,8 +169,9 @@ describe('playerStore playback lifecycle', () => {
     expect(usePlayerStore.getState().queue).toEqual([firstTrack]);
     expect(localStorage.getItem('playHistory')).toBeNull();
     expect(JSON.parse(localStorage.getItem('playerState') ?? '{}')).toMatchObject({
-      currentTrack: { id: 1 },
-      queue: [{ id: 1 }],
+      version: 2,
+      currentTrackId: 1,
+      queueTrackIds: [1],
       currentTime: 0,
     });
 
@@ -173,7 +183,9 @@ describe('playerStore playback lifecycle', () => {
     expect(usePlayerStore.getState().isPlaying).toBe(true);
     expect(usePlayerStore.getState().playbackError).toBeNull();
     expect(JSON.parse(localStorage.getItem('playHistory') ?? '[]')).toEqual([
-      expect.objectContaining({ trackId: 1, title: 'First track' }),
+      expect.objectContaining({
+        track: expect.objectContaining({ id: 1, title: 'First track' }),
+      }),
     ]);
   });
 
@@ -242,36 +254,283 @@ describe('playerStore playback lifecycle', () => {
     vi.useRealTimers();
   });
 
-  it('surfaces stalled playback without stopping and clears it on recovery or retry', async () => {
-    act(() => usePlayerStore.getState().play(firstTrack));
-    await vi.waitFor(() => expect(usePlayerStore.getState().isPlaying).toBe(true));
+  it('replaces the prior duration in the same transition as a new track selection', () => {
+    const switchedTrack = { ...secondTrack, duration: 45 };
 
+    act(() => usePlayerStore.getState().play(firstTrack));
+    audio.currentTime = 60;
+    audio.duration = 121;
+    act(() => audio.dispatch('timeupdate'));
+    expect(usePlayerStore.getState()).toMatchObject({ currentTime: 60, duration: 121 });
+
+    act(() => usePlayerStore.getState().play(switchedTrack));
+
+    expect(usePlayerStore.getState()).toMatchObject({
+      currentTrack: switchedTrack,
+      currentTime: 0,
+      duration: 45,
+    });
+
+    audio.duration = 46;
+    act(() => audio.dispatch('loadedmetadata'));
+    expect(usePlayerStore.getState().duration).toBe(46);
+  });
+
+  it('keeps buffering pending and hidden at 0 ms and 1800 ms', () => {
+    vi.useFakeTimers();
+    usePlayerStore.setState({ currentTrack: firstTrack, isPlaying: true });
+
+    act(() => audio.dispatch('waiting'));
+    expect(usePlayerStore.getState()).toMatchObject({
+      isPlaying: true,
+      isStalled: false,
+      playbackError: null,
+    });
+
+    act(() => vi.advanceTimersByTime(1_800));
+    expect(usePlayerStore.getState()).toMatchObject({
+      isPlaying: true,
+      isStalled: false,
+      playbackError: null,
+    });
+  });
+
+  it('exposes retryable non-fatal buffering at exactly 2000 ms', () => {
+    vi.useFakeTimers();
+    usePlayerStore.setState({ currentTrack: firstTrack, isPlaying: true });
     audio.pause.mockClear();
+
     act(() => audio.dispatch('stalled'));
+    act(() => vi.advanceTimersByTime(1_999));
+    expect(usePlayerStore.getState().isStalled).toBe(false);
+
+    act(() => vi.advanceTimersByTime(1));
     expect(audio.pause).not.toHaveBeenCalled();
     expect(usePlayerStore.getState()).toMatchObject({
       isPlaying: true,
       isStalled: true,
       playbackError: null,
     });
+  });
 
-    act(() => audio.dispatch('canplay'));
-    expect(usePlayerStore.getState().isStalled).toBe(false);
+  it('does not reset the threshold or create a late duplicate for repeated native events', () => {
+    vi.useFakeTimers();
+    usePlayerStore.setState({ currentTrack: firstTrack, isPlaying: true });
 
     act(() => audio.dispatch('waiting'));
+    expect(vi.getTimerCount()).toBe(1);
+    act(() => vi.advanceTimersByTime(1_000));
+    act(() => audio.dispatch('stalled'));
+    expect(vi.getTimerCount()).toBe(1);
+
+    act(() => vi.advanceTimersByTime(1_000));
+    expect(usePlayerStore.getState().isStalled).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+
+    act(() => audio.dispatch('stalled'));
+    expect(vi.getTimerCount()).toBe(0);
+    act(() => audio.dispatch('canplay'));
+    act(() => vi.advanceTimersByTime(1_000));
+    expect(usePlayerStore.getState().isStalled).toBe(false);
+  });
+
+  it.each(['timeupdate', 'canplay', 'playing'])(
+    'cancels pending buffering on %s before the threshold',
+    (eventType) => {
+      vi.useFakeTimers();
+      usePlayerStore.setState({ currentTrack: firstTrack, isPlaying: true });
+      act(() => audio.dispatch('waiting'));
+      act(() => vi.advanceTimersByTime(1_800));
+
+      act(() => audio.dispatch(eventType));
+      act(() => vi.advanceTimersByTime(2_000));
+
+      expect(vi.getTimerCount()).toBe(0);
+      expect(usePlayerStore.getState().isStalled).toBe(false);
+    },
+  );
+
+  it('clears sustained buffering on recovery', () => {
+    vi.useFakeTimers();
+    usePlayerStore.setState({ currentTrack: firstTrack, isPlaying: true });
+    act(() => audio.dispatch('waiting'));
+    act(() => vi.advanceTimersByTime(2_000));
     expect(usePlayerStore.getState().isStalled).toBe(true);
 
+    act(() => audio.dispatch('playing'));
+    expect(usePlayerStore.getState()).toMatchObject({
+      isPlaying: true,
+      isStalled: false,
+      playbackError: null,
+    });
+  });
+
+  it('cancels pending buffering on pause', () => {
+    vi.useFakeTimers();
+    usePlayerStore.setState({ currentTrack: firstTrack, isPlaying: true });
+    act(() => audio.dispatch('waiting'));
+    act(() => vi.advanceTimersByTime(1_800));
+
+    act(() => usePlayerStore.getState().pause());
+    act(() => vi.advanceTimersByTime(2_000));
+
+    expect(usePlayerStore.getState()).toMatchObject({
+      isPlaying: false,
+      isStalled: false,
+      playbackError: null,
+    });
+  });
+
+  it('cancels pending buffering when resume or retry initializes a later attempt', async () => {
+    vi.useFakeTimers();
+    usePlayerStore.setState({ currentTrack: firstTrack, isPlaying: true });
+    act(() => audio.dispatch('waiting'));
+    act(() => vi.advanceTimersByTime(1_800));
+
+    await act(async () => {
+      usePlayerStore.getState().resume();
+      await Promise.resolve();
+    });
+    act(() => vi.advanceTimersByTime(2_000));
+
+    expect(usePlayerStore.getState()).toMatchObject({
+      isPlaying: true,
+      isStalled: false,
+      playbackError: null,
+    });
+  });
+
+  it('cancels pending buffering on track change', async () => {
+    vi.useFakeTimers();
+    usePlayerStore.setState({ currentTrack: firstTrack, isPlaying: true });
+    act(() => audio.dispatch('waiting'));
+    act(() => vi.advanceTimersByTime(1_800));
+
+    await act(async () => {
+      usePlayerStore.getState().play(secondTrack);
+      await Promise.resolve();
+    });
+    act(() => vi.advanceTimersByTime(2_000));
+
+    expect(usePlayerStore.getState()).toMatchObject({
+      currentTrack: secondTrack,
+      isPlaying: true,
+      isStalled: false,
+      playbackError: null,
+    });
+  });
+
+  it('cancels pending buffering on media error and keeps it as a real error', () => {
+    vi.useFakeTimers();
+    usePlayerStore.setState({ currentTrack: firstTrack, isPlaying: true });
+    act(() => audio.dispatch('waiting'));
+    act(() => vi.advanceTimersByTime(1_800));
+
     act(() => audio.dispatch('error'));
+    act(() => vi.advanceTimersByTime(2_000));
+
     expect(usePlayerStore.getState()).toMatchObject({
       isPlaying: false,
       isStalled: false,
       playbackError: MEDIA_ERROR,
     });
+  });
 
-    act(() => usePlayerStore.getState().resume());
-    expect(usePlayerStore.getState().playbackError).toBeNull();
-    expect(usePlayerStore.getState().isStalled).toBe(false);
-    await vi.waitFor(() => expect(usePlayerStore.getState().isPlaying).toBe(true));
+  it('cancels pending buffering on stop and clears playback state', () => {
+    vi.useFakeTimers();
+    usePlayerStore.setState({
+      currentTrack: firstTrack,
+      queue: [firstTrack],
+      isPlaying: true,
+    });
+    act(() => audio.dispatch('waiting'));
+    act(() => vi.advanceTimersByTime(1_800));
+
+    act(() => usePlayerStore.getState().clearQueue());
+    act(() => vi.advanceTimersByTime(2_000));
+
+    expect(usePlayerStore.getState()).toMatchObject({
+      currentTrack: null,
+      queue: [],
+      isPlaying: false,
+      isStalled: false,
+      playbackError: null,
+    });
+  });
+
+  it('cancels pending buffering when play rejects and never reports it as stalled', async () => {
+    vi.useFakeTimers();
+    let rejectPlay: ((reason?: unknown) => void) | undefined;
+    const pendingPlay = new Promise<void>((_resolve, reject) => {
+      rejectPlay = reject;
+    });
+    audio.play.mockReturnValueOnce(pendingPlay);
+
+    act(() => usePlayerStore.getState().play(firstTrack));
+    act(() => audio.dispatch('waiting'));
+    act(() => vi.advanceTimersByTime(1_800));
+    await act(async () => {
+      rejectPlay?.(new Error('network unavailable'));
+      await pendingPlay.catch(() => undefined);
+    });
+    act(() => vi.advanceTimersByTime(2_000));
+
+    expect(usePlayerStore.getState()).toMatchObject({
+      isPlaying: false,
+      isStalled: false,
+      playbackError: PLAYBACK_ERROR,
+    });
+  });
+
+  it('fences an uncancelled timer after pause and a later playback attempt', async () => {
+    vi.useFakeTimers();
+    usePlayerStore.setState({ currentTrack: firstTrack, isPlaying: true });
+    act(() => audio.dispatch('waiting'));
+    vi.spyOn(globalThis, 'clearTimeout').mockImplementation(() => undefined);
+
+    act(() => usePlayerStore.getState().pause());
+    await act(async () => {
+      usePlayerStore.getState().resume();
+      await Promise.resolve();
+    });
+    act(() => vi.advanceTimersByTime(2_000));
+
+    expect(usePlayerStore.getState()).toMatchObject({
+      currentTrack: firstTrack,
+      isPlaying: true,
+      isStalled: false,
+      playbackError: null,
+    });
+  });
+
+  it('fences an old Track timer and stale rejection after a new Track starts', async () => {
+    vi.useFakeTimers();
+    let rejectFirstPlay: ((reason?: unknown) => void) | undefined;
+    const firstPlay = new Promise<void>((_resolve, reject) => {
+      rejectFirstPlay = reject;
+    });
+    audio.play.mockReturnValueOnce(firstPlay).mockResolvedValueOnce(undefined);
+
+    act(() => usePlayerStore.getState().play(firstTrack));
+    act(() => audio.dispatch('waiting'));
+    vi.spyOn(globalThis, 'clearTimeout').mockImplementation(() => undefined);
+
+    await act(async () => {
+      usePlayerStore.getState().play(secondTrack);
+      await Promise.resolve();
+    });
+    await act(async () => {
+      rejectFirstPlay?.(new Error('stale rejection'));
+      await firstPlay.catch(() => undefined);
+    });
+    act(() => vi.advanceTimersByTime(4_000));
+
+    expect(usePlayerStore.getState()).toMatchObject({
+      currentTrack: secondTrack,
+      isPlaying: true,
+      isStalled: false,
+      playbackError: null,
+    });
   });
 
   it.each(nextStopScenarios)(

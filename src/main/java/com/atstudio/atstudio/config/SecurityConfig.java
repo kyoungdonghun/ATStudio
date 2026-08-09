@@ -74,6 +74,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/tracks/admin", "/api/tracks/admin/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/tracks/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/tracks/*/stream").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/tracks/batch").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/tags/available").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/tags").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/subscriptions").permitAll()
@@ -131,8 +132,6 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/api/user-subscriptions/me").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/api/user-subscriptions/me").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/user-subscriptions").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/api/user-subscriptions/*").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.DELETE, "/api/user-subscriptions/*").hasRole("ADMIN")
                 // Admin dashboard
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // All other /api/** require authentication

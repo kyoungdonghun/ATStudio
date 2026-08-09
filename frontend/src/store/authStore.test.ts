@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { logoutSessionMock } = vi.hoisted(() => ({
+const { fetchMeMock, logoutSessionMock } = vi.hoisted(() => ({
+  fetchMeMock: vi.fn(),
   logoutSessionMock: vi.fn(),
 }));
 
 vi.mock('@/api/auth', () => ({
+  fetchMe: fetchMeMock,
   logoutSession: logoutSessionMock,
 }));
 
@@ -51,6 +53,7 @@ const track: Track = {
 describe('authStore', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    fetchMeMock.mockReset();
     logoutSessionMock.mockReset();
     logoutSessionMock.mockResolvedValue(undefined);
     localStorage.clear();
@@ -121,6 +124,188 @@ describe('authStore', () => {
     expect(useAuthStore.getState().updateUser({ ...user, nickname: 'not-committed' })).toBe(false);
 
     expect(useAuthStore.getState().user).toEqual(user);
+    expect(localStorage.getItem('user')).toBe(persistedBefore);
+  });
+
+  it('refreshes the current user and persisted role from /users/me', async () => {
+    const adminUser: User = { ...user, role: 'ADMIN' };
+    const refreshedUser: User = { ...adminUser, role: 'USER' };
+    localStorage.setItem('accessToken', 'access-token');
+    localStorage.setItem('user', JSON.stringify(adminUser));
+    useAuthStore.setState({ user: adminUser, accessToken: 'access-token', role: 'ADMIN' });
+    fetchMeMock.mockResolvedValue(refreshedUser);
+
+    await expect(useAuthStore.getState().refreshCurrentUser()).resolves.toEqual(refreshedUser);
+
+    expect(fetchMeMock).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().user).toEqual(refreshedUser);
+    expect(useAuthStore.getState().role).toBe('USER');
+    expect(JSON.parse(localStorage.getItem('user') ?? 'null')).toEqual(refreshedUser);
+  });
+
+  it('coalesces concurrent current-user refreshes into one request', async () => {
+    const adminUser: User = { ...user, role: 'ADMIN' };
+    let resolveFetch!: (refreshedUser: User) => void;
+    fetchMeMock.mockReturnValue(
+      new Promise<User>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+    localStorage.setItem('accessToken', 'access-token');
+    localStorage.setItem('user', JSON.stringify(adminUser));
+    useAuthStore.setState({ user: adminUser, accessToken: 'access-token', role: 'ADMIN' });
+
+    const firstRefresh = useAuthStore.getState().refreshCurrentUser();
+    const secondRefresh = useAuthStore.getState().refreshCurrentUser();
+
+    expect(firstRefresh).toBe(secondRefresh);
+    await vi.waitFor(() => expect(fetchMeMock).toHaveBeenCalledTimes(1));
+    resolveFetch(adminUser);
+    await expect(Promise.all([firstRefresh, secondRefresh])).resolves.toEqual([
+      adminUser,
+      adminUser,
+    ]);
+  });
+
+  it('accepts an in-flight refresh after same-session access-token rotation', async () => {
+    const refreshedUser: User = { ...user, nickname: 'refreshed-user' };
+    let resolveFetch!: (refreshedUser: User) => void;
+    fetchMeMock.mockReturnValue(
+      new Promise<User>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+    localStorage.setItem('accessToken', 'old-access-token');
+    localStorage.setItem('user', JSON.stringify(user));
+    useAuthStore.setState({ user, accessToken: 'old-access-token', role: 'USER' });
+
+    const refresh = useAuthStore.getState().refreshCurrentUser();
+    await vi.waitFor(() => expect(fetchMeMock).toHaveBeenCalledTimes(1));
+    localStorage.setItem('accessToken', 'rotated-access-token');
+    useAuthStore.setState({ accessToken: 'rotated-access-token' });
+    resolveFetch(refreshedUser);
+
+    await expect(refresh).resolves.toEqual(refreshedUser);
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: 'rotated-access-token',
+      user: refreshedUser,
+      role: 'USER',
+    });
+    expect(localStorage.getItem('accessToken')).toBe('rotated-access-token');
+    expect(JSON.parse(localStorage.getItem('user') ?? 'null')).toEqual(refreshedUser);
+  });
+
+  it('rejects an in-flight refresh without restoring a logged-out session', async () => {
+    const adminUser: User = { ...user, role: 'ADMIN' };
+    let resolveFetch!: (refreshedUser: User) => void;
+    fetchMeMock.mockReturnValue(
+      new Promise<User>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+    localStorage.setItem('accessToken', 'old-access-token');
+    localStorage.setItem('user', JSON.stringify(adminUser));
+    useAuthStore.setState({ user: adminUser, accessToken: 'old-access-token', role: 'ADMIN' });
+
+    const refresh = useAuthStore.getState().refreshCurrentUser();
+    await vi.waitFor(() => expect(fetchMeMock).toHaveBeenCalledTimes(1));
+    await expect(useAuthStore.getState().logout()).resolves.toBe(true);
+    resolveFetch({ ...adminUser, nickname: 'stale-admin' });
+
+    await expect(refresh).rejects.toThrow('Stale current-user refresh result');
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: null,
+      user: null,
+      role: 'GUEST',
+    });
+    expect(localStorage.getItem('accessToken')).toBeNull();
+    expect(localStorage.getItem('user')).toBeNull();
+  });
+
+  it('rejects an in-flight refresh without overwriting a replacement account', async () => {
+    const originalUser: User = { ...user, role: 'ADMIN' };
+    const replacementUser: User = {
+      ...user,
+      id: 2,
+      email: 'replacement@test.com',
+      nickname: 'replacement',
+    };
+    let resolveFetch!: (refreshedUser: User) => void;
+    fetchMeMock.mockReturnValue(
+      new Promise<User>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+    localStorage.setItem('accessToken', 'old-access-token');
+    localStorage.setItem('user', JSON.stringify(originalUser));
+    useAuthStore.setState({ user: originalUser, accessToken: 'old-access-token', role: 'ADMIN' });
+
+    const refresh = useAuthStore.getState().refreshCurrentUser();
+    await vi.waitFor(() => expect(fetchMeMock).toHaveBeenCalledTimes(1));
+    useAuthStore
+      .getState()
+      .login('replacement-access-token', replacementUser, 'replacement-refresh-token');
+    resolveFetch({ ...originalUser, nickname: 'stale-admin' });
+
+    await expect(refresh).rejects.toThrow('Stale current-user refresh result');
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: 'replacement-access-token',
+      user: replacementUser,
+      role: 'USER',
+    });
+    expect(localStorage.getItem('accessToken')).toBe('replacement-access-token');
+    expect(JSON.parse(localStorage.getItem('user') ?? 'null')).toEqual(replacementUser);
+  });
+
+  it('rejects an old refresh and starts a new one after same-user re-login', async () => {
+    const currentUser: User = { ...user, nickname: 'current-user' };
+    let resolveOldFetch!: (refreshedUser: User) => void;
+    fetchMeMock
+      .mockReturnValueOnce(
+        new Promise<User>((resolve) => {
+          resolveOldFetch = resolve;
+        }),
+      )
+      .mockResolvedValueOnce(currentUser);
+    localStorage.setItem('accessToken', 'old-access-token');
+    localStorage.setItem('user', JSON.stringify(user));
+    useAuthStore.setState({ user, accessToken: 'old-access-token', role: 'USER' });
+
+    const oldRefresh = useAuthStore.getState().refreshCurrentUser();
+    await vi.waitFor(() => expect(fetchMeMock).toHaveBeenCalledTimes(1));
+    useAuthStore.getState().login('replacement-access-token', user, 'replacement-refresh-token');
+    const newRefresh = useAuthStore.getState().refreshCurrentUser();
+
+    expect(newRefresh).not.toBe(oldRefresh);
+    await expect(newRefresh).resolves.toEqual(currentUser);
+    expect(fetchMeMock).toHaveBeenCalledTimes(2);
+    resolveOldFetch({ ...user, nickname: 'stale-user' });
+    await expect(oldRefresh).rejects.toThrow('Stale current-user refresh result');
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: 'replacement-access-token',
+      user: currentUser,
+      role: 'USER',
+    });
+    expect(localStorage.getItem('accessToken')).toBe('replacement-access-token');
+    expect(JSON.parse(localStorage.getItem('user') ?? 'null')).toEqual(currentUser);
+  });
+
+  it('rejects a current-user response for a different user id without persisting it', async () => {
+    const persistedBefore = JSON.stringify(user);
+    localStorage.setItem('accessToken', 'access-token');
+    localStorage.setItem('user', persistedBefore);
+    useAuthStore.setState({ user, accessToken: 'access-token', role: 'USER' });
+    fetchMeMock.mockResolvedValue({ ...user, id: 2, email: 'other@test.com' });
+
+    await expect(useAuthStore.getState().refreshCurrentUser()).rejects.toThrow(
+      'Stale current-user refresh result',
+    );
+    expect(useAuthStore.getState()).toMatchObject({
+      accessToken: 'access-token',
+      user,
+      role: 'USER',
+    });
+    expect(localStorage.getItem('accessToken')).toBe('access-token');
     expect(localStorage.getItem('user')).toBe(persistedBefore);
   });
 

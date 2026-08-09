@@ -5,6 +5,8 @@ import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.user.UserDetailResponse;
 import com.atstudio.atstudio.dto.user.UserListItemResponse;
 import com.atstudio.atstudio.security.CustomUserDetailsService;
+import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.service.UserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +24,9 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
@@ -107,15 +112,42 @@ class UserControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
     @DisplayName("PUT /api/users/{id} - ADMIN → 200")
     void updateUser_adminRole_returns200() throws Exception {
-        given(userService.updateUserByAdmin(anyLong(), any())).willReturn(
+        given(userService.updateUserByAdmin(anyLong(), anyLong(), any())).willReturn(
                 new UserDetailResponse(1L, "nick", "user@test.com", null, null, null, null, "INDIVIDUAL", "USER", true, null));
 
         mockMvc.perform(put("/api/users/1")
+                        .with(user(adminDetails(99L)))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role\":\"USER\",\"isVerified\":true}"))
+                        .content("{\"role\":\"USER\",\"isVerified\":true,\"reason\":\"ticket 14\"}"))
                 .andExpect(status().isOk());
+        verify(userService).updateUserByAdmin(
+                eq(99L),
+                eq(1L),
+                argThat(request -> "ticket 14".equals(request.getReason())));
+    }
+
+    @Test
+    @DisplayName("PUT /api/users/{id} - 500자를 넘는 운영 사유는 400")
+    void updateUser_reasonOverLimit_returns400() throws Exception {
+        mockMvc.perform(put("/api/users/1")
+                        .with(user(adminDetails(99L)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"USER\",\"reason\":\"" + "x".repeat(501) + "\"}"))
+                .andExpect(status().isBadRequest());
+
+        verify(userService, never()).updateUserByAdmin(anyLong(), anyLong(), any());
+    }
+
+    private CustomUserDetails adminDetails(Long id) {
+        return CustomUserDetails.builder()
+                .id(id)
+                .email("admin@test.com")
+                .password("encoded")
+                .role(UserRole.ADMIN)
+                .isDeleted(false)
+                .isProfileComplete(true)
+                .build();
     }
 }

@@ -55,30 +55,6 @@ public class UserSubscriptionController {
                 .build());
     }
 
-    // -- 6.8 PUT /api/user-subscriptions/{id} --------------------------------
-
-    @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ResponseDTO<UserSubscriptionResponse>> adminUpdate(
-            @PathVariable Long id,
-            @Valid @RequestBody AdminUpdateSubscriptionRequest request) {
-        UserSubscriptionResponse response = userSubscriptionService.adminUpdate(id, request);
-        return ResponseEntity.ok(ResponseDTO.<UserSubscriptionResponse>withSingleData()
-                .message("Subscription updated by admin")
-                .data(response)
-                .build());
-    }
-
-    // -- 6.9 DELETE /api/user-subscriptions/{id} -----------------------------
-
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public ResponseEntity<Void> adminCancel(@PathVariable Long id) {
-        userSubscriptionService.adminCancel(id);
-        return ResponseEntity.noContent().build();
-    }
-
     // -- 6.10 DELETE /api/user-subscriptions/me ------------------------------
 
     @DeleteMapping("/me")

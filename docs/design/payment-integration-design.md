@@ -1,6 +1,6 @@
 ---
-version: 3.0
-last_updated: 2026-07-17
+version: 3.1
+last_updated: 2026-08-09
 project: ATS
 owner: SA
 category: design
@@ -102,8 +102,9 @@ security, tests, and documentation.
   lease and stale-result fencing.
 - Reconciliation mutates only from exact provider evidence; uncertainty remains
   Incident-only.
-- Direct ADMIN subscription update/cancel remains an authorized emergency
-  control and is not the ordinary payment path.
+- Direct ADMIN subscription update/cancel mappings are retired. The separate
+  general local correction workflow is explicit, audited, and has no provider
+  charge/refund/billing-key-delete side effect.
 
 ## Data Model
 
@@ -159,10 +160,12 @@ from its declared public base URL and remains fail-closed.
 
 ### ADMIN
 
-`/api/admin/payments/**` owns payment ledger reads, reconciliation,
-incidents, receipts, audit logs, refunds, entitlement corrections, and
-settlements. `PUT|DELETE /api/user-subscriptions/{id}` remains the separate
-emergency subscription control.
+`/api/admin/payments/**` owns payment ledger reads, reconciliation, incidents,
+receipts, audit logs, refunds, refund-linked entitlement corrections, and
+settlements. General local entitlement correction is separately exposed under
+`/api/admin/user-subscription-corrections/**`; direct ADMIN
+`PUT|DELETE /api/user-subscriptions/{id}` mappings are retired. The general
+local workflow does not charge/refund or delete provider billing keys.
 
 ## Verification Boundary
 

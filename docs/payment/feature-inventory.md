@@ -1,6 +1,6 @@
 ---
-version: 1.5
-last_updated: 2026-07-17
+version: 1.6
+last_updated: 2026-08-09
 project: ATS
 owner: docops
 category: guide
@@ -147,7 +147,11 @@ dependencies:
 ## 10. Verification Boundary
 
 - The current code/test gate passed independent follow-up review in `WI-20260715-ATS-012`.
-- The exact fresh V1 DB baseline is 39 tables, 449 columns, 153 indexes, and 80 foreign keys with manifest SHA-256 `c48d3c75378aaf2364d89ed06833ba68e27a5a334dbc4670d1443bd938c6c506`.
+- The current verified fresh manifest is 41 tables, 493 columns, 168 indexes,
+  89 foreign keys, and 6 seeded subscription plans; SHA-256 is
+  `c581bef61cfba143744882b0674daf8d8fe742d82adbbf66d6b61699f5b86333`.
+  WI-20260809-ATS-001 refreshed the disposable validator and passed isolated
+  mismatch-cleanup and Create/Validate/Drop proof checks.
 - Backend verification completed 1,208 tests with 0 failures/errors and 9 environment-dependent skips; JaCoCo is instruction 85.673%, branch 71.682%, line 85.726%, and method 82.931%.
 - Frontend verification completed 468 tests with 0 failures; coverage is statements 86.73%, branches 76.98%, functions 85.41%, and lines 88.75%. Typecheck, ESLint, Prettier, and build PASS.
 - Live Toss, production data strategy, deployment/monitoring, client acceptance, and explicit release approval remain separate production gates.
