@@ -1,6 +1,6 @@
 ---
-version: 29.0
-last_updated: 2026-08-12
+version: 30.0
+last_updated: 2026-08-13
 project: ATS
 owner: SA
 category: design
@@ -16,7 +16,7 @@ dependencies:
     reason: Current persistence contract
 ---
 
-# ATStudio API Specification v29.0
+# ATStudio API Specification v30.0
 
 ## Current Contract
 
@@ -139,12 +139,49 @@ application is authoritative for request and response schemas.
 All seven Settlement mappings are ADMIN-only through both `/api/admin/**`
 authorization and controller method authorization.
 
-`POST /api/admin/payments/settlements/import` requires `Idempotency-Key` as a
-header containing one canonical lowercase UUIDv4. The server does not trim,
-case-fold, or replace the key. It derives a deterministic 64-character SHA-256
-digest from the operation namespace, authenticated ADMIN ID, and canonical
-key. Only that owner-scoped opaque digest is persisted. The raw key is not put
-in a URL or query parameter, server database column, or application log.
+`POST /api/admin/payments/settlements/import` consumes `multipart/form-data`.
+It requires the `file` request part and `Idempotency-Key` header and accepts an
+optional multipart text part named `note`. A query-only `note` does not bind,
+and there is no query-parameter compatibility fallback. `Idempotency-Key` must
+contain one canonical lowercase UUIDv4. The server does not trim, case-fold, or
+replace the key. It derives a deterministic 64-character SHA-256 digest from
+the operation namespace, authenticated ADMIN ID, and canonical key. Only that
+owner-scoped opaque digest is persisted. The raw key is not put in a URL or
+query parameter, server database column, or application log.
+
+Before claiming an attempt, the server requires a present, nonblank filename
+of at most 255 characters ending in `.csv` case-insensitively; a missing/blank
+part media type or exactly `text/csv`, `application/csv`,
+`text/comma-separated-values`, or `application/vnd.ms-excel`; and nonempty
+declared and actual content of at most 5 MiB (5,242,880 bytes). Envelope
+violations use the existing invalid-argument response and create no attempt.
+
+After claim, decoding is strict UTF-8 with one optional leading BOM. The CSV
+contract supports comma delimiter, double-quote fields, doubled-quote escapes,
+quoted comma/newlines, and LF or CRLF records; bare CR, malformed/unbalanced
+quotes, duplicate normalized headers, unknown headers, and missing required
+headers fail the file. Headers are trim-plus-lowercase normalized and may be in
+any order. Every nonblank logical data record counts toward the 1,000-row
+ceiling, while header and blank records do not. Exact-width violations become
+row errors; the 1,001st data record fails the file. A claimed file-level failure
+terminates the attempt with bounded code `CSV_READ_FAILED`.
+
+Required headers are `provider`, `order_id`, `gross_amount`,
+`net_settlement_amount`, and `settlement_base_date`. Allowed optional headers
+are `provider_payment_key`, `provider_settlement_id`, `refund_amount`,
+`fee_amount`, `vat_amount`, `currency`, `settlement_payout_date`,
+`provider_status`, and `note`; no other header is accepted.
+
+CSV V1 accepts only exact `TOSS` and `KRW`. `order_id` is required and bounded
+to 64 characters; provider payment/settlement identifiers are optional and
+bounded to 200; provider status is optional and bounded to 100. These evidence
+values reject controls, U+2028/U+2029, and edge whitespace, preserve accepted
+case/content, and are never truncated. Amounts use plain nonnegative decimal
+notation, scale at most 2, and the `DECIMAL(15,2)` maximum
+9,999,999,999,999.99. They are rejected rather than rounded and canonicalized
+to exact scale 2 before deduplication and persistence. Dates are strict
+`yyyy-MM-dd`; payout must not precede base date. No oldest/future CSV date bound
+is implemented.
 
 The first request that claims the unique digest creates one
 `PROCESSING` import-attempt row before CSV processing. A repeated POST with the
@@ -174,10 +211,12 @@ original import response.
 
 `POST /api/admin/payments/settlements/import` can return HTTP `200` with both
 durable imported rows and row errors. `failedRows > 0` is a partial result, not
-full success. The existing response carries `totalRows`, `importedRows`,
-`skippedDuplicateRows`, `failedRows`, `statusCounts`, and every returned
-row-number/message error. Valid rows and their row audit events are persisted;
-invalid rows are represented by returned errors. Every normal import response
+full success. The response carries `importBatchKey`, `totalRows`, `importedRows`,
+`skippedDuplicateRows`, `failedRows`, `statusCounts`, `errors`, and
+`omittedErrorCount`. Import returns every row-number/message error within the
+1,000-row ceiling and sets `omittedErrorCount` to `0`. Valid rows and their row
+audit events are persisted; invalid rows are represented by returned errors.
+Every normal import response
 and every completed attempt satisfies
 `totalRows == importedRows + skippedDuplicateRows + failedRows`, while
 `sum(statusCounts) == importedRows` because status counts describe only newly
@@ -213,19 +252,30 @@ clears the pending key; only completed zero-failure recovery plus a successful
 Settlement-list reload clears the file input. A new key is created only for a
 new explicit operator action after terminal recovery.
 
-The import note is optional. The UI limits it to 500 characters and displays a
-warning not to enter personal data, credentials, payment keys, or other
-sensitive information. The server stores the operator-supplied text, bounded
-to 500 characters, in applicable local evidence; it does not derive a secret
-for that field and does not provide free-text DLP. Operators remain responsible
-for following the warning.
+The import note is optional. The UI limits it to 500 characters, trims a
+nonblank value before adding the multipart part, and displays a warning not to
+enter personal data, credentials, payment keys, or other sensitive information.
+The server stores bounded operator-supplied text in applicable local evidence;
+it does not derive a secret for that field and does not provide free-text DLP.
+Operators remain responsible for following the warning.
 
-Reconciliation has no import-attempt key or recovery endpoint. It classifies an
-orderless finalized local payment once as `failedRows` with a bounded row error,
-and every normal response satisfies the same total-count and status-count
-invariants. Import and reconciliation can read local payment/refund evidence
-but write only Settlement/attempt/audit evidence; they do not mutate payment,
-refund, subscription, billing-agreement, receipt, mail, or Provider state.
+Reconciliation has no import-attempt key, operation identity, cursor, progress
+ledger, automatic retry, polling, or recovery endpoint. Omitted dates default
+independently to today minus 29 days and today; the inclusive range must be
+ordered and at most 90 days. The query selects `DONE` local payments by
+`createdAt`, numeric ID ascending, using a 5,001-row probe. A 5,001-row result
+returns the existing invalid-argument response before any Settlement/audit
+mutation; at most 5,000 rows are processed. There is no separate oldest/future
+date rejection.
+
+Reconciliation returns at most the first 200 deterministic row errors and sets
+`omittedErrorCount` to `max(0, failedRows - errors.size())`. It classifies an
+orderless finalized local payment once as `failedRows` without creating a
+Settlement or audit. Every normal response satisfies the same total-count and
+status-count invariants. Import and reconciliation can read local
+payment/refund evidence but write only Settlement/attempt/audit evidence; they
+do not mutate payment, refund, subscription, billing-agreement, receipt, mail,
+or Provider state.
 
 `PUT /api/admin/payments/settlements/{settlementId}/ignore` requires JSON
 `note` text that is nonblank after trimming and at most 500 characters after
@@ -243,11 +293,14 @@ mapping. It does not change the first decision fields or append another audit.
 The SPA still requires the note and the existing danger confirmation; this WI
 added no typed phrase.
 
-This contract closes `CR-031-117` and `CR-031-119` at the current source/H2
-boundary. It does not approve CSV filename, MIME, byte, encoding, dialect,
-grammar, header uniqueness, row-width, field/range, date-span, row-ceiling,
-batching, cursor, or retry policy. `CR-031-115`, `CR-031-116`, and
-`CR-031-118` remain held and out of scope for WI-20260809-ATS-067.
+This contract includes the implemented DG-067-01 through DG-067-08 decisions
+for `CR-031-115`, `CR-031-116`, and `CR-031-118`. QA-INTEG v1.2 and PG v1.1
+returned `ACCEPT` with no open P1/P2 finding. DG-067-09B is
+`RUN-PASS-CLEANED`: the current recorded fresh-MySQL manifest matched an
+independent proof database and all three isolated settlement concurrency tests
+passed under Hibernate `ddl-auto=validate`. This does not claim live Provider
+behavior, deployment, client acceptance, retained-data migration, or overall
+production readiness.
 
 #### ADMIN Refund and Entitlement-Correction Recovery Contract
 

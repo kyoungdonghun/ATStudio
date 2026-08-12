@@ -40,11 +40,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.io.ByteArrayInputStream;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -52,6 +52,7 @@ import java.sql.SQLException;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -103,7 +104,8 @@ class AdminPaymentSettlementServiceTest {
                 auditLogService,
                 attemptTransactionService,
                 rowTransactionService,
-                new PaymentCommandKeyFactory());
+                new PaymentCommandKeyFactory(),
+                new PaymentSettlementCsvParser());
         org.mockito.Mockito.lenient()
                 .when(attemptTransactionService.create(any(), any(), any()))
                 .thenReturn(new AdminPaymentSettlementAttemptTransactionService.CreatedAttempt(
@@ -179,6 +181,27 @@ class AdminPaymentSettlementServiceTest {
         verify(paymentSettlementRepository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(PaymentSettlementStatus.MISMATCHED);
         assertThat(captor.getValue().getMismatchReason()).contains("refund_amount");
+    }
+
+    @Test
+    @DisplayName("importSettlements preserves a provider arithmetic mismatch without a local payment")
+    void importSettlementsPersistsArithmeticMismatchWithoutLocalPayment() {
+        given(paymentSettlementRepository.saveAndFlush(any(PaymentSettlement.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        AdminPaymentSettlementImportResponse result = importSettlements(
+                csv("""
+                        provider,order_id,gross_amount,refund_amount,fee_amount,vat_amount,net_settlement_amount,settlement_base_date
+                        TOSS,ORDER-NO-LOCAL,100,10,5,1,85,2026-08-01
+                        """),
+                null).getData();
+
+        assertThat(result.statusCounts()).containsEntry("MISMATCHED", 1);
+        ArgumentCaptor<PaymentSettlement> captor = ArgumentCaptor.forClass(PaymentSettlement.class);
+        verify(paymentSettlementRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(PaymentSettlementStatus.MISMATCHED);
+        assertThat(captor.getValue().getMismatchReason())
+                .contains("net_settlement_amount expected=84");
     }
 
     @Test
@@ -371,8 +394,9 @@ class AdminPaymentSettlementServiceTest {
     @DisplayName("reconcileMissingProviderSettlements does not create a missing-provider row when provider evidence exists")
     void reconcileMissingProviderSettlementsSkipsExistingProviderEvidence() {
         Fixture fixture = fixture();
-        given(subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetween(
+        given(subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetweenOrderByIdAsc(
                 eq(PaymentStatus.DONE),
+                any(),
                 any(),
                 any()))
                 .willReturn(List.of(fixture.payment()));
@@ -409,7 +433,9 @@ class AdminPaymentSettlementServiceTest {
                 .isInstanceOf(BusinessException.class);
 
         MultipartFile unreadable = mock(MultipartFile.class);
-        given(unreadable.isEmpty()).willReturn(false);
+        given(unreadable.getOriginalFilename()).willReturn("unreadable.csv");
+        given(unreadable.getContentType()).willReturn("text/csv");
+        given(unreadable.getSize()).willReturn(1L);
         given(unreadable.getInputStream()).willThrow(new IOException("unreadable"));
 
         assertThatThrownBy(() -> importSettlements(unreadable, null))
@@ -417,10 +443,204 @@ class AdminPaymentSettlementServiceTest {
                 .hasCauseInstanceOf(IOException.class);
 
         MultipartFile missingHeader = mock(MultipartFile.class);
-        given(missingHeader.isEmpty()).willReturn(false);
-        given(missingHeader.getInputStream()).willReturn(new ByteArrayInputStream(new byte[0]));
+        given(missingHeader.getOriginalFilename()).willReturn("missing-header.csv");
+        given(missingHeader.getContentType()).willReturn("text/csv");
+        given(missingHeader.getSize()).willReturn(1L);
+        given(missingHeader.getInputStream()).willReturn(new java.io.ByteArrayInputStream(new byte[] {'\n'}));
         assertThatThrownBy(() -> importSettlements(missingHeader, null))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("importSettlements fails malformed UTF-8 after claim without settlement mutation")
+    void importSettlementsRejectsMalformedUtf8AsAWholeFile() {
+        byte[] validPrefix = ("provider,order_id,gross_amount,net_settlement_amount,settlement_base_date\n"
+                + "TOSS,ORDER-1,10,10,2026-08-01\n").getBytes(StandardCharsets.UTF_8);
+        byte[] malformed = Arrays.copyOf(validPrefix, validPrefix.length + 1);
+        malformed[malformed.length - 1] = (byte) 0xC3;
+
+        assertThatThrownBy(() -> importSettlements(
+                new MockMultipartFile("file", "settlements.csv", "text/csv", malformed),
+                null))
+                .isInstanceOf(BusinessException.class);
+
+        verify(attemptTransactionService).fail(1L, "CSV_READ_FAILED");
+        verifyNoInteractions(paymentSettlementRepository, auditLogService);
+    }
+
+    @Test
+    @DisplayName("importSettlements returns exact-width errors and every error up to 1000 rows")
+    void importSettlementsReturnsAllBoundedRowErrors() {
+        String header = "provider,order_id,gross_amount,net_settlement_amount,settlement_base_date\n";
+        StringBuilder csv = new StringBuilder(header)
+                .append("TOSS,ORDER-MISSING,10,10\n")
+                .append("TOSS,ORDER-EXTRA,10,10,2026-08-01,extra\n")
+                .append("TOSS,ORDER-TRAILING,10,10,2026-08-01,\n");
+        for (int index = 3; index < 1000; index++) {
+            csv.append("UNKNOWN,ORDER-").append(index).append(",10,10,2026-08-01\n");
+        }
+
+        AdminPaymentSettlementImportResponse result = importSettlements(
+                new MockMultipartFile(
+                        "file",
+                        "settlements.csv",
+                        "text/csv",
+                        csv.toString().getBytes(StandardCharsets.UTF_8)),
+                null).getData();
+
+        assertThat(result.totalRows()).isEqualTo(1000);
+        assertThat(result.failedRows()).isEqualTo(1000);
+        assertThat(result.errors()).hasSize(1000);
+        assertThat(result.errors().subList(0, 3))
+                .extracting(error -> error.message())
+                .allMatch(message -> message.contains("width"));
+        assertThat(result.omittedErrorCount()).isZero();
+        verifyNoInteractions(paymentSettlementRepository, auditLogService);
+    }
+
+    @Test
+    @DisplayName("importSettlements rejects row 1001 as a whole file before row mutation")
+    void importSettlementsRejectsTheThousandFirstDataRow() {
+        StringBuilder csv = new StringBuilder(
+                "provider,order_id,gross_amount,net_settlement_amount,settlement_base_date\n");
+        for (int index = 0; index < 1001; index++) {
+            csv.append("UNKNOWN,ORDER-").append(index).append(",10,10,2026-08-01\n");
+        }
+
+        assertThatThrownBy(() -> importSettlements(
+                new MockMultipartFile(
+                        "file",
+                        "settlements.csv",
+                        "text/csv",
+                        csv.toString().getBytes(StandardCharsets.UTF_8)),
+                null))
+                .isInstanceOf(BusinessException.class);
+
+        verify(attemptTransactionService).fail(1L, "CSV_READ_FAILED");
+        verifyNoInteractions(paymentSettlementRepository, auditLogService);
+    }
+
+    @Test
+    @DisplayName("importSettlements rejects envelope violations before claiming an attempt")
+    void importSettlementsRejectsEnvelopeViolationsBeforeClaim() {
+        List<MultipartFile> invalidFiles = List.of(
+                new MockMultipartFile("file", null, "text/csv", "x".getBytes(StandardCharsets.UTF_8)),
+                new MockMultipartFile("file", "   ", "text/csv", "x".getBytes(StandardCharsets.UTF_8)),
+                new MockMultipartFile(
+                        "file",
+                        "a".repeat(252) + ".csv",
+                        "text/csv",
+                        "x".getBytes(StandardCharsets.UTF_8)),
+                new MockMultipartFile("file", "settlements.txt", "text/csv", "x".getBytes(StandardCharsets.UTF_8)),
+                new MockMultipartFile(
+                        "file",
+                        "settlements.csv",
+                        "application/octet-stream",
+                        "x".getBytes(StandardCharsets.UTF_8)),
+                new MockMultipartFile("file", "settlements.csv", "text/plain", "x".getBytes(StandardCharsets.UTF_8)),
+                new MockMultipartFile("file", "settlements.csv", "text/csv", new byte[0]));
+
+        assertThatThrownBy(() -> importSettlements(null, null))
+                .isInstanceOf(BusinessException.class);
+        for (MultipartFile invalidFile : invalidFiles) {
+            assertThatThrownBy(() -> importSettlements(invalidFile, null))
+                    .isInstanceOf(BusinessException.class);
+        }
+
+        verifyNoInteractions(attemptTransactionService);
+    }
+
+    @Test
+    @DisplayName("importSettlements accepts the approved MIME family, blank MIME, and case-insensitive CSV extension")
+    void importSettlementsAcceptsApprovedEnvelopeVariants() {
+        String[] contentTypes = {
+                null,
+                "",
+                "text/csv",
+                "application/csv",
+                "text/comma-separated-values",
+                "application/vnd.ms-excel"
+        };
+
+        for (String contentType : contentTypes) {
+            MockMultipartFile file = new MockMultipartFile(
+                    "file",
+                    "settlements.CSV",
+                    contentType,
+                    ("provider,order_id,gross_amount,net_settlement_amount,settlement_base_date\n")
+                            .getBytes(StandardCharsets.UTF_8));
+
+            AdminPaymentSettlementImportResponse response = importSettlements(file, null).getData();
+
+            assertThat(response.totalRows()).isZero();
+            assertThat(response.omittedErrorCount()).isZero();
+        }
+
+        verify(attemptTransactionService, times(contentTypes.length)).create(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("importSettlements retains the existing 500-character optional note behavior")
+    void importSettlementsBoundsOptionalNoteAtFiveHundredCharacters() {
+        given(paymentSettlementRepository.saveAndFlush(any(PaymentSettlement.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+        String overLimitNote = "n".repeat(501);
+
+        importSettlements(
+                csv("""
+                        provider,order_id,gross_amount,net_settlement_amount,settlement_base_date
+                        TOSS,ORDER-NOTE,10,10,2026-08-01
+                        """),
+                overLimitNote);
+
+        verify(attemptTransactionService).create(eq(99L), any(), eq("n".repeat(500)));
+        ArgumentCaptor<PaymentSettlement> captor = ArgumentCaptor.forClass(PaymentSettlement.class);
+        verify(paymentSettlementRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getOperatorNote()).isEqualTo("n".repeat(500));
+    }
+
+    @Test
+    @DisplayName("importSettlements accepts exactly 5 MiB and rejects one byte over before claim")
+    void importSettlementsEnforcesActualByteBoundaryBeforeClaim() throws IOException {
+        int maxBytes = 5_242_880;
+        byte[] header = ("provider,order_id,gross_amount,net_settlement_amount,settlement_base_date\n")
+                .getBytes(StandardCharsets.UTF_8);
+        byte[] atLimit = new byte[maxBytes];
+        java.util.Arrays.fill(atLimit, (byte) ' ');
+        System.arraycopy(header, 0, atLimit, 0, header.length);
+
+        AdminPaymentSettlementImportResponse response = importSettlements(
+                new MockMultipartFile("file", "settlements.csv", "text/csv", atLimit),
+                null).getData();
+
+        assertThat(response.totalRows()).isZero();
+        verify(attemptTransactionService).create(any(), any(), any());
+
+        MultipartFile overLimit = mock(MultipartFile.class);
+        given(overLimit.getOriginalFilename()).willReturn("settlements.csv");
+        given(overLimit.getContentType()).willReturn("text/csv");
+        given(overLimit.getSize()).willReturn(1L);
+        given(overLimit.getInputStream())
+                .willReturn(new java.io.ByteArrayInputStream(new byte[maxBytes + 1]));
+
+        assertThatThrownBy(() -> importSettlements(overLimit, null))
+                .isInstanceOf(BusinessException.class);
+        verify(attemptTransactionService, times(1)).create(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("importSettlements rejects a declared size over 5 MiB before reading or claiming")
+    void importSettlementsEnforcesDeclaredByteBoundaryBeforeClaim() throws IOException {
+        MultipartFile file = mock(MultipartFile.class);
+        given(file.getOriginalFilename()).willReturn("settlements.csv");
+        given(file.getContentType()).willReturn("text/csv");
+        given(file.getSize()).willReturn(5_242_881L);
+
+        assertThatThrownBy(() -> importSettlements(file, null))
+                .isInstanceOf(BusinessException.class);
+
+        verify(file, never()).getInputStream();
+        verifyNoInteractions(attemptTransactionService);
     }
 
     @Test
@@ -447,12 +667,271 @@ class AdminPaymentSettlementServiceTest {
                 .containsExactly(
                         "provider is invalid.",
                         "order_id must be at most 64 characters.",
-                        "gross_amount cannot be negative.",
-                        "gross_amount must be numeric.",
+                        "gross_amount must be a plain nonnegative decimal with at most 2 fraction digits.",
+                        "gross_amount must be a plain nonnegative decimal with at most 2 fraction digits.",
                         "settlement_base_date must be yyyy-MM-dd.",
-                        "currency must be a 3-letter ISO code.",
+                        "currency must be KRW.",
                         "order_id is required.");
         verify(paymentSettlementRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("importSettlements preserves exact-bound identifiers and rejects every one-over value")
+    void importSettlementsEnforcesIdentifierAndStatusBoundsWithoutTruncation() {
+        given(paymentSettlementRepository.saveAndFlush(any(PaymentSettlement.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+        String orderAtLimit = "O".repeat(64);
+        String paymentKeyAtLimit = "P".repeat(200);
+        String settlementIdAtLimit = "S".repeat(200);
+        String statusAtLimit = "D".repeat(100);
+        String header = "provider,provider_payment_key,provider_settlement_id,order_id,gross_amount,"
+                + "net_settlement_amount,settlement_base_date,provider_status\n";
+
+        AdminPaymentSettlementImportResponse accepted = importSettlements(
+                csv(header + "TOSS," + paymentKeyAtLimit + "," + settlementIdAtLimit + ","
+                        + orderAtLimit + ",10,10,2026-08-01," + statusAtLimit + "\n"),
+                null).getData();
+
+        assertThat(accepted.importedRows()).isEqualTo(1);
+        ArgumentCaptor<PaymentSettlement> captor = ArgumentCaptor.forClass(PaymentSettlement.class);
+        verify(paymentSettlementRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getOrderId()).isEqualTo(orderAtLimit);
+        assertThat(captor.getValue().getProviderPaymentKey()).isEqualTo(paymentKeyAtLimit);
+        assertThat(captor.getValue().getProviderSettlementId()).isEqualTo(settlementIdAtLimit);
+        assertThat(captor.getValue().getProviderStatus()).isEqualTo(statusAtLimit);
+
+        AdminPaymentSettlementImportResponse rejected = importSettlements(
+                csv(header
+                        + "TOSS," + paymentKeyAtLimit + "," + settlementIdAtLimit + ","
+                        + " " + "O".repeat(64) + ",10,10,2026-08-01,DONE\n"
+                        + "TOSS," + " " + "P".repeat(200) + "," + settlementIdAtLimit + ",ORDER-2,"
+                        + "10,10,2026-08-01,DONE\n"
+                        + "TOSS," + paymentKeyAtLimit + "," + "S".repeat(200) + " ,ORDER-3,"
+                        + "10,10,2026-08-01,DONE\n"
+                        + "TOSS," + paymentKeyAtLimit + "," + settlementIdAtLimit + ",ORDER-4,"
+                        + "10,10,2026-08-01," + "D".repeat(101) + "\n"),
+                null).getData();
+
+        assertThat(rejected.failedRows()).isEqualTo(4);
+        assertThat(rejected.errors())
+                .extracting(error -> error.message())
+                .containsExactly(
+                        "order_id must be at most 64 characters.",
+                        "provider_payment_key must be at most 200 characters.",
+                        "provider_settlement_id must be at most 200 characters.",
+                        "provider_status must be at most 100 characters.");
+    }
+
+    @Test
+    @DisplayName("importSettlements preserves accepted evidence exactly and rejects ISO controls or newlines")
+    void importSettlementsPreservesEvidenceCaseAndRejectsControls() {
+        given(paymentSettlementRepository.saveAndFlush(any(PaymentSettlement.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+        String header = "provider,provider_payment_key,provider_settlement_id,order_id,gross_amount,"
+                + "net_settlement_amount,settlement_base_date,provider_status\n";
+
+        AdminPaymentSettlementImportResponse accepted = importSettlements(
+                csv(header + "TOSS,Pay-Key-AbC,Settle-ID-XyZ,Order-AbC,10,10,"
+                        + "2026-08-01,CompletedMixedCase\n"),
+                null).getData();
+
+        assertThat(accepted.importedRows()).isEqualTo(1);
+        ArgumentCaptor<PaymentSettlement> captor = ArgumentCaptor.forClass(PaymentSettlement.class);
+        verify(paymentSettlementRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getOrderId()).isEqualTo("Order-AbC");
+        assertThat(captor.getValue().getProviderPaymentKey()).isEqualTo("Pay-Key-AbC");
+        assertThat(captor.getValue().getProviderSettlementId()).isEqualTo("Settle-ID-XyZ");
+        assertThat(captor.getValue().getProviderStatus()).isEqualTo("CompletedMixedCase");
+
+        AdminPaymentSettlementImportResponse rejected = importSettlements(
+                csv(header
+                        + "TOSS,Pay\u0001Key,SETTLE-1,ORDER-1,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay-Key,SETTLE\u007fID,ORDER-2,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay-Key,SETTLE-3,\"ORDER\nID\",10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay-Key,SETTLE-4,ORDER-4,10,10,2026-08-01,\"DONE\r\nNEXT\"\n"
+                        + "TOSS,Pay-Key,SETTLE-5,ORDER-5\t,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay-Key,SETTLE-6,ORDER-6,10,10,2026-08-01,\tDONE\n"
+                        + "\"TOSS\n\",Pay-Key,SETTLE-7,ORDER-7,10,10,2026-08-01,DONE\n"),
+                null).getData();
+
+        assertThat(rejected.failedRows()).isEqualTo(7);
+        assertThat(rejected.errors())
+                .extracting(error -> error.message())
+                .allMatch(message -> message.contains("must not contain control characters"));
+    }
+
+    @Test
+    @DisplayName("importSettlements rejects Unicode line separators in every identifier field")
+    void importSettlementsRejectsUnicodeLineSeparatorsWithoutRejectingInternationalText() {
+        given(paymentSettlementRepository.saveAndFlush(any(PaymentSettlement.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+        String header = "provider,provider_payment_key,provider_settlement_id,order_id,gross_amount,"
+                + "net_settlement_amount,settlement_base_date,provider_status\n";
+
+        AdminPaymentSettlementImportResponse result = importSettlements(
+                csv(header
+                        + "TOSS,Pay-\uACB0\uC81C,Settle-\uC815\uC0B0,Order-\uC8FC\uBB38,10,10,2026-08-01,"
+                        + "Done-\uC644\uB8CC\n"
+                        + "TO\u2028SS,Pay-Key,Settle-ID,ORDER-PROVIDER-LS,10,10,2026-08-01,DONE\n"
+                        + "TO\u2029SS,Pay-Key,Settle-ID,ORDER-PROVIDER-PS,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay\u2028Key,Settle-ID,ORDER-PAYMENT-LS,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay\u2029Key,Settle-ID,ORDER-PAYMENT-PS,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay-Key,Settle\u2028ID,ORDER-SETTLEMENT-LS,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay-Key,Settle\u2029ID,ORDER-SETTLEMENT-PS,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay-Key,Settle-ID,Order\u2028ID,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay-Key,Settle-ID,Order\u2029ID,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay-Key,Settle-ID,ORDER-STATUS-LS,10,10,2026-08-01,Done\u2028Next\n"
+                        + "TOSS,Pay-Key,Settle-ID,ORDER-STATUS-PS,10,10,2026-08-01,Done\u2029Next\n"),
+                null).getData();
+
+        assertThat(result.importedRows()).isEqualTo(1);
+        assertThat(result.skippedDuplicateRows()).isZero();
+        assertThat(result.failedRows()).isEqualTo(10);
+        assertThat(result.errors())
+                .extracting(error -> error.message())
+                .containsExactly(
+                        "provider must not contain control characters or newline separators.",
+                        "provider must not contain control characters or newline separators.",
+                        "provider_payment_key must not contain control characters or newline separators.",
+                        "provider_payment_key must not contain control characters or newline separators.",
+                        "provider_settlement_id must not contain control characters or newline separators.",
+                        "provider_settlement_id must not contain control characters or newline separators.",
+                        "order_id must not contain control characters or newline separators.",
+                        "order_id must not contain control characters or newline separators.",
+                        "provider_status must not contain control characters or newline separators.",
+                        "provider_status must not contain control characters or newline separators.");
+        ArgumentCaptor<PaymentSettlement> captor = ArgumentCaptor.forClass(PaymentSettlement.class);
+        verify(paymentSettlementRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getProviderPaymentKey()).isEqualTo("Pay-\uACB0\uC81C");
+        assertThat(captor.getValue().getProviderSettlementId()).isEqualTo("Settle-\uC815\uC0B0");
+        assertThat(captor.getValue().getOrderId()).isEqualTo("Order-\uC8FC\uBB38");
+        assertThat(captor.getValue().getProviderStatus()).isEqualTo("Done-\uC644\uB8CC");
+    }
+
+    @Test
+    @DisplayName("importSettlements rejects edge whitespace in every canonical and evidence field")
+    void importSettlementsRejectsCanonicalAndEvidenceEdgeWhitespace() {
+        String header = "provider,provider_payment_key,provider_settlement_id,order_id,gross_amount,"
+                + "net_settlement_amount,settlement_base_date,settlement_payout_date,provider_status,currency\n";
+
+        AdminPaymentSettlementImportResponse result = importSettlements(
+                csv(header
+                        + " TOSS,Pay-Key,Settle-ID,ORDER-1,10,10,2026-08-01,,DONE,KRW\n"
+                        + "TOSS,Pay-Key,Settle-ID,ORDER-2 ,10,10,2026-08-01,,DONE,KRW\n"
+                        + "TOSS, Pay-Key,Settle-ID,ORDER-3,10,10,2026-08-01,,DONE,KRW\n"
+                        + "TOSS,Pay-Key,Settle-ID ,ORDER-4,10,10,2026-08-01,,DONE,KRW\n"
+                        + "TOSS,Pay-Key,Settle-ID,ORDER-5,10,10,2026-08-01,, DONE,KRW\n"
+                        + "TOSS,Pay-Key,Settle-ID,ORDER-6, 10,10,2026-08-01,,DONE,KRW\n"
+                        + "TOSS,Pay-Key,Settle-ID,ORDER-7,10,10,2026-08-01 ,2026-08-02,DONE,KRW\n"
+                        + "TOSS,Pay-Key,Settle-ID,ORDER-8,10,10,2026-08-01, 2026-08-02,DONE,KRW\n"
+                        + "TOSS,Pay-Key,Settle-ID,ORDER-9,10,10,2026-08-01,,DONE,\"KRW \"\n"),
+                null).getData();
+
+        assertThat(result.importedRows()).isZero();
+        assertThat(result.failedRows()).isEqualTo(9);
+        assertThat(result.errors())
+                .extracting(error -> error.message())
+                .containsExactly(
+                        "provider must not have leading or trailing whitespace.",
+                        "order_id must not have leading or trailing whitespace.",
+                        "provider_payment_key must not have leading or trailing whitespace.",
+                        "provider_settlement_id must not have leading or trailing whitespace.",
+                        "provider_status must not have leading or trailing whitespace.",
+                        "gross_amount must not have leading or trailing whitespace.",
+                        "settlement_base_date must not have leading or trailing whitespace.",
+                        "settlement_payout_date must not have leading or trailing whitespace.",
+                        "currency must not have leading or trailing whitespace.");
+        verify(paymentSettlementRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("importSettlements accepts only canonical TOSS and KRW values")
+    void importSettlementsRequiresCanonicalProviderAndCurrency() {
+        AdminPaymentSettlementImportResponse result = importSettlements(
+                csv("provider,order_id,gross_amount,net_settlement_amount,settlement_base_date,currency\n"
+                        + "toss,ORDER-1,10,10,2026-08-01,KRW\n"
+                        + "TOSS,ORDER-2,10,10,2026-08-01,krw\n"
+                        + " TOSS ,ORDER-3,10,10,2026-08-01, KRW \n"),
+                null).getData();
+
+        assertThat(result.importedRows()).isZero();
+        assertThat(result.failedRows()).isEqualTo(3);
+        assertThat(result.errors())
+                .extracting(error -> error.message())
+                .containsExactly(
+                        "provider is invalid.",
+                        "currency must be KRW.",
+                        "provider must not have leading or trailing whitespace.");
+    }
+
+    @Test
+    @DisplayName("importSettlements enforces plain DECIMAL(15,2) notation without rounding")
+    void importSettlementsEnforcesMoneyNotationPrecisionAndScale() {
+        given(paymentSettlementRepository.saveAndFlush(any(PaymentSettlement.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        AdminPaymentSettlementImportResponse result = importSettlements(
+                csv("""
+                        provider,order_id,gross_amount,net_settlement_amount,settlement_base_date
+                        TOSS,ORDER-MAX,9999999999999.99,0,2026-08-01
+                        TOSS,ORDER-LEADING-ZERO,00000000000001.00,0,2026-08-01
+                        TOSS,ORDER-OVER,10000000000000,0,2026-08-01
+                        TOSS,ORDER-SCALE,1.234,0,2026-08-01
+                        TOSS,ORDER-EXP,1e2,0,2026-08-01
+                        TOSS,ORDER-PLUS,+1,0,2026-08-01
+                        TOSS,ORDER-NEG,-1,0,2026-08-01
+                        TOSS,ORDER-GROUP,"1,000",0,2026-08-01
+                        TOSS,ORDER-NO-INT,.5,0,2026-08-01
+                        TOSS,ORDER-NO-FRACTION,1.,0,2026-08-01
+                        """),
+                null).getData();
+
+        assertThat(result.importedRows()).isEqualTo(2);
+        assertThat(result.failedRows()).isEqualTo(8);
+        assertThat(result.errors())
+                .extracting(error -> error.message())
+                .first()
+                .isEqualTo("gross_amount must fit DECIMAL(15,2).");
+        assertThat(result.errors().subList(1, result.errors().size()))
+                .extracting(error -> error.message())
+                .allMatch(message -> message.equals(
+                        "gross_amount must be a plain nonnegative decimal with at most 2 fraction digits."));
+        ArgumentCaptor<PaymentSettlement> captor = ArgumentCaptor.forClass(PaymentSettlement.class);
+        verify(paymentSettlementRepository, times(2)).saveAndFlush(captor.capture());
+        assertThat(captor.getAllValues()).allSatisfy(settlement -> {
+            assertThat(settlement.getGrossAmount().scale()).isEqualTo(2);
+            assertThat(settlement.getRefundAmount().scale()).isEqualTo(2);
+            assertThat(settlement.getFeeAmount().scale()).isEqualTo(2);
+            assertThat(settlement.getVatAmount().scale()).isEqualTo(2);
+            assertThat(settlement.getNetSettlementAmount().scale()).isEqualTo(2);
+        });
+    }
+
+    @Test
+    @DisplayName("importSettlements uses strict dates and requires payout on or after base date")
+    void importSettlementsEnforcesStrictDateFormatAndOrdering() {
+        given(paymentSettlementRepository.saveAndFlush(any(PaymentSettlement.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        AdminPaymentSettlementImportResponse result = importSettlements(
+                csv("""
+                        provider,order_id,gross_amount,net_settlement_amount,settlement_base_date,settlement_payout_date
+                        TOSS,ORDER-EQUAL,10,10,2026-08-01,2026-08-01
+                        TOSS,ORDER-AFTER,10,10,2026-08-01,2026-08-02
+                        TOSS,ORDER-FORMAT,10,10,2026-8-01,2026-08-02
+                        TOSS,ORDER-CALENDAR,10,10,2026-02-30,2026-03-01
+                        TOSS,ORDER-BEFORE,10,10,2026-08-02,2026-08-01
+                        """),
+                null).getData();
+
+        assertThat(result.importedRows()).isEqualTo(2);
+        assertThat(result.failedRows()).isEqualTo(3);
+        assertThat(result.errors())
+                .extracting(error -> error.message())
+                .containsExactly(
+                        "settlement_base_date must be yyyy-MM-dd.",
+                        "settlement_base_date must be yyyy-MM-dd.",
+                        "settlement_payout_date must not precede settlement_base_date.");
     }
 
     @Test
@@ -504,11 +983,11 @@ class AdminPaymentSettlementServiceTest {
 
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "s".repeat(260) + ".csv",
+                "s".repeat(251) + ".csv",
                 "text/csv",
                 ("\uFEFFprovider,provider_payment_key,provider_settlement_id,order_id,gross_amount,net_settlement_amount,"
                         + "settlement_base_date,settlement_payout_date,provider_status,currency,note\n"
-                        + "TOSS,,SETTLEMENT-1,\"ORDER,WITH,COMMA\",9900,9900,2026-05-26,2026-05-27,DONE,krw,"
+                        + "TOSS,,SETTLEMENT-1,\"ORDER,WITH,COMMA\",9900,9900,2026-05-26,2026-05-27,DONE,KRW,"
                         + "\"operator \"\"quoted\"\", note\"\n\n")
                         .getBytes(StandardCharsets.UTF_8));
 
@@ -523,7 +1002,7 @@ class AdminPaymentSettlementServiceTest {
         assertThat(settlement.getSettlementPayoutDate()).isEqualTo(LocalDate.of(2026, 5, 27));
         assertThat(settlement.getCurrency()).isEqualTo("KRW");
         assertThat(settlement.getOperatorNote()).isEqualTo("operator \"quoted\", note");
-        assertThat(settlement.getSourceFileName()).hasSize(255);
+        assertThat(settlement.getSourceFileName()).isEqualTo("s".repeat(251) + ".csv");
         assertThat(settlement.getSourcePayload()).isNull();
     }
 
@@ -565,8 +1044,8 @@ class AdminPaymentSettlementServiceTest {
                 .amount(BigDecimal.valueOf(9900))
                 .paymentStatus(PaymentStatus.DONE)
                 .build();
-        given(subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetween(
-                eq(PaymentStatus.DONE), any(), any()))
+        given(subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetweenOrderByIdAsc(
+                eq(PaymentStatus.DONE), any(), any(), any()))
                 .willReturn(List.of(withoutOrder, fixture.payment(), duplicate));
         given(subscriptionPaymentRepository.findWithGraphById(30L)).willReturn(Optional.of(fixture.payment()));
         given(subscriptionPaymentRepository.findWithGraphById(32L)).willReturn(Optional.of(duplicate));
@@ -607,8 +1086,8 @@ class AdminPaymentSettlementServiceTest {
     @Test
     @DisplayName("reconcileMissingProviderSettlements supplies each omitted date boundary")
     void reconcileMissingProviderSettlementsSuppliesOmittedBoundaries() {
-        given(subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetween(
-                eq(PaymentStatus.DONE), any(), any()))
+        given(subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetweenOrderByIdAsc(
+                eq(PaymentStatus.DONE), any(), any(), any()))
                 .willReturn(List.of());
 
         service.reconcileMissingProviderSettlements(
@@ -617,7 +1096,127 @@ class AdminPaymentSettlementServiceTest {
                 actor(), new AdminPaymentSettlementReconcileRequest(LocalDate.now().minusDays(1), null));
 
         verify(subscriptionPaymentRepository, org.mockito.Mockito.times(2))
-                .findByPaymentStatusAndCreatedAtBetween(eq(PaymentStatus.DONE), any(), any());
+                .findByPaymentStatusAndCreatedAtBetweenOrderByIdAsc(
+                        eq(PaymentStatus.DONE), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("reconcileMissingProviderSettlements defaults to an inclusive 30-day range")
+    void reconcileMissingProviderSettlementsDefaultsToThirtyInclusiveDays() {
+        given(subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetweenOrderByIdAsc(
+                eq(PaymentStatus.DONE), any(), any(), any()))
+                .willReturn(List.of());
+        LocalDate before = LocalDate.now();
+
+        service.reconcileMissingProviderSettlements(actor(), null);
+
+        LocalDate after = LocalDate.now();
+        ArgumentCaptor<LocalDateTime> fromCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> toCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(subscriptionPaymentRepository).findByPaymentStatusAndCreatedAtBetweenOrderByIdAsc(
+                eq(PaymentStatus.DONE),
+                fromCaptor.capture(),
+                toCaptor.capture(),
+                pageableCaptor.capture());
+        assertThat(toCaptor.getValue().toLocalDate()).isBetween(before, after);
+        assertThat(ChronoUnit.DAYS.between(
+                fromCaptor.getValue().toLocalDate(),
+                toCaptor.getValue().toLocalDate())).isEqualTo(29);
+        assertThat(fromCaptor.getValue().toLocalTime()).isEqualTo(java.time.LocalTime.MIN);
+        assertThat(toCaptor.getValue().toLocalTime()).isEqualTo(java.time.LocalTime.MAX);
+        assertThat(pageableCaptor.getValue().getPageNumber()).isZero();
+        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(5001);
+    }
+
+    @Test
+    @DisplayName("reconcileMissingProviderSettlements accepts 90 inclusive days and rejects 91 before query")
+    void reconcileMissingProviderSettlementsEnforcesInclusiveDateSpan() {
+        given(subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetweenOrderByIdAsc(
+                eq(PaymentStatus.DONE), any(), any(), any()))
+                .willReturn(List.of());
+        LocalDate from = LocalDate.of(2026, 1, 1);
+
+        service.reconcileMissingProviderSettlements(
+                actor(),
+                new AdminPaymentSettlementReconcileRequest(from, LocalDate.of(2026, 3, 31)));
+
+        assertThatThrownBy(() -> service.reconcileMissingProviderSettlements(
+                actor(),
+                new AdminPaymentSettlementReconcileRequest(from, LocalDate.of(2026, 4, 1))))
+                .isInstanceOf(BusinessException.class);
+        verify(subscriptionPaymentRepository, times(1))
+                .findByPaymentStatusAndCreatedAtBetweenOrderByIdAsc(
+                        eq(PaymentStatus.DONE), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("reconcileMissingProviderSettlements accepts 5000 rows and caps errors at 200")
+    void reconcileMissingProviderSettlementsCapsErrorDetailsAtSelectedRowLimit() {
+        List<SubscriptionPayment> payments = new java.util.ArrayList<>();
+        for (long id = 5000; id >= 1; id--) {
+            payments.add(SubscriptionPayment.builder()
+                    .id(id)
+                    .amount(BigDecimal.ONE)
+                    .paymentStatus(PaymentStatus.DONE)
+                    .build());
+        }
+        given(subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetweenOrderByIdAsc(
+                eq(PaymentStatus.DONE), any(), any(), any()))
+                .willReturn(payments);
+
+        AdminPaymentSettlementImportResponse result = service.reconcileMissingProviderSettlements(
+                actor(),
+                new AdminPaymentSettlementReconcileRequest(
+                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 1))).getData();
+
+        assertThat(result.totalRows()).isEqualTo(5000);
+        assertThat(result.failedRows()).isEqualTo(5000);
+        assertThat(result.errors()).hasSize(200);
+        assertThat(result.errors())
+                .extracting(error -> error.rowNumber())
+                .containsExactlyElementsOf(java.util.stream.IntStream.rangeClosed(1, 200).boxed().toList());
+        assertThat(result.omittedErrorCount()).isEqualTo(4800);
+        assertThat(result.totalRows()).isEqualTo(
+                result.importedRows() + result.skippedDuplicateRows() + result.failedRows());
+        assertThat(result.statusCounts().values().stream().mapToInt(Integer::intValue).sum())
+                .isEqualTo(result.importedRows());
+        verifyNoInteractions(paymentSettlementRepository, paymentRefundRepository, auditLogService);
+    }
+
+    @Test
+    @DisplayName("reconcileMissingProviderSettlements rejects 5001 selected rows before mutation")
+    void reconcileMissingProviderSettlementsRejectsSelectedRowOverflowBeforeMutation() {
+        List<SubscriptionPayment> payments = new java.util.ArrayList<>();
+        for (long id = 1; id <= 5001; id++) {
+            payments.add(SubscriptionPayment.builder()
+                    .id(id)
+                    .amount(BigDecimal.ONE)
+                    .paymentStatus(PaymentStatus.DONE)
+                    .build());
+        }
+        given(subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetweenOrderByIdAsc(
+                eq(PaymentStatus.DONE), any(), any(), any()))
+                .willReturn(payments);
+
+        assertThatThrownBy(() -> service.reconcileMissingProviderSettlements(
+                actor(),
+                new AdminPaymentSettlementReconcileRequest(
+                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 1))))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+
+        verifyNoInteractions(
+                paymentSettlementRepository,
+                paymentOrderRepository,
+                paymentRefundRepository,
+                auditLogService);
+        verify(subscriptionPaymentRepository).findByPaymentStatusAndCreatedAtBetweenOrderByIdAsc(
+                eq(PaymentStatus.DONE), any(), any(), any());
+        verifyNoMoreInteractions(subscriptionPaymentRepository);
     }
 
     @Test
@@ -625,8 +1224,8 @@ class AdminPaymentSettlementServiceTest {
     void reconcileMissingProviderSettlementsFallsBackToOrderProvider() {
         Fixture fixture = fixture();
         ReflectionTestUtils.setField(fixture.payment(), "provider", null);
-        given(subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetween(
-                eq(PaymentStatus.DONE), any(), any()))
+        given(subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetweenOrderByIdAsc(
+                eq(PaymentStatus.DONE), any(), any(), any()))
                 .willReturn(List.of(fixture.payment()));
         given(subscriptionPaymentRepository.findWithGraphById(30L)).willReturn(Optional.of(fixture.payment()));
         given(paymentSettlementRepository.existsByOrderIdAndSourceNot(any(), any())).willReturn(false);

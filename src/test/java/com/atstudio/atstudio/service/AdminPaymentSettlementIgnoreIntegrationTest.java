@@ -45,6 +45,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         AdminPaymentSettlementService.class,
         AdminPaymentSettlementAttemptTransactionService.class,
         AdminPaymentSettlementRowTransactionService.class,
+        PaymentSettlementCsvParser.class,
         PaymentCommandKeyFactory.class,
         PaymentOperationAuditLogService.class
 })

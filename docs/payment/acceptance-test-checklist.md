@@ -1,6 +1,6 @@
 ---
-version: 1.5
-last_updated: 2026-07-24
+version: 1.6
+last_updated: 2026-08-13
 project: ATS
 owner: qa
 category: guide
@@ -108,8 +108,15 @@ dependencies:
 | Open incidents tab. | Reconciliation incidents can be listed and status can be updated. | [ ] |
 | Open receipts tab. | Receipt evidence is visible without raw provider payload. | [ ] |
 | Open audit tab. | Operation audit events appear for incident, receipt, refund, correction, and settlement actions. | [ ] |
-| Import settlement CSV. | `payment_settlements` rows are created and classified without changing payment/subscription/provider state. | [ ] |
-| Run settlement missing-provider scan. | Missing settlement evidence rows are generated for selected period. | [ ] |
+| Import a valid strict UTF-8 settlement CSV at normal size. | `payment_settlements` rows are created and classified without changing payment/subscription/provider state; counts conserve and `omittedErrorCount` is `0`. | [ ] |
+| Import a file with a quoted comma/newline and doubled quote using LF or CRLF. | The logical row imports with its starting physical line number; no value is split or silently rewritten. | [ ] |
+| Try a missing/wrong extension, disallowed MIME, empty file, or file over 5 MiB. | The request is rejected before an import attempt, Settlement, or row audit is created. | [ ] |
+| Try malformed UTF-8, malformed/unbalanced CSV, duplicate/unknown headers, or 1,001 nonblank logical data rows. | The claimed attempt becomes bounded `FAILED`; no Settlement row from the file is created. | [ ] |
+| Import rows with exact-width/field errors and valid rows together. | The UI reports partial completion, shows every returned row error with zero omitted count, retains file/note correction context, and persists only valid rows/audits. | [ ] |
+| Inspect an import with an operator note in browser request details. | `file` and trimmed nonblank `note` are multipart parts, the note is absent from the query string, and `Idempotency-Key` is header-only. | [ ] |
+| Run settlement missing-provider scan with omitted dates and with a 90-day inclusive range. | The omitted range uses 30 inclusive days; both accepted requests process at most 5,000 selected payments and preserve count conservation. | [ ] |
+| Run a 91-day range or prepared 5,001-payment selection. | The whole reconcile request is rejected before Settlement or audit mutation. | [ ] |
+| Review a prepared reconciliation result with more than 200 row failures. | The UI shows the first 200 details, the exact omitted count, and partial-warning feedback rather than success. | [ ] |
 | Ignore a settlement row. | Row becomes `IGNORED` with operator note. | [ ] |
 
 ## 10. Refund and Entitlement Correction
@@ -140,11 +147,17 @@ The checks below are implementation-only. Client and ordinary operators should
 not inspect transaction internals, run concurrency tests, or connect to a
 database to reproduce them.
 
-| Evidence | Authoritative pointer |
-| :-- | :-- |
-| Stable command identity, strict Provider boundaries, refund lease fencing, finalize-only reconciliation, and payment-key minimization | [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md) and [WI-012 Evidence Pack](../../deliverables/agent/WI-20260715-ATS-012-evidence-pack.md) |
-| Disposable MySQL 8/InnoDB schema validation and 7/7 race proof | [WI-007 Evidence Pack](../../deliverables/agent/WI-20260715-ATS-007-evidence-pack.md) |
-| Retained DB, live Toss, production deployment, and client acceptance | OPEN in [SR-93](../SR/SR-93.md) |
+Only automated technical evidence is checked in this section. No manual or
+client-acceptance row in Sections 1-11 or 13 is checked by WI-067.
+
+| Evidence | Authoritative pointer | Done |
+| :-- | :-- | :-- |
+| Stable command identity, strict Provider boundaries, refund lease fencing, finalize-only reconciliation, and payment-key minimization | [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md) and [WI-012 Evidence Pack](../../deliverables/agent/WI-20260715-ATS-012-evidence-pack.md) | [x] |
+| Historical predecessor 41-table disposable MySQL 8/InnoDB schema validation and 7/7 race proof | [WI-007 Evidence Pack](../../deliverables/agent/WI-20260715-ATS-007-evidence-pack.md); historical only, not the current baseline | [x] |
+| WI-067 strict settlement import/reconciliation repository and embedded-H2 review | [QA-INTEG v1.2](../../deliverables/agent/WI-20260809-ATS-067-qa-integ-review.md) and [PG v1.1](../../deliverables/agent/WI-20260809-ATS-067-pg-review.md) accepted DG-067-01..09A | [x] |
+| WI-067 current fresh-MySQL manifest and concurrency proof | [WI-067 Evidence Pack](../../deliverables/agent/WI-20260809-ATS-067-evidence-pack.md): recorded 42/506/173/90/6 manifest, independent Validate, 3/3 MySQL tests, exact cleanup | [x] |
+| WI-067 final backend/frontend quality gates | [WI-067 Evidence Pack](../../deliverables/agent/WI-20260809-ATS-067-evidence-pack.md): backend 1,542 tests and frontend 827 tests with zero failures; coverage/build/static gates passed | [x] |
+| Retained DB, live Toss, production deployment, and client acceptance | OPEN in [SR-93](../SR/SR-93.md) | [ ] |
 
 ## 13. Final Acceptance Gate
 

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Preflight", "Create", "Validate", "Drop")]
+    [ValidateSet("Preflight", "Observe", "Create", "Validate", "Drop")]
     [string] $Action,
 
     [Parameter(Mandatory = $true)]
@@ -156,6 +156,7 @@ function Invoke-BootstrapJava {
         [string] $JavaPath,
         [Parameter(Mandatory = $true)]
         [string] $RequestedAction,
+        [string] $PreflightForAction,
         [string] $ConnectorPath
     )
 
@@ -167,6 +168,10 @@ function Invoke-BootstrapJava {
     [void] $arguments.Add($javaSource)
     [void] $arguments.Add("--action")
     [void] $arguments.Add($RequestedAction.ToLowerInvariant())
+    if (-not [string]::IsNullOrWhiteSpace($PreflightForAction)) {
+        [void] $arguments.Add("--requested-action")
+        [void] $arguments.Add($PreflightForAction.ToLowerInvariant())
+    }
     [void] $arguments.Add("--workspace")
     [void] $arguments.Add($repoRoot)
     [void] $arguments.Add("--host")
@@ -188,7 +193,8 @@ $javaPath = Get-JavaCommand
 # Unsafe names and hosts therefore fail before secret loading or any connection.
 Invoke-BootstrapJava `
     -JavaPath $javaPath `
-    -RequestedAction "Preflight"
+    -RequestedAction "Preflight" `
+    -PreflightForAction $Action
 
 if ($Action -eq "Preflight") {
     return

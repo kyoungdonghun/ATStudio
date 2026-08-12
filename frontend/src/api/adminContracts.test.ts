@@ -222,26 +222,31 @@ describe('admin API contracts', () => {
 
     const file = new File(['orderId,amount'], 'settlements.csv');
     const operationKey = '11111111-1111-4111-8111-111111111111';
-    await importAdminPaymentSettlements(file, operationKey, 'July settlement');
+    await importAdminPaymentSettlements(file, operationKey, '  July settlement  ');
     const form = mockedClient.post.mock.calls[0]?.[1] as FormData;
     expect(form.get('file')).toBe(file);
+    expect(form.get('note')).toBe('July settlement');
+    expect(mockedClient.post.mock.calls[0]?.[0]).not.toContain('?');
+    expect(mockedClient.post.mock.calls[0]?.[2]).not.toHaveProperty('params');
     expect(mockedClient.post).toHaveBeenNthCalledWith(
       1,
       '/admin/payments/settlements/import',
       form,
       {
-        params: { note: 'July settlement' },
         headers: { 'Idempotency-Key': operationKey },
         skipAuthReplay: true,
       },
     );
     await importAdminPaymentSettlements(file, operationKey);
+    const formWithoutNote = mockedClient.post.mock.calls[1]?.[1] as FormData;
+    expect(formWithoutNote.get('note')).toBeNull();
+    expect(mockedClient.post.mock.calls[1]?.[0]).not.toContain('?');
+    expect(mockedClient.post.mock.calls[1]?.[2]).not.toHaveProperty('params');
     expect(mockedClient.post).toHaveBeenNthCalledWith(
       2,
       '/admin/payments/settlements/import',
-      expect.any(FormData),
+      formWithoutNote,
       {
-        params: undefined,
         headers: { 'Idempotency-Key': operationKey },
         skipAuthReplay: true,
       },

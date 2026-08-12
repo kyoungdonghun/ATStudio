@@ -6,6 +6,7 @@ import com.atstudio.atstudio.dto.payment.AdminPaymentReconciliationResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentRefundCreateRequest;
 import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementIgnoreRequest;
 import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementImportAttemptResponse;
+import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementImportErrorResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementImportResponse;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
@@ -30,6 +31,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.mock.web.MockPart;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -38,6 +40,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -155,23 +158,32 @@ class AdminPaymentControllerTest {
                 "text/csv",
                 "provider,order_id,gross_amount,net_settlement_amount,settlement_base_date\n"
                         .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        MockPart notePart = new MockPart(
+                "note",
+                operatorNote.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        notePart.getHeaders().setContentType(MediaType.TEXT_PLAIN);
         given(adminPaymentSettlementService.importSettlements(admin, file, operatorNote, operationKey))
                 .willReturn(ResponseDTO.<AdminPaymentSettlementImportResponse>builder().build());
         given(adminPaymentSettlementService.recoverImportAttempt(admin, operationKey))
                 .willReturn(ResponseDTO.<AdminPaymentSettlementImportAttemptResponse>builder().build());
 
-        mockMvc.perform(multipart("/api/admin/payments/settlements/import")
+        MvcResult importResult = mockMvc.perform(multipart("/api/admin/payments/settlements/import")
                         .file(file)
-                        .param("note", operatorNote)
+                        .part(notePart)
                         .header("Idempotency-Key", operationKey)
                         .with(user(admin)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andReturn();
         MvcResult recoveryResult = mockMvc.perform(get(recoveryPath)
                         .header("Idempotency-Key", operationKey)
                         .with(user(admin)))
                 .andExpect(status().isOk())
                 .andReturn();
 
+        assertThat(importResult.getRequest().getRequestURI())
+                .isEqualTo("/api/admin/payments/settlements/import")
+                .doesNotContain(operatorNote);
+        assertThat(importResult.getRequest().getQueryString()).isNull();
         assertThat(recoveryResult.getRequest().getRequestURI())
                 .isEqualTo(recoveryPath)
                 .doesNotContain(operationKey);
@@ -182,6 +194,73 @@ class AdminPaymentControllerTest {
         assertThat(output.getAll()).doesNotContain(operationKey, operatorNote);
         verify(adminPaymentSettlementService).importSettlements(admin, file, operatorNote, operationKey);
         verify(adminPaymentSettlementService).recoverImportAttempt(admin, operationKey);
+    }
+
+    @Test
+    void settlementImportDoesNotBindTheNoteFromAQueryParameter() throws Exception {
+        CustomUserDetails admin = adminActor();
+        String operationKey = "11111111-1111-4111-8111-111111111111";
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "settlements.csv",
+                "text/csv",
+                "provider,order_id,gross_amount,net_settlement_amount,settlement_base_date\n"
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        given(adminPaymentSettlementService.importSettlements(admin, file, null, operationKey))
+                .willReturn(ResponseDTO.<AdminPaymentSettlementImportResponse>builder().build());
+
+        MvcResult result = mockMvc.perform(multipart("/api/admin/payments/settlements/import")
+                        .file(file)
+                        .queryParam("note", "query-note-must-not-bind")
+                        .header("Idempotency-Key", operationKey)
+                        .with(user(admin)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(result.getRequest().getQueryString()).contains("note=query-note-must-not-bind");
+        verify(adminPaymentSettlementService).importSettlements(admin, file, null, operationKey);
+    }
+
+    @Test
+    void settlementReconciliationSerializesAggregatesErrorsAndOmittedErrorCount() throws Exception {
+        CustomUserDetails admin = adminActor();
+        AdminPaymentSettlementImportResponse response = new AdminPaymentSettlementImportResponse(
+                "ATS-SETTLEMENT-RECONCILE-CONTRACT",
+                3,
+                1,
+                0,
+                2,
+                Map.of("MATCHED", 1),
+                List.of(new AdminPaymentSettlementImportErrorResponse(2, "bounded row error")),
+                1);
+        given(adminPaymentSettlementService.reconcileMissingProviderSettlements(admin, null))
+                .willReturn(ResponseDTO.<AdminPaymentSettlementImportResponse>builder()
+                        .data(response)
+                        .build());
+
+        mockMvc.perform(post("/api/admin/payments/settlements/reconcile")
+                        .with(user(admin)))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.importBatchKey").value("ATS-SETTLEMENT-RECONCILE-CONTRACT"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.totalRows").value(3))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.importedRows").value(1))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.skippedDuplicateRows").value(0))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.failedRows").value(2))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.statusCounts.MATCHED").value(1))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.errors[0].rowNumber").value(2))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.errors[0].message").value("bounded row error"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.omittedErrorCount").value(1));
+
+        verify(adminPaymentSettlementService).reconcileMissingProviderSettlements(admin, null);
     }
 
     @Test

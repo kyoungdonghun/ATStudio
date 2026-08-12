@@ -64,4 +64,11 @@ public interface SubscriptionPaymentRepository extends JpaRepository<Subscriptio
             PaymentStatus paymentStatus,
             LocalDateTime createdAtFrom,
             LocalDateTime createdAtTo);
+
+    @EntityGraph(attributePaths = {"user", "subscription", "paymentOrder", "billingAgreement"})
+    List<SubscriptionPayment> findByPaymentStatusAndCreatedAtBetweenOrderByIdAsc(
+            PaymentStatus paymentStatus,
+            LocalDateTime createdAtFrom,
+            LocalDateTime createdAtTo,
+            Pageable pageable);
 }

@@ -128,7 +128,7 @@ public class AdminPaymentController {
     public ResponseEntity<ResponseDTO<AdminPaymentSettlementImportResponse>> importSettlements(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestPart("file") MultipartFile file,
-            @RequestParam(required = false) String note,
+            @RequestPart(value = "note", required = false) String note,
             @RequestHeader("Idempotency-Key") String idempotencyKey) {
         return ResponseEntity.ok(adminPaymentSettlementService.importSettlements(
                 userDetails,

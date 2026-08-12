@@ -1,6 +1,6 @@
 ---
-version: 5.6
-last_updated: 2026-08-12
+version: 5.7
+last_updated: 2026-08-13
 project: ATS
 owner: docops
 category: design
@@ -150,9 +150,19 @@ database, deployment, schema, policy, or secret action.
 
 - Dashboard loads `GET /api/admin/stats` with totals and five recent users.
 - Payment operations separates ledgers/incidents/refunds/settlement from ordinary subscription administration.
+- Settlement file preflight mirrors the server envelope: a present `.csv`
+  filename of at most 255 characters, an allowed or blank CSV MIME value, and
+  nonempty content of at most 5 MiB. Browser checks and the file `accept` value
+  are advisory; server validation remains authoritative.
+- WI-067 automated UI/API contract evidence is complete, including
+  multipart-only note transport, partial-warning behavior, and bounded omitted
+  error reporting. Its separate MySQL proof is `RUN-PASS-CLEANED`; no manual
+  operator/client acceptance or production screen readiness is inferred.
 - The optional Settlement import note is limited to 500 characters and has a
   visible warning against PII, credentials, payment keys, and other sensitive
-  values. It is plain user text with no free-text DLP guarantee.
+  values. It is plain user text with no free-text DLP guarantee. A nonblank
+  trimmed value is sent as the optional multipart `note` part, never as a query
+  parameter.
 - After explicit confirmation, Settlement import creates one lowercase UUIDv4,
   stores one pending recovery record in browser `sessionStorage`, sends one
   POST with the key only in `Idempotency-Key`, and disables authentication
@@ -161,7 +171,8 @@ database, deployment, schema, policy, or secret action.
   renders every returned row error, retains the exact React `File`, DOM file
   input, and note, and makes one import call plus one Settlement-list reload.
   Its result satisfies total-count conservation, while status counts describe
-  only imported rows.
+  only imported rows. Import returns all row errors within the 1,000-logical-row
+  ceiling and shows `omittedErrorCount=0`.
 - A transport failure makes one read-only recovery GET with the same key. A
   `PROCESSING` outcome keeps the key and correction context and exposes manual
   recovery. The screen never polls or submits a second POST; a pending or
@@ -172,9 +183,13 @@ database, deployment, schema, policy, or secret action.
 - A zero-failure Settlement import clears React and DOM file state only after
   the required reload succeeds. Partial completion or reload failure retains
   correction context and never reports full success.
-- Reconciliation has no import-attempt key or recovery state. An orderless
-  finalized payment is represented once in `failedRows` with bounded error
-  evidence; normal reconciliation results conserve total counts.
+- Reconciliation has no import-attempt key, recovery state, cursor, polling, or
+  automatic retry. The server defaults to 30 inclusive days, accepts at most 90
+  days and 5,000 selected finalized payments, returns at most 200 error details,
+  and reports any additional failed-row details through `omittedErrorCount`.
+  The result panel displays that omitted count. Any failed, returned-error, or
+  omitted-error result is visibly partial; an orderless finalized payment is
+  represented once in `failedRows`, and normal results conserve total counts.
 - Settlement IGNORE requires a trimmed nonblank note of at most 500 characters
   and the existing danger confirmation. The server requires current
   authenticated and authoritative active ADMIN authority; the first decision

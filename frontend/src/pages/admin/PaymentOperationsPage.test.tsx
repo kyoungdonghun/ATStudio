@@ -196,6 +196,7 @@ const settlementResult: AdminPaymentSettlementImportResult = {
   failedRows: 0,
   statusCounts: { MATCHED: 1 },
   errors: [],
+  omittedErrorCount: 0,
 };
 
 const firstSettlementImportKey = '11111111-1111-4111-8111-111111111111';
@@ -495,6 +496,11 @@ function selectSettlementFile(view: ReturnType<typeof render>, file: File) {
   return fileInput!;
 }
 
+function withDeclaredFileSize(file: File, size: number): File {
+  Object.defineProperty(file, 'size', { configurable: true, value: size });
+  return file;
+}
+
 function executeRefundRow(item: AdminPaymentRefund) {
   vi.spyOn(window, 'prompt').mockReturnValue('환불 실행');
   const row = screen.getByText(item.orderId).closest('tr') as HTMLElement;
@@ -537,6 +543,86 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     expect(note).toHaveValue(htmlLikeNote);
     expect(note.querySelector('*')).toBeNull();
     expect(screen.queryByAltText('rich note')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      'missing filename',
+      () => new File(['x'], '', { type: 'text/csv' }),
+      '파일 이름이 있는 정산 CSV를 선택해주세요.',
+    ],
+    [
+      'non-csv extension',
+      () => new File(['x'], 'settlements.txt', { type: 'text/csv' }),
+      '정산 CSV 파일 이름은 .csv로 끝나야 합니다.',
+    ],
+    [
+      '256-character filename',
+      () => new File(['x'], `${'a'.repeat(252)}.csv`, { type: 'text/csv' }),
+      '정산 CSV 파일 이름은 255자 이하여야 합니다.',
+    ],
+    [
+      'unsupported MIME',
+      () => new File(['x'], 'settlements.csv', { type: 'application/json' }),
+      '정산 CSV 파일 형식을 확인해주세요. CSV 형식 또는 빈 MIME만 허용됩니다.',
+    ],
+    [
+      'empty file',
+      () => new File([], 'settlements.csv', { type: 'text/csv' }),
+      '비어 있지 않은 정산 CSV 파일을 선택해주세요.',
+    ],
+    [
+      'one byte over 5 MiB',
+      () =>
+        withDeclaredFileSize(new File(['x'], 'settlements.csv', { type: 'text/csv' }), 5_242_881),
+      '정산 CSV 파일은 5 MiB(5,242,880 bytes) 이하여야 합니다.',
+    ],
+  ])('rejects %s before creating an import operation', async (_label, createFile, message) => {
+    const randomUUID = vi.spyOn(globalThis.crypto, 'randomUUID');
+    const view = await openSettlements();
+    const fileInput = selectSettlementFile(view, createFile());
+
+    expect(fileInput).toHaveAttribute('accept', '.csv,text/csv');
+    fireEvent.click(screen.getByRole('button', { name: '정산 import' }));
+
+    expect(mocks.showToast).toHaveBeenCalledWith('error', message);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(randomUUID).not.toHaveBeenCalled();
+    expect(mocks.importAdminPaymentSettlements).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(SETTLEMENT_IMPORT_ATTEMPT_STORAGE_KEY)).toBeNull();
+  });
+
+  it('accepts the exact filename and byte limits with a case-insensitive extension', async () => {
+    mocks.importAdminPaymentSettlements.mockResolvedValueOnce(settlementResult);
+    const view = await openSettlements();
+    const file = withDeclaredFileSize(
+      new File(['x'], `${'a'.repeat(251)}.CSV`, { type: 'application/vnd.ms-excel' }),
+      5_242_880,
+    );
+
+    submitSettlementImport(view, file, 'boundary file');
+
+    await waitFor(() => expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledTimes(1));
+    expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledWith(
+      file,
+      expect.stringMatching(/^[0-9a-f-]{36}$/),
+      'boundary file',
+    );
+  });
+
+  it('accepts a blank CSV MIME and leaves server validation authoritative', async () => {
+    mocks.importAdminPaymentSettlements.mockResolvedValueOnce(settlementResult);
+    const view = await openSettlements();
+    const file = new File(['x'], 'blank-mime.csv');
+
+    submitSettlementImport(view, file, 'blank MIME');
+
+    await waitFor(() => expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledTimes(1));
+    expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledWith(
+      file,
+      expect.stringMatching(/^[0-9a-f-]{36}$/),
+      'blank MIME',
+    );
   });
 
   it('keeps the latest tab after an older page request resolves last', async () => {
@@ -828,6 +914,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
       failedRows: 7,
       statusCounts: { MATCHED: 1 },
       errors,
+      omittedErrorCount: 0,
     };
     mocks.importAdminPaymentSettlements.mockResolvedValueOnce(partialResult);
 
@@ -835,7 +922,9 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     const file = new File(['safe,synthetic,csv'], 'mixed-settlement.csv', { type: 'text/csv' });
     const fileInput = submitSettlementImport(view, file, '  correction note  ');
 
-    expect(await screen.findByRole('status')).toHaveTextContent('부분 완료');
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '일부 처리 실패: 7개 row의 오류 상세를 확인해주세요.',
+    );
     for (const error of errors) {
       expect(screen.getByText(`row ${error.rowNumber}: ${error.message}`)).toBeInTheDocument();
     }
@@ -854,6 +943,132 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     expect(screen.getByText('mixed-settlement.csv')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('정산 import 근거')).toHaveValue('  correction note  ');
     expect(fileInput.files?.[0]).toBe(file);
+  });
+
+  it('shows the reconciliation omitted count while retaining aggregates and 200 errors', async () => {
+    const errors = Array.from({ length: 200 }, (_, index) => ({
+      rowNumber: index + 1,
+      message: `reconciliation error ${index + 1}`,
+    }));
+    const reconciliationResult: AdminPaymentSettlementImportResult = {
+      importBatchKey: 'RECONCILE-BOUNDED',
+      totalRows: 203,
+      importedRows: 0,
+      skippedDuplicateRows: 0,
+      failedRows: 203,
+      statusCounts: {},
+      errors,
+      omittedErrorCount: 3,
+    };
+    mocks.reconcileAdminPaymentSettlements.mockResolvedValueOnce(reconciliationResult);
+
+    await openSettlements();
+    fireEvent.click(screen.getByRole('button', { name: '누락 후보 확인' }));
+    const dialog = screen.getByRole('dialog', { name: '정산 누락 후보 확인' });
+    fireEvent.click(within(dialog).getByRole('button', { name: '확인' }));
+
+    expect(
+      await screen.findByText('대사 오류 상세 3건이 목록에서 생략되었습니다.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '일부 처리 실패: 203개 row의 오류 상세를 확인해주세요.',
+    );
+    expect(screen.getByRole('status')).not.toHaveTextContent('다시 import');
+    expect(screen.getByText('omitted reconciliation errors').parentElement).toHaveTextContent('3');
+    expect(screen.getByText('rows').parentElement).toHaveTextContent('203');
+    expect(screen.getByText('failed').parentElement).toHaveTextContent('203');
+    expect(screen.getByText('row 1: reconciliation error 1')).toBeInTheDocument();
+    expect(screen.getByText('row 200: reconciliation error 200')).toBeInTheDocument();
+    expect(screen.getAllByText(/^row \d+: reconciliation error \d+$/)).toHaveLength(200);
+    expect(mocks.showToast).toHaveBeenCalledWith(
+      'warning',
+      '정산 누락 후보 확인이 부분 완료되었습니다. 결과 패널의 실패 및 오류 상세를 확인해주세요.',
+    );
+    expect(mocks.showToast).not.toHaveBeenCalledWith('success', expect.any(String));
+    expect(mocks.reconcileAdminPaymentSettlements).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchAdminPaymentSettlements).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not announce omitted errors when the omitted count is zero', async () => {
+    const reconciliationResult: AdminPaymentSettlementImportResult = {
+      importBatchKey: 'RECONCILE-COMPLETE-DETAILS',
+      totalRows: 1,
+      importedRows: 0,
+      skippedDuplicateRows: 0,
+      failedRows: 1,
+      statusCounts: {},
+      errors: [{ rowNumber: 1, message: 'complete reconciliation detail' }],
+      omittedErrorCount: 0,
+    };
+    mocks.reconcileAdminPaymentSettlements.mockResolvedValueOnce(reconciliationResult);
+
+    await openSettlements();
+    fireEvent.click(screen.getByRole('button', { name: '누락 후보 확인' }));
+    const dialog = screen.getByRole('dialog', { name: '정산 누락 후보 확인' });
+    fireEvent.click(within(dialog).getByRole('button', { name: '확인' }));
+
+    expect(await screen.findByText('row 1: complete reconciliation detail')).toBeInTheDocument();
+    expect(screen.queryByText('omitted reconciliation errors')).not.toBeInTheDocument();
+    expect(screen.queryByText(/대사 오류 상세 .*생략/)).not.toBeInTheDocument();
+    expect(mocks.showToast).toHaveBeenCalledWith(
+      'warning',
+      '정산 누락 후보 확인이 부분 완료되었습니다. 결과 패널의 실패 및 오류 상세를 확인해주세요.',
+    );
+    expect(mocks.showToast).not.toHaveBeenCalledWith('success', expect.any(String));
+  });
+
+  it('announces a partial outcome when reconciliation reports only omitted errors', async () => {
+    const reconciliationResult: AdminPaymentSettlementImportResult = {
+      importBatchKey: 'RECONCILE-OMITTED-ONLY',
+      totalRows: 1,
+      importedRows: 1,
+      skippedDuplicateRows: 0,
+      failedRows: 0,
+      statusCounts: { MATCHED: 1 },
+      errors: [],
+      omittedErrorCount: 1,
+    };
+    mocks.reconcileAdminPaymentSettlements.mockResolvedValueOnce(reconciliationResult);
+
+    await openSettlements();
+    fireEvent.click(screen.getByRole('button', { name: '누락 후보 확인' }));
+    const dialog = screen.getByRole('dialog', { name: '정산 누락 후보 확인' });
+    fireEvent.click(within(dialog).getByRole('button', { name: '확인' }));
+
+    expect(
+      await screen.findByText('대사 오류 상세 1건이 목록에서 생략되었습니다.'),
+    ).toBeInTheDocument();
+    expect(mocks.showToast).toHaveBeenCalledWith(
+      'warning',
+      '정산 누락 후보 확인이 부분 완료되었습니다. 결과 패널의 실패 및 오류 상세를 확인해주세요.',
+    );
+    expect(mocks.showToast).not.toHaveBeenCalledWith('success', expect.any(String));
+    expect(mocks.reconcileAdminPaymentSettlements).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchAdminPaymentSettlements).toHaveBeenCalledTimes(2);
+  });
+
+  it('announces success only when reconciliation has no failed or omitted errors', async () => {
+    const reconciliationResult: AdminPaymentSettlementImportResult = {
+      ...settlementResult,
+      importBatchKey: 'RECONCILE-FULL-SUCCESS',
+    };
+    mocks.reconcileAdminPaymentSettlements.mockResolvedValueOnce(reconciliationResult);
+
+    await openSettlements();
+    fireEvent.click(screen.getByRole('button', { name: '누락 후보 확인' }));
+    const dialog = screen.getByRole('dialog', { name: '정산 누락 후보 확인' });
+    fireEvent.click(within(dialog).getByRole('button', { name: '확인' }));
+
+    await waitFor(() =>
+      expect(mocks.showToast).toHaveBeenCalledWith(
+        'success',
+        '정산 누락 후보 확인이 완료되었습니다.',
+      ),
+    );
+    expect(mocks.showToast).not.toHaveBeenCalledWith('warning', expect.any(String));
+    expect(screen.getByText('batch').parentElement).toHaveTextContent('RECONCILE-FULL-SUCCESS');
+    expect(mocks.reconcileAdminPaymentSettlements).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchAdminPaymentSettlements).toHaveBeenCalledTimes(2);
   });
 
   it('uses one key for one POST and read-only recovery while retaining WI-041 context', async () => {

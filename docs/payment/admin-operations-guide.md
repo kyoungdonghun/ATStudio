@@ -1,6 +1,6 @@
 ---
-version: 1.5
-last_updated: 2026-08-12
+version: 1.6
+last_updated: 2026-08-13
 project: ATS
 owner: docops
 category: guide
@@ -174,19 +174,22 @@ Current source adapters:
 
 Operator workflow:
 
-1. Select the CSV and optionally enter an import note of at most 500 characters,
-   then confirm once. Never enter PII, credentials, payment keys, Provider
-   identifiers, tokens, or other sensitive information. The UI warns about
-   this, but free text has no DLP guarantee.
+1. Select a nonempty `.csv` file with a filename of at most 255 characters,
+   allowed/blank CSV media type, and size at most 5 MiB. Optionally enter an
+   import note of at most 500 characters, then confirm once. Never enter PII,
+   credentials, payment keys, Provider identifiers, tokens, or other sensitive
+   information. The UI warns about this, but free text has no DLP guarantee.
 2. The screen creates one lowercase UUIDv4 and sends it only in the
-   `Idempotency-Key` header. Do not put that key in a URL, query, note, ticket,
-   screenshot, or log.
+   `Idempotency-Key` header. The file and trimmed nonblank note are multipart
+   parts; the note is not a query parameter. Do not put the key in a URL,
+   query, note, ticket, screenshot, or log.
 3. Treat HTTP `200` with `failedRows > 0` as partial completion. Review every
    returned row error; the screen retains the exact selected `File`, DOM file
    input, and note for correction.
 4. For every normal import result, confirm
    `totalRows == importedRows + skippedDuplicateRows + failedRows` and
-   `sum(statusCounts) == importedRows`.
+   `sum(statusCounts) == importedRows`. Import returns all errors within the
+   1,000-row ceiling and reports `omittedErrorCount=0`.
 5. Expect one import POST and one Settlement-list reload after a returned
    result. A transport error triggers one read-only same-key recovery GET.
    There is no automatic second POST or polling.
@@ -202,11 +205,28 @@ Operator workflow:
 9. To IGNORE a reviewed row, enter a note that remains nonblank after trimming
    and is at most 500 characters, then use the existing danger confirmation.
    No typed phrase is part of Settlement IGNORE.
+10. For missing-provider reconciliation, use an omitted 30-day default or an
+    inclusive range of at most 90 days. At most 5,000 finalized payments are
+    processed. Review the first 200 returned errors and any additional count in
+    `omittedErrorCount`; there is no automatic retry or recovery operation.
 
-Current observed CSV row checks, not a complete strict import policy:
+Current strict CSV policy:
 
-- Required fields include provider, order ID, gross amount, net settlement amount, and settlement base date.
-- Amount values must be non-negative.
+- Encoding is UTF-8 only, with one optional leading BOM. The dialect uses comma,
+  double-quote fields, doubled-quote escapes, quoted LF/CRLF newlines, and no
+  bare CR.
+- Headers are trim-plus-lowercase normalized, unique, allowlisted, and
+  order-independent. Required fields are `provider`, `order_id`,
+  `gross_amount`, `net_settlement_amount`, and `settlement_base_date`.
+  Unknown headers are rejected, and every row must have exact header width.
+- At most 1,000 nonblank logical data records are accepted. Header and blank
+  records do not count; invalid and duplicate records do count.
+- V1 accepts exact `TOSS`, exact `KRW`, order ID up to 64 characters, provider
+  identifiers up to 200, and provider status up to 100. Evidence values are not
+  truncated and reject controls, newline separators, and edge whitespace.
+- Amounts use plain nonnegative decimal notation, scale at most 2, and must fit
+  `DECIMAL(15,2)`. Values canonicalize to scale 2; no rounding occurs. Dates are
+  strict `yyyy-MM-dd`, and payout date cannot precede base date.
 - Excel sources must be exported to CSV before import.
 
 Settlement statuses:
@@ -240,11 +260,15 @@ Rule:
   with no overwrite and no new audit.
 - Duplicate atomicity, durable CSV attempt evidence, orderless accounting, and
   count conservation are implemented at the source/H2 boundary by WI-056.
-  Current MySQL concurrency/manifest rehearsal was not run.
-- Strict CSV dialect/field/range policy and reconciliation ceilings remain held
-  and out of scope for WI-20260809-ATS-067. Typed confirmation for
-  the separate general local-subscription correction flow remains with
-  WI-20260809-ATS-054.
+- Strict CSV dialect/field/range policy and reconciliation ceilings are
+  implemented under WI-20260809-ATS-067 and accepted by QA-INTEG v1.2 and PG
+  v1.1 at the repository/non-database boundary. DG-067-09B is
+  `RUN-PASS-CLEANED`: the recorded 42/506/173/90/6 fresh-MySQL manifest matched
+  independent validation, all three isolated settlement concurrency tests
+  passed under `ddl-auto=validate`, and both exact disposable databases were
+  dropped. This does not authorize a new database run or establish production
+  readiness. Typed confirmation for the separate general local-subscription
+  correction flow remains with WI-20260809-ATS-054.
 
 ## 10. Refund Tab
 

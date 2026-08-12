@@ -402,6 +402,7 @@ export interface AdminPaymentSettlementImportResult {
   failedRows: number;
   statusCounts: Record<string, number>;
   errors: AdminPaymentSettlementImportError[];
+  omittedErrorCount: number;
 }
 
 export type AdminPaymentSettlementImportAttemptState = 'PROCESSING' | 'COMPLETED' | 'FAILED';
@@ -727,11 +728,14 @@ export async function importAdminPaymentSettlements(
 ): Promise<AdminPaymentSettlementImportResult> {
   const formData = new FormData();
   formData.append('file', file);
+  const trimmedNote = note?.trim();
+  if (trimmedNote) {
+    formData.append('note', trimmedNote);
+  }
   const { data } = await client.post<ApiResponse<AdminPaymentSettlementImportResult>>(
     '/admin/payments/settlements/import',
     formData,
     {
-      params: note ? { note } : undefined,
       headers: { 'Idempotency-Key': idempotencyKey },
       skipAuthReplay: true,
     },

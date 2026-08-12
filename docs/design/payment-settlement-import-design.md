@@ -1,6 +1,6 @@
 ---
-version: 2.0
-last_updated: 2026-08-12
+version: 3.0
+last_updated: 2026-08-13
 project: ATS
 owner: SA
 category: design
@@ -23,24 +23,26 @@ dependencies:
 
 ## 1. Scope
 
-This design covers ATStudio's PG-to-merchant subscription settlement evidence:
+This design covers ATStudio's PG-to-merchant subscription settlement evidence
+at the current WI-20260809-ATS-067 repository boundary:
 
 - ADMIN CSV import through `CSV_MANUAL`.
+- The exact file envelope, strict UTF-8 decoder, CSV dialect, header, row,
+  identifier, financial, currency, and date rules.
 - Durable CSV import-attempt evidence and response-loss recovery.
 - Atomic Settlement-row duplicate classification.
-- Generated `SYSTEM_RECONCILIATION` review rows.
-- Aggregate count conservation and orderless local-payment classification.
+- Bounded `SYSTEM_RECONCILIATION` review rows and bounded returned errors.
+- Aggregate count conservation and deterministic orderless local-payment
+  classification.
 
 It does not cover creator royalty settlement, seller payout, tax invoice or
 cash-receipt mutation, bank statement import, retained-data migration, or Toss
 Settlement API automation. `TOSS_API` remains a future adapter.
 
-CSV filename, MIME, byte-size, encoding, dialect/grammar, duplicate-header,
-row-width, financial/provider field bounds, date-span, row-ceiling, batching,
-cursoring, and retry-policy hardening remains held and out of scope for
-WI-20260809-ATS-067 (`CR-031-115`, `CR-031-116`, `CR-031-118`). The current
-parser behavior below is an implementation observation, not completed WI-067
-hardening.
+DG-067-01 through DG-067-09B are implemented. QA-INTEG v1.2 and PG v1.1
+accepted the repository and embedded-H2 boundary, and the separately approved
+DG-067-09B fresh-MySQL proof is `RUN-PASS-CLEANED`. No deployment, retained-data
+migration, external Provider behavior, or client acceptance is claimed.
 
 ## 2. Current Source Adapters
 
@@ -54,9 +56,63 @@ Settlement reconciliation is accounting visibility. It never changes user
 access, payment/refund status, billing agreements, receipts, mail, or Provider
 state.
 
-## 3. Observed CSV Contract
+## 3. Multipart and File Envelope
 
-Required headers are case-sensitive:
+`POST /api/admin/payments/settlements/import` consumes
+`multipart/form-data` with these inputs:
+
+| Input | Contract |
+|---|---|
+| `file` | Required multipart file part. |
+| `note` | Optional multipart text part. A query-only `note` does not bind and there is no query-parameter compatibility fallback. |
+| `Idempotency-Key` | Required header containing one canonical lowercase UUIDv4. |
+
+The server validates the complete file envelope before claiming an import
+attempt:
+
+| Envelope field | Accepted rule |
+|---|---|
+| Filename | Present, nonblank, at most 255 characters, and ending in `.csv` with case-insensitive extension matching. |
+| Part media type | Missing or blank, or exactly `text/csv`, `application/csv`, `text/comma-separated-values`, or `application/vnd.ms-excel` after trim and lowercase normalization. Other values are rejected. |
+| Declared and actual bytes | Nonempty and at most 5 MiB (5,242,880 bytes). The service reads at most 5 MiB plus one byte to enforce the actual-byte ceiling. |
+
+The SPA mirrors these checks as advisory preflight, uses
+`accept=".csv,text/csv"`, and keeps the server authoritative. An envelope
+failure returns the existing invalid-argument contract and creates no import
+attempt, Settlement, or row audit.
+
+## 4. UTF-8 and CSV Dialect
+
+The importer accepts UTF-8 only. Decoding reports malformed and unmappable
+input; it never inserts replacement characters or heuristically selects a
+legacy encoding. One leading UTF-8 BOM is removed. CP949 and other legacy
+encodings are not accepted.
+
+The implemented dialect is intentionally defined by executable rules rather
+than a broad RFC claim:
+
+- The delimiter is comma and the quote character is double quote.
+- A quote may open only at the beginning of a cell. A doubled quote inside a
+  quoted cell represents one literal quote.
+- Quoted commas and quoted LF or CRLF newlines are supported. A bare CR is
+  rejected both inside and outside quoted cells.
+- After a closing quote, only a comma, an LF/CRLF record separator, or end of
+  file is valid. Malformed and unbalanced quotes fail the file.
+- A trailing record separator is accepted. Physical or logical records whose
+  cells are all blank are ignored. The row number reported for a retained
+  logical record is its starting physical line.
+- The parser retains at most the header plus 1,000 nonblank logical data
+  records and stops at the 1,001st data record. Header and blank records do not
+  count; malformed-width, field-invalid, and duplicate rows do count. The
+  ceiling is detected when the 1,001st logical record closes, so malformed
+  grammar while forming that record remains a file grammar error.
+
+The first nonblank logical record is the header. Header names are trimmed and
+lowercased. Header order is free, but names must be unique after normalization,
+all required headers must exist, and every header must be in the allowlist.
+Unknown and duplicate headers fail the file.
+
+Required headers:
 
 - `provider`
 - `order_id`
@@ -64,19 +120,47 @@ Required headers are case-sensitive:
 - `net_settlement_amount`
 - `settlement_base_date`
 
-Current optional fields include provider payment/settlement identifiers,
-refund/fee/VAT amounts, payout date, provider status, currency, and row note.
-Amounts must parse as non-negative decimal values, `order_id` is bounded to 64
-characters, dates use `yyyy-MM-dd`, and currency is a three-character code.
-Blank lines are skipped and the current service guard accepts at most 1,000
-nonblank data rows. UTF-8 BOM, quoted commas, and escaped double quotes are
-handled by the current line parser; unknown columns are ignored.
+Complete allowed header set:
 
-These observations do not imply support for multiline quoted values or a
-complete CSV grammar. Excel files must be exported to CSV. No parser-hardening
-item owned by WI-067 is described as implemented.
+- `provider`, `provider_payment_key`, `provider_settlement_id`, `order_id`
+- `gross_amount`, `refund_amount`, `fee_amount`, `vat_amount`,
+  `net_settlement_amount`, `currency`
+- `settlement_base_date`, `settlement_payout_date`, `provider_status`, `note`
 
-## 4. Durable CSV Import Attempt
+Every data record must have exactly the header width. A missing, extra, or
+trailing cell that changes the width becomes a row error and does not stop
+other rows. Decoder, grammar, header, and 1,001-row violations fail the entire
+file before any Settlement row is processed. Because parsing occurs after a
+successful attempt claim, that claimed attempt becomes `FAILED` with bounded
+failure code `CSV_READ_FAILED`.
+
+## 5. Row Validation and Canonicalization
+
+The importer validates financial evidence before deduplication,
+reconciliation, persistence, or audit use.
+
+| Field | Current rule |
+|---|---|
+| `provider` | Required and exactly `TOSS`. No case folding is performed. The enum/provider-neutral architecture remains available for future approved adapters. |
+| `order_id` | Required, 1-64 characters. |
+| `provider_payment_key` | Optional; empty becomes null; maximum 200 characters. |
+| `provider_settlement_id` | Optional; empty becomes null; maximum 200 characters. |
+| `provider_status` | Optional; empty becomes null; maximum 100 characters. |
+| Evidence characters | Provider and identifier/status values reject ISO control characters, Unicode line separator U+2028, Unicode paragraph separator U+2029, and leading/trailing whitespace. Accepted case and content, including ordinary internal whitespace and Korean text, are preserved. Values are never silently truncated. |
+| Amount fields | ASCII digits with an optional decimal point and one or two fraction digits. Signs, grouping commas, exponent notation, `.5`, `1.`, edge whitespace, negative values, and excess scale are rejected. |
+| Amount range | At most 13 significant integer digits and two fraction digits, matching `DECIMAL(15,2)`; maximum 9,999,999,999,999.99. Values are rejected rather than rounded. |
+| Amount defaults | Missing or empty `refund_amount`, `fee_amount`, and `vat_amount` become `0.00`. `gross_amount` and `net_settlement_amount` are required. |
+| Amount canonicalization | Leading integer zeros are removed and every accepted value is converted to exact scale 2 before deduplication and persistence. Durable-equal forms such as `1`, `1.0`, `1.00`, and `001.00` therefore use the same value and deduplication basis. |
+| `currency` | Exactly `KRW`; missing or empty becomes `KRW`. No case folding is performed. |
+| Dates | Strict `yyyy-MM-dd`. Payout date is optional but must not precede the settlement base date. No oldest-date or future-date boundary is implemented for CSV rows. |
+
+An arithmetically inconsistent but structurally valid row is not discarded.
+For example, a net value unequal to gross minus refund, fee, and VAT persists
+as `MISMATCHED` evidence for review. CSV `note` remains optional operator text;
+the multipart note takes precedence when nonblank, otherwise the trimmed CSV
+note is used, and the persisted Settlement note is bounded to 500 characters.
+
+## 6. Durable CSV Import Attempt
 
 `payment_settlement_import_attempts` records every successfully claimed,
 nonempty CSV import operation, including all-duplicate and orchestration-failed
@@ -106,11 +190,12 @@ filename, Provider payloads, Provider credentials, per-row error text, or
 `statusCounts`. Parsed Settlement rows retain their existing structured source
 fields and batch linkage; the attempt remains the file-operation ledger.
 
-An empty multipart file, invalid ADMIN principal, or invalid Idempotency-Key is
-rejected before an attempt is claimed. A claimed nonempty file that cannot be
-read or orchestrated reaches terminal `FAILED` with a bounded failure code.
+The complete filename/MIME/byte envelope, invalid ADMIN principal, and invalid
+Idempotency-Key are rejected before an attempt is claimed. A claimed file that
+cannot be decoded, parsed, or orchestrated reaches terminal `FAILED` with a
+bounded failure code.
 
-## 5. Idempotency-Key and Recovery
+## 7. Idempotency-Key and Recovery
 
 `POST /api/admin/payments/settlements/import` requires a canonical lowercase
 UUIDv4 in `Idempotency-Key`. The value is not trimmed or normalized. The server
@@ -149,7 +234,7 @@ ADMIN-only read APIs are:
 Recovery returns aggregate durable evidence only. Per-row errors remain
 response-only because retaining them would retain imported row context.
 
-## 6. Transaction and Constraint Classification
+## 8. Transaction and Constraint Classification
 
 The import orchestrator is not one outer database transaction:
 
@@ -182,10 +267,13 @@ Constraint translation is fail-closed:
   that selected row as failed.
 
 The MySQL signatures above are covered by synthetic exception-classification
-tests. WI-056 integration/concurrency proof used H2; no MySQL lock, isolation,
-deadlock, or constraint-message rehearsal was run.
+tests. The approved fresh-MySQL proof additionally ran the different-operation
+key deduplication race, same-owner/same-operation-key race, and concurrent
+`IGNORE` race against MySQL 8/InnoDB at `REPEATABLE-READ`; all three passed.
+This bounded proof does not establish every possible deadlock or infrastructure
+failure mode.
 
-## 7. Import Outcome Rules
+## 9. Outcome and Error Contracts
 
 For every normal import response:
 
@@ -199,15 +287,38 @@ invalid rows do not inflate status counts. Every imported row appends exactly
 one `PAYMENT_SETTLEMENT_IMPORTED` audit in the same successful row transaction;
 the duplicate path appends no second import audit.
 
-The initial response includes all currently returned row-number/message errors.
-The attempt ledger keeps only counts. A same-key POST never recreates a
+The response additionally carries `omittedErrorCount`:
+
+| Operation | `errors` | `omittedErrorCount` |
+|---|---|---:|
+| CSV import | Every row error within the 1,000-row ceiling, in input order. | Always `0`. |
+| Missing-settlement reconciliation | The first 200 row errors in deterministic payment-ID processing order. | `max(0, failedRows - errors.size())`. |
+
+Errors contain only row number and bounded fixed-format text; they do not copy
+raw row values. Import row errors remain response-only. The attempt ledger
+keeps aggregate counts but no error details. A same-key POST never recreates a
 Settlement, audit, or attempt.
 
-## 8. Missing-Settlement Reconciliation
+## 10. Missing-Settlement Reconciliation
 
-Reconciliation remains separate from the CSV attempt ledger and has no
-Idempotency-Key or recovery API in WI-056. It selects finalized local payments
-for the requested date range and classifies each selected row exactly once:
+Reconciliation remains synchronous and separate from the CSV attempt ledger.
+It has no Idempotency-Key, operation identity, cursor, progress ledger,
+automatic retry, polling, or recovery API.
+
+The server applies these exact bounds:
+
+- When both dates are omitted, the inclusive range is today minus 29 days
+  through today (30 calendar days). Each individually omitted boundary uses
+  that same default boundary.
+- `baseDateFrom` must not be after `baseDateTo`; the inclusive span is at most
+  90 calendar days. A 90-day range passes and a 91-day range fails.
+- There is no separate oldest-date or future-date rejection.
+- The query selects `DONE` `subscription_payments` whose `createdAt` falls
+  within the selected days, orders by numeric ID ascending, and probes at most
+  5,001 rows. A 5,001-row result rejects the whole request before any
+  Settlement or audit mutation; at most 5,000 rows are processed.
+
+Each selected row is classified exactly once:
 
 - imported: a new `PROVIDER_SETTLEMENT_NOT_FOUND` review row and one
   `PAYMENT_SETTLEMENT_RECONCILED` audit are persisted;
@@ -215,16 +326,17 @@ for the requested date range and classifies each selected row exactly once:
 - failed: the payment is orderless/unusable or row persistence fails.
 
 An orderless finalized payment increments `failedRows` once and returns a
-bounded error without creating a Settlement or row audit. Every normal response
-satisfies the same total-count invariant, and its `statusCounts` sum equals
-`importedRows`.
+bounded error without creating a Settlement or row audit. Reconciliation row
+writes use separate `REQUIRES_NEW` transactions. Every normal response satisfies
+the same total-count invariant, and its `statusCounts` sum equals `importedRows`.
 
-## 9. Frontend Recovery State
+## 11. Frontend Behavior
 
 The Settlement tab creates a secure UUIDv4 only after explicit confirmation,
 stores one pending record under
 `ats.admin.settlement-import-attempt.v1`, and sends one POST with authentication
-replay disabled.
+replay disabled. The frontend trims a nonblank operator note and appends it as
+the optional multipart `note` part; it does not add query parameters.
 
 - A transport error triggers one read-only recovery GET with the same key.
 - `PROCESSING` retains the key, selected `File`, DOM input, and note and exposes
@@ -237,6 +349,10 @@ replay disabled.
   selected file and keyed DOM input. Partial outcomes retain correction context.
 - Per-row errors cannot be reconstructed from recovery because they are not
   persisted; the screen states that limitation.
+- A reconciliation result is reported as partial when `failedRows`, returned
+  `errors`, or `omittedErrorCount` is nonzero. The result panel displays the
+  omitted count and returned details; clean success is shown only after the
+  Settlement-list reload succeeds.
 
 The optional operator-note textarea has `maxLength=500` and a visible warning
 not to enter PII, credentials, payment keys, or other sensitive information.
@@ -244,13 +360,17 @@ The application stores the operator's text as local evidence; it does not
 derive secrets from it and does not claim that free text can never contain a
 secret.
 
-## 10. Security and Side-Effect Boundary
+## 12. Security and Side-Effect Boundary
 
 - Application code and tests do not log the raw Idempotency-Key or operator
   note. Infrastructure owners must separately configure access logs, reverse
   proxies, tracing, and APM not to collect or record `Idempotency-Key`.
 - The raw key is header-only for import and recovery. It is never accepted in a
   path or query parameter.
+- The request-level operator note is multipart-only. Unsolicited query text
+  does not bind; the separate allowlisted CSV `note` cell remains row input.
+  Infrastructure owners must still suppress or redact unexpected query strings
+  and request capture on this route.
 - Imported files, raw rows, raw Provider payloads, credentials, and secrets are
   not retained in the attempt ledger.
 - Import/recovery may read local order, finalized-payment, and succeeded-refund
@@ -261,16 +381,55 @@ secret.
   cancel, mutate subscription/billing-agreement/payment state, create receipt
   or mail effects, or call a Provider.
 
-## 11. Verification Boundary
+## 13. MySQL Proof Boundary
 
-Focused H2 evidence proves one durable Settlement and one row audit under a
-same-row race, complementary imported/duplicate outcomes, isolated unrelated
-rows in a multi-row race, all-duplicate durable attempts, same-key no-reprocess,
-owner isolation, count conservation, and zero forbidden side effects.
+Current `schema.sql` contains 42 derived `CREATE TABLE` statements, and the
+disposable bootstrap's source preflight requires exactly 42. The active MySQL
+expectation is now `RECORDED` from the approved observation:
 
-This does not certify MySQL InnoDB lock timing, deadlock handling, isolation,
-current fresh-schema manifest/hash, retained-data migration, live Provider
-behavior, production logging configuration, deployment, or operator acceptance.
+| Field | Current value |
+|---|---:|
+| Tables / columns | 42 / 506 |
+| Index rows / foreign keys | 173 / 90 |
+| Plans / plan keys | 6 / 6 |
+| Forbidden tables / columns | 0 / 0 |
+| SHA-256 | `acf28c935bf6107a8f2af431c971ebe0cd3539dba1aa1a941d966dde4a2a7a65` |
+
+`ats_disposable_20260813_wi067obs` applied schema/seed, emitted those values,
+failed closed as designed while the expectation was unrecorded, and passed
+cleanup plus follow-up exact Drop. After the tooling recorded only the emitted
+values, all 20 guards and `Preflight` passed. The distinct proof database
+`ats_disposable_20260813_wi067prf` passed `Create`, independent `Validate`, exact
+manifest comparison, three Hibernate `ddl-auto=validate` concurrency tests,
+and exact `Drop`. Neither target remains.
+
+## 14. Verification and Review Boundary
+
+QA-INTEG v1.2 and PG v1.1 both returned `ACCEPT` with no open P1 or P2 finding
+at the reviewed repository/non-database boundary. QA-INTEG recorded 87 focused
+backend/embedded-H2 tests, 109 focused frontend tests, frontend typecheck, and
+18 non-database bootstrap guard checks passing. PG separately recorded 60
+focused parser/service tests, 120 focused frontend tests, and the same 18 guard
+checks passing.
+
+The later MySQL lane recorded 3 tests passed with zero failures, errors, or
+skips. The H2 import and IGNORE regression suites passed 8 and 2 tests,
+respectively. In the default environment, the three opt-in MySQL tests skipped
+as designed. No existing database, Provider, payment, refund, mail, or secret
+output was involved.
+
+Those reviews cover strict decoding/parsing, envelope and field boundaries,
+scale-2 deduplication alignment, 1,000/1,001 import rows, 30/90/91 reconciliation
+days, 5,000/5,001 selected payments, first-200 error retention, multipart-only
+note transport, UI partial-result handling, preserved WI-056 invariants, and
+zero forbidden external effects.
+
+Final closeout passed the backend test/JaCoCo/assemble command with 1,542 tests,
+zero failures, and 19 skips. Frontend coverage passed 73 files and 827 tests
+with zero failures; typecheck, lint, repository format, and build also passed.
+This does not certify retained-data migration, exhaustive MySQL failure modes,
+live Provider behavior, production logging configuration, deployment,
+operator/client acceptance, or production readiness.
 
 ## Related Documents
 

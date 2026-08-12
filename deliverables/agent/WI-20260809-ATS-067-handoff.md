@@ -4,17 +4,26 @@ REQ: REQ-20260809-ATS-001
 Agent: se
 Depends On: WI-20260809-ATS-056
 Blocks: -
-Execution State: DECISION-HELD
+Execution State: COMPLETED
 
 [WI SUMMARY]
 
 Approval Status:
 
 - Parent REQ `REQ-20260809-ATS-001` is approved.
-- The policy and API/test decisions listed in this packet are not approved.
-- Implementation remains `HELD`. No code, schema, API, test, tooling, or
-  general-document change may begin until every applicable decision has exact
-  user-approval evidence.
+- DG-067-01 through DG-067-08 and DG-067-09A are approved and implemented under
+  the exact dispositions in the
+  [decision register](WI-20260809-ATS-067-decision-register.md).
+- DG-067-09B received its separate immediate destructive/test approval and is
+  `RUN-PASS-CLEANED`. The observation and proof databases were exact-target
+  dropped; the approval is exhausted and authorizes no further database action.
+- [QA-INTEG v1.2](WI-20260809-ATS-067-qa-integ-review.md) and
+  [PG v1.1](WI-20260809-ATS-067-pg-review.md) both returned `ACCEPT` with no open
+  P1/P2 finding at their reviewed repository/non-database boundary. The later
+  MySQL proof closes their recorded DG-067-09B residual evidence gap.
+- Final full-suite closeout passed: backend 1,542 tests with 0 failures and 19
+  skips plus JaCoCo verification and assemble; frontend 73 files/827 tests with
+  0 failures plus coverage, typecheck, lint, format, and build.
 
 Why:
 
@@ -62,22 +71,29 @@ Scope (out):
 
 DoD:
 
-- [ ] Every applicable decision gate has one explicit approved disposition,
+- [x] Every applicable decision gate has one explicit approved disposition,
       exact values or rules, approval date/source, and named affected layers.
-- [ ] PG and QA-INTEG review the proposed security, evidence, parser, API,
+- [x] PG and QA-INTEG review the proposed security, evidence, parser, API,
       persistence, batching, retry, and operational consequences before Phase B.
-- [ ] No Phase B edit predates the recorded user approval.
-- [ ] Approved validation fails closed before altered evidence can be persisted
+- [x] No Phase B edit predates the recorded user approval.
+- [x] Approved validation fails closed before altered evidence can be persisted
       or audited and returns stable, bounded, non-sensitive errors.
-- [ ] WI-056 invariants and no-external-effect boundaries remain proven.
-- [ ] Focused, adjacent-regression, full quality, documentation, and approved
-      MySQL gates pass; both closeout deliverables are complete.
+- [x] WI-056 invariants and no-external-effect boundaries remain proven.
+- [x] Focused, adjacent H2, documentation, and approved MySQL gates pass; both
+      closeout deliverables are complete.
+- [x] Final full-suite quality and coverage gates pass with recorded results.
 
 [DECISION GATES]
 
-Gate rule:
+Gate rule (pre-approval process retained for historical traceability):
 
-- `UNANSWERED` means `HELD`; there is no inferred default.
+- Before decision-register approval, `UNANSWERED` meant `HELD`; there was no
+  inferred default.
+- All gates are answered. DG-067-01 through DG-067-09A are approved and
+  implemented. The separately approved DG-067-09B execution is
+  `RUN-PASS-CLEANED`.
+- The `Decide` and `not approved` statements below preserve the pre-approval
+  questions; current dispositions are controlled by the decision register.
 - Approval must select exact values and behaviors, not only say "harden CSV".
 - If a selected option needs a new dependency, schema, or architectural
   component, stop for the repository's separate library/architecture approval.
@@ -179,9 +195,9 @@ DG-067-08 - Operator Note Transport and Query Redaction (Separate API Gate):
 
 DG-067-09 - Disposable MySQL Baseline and Rehearsal (Separate Destructive/Test Gate):
 
-- Current source is 42 tables/42 JPA entities. `DisposableMysqlBootstrap` still
-  enforces the predecessor 41-table manifest and predecessor hash; neither is
-  current proof.
+- Current source is 42 tables/42 JPA entities. The predecessor 41-table manifest
+  and hash are historical only; the active tooling now records the separately
+  observed current 42-table manifest.
 - Decision A: separately approve or reject code/tooling work that replaces the
   predecessor expectations with values derived from the current 42-table
   source. Do not invent current column/index/foreign-key counts or a hash.
@@ -196,63 +212,80 @@ DG-067-09 - Disposable MySQL Baseline and Rehearsal (Separate Destructive/Test G
   record the actual manifest/hash and distinguish it from H2 and synthetic
   driver-exception evidence.
 
+Recorded disposition:
+
+- The separately approved observation target
+  `ats_disposable_20260813_wi067obs` applied current schema/seed, emitted
+  42 tables, 506 columns, 173 index rows, 90 foreign keys, 6 plans, 6 plan keys,
+  zero forbidden tables/columns, and SHA-256
+  `acf28c935bf6107a8f2af431c971ebe0cd3539dba1aa1a941d966dde4a2a7a65`.
+  It failed closed as expected while the expectation was unrecorded, reported
+  cleanup success, and passed a follow-up exact `Drop`.
+- After recording only those observed values, all 20 guards and `Preflight`
+  passed with `mysql.manifest.expectation=RECORDED`.
+- The separate proof target `ats_disposable_20260813_wi067prf` passed `Create`,
+  independent `Validate`, exact manifest match, three Hibernate
+  `ddl-auto=validate` MySQL concurrency tests, and exact `Drop`.
+- No existing database, real Provider/payment/refund/mail behavior, or secret
+  output was involved. DG-067-09B is `RUN-PASS-CLEANED`.
+
 [ACCEPTANCE CRITERIA]
 
 Functional:
 
-- [ ] A user-approved decision matrix resolves DG-067-01 through DG-067-07 and
+- [x] A user-approved decision matrix resolves DG-067-01 through DG-067-07 and
       separately records DG-067-08 and both approvals in DG-067-09.
-- [ ] Strict decoder/parser tests cover accepted BOM/input, malformed bytes,
+- [x] Strict decoder/parser tests cover accepted BOM/input, malformed bytes,
       quoting, embedded newlines, escaped quotes, blank lines, duplicate and
       unknown headers, and missing/extra/trailing cells according to approval.
-- [ ] File-envelope tests cover every approved filename, extension, MIME, and
+- [x] File-envelope tests cover every approved filename, extension, MIME, and
       byte boundary at the HTTP and service lanes.
-- [ ] Identifier, amount, currency, and date tests cover minimum, maximum,
+- [x] Identifier, amount, currency, and date tests cover minimum, maximum,
       one-over, malformed, normalization, and durable-representation cases.
-- [ ] Import and reconciliation tests cover row/date ceilings, stable ordering,
+- [x] Import and reconciliation tests cover row/date ceilings, stable ordering,
       batching, interruption, retry, progress, and error-detail limits exactly
       where approved.
-- [ ] If DG-067-08 approves an API change, frontend and backend contract tests
+- [x] If DG-067-08 approves an API change, frontend and backend contract tests
       prove note absence from the request target/query and preserve bounded
       optional note behavior. If deferred, the residual operational control is
       reported without claiming repository verification.
 
 WI-056 Preservation:
 
-- [ ] One explicit import action still claims one durable attempt; same-key POST
+- [x] One explicit import action still claims one durable attempt; same-key POST
       never parses or processes the file again.
-- [ ] Recovery remains header-only and owner-scoped; ADMIN list and numeric
+- [x] Recovery remains header-only and owner-scoped; ADMIN list and numeric
       detail remain global actor-attributed audit views.
-- [ ] Exact attempt and Settlement duplicate constraints remain the only
+- [x] Exact attempt and Settlement duplicate constraints remain the only
       accepted replay/duplicate classifications, with winner confirmation and
       unrelated integrity failures failing closed.
-- [ ] Every normal import/reconciliation result still satisfies
+- [x] Every normal import/reconciliation result still satisfies
       `totalRows == importedRows + skippedDuplicateRows + failedRows`, and
       `sum(statusCounts) == importedRows`.
-- [ ] Partial-result context, all returned approved error details, full-success
+- [x] Partial-result context, all returned approved error details, full-success
       reset timing, and IGNORE authority/note/immutability remain intact.
-- [ ] Import, reconciliation, list, detail, recovery, and IGNORE produce zero
+- [x] Import, reconciliation, list, detail, recovery, and IGNORE produce zero
       payment, refund, subscription, billing-agreement, receipt, mail, or
       Provider mutation/invocation.
 
 Performance:
 
-- [ ] No byte, row, date, batch, cursor, progress, retry, retention, memory, or
+- [x] No byte, row, date, batch, cursor, progress, retry, retention, memory, or
       latency threshold is invented before user approval.
-- [ ] Approved bounds are enforced server-side with deterministic at-limit and
+- [x] Approved bounds are enforced server-side with deterministic at-limit and
       over-limit behavior and no unbounded in-memory/error-detail growth.
 
 Quality:
 
-- [ ] Focused backend unit/controller/H2 integration tests pass with exact
+- [x] Focused backend unit/controller/H2 integration tests pass with exact
       command, test count, and zero failures.
-- [ ] Relevant frontend contract/page tests pass when UI/API behavior changes.
-- [ ] Backend full test/build/JaCoCo and frontend test/coverage, typecheck,
+- [x] Relevant frontend contract/page tests pass when UI/API behavior changes.
+- [x] Backend full test/build/JaCoCo and frontend test/coverage, typecheck,
       ESLint, Prettier, and build gates pass after implementation.
-- [ ] PG and QA-INTEG independently approve security, HTTP, parser, transaction,
+- [x] PG and QA-INTEG independently approve security, HTTP, parser, transaction,
       persistence, count, UI, and no-external-effect lanes.
-- [ ] `validate_docs.py` and `git diff --check` pass.
-- [ ] MySQL is reported as `NOT RUN - NOT APPROVED`, `APPROVED BUT BLOCKED`, or
+- [x] `validate_docs.py` and `git diff --check` pass.
+- [x] MySQL is reported as `NOT RUN - NOT APPROVED`, `APPROVED BUT BLOCKED`, or
       `RUN` with exact manifest/hash evidence; H2 is never presented as MySQL.
 
 [INPUT POINTERS]
@@ -330,15 +363,16 @@ Repro / Current Baseline:
 - Current reconciliation: omitted dates default to 30 days; all matching
   finalized payments load into one list with no approved maximum span/row cap.
 - Current note transport: Axios `params` to Spring `@RequestParam`.
-- Current DB proof: 42 source tables/42 entities; only a predecessor 41-table
-  MySQL manifest/hash exists, and the reusable bootstrap still expects it.
+- Current DB proof: 42 source tables/42 entities; the active MySQL expectation
+  is the recorded 42/506/173/90/6 manifest above, and DG-067-09B is
+  `RUN-PASS-CLEANED`.
 
 [OUTPUT CONTRACT]
 
 User-facing -> `deliverables/user/WI-20260809-ATS-067-summary.md`:
 
-- Korean decision/implementation summary with approved values, unchanged held
-  gates, behavior, risks, MySQL status, and any remaining approval point.
+- Korean decision/implementation summary with approved values, completed MySQL
+  evidence, behavior, risks, and final full-suite results.
 
 Agent-facing -> `deliverables/agent/WI-20260809-ATS-067-evidence-pack.md`:
 

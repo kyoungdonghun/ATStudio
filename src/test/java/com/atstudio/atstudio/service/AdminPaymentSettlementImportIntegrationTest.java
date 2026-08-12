@@ -37,6 +37,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -60,6 +61,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
         AdminPaymentSettlementService.class,
         AdminPaymentSettlementAttemptTransactionService.class,
         AdminPaymentSettlementRowTransactionService.class,
+        PaymentSettlementCsvParser.class,
         PaymentCommandKeyFactory.class,
         PaymentOperationAuditLogService.class
 })
@@ -164,6 +166,122 @@ class AdminPaymentSettlementImportIntegrationTest {
                 .orElseThrow();
         assertThat(retained.getState()).isEqualTo(PaymentSettlementImportAttemptState.COMPLETED);
         assertThat(retained.getOperatorNote()).isEqualTo("all duplicate");
+    }
+
+    @Test
+    @DisplayName("Unicode line separator rows fail independently without Settlement or audit evidence")
+    void unicodeLineSeparatorRowsDoNotPersistOrAuditRejectedEvidence() {
+        User admin = admin("unicode-sep");
+        CustomUserDetails actor = actor(admin);
+        long settlementCountBefore = settlementRepository.count();
+        long auditCountBefore = auditLogRepository.count();
+        String header = "provider,provider_payment_key,provider_settlement_id,order_id,gross_amount,"
+                + "net_settlement_amount,settlement_base_date,provider_status\n";
+        String validOrderID = "ORDER-\uC8FC\uBB38";
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "unicode-separators.csv",
+                "text/csv",
+                (header
+                        + "TO\u2028SS,Pay-Key,Settle-ID,ORDER-PROVIDER-LS,10,10,2026-08-01,DONE\n"
+                        + "TO\u2029SS,Pay-Key,Settle-ID,ORDER-PROVIDER-PS,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay\u2028Key,Settle-ID,ORDER-PAYMENT-LS,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay\u2029Key,Settle-ID,ORDER-PAYMENT-PS,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay-Key,Settle\u2028ID,ORDER-SETTLEMENT-LS,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay-Key,Settle\u2029ID,ORDER-SETTLEMENT-PS,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay-Key,Settle-ID,Order\u2028ID,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay-Key,Settle-ID,Order\u2029ID,10,10,2026-08-01,DONE\n"
+                        + "TOSS,Pay-Key,Settle-ID,ORDER-STATUS-LS,10,10,2026-08-01,Done\u2028Next\n"
+                        + "TOSS,Pay-Key,Settle-ID,ORDER-STATUS-PS,10,10,2026-08-01,Done\u2029Next\n"
+                        + "TOSS,Pay-\uACB0\uC81C,Settle-\uC815\uC0B0," + validOrderID
+                        + ",10,10,2026-08-01,Done-\uC644\uB8CC\n")
+                        .getBytes(StandardCharsets.UTF_8));
+
+        AdminPaymentSettlementImportResponse result = service.importSettlements(
+                actor,
+                file,
+                "unicode separator validation",
+                "70000000-0000-4000-8000-000000000001").getData();
+
+        assertThat(result.totalRows()).isEqualTo(11);
+        assertThat(result.importedRows()).isEqualTo(1);
+        assertThat(result.skippedDuplicateRows()).isZero();
+        assertThat(result.failedRows()).isEqualTo(10);
+        assertThat(result.errors()).hasSize(10);
+        assertConserved(result);
+        assertThat(settlementRepository.count()).isEqualTo(settlementCountBefore + 1);
+        assertThat(auditLogRepository.count()).isEqualTo(auditCountBefore + 1);
+        assertThat(settlementRepository.findAll())
+                .filteredOn(settlement -> result.importBatchKey().equals(settlement.getImportBatchKey()))
+                .singleElement()
+                .satisfies(settlement -> {
+                    assertThat(settlement.getOrderId()).isEqualTo(validOrderID);
+                    assertThat(settlement.getProviderPaymentKey()).isEqualTo("Pay-\uACB0\uC81C");
+                    assertThat(settlement.getProviderSettlementId()).isEqualTo("Settle-\uC815\uC0B0");
+                    assertThat(settlement.getProviderStatus()).isEqualTo("Done-\uC644\uB8CC");
+                });
+        assertThat(importAuditsFor(validOrderID)).hasSize(1);
+        assertThat(attemptsFor(admin)).singleElement().satisfies(attempt -> {
+            assertThat(attempt.getState()).isEqualTo(PaymentSettlementImportAttemptState.COMPLETED);
+            assertThat(attempt.getTotalRows()).isEqualTo(11);
+            assertThat(attempt.getImportedRows()).isEqualTo(1);
+            assertThat(attempt.getDuplicateRows()).isZero();
+            assertThat(attempt.getFailedRows()).isEqualTo(10);
+        });
+    }
+
+    @Test
+    @DisplayName("durably equivalent amount forms deduplicate across different import keys at scale two")
+    void canonicalAmountsDeduplicateAcrossDifferentImportKeys() {
+        User admin = admin("canon-amounts");
+        CustomUserDetails actor = actor(admin);
+        String orderID = "ORDER-WI067-CANONICAL-AMOUNTS";
+        MockMultipartFile omittedZeros = new MockMultipartFile(
+                "file",
+                "omitted-zeros.csv",
+                "text/csv",
+                ("provider,order_id,gross_amount,net_settlement_amount,settlement_base_date\n"
+                        + "TOSS," + orderID + ",10,10.0,2026-08-12\n")
+                        .getBytes(StandardCharsets.UTF_8));
+        MockMultipartFile explicitZeros = new MockMultipartFile(
+                "file",
+                "explicit-zeros.csv",
+                "text/csv",
+                ("provider,order_id,gross_amount,refund_amount,fee_amount,vat_amount,"
+                        + "net_settlement_amount,settlement_base_date\n"
+                        + "TOSS," + orderID + ",10.00,0.00,0.0,0,10.00,2026-08-12\n")
+                        .getBytes(StandardCharsets.UTF_8));
+
+        AdminPaymentSettlementImportResponse first = service.importSettlements(
+                actor,
+                omittedZeros,
+                "omitted zeros",
+                "21000000-0000-4000-8000-000000000001").getData();
+        AdminPaymentSettlementImportResponse duplicate = service.importSettlements(
+                actor,
+                explicitZeros,
+                "explicit zeros",
+                "21000000-0000-4000-8000-000000000002").getData();
+
+        assertThat(first.importedRows()).isEqualTo(1);
+        assertThat(duplicate.importedRows()).isZero();
+        assertThat(duplicate.skippedDuplicateRows()).isEqualTo(1);
+        assertConserved(first);
+        assertConserved(duplicate);
+        assertThat(settlementsFor(orderID)).singleElement().satisfies(settlement -> {
+            assertThat(settlement.getGrossAmount()).isEqualTo(new BigDecimal("10.00"));
+            assertThat(settlement.getRefundAmount()).isEqualTo(new BigDecimal("0.00"));
+            assertThat(settlement.getFeeAmount()).isEqualTo(new BigDecimal("0.00"));
+            assertThat(settlement.getVatAmount()).isEqualTo(new BigDecimal("0.00"));
+            assertThat(settlement.getNetSettlementAmount()).isEqualTo(new BigDecimal("10.00"));
+            assertThat(settlement.getGrossAmount().scale()).isEqualTo(2);
+            assertThat(settlement.getRefundAmount().scale()).isEqualTo(2);
+            assertThat(settlement.getFeeAmount().scale()).isEqualTo(2);
+            assertThat(settlement.getVatAmount().scale()).isEqualTo(2);
+            assertThat(settlement.getNetSettlementAmount().scale()).isEqualTo(2);
+        });
+        assertThat(importAuditsFor(orderID)).hasSize(1);
+        assertThat(attemptsFor(admin)).hasSize(2);
     }
 
     @Test

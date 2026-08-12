@@ -119,6 +119,38 @@ const SETTLEMENT_IMPORT_ATTEMPT_CORRUPT_MESSAGE =
   '저장된 정산 import 복구 정보가 손상되어 새 import를 시작할 수 없습니다. 브라우저 세션을 지운 후 다시 시도해주세요.';
 const SETTLEMENT_IMPORT_ATTEMPT_PENDING_MESSAGE =
   '이전 정산 import 결과를 먼저 복구한 후 새 import를 시작해주세요.';
+const MAX_SETTLEMENT_IMPORT_FILE_NAME_LENGTH = 255;
+const MAX_SETTLEMENT_IMPORT_FILE_BYTES = 5_242_880;
+const SETTLEMENT_IMPORT_MIME_TYPES = new Set([
+  'text/csv',
+  'application/csv',
+  'text/comma-separated-values',
+  'application/vnd.ms-excel',
+]);
+
+function validateSettlementImportFile(file: File): string | null {
+  if (!file.name || file.name.trim().length === 0) {
+    return '파일 이름이 있는 정산 CSV를 선택해주세요.';
+  }
+  if (file.name.length > MAX_SETTLEMENT_IMPORT_FILE_NAME_LENGTH) {
+    return '정산 CSV 파일 이름은 255자 이하여야 합니다.';
+  }
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    return '정산 CSV 파일 이름은 .csv로 끝나야 합니다.';
+  }
+
+  const contentType = file.type.trim().toLowerCase();
+  if (contentType && !SETTLEMENT_IMPORT_MIME_TYPES.has(contentType)) {
+    return '정산 CSV 파일 형식을 확인해주세요. CSV 형식 또는 빈 MIME만 허용됩니다.';
+  }
+  if (file.size <= 0) {
+    return '비어 있지 않은 정산 CSV 파일을 선택해주세요.';
+  }
+  if (file.size > MAX_SETTLEMENT_IMPORT_FILE_BYTES) {
+    return '정산 CSV 파일은 5 MiB(5,242,880 bytes) 이하여야 합니다.';
+  }
+  return null;
+}
 
 interface SettlementImportAttemptState {
   key: string | null;
@@ -712,6 +744,11 @@ export default function PaymentOperationsPage() {
       showToast('error', '정산 CSV 파일을 선택해주세요.');
       return;
     }
+    const fileValidationMessage = validateSettlementImportFile(settlementFile);
+    if (fileValidationMessage) {
+      showToast('error', fileValidationMessage);
+      return;
+    }
     if (settlementImportAttemptCorrupt) {
       showToast('error', SETTLEMENT_IMPORT_ATTEMPT_CORRUPT_MESSAGE);
       return;
@@ -844,8 +881,22 @@ export default function PaymentOperationsPage() {
         try {
           const result = await reconcileAdminPaymentSettlements(request);
           setSettlementImportResult(result);
+          const reloaded = await loadData();
+          if (!reloaded) {
+            showToast(
+              'error',
+              '정산 누락 후보 확인 결과를 받았지만 목록을 다시 불러오지 못했습니다.',
+            );
+            return;
+          }
+          if (result.failedRows > 0 || result.errors.length > 0 || result.omittedErrorCount > 0) {
+            showToast(
+              'warning',
+              '정산 누락 후보 확인이 부분 완료되었습니다. 결과 패널의 실패 및 오류 상세를 확인해주세요.',
+            );
+            return;
+          }
           showToast('success', '정산 누락 후보 확인이 완료되었습니다.');
-          await loadData();
         } catch {
           showToast('error', '정산 누락 후보 확인에 실패했습니다.');
         } finally {
@@ -1777,20 +1828,30 @@ function SettlementOperationPanel({
           <PreviewItem label="duplicates" value={String(result.skippedDuplicateRows)} />
           <PreviewItem label="failed" value={String(result.failedRows)} />
           <PreviewItem label="statuses" value={formatStatusCounts(result.statusCounts)} />
+          {result.omittedErrorCount > 0 ? (
+            <PreviewItem
+              label="omitted reconciliation errors"
+              value={String(result.omittedErrorCount)}
+            />
+          ) : null}
         </div>
       )}
-      {result && (result.failedRows > 0 || result.errors.length > 0) && (
-        <div className={styles.errorList} role="status">
-          {result.failedRows > 0 && (
-            <strong>{`부분 완료: ${result.failedRows}개 row를 수정한 뒤 다시 import해주세요.`}</strong>
-          )}
-          {result.errors.map((error) => (
-            <div key={`${error.rowNumber}-${error.message}`}>
-              {`row ${error.rowNumber}: ${error.message}`}
-            </div>
-          ))}
-        </div>
-      )}
+      {result &&
+        (result.failedRows > 0 || result.errors.length > 0 || result.omittedErrorCount > 0) && (
+          <div className={styles.errorList} role="status">
+            {result.failedRows > 0 && (
+              <strong>{`일부 처리 실패: ${result.failedRows}개 row의 오류 상세를 확인해주세요.`}</strong>
+            )}
+            {result.omittedErrorCount > 0 ? (
+              <strong>{`대사 오류 상세 ${result.omittedErrorCount}건이 목록에서 생략되었습니다.`}</strong>
+            ) : null}
+            {result.errors.map((error) => (
+              <div key={`${error.rowNumber}-${error.message}`}>
+                {`row ${error.rowNumber}: ${error.message}`}
+              </div>
+            ))}
+          </div>
+        )}
       {recoveryAttempt && (
         <div className={styles.previewBox} role="status">
           <PreviewItem label="attempt" value={String(recoveryAttempt.attemptId)} />

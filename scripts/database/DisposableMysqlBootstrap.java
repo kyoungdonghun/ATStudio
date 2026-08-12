@@ -27,6 +27,8 @@ public final class DisposableMysqlBootstrap {
 
     private static final Pattern DISPOSABLE_NAME =
             Pattern.compile("^ats_disposable_\\d{8}_[a-z0-9]{8}$");
+    private static final Pattern CREATE_TABLE_STATEMENT =
+            Pattern.compile("^CREATE\\s+TABLE\\b", Pattern.CASE_INSENSITIVE);
     private static final Set<String> LOOPBACK_HOSTS =
             Set.of("localhost", "127.0.0.1", "::1", "[::1]");
     private static final Set<String> PROTECTED_DATABASE_NAMES = Set.of(
@@ -44,13 +46,15 @@ public final class DisposableMysqlBootstrap {
             "src/main/resources/schema.sql";
     private static final String SEED_RELATIVE_PATH =
             "src/main/resources/seed.sql";
-    private static final String EXPECTED_MANIFEST_SHA256 =
-            "c581bef61cfba143744882b0674daf8d8fe742d82adbbf66d6b61699f5b86333";
-    private static final long EXPECTED_TABLES = 41L;
-    private static final long EXPECTED_COLUMNS = 493L;
-    private static final long EXPECTED_INDEXES = 168L;
-    private static final long EXPECTED_FOREIGN_KEYS = 89L;
-    private static final long EXPECTED_PLANS = 6L;
+    private static final long EXPECTED_SOURCE_CREATE_TABLE_STATEMENTS = 42L;
+    private static final MysqlManifestExpectation CURRENT_MYSQL_MANIFEST_EXPECTATION =
+            new RecordedMysqlManifestExpectation(
+                    42L,
+                    506L,
+                    173L,
+                    90L,
+                    6L,
+                    "acf28c935bf6107a8f2af431c971ebe0cd3539dba1aa1a941d966dde4a2a7a65");
     private static final int DEFAULT_PORT = 3306;
 
     private DisposableMysqlBootstrap() {
@@ -72,11 +76,20 @@ public final class DisposableMysqlBootstrap {
             safe("safety.hostClass", "loopback");
             safe("sql.order", "schema.sql->seed.sql");
             safe(
+                    "source.schema.createTableStatements",
+                    Long.toString(inputs.schemaCreateTableStatements()));
+            safe("source.schema.createTableStatementsCheck", "PASS");
+            safe(
+                    "mysql.manifest.expectation",
+                    CURRENT_MYSQL_MANIFEST_EXPECTATION.state());
+            safe(
                     "sql.schema.normalizedTextSha256",
                     normalizedTextSha256(inputs.schema()));
             safe(
                     "sql.seed.normalizedTextSha256",
                     normalizedTextSha256(inputs.seed()));
+
+            enforceManifestAction(config.requestedAction());
 
             if (config.action() == Action.PREFLIGHT) {
                 safe("status", "PASS");
@@ -87,7 +100,7 @@ public final class DisposableMysqlBootstrap {
             Class.forName("com.mysql.cj.jdbc.Driver");
             Bootstrap bootstrap = new Bootstrap(config, inputs, credentials);
             switch (config.action()) {
-                case CREATE -> bootstrap.create();
+                case CREATE, OBSERVE -> bootstrap.create();
                 case VALIDATE -> bootstrap.validate();
                 case DROP -> bootstrap.drop();
                 default -> throw new GuardException("UNSUPPORTED_ACTION");
@@ -126,7 +139,25 @@ public final class DisposableMysqlBootstrap {
                 || !Files.isRegularFile(seed)) {
             throw new GuardException("CURRENT_SQL_INPUTS_UNAVAILABLE");
         }
-        return new Inputs(schema, seed);
+        String schemaSql = Files.readString(schema, StandardCharsets.UTF_8);
+        long schemaCreateTableStatements = splitSqlStatements(schemaSql).stream()
+                .filter(statement -> CREATE_TABLE_STATEMENT.matcher(statement).find())
+                .count();
+        if (schemaCreateTableStatements != EXPECTED_SOURCE_CREATE_TABLE_STATEMENTS) {
+            throw new GuardException("CURRENT_SCHEMA_CREATE_TABLE_COUNT_MISMATCH");
+        }
+        return new Inputs(schema, seed, schemaCreateTableStatements);
+    }
+
+    private static void enforceManifestAction(Action requestedAction) {
+        if (!CURRENT_MYSQL_MANIFEST_EXPECTATION.isRecorded()
+                && (requestedAction == Action.CREATE || requestedAction == Action.VALIDATE)) {
+            throw new GuardException("MYSQL_MANIFEST_EXPECTATION_UNRECORDED");
+        }
+        if (CURRENT_MYSQL_MANIFEST_EXPECTATION.isRecorded()
+                && requestedAction == Action.OBSERVE) {
+            throw new GuardException("MYSQL_MANIFEST_OBSERVATION_NOT_REQUIRED");
+        }
     }
 
     private static void validateDatabaseName(String databaseName) {
@@ -182,6 +213,7 @@ public final class DisposableMysqlBootstrap {
 
     private enum Action {
         PREFLIGHT("preflight"),
+        OBSERVE("observe"),
         CREATE("create"),
         VALIDATE("validate"),
         DROP("drop");
@@ -207,6 +239,7 @@ public final class DisposableMysqlBootstrap {
 
     private record Config(
             Action action,
+            Action requestedAction,
             Path workspace,
             String host,
             int port,
@@ -224,8 +257,17 @@ public final class DisposableMysqlBootstrap {
             if (workspace == null || workspace.isBlank()) {
                 throw new GuardException("MISSING_WORKSPACE");
             }
+            Action action = Action.parse(values.get("action"));
+            String requestedActionValue = values.get("requested-action");
+            if (requestedActionValue != null && action != Action.PREFLIGHT) {
+                throw new GuardException("INVALID_ARGUMENT_COMBINATION");
+            }
+            Action requestedAction = requestedActionValue == null
+                    ? action
+                    : Action.parse(requestedActionValue);
             return new Config(
-                    Action.parse(values.get("action")),
+                    action,
+                    requestedAction,
                     Path.of(workspace),
                     values.get("host"),
                     port,
@@ -243,7 +285,13 @@ public final class DisposableMysqlBootstrap {
                     throw new GuardException("MISSING_ARGUMENT_VALUE");
                 }
                 String key = argument.substring(2);
-                if (!Set.of("action", "workspace", "host", "port", "database").contains(key)) {
+                if (!Set.of(
+                        "action",
+                        "requested-action",
+                        "workspace",
+                        "host",
+                        "port",
+                        "database").contains(key)) {
                     throw new GuardException("UNKNOWN_ARGUMENT");
                 }
                 if (values.put(key, args[++index]) != null) {
@@ -254,7 +302,7 @@ public final class DisposableMysqlBootstrap {
         }
     }
 
-    private record Inputs(Path schema, Path seed) {
+    private record Inputs(Path schema, Path seed, long schemaCreateTableStatements) {
     }
 
     private record Credentials(String username, String password) {
@@ -320,17 +368,27 @@ public final class DisposableMysqlBootstrap {
             try (Connection database = openDatabaseConnection()) {
                 requireSelectedDatabase(database);
                 Manifest manifest = readManifest(database);
-                safe("manifest.tables", Long.toString(manifest.tables()));
-                safe("manifest.columns", Long.toString(manifest.columns()));
-                safe("manifest.indexes", Long.toString(manifest.indexes()));
-                safe("manifest.foreignKeys", Long.toString(manifest.foreignKeys()));
-                safe("manifest.plans", Long.toString(manifest.plans()));
-                safe("manifest.sha256", manifest.sha256());
-                if (!manifest.matchesExpected()) {
+                outputManifest(manifest);
+                if (!CURRENT_MYSQL_MANIFEST_EXPECTATION.matches(manifest)) {
+                    if (!CURRENT_MYSQL_MANIFEST_EXPECTATION.isRecorded()) {
+                        throw new GuardException("MYSQL_MANIFEST_EXPECTATION_UNRECORDED");
+                    }
                     throw new GuardException("V1_MANIFEST_MISMATCH");
                 }
                 safe("manifest", "PASS");
             }
+        }
+
+        private void outputManifest(Manifest manifest) {
+            safe("manifest.tables", Long.toString(manifest.tables()));
+            safe("manifest.columns", Long.toString(manifest.columns()));
+            safe("manifest.indexes", Long.toString(manifest.indexes()));
+            safe("manifest.foreignKeys", Long.toString(manifest.foreignKeys()));
+            safe("manifest.plans", Long.toString(manifest.plans()));
+            safe("manifest.planKeys", Long.toString(manifest.planKeys()));
+            safe("manifest.forbiddenTables", Long.toString(manifest.forbiddenTables()));
+            safe("manifest.forbiddenColumns", Long.toString(manifest.forbiddenColumns()));
+            safe("manifest.sha256", manifest.sha256());
         }
 
         void drop() throws SQLException {
@@ -485,17 +543,65 @@ public final class DisposableMysqlBootstrap {
             long forbiddenTables,
             long forbiddenColumns,
             String sha256) {
+    }
 
-        boolean matchesExpected() {
-            return tables == EXPECTED_TABLES
-                    && columns == EXPECTED_COLUMNS
-                    && indexes == EXPECTED_INDEXES
-                    && foreignKeys == EXPECTED_FOREIGN_KEYS
-                    && plans == EXPECTED_PLANS
-                    && planKeys == EXPECTED_PLANS
-                    && forbiddenTables == 0L
-                    && forbiddenColumns == 0L
-                    && EXPECTED_MANIFEST_SHA256.equals(sha256);
+    private interface MysqlManifestExpectation {
+
+        boolean isRecorded();
+
+        String state();
+
+        boolean matches(Manifest manifest);
+    }
+
+    private enum UnrecordedMysqlManifestExpectation implements MysqlManifestExpectation {
+        INSTANCE;
+
+        @Override
+        public boolean isRecorded() {
+            return false;
+        }
+
+        @Override
+        public String state() {
+            return "UNRECORDED";
+        }
+
+        @Override
+        public boolean matches(Manifest manifest) {
+            return false;
+        }
+    }
+
+    private record RecordedMysqlManifestExpectation(
+            long tables,
+            long columns,
+            long indexes,
+            long foreignKeys,
+            long plans,
+            String sha256) implements MysqlManifestExpectation {
+
+        @Override
+        public boolean isRecorded() {
+            return true;
+        }
+
+        @Override
+        public String state() {
+            return "RECORDED";
+        }
+
+        @Override
+        public boolean matches(Manifest manifest) {
+            return manifest.tables() == tables
+                    && manifest.columns() == columns
+                    && manifest.indexes() == indexes
+                    && manifest.foreignKeys() == foreignKeys
+                    && manifest.plans() == plans
+                    && manifest.planKeys() == plans
+                    && manifest.forbiddenTables() == 0L
+                    && manifest.forbiddenColumns() == 0L
+                    && sha256.equals(manifest.sha256());
         }
     }
 

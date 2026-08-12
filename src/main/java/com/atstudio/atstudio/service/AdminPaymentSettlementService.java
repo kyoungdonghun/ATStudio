@@ -33,36 +33,51 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.InputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 public class AdminPaymentSettlementService {
 
-    private static final int MAX_IMPORT_ROWS = 1000;
+    private static final long MAX_IMPORT_FILE_BYTES = 5_242_880L;
     private static final int MAX_OPERATOR_NOTE_LENGTH = 500;
-    private static final List<String> REQUIRED_HEADERS = List.of(
-            "provider",
-            "order_id",
-            "gross_amount",
-            "net_settlement_amount",
-            "settlement_base_date");
+    private static final int MAX_ORDER_ID_LENGTH = 64;
+    private static final int MAX_PROVIDER_IDENTIFIER_LENGTH = 200;
+    private static final int MAX_PROVIDER_STATUS_LENGTH = 100;
+    private static final int MAX_RECONCILIATION_DAYS = 90;
+    private static final int MAX_RECONCILIATION_PAYMENTS = 5000;
+    private static final int MAX_RECONCILIATION_ERRORS = 200;
+    private static final Set<String> ACCEPTED_CSV_CONTENT_TYPES = Set.of(
+            "text/csv",
+            "application/csv",
+            "text/comma-separated-values",
+            "application/vnd.ms-excel");
+    private static final Pattern AMOUNT_PATTERN = Pattern.compile("\\d+(?:\\.\\d{1,2})?");
+    private static final Pattern DATE_PATTERN = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
+    private static final DateTimeFormatter STRICT_DATE_FORMATTER = DateTimeFormatter
+            .ofPattern("uuuu-MM-dd")
+            .withResolverStyle(ResolverStyle.STRICT);
     private final PaymentSettlementRepository paymentSettlementRepository;
     private final SubscriptionPaymentRepository subscriptionPaymentRepository;
     private final UserRepository userRepository;
@@ -70,15 +85,14 @@ public class AdminPaymentSettlementService {
     private final AdminPaymentSettlementAttemptTransactionService attemptTransactionService;
     private final AdminPaymentSettlementRowTransactionService rowTransactionService;
     private final PaymentCommandKeyFactory paymentCommandKeyFactory;
+    private final PaymentSettlementCsvParser csvParser;
 
     public ResponseDTO<AdminPaymentSettlementImportResponse> importSettlements(
             CustomUserDetails actorDetails,
             MultipartFile file,
             String note,
             String idempotencyKey) {
-        if (file == null || file.isEmpty()) {
-            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
-        }
+        ValidatedImportFile importFile = validateEnvelope(file);
         Long actorID = requireAdminPrincipalID(actorDetails);
         String keyDigest = settlementImportDigest(actorID, idempotencyKey);
         String normalizedNote = normalizeOptionalNote(note);
@@ -88,7 +102,7 @@ public class AdminPaymentSettlementService {
                 normalizedNote);
 
         try {
-            return processImport(actorDetails, file, note, attempt);
+            return processImport(actorDetails, importFile, note, attempt);
         } catch (BusinessException exception) {
             attemptTransactionService.fail(attempt.id(), "CSV_READ_FAILED");
             throw exception;
@@ -103,21 +117,27 @@ public class AdminPaymentSettlementService {
 
     private ResponseDTO<AdminPaymentSettlementImportResponse> processImport(
             CustomUserDetails actorDetails,
-            MultipartFile file,
+            ValidatedImportFile importFile,
             String note,
             AdminPaymentSettlementAttemptTransactionService.CreatedAttempt attempt) {
-        List<CsvRow> rows = readCsv(file);
+        List<PaymentSettlementCsvParser.Row> rows = readCsv(importFile.bytes());
         List<AdminPaymentSettlementImportErrorResponse> errors = new ArrayList<>();
         Map<String, Integer> statusCounts = new LinkedHashMap<>();
         int importedRows = 0;
         int skippedDuplicateRows = 0;
 
-        for (CsvRow row : rows) {
+        for (PaymentSettlementCsvParser.Row row : rows) {
+            if (row.errorMessage() != null) {
+                errors.add(new AdminPaymentSettlementImportErrorResponse(
+                        row.rowNumber(),
+                        row.errorMessage()));
+                continue;
+            }
             PaymentSettlement settlement;
             try {
                 settlement = toSettlement(
                         row,
-                        file.getOriginalFilename(),
+                        importFile.originalFilename(),
                         attempt.importBatchKey(),
                         note);
             } catch (IllegalArgumentException exception) {
@@ -155,7 +175,8 @@ public class AdminPaymentSettlementService {
                 skippedDuplicateRows,
                 errors.size(),
                 statusCounts,
-                errors);
+                errors,
+                0);
         return ResponseDTO.<AdminPaymentSettlementImportResponse>builder()
                 .data(response)
                 .build();
@@ -197,17 +218,29 @@ public class AdminPaymentSettlementService {
     public ResponseDTO<AdminPaymentSettlementImportResponse> reconcileMissingProviderSettlements(
             CustomUserDetails actorDetails,
             AdminPaymentSettlementReconcileRequest request) {
+        LocalDate today = LocalDate.now();
         LocalDate baseDateFrom = request == null || request.baseDateFrom() == null
-                ? LocalDate.now().minusDays(30)
+                ? today.minusDays(29)
                 : request.baseDateFrom();
         LocalDate baseDateTo = request == null || request.baseDateTo() == null
-                ? LocalDate.now()
+                ? today
                 : request.baseDateTo();
-        if (baseDateTo.isBefore(baseDateFrom)) {
+        long inclusiveDays = ChronoUnit.DAYS.between(baseDateFrom, baseDateTo) + 1;
+        if (baseDateTo.isBefore(baseDateFrom) || inclusiveDays > MAX_RECONCILIATION_DAYS) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
         LocalDateTime from = baseDateFrom.atStartOfDay();
-        LocalDateTime to = baseDateTo.plusDays(1).atStartOfDay().minusNanos(1);
+        LocalDateTime to = baseDateTo.atTime(LocalTime.MAX);
+        List<SubscriptionPayment> payments =
+                subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetweenOrderByIdAsc(
+                        PaymentStatus.DONE,
+                        from,
+                        to,
+                        PageRequest.of(0, MAX_RECONCILIATION_PAYMENTS + 1));
+        if (payments.size() > MAX_RECONCILIATION_PAYMENTS) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
         String batchKey = "ATS-SETTLE-MISS-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         Map<String, Integer> statusCounts = new LinkedHashMap<>();
         int importedRows = 0;
@@ -215,15 +248,14 @@ public class AdminPaymentSettlementService {
         int failedRows = 0;
         List<AdminPaymentSettlementImportErrorResponse> errors = new ArrayList<>();
 
-        List<SubscriptionPayment> payments =
-                subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetween(PaymentStatus.DONE, from, to);
         for (int index = 0; index < payments.size(); index++) {
             SubscriptionPayment payment = payments.get(index);
             if (payment.getPaymentOrder() == null) {
                 failedRows++;
-                errors.add(new AdminPaymentSettlementImportErrorResponse(
-                        index + 1,
-                        "Local payment has no payment order."));
+                addReconciliationError(
+                        errors,
+                        index,
+                        "Local payment has no payment order.");
                 continue;
             }
             String orderID = payment.getPaymentOrder().getOrderId();
@@ -248,14 +280,21 @@ public class AdminPaymentSettlementService {
                     skippedDuplicateRows++;
                 } else {
                     failedRows++;
-                    errors.add(reconciliationPersistenceError(index));
+                    addReconciliationError(
+                            errors,
+                            index,
+                            "Settlement reconciliation row could not be persisted.");
                 }
             } catch (RuntimeException exception) {
                 failedRows++;
-                errors.add(reconciliationPersistenceError(index));
+                addReconciliationError(
+                        errors,
+                        index,
+                        "Settlement reconciliation row could not be persisted.");
             }
         }
 
+        int omittedErrorCount = Math.max(0, failedRows - errors.size());
         return ResponseDTO.<AdminPaymentSettlementImportResponse>builder()
                 .data(new AdminPaymentSettlementImportResponse(
                         batchKey,
@@ -264,7 +303,8 @@ public class AdminPaymentSettlementService {
                         skippedDuplicateRows,
                         failedRows,
                         statusCounts,
-                        errors))
+                        errors,
+                        omittedErrorCount))
                 .build();
     }
 
@@ -305,28 +345,74 @@ public class AdminPaymentSettlementService {
         return note;
     }
 
+    private ValidatedImportFile validateEnvelope(MultipartFile file) {
+        if (file == null) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null
+                || originalFilename.isBlank()
+                || originalFilename.length() > 255
+                || !originalFilename.toLowerCase(Locale.ROOT).endsWith(".csv")) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+        String contentType = file.getContentType();
+        if (contentType != null
+                && !contentType.isBlank()
+                && !ACCEPTED_CSV_CONTENT_TYPES.contains(contentType.trim().toLowerCase(Locale.ROOT))) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+        long declaredSize = file.getSize();
+        if (declaredSize <= 0 || declaredSize > MAX_IMPORT_FILE_BYTES) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
+        byte[] bytes;
+        try (InputStream inputStream = file.getInputStream()) {
+            bytes = inputStream.readNBytes((int) MAX_IMPORT_FILE_BYTES + 1);
+        } catch (IOException exception) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT, exception);
+        }
+        if (bytes.length == 0 || bytes.length > MAX_IMPORT_FILE_BYTES) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+        return new ValidatedImportFile(originalFilename, bytes);
+    }
+
     private PaymentSettlement toSettlement(
-            CsvRow row,
+            PaymentSettlementCsvParser.Row row,
             String sourceFileName,
             String batchKey,
             String note) {
         Map<String, String> values = row.values();
-        PaymentProviderType provider = parseProvider(required(values, "provider"));
-        String orderId = required(values, "order_id");
-        if (orderId.length() > 64) {
-            throw new IllegalArgumentException("order_id must be at most 64 characters.");
-        }
+        PaymentProviderType provider = parseProvider(values.get("provider"));
+        String orderId = requiredEvidenceValue(values, "order_id", MAX_ORDER_ID_LENGTH);
         BigDecimal grossAmount = amount(required(values, "gross_amount"), "gross_amount");
         BigDecimal refundAmount = amount(defaultValue(values, "refund_amount", "0"), "refund_amount");
         BigDecimal feeAmount = amount(defaultValue(values, "fee_amount", "0"), "fee_amount");
         BigDecimal vatAmount = amount(defaultValue(values, "vat_amount", "0"), "vat_amount");
         BigDecimal netAmount = amount(required(values, "net_settlement_amount"), "net_settlement_amount");
         LocalDate baseDate = date(required(values, "settlement_base_date"), "settlement_base_date");
-        LocalDate payoutDate = blankToNull(values.get("settlement_payout_date")) == null
+        String payoutDateValue = values.get("settlement_payout_date");
+        LocalDate payoutDate = payoutDateValue == null || payoutDateValue.isEmpty()
                 ? null
-                : date(values.get("settlement_payout_date"), "settlement_payout_date");
-        String providerPaymentKey = blankToNull(values.get("provider_payment_key"));
-        String providerSettlementId = blankToNull(values.get("provider_settlement_id"));
+                : date(payoutDateValue, "settlement_payout_date");
+        if (payoutDate != null && payoutDate.isBefore(baseDate)) {
+            throw new IllegalArgumentException(
+                    "settlement_payout_date must not precede settlement_base_date.");
+        }
+        String providerPaymentKey = optionalEvidenceValue(
+                values,
+                "provider_payment_key",
+                MAX_PROVIDER_IDENTIFIER_LENGTH);
+        String providerSettlementId = optionalEvidenceValue(
+                values,
+                "provider_settlement_id",
+                MAX_PROVIDER_IDENTIFIER_LENGTH);
+        String providerStatus = optionalEvidenceValue(
+                values,
+                "provider_status",
+                MAX_PROVIDER_STATUS_LENGTH);
         String dedupKey = deduplicationKey(
                 provider,
                 providerSettlementId,
@@ -344,10 +430,10 @@ public class AdminPaymentSettlementService {
                 .provider(provider)
                 .deduplicationKey(dedupKey)
                 .importBatchKey(batchKey)
-                .sourceFileName(truncate(sourceFileName, 255))
+                .sourceFileName(sourceFileName)
                 .sourceRowNumber(row.rowNumber())
-                .providerSettlementId(truncate(providerSettlementId, 200))
-                .providerPaymentKey(truncate(providerPaymentKey, 200))
+                .providerSettlementId(providerSettlementId)
+                .providerPaymentKey(providerPaymentKey)
                 .orderId(orderId)
                 .grossAmount(grossAmount)
                 .refundAmount(refundAmount)
@@ -357,121 +443,132 @@ public class AdminPaymentSettlementService {
                 .currency(currency(defaultValue(values, "currency", "KRW")))
                 .settlementBaseDate(baseDate)
                 .settlementPayoutDate(payoutDate)
-                .providerStatus(truncate(blankToNull(values.get("provider_status")), 100))
+                .providerStatus(providerStatus)
                 .operatorNote(truncate(hasText(note) ? note : blankToNull(values.get("note")), 500))
                 .build();
     }
 
-    private List<CsvRow> readCsv(MultipartFile file) {
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
-            String headerLine = reader.readLine();
-            if (headerLine == null) {
-                throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
-            }
-            List<String> headers = parseLine(stripBom(headerLine));
-            validateHeaders(headers);
-            List<CsvRow> rows = new ArrayList<>();
-            String line;
-            int rowNumber = 1;
-            while ((line = reader.readLine()) != null) {
-                rowNumber++;
-                if (!hasText(line)) {
-                    continue;
-                }
-                if (rows.size() >= MAX_IMPORT_ROWS) {
-                    throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
-                }
-                List<String> cells = parseLine(line);
-                Map<String, String> values = new HashMap<>();
-                for (int i = 0; i < headers.size(); i++) {
-                    values.put(headers.get(i), i < cells.size() ? cells.get(i).trim() : "");
-                }
-                rows.add(new CsvRow(rowNumber, values));
-            }
-            return rows;
-        } catch (IOException ex) {
-            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT, ex);
+    private List<PaymentSettlementCsvParser.Row> readCsv(byte[] bytes) {
+        try {
+            return csvParser.parse(bytes);
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT, exception);
         }
-    }
-
-    private void validateHeaders(List<String> headers) {
-        if (!headers.containsAll(REQUIRED_HEADERS)) {
-            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
-        }
-    }
-
-    private List<String> parseLine(String line) {
-        List<String> values = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        boolean quoted = false;
-        for (int i = 0; i < line.length(); i++) {
-            char ch = line.charAt(i);
-            if (ch == '"') {
-                if (quoted && i + 1 < line.length() && line.charAt(i + 1) == '"') {
-                    current.append('"');
-                    i++;
-                } else {
-                    quoted = !quoted;
-                }
-            } else if (ch == ',' && !quoted) {
-                values.add(current.toString());
-                current.setLength(0);
-            } else {
-                current.append(ch);
-            }
-        }
-        values.add(current.toString());
-        return values;
     }
 
     private PaymentProviderType parseProvider(String value) {
-        try {
-            return PaymentProviderType.valueOf(value.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
+        if (value == null || value.isEmpty()) {
+            throw new IllegalArgumentException("provider is required.");
+        }
+        rejectProhibitedEvidenceCharacters(value, "provider");
+        rejectEdgeWhitespace(value, "provider");
+        if (!PaymentProviderType.TOSS.name().equals(value)) {
             throw new IllegalArgumentException("provider is invalid.");
         }
+        return PaymentProviderType.TOSS;
     }
 
     private BigDecimal amount(String value, String fieldName) {
+        rejectEdgeWhitespace(value, fieldName);
+        if (!AMOUNT_PATTERN.matcher(value).matches()) {
+            throw new IllegalArgumentException(
+                    fieldName + " must be a plain nonnegative decimal with at most 2 fraction digits.");
+        }
+        int decimalIndex = value.indexOf('.');
+        String integerPart = decimalIndex < 0 ? value : value.substring(0, decimalIndex);
+        int firstSignificantDigit = 0;
+        while (firstSignificantDigit < integerPart.length() - 1
+                && integerPart.charAt(firstSignificantDigit) == '0') {
+            firstSignificantDigit++;
+        }
+        String canonicalIntegerPart = integerPart.substring(firstSignificantDigit);
+        if (canonicalIntegerPart.length() > 13) {
+            throw new IllegalArgumentException(fieldName + " must fit DECIMAL(15,2).");
+        }
         try {
-            BigDecimal amount = new BigDecimal(value.replace(",", "").trim());
-            if (amount.signum() < 0) {
-                throw new IllegalArgumentException(fieldName + " cannot be negative.");
-            }
-            return amount;
+            String canonical = decimalIndex < 0
+                    ? canonicalIntegerPart
+                    : canonicalIntegerPart + value.substring(decimalIndex);
+            return new BigDecimal(canonical).setScale(2, RoundingMode.UNNECESSARY);
         } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException(fieldName + " must be numeric.");
+            throw new IllegalArgumentException(fieldName + " must be a valid decimal.");
         }
     }
 
     private LocalDate date(String value, String fieldName) {
+        rejectEdgeWhitespace(value, fieldName);
+        if (!DATE_PATTERN.matcher(value).matches()) {
+            throw new IllegalArgumentException(fieldName + " must be yyyy-MM-dd.");
+        }
         try {
-            return LocalDate.parse(value.trim());
+            return LocalDate.parse(value, STRICT_DATE_FORMATTER);
         } catch (DateTimeParseException ex) {
             throw new IllegalArgumentException(fieldName + " must be yyyy-MM-dd.");
         }
     }
 
     private String currency(String value) {
-        String currency = value.trim().toUpperCase(Locale.ROOT);
-        if (currency.length() != 3) {
-            throw new IllegalArgumentException("currency must be a 3-letter ISO code.");
+        rejectEdgeWhitespace(value, "currency");
+        if (!"KRW".equals(value)) {
+            throw new IllegalArgumentException("currency must be KRW.");
         }
-        return currency;
+        return value;
     }
 
     private String required(Map<String, String> values, String key) {
-        String value = blankToNull(values.get(key));
-        if (value == null) {
+        String value = values.get(key);
+        if (value == null || value.isEmpty()) {
             throw new IllegalArgumentException(key + " is required.");
         }
         return value;
     }
 
+    private String requiredEvidenceValue(Map<String, String> values, String key, int maxLength) {
+        String value = values.get(key);
+        if (value == null || value.isEmpty()) {
+            throw new IllegalArgumentException(key + " is required.");
+        }
+        return validateEvidenceValue(value, key, maxLength);
+    }
+
+    private String optionalEvidenceValue(Map<String, String> values, String key, int maxLength) {
+        String value = values.get(key);
+        if (value == null) {
+            return null;
+        }
+        if (value.isEmpty()) {
+            return null;
+        }
+        return validateEvidenceValue(value, key, maxLength);
+    }
+
+    private String validateEvidenceValue(String value, String fieldName, int maxLength) {
+        if (value.length() > maxLength) {
+            throw new IllegalArgumentException(
+                    fieldName + " must be at most " + maxLength + " characters.");
+        }
+        rejectProhibitedEvidenceCharacters(value, fieldName);
+        rejectEdgeWhitespace(value, fieldName);
+        return value;
+    }
+
+    private void rejectProhibitedEvidenceCharacters(String value, String fieldName) {
+        if (value.codePoints().anyMatch(this::isProhibitedEvidenceCharacter)) {
+            throw new IllegalArgumentException(
+                    fieldName + " must not contain control characters or newline separators.");
+        }
+    }
+
+    private boolean isProhibitedEvidenceCharacter(int codePoint) {
+        int characterType = Character.getType(codePoint);
+        return Character.isISOControl(codePoint)
+                || characterType == Character.LINE_SEPARATOR
+                || characterType == Character.PARAGRAPH_SEPARATOR;
+    }
+
     private String defaultValue(Map<String, String> values, String key, String defaultValue) {
-        String value = blankToNull(values.get(key));
-        return value == null ? defaultValue : value;
+        String value = values.get(key);
+        return value == null || value.isEmpty() ? defaultValue : value;
     }
 
     private String deduplicationKey(
@@ -523,15 +620,21 @@ public class AdminPaymentSettlementService {
         return actor;
     }
 
-    private String stripBom(String value) {
-        if (value != null && value.startsWith("\uFEFF")) {
-            return value.substring(1);
-        }
-        return value;
-    }
-
     private String blankToNull(String value) {
         return hasText(value) ? value.trim() : null;
+    }
+
+    private void rejectEdgeWhitespace(String value, String fieldName) {
+        if (!value.isEmpty()
+                && (isWhitespace(value.codePointAt(0))
+                || isWhitespace(value.codePointBefore(value.length())))) {
+            throw new IllegalArgumentException(
+                    fieldName + " must not have leading or trailing whitespace.");
+        }
+    }
+
+    private boolean isWhitespace(int codePoint) {
+        return Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint);
     }
 
     private boolean hasText(String value) {
@@ -602,13 +705,17 @@ public class AdminPaymentSettlementService {
         return truncate(normalized, MAX_OPERATOR_NOTE_LENGTH);
     }
 
-    private AdminPaymentSettlementImportErrorResponse reconciliationPersistenceError(int index) {
-        return new AdminPaymentSettlementImportErrorResponse(
-                index + 1,
-                "Settlement reconciliation row could not be persisted.");
+    private void addReconciliationError(
+            List<AdminPaymentSettlementImportErrorResponse> errors,
+            int index,
+            String message) {
+        if (errors.size() >= MAX_RECONCILIATION_ERRORS) {
+            return;
+        }
+        errors.add(new AdminPaymentSettlementImportErrorResponse(index + 1, message));
     }
 
-    private record CsvRow(int rowNumber, Map<String, String> values) {
+    private record ValidatedImportFile(String originalFilename, byte[] bytes) {
     }
 
     private static final class SettlementRowPersistenceException extends RuntimeException {

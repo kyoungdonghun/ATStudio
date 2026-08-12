@@ -10,5 +10,6 @@ public record AdminPaymentSettlementImportResponse(
         int skippedDuplicateRows,
         int failedRows,
         Map<String, Integer> statusCounts,
-        List<AdminPaymentSettlementImportErrorResponse> errors) {
+        List<AdminPaymentSettlementImportErrorResponse> errors,
+        int omittedErrorCount) {
 }

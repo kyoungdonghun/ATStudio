@@ -1,6 +1,6 @@
 ---
-version: 1.6
-last_updated: 2026-08-12
+version: 1.7
+last_updated: 2026-08-13
 project: ATS
 owner: docops
 category: guide
@@ -16,7 +16,7 @@ dependencies:
 
 > Purpose: Define production-facing operational procedures for Toss billing-key recurring payment reconciliation and incident response.
 > Scope: ATStudio subscription payments only. This document covers reconciliation, withdrawal billing-key cleanup, receipt evidence storage, payment operation audit visibility, the admin refund ledger/provider cancel workflow, the separate refund-linked entitlement correction workflow, and settlement import/reconciliation operations. It does not introduce tax invoice workflow, cash receipt issue/cancel automation, automatic entitlement correction, or automatic withdrawal refund. Refund/receipt/settlement/tax invoice policy is defined separately in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md).
-> Last updated: 2026-08-12
+> Last updated: 2026-08-13
 
 ## 1. Operating Model
 
@@ -330,15 +330,21 @@ events in `payment_operation_audit_logs`.
 
 Admin settlement workflow:
 
-1. Export provider settlement evidence to CSV using the documented observed
-   headers. Parser hardening remains held for WI-20260809-ATS-067.
-2. Select the file in `/admin/payments`, enter an optional operator note of at
-   most 500 characters, and confirm one explicit import.
+1. Export provider evidence as strict UTF-8 CSV. Use the exact allowlisted
+   headers in the [Settlement Import Design](payment-settlement-import-design.md):
+   required `provider`, `order_id`, `gross_amount`,
+   `net_settlement_amount`, and `settlement_base_date`; no unknown header is
+   accepted.
+2. Select a nonempty `.csv` file with a filename of at most 255 characters, an
+   allowed/blank CSV media type, and at most 5 MiB. Excel workbooks must be
+   exported to CSV first. Enter an optional operator note of at most 500
+   characters and confirm one explicit import.
 3. The UI creates one lowercase UUIDv4, stores it as pending in browser
-   `sessionStorage`, and sends one POST with the key only in
-   `Idempotency-Key`. Authentication replay is disabled for this POST.
-4. Review total, imported, duplicate, failed, status counts, and every returned
-   row error. Verify
+   `sessionStorage`, and sends one multipart POST with required `file`, optional
+   `note`, and the key only in `Idempotency-Key`. The note is never sent as a
+   query parameter. Authentication replay is disabled for this POST.
+4. Review total, imported, duplicate, failed, status counts, every returned row
+   error, and `omittedErrorCount` (always `0` for import). Verify
    `totalRows == importedRows + skippedDuplicateRows + failedRows` and
    `sum(statusCounts) == importedRows`.
 5. If the POST result is uncertain, use the same-key read-only recovery action.
@@ -348,8 +354,12 @@ Admin settlement workflow:
    `PROVIDER_SETTLEMENT_NOT_FOUND` rows against local payment/refund ledgers and
    Provider dashboard evidence.
 7. Use `POST /api/admin/payments/settlements/reconcile` for a selected period to
-   generate local-payment-without-imported-provider-evidence review rows.
-   Reconciliation has no import-attempt recovery key in WI-056.
+   generate local-payment-without-imported-provider-evidence review rows. An
+   omitted range defaults to 30 inclusive days; the maximum is 90 inclusive
+   days and 5,000 selected payments. A 5,001-row probe rejects before mutation.
+   Review the first 200 returned error details and `omittedErrorCount`.
+   Reconciliation has no import-attempt key, cursor, progress ledger, automatic
+   retry, polling, or recovery API.
 8. Use `PUT /api/admin/payments/settlements/{settlementId}/ignore` only when the
    row is verified as acceptable or intentionally out of active review. Enter a
    trimmed nonblank note of at most 500 characters and confirm the existing
@@ -387,6 +397,11 @@ Attempt and duplicate integrity:
 - Completed import attempts, including all-duplicate attempts, are durable and
   enforce aggregate count conservation. Status counts describe only newly
   persisted Settlement rows.
+- Strict UTF-8/file-level grammar, header, and 1,001-row failures terminate the
+  claimed attempt with bounded `CSV_READ_FAILED` before Settlement processing.
+  Exact-width and field-validation failures are row errors; every nonblank
+  logical data record, including rejected and duplicate rows, counts toward the
+  1,000-row ceiling.
 - Reconciliation counts an orderless finalized payment exactly once as failed
   with bounded error evidence. It creates no Settlement or row audit for that
   unusable payment.
@@ -400,14 +415,21 @@ IGNORE integrity:
 
 Settlement safety notes:
 
-- Settlement import accepts CSV. Excel files should be exported to CSV before import.
+- Settlement import accepts only the documented strict UTF-8 CSV dialect:
+  comma delimiter, double-quote fields and doubled-quote escapes, quoted
+  LF/CRLF newlines, normalized unique allowlisted headers, and exact row width.
+  Bare CR and malformed/unbalanced quoting fail the file.
+- CSV V1 accepts exact `TOSS`, exact `KRW`, untruncated bounded identifiers,
+  strict `yyyy-MM-dd`, and plain nonnegative amounts fitting
+  `DECIMAL(15,2)`. Amounts canonicalize to exact scale 2 before deduplication
+  and persistence; payout date must not precede base date.
 - Settlement services may read local payment, refund, and subscription evidence
   for comparison, but they must not mutate subscription access, billing
   agreements, payment order status, finalized payment status, refund status,
   receipt/mail state, or Provider state. Intended writes are limited to the
   import attempt, Settlement, and Settlement row-audit ledgers.
-- Unknown CSV columns are currently ignored. The attempt ledger stores no file
-  bytes, raw rows, raw Provider payload, credentials, or per-row error text.
+- Unknown CSV columns are rejected. The attempt ledger stores no file bytes,
+  raw rows, raw Provider payload, credentials, or per-row error text.
   Stored Settlement `source_payload` remains allowlisted/null and must not
   contain raw provider payload, card data, billing keys, auth keys, customer
   keys, or Toss secret keys.
@@ -419,12 +441,18 @@ Settlement safety notes:
   reverse-proxy, tracing, and APM owners must separately disable collection and
   recording of that header.
 - Generated `PROVIDER_SETTLEMENT_NOT_FOUND` rows are review candidates. They are not proof that Toss failed to settle money until provider evidence is checked.
-- WI-056 closes duplicate atomicity, durable CSV attempt evidence, orderless-row
-  accounting, and aggregate count conservation at the source/H2 boundary.
-  Current MySQL lock/deadlock/isolation and manifest/hash proof was not run.
-- The current parser behavior is not approved strict CSV hardening.
-  `CR-031-115`, `CR-031-116`, and `CR-031-118` remain held and out of scope for
-  WI-20260809-ATS-067.
+- WI-067 implements DG-067-01 through DG-067-09B and preserves WI-056 duplicate,
+  attempt, recovery, audit, side-effect, and count invariants. QA-INTEG v1.2 and
+  PG v1.1 accepted the reviewed repository/non-database boundary with no open
+  P1/P2 finding.
+- The active fresh-MySQL expectation is the recorded 42 tables, 506 columns,
+  173 index rows, 90 foreign keys, 6 plans/plan keys, zero forbidden objects,
+  and SHA-256
+  `acf28c935bf6107a8f2af431c971ebe0cd3539dba1aa1a941d966dde4a2a7a65`.
+  Observation, independent proof, three `ddl-auto=validate` settlement
+  concurrency tests, and exact cleanup passed. DG-067-09B is
+  `RUN-PASS-CLEANED`; any future database run requires a new immediate approval
+  and new exact disposable names.
 
 ## 7. Withdrawal Billing-Key Cleanup
 

@@ -128,29 +128,7 @@ public class AdminPaymentSettlementRowTransactionService {
             payment = subscriptionPaymentRepository.findFirstByPgTransactionId(settlement.getProviderPaymentKey());
         }
 
-        if (payment.isEmpty()) {
-            settlement.applyReconciliation(
-                    PaymentSettlementStatus.LOCAL_PAYMENT_NOT_FOUND,
-                    order.orElse(null),
-                    null,
-                    order.map(PaymentOrder::getUser).orElse(null),
-                    "Local finalized subscription payment was not found.");
-            return;
-        }
-
-        SubscriptionPayment subscriptionPayment = payment.get();
-        BigDecimal localRefundAmount = paymentRefundRepository.sumAmountBySubscriptionPaymentAndStatuses(
-                subscriptionPayment,
-                SETTLED_REFUND_STATUSES);
         List<String> mismatches = new ArrayList<>();
-        if (!sameAmount(settlement.getGrossAmount(), subscriptionPayment.getAmount())) {
-            mismatches.add("gross_amount local=" + subscriptionPayment.getAmount()
-                    + " provider=" + settlement.getGrossAmount());
-        }
-        if (!sameAmount(settlement.getRefundAmount(), localRefundAmount)) {
-            mismatches.add("refund_amount local=" + localRefundAmount
-                    + " provider=" + settlement.getRefundAmount());
-        }
         BigDecimal expectedNet = settlement.getGrossAmount()
                 .subtract(settlement.getRefundAmount())
                 .subtract(settlement.getFeeAmount())
@@ -158,6 +136,33 @@ public class AdminPaymentSettlementRowTransactionService {
         if (!sameAmount(settlement.getNetSettlementAmount(), expectedNet)) {
             mismatches.add("net_settlement_amount expected=" + expectedNet
                     + " provider=" + settlement.getNetSettlementAmount());
+        }
+        if (payment.isEmpty()) {
+            PaymentSettlementStatus status = mismatches.isEmpty()
+                    ? PaymentSettlementStatus.LOCAL_PAYMENT_NOT_FOUND
+                    : PaymentSettlementStatus.MISMATCHED;
+            settlement.applyReconciliation(
+                    status,
+                    order.orElse(null),
+                    null,
+                    order.map(PaymentOrder::getUser).orElse(null),
+                    mismatches.isEmpty()
+                            ? "Local finalized subscription payment was not found."
+                            : String.join("; ", mismatches));
+            return;
+        }
+
+        SubscriptionPayment subscriptionPayment = payment.get();
+        BigDecimal localRefundAmount = paymentRefundRepository.sumAmountBySubscriptionPaymentAndStatuses(
+                subscriptionPayment,
+                SETTLED_REFUND_STATUSES);
+        if (!sameAmount(settlement.getGrossAmount(), subscriptionPayment.getAmount())) {
+            mismatches.add("gross_amount local=" + subscriptionPayment.getAmount()
+                    + " provider=" + settlement.getGrossAmount());
+        }
+        if (!sameAmount(settlement.getRefundAmount(), localRefundAmount)) {
+            mismatches.add("refund_amount local=" + localRefundAmount
+                    + " provider=" + settlement.getRefundAmount());
         }
         PaymentSettlementStatus status = mismatches.isEmpty()
                 ? PaymentSettlementStatus.MATCHED

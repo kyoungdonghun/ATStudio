@@ -1,6 +1,6 @@
 ---
-version: 1.7
-last_updated: 2026-08-12
+version: 1.8
+last_updated: 2026-08-13
 project: ATS
 owner: docops
 category: guide
@@ -84,6 +84,15 @@ Runtime DB note:
 - The backend defaults to `spring.jpa.hibernate.ddl-auto=validate`.
 - `src/main/resources/schema.sql` is the fail-closed fresh V1 baseline, not an automatic migration runner for an existing MySQL database.
 - Apply `schema.sql` and the six-plan `seed.sql` exactly once to a verified-empty database, then start with `ddl-auto=validate`. Retained-data migration is outside the V1 operator path and requires a separate approved design.
+- Current source contains 42 derived `CREATE TABLE` statements and 42 JPA
+  entities. The active disposable-MySQL manifest expectation is `RECORDED` at
+  42 tables, 506 columns, 173 index rows, 90 foreign keys, 6 plans/plan keys,
+  zero forbidden objects, and SHA-256
+  `acf28c935bf6107a8f2af431c971ebe0cd3539dba1aa1a941d966dde4a2a7a65`.
+  WI-067 passed independent manifest validation and 3/3 MySQL settlement
+  concurrency tests under `ddl-auto=validate`; both exact disposable databases
+  were dropped. The result is fresh-only evidence, not a retained-data or
+  production-readiness claim.
 
 ## 4. User APIs
 
@@ -120,12 +129,12 @@ Direct subscription creation and legacy payment prepare/confirm/cancel APIs are 
 | `POST /api/admin/payments/entitlement-corrections` | Create correction request. |
 | `POST /api/admin/payments/entitlement-corrections/{correctionId}/approve` | Approve correction request. |
 | `POST /api/admin/payments/entitlement-corrections/{correctionId}/execute` | Execute local access correction. |
-| `POST /api/admin/payments/settlements/import` | Import settlement CSV evidence. |
+| `POST /api/admin/payments/settlements/import` | Import strict UTF-8 settlement CSV evidence as multipart `file` plus optional multipart `note`, with header-only `Idempotency-Key`. |
 | `GET /api/admin/payments/settlement-import-attempts` | List durable CSV import attempts. |
 | `GET /api/admin/payments/settlement-import-attempts/{attemptId}` | Read one attempt by numeric ID. |
 | `GET /api/admin/payments/settlement-import-attempts/recovery` | Recover the current ADMIN's attempt using header-only `Idempotency-Key`. |
 | `GET /api/admin/payments/settlements` | List settlement rows with filters. |
-| `POST /api/admin/payments/settlements/reconcile` | Generate missing-provider settlement review rows. |
+| `POST /api/admin/payments/settlements/reconcile` | Generate missing-provider settlement review rows for an inclusive range of at most 90 days and at most 5,000 selected payments. |
 | `PUT /api/admin/payments/settlements/{settlementId}/ignore` | Mark settlement row ignored with note. |
 
 ## 6. Provider Boundary
@@ -213,12 +222,30 @@ Settlement import-specific boundaries:
   query, and ADMIN responses.
 - The SPA may retain the pending raw key in browser `sessionStorage` for
   same-attempt read recovery. It does not automatically replay the import POST.
+- The required multipart file must have a nonblank `.csv` filename of at most
+  255 characters, an allowed or blank/missing CSV media type, and nonempty
+  declared and actual content of at most 5 MiB. These checks occur before the
+  attempt claim.
+- Strict UTF-8 decoding accepts one leading BOM. The approved comma/double-quote
+  dialect supports quoted commas/newlines and rejects bare CR, malformed
+  quoting, duplicate/unknown normalized headers, and more than 1,000 nonblank
+  logical data rows. Exact-width violations and field failures are row errors.
+- CSV V1 accepts exact `TOSS`, exact `KRW`, bounded untruncated identifiers,
+  strict `yyyy-MM-dd`, and plain nonnegative amounts that fit
+  `DECIMAL(15,2)`. Amounts canonicalize to scale 2 before deduplication and
+  persistence.
 - Access logs, reverse proxies, tracing, and APM require separate operator
   configuration that disables collection/recording of the header.
 - The optional 500-character operator note is user-supplied free text. The UI
   warns against PII, credentials, payment keys, and other sensitive values.
   The system does not derive a secret into the note and does not provide a DLP
-  guarantee that users cannot enter one.
+  guarantee that users cannot enter one. The note is an optional multipart
+  part; query-only note text does not bind.
+- Import returns all row errors within its 1,000-row ceiling and
+  `omittedErrorCount=0`. Reconciliation defaults to 30 inclusive days, permits
+  at most 90 days and 5,000 selected payments, returns at most 200 error
+  details, and reports the remaining count in `omittedErrorCount`. It has no
+  cursor, operation key, progress ledger, automatic retry, or polling.
 - Attempt evidence excludes file bytes, raw rows, raw Provider payloads,
   credentials, and per-row errors. Import/recovery/reconciliation do not mutate
   payment, refund, subscription, billing-agreement, receipt/mail, or Provider

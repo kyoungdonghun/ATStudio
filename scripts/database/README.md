@@ -2,9 +2,10 @@
 
 ## Purpose
 
-This directory is the supported V1 operator path for proving a fresh ATStudio
-database without touching the protected `atstudio` database. The tool creates,
-validates, or drops one explicitly named disposable database on loopback MySQL.
+This directory is the supported V1 operator path for preflighting and, only
+after separate approval, proving a fresh ATStudio database without touching the
+protected `atstudio` database. The tool preflights, observes, creates, validates,
+or drops one explicitly named disposable database on loopback MySQL.
 
 It is not a retained-data migration tool and must not be used against stage,
 production, or any remote host.
@@ -20,6 +21,15 @@ The supported entry point is
 - Protected names such as `atstudio`, MySQL system schemas, preview, stage, and
   production names are refused before credentials are loaded or a connection
   is attempted.
+- Every action first parses current `schema.sql`, derives its `CREATE TABLE`
+  statement count, and refuses unless the source count is exactly 42. This
+  source-level check needs no credentials, connector, or database connection.
+- The current MySQL manifest expectation is `RECORDED` from the approved
+  DG-067-09B observation. `Create` and `Validate` compare the exact target
+  against that recorded manifest.
+- `Observe` is only a first-pass action while a manifest is unrecorded. It is
+  now refused before credentials with
+  `MYSQL_MANIFEST_OBSERVATION_NOT_REQUIRED`.
 - `Create` applies only
   `src/main/resources/schema.sql` and then
   `src/main/resources/seed.sql`.
@@ -34,27 +44,27 @@ The supported entry point is
   an explicitly supplied repo-external acceptance JSON bundle. They are never
   passed as command-line arguments.
 
-The verified current V1 manifest is:
+## Current Baseline State
 
-| Metric | Expected |
+Current `schema.sql` contains 42 derived `CREATE TABLE` statements, and
+`Preflight` enforces that source-level fact. The separately observed and proven
+current MySQL manifest is:
+
+| Field | Recorded value |
 |---|---:|
-| Tables | 41 |
-| Columns | 493 |
-| Indexes | 168 |
-| Foreign keys | 89 |
-| Seeded subscription plans | 6 |
-| Manifest SHA-256 | `c581bef61cfba143744882b0674daf8d8fe742d82adbbf66d6b61699f5b86333` |
+| Tables | 42 |
+| Columns | 506 |
+| Index rows | 173 |
+| Foreign keys | 90 |
+| Plans | 6 |
+| Plan keys | 6 |
+| Forbidden tables / columns | 0 / 0 |
+| SHA-256 | `acf28c935bf6107a8f2af431c971ebe0cd3539dba1aa1a941d966dde4a2a7a65` |
 
-## Verified Current Manifest
-
-WI-20260809-ATS-001 observed this manifest on an isolated loopback disposable
-database, refreshed the validator constants, and passed independent `Create`
-and `Validate` checks before two exact `Drop` checks confirmed scoped absence.
-The initial expected-mismatch probe also cleaned up after its fail-closed
-refusal.
-
-This evidence applies only to a fresh disposable database. It does not verify a
-retained database, production migration, or deployment.
+The normalized `schema.sql` and `seed.sql` text hashes printed by preflight
+identify source inputs only; they are not substitutes for this MySQL manifest.
+The predecessor 41-table manifest remains historical evidence and is not an
+active expectation.
 
 ## Prerequisites
 
@@ -102,7 +112,7 @@ $env:SPRING_DATASOURCE_PASSWORD = "<local MySQL password>"
 Do not echo these values or store them in the repository. Clear process values
 after the proof if they were set manually.
 
-## Operator Workflow
+## Non-Database Preflight
 
 Generate one exact disposable name. Do not reuse it:
 
@@ -110,7 +120,7 @@ Generate one exact disposable name. Do not reuse it:
 $database = 'ats_disposable_' + (Get-Date -Format 'yyyyMMdd') + '_' + ([guid]::NewGuid().ToString('N').Substring(0, 8))
 ```
 
-1. Verify guards and current SQL inputs without loading credentials:
+Verify guards and current SQL inputs without loading credentials:
 
 ```powershell
 .\scripts\database\bootstrap-disposable-mysql.ps1 `
@@ -119,40 +129,87 @@ $database = 'ats_disposable_' + (Get-Date -Format 'yyyyMMdd') + '_' + ([guid]::N
   -HostName 127.0.0.1
 ```
 
-2. Create the empty database, apply `schema.sql` then `seed.sql`, and validate
-   the verified V1 manifest:
+The successful output must include
+`source.schema.createTableStatements=42`,
+`source.schema.createTableStatementsCheck=PASS`, and
+`mysql.manifest.expectation=RECORDED`.
+
+## Recorded WI-067 Two-Pass Rehearsal
+
+DG-067-09B was separately approved and completed on 2026-08-13. The one-use
+approval covered only `ats_disposable_20260813_wi067obs` and
+`ats_disposable_20260813_wi067prf` on loopback MySQL. It is exhausted and does
+not authorize reusing either name or running a new disposable proof.
+
+1. Generate a unique first-pass observation name and run `Preflight`.
+
+2. `Observe` created the exact absent observation database, applied
+   `schema.sql` then `seed.sql`, emitted the current manifest above, failed
+   closed as expected with `MYSQL_MANIFEST_EXPECTATION_UNRECORDED`, and reported
+   `cleanupAfterFailure=PASS`. A follow-up exact `Drop` also reported `PASS`.
+
+```powershell
+.\scripts\database\bootstrap-disposable-mysql.ps1 `
+  -Action Observe `
+  -DatabaseName $observationDatabase `
+  -HostName 127.0.0.1 `
+  -BackendEnvironmentPath $bundle
+```
+
+The bounded observation output was limited to `manifest.tables`,
+`manifest.columns`, `manifest.indexes`, `manifest.foreignKeys`,
+`manifest.plans`, `manifest.planKeys`, `manifest.forbiddenTables`,
+`manifest.forbiddenColumns`, and `manifest.sha256`; no secret was printed.
+
+3. The approved tooling update recorded only the emitted values, retained the
+   plan-key equality and forbidden-object zero guards, passed all 20 guard
+   checks, and produced a `RECORDED` preflight result.
+
+4. The distinct proof database passed `Create` and independent `Validate`; both
+   matched the recorded manifest exactly.
 
 ```powershell
 .\scripts\database\bootstrap-disposable-mysql.ps1 `
   -Action Create `
-  -DatabaseName $database `
+  -DatabaseName $proofDatabase `
   -HostName 127.0.0.1 `
   -BackendEnvironmentPath $bundle
-```
 
-3. Re-run the manifest check at any time:
-
-```powershell
 .\scripts\database\bootstrap-disposable-mysql.ps1 `
   -Action Validate `
-  -DatabaseName $database `
+  -DatabaseName $proofDatabase `
   -HostName 127.0.0.1 `
   -BackendEnvironmentPath $bundle
 ```
 
-4. Point an isolated backend process at the disposable database and require
-   `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`. The application must never be
-   allowed to update the schema during this proof.
+5. `AdminPaymentSettlementMysqlConcurrencyIntegrationTest` ran against only the
+   proof database with Hibernate `ddl-auto=validate`: 3 tests passed with zero
+   failures, errors, or skips. The cases covered different operation keys with
+   one deduplication key, the same owner and operation key, and concurrent
+   `IGNORE`.
 
-5. Drop the exact disposable database when the rehearsal ends:
+6. Exact-target `Drop` for the proof database reported `PASS`.
 
 ```powershell
 .\scripts\database\bootstrap-disposable-mysql.ps1 `
   -Action Drop `
-  -DatabaseName $database `
+  -DatabaseName $proofDatabase `
   -HostName 127.0.0.1 `
   -BackendEnvironmentPath $bundle
 ```
+
+The verified residual state is no database with either exact disposable name.
+The proof did not access an existing database or invoke Provider, payment,
+refund, or mail behavior.
+
+## Future Reproduction
+
+The commands above document the completed WI-067 evidence. Any future run must
+obtain a new immediate destructive/test approval, generate new exact disposable
+names, confirm loopback scope, and preserve the same exact-target cleanup and
+secret-safe credential handling. `Observe` is not applicable while the current
+manifest remains recorded; use guarded `Create`, independent `Validate`, an
+explicitly approved isolated test, and exact `Drop`.
 
 If a valid proof cannot run because credentials or Connector/J are unavailable,
 record it as an environment-conditional block. Do not weaken a guard, use the

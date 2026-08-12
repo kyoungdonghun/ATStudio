@@ -1,6 +1,6 @@
 ---
-version: 2.0
-last_updated: 2026-08-12
+version: 2.1
+last_updated: 2026-08-13
 project: ATS
 owner: PG
 category: policy
@@ -308,9 +308,36 @@ The Settlement import operator note is an optional plain-text input with a
   claims must not say that the note can never contain a secret.
 - File bytes, raw CSV rows, raw Provider payloads, credentials, and per-row
   errors must not be copied into the import-attempt note or failure code.
-- The current note is submitted as an import request parameter. Infrastructure
-  that records request targets or query strings must omit or redact the note on
-  this route in addition to suppressing the Idempotency-Key header.
+- The SPA submits a trimmed nonblank note only as the optional multipart
+  `note` part. The controller does not bind a query-only note and provides no
+  query compatibility fallback. Infrastructure must still omit or redact
+  unsolicited query strings and request capture on this route in addition to
+  suppressing the Idempotency-Key header.
+
+Settlement import evidence must fail closed before unsafe values enter
+deduplication, Settlement persistence, or row audit:
+
+- Filename, accepted/blank CSV media type, and both declared/actual 5 MiB byte
+  bounds are checked before an import-attempt claim. Spring multipart resolution
+  occurs first under the shared 30 MB part and 60 MB request configuration;
+  those shared limits are not proof of the endpoint-specific 5 MiB boundary.
+- Decoding is strict UTF-8 with at most one removed leading BOM. Malformed bytes,
+  malformed/unbalanced CSV grammar, duplicate/unknown headers, and the 1,001st
+  nonblank logical data record fail the file without replacement decoding or
+  heuristic legacy-encoding conversion.
+- Provider/identifier evidence rejects controls, U+2028/U+2029, edge whitespace,
+  and overlength input without truncation. Amounts are exact scale-2
+  `DECIMAL(15,2)` values before deduplication and persistence.
+- Import row errors are response-only and contain bounded field/message context,
+  not raw row values. Reconciliation retains at most 200 response details and
+  reports the omitted count; file bytes, raw rows, and per-row errors are not
+  copied into the durable attempt ledger.
+- The approved DG-067-09B MySQL proof used only the two exact loopback
+  disposable names recorded in its Evidence Pack. Observation, proof, and Drop
+  output omitted credentials and the exact-target cleanup left neither database
+  present. No existing database or Provider/payment/refund/mail path was
+  accessed. That one-use approval is exhausted; any future proof requires a new
+  exact scope and immediate approval.
 
 ---
 

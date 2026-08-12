@@ -1,6 +1,6 @@
 ---
-version: 23.0
-last_updated: 2026-08-12
+version: 24.0
+last_updated: 2026-08-13
 project: ATS
 owner: SA
 category: design
@@ -14,9 +14,11 @@ dependencies:
     reason: Authoritative JPA entity mappings
   - path: api-spec.md
     reason: Current API persistence consumers
+  - path: ../../scripts/database/README.md
+    reason: Guarded disposable MySQL preflight and proof procedure
 ---
 
-# ATStudio DB Schema Definition v23.0
+# ATStudio DB Schema Definition v24.0
 
 ## V1 Baseline
 
@@ -44,28 +46,50 @@ requirement and migration design.
 
 ### Current Source and MySQL Verification Boundary
 
-The current WI-056 source adds `payment_settlement_import_attempts` and one
-`payment_settlements.import_batch_key` index. Source inspection gives the
-following exact delta from the last executed MySQL manifest:
+Current source contains 42 derived `CREATE TABLE` statements and 42 JPA
+entities. `DisposableMysqlBootstrap` preflight parses current `schema.sql`,
+fails unless that source count is exactly 42, and reports the active MySQL
+manifest expectation as `RECORDED`.
 
-| DDL object | WI-056 source delta |
+The current fresh-MySQL manifest observed and independently proven under
+DG-067-09B is:
+
+| Manifest field | Current value |
 |---|---:|
-| Tables | +1 |
-| Columns | +13 |
-| Named index definitions, including the new table primary key | +5 |
-| Foreign keys | +1 |
-| Check constraints | +1 |
+| Tables | 42 |
+| Columns | 506 |
+| `information_schema.statistics` rows | 173 |
+| Foreign keys | 90 |
+| Plans | 6 |
+| Plan keys | 6 |
+| Forbidden tables / columns | 0 / 0 |
+| SHA-256 | `acf28c935bf6107a8f2af431c971ebe0cd3539dba1aa1a941d966dde4a2a7a65` |
 
-The last executed disposable MySQL manifest, verified before this source delta,
-was 41 tables, 493 columns, 168 `information_schema.statistics` rows, 89 foreign
-keys, 6 plans, and SHA-256
+- Observation database `ats_disposable_20260813_wi067obs` applied current
+  `schema.sql` then `seed.sql`, emitted the manifest, failed closed as expected
+  with `MYSQL_MANIFEST_EXPECTATION_UNRECORDED`, and passed automatic cleanup
+  plus a follow-up exact `Drop`.
+- After recording only the emitted values, all 20 guard checks passed and
+  `Preflight` reported `mysql.manifest.expectation=RECORDED`.
+- Proof database `ats_disposable_20260813_wi067prf` passed `Create`, independent
+  `Validate`, exact manifest comparison, three settlement MySQL concurrency
+  tests under Hibernate `ddl-auto=validate`, and exact `Drop`.
+- `Observe` is now refused before credentials because a current expectation is
+  recorded. Any future proof requires new immediate destructive/test approval,
+  new exact disposable names, and exact-target cleanup.
+
+The prior disposable run produced 41 tables, 493 columns, 168
+`information_schema.statistics` rows, 89 foreign keys, 6 plans, and SHA-256
 `c581bef61cfba143744882b0674daf8d8fe742d82adbbf66d6b61699f5b86333`.
-That value is a predecessor result and is not a current WI-056 manifest or hash.
-No MySQL rehearsal or current manifest/hash was produced for WI-056. The
-disposable bootstrap validator still contains the predecessor expectations and
-must be revised in a separately permitted code/tooling scope before a current
-fresh-MySQL certification can pass. This document does not invent replacement
-column/index/hash values.
+That result is retained as historical predecessor evidence only. It is absent
+from the active bootstrap expectation and is neither current nor required for
+the 42-source baseline.
+
+DG-067-09A and DG-067-09B are complete; DG-067-09B is
+`RUN-PASS-CLEANED`. The proof accessed no existing database and produced no
+Provider, payment, refund, mail, or secret-output effect. It proves only the
+fresh disposable baseline and isolated settlement concurrency scope, not a
+retained-data migration or production readiness.
 
 ## Baseline Data Ownership
 
@@ -263,3 +287,9 @@ Get-ChildItem src/main/java/com/atstudio/atstudio/entity -Recurse -Filter *.java
 ```
 
 Expected results: `42` and `42`.
+
+The non-database bootstrap preflight must additionally report
+`source.schema.createTableStatements=42`,
+`source.schema.createTableStatementsCheck=PASS`, and
+`mysql.manifest.expectation=RECORDED`. Manifest equivalence is established by
+guarded `Create` and independent `Validate`, not by preflight alone.

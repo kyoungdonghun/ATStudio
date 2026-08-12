@@ -1,6 +1,6 @@
 ---
-version: 1.4
-last_updated: 2026-08-12
+version: 1.5
+last_updated: 2026-08-13
 project: ATS
 owner: SA
 category: design
@@ -399,7 +399,7 @@ Implemented table: `payment_settlements`
 | `fee_amount` | Provider fee if available |
 | `vat_amount` | VAT/tax amount if available |
 | `net_settlement_amount` | Amount expected to be paid to merchant |
-| `currency` | 3-letter currency code, default `KRW` |
+| `currency` | V1 accepts exact `KRW`; missing/empty CSV value defaults to `KRW` |
 | `settlement_base_date` | Provider settlement sales/base date |
 | `settlement_payout_date` | Expected or actual payout date |
 | `provider_status` | Provider status text when available |
@@ -480,12 +480,21 @@ Future reconciliation incident types:
 - The optional CSV import note is user-supplied free text bounded to 500
   characters. The UI warns against sensitive input. The application does not
   derive a secret into that field, but it has no DLP guarantee that an operator
-  cannot paste sensitive data.
-- This verified behavior closes `CR-031-117` and `CR-031-119` at the source/H2
-  boundary. It does not select strict CSV parser/field/range/retry policy.
-  `CR-031-115`, `CR-031-116`, and `CR-031-118` remain held and out of scope for
-  WI-20260809-ATS-067. MySQL concurrency and current manifest/hash rehearsal
-  remain unperformed.
+  cannot paste sensitive data. The SPA sends the trimmed nonblank value only as
+  an optional multipart part; query-only note text does not bind.
+- WI-067 implements strict UTF-8, the approved CSV dialect/header/width rules,
+  a 1,000-row import ceiling, exact `TOSS`/`KRW`, bounded untruncated evidence,
+  exact scale-2 `DECIMAL(15,2)` values, strict dates, a default 30-day/maximum
+  90-day and 5,000-row reconciliation boundary, and first-200 reconciliation
+  errors plus `omittedErrorCount`. No cursor, reconciliation operation key,
+  automatic retry, or polling was added.
+- This verified behavior closes `CR-031-115` through `CR-031-119` at their
+  applicable repository/H2 boundaries. QA-INTEG v1.2 and PG v1.1 accepted
+  DG-067-01 through DG-067-09A. The separately approved DG-067-09B proof then
+  recorded the current 42/506/173/90/6 fresh-MySQL manifest, passed independent
+  validation and 3/3 settlement concurrency tests under `ddl-auto=validate`,
+  and removed both exact disposable databases. Its status is
+  `RUN-PASS-CLEANED`; this is not live Provider or production evidence.
 
 ## 8. Tax Invoice Policy
 
