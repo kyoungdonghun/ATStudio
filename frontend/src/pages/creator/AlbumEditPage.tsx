@@ -170,7 +170,7 @@ export default function AlbumEditPage() {
     const reordered = [...tracks];
     [reordered[index], reordered[swapIdx]] = [reordered[swapIdx], reordered[index]];
 
-    const trackOrders = reordered.map((t, i) => ({ trackId: t.trackId, order: i + 1 }));
+    const trackOrders = reordered.map((t, i) => ({ trackId: t.trackId, order: i }));
 
     /* Optimistic update */
     setTracks(reordered);

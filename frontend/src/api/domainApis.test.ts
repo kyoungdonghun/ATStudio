@@ -79,9 +79,9 @@ describe('domain API contracts', () => {
 
     await albums.addTrackToAlbum(7, 11);
     expect(mockedClient.post).toHaveBeenNthCalledWith(2, '/albums/7/tracks', { trackId: 11 });
-    await albums.reorderAlbumTracks(7, [{ trackId: 11, order: 1 }]);
+    await albums.reorderAlbumTracks(7, [{ trackId: 11, order: 0 }]);
     expect(mockedClient.put).toHaveBeenNthCalledWith(2, '/albums/7/tracks', {
-      trackOrders: [{ trackId: 11, order: 1 }],
+      trackOrders: [{ trackId: 11, order: 0 }],
     });
     await albums.removeTrackFromAlbum(7, 11);
     await albums.deleteAlbum(7);
