@@ -1,5 +1,6 @@
 package com.atstudio.atstudio.config;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -33,7 +34,43 @@ class PublicThumbnailHeaderFilterTest {
     }
 
     @Test
-    @DisplayName("non-playlist uploads stay outside the thumbnail header boundary")
+    @DisplayName("album thumbnail responses receive the same fixed safe headers")
+    void doFilter_albumThumbnail_setsSafeHeaders() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET",
+                "/uploads/albums/thumbnails/generated.jpg");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo(MediaType.IMAGE_JPEG_VALUE);
+        assertThat(response.getHeader("X-Content-Type-Options")).isEqualTo("nosniff");
+        assertThat(response.getHeader("Content-Security-Policy"))
+                .isEqualTo("default-src 'none'; sandbox");
+        assertThat(response.getHeader("Cross-Origin-Resource-Policy")).isEqualTo("same-origin");
+    }
+
+    @Test
+    @DisplayName("downstream Content-Type mutations cannot escape the fixed JPEG type")
+    void doFilter_thumbnail_downstreamCannotOverrideContentType() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET",
+                "/uploads/albums/thumbnails/retained.svg");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (servletRequest, servletResponse) -> {
+            HttpServletResponse httpResponse = (HttpServletResponse) servletResponse;
+            httpResponse.setContentType("image/svg+xml");
+            httpResponse.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_HTML_VALUE);
+            httpResponse.addHeader(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_PLAIN_VALUE);
+        });
+
+        assertThat(response.getHeaders(HttpHeaders.CONTENT_TYPE))
+                .containsExactly(MediaType.IMAGE_JPEG_VALUE);
+    }
+
+    @Test
+    @DisplayName("non-thumbnail uploads stay outside the thumbnail header boundary")
     void doFilter_otherUpload_doesNotSetThumbnailHeaders() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest(
                 "GET",

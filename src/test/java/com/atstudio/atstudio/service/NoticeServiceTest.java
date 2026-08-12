@@ -8,6 +8,7 @@ import com.atstudio.atstudio.dto.notice.NoticeListItemResponse;
 import com.atstudio.atstudio.dto.notice.NoticeResponse;
 import com.atstudio.atstudio.dto.notice.NoticeUpdateRequest;
 import com.atstudio.atstudio.entity.Notice;
+import com.atstudio.atstudio.entity.NoticeAttachment;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
@@ -15,7 +16,9 @@ import com.atstudio.atstudio.repository.NoticeAttachmentRepository;
 import com.atstudio.atstudio.repository.NoticeRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.storage.StorageDomain;
 import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
+import com.atstudio.atstudio.service.storage.StorageRoot;
 import com.atstudio.atstudio.service.storage.StorageService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,8 +26,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -33,7 +39,11 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -223,6 +233,129 @@ class NoticeServiceTest {
 
     // ── helper ────────────────────────────────────────────────────────────────
 
+    @Test
+    @DisplayName("createNotice stores accepted active content only in PRIVATE storage")
+    void createNotice_activeContentAttachment_storedOnlyInPrivateRoot() {
+        User user = buildUser(1L);
+        NoticeCreateRequest request = new NoticeCreateRequest();
+        request.setTitle("Notice");
+        request.setContent("Content");
+        request.setIsPinned(false);
+        byte[] payload = "<html><script>alert(1)</script>".getBytes(
+                java.nio.charset.StandardCharsets.UTF_8);
+        MockMultipartFile attachment = new MockMultipartFile(
+                "attachments",
+                "announcement.html",
+                "text/html",
+                payload);
+        request.setAttachments(List.of(attachment));
+        Notice saved = buildNotice(1L, user, "Notice", "Content", false);
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(noticeRepository.save(any(Notice.class))).willReturn(saved);
+        given(storageMutationCoordinator.storeAll(
+                StorageDomain.NOTICE,
+                StorageRoot.PRIVATE,
+                List.of(attachment),
+                "notices/attachments"))
+                .willReturn(List.of("notices/attachments/generated.html"));
+        given(attachmentRepository.save(any(NoticeAttachment.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        NoticeResponse result = noticeService.createNotice(request, buildAdminDetails(1L));
+
+        assertThat(result.attachments()).singleElement()
+                .satisfies(savedAttachment -> {
+                    assertThat(savedAttachment.originalName()).isEqualTo("announcement.html");
+                    assertThat(savedAttachment.fileSize()).isEqualTo((long) payload.length);
+                });
+        verify(storageMutationCoordinator).storeAll(
+                StorageDomain.NOTICE,
+                StorageRoot.PRIVATE,
+                List.of(attachment),
+                "notices/attachments");
+        verify(storageMutationCoordinator, never()).storeAll(
+                eq(StorageDomain.NOTICE),
+                eq(StorageRoot.PUBLIC),
+                anyList(),
+                anyString());
+    }
+
+    @Test
+    @DisplayName("updateNotice deletes selected attachments from PRIVATE storage after commit")
+    void updateNotice_attachmentDeletion_usesPrivateRoot() {
+        User user = buildUser(1L);
+        Notice notice = buildNotice(1L, user, "Old", "Content", false);
+        NoticeAttachment attachment = buildAttachment(
+                7L,
+                notice,
+                "announcement.html",
+                "notices/attachments/private.html");
+        NoticeUpdateRequest request = buildUpdateRequest("New", "Content", false);
+        request.setDeleteAttachmentIds(List.of(7L));
+
+        given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
+        given(attachmentRepository.findAllByNoticeId(1L))
+                .willReturn(List.of(attachment), List.of());
+
+        noticeService.updateNotice(1L, request, buildAdminDetails(1L));
+
+        verify(storageMutationCoordinator).deleteAfterCommit(
+                StorageDomain.NOTICE,
+                StorageRoot.PRIVATE,
+                List.of("notices/attachments/private.html"));
+        verify(attachmentRepository).delete(attachment);
+    }
+
+    @Test
+    @DisplayName("deleteNotice schedules every attachment delete against PRIVATE storage")
+    void deleteNotice_withAttachments_usesPrivateRoot() {
+        User user = buildUser(1L);
+        Notice notice = buildNotice(1L, user, "Notice", "Content", false);
+        NoticeAttachment attachment = buildAttachment(
+                7L,
+                notice,
+                "announcement.html",
+                "notices/attachments/private.html");
+        given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
+        given(attachmentRepository.findAllByNoticeId(1L)).willReturn(List.of(attachment));
+
+        noticeService.deleteNotice(1L, buildAdminDetails(1L));
+
+        verify(storageMutationCoordinator).deleteAfterCommit(
+                StorageDomain.NOTICE,
+                StorageRoot.PRIVATE,
+                List.of("notices/attachments/private.html"));
+    }
+
+    @Test
+    @DisplayName("downloadAttachment resolves the DB-owned key only from PRIVATE storage")
+    void downloadAttachment_usesPrivateRootOnly() {
+        User user = buildUser(1L);
+        Notice notice = buildNotice(1L, user, "Notice", "Content", false);
+        NoticeAttachment attachment = buildAttachment(
+                7L,
+                notice,
+                "announcement.html",
+                "notices/attachments/private.html");
+        Resource resource = new ByteArrayResource(new byte[] {1, 2, 3});
+
+        given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
+        given(attachmentRepository.findByIdAndNoticeId(7L, 1L)).willReturn(Optional.of(attachment));
+        given(storageService.loadAsResource(
+                StorageRoot.PRIVATE,
+                "notices/attachments/private.html"))
+                .willReturn(resource);
+
+        assertThat(noticeService.downloadAttachment(1L, 7L)).isSameAs(resource);
+        verify(storageService).loadAsResource(
+                StorageRoot.PRIVATE,
+                "notices/attachments/private.html");
+        verify(storageService, never()).loadAsResource(
+                StorageRoot.PUBLIC,
+                "notices/attachments/private.html");
+    }
+
     private User buildUser(Long id) {
         User user = User.builder()
                 .email("admin@test.com").nickname("admin").password("pw")
@@ -235,6 +368,21 @@ class NoticeServiceTest {
         Notice notice = Notice.builder().user(user).title(title).content(content).isPinned(isPinned).build();
         ReflectionTestUtils.setField(notice, "id", id);
         return notice;
+    }
+
+    private NoticeAttachment buildAttachment(
+            Long id,
+            Notice notice,
+            String originalName,
+            String filePath) {
+        NoticeAttachment attachment = NoticeAttachment.builder()
+                .notice(notice)
+                .originalName(originalName)
+                .filePath(filePath)
+                .fileSize(3L)
+                .build();
+        ReflectionTestUtils.setField(attachment, "id", id);
+        return attachment;
     }
 
     private CustomUserDetails buildAdminDetails(Long id) {

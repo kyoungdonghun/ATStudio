@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -19,6 +21,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doNothing;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -152,6 +156,53 @@ class NoticeControllerTest {
 
         mockMvc.perform(delete("/api/notices/1"))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("GET notice attachment remains public and forces the full safe download headers")
+    void downloadAttachment_unauthenticated_forcesSafeHeaders() throws Exception {
+        byte[] body = "<html><script>alert(1)</script>".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        ByteArrayResource resource = new ByteArrayResource(body) {
+            @Override
+            public String getFilename() {
+                return "generated.html";
+            }
+        };
+        given(noticeService.downloadAttachment(1L, 7L)).willReturn(resource);
+
+        mockMvc.perform(get("/api/notices/1/attachments/7"))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(body))
+                .andExpect(content().contentType(MediaType.APPLICATION_OCTET_STREAM))
+                .andExpect(header().string(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename*=UTF-8''generated.html"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store, private"))
+                .andExpect(header().string(HttpHeaders.PRAGMA, "no-cache"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string(
+                        "Content-Security-Policy",
+                        "default-src 'none'; sandbox"))
+                .andExpect(header().string("Cross-Origin-Resource-Policy", "same-origin"));
+    }
+
+    @Test
+    @DisplayName("GET notice attachment percent-encodes CRLF and disposition delimiters")
+    void downloadAttachment_maliciousFilename_cannotInjectResponseHeader() throws Exception {
+        ByteArrayResource resource = new ByteArrayResource(new byte[] {1, 2, 3}) {
+            @Override
+            public String getFilename() {
+                return "report\r\nX-Evil: injected\"; filename=\"owned.html";
+            }
+        };
+        given(noticeService.downloadAttachment(1L, 8L)).willReturn(resource);
+
+        mockMvc.perform(get("/api/notices/1/attachments/8"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename*=UTF-8''report%0D%0AX-Evil%3A%20injected%22%3B%20filename%3D%22owned.html"))
+                .andExpect(header().doesNotExist("X-Evil"));
     }
 
     private MockMultipartHttpServletRequestBuilder multipartPut(String urlTemplate, Object... uriVars) {

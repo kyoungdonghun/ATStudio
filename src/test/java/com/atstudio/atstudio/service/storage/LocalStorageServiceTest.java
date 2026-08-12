@@ -235,6 +235,29 @@ class LocalStorageServiceTest {
                 .isInstanceOf(RuntimeException.class);
     }
 
+    @Test
+    void privateNoticeObjectCannotResolveThroughThePublicRoot() throws IOException {
+        LocalStorageService storage = storage();
+        String operationId = UUID.randomUUID().toString();
+        String key = storage.generateKey("notices/attachments", "announcement.html");
+        byte[] payload = "<html><script>alert(1)</script>".getBytes(StandardCharsets.UTF_8);
+        MockMultipartFile file = new MockMultipartFile(
+                "attachments",
+                "announcement.html",
+                "text/html",
+                payload);
+
+        storage.stage(StorageRoot.PRIVATE, operationId, key, file);
+        storage.promote(StorageRoot.PRIVATE, operationId, key);
+
+        assertThat(storage.loadAsResource(StorageRoot.PRIVATE, key).getContentAsByteArray())
+                .isEqualTo(payload);
+        assertThatThrownBy(() -> storage.loadAsResource(StorageRoot.PUBLIC, key))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> storage.getUrl(StorageRoot.PRIVATE, key))
+                .isInstanceOf(RuntimeException.class);
+    }
+
     private LocalStorageService storage() {
         LocalStorageService storage = new LocalStorageService(
                 tempDirectory.resolve("public").toString(),

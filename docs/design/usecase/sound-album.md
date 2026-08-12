@@ -5,12 +5,29 @@
 
 ---
 
+## Album Thumbnail Storage and Serving Contract
+
+- A supplied create or replacement thumbnail uses the existing bounded JPEG/PNG
+  input contract and is decoded and re-encoded once through
+  `CanonicalImageService.canonicalizeThumbnail`.
+- Only the server-generated JPEG bytes and generated `.jpg` key are written to
+  public storage. Submitted bytes, names, metadata, and trailing payload are not
+  retained in the public object.
+- `/uploads/albums/thumbnails/**` responses use fixed `image/jpeg`, `nosniff`,
+  sandboxed Content Security Policy, and same-origin resource-policy headers,
+  matching the existing Playlist thumbnail contract. The fixed media type
+  cannot be replaced by downstream static filename inference, including for a
+  retained key with a non-JPEG extension.
+- A rejected image or failed storage operation does not mutate the Album row.
+
+---
+
 ## ALBUM-001: Create Album
 
 | Field | Value |
 |-------|-------|
 | **Code** | ALBUM-001 |
-| **Version** | 26-03-04 |
+| **Version** | 26-08-13 |
 | **Description** | Admin creates a new curated album. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Logged in. Admin role. |
@@ -21,7 +38,8 @@
 1. Admin enters album title (required) and description (optional).
 2. Attaches a thumbnail image (optional).
 3. Frontend sends data as multipart/form-data to the backend.
-4. Backend performs validation.
+4. Backend validates and canonicalizes a supplied thumbnail before public
+   storage; no thumbnail path is written for an absent file.
 5. Backend creates an albums record (is_active=true) and returns a 201 response.
 
 **Exception / Alternative Flow**
@@ -29,6 +47,8 @@
 
 **Postconditions**
 - albums record created. No tracks yet (empty album).
+- A supplied thumbnail is represented by a generated public `.jpg` key whose
+  bytes are server-generated JPEG content.
 
 ---
 
@@ -103,7 +123,7 @@ Includes `likeCount` field (from `albums.like_count`) in addition to id, title, 
 | Field | Value |
 |-------|-------|
 | **Code** | ALBUM-004 |
-| **Version** | 26-03-04 |
+| **Version** | 26-08-13 |
 | **Description** | Admin updates album metadata (title/description/thumbnail). |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Logged in. Admin role. Album must exist. |
@@ -113,10 +133,15 @@ Includes `likeCount` field (from `albums.like_count`) in addition to id, title, 
 **Main Flow**
 1. Admin modifies title, description, or thumbnail (all fields optional).
 2. Frontend sends albumId and changed data as multipart/form-data to the backend.
-3. Backend updates the albums record and returns a 200 response.
+3. Backend canonicalizes a supplied replacement before storage, stores a new
+   generated `.jpg` key, and schedules the previous key for after-commit
+   deletion.
+4. Backend updates the albums record and returns a 200 response.
 
 **Exception / Alternative Flow**
 - Album not found: 404 response.
+- Invalid, unsupported, MIME-mismatched, or oversized thumbnail: existing image
+  validation error; no replacement is stored and the Album remains unchanged.
 
 **Postconditions**
 - Updated album information reflected in DB.

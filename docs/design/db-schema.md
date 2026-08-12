@@ -1,5 +1,5 @@
 ---
-version: 24.0
+version: 24.1
 last_updated: 2026-08-13
 project: ATS
 owner: SA
@@ -18,7 +18,7 @@ dependencies:
     reason: Guarded disposable MySQL preflight and proof procedure
 ---
 
-# ATStudio DB Schema Definition v24.0
+# ATStudio DB Schema Definition v24.1
 
 ## V1 Baseline
 
@@ -176,7 +176,7 @@ notices are explicit non-baseline workflows.
 | `answers` | Inquiry answers |
 | `question_attachments` | Inquiry attachment metadata |
 | `notices` | Notices |
-| `notice_attachments` | Notice attachment metadata |
+| `notice_attachments` | Notice attachment metadata and private storage key |
 | `storage_mutations` | Durable storage mutation journal |
 
 Total: **42 tables**.
@@ -196,6 +196,19 @@ Total: **42 tables**.
 - New or replacement Track thumbnails must be square and are canonicalized to
   JPEG. Existing non-square thumbnail keys remain unchanged unless an operator
   explicitly uploads a replacement.
+
+### Album and Notice Storage
+
+- New and replacement `albums.thumbnail` values are generated public storage
+  keys ending in `.jpg`; submitted image bytes are canonicalized to JPEG before
+  the key is persisted.
+- New `notice_attachments.file_path` values identify objects under the private
+  storage root. The relative-key column and database schema are unchanged; the
+  controller-mediated public download resolves the key against PRIVATE rather
+  than the `/uploads/**` public root.
+- No retained rows or files are migrated by this boundary change. The V1
+  operational baseline remains fresh-only, and any retained-file migration
+  requires a separate approved requirement.
 
 ### Administrator Audit and Subscription Correction
 

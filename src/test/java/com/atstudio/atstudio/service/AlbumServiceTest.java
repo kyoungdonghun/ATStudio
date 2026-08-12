@@ -2,6 +2,7 @@ package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.common.validation.ValidationConstants;
 import com.atstudio.atstudio.dto.album.*;
 import com.atstudio.atstudio.entity.*;
 import com.atstudio.atstudio.entity.enums.UserRole;
@@ -12,17 +13,28 @@ import com.atstudio.atstudio.repository.AlbumTrackRepository;
 import com.atstudio.atstudio.repository.TrackRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.image.CanonicalImageService;
+import com.atstudio.atstudio.service.storage.StorageDomain;
 import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
+import com.atstudio.atstudio.service.storage.StorageRoot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,8 +42,11 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AlbumService 단위 테스트")
@@ -42,6 +57,7 @@ class AlbumServiceTest {
     @Mock TrackRepository trackRepository;
     @Mock UserRepository userRepository;
     @Mock StorageMutationCoordinator storageMutationCoordinator;
+    @Mock CanonicalImageService canonicalImageService;
 
     @InjectMocks AlbumService albumService;
 
@@ -63,6 +79,115 @@ class AlbumServiceTest {
         assertThat(result.id()).isEqualTo(1L);
         assertThat(result.title()).isEqualTo("Test Album");
         assertThat(result.trackCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("createAlbum stores only the canonical JPEG thumbnail")
+    void createAlbum_polyglotThumbnail_storesOnlyCanonicalJpeg() throws Exception {
+        User user = buildUser(1L);
+        AlbumCreateRequest request = new AlbumCreateRequest();
+        request.setTitle("Canonical Album");
+        byte[] inputBytes = append(
+                pngBytes(24, 16),
+                "<svg onload=alert(1)>".getBytes(StandardCharsets.UTF_8));
+        MockMultipartFile thumbnail = new MockMultipartFile(
+                "thumbnailFile", "cover.svg", "image/png", inputBytes);
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(storageMutationCoordinator.store(
+                eq(StorageDomain.ALBUM),
+                eq(StorageRoot.PUBLIC),
+                any(MultipartFile.class),
+                eq("albums/thumbnails")))
+                .willReturn("albums/thumbnails/generated.jpg");
+        given(albumRepository.save(any(Album.class))).willAnswer(invocation -> {
+            Album album = invocation.getArgument(0);
+            ReflectionTestUtils.setField(album, "id", 10L);
+            return album;
+        });
+        ReflectionTestUtils.setField(albumService, "canonicalImageService", new CanonicalImageService());
+
+        AlbumResponse result = albumService.createAlbum(request, thumbnail, buildAdminDetails(1L));
+
+        ArgumentCaptor<MultipartFile> storedFile = ArgumentCaptor.forClass(MultipartFile.class);
+        verify(storageMutationCoordinator).store(
+                eq(StorageDomain.ALBUM),
+                eq(StorageRoot.PUBLIC),
+                storedFile.capture(),
+                eq("albums/thumbnails"));
+        assertThat(storedFile.getValue().getOriginalFilename()).isEqualTo("thumbnail.jpg");
+        assertThat(storedFile.getValue().getContentType()).isEqualTo("image/jpeg");
+        assertThat(storedFile.getValue().getBytes()).startsWith((byte) 0xFF, (byte) 0xD8, (byte) 0xFF);
+        assertThat(new String(storedFile.getValue().getBytes(), StandardCharsets.ISO_8859_1))
+                .doesNotContain("<svg");
+        assertThat(result.thumbnailUrl()).isEqualTo("albums/thumbnails/generated.jpg");
+    }
+
+    @Test
+    @DisplayName("createAlbum rejects HTML and SVG before storage or Album persistence")
+    void createAlbum_activeContent_rejectedBeforeStorageAndPersistence() {
+        User user = buildUser(1L);
+        AlbumCreateRequest request = new AlbumCreateRequest();
+        request.setTitle("Rejected Album");
+        List<MockMultipartFile> activeContent = List.of(
+                new MockMultipartFile(
+                        "thumbnailFile", "cover.jpg", "application/octet-stream",
+                        "<html><script>alert(1)</script>".getBytes(StandardCharsets.UTF_8)),
+                new MockMultipartFile(
+                        "thumbnailFile", "cover.png", "application/octet-stream",
+                        "<svg onload=alert(1)>".getBytes(StandardCharsets.UTF_8)));
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        ReflectionTestUtils.setField(albumService, "canonicalImageService", new CanonicalImageService());
+
+        activeContent.forEach(file -> assertThatThrownBy(
+                () -> albumService.createAlbum(request, file, buildAdminDetails(1L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_VALID)));
+
+        verifyNoInteractions(storageMutationCoordinator, albumRepository);
+    }
+
+    @Test
+    @DisplayName("createAlbum rejects a MIME mismatch before storage or Album persistence")
+    void createAlbum_mimeMismatch_rejectedBeforeStorageAndPersistence() throws Exception {
+        User user = buildUser(1L);
+        AlbumCreateRequest request = new AlbumCreateRequest();
+        request.setTitle("Rejected Album");
+        MockMultipartFile thumbnail = new MockMultipartFile(
+                "thumbnailFile", "cover.jpg", "image/png", jpegBytes(16, 16));
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        ReflectionTestUtils.setField(albumService, "canonicalImageService", new CanonicalImageService());
+
+        assertThatThrownBy(() -> albumService.createAlbum(request, thumbnail, buildAdminDetails(1L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_VALID));
+        verifyNoInteractions(storageMutationCoordinator, albumRepository);
+    }
+
+    @Test
+    @DisplayName("createAlbum rejects an oversized thumbnail before storage or Album persistence")
+    void createAlbum_oversizedThumbnail_rejectedBeforeStorageAndPersistence() {
+        User user = buildUser(1L);
+        AlbumCreateRequest request = new AlbumCreateRequest();
+        request.setTitle("Rejected Album");
+        MockMultipartFile thumbnail = new MockMultipartFile(
+                "thumbnailFile",
+                "cover.png",
+                "image/png",
+                new byte[(int) ValidationConstants.IMAGE_MAX_SIZE_BYTES + 1]);
+
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        ReflectionTestUtils.setField(albumService, "canonicalImageService", new CanonicalImageService());
+
+        assertThatThrownBy(() -> albumService.createAlbum(request, thumbnail, buildAdminDetails(1L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.IO_LARGE));
+        verifyNoInteractions(storageMutationCoordinator, albumRepository);
     }
 
     // -- getAlbums() ----------------------------------------------------------
@@ -172,6 +297,67 @@ class AlbumServiceTest {
         AlbumResponse result = albumService.updateAlbum(1L, request, null);
 
         assertThat(result.title()).isEqualTo("New Title");
+    }
+
+    @Test
+    @DisplayName("updateAlbum canonicalizes a replacement before public storage")
+    void updateAlbum_thumbnailReplacement_storesCanonicalJpeg() throws Exception {
+        User user = buildUser(1L);
+        Album album = buildAlbum(1L, user, "Old Title");
+        ReflectionTestUtils.setField(album, "thumbnail", "albums/thumbnails/old.jpg");
+        AlbumUpdateRequest request = new AlbumUpdateRequest();
+        request.setTitle("New Title");
+        MockMultipartFile thumbnail = new MockMultipartFile(
+                "thumbnailFile", "cover.png", "image/png", pngBytes(18, 12));
+
+        given(albumRepository.findByIdForUpdate(1L)).willReturn(Optional.of(album));
+        given(storageMutationCoordinator.replace(
+                eq(StorageDomain.ALBUM),
+                eq(StorageRoot.PUBLIC),
+                any(MultipartFile.class),
+                eq("albums/thumbnails"),
+                eq("albums/thumbnails/old.jpg")))
+                .willReturn("albums/thumbnails/new.jpg");
+        given(albumTrackRepository.countByAlbum(album)).willReturn(0L);
+        ReflectionTestUtils.setField(albumService, "canonicalImageService", new CanonicalImageService());
+
+        AlbumResponse result = albumService.updateAlbum(1L, request, thumbnail);
+
+        ArgumentCaptor<MultipartFile> replacement = ArgumentCaptor.forClass(MultipartFile.class);
+        verify(storageMutationCoordinator).replace(
+                eq(StorageDomain.ALBUM),
+                eq(StorageRoot.PUBLIC),
+                replacement.capture(),
+                eq("albums/thumbnails"),
+                eq("albums/thumbnails/old.jpg"));
+        assertThat(replacement.getValue().getOriginalFilename()).isEqualTo("thumbnail.jpg");
+        assertThat(replacement.getValue().getContentType()).isEqualTo("image/jpeg");
+        assertThat(result.thumbnailUrl()).isEqualTo("albums/thumbnails/new.jpg");
+    }
+
+    @Test
+    @DisplayName("updateAlbum rejection leaves the Album and storage unchanged")
+    void updateAlbum_invalidThumbnail_leavesAlbumAndStorageUnchanged() {
+        User user = buildUser(1L);
+        Album album = buildAlbum(1L, user, "Old Title");
+        AlbumUpdateRequest request = new AlbumUpdateRequest();
+        request.setTitle("New Title");
+        MockMultipartFile thumbnail = new MockMultipartFile(
+                "thumbnailFile",
+                "cover.svg",
+                "image/svg+xml",
+                "<svg onload=alert(1)>".getBytes(StandardCharsets.UTF_8));
+
+        given(albumRepository.findByIdForUpdate(1L)).willReturn(Optional.of(album));
+        ReflectionTestUtils.setField(albumService, "canonicalImageService", new CanonicalImageService());
+
+        assertThatThrownBy(() -> albumService.updateAlbum(1L, request, thumbnail))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_VALID));
+        assertThat(album.getTitle()).isEqualTo("Old Title");
+        verify(storageMutationCoordinator, never()).replace(any(), any(), any(), any(), any());
+        verify(albumTrackRepository, never()).countByAlbum(any());
     }
 
     // -- deleteAlbum() --------------------------------------------------------
@@ -329,5 +515,29 @@ class AlbumServiceTest {
                 .id(id).email("admin@test.com").password("pw")
                 .role(UserRole.ADMIN).isDeleted(false).isProfileComplete(true)
                 .build();
+    }
+
+    private byte[] pngBytes(int width, int height) throws Exception {
+        return imageBytes("png", width, height);
+    }
+
+    private byte[] jpegBytes(int width, int height) throws Exception {
+        return imageBytes("jpg", width, height);
+    }
+
+    private byte[] imageBytes(String format, int width, int height) throws Exception {
+        int imageType = "jpg".equals(format)
+                ? BufferedImage.TYPE_INT_RGB
+                : BufferedImage.TYPE_INT_ARGB;
+        BufferedImage image = new BufferedImage(width, height, imageType);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ImageIO.write(image, format, output);
+        return output.toByteArray();
+    }
+
+    private byte[] append(byte[] base, byte[] suffix) {
+        byte[] result = Arrays.copyOf(base, base.length + suffix.length);
+        System.arraycopy(suffix, 0, result, base.length, suffix.length);
+        return result;
     }
 }

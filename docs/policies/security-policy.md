@@ -1,5 +1,5 @@
 ---
-version: 2.2
+version: 2.3
 last_updated: 2026-08-13
 project: ATS
 owner: PG
@@ -346,6 +346,35 @@ deduplication, Settlement persistence, or row audit:
   present. No existing database or Provider/payment/refund/mail path was
   accessed. That one-use approval is exhausted; any future proof requires a new
   exact scope and immediate approval.
+
+### 6.14 Album Thumbnails and Notice Attachments
+
+- Every new or replacement Album thumbnail is processed through the shared
+  bounded image canonicalization pipeline before public storage. Album and
+  Playlist thumbnail objects therefore use generated `.jpg` keys and contain
+  only server-generated JPEG bytes.
+- Static Album and Playlist thumbnail responses use fixed `image/jpeg`,
+  `X-Content-Type-Options: nosniff`, sandboxed Content Security Policy, and
+  `Cross-Origin-Resource-Policy: same-origin` headers. Other `/uploads/**`
+  objects do not inherit this thumbnail-only response policy. A response
+  wrapper replaces downstream `setContentType`, `setHeader`, and `addHeader`
+  attempts for `Content-Type`, so static filename inference cannot expose a
+  retained non-JPEG extension as SVG, HTML, or another media type.
+- Every new Notice attachment is written, loaded, and deleted through
+  `StorageRoot.PRIVATE`. The `/uploads/**` resource mapping owns only the
+  disjoint public root and cannot resolve a Notice object written to the
+  private root.
+- `GET /api/notices/{noticeId}/attachments/{attachmentId}` remains public. It
+  returns one Resource as `application/octet-stream` with attachment-only
+  disposition, `Cache-Control: no-store, private`, `Pragma: no-cache`,
+  `X-Content-Type-Options: nosniff`, sandboxed Content Security Policy, and
+  `Cross-Origin-Resource-Policy: same-origin`. The `filename*` value is percent
+  encoded; CRLF and disposition delimiters remain filename data and cannot
+  create an additional response header.
+- This containment does not define a Notice attachment type, count, or byte
+  policy. Current accepted-file behavior remains unchanged pending WI-066.
+  Retained files are not moved or deleted; the V1 operational baseline remains
+  fresh-only.
 
 ---
 

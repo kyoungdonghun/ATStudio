@@ -16,7 +16,10 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.util.UriUtils;
 import org.springframework.web.bind.annotation.*;
+
+import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/api/notices")
@@ -84,9 +87,16 @@ public class NoticeController {
             @PathVariable Long noticeId,
             @PathVariable Long attachmentId) {
         Resource resource = noticeService.downloadAttachment(noticeId, attachmentId);
-        String filename = resource.getFilename() != null ? resource.getFilename() : "attachment";
+        String filename = UriUtils.encode(
+                resource.getFilename() != null ? resource.getFilename() : "attachment",
+                StandardCharsets.UTF_8);
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + filename)
+                .header(HttpHeaders.CACHE_CONTROL, "no-store, private")
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .header("X-Content-Type-Options", "nosniff")
+                .header("Content-Security-Policy", "default-src 'none'; sandbox")
+                .header("Cross-Origin-Resource-Policy", "same-origin")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(resource);
     }

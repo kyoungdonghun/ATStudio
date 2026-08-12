@@ -108,7 +108,7 @@ public class NoticeService {
                     .toList();
             storageMutationCoordinator.deleteAfterCommit(
                     StorageDomain.NOTICE,
-                    StorageRoot.PUBLIC,
+                    StorageRoot.PRIVATE,
                     toDelete.stream().map(NoticeAttachment::getFilePath).toList());
             for (NoticeAttachment attachment : toDelete) {
                 attachmentRepository.delete(attachment);
@@ -133,7 +133,7 @@ public class NoticeService {
         List<NoticeAttachment> attachments = attachmentRepository.findAllByNoticeId(noticeId);
         storageMutationCoordinator.deleteAfterCommit(
                 StorageDomain.NOTICE,
-                StorageRoot.PUBLIC,
+                StorageRoot.PRIVATE,
                 attachments.stream().map(NoticeAttachment::getFilePath).toList());
         attachmentRepository.deleteAllByNotice(notice);
 
@@ -150,7 +150,7 @@ public class NoticeService {
         NoticeAttachment attachment = attachmentRepository.findByIdAndNoticeId(attachmentId, noticeId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
-        return storageService.loadAsResource(StorageRoot.PUBLIC, attachment.getFilePath());
+        return storageService.loadAsResource(StorageRoot.PRIVATE, attachment.getFilePath());
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ public class NoticeService {
                 .toList();
         List<String> storedPaths = storageMutationCoordinator.storeAll(
                 StorageDomain.NOTICE,
-                StorageRoot.PUBLIC,
+                StorageRoot.PRIVATE,
                 nonEmptyFiles,
                 "notices/attachments");
         List<NoticeAttachment> attachments = new ArrayList<>();

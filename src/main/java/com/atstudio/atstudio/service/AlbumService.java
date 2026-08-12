@@ -15,6 +15,7 @@ import com.atstudio.atstudio.repository.AlbumTrackRepository;
 import com.atstudio.atstudio.repository.TrackRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
+import com.atstudio.atstudio.service.image.CanonicalImageService;
 import com.atstudio.atstudio.service.storage.StorageDomain;
 import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
 import com.atstudio.atstudio.service.storage.StorageRoot;
@@ -42,6 +43,7 @@ public class AlbumService {
     private final TrackRepository trackRepository;
     private final UserRepository userRepository;
     private final StorageMutationCoordinator storageMutationCoordinator;
+    private final CanonicalImageService canonicalImageService;
 
     // -- 15.1 POST /api/albums ------------------------------------------------
 
@@ -56,7 +58,7 @@ public class AlbumService {
                 ? storageMutationCoordinator.store(
                         StorageDomain.ALBUM,
                         StorageRoot.PUBLIC,
-                        thumbnailFile,
+                        canonicalImageService.canonicalizeThumbnail(thumbnailFile),
                         "albums/thumbnails")
                 : null;
 
@@ -120,7 +122,7 @@ public class AlbumService {
             thumbnailUrl = storageMutationCoordinator.replace(
                     StorageDomain.ALBUM,
                     StorageRoot.PUBLIC,
-                    thumbnailFile,
+                    canonicalImageService.canonicalizeThumbnail(thumbnailFile),
                     "albums/thumbnails",
                     album.getThumbnail());
         }

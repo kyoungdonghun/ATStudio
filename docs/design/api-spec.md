@@ -1,5 +1,5 @@
 ---
-version: 30.1
+version: 30.2
 last_updated: 2026-08-13
 project: ATS
 owner: SA
@@ -16,7 +16,7 @@ dependencies:
     reason: Current persistence contract
 ---
 
-# ATStudio API Specification v30.1
+# ATStudio API Specification v30.2
 
 ## Current Contract
 
@@ -71,6 +71,21 @@ application is authoritative for request and response schemas.
   correction workflow/success context.
 - Existing-Track audio analysis is exposed only as a read-only ADMIN dry-run.
   Applying a duration backfill remains a separately approved operation.
+- Album and Playlist thumbnail uploads accept the existing bounded JPEG/PNG
+  input contract, decode and re-encode supplied images once, and persist only a
+  generated `.jpg` key with canonical JPEG bytes. Their public static paths use
+  fixed JPEG, `nosniff`, sandboxed Content Security Policy, and same-origin
+  resource-policy headers. Downstream static resource MIME inference cannot
+  replace the fixed JPEG type, including for retained non-JPEG-extension keys;
+  unrelated uploads do not inherit those headers.
+- Notice attachments retain the current accepted-file behavior but new objects
+  are stored under the private root. Public download remains available only at
+  `GET /api/notices/{noticeId}/attachments/{attachmentId}` and forces an
+  octet-stream attachment with private/no-store, `nosniff`, sandboxed Content
+  Security Policy, and same-origin resource-policy headers. The `filename*`
+  value percent-encodes CRLF and disposition delimiters so filename data cannot
+  inject another response header. Exact type, count, and byte limits remain
+  pending WI-066; no retained-file migration is part of this contract.
 
 ## Controller Inventory
 
