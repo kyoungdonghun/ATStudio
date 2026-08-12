@@ -115,6 +115,8 @@ client.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    originalRequest._retry = true;
+
     if (isRefreshing) {
       return new Promise<string>((resolve, reject) => {
         failedQueue.push({ resolve, reject });
@@ -126,7 +128,6 @@ client.interceptors.response.use(
       });
     }
 
-    originalRequest._retry = true;
     isRefreshing = true;
 
     try {

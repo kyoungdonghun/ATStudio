@@ -315,6 +315,136 @@ describe('client auth refresh exclusions', () => {
     expect(result).toMatchObject({ data: { ok: true } });
   });
 
+  it('marks concurrent protected requests before one refresh replays each request once', async () => {
+    localStorage.setItem('refreshToken', 'old-refresh');
+    const refreshResponse = {
+      data: { data: { accessToken: 'new-access', refreshToken: 'new-refresh' } },
+    };
+    let resolveRefresh!: (value: typeof refreshResponse) => void;
+    const postSpy = vi.spyOn(axios, 'post').mockReturnValueOnce(
+      new Promise<typeof refreshResponse>((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
+    const createAdapter = (request: string) =>
+      vi.fn().mockResolvedValue({
+        data: { request },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {},
+      });
+    const leaderAdapter = createAdapter('leader');
+    const firstQueuedAdapter = createAdapter('first-queued');
+    const secondQueuedAdapter = createAdapter('second-queued');
+    const leaderConfig: Record<string, unknown> & { _retry?: boolean } = {
+      url: '/users/me',
+      method: 'get',
+      headers: {},
+      adapter: leaderAdapter,
+    };
+    const firstQueuedConfig: Record<string, unknown> & { _retry?: boolean } = {
+      url: '/licenses',
+      method: 'get',
+      headers: {},
+      adapter: firstQueuedAdapter,
+    };
+    const secondQueuedConfig: Record<string, unknown> & { _retry?: boolean } = {
+      url: '/downloads/history',
+      method: 'get',
+      headers: {},
+      adapter: secondQueuedAdapter,
+    };
+    const rejected = getRejectedResponseInterceptor();
+
+    const leaderResult = rejected({ config: leaderConfig, response: { status: 401 } });
+    await vi.waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    const leaderMarkedBeforeRefreshCompleted = leaderConfig._retry;
+
+    const firstQueuedResult = rejected({
+      config: firstQueuedConfig,
+      response: { status: 401 },
+    });
+    const secondQueuedResult = rejected({
+      config: secondQueuedConfig,
+      response: { status: 401 },
+    });
+    const queuedMarkersBeforeReplay = [firstQueuedConfig._retry, secondQueuedConfig._retry];
+    expect(leaderAdapter).not.toHaveBeenCalled();
+    expect(firstQueuedAdapter).not.toHaveBeenCalled();
+    expect(secondQueuedAdapter).not.toHaveBeenCalled();
+
+    resolveRefresh(refreshResponse);
+    await expect(
+      Promise.all([leaderResult, firstQueuedResult, secondQueuedResult]),
+    ).resolves.toHaveLength(3);
+
+    expect(leaderMarkedBeforeRefreshCompleted).toBe(true);
+    expect(queuedMarkersBeforeReplay).toEqual([true, true]);
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(leaderAdapter).toHaveBeenCalledTimes(1);
+    expect(firstQueuedAdapter).toHaveBeenCalledTimes(1);
+    expect(secondQueuedAdapter).toHaveBeenCalledTimes(1);
+    expect(leaderAdapter.mock.calls[0]?.[0]).toMatchObject({ _retry: true });
+    expect(firstQueuedAdapter.mock.calls[0]?.[0]).toMatchObject({ _retry: true });
+    expect(secondQueuedAdapter.mock.calls[0]?.[0]).toMatchObject({ _retry: true });
+  });
+
+  it('rejects a queued replay second 401 without another refresh or replay', async () => {
+    localStorage.setItem('refreshToken', 'old-refresh');
+    const refreshResponse = {
+      data: { data: { accessToken: 'new-access', refreshToken: 'new-refresh' } },
+    };
+    let resolveRefresh!: (value: typeof refreshResponse) => void;
+    const unexpectedRefreshError = new Error('unexpected second refresh');
+    const postSpy = vi
+      .spyOn(axios, 'post')
+      .mockReturnValueOnce(
+        new Promise<typeof refreshResponse>((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      )
+      .mockRejectedValue(unexpectedRefreshError);
+    const leaderAdapter = vi.fn().mockResolvedValue({
+      data: { ok: true },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    });
+    const queuedReplayErrors: unknown[] = [];
+    const queuedAdapter = vi.fn().mockImplementation((config) => {
+      const replayError = { config, response: { status: 401 } };
+      queuedReplayErrors.push(replayError);
+      return Promise.reject(replayError);
+    });
+    const rejected = getRejectedResponseInterceptor();
+
+    const leaderResult = rejected({
+      config: { url: '/users/me', method: 'get', headers: {}, adapter: leaderAdapter },
+      response: { status: 401 },
+    });
+    await vi.waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    const queuedResult = rejected({
+      config: { url: '/licenses', method: 'get', headers: {}, adapter: queuedAdapter },
+      response: { status: 401 },
+    });
+    const outcomes = Promise.allSettled([leaderResult, queuedResult]);
+
+    resolveRefresh(refreshResponse);
+    await vi.waitFor(() => expect(queuedAdapter).toHaveBeenCalledTimes(1));
+    const second401 = queuedReplayErrors[0];
+    const [leaderOutcome, queuedOutcome] = await outcomes;
+
+    expect(leaderOutcome).toMatchObject({ status: 'fulfilled' });
+    expect(queuedOutcome).toEqual({ status: 'rejected', reason: second401 });
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(leaderAdapter).toHaveBeenCalledTimes(1);
+    expect(queuedAdapter).toHaveBeenCalledTimes(1);
+    expect(clearSessionMock).not.toHaveBeenCalled();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
   it('fails closed without retrying when the refreshed access token cannot be stored', async () => {
     localStorage.setItem('accessToken', 'expired-access');
     localStorage.setItem('refreshToken', 'old-refresh');

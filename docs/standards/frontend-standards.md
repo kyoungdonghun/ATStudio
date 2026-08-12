@@ -1,6 +1,6 @@
 ---
-version: 2.3
-last_updated: 2026-07-17
+version: 2.4
+last_updated: 2026-08-13
 project: ATS
 owner: SA
 category: standard
@@ -26,7 +26,7 @@ task_types:
 
 # Frontend Standards (React + TypeScript)
 
-> **Purpose:** Define the frontend architecture, coding standards, and patterns for ATStudio's React SPA. This document reflects the **actual implemented** state as of 2026-04-15.
+> **Purpose:** Define the frontend architecture, coding standards, and patterns for ATStudio's React SPA. This document reflects the **actual implemented** state as of 2026-08-13.
 
 ---
 
@@ -200,6 +200,13 @@ Refresh is skipped for login / social-login / refresh endpoints themselves, so c
 ### 4.4 Concurrent 401 Race Condition Prevention
 
 Uses a queue pattern (`failedQueue`) — all concurrent 401 responses wait for a single refresh call to complete, then replay with the new token.
+
+Every eligible protected request receives the internal retry marker before it
+starts refresh or joins the in-flight refresh queue. A successful refresh
+replays each marked request at most once. If a replay receives another `401`,
+the interceptor rejects that second failure without another refresh, queue
+entry, or replay. `skipAuthReplay` requests and authentication endpoint
+exclusions remain outside refresh and queue processing.
 
 ### 4.5 FormData Handling
 

@@ -1,5 +1,5 @@
 ---
-version: 2.1
+version: 2.2
 last_updated: 2026-08-13
 project: ATS
 owner: PG
@@ -137,6 +137,14 @@ task_types:
 - `/api/admin/payments/**` remains the separate ADMIN operations surface. USER recurring billing behavior and already-paid cancellation access are unchanged.
 
 **Token storage:** JWT access token and refresh token are stored in **browser localStorage** (not httpOnly cookie). Frontend reads token from `localStorage` and sends as `Authorization: Bearer <token>` header via Axios interceptor.
+
+**Authentication replay:** Each eligible protected request is internally marked
+before starting or joining the single in-flight refresh operation. Concurrent
+first `401` responses share that one refresh and each marked request is replayed
+at most once. A replayed request that receives another `401` fails closed with
+that second response; it does not refresh, re-enter the queue, or replay again.
+Authentication endpoint exclusions and explicit `skipAuthReplay` requests do
+not enter refresh or replay processing.
 
 **Current state:** `application.yml` no longer carries a fallback JWT secret, and local-only conveniences (DDL auto-update, SQL logging, localhost mail/OAuth redirects) belong in the gitignored root `application-local.yml`.
 Local password auth availability is controlled by `APP_AUTH_PASSWORD_LOGIN_ENABLED` / `app.auth.password-login.enabled`. When disabled, `/api/utils/public-capabilities` reports `passwordLoginEnabled=false`, and local email/password login, signup, verification mail, and password reset must be treated as unavailable.

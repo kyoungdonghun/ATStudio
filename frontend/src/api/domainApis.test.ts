@@ -410,12 +410,12 @@ describe('domain API contracts', () => {
     ]);
     await playlists.updatePlaylist(4, { title: 'Mix 2' });
     await playlists.addTrackToPlaylist(4, 9);
-    await playlists.reorderTracks(4, [{ trackId: 9, trackOrder: 2 }]);
+    await playlists.reorderTracks(4, [{ trackId: 9, trackOrder: 0 }]);
     await playlists.removeTrackFromPlaylist(4, 9);
     await playlists.deletePlaylist(4);
     expect(mockedClient.post).toHaveBeenCalledWith('/playlists/4/tracks', { trackId: 9 });
     expect(mockedClient.put).toHaveBeenCalledWith('/playlists/4/tracks', {
-      tracks: [{ trackId: 9, trackOrder: 2 }],
+      tracks: [{ trackId: 9, trackOrder: 0 }],
     });
   });
 

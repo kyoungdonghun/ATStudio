@@ -1,5 +1,5 @@
 ---
-version: 30.0
+version: 30.1
 last_updated: 2026-08-13
 project: ATS
 owner: SA
@@ -16,7 +16,7 @@ dependencies:
     reason: Current persistence contract
 ---
 
-# ATStudio API Specification v30.0
+# ATStudio API Specification v30.1
 
 ## Current Contract
 
@@ -333,6 +333,12 @@ refresh-queue entry, or request replay. Other protected requests retain the
 normal authentication refresh behavior. If an execute response is rejected or
 lost, the SPA performs one bounded matching detail GET and never repeats the
 execute POST.
+
+For normal authentication replay, every eligible protected request receives an
+internal retry marker before it starts refresh or joins the one in-flight
+refresh queue. Concurrent first `401` responses share one refresh, and each
+marked request is replayed at most once. A replay that receives another `401`
+rejects that second response without another refresh, queue entry, or replay.
 
 | UI outcome | Refund durable predicate | Entitlement-correction durable predicate |
 | --- | --- | --- |

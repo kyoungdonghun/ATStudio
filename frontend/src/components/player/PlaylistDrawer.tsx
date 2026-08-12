@@ -181,12 +181,13 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
       return;
     }
 
+    const previousDetail = selectedPl;
     const tracks = [...selectedPl.tracks];
     const [moved] = tracks.splice(dragIdx.current, 1);
     tracks.splice(idx, 0, moved);
 
     // Optimistic update
-    const reordered = tracks.map((t, i) => ({ ...t, trackOrder: i + 1 }));
+    const reordered = tracks.map((t, i) => ({ ...t, trackOrder: i }));
     setSelectedPl({ ...selectedPl, tracks: reordered });
     dragIdx.current = null;
     setDragOverIdx(null);
@@ -198,9 +199,13 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
         reordered.map((t) => ({ trackId: t.trackId, trackOrder: t.trackOrder })),
       );
     } catch {
-      // Revert on error
-      const detail = await fetchPlaylistDetail(selectedPl.id);
-      setSelectedPl(detail);
+      setSelectedPl(previousDetail);
+      try {
+        const detail = await fetchPlaylistDetail(selectedPl.id);
+        setSelectedPl(detail);
+      } catch {
+        // Keep the last confirmed detail when the authoritative reload also fails.
+      }
     }
   }
 

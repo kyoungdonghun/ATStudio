@@ -46,7 +46,7 @@ const detail = {
   ...playlist,
   tracks: [
     {
-      trackOrder: 1,
+      trackOrder: 0,
       trackId: 11,
       title: 'Song A',
       artistName: 'Artist',
@@ -57,7 +57,7 @@ const detail = {
       tonality: 'C',
     },
     {
-      trackOrder: 2,
+      trackOrder: 1,
       trackId: 12,
       title: 'Song B',
       artistName: 'Artist',
@@ -220,8 +220,15 @@ describe('player auxiliary components', () => {
     await waitFor(() => expect(show).toHaveBeenCalledWith('error', expect.any(String)));
   });
 
-  it('reorders playlist tracks through drag and drop', async () => {
-    render(<PlaylistDrawer open onClose={vi.fn()} />);
+  it('optimistically reorders playlist tracks and submits exact zero-based orders', async () => {
+    let resolveReorder: (() => void) | undefined;
+    api.reorderTracks.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveReorder = resolve;
+        }),
+    );
+    const { container } = render(<PlaylistDrawer open onClose={vi.fn()} />);
     fireEvent.click(await screen.findByText('Focus List'));
     await screen.findByText('Song B');
     const firstTrack = screen.getByText('Song A').closest('li')!;
@@ -229,12 +236,118 @@ describe('player auxiliary components', () => {
     fireEvent.dragStart(firstTrack);
     fireEvent.dragOver(secondTrack);
     fireEvent.drop(secondTrack);
+
+    expect(
+      Array.from(container.querySelectorAll('[class*="trackItem"] [class*="trackTitle"]')).map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(['Song B', 'Song A']);
     await waitFor(() =>
       expect(api.reorderTracks).toHaveBeenCalledWith(3, [
-        { trackId: 12, trackOrder: 1 },
-        { trackId: 11, trackOrder: 2 },
+        { trackId: 12, trackOrder: 0 },
+        { trackId: 11, trackOrder: 1 },
       ]),
     );
+    expect(api.reorderTracks).toHaveBeenCalledTimes(1);
+    resolveReorder?.();
+  });
+
+  it('does not reorder without a valid drag source or when dropped in the original position', async () => {
+    render(<PlaylistDrawer open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    await screen.findByText('Song B');
+    const firstTrack = screen.getByText('Song A').closest('li')!;
+    const secondTrack = screen.getByText('Song B').closest('li')!;
+
+    fireEvent.drop(secondTrack);
+    fireEvent.dragStart(firstTrack);
+    fireEvent.drop(firstTrack);
+
+    expect(api.reorderTracks).not.toHaveBeenCalled();
+  });
+
+  it('reloads authoritative detail once when a reorder is rejected', async () => {
+    api.reorderTracks.mockRejectedValueOnce(new Error('reorder rejected'));
+    const authoritativeDetail = {
+      ...detail,
+      tracks: detail.tracks.map((track) => ({ ...track })),
+    };
+    api.fetchPlaylistDetail
+      .mockResolvedValueOnce(detail)
+      .mockResolvedValueOnce(authoritativeDetail);
+    const { container } = render(<PlaylistDrawer open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    await screen.findByText('Song B');
+    const firstTrack = screen.getByText('Song A').closest('li')!;
+    const secondTrack = screen.getByText('Song B').closest('li')!;
+
+    fireEvent.dragStart(firstTrack);
+    fireEvent.drop(secondTrack);
+
+    await waitFor(() => {
+      expect(
+        Array.from(container.querySelectorAll('[class*="trackItem"] [class*="trackTitle"]')).map(
+          (node) => node.textContent,
+        ),
+      ).toEqual(['Song A', 'Song B']);
+    });
+    expect(api.reorderTracks).toHaveBeenCalledTimes(1);
+    expect(api.fetchPlaylistDetail).toHaveBeenCalledTimes(2);
+    expect(api.fetchPlaylistDetail).toHaveBeenLastCalledWith(3);
+  });
+
+  it('keeps the last confirmed order when the rejection reload also fails', async () => {
+    api.reorderTracks.mockRejectedValueOnce(new Error('reorder rejected'));
+    api.fetchPlaylistDetail
+      .mockResolvedValueOnce(detail)
+      .mockRejectedValueOnce(new Error('reload failed'));
+    const { container } = render(<PlaylistDrawer open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    await screen.findByText('Song B');
+    const firstTrack = screen.getByText('Song A').closest('li')!;
+    const secondTrack = screen.getByText('Song B').closest('li')!;
+
+    fireEvent.dragStart(firstTrack);
+    fireEvent.drop(secondTrack);
+
+    await waitFor(() => expect(api.fetchPlaylistDetail).toHaveBeenCalledTimes(2));
+    expect(
+      Array.from(container.querySelectorAll('[class*="trackItem"] [class*="trackTitle"]')).map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(['Song A', 'Song B']);
+    expect(api.reorderTracks).toHaveBeenCalledTimes(1);
+    expect(api.fetchPlaylistDetail).toHaveBeenLastCalledWith(3);
+  });
+
+  it('submits the same zero-based reorder contract through touch drag', async () => {
+    render(<PlaylistDrawer open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    await screen.findByText('Song B');
+    const firstTrack = screen.getByText('Song A').closest('li')!;
+    const secondTrack = screen.getByText('Song B').closest('li')!;
+    const list = firstTrack.closest('ul')!;
+    vi.spyOn(firstTrack, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      bottom: 49,
+    } as DOMRect);
+    vi.spyOn(secondTrack, 'getBoundingClientRect').mockReturnValue({
+      top: 50,
+      bottom: 99,
+    } as DOMRect);
+
+    fireEvent.touchStart(firstTrack.querySelector('[class*="dragHandle"]')!, {
+      touches: [{ clientY: 25 }],
+    });
+    fireEvent.touchEnd(list, { changedTouches: [{ clientY: 75 }] });
+
+    await waitFor(() =>
+      expect(api.reorderTracks).toHaveBeenCalledWith(3, [
+        { trackId: 12, trackOrder: 0 },
+        { trackId: 11, trackOrder: 1 },
+      ]),
+    );
+    expect(api.reorderTracks).toHaveBeenCalledTimes(1);
   });
 
   it('loads liked tracks and plays the selected item', async () => {
