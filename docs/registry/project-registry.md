@@ -1,5 +1,5 @@
 ---
-version: 2.2
+version: 2.3
 last_updated: 2026-08-13
 project: ATS
 owner: EO
@@ -38,9 +38,9 @@ No separate client-demo branch is maintained for ATStudio V1.
 
 | Category | Count | Reference |
 | :-- | :-- | :-- |
-| Backend REST APIs | 149 method-level mappings | `docs/design/api-spec.md` v30.0 |
-| DB Tables / JPA Entities | 42 / 42 | `docs/design/db-schema.md` v24.0 |
-| V1 DB Manifest | Current 42/506/173/90/6 fresh-MySQL manifest recorded; DG-067-09B `RUN-PASS-CLEANED`; predecessor 41-table evidence historical only | `docs/design/db-schema.md` v24.0 |
+| Backend REST APIs | 150 method-level mappings | `docs/design/api-spec.md` v30.3 |
+| DB Tables / JPA Entities | 42 / 42 | `docs/design/db-schema.md` v24.2 |
+| V1 DB Manifest | Current 42/506/173/90/6 fresh-MySQL manifest recorded; DG-067-09B `RUN-PASS-CLEANED`; predecessor 41-table evidence historical only | `docs/design/db-schema.md` v24.2 |
 | Frontend Screens | 53 distinct visual page UIs | `docs/ui/atstudio-front-list.md` |
 | Agents | 13 | `docs/architecture/system-design.md` §2.4 |
 | SR Items completed | 82 | `docs/SR/index.md` |

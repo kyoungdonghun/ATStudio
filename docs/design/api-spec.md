@@ -1,5 +1,5 @@
 ---
-version: 30.2
+version: 30.3
 last_updated: 2026-08-13
 project: ATS
 owner: SA
@@ -16,11 +16,11 @@ dependencies:
     reason: Current persistence contract
 ---
 
-# ATStudio API Specification v30.2
+# ATStudio API Specification v30.3
 
 ## Current Contract
 
-The current V1 backend exposes **149 method-level mappings across 25 controller
+The current V1 backend exposes **150 method-level mappings across 25 controller
 classes**. This count is derived from the current Java source by counting
 method-level `@GetMapping`, `@PostMapping`, `@PutMapping`,
 `@PatchMapping`, and `@DeleteMapping` annotations. Class-level
@@ -28,12 +28,12 @@ method-level `@GetMapping`, `@PostMapping`, `@PutMapping`,
 
 | Verb      |   Count |
 | --------- | ------: |
-| GET       |      74 |
+| GET       |      75 |
 | POST      |      41 |
 | PUT       |      20 |
 | DELETE    |      14 |
 | PATCH     |       0 |
-| **Total** | **149** |
+| **Total** | **150** |
 
 `SecurityConfig` is authoritative for authorization. Controller annotations are
 authoritative for paths and verbs. OpenAPI output generated from the running
@@ -96,7 +96,7 @@ application is authoritative for request and response schemas.
 | `AdminStatsController`                      |        1 | ADMIN dashboard statistics                                                                    |
 | `AdminTrackAudioAnalysisController`         |        1 | ADMIN read-only existing-Track audio-analysis dry-run                                         |
 | `AdminUserSubscriptionCorrectionController` |        7 | ADMIN local subscription correction workflow                                                  |
-| `AdminWhitelistChannelController`           |        4 | ADMIN whitelist review and export                                                             |
+| `AdminWhitelistChannelController`           |        5 | ADMIN whitelist review, export, and owner-scoped recovery                                      |
 | `AlbumController`                           |        8 | Public album reads and ADMIN mutations                                                        |
 | `AuthController`                            |        7 | Login, logout, refresh, social auth, email and password flows                                 |
 | `CompanyCertificationController`            |        7 | BUSINESS submission and ADMIN review/document access                                          |
@@ -321,7 +321,7 @@ production readiness.
 
 WI-035 uses the two existing detail mappings below. WI-056 later added three
 Settlement import-attempt GET mappings, so `AdminPaymentController` is now at
-**27** and the current backend is at **149** method-level mappings:
+**27** and the current backend is at **150** method-level mappings:
 
 - `GET /api/admin/payments/refunds/{refundId}`
 - `GET /api/admin/payments/entitlement-corrections/{correctionId}`
@@ -393,14 +393,52 @@ and the recovery UI renders none of those debt fields. A later approved change
 should omit or mask the raw idempotency key, retain actor email only for a
 documented operational need, and sanitize or omit failure text.
 
-### Settings, Dashboard, and Whitelist Admin (6)
+### Settings, Dashboard, and Whitelist Admin (7)
 
 - `PUT /api/admin/settings/{key}`
 - `GET /api/admin/stats`
 - `GET /api/admin/whitelist-channels`
 - `PUT /api/admin/whitelist-channels/{channelId}/status`
 - `POST /api/admin/whitelist-channels/export`
+- `GET /api/admin/whitelist-channels/exports/recent`
 - `GET /api/admin/whitelist-channels/exports/{batchID}`
+
+#### ADMIN Whitelist Export Recovery Contract
+
+Whitelist export remains an ADMIN-only mutation. Its request scope consists of
+an optional exact status and an optional applied keyword; at least one must be
+present after trimming blank keyword input. Confirmation copy is derived from
+that applied request scope, not from an unapplied draft input. An all-status
+keyword export includes every matching status and changes matching `PENDING`
+rows to `EXPORTED`; other matching statuses remain unchanged. An explicit
+`PENDING` export changes every matching row to `EXPORTED`, while an explicit
+non-`PENDING` export does not change channel status.
+
+`GET /api/admin/whitelist-channels/exports/recent` is the read-only recovery
+lookup for an export whose POST response was not definitive. It accepts the
+same `status` and `keyword` scope, trims blank keyword input, and compares
+keyword scope case-insensitively because channel search is case-insensitive.
+After trimming, a non-null keyword is limited to 100 characters, matching
+`AdminWhitelistExportRequest`; an oversized or unscoped request returns the
+existing HTTP `400 INVALID_ARGUMENT` result before repository access. The
+repository query requires the authenticated ADMIN's ID and exact normalized
+status/keyword scope, orders by `createdAt` descending then batch ID descending,
+and applies a repository-level maximum of 10 rows.
+
+Each recent row contains only `batchId`, `fileName`, `itemCount`, recorded
+`status`, recorded `keyword`, and `createdAt`. It does not load or return batch
+items or CSV bytes and never performs a channel/status mutation. The existing
+`GET /api/admin/whitelist-channels/exports/{batchID}` remains the only byte
+replay path.
+
+When the SPA receives a definitive 4xx export result, it reports a normal
+failure without claiming that a batch committed. When the result is ambiguous,
+it issues one exact-scope recent lookup, performs no automatic second export
+POST, and offers only explicit replay of returned candidate batch IDs. The
+export request opts out of the shared authentication refresh/replay path so a
+`401` cannot cause an interceptor-driven second POST. A failed current list
+request clears rows, pagination, and pending row edits; stale list success,
+failure, and completion paths cannot replace a newer request state.
 
 ### ADMIN Subscription Correction and Track Analysis (8)
 
@@ -740,4 +778,4 @@ $controllers = Get-ChildItem src/main/java/com/atstudio/atstudio/controller -Fil
 ($controllers | Select-String '^\s*@(Get|Post|Put|Patch|Delete)Mapping\b').Count
 ```
 
-Expected result: `149`.
+Expected result: `150`.

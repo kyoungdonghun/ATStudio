@@ -8,6 +8,7 @@ import com.atstudio.atstudio.config.WhitelistExportProperties;
 import com.atstudio.atstudio.dto.whitelist.AdminWhitelistChannelResponse;
 import com.atstudio.atstudio.dto.whitelist.AdminWhitelistExportFile;
 import com.atstudio.atstudio.dto.whitelist.AdminWhitelistExportRequest;
+import com.atstudio.atstudio.dto.whitelist.AdminWhitelistExportSummaryResponse;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.WhitelistChannel;
@@ -42,6 +43,8 @@ import java.util.Set;
 public class AdminWhitelistChannelService {
 
     private static final int ADMIN_PAGE_MAX_SIZE = 100;
+    private static final int EXPORT_SCOPE_KEYWORD_MAX_LENGTH = 100;
+    private static final int RECENT_EXPORT_MAX_ITEMS = 10;
     private static final DateTimeFormatter FILE_TS = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final Map<WhitelistChannelStatus, Set<WhitelistChannelStatus>> STATUS_TRANSITIONS = Map.of(
             WhitelistChannelStatus.DRAFT, Set.of(),
@@ -218,6 +221,30 @@ public class AdminWhitelistChannelService {
         whitelistExportItemRepository.saveAll(items);
 
         return exportFile(batch, items);
+    }
+
+    public List<AdminWhitelistExportSummaryResponse> listRecentExports(
+            CustomUserDetails userDetails,
+            WhitelistChannelStatus status,
+            String keyword
+    ) {
+        String normalizedKeyword = normalizeBlank(keyword);
+        if (normalizedKeyword != null
+                && normalizedKeyword.length() > EXPORT_SCOPE_KEYWORD_MAX_LENGTH) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+        if (status == null && normalizedKeyword == null) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
+        String normalizedScopeKeyword = normalizedKeyword == null
+                ? null
+                : normalizedKeyword.toLowerCase(Locale.ROOT);
+        return whitelistExportBatchRepository.findRecentSummariesByOwnerAndExactScope(
+                userDetails.getId(),
+                status,
+                normalizedScopeKeyword,
+                PageRequest.of(0, RECENT_EXPORT_MAX_ITEMS));
     }
 
     public AdminWhitelistExportFile downloadExportBatch(Long batchID) {

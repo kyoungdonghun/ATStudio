@@ -1,5 +1,5 @@
 ---
-version: 2.3
+version: 2.4
 last_updated: 2026-08-13
 project: ATS
 owner: PG
@@ -210,6 +210,8 @@ Email delivery logs are correlation metadata, not a payload fallback.
 - CSV output contains only the minimum operational fields. It must not add user IDs, nicknames, phone numbers, addresses, tokens, or payment identifiers.
 - Every text cell remains CSV-formula neutralized before quoting. Re-download must reconstruct the file only from the stored batch/item snapshot in its original order.
 - Export filters, CSV contents, email values, and item snapshots must not be written to application logs. Operational logs may use only the batch identifier, result category, and aggregate count.
+- Recent export recovery is ADMIN-only and derives ownership from the authenticated ADMIN principal. It returns at most 10 batches for the exact normalized status/keyword scope, newest first, and exposes only batch ID, filename, item count, recorded scope, and creation time. It must not expose another ADMIN's batch metadata, export items, email values, channel snapshots, or CSV bytes.
+- An ambiguous export response must not trigger an automatic export POST retry. The export POST opts out of shared authentication replay, recovery uses the read-only recent lookup, and bytes are obtained only by an explicit known-batch replay request.
 
 ### 6.8 Company Certification Documents and Accountability
 

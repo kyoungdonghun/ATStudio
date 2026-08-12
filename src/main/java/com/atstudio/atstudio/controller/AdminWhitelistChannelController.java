@@ -5,6 +5,7 @@ import com.atstudio.atstudio.dto.whitelist.AdminWhitelistChannelResponse;
 import com.atstudio.atstudio.dto.whitelist.AdminWhitelistChannelStatusRequest;
 import com.atstudio.atstudio.dto.whitelist.AdminWhitelistExportFile;
 import com.atstudio.atstudio.dto.whitelist.AdminWhitelistExportRequest;
+import com.atstudio.atstudio.dto.whitelist.AdminWhitelistExportSummaryResponse;
 import com.atstudio.atstudio.entity.enums.WhitelistChannelStatus;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.AdminWhitelistChannelService;
@@ -72,6 +73,17 @@ public class AdminWhitelistChannelController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<byte[]> downloadExportBatch(@PathVariable Long batchID) {
         return exportResponse(adminWhitelistChannelService.downloadExportBatch(batchID));
+    }
+
+    @GetMapping("/exports/recent")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminWhitelistExportSummaryResponse>> listRecentExports(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(required = false) WhitelistChannelStatus status,
+            @RequestParam(required = false) String keyword) {
+        return ResponseEntity.ok(ResponseDTO.<AdminWhitelistExportSummaryResponse>withAll()
+                .dataList(adminWhitelistChannelService.listRecentExports(userDetails, status, keyword))
+                .build());
     }
 
     private ResponseEntity<byte[]> exportResponse(AdminWhitelistExportFile file) {

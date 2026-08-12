@@ -203,13 +203,33 @@ export interface AdminWhitelistExportRequest {
   note?: string;
 }
 
+export interface AdminWhitelistExportSummary {
+  batchId: number;
+  fileName: string;
+  itemCount: number;
+  status: WhitelistChannelStatus | null;
+  keyword: string | null;
+  createdAt: string;
+}
+
 export async function exportAdminWhitelistChannels(
   request: AdminWhitelistExportRequest,
 ): Promise<{ batchId: number; blob: Blob; fileName: string }> {
   const response = await client.post<Blob>('/admin/whitelist-channels/export', request, {
     responseType: 'blob',
+    skipAuthReplay: true,
   });
   return whitelistExportResponse(response);
+}
+
+export async function fetchRecentAdminWhitelistExports(
+  scope: AdminWhitelistExportRequest,
+): Promise<AdminWhitelistExportSummary[]> {
+  const { data } = await client.get<{ dataList: AdminWhitelistExportSummary[] }>(
+    '/admin/whitelist-channels/exports/recent',
+    { params: { status: scope.status, keyword: scope.keyword } },
+  );
+  return data.dataList;
 }
 
 export async function downloadAdminWhitelistExportBatch(

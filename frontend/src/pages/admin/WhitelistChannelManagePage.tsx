@@ -4,8 +4,10 @@ import {
   downloadAdminWhitelistExportBatch,
   exportAdminWhitelistChannels,
   fetchAdminWhitelistChannels,
+  fetchRecentAdminWhitelistExports,
   updateAdminWhitelistChannelStatus,
   type AdminWhitelistChannel,
+  type AdminWhitelistExportSummary,
 } from '@/api/admin';
 import Button from '@/components/ui/Button';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -63,6 +65,25 @@ function downloadBlob(blob: Blob, fileName: string) {
   URL.revokeObjectURL(url);
 }
 
+function exportConfirmationMessage(status: WhitelistChannelStatus | '', keyword: string): string {
+  const statusScope = status ? `${STATUS_LABELS[status]}(${status})` : '전체(모든 상태)';
+  const keywordScope = keyword ? `"${keyword}"` : '적용 안 함';
+  const scope = `적용 범위는 상태: ${statusScope}, 검색어: ${keywordScope}입니다.`;
+
+  if (!status) {
+    return `${scope} 일치하는 모든 상태의 채널을 CSV로 내보냅니다. 그중 등록 요청(PENDING) 채널은 외부 처리 중(EXPORTED)으로 전환되고, 다른 상태는 변경되지 않습니다.`;
+  }
+  if (status === 'PENDING') {
+    return `${scope} 일치하는 채널을 CSV로 내보내고 모두 외부 처리 중(EXPORTED)으로 전환합니다.`;
+  }
+  return `${scope} 일치하는 채널을 CSV로 내보냅니다. 채널 상태는 변경되지 않습니다.`;
+}
+
+function isDefinitiveClientFailure(error: unknown): boolean {
+  const status = (error as { response?: { status?: number } })?.response?.status;
+  return typeof status === 'number' && status >= 400 && status < 500;
+}
+
 export default function WhitelistChannelManagePage() {
   const [channels, setChannels] = useState<AdminWhitelistChannel[]>([]);
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
@@ -76,6 +97,8 @@ export default function WhitelistChannelManagePage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [batchIDInput, setBatchIDInput] = useState('');
+  const [recentExports, setRecentExports] = useState<AdminWhitelistExportSummary[]>([]);
+  const [exportOutcomeUnknown, setExportOutcomeUnknown] = useState(false);
   const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
   const [confirmationBusy, setConfirmationBusy] = useState(false);
   const listRequestId = useRef(0);
@@ -104,6 +127,9 @@ export default function WhitelistChannelManagePage() {
       );
     } catch {
       if (currentRequestId !== listRequestId.current) return;
+      setChannels([]);
+      setPageInfo(null);
+      setEdits({});
       setError('화이트리스트 채널 목록을 불러오지 못했습니다.');
     } finally {
       if (currentRequestId === listRequestId.current) {
@@ -185,23 +211,44 @@ export default function WhitelistChannelManagePage() {
     };
     requestConfirmation({
       title: '화이트리스트 CSV 내보내기',
-      message:
-        statusFilter === 'PENDING'
-          ? '등록 요청 상태의 채널을 CSV로 내보내고 외부 처리 중 상태로 전환할까요?'
-          : '현재 선택한 상태의 채널을 CSV로 내보낼까요? 상태는 변경되지 않습니다.',
+      message: exportConfirmationMessage(statusFilter, keyword),
       confirmLabel: '내보내기',
       action: async () => {
         try {
           setBusy('export');
           setError(null);
           setMessage(null);
+          setRecentExports([]);
+          setExportOutcomeUnknown(false);
           const { batchId, blob, fileName } = await exportAdminWhitelistChannels(request);
           downloadBlob(blob, fileName);
           setBatchIDInput(String(batchId));
           setMessage(`CSV export가 완료되었습니다. Batch ${batchId}`);
           await load();
-        } catch {
-          setError('CSV export에 실패했습니다.');
+        } catch (exportError) {
+          if (isDefinitiveClientFailure(exportError)) {
+            setError('CSV export에 실패했습니다.');
+            return;
+          }
+
+          listRequestId.current += 1;
+          setLoading(false);
+          setChannels([]);
+          setPageInfo(null);
+          setEdits({});
+          setExportOutcomeUnknown(true);
+          try {
+            const candidates = await fetchRecentAdminWhitelistExports(request);
+            setRecentExports(candidates);
+            setError(
+              'CSV 내보내기 결과를 확인할 수 없습니다. 같은 범위의 최근 batch를 확인했습니다.',
+            );
+          } catch {
+            setRecentExports([]);
+            setError(
+              'CSV 내보내기 결과를 확인할 수 없습니다. 같은 범위의 최근 batch 조회도 실패했습니다.',
+            );
+          }
         } finally {
           setBusy(null);
         }
@@ -209,8 +256,8 @@ export default function WhitelistChannelManagePage() {
     });
   }
 
-  async function handleBatchDownload() {
-    const batchID = Number(batchIDInput);
+  async function handleBatchDownload(requestedBatchID?: number) {
+    const batchID = requestedBatchID ?? Number(batchIDInput);
     if (!Number.isInteger(batchID) || batchID <= 0) {
       setError('올바른 export batch ID를 입력해주세요.');
       return;
@@ -222,6 +269,7 @@ export default function WhitelistChannelManagePage() {
       setMessage(null);
       const { blob, fileName } = await downloadAdminWhitelistExportBatch(batchID);
       downloadBlob(blob, fileName);
+      setBatchIDInput(String(batchID));
       setMessage(`Batch ${batchID} CSV를 다시 내려받았습니다.`);
     } catch {
       setError('Export batch 재다운로드에 실패했습니다.');
@@ -298,6 +346,38 @@ export default function WhitelistChannelManagePage() {
 
       {message && <div className={styles.success}>{message}</div>}
       {error && <div className={styles.error}>{error}</div>}
+
+      {exportOutcomeUnknown && (
+        <section className={styles.recovery} aria-labelledby="recent-export-heading">
+          <h2 id="recent-export-heading">{'같은 범위의 최근 export batch'}</h2>
+          {recentExports.length === 0 ? (
+            <p>{'확인된 후보 batch가 없습니다.'}</p>
+          ) : (
+            <ul className={styles.recoveryList}>
+              {recentExports.map((batch) => (
+                <li key={batch.batchId} className={styles.recoveryItem}>
+                  <div>
+                    <strong>{batch.fileName}</strong>
+                    <span>{`Batch ${batch.batchId}`}</span>
+                    <span>{`${batch.itemCount}건`}</span>
+                    <span>{`상태: ${batch.status ? `${STATUS_LABELS[batch.status]}(${batch.status})` : '전체'}`}</span>
+                    <span>{`검색어: ${batch.keyword ? `"${batch.keyword}"` : '적용 안 함'}`}</span>
+                    <time dateTime={batch.createdAt}>{formatDateTime(batch.createdAt)}</time>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleBatchDownload(batch.batchId)}
+                    loading={busy === 'batch-download'}
+                  >
+                    {`Batch ${batch.batchId} 다시 받기`}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {loading ? (
         <div className={styles.loading}>{'Loading...'}</div>

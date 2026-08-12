@@ -5,6 +5,7 @@ import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.config.WhitelistExportProperties;
 import com.atstudio.atstudio.dto.whitelist.AdminWhitelistExportFile;
 import com.atstudio.atstudio.dto.whitelist.AdminWhitelistExportRequest;
+import com.atstudio.atstudio.dto.whitelist.AdminWhitelistExportSummaryResponse;
 import com.atstudio.atstudio.entity.Subscription;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
@@ -30,10 +31,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -283,6 +286,52 @@ class AdminWhitelistChannelServiceTest {
     }
 
     @Test
+    @DisplayName("ALL keyword export transitions only PENDING and snapshots each original status")
+    void allKeywordExportTransitionsOnlyPendingAndSnapshotsOriginalStatuses() {
+        User admin = user(99L, "admin@test.com", UserRole.ADMIN);
+        User user = user(1L, "user@test.com", UserRole.USER);
+        WhitelistChannel pendingChannel = channel(7L, user);
+        pendingChannel.requestRegistration();
+        WhitelistChannel registeredChannel = channel(8L, user);
+        registeredChannel.updateAdminStatus(
+                WhitelistChannelStatus.REGISTERED,
+                admin,
+                "registered before export");
+
+        given(whitelistChannelRepository.findExportCandidates(
+                isNull(), eq("shorts"), any()))
+                .willReturn(List.of(pendingChannel, registeredChannel));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
+        given(whitelistChannelRepository.findAllByIdForUpdate(List.of(7L, 8L)))
+                .willReturn(List.of(pendingChannel, registeredChannel));
+        given(userRepository.findById(99L)).willReturn(Optional.of(admin));
+        given(whitelistExportBatchRepository.save(any(WhitelistExportBatch.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+                .willReturn(Optional.empty());
+        AtomicReference<List<WhitelistExportItem>> savedItems = new AtomicReference<>();
+        given(whitelistExportItemRepository.saveAll(any()))
+                .willAnswer(invocation -> {
+                    Iterable<WhitelistExportItem> items = invocation.getArgument(0);
+                    List<WhitelistExportItem> list = StreamSupport.stream(items.spliterator(), false).toList();
+                    savedItems.set(list);
+                    return list;
+                });
+
+        service.exportChannels(
+                actor(99L, UserRole.ADMIN),
+                new AdminWhitelistExportRequest(null, "  shorts  ", null));
+
+        assertThat(pendingChannel.getStatus()).isEqualTo(WhitelistChannelStatus.EXPORTED);
+        assertThat(registeredChannel.getStatus()).isEqualTo(WhitelistChannelStatus.REGISTERED);
+        assertThat(savedItems.get())
+                .extracting(WhitelistExportItem::getStatusAtExport)
+                .containsExactly(
+                        WhitelistChannelStatus.PENDING,
+                        WhitelistChannelStatus.REGISTERED);
+    }
+
+    @Test
     @DisplayName("updateStatus rejects non-admin-workflow statuses")
     void updateStatusRejectsInvalidWorkflowStatus() {
         User admin = user(99L, "admin@test.com", UserRole.ADMIN);
@@ -377,6 +426,68 @@ class AdminWhitelistChannelServiceTest {
         assertThatThrownBy(() -> service.exportChannels(
                 actor(99L, UserRole.ADMIN),
                 new AdminWhitelistExportRequest(null, " ", null)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+
+        verifyNoInteractions(whitelistExportBatchRepository, whitelistExportItemRepository);
+    }
+
+    @Test
+    @DisplayName("listRecentExports uses the authenticated owner, exact normalized scope, and repository limit")
+    void listRecentExportsUsesOwnedExactScopeAndRepositoryBound() {
+        LocalDateTime createdAt = LocalDateTime.of(2026, 8, 13, 12, 0);
+        AdminWhitelistExportSummaryResponse summary = new AdminWhitelistExportSummaryResponse(
+                77L,
+                "whitelist-channels.csv",
+                3,
+                WhitelistChannelStatus.PENDING,
+                "Shorts",
+                createdAt);
+        given(whitelistExportBatchRepository.findRecentSummariesByOwnerAndExactScope(
+                99L,
+                WhitelistChannelStatus.PENDING,
+                "shorts",
+                PageRequest.of(0, 10)))
+                .willReturn(List.of(summary));
+
+        List<AdminWhitelistExportSummaryResponse> result = service.listRecentExports(
+                actor(99L, UserRole.ADMIN),
+                WhitelistChannelStatus.PENDING,
+                "  ShOrTs  ");
+
+        assertThat(result).containsExactly(summary);
+        verify(whitelistExportBatchRepository).findRecentSummariesByOwnerAndExactScope(
+                99L,
+                WhitelistChannelStatus.PENDING,
+                "shorts",
+                PageRequest.of(0, 10));
+        verifyNoInteractions(whitelistExportItemRepository);
+    }
+
+    @Test
+    @DisplayName("listRecentExports rejects an unscoped lookup before repository access")
+    void listRecentExportsRejectsUnscopedLookup() {
+        assertThatThrownBy(() -> service.listRecentExports(
+                actor(99L, UserRole.ADMIN),
+                null,
+                "  "))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+
+        verifyNoInteractions(whitelistExportBatchRepository, whitelistExportItemRepository);
+    }
+
+    @Test
+    @DisplayName("listRecentExports rejects a normalized keyword over 100 characters before repository access")
+    void listRecentExportsRejectsOversizedNormalizedKeyword() {
+        String oversizedKeyword = " " + "a".repeat(101) + " ";
+
+        assertThatThrownBy(() -> service.listRecentExports(
+                actor(99L, UserRole.ADMIN),
+                null,
+                oversizedKeyword))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));

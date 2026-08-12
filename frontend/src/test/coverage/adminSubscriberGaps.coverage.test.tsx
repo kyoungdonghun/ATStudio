@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => ({
   fetchMySubscription: vi.fn(),
   getApiErrorCode: vi.fn(),
   fetchAdminWhitelistChannels: vi.fn(),
+  fetchRecentAdminWhitelistExports: vi.fn(),
   updateAdminWhitelistChannelStatus: vi.fn(),
   exportAdminWhitelistChannels: vi.fn(),
   downloadAdminWhitelistExportBatch: vi.fn(),
@@ -148,6 +149,7 @@ vi.mock('@/api/client', () => ({
 
 vi.mock('@/api/admin', () => ({
   fetchAdminWhitelistChannels: mocks.fetchAdminWhitelistChannels,
+  fetchRecentAdminWhitelistExports: mocks.fetchRecentAdminWhitelistExports,
   updateAdminWhitelistChannelStatus: mocks.updateAdminWhitelistChannelStatus,
   exportAdminWhitelistChannels: mocks.exportAdminWhitelistChannels,
   downloadAdminWhitelistExportBatch: mocks.downloadAdminWhitelistExportBatch,
@@ -574,6 +576,7 @@ beforeEach(() => {
   mocks.fetchMySubscription.mockResolvedValue(subscription());
   mocks.getApiErrorCode.mockResolvedValue(null);
   mocks.fetchAdminWhitelistChannels.mockResolvedValue(page([]));
+  mocks.fetchRecentAdminWhitelistExports.mockResolvedValue([]);
   mocks.fetchUsers.mockResolvedValue(page([]));
   resetPaymentReads();
   mocks.fetchMe.mockResolvedValue(profile());
@@ -925,7 +928,7 @@ describe('whitelist administrator gaps', () => {
 
   it('validates batch input and surfaces export, batch, status, and list failures', async () => {
     mocks.fetchAdminWhitelistChannels.mockResolvedValue(page([adminChannel()]));
-    mocks.exportAdminWhitelistChannels.mockRejectedValueOnce(new Error('export'));
+    mocks.exportAdminWhitelistChannels.mockRejectedValueOnce({ response: { status: 400 } });
     mocks.downloadAdminWhitelistExportBatch.mockRejectedValueOnce(new Error('batch'));
     mocks.updateAdminWhitelistChannelStatus.mockRejectedValueOnce(new Error('status'));
 

@@ -92,6 +92,60 @@
   background: var(--error-dim);
 }
 
+.recovery {
+  border-top: 1px solid var(--border2);
+  border-bottom: 1px solid var(--border2);
+  padding: 16px 0;
+  margin-bottom: 18px;
+}
+
+.recovery h2 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.recovery p {
+  margin: 0;
+  color: var(--text2);
+  font-size: 13px;
+}
+
+.recoveryList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recoveryItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+}
+
+.recoveryItem + .recoveryItem {
+  border-top: 1px solid var(--border);
+}
+
+.recoveryItem div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  min-width: 0;
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.recoveryItem strong {
+  width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--text0);
+  font-size: 13px;
+}
+
 .loading,
 .empty {
   color: var(--text2);
@@ -222,5 +276,10 @@
 
   .searchInput {
     width: 100%;
+  }
+
+  .recoveryItem {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

@@ -12,7 +12,11 @@ vi.mock('@/api/client', () => ({
   },
 }));
 
-import { downloadAdminWhitelistExportBatch, exportAdminWhitelistChannels } from '@/api/admin';
+import {
+  downloadAdminWhitelistExportBatch,
+  exportAdminWhitelistChannels,
+  fetchRecentAdminWhitelistExports,
+} from '@/api/admin';
 
 describe('admin whitelist exports', () => {
   beforeEach(() => {
@@ -38,7 +42,7 @@ describe('admin whitelist exports', () => {
     expect(postMock).toHaveBeenCalledWith(
       '/admin/whitelist-channels/export',
       { status: 'PENDING', keyword: 'shorts' },
-      { responseType: 'blob' },
+      { responseType: 'blob', skipAuthReplay: true },
     );
     expect(result).toEqual({ batchId: 77, blob, fileName: 'whitelist.csv' });
   });
@@ -74,6 +78,30 @@ describe('admin whitelist exports', () => {
     });
     expect(result.batchId).toBe(77);
     expect(result.blob).toBe(blob);
+  });
+
+  it('gets recent summaries for the exact recorded scope without requesting bytes', async () => {
+    const dataList = [
+      {
+        batchId: 77,
+        fileName: 'whitelist.csv',
+        itemCount: 3,
+        status: 'PENDING',
+        keyword: 'shorts',
+        createdAt: '2026-08-13T12:00:00',
+      },
+    ];
+    getMock.mockResolvedValue({ data: { dataList } });
+
+    const result = await fetchRecentAdminWhitelistExports({
+      status: 'PENDING',
+      keyword: 'shorts',
+    });
+
+    expect(getMock).toHaveBeenCalledWith('/admin/whitelist-channels/exports/recent', {
+      params: { status: 'PENDING', keyword: 'shorts' },
+    });
+    expect(result).toEqual(dataList);
   });
 
   it('falls back to the requested replay ID when CORS filters the batch header', async () => {

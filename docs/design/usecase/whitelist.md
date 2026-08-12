@@ -256,15 +256,46 @@
 | **Related UC** | WL-005, WL-007 |
 
 **Main Flow**
-1. Admin calls `POST /api/admin/whitelist-channels/export` with an explicit status and/or applied keyword filter.
-2. Backend reads at most the configured hard maximum plus one candidate in deterministic `requestedAt`, `id` order.
-3. An oversized selection fails before user/channel locks, status changes, or any partial batch.
-4. For an accepted selection, backend locks distinct owning users in ID order and then locks the selected channel rows.
-5. Backend creates an immutable `whitelist_export_batches` row with the recorded filters and ordered `whitelist_export_items` snapshots.
-6. Backend returns a UTF-8 BOM CSV plus batch ID. CSV includes `userEmail` and operational channel/subscription fields but omits user ID and nickname.
-7. If the exported status is `PENDING`, backend marks exported channels as `EXPORTED`.
-8. If the exported status is not `PENDING`, backend keeps the current workflow status and records only the CSV/export snapshots.
+1. Admin applies a status and/or keyword filter. The confirmation names that
+   applied status and keyword, never unapplied draft keyword text. For an
+   all-status keyword scope, it states that all matching statuses are included,
+   matching `PENDING` rows become `EXPORTED`, and other statuses remain
+   unchanged.
+2. Admin calls `POST /api/admin/whitelist-channels/export` with that exact
+   applied status/keyword scope.
+3. Backend reads at most the configured hard maximum plus one candidate in deterministic `requestedAt`, `id` order.
+4. An oversized selection fails before user/channel locks, status changes, or any partial batch.
+5. For an accepted selection, backend locks distinct owning users in ID order and then locks the selected channel rows.
+6. Backend creates an immutable `whitelist_export_batches` row with the recorded filters and ordered `whitelist_export_items` snapshots.
+7. Backend returns a UTF-8 BOM CSV plus batch ID. CSV includes `userEmail` and operational channel/subscription fields but omits user ID and nickname.
+8. Every selected channel whose status at export is `PENDING` becomes
+   `EXPORTED`, including a `PENDING` row selected by an all-status keyword
+   scope. Other selected statuses remain unchanged.
 9. Admin may call `GET /api/admin/whitelist-channels/exports/{batchID}` to rebuild the same bytes from stored items without current-data re-query drift; the stored count and item query remain bounded by the configured maximum.
+
+**Response-loss recovery flow**
+
+1. A definitive export 4xx response is shown as a normal failure without a
+   commit claim.
+2. If the POST result is ambiguous, the frontend does not repeat the POST. It
+   opts the POST out of shared authentication replay and calls
+   `GET /api/admin/whitelist-channels/exports/recent` once with the exact applied
+   status/keyword scope.
+3. Backend trims and case-folds the keyword for scope matching, derives the
+   owner from the authenticated ADMIN, rejects a trimmed keyword longer than
+   100 characters before repository access, and returns at most 10 matching
+   batch summaries ordered by `createdAt` and ID newest-first.
+4. A summary contains only batch ID, filename, item count, recorded status and
+   keyword, and creation time. It contains no item snapshots or CSV bytes.
+5. The operator may explicitly replay a candidate through the existing batch
+   download endpoint. Recovery itself creates no batch, status transition, or
+   external handoff.
+6. If the current channel-list request fails, the frontend clears rows,
+   pagination, and pending row edits before showing the error. Older request
+   completions cannot restore or erase newer list state.
 
 **Postconditions**
 - The CSV can be handed to the external processing party and the local export is auditable.
+- An ambiguous response remains explicitly unknown until the operator evaluates
+  the scoped candidate metadata; neither the lookup nor replay claims which
+  candidate corresponds to the interrupted POST.

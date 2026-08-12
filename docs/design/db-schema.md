@@ -1,5 +1,5 @@
 ---
-version: 24.1
+version: 24.2
 last_updated: 2026-08-13
 project: ATS
 owner: SA
@@ -18,7 +18,7 @@ dependencies:
     reason: Guarded disposable MySQL preflight and proof procedure
 ---
 
-# ATStudio DB Schema Definition v24.1
+# ATStudio DB Schema Definition v24.2
 
 ## V1 Baseline
 
@@ -276,6 +276,13 @@ Total: **42 tables**.
 Current immutable export evidence retains the fields consumed by the CSV and
 replay paths, including email, channel, plan, order, and transition context.
 Removed user-ID and nickname snapshot columns are not part of the V1 schema.
+The existing `whitelist_export_batches.exported_by`, `status_filter`,
+`keyword_filter`, `created_at`, and numeric ID fields also support the bounded
+ADMIN recovery read. That read is owner-scoped, compares the exact normalized
+status/keyword scope, orders by creation time then ID newest-first, and returns
+at most 10 batch metadata projections. It does not load
+`whitelist_export_items` or CSV bytes. No column, index, constraint, DDL, or
+retained-data change is introduced for this recovery path.
 
 ## Runtime Configuration
 
