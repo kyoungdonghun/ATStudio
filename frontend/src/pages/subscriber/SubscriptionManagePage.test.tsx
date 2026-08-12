@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SubscriptionManagePage from '@/pages/subscriber/SubscriptionManagePage';
@@ -17,6 +17,7 @@ const changeMySubscriptionMock = vi.fn();
 const cancelMySubscriptionMock = vi.fn();
 const reactivateMySubscriptionMock = vi.fn();
 const fetchMyBillingAgreementMock = vi.fn();
+const fetchSubscriptionUpgradeOutcomeMock = vi.fn();
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return {
@@ -49,6 +50,8 @@ vi.mock('@/api/subscriptions', () => ({
 
 vi.mock('@/api/payments', () => ({
   fetchMyBillingAgreement: (...args: unknown[]) => fetchMyBillingAgreementMock(...args),
+  fetchSubscriptionUpgradeOutcome: (...args: unknown[]) =>
+    fetchSubscriptionUpgradeOutcomeMock(...args),
 }));
 
 vi.mock('@/api/client', () => ({
@@ -80,6 +83,7 @@ describe('SubscriptionManagePage', () => {
     cancelMySubscriptionMock.mockReset();
     reactivateMySubscriptionMock.mockReset();
     fetchMyBillingAgreementMock.mockReset();
+    fetchSubscriptionUpgradeOutcomeMock.mockReset();
     navigateMock.mockReset();
 
     fetchSubscriptionPlansMock.mockResolvedValue([
@@ -412,7 +416,7 @@ describe('SubscriptionManagePage', () => {
     fireEvent.click(await screen.findByRole('button', { name: '결제수단 다시 등록' }));
 
     expect(navigateMock).toHaveBeenCalledWith(
-      '/subscriptions/checkout?plan=STANDARD&cycle=MONTHLY&purpose=BILLING_AGREEMENT',
+      '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=BILLING_AGREEMENT',
     );
   });
 
@@ -459,7 +463,7 @@ describe('SubscriptionManagePage', () => {
     fireEvent.click(screen.getByRole('button', { name: '결제수단 다시 등록' }));
 
     expect(navigateMock).toHaveBeenCalledWith(
-      '/subscriptions/checkout?plan=STANDARD&cycle=MONTHLY&purpose=BILLING_AGREEMENT',
+      '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=BILLING_AGREEMENT',
     );
   });
 
@@ -547,7 +551,7 @@ describe('SubscriptionManagePage', () => {
 
     expect(changeMySubscriptionMock).not.toHaveBeenCalled();
     expect(navigateMock).toHaveBeenCalledWith(
-      '/subscriptions/checkout?plan=DELUXE&cycle=YEARLY&purpose=BILLING_AGREEMENT&returnPlan=PREMIUM&returnCycle=YEARLY&returnAmount=99726',
+      '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=YEARLY&purpose=BILLING_AGREEMENT&returnPlanId=2&returnUserType=INDIVIDUAL&returnBillingCycle=YEARLY&returnAmount=99726',
     );
   });
 
@@ -596,4 +600,1034 @@ describe('SubscriptionManagePage', () => {
       expect(reactivateMySubscriptionMock).toHaveBeenCalled();
     });
   });
+
+  it('preserves a successful charged upgrade as RELOAD_FAILED and retries reads only', async () => {
+    configureChargedUpgrade();
+    changeMySubscriptionMock.mockResolvedValue(upgradeResponse());
+    fetchSubscriptionUpgradeOutcomeMock.mockResolvedValue(doneUpgradeOutcome());
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'))
+      .mockResolvedValueOnce(subscriptionState(2, 'ACTIVE'))
+      .mockResolvedValueOnce(subscriptionState(2, 'ACTIVE'));
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('ACTIVE'))
+      .mockRejectedValueOnce(new Error('reload unavailable'))
+      .mockResolvedValueOnce(billingState('ACTIVE', 2));
+
+    renderPage();
+    fireEvent.click(await screen.findByText('\uB514\uB7ED\uC2A4'));
+    fireEvent.click(
+      await screen.findByRole('button', { name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD' }),
+    );
+
+    expect(
+      await screen.findByText(
+        '\uC694\uCCAD\uC740 \uC644\uB8CC\uB418\uC5C8\uC9C0\uB9CC \uCD5C\uC2E0 \uAD6C\uB3C5 \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.',
+      ),
+    ).toBeInTheDocument();
+    expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: '\uC0C1\uD0DC \uB2E4\uC2DC \uD655\uC778' }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText(
+          '\uC694\uCCAD\uC740 \uC644\uB8CC\uB418\uC5C8\uC9C0\uB9CC \uCD5C\uC2E0 \uAD6C\uB3C5 \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.',
+        ),
+      ).not.toBeInTheDocument();
+    });
+    expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+    expect(fetchSubscriptionUpgradeOutcomeMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('recovers a lost charged-upgrade response from exact DONE outcome without replay', async () => {
+    configureChargedUpgrade();
+    changeMySubscriptionMock.mockRejectedValue(new Error('response lost'));
+    fetchSubscriptionUpgradeOutcomeMock.mockResolvedValue(doneUpgradeOutcome());
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'))
+      .mockResolvedValueOnce(subscriptionState(2, 'ACTIVE'));
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('ACTIVE'))
+      .mockResolvedValueOnce(billingState('ACTIVE', 2));
+
+    renderPage();
+    fireEvent.click(await screen.findByText('\uB514\uB7ED\uC2A4'));
+    fireEvent.click(
+      await screen.findByRole('button', { name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD' }),
+    );
+
+    await waitFor(() => {
+      expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+      expect(fetchSubscriptionUpgradeOutcomeMock).toHaveBeenCalledWith(2, 'MONTHLY');
+    });
+    expect(
+      await screen.findByText(
+        '\uC0C1\uD0DC \uD655\uC778\uC73C\uB85C \uD50C\uB79C \uBCC0\uACBD \uC644\uB8CC\uB97C \uD655\uC778\uD588\uC2B5\uB2C8\uB2E4.',
+      ),
+    ).toBeInTheDocument();
+    expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([null, 999])(
+    'keeps a DONE charged upgrade UNKNOWN when outcome aggregate ID is %s',
+    async (userSubscriptionId) => {
+      configureChargedUpgrade();
+      changeMySubscriptionMock.mockRejectedValue(new Error('response lost'));
+      fetchSubscriptionUpgradeOutcomeMock.mockResolvedValue({
+        ...doneUpgradeOutcome(),
+        userSubscriptionId,
+      });
+      fetchMySubscriptionMock
+        .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'))
+        .mockResolvedValueOnce(subscriptionState(2, 'ACTIVE'));
+      fetchMyBillingAgreementMock
+        .mockResolvedValueOnce(billingState('ACTIVE'))
+        .mockResolvedValueOnce(billingState('ACTIVE', 2));
+
+      renderPage();
+      fireEvent.click(await screen.findByText('\uB514\uB7ED\uC2A4'));
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
+        }),
+      );
+
+      expect(
+        await screen.findByText(
+          '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
+        ),
+      ).toBeInTheDocument();
+      expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('uses the successful mutation response classification instead of the preview', async () => {
+    configureChargedUpgrade();
+    changeMySubscriptionMock.mockResolvedValue({
+      ...upgradeResponse(),
+      changeType: 'SCHEDULED_CHANGE',
+      proratedAmount: 0,
+    });
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'))
+      .mockResolvedValueOnce({
+        ...subscriptionState(1, 'ACTIVE'),
+        pendingSubscriptionId: 2,
+        pendingBillingCycle: 'MONTHLY',
+      });
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('ACTIVE'))
+      .mockResolvedValueOnce(billingState('ACTIVE'));
+
+    renderPage();
+    fireEvent.click(await screen.findByText('\uB514\uB7ED\uC2A4'));
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
+      }),
+    );
+
+    expect(
+      await screen.findByText(/\uBCC0\uACBD\uC774 \uC608\uC57D\uB418\uC5C8\uC2B5\uB2C8\uB2E4/),
+    ).toBeInTheDocument();
+    expect(fetchSubscriptionUpgradeOutcomeMock).not.toHaveBeenCalled();
+    expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers a lost reactivation response from canonical subscription and agreement reads', async () => {
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(1, 'CANCELLED'))
+      .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'));
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('CANCELLED'))
+      .mockResolvedValueOnce(billingState('ACTIVE'));
+    reactivateMySubscriptionMock.mockRejectedValue(new Error('response lost'));
+
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30' }),
+    );
+
+    expect(
+      await screen.findByText(
+        '\uC0C1\uD0DC \uD655\uC778\uC73C\uB85C \uAD6C\uB3C5 \uC720\uC9C0 \uC644\uB8CC\uB97C \uD655\uC778\uD588\uC2B5\uB2C8\uB2E4.',
+      ),
+    ).toBeInTheDocument();
+    expect(reactivateMySubscriptionMock).toHaveBeenCalledTimes(1);
+    expect(fetchSubscriptionUpgradeOutcomeMock).not.toHaveBeenCalled();
+  });
+
+  it('recovers a lost cancellation response from canonical reads without replay', async () => {
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'))
+      .mockResolvedValueOnce(subscriptionState(1, 'CANCELLED'));
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('ACTIVE'))
+      .mockResolvedValueOnce(billingState('CANCELLED'));
+    cancelMySubscriptionMock.mockRejectedValue(new Error('response lost'));
+
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uCDE8\uC18C' }));
+    fireEvent.click(screen.getByRole('button', { name: '\uCDE8\uC18C \uD655\uC815' }));
+
+    expect(
+      await screen.findByText(
+        '\uC0C1\uD0DC \uD655\uC778\uC73C\uB85C \uAD6C\uB3C5 \uCDE8\uC18C \uC644\uB8CC\uB97C \uD655\uC778\uD588\uC2B5\uB2C8\uB2E4.',
+      ),
+    ).toBeInTheDocument();
+    expect(cancelMySubscriptionMock).toHaveBeenCalledTimes(1);
+    expect(fetchSubscriptionUpgradeOutcomeMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps a successful cancellation RELOAD_FAILED when canonical reload fails', async () => {
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'))
+      .mockResolvedValueOnce(subscriptionState(1, 'CANCELLED'));
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('ACTIVE'))
+      .mockRejectedValueOnce(new Error('reload unavailable'));
+    cancelMySubscriptionMock.mockResolvedValue({ status: 'CANCELLED' });
+
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uCDE8\uC18C' }));
+    fireEvent.click(screen.getByRole('button', { name: '\uCDE8\uC18C \uD655\uC815' }));
+
+    expect(
+      await screen.findByText(
+        '\uC694\uCCAD\uC740 \uC644\uB8CC\uB418\uC5C8\uC9C0\uB9CC \uCD5C\uC2E0 \uAD6C\uB3C5 \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.',
+      ),
+    ).toBeInTheDocument();
+    expect(cancelMySubscriptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a successful reactivation RELOAD_FAILED when canonical reload fails', async () => {
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(1, 'CANCELLED'))
+      .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'));
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('CANCELLED'))
+      .mockRejectedValueOnce(new Error('reload unavailable'));
+    reactivateMySubscriptionMock.mockResolvedValue({ status: 'ACTIVE' });
+
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30' }),
+    );
+
+    expect(
+      await screen.findByText(
+        '\uC694\uCCAD\uC740 \uC644\uB8CC\uB418\uC5C8\uC9C0\uB9CC \uCD5C\uC2E0 \uAD6C\uB3C5 \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.',
+      ),
+    ).toBeInTheDocument();
+    expect(reactivateMySubscriptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows only one mutation across rapid change and cancel actions', async () => {
+    configureChargedUpgrade();
+    let resolveChange!: (value: ReturnType<typeof upgradeResponse>) => void;
+    changeMySubscriptionMock.mockReturnValueOnce(
+      new Promise<ReturnType<typeof upgradeResponse>>((resolve) => {
+        resolveChange = resolve;
+      }),
+    );
+    fetchSubscriptionUpgradeOutcomeMock.mockResolvedValue(doneUpgradeOutcome());
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'))
+      .mockResolvedValueOnce(subscriptionState(2, 'ACTIVE'));
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('ACTIVE'))
+      .mockResolvedValueOnce(billingState('ACTIVE', 2));
+
+    renderPage();
+    fireEvent.click(await screen.findByText('\uB514\uB7ED\uC2A4'));
+    const changeButton = await screen.findByRole('button', {
+      name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
+    });
+    fireEvent.click(screen.getByRole('button', { name: '\uAD6C\uB3C5 \uCDE8\uC18C' }));
+    const cancelButton = screen.getByRole('button', { name: '\uCDE8\uC18C \uD655\uC815' });
+
+    fireEvent.click(changeButton);
+    await waitFor(() => expect(cancelButton).toBeDisabled());
+    fireEvent.click(cancelButton);
+
+    expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+    expect(cancelMySubscriptionMock).not.toHaveBeenCalled();
+    expect(reactivateMySubscriptionMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveChange(upgradeResponse());
+    });
+    await waitFor(() => expect(fetchSubscriptionUpgradeOutcomeMock).toHaveBeenCalledTimes(1));
+  });
+
+  it('blocks same and cross mutations while recovery is UNKNOWN', async () => {
+    configureChargedUpgrade();
+    changeMySubscriptionMock.mockRejectedValue(new Error('response lost'));
+    fetchSubscriptionUpgradeOutcomeMock.mockResolvedValue({
+      ...doneUpgradeOutcome(),
+      orderStatus: 'PROCESSING',
+      userSubscriptionId: null,
+    });
+    fetchMySubscriptionMock.mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'));
+    fetchMyBillingAgreementMock.mockResolvedValueOnce(billingState('ACTIVE'));
+
+    renderPage();
+    fireEvent.click(await screen.findByText('\uB514\uB7ED\uC2A4'));
+    const changeButton = await screen.findByRole('button', {
+      name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
+    });
+    fireEvent.click(screen.getByRole('button', { name: '\uAD6C\uB3C5 \uCDE8\uC18C' }));
+    const cancelButton = screen.getByRole('button', { name: '\uCDE8\uC18C \uD655\uC815' });
+    fireEvent.click(changeButton);
+
+    await screen.findByText(
+      '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
+    );
+    expect(changeButton).toBeDisabled();
+    expect(cancelButton).toBeDisabled();
+    fireEvent.click(changeButton);
+    fireEvent.click(cancelButton);
+
+    expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+    expect(cancelMySubscriptionMock).not.toHaveBeenCalled();
+    expect(reactivateMySubscriptionMock).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('button', { name: '\uC0C1\uD0DC \uB2E4\uC2DC \uD655\uC778' }),
+    ).toBeEnabled();
+  });
+
+  it('blocks same and cross mutations while recovery is RELOAD_FAILED', async () => {
+    configureChargedUpgrade();
+    cancelMySubscriptionMock.mockResolvedValue(undefined);
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'))
+      .mockResolvedValueOnce(subscriptionState(1, 'CANCELLED'));
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('ACTIVE'))
+      .mockRejectedValueOnce(new Error('reload unavailable'));
+
+    renderPage();
+    fireEvent.click(await screen.findByText('\uB514\uB7ED\uC2A4'));
+    const changeButton = await screen.findByRole('button', {
+      name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
+    });
+    fireEvent.click(screen.getByRole('button', { name: '\uAD6C\uB3C5 \uCDE8\uC18C' }));
+    fireEvent.click(screen.getByRole('button', { name: '\uCDE8\uC18C \uD655\uC815' }));
+
+    await screen.findByText(
+      '\uC694\uCCAD\uC740 \uC644\uB8CC\uB418\uC5C8\uC9C0\uB9CC \uCD5C\uC2E0 \uAD6C\uB3C5 \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.',
+    );
+    const cancelButton = screen.getByRole('button', { name: '\uAD6C\uB3C5 \uCDE8\uC18C' });
+    expect(changeButton).toBeDisabled();
+    expect(cancelButton).toBeDisabled();
+    fireEvent.click(changeButton);
+    fireEvent.click(cancelButton);
+
+    expect(cancelMySubscriptionMock).toHaveBeenCalledTimes(1);
+    expect(changeMySubscriptionMock).not.toHaveBeenCalled();
+    expect(reactivateMySubscriptionMock).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('button', { name: '\uC0C1\uD0DC \uB2E4\uC2DC \uD655\uC778' }),
+    ).toBeEnabled();
+  });
+
+  it('routes a no-charge CHANGE business rejection through conservative canonical reads', async () => {
+    fetchSubscriptionPlansMock.mockResolvedValue([
+      plan(1, 'STANDARD', 9900),
+      plan(2, 'DELUXE', 19900),
+    ]);
+    fetchSubscriptionChangePreviewMock.mockResolvedValue({
+      changeType: 'SCHEDULED_CHANGE',
+      proratedAmount: 0,
+      effectiveDate: '2026-09-01',
+      nextBillingDate: '2026-09-01',
+      nextBillingAmount: 9900,
+      newPlanName: 'STANDARD',
+      newBillingCycle: 'MONTHLY',
+    });
+    changeMySubscriptionMock.mockRejectedValue({
+      response: {
+        status: 404,
+        data: { errorCode: 'RESOURCE_NOT_FOUND', message: '선택한 플랜이 없습니다.' },
+      },
+    });
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(2, 'ACTIVE'))
+      .mockResolvedValueOnce(subscriptionState(2, 'ACTIVE'));
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('ACTIVE', 2))
+      .mockResolvedValueOnce(billingState('ACTIVE', 2));
+
+    renderPage();
+    fireEvent.click(await screen.findByText('\uC2A4\uD0E0\uB2E4\uB4DC'));
+    const changeButton = await screen.findByRole('button', {
+      name: '\uB2E4\uC74C \uACB0\uC81C\uC77C\uBD80\uD130 \uBCC0\uACBD \uC608\uC57D',
+    });
+    fireEvent.click(changeButton);
+
+    expect(
+      await screen.findByText(
+        '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
+      ),
+    ).toBeInTheDocument();
+    expect(changeButton).toBeDisabled();
+    fireEvent.click(changeButton);
+    expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+    expect(fetchMySubscriptionMock).toHaveBeenCalledTimes(2);
+    expect(fetchMyBillingAgreementMock).toHaveBeenCalledTimes(2);
+    expect(fetchSubscriptionUpgradeOutcomeMock).not.toHaveBeenCalled();
+    expect(screen.queryByText('선택한 플랜이 없습니다.')).not.toBeInTheDocument();
+  });
+
+  it.each(['NO_ACTIVE_SUBSCRIPTION', 'RESOURCE_NOT_FOUND'])(
+    'maps allowlisted cancellation rejection %s to FAILED with the server message',
+    async (errorCode) => {
+      fetchMySubscriptionMock.mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'));
+      fetchMyBillingAgreementMock.mockResolvedValueOnce(billingState('ACTIVE'));
+      cancelMySubscriptionMock.mockRejectedValue({
+        response: {
+          status: 403,
+          data: { errorCode, message: '취소할 구독이 없습니다.' },
+        },
+      });
+
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uCDE8\uC18C' }));
+      fireEvent.click(screen.getByRole('button', { name: '\uCDE8\uC18C \uD655\uC815' }));
+
+      expect(await screen.findByText('취소할 구독이 없습니다.')).toBeInTheDocument();
+      expect(cancelMySubscriptionMock).toHaveBeenCalledTimes(1);
+      expect(fetchMySubscriptionMock).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByRole('button', { name: '\uC0C1\uD0DC \uB2E4\uC2DC \uD655\uC778' }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it.each([
+    'NO_ACTIVE_SUBSCRIPTION',
+    'RESOURCE_NOT_FOUND',
+    'BILLING_AGREEMENT_NOT_FOUND',
+    'BILLING_AGREEMENT_INVALID_STATE',
+  ])(
+    'maps allowlisted reactivation rejection %s to FAILED with the server message',
+    async (errorCode) => {
+      fetchMySubscriptionMock.mockResolvedValueOnce(subscriptionState(1, 'CANCELLED'));
+      fetchMyBillingAgreementMock.mockResolvedValueOnce(billingState('CANCELLED'));
+      reactivateMySubscriptionMock.mockRejectedValue({
+        response: {
+          status: 404,
+          data: {
+            errorCode,
+            message: '자동결제 등록 정보를 찾을 수 없습니다.',
+          },
+        },
+      });
+
+      renderPage();
+      fireEvent.click(
+        await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30' }),
+      );
+
+      expect(await screen.findByText('자동결제 등록 정보를 찾을 수 없습니다.')).toBeInTheDocument();
+      expect(reactivateMySubscriptionMock).toHaveBeenCalledTimes(1);
+      expect(fetchMySubscriptionMock).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByRole('button', { name: '\uC0C1\uD0DC \uB2E4\uC2DC \uD655\uC778' }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it.each([
+    'PAYMENT_CONFIRM_FAILED',
+    'BILLING_AGREEMENT_REAUTH_REQUIRED',
+    'PAYMENT_PROVIDER_NOT_CONFIGURED',
+  ])('does not directly fail a change for %s', async (errorCode) => {
+    configureChargedUpgrade();
+    changeMySubscriptionMock.mockRejectedValue({
+      response: { status: 409, data: { errorCode, message: 'provider result is not terminal' } },
+    });
+    fetchSubscriptionUpgradeOutcomeMock.mockResolvedValue({
+      ...doneUpgradeOutcome(),
+      orderStatus: 'PROCESSING',
+      userSubscriptionId: null,
+    });
+    fetchMySubscriptionMock.mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'));
+    fetchMyBillingAgreementMock.mockResolvedValueOnce(billingState('ACTIVE'));
+
+    renderPage();
+    fireEvent.click(await screen.findByText('\uB514\uB7ED\uC2A4'));
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('provider result is not terminal')).not.toBeInTheDocument();
+    expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('commits a charged CHANGE from exact DONE evidence despite NO_ACTIVE_SUBSCRIPTION', async () => {
+    configureChargedUpgrade();
+    changeMySubscriptionMock.mockRejectedValue({
+      response: {
+        status: 409,
+        data: { errorCode: 'NO_ACTIVE_SUBSCRIPTION', message: 'stale precondition response' },
+      },
+    });
+    fetchSubscriptionUpgradeOutcomeMock.mockResolvedValue(doneUpgradeOutcome());
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'))
+      .mockResolvedValueOnce(subscriptionState(2, 'ACTIVE'));
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('ACTIVE'))
+      .mockResolvedValueOnce(billingState('ACTIVE', 2));
+
+    renderPage();
+    fireEvent.click(await screen.findByText('\uB514\uB7ED\uC2A4'));
+    fireEvent.click(
+      await screen.findByRole('button', { name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD' }),
+    );
+
+    expect(
+      await screen.findByText(
+        '\uC0C1\uD0DC \uD655\uC778\uC73C\uB85C \uD50C\uB79C \uBCC0\uACBD \uC644\uB8CC\uB97C \uD655\uC778\uD588\uC2B5\uB2C8\uB2E4.',
+      ),
+    ).toBeInTheDocument();
+    expect(fetchSubscriptionUpgradeOutcomeMock).toHaveBeenCalledWith(2, 'MONTHLY');
+    expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['BILLING_AGREEMENT_INVALID_STATE', 'PROVIDER_SUCCEEDED', 100],
+    ['NO_ACTIVE_SUBSCRIPTION', 'PROCESSING', 100],
+    ['BILLING_AGREEMENT_INVALID_STATE', 'DONE', null],
+  ] as const)(
+    'keeps charged CHANGE %s with %s and linkage %s UNKNOWN without mutation replay',
+    async (errorCode, orderStatus, userSubscriptionId) => {
+      configureChargedUpgrade();
+      changeMySubscriptionMock.mockRejectedValue({
+        response: { status: 409, data: { errorCode, message: 'ambiguous change response' } },
+      });
+      fetchSubscriptionUpgradeOutcomeMock.mockResolvedValue({
+        ...doneUpgradeOutcome(),
+        orderStatus,
+        userSubscriptionId,
+      });
+      fetchMySubscriptionMock.mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'));
+      fetchMyBillingAgreementMock.mockResolvedValueOnce(billingState('ACTIVE'));
+
+      renderPage();
+      fireEvent.click(await screen.findByText('\uB514\uB7ED\uC2A4'));
+      const changeButton = await screen.findByRole('button', {
+        name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
+      });
+      fireEvent.click(changeButton);
+
+      expect(
+        await screen.findByText(
+          '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
+        ),
+      ).toBeInTheDocument();
+      expect(fetchSubscriptionUpgradeOutcomeMock).toHaveBeenCalledWith(2, 'MONTHLY');
+      expect(changeButton).toBeDisabled();
+      fireEvent.click(changeButton);
+      expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+      expect(fetchMySubscriptionMock).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('does not directly fail cancellation for an arbitrary 4xx', async () => {
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'))
+      .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'));
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('ACTIVE'))
+      .mockResolvedValueOnce(billingState('ACTIVE'));
+    cancelMySubscriptionMock.mockRejectedValue({
+      response: {
+        status: 409,
+        data: { errorCode: 'BILLING_AGREEMENT_INVALID_STATE' },
+      },
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uCDE8\uC18C' }));
+    fireEvent.click(screen.getByRole('button', { name: '\uCDE8\uC18C \uD655\uC815' }));
+
+    expect(
+      await screen.findByText(
+        '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
+      ),
+    ).toBeInTheDocument();
+    expect(cancelMySubscriptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not directly fail reactivation for a transport error', async () => {
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(1, 'CANCELLED'))
+      .mockResolvedValueOnce(subscriptionState(1, 'CANCELLED'));
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('CANCELLED'))
+      .mockResolvedValueOnce(billingState('CANCELLED'));
+    reactivateMySubscriptionMock.mockRejectedValue(new Error('response lost'));
+
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30' }),
+    );
+
+    expect(
+      await screen.findByText(
+        '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
+      ),
+    ).toBeInTheDocument();
+    expect(reactivateMySubscriptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps a terminal charged-upgrade command to FAILED without canonical success', async () => {
+    configureChargedUpgrade();
+    changeMySubscriptionMock.mockRejectedValue({ response: { status: 409 } });
+    fetchSubscriptionUpgradeOutcomeMock.mockResolvedValue({
+      ...doneUpgradeOutcome(),
+      orderStatus: 'FAILED',
+    });
+    fetchMySubscriptionMock.mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'));
+    fetchMyBillingAgreementMock.mockResolvedValueOnce(billingState('ACTIVE'));
+
+    renderPage();
+    fireEvent.click(await screen.findByText('\uB514\uB7ED\uC2A4'));
+    fireEvent.click(
+      await screen.findByRole('button', { name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD' }),
+    );
+
+    expect(
+      await screen.findByText(
+        '\uC694\uCCAD\uC774 \uC644\uB8CC\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.',
+      ),
+    ).toBeInTheDocument();
+    expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole('button', { name: '\uC0C1\uD0DC \uB2E4\uC2DC \uD655\uC778' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each([401, 403, 404, 408, 409, 429])(
+    'keeps an ambiguous HTTP %s charged-upgrade response UNKNOWN',
+    async (status) => {
+      configureChargedUpgrade();
+      changeMySubscriptionMock.mockRejectedValue({ response: { status } });
+      fetchSubscriptionUpgradeOutcomeMock.mockRejectedValue({ response: { status } });
+      fetchMySubscriptionMock.mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'));
+      fetchMyBillingAgreementMock.mockResolvedValueOnce(billingState('ACTIVE'));
+
+      renderPage();
+      fireEvent.click(await screen.findByText('\uB514\uB7ED\uC2A4'));
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
+        }),
+      );
+
+      expect(
+        await screen.findByText(
+          '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
+        ),
+      ).toBeInTheDocument();
+      expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getByRole('button', { name: '\uC0C1\uD0DC \uB2E4\uC2DC \uD655\uC778' }),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it.each(['CANCELLED', 'EXPIRED'] as const)(
+    'does not commit a CHANGE when canonical subscription status is %s',
+    async (status) => {
+      fetchSubscriptionPlansMock.mockResolvedValue([
+        plan(1, 'STANDARD', 9900),
+        plan(2, 'DELUXE', 19900),
+      ]);
+      fetchSubscriptionChangePreviewMock.mockResolvedValue({
+        changeType: 'SCHEDULED_CHANGE',
+        proratedAmount: 0,
+        effectiveDate: '2026-09-01',
+        nextBillingDate: '2026-09-01',
+        nextBillingAmount: 9900,
+        newPlanName: 'STANDARD',
+        newBillingCycle: 'MONTHLY',
+      });
+      changeMySubscriptionMock.mockRejectedValue(new Error('response lost'));
+      fetchMySubscriptionMock
+        .mockResolvedValueOnce(subscriptionState(2, 'ACTIVE'))
+        .mockResolvedValueOnce({
+          ...subscriptionState(2, 'ACTIVE'),
+          status,
+          pendingSubscriptionId: 1,
+          pendingBillingCycle: 'MONTHLY',
+        });
+      fetchMyBillingAgreementMock
+        .mockResolvedValueOnce(billingState('ACTIVE', 2))
+        .mockResolvedValueOnce(billingState('ACTIVE', 2));
+
+      renderPage();
+      fireEvent.click(await screen.findByText('\uC2A4\uD0E0\uB2E4\uB4DC'));
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: '\uB2E4\uC74C \uACB0\uC81C\uC77C\uBD80\uD130 \uBCC0\uACBD \uC608\uC57D',
+        }),
+      );
+
+      expect(
+        await screen.findByText(
+          '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
+        ),
+      ).toBeInTheDocument();
+      expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByText(
+          '\uC0C1\uD0DC \uD655\uC778\uC73C\uB85C \uD50C\uB79C \uBCC0\uACBD \uC644\uB8CC\uB97C \uD655\uC778\uD588\uC2B5\uB2C8\uB2E4.',
+        ),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(['aggregate', 'current plan', 'current cycle'] as const)(
+    'does not commit a scheduled change when canonical %s drifts',
+    async (drift) => {
+      fetchSubscriptionPlansMock.mockResolvedValue([
+        plan(1, 'STANDARD', 9900),
+        plan(2, 'DELUXE', 19900),
+      ]);
+      fetchSubscriptionChangePreviewMock.mockResolvedValue({
+        changeType: 'SCHEDULED_CHANGE',
+        proratedAmount: 0,
+        effectiveDate: '2026-09-01',
+        nextBillingDate: '2026-09-01',
+        nextBillingAmount: 9900,
+        newPlanName: 'STANDARD',
+        newBillingCycle: 'MONTHLY',
+      });
+      changeMySubscriptionMock.mockRejectedValue(new Error('response lost'));
+      const canonical = {
+        ...subscriptionState(drift === 'current plan' ? 3 : 2, 'ACTIVE'),
+        id: drift === 'aggregate' ? 999 : 100,
+        billingCycle: drift === 'current cycle' ? 'YEARLY' : 'MONTHLY',
+        pendingSubscriptionId: 1,
+        pendingBillingCycle: 'MONTHLY',
+      };
+      fetchMySubscriptionMock
+        .mockResolvedValueOnce(subscriptionState(2, 'ACTIVE'))
+        .mockResolvedValueOnce(canonical);
+      fetchMyBillingAgreementMock
+        .mockResolvedValueOnce(billingState('ACTIVE', 2))
+        .mockResolvedValueOnce(
+          billingState(
+            'ACTIVE',
+            canonical.subscription.id,
+            canonical.billingCycle as 'MONTHLY' | 'YEARLY',
+            canonical.id,
+          ),
+        );
+
+      renderPage();
+      fireEvent.click(await screen.findByText('\uC2A4\uD0E0\uB2E4\uB4DC'));
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: '\uB2E4\uC74C \uACB0\uC81C\uC77C\uBD80\uD130 \uBCC0\uACBD \uC608\uC57D',
+        }),
+      );
+
+      expect(
+        await screen.findByText(
+          '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
+        ),
+      ).toBeInTheDocument();
+      expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('does not commit when the billing agreement points to another subscription', async () => {
+    fetchSubscriptionPlansMock.mockResolvedValue([
+      plan(1, 'STANDARD', 9900),
+      plan(2, 'DELUXE', 19900),
+    ]);
+    fetchSubscriptionChangePreviewMock.mockResolvedValue({
+      changeType: 'SCHEDULED_CHANGE',
+      proratedAmount: 0,
+      effectiveDate: '2026-09-01',
+      nextBillingDate: '2026-09-01',
+      nextBillingAmount: 9900,
+      newPlanName: 'STANDARD',
+      newBillingCycle: 'MONTHLY',
+    });
+    changeMySubscriptionMock.mockRejectedValue(new Error('response lost'));
+    const canonical = {
+      ...subscriptionState(2, 'ACTIVE'),
+      pendingSubscriptionId: 1,
+      pendingBillingCycle: 'MONTHLY',
+    };
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(2, 'ACTIVE'))
+      .mockResolvedValueOnce(canonical);
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('ACTIVE', 2))
+      .mockResolvedValueOnce({
+        ...billingState('ACTIVE', 2),
+        subscription: {
+          ...canonical,
+          id: 999,
+        },
+      });
+
+    renderPage();
+    fireEvent.click(await screen.findByText('\uC2A4\uD0E0\uB2E4\uB4DC'));
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: '\uB2E4\uC74C \uACB0\uC81C\uC77C\uBD80\uD130 \uBCC0\uACBD \uC608\uC57D',
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
+      ),
+    ).toBeInTheDocument();
+    expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not commit when the billing agreement omits subscription identity', async () => {
+    fetchSubscriptionPlansMock.mockResolvedValue([
+      plan(1, 'STANDARD', 9900),
+      plan(2, 'DELUXE', 19900),
+    ]);
+    fetchSubscriptionChangePreviewMock.mockResolvedValue({
+      changeType: 'SCHEDULED_CHANGE',
+      proratedAmount: 0,
+      effectiveDate: '2026-09-01',
+      nextBillingDate: '2026-09-01',
+      nextBillingAmount: 9900,
+      newPlanName: 'STANDARD',
+      newBillingCycle: 'MONTHLY',
+    });
+    changeMySubscriptionMock.mockRejectedValue(new Error('response lost'));
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(2, 'ACTIVE'))
+      .mockResolvedValueOnce({
+        ...subscriptionState(2, 'ACTIVE'),
+        pendingSubscriptionId: 1,
+        pendingBillingCycle: 'MONTHLY',
+      });
+    fetchMyBillingAgreementMock
+      .mockResolvedValueOnce(billingState('ACTIVE', 2))
+      .mockResolvedValueOnce({
+        ...billingState('ACTIVE', 2),
+        subscription: null,
+      });
+
+    renderPage();
+    fireEvent.click(await screen.findByText('\uC2A4\uD0E0\uB2E4\uB4DC'));
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: '\uB2E4\uC74C \uACB0\uC81C\uC77C\uBD80\uD130 \uBCC0\uACBD \uC608\uC57D',
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
+      ),
+    ).toBeInTheDocument();
+    expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['aggregate', 'current plan', 'current cycle'] as const)(
+    'does not commit a DOWNGRADE when canonical source %s drifts',
+    async (drift) => {
+      fetchSubscriptionPlansMock.mockResolvedValue([
+        plan(1, 'STANDARD', 9900),
+        plan(2, 'DELUXE', 19900),
+      ]);
+      fetchSubscriptionChangePreviewMock.mockResolvedValue({
+        changeType: 'DOWNGRADE',
+        proratedAmount: 0,
+        effectiveDate: '2026-09-01',
+        nextBillingDate: '2026-09-01',
+        nextBillingAmount: 9900,
+        newPlanName: 'STANDARD',
+        newBillingCycle: 'MONTHLY',
+      });
+      changeMySubscriptionMock.mockRejectedValue(new Error('response lost'));
+      const canonical = {
+        ...subscriptionState(drift === 'current plan' ? 3 : 2, 'ACTIVE'),
+        id: drift === 'aggregate' ? 999 : 100,
+        billingCycle: drift === 'current cycle' ? 'YEARLY' : 'MONTHLY',
+        pendingSubscriptionId: 1,
+        pendingBillingCycle: 'MONTHLY',
+      };
+      fetchMySubscriptionMock
+        .mockResolvedValueOnce(subscriptionState(2, 'ACTIVE'))
+        .mockResolvedValueOnce(canonical);
+      fetchMyBillingAgreementMock
+        .mockResolvedValueOnce(billingState('ACTIVE', 2))
+        .mockResolvedValueOnce(
+          billingState(
+            'ACTIVE',
+            canonical.subscription.id,
+            canonical.billingCycle as 'MONTHLY' | 'YEARLY',
+            canonical.id,
+          ),
+        );
+
+      renderPage();
+      fireEvent.click(await screen.findByText('\uC2A4\uD0E0\uB2E4\uB4DC'));
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: '\uB2E4\uC74C \uACB0\uC81C\uC77C\uBD80\uD130 \uBCC0\uACBD \uC608\uC57D',
+        }),
+      );
+
+      expect(
+        await screen.findByText(
+          '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
+        ),
+      ).toBeInTheDocument();
+      expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('recovers a lost no-charge scheduled change from canonical reads only', async () => {
+    fetchSubscriptionPlansMock.mockResolvedValue([
+      plan(1, 'STANDARD', 9900),
+      plan(2, 'DELUXE', 19900),
+    ]);
+    fetchSubscriptionChangePreviewMock.mockResolvedValue({
+      changeType: 'SCHEDULED_CHANGE',
+      proratedAmount: 0,
+      effectiveDate: '2026-09-01',
+      nextBillingDate: '2026-09-01',
+      nextBillingAmount: 9900,
+      newPlanName: 'STANDARD',
+      newBillingCycle: 'MONTHLY',
+    });
+    changeMySubscriptionMock.mockRejectedValue(new Error('response lost'));
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(2, 'ACTIVE'))
+      .mockResolvedValueOnce({
+        ...subscriptionState(2, 'ACTIVE'),
+        pendingSubscriptionId: 1,
+        pendingBillingCycle: 'MONTHLY',
+      });
+    fetchMyBillingAgreementMock.mockResolvedValue(billingState('ACTIVE', 2));
+
+    renderPage();
+    fireEvent.click(await screen.findByText('\uC2A4\uD0E0\uB2E4\uB4DC'));
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: '\uB2E4\uC74C \uACB0\uC81C\uC77C\uBD80\uD130 \uBCC0\uACBD \uC608\uC57D',
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        '\uC0C1\uD0DC \uD655\uC778\uC73C\uB85C \uD50C\uB79C \uBCC0\uACBD \uC644\uB8CC\uB97C \uD655\uC778\uD588\uC2B5\uB2C8\uB2E4.',
+      ),
+    ).toBeInTheDocument();
+    expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+    expect(fetchSubscriptionUpgradeOutcomeMock).not.toHaveBeenCalled();
+  });
 });
+
+function configureChargedUpgrade() {
+  fetchSubscriptionPlansMock.mockResolvedValue([
+    plan(1, 'STANDARD', 9900),
+    plan(2, 'DELUXE', 19900),
+  ]);
+  fetchSubscriptionChangePreviewMock.mockResolvedValue({
+    changeType: 'UPGRADE',
+    proratedAmount: 5000,
+    effectiveDate: '2026-08-12',
+    nextBillingDate: '2026-09-01',
+    nextBillingAmount: 19900,
+    newPlanName: 'DELUXE',
+    newBillingCycle: 'MONTHLY',
+  });
+}
+
+function plan(id: number, name: string, priceMonthly: number) {
+  return {
+    id,
+    name,
+    description: name,
+    userType: 'INDIVIDUAL',
+    priceMonthly,
+    priceYearly: priceMonthly * 10,
+    downloadPerDay: 10,
+    maxWhitelistChannels: 3,
+    maxPlaylists: 5,
+    isActive: true,
+  };
+}
+
+function subscriptionState(planId: number, status: 'ACTIVE' | 'CANCELLED') {
+  return {
+    id: 100,
+    subscription: plan(planId, planId === 1 ? 'STANDARD' : 'DELUXE', planId === 1 ? 9900 : 19900),
+    billingCycle: 'MONTHLY',
+    status,
+    startedAt: '2026-08-01',
+    expiresAt: '2026-09-01',
+    pendingSubscriptionId: null,
+    pendingBillingCycle: null,
+  };
+}
+
+function billingState(
+  status: 'ACTIVE' | 'CANCELLED',
+  planId = 1,
+  billingCycle: 'MONTHLY' | 'YEARLY' = 'MONTHLY',
+  aggregateId = 100,
+) {
+  return {
+    provider: 'TOSS',
+    status,
+    payMethod: 'CARD',
+    maskedMethod: '1234',
+    nextBillingAt: '2026-09-01',
+    lastChargedAt: '2026-08-01T00:00:00',
+    cancelledAt: status === 'CANCELLED' ? '2026-08-12T00:00:00' : null,
+    subscription: {
+      ...subscriptionState(planId, status),
+      id: aggregateId,
+      billingCycle,
+    },
+  };
+}
+
+function upgradeResponse() {
+  return {
+    subscription: { id: 2, name: 'DELUXE' },
+    billingCycle: 'MONTHLY',
+    status: 'ACTIVE',
+    changeType: 'UPGRADE',
+    proratedAmount: 5000,
+    startedAt: '2026-08-01',
+    expiresAt: '2026-09-01',
+  };
+}
+
+function doneUpgradeOutcome() {
+  return {
+    purpose: 'UPGRADE',
+    orderStatus: 'DONE',
+    userSubscriptionId: 100,
+    targetSubscriptionId: 2,
+    targetBillingCycle: 'MONTHLY',
+  };
+}

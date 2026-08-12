@@ -87,6 +87,31 @@ class AdminPaymentRefundServiceTest {
     }
 
     @Test
+    @DisplayName("getRefund returns the exact persisted refund without provider execution")
+    void getRefund() {
+        PaymentRefund refund = refund(fixture(), PaymentRefundStatus.PROCESSING);
+        given(paymentRefundRepository.findWithGraphById(77L)).willReturn(Optional.of(refund));
+
+        ResponseDTO<AdminPaymentRefundResponse> response = service.getRefund(77L);
+
+        assertThat(response.getData().id()).isEqualTo(77L);
+        assertThat(response.getData().status()).isEqualTo(PaymentRefundStatus.PROCESSING);
+        verify(paymentRefundRepository).findWithGraphById(77L);
+        verify(refundProvider, never()).cancelPayment(any());
+    }
+
+    @Test
+    @DisplayName("getRefund rejects a missing local refund without provider execution")
+    void getRefundRejectsMissingRecord() {
+        given(paymentRefundRepository.findWithGraphById(404L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getRefund(404L))
+                .isInstanceOf(BusinessException.class);
+
+        verify(refundProvider, never()).cancelPayment(any());
+    }
+
+    @Test
     @DisplayName("createRefund stores local ledger before provider execution")
     void createRefund() {
         Fixture fixture = fixture();

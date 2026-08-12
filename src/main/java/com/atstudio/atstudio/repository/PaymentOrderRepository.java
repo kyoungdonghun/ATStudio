@@ -34,6 +34,20 @@ public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long
 
     Optional<PaymentOrder> findByOrderId(String orderId);
 
+    @EntityGraph(attributePaths = {"subscription", "userSubscription"})
+    @Query("select paymentOrder from PaymentOrder paymentOrder "
+            + "where paymentOrder.orderId = :orderID and paymentOrder.user.id = :userID")
+    Optional<PaymentOrder> findRecoveryByOrderIdAndUserID(
+            @Param("orderID") String orderID,
+            @Param("userID") Long userID);
+
+    @EntityGraph(attributePaths = {"subscription", "userSubscription"})
+    @Query("select paymentOrder from PaymentOrder paymentOrder "
+            + "where paymentOrder.commandKey = :commandKey and paymentOrder.user.id = :userID")
+    Optional<PaymentOrder> findRecoveryByCommandKeyAndUserID(
+            @Param("commandKey") String commandKey,
+            @Param("userID") Long userID);
+
     @Query("select paymentOrder.billingAgreement.id from PaymentOrder paymentOrder "
             + "where paymentOrder.orderId = :orderID")
     Optional<Long> findBillingAgreementIDByOrderId(@Param("orderID") String orderID);

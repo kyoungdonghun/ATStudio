@@ -1,6 +1,6 @@
 ---
-version: 2.3
-last_updated: 2026-08-09
+version: 2.5
+last_updated: 2026-08-12
 project: ATS
 owner: docops
 category: reference
@@ -22,8 +22,8 @@ This file is excluded from the client PDF.
 
 | Surface | Current count | Unit |
 |---|---:|---|
-| REST API | 144 | Method-level mappings across 25 controller classes |
-| Database | 41 | `CREATE TABLE` declarations; also 41 JPA entities |
+| REST API | 149 | Method-level mappings across 25 controller classes |
+| Database | 42 | `CREATE TABLE` declarations; also 42 JPA entities |
 | Frontend screens | 53 | Distinct visual page UIs, including 2 error screens |
 | Router declarations | 57 | 56 path routes plus 1 index redirect |
 | Lazy page components | 53 | Every current `lazyPage(...)` declaration |

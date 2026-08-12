@@ -47,6 +47,11 @@ public class TossBillingProvider implements RecurringPaymentProvider, PaymentSta
     }
 
     @Override
+    public boolean supportsPureDeterministicPrepare() {
+        return true;
+    }
+
+    @Override
     public boolean isLookupConfigured() {
         return !isBlank(paymentProperties.getToss().getSecretKey());
     }

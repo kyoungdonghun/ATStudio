@@ -224,6 +224,8 @@ describe('domain API contracts', () => {
       .mockResolvedValueOnce(apiResponse({ status: 'ACTIVE' }));
     mockedClient.get
       .mockResolvedValueOnce(apiResponse({ provider: 'TOSS' }))
+      .mockResolvedValueOnce(apiResponse({ orderStatus: 'DONE' }))
+      .mockResolvedValueOnce(apiResponse({ orderStatus: 'DONE' }))
       .mockResolvedValueOnce(apiResponse({ id: 1 }))
       .mockResolvedValueOnce({ data: paged })
       .mockResolvedValueOnce(apiResponse({ changeType: 'UPGRADE' }));
@@ -232,20 +234,36 @@ describe('domain API contracts', () => {
       .mockResolvedValueOnce(apiResponse({ id: 1 }));
     mockedClient.delete.mockResolvedValue({});
 
-    const prepare = { subscriptionId: 2, billingCycle: 'MONTHLY' as const };
-    await payments.prepareBillingAgreement(prepare);
+    const prepare = {
+      subscriptionId: 2,
+      billingCycle: 'MONTHLY' as const,
+      purpose: 'SUBSCRIBE' as const,
+    };
+    const idempotencyKey = '11111111-1111-4111-8111-111111111111';
+    await payments.prepareBillingAgreement(prepare, idempotencyKey);
     expect(mockedClient.post).toHaveBeenNthCalledWith(
       1,
       '/payments/billing-agreements/prepare',
       prepare,
+      { headers: { 'Idempotency-Key': idempotencyKey } },
     );
+    expect(prepare).not.toHaveProperty('idempotencyKey');
     const confirm = { orderId: 'order-1', authKey: 'auth', customerKey: 'customer', amount: 9900 };
     await payments.confirmBillingAgreement(confirm);
     await payments.fetchMyBillingAgreement();
+    await payments.fetchPaymentCommandOutcome('order/with space');
+    await payments.fetchSubscriptionUpgradeOutcome(2, 'YEARLY');
+    expect(mockedClient.get).toHaveBeenCalledWith('/payments/orders/order%2Fwith%20space/outcome');
+    expect(mockedClient.get).toHaveBeenCalledWith('/payments/subscription-upgrades/outcome', {
+      params: { subscriptionId: 2, billingCycle: 'YEARLY' },
+    });
 
     const controller = new AbortController();
     await userSubscriptions.fetchMySubscription(controller.signal);
-    await userSubscriptions.changeMySubscription(prepare);
+    await userSubscriptions.changeMySubscription({
+      subscriptionId: prepare.subscriptionId,
+      billingCycle: prepare.billingCycle,
+    });
     await userSubscriptions.cancelMySubscription();
     await userSubscriptions.reactivateMySubscription();
     await userSubscriptions.fetchAdminUserSubscriptions(2, 30, controller.signal);

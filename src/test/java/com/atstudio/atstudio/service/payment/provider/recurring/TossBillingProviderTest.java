@@ -27,6 +27,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @DisplayName("TossBillingProvider unit tests")
 class TossBillingProviderTest {
 
+    @Test
+    @DisplayName("Toss explicitly attests that prepare is a pure deterministic descriptor")
+    void prepareDescriptorCapabilityIsExplicitlyEnabled() {
+        TossBillingProvider provider = new TossBillingProvider(new PaymentProperties());
+
+        assertThat(provider.supportsPureDeterministicPrepare()).isTrue();
+    }
+
     private HttpServer server;
 
     @AfterEach

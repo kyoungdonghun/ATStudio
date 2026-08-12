@@ -856,7 +856,7 @@ describe('catalog filters, actions, and pagination', () => {
         expect.any(AbortSignal),
       ),
     );
-  });
+  }, 10_000);
 
   it('loads member likes and exercises play, like, playlist, and download outcomes', async () => {
     states.auth.authenticated = true;

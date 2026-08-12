@@ -212,7 +212,10 @@ public class PaymentCommandTransactionService {
         validateInitialSubscriptionState(order);
 
         int providerAttempt = order.getProviderAttempt() + 1;
-        String commandKey = keyFactory.billingConfirm(orderID);
+        String commandKey = order.getCommandKey();
+        if (commandKey == null) {
+            commandKey = keyFactory.billingConfirm(orderID);
+        }
         String providerIdempotencyKey = keyFactory.billingInitialAttempt(orderID, providerAttempt);
         order.claimProviderAttempt(commandKey, providerIdempotencyKey, claimedAt);
 

@@ -1,6 +1,6 @@
 ---
-version: 22.1
-last_updated: 2026-08-09
+version: 23.0
+last_updated: 2026-08-12
 project: ATS
 owner: SA
 category: design
@@ -16,16 +16,16 @@ dependencies:
     reason: Current API persistence consumers
 ---
 
-# ATStudio DB Schema Definition v22.1
+# ATStudio DB Schema Definition v23.0
 
 ## V1 Baseline
 
-ATStudio V1 has **41 tables and 41 JPA entities**. Both counts are derived from
+ATStudio V1 has **42 tables and 42 JPA entities**. Both counts are derived from
 the current working tree:
 
-- 41 unique `CREATE TABLE` statements in
+- 42 unique `CREATE TABLE` statements in
   `src/main/resources/schema.sql`.
-- 41 Java types annotated with `@Entity` under
+- 42 Java types annotated with `@Entity` under
   `src/main/java/com/atstudio/atstudio/entity/`.
 
 The checked-in DDL is a fresh-only, fail-closed baseline:
@@ -42,26 +42,30 @@ bootstrap, or operator workflow. Existing databases are not upgraded by this
 repository baseline. Any retained-data migration requires a separate approved
 requirement and migration design.
 
-### Verified Current Manifest
+### Current Source and MySQL Verification Boundary
 
-WI-20260809-ATS-001 verified the current fresh disposable manifest on an
-isolated loopback database. The historical 2026-07-17 39-table manifest is a
-predecessor record only; it is not the current certification baseline.
+The current WI-056 source adds `payment_settlement_import_attempts` and one
+`payment_settlements.import_batch_key` index. Source inspection gives the
+following exact delta from the last executed MySQL manifest:
 
-| Object | Count |
+| DDL object | WI-056 source delta |
 |---|---:|
-| Tables | 41 |
-| Columns | 493 |
-| Indexes | 168 |
-| Foreign keys | 89 |
-| Seeded subscription plans | 6 |
-| Manifest SHA-256 | `c581bef61cfba143744882b0674daf8d8fe742d82adbbf66d6b61699f5b86333` |
+| Tables | +1 |
+| Columns | +13 |
+| Named index definitions, including the new table primary key | +5 |
+| Foreign keys | +1 |
+| Check constraints | +1 |
 
-The verified manifest matches the current source: 41 canonical `CREATE TABLE`
-statements, 41 JPA entities, and the listed column, index, foreign-key, and
-seeded-plan totals. The bootstrap validator now enforces these values and the
-SHA-256 above. The WI-022 source-derived reconciliation and its historical
-39-table baseline remain preserved in its evidence record.
+The last executed disposable MySQL manifest, verified before this source delta,
+was 41 tables, 493 columns, 168 `information_schema.statistics` rows, 89 foreign
+keys, 6 plans, and SHA-256
+`c581bef61cfba143744882b0674daf8d8fe742d82adbbf66d6b61699f5b86333`.
+That value is a predecessor result and is not a current WI-056 manifest or hash.
+No MySQL rehearsal or current manifest/hash was produced for WI-056. The
+disposable bootstrap validator still contains the predecessor expectations and
+must be revised in a separately permitted code/tooling scope before a current
+fresh-MySQL certification can pass. This document does not invent replacement
+column/index/hash values.
 
 ## Baseline Data Ownership
 
@@ -95,7 +99,7 @@ notices are explicit non-baseline workflows.
 | `admin_operation_audit_logs` | Append-only role-change and local-correction security audit without foreign keys |
 | `admin_subscription_corrections` | Explicit local subscription correction request/approval/execution ledger |
 
-### Subscription and Payment (12)
+### Subscription and Payment (13)
 
 | Table | Primary role |
 |---|---|
@@ -104,6 +108,7 @@ notices are explicit non-baseline workflows.
 | `billing_agreements` | Encrypted recurring billing agreement |
 | `payment_orders` | Stable payment command and provider-attempt ledger |
 | `subscription_payments` | Finalized subscription charges |
+| `payment_settlement_import_attempts` | Durable CSV import-attempt state, owner-scoped key digest, aggregate counts, and bounded operator context |
 | `payment_settlements` | Imported/generated settlement evidence |
 | `payment_refunds` | Refund workflow and provider result ledger |
 | `payment_entitlement_corrections` | Refund-linked local access correction |
@@ -150,7 +155,7 @@ notices are explicit non-baseline workflows.
 | `notice_attachments` | Notice attachment metadata |
 | `storage_mutations` | Durable storage mutation journal |
 
-Total: **41 tables**.
+Total: **42 tables**.
 
 ## Current Contract Boundaries
 
@@ -200,6 +205,27 @@ Total: **41 tables**.
   future approved provider can be added atomically across enum, DDL, adapter,
   tests, and documentation. No speculative provider value is present now.
 
+### Settlement Import Attempt Ledger
+
+- `payment_settlement_import_attempts` is dedicated to CSV import attempts. It
+  is not used by missing-settlement reconciliation.
+- `key_digest` is a 64-character owner-scoped SHA-256 digest derived from the
+  operation namespace, authenticated ADMIN ID, and canonical lowercase UUIDv4
+  `Idempotency-Key`. The raw key and operation-key aliases are not columns.
+- `uq_payment_settlement_import_attempts_key_digest` ensures one claimed
+  attempt per ADMIN/key digest. `PROCESSING`, `COMPLETED`, and `FAILED` are the
+  only states.
+- Completed counts satisfy
+  `total_rows = imported_rows + duplicate_rows + failed_rows` in both the entity
+  transition and `chk_payment_settlement_import_attempts_completed_counts`.
+- The ledger retains actor, aggregate counts, an optional operator note bounded
+  to 500 characters, a bounded internal failure code, completion time, and
+  timestamps. It does not retain file bytes, raw CSV rows, per-row errors, raw
+  Provider payloads, credentials, or secrets.
+- `payment_settlements.import_batch_key` is indexed for linkage to the
+  server-derived public attempt identity. No foreign key is added because the
+  fresh-only contract does not claim a retained-data backfill.
+
 ### Billing Key Encryption
 
 - Billing keys use only the V2 key-ID envelope.
@@ -236,4 +262,4 @@ Get-ChildItem src/main/java/com/atstudio/atstudio/entity -Recurse -Filter *.java
   Measure-Object
 ```
 
-Expected results: `41` and `41`.
+Expected results: `42` and `42`.

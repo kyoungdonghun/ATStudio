@@ -10,6 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Import({
         JpaConfig.class,
         PaymentProperties.class,
+        PaymentCommandKeyFactory.class,
         PaymentOperationAuditLogService.class,
         PaymentReconciliationIncidentService.class,
         BillingAgreementCleanupTransactionService.class,
@@ -33,6 +35,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("Withdrawal billing cleanup transaction integration tests")
 class WithdrawalBillingCleanupTransactionIntegrationTest
         extends BillingAgreementCleanupIntegrationTestSupport {
+
+    @MockitoBean BillingAgreementPrepareTransactionService billingAgreementPrepareTransactionService;
 
     @Test
     @DisplayName("withdrawal claim commits before provider deletion and already-removed converges")

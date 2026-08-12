@@ -4,6 +4,12 @@ import { useToastStore } from '@/store/toastStore';
 import { useAuthStore } from '@/store/authStore';
 import { safeStorage } from '@/utils/safeStorage';
 
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    skipAuthReplay?: boolean;
+  }
+}
+
 const client = axios.create({
   baseURL: '/api',
   timeout: 15_000,
@@ -97,6 +103,7 @@ client.interceptors.response.use(
       !originalRequest ||
       error.response?.status !== 401 ||
       originalRequest._retry ||
+      originalRequest.skipAuthReplay ||
       shouldSkipRefresh(originalRequest)
     ) {
       return Promise.reject(error);

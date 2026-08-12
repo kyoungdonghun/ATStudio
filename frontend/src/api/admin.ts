@@ -404,6 +404,24 @@ export interface AdminPaymentSettlementImportResult {
   errors: AdminPaymentSettlementImportError[];
 }
 
+export type AdminPaymentSettlementImportAttemptState = 'PROCESSING' | 'COMPLETED' | 'FAILED';
+
+export interface AdminPaymentSettlementImportAttempt {
+  attemptId: number;
+  importBatchKey: string;
+  actorUserId: number;
+  state: AdminPaymentSettlementImportAttemptState;
+  totalRows: number;
+  importedRows: number;
+  skippedDuplicateRows: number;
+  failedRows: number;
+  operatorNote: string | null;
+  failureCode: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type AdminPaymentRefundReasonCode =
   | 'CUSTOMER_REQUEST'
   | 'DUPLICATE_PAYMENT'
@@ -411,6 +429,15 @@ export type AdminPaymentRefundReasonCode =
   | 'SERVICE_ISSUE'
   | 'ADMIN_ADJUSTMENT'
   | 'OTHER';
+
+export type AdminPaymentRefundStatus =
+  | 'REQUESTED'
+  | 'APPROVED'
+  | 'PROCESSING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'PENDING_PROVIDER_CONFIRMATION'
+  | 'CANCELLED';
 
 export interface AdminPaymentRefundPreview {
   subscriptionPaymentId: number;
@@ -435,7 +462,7 @@ export interface AdminPaymentRefund {
   userId: number;
   userNickname: string;
   provider: string;
-  status: string;
+  status: AdminPaymentRefundStatus;
   amount: number;
   currency: string;
   reasonCode: AdminPaymentRefundReasonCode;
@@ -458,6 +485,13 @@ export interface AdminPaymentRefund {
 }
 
 export type AdminPaymentEntitlementCorrectionBillingCycle = 'MONTHLY' | 'YEARLY';
+export type AdminPaymentEntitlementCorrectionStatus =
+  | 'REQUESTED'
+  | 'APPROVED'
+  | 'PROCESSING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'CANCELLED';
 export type AdminPaymentEntitlementCorrectionSubscriptionStatus =
   | 'ACTIVE'
   | 'CANCELLED'
@@ -500,7 +534,7 @@ export interface AdminPaymentEntitlementCorrection {
   userId: number;
   userNickname: string;
   provider: string;
-  status: string;
+  status: AdminPaymentEntitlementCorrectionStatus;
   action: string;
   beforeSubscriptionId: number;
   beforePlanName: string;
@@ -688,6 +722,7 @@ export async function fetchAdminPaymentSettlements(
 
 export async function importAdminPaymentSettlements(
   file: File,
+  idempotencyKey: string,
   note?: string,
 ): Promise<AdminPaymentSettlementImportResult> {
   const formData = new FormData();
@@ -695,7 +730,42 @@ export async function importAdminPaymentSettlements(
   const { data } = await client.post<ApiResponse<AdminPaymentSettlementImportResult>>(
     '/admin/payments/settlements/import',
     formData,
-    { params: note ? { note } : undefined },
+    {
+      params: note ? { note } : undefined,
+      headers: { 'Idempotency-Key': idempotencyKey },
+      skipAuthReplay: true,
+    },
+  );
+  return data.data;
+}
+
+export async function fetchAdminPaymentSettlementImportAttempts(
+  page = 1,
+  size = 20,
+  signal?: AbortSignal,
+): Promise<PagedResponse<AdminPaymentSettlementImportAttempt>> {
+  const { data } = await client.get<PagedResponse<AdminPaymentSettlementImportAttempt>>(
+    '/admin/payments/settlement-import-attempts',
+    { params: { page, size }, signal },
+  );
+  return data;
+}
+
+export async function fetchAdminPaymentSettlementImportAttempt(
+  attemptId: number,
+): Promise<AdminPaymentSettlementImportAttempt> {
+  const { data } = await client.get<ApiResponse<AdminPaymentSettlementImportAttempt>>(
+    `/admin/payments/settlement-import-attempts/${attemptId}`,
+  );
+  return data.data;
+}
+
+export async function recoverAdminPaymentSettlementImportAttempt(
+  idempotencyKey: string,
+): Promise<AdminPaymentSettlementImportAttempt> {
+  const { data } = await client.get<ApiResponse<AdminPaymentSettlementImportAttempt>>(
+    '/admin/payments/settlement-import-attempts/recovery',
+    { headers: { 'Idempotency-Key': idempotencyKey } },
   );
   return data.data;
 }
@@ -750,6 +820,17 @@ export async function fetchAdminPaymentRefunds(
   return data;
 }
 
+export async function fetchAdminPaymentRefund(
+  refundId: number,
+  signal?: AbortSignal,
+): Promise<AdminPaymentRefund> {
+  const { data } = await client.get<ApiResponse<AdminPaymentRefund>>(
+    `/admin/payments/refunds/${refundId}`,
+    { signal },
+  );
+  return data.data;
+}
+
 export async function createAdminPaymentRefund(
   body: CreateAdminPaymentRefundRequest,
 ): Promise<AdminPaymentRefund> {
@@ -778,6 +859,7 @@ export async function executeAdminPaymentRefund(
   const { data } = await client.post<ApiResponse<AdminPaymentRefund>>(
     `/admin/payments/refunds/${refundId}/execute`,
     { note },
+    { skipAuthReplay: true },
   );
   return data.data;
 }
@@ -815,6 +897,17 @@ export async function fetchAdminPaymentEntitlementCorrections(
   return data;
 }
 
+export async function fetchAdminPaymentEntitlementCorrection(
+  correctionId: number,
+  signal?: AbortSignal,
+): Promise<AdminPaymentEntitlementCorrection> {
+  const { data } = await client.get<ApiResponse<AdminPaymentEntitlementCorrection>>(
+    `/admin/payments/entitlement-corrections/${correctionId}`,
+    { signal },
+  );
+  return data.data;
+}
+
 export async function createAdminPaymentEntitlementCorrection(
   body: AdminPaymentEntitlementCorrectionRequest,
 ): Promise<AdminPaymentEntitlementCorrection> {
@@ -843,6 +936,7 @@ export async function executeAdminPaymentEntitlementCorrection(
   const { data } = await client.post<ApiResponse<AdminPaymentEntitlementCorrection>>(
     `/admin/payments/entitlement-corrections/${correctionId}/execute`,
     { note },
+    { skipAuthReplay: true },
   );
   return data.data;
 }

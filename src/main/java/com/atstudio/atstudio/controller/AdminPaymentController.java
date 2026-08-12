@@ -18,6 +18,7 @@ import com.atstudio.atstudio.dto.payment.AdminPaymentRefundExecuteRequest;
 import com.atstudio.atstudio.dto.payment.AdminPaymentRefundPreviewResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentRefundResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementIgnoreRequest;
+import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementImportAttemptResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementImportResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementReconcileRequest;
 import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementResponse;
@@ -45,6 +46,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
@@ -126,8 +128,36 @@ public class AdminPaymentController {
     public ResponseEntity<ResponseDTO<AdminPaymentSettlementImportResponse>> importSettlements(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestPart("file") MultipartFile file,
-            @RequestParam(required = false) String note) {
-        return ResponseEntity.ok(adminPaymentSettlementService.importSettlements(userDetails, file, note));
+            @RequestParam(required = false) String note,
+            @RequestHeader("Idempotency-Key") String idempotencyKey) {
+        return ResponseEntity.ok(adminPaymentSettlementService.importSettlements(
+                userDetails,
+                file,
+                note,
+                idempotencyKey));
+    }
+
+    @GetMapping("/settlement-import-attempts")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentSettlementImportAttemptResponse>> listSettlementImportAttempts(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(adminPaymentSettlementService.listImportAttempts(page, size));
+    }
+
+    @GetMapping("/settlement-import-attempts/recovery")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentSettlementImportAttemptResponse>> recoverSettlementImportAttempt(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestHeader("Idempotency-Key") String idempotencyKey) {
+        return ResponseEntity.ok(adminPaymentSettlementService.recoverImportAttempt(userDetails, idempotencyKey));
+    }
+
+    @GetMapping("/settlement-import-attempts/{attemptId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AdminPaymentSettlementImportAttemptResponse>> getSettlementImportAttempt(
+            @PathVariable Long attemptId) {
+        return ResponseEntity.ok(adminPaymentSettlementService.getImportAttempt(attemptId));
     }
 
     @PostMapping("/settlements/reconcile")

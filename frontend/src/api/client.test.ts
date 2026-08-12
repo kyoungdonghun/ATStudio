@@ -159,6 +159,77 @@ describe('client auth refresh exclusions', () => {
     expect(clearSessionMock).not.toHaveBeenCalled();
   });
 
+  it('rejects an auth-replay opt-out 401 without refresh, queueing, or request replay', async () => {
+    localStorage.setItem('refreshToken', 'refresh-token');
+    const postSpy = vi.spyOn(axios, 'post');
+    const adapter = vi.fn();
+    const error = {
+      config: {
+        url: '/admin/payments/refunds/51/execute',
+        method: 'post',
+        headers: {},
+        adapter,
+        skipAuthReplay: true,
+      },
+      response: { status: 401 },
+    };
+
+    await expect(getRejectedResponseInterceptor()(error)).rejects.toBe(error);
+
+    expect(postSpy).not.toHaveBeenCalled();
+    expect(adapter).not.toHaveBeenCalled();
+    expect(clearSessionMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps an opted-out execute outside an in-progress protected refresh', async () => {
+    localStorage.setItem('refreshToken', 'old-refresh');
+    const refreshResponse = {
+      data: { data: { accessToken: 'new-access', refreshToken: 'new-refresh' } },
+    };
+    let resolveRefresh!: (value: typeof refreshResponse) => void;
+    const refreshPromise = new Promise<typeof refreshResponse>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    const postSpy = vi.spyOn(axios, 'post').mockReturnValueOnce(refreshPromise);
+    const normalAdapter = vi.fn().mockResolvedValue({
+      data: { ok: true },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    });
+    const executeAdapter = vi.fn();
+    const rejected = getRejectedResponseInterceptor();
+
+    const normalResult = rejected({
+      config: { url: '/users/me', method: 'get', headers: {}, adapter: normalAdapter },
+      response: { status: 401 },
+    });
+    await vi.waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+
+    const executeError = {
+      config: {
+        url: '/admin/payments/refunds/51/execute',
+        method: 'post',
+        headers: {},
+        adapter: executeAdapter,
+        skipAuthReplay: true,
+      },
+      response: { status: 401 },
+    };
+    await expect(rejected(executeError)).rejects.toBe(executeError);
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(executeAdapter).not.toHaveBeenCalled();
+    expect(clearSessionMock).not.toHaveBeenCalled();
+
+    resolveRefresh(refreshResponse);
+    await expect(normalResult).resolves.toMatchObject({ data: { ok: true } });
+    expect(normalAdapter).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem('accessToken')).toBe('new-access');
+    expect(localStorage.getItem('refreshToken')).toBe('new-refresh');
+    expect(clearSessionMock).not.toHaveBeenCalled();
+  });
+
   it('refreshes local ADMIN role on 403 without retrying and preserves the original error', async () => {
     authState.role = 'ADMIN';
     refreshCurrentUserMock.mockResolvedValue({ role: 'USER' });

@@ -1,6 +1,6 @@
 ---
-version: 1.9
-last_updated: 2026-08-09
+version: 2.1
+last_updated: 2026-08-12
 project: ATS
 owner: EO
 category: registry
@@ -26,21 +26,21 @@ dependencies:
 
 | Project ID | Name/Alias | Repo (URL or path) | Status | Owner | Last Updated | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| PRJ-ATS-001 | ATStudio | `.` (this repository) | active | MA | 2026-07-17 | AT.M customer-facing display brand; ATStudio is the internal project identifier. Official V1 baseline branch: `codex/p1-acceptance-hardening`. |
+| PRJ-ATS-001 | ATStudio | `.` (this repository) | active | MA | 2026-08-12 | AT.M customer-facing display brand; ATStudio is the internal project identifier. Official V1 baseline branch: `codex/p1-acceptance-hardening`. |
 
 No separate client-demo branch is maintained for ATStudio V1.
 
 ## ATStudio Project Stats (PRJ-ATS-001)
 
-> Last verified from the current working tree: 2026-08-09. These source counts
+> Last verified from the current working tree: 2026-08-12. These source counts
 > include the approved WI-20260808-ATS-014~021 implementation in the shared
 > dirty worktree; they are not production-deployment evidence.
 
 | Category | Count | Reference |
 | :-- | :-- | :-- |
-| Backend REST APIs | 144 method-level mappings | `docs/design/api-spec.md` v28 |
-| DB Tables / JPA Entities | 41 / 41 | `docs/design/db-schema.md` v22 |
-| V1 DB Manifest | 41 tables, 493 columns, 168 indexes, 89 foreign keys, 6 plans; SHA-256 `c581bef61cfba143744882b0674daf8d8fe742d82adbbf66d6b61699f5b86333` | `docs/design/db-schema.md` v22 |
+| Backend REST APIs | 149 method-level mappings | `docs/design/api-spec.md` v29.0 |
+| DB Tables / JPA Entities | 42 / 42 | `docs/design/db-schema.md` v23.0 |
+| V1 DB Manifest | Current WI-056 MySQL manifest/hash not run; last pre-WI-056 execution was 41 tables / 493 columns / 168 index rows / 89 foreign keys / 6 plans | `docs/design/db-schema.md` v23.0 |
 | Frontend Screens | 53 distinct visual page UIs | `docs/ui/atstudio-front-list.md` |
 | Agents | 13 | `docs/architecture/system-design.md` §2.4 |
 | SR Items completed | 82 | `docs/SR/index.md` |

@@ -3,11 +3,46 @@ package com.atstudio.atstudio.service;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.util.HexFormat;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 @Component
 public class PaymentCommandKeyFactory {
+
+    private static final Pattern CANONICAL_UUID_V4 = Pattern.compile(
+            "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$");
+
+    public String billingAgreementPrepare(Long userID, String rawKey) {
+        long ownerID = requiredID(userID, "userID");
+        String canonicalKey = requireCanonicalBillingAgreementPrepareKey(rawKey);
+        String digestInput = "billing-prepare\u0000v1\u0000" + ownerID + "\u0000" + canonicalKey;
+        return "BILLING_PREPARE:v1:" + sha256(digestInput);
+    }
+
+    public String settlementImportDigest(Long userID, String rawKey) {
+        long ownerID = requiredID(userID, "userID");
+        String canonicalKey = requireCanonicalSettlementImportKey(rawKey);
+        return sha256("settlement-csv-import\u0000v1\u0000" + ownerID + "\u0000" + canonicalKey);
+    }
+
+    public String requireCanonicalBillingAgreementPrepareKey(String rawKey) {
+        if (rawKey == null || !CANONICAL_UUID_V4.matcher(rawKey).matches()) {
+            throw new IllegalArgumentException("Idempotency-Key must be a canonical UUID v4 value.");
+        }
+        return rawKey;
+    }
+
+    public String requireCanonicalSettlementImportKey(String rawKey) {
+        if (rawKey == null || !CANONICAL_UUID_V4.matcher(rawKey).matches()) {
+            throw new IllegalArgumentException("Idempotency-Key must be a canonical UUID v4 value.");
+        }
+        return rawKey;
+    }
 
     public String billingConfirm(String orderID) {
         return "BILLING_CONFIRM:" + requiredText(orderID, "orderID");
@@ -74,5 +109,14 @@ public class PaymentCommandKeyFactory {
             throw new IllegalArgumentException("providerAttempt must be positive.");
         }
         return value;
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable.", exception);
+        }
     }
 }

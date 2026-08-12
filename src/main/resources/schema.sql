@@ -1,7 +1,7 @@
 -- =============================================================================
 -- ATStudio V1 Fresh Database Baseline
 -- =============================================================================
--- Source  : Current JPA entity model after WI-20260717-ATS-002
+-- Source  : Current JPA entity baseline through WI-20260809-ATS-056
 -- Engine  : InnoDB
 -- Charset : utf8mb4 / utf8mb4_unicode_ci
 -- DB      : atstudio  (see application.yml)
@@ -554,6 +554,34 @@ CREATE TABLE subscription_payments
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
 
+CREATE TABLE payment_settlement_import_attempts
+(
+    id             BIGINT NOT NULL AUTO_INCREMENT,
+    key_digest     VARCHAR(64) NOT NULL,
+    actor_user_id  BIGINT NOT NULL,
+    state          ENUM ('PROCESSING', 'COMPLETED', 'FAILED') NOT NULL,
+    total_rows     INT UNSIGNED NOT NULL DEFAULT 0,
+    imported_rows  INT UNSIGNED NOT NULL DEFAULT 0,
+    duplicate_rows INT UNSIGNED NOT NULL DEFAULT 0,
+    failed_rows    INT UNSIGNED NOT NULL DEFAULT 0,
+    operator_note  VARCHAR(500) NULL,
+    failure_code   VARCHAR(100) NULL,
+    completed_at   DATETIME NULL,
+    created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_payment_settlement_import_attempts_key_digest (key_digest),
+    KEY idx_payment_settlement_import_attempts_actor_created (actor_user_id, created_at),
+    KEY idx_payment_settlement_import_attempts_state_created (state, created_at),
+    CONSTRAINT fk_payment_settlement_import_attempts_actor
+        FOREIGN KEY (actor_user_id) REFERENCES users (id),
+    CONSTRAINT chk_payment_settlement_import_attempts_completed_counts
+        CHECK (state <> 'COMPLETED'
+            OR total_rows = imported_rows + duplicate_rows + failed_rows)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
 CREATE TABLE payment_settlements
 (
     id                      BIGINT NOT NULL AUTO_INCREMENT,
@@ -593,6 +621,7 @@ CREATE TABLE payment_settlements
     KEY idx_payment_settlements_order_id (order_id),
     KEY idx_payment_settlements_payment_key (provider_payment_key),
     KEY idx_payment_settlements_base_date (settlement_base_date),
+    KEY idx_payment_settlements_import_batch_key (import_batch_key),
     CONSTRAINT fk_payment_settlements_order FOREIGN KEY (payment_order_id) REFERENCES payment_orders (id),
     CONSTRAINT fk_payment_settlements_subscription_payment FOREIGN KEY (subscription_payment_id) REFERENCES subscription_payments (id),
     CONSTRAINT fk_payment_settlements_user FOREIGN KEY (user_id) REFERENCES users (id),
@@ -1143,5 +1172,5 @@ CREATE TABLE storage_mutations
 
 -- =============================================================================
 -- END OF SCHEMA
--- Total: 41 tables
+-- Total: 42 tables
 -- =============================================================================

@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         JpaConfig.class,
         PaymentProperties.class,
         PaymentCommandKeyFactory.class,
+        BillingAgreementPrepareTransactionService.class,
         PaymentCommandTransactionService.class,
         PaymentReconciliationIncidentService.class,
         BillingAgreementApplicationService.class,

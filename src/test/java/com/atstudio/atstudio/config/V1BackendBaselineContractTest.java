@@ -3,6 +3,7 @@ package com.atstudio.atstudio.config;
 import com.atstudio.atstudio.entity.AdminOperationAuditLog;
 import com.atstudio.atstudio.entity.AdminSubscriptionCorrection;
 import com.atstudio.atstudio.entity.PaymentSettlement;
+import com.atstudio.atstudio.entity.PaymentSettlementImportAttempt;
 import com.atstudio.atstudio.entity.SocialAccount;
 import com.atstudio.atstudio.entity.SubscriptionPayment;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
@@ -48,7 +49,7 @@ class V1BackendBaselineContractTest {
     }
 
     @Test
-    @DisplayName("schema is a fail-closed 41-table fresh baseline")
+    @DisplayName("schema is a fail-closed 42-table fresh baseline")
     void schemaIsFreshOnlyAndEntityAligned() throws Exception {
         String schema = Files.readString(SCHEMA);
         long tableCount = Pattern.compile("(?m)^CREATE TABLE ")
@@ -63,7 +64,7 @@ class V1BackendBaselineContractTest {
                 .filter(identifier -> identifier.length() > 64)
                 .toList();
 
-        assertThat(tableCount).isEqualTo(41);
+        assertThat(tableCount).isEqualTo(42);
         assertThat(oversizedIdentifiers).isEmpty();
         assertThat(schema)
                 .doesNotContain(
@@ -81,9 +82,35 @@ class V1BackendBaselineContractTest {
                         "provider             ENUM ('TOSS') NOT NULL",
                         "CREATE TABLE admin_operation_audit_logs",
                         "CREATE TABLE admin_subscription_corrections",
+                        "CREATE TABLE payment_settlement_import_attempts",
                         "KEY idx_admin_operation_audit_logs_actor_created (actor_user_id, created_at)",
                         "KEY idx_admin_operation_audit_logs_target (target_type, target_id)",
                         "KEY idx_admin_operation_audit_logs_action_created (action, created_at)");
+
+        int importAttemptStart = schema.indexOf("CREATE TABLE payment_settlement_import_attempts");
+        int importAttemptEnd = schema.indexOf(") ENGINE = InnoDB", importAttemptStart);
+        String importAttemptTable = schema.substring(importAttemptStart, importAttemptEnd);
+        assertThat(importAttemptTable)
+                .contains(
+                        "key_digest     VARCHAR(64) NOT NULL",
+                        "UNIQUE KEY uq_payment_settlement_import_attempts_key_digest (key_digest)",
+                        "KEY idx_payment_settlement_import_attempts_actor_created (actor_user_id, created_at)",
+                        "KEY idx_payment_settlement_import_attempts_state_created (state, created_at)",
+                        "CONSTRAINT fk_payment_settlement_import_attempts_actor",
+                        "FOREIGN KEY (actor_user_id) REFERENCES users (id)",
+                        "CONSTRAINT chk_payment_settlement_import_attempts_completed_counts",
+                        "OR total_rows = imported_rows + duplicate_rows + failed_rows")
+                .doesNotContain("idempotency_key", "operation_key");
+
+        assertThat(PaymentSettlementImportAttempt.class.getAnnotation(Table.class).name())
+                .isEqualTo("payment_settlement_import_attempts");
+        assertThat(PaymentSettlementImportAttempt.class.getDeclaredField("keyDigest")
+                .getAnnotation(Column.class))
+                .satisfies(column -> {
+                    assertThat(column.name()).isEqualTo("key_digest");
+                    assertThat(column.nullable()).isFalse();
+                    assertThat(column.length()).isEqualTo(64);
+                });
 
         int auditStart = schema.indexOf("CREATE TABLE admin_operation_audit_logs");
         int auditEnd = schema.indexOf(") ENGINE = InnoDB", auditStart);

@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-07-15
+version: 1.5
+last_updated: 2026-08-12
 project: ATS
 owner: docops
 category: guide
@@ -172,7 +172,38 @@ Current source adapters:
 | `SYSTEM_RECONCILIATION` | Implemented |
 | `TOSS_API` | Future adapter |
 
-CSV import checks:
+Operator workflow:
+
+1. Select the CSV and optionally enter an import note of at most 500 characters,
+   then confirm once. Never enter PII, credentials, payment keys, Provider
+   identifiers, tokens, or other sensitive information. The UI warns about
+   this, but free text has no DLP guarantee.
+2. The screen creates one lowercase UUIDv4 and sends it only in the
+   `Idempotency-Key` header. Do not put that key in a URL, query, note, ticket,
+   screenshot, or log.
+3. Treat HTTP `200` with `failedRows > 0` as partial completion. Review every
+   returned row error; the screen retains the exact selected `File`, DOM file
+   input, and note for correction.
+4. For every normal import result, confirm
+   `totalRows == importedRows + skippedDuplicateRows + failedRows` and
+   `sum(statusCounts) == importedRows`.
+5. Expect one import POST and one Settlement-list reload after a returned
+   result. A transport error triggers one read-only same-key recovery GET.
+   There is no automatic second POST or polling.
+6. When recovery reports `PROCESSING`, keep the file and note and use the
+   manual `import result recovery` action later. A pending attempt blocks a new
+   import. When recovery is terminal, review the aggregate; per-row errors are
+   available only from the original POST response.
+7. On zero failed rows, the screen clears the React selected file and DOM file
+   input only after the required list reload succeeds.
+8. On list-reload failure, keep the retained file and note and resolve the
+   uncertainty before another explicit action. The screen does not claim full
+   success.
+9. To IGNORE a reviewed row, enter a note that remains nonblank after trimming
+   and is at most 500 characters, then use the existing danger confirmation.
+   No typed phrase is part of Settlement IGNORE.
+
+Current observed CSV row checks, not a complete strict import policy:
 
 - Required fields include provider, order ID, gross amount, net settlement amount, and settlement base date.
 - Amount values must be non-negative.
@@ -191,6 +222,29 @@ Settlement statuses:
 Rule:
 
 - Settlement operations do not change subscriptions, billing agreements, payment status, refund status, or provider state.
+- A same-key POST never processes the file again. `PROCESSING`, `COMPLETED`,
+  and `FAILED` conflicts are recovered through the same header; a new key is
+  created only for a new explicit operator action after terminal review.
+- Every accepted CSV claim, including all-duplicate and orchestration-failed
+  attempts, is retained in the dedicated import-attempt ledger. List and
+  numeric detail are ADMIN-only; same-key recovery is owner-scoped.
+- A duplicate Settlement is counted only for the exact deduplication unique
+  constraint plus winner confirmation. Unrelated integrity failures are not
+  relabelled as duplicates.
+- Reconciliation has no import-attempt recovery key. An orderless finalized
+  payment is counted once as failed with bounded error evidence.
+- The server revalidates the IGNORE note, authenticated ADMIN principal, and
+  locked authoritative active ADMIN user before it locks or mutates the
+  Settlement. The first actor, time, normalized note, status, and audit row are
+  retained. Every otherwise-valid repeat returns `INVALID_STATE_TRANSITION`
+  with no overwrite and no new audit.
+- Duplicate atomicity, durable CSV attempt evidence, orderless accounting, and
+  count conservation are implemented at the source/H2 boundary by WI-056.
+  Current MySQL concurrency/manifest rehearsal was not run.
+- Strict CSV dialect/field/range policy and reconciliation ceilings remain held
+  and out of scope for WI-20260809-ATS-067. Typed confirmation for
+  the separate general local-subscription correction flow remains with
+  WI-20260809-ATS-054.
 
 ## 10. Refund Tab
 
@@ -207,8 +261,11 @@ Workflow:
 2. Confirm refundable amount.
 3. Create refund request with reason code and note.
 4. Approve request.
-5. Execute refund with the required confirmation text.
-6. Review result status.
+5. Enter the required confirmation text. The screen reads the exact refund
+   detail and sends one execute POST only when that fresh row is `APPROVED`.
+6. If execute delivery is rejected or its response is lost, let the screen run
+   its one bounded exact-detail recovery read. Do not submit another execute.
+7. Review the durable status and the separate recovery outcome.
 
 Important statuses:
 
@@ -218,6 +275,7 @@ Important statuses:
 - `SUCCEEDED`
 - `FAILED`
 - `PENDING_PROVIDER_CONFIRMATION`
+- `CANCELLED`
 
 Rule:
 
@@ -236,7 +294,10 @@ Workflow:
 2. Preview target subscription, billing cycle, status, expiration, and pending-change behavior.
 3. Create correction request.
 4. Approve correction request.
-5. Execute correction with the required confirmation text.
+5. Enter the required confirmation text. The screen reads the exact correction
+   detail and sends one execute POST only when that fresh row is `APPROVED`.
+6. If execute delivery is rejected or its response is lost, use the resulting
+   read-only status recovery. Do not repeat correction execute.
 
 Rule:
 
@@ -244,7 +305,48 @@ Rule:
 - Provider billing-key delete is not called by entitlement correction.
 - Local billing agreement cancellation can be selected when the support-approved outcome requires it.
 
-## 12. Suggested Support Triage
+## 12. Shared Execute Recovery
+
+Exact recovery reads:
+
+- Refund: `GET /api/admin/payments/refunds/{refundId}`
+- Entitlement correction:
+  `GET /api/admin/payments/entitlement-corrections/{correctionId}`
+
+The screen uses four outcomes in addition to the domain status:
+
+| Outcome | Operator interpretation |
+| --- | --- |
+| `COMMITTED` | The exact durable refund or correction detail is `SUCCEEDED`. |
+| `FAILED` | The exact execute/detail result is terminal `FAILED` or `CANCELLED`. |
+| `RELOAD_FAILED` | Execute returned `SUCCEEDED`, but the required detail or committed-result list reload failed. The execute result remains successful. |
+| `UNKNOWN` | The durable result is in flight or unreadable, so neither success nor terminal failure is proved. |
+
+Operator controls:
+
+- Refund `PROCESSING`/`PENDING_PROVIDER_CONFIRMATION` and correction
+  `PROCESSING` rows are hydrated as `UNKNOWN` after a list or browser reload.
+- `status again` performs the exact detail GET only. It does not approve,
+  execute, call Toss, or mutate local state.
+- An `UNKNOWN` row unlocks before execution only when its exact detail returns
+  `REQUESTED` or `APPROVED`. `REQUESTED` restores approval only. A later
+  execute from `APPROVED` still needs typed confirmation and another fresh
+  exact-detail preflight.
+- `UNKNOWN` and `RELOAD_FAILED` lock the exact operation and linked refund or
+  correction mutations. A refund and its corrections cannot bypass each
+  other's ambiguity.
+- Pending execute owns status reads from preflight through recovery. Pending
+  status reads are deduplicated and keep execute blocked until they finish.
+- Current intent/read/view generations discard stale detail and list results;
+  an old tab, page, success, or failure cannot replace newer authoritative
+  state.
+- Refund and correction execute POSTs are excluded from authentication replay.
+  A `401` cannot be refreshed and replayed as a second mutation.
+- Automatic refund execute retry, automatic correction execute retry, and
+  recovery-read Provider calls are all zero. A committed execute with a failed
+  reload shows reload-specific feedback rather than a mutation-failed message.
+
+## 13. Suggested Support Triage
 
 | User Report | First Check | Next Check |
 | :-- | :-- | :-- |

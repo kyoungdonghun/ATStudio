@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import {
@@ -12,14 +12,57 @@ import {
   type SubscriptionChangeType,
 } from '@/api/userSubscriptions';
 import { fetchSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
-import { fetchMyBillingAgreement, type BillingAgreementResponse } from '@/api/payments';
+import {
+  fetchMyBillingAgreement,
+  fetchSubscriptionUpgradeOutcome,
+  type BillingAgreementResponse,
+} from '@/api/payments';
 import { getApiErrorCode, isSubscriptionRequired } from '@/api/client';
 import { formatDate } from '@/utils/format';
+import type { UserType } from '@/types';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import styles from './SubscriptionManagePage.module.css';
 
 type BillingCycle = 'MONTHLY' | 'YEARLY';
+type RecoveryOutcome = 'RELOAD_FAILED' | 'UNKNOWN' | 'FAILED';
+type ManageOperationKind = 'CHANGE' | 'CANCEL' | 'REACTIVATE';
+
+interface ManageOperationContext {
+  kind: ManageOperationKind;
+  mutationSucceeded: boolean;
+  chargedUpgrade: boolean;
+  sourceSubscriptionAggregateId?: number;
+  sourceSubscriptionId?: number;
+  sourceBillingCycle?: BillingCycle;
+  targetSubscriptionId?: number;
+  targetBillingCycle?: BillingCycle;
+  changeType?: SubscriptionChangeType;
+}
+
+interface ManageRecovery {
+  outcome: RecoveryOutcome;
+  context: ManageOperationContext;
+  message?: string;
+}
+
+const CANCEL_TERMINAL_BUSINESS_ERROR_CODES = new Set([
+  'NO_ACTIVE_SUBSCRIPTION',
+  'RESOURCE_NOT_FOUND',
+]);
+const REACTIVATE_TERMINAL_BUSINESS_ERROR_CODES = new Set([
+  'NO_ACTIVE_SUBSCRIPTION',
+  'RESOURCE_NOT_FOUND',
+  'BILLING_AGREEMENT_NOT_FOUND',
+  'BILLING_AGREEMENT_INVALID_STATE',
+]);
+
+const RELOAD_FAILED_MESSAGE =
+  '\uC694\uCCAD\uC740 \uC644\uB8CC\uB418\uC5C8\uC9C0\uB9CC \uCD5C\uC2E0 \uAD6C\uB3C5 \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.';
+const UNKNOWN_MESSAGE =
+  '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.';
+const FAILED_MESSAGE =
+  '\uC694\uCCAD\uC774 \uC644\uB8CC\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.';
 
 /** Format amount with comma separator */
 function formatAmount(amount: number): string {
@@ -119,6 +162,16 @@ function getApiErrorMessage(err: unknown, fallback: string): string {
   );
 }
 
+function isExplicitTerminalBusinessFailure(
+  operation: 'CANCEL' | 'REACTIVATE',
+  errorCode: string | null,
+): boolean {
+  if (errorCode === null) return false;
+  return operation === 'CANCEL'
+    ? CANCEL_TERMINAL_BUSINESS_ERROR_CODES.has(errorCode)
+    : REACTIVATE_TERMINAL_BUSINESS_ERROR_CODES.has(errorCode);
+}
+
 function isReusableBillingAgreement(
   agreement: BillingAgreementResponse | null,
   subscriptionStatus?: string,
@@ -175,15 +228,74 @@ function isPendingCycleOnlyChange(sub: MySubscription | null): boolean {
 }
 
 interface PaymentMethodRegistrationContext {
-  returnPlanName?: string;
+  returnPlanId?: number;
+  returnUserType?: UserType;
   returnCycle?: BillingCycle;
   returnAmount?: number;
+}
+
+function canonicalStateMatches(
+  context: ManageOperationContext,
+  subscription: MySubscription,
+  agreement: BillingAgreementResponse,
+): boolean {
+  const agreementSubscriptionMatches = Boolean(
+    agreement.subscription &&
+    agreement.subscription.id === subscription.id &&
+    agreement.subscription.subscription.id === subscription.subscription.id &&
+    agreement.subscription.billingCycle === subscription.billingCycle,
+  );
+  if (!agreementSubscriptionMatches) return false;
+  if (context.kind === 'CANCEL') {
+    return subscription.status === 'CANCELLED' && agreement.status === 'CANCELLED';
+  }
+  if (context.kind === 'REACTIVATE') {
+    return subscription.status === 'ACTIVE' && agreement.status === 'ACTIVE';
+  }
+  if (subscription.status !== 'ACTIVE') return false;
+  if (!context.targetSubscriptionId || !context.targetBillingCycle) return false;
+  if (agreement.status !== 'ACTIVE') return false;
+  if (context.changeType === 'SCHEDULED_CHANGE' || context.changeType === 'DOWNGRADE') {
+    return (
+      subscription.id === context.sourceSubscriptionAggregateId &&
+      subscription.subscription.id === context.sourceSubscriptionId &&
+      subscription.billingCycle === context.sourceBillingCycle &&
+      subscription.pendingSubscriptionId === context.targetSubscriptionId &&
+      subscription.pendingBillingCycle === context.targetBillingCycle
+    );
+  }
+  if (context.changeType === 'NO_CHANGE') {
+    return (
+      subscription.subscription.id === context.targetSubscriptionId &&
+      subscription.billingCycle === context.targetBillingCycle &&
+      subscription.pendingSubscriptionId === null &&
+      subscription.pendingBillingCycle === null
+    );
+  }
+  return (
+    subscription.subscription.id === context.targetSubscriptionId &&
+    (subscription.billingCycle === context.targetBillingCycle ||
+      (subscription.pendingSubscriptionId === context.targetSubscriptionId &&
+        subscription.pendingBillingCycle === context.targetBillingCycle))
+  );
+}
+
+function recoveredOperationMessage(kind: ManageOperationKind): string {
+  switch (kind) {
+    case 'CANCEL':
+      return '\uC0C1\uD0DC \uD655\uC778\uC73C\uB85C \uAD6C\uB3C5 \uCDE8\uC18C \uC644\uB8CC\uB97C \uD655\uC778\uD588\uC2B5\uB2C8\uB2E4.';
+    case 'REACTIVATE':
+      return '\uC0C1\uD0DC \uD655\uC778\uC73C\uB85C \uAD6C\uB3C5 \uC720\uC9C0 \uC644\uB8CC\uB97C \uD655\uC778\uD588\uC2B5\uB2C8\uB2E4.';
+    default:
+      return '\uC0C1\uD0DC \uD655\uC778\uC73C\uB85C \uD50C\uB79C \uBCC0\uACBD \uC644\uB8CC\uB97C \uD655\uC778\uD588\uC2B5\uB2C8\uB2E4.';
+  }
 }
 
 export default function SubscriptionManagePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const role = useAuthStore((s) => s.role);
+  const authenticatedUserType = useAuthStore((s) => s.user?.userType);
 
   useEffect(() => {
     if (role === 'ADMIN') navigate('/admin', { replace: true });
@@ -195,6 +307,11 @@ export default function SubscriptionManagePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [billingAgreement, setBillingAgreement] = useState<BillingAgreementResponse | null>(null);
+  const [recovery, setRecovery] = useState<ManageRecovery | null>(null);
+  const [recovering, setRecovering] = useState(false);
+  const recoveryInFlightRef = useRef(false);
+  const recoveryVersionRef = useRef(0);
+  const recoveryMutationBlockedRef = useRef(false);
 
   /* ── Change Plan ── */
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
@@ -209,6 +326,11 @@ export default function SubscriptionManagePage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [reactivating, setReactivating] = useState(false);
+  const mutationInFlightRef = useRef(false);
+  const mutationBusy = changingPlan || cancelling || reactivating;
+  const ambiguousRecovery =
+    recovery?.outcome === 'UNKNOWN' || recovery?.outcome === 'RELOAD_FAILED';
+  const mutationBlocked = mutationBusy || ambiguousRecovery;
   const hasPendingChange = Boolean(sub?.pendingSubscriptionId || sub?.pendingBillingCycle);
   const needsPaymentMethodRegistration = requiresPaymentMethodRegistration(
     billingAgreement,
@@ -247,18 +369,125 @@ export default function SubscriptionManagePage() {
     }
   }, []);
 
+  const reconcileOperation = useCallback(async (context: ManageOperationContext) => {
+    if (recoveryInFlightRef.current) return;
+    recoveryInFlightRef.current = true;
+    const version = ++recoveryVersionRef.current;
+    setRecovering(true);
+
+    const setUnproven = (outcome: RecoveryOutcome) => {
+      if (version !== recoveryVersionRef.current) return;
+      recoveryMutationBlockedRef.current = outcome === 'UNKNOWN' || outcome === 'RELOAD_FAILED';
+      setRecovery({ outcome, context });
+      setChangeError(null);
+    };
+
+    try {
+      let outcomeUserSubscriptionId: number | null = null;
+      if (context.chargedUpgrade) {
+        try {
+          const outcome = await fetchSubscriptionUpgradeOutcome(
+            context.targetSubscriptionId!,
+            context.targetBillingCycle!,
+          );
+          if (
+            outcome.purpose !== 'UPGRADE' ||
+            outcome.targetSubscriptionId !== context.targetSubscriptionId ||
+            outcome.targetBillingCycle !== context.targetBillingCycle
+          ) {
+            setUnproven('UNKNOWN');
+            return;
+          }
+          if (['FAILED', 'CANCELLED', 'EXPIRED'].includes(outcome.orderStatus)) {
+            setUnproven('FAILED');
+            return;
+          }
+          if (outcome.orderStatus !== 'DONE') {
+            setUnproven('UNKNOWN');
+            return;
+          }
+          if (outcome.userSubscriptionId == null) {
+            setUnproven('UNKNOWN');
+            return;
+          }
+          outcomeUserSubscriptionId = outcome.userSubscriptionId;
+        } catch {
+          setUnproven(context.mutationSucceeded ? 'RELOAD_FAILED' : 'UNKNOWN');
+          return;
+        }
+      }
+
+      let canonicalSubscription: MySubscription;
+      let canonicalAgreement: BillingAgreementResponse;
+      try {
+        [canonicalSubscription, canonicalAgreement] = await Promise.all([
+          fetchMySubscription(),
+          fetchMyBillingAgreement(),
+        ]);
+      } catch {
+        setUnproven(context.mutationSucceeded ? 'RELOAD_FAILED' : 'UNKNOWN');
+        return;
+      }
+
+      if (context.chargedUpgrade && outcomeUserSubscriptionId !== canonicalSubscription.id) {
+        setUnproven('UNKNOWN');
+        return;
+      }
+      if (!canonicalStateMatches(context, canonicalSubscription, canonicalAgreement)) {
+        setUnproven('UNKNOWN');
+        return;
+      }
+      if (version !== recoveryVersionRef.current) return;
+      setSub(canonicalSubscription);
+      setBillingAgreement(canonicalAgreement);
+      recoveryMutationBlockedRef.current = false;
+      setRecovery(null);
+      setError(null);
+      setChangeError(null);
+      if (!context.mutationSucceeded) setChangeMsg(recoveredOperationMessage(context.kind));
+    } finally {
+      if (version === recoveryVersionRef.current) setRecovering(false);
+      recoveryInFlightRef.current = false;
+    }
+  }, []);
+
+  const setAuthoritativeFailure = useCallback(
+    (context: ManageOperationContext, message: string) => {
+      recoveryMutationBlockedRef.current = false;
+      setRecovery({ outcome: 'FAILED', context, message });
+      setChangeError(null);
+    },
+    [],
+  );
+
+  function tryBeginMutation(): boolean {
+    if (mutationInFlightRef.current || recoveryMutationBlockedRef.current) return false;
+    mutationInFlightRef.current = true;
+    recoveryMutationBlockedRef.current = false;
+    setRecovery(null);
+    return true;
+  }
+
   useEffect(() => {
     load();
   }, [load]);
 
   /* ── Pre-select plan from URL params (from SubscriptionPlanPage) ── */
   useEffect(() => {
-    const urlPlan = searchParams.get('plan');
-    const urlCycle = searchParams.get('cycle');
-    if (urlPlan && plans.length > 0 && sub && !selectedPlan) {
-      const found = plans.find((p) => p.name.toUpperCase() === urlPlan.toUpperCase());
-      const targetCycle =
-        urlCycle === 'MONTHLY' || urlCycle === 'YEARLY' ? urlCycle : sub.billingCycle;
+    const urlPlanId = toPositiveInteger(searchParams.get('planId'));
+    const urlUserType = searchParams.get('userType');
+    const urlCycle = searchParams.get('billingCycle');
+    if (
+      urlPlanId &&
+      (urlUserType === 'INDIVIDUAL' || urlUserType === 'BUSINESS') &&
+      (urlCycle === 'MONTHLY' || urlCycle === 'YEARLY') &&
+      urlUserType === authenticatedUserType &&
+      plans.length > 0 &&
+      sub &&
+      !selectedPlan
+    ) {
+      const found = plans.find((plan) => plan.id === urlPlanId && plan.userType === urlUserType);
+      const targetCycle = urlCycle;
       const isCurrentCombination =
         found?.id === sub.subscription.id && targetCycle === sub.billingCycle && !hasPendingChange;
       if (found && !isCurrentCombination) {
@@ -266,10 +495,10 @@ export default function SubscriptionManagePage() {
         setSelectedCycle(targetCycle);
       }
     }
-  }, [plans, sub, searchParams, selectedPlan, hasPendingChange]);
+  }, [authenticatedUserType, plans, sub, searchParams, selectedPlan, hasPendingChange]);
 
   useEffect(() => {
-    if (sub && !selectedPlan && !searchParams.get('plan')) {
+    if (sub && !selectedPlan && !searchParams.get('planId')) {
       setSelectedCycle(sub.billingCycle);
     }
   }, [sub, selectedPlan, searchParams]);
@@ -336,15 +565,17 @@ export default function SubscriptionManagePage() {
   }
 
   function handleRegisterPaymentMethod(context: PaymentMethodRegistrationContext = {}) {
-    if (!sub) return;
+    if (!sub || authenticatedUserType !== sub.subscription.userType) return;
     const params = new URLSearchParams({
-      plan: sub.subscription.name,
-      cycle: sub.billingCycle,
+      planId: String(sub.subscription.id),
+      userType: sub.subscription.userType,
+      billingCycle: sub.billingCycle,
       purpose: 'BILLING_AGREEMENT',
     });
-    if (context.returnPlanName && context.returnCycle) {
-      params.set('returnPlan', context.returnPlanName);
-      params.set('returnCycle', context.returnCycle);
+    if (context.returnPlanId && context.returnUserType && context.returnCycle) {
+      params.set('returnPlanId', String(context.returnPlanId));
+      params.set('returnUserType', context.returnUserType);
+      params.set('returnBillingCycle', context.returnCycle);
       if (typeof context.returnAmount === 'number') {
         params.set('returnAmount', String(context.returnAmount));
       }
@@ -353,7 +584,7 @@ export default function SubscriptionManagePage() {
   }
 
   async function handleChangePlan() {
-    if (!selectedPlan || !preview) return;
+    if (!selectedPlan || !preview || !sub) return;
     const hasReusablePaymentMethod = isReusableBillingAgreement(billingAgreement, sub?.status);
     if (preview.changeType === 'UPGRADE' && !hasReusablePaymentMethod) {
       setChangeError(
@@ -361,6 +592,18 @@ export default function SubscriptionManagePage() {
       );
       return;
     }
+    if (!tryBeginMutation()) return;
+    const operationContext: ManageOperationContext = {
+      kind: 'CHANGE',
+      mutationSucceeded: false,
+      chargedUpgrade: preview.changeType === 'UPGRADE' && preview.proratedAmount > 0,
+      sourceSubscriptionAggregateId: sub.id,
+      sourceSubscriptionId: sub.subscription.id,
+      sourceBillingCycle: sub.billingCycle,
+      targetSubscriptionId: selectedPlan.id,
+      targetBillingCycle: selectedCycle,
+      changeType: preview.changeType,
+    };
     try {
       setChangingPlan(true);
       setChangeError(null);
@@ -374,20 +617,26 @@ export default function SubscriptionManagePage() {
       const reactivatedPrefix = sub?.status === 'CANCELLED' ? '구독 취소가 철회되었습니다. ' : '';
       const isPendingCycleCancellation = isPendingCycleOnlyChange(sub);
       const currentBillingCycleLabel = sub ? getBillingCycleLabel(sub.billingCycle) : '현재';
+      const responseContext: ManageOperationContext = {
+        ...operationContext,
+        mutationSucceeded: true,
+        changeType: res.changeType,
+        chargedUpgrade: res.changeType === 'UPGRADE' && res.proratedAmount > 0,
+      };
 
-      if (preview.changeType === 'UPGRADE') {
+      if (res.changeType === 'UPGRADE') {
         const chargeMessage =
           res.proratedAmount > 0
             ? `차액 ${formatAmount(res.proratedAmount)}원이 등록된 결제수단으로 결제되었고,`
             : '즉시 결제할 차액은 없고,';
         const nextCycleMessage =
-          selectedCycle !== sub?.billingCycle
-            ? ` 결제 주기 변경은 다음 결제일부터 ${getBillingCycleLabel(selectedCycle)} 결제로 예약됩니다.`
+          res.billingCycle !== sub?.billingCycle
+            ? ` 결제 주기 변경은 다음 결제일부터 ${getBillingCycleLabel(res.billingCycle)} 결제로 예약됩니다.`
             : '';
         setChangeMsg(
           `${reactivatedPrefix}업그레이드가 바로 적용되었습니다. ${chargeMessage} 다음 결제일(${formatDate(res.expiresAt)})은 유지됩니다.${nextCycleMessage}`,
         );
-      } else if (preview.changeType === 'NO_CHANGE') {
+      } else if (res.changeType === 'NO_CHANGE') {
         setChangeMsg(
           isPendingCycleCancellation
             ? `${reactivatedPrefix}다음 결제 주기 변경 예약이 해제되었습니다. 현재 ${currentBillingCycleLabel} 결제가 유지됩니다.`
@@ -402,45 +651,67 @@ export default function SubscriptionManagePage() {
       }
       setSelectedPlan(null);
       setPreview(null);
-      await load();
-    } catch (err) {
-      const errorCode = await getApiErrorCode(err);
-      const message = getApiErrorMessage(err, '플랜 변경에 실패했습니다.');
-      if (errorCode === 'BILLING_AGREEMENT_REAUTH_REQUIRED') {
-        setChangeError(`${message} 현재 구독은 그대로 유지됩니다.`);
-        await load();
-        return;
-      }
-      setChangeError(message);
+      await reconcileOperation(responseContext);
+    } catch {
+      await reconcileOperation(operationContext);
     } finally {
+      mutationInFlightRef.current = false;
       setChangingPlan(false);
     }
   }
 
   /* ── Cancel subscription ── */
   async function handleCancel() {
+    if (!tryBeginMutation()) return;
+    const context: ManageOperationContext = {
+      kind: 'CANCEL',
+      mutationSucceeded: false,
+      chargedUpgrade: false,
+    };
     try {
       setCancelling(true);
       await cancelMySubscription();
       setShowCancelModal(false);
-      await load();
+      setChangeMsg('\uAD6C\uB3C5 \uCDE8\uC18C\uAC00 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
+      await reconcileOperation({ ...context, mutationSucceeded: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : '구독 취소에 실패했습니다.');
+      setShowCancelModal(false);
+      const errorCode = await getApiErrorCode(err);
+      const message = getApiErrorMessage(err, '구독 취소에 실패했습니다.');
+      if (isExplicitTerminalBusinessFailure('CANCEL', errorCode)) {
+        setAuthoritativeFailure(context, message);
+        return;
+      }
+      await reconcileOperation(context);
     } finally {
+      mutationInFlightRef.current = false;
       setCancelling(false);
     }
   }
 
   async function handleReactivate() {
+    if (!tryBeginMutation()) return;
+    const context: ManageOperationContext = {
+      kind: 'REACTIVATE',
+      mutationSucceeded: false,
+      chargedUpgrade: false,
+    };
     try {
       setReactivating(true);
       setChangeError(null);
       await reactivateMySubscription();
       setChangeMsg('구독 취소가 철회되었습니다. 다음 결제일부터 자동 갱신이 다시 진행됩니다.');
-      await load();
+      await reconcileOperation({ ...context, mutationSucceeded: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : '구독 취소 철회에 실패했습니다.');
+      const errorCode = await getApiErrorCode(err);
+      const message = getApiErrorMessage(err, '구독 취소 철회에 실패했습니다.');
+      if (isExplicitTerminalBusinessFailure('REACTIVATE', errorCode)) {
+        setAuthoritativeFailure(context, message);
+        return;
+      }
+      await reconcileOperation(context);
     } finally {
+      mutationInFlightRef.current = false;
       setReactivating(false);
     }
   }
@@ -528,10 +799,35 @@ export default function SubscriptionManagePage() {
   const upgradeRequiresPaymentMethodRegistration = Boolean(
     preview?.changeType === 'UPGRADE' && !isReusableBillingAgreement(billingAgreement, sub.status),
   );
+  const recoveryMessage =
+    recovery?.outcome === 'RELOAD_FAILED'
+      ? RELOAD_FAILED_MESSAGE
+      : recovery?.outcome === 'UNKNOWN'
+        ? UNKNOWN_MESSAGE
+        : recovery?.outcome === 'FAILED'
+          ? (recovery.message ?? FAILED_MESSAGE)
+          : null;
 
   return (
     <div className={styles.page}>
       <h1 className={styles.pageTitle}>{'내 구독'}</h1>
+
+      {recovery && recoveryMessage && (
+        <div className={styles.actionSection}>
+          <div className={styles.errorMsg}>{recoveryMessage}</div>
+          {(recovery.outcome === 'RELOAD_FAILED' || recovery.outcome === 'UNKNOWN') && (
+            <div className={styles.actionButtons}>
+              <Button
+                variant="primary"
+                onClick={() => void reconcileOperation(recovery.context)}
+                loading={recovering}
+              >
+                {'\uC0C1\uD0DC \uB2E4\uC2DC \uD655\uC778'}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Current Plan Card ── */}
       <div className={styles.planCard}>
@@ -779,13 +1075,15 @@ export default function SubscriptionManagePage() {
                   upgradeRequiresPaymentMethodRegistration
                     ? () =>
                         handleRegisterPaymentMethod({
-                          returnPlanName: selectedPlan.name,
+                          returnPlanId: selectedPlan.id,
+                          returnUserType: selectedPlan.userType,
                           returnCycle: selectedCycle,
                           returnAmount: preview.proratedAmount,
                         })
                     : handleChangePlan
                 }
                 loading={changingPlan}
+                disabled={mutationBlocked}
               >
                 {upgradeRequiresPaymentMethodRegistration
                   ? '결제수단 등록하기'
@@ -813,7 +1111,11 @@ export default function SubscriptionManagePage() {
             {formatDate(sub.expiresAt)}
             {')까지는 서비스를 계속 이용할 수 있습니다. 이후 자동으로 만료됩니다.'}
           </div>
-          <Button variant="danger" onClick={() => setShowCancelModal(true)}>
+          <Button
+            variant="danger"
+            onClick={() => setShowCancelModal(true)}
+            disabled={mutationBlocked}
+          >
             {'구독 취소'}
           </Button>
         </div>
@@ -827,7 +1129,12 @@ export default function SubscriptionManagePage() {
             {formatDate(sub.expiresAt)}
             {'까지 유지됩니다. 구독을 계속 사용하려면 취소를 철회할 수 있습니다.'}
           </div>
-          <Button variant="primary" onClick={handleReactivate} loading={reactivating}>
+          <Button
+            variant="primary"
+            onClick={handleReactivate}
+            loading={reactivating}
+            disabled={mutationBlocked}
+          >
             {'구독 유지하기'}
           </Button>
         </div>
@@ -851,13 +1158,24 @@ export default function SubscriptionManagePage() {
           <Button variant="ghost" onClick={() => setShowCancelModal(false)}>
             {'돌아가기'}
           </Button>
-          <Button variant="danger" onClick={handleCancel} loading={cancelling}>
+          <Button
+            variant="danger"
+            onClick={handleCancel}
+            loading={cancelling}
+            disabled={mutationBlocked}
+          >
             {'취소 확정'}
           </Button>
         </div>
       </Modal>
     </div>
   );
+}
+
+function toPositiveInteger(value: string | null): number | null {
+  if (!value || !/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 function getBillingStatusLabel(status: BillingAgreementResponse['status']): string {

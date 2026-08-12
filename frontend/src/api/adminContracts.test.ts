@@ -20,12 +20,16 @@ import {
   executeAdminPaymentRefund,
   fetchAdminBillingAgreements,
   fetchAdminPaymentEntitlementCorrections,
+  fetchAdminPaymentEntitlementCorrection,
   fetchAdminPaymentOperationAuditLogs,
   fetchAdminPaymentOrders,
   fetchAdminPaymentReceipts,
   fetchAdminPaymentReconciliationIncidents,
   fetchAdminPaymentRefundPreview,
+  fetchAdminPaymentRefund,
   fetchAdminPaymentRefunds,
+  fetchAdminPaymentSettlementImportAttempt,
+  fetchAdminPaymentSettlementImportAttempts,
   fetchAdminPaymentSettlements,
   fetchAdminSubscriptionPayments,
   fetchAdminWhitelistChannels,
@@ -38,6 +42,7 @@ import {
   previewAdminPaymentEntitlementCorrection,
   processCompanyCert,
   reconcileAdminPaymentSettlements,
+  recoverAdminPaymentSettlementImportAttempt,
   updateAdminPaymentReconciliationIncidentStatus,
   updateAdminWhitelistChannelStatus,
   updateUserAdmin,
@@ -216,21 +221,30 @@ describe('admin API contracts', () => {
     });
 
     const file = new File(['orderId,amount'], 'settlements.csv');
-    await importAdminPaymentSettlements(file, 'July settlement');
+    const operationKey = '11111111-1111-4111-8111-111111111111';
+    await importAdminPaymentSettlements(file, operationKey, 'July settlement');
     const form = mockedClient.post.mock.calls[0]?.[1] as FormData;
     expect(form.get('file')).toBe(file);
     expect(mockedClient.post).toHaveBeenNthCalledWith(
       1,
       '/admin/payments/settlements/import',
       form,
-      { params: { note: 'July settlement' } },
+      {
+        params: { note: 'July settlement' },
+        headers: { 'Idempotency-Key': operationKey },
+        skipAuthReplay: true,
+      },
     );
-    await importAdminPaymentSettlements(file);
+    await importAdminPaymentSettlements(file, operationKey);
     expect(mockedClient.post).toHaveBeenNthCalledWith(
       2,
       '/admin/payments/settlements/import',
       expect.any(FormData),
-      { params: undefined },
+      {
+        params: undefined,
+        headers: { 'Idempotency-Key': operationKey },
+        skipAuthReplay: true,
+      },
     );
     await reconcileAdminPaymentSettlements({
       baseDateFrom: '2026-07-01',
@@ -242,16 +256,47 @@ describe('admin API contracts', () => {
     });
   });
 
+  it('uses numeric settlement attempt reads and header-only operation-key recovery', async () => {
+    const operationKey = '11111111-1111-4111-8111-111111111111';
+    const controller = new AbortController();
+    mockedClient.get.mockResolvedValue(response(entity));
+
+    await fetchAdminPaymentSettlementImportAttempts(2, 10, controller.signal);
+    expect(mockedClient.get).toHaveBeenNthCalledWith(
+      1,
+      '/admin/payments/settlement-import-attempts',
+      { params: { page: 2, size: 10 }, signal: controller.signal },
+    );
+
+    await fetchAdminPaymentSettlementImportAttempt(42);
+    expect(mockedClient.get).toHaveBeenNthCalledWith(
+      2,
+      '/admin/payments/settlement-import-attempts/42',
+    );
+
+    await recoverAdminPaymentSettlementImportAttempt(operationKey);
+    expect(mockedClient.get).toHaveBeenNthCalledWith(
+      3,
+      '/admin/payments/settlement-import-attempts/recovery',
+      { headers: { 'Idempotency-Key': operationKey } },
+    );
+  });
+
   it('uses the refund preview, request, approval, and execution contracts', async () => {
     const controller = new AbortController();
     mockedClient.get
       .mockResolvedValueOnce(response({ subscriptionPaymentId: 8, refundableAmount: 9900 }))
-      .mockResolvedValueOnce({ data: page });
+      .mockResolvedValueOnce({ data: page })
+      .mockResolvedValueOnce(response(entity));
     mockedClient.post.mockResolvedValue(response(entity));
 
     await fetchAdminPaymentRefundPreview(8);
     expect(mockedClient.get).toHaveBeenNthCalledWith(1, '/admin/payments/refund-preview/8');
     await fetchAdminPaymentRefunds(2, 20, controller.signal);
+    await expect(fetchAdminPaymentRefund(12, controller.signal)).resolves.toEqual(entity);
+    expect(mockedClient.get).toHaveBeenNthCalledWith(3, '/admin/payments/refunds/12', {
+      signal: controller.signal,
+    });
     const request = {
       subscriptionPaymentId: 8,
       amount: 9900,
@@ -265,9 +310,14 @@ describe('admin API contracts', () => {
     expect(mockedClient.post).toHaveBeenNthCalledWith(2, '/admin/payments/refunds/12/approve', {
       note: 'Reviewed',
     });
-    expect(mockedClient.post).toHaveBeenNthCalledWith(3, '/admin/payments/refunds/12/execute', {
-      note: 'Provider accepted',
-    });
+    expect(mockedClient.post).toHaveBeenNthCalledWith(
+      3,
+      '/admin/payments/refunds/12/execute',
+      {
+        note: 'Provider accepted',
+      },
+      { skipAuthReplay: true },
+    );
   });
 
   it('uses entitlement correction preview and guarded mutation contracts', async () => {
@@ -287,6 +337,14 @@ describe('admin API contracts', () => {
 
     await previewAdminPaymentEntitlementCorrection(request);
     await fetchAdminPaymentEntitlementCorrections(2, 20, controller.signal);
+    mockedClient.get.mockResolvedValueOnce(response(entity));
+    await expect(fetchAdminPaymentEntitlementCorrection(14, controller.signal)).resolves.toEqual(
+      entity,
+    );
+    expect(mockedClient.get).toHaveBeenLastCalledWith(
+      '/admin/payments/entitlement-corrections/14',
+      { signal: controller.signal },
+    );
     await createAdminPaymentEntitlementCorrection(request);
     await approveAdminPaymentEntitlementCorrection(14, 'Reviewed');
     await executeAdminPaymentEntitlementCorrection(14, 'Applied');
@@ -304,6 +362,7 @@ describe('admin API contracts', () => {
       4,
       '/admin/payments/entitlement-corrections/14/execute',
       { note: 'Applied' },
+      { skipAuthReplay: true },
     );
   });
 });

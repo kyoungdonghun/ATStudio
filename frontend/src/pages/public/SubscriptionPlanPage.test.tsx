@@ -90,7 +90,9 @@ describe('SubscriptionPlanPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: '지금 시작하기' }));
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith('/subscriptions/checkout?plan=DELUXE&cycle=YEARLY');
+      expect(navigateMock).toHaveBeenCalledWith(
+        '/subscriptions/checkout?planId=2&userType=INDIVIDUAL&billingCycle=YEARLY&purpose=SUBSCRIBE',
+      );
     });
   });
 });

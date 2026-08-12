@@ -15,19 +15,29 @@ class ExceptionTest {
 
     @ParameterizedTest(name = "BUSINESS_ERROR.{0}: 필수 필드 null 없음")
     @EnumSource(BUSINESS_ERROR.class)
-    @DisplayName("BUSINESS_ERROR: 모든 값(21개)의 status/clientMessage/developerMessage는 null이 아니다")
+    @DisplayName("BUSINESS_ERROR: 모든 값의 status/clientMessage/developerMessage는 null이 아니다")
     void businessError_allValuesHaveNonNullFields(BUSINESS_ERROR error) {
         assertThat(error.getStatus()).isNotNull();
         assertThat(error.getClientMessage()).isNotBlank();
         assertThat(error.getDeveloperMessage()).isNotBlank();
     }
 
-    @ParameterizedTest(name = "BUSINESS_ERROR.{0}: 4xx 상태코드")
-    @EnumSource(BUSINESS_ERROR.class)
-    @DisplayName("BUSINESS_ERROR: 모든 값은 4xx 상태코드를 가진다")
-    void businessError_allValuesAre4xx(BUSINESS_ERROR error) {
+    @ParameterizedTest(name = "BUSINESS_ERROR.{0}: 정상 비즈니스 오류는 4xx 상태코드")
+    @EnumSource(
+            value = BUSINESS_ERROR.class,
+            names = "SETTLEMENT_IMPORT_ORCHESTRATION_FAILED",
+            mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("BUSINESS_ERROR: 정상 비즈니스 오류는 모두 4xx 상태코드를 가진다")
+    void businessError_normalValuesAre4xx(BUSINESS_ERROR error) {
         int statusCode = error.getStatus().value();
         assertThat(statusCode).isBetween(400, 499);
+    }
+
+    @Test
+    @DisplayName("BUSINESS_ERROR: 정산 가져오기 오케스트레이션 실패는 명시적으로 500이다")
+    void businessError_settlementImportOrchestrationFailureIs500() {
+        assertThat(BUSINESS_ERROR.SETTLEMENT_IMPORT_ORCHESTRATION_FAILED.getStatus())
+                .isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @Test

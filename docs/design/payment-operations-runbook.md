@@ -1,6 +1,6 @@
 ---
-version: 1.3
-last_updated: 2026-08-09
+version: 1.6
+last_updated: 2026-08-12
 project: ATS
 owner: docops
 category: guide
@@ -16,7 +16,7 @@ dependencies:
 
 > Purpose: Define production-facing operational procedures for Toss billing-key recurring payment reconciliation and incident response.
 > Scope: ATStudio subscription payments only. This document covers reconciliation, withdrawal billing-key cleanup, receipt evidence storage, payment operation audit visibility, the admin refund ledger/provider cancel workflow, the separate refund-linked entitlement correction workflow, and settlement import/reconciliation operations. It does not introduce tax invoice workflow, cash receipt issue/cancel automation, automatic entitlement correction, or automatic withdrawal refund. Refund/receipt/settlement/tax invoice policy is defined separately in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md).
-> Last updated: 2026-07-17
+> Last updated: 2026-08-12
 
 ## 1. Operating Model
 
@@ -200,7 +200,7 @@ Admin refund workflow:
 2. Create a local request with `POST /api/admin/payments/refunds`.
 3. Approve the request with `POST /api/admin/payments/refunds/{refundId}/approve`.
 4. Execute provider cancel with `POST /api/admin/payments/refunds/{refundId}/execute`.
-5. If the result is `PENDING_PROVIDER_CONFIRMATION`, verify the Toss dashboard/provider lookup before retrying or taking further action.
+5. If the result is `PENDING_PROVIDER_CONFIRMATION`, do not retry execute from the UI; verify Toss dashboard/provider lookup evidence and reconcile or finalize the exact refund ledger outcome before any separate action that is then eligible.
 6. If entitlement must be changed after refund, handle it through the separate entitlement-correction procedure below. Do not edit subscription tables ad hoc without approval, backup, and a linked incident/support record.
 
 Refund policy anchors:
@@ -235,7 +235,68 @@ Execution safety notes:
 - The target plan must match the user's type and be active.
 - If execution fails unexpectedly, the transaction rolls back and the correction remains retryable after investigation.
 
-### 6.5 General Local Subscription Correction Boundary
+### 6.5 ADMIN Refund and Entitlement-Correction Execute Recovery
+
+The Refund and Entitlement Correction tabs recover execute ambiguity through
+the existing exact-record ADMIN reads:
+
+- `GET /api/admin/payments/refunds/{refundId}`
+- `GET /api/admin/payments/entitlement-corrections/{correctionId}`
+
+Both reads return the requested local durable ledger row. They do not repeat an
+execute mutation, call the Provider, finalize another payment state, or write
+an audit row. They remain ADMIN-only under the existing backend authorization;
+WI-035 added frontend callers, not endpoints or schemas.
+
+Each typed operator execute follows this order:
+
+1. Freeze the exact domain, durable ID, linked refund ID where applicable, and
+   operation generation; block conflicting controls.
+2. Read the exact detail record. An unreadable response, mismatched ID, or any
+   status other than `APPROVED` causes zero execute POSTs.
+3. If the exact fresh row is `APPROVED`, send at most one explicit execute POST.
+4. If that POST is rejected or its response is lost, issue one bounded exact
+   detail GET. Never repeat execute from a catch handler, status action,
+   interceptor, reload helper, effect, or polling loop.
+
+The two execute POST wrappers opt out of shared authentication replay. A `401`
+therefore does not enter the token-refresh queue or replay the financial/local
+mutation. Other protected requests retain the normal authentication refresh
+path.
+
+| Outcome | Refund proof | Entitlement-correction proof | Operator meaning |
+| --- | --- | --- | --- |
+| `COMMITTED` | Exact detail is `SUCCEEDED` | Exact detail is `SUCCEEDED` | The exact durable operation succeeded. |
+| `FAILED` | Exact execute/detail result is `FAILED` or `CANCELLED` | Exact execute/detail result is `FAILED` or `CANCELLED` | The exact durable operation is terminally unsuccessful. |
+| `RELOAD_FAILED` | Execute returned `SUCCEEDED`, but the required exact detail or committed-result list reload failed | Execute returned `SUCCEEDED`, but the required exact detail or committed-result list reload failed | Preserve the successful execute context and show reload failure separately. |
+| `UNKNOWN` | Durable status is not terminal, including `PROCESSING` or `PENDING_PROVIDER_CONFIRMATION`, or the recovery read cannot prove a result | Durable status is not terminal, including `PROCESSING`, or the recovery read cannot prove a result | The operation may still be in flight; mutation remains locked. |
+
+A normal Refund-list reload hydrates durable `PROCESSING` and
+`PENDING_PROVIDER_CONFIRMATION` rows as exact-ID `UNKNOWN` intents. A normal
+Entitlement Correction-list reload does the same for `PROCESSING`. This keeps
+ambiguity controls active after a browser reload instead of making an in-flight
+row executable again.
+
+`status again` is read-only and deduplicated while its detail GET is pending.
+It cannot approve, execute, call the Provider, or write a durable row. An
+`UNKNOWN` intent may unlock only after the exact detail read returns a
+pre-execution `REQUESTED` or `APPROVED` row. `REQUESTED` restores approval-only
+controls. `APPROVED` still requires a later typed operator action and another
+fresh exact-ID preflight before one execute POST.
+
+An ambiguous refund locks that refund and every linked correction mutation. An
+ambiguous correction locks its own durable ID, other correction intents linked
+to the same refund, and the linked refund controls. Execute ownership also
+excludes status reads from preflight through post-execute recovery. Intent,
+read, and current-view generations fence stale detail/list success or failure
+so it cannot overwrite a newer authoritative result or another tab/page.
+
+Automatic refund execute retries: **0**. Automatic entitlement-correction
+execute retries: **0**. Recovery-read mutations: **0**. Recovery-read Provider
+calls: **0**. A proven successful execute and a failed follow-up reload remain
+different outcomes and produce different operator feedback.
+
+### 6.6 General Local Subscription Correction Boundary
 
 The user-subscription administration screen also provides a general local
 correction workflow under `/api/admin/user-subscription-corrections/**`. It is
@@ -260,25 +321,110 @@ persistence. These are distinct controls and must not be described as provider
 idempotency. No Toss charge, refund, billing-key delete, receipt, settlement,
 or email operation is called by this workflow.
 
-### 6.6 Settlement Import/Reconciliation Boundary
+### 6.7 Settlement Import/Reconciliation Boundary
 
-ATStudio provides admin APIs and UI for settlement evidence import and settlement review. These APIs operate only on `payment_settlements` and payment operation audit logs.
+ATStudio provides ADMIN APIs and UI for settlement evidence import, durable CSV
+import-attempt recovery, and settlement review. The write boundary consists of
+`payment_settlement_import_attempts`, `payment_settlements`, and Settlement row
+events in `payment_operation_audit_logs`.
 
 Admin settlement workflow:
 
-1. Export provider settlement evidence to CSV using the documented settlement template headers.
-2. Import the CSV from the `/admin/payments` settlement tab or `POST /api/admin/payments/settlements/import`.
-3. Review the import summary: total rows, imported rows, duplicates, failed rows, and status counts.
-4. Investigate `MISMATCHED`, `LOCAL_PAYMENT_NOT_FOUND`, and `PROVIDER_SETTLEMENT_NOT_FOUND` rows against local payment/refund ledgers and provider dashboard evidence.
-5. Use `POST /api/admin/payments/settlements/reconcile` for a selected period to generate local-payment-without-imported-provider-evidence review rows.
-6. Use `PUT /api/admin/payments/settlements/{settlementId}/ignore` only when the row is verified as acceptable or intentionally out of active review.
+1. Export provider settlement evidence to CSV using the documented observed
+   headers. Parser hardening remains held for WI-20260809-ATS-067.
+2. Select the file in `/admin/payments`, enter an optional operator note of at
+   most 500 characters, and confirm one explicit import.
+3. The UI creates one lowercase UUIDv4, stores it as pending in browser
+   `sessionStorage`, and sends one POST with the key only in
+   `Idempotency-Key`. Authentication replay is disabled for this POST.
+4. Review total, imported, duplicate, failed, status counts, and every returned
+   row error. Verify
+   `totalRows == importedRows + skippedDuplicateRows + failedRows` and
+   `sum(statusCounts) == importedRows`.
+5. If the POST result is uncertain, use the same-key read-only recovery action.
+   Do not submit the file again with the same or a new key until the prior
+   attempt reaches a terminal state and its durable result is reviewed.
+6. Investigate `MISMATCHED`, `LOCAL_PAYMENT_NOT_FOUND`, and
+   `PROVIDER_SETTLEMENT_NOT_FOUND` rows against local payment/refund ledgers and
+   Provider dashboard evidence.
+7. Use `POST /api/admin/payments/settlements/reconcile` for a selected period to
+   generate local-payment-without-imported-provider-evidence review rows.
+   Reconciliation has no import-attempt recovery key in WI-056.
+8. Use `PUT /api/admin/payments/settlements/{settlementId}/ignore` only when the
+   row is verified as acceptable or intentionally out of active review. Enter a
+   trimmed nonblank note of at most 500 characters and confirm the existing
+   danger dialog.
+
+Import result handling:
+
+- HTTP `200` with `failedRows > 0` is partial completion. The screen shows a
+  warning and every returned row error, retains the exact selected `File`, DOM
+  file input, and operator note, and performs one import plus one Settlement-
+  list reload.
+- Full success means `failedRows == 0` and a successful required list reload.
+  Only then does the screen clear both the React selected file and DOM input.
+- A transport failure triggers one read-only same-key recovery GET. A
+  `PROCESSING` result retains correction context and exposes manual recovery;
+  it never triggers polling or a second POST. A stored pending attempt blocks a
+  new import, and corrupt stored state fails closed.
+- `COMPLETED` and `FAILED` are terminal. A failed attempt requires a new key for
+  a new explicit action. Per-row errors are response-only and cannot be rebuilt
+  from a recovered aggregate.
+
+Attempt and duplicate integrity:
+
+- The server derives and stores only an owner-scoped 64-character key digest.
+  The raw key is absent from DB, application logs, URL, and query. All ADMINs
+  can use list/numeric-detail reads; header recovery resolves only the current
+  ADMIN/key digest.
+- A same-key POST never parses or processes the file again. The attempt unique
+  constraint maps to state-specific `409` only for the exact named constraint.
+- Each Settlement candidate persists in `REQUIRES_NEW`. A duplicate row is
+  counted only after exact deduplication-constraint classification and a
+  post-rollback winner read. The winner has one Settlement and one row audit;
+  the loser has no second audit. Unrelated integrity violations are not
+  classified as duplicates.
+- Completed import attempts, including all-duplicate attempts, are durable and
+  enforce aggregate count conservation. Status counts describe only newly
+  persisted Settlement rows.
+- Reconciliation counts an orderless finalized payment exactly once as failed
+  with bounded error evidence. It creates no Settlement or row audit for that
+  unusable payment.
+
+IGNORE integrity:
+
+- HTTP and service boundaries independently reject a missing, null, blank, or trimmed-over-500 note before Settlement mutation or audit.
+- After note validation, the service requires an authenticated ADMIN principal and locks an authoritative active ADMIN user row before locking or changing the Settlement.
+- The first valid decision owns actor, time, normalized note, `IGNORED` status, and one audit row. Every otherwise-valid repeat returns `INVALID_STATE_TRANSITION`, including same-note and conflicting-note repeats, with zero decision-field mutation and zero new audit.
+- Settlement IGNORE keeps the existing note plus danger confirmation. It has no typed phrase. Typed confirmation for the separate general local-subscription correction flow remains assigned to WI-20260809-ATS-054.
 
 Settlement safety notes:
 
 - Settlement import accepts CSV. Excel files should be exported to CSV before import.
-- Settlement rows must not mutate user subscription access, billing agreements, payment order status, finalized payment status, refund status, or provider state.
-- Unknown CSV columns are ignored. Stored `source_payload` is allowlisted and must not contain raw provider payload, card data, billing keys, auth keys, customer keys, or Toss secret keys.
+- Settlement services may read local payment, refund, and subscription evidence
+  for comparison, but they must not mutate subscription access, billing
+  agreements, payment order status, finalized payment status, refund status,
+  receipt/mail state, or Provider state. Intended writes are limited to the
+  import attempt, Settlement, and Settlement row-audit ledgers.
+- Unknown CSV columns are currently ignored. The attempt ledger stores no file
+  bytes, raw rows, raw Provider payload, credentials, or per-row error text.
+  Stored Settlement `source_payload` remains allowlisted/null and must not
+  contain raw provider payload, card data, billing keys, auth keys, customer
+  keys, or Toss secret keys.
+- The optional operator note is user-supplied free text, not a system-derived
+  secret. The UI warns against PII, credentials, payment keys, and other
+  sensitive data. Operators must follow that prohibition; no free-text DLP or
+  guarantee that a user cannot paste a secret is claimed.
+- Application logging does not write the raw Idempotency-Key. Access-log,
+  reverse-proxy, tracing, and APM owners must separately disable collection and
+  recording of that header.
 - Generated `PROVIDER_SETTLEMENT_NOT_FOUND` rows are review candidates. They are not proof that Toss failed to settle money until provider evidence is checked.
+- WI-056 closes duplicate atomicity, durable CSV attempt evidence, orderless-row
+  accounting, and aggregate count conservation at the source/H2 boundary.
+  Current MySQL lock/deadlock/isolation and manifest/hash proof was not run.
+- The current parser behavior is not approved strict CSV hardening.
+  `CR-031-115`, `CR-031-116`, and `CR-031-118` remain held and out of scope for
+  WI-20260809-ATS-067.
 
 ## 7. Withdrawal Billing-Key Cleanup
 
@@ -370,5 +516,10 @@ Separate REQ/SR items are still needed for:
 - Tax invoice request implementation only after B2B invoice, bank-transfer, postpaid, or contract purchase scope is approved.
 - Toss Settlement API adapter automation, if manual CSV import becomes insufficient.
 - Any additional PG adapter selected by a future approved product requirement.
+- Minimize the pre-existing ADMIN refund/correction list-detail DTOs: omit or
+  mask the raw refund idempotency key, retain actor emails only for an approved
+  operational need, and sanitize or omit failure messages. WI-035 did not add
+  or remove these fields, and this non-blocking follow-up is not represented as
+  completed.
 
 Cash receipt issue/cancel automation is intentionally on hold while ATStudio uses card-only recurring billing. Reopen it only if a cash-like payment method or a separate cash receipt request flow is approved.

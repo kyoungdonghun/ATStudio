@@ -24,12 +24,13 @@ export interface PaymentCheckout {
   orderName?: string;
   successUrl?: string;
   failUrl?: string;
-  method?: string;
+  method?: 'CARD';
 }
 
 export interface BillingAgreementPrepareRequest {
   subscriptionId: number;
   billingCycle: 'MONTHLY' | 'YEARLY';
+  purpose: 'SUBSCRIBE' | 'BILLING_AGREEMENT';
 }
 
 export interface BillingAgreementPrepareResponse {
@@ -40,7 +41,7 @@ export interface BillingAgreementPrepareResponse {
   subscriptionId: number;
   billingCycle: 'MONTHLY' | 'YEARLY';
   amount: number;
-  currency: string;
+  currency: 'KRW';
   expiresAt: string;
   checkout: PaymentCheckout;
 }
@@ -72,12 +73,22 @@ export interface BillingAgreementResponse {
   subscription: MySubscription | null;
 }
 
+export interface PaymentCommandOutcome {
+  purpose: 'SUBSCRIBE' | 'BILLING_AGREEMENT' | 'UPGRADE';
+  orderStatus: PaymentOrderStatus;
+  userSubscriptionId: number | null;
+  targetSubscriptionId: number;
+  targetBillingCycle: 'MONTHLY' | 'YEARLY';
+}
+
 export async function prepareBillingAgreement(
   req: BillingAgreementPrepareRequest,
+  idempotencyKey: string,
 ): Promise<BillingAgreementPrepareResponse> {
   const { data } = await client.post<ApiResponse<BillingAgreementPrepareResponse>>(
     '/payments/billing-agreements/prepare',
     req,
+    { headers: { 'Idempotency-Key': idempotencyKey } },
   );
   return data.data;
 }
@@ -95,6 +106,24 @@ export async function confirmBillingAgreement(
 export async function fetchMyBillingAgreement(): Promise<BillingAgreementResponse> {
   const { data } = await client.get<ApiResponse<BillingAgreementResponse>>(
     '/payments/billing-agreements/me',
+  );
+  return data.data;
+}
+
+export async function fetchPaymentCommandOutcome(orderId: string): Promise<PaymentCommandOutcome> {
+  const { data } = await client.get<ApiResponse<PaymentCommandOutcome>>(
+    `/payments/orders/${encodeURIComponent(orderId)}/outcome`,
+  );
+  return data.data;
+}
+
+export async function fetchSubscriptionUpgradeOutcome(
+  subscriptionId: number,
+  billingCycle: 'MONTHLY' | 'YEARLY',
+): Promise<PaymentCommandOutcome> {
+  const { data } = await client.get<ApiResponse<PaymentCommandOutcome>>(
+    '/payments/subscription-upgrades/outcome',
+    { params: { subscriptionId, billingCycle } },
   );
   return data.data;
 }

@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-07-17
+version: 1.4
+last_updated: 2026-08-12
 project: ATS
 owner: SA
 category: design
@@ -327,7 +327,7 @@ Current action coverage:
 | `PAYMENT_ENTITLEMENT_CORRECTION_FAILED` | Admin user | `payment_entitlement_corrections` | Reserved for failed local correction tracking. |
 | `PAYMENT_SETTLEMENT_IMPORTED` | Admin user | `payment_settlements` | Records imported settlement evidence rows. |
 | `PAYMENT_SETTLEMENT_RECONCILED` | Admin user | `payment_settlements` | Records generated missing-provider settlement review rows. |
-| `PAYMENT_SETTLEMENT_IGNORED` | Admin user | `payment_settlements` | Records operator ignore decisions. |
+| `PAYMENT_SETTLEMENT_IGNORED` | Admin user | `payment_settlements` | Records the first valid operator ignore decision; repeats create no new event. |
 
 Future tax invoice request workflows should add explicit action values instead of reusing these actions, but only after a matching B2B invoice, bank-transfer, postpaid, or contract purchase payment scope is approved. Cash receipt issue/cancel actions remain conditional on future cash-like payment support.
 
@@ -411,7 +411,27 @@ Implemented table: `payment_settlements`
 
 Detailed implementation design is tracked in [Payment Settlement Import and Reconciliation Design](payment-settlement-import-design.md).
 
-### 7.5 Settlement incident types
+### 7.5 CSV import attempt model
+
+Implemented table: `payment_settlement_import_attempts`
+
+The table is a dedicated operation ledger for CSV import only. One accepted
+claim records the active ADMIN actor, an owner-scoped opaque key digest,
+`PROCESSING`/`COMPLETED`/`FAILED` state, total/imported/duplicate/failed counts,
+an optional bounded operator note, a bounded internal failure code, and
+timestamps. Completed rows enforce:
+
+```text
+total_rows = imported_rows + duplicate_rows + failed_rows
+```
+
+The raw Idempotency-Key, file bytes, raw CSV rows, Provider payloads,
+credentials, per-row errors, and status counts are not retained in this table.
+The public `importBatchKey` is derived from the numeric attempt ID and links
+imported Settlement rows without exposing the digest. Reconciliation remains
+outside this attempt ledger.
+
+### 7.6 Settlement incident types
 
 Future reconciliation incident types:
 
@@ -421,6 +441,51 @@ Future reconciliation incident types:
 - `SETTLEMENT_FEE_MISMATCH`
 - `SETTLEMENT_REFUND_MISMATCH`
 - `SETTLEMENT_PAYOUT_DATE_MISMATCH`
+
+### 7.7 Verified Import, Recovery, and IGNORE Integrity
+
+- A mixed CSV import response with `failedRows > 0` is partial completion even
+  though the HTTP status is `200`. Valid rows and their row audits persist;
+  returned row errors identify failures.
+- Every normal import/reconciliation response satisfies
+  `totalRows == importedRows + skippedDuplicateRows + failedRows`, and
+  `sum(statusCounts) == importedRows`. Completed CSV attempt rows enforce the
+  equivalent persisted count rule.
+- CSV import requires a canonical lowercase UUIDv4 in the
+  `Idempotency-Key` header. The server stores only an owner-scoped opaque digest.
+  A same-key POST never processes the file again; read-only recovery uses the
+  same header, while list and numeric-detail reads expose ADMIN-safe aggregate
+  evidence.
+- Settlement-row and attempt-key races are classified only for their exact
+  named unique constraint or exact supported H2 signature. Row duplicate
+  classification also confirms the winner after the losing transaction has
+  rolled back. Unrelated integrity violations are not treated as duplicates.
+- An all-duplicate CSV still owns one durable `COMPLETED` attempt. An orderless
+  finalized payment is one reconciliation failure with bounded error evidence,
+  not an uncounted row.
+- IGNORE requires a trimmed nonblank operator note of at most 500 characters at
+  both HTTP and service boundaries. The service requires the authenticated
+  principal and the locked authoritative user row to both be active ADMIN
+  authority before it locks or mutates the Settlement.
+- The first valid IGNORE actor, decision time, normalized note, `IGNORED`
+  status, and audit row are immutable. Every otherwise-valid repeat returns
+  `INVALID_STATE_TRANSITION` and produces no Settlement or audit mutation.
+- Settlement operations may compare local payment, refund, and subscription
+  evidence, but they do not mutate payment, refund, subscription,
+  billing-agreement, or Provider state.
+- Settlement IGNORE keeps its existing note and danger confirmation. No typed
+  phrase was added. Shared modal and typed confirmation work for the separate
+  general local-subscription correction flow remains assigned to
+  WI-20260809-ATS-054.
+- The optional CSV import note is user-supplied free text bounded to 500
+  characters. The UI warns against sensitive input. The application does not
+  derive a secret into that field, but it has no DLP guarantee that an operator
+  cannot paste sensitive data.
+- This verified behavior closes `CR-031-117` and `CR-031-119` at the source/H2
+  boundary. It does not select strict CSV parser/field/range/retry policy.
+  `CR-031-115`, `CR-031-116`, and `CR-031-118` remain held and out of scope for
+  WI-20260809-ATS-067. MySQL concurrency and current manifest/hash rehearsal
+  remain unperformed.
 
 ## 8. Tax Invoice Policy
 
@@ -527,6 +592,9 @@ The refund, entitlement correction, and settlement APIs below are implemented. T
 | `GET /api/admin/payments/receipts` | Admin receipt evidence list | Read-only |
 | `GET /api/admin/payments/settlements` | Admin settlement records | Read-only |
 | `POST /api/admin/payments/settlements/import` | Import provider settlement CSV evidence | Local accounting mutation |
+| `GET /api/admin/payments/settlement-import-attempts` | List durable CSV import attempts | Read-only |
+| `GET /api/admin/payments/settlement-import-attempts/{attemptId}` | Read one attempt by numeric ID | Read-only |
+| `GET /api/admin/payments/settlement-import-attempts/recovery` | Recover the current ADMIN's attempt with header-only Idempotency-Key | Read-only |
 | `POST /api/admin/payments/settlements/reconcile` | Generate missing-provider settlement evidence review rows | Local accounting mutation |
 | `PUT /api/admin/payments/settlements/{id}/ignore` | Mark a settlement row ignored with an operator note | Local workflow mutation |
 | `POST /api/tax-invoice-requests` | Future-only user tax invoice evidence request candidate | Not part of current card-only API surface |
@@ -566,6 +634,9 @@ Every operation that touches money, evidence, or subscription access must record
 - Never offer an automatic "refund and fix everything" button without showing the exact local and provider actions.
 - Keep the admin screen boundary clear: general local subscription editing belongs to `사용자 구독 관리`; payment-backed refund, audit, incident, and refund-linked entitlement correction belongs to `결제 운영`.
 - Require typed confirmation before provider refund execution or local entitlement correction execution.
+- Keep one pending Settlement import key until terminal read-only recovery. Do
+  not automatically resubmit the CSV or poll. A new key belongs only to a new
+  explicit operator action.
 
 ## 11. Security and Privacy Boundary
 
@@ -576,6 +647,19 @@ Never store or display:
 - raw card number, CVC, expiry
 - raw `authKey`
 - raw provider payload
+- raw Settlement import `Idempotency-Key` in the database, application logs,
+  URL, or query string
+
+The raw Settlement import key is accepted only in the request header and may be
+kept temporarily in browser `sessionStorage` for recovery. Deployment owners
+must configure access logs, reverse proxies, tracing, and APM not to collect or
+record that header; application-level omission does not configure those systems.
+
+The optional 500-character Settlement import note is plain operator text. The
+UI and operating procedure prohibit PII, credentials, payment keys, and other
+sensitive values. The system stores the submitted note as local evidence and
+does not derive a secret into it, but no claim is made that free text can never
+contain a user-entered secret.
 
 Allowed support-safe fields:
 
@@ -628,6 +712,7 @@ Before implementing remaining payment operation features, confirm:
 | PAYOPS-D08 | Refund ledger/provider cancel is implemented as admin backend APIs and first-class admin UI while keeping request, approval, and provider execution separate. | Accepted |
 | PAYOPS-D09 | Refund-linked entitlement correction is implemented as an explicit target-state admin backend workflow and first-class admin UI while keeping it separate from provider refund. | Accepted |
 | PAYOPS-D10 | Settlement import starts with CSV/manual source adapter while preserving a future Toss Settlement API adapter path. | Accepted and implemented |
+| PAYOPS-D11 | CSV import uses a dedicated attempt ledger, owner-scoped opaque digest, header-only recovery, exact duplicate classification, and conserved counts; reconciliation has no attempt key. | Accepted and implemented at source/H2 boundary |
 
 ## Related Documents
 

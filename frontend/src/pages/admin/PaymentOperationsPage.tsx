@@ -8,11 +8,13 @@ import {
   executeAdminPaymentEntitlementCorrection,
   executeAdminPaymentRefund,
   fetchAdminBillingAgreements,
+  fetchAdminPaymentEntitlementCorrection,
   fetchAdminPaymentEntitlementCorrections,
   fetchAdminPaymentOperationAuditLogs,
   fetchAdminPaymentOrders,
   fetchAdminPaymentReceipts,
   fetchAdminPaymentReconciliationIncidents,
+  fetchAdminPaymentRefund,
   fetchAdminPaymentRefundPreview,
   fetchAdminPaymentRefunds,
   fetchAdminPaymentSettlements,
@@ -21,11 +23,13 @@ import {
   importAdminPaymentSettlements,
   previewAdminPaymentEntitlementCorrection,
   reconcileAdminPaymentSettlements,
+  recoverAdminPaymentSettlementImportAttempt,
   updateAdminPaymentReconciliationIncidentStatus,
   type AdminBillingAgreement,
   type AdminPaymentEntitlementCorrection,
   type AdminPaymentEntitlementCorrectionBillingCycle,
   type AdminPaymentEntitlementCorrectionPreview,
+  type AdminPaymentEntitlementCorrectionStatus,
   type AdminPaymentEntitlementCorrectionSubscriptionStatus,
   type AdminPaymentOperationAuditLog,
   type AdminPaymentOrder,
@@ -35,7 +39,9 @@ import {
   type AdminPaymentRefund,
   type AdminPaymentRefundPreview,
   type AdminPaymentRefundReasonCode,
+  type AdminPaymentRefundStatus,
   type AdminPaymentSettlement,
+  type AdminPaymentSettlementImportAttempt,
   type AdminPaymentSettlementImportResult,
   type AdminPaymentSettlementSource,
   type AdminPaymentSettlementStatus,
@@ -48,6 +54,13 @@ import { useToastStore } from '@/store/toastStore';
 import type { PageInfo } from '@/types';
 import { formatDate, formatDateTime, formatPrice } from '@/utils/format';
 import { getSafeReceiptUrl } from '@/utils/safeReceiptUrl';
+import {
+  clearSettlementImportAttempt,
+  CorruptSettlementImportAttemptError,
+  createNewSettlementImportAttempt,
+  getSettlementImportAttempt,
+  PendingSettlementImportAttemptError,
+} from '@/utils/settlementImportAttempt';
 import styles from './PaymentOperationsPage.module.css';
 
 type TabKey =
@@ -102,6 +115,26 @@ const SETTLEMENT_SOURCES: AdminPaymentSettlementSource[] = [
 
 const REFUND_EXECUTION_CONFIRM_TEXT = '환불 실행';
 const CORRECTION_EXECUTION_CONFIRM_TEXT = '권한 보정 실행';
+const SETTLEMENT_IMPORT_ATTEMPT_CORRUPT_MESSAGE =
+  '저장된 정산 import 복구 정보가 손상되어 새 import를 시작할 수 없습니다. 브라우저 세션을 지운 후 다시 시도해주세요.';
+const SETTLEMENT_IMPORT_ATTEMPT_PENDING_MESSAGE =
+  '이전 정산 import 결과를 먼저 복구한 후 새 import를 시작해주세요.';
+
+interface SettlementImportAttemptState {
+  key: string | null;
+  corrupt: boolean;
+}
+
+function readSettlementImportAttemptState(): SettlementImportAttemptState {
+  try {
+    return { key: getSettlementImportAttempt(), corrupt: false };
+  } catch (error) {
+    if (error instanceof CorruptSettlementImportAttemptError) {
+      return { key: null, corrupt: true };
+    }
+    throw error;
+  }
+}
 
 interface IncidentEdit {
   status: AdminPaymentReconciliationIncidentStatus;
@@ -137,6 +170,85 @@ interface ConfirmationState {
   action: () => Promise<void>;
 }
 
+type RecoveryOutcome = 'COMMITTED' | 'FAILED' | 'RELOAD_FAILED' | 'UNKNOWN';
+
+interface RefundRecoveryIntent {
+  readonly domain: 'refund';
+  readonly durableId: number;
+  readonly generation: number;
+  readonly page: number;
+  readonly viewRequestGeneration: number;
+  readonly viewRequestKey: string;
+  outcome: RecoveryOutcome;
+  detail: AdminPaymentRefund;
+}
+
+interface CorrectionRecoveryIntent {
+  readonly domain: 'correction';
+  readonly durableId: number;
+  readonly paymentRefundId: number;
+  readonly generation: number;
+  readonly page: number;
+  readonly viewRequestGeneration: number;
+  readonly viewRequestKey: string;
+  outcome: RecoveryOutcome;
+  detail: AdminPaymentEntitlementCorrection;
+}
+
+function isAmbiguousOutcome(outcome: RecoveryOutcome): boolean {
+  return outcome === 'UNKNOWN' || outcome === 'RELOAD_FAILED';
+}
+
+function refundOutcome(status: AdminPaymentRefundStatus): RecoveryOutcome {
+  if (status === 'SUCCEEDED') return 'COMMITTED';
+  if (status === 'FAILED' || status === 'CANCELLED') return 'FAILED';
+  return 'UNKNOWN';
+}
+
+function correctionOutcome(status: AdminPaymentEntitlementCorrectionStatus): RecoveryOutcome {
+  if (status === 'SUCCEEDED') return 'COMMITTED';
+  if (status === 'FAILED' || status === 'CANCELLED') return 'FAILED';
+  return 'UNKNOWN';
+}
+
+function refundExecutionFeedback(outcome: RecoveryOutcome) {
+  if (outcome === 'COMMITTED') {
+    return { type: 'success' as const, message: '환불 실행 결과가 확인되었습니다.' };
+  }
+  if (outcome === 'FAILED') {
+    return { type: 'error' as const, message: '환불 실행이 최종 실패 상태로 확인되었습니다.' };
+  }
+  if (outcome === 'UNKNOWN') {
+    return {
+      type: 'error' as const,
+      message: '환불 후속 상태가 아직 확정되지 않았습니다. 상태를 다시 확인해주세요.',
+    };
+  }
+  return {
+    type: 'error' as const,
+    message: '환불은 성공했지만 후속 정보를 새로고침하지 못했습니다.',
+  };
+}
+
+function correctionExecutionFeedback(outcome: RecoveryOutcome) {
+  if (outcome === 'COMMITTED') {
+    return { type: 'success' as const, message: '권한 보정 결과가 확인되었습니다.' };
+  }
+  if (outcome === 'FAILED') {
+    return { type: 'error' as const, message: '권한 보정이 최종 실패 상태로 확인되었습니다.' };
+  }
+  if (outcome === 'UNKNOWN') {
+    return {
+      type: 'error' as const,
+      message: '권한 보정 후속 상태가 아직 확정되지 않았습니다. 상태를 다시 확인해주세요.',
+    };
+  }
+  return {
+    type: 'error' as const,
+    message: '권한 보정은 성공했지만 후속 정보를 새로고침하지 못했습니다.',
+  };
+}
+
 export default function PaymentOperationsPage() {
   const [tab, setTab] = useState<TabKey>('orders');
   const [page, setPage] = useState(1);
@@ -163,10 +275,18 @@ export default function PaymentOperationsPage() {
   const [settlementBaseDateFrom, setSettlementBaseDateFrom] = useState('');
   const [settlementBaseDateTo, setSettlementBaseDateTo] = useState('');
   const [settlementFile, setSettlementFile] = useState<File | null>(null);
+  const [settlementFileInputKey, setSettlementFileInputKey] = useState(0);
   const [settlementNote, setSettlementNote] = useState('');
   const [settlementBusy, setSettlementBusy] = useState<string | null>(null);
   const [settlementImportResult, setSettlementImportResult] =
     useState<AdminPaymentSettlementImportResult | null>(null);
+  const [settlementImportAttemptState] = useState(readSettlementImportAttemptState);
+  const [settlementImportOperationKey, setSettlementImportOperationKey] = useState<string | null>(
+    () => settlementImportAttemptState.key,
+  );
+  const [settlementImportAttemptCorrupt] = useState(() => settlementImportAttemptState.corrupt);
+  const [settlementRecoveryAttempt, setSettlementRecoveryAttempt] =
+    useState<AdminPaymentSettlementImportAttempt | null>(null);
   const [settlementIgnoreNotes, setSettlementIgnoreNotes] = useState<Record<number, string>>({});
   const [incidentEdits, setIncidentEdits] = useState<Record<number, IncidentEdit>>({});
   const [updatingIncidentId, setUpdatingIncidentId] = useState<number | null>(null);
@@ -192,6 +312,17 @@ export default function PaymentOperationsPage() {
     useState<AdminPaymentEntitlementCorrectionPreview | null>(null);
   const [correctionActionNotes, setCorrectionActionNotes] = useState<Record<number, string>>({});
   const [correctionBusy, setCorrectionBusy] = useState<string | null>(null);
+  const [refundRecoveries, setRefundRecoveries] = useState<Record<number, RefundRecoveryIntent>>(
+    {},
+  );
+  const [correctionRecoveries, setCorrectionRecoveries] = useState<
+    Record<number, CorrectionRecoveryIntent>
+  >({});
+  const [refundExecutePending, setRefundExecutePending] = useState<Record<number, boolean>>({});
+  const [correctionExecutePending, setCorrectionExecutePending] = useState<Record<number, boolean>>(
+    {},
+  );
+  const [recoveryReads, setRecoveryReads] = useState<Record<string, boolean>>({});
   const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
   const [confirmationBusy, setConfirmationBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -199,6 +330,15 @@ export default function PaymentOperationsPage() {
   const showToast = useToastStore((s) => s.show);
   const paymentRequestGenerationRef = useRef(0);
   const paymentRequestControllerRef = useRef<AbortController | null>(null);
+  const refundRecoveryRef = useRef<Record<number, RefundRecoveryIntent>>({});
+  const correctionRecoveryRef = useRef<Record<number, CorrectionRecoveryIntent>>({});
+  const refundGenerationRef = useRef(0);
+  const correctionGenerationRef = useRef(0);
+  const refundReadGenerationRef = useRef(new Map<number, number>());
+  const correctionReadGenerationRef = useRef(new Map<number, number>());
+  const refundExecutePendingRef = useRef(new Set<number>());
+  const correctionExecutePendingRef = useRef(new Set<number>());
+  const recoveryReadPendingRef = useRef(new Set<string>());
   const paymentViewRequest: PaymentViewRequest = {
     tab,
     page,
@@ -213,6 +353,98 @@ export default function PaymentOperationsPage() {
   const latestPaymentViewRequestKeyRef = useRef(paymentViewRequestKey);
   latestPaymentViewRequestRef.current = paymentViewRequest;
   latestPaymentViewRequestKeyRef.current = paymentViewRequestKey;
+
+  function setRefundRecovery(intent: RefundRecoveryIntent) {
+    refundRecoveryRef.current = { ...refundRecoveryRef.current, [intent.durableId]: intent };
+    setRefundRecoveries(refundRecoveryRef.current);
+  }
+
+  function setCorrectionRecovery(intent: CorrectionRecoveryIntent) {
+    correctionRecoveryRef.current = {
+      ...correctionRecoveryRef.current,
+      [intent.durableId]: intent,
+    };
+    setCorrectionRecoveries(correctionRecoveryRef.current);
+  }
+
+  function clearRefundRecovery(intent: RefundRecoveryIntent) {
+    if (!isCurrentRefundIntent(intent)) return;
+    const next = { ...refundRecoveryRef.current };
+    delete next[intent.durableId];
+    refundRecoveryRef.current = next;
+    setRefundRecoveries(next);
+  }
+
+  function clearCorrectionRecovery(intent: CorrectionRecoveryIntent) {
+    if (!isCurrentCorrectionIntent(intent)) return;
+    const next = { ...correctionRecoveryRef.current };
+    delete next[intent.durableId];
+    correctionRecoveryRef.current = next;
+    setCorrectionRecoveries(next);
+  }
+
+  function isCurrentRefundIntent(intent: RefundRecoveryIntent): boolean {
+    return refundRecoveryRef.current[intent.durableId]?.generation === intent.generation;
+  }
+
+  function isCurrentCorrectionIntent(intent: CorrectionRecoveryIntent): boolean {
+    return correctionRecoveryRef.current[intent.durableId]?.generation === intent.generation;
+  }
+
+  function ownsRecoveryView(intent: RefundRecoveryIntent | CorrectionRecoveryIntent): boolean {
+    return (
+      paymentRequestGenerationRef.current === intent.viewRequestGeneration &&
+      latestPaymentViewRequestKeyRef.current === intent.viewRequestKey
+    );
+  }
+
+  function isRefundMutationBlocked(refundId: number): boolean {
+    const ownIntent = refundRecoveryRef.current[refundId];
+    if (ownIntent && isAmbiguousOutcome(ownIntent.outcome)) return true;
+    return hasAmbiguousCorrectionIntent(refundId);
+  }
+
+  function hasAmbiguousCorrectionIntent(paymentRefundId: number): boolean {
+    return Object.values(correctionRecoveryRef.current).some(
+      (intent) => intent.paymentRefundId === paymentRefundId && isAmbiguousOutcome(intent.outcome),
+    );
+  }
+
+  function isCorrectionMutationBlocked(correction: AdminPaymentEntitlementCorrection): boolean {
+    const ownIntent = correctionRecoveryRef.current[correction.id];
+    if (ownIntent && isAmbiguousOutcome(ownIntent.outcome)) return true;
+    if (hasAmbiguousCorrectionIntent(correction.paymentRefundId)) return true;
+    const refundIntent = refundRecoveryRef.current[correction.paymentRefundId];
+    return Boolean(refundIntent && isAmbiguousOutcome(refundIntent.outcome));
+  }
+
+  function setRecoveryReadPending(key: string, pending: boolean) {
+    if (pending) recoveryReadPendingRef.current.add(key);
+    else recoveryReadPendingRef.current.delete(key);
+    setRecoveryReads((current) => ({ ...current, [key]: pending }));
+  }
+
+  function updateRefundExecutePending(refundId: number, pending: boolean) {
+    if (pending) refundExecutePendingRef.current.add(refundId);
+    else refundExecutePendingRef.current.delete(refundId);
+    setRefundExecutePending((current) => {
+      const next = { ...current };
+      if (pending) next[refundId] = true;
+      else delete next[refundId];
+      return next;
+    });
+  }
+
+  function updateCorrectionExecutePending(correctionId: number, pending: boolean) {
+    if (pending) correctionExecutePendingRef.current.add(correctionId);
+    else correctionExecutePendingRef.current.delete(correctionId);
+    setCorrectionExecutePending((current) => {
+      const next = { ...current };
+      if (pending) next[correctionId] = true;
+      else delete next[correctionId];
+      return next;
+    });
+  }
 
   const loadData = useCallback(async () => {
     paymentRequestControllerRef.current?.abort();
@@ -231,17 +463,17 @@ export default function PaymentOperationsPage() {
     try {
       if (request.tab === 'orders') {
         const result = await fetchAdminPaymentOrders(request.page, 20, controller.signal);
-        if (!isCurrentRequest()) return;
+        if (!isCurrentRequest()) return false;
         setOrders(result.dataList);
         setPageInfo(result.pageInfo);
       } else if (request.tab === 'agreements') {
         const result = await fetchAdminBillingAgreements(request.page, 20, controller.signal);
-        if (!isCurrentRequest()) return;
+        if (!isCurrentRequest()) return false;
         setAgreements(result.dataList);
         setPageInfo(result.pageInfo);
       } else if (request.tab === 'payments') {
         const result = await fetchAdminSubscriptionPayments(request.page, 20, controller.signal);
-        if (!isCurrentRequest()) return;
+        if (!isCurrentRequest()) return false;
         setPayments(result.dataList);
         setPageInfo(result.pageInfo);
       } else if (request.tab === 'incidents') {
@@ -251,13 +483,13 @@ export default function PaymentOperationsPage() {
           request.incidentStatus || undefined,
           controller.signal,
         );
-        if (!isCurrentRequest()) return;
+        if (!isCurrentRequest()) return false;
         setIncidents(result.dataList);
         setIncidentEdits(buildIncidentEdits(result.dataList));
         setPageInfo(result.pageInfo);
       } else if (request.tab === 'receipts') {
         const result = await fetchAdminPaymentReceipts(request.page, 20, controller.signal);
-        if (!isCurrentRequest()) return;
+        if (!isCurrentRequest()) return false;
         setReceipts(result.dataList);
         setPageInfo(result.pageInfo);
       } else if (request.tab === 'audits') {
@@ -266,7 +498,7 @@ export default function PaymentOperationsPage() {
           20,
           controller.signal,
         );
-        if (!isCurrentRequest()) return;
+        if (!isCurrentRequest()) return false;
         setAudits(result.dataList);
         setPageInfo(result.pageInfo);
       } else if (request.tab === 'settlements') {
@@ -281,13 +513,38 @@ export default function PaymentOperationsPage() {
           },
           controller.signal,
         );
-        if (!isCurrentRequest()) return;
+        if (!isCurrentRequest()) return false;
         setSettlements(result.dataList);
         setPageInfo(result.pageInfo);
       } else if (request.tab === 'refunds') {
         const result = await fetchAdminPaymentRefunds(request.page, 20, controller.signal);
-        if (!isCurrentRequest()) return;
-        setRefunds(result.dataList);
+        if (!isCurrentRequest()) return false;
+        let nextRecoveries = refundRecoveryRef.current;
+        let recoveriesChanged = false;
+        for (const refund of result.dataList) {
+          if (
+            !nextRecoveries[refund.id] &&
+            ['PROCESSING', 'PENDING_PROVIDER_CONFIRMATION'].includes(refund.status)
+          ) {
+            if (!recoveriesChanged) nextRecoveries = { ...nextRecoveries };
+            recoveriesChanged = true;
+            nextRecoveries[refund.id] = {
+              domain: 'refund',
+              durableId: refund.id,
+              generation: ++refundGenerationRef.current,
+              page: request.page,
+              viewRequestGeneration: requestGeneration,
+              viewRequestKey: requestKey,
+              outcome: 'UNKNOWN',
+              detail: refund,
+            };
+          }
+        }
+        if (recoveriesChanged) {
+          refundRecoveryRef.current = nextRecoveries;
+          setRefundRecoveries(nextRecoveries);
+        }
+        setRefunds(result.dataList.map((refund) => nextRecoveries[refund.id]?.detail ?? refund));
         setPageInfo(result.pageInfo);
       } else {
         const result = await fetchAdminPaymentEntitlementCorrections(
@@ -295,16 +552,43 @@ export default function PaymentOperationsPage() {
           20,
           controller.signal,
         );
-        if (!isCurrentRequest()) return;
-        setCorrections(result.dataList);
+        if (!isCurrentRequest()) return false;
+        let nextRecoveries = correctionRecoveryRef.current;
+        let recoveriesChanged = false;
+        for (const correction of result.dataList) {
+          if (!nextRecoveries[correction.id] && correction.status === 'PROCESSING') {
+            if (!recoveriesChanged) nextRecoveries = { ...nextRecoveries };
+            recoveriesChanged = true;
+            nextRecoveries[correction.id] = {
+              domain: 'correction',
+              durableId: correction.id,
+              paymentRefundId: correction.paymentRefundId,
+              generation: ++correctionGenerationRef.current,
+              page: request.page,
+              viewRequestGeneration: requestGeneration,
+              viewRequestKey: requestKey,
+              outcome: 'UNKNOWN',
+              detail: correction,
+            };
+          }
+        }
+        if (recoveriesChanged) {
+          correctionRecoveryRef.current = nextRecoveries;
+          setCorrectionRecoveries(nextRecoveries);
+        }
+        setCorrections(
+          result.dataList.map((correction) => nextRecoveries[correction.id]?.detail ?? correction),
+        );
         setPageInfo(result.pageInfo);
       }
+      return true;
     } catch {
       if (!isCurrentRequest()) {
-        return;
+        return false;
       }
       setError('결제 정보를 불러오지 못했습니다.');
       setPageInfo(null);
+      return false;
     } finally {
       if (isCurrentRequest()) {
         setLoading(false);
@@ -428,6 +712,14 @@ export default function PaymentOperationsPage() {
       showToast('error', '정산 CSV 파일을 선택해주세요.');
       return;
     }
+    if (settlementImportAttemptCorrupt) {
+      showToast('error', SETTLEMENT_IMPORT_ATTEMPT_CORRUPT_MESSAGE);
+      return;
+    }
+    if (settlementImportOperationKey) {
+      showToast('warning', SETTLEMENT_IMPORT_ATTEMPT_PENDING_MESSAGE);
+      return;
+    }
     const file = settlementFile;
     const note = settlementNote.trim() || undefined;
     requestConfirmation({
@@ -435,20 +727,107 @@ export default function PaymentOperationsPage() {
       message: '정산 파일을 import하고 내부 결제/환불 원장과 대조합니다.',
       confirmLabel: '가져오기',
       action: async () => {
-        setSettlementBusy('import');
+        let operationKey: string;
         try {
-          const result = await importAdminPaymentSettlements(file, note);
+          operationKey = createNewSettlementImportAttempt();
+        } catch (error) {
+          if (error instanceof PendingSettlementImportAttemptError) {
+            setSettlementImportOperationKey(error.idempotencyKey);
+            showToast('warning', SETTLEMENT_IMPORT_ATTEMPT_PENDING_MESSAGE);
+            return;
+          }
+          showToast('error', '정산 import 요청 키를 생성하지 못했습니다.');
+          return;
+        }
+        setSettlementImportOperationKey(operationKey);
+        setSettlementRecoveryAttempt(null);
+        setSettlementBusy('import');
+        setSettlementImportResult(null);
+        try {
+          const result = await importAdminPaymentSettlements(file, operationKey, note);
+          clearSettlementImportAttempt(operationKey);
+          setSettlementImportOperationKey(null);
           setSettlementImportResult(result);
+          const reloaded = await loadData();
+          if (!reloaded) {
+            showToast('error', '정산 import 결과를 받았지만 목록을 다시 불러오지 못했습니다.');
+            return;
+          }
+          if (result.failedRows > 0) {
+            showToast(
+              'warning',
+              `정산 import가 부분 완료되었습니다. 실패 ${result.failedRows}건을 확인해주세요.`,
+            );
+            return;
+          }
           setSettlementFile(null);
+          setSettlementFileInputKey((current) => current + 1);
           showToast('success', '정산 파일 import가 완료되었습니다.');
-          await loadData();
         } catch {
-          showToast('error', '정산 파일 import에 실패했습니다.');
+          await recoverSettlementImportOutcome(operationKey, true);
         } finally {
           setSettlementBusy(null);
         }
       },
     });
+  }
+
+  async function recoverSettlementImportOutcome(operationKey: string, afterPost: boolean) {
+    try {
+      const attempt = await recoverAdminPaymentSettlementImportAttempt(operationKey);
+      setSettlementRecoveryAttempt(attempt);
+      if (attempt.state === 'PROCESSING') {
+        showToast('warning', '정산 import가 처리 중입니다. 같은 키로 결과를 다시 확인해주세요.');
+        return;
+      }
+
+      clearSettlementImportAttempt(operationKey);
+      setSettlementImportOperationKey(null);
+      if (attempt.state === 'FAILED') {
+        showToast(
+          'error',
+          '정산 import 시도가 실패했습니다. 새 작업은 명시적으로 다시 시작해주세요.',
+        );
+        return;
+      }
+
+      const reloaded = await loadData();
+      if (!reloaded) {
+        showToast('error', '완료된 정산 import 결과는 복구했지만 목록을 다시 불러오지 못했습니다.');
+        return;
+      }
+      if (attempt.failedRows > 0) {
+        showToast(
+          'warning',
+          `정산 import 완료 결과를 복구했습니다. 실패 ${attempt.failedRows}건의 행 오류 상세는 응답에만 제공됩니다.`,
+        );
+        return;
+      }
+      setSettlementFile(null);
+      setSettlementFileInputKey((current) => current + 1);
+      showToast('success', '정산 import 완료 결과를 복구했습니다.');
+    } catch {
+      showToast(
+        'error',
+        afterPost
+          ? '정산 import 결과가 불확실합니다. 동일 키로 읽기 복구를 다시 실행해주세요.'
+          : '정산 import 결과를 복구하지 못했습니다.',
+      );
+    }
+  }
+
+  async function recoverPendingSettlementImport() {
+    if (settlementImportAttemptCorrupt) {
+      showToast('error', SETTLEMENT_IMPORT_ATTEMPT_CORRUPT_MESSAGE);
+      return;
+    }
+    if (!settlementImportOperationKey || settlementBusy) return;
+    setSettlementBusy('recover');
+    try {
+      await recoverSettlementImportOutcome(settlementImportOperationKey, false);
+    } finally {
+      setSettlementBusy(null);
+    }
   }
 
   function reconcileSettlementGaps() {
@@ -593,6 +972,7 @@ export default function PaymentOperationsPage() {
   }
 
   function approveRefund(refund: AdminPaymentRefund) {
+    if (isRefundMutationBlocked(refund.id)) return;
     const note = refundActionNotes[refund.id]?.trim() || undefined;
     requestConfirmation({
       title: '환불 요청 승인',
@@ -614,7 +994,76 @@ export default function PaymentOperationsPage() {
     });
   }
 
+  async function refreshRefundStatus(
+    intent: RefundRecoveryIntent,
+    readFailureOutcome: 'UNKNOWN' | 'RELOAD_FAILED',
+    refreshList: boolean,
+    unlockPreExecution = false,
+  ) {
+    const key = `refund-${intent.durableId}`;
+    if (recoveryReadPendingRef.current.has(key)) return;
+    const readGeneration = (refundReadGenerationRef.current.get(intent.durableId) ?? 0) + 1;
+    refundReadGenerationRef.current.set(intent.durableId, readGeneration);
+    setRecoveryReadPending(key, true);
+    try {
+      const detail = await fetchAdminPaymentRefund(intent.durableId);
+      if (
+        !isCurrentRefundIntent(intent) ||
+        refundReadGenerationRef.current.get(intent.durableId) !== readGeneration
+      ) {
+        return;
+      }
+      if (detail.id !== intent.durableId) {
+        setRefundRecovery({ ...intent, outcome: readFailureOutcome });
+        return;
+      }
+      const outcome = refundOutcome(detail.status);
+      if (
+        unlockPreExecution &&
+        intent.outcome === 'UNKNOWN' &&
+        ['REQUESTED', 'APPROVED'].includes(detail.status)
+      ) {
+        setRefunds((current) => current.map((item) => (item.id === detail.id ? detail : item)));
+        clearRefundRecovery(intent);
+        return;
+      }
+      const nextIntent = { ...intent, outcome, detail };
+      setRefundRecovery(nextIntent);
+      setRefunds((current) => current.map((item) => (item.id === detail.id ? detail : item)));
+      if (outcome !== 'COMMITTED' || !refreshList) return;
+
+      try {
+        const result = await fetchAdminPaymentRefunds(intent.page, 20);
+        if (!isCurrentRefundIntent(nextIntent) || !ownsRecoveryView(nextIntent)) return;
+        setRefunds(result.dataList.map((item) => (item.id === detail.id ? detail : item)));
+        setPageInfo(result.pageInfo);
+      } catch {
+        if (isCurrentRefundIntent(nextIntent) && ownsRecoveryView(nextIntent)) {
+          setRefundRecovery({ ...nextIntent, outcome: 'RELOAD_FAILED' });
+        }
+      }
+    } catch {
+      if (isCurrentRefundIntent(intent)) {
+        setRefundRecovery({ ...intent, outcome: readFailureOutcome });
+      }
+    } finally {
+      if (refundReadGenerationRef.current.get(intent.durableId) === readGeneration) {
+        setRecoveryReadPending(key, false);
+      }
+    }
+  }
+
+  function checkRefundStatus(refundId: number) {
+    if (refundExecutePendingRef.current.has(refundId)) return;
+    const intent = refundRecoveryRef.current[refundId];
+    if (!intent || !isAmbiguousOutcome(intent.outcome)) return;
+    const readFailureOutcome = intent.outcome === 'RELOAD_FAILED' ? 'RELOAD_FAILED' : 'UNKNOWN';
+    void refreshRefundStatus(intent, readFailureOutcome, false, true);
+  }
+
   async function executeRefund(refund: AdminPaymentRefund) {
+    if (isRefundMutationBlocked(refund.id) || refundExecutePendingRef.current.has(refund.id))
+      return;
     if (
       !confirmTypedAction(
         `Toss provider 환불을 실행합니다. 환불 #${refund.id}의 idempotency key를 재사용합니다. 이 작업은 결제 취소 API를 호출합니다.`,
@@ -623,15 +1072,93 @@ export default function PaymentOperationsPage() {
     ) {
       return;
     }
+    updateRefundExecutePending(refund.id, true);
+    const intent: RefundRecoveryIntent = {
+      domain: 'refund',
+      durableId: refund.id,
+      generation: ++refundGenerationRef.current,
+      page,
+      viewRequestGeneration: paymentRequestGenerationRef.current,
+      viewRequestKey: latestPaymentViewRequestKeyRef.current,
+      outcome: 'UNKNOWN',
+      detail: refund,
+    };
+    setRefundRecovery(intent);
     setRefundBusy(`execute-${refund.id}`);
-    try {
-      await executeAdminPaymentRefund(refund.id, refundActionNotes[refund.id]?.trim() || undefined);
-      showToast('success', '환불 실행 결과가 저장되었습니다.');
-      await loadData();
-    } catch {
-      showToast('error', '환불 실행에 실패했습니다.');
-    } finally {
+    const releaseExecuteLock = () => {
+      updateRefundExecutePending(refund.id, false);
       setRefundBusy(null);
+    };
+    let preflight: AdminPaymentRefund;
+    try {
+      preflight = await fetchAdminPaymentRefund(refund.id);
+    } catch {
+      if (isCurrentRefundIntent(intent)) {
+        setRefundRecovery({ ...intent, outcome: 'UNKNOWN' });
+        showToast('error', '환불 실행 전 최신 상태를 확인하지 못했습니다.');
+      }
+      releaseExecuteLock();
+      return;
+    }
+    if (!isCurrentRefundIntent(intent)) {
+      releaseExecuteLock();
+      return;
+    }
+    if (preflight.id !== refund.id) {
+      setRefundRecovery({ ...intent, outcome: 'UNKNOWN' });
+      showToast('error', '환불 실행 전 최신 상태를 확인하지 못했습니다.');
+      releaseExecuteLock();
+      return;
+    }
+    const preflightOutcome = refundOutcome(preflight.status);
+    const preflightIntent = { ...intent, outcome: preflightOutcome, detail: preflight };
+    setRefundRecovery(preflightIntent);
+    setRefunds((current) => current.map((item) => (item.id === preflight.id ? preflight : item)));
+    if (preflight.status !== 'APPROVED') {
+      showToast(
+        preflightOutcome === 'COMMITTED' ? 'success' : 'error',
+        preflightOutcome === 'COMMITTED'
+          ? '환불이 이미 완료된 상태입니다.'
+          : preflightOutcome === 'FAILED'
+            ? '환불이 최종 실패 상태입니다.'
+            : '환불 실행 가능 상태를 확인할 수 없습니다.',
+      );
+      releaseExecuteLock();
+      return;
+    }
+    try {
+      const response = await executeAdminPaymentRefund(
+        refund.id,
+        refundActionNotes[refund.id]?.trim() || undefined,
+      );
+      if (!isCurrentRefundIntent(preflightIntent)) return;
+      setRefunds((current) => current.map((item) => (item.id === response.id ? response : item)));
+      const outcome = refundOutcome(response.status);
+      const responseIntent = { ...preflightIntent, outcome, detail: response };
+      setRefundRecovery(responseIntent);
+      if (outcome === 'COMMITTED') {
+        await refreshRefundStatus(responseIntent, 'RELOAD_FAILED', true);
+        const current = refundRecoveryRef.current[refund.id];
+        const feedback = refundExecutionFeedback(current?.outcome ?? 'RELOAD_FAILED');
+        showToast(feedback.type, feedback.message);
+      } else if (outcome === 'FAILED') {
+        showToast('error', '환불 실행이 최종 실패 상태로 확인되었습니다.');
+      } else {
+        showToast('error', '환불 처리 결과를 확정할 수 없습니다. 상태를 다시 확인해주세요.');
+      }
+    } catch {
+      await refreshRefundStatus(preflightIntent, 'UNKNOWN', false);
+      const current = refundRecoveryRef.current[refund.id];
+      showToast(
+        current?.outcome === 'COMMITTED' ? 'success' : 'error',
+        current?.outcome === 'COMMITTED'
+          ? '응답은 유실됐지만 환불 완료 상태를 확인했습니다.'
+          : current?.outcome === 'FAILED'
+            ? '환불 실행이 최종 실패 상태로 확인되었습니다.'
+            : '환불 처리 결과를 확정할 수 없습니다. 상태를 다시 확인해주세요.',
+      );
+    } finally {
+      releaseExecuteLock();
     }
   }
 
@@ -658,6 +1185,13 @@ export default function PaymentOperationsPage() {
       showToast('error', '실행 가능한 권한 보정 미리보기를 먼저 확인해주세요.');
       return;
     }
+    const refundIntent = refundRecoveryRef.current[request.paymentRefundId];
+    if (
+      (refundIntent && isAmbiguousOutcome(refundIntent.outcome)) ||
+      hasAmbiguousCorrectionIntent(request.paymentRefundId)
+    ) {
+      return;
+    }
     requestConfirmation({
       title: '권한 보정 요청 생성',
       message: '권한 보정 요청 원장을 생성합니다. 아직 구독 상태는 변경되지 않습니다.',
@@ -680,6 +1214,7 @@ export default function PaymentOperationsPage() {
   }
 
   function approveCorrection(correction: AdminPaymentEntitlementCorrection) {
+    if (isCorrectionMutationBlocked(correction)) return;
     const note = correctionActionNotes[correction.id]?.trim() || undefined;
     requestConfirmation({
       title: '권한 보정 요청 승인',
@@ -701,7 +1236,80 @@ export default function PaymentOperationsPage() {
     });
   }
 
+  async function refreshCorrectionStatus(
+    intent: CorrectionRecoveryIntent,
+    readFailureOutcome: 'UNKNOWN' | 'RELOAD_FAILED',
+    refreshList: boolean,
+    unlockPreExecution = false,
+  ) {
+    const key = `correction-${intent.durableId}`;
+    if (recoveryReadPendingRef.current.has(key)) return;
+    const readGeneration = (correctionReadGenerationRef.current.get(intent.durableId) ?? 0) + 1;
+    correctionReadGenerationRef.current.set(intent.durableId, readGeneration);
+    setRecoveryReadPending(key, true);
+    try {
+      const detail = await fetchAdminPaymentEntitlementCorrection(intent.durableId);
+      if (
+        !isCurrentCorrectionIntent(intent) ||
+        correctionReadGenerationRef.current.get(intent.durableId) !== readGeneration
+      ) {
+        return;
+      }
+      if (detail.id !== intent.durableId) {
+        setCorrectionRecovery({ ...intent, outcome: readFailureOutcome });
+        return;
+      }
+      const outcome = correctionOutcome(detail.status);
+      if (
+        unlockPreExecution &&
+        intent.outcome === 'UNKNOWN' &&
+        ['REQUESTED', 'APPROVED'].includes(detail.status)
+      ) {
+        setCorrections((current) => current.map((item) => (item.id === detail.id ? detail : item)));
+        clearCorrectionRecovery(intent);
+        return;
+      }
+      const nextIntent = { ...intent, outcome, detail };
+      setCorrectionRecovery(nextIntent);
+      setCorrections((current) => current.map((item) => (item.id === detail.id ? detail : item)));
+      if (outcome !== 'COMMITTED' || !refreshList) return;
+
+      try {
+        const result = await fetchAdminPaymentEntitlementCorrections(intent.page, 20);
+        if (!isCurrentCorrectionIntent(nextIntent) || !ownsRecoveryView(nextIntent)) return;
+        setCorrections(result.dataList.map((item) => (item.id === detail.id ? detail : item)));
+        setPageInfo(result.pageInfo);
+      } catch {
+        if (isCurrentCorrectionIntent(nextIntent) && ownsRecoveryView(nextIntent)) {
+          setCorrectionRecovery({ ...nextIntent, outcome: 'RELOAD_FAILED' });
+        }
+      }
+    } catch {
+      if (isCurrentCorrectionIntent(intent)) {
+        setCorrectionRecovery({ ...intent, outcome: readFailureOutcome });
+      }
+    } finally {
+      if (correctionReadGenerationRef.current.get(intent.durableId) === readGeneration) {
+        setRecoveryReadPending(key, false);
+      }
+    }
+  }
+
+  function checkCorrectionStatus(correctionId: number) {
+    if (correctionExecutePendingRef.current.has(correctionId)) return;
+    const intent = correctionRecoveryRef.current[correctionId];
+    if (!intent || !isAmbiguousOutcome(intent.outcome)) return;
+    const readFailureOutcome = intent.outcome === 'RELOAD_FAILED' ? 'RELOAD_FAILED' : 'UNKNOWN';
+    void refreshCorrectionStatus(intent, readFailureOutcome, false, true);
+  }
+
   async function executeCorrection(correction: AdminPaymentEntitlementCorrection) {
+    if (
+      isCorrectionMutationBlocked(correction) ||
+      correctionExecutePendingRef.current.has(correction.id)
+    ) {
+      return;
+    }
     if (
       !confirmTypedAction(
         `권한 보정 #${correction.id}을 실행합니다. 이 작업은 로컬 구독 상태를 변경하며, provider 환불과는 별도입니다.`,
@@ -710,18 +1318,98 @@ export default function PaymentOperationsPage() {
     ) {
       return;
     }
+    updateCorrectionExecutePending(correction.id, true);
+    const intent: CorrectionRecoveryIntent = {
+      domain: 'correction',
+      durableId: correction.id,
+      paymentRefundId: correction.paymentRefundId,
+      generation: ++correctionGenerationRef.current,
+      page,
+      viewRequestGeneration: paymentRequestGenerationRef.current,
+      viewRequestKey: latestPaymentViewRequestKeyRef.current,
+      outcome: 'UNKNOWN',
+      detail: correction,
+    };
+    setCorrectionRecovery(intent);
     setCorrectionBusy(`execute-${correction.id}`);
+    const releaseExecuteLock = () => {
+      updateCorrectionExecutePending(correction.id, false);
+      setCorrectionBusy(null);
+    };
+    let preflight: AdminPaymentEntitlementCorrection;
     try {
-      await executeAdminPaymentEntitlementCorrection(
+      preflight = await fetchAdminPaymentEntitlementCorrection(correction.id);
+    } catch {
+      if (isCurrentCorrectionIntent(intent)) {
+        setCorrectionRecovery({ ...intent, outcome: 'UNKNOWN' });
+        showToast('error', '권한 보정 실행 전 최신 상태를 확인하지 못했습니다.');
+      }
+      releaseExecuteLock();
+      return;
+    }
+    if (!isCurrentCorrectionIntent(intent)) {
+      releaseExecuteLock();
+      return;
+    }
+    if (preflight.id !== correction.id) {
+      setCorrectionRecovery({ ...intent, outcome: 'UNKNOWN' });
+      showToast('error', '권한 보정 실행 전 최신 상태를 확인하지 못했습니다.');
+      releaseExecuteLock();
+      return;
+    }
+    const preflightOutcome = correctionOutcome(preflight.status);
+    const preflightIntent = { ...intent, outcome: preflightOutcome, detail: preflight };
+    setCorrectionRecovery(preflightIntent);
+    setCorrections((current) =>
+      current.map((item) => (item.id === preflight.id ? preflight : item)),
+    );
+    if (preflight.status !== 'APPROVED') {
+      showToast(
+        preflightOutcome === 'COMMITTED' ? 'success' : 'error',
+        preflightOutcome === 'COMMITTED'
+          ? '권한 보정이 이미 완료된 상태입니다.'
+          : preflightOutcome === 'FAILED'
+            ? '권한 보정이 최종 실패 상태입니다.'
+            : '권한 보정 실행 가능 상태를 확인할 수 없습니다.',
+      );
+      releaseExecuteLock();
+      return;
+    }
+    try {
+      const response = await executeAdminPaymentEntitlementCorrection(
         correction.id,
         correctionActionNotes[correction.id]?.trim() || undefined,
       );
-      showToast('success', '권한 보정이 실행되었습니다.');
-      await loadData();
+      if (!isCurrentCorrectionIntent(preflightIntent)) return;
+      setCorrections((current) =>
+        current.map((item) => (item.id === response.id ? response : item)),
+      );
+      const outcome = correctionOutcome(response.status);
+      const responseIntent = { ...preflightIntent, outcome, detail: response };
+      setCorrectionRecovery(responseIntent);
+      if (outcome === 'COMMITTED') {
+        await refreshCorrectionStatus(responseIntent, 'RELOAD_FAILED', true);
+        const current = correctionRecoveryRef.current[correction.id];
+        const feedback = correctionExecutionFeedback(current?.outcome ?? 'RELOAD_FAILED');
+        showToast(feedback.type, feedback.message);
+      } else if (outcome === 'FAILED') {
+        showToast('error', '권한 보정이 최종 실패 상태로 확인되었습니다.');
+      } else {
+        showToast('error', '권한 보정 결과를 확정할 수 없습니다. 상태를 다시 확인해주세요.');
+      }
     } catch {
-      showToast('error', '권한 보정 실행에 실패했습니다.');
+      await refreshCorrectionStatus(preflightIntent, 'UNKNOWN', false);
+      const current = correctionRecoveryRef.current[correction.id];
+      showToast(
+        current?.outcome === 'COMMITTED' ? 'success' : 'error',
+        current?.outcome === 'COMMITTED'
+          ? '응답은 유실됐지만 권한 보정 완료 상태를 확인했습니다.'
+          : current?.outcome === 'FAILED'
+            ? '권한 보정이 최종 실패 상태로 확인되었습니다.'
+            : '권한 보정 결과를 확정할 수 없습니다. 상태를 다시 확인해주세요.',
+      );
     } finally {
-      setCorrectionBusy(null);
+      releaseExecuteLock();
     }
   }
 
@@ -855,12 +1543,16 @@ export default function PaymentOperationsPage() {
           <SettlementOperationPanel
             busy={settlementBusy}
             file={settlementFile}
+            fileInputKey={settlementFileInputKey}
             note={settlementNote}
+            recoveryAttempt={settlementRecoveryAttempt}
+            recoveryAvailable={settlementImportOperationKey !== null}
             result={settlementImportResult}
             onFileChange={setSettlementFile}
             onImport={() => void importSettlementFile()}
             onNoteChange={setSettlementNote}
             onReconcile={() => void reconcileSettlementGaps()}
+            onRecover={() => void recoverPendingSettlementImport()}
           />
         </>
       )}
@@ -886,6 +1578,13 @@ export default function PaymentOperationsPage() {
         <EntitlementCorrectionPanel
           busy={correctionBusy}
           form={correctionForm}
+          mutationBlocked={Boolean(
+            (refundRecoveries[Number(correctionForm.paymentRefundId)] &&
+              isAmbiguousOutcome(
+                refundRecoveries[Number(correctionForm.paymentRefundId)].outcome,
+              )) ||
+            hasAmbiguousCorrectionIntent(Number(correctionForm.paymentRefundId)),
+          )}
           plans={plans}
           preview={correctionPreview}
           onChange={changeCorrectionForm}
@@ -928,8 +1627,13 @@ export default function PaymentOperationsPage() {
         <RefundTable
           actionNotes={refundActionNotes}
           busy={refundBusy}
+          executePending={refundExecutePending}
+          isMutationBlocked={isRefundMutationBlocked}
+          readPending={recoveryReads}
+          recoveries={refundRecoveries}
           refunds={refunds}
           onApprove={(refund) => void approveRefund(refund)}
+          onCheckStatus={checkRefundStatus}
           onExecute={(refund) => void executeRefund(refund)}
           onNoteChange={changeRefundActionNote}
           onPrepareCorrection={(refund) => {
@@ -943,7 +1647,12 @@ export default function PaymentOperationsPage() {
           actionNotes={correctionActionNotes}
           busy={correctionBusy}
           corrections={corrections}
+          executePending={correctionExecutePending}
+          isMutationBlocked={isCorrectionMutationBlocked}
+          readPending={recoveryReads}
+          recoveries={correctionRecoveries}
           onApprove={(correction) => void approveCorrection(correction)}
+          onCheckStatus={checkCorrectionStatus}
           onExecute={(correction) => void executeCorrection(correction)}
           onNoteChange={changeCorrectionActionNote}
         />
@@ -998,21 +1707,29 @@ function buildIncidentEdits(
 function SettlementOperationPanel({
   busy,
   file,
+  fileInputKey,
   note,
+  recoveryAttempt,
+  recoveryAvailable,
   result,
   onFileChange,
   onImport,
   onNoteChange,
   onReconcile,
+  onRecover,
 }: {
   busy: string | null;
   file: File | null;
+  fileInputKey: number;
   note: string;
+  recoveryAttempt: AdminPaymentSettlementImportAttempt | null;
+  recoveryAvailable: boolean;
   result: AdminPaymentSettlementImportResult | null;
   onFileChange: (file: File | null) => void;
   onImport: () => void;
   onNoteChange: (note: string) => void;
   onReconcile: () => void;
+  onRecover: () => void;
 }) {
   return (
     <section className={styles.operationPanel}>
@@ -1029,14 +1746,21 @@ function SettlementOperationPanel({
           <input
             accept=".csv,text/csv"
             className={styles.fileInput}
+            key={fileInputKey}
             type="file"
             onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
           />
           <strong className={styles.fileName}>{file?.name ?? '선택된 파일 없음'}</strong>
         </label>
         <label className={styles.fieldWide}>
-          <span>{'운영 메모'}</span>
+          <span>
+            {'운영 메모'}
+            <small className={styles.securityHint} id="settlement-operator-note-security-hint">
+              {'개인정보, 인증정보, 결제 키 등 민감정보를 입력하지 마세요.'}
+            </small>
+          </span>
           <textarea
+            aria-describedby="settlement-operator-note-security-hint"
             className={styles.noteInput}
             maxLength={500}
             value={note}
@@ -1055,13 +1779,26 @@ function SettlementOperationPanel({
           <PreviewItem label="statuses" value={formatStatusCounts(result.statusCounts)} />
         </div>
       )}
-      {result && result.errors.length > 0 && (
-        <div className={styles.errorList}>
-          {result.errors.slice(0, 5).map((error) => (
+      {result && (result.failedRows > 0 || result.errors.length > 0) && (
+        <div className={styles.errorList} role="status">
+          {result.failedRows > 0 && (
+            <strong>{`부분 완료: ${result.failedRows}개 row를 수정한 뒤 다시 import해주세요.`}</strong>
+          )}
+          {result.errors.map((error) => (
             <div key={`${error.rowNumber}-${error.message}`}>
               {`row ${error.rowNumber}: ${error.message}`}
             </div>
           ))}
+        </div>
+      )}
+      {recoveryAttempt && (
+        <div className={styles.previewBox} role="status">
+          <PreviewItem label="attempt" value={String(recoveryAttempt.attemptId)} />
+          <PreviewItem label="state" value={recoveryAttempt.state} />
+          <PreviewItem label="rows" value={String(recoveryAttempt.totalRows)} />
+          <PreviewItem label="imported" value={String(recoveryAttempt.importedRows)} />
+          <PreviewItem label="duplicates" value={String(recoveryAttempt.skippedDuplicateRows)} />
+          <PreviewItem label="failed" value={String(recoveryAttempt.failedRows)} />
         </div>
       )}
       <div className={styles.actionBar}>
@@ -1073,6 +1810,16 @@ function SettlementOperationPanel({
         >
           {busy === 'import' ? 'import 중' : '정산 import'}
         </button>
+        {recoveryAvailable && (
+          <button
+            className={styles.secondaryBtn}
+            disabled={busy !== null}
+            onClick={onRecover}
+            type="button"
+          >
+            {busy === 'recover' ? '복구 중' : 'import 결과 복구'}
+          </button>
+        )}
         <button
           className={styles.secondaryBtn}
           disabled={busy === 'reconcile'}
@@ -1209,6 +1956,7 @@ function RefundOperationPanel({
 function EntitlementCorrectionPanel({
   busy,
   form,
+  mutationBlocked,
   plans,
   preview,
   onChange,
@@ -1217,6 +1965,7 @@ function EntitlementCorrectionPanel({
 }: {
   busy: string | null;
   form: CorrectionForm;
+  mutationBlocked: boolean;
   plans: SubscriptionPlan[];
   preview: AdminPaymentEntitlementCorrectionPreview | null;
   onChange: (patch: Partial<CorrectionForm>) => void;
@@ -1368,7 +2117,7 @@ function EntitlementCorrectionPanel({
         </button>
         <button
           className={styles.saveBtn}
-          disabled={!preview?.executable || busy === 'create'}
+          disabled={!preview?.executable || busy === 'create' || mutationBlocked}
           onClick={onRequest}
           type="button"
         >
@@ -1733,16 +2482,26 @@ function SettlementTable({
 function RefundTable({
   actionNotes,
   busy,
+  executePending,
+  isMutationBlocked,
+  readPending,
+  recoveries,
   refunds,
   onApprove,
+  onCheckStatus,
   onExecute,
   onNoteChange,
   onPrepareCorrection,
 }: {
   actionNotes: Record<number, string>;
   busy: string | null;
+  executePending: Record<number, boolean>;
+  isMutationBlocked: (refundId: number) => boolean;
+  readPending: Record<string, boolean>;
+  recoveries: Record<number, RefundRecoveryIntent>;
   refunds: AdminPaymentRefund[];
   onApprove: (refund: AdminPaymentRefund) => void;
+  onCheckStatus: (refundId: number) => void;
   onExecute: (refund: AdminPaymentRefund) => void;
   onNoteChange: (refundId: number, note: string) => void;
   onPrepareCorrection: (refund: AdminPaymentRefund) => void;
@@ -1775,6 +2534,23 @@ function RefundTable({
               <td>
                 <span className={statusClass(refund.status)}>{refund.status}</span>
                 {refund.failureCode && <div className={styles.subtle}>{refund.failureCode}</div>}
+                {recoveries[refund.id] && (
+                  <div className={styles.subtle} data-testid={`refund-recovery-${refund.id}`}>
+                    {recoveries[refund.id].outcome}
+                  </div>
+                )}
+                {recoveries[refund.id] && isAmbiguousOutcome(recoveries[refund.id].outcome) && (
+                  <button
+                    className={styles.compactBtn}
+                    disabled={
+                      readPending[`refund-${refund.id}`] || executePending[refund.id] === true
+                    }
+                    onClick={() => onCheckStatus(refund.id)}
+                    type="button"
+                  >
+                    {'상태 다시 확인'}
+                  </button>
+                )}
               </td>
               <td>{formatPrice(refund.amount)}</td>
               <td>
@@ -1801,7 +2577,11 @@ function RefundTable({
                   <div className={styles.buttonRow}>
                     <button
                       className={styles.compactBtn}
-                      disabled={refund.status !== 'REQUESTED' || busy === `approve-${refund.id}`}
+                      disabled={
+                        refund.status !== 'REQUESTED' ||
+                        busy === `approve-${refund.id}` ||
+                        isMutationBlocked(refund.id)
+                      }
                       onClick={() => onApprove(refund)}
                       type="button"
                     >
@@ -1810,8 +2590,9 @@ function RefundTable({
                     <button
                       className={styles.compactDangerBtn}
                       disabled={
-                        !['APPROVED', 'PENDING_PROVIDER_CONFIRMATION'].includes(refund.status) ||
-                        busy === `execute-${refund.id}`
+                        refund.status !== 'APPROVED' ||
+                        busy === `execute-${refund.id}` ||
+                        isMutationBlocked(refund.id)
                       }
                       title={`실행하려면 '${REFUND_EXECUTION_CONFIRM_TEXT}' 입력이 필요합니다.`}
                       onClick={() => onExecute(refund)}
@@ -1821,7 +2602,7 @@ function RefundTable({
                     </button>
                     <button
                       className={styles.compactBtn}
-                      disabled={refund.status !== 'SUCCEEDED'}
+                      disabled={refund.status !== 'SUCCEEDED' || isMutationBlocked(refund.id)}
                       onClick={() => onPrepareCorrection(refund)}
                       type="button"
                     >
@@ -1842,14 +2623,24 @@ function EntitlementCorrectionTable({
   actionNotes,
   busy,
   corrections,
+  executePending,
+  isMutationBlocked,
+  readPending,
+  recoveries,
   onApprove,
+  onCheckStatus,
   onExecute,
   onNoteChange,
 }: {
   actionNotes: Record<number, string>;
   busy: string | null;
   corrections: AdminPaymentEntitlementCorrection[];
+  executePending: Record<number, boolean>;
+  isMutationBlocked: (correction: AdminPaymentEntitlementCorrection) => boolean;
+  readPending: Record<string, boolean>;
+  recoveries: Record<number, CorrectionRecoveryIntent>;
   onApprove: (correction: AdminPaymentEntitlementCorrection) => void;
+  onCheckStatus: (correctionId: number) => void;
   onExecute: (correction: AdminPaymentEntitlementCorrection) => void;
   onNoteChange: (correctionId: number, note: string) => void;
 }) {
@@ -1881,6 +2672,28 @@ function EntitlementCorrectionTable({
                 {correction.failureCode && (
                   <div className={styles.subtle}>{correction.failureCode}</div>
                 )}
+                {recoveries[correction.id] && (
+                  <div
+                    className={styles.subtle}
+                    data-testid={`correction-recovery-${correction.id}`}
+                  >
+                    {recoveries[correction.id].outcome}
+                  </div>
+                )}
+                {recoveries[correction.id] &&
+                  isAmbiguousOutcome(recoveries[correction.id].outcome) && (
+                    <button
+                      className={styles.compactBtn}
+                      disabled={
+                        readPending[`correction-${correction.id}`] ||
+                        executePending[correction.id] === true
+                      }
+                      onClick={() => onCheckStatus(correction.id)}
+                      type="button"
+                    >
+                      {'상태 다시 확인'}
+                    </button>
+                  )}
               </td>
               <td>
                 <div>{correction.beforePlanName}</div>
@@ -1919,7 +2732,9 @@ function EntitlementCorrectionTable({
                     <button
                       className={styles.compactBtn}
                       disabled={
-                        correction.status !== 'REQUESTED' || busy === `approve-${correction.id}`
+                        correction.status !== 'REQUESTED' ||
+                        busy === `approve-${correction.id}` ||
+                        isMutationBlocked(correction)
                       }
                       onClick={() => onApprove(correction)}
                       type="button"
@@ -1929,7 +2744,9 @@ function EntitlementCorrectionTable({
                     <button
                       className={styles.compactDangerBtn}
                       disabled={
-                        correction.status !== 'APPROVED' || busy === `execute-${correction.id}`
+                        correction.status !== 'APPROVED' ||
+                        busy === `execute-${correction.id}` ||
+                        isMutationBlocked(correction)
                       }
                       title={`실행하려면 '${CORRECTION_EXECUTION_CONFIRM_TEXT}' 입력이 필요합니다.`}
                       onClick={() => onExecute(correction)}

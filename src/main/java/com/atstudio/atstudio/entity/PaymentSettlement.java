@@ -1,6 +1,8 @@
 package com.atstudio.atstudio.entity;
 
 import com.atstudio.atstudio.common.entity.BaseEntity;
+import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
+import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentSettlementSource;
 import com.atstudio.atstudio.entity.enums.PaymentSettlementStatus;
@@ -38,7 +40,8 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_payment_settlements_status_created", columnList = "status,created_at"),
                 @Index(name = "idx_payment_settlements_order_id", columnList = "order_id"),
                 @Index(name = "idx_payment_settlements_payment_key", columnList = "provider_payment_key"),
-                @Index(name = "idx_payment_settlements_base_date", columnList = "settlement_base_date")
+                @Index(name = "idx_payment_settlements_base_date", columnList = "settlement_base_date"),
+                @Index(name = "idx_payment_settlements_import_batch_key", columnList = "import_batch_key")
         }
 )
 @Getter
@@ -162,6 +165,9 @@ public class PaymentSettlement extends BaseEntity {
     }
 
     public void ignore(User actor, String note) {
+        if (status == PaymentSettlementStatus.IGNORED) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_STATE_TRANSITION);
+        }
         this.status = PaymentSettlementStatus.IGNORED;
         this.ignoredBy = actor;
         this.ignoredAt = LocalDateTime.now();

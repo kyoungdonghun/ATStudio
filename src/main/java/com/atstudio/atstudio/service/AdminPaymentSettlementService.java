@@ -5,23 +5,21 @@ import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementIgnoreRequest;
+import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementImportAttemptResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementImportErrorResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementImportResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementReconcileRequest;
 import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementResponse;
-import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.PaymentSettlement;
-import com.atstudio.atstudio.entity.PaymentRefund;
 import com.atstudio.atstudio.entity.SubscriptionPayment;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.PaymentOperationAuditAction;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
-import com.atstudio.atstudio.entity.enums.PaymentRefundStatus;
+import com.atstudio.atstudio.entity.enums.PaymentSettlementImportAttemptState;
 import com.atstudio.atstudio.entity.enums.PaymentSettlementSource;
 import com.atstudio.atstudio.entity.enums.PaymentSettlementStatus;
 import com.atstudio.atstudio.entity.enums.PaymentStatus;
-import com.atstudio.atstudio.repository.PaymentOrderRepository;
-import com.atstudio.atstudio.repository.PaymentRefundRepository;
+import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.repository.PaymentSettlementRepository;
 import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
 import com.atstudio.atstudio.repository.UserRepository;
@@ -30,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -45,13 +44,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -59,62 +56,100 @@ import java.util.UUID;
 public class AdminPaymentSettlementService {
 
     private static final int MAX_IMPORT_ROWS = 1000;
+    private static final int MAX_OPERATOR_NOTE_LENGTH = 500;
     private static final List<String> REQUIRED_HEADERS = List.of(
             "provider",
             "order_id",
             "gross_amount",
             "net_settlement_amount",
             "settlement_base_date");
-    private static final Collection<PaymentRefundStatus> SETTLED_REFUND_STATUSES =
-            List.of(PaymentRefundStatus.SUCCEEDED);
-
     private final PaymentSettlementRepository paymentSettlementRepository;
-    private final PaymentOrderRepository paymentOrderRepository;
     private final SubscriptionPaymentRepository subscriptionPaymentRepository;
-    private final PaymentRefundRepository paymentRefundRepository;
     private final UserRepository userRepository;
     private final PaymentOperationAuditLogService auditLogService;
+    private final AdminPaymentSettlementAttemptTransactionService attemptTransactionService;
+    private final AdminPaymentSettlementRowTransactionService rowTransactionService;
+    private final PaymentCommandKeyFactory paymentCommandKeyFactory;
 
-    @Transactional
     public ResponseDTO<AdminPaymentSettlementImportResponse> importSettlements(
             CustomUserDetails actorDetails,
             MultipartFile file,
-            String note) {
+            String note,
+            String idempotencyKey) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
+        Long actorID = requireAdminPrincipalID(actorDetails);
+        String keyDigest = settlementImportDigest(actorID, idempotencyKey);
+        String normalizedNote = normalizeOptionalNote(note);
+        AdminPaymentSettlementAttemptTransactionService.CreatedAttempt attempt = claimAttempt(
+                actorID,
+                keyDigest,
+                normalizedNote);
+
+        try {
+            return processImport(actorDetails, file, note, attempt);
+        } catch (BusinessException exception) {
+            attemptTransactionService.fail(attempt.id(), "CSV_READ_FAILED");
+            throw exception;
+        } catch (SettlementRowPersistenceException exception) {
+            attemptTransactionService.fail(attempt.id(), "ROW_PERSISTENCE_FAILED");
+            throw new BusinessException(BUSINESS_ERROR.SETTLEMENT_IMPORT_ORCHESTRATION_FAILED);
+        } catch (RuntimeException exception) {
+            attemptTransactionService.fail(attempt.id(), "IMPORT_ORCHESTRATION_FAILED");
+            throw new BusinessException(BUSINESS_ERROR.SETTLEMENT_IMPORT_ORCHESTRATION_FAILED);
+        }
+    }
+
+    private ResponseDTO<AdminPaymentSettlementImportResponse> processImport(
+            CustomUserDetails actorDetails,
+            MultipartFile file,
+            String note,
+            AdminPaymentSettlementAttemptTransactionService.CreatedAttempt attempt) {
         List<CsvRow> rows = readCsv(file);
-        String batchKey = "ATS-SETTLE-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         List<AdminPaymentSettlementImportErrorResponse> errors = new ArrayList<>();
         Map<String, Integer> statusCounts = new LinkedHashMap<>();
         int importedRows = 0;
         int skippedDuplicateRows = 0;
 
         for (CsvRow row : rows) {
+            PaymentSettlement settlement;
             try {
-                PaymentSettlement settlement = toSettlement(row, file.getOriginalFilename(), batchKey, note);
-                if (paymentSettlementRepository.existsByDeduplicationKey(settlement.getDeduplicationKey())) {
+                settlement = toSettlement(
+                        row,
+                        file.getOriginalFilename(),
+                        attempt.importBatchKey(),
+                        note);
+            } catch (IllegalArgumentException exception) {
+                errors.add(new AdminPaymentSettlementImportErrorResponse(
+                        row.rowNumber(),
+                        exception.getMessage()));
+                continue;
+            }
+
+            try {
+                PaymentSettlementStatus status = rowTransactionService.persistImported(actorDetails, settlement);
+                importedRows++;
+                increment(statusCounts, status.name());
+            } catch (DataIntegrityViolationException exception) {
+                if (PaymentSettlementConstraintTranslator.isDeduplicationUniqueViolation(exception)
+                        && rowTransactionService.exactDeduplicationWinnerExists(
+                        settlement.getDeduplicationKey())) {
                     skippedDuplicateRows++;
                     continue;
                 }
-                reconcile(settlement);
-                PaymentSettlement saved = paymentSettlementRepository.save(settlement);
-                auditLogService.recordPaymentSettlementEvent(
-                        actorDetails,
-                        saved,
-                        PaymentOperationAuditAction.PAYMENT_SETTLEMENT_IMPORTED,
-                        null,
-                        saved.getStatus(),
-                        "Settlement row imported.");
-                importedRows++;
-                increment(statusCounts, saved.getStatus().name());
-            } catch (IllegalArgumentException ex) {
-                errors.add(new AdminPaymentSettlementImportErrorResponse(row.rowNumber(), ex.getMessage()));
+                throw new SettlementRowPersistenceException();
             }
         }
 
+        attemptTransactionService.complete(
+                attempt.id(),
+                rows.size(),
+                importedRows,
+                skippedDuplicateRows,
+                errors.size());
         AdminPaymentSettlementImportResponse response = new AdminPaymentSettlementImportResponse(
-                batchKey,
+                attempt.importBatchKey(),
                 rows.size(),
                 importedRows,
                 skippedDuplicateRows,
@@ -124,6 +159,21 @@ public class AdminPaymentSettlementService {
         return ResponseDTO.<AdminPaymentSettlementImportResponse>builder()
                 .data(response)
                 .build();
+    }
+
+    public ResponseDTO<AdminPaymentSettlementImportAttemptResponse> listImportAttempts(int page, int size) {
+        return attemptTransactionService.list(page, size);
+    }
+
+    public ResponseDTO<AdminPaymentSettlementImportAttemptResponse> getImportAttempt(Long attemptID) {
+        return attemptTransactionService.detail(attemptID);
+    }
+
+    public ResponseDTO<AdminPaymentSettlementImportAttemptResponse> recoverImportAttempt(
+            CustomUserDetails actorDetails,
+            String idempotencyKey) {
+        Long actorID = requireAdminPrincipalID(actorDetails);
+        return attemptTransactionService.recover(settlementImportDigest(actorID, idempotencyKey));
     }
 
     @Transactional(readOnly = true)
@@ -144,7 +194,6 @@ public class AdminPaymentSettlementService {
                 .build();
     }
 
-    @Transactional
     public ResponseDTO<AdminPaymentSettlementImportResponse> reconcileMissingProviderSettlements(
             CustomUserDetails actorDetails,
             AdminPaymentSettlementReconcileRequest request) {
@@ -163,63 +212,48 @@ public class AdminPaymentSettlementService {
         Map<String, Integer> statusCounts = new LinkedHashMap<>();
         int importedRows = 0;
         int skippedDuplicateRows = 0;
+        int failedRows = 0;
+        List<AdminPaymentSettlementImportErrorResponse> errors = new ArrayList<>();
 
         List<SubscriptionPayment> payments =
                 subscriptionPaymentRepository.findByPaymentStatusAndCreatedAtBetween(PaymentStatus.DONE, from, to);
-        for (SubscriptionPayment payment : payments) {
+        for (int index = 0; index < payments.size(); index++) {
+            SubscriptionPayment payment = payments.get(index);
             if (payment.getPaymentOrder() == null) {
+                failedRows++;
+                errors.add(new AdminPaymentSettlementImportErrorResponse(
+                        index + 1,
+                        "Local payment has no payment order."));
                 continue;
             }
-            String orderId = payment.getPaymentOrder().getOrderId();
-            if (paymentSettlementRepository.existsByOrderIdAndSourceNot(
-                    orderId,
-                    PaymentSettlementSource.SYSTEM_RECONCILIATION)) {
-                skippedDuplicateRows++;
-                continue;
+            String orderID = payment.getPaymentOrder().getOrderId();
+            String deduplicationKey = sha256("MISSING|" + payment.getId() + "|" + orderID);
+            try {
+                AdminPaymentSettlementRowTransactionService.ReconciliationRowResult result =
+                        rowTransactionService.persistMissing(
+                                actorDetails,
+                                payment.getId(),
+                                deduplicationKey,
+                                batchKey,
+                                baseDateTo);
+                if (result.imported()) {
+                    importedRows++;
+                    increment(statusCounts, result.status().name());
+                } else {
+                        skippedDuplicateRows++;
+                }
+            } catch (DataIntegrityViolationException exception) {
+                if (PaymentSettlementConstraintTranslator.isDeduplicationUniqueViolation(exception)
+                        && rowTransactionService.exactDeduplicationWinnerExists(deduplicationKey)) {
+                    skippedDuplicateRows++;
+                } else {
+                    failedRows++;
+                    errors.add(reconciliationPersistenceError(index));
+                }
+            } catch (RuntimeException exception) {
+                failedRows++;
+                errors.add(reconciliationPersistenceError(index));
             }
-            String dedupKey = sha256("MISSING|" + payment.getId() + "|" + orderId);
-            if (paymentSettlementRepository.existsByDeduplicationKey(dedupKey)) {
-                skippedDuplicateRows++;
-                continue;
-            }
-            BigDecimal refundAmount = paymentRefundRepository.sumAmountBySubscriptionPaymentAndStatuses(
-                    payment,
-                    SETTLED_REFUND_STATUSES);
-            PaymentProviderType provider = payment.getProvider() == null
-                    ? payment.getPaymentOrder().getProvider()
-                    : payment.getProvider();
-            PaymentSettlement settlement = PaymentSettlement.builder()
-                    .source(PaymentSettlementSource.SYSTEM_RECONCILIATION)
-                    .provider(provider)
-                    .status(PaymentSettlementStatus.PROVIDER_SETTLEMENT_NOT_FOUND)
-                    .deduplicationKey(dedupKey)
-                    .importBatchKey(batchKey)
-                    .sourceFileName("system-reconciliation")
-                    .orderId(orderId)
-                    .providerPaymentKey(payment.getPgTransactionId())
-                    .paymentOrder(payment.getPaymentOrder())
-                    .subscriptionPayment(payment)
-                    .user(payment.getUser())
-                    .grossAmount(payment.getAmount())
-                    .refundAmount(refundAmount)
-                    .feeAmount(BigDecimal.ZERO)
-                    .vatAmount(BigDecimal.ZERO)
-                    .netSettlementAmount(payment.getAmount().subtract(refundAmount))
-                    .currency("KRW")
-                    .settlementBaseDate(baseDateTo)
-                    .mismatchReason("No imported provider settlement evidence found for local payment.")
-                    .reconciledAt(LocalDateTime.now())
-                    .build();
-            PaymentSettlement saved = paymentSettlementRepository.save(settlement);
-            auditLogService.recordPaymentSettlementEvent(
-                    actorDetails,
-                    saved,
-                    PaymentOperationAuditAction.PAYMENT_SETTLEMENT_RECONCILED,
-                    null,
-                    saved.getStatus(),
-                    "Missing provider settlement evidence generated.");
-            importedRows++;
-            increment(statusCounts, saved.getStatus().name());
         }
 
         return ResponseDTO.<AdminPaymentSettlementImportResponse>builder()
@@ -228,9 +262,9 @@ public class AdminPaymentSettlementService {
                         payments.size(),
                         importedRows,
                         skippedDuplicateRows,
-                        0,
+                        failedRows,
                         statusCounts,
-                        List.of()))
+                        errors))
                 .build();
     }
 
@@ -239,73 +273,36 @@ public class AdminPaymentSettlementService {
             Long settlementId,
             CustomUserDetails actorDetails,
             AdminPaymentSettlementIgnoreRequest request) {
-        PaymentSettlement settlement = paymentSettlementRepository.findWithGraphById(settlementId)
+        String note = normalizeRequiredIgnoreNote(request);
+        User actor = resolveRequiredAdminActor(actorDetails);
+        PaymentSettlement settlement = paymentSettlementRepository.findByIdForUpdate(settlementId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        if (settlement.getStatus() == PaymentSettlementStatus.IGNORED) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_STATE_TRANSITION);
+        }
         PaymentSettlementStatus beforeStatus = settlement.getStatus();
-        User actor = resolveActor(actorDetails);
-        settlement.ignore(actor, request == null ? null : request.note());
+        settlement.ignore(actor, note);
         auditLogService.recordPaymentSettlementEvent(
                 actorDetails,
                 settlement,
                 PaymentOperationAuditAction.PAYMENT_SETTLEMENT_IGNORED,
                 beforeStatus,
                 settlement.getStatus(),
-                request == null ? null : request.note());
+                note);
         return ResponseDTO.<AdminPaymentSettlementResponse>builder()
                 .data(AdminPaymentSettlementResponse.from(settlement))
                 .build();
     }
 
-    private void reconcile(PaymentSettlement settlement) {
-        Optional<PaymentOrder> order = paymentOrderRepository.findByOrderId(settlement.getOrderId());
-        Optional<SubscriptionPayment> payment = Optional.empty();
-        if (order.isPresent()) {
-            payment = subscriptionPaymentRepository.findByPaymentOrder(order.get());
+    private String normalizeRequiredIgnoreNote(AdminPaymentSettlementIgnoreRequest request) {
+        if (request == null || request.note() == null) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
-        if (payment.isEmpty() && hasText(settlement.getProviderPaymentKey())) {
-            payment = subscriptionPaymentRepository.findFirstByPgTransactionId(settlement.getProviderPaymentKey());
+        String note = request.note().trim();
+        if (note.isBlank() || note.length() > MAX_OPERATOR_NOTE_LENGTH) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
-
-        if (payment.isEmpty()) {
-            settlement.applyReconciliation(
-                    PaymentSettlementStatus.LOCAL_PAYMENT_NOT_FOUND,
-                    order.orElse(null),
-                    null,
-                    order.map(PaymentOrder::getUser).orElse(null),
-                    "Local finalized subscription payment was not found.");
-            return;
-        }
-
-        SubscriptionPayment subscriptionPayment = payment.get();
-        BigDecimal localRefundAmount = paymentRefundRepository.sumAmountBySubscriptionPaymentAndStatuses(
-                subscriptionPayment,
-                SETTLED_REFUND_STATUSES);
-        List<String> mismatches = new ArrayList<>();
-        if (!sameAmount(settlement.getGrossAmount(), subscriptionPayment.getAmount())) {
-            mismatches.add("gross_amount local=" + subscriptionPayment.getAmount()
-                    + " provider=" + settlement.getGrossAmount());
-        }
-        if (!sameAmount(settlement.getRefundAmount(), localRefundAmount)) {
-            mismatches.add("refund_amount local=" + localRefundAmount
-                    + " provider=" + settlement.getRefundAmount());
-        }
-        BigDecimal expectedNet = settlement.getGrossAmount()
-                .subtract(settlement.getRefundAmount())
-                .subtract(settlement.getFeeAmount())
-                .subtract(settlement.getVatAmount());
-        if (!sameAmount(settlement.getNetSettlementAmount(), expectedNet)) {
-            mismatches.add("net_settlement_amount expected=" + expectedNet
-                    + " provider=" + settlement.getNetSettlementAmount());
-        }
-        PaymentSettlementStatus status = mismatches.isEmpty()
-                ? PaymentSettlementStatus.MATCHED
-                : PaymentSettlementStatus.MISMATCHED;
-        settlement.applyReconciliation(
-                status,
-                subscriptionPayment.getPaymentOrder(),
-                subscriptionPayment,
-                subscriptionPayment.getUser(),
-                mismatches.isEmpty() ? null : String.join("; ", mismatches));
+        return note;
     }
 
     private PaymentSettlement toSettlement(
@@ -362,7 +359,6 @@ public class AdminPaymentSettlementService {
                 .settlementPayoutDate(payoutDate)
                 .providerStatus(truncate(blankToNull(values.get("provider_status")), 100))
                 .operatorNote(truncate(hasText(note) ? note : blankToNull(values.get("note")), 500))
-                .sourcePayload(sanitizedPayload(values))
                 .build();
     }
 
@@ -512,42 +508,19 @@ public class AdminPaymentSettlementService {
         }
     }
 
-    private String sanitizedPayload(Map<String, String> values) {
-        Map<String, String> safe = new LinkedHashMap<>();
-        List.of(
-                "provider",
-                "provider_payment_key",
-                "order_id",
-                "provider_settlement_id",
-                "gross_amount",
-                "refund_amount",
-                "fee_amount",
-                "vat_amount",
-                "net_settlement_amount",
-                "settlement_base_date",
-                "settlement_payout_date",
-                "provider_status",
-                "currency").forEach(key -> {
-            String value = blankToNull(values.get(key));
-            if (value != null) {
-                safe.put(key, value);
-            }
-        });
-        return safe.toString();
-    }
-
-    private User resolveActor(CustomUserDetails actorDetails) {
+    private User resolveRequiredAdminActor(CustomUserDetails actorDetails) {
         if (actorDetails == null || actorDetails.getId() == null) {
-            return null;
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
         }
-        return userRepository.findById(actorDetails.getId()).orElse(null);
-    }
-
-    private boolean sameAmount(BigDecimal left, BigDecimal right) {
-        if (left == null || right == null) {
-            return left == null && right == null;
+        if (actorDetails.getRole() != UserRole.ADMIN) {
+            throw new BusinessException(BUSINESS_ERROR.ADMIN_ROLE_REQUIRED);
         }
-        return left.compareTo(right) == 0;
+        User actor = userRepository.findByIdForUpdate(actorDetails.getId())
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        if (actor.isDeleted() || actor.getRole() != UserRole.ADMIN) {
+            throw new BusinessException(BUSINESS_ERROR.ADMIN_ROLE_REQUIRED);
+        }
+        return actor;
     }
 
     private String stripBom(String value) {
@@ -580,6 +553,64 @@ public class AdminPaymentSettlementService {
         counts.merge(key, 1, Integer::sum);
     }
 
+    private AdminPaymentSettlementAttemptTransactionService.CreatedAttempt claimAttempt(
+            Long actorID,
+            String keyDigest,
+            String operatorNote) {
+        try {
+            return attemptTransactionService.create(actorID, keyDigest, operatorNote);
+        } catch (DataIntegrityViolationException exception) {
+            if (!PaymentSettlementConstraintTranslator.isAttemptKeyDigestUniqueViolation(exception)) {
+                throw new BusinessException(BUSINESS_ERROR.SETTLEMENT_IMPORT_ORCHESTRATION_FAILED);
+            }
+            AdminPaymentSettlementAttemptTransactionService.AttemptState existing =
+                    attemptTransactionService.findStateByDigest(keyDigest)
+                            .orElseThrow(() -> new BusinessException(
+                                    BUSINESS_ERROR.SETTLEMENT_IMPORT_ORCHESTRATION_FAILED));
+            throw attemptConflict(existing.state());
+        }
+    }
+
+    private BusinessException attemptConflict(PaymentSettlementImportAttemptState state) {
+        return switch (state) {
+            case PROCESSING -> new BusinessException(BUSINESS_ERROR.SETTLEMENT_IMPORT_ATTEMPT_IN_PROGRESS);
+            case COMPLETED -> new BusinessException(BUSINESS_ERROR.SETTLEMENT_IMPORT_ATTEMPT_COMPLETED);
+            case FAILED -> new BusinessException(BUSINESS_ERROR.SETTLEMENT_IMPORT_ATTEMPT_FAILED);
+        };
+    }
+
+    private Long requireAdminPrincipalID(CustomUserDetails actorDetails) {
+        if (actorDetails == null || actorDetails.getId() == null) {
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
+        }
+        if (actorDetails.getRole() != UserRole.ADMIN) {
+            throw new BusinessException(BUSINESS_ERROR.ADMIN_ROLE_REQUIRED);
+        }
+        return actorDetails.getId();
+    }
+
+    private String settlementImportDigest(Long actorID, String idempotencyKey) {
+        try {
+            return paymentCommandKeyFactory.settlementImportDigest(actorID, idempotencyKey);
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(BUSINESS_ERROR.SETTLEMENT_IMPORT_IDEMPOTENCY_KEY_INVALID);
+        }
+    }
+
+    private String normalizeOptionalNote(String note) {
+        String normalized = blankToNull(note);
+        return truncate(normalized, MAX_OPERATOR_NOTE_LENGTH);
+    }
+
+    private AdminPaymentSettlementImportErrorResponse reconciliationPersistenceError(int index) {
+        return new AdminPaymentSettlementImportErrorResponse(
+                index + 1,
+                "Settlement reconciliation row could not be persisted.");
+    }
+
     private record CsvRow(int rowNumber, Map<String, String> values) {
+    }
+
+    private static final class SettlementRowPersistenceException extends RuntimeException {
     }
 }

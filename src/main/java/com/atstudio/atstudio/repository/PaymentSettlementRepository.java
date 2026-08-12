@@ -3,10 +3,12 @@ package com.atstudio.atstudio.repository;
 import com.atstudio.atstudio.entity.PaymentSettlement;
 import com.atstudio.atstudio.entity.enums.PaymentSettlementSource;
 import com.atstudio.atstudio.entity.enums.PaymentSettlementStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,10 +19,16 @@ public interface PaymentSettlementRepository extends JpaRepository<PaymentSettle
 
     boolean existsByDeduplicationKey(String deduplicationKey);
 
+    Optional<PaymentSettlement> findByDeduplicationKey(String deduplicationKey);
+
     boolean existsByOrderIdAndSourceNot(String orderId, PaymentSettlementSource source);
 
     @EntityGraph(attributePaths = {"user", "paymentOrder", "subscriptionPayment", "ignoredBy"})
     Optional<PaymentSettlement> findWithGraphById(Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select settlement from PaymentSettlement settlement where settlement.id = :id")
+    Optional<PaymentSettlement> findByIdForUpdate(@Param("id") Long id);
 
     @EntityGraph(attributePaths = {"user", "paymentOrder", "subscriptionPayment", "ignoredBy"})
     @Query("""

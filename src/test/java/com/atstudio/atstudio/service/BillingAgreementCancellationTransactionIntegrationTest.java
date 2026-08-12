@@ -28,6 +28,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Import({
         JpaConfig.class,
         PaymentProperties.class,
+        PaymentCommandKeyFactory.class,
+        BillingAgreementPrepareTransactionService.class,
         PaymentOperationAuditLogService.class,
         PaymentReconciliationIncidentService.class,
         BillingAgreementCleanupTransactionService.class,

@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type ChangeEvent, type SyntheticEvent } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type SyntheticEvent,
+} from 'react';
 import { IMAGE_MAX_SIZE_MB, isFileSizeOk } from '@/utils/validation';
 import { emptyTrackThumbnailSelection, type TrackThumbnailSelection } from './trackThumbnail';
 import styles from './TrackThumbnailField.module.css';
@@ -76,7 +83,7 @@ export default function TrackThumbnailField({
     };
   }, [value.file]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setExistingStatus(existingImageUrl ? 'pending' : 'none');
   }, [existingImageUrl]);
 

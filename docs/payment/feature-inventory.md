@@ -1,6 +1,6 @@
 ---
-version: 1.6
-last_updated: 2026-08-09
+version: 1.7
+last_updated: 2026-08-12
 project: ATS
 owner: docops
 category: guide
@@ -113,8 +113,11 @@ dependencies:
 | Scheduled reconciliation | Implemented | Runs daily at 01:00 in `app.payment.scheduler-zone`, default `Asia/Seoul`. |
 | Optional operator notification | Implemented with constraint | Sends notification only when explicitly configured. |
 | Settlement CSV import | Implemented | Admin uploads CSV settlement evidence into `payment_settlements`. Excel sources must be exported to CSV first. |
+| Settlement CSV attempt ledger | Implemented | Every claimed import has durable `PROCESSING`/`COMPLETED`/`FAILED` aggregate evidence, including all-duplicate attempts. |
+| Settlement import response-loss recovery | Implemented | Canonical header-only Idempotency-Key, owner-scoped opaque digest, ADMIN list/numeric detail, and same-key read recovery; no automatic second POST. |
+| Settlement count conservation | Implemented | Normal import/reconciliation results conserve total/imported/duplicate/failed counts; status counts cover imported rows only. |
 | Settlement mismatch detection | Implemented | Compares gross, refund, fee, VAT, and net settlement amounts against local payment/refund ledgers. |
-| Missing provider settlement scan | Implemented | Generates `PROVIDER_SETTLEMENT_NOT_FOUND` review rows for finalized local payments without imported provider evidence. |
+| Missing provider settlement scan | Implemented | Generates `PROVIDER_SETTLEMENT_NOT_FOUND` review rows and counts orderless finalized payments as explicit failures. Reconciliation has no import-attempt key. |
 | Settlement ignore workflow | Implemented | Admin can ignore a row with an operator note. |
 | Toss Settlement API adapter | Planned | Ledger and UI are designed to accept a future adapter without replacing the current model. |
 
@@ -147,13 +150,14 @@ dependencies:
 ## 10. Verification Boundary
 
 - The current code/test gate passed independent follow-up review in `WI-20260715-ATS-012`.
-- The current verified fresh manifest is 41 tables, 493 columns, 168 indexes,
-  89 foreign keys, and 6 seeded subscription plans; SHA-256 is
-  `c581bef61cfba143744882b0674daf8d8fe742d82adbbf66d6b61699f5b86333`.
-  WI-20260809-ATS-001 refreshed the disposable validator and passed isolated
-  mismatch-cleanup and Create/Validate/Drop proof checks.
-- Backend verification completed 1,208 tests with 0 failures/errors and 9 environment-dependent skips; JaCoCo is instruction 85.673%, branch 71.682%, line 85.726%, and method 82.931%.
-- Frontend verification completed 468 tests with 0 failures; coverage is statements 86.73%, branches 76.98%, functions 85.41%, and lines 88.75%. Typecheck, ESLint, Prettier, and build PASS.
+- Current source contains 42 tables and 42 JPA entities. The last executed
+  disposable MySQL manifest predates the WI-056 table/index delta; no current
+  MySQL manifest/hash or concurrency rehearsal is claimed.
+- The recorded backend final gate completed 1,503 tests with 0 failures and 16
+  skips; JaCoCo line is 86.841%, method 84.29%, and branch 71.432%.
+- The recorded frontend final gate completed 73 files and 815 tests with 0
+  failures; coverage is statements 88.22%, branches 79.43%, functions 87.88%,
+  and lines 90.43%. Typecheck, ESLint, Prettier, and build passed.
 - Live Toss, production data strategy, deployment/monitoring, client acceptance, and explicit release approval remain separate production gates.
 - The official V1 baseline branch is `codex/p1-acceptance-hardening` and currently resolves Vite 6.4.3. No separate client-demo branch is maintained. Coverage remains an observed baseline, not a release threshold.
 

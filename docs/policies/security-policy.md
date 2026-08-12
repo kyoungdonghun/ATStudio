@@ -1,6 +1,6 @@
 ---
-version: 1.9
-last_updated: 2026-08-09
+version: 2.0
+last_updated: 2026-08-12
 project: ATS
 owner: PG
 category: policy
@@ -273,6 +273,44 @@ Email delivery logs are correlation metadata, not a payload fallback.
   role-change audit or authoritative correction workflow/success audit. This
   boundary prevents automatic duplication into rejection rows; it does not add
   free-text DLP or change retention in those approved source contexts.
+
+### 6.13 Settlement Import Idempotency and Operator Text
+
+Settlement CSV import and recovery accept a canonical lowercase UUIDv4 only in
+the `Idempotency-Key` request header.
+
+- The raw key must not be accepted in a URL path or query parameter, persisted
+  in the database, included in an application log, or returned in an ADMIN
+  response. Server persistence contains only a deterministic 64-character
+  SHA-256 digest scoped by operation namespace and authenticated ADMIN ID.
+- ADMIN attempt list and numeric detail expose the actor, server-derived batch
+  identity, state, aggregate counts, bounded operator note/failure code, and
+  timestamps. They do not expose the digest or raw key. Header recovery derives
+  the current ADMIN's digest, so the same raw value does not recover another
+  ADMIN's attempt.
+- The SPA may retain the pending raw key in browser `sessionStorage` only to
+  support same-attempt read recovery. It must clear the record after terminal
+  recovery and must never place the key in navigation state, a URL, or a query.
+- Application-level omission is not an infrastructure logging guarantee.
+  Operators must configure web access logs, reverse proxies, tracing agents,
+  APM, request capture, and error reporting not to collect, record, or export
+  the `Idempotency-Key` header. Masking after collection is weaker than
+  disabling collection and is not the preferred control.
+
+The Settlement import operator note is an optional plain-text input with a
+500-character UI limit and bounded server persistence.
+
+- The UI must visibly warn operators not to enter PII, credentials, payment
+  keys, Provider identifiers, tokens, or other sensitive information.
+- The operating procedure prohibits those values. The system does not derive a
+  secret into the field, but it stores operator-supplied text and has no generic
+  free-text DLP; a user can still paste sensitive data. Documentation and audit
+  claims must not say that the note can never contain a secret.
+- File bytes, raw CSV rows, raw Provider payloads, credentials, and per-row
+  errors must not be copied into the import-attempt note or failure code.
+- The current note is submitted as an import request parameter. Infrastructure
+  that records request targets or query strings must omit or redact the note on
+  this route in addition to suppressing the Idempotency-Key header.
 
 ---
 

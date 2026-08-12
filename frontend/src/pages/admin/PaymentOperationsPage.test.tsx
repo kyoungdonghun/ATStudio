@@ -1,14 +1,19 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
+  AdminPaymentEntitlementCorrection,
   AdminPaymentEntitlementCorrectionPreview,
   AdminPaymentReceipt,
   AdminPaymentReconciliationIncident,
+  AdminPaymentRefund,
   AdminPaymentRefundPreview,
+  AdminPaymentSettlement,
+  AdminPaymentSettlementImportAttempt,
   AdminPaymentSettlementImportResult,
 } from '@/api/admin';
 import PaymentOperationsPage from '@/pages/admin/PaymentOperationsPage';
 import type { PageInfo, PagedResponse } from '@/types';
+import { SETTLEMENT_IMPORT_ATTEMPT_STORAGE_KEY } from '@/utils/settlementImportAttempt';
 
 const mocks = vi.hoisted(() => ({
   approveAdminPaymentEntitlementCorrection: vi.fn(),
@@ -19,11 +24,13 @@ const mocks = vi.hoisted(() => ({
   executeAdminPaymentRefund: vi.fn(),
   fetchAdminBillingAgreements: vi.fn(),
   fetchAdminPaymentEntitlementCorrections: vi.fn(),
+  fetchAdminPaymentEntitlementCorrection: vi.fn(),
   fetchAdminPaymentOperationAuditLogs: vi.fn(),
   fetchAdminPaymentOrders: vi.fn(),
   fetchAdminPaymentReceipts: vi.fn(),
   fetchAdminPaymentReconciliationIncidents: vi.fn(),
   fetchAdminPaymentRefundPreview: vi.fn(),
+  fetchAdminPaymentRefund: vi.fn(),
   fetchAdminPaymentRefunds: vi.fn(),
   fetchAdminPaymentSettlements: vi.fn(),
   fetchAdminSubscriptionPayments: vi.fn(),
@@ -31,6 +38,7 @@ const mocks = vi.hoisted(() => ({
   importAdminPaymentSettlements: vi.fn(),
   previewAdminPaymentEntitlementCorrection: vi.fn(),
   reconcileAdminPaymentSettlements: vi.fn(),
+  recoverAdminPaymentSettlementImportAttempt: vi.fn(),
   updateAdminPaymentReconciliationIncidentStatus: vi.fn(),
   fetchAdminSubscriptionPlans: vi.fn(),
   showToast: vi.fn(),
@@ -49,6 +57,8 @@ vi.mock('@/api/admin', () => ({
   fetchAdminBillingAgreements: (...args: unknown[]) => mocks.fetchAdminBillingAgreements(...args),
   fetchAdminPaymentEntitlementCorrections: (...args: unknown[]) =>
     mocks.fetchAdminPaymentEntitlementCorrections(...args),
+  fetchAdminPaymentEntitlementCorrection: (...args: unknown[]) =>
+    mocks.fetchAdminPaymentEntitlementCorrection(...args),
   fetchAdminPaymentOperationAuditLogs: (...args: unknown[]) =>
     mocks.fetchAdminPaymentOperationAuditLogs(...args),
   fetchAdminPaymentOrders: (...args: unknown[]) => mocks.fetchAdminPaymentOrders(...args),
@@ -57,6 +67,7 @@ vi.mock('@/api/admin', () => ({
     mocks.fetchAdminPaymentReconciliationIncidents(...args),
   fetchAdminPaymentRefundPreview: (...args: unknown[]) =>
     mocks.fetchAdminPaymentRefundPreview(...args),
+  fetchAdminPaymentRefund: (...args: unknown[]) => mocks.fetchAdminPaymentRefund(...args),
   fetchAdminPaymentRefunds: (...args: unknown[]) => mocks.fetchAdminPaymentRefunds(...args),
   fetchAdminPaymentSettlements: (...args: unknown[]) => mocks.fetchAdminPaymentSettlements(...args),
   fetchAdminSubscriptionPayments: (...args: unknown[]) =>
@@ -68,6 +79,8 @@ vi.mock('@/api/admin', () => ({
     mocks.previewAdminPaymentEntitlementCorrection(...args),
   reconcileAdminPaymentSettlements: (...args: unknown[]) =>
     mocks.reconcileAdminPaymentSettlements(...args),
+  recoverAdminPaymentSettlementImportAttempt: (...args: unknown[]) =>
+    mocks.recoverAdminPaymentSettlementImportAttempt(...args),
   updateAdminPaymentReconciliationIncidentStatus: (...args: unknown[]) =>
     mocks.updateAdminPaymentReconciliationIncidentStatus(...args),
 }));
@@ -131,6 +144,21 @@ function emptyPage<T>(page: number, total: number): PagedResponse<T> {
   };
 }
 
+function pageWith<T>(items: T[]): PagedResponse<T> {
+  return {
+    dataList: items,
+    pageInfo: {
+      page: 1,
+      size: 20,
+      total: items.length,
+      start: items.length > 0 ? 1 : 0,
+      end: items.length,
+      prev: false,
+      next: false,
+    },
+  };
+}
+
 const incident: AdminPaymentReconciliationIncident = {
   id: 7,
   dedupeKey: 'incident-7',
@@ -168,6 +196,63 @@ const settlementResult: AdminPaymentSettlementImportResult = {
   failedRows: 0,
   statusCounts: { MATCHED: 1 },
   errors: [],
+};
+
+const firstSettlementImportKey = '11111111-1111-4111-8111-111111111111';
+const secondSettlementImportKey = '22222222-2222-4222-8222-222222222222';
+
+const processingSettlementAttempt: AdminPaymentSettlementImportAttempt = {
+  attemptId: 81,
+  importBatchKey: 'ATS-SETTLE-ATTEMPT-81',
+  actorUserId: 99,
+  state: 'PROCESSING',
+  totalRows: 0,
+  importedRows: 0,
+  skippedDuplicateRows: 0,
+  failedRows: 0,
+  operatorNote: 'retry note',
+  failureCode: null,
+  completedAt: null,
+  createdAt: '2026-08-12T09:00:00',
+  updatedAt: '2026-08-12T09:00:00',
+};
+
+const completedSettlementAttempt: AdminPaymentSettlementImportAttempt = {
+  ...processingSettlementAttempt,
+  state: 'COMPLETED',
+  completedAt: '2026-08-12T09:05:00',
+  updatedAt: '2026-08-12T09:05:00',
+};
+
+const mismatchedSettlement: AdminPaymentSettlement = {
+  id: 17,
+  source: 'CSV_MANUAL',
+  provider: 'TOSS',
+  status: 'MISMATCHED',
+  orderId: 'ORDER-SETTLEMENT-17',
+  providerReference: 'REF-SETTLEMENT-17',
+  providerSettlementReference: null,
+  paymentOrderId: 1,
+  subscriptionPaymentId: 3,
+  userId: 7,
+  userNickname: 'settlement-user',
+  grossAmount: 9900,
+  refundAmount: 0,
+  feeAmount: 100,
+  vatAmount: 10,
+  netSettlementAmount: 9790,
+  currency: 'KRW',
+  settlementBaseDate: '2026-08-09',
+  settlementPayoutDate: null,
+  providerStatus: 'DONE',
+  mismatchReason: 'fee mismatch',
+  sourceFileName: 'safe-synthetic.csv',
+  sourceRowNumber: 2,
+  operatorNote: null,
+  ignoredBy: null,
+  ignoredAt: null,
+  reconciledAt: '2026-08-09T00:00:00',
+  createdAt: '2026-08-09T00:00:00',
 };
 
 const refundPreview: AdminPaymentRefundPreview = {
@@ -212,6 +297,100 @@ const correctionPreview: AdminPaymentEntitlementCorrectionPreview = {
   reason: null,
 };
 
+function refund(
+  status: AdminPaymentRefund['status'] = 'APPROVED',
+  overrides: Partial<AdminPaymentRefund> = {},
+): AdminPaymentRefund {
+  return {
+    id: 51,
+    subscriptionPaymentId: 41,
+    paymentOrderId: 31,
+    orderId: 'ORDER-REFUND-51',
+    userId: 3,
+    userNickname: 'refund-user',
+    provider: 'TOSS',
+    status,
+    amount: 9900,
+    currency: 'KRW',
+    reasonCode: 'CUSTOMER_REQUEST',
+    reasonNote: 'support ticket',
+    idempotencyKey: 'ATS-REFUND-51',
+    providerReference: 'REF-PAYMENT-51',
+    providerRefundReference: status === 'SUCCEEDED' ? 'REF-REFUND-51' : null,
+    failureCode: status === 'FAILED' ? 'PROVIDER_REJECTED' : null,
+    failureMessage: status === 'FAILED' ? 'Provider rejected the refund.' : null,
+    requestedById: 1,
+    requestedByEmail: 'admin@example.com',
+    approvedById: status === 'REQUESTED' ? null : 1,
+    approvedByEmail: status === 'REQUESTED' ? null : 'admin@example.com',
+    executedById: ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(status) ? 1 : null,
+    executedByEmail: ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(status)
+      ? 'admin@example.com'
+      : null,
+    approvedAt: status === 'REQUESTED' ? null : '2026-08-12T09:00:00',
+    executedAt: ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(status)
+      ? '2026-08-12T09:05:00'
+      : null,
+    createdAt: '2026-08-12T08:00:00',
+    updatedAt: '2026-08-12T09:05:00',
+    ...overrides,
+  };
+}
+
+function correction(
+  status: AdminPaymentEntitlementCorrection['status'] = 'APPROVED',
+  overrides: Partial<AdminPaymentEntitlementCorrection> = {},
+): AdminPaymentEntitlementCorrection {
+  return {
+    id: 61,
+    paymentRefundId: 51,
+    subscriptionPaymentId: 41,
+    paymentOrderId: 31,
+    orderId: 'ORDER-CORRECTION-61',
+    userSubscriptionId: 71,
+    userId: 3,
+    userNickname: 'correction-user',
+    provider: 'TOSS',
+    status,
+    action: 'APPLY_REFUND_ENTITLEMENT',
+    beforeSubscriptionId: 10,
+    beforePlanName: 'STANDARD',
+    beforeBillingCycle: 'MONTHLY',
+    beforeStatus: 'ACTIVE',
+    beforeExpiresAt: '2026-09-12',
+    beforePendingSubscriptionId: null,
+    beforePendingPlanName: null,
+    beforePendingBillingCycle: null,
+    targetSubscriptionId: 20,
+    targetPlanName: 'DELUXE',
+    targetBillingCycle: 'MONTHLY',
+    targetStatus: 'EXPIRED',
+    targetExpiresAt: '2026-08-12',
+    clearPendingChange: true,
+    cancelBillingAgreement: true,
+    beforeBillingAgreementStatus: 'ACTIVE',
+    afterBillingAgreementStatus: status === 'SUCCEEDED' ? 'CANCELLED' : 'ACTIVE',
+    reasonNote: 'refund correction',
+    failureCode: status === 'FAILED' ? 'CORRECTION_FAILED' : null,
+    failureMessage: status === 'FAILED' ? 'Correction failed.' : null,
+    requestedById: 1,
+    requestedByEmail: 'admin@example.com',
+    approvedById: status === 'REQUESTED' ? null : 1,
+    approvedByEmail: status === 'REQUESTED' ? null : 'admin@example.com',
+    executedById: ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(status) ? 1 : null,
+    executedByEmail: ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(status)
+      ? 'admin@example.com'
+      : null,
+    approvedAt: status === 'REQUESTED' ? null : '2026-08-12T09:00:00',
+    executedAt: ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(status)
+      ? '2026-08-12T09:05:00'
+      : null,
+    createdAt: '2026-08-12T08:00:00',
+    updatedAt: '2026-08-12T09:05:00',
+    ...overrides,
+  };
+}
+
 function incidentPage(): PagedResponse<AdminPaymentReconciliationIncident> {
   return {
     dataList: [incident],
@@ -252,7 +431,82 @@ function setDefaultReadResults() {
   mocks.fetchAdminPaymentSettlements.mockResolvedValue(emptyPage(1, 0));
   mocks.fetchAdminPaymentRefunds.mockResolvedValue(emptyPage(1, 0));
   mocks.fetchAdminPaymentEntitlementCorrections.mockResolvedValue(emptyPage(1, 0));
+  mocks.fetchAdminPaymentRefund.mockResolvedValue(refund('APPROVED'));
+  mocks.fetchAdminPaymentEntitlementCorrection.mockResolvedValue(correction('APPROVED'));
   mocks.fetchAdminSubscriptionPlans.mockResolvedValue([]);
+}
+
+function seedSettlementImportAttempt(idempotencyKey: string): string {
+  const stored = JSON.stringify({
+    version: 1,
+    scope: 'ADMIN',
+    operation: 'SETTLEMENT_IMPORT',
+    idempotencyKey,
+  });
+  sessionStorage.setItem(SETTLEMENT_IMPORT_ATTEMPT_STORAGE_KEY, stored);
+  return stored;
+}
+
+async function openRefunds(items: AdminPaymentRefund[]) {
+  mocks.fetchAdminPaymentRefunds.mockReset().mockResolvedValue(pageWith(items));
+  render(<PaymentOperationsPage />);
+  await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole('button', { name: '환불' }));
+  await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(1));
+}
+
+async function openCorrections(items: AdminPaymentEntitlementCorrection[]) {
+  mocks.fetchAdminPaymentEntitlementCorrections.mockReset().mockResolvedValue(pageWith(items));
+  render(<PaymentOperationsPage />);
+  await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+  await waitFor(() =>
+    expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
+  );
+}
+
+async function openSettlements() {
+  const view = render(<PaymentOperationsPage />);
+  await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole('button', { name: '정산' }));
+  await waitFor(() => expect(mocks.fetchAdminPaymentSettlements).toHaveBeenCalledTimes(1));
+  return view;
+}
+
+function submitSettlementImport(view: ReturnType<typeof render>, file: File, note: string) {
+  const fileInput = view.container.querySelector<HTMLInputElement>('input[type="file"]');
+  expect(fileInput).not.toBeNull();
+  fireEvent.change(fileInput!, { target: { files: [file] } });
+  fireEvent.change(screen.getByPlaceholderText('정산 import 근거'), {
+    target: { value: note },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '정산 import' }));
+  const dialog = screen.getByRole('dialog', { name: '정산 파일 가져오기' });
+  const confirmButton = within(dialog).getByRole('button', { name: '가져오기' });
+  fireEvent.click(confirmButton);
+  fireEvent.click(confirmButton);
+  return fileInput!;
+}
+
+function selectSettlementFile(view: ReturnType<typeof render>, file: File) {
+  const fileInput = view.container.querySelector<HTMLInputElement>('input[type="file"]');
+  expect(fileInput).not.toBeNull();
+  fireEvent.change(fileInput!, { target: { files: [file] } });
+  return fileInput!;
+}
+
+function executeRefundRow(item: AdminPaymentRefund) {
+  vi.spyOn(window, 'prompt').mockReturnValue('환불 실행');
+  const row = screen.getByText(item.orderId).closest('tr') as HTMLElement;
+  fireEvent.click(within(row).getByRole('button', { name: '실행' }));
+  return row;
+}
+
+function executeCorrectionRow(item: AdminPaymentEntitlementCorrection) {
+  vi.spyOn(window, 'prompt').mockReturnValue('권한 보정 실행');
+  const row = screen.getByText(item.userNickname).closest('tr') as HTMLElement;
+  fireEvent.click(within(row).getByRole('button', { name: '실행' }));
+  return row;
 }
 
 describe('PaymentOperationsPage latest-request-wins', () => {
@@ -264,6 +518,25 @@ describe('PaymentOperationsPage latest-request-wins', () => {
       }
     }
     setDefaultReadResults();
+  });
+
+  it('shows the settlement note security hint and keeps the optional note as plain text', async () => {
+    await openSettlements();
+
+    const hint = screen.getByText('개인정보, 인증정보, 결제 키 등 민감정보를 입력하지 마세요.');
+    const note = screen.getByPlaceholderText('정산 import 근거');
+    const htmlLikeNote = '<strong>operator</strong><img alt="rich note" src="x" />';
+
+    expect(hint).toBeVisible();
+    expect(note).toHaveAttribute('aria-describedby', hint.id);
+    expect(note).not.toBeRequired();
+    expect(note).toHaveAttribute('maxlength', '500');
+
+    fireEvent.change(note, { target: { value: htmlLikeNote } });
+
+    expect(note).toHaveValue(htmlLikeNote);
+    expect(note.querySelector('*')).toBeNull();
+    expect(screen.queryByAltText('rich note')).not.toBeInTheDocument();
   });
 
   it('keeps the latest tab after an older page request resolves last', async () => {
@@ -406,40 +679,267 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     expect(mocks.fetchAdminPaymentReconciliationIncidents).toHaveBeenCalledTimes(2);
   });
 
-  it('imports a settlement file once with confirmation and refreshes only the settlement view', async () => {
+  it('blocks a new settlement import when a pending attempt is stored', async () => {
+    const stored = seedSettlementImportAttempt(firstSettlementImportKey);
+    const randomUUID = vi.spyOn(globalThis.crypto, 'randomUUID');
+    const view = await openSettlements();
+    const file = new File(['safe,synthetic,csv'], 'pending-settlement.csv', {
+      type: 'text/csv',
+    });
+
+    selectSettlementFile(view, file);
+    fireEvent.click(screen.getByRole('button', { name: '정산 import' }));
+
+    expect(mocks.showToast).toHaveBeenCalledWith(
+      'warning',
+      '이전 정산 import 결과를 먼저 복구한 후 새 import를 시작해주세요.',
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mocks.importAdminPaymentSettlements).not.toHaveBeenCalled();
+    expect(mocks.recoverAdminPaymentSettlementImportAttempt).not.toHaveBeenCalled();
+    expect(randomUUID).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(SETTLEMENT_IMPORT_ATTEMPT_STORAGE_KEY)).toBe(stored);
+  });
+
+  it('fails closed when a pending attempt appears after the React state snapshot', async () => {
+    sessionStorage.removeItem(SETTLEMENT_IMPORT_ATTEMPT_STORAGE_KEY);
+    const randomUUID = vi.spyOn(globalThis.crypto, 'randomUUID');
+    const view = await openSettlements();
+    const file = new File(['safe,synthetic,csv'], 'stale-state-settlement.csv', {
+      type: 'text/csv',
+    });
+
+    selectSettlementFile(view, file);
+    fireEvent.click(screen.getByRole('button', { name: '정산 import' }));
+    const dialog = screen.getByRole('dialog', { name: '정산 파일 가져오기' });
+    const stored = seedSettlementImportAttempt(firstSettlementImportKey);
+    fireEvent.click(within(dialog).getByRole('button', { name: '가져오기' }));
+
+    await waitFor(() =>
+      expect(mocks.showToast).toHaveBeenCalledWith(
+        'warning',
+        '이전 정산 import 결과를 먼저 복구한 후 새 import를 시작해주세요.',
+      ),
+    );
+    expect(mocks.importAdminPaymentSettlements).not.toHaveBeenCalled();
+    expect(mocks.recoverAdminPaymentSettlementImportAttempt).not.toHaveBeenCalled();
+    expect(randomUUID).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(SETTLEMENT_IMPORT_ATTEMPT_STORAGE_KEY)).toBe(stored);
+    expect(screen.getByRole('button', { name: 'import 결과 복구' })).toBeInTheDocument();
+  });
+
+  it('rejects corrupt settlement import attempt bytes without recovery or mutation', async () => {
+    const corrupt = '{not-json';
+    sessionStorage.setItem(SETTLEMENT_IMPORT_ATTEMPT_STORAGE_KEY, corrupt);
+    const randomUUID = vi.spyOn(globalThis.crypto, 'randomUUID');
+    const view = await openSettlements();
+    const file = new File(['safe,synthetic,csv'], 'corrupt-settlement.csv', {
+      type: 'text/csv',
+    });
+
+    selectSettlementFile(view, file);
+    fireEvent.click(screen.getByRole('button', { name: '정산 import' }));
+
+    expect(mocks.showToast).toHaveBeenCalledWith(
+      'error',
+      '저장된 정산 import 복구 정보가 손상되어 새 import를 시작할 수 없습니다. 브라우저 세션을 지운 후 다시 시도해주세요.',
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mocks.importAdminPaymentSettlements).not.toHaveBeenCalled();
+    expect(mocks.recoverAdminPaymentSettlementImportAttempt).not.toHaveBeenCalled();
+    expect(randomUUID).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(SETTLEMENT_IMPORT_ATTEMPT_STORAGE_KEY)).toBe(corrupt);
+  });
+
+  it('starts a new settlement import with a fresh key after terminal recovery', async () => {
+    seedSettlementImportAttempt(firstSettlementImportKey);
+    mocks.recoverAdminPaymentSettlementImportAttempt.mockResolvedValueOnce(
+      completedSettlementAttempt,
+    );
+    mocks.importAdminPaymentSettlements.mockResolvedValueOnce(settlementResult);
+    const randomUUID = vi
+      .spyOn(globalThis.crypto, 'randomUUID')
+      .mockReturnValue(secondSettlementImportKey);
+
+    const view = await openSettlements();
+    fireEvent.click(screen.getByRole('button', { name: 'import 결과 복구' }));
+
+    await waitFor(() =>
+      expect(mocks.recoverAdminPaymentSettlementImportAttempt).toHaveBeenCalledTimes(1),
+    );
+    expect(mocks.recoverAdminPaymentSettlementImportAttempt).toHaveBeenCalledWith(
+      firstSettlementImportKey,
+    );
+    await waitFor(() =>
+      expect(sessionStorage.getItem(SETTLEMENT_IMPORT_ATTEMPT_STORAGE_KEY)).toBeNull(),
+    );
+    expect(mocks.importAdminPaymentSettlements).not.toHaveBeenCalled();
+
+    const file = new File(['orderId,amount'], 'fresh-settlement.csv', { type: 'text/csv' });
+    submitSettlementImport(view, file, 'fresh settlement');
+
+    await waitFor(() => expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledTimes(1));
+    expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledWith(
+      file,
+      secondSettlementImportKey,
+      'fresh settlement',
+    );
+    expect(randomUUID).toHaveBeenCalledTimes(1);
+    expect(mocks.importAdminPaymentSettlements.mock.calls[0][1]).not.toBe(firstSettlementImportKey);
+  });
+
+  it('clears React and DOM file state only after a fully successful import reloads once', async () => {
     const mutation = deferred<AdminPaymentSettlementImportResult>();
     mocks.importAdminPaymentSettlements.mockReturnValueOnce(mutation.promise);
 
-    const view = render(<PaymentOperationsPage />);
-    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: '정산' }));
-    await waitFor(() => expect(mocks.fetchAdminPaymentSettlements).toHaveBeenCalledTimes(1));
-
+    const view = await openSettlements();
     const file = new File(['orderId,amount'], 'settlement.csv', { type: 'text/csv' });
-    const fileInput = view.container.querySelector<HTMLInputElement>('input[type="file"]');
-    expect(fileInput).not.toBeNull();
-    fireEvent.change(fileInput!, { target: { files: [file] } });
-    fireEvent.change(screen.getByPlaceholderText('정산 import 근거'), {
-      target: { value: 'daily settlement' },
-    });
-    const importButton = screen.getByRole('button', { name: '정산 import' });
-    fireEvent.click(importButton);
-    fireEvent.click(importButton);
-
-    expect(mocks.importAdminPaymentSettlements).not.toHaveBeenCalled();
-    const dialog = screen.getByRole('dialog', { name: '정산 파일 가져오기' });
-    const confirmButton = within(dialog).getByRole('button', { name: '가져오기' });
-    fireEvent.click(confirmButton);
-    fireEvent.click(confirmButton);
+    const fileInput = submitSettlementImport(view, file, 'daily settlement');
 
     expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledTimes(1);
-    expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledWith(file, 'daily settlement');
-    expect(importButton).toBeDisabled();
+    expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledWith(
+      file,
+      expect.stringMatching(/^[0-9a-f-]{36}$/),
+      'daily settlement',
+    );
+    expect(screen.getByRole('button', { name: 'import 중' })).toBeDisabled();
 
     await act(async () => mutation.resolve(settlementResult));
     await waitFor(() => expect(mocks.fetchAdminPaymentSettlements).toHaveBeenCalledTimes(2));
     expect(mocks.fetchAdminPaymentSettlements).toHaveBeenCalledTimes(2);
     expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1);
+    expect(mocks.showToast).toHaveBeenCalledWith('success', '정산 파일 import가 완료되었습니다.');
+    expect(screen.getByText('선택된 파일 없음')).toBeInTheDocument();
+    const clearedFileInput = view.container.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(clearedFileInput).not.toBe(fileInput);
+    expect(clearedFileInput?.files).toHaveLength(0);
+  });
+
+  it('presents every mixed-result error and retains exact correction context after one reload', async () => {
+    const errors = Array.from({ length: 7 }, (_, index) => ({
+      rowNumber: index + 2,
+      message: `invalid row ${index + 2}`,
+    }));
+    const partialResult: AdminPaymentSettlementImportResult = {
+      importBatchKey: 'BATCH-PARTIAL',
+      totalRows: 8,
+      importedRows: 1,
+      skippedDuplicateRows: 0,
+      failedRows: 7,
+      statusCounts: { MATCHED: 1 },
+      errors,
+    };
+    mocks.importAdminPaymentSettlements.mockResolvedValueOnce(partialResult);
+
+    const view = await openSettlements();
+    const file = new File(['safe,synthetic,csv'], 'mixed-settlement.csv', { type: 'text/csv' });
+    const fileInput = submitSettlementImport(view, file, '  correction note  ');
+
+    expect(await screen.findByRole('status')).toHaveTextContent('부분 완료');
+    for (const error of errors) {
+      expect(screen.getByText(`row ${error.rowNumber}: ${error.message}`)).toBeInTheDocument();
+    }
+    expect(mocks.showToast).toHaveBeenCalledWith(
+      'warning',
+      '정산 import가 부분 완료되었습니다. 실패 7건을 확인해주세요.',
+    );
+    expect(mocks.showToast).not.toHaveBeenCalledWith('success', expect.any(String));
+    expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledTimes(1);
+    expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledWith(
+      file,
+      expect.stringMatching(/^[0-9a-f-]{36}$/),
+      'correction note',
+    );
+    expect(mocks.fetchAdminPaymentSettlements).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('mixed-settlement.csv')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('정산 import 근거')).toHaveValue('  correction note  ');
+    expect(fileInput.files?.[0]).toBe(file);
+  });
+
+  it('uses one key for one POST and read-only recovery while retaining WI-041 context', async () => {
+    mocks.importAdminPaymentSettlements.mockRejectedValueOnce(new Error('transport failed'));
+    mocks.recoverAdminPaymentSettlementImportAttempt.mockResolvedValue(processingSettlementAttempt);
+
+    const view = await openSettlements();
+    const file = new File(['safe,synthetic,csv'], 'retry-settlement.csv', { type: 'text/csv' });
+    const fileInput = submitSettlementImport(view, file, ' retry note ');
+
+    await waitFor(() =>
+      expect(mocks.recoverAdminPaymentSettlementImportAttempt).toHaveBeenCalledTimes(1),
+    );
+    const operationKey = mocks.importAdminPaymentSettlements.mock.calls[0][1] as string;
+    expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledTimes(1);
+    expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledWith(
+      file,
+      operationKey,
+      'retry note',
+    );
+    expect(mocks.recoverAdminPaymentSettlementImportAttempt).toHaveBeenCalledWith(operationKey);
+    expect(mocks.fetchAdminPaymentSettlements).toHaveBeenCalledTimes(1);
+    expect(mocks.showToast).not.toHaveBeenCalledWith('success', expect.any(String));
+    expect(screen.getByText('PROCESSING')).toBeInTheDocument();
+    expect(screen.getByText('retry-settlement.csv')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('정산 import 근거')).toHaveValue(' retry note ');
+    expect(fileInput.files?.[0]).toBe(file);
+
+    fireEvent.click(screen.getByRole('button', { name: 'import 결과 복구' }));
+    await waitFor(() =>
+      expect(mocks.recoverAdminPaymentSettlementImportAttempt).toHaveBeenCalledTimes(2),
+    );
+    expect(mocks.recoverAdminPaymentSettlementImportAttempt).toHaveBeenLastCalledWith(operationKey);
+    expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledTimes(1);
+  });
+
+  it('retains correction context and does not announce full success when the required reload fails', async () => {
+    mocks.fetchAdminPaymentSettlements
+      .mockResolvedValueOnce(emptyPage(1, 0))
+      .mockRejectedValueOnce(new Error('reload failed'));
+    mocks.importAdminPaymentSettlements.mockResolvedValueOnce(settlementResult);
+
+    const view = await openSettlements();
+    const file = new File(['safe,synthetic,csv'], 'reload-settlement.csv', { type: 'text/csv' });
+    const fileInput = submitSettlementImport(view, file, ' reload note ');
+
+    await waitFor(() =>
+      expect(mocks.showToast).toHaveBeenCalledWith(
+        'error',
+        '정산 import 결과를 받았지만 목록을 다시 불러오지 못했습니다.',
+      ),
+    );
+    expect(mocks.importAdminPaymentSettlements).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchAdminPaymentSettlements).toHaveBeenCalledTimes(2);
+    expect(mocks.showToast).not.toHaveBeenCalledWith('success', expect.any(String));
+    expect(screen.getByText('reload-settlement.csv')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('정산 import 근거')).toHaveValue(' reload note ');
+    expect(fileInput.files?.[0]).toBe(file);
+  });
+
+  it('requires a trimmed note and danger confirmation before one settlement ignore call', async () => {
+    mocks.fetchAdminPaymentSettlements.mockResolvedValue(pageWith([mismatchedSettlement]));
+    mocks.ignoreAdminPaymentSettlement.mockResolvedValue(undefined);
+
+    await openSettlements();
+    const row = screen.getByText('ORDER-SETTLEMENT-17').closest('tr') as HTMLElement;
+    const ignoreButton = within(row).getByRole('button', { name: 'IGNORE' });
+    fireEvent.click(ignoreButton);
+
+    expect(mocks.ignoreAdminPaymentSettlement).not.toHaveBeenCalled();
+    expect(mocks.showToast).toHaveBeenCalledWith('error', 'ignore 처리 메모를 입력해주세요.');
+
+    fireEvent.change(within(row).getByPlaceholderText('IGNORE 메모'), {
+      target: { value: '  operator note  ' },
+    });
+    fireEvent.click(ignoreButton);
+    expect(mocks.ignoreAdminPaymentSettlement).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog', { name: '정산 항목 제외' });
+    const confirmButton = within(dialog).getByRole('button', { name: 'IGNORE' });
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(mocks.ignoreAdminPaymentSettlement).toHaveBeenCalledTimes(1));
+    expect(mocks.ignoreAdminPaymentSettlement).toHaveBeenCalledWith(17, 'operator note');
+    await waitFor(() => expect(mocks.fetchAdminPaymentSettlements).toHaveBeenCalledTimes(2));
+    expect(mocks.fetchAdminPaymentSettlements).toHaveBeenCalledTimes(2);
   });
 
   it('reports a settlement reconciliation failure without refreshing the current view', async () => {
@@ -606,5 +1106,1268 @@ describe('PaymentOperationsPage latest-request-wins', () => {
       expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(2),
     );
     expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(2);
+  });
+
+  it('hydrates a reloaded pending refund as UNKNOWN and blocks execute and linked correction', async () => {
+    const item = refund('PENDING_PROVIDER_CONFIRMATION');
+    const linked = correction('APPROVED');
+    mocks.fetchAdminPaymentEntitlementCorrections.mockReset().mockResolvedValue(pageWith([linked]));
+    await openRefunds([item]);
+
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('UNKNOWN');
+    const refundRow = screen.getByText(item.orderId).closest('tr') as HTMLElement;
+    expect(within(refundRow).getByRole('button', { name: '상태 다시 확인' })).toBeEnabled();
+    expect(within(refundRow).getByRole('button', { name: '실행' })).toBeDisabled();
+    expect(mocks.fetchAdminPaymentRefund).not.toHaveBeenCalled();
+    expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole('button', { name: '권한 보정' })[0]);
+    const correctionRow = (await screen.findByText(linked.userNickname)).closest(
+      'tr',
+    ) as HTMLElement;
+    expect(within(correctionRow).getByRole('button', { name: '실행' })).toBeDisabled();
+    expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+  });
+
+  it('hydrates a reloaded processing correction as UNKNOWN and blocks execute and linked refund', async () => {
+    const item = correction('PROCESSING');
+    const linked = refund('APPROVED');
+    mocks.fetchAdminPaymentRefunds.mockReset().mockResolvedValue(pageWith([linked]));
+    await openCorrections([item]);
+
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('UNKNOWN');
+    const correctionRow = screen.getByText(item.userNickname).closest('tr') as HTMLElement;
+    expect(within(correctionRow).getByRole('button', { name: '상태 다시 확인' })).toBeEnabled();
+    expect(within(correctionRow).getByRole('button', { name: '실행' })).toBeDisabled();
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+    expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    const refundRow = (await screen.findByText(linked.orderId)).closest('tr') as HTMLElement;
+    expect(within(refundRow).getByRole('button', { name: '실행' })).toBeDisabled();
+    expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
+  });
+
+  it('preflights a reloaded approved correction before one explicit execute POST', async () => {
+    const item = correction('APPROVED');
+    mocks.fetchAdminPaymentEntitlementCorrection.mockResolvedValueOnce(item);
+    mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('FAILED'));
+    await openCorrections([item]);
+
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+    expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+    executeCorrectionRow(item);
+
+    await waitFor(() =>
+      expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1),
+    );
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchAdminPaymentEntitlementCorrection.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.executeAdminPaymentEntitlementCorrection.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('unlocks an UNKNOWN refund on manual APPROVED read before a later explicit execute', async () => {
+    const item = refund('PROCESSING');
+    mocks.fetchAdminPaymentRefund
+      .mockResolvedValueOnce(refund('APPROVED'))
+      .mockResolvedValueOnce(refund('APPROVED'));
+    mocks.executeAdminPaymentRefund.mockResolvedValueOnce(refund('FAILED'));
+    await openRefunds([item]);
+    const row = screen.getByText(item.orderId).closest('tr') as HTMLElement;
+    expect(screen.getByTestId('refund-recovery-51')).toHaveTextContent('UNKNOWN');
+
+    fireEvent.click(within(row).getByRole('button', { name: '상태 다시 확인' }));
+
+    await waitFor(() => expect(screen.queryByTestId('refund-recovery-51')).not.toBeInTheDocument());
+    expect(within(row).getByText('APPROVED')).toBeInTheDocument();
+    expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
+    executeRefundRow(refund('APPROVED'));
+    await waitFor(() => expect(mocks.executeAdminPaymentRefund).toHaveBeenCalledTimes(1));
+    expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(2);
+  });
+
+  it('unlocks an UNKNOWN correction on manual APPROVED read before a later explicit execute', async () => {
+    const item = correction('PROCESSING');
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockResolvedValueOnce(correction('APPROVED'))
+      .mockResolvedValueOnce(correction('APPROVED'));
+    mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('FAILED'));
+    await openCorrections([item]);
+    const row = screen.getByText(item.userNickname).closest('tr') as HTMLElement;
+    expect(screen.getByTestId('correction-recovery-61')).toHaveTextContent('UNKNOWN');
+
+    fireEvent.click(within(row).getByRole('button', { name: '상태 다시 확인' }));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('correction-recovery-61')).not.toBeInTheDocument(),
+    );
+    expect(within(row).getByText('APPROVED')).toBeInTheDocument();
+    expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+    executeCorrectionRow(correction('APPROVED'));
+    await waitFor(() =>
+      expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1),
+    );
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(2);
+  });
+
+  it('unlocks manual REQUESTED reads to approve only without mutating', async () => {
+    const refundItem = refund('PROCESSING');
+    mocks.fetchAdminPaymentRefund.mockResolvedValueOnce(refund('REQUESTED'));
+    await openRefunds([refundItem]);
+    const refundRow = screen.getByText(refundItem.orderId).closest('tr') as HTMLElement;
+    expect(within(refundRow).getByRole('button', { name: '승인' })).toBeDisabled();
+    fireEvent.click(within(refundRow).getByRole('button', { name: '상태 다시 확인' }));
+
+    await waitFor(() => expect(screen.queryByTestId('refund-recovery-51')).not.toBeInTheDocument());
+    expect(within(refundRow).getByRole('button', { name: '승인' })).toBeEnabled();
+    expect(within(refundRow).getByRole('button', { name: '실행' })).toBeDisabled();
+    expect(mocks.approveAdminPaymentRefund).not.toHaveBeenCalled();
+    expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
+  });
+
+  it('unlocks a manual correction REQUESTED read to approve only without mutating', async () => {
+    const item = correction('PROCESSING');
+    mocks.fetchAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('REQUESTED'));
+    await openCorrections([item]);
+    const row = screen.getByText(item.userNickname).closest('tr') as HTMLElement;
+    expect(within(row).getByRole('button', { name: '승인' })).toBeDisabled();
+    fireEvent.click(within(row).getByRole('button', { name: '상태 다시 확인' }));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('correction-recovery-61')).not.toBeInTheDocument(),
+    );
+    expect(within(row).getByRole('button', { name: '승인' })).toBeEnabled();
+    expect(within(row).getByRole('button', { name: '실행' })).toBeDisabled();
+    expect(mocks.approveAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+    expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+  });
+
+  it('keeps a manually read pending refund UNKNOWN and locked', async () => {
+    const item = refund('PENDING_PROVIDER_CONFIRMATION');
+    mocks.fetchAdminPaymentRefund.mockResolvedValueOnce(item);
+    await openRefunds([item]);
+    const row = screen.getByText(item.orderId).closest('tr') as HTMLElement;
+
+    fireEvent.click(within(row).getByRole('button', { name: '상태 다시 확인' }));
+
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('refund-recovery-51')).toHaveTextContent('UNKNOWN');
+    expect(within(row).getByRole('button', { name: '실행' })).toBeDisabled();
+    expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['SUCCEEDED', 'COMMITTED'],
+    ['FAILED', 'FAILED'],
+    ['CANCELLED', 'FAILED'],
+    ['PROCESSING', 'UNKNOWN'],
+  ] as const)('blocks refund execute when preflight finds %s as %s', async (status, outcome) => {
+    const item = refund('APPROVED');
+    mocks.fetchAdminPaymentRefund.mockResolvedValueOnce(refund(status));
+    mocks.executeAdminPaymentRefund.mockResolvedValueOnce(refund('FAILED'));
+    await openRefunds([item]);
+
+    executeRefundRow(item);
+
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent(outcome);
+    expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(1);
+    expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['SUCCEEDED', 'COMMITTED'],
+    ['FAILED', 'FAILED'],
+    ['CANCELLED', 'FAILED'],
+    ['PROCESSING', 'UNKNOWN'],
+  ] as const)(
+    'blocks correction execute when preflight finds %s as %s',
+    async (status, outcome) => {
+      const item = correction('APPROVED');
+      mocks.fetchAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction(status));
+      mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('FAILED'));
+      await openCorrections([item]);
+
+      executeCorrectionRow(item);
+
+      expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent(outcome);
+      expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+      expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+    },
+  );
+
+  it('blocks refund execute when preflight is unreadable or returns another id', async () => {
+    const unreadable = refund('APPROVED');
+    mocks.fetchAdminPaymentRefund.mockRejectedValueOnce(new Error('detail unavailable'));
+    mocks.executeAdminPaymentRefund.mockResolvedValueOnce(refund('FAILED'));
+    await openRefunds([unreadable]);
+    executeRefundRow(unreadable);
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('UNKNOWN');
+    expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
+
+    mocks.fetchAdminPaymentRefund.mockResolvedValueOnce(refund('APPROVED', { id: 999 }));
+    const statusButton = screen.getByRole('button', { name: '상태 다시 확인' });
+    fireEvent.click(statusButton);
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId('refund-recovery-51')).toHaveTextContent('UNKNOWN');
+    expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
+  });
+
+  it('blocks correction execute when preflight is unreadable or returns another id', async () => {
+    const unreadable = correction('APPROVED');
+    mocks.fetchAdminPaymentEntitlementCorrection.mockRejectedValueOnce(
+      new Error('detail unavailable'),
+    );
+    mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('FAILED'));
+    await openCorrections([unreadable]);
+    executeCorrectionRow(unreadable);
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('UNKNOWN');
+    expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+
+    mocks.fetchAdminPaymentEntitlementCorrection.mockResolvedValueOnce(
+      correction('APPROVED', { id: 999 }),
+    );
+    const statusButton = screen.getByRole('button', { name: '상태 다시 확인' });
+    fireEvent.click(statusButton);
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(2),
+    );
+    expect(screen.getByTestId('correction-recovery-61')).toHaveTextContent('UNKNOWN');
+    expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+  });
+
+  it('blocks refund execute when preflight returns another durable id', async () => {
+    const item = refund('APPROVED');
+    mocks.fetchAdminPaymentRefund.mockResolvedValueOnce(refund('APPROVED', { id: 999 }));
+    await openRefunds([item]);
+
+    executeRefundRow(item);
+
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('UNKNOWN');
+    expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(1);
+    expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
+  });
+
+  it('blocks correction execute when preflight returns another durable id', async () => {
+    const item = correction('APPROVED');
+    mocks.fetchAdminPaymentEntitlementCorrection.mockResolvedValueOnce(
+      correction('APPROVED', { id: 999 }),
+    );
+    await openCorrections([item]);
+
+    executeCorrectionRow(item);
+
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('UNKNOWN');
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+    expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['SUCCEEDED', 'COMMITTED'],
+    ['FAILED', 'FAILED'],
+    ['CANCELLED', 'FAILED'],
+    ['PROCESSING', 'UNKNOWN'],
+    ['PENDING_PROVIDER_CONFIRMATION', 'UNKNOWN'],
+    ['REQUESTED', 'UNKNOWN'],
+    ['APPROVED', 'UNKNOWN'],
+  ] as const)(
+    'reconciles a lost refund execute response with %s as %s without replay',
+    async (status, outcome) => {
+      const item = refund('APPROVED');
+      mocks.executeAdminPaymentRefund.mockRejectedValueOnce(new Error('response lost'));
+      mocks.fetchAdminPaymentRefund
+        .mockResolvedValueOnce(item)
+        .mockResolvedValueOnce(refund(status));
+      await openRefunds([item]);
+
+      executeRefundRow(item);
+
+      expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent(outcome);
+      expect(mocks.executeAdminPaymentRefund).toHaveBeenCalledTimes(1);
+      expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(2);
+      expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(1);
+      expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['SUCCEEDED', 'COMMITTED'],
+    ['FAILED', 'FAILED'],
+    ['CANCELLED', 'FAILED'],
+    ['PROCESSING', 'UNKNOWN'],
+    ['REQUESTED', 'UNKNOWN'],
+    ['APPROVED', 'UNKNOWN'],
+  ] as const)(
+    'reconciles a lost correction execute response with %s as %s without replay',
+    async (status, outcome) => {
+      const item = correction('APPROVED');
+      mocks.executeAdminPaymentEntitlementCorrection.mockRejectedValueOnce(
+        new Error('response lost'),
+      );
+      mocks.fetchAdminPaymentEntitlementCorrection
+        .mockResolvedValueOnce(item)
+        .mockResolvedValueOnce(correction(status));
+      await openCorrections([item]);
+
+      executeCorrectionRow(item);
+
+      expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent(outcome);
+      expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+      expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(2);
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1);
+      expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps refund UNKNOWN when the one response-loss detail read fails', async () => {
+    const item = refund('APPROVED');
+    mocks.executeAdminPaymentRefund.mockRejectedValueOnce(new Error('network'));
+    mocks.fetchAdminPaymentRefund
+      .mockResolvedValueOnce(item)
+      .mockRejectedValueOnce(new Error('detail unavailable'));
+    await openRefunds([item]);
+
+    executeRefundRow(item);
+
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('UNKNOWN');
+    expect(mocks.executeAdminPaymentRefund).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps correction UNKNOWN when the one response-loss detail read fails', async () => {
+    const item = correction('APPROVED');
+    mocks.executeAdminPaymentEntitlementCorrection.mockRejectedValueOnce(new Error('network'));
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockResolvedValueOnce(item)
+      .mockRejectedValueOnce(new Error('detail unavailable'));
+    await openCorrections([item]);
+
+    executeCorrectionRow(item);
+
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('UNKNOWN');
+    expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(2);
+  });
+
+  it('marks a successful refund response RELOAD_FAILED when its list refresh fails', async () => {
+    const item = refund('APPROVED');
+    mocks.fetchAdminPaymentRefunds
+      .mockReset()
+      .mockResolvedValueOnce(pageWith([item]))
+      .mockRejectedValueOnce(new Error('list reload failed'));
+    mocks.executeAdminPaymentRefund.mockResolvedValueOnce(refund('SUCCEEDED'));
+    mocks.fetchAdminPaymentRefund
+      .mockResolvedValueOnce(item)
+      .mockResolvedValueOnce(refund('SUCCEEDED'));
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(1));
+
+    executeRefundRow(item);
+
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('RELOAD_FAILED');
+    expect(mocks.executeAdminPaymentRefund).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(2);
+    expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(2);
+  });
+
+  it('marks a successful correction response RELOAD_FAILED when its list refresh fails', async () => {
+    const item = correction('APPROVED');
+    mocks.fetchAdminPaymentEntitlementCorrections
+      .mockReset()
+      .mockResolvedValueOnce(pageWith([item]))
+      .mockRejectedValueOnce(new Error('list reload failed'));
+    mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('SUCCEEDED'));
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockResolvedValueOnce(item)
+      .mockResolvedValueOnce(correction('SUCCEEDED'));
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
+    );
+
+    executeCorrectionRow(item);
+
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('RELOAD_FAILED');
+    expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(2);
+    expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves refund RELOAD_FAILED when a manual detail read fails', async () => {
+    const item = refund('APPROVED');
+    mocks.fetchAdminPaymentRefunds
+      .mockReset()
+      .mockResolvedValueOnce(pageWith([item]))
+      .mockRejectedValueOnce(new Error('list reload failed'));
+    mocks.executeAdminPaymentRefund.mockResolvedValueOnce(refund('SUCCEEDED'));
+    mocks.fetchAdminPaymentRefund
+      .mockResolvedValueOnce(item)
+      .mockResolvedValueOnce(refund('SUCCEEDED'))
+      .mockRejectedValueOnce(new Error('detail read failed'));
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(1));
+    executeRefundRow(item);
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('RELOAD_FAILED');
+
+    fireEvent.click(
+      within(screen.getByTestId('refund-recovery-51').closest('td') as HTMLElement).getByRole(
+        'button',
+      ),
+    );
+
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(3));
+    expect(screen.getByTestId('refund-recovery-51')).toHaveTextContent('RELOAD_FAILED');
+    expect(mocks.executeAdminPaymentRefund).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves correction RELOAD_FAILED when a manual detail read fails', async () => {
+    const item = correction('APPROVED');
+    mocks.fetchAdminPaymentEntitlementCorrections
+      .mockReset()
+      .mockResolvedValueOnce(pageWith([item]))
+      .mockRejectedValueOnce(new Error('list reload failed'));
+    mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('SUCCEEDED'));
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockResolvedValueOnce(item)
+      .mockResolvedValueOnce(correction('SUCCEEDED'))
+      .mockRejectedValueOnce(new Error('detail read failed'));
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
+    );
+    executeCorrectionRow(item);
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('RELOAD_FAILED');
+
+    fireEvent.click(
+      within(screen.getByTestId('correction-recovery-61').closest('td') as HTMLElement).getByRole(
+        'button',
+      ),
+    );
+
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(3),
+    );
+    expect(screen.getByTestId('correction-recovery-61')).toHaveTextContent('RELOAD_FAILED');
+    expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps refund RELOAD_FAILED to COMMITTED when manual detail succeeds', async () => {
+    const item = refund('APPROVED');
+    const fresh = refund('SUCCEEDED', { providerRefundReference: 'DETAIL-COMMITTED-REFUND' });
+    mocks.fetchAdminPaymentRefunds
+      .mockReset()
+      .mockResolvedValueOnce(pageWith([item]))
+      .mockRejectedValueOnce(new Error('list reload failed'));
+    mocks.executeAdminPaymentRefund.mockResolvedValueOnce(refund('SUCCEEDED'));
+    mocks.fetchAdminPaymentRefund
+      .mockResolvedValueOnce(item)
+      .mockResolvedValueOnce(refund('SUCCEEDED'))
+      .mockResolvedValueOnce(fresh);
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(1));
+    executeRefundRow(item);
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('RELOAD_FAILED');
+
+    fireEvent.click(
+      within(screen.getByTestId('refund-recovery-51').closest('td') as HTMLElement).getByRole(
+        'button',
+        { name: '상태 다시 확인' },
+      ),
+    );
+
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('COMMITTED');
+    const row = screen.getByText(item.orderId).closest('tr') as HTMLElement;
+    expect(within(row).getByText('DETAIL-COMMITTED-REFUND')).toBeInTheDocument();
+    expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(3);
+    expect(mocks.executeAdminPaymentRefund).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps correction RELOAD_FAILED to COMMITTED when manual detail succeeds', async () => {
+    const item = correction('APPROVED');
+    const fresh = correction('SUCCEEDED', { targetPlanName: 'DETAIL-COMMITTED-CORRECTION' });
+    mocks.fetchAdminPaymentEntitlementCorrections
+      .mockReset()
+      .mockResolvedValueOnce(pageWith([item]))
+      .mockRejectedValueOnce(new Error('list reload failed'));
+    mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('SUCCEEDED'));
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockResolvedValueOnce(item)
+      .mockResolvedValueOnce(correction('SUCCEEDED'))
+      .mockResolvedValueOnce(fresh);
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
+    );
+    executeCorrectionRow(item);
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('RELOAD_FAILED');
+
+    fireEvent.click(
+      within(screen.getByTestId('correction-recovery-61').closest('td') as HTMLElement).getByRole(
+        'button',
+        { name: '상태 다시 확인' },
+      ),
+    );
+
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('COMMITTED');
+    const row = screen.getByText(item.userNickname).closest('tr') as HTMLElement;
+    expect(within(row).getByText('DETAIL-COMMITTED-CORRECTION')).toBeInTheDocument();
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(3);
+    expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['FAILED', 'CANCELLED'] as const)(
+    'maps refund RELOAD_FAILED to FAILED when manual detail succeeds with %s',
+    async (status) => {
+      const item = refund('APPROVED');
+      const terminal = refund(status, { failureCode: `DETAIL-${status}` });
+      mocks.fetchAdminPaymentRefunds
+        .mockReset()
+        .mockResolvedValueOnce(pageWith([item]))
+        .mockRejectedValueOnce(new Error('list reload failed'));
+      mocks.executeAdminPaymentRefund.mockResolvedValueOnce(refund('SUCCEEDED'));
+      mocks.fetchAdminPaymentRefund
+        .mockResolvedValueOnce(item)
+        .mockResolvedValueOnce(refund('SUCCEEDED'))
+        .mockResolvedValueOnce(terminal);
+      render(<PaymentOperationsPage />);
+      await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+      fireEvent.click(screen.getAllByRole('button')[7]);
+      await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(1));
+      executeRefundRow(item);
+      expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('RELOAD_FAILED');
+
+      fireEvent.click(
+        within(screen.getByTestId('refund-recovery-51').closest('td') as HTMLElement).getByRole(
+          'button',
+        ),
+      );
+
+      expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('FAILED');
+      const row = screen.getByText(item.orderId).closest('tr') as HTMLElement;
+      expect(screen.getByTestId('refund-recovery-51').closest('td')).toHaveTextContent(status);
+      expect(within(row).getByText(`DETAIL-${status}`)).toBeInTheDocument();
+      expect(mocks.executeAdminPaymentRefund).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(['FAILED', 'CANCELLED'] as const)(
+    'maps correction RELOAD_FAILED to FAILED when manual detail succeeds with %s',
+    async (status) => {
+      const item = correction('APPROVED');
+      const terminal = correction(status, { failureCode: `DETAIL-${status}` });
+      mocks.fetchAdminPaymentEntitlementCorrections
+        .mockReset()
+        .mockResolvedValueOnce(pageWith([item]))
+        .mockRejectedValueOnce(new Error('list reload failed'));
+      mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('SUCCEEDED'));
+      mocks.fetchAdminPaymentEntitlementCorrection
+        .mockResolvedValueOnce(item)
+        .mockResolvedValueOnce(correction('SUCCEEDED'))
+        .mockResolvedValueOnce(terminal);
+      render(<PaymentOperationsPage />);
+      await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+      fireEvent.click(screen.getAllByRole('button')[8]);
+      await waitFor(() =>
+        expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
+      );
+      executeCorrectionRow(item);
+      expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent(
+        'RELOAD_FAILED',
+      );
+
+      fireEvent.click(
+        within(screen.getByTestId('correction-recovery-61').closest('td') as HTMLElement).getByRole(
+          'button',
+        ),
+      );
+
+      expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('FAILED');
+      const row = screen.getByText(item.userNickname).closest('tr') as HTMLElement;
+      const statusCell = screen.getByTestId('correction-recovery-61').closest('td') as HTMLElement;
+      expect(statusCell).toHaveTextContent(status);
+      expect(within(statusCell).getByText(`DETAIL-${status}`)).toBeInTheDocument();
+      expect(row).toContainElement(statusCell);
+      expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(['PROCESSING', 'PENDING_PROVIDER_CONFIRMATION'] as const)(
+    'maps refund RELOAD_FAILED to locked UNKNOWN when manual detail succeeds with %s',
+    async (status) => {
+      const item = refund('APPROVED');
+      mocks.fetchAdminPaymentRefunds
+        .mockReset()
+        .mockResolvedValueOnce(pageWith([item]))
+        .mockRejectedValueOnce(new Error('list reload failed'));
+      mocks.executeAdminPaymentRefund.mockResolvedValueOnce(refund('SUCCEEDED'));
+      mocks.fetchAdminPaymentRefund
+        .mockResolvedValueOnce(item)
+        .mockResolvedValueOnce(refund('SUCCEEDED'))
+        .mockResolvedValueOnce(refund(status));
+      render(<PaymentOperationsPage />);
+      await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+      fireEvent.click(screen.getAllByRole('button')[7]);
+      await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(1));
+      executeRefundRow(item);
+      expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('RELOAD_FAILED');
+      fireEvent.click(
+        within(screen.getByTestId('refund-recovery-51').closest('td') as HTMLElement).getByRole(
+          'button',
+        ),
+      );
+
+      expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('UNKNOWN');
+      const row = screen.getByText(item.orderId).closest('tr') as HTMLElement;
+      expect(within(row).getByText(status)).toBeInTheDocument();
+      expect(within(row).getByRole('button', { name: '실행' })).toBeDisabled();
+      expect(within(row).getByRole('button', { name: '상태 다시 확인' })).toBeEnabled();
+      expect(mocks.executeAdminPaymentRefund).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('maps correction RELOAD_FAILED to locked UNKNOWN when manual detail succeeds in-flight', async () => {
+    const item = correction('APPROVED');
+    mocks.fetchAdminPaymentEntitlementCorrections
+      .mockReset()
+      .mockResolvedValueOnce(pageWith([item]))
+      .mockRejectedValueOnce(new Error('list reload failed'));
+    mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('SUCCEEDED'));
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockResolvedValueOnce(item)
+      .mockResolvedValueOnce(correction('SUCCEEDED'))
+      .mockResolvedValueOnce(correction('PROCESSING'));
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getAllByRole('button')[8]);
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
+    );
+    executeCorrectionRow(item);
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('RELOAD_FAILED');
+    fireEvent.click(
+      within(screen.getByTestId('correction-recovery-61').closest('td') as HTMLElement).getByRole(
+        'button',
+      ),
+    );
+
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('UNKNOWN');
+    const row = screen.getByText(item.userNickname).closest('tr') as HTMLElement;
+    expect(within(row).getByText('PROCESSING')).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: '실행' })).toBeDisabled();
+    expect(within(row).getByRole('button', { name: '상태 다시 확인' })).toBeEnabled();
+    expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['FAILED', 'FAILED', '환불 실행이 최종 실패 상태로 확인되었습니다.'],
+    [
+      'PROCESSING',
+      'UNKNOWN',
+      '환불 후속 상태가 아직 확정되지 않았습니다. 상태를 다시 확인해주세요.',
+    ],
+    [
+      'PENDING_PROVIDER_CONFIRMATION',
+      'UNKNOWN',
+      '환불 후속 상태가 아직 확정되지 않았습니다. 상태를 다시 확인해주세요.',
+    ],
+  ] as const)(
+    'uses authoritative refund detail %s after a SUCCEEDED execute response',
+    async (status, outcome, message) => {
+      const item = refund('APPROVED');
+      mocks.fetchAdminPaymentRefund
+        .mockResolvedValueOnce(item)
+        .mockResolvedValueOnce(refund(status));
+      mocks.executeAdminPaymentRefund.mockResolvedValueOnce(refund('SUCCEEDED'));
+      await openRefunds([item]);
+
+      executeRefundRow(item);
+
+      expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent(outcome);
+      expect(mocks.showToast).toHaveBeenLastCalledWith('error', message);
+      expect(mocks.executeAdminPaymentRefund).toHaveBeenCalledTimes(1);
+      expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(2);
+      expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([
+    ['FAILED', 'FAILED', '권한 보정이 최종 실패 상태로 확인되었습니다.'],
+    [
+      'PROCESSING',
+      'UNKNOWN',
+      '권한 보정 후속 상태가 아직 확정되지 않았습니다. 상태를 다시 확인해주세요.',
+    ],
+  ] as const)(
+    'uses authoritative correction detail %s after a SUCCEEDED execute response',
+    async (status, outcome, message) => {
+      const item = correction('APPROVED');
+      mocks.fetchAdminPaymentEntitlementCorrection
+        .mockResolvedValueOnce(item)
+        .mockResolvedValueOnce(correction(status));
+      mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('SUCCEEDED'));
+      await openCorrections([item]);
+
+      executeCorrectionRow(item);
+
+      expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent(outcome);
+      expect(mocks.showToast).toHaveBeenLastCalledWith('error', message);
+      expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+      expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(2);
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('keeps refund RELOAD_FAILED when the required post-execute detail read fails', async () => {
+    const item = refund('APPROVED');
+    mocks.fetchAdminPaymentRefund
+      .mockResolvedValueOnce(item)
+      .mockRejectedValueOnce(new Error('detail unavailable'));
+    mocks.executeAdminPaymentRefund.mockResolvedValueOnce(refund('SUCCEEDED'));
+    await openRefunds([item]);
+
+    executeRefundRow(item);
+
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('RELOAD_FAILED');
+    expect(mocks.showToast).toHaveBeenLastCalledWith(
+      'error',
+      '환불은 성공했지만 후속 정보를 새로고침하지 못했습니다.',
+    );
+    expect(mocks.executeAdminPaymentRefund).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps correction RELOAD_FAILED when the required post-execute detail read fails', async () => {
+    const item = correction('APPROVED');
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockResolvedValueOnce(item)
+      .mockRejectedValueOnce(new Error('detail unavailable'));
+    mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('SUCCEEDED'));
+    await openCorrections([item]);
+
+    executeCorrectionRow(item);
+
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('RELOAD_FAILED');
+    expect(mocks.showToast).toHaveBeenLastCalledWith(
+      'error',
+      '권한 보정은 성공했지만 후속 정보를 새로고침하지 못했습니다.',
+    );
+    expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores an old refund success list after tab switch and a newer refund load', async () => {
+    const item = refund('APPROVED');
+    const oldList = deferred<PagedResponse<AdminPaymentRefund>>();
+    const latest = refund('SUCCEEDED', { id: 53, orderId: 'LATEST-REFUND-LIST' });
+    const stale = refund('SUCCEEDED', { id: 52, orderId: 'STALE-REFUND-LIST' });
+    mocks.fetchAdminPaymentRefunds
+      .mockReset()
+      .mockResolvedValueOnce(pageWith([item]))
+      .mockReturnValueOnce(oldList.promise)
+      .mockResolvedValueOnce(pageWith([refund('SUCCEEDED'), latest]));
+    mocks.fetchAdminPaymentRefund
+      .mockResolvedValueOnce(item)
+      .mockResolvedValueOnce(refund('SUCCEEDED'));
+    mocks.executeAdminPaymentRefund.mockResolvedValueOnce(refund('SUCCEEDED'));
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(1));
+    executeRefundRow(item);
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(2));
+
+    fireEvent.click(screen.getAllByRole('button', { name: '권한 보정' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    expect(await screen.findByText('LATEST-REFUND-LIST')).toBeInTheDocument();
+    await act(async () => oldList.resolve(pageWith([refund('SUCCEEDED'), stale])));
+
+    expect(screen.getByText('LATEST-REFUND-LIST')).toBeInTheDocument();
+    expect(screen.queryByText('STALE-REFUND-LIST')).not.toBeInTheDocument();
+    expect(screen.getByTestId('refund-recovery-51')).toHaveTextContent('COMMITTED');
+  });
+
+  it('ignores an old correction success list after tab switch and a newer correction load', async () => {
+    const item = correction('APPROVED');
+    const oldList = deferred<PagedResponse<AdminPaymentEntitlementCorrection>>();
+    const latest = correction('SUCCEEDED', { id: 63, userNickname: 'latest-correction-list' });
+    const stale = correction('SUCCEEDED', { id: 62, userNickname: 'stale-correction-list' });
+    mocks.fetchAdminPaymentEntitlementCorrections
+      .mockReset()
+      .mockResolvedValueOnce(pageWith([item]))
+      .mockReturnValueOnce(oldList.promise)
+      .mockResolvedValueOnce(pageWith([correction('SUCCEEDED'), latest]));
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockResolvedValueOnce(item)
+      .mockResolvedValueOnce(correction('SUCCEEDED'));
+    mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('SUCCEEDED'));
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
+    );
+    executeCorrectionRow(item);
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(2),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    expect(await screen.findByText('latest-correction-list')).toBeInTheDocument();
+    await act(async () => oldList.resolve(pageWith([correction('SUCCEEDED'), stale])));
+
+    expect(screen.getByText('latest-correction-list')).toBeInTheDocument();
+    expect(screen.queryByText('stale-correction-list')).not.toBeInTheDocument();
+    expect(screen.getByTestId('correction-recovery-61')).toHaveTextContent('COMMITTED');
+  });
+
+  it('keeps refund COMMITTED when an old success list fails after ownership changes', async () => {
+    const item = refund('APPROVED');
+    const oldList = deferred<PagedResponse<AdminPaymentRefund>>();
+    mocks.fetchAdminPaymentRefunds
+      .mockReset()
+      .mockResolvedValueOnce(pageWith([item]))
+      .mockReturnValueOnce(oldList.promise)
+      .mockResolvedValueOnce(pageWith([refund('SUCCEEDED')]));
+    mocks.fetchAdminPaymentRefund
+      .mockResolvedValueOnce(item)
+      .mockResolvedValueOnce(refund('SUCCEEDED'));
+    mocks.executeAdminPaymentRefund.mockResolvedValueOnce(refund('SUCCEEDED'));
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(1));
+    executeRefundRow(item);
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getAllByRole('button', { name: '권한 보정' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(3));
+
+    await act(async () => oldList.reject(new Error('old list failed')));
+
+    expect(screen.getByTestId('refund-recovery-51')).toHaveTextContent('COMMITTED');
+  });
+
+  it('keeps correction COMMITTED when an old success list fails after ownership changes', async () => {
+    const item = correction('APPROVED');
+    const oldList = deferred<PagedResponse<AdminPaymentEntitlementCorrection>>();
+    mocks.fetchAdminPaymentEntitlementCorrections
+      .mockReset()
+      .mockResolvedValueOnce(pageWith([item]))
+      .mockReturnValueOnce(oldList.promise)
+      .mockResolvedValueOnce(pageWith([correction('SUCCEEDED')]));
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockResolvedValueOnce(item)
+      .mockResolvedValueOnce(correction('SUCCEEDED'));
+    mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('SUCCEEDED'));
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
+    );
+    executeCorrectionRow(item);
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(2),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(3),
+    );
+
+    await act(async () => oldList.reject(new Error('old list failed')));
+
+    expect(screen.getByTestId('correction-recovery-61')).toHaveTextContent('COMMITTED');
+  });
+
+  it('deduplicates refund status reads and keeps a newer detail over a later stale list', async () => {
+    const item = refund('APPROVED');
+    const statusRead = deferred<AdminPaymentRefund>();
+    mocks.executeAdminPaymentRefund.mockRejectedValueOnce(new Error('network'));
+    mocks.fetchAdminPaymentRefund
+      .mockResolvedValueOnce(item)
+      .mockResolvedValueOnce(refund('PROCESSING'))
+      .mockReturnValueOnce(statusRead.promise);
+    await openRefunds([item]);
+    executeRefundRow(item);
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('UNKNOWN');
+
+    const statusButton = screen.getByRole('button', { name: '상태 다시 확인' });
+    fireEvent.click(statusButton);
+    fireEvent.click(statusButton);
+    expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(3);
+    await act(async () => statusRead.resolve(refund('SUCCEEDED')));
+
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('COMMITTED');
+    expect(screen.getByText('SUCCEEDED')).toBeInTheDocument();
+    expect(mocks.executeAdminPaymentRefund).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getAllByRole('button')[8]);
+    fireEvent.click(screen.getAllByRole('button')[7]);
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('SUCCEEDED')).toBeInTheDocument();
+  });
+
+  it('deduplicates correction status reads and keeps its detail over a later stale list', async () => {
+    const item = correction('APPROVED');
+    const statusRead = deferred<AdminPaymentEntitlementCorrection>();
+    mocks.executeAdminPaymentEntitlementCorrection.mockRejectedValueOnce(new Error('network'));
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockResolvedValueOnce(item)
+      .mockResolvedValueOnce(correction('PROCESSING'))
+      .mockReturnValueOnce(statusRead.promise);
+    await openCorrections([item]);
+    executeCorrectionRow(item);
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('UNKNOWN');
+
+    const statusButton = screen.getByRole('button', { name: '상태 다시 확인' });
+    fireEvent.click(statusButton);
+    fireEvent.click(statusButton);
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(3);
+    await act(async () => statusRead.resolve(correction('SUCCEEDED')));
+
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('COMMITTED');
+    expect(screen.queryByTestId('refund-recovery-51')).not.toBeInTheDocument();
+    expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getAllByRole('button')[7]);
+    fireEvent.click(screen.getAllByRole('button')[8]);
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(2),
+    );
+    expect(screen.getByText('SUCCEEDED')).toBeInTheDocument();
+  });
+
+  it('keeps refund preflight as the only status owner until a terminal result releases it', async () => {
+    const item = refund('APPROVED');
+    const linked = correction('APPROVED');
+    const preflight = deferred<AdminPaymentRefund>();
+    mocks.fetchAdminPaymentRefunds.mockReset().mockResolvedValue(pageWith([item]));
+    mocks.fetchAdminPaymentEntitlementCorrections.mockReset().mockResolvedValue(pageWith([linked]));
+    mocks.fetchAdminPaymentRefund.mockReset().mockReturnValueOnce(preflight.promise);
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(1));
+
+    const row = executeRefundRow(item);
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('UNKNOWN');
+    const statusButton = within(row).getByRole('button', { name: '상태 다시 확인' });
+    expect(statusButton).toBeDisabled();
+    fireEvent.click(statusButton);
+    statusButton.removeAttribute('disabled');
+    fireEvent.click(statusButton);
+    expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getAllByRole('button', { name: '권한 보정' })[0]);
+    const linkedRow = (await screen.findByText(linked.userNickname)).closest('tr') as HTMLElement;
+    const linkedExecute = within(linkedRow).getByRole('button', { name: '실행' });
+    expect(linkedExecute).toBeDisabled();
+    fireEvent.click(linkedExecute);
+    expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+
+    await act(async () => preflight.resolve(refund('SUCCEEDED')));
+    await waitFor(() =>
+      expect(mocks.showToast).toHaveBeenLastCalledWith('success', '환불이 이미 완료된 상태입니다.'),
+    );
+    expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(1);
+    expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
+  });
+
+  it('keeps correction preflight as the only status owner until a terminal result releases it', async () => {
+    const item = correction('APPROVED');
+    const linked = refund('APPROVED');
+    const preflight = deferred<AdminPaymentEntitlementCorrection>();
+    mocks.fetchAdminPaymentEntitlementCorrections.mockReset().mockResolvedValue(pageWith([item]));
+    mocks.fetchAdminPaymentRefunds.mockReset().mockResolvedValue(pageWith([linked]));
+    mocks.fetchAdminPaymentEntitlementCorrection.mockReset().mockReturnValueOnce(preflight.promise);
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
+    );
+
+    const row = executeCorrectionRow(item);
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('UNKNOWN');
+    const statusButton = within(row).getByRole('button', { name: '상태 다시 확인' });
+    expect(statusButton).toBeDisabled();
+    fireEvent.click(statusButton);
+    statusButton.removeAttribute('disabled');
+    fireEvent.click(statusButton);
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    const linkedRow = (await screen.findByText(linked.orderId)).closest('tr') as HTMLElement;
+    const linkedExecute = within(linkedRow).getByRole('button', { name: '실행' });
+    expect(linkedExecute).toBeDisabled();
+    fireEvent.click(linkedExecute);
+    expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
+
+    await act(async () => preflight.resolve(correction('SUCCEEDED')));
+    await waitFor(() =>
+      expect(mocks.showToast).toHaveBeenLastCalledWith(
+        'success',
+        '권한 보정이 이미 완료된 상태입니다.',
+      ),
+    );
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+    expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+  });
+
+  it('keeps refund status reads disabled from approved preflight through POST recovery', async () => {
+    const item = refund('APPROVED');
+    const linked = correction('APPROVED');
+    const preflight = deferred<AdminPaymentRefund>();
+    const execute = deferred<AdminPaymentRefund>();
+    mocks.fetchAdminPaymentRefunds.mockReset().mockResolvedValue(pageWith([item]));
+    mocks.fetchAdminPaymentEntitlementCorrections.mockReset().mockResolvedValue(pageWith([linked]));
+    mocks.fetchAdminPaymentRefund
+      .mockReset()
+      .mockReturnValueOnce(preflight.promise)
+      .mockResolvedValueOnce(refund('SUCCEEDED'));
+    mocks.executeAdminPaymentRefund.mockReturnValueOnce(execute.promise);
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(1));
+
+    const row = executeRefundRow(item);
+    await act(async () => preflight.resolve(item));
+    await waitFor(() => expect(mocks.executeAdminPaymentRefund).toHaveBeenCalledTimes(1));
+    const statusButton = within(row).getByRole('button', { name: '상태 다시 확인' });
+    expect(statusButton).toBeDisabled();
+    fireEvent.click(statusButton);
+    statusButton.removeAttribute('disabled');
+    fireEvent.click(statusButton);
+    expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('refund-recovery-51')).toHaveTextContent('UNKNOWN');
+
+    fireEvent.click(screen.getAllByRole('button', { name: '권한 보정' })[0]);
+    const linkedRow = (await screen.findByText(linked.userNickname)).closest('tr') as HTMLElement;
+    const linkedExecute = within(linkedRow).getByRole('button', { name: '실행' });
+    expect(linkedExecute).toBeDisabled();
+    fireEvent.click(linkedExecute);
+    expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+
+    await act(async () => execute.resolve(refund('SUCCEEDED')));
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(2));
+    expect(mocks.executeAdminPaymentRefund).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('COMMITTED');
+  });
+
+  it('keeps correction status reads disabled from approved preflight through POST recovery', async () => {
+    const item = correction('APPROVED');
+    const linked = refund('APPROVED');
+    const preflight = deferred<AdminPaymentEntitlementCorrection>();
+    const execute = deferred<AdminPaymentEntitlementCorrection>();
+    mocks.fetchAdminPaymentEntitlementCorrections.mockReset().mockResolvedValue(pageWith([item]));
+    mocks.fetchAdminPaymentRefunds.mockReset().mockResolvedValue(pageWith([linked]));
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockReset()
+      .mockReturnValueOnce(preflight.promise)
+      .mockResolvedValueOnce(correction('SUCCEEDED'));
+    mocks.executeAdminPaymentEntitlementCorrection.mockReturnValueOnce(execute.promise);
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
+    );
+
+    const row = executeCorrectionRow(item);
+    await act(async () => preflight.resolve(item));
+    await waitFor(() =>
+      expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1),
+    );
+    const statusButton = within(row).getByRole('button', { name: '상태 다시 확인' });
+    expect(statusButton).toBeDisabled();
+    fireEvent.click(statusButton);
+    statusButton.removeAttribute('disabled');
+    fireEvent.click(statusButton);
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('correction-recovery-61')).toHaveTextContent('UNKNOWN');
+
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    const linkedRow = (await screen.findByText(linked.orderId)).closest('tr') as HTMLElement;
+    const linkedExecute = within(linkedRow).getByRole('button', { name: '실행' });
+    expect(linkedExecute).toBeDisabled();
+    fireEvent.click(linkedExecute);
+    expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
+
+    await act(async () => execute.resolve(correction('SUCCEEDED')));
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(2),
+    );
+    expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getAllByRole('button', { name: '권한 보정' })[0]);
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('COMMITTED');
+  });
+
+  it('allows only one refund execute while rapid clicks share one pending intent', async () => {
+    const item = refund('APPROVED');
+    const execute = deferred<AdminPaymentRefund>();
+    mocks.executeAdminPaymentRefund.mockReturnValueOnce(execute.promise);
+    await openRefunds([item]);
+
+    const row = executeRefundRow(item);
+    fireEvent.click(within(row).getAllByRole('button')[1]);
+    await waitFor(() => expect(mocks.executeAdminPaymentRefund).toHaveBeenCalledTimes(1));
+
+    await act(async () => execute.resolve(refund('FAILED')));
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('FAILED');
+    expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows only one correction execute while rapid clicks share one pending intent', async () => {
+    const item = correction('APPROVED');
+    const execute = deferred<AdminPaymentEntitlementCorrection>();
+    mocks.executeAdminPaymentEntitlementCorrection.mockReturnValueOnce(execute.promise);
+    await openCorrections([item]);
+
+    const row = executeCorrectionRow(item);
+    fireEvent.click(within(row).getAllByRole('button')[1]);
+    await waitFor(() =>
+      expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1),
+    );
+
+    await act(async () => execute.resolve(correction('FAILED')));
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('FAILED');
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks a linked correction mutation while the refund intent is UNKNOWN', async () => {
+    const refundItem = refund('APPROVED');
+    const correctionItem = correction('APPROVED');
+    mocks.fetchAdminPaymentRefunds.mockReset().mockResolvedValue(pageWith([refundItem]));
+    mocks.fetchAdminPaymentEntitlementCorrections
+      .mockReset()
+      .mockResolvedValue(pageWith([correctionItem]));
+    mocks.executeAdminPaymentRefund.mockRejectedValueOnce(new Error('network'));
+    mocks.fetchAdminPaymentRefund
+      .mockResolvedValueOnce(refundItem)
+      .mockResolvedValueOnce(refund('PROCESSING'));
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: '환불' }));
+    await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(1));
+    executeRefundRow(refundItem);
+    expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('UNKNOWN');
+
+    fireEvent.click(screen.getAllByRole('button', { name: '권한 보정' })[0]);
+    const correctionRow = (await screen.findByText(correctionItem.userNickname)).closest(
+      'tr',
+    ) as HTMLElement;
+    expect(within(correctionRow).getByRole('button', { name: '실행' })).toBeDisabled();
+    expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+  });
+
+  it('blocks the linked refund mutation while the correction intent is UNKNOWN', async () => {
+    const refundItem = refund('APPROVED');
+    const correctionItem = correction('APPROVED');
+    mocks.fetchAdminPaymentRefunds.mockReset().mockResolvedValue(pageWith([refundItem]));
+    mocks.fetchAdminPaymentEntitlementCorrections
+      .mockReset()
+      .mockResolvedValue(pageWith([correctionItem]));
+    mocks.executeAdminPaymentEntitlementCorrection.mockRejectedValueOnce(new Error('network'));
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockResolvedValueOnce(correctionItem)
+      .mockResolvedValueOnce(correction('PROCESSING'));
+    render(<PaymentOperationsPage />);
+    await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getAllByRole('button')[8]);
+    await waitFor(() =>
+      expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
+    );
+    executeCorrectionRow(correctionItem);
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('UNKNOWN');
+
+    fireEvent.click(screen.getAllByRole('button')[7]);
+    const refundRow = (await screen.findByText(refundItem.orderId)).closest('tr') as HTMLElement;
+    expect(within(refundRow).getAllByRole('button')[1]).toBeDisabled();
+    expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
+  });
+
+  it('blocks other correction rows that share an ambiguous correction refund', async () => {
+    const ambiguous = correction('APPROVED');
+    const requested = correction('REQUESTED', {
+      id: 62,
+      userNickname: 'correction-requested',
+    });
+    const approved = correction('APPROVED', {
+      id: 63,
+      userNickname: 'correction-approved',
+    });
+    mocks.executeAdminPaymentEntitlementCorrection.mockRejectedValueOnce(new Error('network'));
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockResolvedValueOnce(ambiguous)
+      .mockResolvedValueOnce(correction('PROCESSING'));
+    await openCorrections([ambiguous, requested, approved]);
+    executeCorrectionRow(ambiguous);
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('UNKNOWN');
+
+    const requestedRow = screen.getByText(requested.userNickname).closest('tr') as HTMLElement;
+    const approvedRow = screen.getByText(approved.userNickname).closest('tr') as HTMLElement;
+    expect(within(requestedRow).getAllByRole('button')[0]).toBeDisabled();
+    expect(within(approvedRow).getAllByRole('button')[1]).toBeDisabled();
+    fireEvent.click(within(requestedRow).getAllByRole('button')[0]);
+    fireEvent.click(within(approvedRow).getAllByRole('button')[1]);
+    expect(mocks.approveAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+    expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks correction creation for a refund with an ambiguous correction intent', async () => {
+    const ambiguous = correction('APPROVED');
+    mocks.fetchAdminSubscriptionPlans.mockResolvedValueOnce([
+      {
+        id: 20,
+        name: 'DELUXE',
+        description: 'Deluxe plan',
+        userType: 'INDIVIDUAL',
+        priceMonthly: 19900,
+        priceYearly: 199000,
+        downloadPerDay: 20,
+        maxWhitelistChannels: 3,
+        maxPlaylists: 10,
+        isActive: true,
+      },
+    ]);
+    mocks.executeAdminPaymentEntitlementCorrection.mockRejectedValueOnce(new Error('network'));
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockResolvedValueOnce(ambiguous)
+      .mockResolvedValueOnce(correction('PROCESSING'));
+    mocks.previewAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correctionPreview);
+    await openCorrections([ambiguous]);
+    executeCorrectionRow(ambiguous);
+    expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('UNKNOWN');
+
+    fireEvent.change(screen.getByPlaceholderText('succeeded refund id'), {
+      target: { value: '51' },
+    });
+    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: '20' } });
+    fireEvent.click(screen.getByRole('button', { name: '권한 보정 미리보기' }));
+    await waitFor(() =>
+      expect(mocks.previewAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1),
+    );
+
+    const requestButton = screen.getByRole('button', { name: '권한 보정 요청 생성' });
+    expect(requestButton).toBeDisabled();
+    fireEvent.click(requestButton);
+    expect(mocks.createAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

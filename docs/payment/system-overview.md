@@ -1,6 +1,6 @@
 ---
-version: 1.6
-last_updated: 2026-07-17
+version: 1.7
+last_updated: 2026-08-12
 project: ATS
 owner: docops
 category: guide
@@ -76,6 +76,7 @@ Current payment-integrity rules:
 | `payment_operation_audit_logs` | Append-only admin/system operation audit log. |
 | `payment_refunds` | Admin refund request, approval, provider execution, idempotency, processing lease, and fenced result ledger. |
 | `payment_entitlement_corrections` | Refund-linked local access correction workflow. |
+| `payment_settlement_import_attempts` | Durable CSV import-attempt state with owner-scoped opaque digest, actor, aggregate counts, bounded operator context, and timestamps. |
 | `payment_settlements` | CSV/manual settlement evidence rows and generated reconciliation review rows. |
 
 Runtime DB note:
@@ -120,6 +121,9 @@ Direct subscription creation and legacy payment prepare/confirm/cancel APIs are 
 | `POST /api/admin/payments/entitlement-corrections/{correctionId}/approve` | Approve correction request. |
 | `POST /api/admin/payments/entitlement-corrections/{correctionId}/execute` | Execute local access correction. |
 | `POST /api/admin/payments/settlements/import` | Import settlement CSV evidence. |
+| `GET /api/admin/payments/settlement-import-attempts` | List durable CSV import attempts. |
+| `GET /api/admin/payments/settlement-import-attempts/{attemptId}` | Read one attempt by numeric ID. |
+| `GET /api/admin/payments/settlement-import-attempts/recovery` | Recover the current ADMIN's attempt using header-only `Idempotency-Key`. |
 | `GET /api/admin/payments/settlements` | List settlement rows with filters. |
 | `POST /api/admin/payments/settlements/reconcile` | Generate missing-provider settlement review rows. |
 | `PUT /api/admin/payments/settlements/{settlementId}/ignore` | Mark settlement row ignored with note. |
@@ -200,6 +204,25 @@ Allowed support-safe values include:
 - Masked payment method
 - Receipt URL or receipt key when provider returns it
 - Reconciliation status, incident metadata, and audit workflow fields
+
+Settlement import-specific boundaries:
+
+- Import accepts one canonical lowercase UUIDv4 only in the
+  `Idempotency-Key` header. The server persists only an operation/ADMIN-scoped
+  64-character digest; the raw key is absent from DB, application logs, URL,
+  query, and ADMIN responses.
+- The SPA may retain the pending raw key in browser `sessionStorage` for
+  same-attempt read recovery. It does not automatically replay the import POST.
+- Access logs, reverse proxies, tracing, and APM require separate operator
+  configuration that disables collection/recording of the header.
+- The optional 500-character operator note is user-supplied free text. The UI
+  warns against PII, credentials, payment keys, and other sensitive values.
+  The system does not derive a secret into the note and does not provide a DLP
+  guarantee that users cannot enter one.
+- Attempt evidence excludes file bytes, raw rows, raw Provider payloads,
+  credentials, and per-row errors. Import/recovery/reconciliation do not mutate
+  payment, refund, subscription, billing-agreement, receipt/mail, or Provider
+  state.
 
 Withdrawal-specific boundaries:
 

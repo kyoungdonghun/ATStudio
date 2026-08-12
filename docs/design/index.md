@@ -1,6 +1,6 @@
 ---
-version: 2.3
-last_updated: 2026-08-09
+version: 2.5
+last_updated: 2026-08-12
 project: system
 owner: SA
 category: registry
@@ -25,8 +25,8 @@ status: stable
 
 | Document | Description | Status |
 |---|---|---|
-| **[API Specification](api-spec.md)** | REST API spec v28 - 144 current method-level mappings | confirmed |
-| **[DB Schema](db-schema.md)** | Database schema v22 - verified fresh manifest: 41 tables / 493 columns / 168 indexes / 89 foreign keys / 6 plans; SHA-256 `c581bef61cfba143744882b0674daf8d8fe742d82adbbf66d6b61699f5b86333` | confirmed |
+| **[API Specification](api-spec.md)** | REST API spec v29.0 - 149 current method-level mappings | confirmed |
+| **[DB Schema](db-schema.md)** | Database schema v23.0 - 42 source tables / 42 JPA entities; current WI-056 MySQL manifest/hash pending rehearsal | confirmed |
 | **[Use Case Index](usecase/index.md)** | Domain use case documents | stable |
 | **[Payment Integration Design](payment-integration-design.md)** | TOSS recurring-only V1 with provider-neutral extension interfaces | stable |
 | **[Payment Operations Runbook](payment-operations-runbook.md)** | Toss recurring payment reconciliation and production incident response | stable |

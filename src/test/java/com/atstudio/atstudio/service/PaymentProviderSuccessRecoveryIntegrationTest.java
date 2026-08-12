@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +47,8 @@ class PaymentProviderSuccessRecoveryIntegrationTest
 
     @Autowired
     PaymentCommandTransactionService paymentCommandTransactions;
+
+    @MockitoBean BillingAgreementPrepareTransactionService billingAgreementPrepareTransactionService;
 
     @Test
     @DisplayName("provider success commits before finalization and retry finalizes without a second charge")

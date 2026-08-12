@@ -125,10 +125,55 @@ public enum BUSINESS_ERROR {
             "결제 시간이 만료되었습니다. 다시 시도해주세요.",
             "payment order가 만료되었습니다."),
 
+    PAYMENT_ORDER_TERMINAL(
+            HttpStatus.CONFLICT,
+            "이전 결제 준비 시도가 종료되었습니다. 새 결제 시도를 시작해주세요.",
+            "payment order is terminal and safe to replace with a fresh prepare attempt."),
+
     PAYMENT_AMOUNT_MISMATCH(
             HttpStatus.BAD_REQUEST,
             "결제 금액이 일치하지 않습니다.",
             "클라이언트 결제 금액과 서버 결제 주문 금액이 일치하지 않습니다."),
+
+    PAYMENT_PURPOSE_MISMATCH(
+            HttpStatus.BAD_REQUEST,
+            "\uC694\uCCAD\uD55C \uACB0\uC81C \uBAA9\uC801\uC774 \uD604\uC7AC \uAD6C\uB3C5 \uC0C1\uD0DC\uC640 \uC77C\uCE58\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+            "requested payment purpose does not match authoritative subscription state."),
+
+    PAYMENT_PREPARE_IDEMPOTENCY_KEY_INVALID(
+            HttpStatus.BAD_REQUEST,
+            "결제 준비 요청 키가 올바르지 않습니다.",
+            "Idempotency-Key must be a canonical UUID v4 value."),
+
+    PAYMENT_PREPARE_ATTEMPT_CONFLICT(
+            HttpStatus.CONFLICT,
+            "결제 준비 요청 정보가 기존 시도와 일치하지 않습니다.",
+            "claimed prepare attempt changed its authoritative tuple."),
+
+    SETTLEMENT_IMPORT_IDEMPOTENCY_KEY_INVALID(
+            HttpStatus.BAD_REQUEST,
+            "정식 소문자 UUIDv4 형식의 Idempotency-Key가 필요합니다.",
+            "Settlement import Idempotency-Key is invalid."),
+
+    SETTLEMENT_IMPORT_ATTEMPT_IN_PROGRESS(
+            HttpStatus.CONFLICT,
+            "정산 가져오기가 아직 처리 중입니다. 같은 Idempotency-Key로 복구하세요.",
+            "Settlement import attempt is already processing."),
+
+    SETTLEMENT_IMPORT_ATTEMPT_COMPLETED(
+            HttpStatus.CONFLICT,
+            "정산 가져오기가 완료되었습니다. 같은 Idempotency-Key로 결과를 복구하세요.",
+            "Settlement import attempt is already completed."),
+
+    SETTLEMENT_IMPORT_ATTEMPT_FAILED(
+            HttpStatus.CONFLICT,
+            "정산 가져오기에 실패했습니다. 새 작업을 시작하기 전에 복구 결과를 확인하세요.",
+            "Settlement import attempt is already failed."),
+
+    SETTLEMENT_IMPORT_ORCHESTRATION_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "정산 가져오기를 완료하지 못했습니다. 새 작업을 시작하기 전에 처리 결과를 복구하세요.",
+            "Settlement import orchestration failed."),
 
     PAYMENT_CONFIRM_FAILED(
             HttpStatus.BAD_REQUEST,

@@ -1,229 +1,280 @@
 ---
-version: 1.1
-last_updated: 2026-07-17
+version: 2.0
+last_updated: 2026-08-12
 project: ATS
 owner: SA
 category: design
 status: stable
-source_req: REQ-20260526-ATS-001
+dependencies:
+  - path: api-spec.md
+    reason: Current ADMIN endpoint and response contracts
+  - path: db-schema.md
+    reason: Current Settlement and import-attempt persistence contract
+  - path: payment-operations-runbook.md
+    reason: Operator procedure and recovery boundary
+  - path: ../policies/security-policy.md
+    reason: Idempotency-Key, logging, and operator-note controls
 ---
 
 # Payment Settlement Import and Reconciliation Design
 
-> Scope: ATStudio subscription payment settlement import and reconciliation.
-> This implemented design covers ATStudio's own PG-to-merchant CSV settlement evidence. It does not cover creator royalty settlement, seller payout, tax invoice issuance, cash receipt mutation, bank statement import, or Toss Settlement API automation.
+> Purpose: Define the implemented CSV settlement import, durable attempt,
+> duplicate classification, reconciliation, and recovery contracts.
 
-## 1. Purpose
+## 1. Scope
 
-ATStudio already records subscription charges, refunds, receipt evidence, reconciliation incidents, and payment operation audit logs. The next accounting-facing operation is to compare provider settlement evidence with ATStudio's local payment/refund ledgers.
+This design covers ATStudio's PG-to-merchant subscription settlement evidence:
 
-This feature answers:
+- ADMIN CSV import through `CSV_MANUAL`.
+- Durable CSV import-attempt evidence and response-loss recovery.
+- Atomic Settlement-row duplicate classification.
+- Generated `SYSTEM_RECONCILIATION` review rows.
+- Aggregate count conservation and orderless local-payment classification.
 
-- Did a provider settlement row map to a local subscription payment?
-- Did a local subscription payment appear in settlement evidence?
-- Do gross amount, refund amount, fee, VAT, and net settlement amount look consistent?
-- Which settlement rows need operator review?
+It does not cover creator royalty settlement, seller payout, tax invoice or
+cash-receipt mutation, bank statement import, retained-data migration, or Toss
+Settlement API automation. `TOSS_API` remains a future adapter.
 
-Settlement reconciliation must not mutate subscription access, payment status, refund status, billing agreements, or provider state.
+CSV filename, MIME, byte-size, encoding, dialect/grammar, duplicate-header,
+row-width, financial/provider field bounds, date-span, row-ceiling, batching,
+cursoring, and retry-policy hardening remains held and out of scope for
+WI-20260809-ATS-067 (`CR-031-115`, `CR-031-116`, `CR-031-118`). The current
+parser behavior below is an implementation observation, not completed WI-067
+hardening.
 
-## 2. Source Adapter Strategy
+## 2. Current Source Adapters
 
-Settlement source is modeled as an adapter boundary.
-
-| Source | Status | Notes |
+| Source | Status | Current behavior |
 |---|---|---|
-| `CSV_MANUAL` | First implementation | Admin uploads a CSV settlement file using the ATStudio settlement template. Excel files should be exported to CSV first. |
-| `TOSS_API` | Future adapter | Toss Settlement API can be added later without replacing the ledger, reconciliation rules, or admin UI. |
-| `SYSTEM_RECONCILIATION` | First implementation | System-generated review rows for local finalized payments that have no imported provider settlement evidence in the selected period. |
+| `CSV_MANUAL` | Implemented | ADMIN uploads CSV evidence; accepted rows are reconciled against local ledgers. |
+| `SYSTEM_RECONCILIATION` | Implemented | A selected date range generates review rows for finalized local payments without imported provider evidence. |
+| `TOSS_API` | Future | No current provider call or automated settlement adapter exists. |
 
-The application should normalize all sources into the same internal settlement row model. CSV import is not a one-off shortcut; it is the first source adapter.
+Settlement reconciliation is accounting visibility. It never changes user
+access, payment/refund status, billing agreements, receipts, mail, or Provider
+state.
 
-## 3. CSV Template
+## 3. Observed CSV Contract
 
-Initial template columns:
+Required headers are case-sensitive:
 
-| Column | Required | Meaning |
+- `provider`
+- `order_id`
+- `gross_amount`
+- `net_settlement_amount`
+- `settlement_base_date`
+
+Current optional fields include provider payment/settlement identifiers,
+refund/fee/VAT amounts, payout date, provider status, currency, and row note.
+Amounts must parse as non-negative decimal values, `order_id` is bounded to 64
+characters, dates use `yyyy-MM-dd`, and currency is a three-character code.
+Blank lines are skipped and the current service guard accepts at most 1,000
+nonblank data rows. UTF-8 BOM, quoted commas, and escaped double quotes are
+handled by the current line parser; unknown columns are ignored.
+
+These observations do not imply support for multiline quoted values or a
+complete CSV grammar. Excel files must be exported to CSV. No parser-hardening
+item owned by WI-067 is described as implemented.
+
+## 4. Durable CSV Import Attempt
+
+`payment_settlement_import_attempts` records every successfully claimed,
+nonempty CSV import operation, including all-duplicate and orchestration-failed
+attempts.
+
+| Field | Contract |
+|---|---|
+| `id` | Numeric durable identity; public batch value is `ATS-SETTLE-ATTEMPT-{id}`. |
+| `key_digest` | Unique 64-character owner-scoped opaque digest; the raw key is never stored. |
+| `actor_user_id` | Authenticated active ADMIN that claimed the attempt. |
+| `state` | `PROCESSING`, `COMPLETED`, or `FAILED`. |
+| count fields | `total_rows`, `imported_rows`, `duplicate_rows`, `failed_rows`. |
+| `operator_note` | Optional operator-supplied text, normalized and bounded to 500 characters for the attempt row. |
+| `failure_code` | Bounded internal orchestration code, never a raw exception message. |
+| timestamps | Creation/update, terminal completion time. |
+
+A `COMPLETED` row can represent full success, partial success, or an
+all-duplicate file. Entity logic and the database check constraint both require:
+
+```text
+total_rows = imported_rows + duplicate_rows + failed_rows
+```
+
+The attempt ledger does not store operation type/source columns because this
+table is CSV-import-specific. It also does not store file bytes, raw rows,
+filename, Provider payloads, Provider credentials, per-row error text, or
+`statusCounts`. Parsed Settlement rows retain their existing structured source
+fields and batch linkage; the attempt remains the file-operation ledger.
+
+An empty multipart file, invalid ADMIN principal, or invalid Idempotency-Key is
+rejected before an attempt is claimed. A claimed nonempty file that cannot be
+read or orchestrated reaches terminal `FAILED` with a bounded failure code.
+
+## 5. Idempotency-Key and Recovery
+
+`POST /api/admin/payments/settlements/import` requires a canonical lowercase
+UUIDv4 in `Idempotency-Key`. The value is not trimmed or normalized. The server
+derives:
+
+```text
+SHA-256("settlement-csv-import\0v1\0" + adminUserId + "\0" + rawKey)
+```
+
+Only the 64-character digest is persisted. Including the ADMIN ID makes the
+same raw key independent across owners. The raw key is absent from the database,
+application logs, request URL, and query string. The browser keeps the pending
+raw key in `sessionStorage` only for same-attempt recovery.
+
+The attempt claim occurs before CSV parsing. A duplicate claim for the same
+owner/key never processes the file again and returns HTTP `409` with a stable
+business error for the durable state:
+
+| Existing state | POST result | Required next action |
 |---|---|---|
-| `provider` | yes | `TOSS` for current recurring subscription settlement evidence. |
-| `provider_payment_key` | conditional | Toss payment key or equivalent provider payment identifier. Required when available. |
-| `order_id` | yes | Merchant order ID used by ATStudio payment orders. |
-| `provider_settlement_id` | optional | Provider settlement row identifier if available. |
-| `gross_amount` | yes | Original payment amount included in settlement evidence. |
-| `refund_amount` | no | Refunded amount included in settlement evidence. Defaults to `0`. |
-| `fee_amount` | no | Provider fee. Defaults to `0` if not provided. |
-| `vat_amount` | no | VAT/tax amount for fee/settlement evidence when provided. |
-| `net_settlement_amount` | yes | Amount expected to be paid to ATStudio after refund/fee/tax adjustment. |
-| `settlement_base_date` | yes | Provider settlement sales/base date. |
-| `settlement_payout_date` | no | Expected or actual payout date. |
-| `provider_status` | no | Provider settlement status text. |
-| `currency` | no | Defaults to `KRW`. |
-| `note` | no | Operator import note. |
+| `PROCESSING` | `SETTLEMENT_IMPORT_ATTEMPT_IN_PROGRESS` | Read recovery with the same key. |
+| `COMPLETED` | `SETTLEMENT_IMPORT_ATTEMPT_COMPLETED` | Read the durable aggregate with the same key. |
+| `FAILED` | `SETTLEMENT_IMPORT_ATTEMPT_FAILED` | Read the failure, then use a new key only for a new explicit action. |
 
-Validation rules:
+No file fingerprint or note/file equivalence comparison is performed. A key
+identifies one explicit operation, not file content.
 
-- Header names are stable and case-sensitive in the first implementation.
-- Amount fields must be integer KRW values or decimal-compatible numeric strings.
-- `gross_amount`, `refund_amount`, `fee_amount`, `vat_amount`, and `net_settlement_amount` cannot be negative.
-- `order_id` must be present and at most 64 characters.
-- `provider_payment_key` and `provider_settlement_id` are support-safe identifiers, not secrets.
-- Unknown extra columns are ignored unless an import adapter explicitly maps them later.
+ADMIN-only read APIs are:
 
-## 4. Ledger Model
-
-Primary table: `payment_settlements`
-
-Core fields:
-
-- source: `CSV_MANUAL`, `SYSTEM_RECONCILIATION`, future `TOSS_API`
-- provider
-- provider settlement ID
-- provider payment key
-- order ID
-- matched payment order ID
-- matched subscription payment ID
-- import batch ID
-- source file name
-- source row number
-- gross amount
-- refund amount
-- fee amount
-- VAT amount
-- net settlement amount
-- currency
-- settlement base date
-- settlement payout date
-- provider status
-- reconciliation status
-- mismatch reason
-- reconciled at
-- ignored at/by/note
-- sanitized source payload
-- created/updated timestamps
-
-Optional future table: `payment_settlement_import_batches`
-
-This table stores import-level metadata:
-
-- file name
-- source
-- provider
-- imported by
-- total rows
-- imported rows
-- skipped duplicate rows
-- failed rows
-- created timestamp
-
-The first implementation keeps import batch metadata in the service response and per-row `import_batch_key` only. If batch history becomes useful in admin UI, prefer adding this table later rather than overloading `payment_settlements`.
-
-## 5. Status Model
-
-Settlement reconciliation status candidates:
-
-| Status | Meaning |
+| API | Result |
 |---|---|
-| `IMPORTED` | Row was imported but not reconciled yet. |
-| `MATCHED` | Local payment/refund data and settlement evidence are consistent enough for current policy. |
-| `MISMATCHED` | A local record exists, but amount/refund/fee/net settlement values need review. |
-| `LOCAL_PAYMENT_NOT_FOUND` | Provider settlement evidence exists but local subscription payment/order was not found. |
-| `PROVIDER_SETTLEMENT_NOT_FOUND` | Local finalized payment has no corresponding settlement evidence for the selected period. |
-| `IGNORED` | Operator intentionally excludes this row from active review. |
+| `GET /api/admin/payments/settlement-import-attempts` | Paged latest-first list under `dataList` and `pageInfo`. |
+| `GET /api/admin/payments/settlement-import-attempts/{attemptId}` | Numeric-ID detail under `data`. |
+| `GET /api/admin/payments/settlement-import-attempts/recovery` | Owner-scoped lookup using only the `Idempotency-Key` header. |
 
-`PROVIDER_SETTLEMENT_NOT_FOUND` can be represented as a generated reconciliation issue rather than an imported row if there is no provider row. The UI should still show it as a settlement reconciliation issue.
+Recovery returns aggregate durable evidence only. Per-row errors remain
+response-only because retaining them would retain imported row context.
 
-## 6. Matching Rules
+## 6. Transaction and Constraint Classification
 
-Primary matching:
+The import orchestrator is not one outer database transaction:
 
-1. Match by `order_id` to `payment_orders.order_id`.
-2. Match by `provider_payment_key` to `payment_orders.pg_transaction_id` or `subscription_payments.provider_transaction_id` if available.
-3. Resolve `subscription_payments` by linked `payment_order_id` or `order_id`.
+1. Claim the attempt in `REQUIRES_NEW` through
+   `uq_payment_settlement_import_attempts_key_digest`.
+2. Parse the file in the orchestrator.
+3. Reconcile and `saveAndFlush` each usable Settlement plus its row audit in a
+   separate `REQUIRES_NEW` row transaction.
+4. Catch a row constraint exception only after that row transaction rolls back.
+5. Complete or fail the attempt in another `REQUIRES_NEW` transaction guarded
+   by a pessimistic lock and terminal-state check.
 
-Amount checks:
+This boundary prevents a losing duplicate insert from leaving the caller in a
+rollback-only transaction or erasing an unrelated successful row.
 
-- `gross_amount` should match `subscription_payments.amount`.
-- `refund_amount` should match the sum of succeeded `payment_refunds.amount` for that subscription payment.
-- `net_settlement_amount` should equal `gross_amount - refund_amount - fee_amount - vat_amount` when all values are present and provider policy matches that formula.
-- `fee_amount` and `vat_amount` are evidence fields; mismatch policy is warning-first because provider contract rules can vary.
+Constraint translation is fail-closed:
 
-Date checks:
+- Settlement duplicate classification accepts the exact Hibernate constraint
+  name `uq_payment_settlements_deduplication_key`, a MySQL duplicate-entry
+  message naming that exact key, or H2 SQLState `23505` identifying
+  `payment_settlements(deduplication_key)`. A post-rollback read must also find
+  the exact deduplication winner.
+- Attempt replay classification accepts the exact Hibernate constraint name
+  `uq_payment_settlement_import_attempts_key_digest`, MySQL SQLState `23000`
+  plus error `1062` and the exact key reference, or H2 SQLState `23505` plus the
+  exact constraint/table/column signature.
+- An unrelated foreign-key, check, not-null, or differently named unique
+  violation is never translated to duplicate/replay. Import marks the durable
+  attempt failed and returns the orchestration error; reconciliation classifies
+  that selected row as failed.
 
-- `settlement_base_date` is not assumed to be the local payment date.
-- `settlement_payout_date` is not used to mutate revenue recognition or payment state.
+The MySQL signatures above are covered by synthetic exception-classification
+tests. WI-056 integration/concurrency proof used H2; no MySQL lock, isolation,
+deadlock, or constraint-message rehearsal was run.
 
-## 7. Admin APIs
+## 7. Import Outcome Rules
 
-Initial backend API shape:
+For every normal import response:
 
-| API | Purpose |
-|---|---|
-| `POST /api/admin/payments/settlements/import` | Import settlement CSV evidence and reconcile imported rows. |
-| `GET /api/admin/payments/settlements` | Paginated settlement row list with optional status/source/date filters. |
-| `POST /api/admin/payments/settlements/reconcile` | Scan local finalized payments for selected date range and create missing-provider evidence review rows. |
-| `PUT /api/admin/payments/settlements/{settlementId}/ignore` | Mark a settlement row as ignored with an operator note. |
+```text
+totalRows = importedRows + skippedDuplicateRows + failedRows
+sum(statusCounts.values) = importedRows
+```
 
-The import endpoint should return:
+`statusCounts` describes only newly persisted Settlement rows. Duplicate and
+invalid rows do not inflate status counts. Every imported row appends exactly
+one `PAYMENT_SETTLEMENT_IMPORTED` audit in the same successful row transaction;
+the duplicate path appends no second import audit.
 
-- total row count
-- imported count
-- skipped duplicate count
-- failed row count
-- status counts
-- row-level validation errors when import fails partially
+The initial response includes all currently returned row-number/message errors.
+The attempt ledger keeps only counts. A same-key POST never recreates a
+Settlement, audit, or attempt.
 
-## 8. Admin UI
+## 8. Missing-Settlement Reconciliation
 
-Recommended UI location: `/admin/payments` settlement tab.
+Reconciliation remains separate from the CSV attempt ledger and has no
+Idempotency-Key or recovery API in WI-056. It selects finalized local payments
+for the requested date range and classifies each selected row exactly once:
 
-The first UI should provide:
+- imported: a new `PROVIDER_SETTLEMENT_NOT_FOUND` review row and one
+  `PAYMENT_SETTLEMENT_RECONCILED` audit are persisted;
+- duplicate: provider evidence or an exact deduplication winner already exists;
+- failed: the payment is orderless/unusable or row persistence fails.
 
-- CSV import form
-- template guidance through the documented CSV header set
-- import result summary
-- settlement row table
-- filters: status, source, settlement base date, payout date
-- columns: status, order ID, provider payment key, gross/refund/fee/VAT/net amounts, base date, payout date, matched local IDs, mismatch reason
-- ignore action with a note for rows intentionally excluded from active review
+An orderless finalized payment increments `failedRows` once and returns a
+bounded error without creating a Settlement or row audit. Every normal response
+satisfies the same total-count invariant, and its `statusCounts` sum equals
+`importedRows`.
 
-## 9. Audit and Security Boundary
+## 9. Frontend Recovery State
 
-Allowed support-safe fields:
+The Settlement tab creates a secure UUIDv4 only after explicit confirmation,
+stores one pending record under
+`ats.admin.settlement-import-attempt.v1`, and sends one POST with authentication
+replay disabled.
 
-- order ID
-- provider
-- provider payment key
-- provider settlement ID
-- settlement dates
-- amounts
-- status
-- mismatch reason
-- source file name
-- source row number
+- A transport error triggers one read-only recovery GET with the same key.
+- `PROCESSING` retains the key, selected `File`, DOM input, and note and exposes
+  a manual recovery button. There is no polling or automatic second POST.
+- A pending stored attempt blocks a new import. Corrupt stored state fails
+  closed and also blocks import/recovery until the browser session is cleared.
+- Terminal recovery clears the pending key. `FAILED` requires a new explicit
+  action; `COMPLETED` reloads the Settlement list.
+- Only a completed zero-failure outcome plus successful list reload clears the
+  selected file and keyed DOM input. Partial outcomes retain correction context.
+- Per-row errors cannot be reconstructed from recovery because they are not
+  persisted; the screen states that limitation.
 
-Forbidden:
+The optional operator-note textarea has `maxLength=500` and a visible warning
+not to enter PII, credentials, payment keys, or other sensitive information.
+The application stores the operator's text as local evidence; it does not
+derive secrets from it and does not claim that free text can never contain a
+secret.
 
-- raw card number
-- CVC or expiry
-- billing key
-- authKey
-- customerKey
-- Toss secret key
-- raw provider payload
-- bank account secrets
+## 10. Security and Side-Effect Boundary
 
-Audit expectations:
+- Application code and tests do not log the raw Idempotency-Key or operator
+  note. Infrastructure owners must separately configure access logs, reverse
+  proxies, tracing, and APM not to collect or record `Idempotency-Key`.
+- The raw key is header-only for import and recovery. It is never accepted in a
+  path or query parameter.
+- Imported files, raw rows, raw Provider payloads, credentials, and secrets are
+  not retained in the attempt ledger.
+- Import/recovery may read local order, finalized-payment, and succeeded-refund
+  evidence. Intended writes are limited to the import attempt, Settlement, and
+  Settlement row audit ledgers.
+- Reconciliation writes only Settlement rows and row audits. Import,
+  reconciliation, list, detail, recovery, and IGNORE do not charge, refund,
+  cancel, mutate subscription/billing-agreement/payment state, create receipt
+  or mail effects, or call a Provider.
 
-- Settlement import should create an operation audit row or batch history row.
-- Ignore/status actions should create operation audit rows.
-- Audit rows should not contain the full imported file.
+## 11. Verification Boundary
 
-## 10. Acceptance Checklist
+Focused H2 evidence proves one durable Settlement and one row audit under a
+same-row race, complementary imported/duplicate outcomes, isolated unrelated
+rows in a multi-row race, all-duplicate durable attempts, same-key no-reprocess,
+owner isolation, count conservation, and zero forbidden side effects.
 
-- Importing a valid template creates settlement rows.
-- Re-importing the same rows does not create duplicates.
-- A row matching a local completed subscription payment is marked `MATCHED` when amounts align.
-- A row with a different gross/refund/net amount is marked `MISMATCHED`.
-- A row with no local payment match is marked `LOCAL_PAYMENT_NOT_FOUND`.
-- A local payment without settlement evidence can be reported as `PROVIDER_SETTLEMENT_NOT_FOUND` for a selected period.
-- Ignored rows remain auditable and can be filtered separately from active review rows.
-- No settlement action changes user subscription access, billing agreements, payment status, refund status, or provider state.
+This does not certify MySQL InnoDB lock timing, deadlock handling, isolation,
+current fresh-schema manifest/hash, retained-data migration, live Provider
+behavior, production logging configuration, deployment, or operator acceptance.
+
+## Related Documents
+
+- [API Specification](api-spec.md): Current endpoint and response contract.
+- [DB Schema](db-schema.md): Current fresh-only DDL and entity contract.
+- [Payment Operations Runbook](payment-operations-runbook.md): Operator procedure.
+- [Security Policy](../policies/security-policy.md): Key, logging, and free-text controls.

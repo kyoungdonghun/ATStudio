@@ -1,10 +1,11 @@
 import client from '@/api/client';
+import type { UserType } from '@/types';
 
 export interface SubscriptionPlan {
   id: number;
   name: string;
   description: string;
-  userType: string;
+  userType: UserType;
   priceMonthly: number;
   priceYearly: number;
   downloadPerDay: number;

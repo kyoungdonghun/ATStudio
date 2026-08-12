@@ -23,14 +23,11 @@ import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
-import com.atstudio.atstudio.repository.CompanyCertificationRepository;
 import com.atstudio.atstudio.repository.PaymentOrderRepository;
 import com.atstudio.atstudio.repository.SubscriptionPaymentRepository;
-import com.atstudio.atstudio.repository.SubscriptionRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.repository.UserSubscriptionRepository;
 import com.atstudio.atstudio.security.CustomUserDetails;
-import com.atstudio.atstudio.service.payment.billing.BillingCustomerKeyGenerator;
 import com.atstudio.atstudio.service.payment.billing.BillingKeyCrypto;
 import com.atstudio.atstudio.service.payment.provider.recurring.BillingAgreementCancelResult;
 import com.atstudio.atstudio.service.payment.provider.recurring.BillingAgreementConfirmResult;
@@ -47,6 +44,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -58,50 +56,86 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("BillingAgreementApplicationService unit tests")
 class BillingAgreementApplicationServiceTest {
 
+    private static final String PREPARE_KEY = "123e4567-e89b-42d3-a456-426614174000";
+
     @Mock UserRepository userRepository;
-    @Mock SubscriptionRepository subscriptionRepository;
     @Mock UserSubscriptionRepository userSubscriptionRepository;
     @Mock PaymentOrderRepository paymentOrderRepository;
     @Mock SubscriptionPaymentRepository subscriptionPaymentRepository;
     @Mock BillingAgreementRepository billingAgreementRepository;
-    @Mock CompanyCertificationRepository companyCertificationRepository;
     @Mock PlaylistService playlistService;
-    @Mock BillingCustomerKeyGenerator billingCustomerKeyGenerator;
     @Mock BillingKeyCrypto billingKeyCrypto;
     @Mock PaymentReceiptEvidenceService paymentReceiptEvidenceService;
     @Mock PaymentCommandTransactionService paymentCommandTransactionService;
     @Mock BillingAgreementCleanupTransactionService billingAgreementCleanupTransactionService;
     @Mock BillingAgreementCleanupProviderExecutor billingAgreementCleanupProviderExecutor;
+    @Mock BillingAgreementPrepareTransactionService billingAgreementPrepareTransactionService;
     @Mock RecurringPaymentProvider recurringPaymentProvider;
+
+    PaymentCommandKeyFactory paymentCommandKeyFactory = new PaymentCommandKeyFactory();
 
     BillingAgreementApplicationService service;
 
     @BeforeEach
     void setUp() {
         given(recurringPaymentProvider.getProviderType()).willReturn(PaymentProviderType.TOSS);
+        lenient().when(recurringPaymentProvider.supportsPureDeterministicPrepare()).thenReturn(true);
+        lenient().when(billingAgreementPrepareTransactionService.ensureAgreement(
+                        anyLong(), any(), any(LocalDateTime.class)))
+                .thenReturn(200L);
+        lenient().when(billingAgreementPrepareTransactionService.claim(
+                        anyLong(), any(), anyString(), any(LocalDateTime.class)))
+                .thenAnswer(invocation -> {
+                    Long userID = invocation.getArgument(0);
+                    BillingAgreementPrepareRequest request = invocation.getArgument(1);
+                    String commandKey = invocation.getArgument(2);
+                    BigDecimal amount = request.purpose() == PaymentPurpose.SUBSCRIBE
+                            ? BigDecimal.valueOf(9900)
+                            : BigDecimal.ZERO;
+                    return new BillingAgreementPrepareTransactionService.PrepareClaim(
+                            userID,
+                            request.subscriptionId(),
+                            request.billingCycle(),
+                            request.purpose(),
+                            200L,
+                            "ATS-BILL-TEST",
+                            commandKey,
+                            "ats_billing_customer_1",
+                            PaymentProviderType.TOSS,
+                            BillingAgreementStatus.READY,
+                            amount,
+                            "KRW",
+                            LocalDateTime.now().plusMinutes(15));
+                });
+        lenient().when(billingAgreementPrepareTransactionService.finalizeDescriptor(
+                        any(), any(), any(LocalDateTime.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
         service = new BillingAgreementApplicationService(
                 userRepository,
-                subscriptionRepository,
                 userSubscriptionRepository,
                 paymentOrderRepository,
                 billingAgreementRepository,
-                companyCertificationRepository,
-                billingCustomerKeyGenerator,
                 billingKeyCrypto,
                 paymentCommandTransactionService,
                 billingAgreementCleanupTransactionService,
                 billingAgreementCleanupProviderExecutor,
+                billingAgreementPrepareTransactionService,
+                paymentCommandKeyFactory,
                 List.of(recurringPaymentProvider)
         );
     }
@@ -109,21 +143,6 @@ class BillingAgreementApplicationServiceTest {
     @Test
     @DisplayName("prepare creates READY billing agreement and TOSS_BILLING payment order")
     void prepareBillingAgreement_success() {
-        User user = buildUser(1L);
-        Subscription subscription = buildSubscription(10L);
-
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(subscriptionRepository.findById(10L)).willReturn(Optional.of(subscription));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                .willReturn(Optional.empty());
-        given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
-                .willReturn(Optional.empty());
-        given(billingCustomerKeyGenerator.generate()).willReturn("ats_billing_customer_1");
-        given(billingAgreementRepository.save(any(BillingAgreement.class)))
-                .willAnswer(invocation -> invocation.getArgument(0));
-        given(paymentOrderRepository.existsByOrderId(anyString())).willReturn(false);
-        given(paymentOrderRepository.save(any(PaymentOrder.class)))
-                .willAnswer(invocation -> invocation.getArgument(0));
         given(recurringPaymentProvider.prepareAgreement(any()))
                 .willReturn(new BillingAgreementPrepareResult(
                         PaymentProviderType.TOSS,
@@ -139,39 +158,86 @@ class BillingAgreementApplicationServiceTest {
 
         BillingAgreementPrepareResponse response = service.prepareBillingAgreement(
                 buildUserDetails(1L),
-                new BillingAgreementPrepareRequest(10L, BillingCycle.MONTHLY));
+                new BillingAgreementPrepareRequest(
+                        10L,
+                        BillingCycle.MONTHLY,
+                        PaymentPurpose.SUBSCRIBE),
+                PREPARE_KEY);
 
         assertThat(response.provider()).isEqualTo(PaymentProviderType.TOSS);
+        assertThat(response.purpose()).isEqualTo(PaymentPurpose.SUBSCRIBE);
         assertThat(response.agreementStatus()).isEqualTo(BillingAgreementStatus.READY);
+        assertThat(response.subscriptionId()).isEqualTo(10L);
+        assertThat(response.billingCycle()).isEqualTo(BillingCycle.MONTHLY);
         assertThat(response.amount()).isEqualByComparingTo(BigDecimal.valueOf(9900));
+        assertThat(response.currency()).isEqualTo("KRW");
         assertThat(response.checkout().customerKey()).isEqualTo("ats_billing_customer_1");
         assertThat(response.checkout().method()).isEqualTo("CARD");
-        verify(paymentOrderRepository).save(any(PaymentOrder.class));
+
+        InOrder ordering = inOrder(billingAgreementPrepareTransactionService, recurringPaymentProvider);
+        ordering.verify(billingAgreementPrepareTransactionService)
+                .ensureAgreement(eq(1L), any(), any(LocalDateTime.class));
+        ordering.verify(billingAgreementPrepareTransactionService)
+                .claim(eq(1L), any(), anyString(), any(LocalDateTime.class));
+        ordering.verify(recurringPaymentProvider).prepareAgreement(any());
+        ordering.verify(billingAgreementPrepareTransactionService)
+                .finalizeDescriptor(any(), any(), any(LocalDateTime.class));
         verify(userSubscriptionRepository, never()).save(any(UserSubscription.class));
+    }
+
+    @Test
+    @DisplayName("prepare rethrows an unexpected integrity failure instead of translating it to conflict")
+    void prepareBillingAgreement_unexpectedIntegrityFailureIsRethrown() {
+        DataIntegrityViolationException unexpected =
+                new DataIntegrityViolationException("uq_unrelated_integrity_constraint");
+
+        given(billingAgreementPrepareTransactionService.claim(
+                eq(1L), any(), anyString(), any(LocalDateTime.class)))
+                .willThrow(unexpected);
+
+        assertThatThrownBy(() -> service.prepareBillingAgreement(
+                buildUserDetails(1L),
+                new BillingAgreementPrepareRequest(
+                        10L,
+                        BillingCycle.MONTHLY,
+                        PaymentPurpose.SUBSCRIBE),
+                PREPARE_KEY))
+                .isSameAs(unexpected);
+
+        verify(recurringPaymentProvider, never()).prepareAgreement(any());
+    }
+
+    @Test
+    @DisplayName("prepare retries only the named first-agreement unique loser")
+    void prepareBillingAgreement_retriesNamedAgreementUniqueLoser() {
+        DataIntegrityViolationException expectedRace = new DataIntegrityViolationException(
+                "duplicate agreement claim",
+                new RuntimeException("constraint uq_billing_agreements_user_provider"));
+        given(billingAgreementPrepareTransactionService.ensureAgreement(
+                eq(1L), any(), any(LocalDateTime.class)))
+                .willThrow(expectedRace)
+                .willReturn(200L);
+        stubSuccessfulPrepareOrder();
+
+        BillingAgreementPrepareResponse response = service.prepareBillingAgreement(
+                buildUserDetails(1L),
+                new BillingAgreementPrepareRequest(
+                        10L,
+                        BillingCycle.MONTHLY,
+                        PaymentPurpose.SUBSCRIBE),
+                PREPARE_KEY);
+
+        assertThat(response.orderId()).isEqualTo("ATS-BILL-TEST");
+        verify(billingAgreementPrepareTransactionService, times(2))
+                .ensureAgreement(eq(1L), any(), any(LocalDateTime.class));
+        verify(billingAgreementPrepareTransactionService)
+                .claim(eq(1L), any(), anyString(), any(LocalDateTime.class));
+        verify(recurringPaymentProvider).prepareAgreement(any());
     }
 
     @Test
     @DisplayName("prepare creates zero-amount billing agreement order for active subscription re-registration")
     void prepareBillingAgreement_activeSubscriptionReRegistration() {
-        User user = buildUser(1L);
-        Subscription subscription = buildSubscription(10L);
-        UserSubscription activeSubscription = buildUserSubscription(
-                100L,
-                user,
-                subscription,
-                SubscriptionStatus.ACTIVE);
-        BillingAgreement agreement = buildReadyAgreement(user);
-        agreement.expire();
-
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(subscriptionRepository.findById(10L)).willReturn(Optional.of(subscription));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                .willReturn(Optional.of(activeSubscription));
-        given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
-                .willReturn(Optional.of(agreement));
-        given(paymentOrderRepository.existsByOrderId(anyString())).willReturn(false);
-        given(paymentOrderRepository.save(any(PaymentOrder.class)))
-                .willAnswer(invocation -> invocation.getArgument(0));
         given(recurringPaymentProvider.prepareAgreement(any()))
                 .willReturn(new BillingAgreementPrepareResult(
                         PaymentProviderType.TOSS,
@@ -187,15 +253,191 @@ class BillingAgreementApplicationServiceTest {
 
         BillingAgreementPrepareResponse response = service.prepareBillingAgreement(
                 buildUserDetails(1L),
-                new BillingAgreementPrepareRequest(10L, BillingCycle.MONTHLY));
+                new BillingAgreementPrepareRequest(
+                        10L,
+                        BillingCycle.MONTHLY,
+                        PaymentPurpose.BILLING_AGREEMENT),
+                PREPARE_KEY);
 
         assertThat(response.amount()).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.READY);
+        assertThat(response.provider()).isEqualTo(PaymentProviderType.TOSS);
+        assertThat(response.purpose()).isEqualTo(PaymentPurpose.BILLING_AGREEMENT);
+        assertThat(response.subscriptionId()).isEqualTo(10L);
+        assertThat(response.billingCycle()).isEqualTo(BillingCycle.MONTHLY);
+        assertThat(response.currency()).isEqualTo("KRW");
+        verify(billingAgreementPrepareTransactionService)
+                .claim(eq(1L), any(), anyString(), any(LocalDateTime.class));
+        verify(recurringPaymentProvider).prepareAgreement(any());
+    }
 
-        ArgumentCaptor<PaymentOrder> orderCaptor = ArgumentCaptor.forClass(PaymentOrder.class);
-        verify(paymentOrderRepository).save(orderCaptor.capture());
-        assertThat(orderCaptor.getValue().getPurpose()).isEqualTo(PaymentPurpose.BILLING_AGREEMENT);
-        assertThat(orderCaptor.getValue().getUserSubscription()).isEqualTo(activeSubscription);
+    @Test
+    @DisplayName("prepare rejects billing-agreement intent for a non-subscriber before side effects")
+    void prepareBillingAgreement_nonSubscriberPurposeMismatch() {
+        given(billingAgreementPrepareTransactionService.ensureAgreement(
+                eq(1L), any(), any(LocalDateTime.class)))
+                .willThrow(new BusinessException(BUSINESS_ERROR.PAYMENT_PURPOSE_MISMATCH));
+
+        assertThatThrownBy(() -> service.prepareBillingAgreement(
+                buildUserDetails(1L),
+                new BillingAgreementPrepareRequest(
+                        10L,
+                        BillingCycle.MONTHLY,
+                        PaymentPurpose.BILLING_AGREEMENT),
+                PREPARE_KEY))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PAYMENT_PURPOSE_MISMATCH));
+
+        assertNoPrepareSideEffects();
+    }
+
+    @Test
+    @DisplayName("prepare rejects subscribe intent for an active subscriber before side effects")
+    void prepareBillingAgreement_activeSubscriberPurposeMismatch() {
+        given(billingAgreementPrepareTransactionService.ensureAgreement(
+                eq(1L), any(), any(LocalDateTime.class)))
+                .willThrow(new BusinessException(BUSINESS_ERROR.PAYMENT_PURPOSE_MISMATCH));
+
+        assertThatThrownBy(() -> service.prepareBillingAgreement(
+                buildUserDetails(1L),
+                new BillingAgreementPrepareRequest(
+                        10L,
+                        BillingCycle.MONTHLY,
+                        PaymentPurpose.SUBSCRIBE),
+                PREPARE_KEY))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.PAYMENT_PURPOSE_MISMATCH));
+
+        assertNoPrepareSideEffects();
+    }
+
+    @Test
+    @DisplayName("prepare rejects billing re-registration for a different current plan")
+    void prepareBillingAgreement_currentPlanMismatch() {
+        given(billingAgreementPrepareTransactionService.ensureAgreement(
+                eq(1L), any(), any(LocalDateTime.class)))
+                .willThrow(new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE));
+
+        assertThatThrownBy(() -> service.prepareBillingAgreement(
+                buildUserDetails(1L),
+                new BillingAgreementPrepareRequest(
+                        11L,
+                        BillingCycle.MONTHLY,
+                        PaymentPurpose.BILLING_AGREEMENT),
+                PREPARE_KEY))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE));
+
+        assertNoPrepareSideEffects();
+    }
+
+    @Test
+    @DisplayName("prepare rejects billing re-registration for a different current cycle")
+    void prepareBillingAgreement_currentCycleMismatch() {
+        given(billingAgreementPrepareTransactionService.ensureAgreement(
+                eq(1L), any(), any(LocalDateTime.class)))
+                .willThrow(new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE));
+
+        assertThatThrownBy(() -> service.prepareBillingAgreement(
+                buildUserDetails(1L),
+                new BillingAgreementPrepareRequest(
+                        10L,
+                        BillingCycle.YEARLY,
+                        PaymentPurpose.BILLING_AGREEMENT),
+                PREPARE_KEY))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE));
+
+        assertNoPrepareSideEffects();
+    }
+
+    @Test
+    @DisplayName("prepare rejects an INDIVIDUAL principal selecting the same-name BUSINESS plan")
+    void prepareBillingAgreement_individualToBusinessAudienceMismatch() {
+        given(billingAgreementPrepareTransactionService.ensureAgreement(
+                eq(1L), any(), any(LocalDateTime.class)))
+                .willThrow(new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_USER_TYPE_MISMATCH));
+
+        assertThatThrownBy(() -> service.prepareBillingAgreement(
+                buildUserDetails(1L),
+                new BillingAgreementPrepareRequest(
+                        10L,
+                        BillingCycle.MONTHLY,
+                        PaymentPurpose.SUBSCRIBE),
+                PREPARE_KEY))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.SUBSCRIPTION_USER_TYPE_MISMATCH));
+
+        assertNoPrepareSideEffects();
+    }
+
+    @Test
+    @DisplayName("prepare rejects a BUSINESS principal selecting the same-name INDIVIDUAL plan")
+    void prepareBillingAgreement_businessToIndividualAudienceMismatch() {
+        given(billingAgreementPrepareTransactionService.ensureAgreement(
+                eq(1L), any(), any(LocalDateTime.class)))
+                .willThrow(new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_USER_TYPE_MISMATCH));
+
+        assertThatThrownBy(() -> service.prepareBillingAgreement(
+                buildUserDetails(1L),
+                new BillingAgreementPrepareRequest(
+                        10L,
+                        BillingCycle.MONTHLY,
+                        PaymentPurpose.SUBSCRIBE),
+                PREPARE_KEY))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.SUBSCRIPTION_USER_TYPE_MISMATCH));
+
+        assertNoPrepareSideEffects();
+    }
+
+    @Test
+    @DisplayName("prepare accepts a cancelled grace-period subscription for billing re-registration")
+    void prepareBillingAgreement_cancelledGraceReRegistration() {
+        stubSuccessfulPrepareOrder();
+
+        BillingAgreementPrepareResponse response = service.prepareBillingAgreement(
+                buildUserDetails(1L),
+                new BillingAgreementPrepareRequest(
+                        10L,
+                        BillingCycle.MONTHLY,
+                        PaymentPurpose.BILLING_AGREEMENT),
+                PREPARE_KEY);
+
+        assertThat(response.purpose()).isEqualTo(PaymentPurpose.BILLING_AGREEMENT);
+        assertThat(response.subscriptionId()).isEqualTo(10L);
+        assertThat(response.billingCycle()).isEqualTo(BillingCycle.MONTHLY);
+        assertThat(response.amount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(response.provider()).isEqualTo(PaymentProviderType.TOSS);
+        assertThat(response.currency()).isEqualTo("KRW");
+
+        verify(billingAgreementPrepareTransactionService)
+                .claim(eq(1L), any(), anyString(), any(LocalDateTime.class));
+        verify(recurringPaymentProvider).prepareAgreement(any());
+    }
+
+    @Test
+    @DisplayName("prepare preserves approved BUSINESS subscription registration")
+    void prepareBillingAgreement_businessSubscription() {
+        stubSuccessfulPrepareOrder();
+
+        BillingAgreementPrepareResponse response = service.prepareBillingAgreement(
+                buildUserDetails(1L),
+                new BillingAgreementPrepareRequest(
+                        10L,
+                        BillingCycle.MONTHLY,
+                        PaymentPurpose.SUBSCRIBE),
+                PREPARE_KEY);
+
+        assertThat(response.purpose()).isEqualTo(PaymentPurpose.SUBSCRIBE);
+        assertThat(response.subscriptionId()).isEqualTo(10L);
+        assertThat(response.amount()).isEqualByComparingTo(BigDecimal.valueOf(9900));
+        verify(recurringPaymentProvider).prepareAgreement(any());
     }
 
     @Test
@@ -453,26 +695,19 @@ class BillingAgreementApplicationServiceTest {
     @Test
     @DisplayName("prepare rejects duplicate active billing agreement")
     void prepareBillingAgreement_duplicateActiveAgreement() {
-        User user = buildUser(1L);
-        Subscription subscription = buildSubscription(10L);
-        BillingAgreement agreement = buildReadyAgreement(user);
-        agreement.activate("encrypted-key", "fingerprint", "CARD", "1234", LocalDate.now().plusMonths(1));
-
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(subscriptionRepository.findById(10L)).willReturn(Optional.of(subscription));
-        given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
-                .willReturn(Optional.empty());
-        given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
-                .willReturn(Optional.of(agreement));
+        given(billingAgreementPrepareTransactionService.claim(
+                eq(1L), any(), anyString(), any(LocalDateTime.class)))
+                .willThrow(new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_ALREADY_ACTIVE));
 
         assertThatThrownBy(() -> service.prepareBillingAgreement(
                 buildUserDetails(1L),
-                new BillingAgreementPrepareRequest(10L, BillingCycle.MONTHLY)))
+                new BillingAgreementPrepareRequest(10L, BillingCycle.MONTHLY, PaymentPurpose.SUBSCRIBE),
+                PREPARE_KEY))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.BILLING_AGREEMENT_ALREADY_ACTIVE));
 
-        verify(paymentOrderRepository, never()).save(any(PaymentOrder.class));
+        verify(recurringPaymentProvider, never()).prepareAgreement(any());
     }
 
     @Test
@@ -531,6 +766,30 @@ class BillingAgreementApplicationServiceTest {
                 .recordUserCancellationResult(1L, claim, providerResult);
     }
 
+    private void stubSuccessfulPrepareOrder() {
+        given(recurringPaymentProvider.prepareAgreement(any()))
+                .willReturn(new BillingAgreementPrepareResult(
+                        PaymentProviderType.TOSS,
+                        "TOSS_BILLING_AUTH",
+                        "{\"phase\":\"prepare\"}",
+                        Map.of(
+                                "clientKey", "test_ck",
+                                "customerKey", "ats_billing_customer_1",
+                                "successUrl", "http://localhost/success",
+                                "failUrl", "http://localhost/fail",
+                                "method", "CARD"
+                        )));
+    }
+
+    private void assertNoPrepareSideEffects() {
+        verifyNoInteractions(billingAgreementRepository, paymentOrderRepository);
+        verify(billingAgreementPrepareTransactionService, never())
+                .claim(anyLong(), any(), anyString(), any(LocalDateTime.class));
+        verify(billingAgreementPrepareTransactionService, never())
+                .finalizeDescriptor(any(), any(), any(LocalDateTime.class));
+        verify(recurringPaymentProvider, never()).prepareAgreement(any());
+    }
+
     private PaymentCommandTransactionService.BillingConfirmClaim providerClaim(
             String orderID,
             PaymentPurpose purpose,
@@ -550,11 +809,15 @@ class BillingAgreementApplicationServiceTest {
     }
 
     private User buildUser(Long id) {
+        return buildUser(id, UserType.INDIVIDUAL);
+    }
+
+    private User buildUser(Long id, UserType userType) {
         User user = User.builder()
                 .email("user" + id + "@test.com")
                 .nickname("user" + id)
                 .password("pw")
-                .userType(UserType.INDIVIDUAL)
+                .userType(userType)
                 .role(UserRole.USER)
                 .build();
         ReflectionTestUtils.setField(user, "id", id);
@@ -562,10 +825,14 @@ class BillingAgreementApplicationServiceTest {
     }
 
     private Subscription buildSubscription(Long id) {
+        return buildSubscription(id, UserType.INDIVIDUAL, "Basic");
+    }
+
+    private Subscription buildSubscription(Long id, UserType userType, String name) {
         Subscription subscription = Subscription.builder()
-                .name("Basic")
+                .name(name)
                 .description("Test plan")
-                .userType(UserType.INDIVIDUAL)
+                .userType(userType)
                 .priceMonthly(BigDecimal.valueOf(9900))
                 .priceYearly(BigDecimal.valueOf(99000))
                 .downloadPerDay(10)

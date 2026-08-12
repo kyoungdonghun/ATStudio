@@ -60,12 +60,14 @@ const mocks = vi.hoisted(() => ({
   executeAdminPaymentEntitlementCorrection: vi.fn(),
   executeAdminPaymentRefund: vi.fn(),
   fetchAdminBillingAgreements: vi.fn(),
+  fetchAdminPaymentEntitlementCorrection: vi.fn(),
   fetchAdminPaymentEntitlementCorrections: vi.fn(),
   fetchAdminPaymentOperationAuditLogs: vi.fn(),
   fetchAdminPaymentOrders: vi.fn(),
   fetchAdminPaymentReceipts: vi.fn(),
   fetchAdminPaymentReconciliationIncidents: vi.fn(),
   fetchAdminPaymentRefundPreview: vi.fn(),
+  fetchAdminPaymentRefund: vi.fn(),
   fetchAdminPaymentRefunds: vi.fn(),
   fetchAdminPaymentSettlements: vi.fn(),
   fetchAdminSubscriptionPayments: vi.fn(),
@@ -158,12 +160,14 @@ vi.mock('@/api/admin', () => ({
   executeAdminPaymentEntitlementCorrection: mocks.executeAdminPaymentEntitlementCorrection,
   executeAdminPaymentRefund: mocks.executeAdminPaymentRefund,
   fetchAdminBillingAgreements: mocks.fetchAdminBillingAgreements,
+  fetchAdminPaymentEntitlementCorrection: mocks.fetchAdminPaymentEntitlementCorrection,
   fetchAdminPaymentEntitlementCorrections: mocks.fetchAdminPaymentEntitlementCorrections,
   fetchAdminPaymentOperationAuditLogs: mocks.fetchAdminPaymentOperationAuditLogs,
   fetchAdminPaymentOrders: mocks.fetchAdminPaymentOrders,
   fetchAdminPaymentReceipts: mocks.fetchAdminPaymentReceipts,
   fetchAdminPaymentReconciliationIncidents: mocks.fetchAdminPaymentReconciliationIncidents,
   fetchAdminPaymentRefundPreview: mocks.fetchAdminPaymentRefundPreview,
+  fetchAdminPaymentRefund: mocks.fetchAdminPaymentRefund,
   fetchAdminPaymentRefunds: mocks.fetchAdminPaymentRefunds,
   fetchAdminPaymentSettlements: mocks.fetchAdminPaymentSettlements,
   fetchAdminSubscriptionPayments: mocks.fetchAdminSubscriptionPayments,
@@ -1169,7 +1173,10 @@ describe('payment operation gaps', () => {
     });
     mocks.fetchAdminPaymentRefunds.mockResolvedValue(page([requested, approved, succeeded]));
     mocks.approveAdminPaymentRefund.mockResolvedValue(undefined);
-    mocks.executeAdminPaymentRefund.mockResolvedValue(undefined);
+    mocks.executeAdminPaymentRefund.mockResolvedValue({ ...approved, status: 'SUCCEEDED' });
+    mocks.fetchAdminPaymentRefund
+      .mockResolvedValueOnce(approved)
+      .mockResolvedValueOnce({ ...approved, status: 'SUCCEEDED' });
     const prompt = vi.spyOn(window, 'prompt');
 
     render(<PaymentOperationsPage />);
@@ -1223,7 +1230,13 @@ describe('payment operation gaps', () => {
       { ...subscription().subscription, id: 20, name: 'PREMIUM' },
     ]);
     mocks.approveAdminPaymentEntitlementCorrection.mockResolvedValue(undefined);
-    mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValue(undefined);
+    mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValue({
+      ...approved,
+      status: 'SUCCEEDED',
+    });
+    mocks.fetchAdminPaymentEntitlementCorrection
+      .mockResolvedValueOnce(approved)
+      .mockResolvedValueOnce({ ...approved, status: 'SUCCEEDED' });
     mocks.previewAdminPaymentEntitlementCorrection.mockResolvedValue({
       paymentRefundId: 101,
       refundStatus: 'SUCCEEDED',

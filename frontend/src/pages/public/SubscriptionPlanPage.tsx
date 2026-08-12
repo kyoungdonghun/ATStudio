@@ -164,22 +164,31 @@ export default function SubscriptionPlanPage() {
 
   const toastShow = useToastStore((s) => s.show);
 
-  const handleSubscribe = (planName: string) => {
+  const handleSubscribe = (plan: SubscriptionPlan) => {
     if (!isAuthenticated) {
       toastShow('warning', '로그인 후 구독을 진행할 수 있습니다.');
       navigate('/login');
       return;
     }
-    if (loggedInUserType && loggedInUserType !== viewType) {
+    if (
+      plan.userType !== viewType ||
+      (loggedInUserType && (loggedInUserType !== viewType || loggedInUserType !== plan.userType))
+    ) {
       const label = loggedInUserType === 'INDIVIDUAL' ? '개인' : '기업';
       toastShow('warning', `현재 ${label} 회원입니다. ${label} 회원용 플랜을 선택해주세요.`);
       return;
     }
     const cycle = isYearly ? 'YEARLY' : 'MONTHLY';
+    const params = new URLSearchParams({
+      planId: String(plan.id),
+      userType: plan.userType,
+      billingCycle: cycle,
+    });
     if (mySub && (mySub.status === 'ACTIVE' || mySub.status === 'CANCELLED')) {
-      navigate(`/subscriptions/manage?plan=${planName}&cycle=${cycle}`);
+      navigate(`/subscriptions/manage?${params.toString()}`);
     } else {
-      navigate(`/subscriptions/checkout?plan=${planName}&cycle=${cycle}`);
+      params.set('purpose', 'SUBSCRIBE');
+      navigate(`/subscriptions/checkout?${params.toString()}`);
     }
   };
 
@@ -307,7 +316,7 @@ export default function SubscriptionPlanPage() {
           const tier = getTierFeatures(plan.name, plan);
           const isCurrentPlan =
             (mySub?.status === 'ACTIVE' || mySub?.status === 'CANCELLED') &&
-            mySub.subscription.name.toUpperCase() === plan.name.toUpperCase();
+            mySub.subscription.id === plan.id;
 
           const cardClass = [
             styles.planCard,
@@ -368,7 +377,7 @@ export default function SubscriptionPlanPage() {
               </ul>
               <button
                 className={`${styles.btnPlan} ${isCurrentPlan ? styles.btnCurrent : tier.btnVariant === 'fill' ? styles.btnFill : styles.btnGhost}`}
-                onClick={() => handleSubscribe(plan.name)}
+                onClick={() => handleSubscribe(plan)}
                 disabled={isCurrentPlan}
               >
                 {isCurrentPlan ? '\uD604\uC7AC \uD50C\uB79C' : tier.btnLabel}

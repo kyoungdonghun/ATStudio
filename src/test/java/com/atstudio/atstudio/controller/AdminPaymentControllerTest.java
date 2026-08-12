@@ -5,9 +5,13 @@ import com.atstudio.atstudio.dto.payment.AdminPaymentEntitlementCorrectionReques
 import com.atstudio.atstudio.dto.payment.AdminPaymentReconciliationResponse;
 import com.atstudio.atstudio.dto.payment.AdminPaymentRefundCreateRequest;
 import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementIgnoreRequest;
+import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementImportAttemptResponse;
+import com.atstudio.atstudio.dto.payment.AdminPaymentSettlementImportResponse;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.PaymentReconciliationIssueType;
+import com.atstudio.atstudio.entity.enums.UserRole;
+import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.security.CustomUserDetailsService;
 import com.atstudio.atstudio.service.AdminPaymentEntitlementCorrectionService;
 import com.atstudio.atstudio.service.AdminPaymentIncidentService;
@@ -17,14 +21,19 @@ import com.atstudio.atstudio.service.AdminPaymentSettlementService;
 import com.atstudio.atstudio.service.PaymentReconciliationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -34,13 +43,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.times;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
+@ExtendWith(OutputCaptureExtension.class)
 @DisplayName("AdminPaymentController HTTP contracts")
 class AdminPaymentControllerTest {
 
@@ -81,6 +94,127 @@ class AdminPaymentControllerTest {
                 .andExpect(status().isOk());
 
         verify(adminPaymentReadService).listPaymentOrders(3, 40);
+    }
+
+    @Test
+    void settlementImportAttemptEndpointsRequireAuthentication() throws Exception {
+        mockMvc.perform(get("/api/admin/payments/settlement-import-attempts"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/payments/settlement-import-attempts/41"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/payments/settlement-import-attempts/recovery")
+                        .header("Idempotency-Key", "11111111-1111-4111-8111-111111111111"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(adminPaymentSettlementService);
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void settlementImportAttemptEndpointsRejectNonAdmin() throws Exception {
+        mockMvc.perform(get("/api/admin/payments/settlement-import-attempts"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/admin/payments/settlement-import-attempts/41"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/admin/payments/settlement-import-attempts/recovery")
+                        .header("Idempotency-Key", "11111111-1111-4111-8111-111111111111"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(adminPaymentSettlementService);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void settlementImportAttemptListAndNumericDetailForwardExactContract() throws Exception {
+        given(adminPaymentSettlementService.listImportAttempts(2, 10))
+                .willReturn(ResponseDTO.<AdminPaymentSettlementImportAttemptResponse>builder().build());
+        given(adminPaymentSettlementService.getImportAttempt(41L))
+                .willReturn(ResponseDTO.<AdminPaymentSettlementImportAttemptResponse>builder().build());
+
+        mockMvc.perform(get("/api/admin/payments/settlement-import-attempts")
+                        .param("page", "2")
+                        .param("size", "10"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/admin/payments/settlement-import-attempts/41"))
+                .andExpect(status().isOk());
+
+        verify(adminPaymentSettlementService).listImportAttempts(2, 10);
+        verify(adminPaymentSettlementService).getImportAttempt(41L);
+    }
+
+    @Test
+    void settlementImportAndRecoveryForwardTheSameHeaderWithoutPuttingItInTheUrl(CapturedOutput output)
+            throws Exception {
+        CustomUserDetails admin = adminActor();
+        String operationKey = "11111111-1111-4111-8111-111111111111";
+        String operatorNote = "OPERATOR-NOTE-SENTINEL-CONTROLLER-WI-056";
+        String recoveryPath = "/api/admin/payments/settlement-import-attempts/recovery";
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "settlements.csv",
+                "text/csv",
+                "provider,order_id,gross_amount,net_settlement_amount,settlement_base_date\n"
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        given(adminPaymentSettlementService.importSettlements(admin, file, operatorNote, operationKey))
+                .willReturn(ResponseDTO.<AdminPaymentSettlementImportResponse>builder().build());
+        given(adminPaymentSettlementService.recoverImportAttempt(admin, operationKey))
+                .willReturn(ResponseDTO.<AdminPaymentSettlementImportAttemptResponse>builder().build());
+
+        mockMvc.perform(multipart("/api/admin/payments/settlements/import")
+                        .file(file)
+                        .param("note", operatorNote)
+                        .header("Idempotency-Key", operationKey)
+                        .with(user(admin)))
+                .andExpect(status().isOk());
+        MvcResult recoveryResult = mockMvc.perform(get(recoveryPath)
+                        .header("Idempotency-Key", operationKey)
+                        .with(user(admin)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(recoveryResult.getRequest().getRequestURI())
+                .isEqualTo(recoveryPath)
+                .doesNotContain(operationKey);
+        assertThat(recoveryResult.getRequest().getPathInfo())
+                .isEqualTo(recoveryPath)
+                .doesNotContain(operationKey);
+        assertThat(recoveryResult.getRequest().getQueryString()).isNull();
+        assertThat(output.getAll()).doesNotContain(operationKey, operatorNote);
+        verify(adminPaymentSettlementService).importSettlements(admin, file, operatorNote, operationKey);
+        verify(adminPaymentSettlementService).recoverImportAttempt(admin, operationKey);
+    }
+
+    @Test
+    void recoveryDetailEndpointsRequireAuthentication() throws Exception {
+        mockMvc.perform(get("/api/admin/payments/refunds/51"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/payments/entitlement-corrections/61"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(adminPaymentRefundService, adminPaymentEntitlementCorrectionService);
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void recoveryDetailEndpointsRejectNonAdmin() throws Exception {
+        mockMvc.perform(get("/api/admin/payments/refunds/51"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/admin/payments/entitlement-corrections/61"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(adminPaymentRefundService, adminPaymentEntitlementCorrectionService);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void recoveryDetailEndpointsForwardExactLocalIds() throws Exception {
+        mockMvc.perform(get("/api/admin/payments/refunds/51"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/admin/payments/entitlement-corrections/61"))
+                .andExpect(status().isOk());
+
+        verify(adminPaymentRefundService).getRefund(51L);
+        verify(adminPaymentEntitlementCorrectionService).getCorrection(61L);
     }
 
     @Test
@@ -193,19 +327,74 @@ class AdminPaymentControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
-    void settlementIgnoreForwardsPathIdAndOperatorNote() throws Exception {
+    void settlementIgnoreForwardsPathIdAndNormalizedOperatorNoteOnce() throws Exception {
+        CustomUserDetails actor = CustomUserDetails.builder()
+                .id(99L)
+                .email("settlement-admin@test.com")
+                .role(UserRole.ADMIN)
+                .build();
+
         mockMvc.perform(put("/api/admin/payments/settlements/71/ignore")
+                        .with(user(actor))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"note\":\"bank holiday evidence\"}"))
+                        .content("{\"note\":\"  bank holiday evidence  \"}"))
                 .andExpect(status().isOk());
 
         ArgumentCaptor<AdminPaymentSettlementIgnoreRequest> requestCaptor =
                 ArgumentCaptor.forClass(AdminPaymentSettlementIgnoreRequest.class);
-        verify(adminPaymentSettlementService).ignoreSettlement(
+        verify(adminPaymentSettlementService, times(1)).ignoreSettlement(
                 org.mockito.ArgumentMatchers.eq(71L),
-                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.same(actor),
                 requestCaptor.capture());
         assertThat(requestCaptor.getValue().note()).isEqualTo("bank holiday evidence");
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void settlementIgnoreRejectsMissingNullBlankAndTrimmedOverLimitNotes() throws Exception {
+        List<String> invalidBodies = List.of(
+                "{}",
+                "{\"note\":null}",
+                "{\"note\":\"\"}",
+                "{\"note\":\"   \"}",
+                "{\"note\":\" " + "a".repeat(501) + " \"}");
+
+        for (String body : invalidBodies) {
+            mockMvc.perform(put("/api/admin/payments/settlements/71/ignore")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest());
+        }
+
+        verifyNoInteractions(adminPaymentSettlementService);
+    }
+
+    @Test
+    void settlementIgnoreRequiresAuthentication() throws Exception {
+        mockMvc.perform(put("/api/admin/payments/settlements/71/ignore")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"note\":\"reviewed\"}"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(adminPaymentSettlementService);
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void settlementIgnoreRejectsNonAdmin() throws Exception {
+        mockMvc.perform(put("/api/admin/payments/settlements/71/ignore")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"note\":\"reviewed\"}"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(adminPaymentSettlementService);
+    }
+
+    private CustomUserDetails adminActor() {
+        return CustomUserDetails.builder()
+                .id(99L)
+                .email("settlement-import-admin@test.com")
+                .role(UserRole.ADMIN)
+                .build();
     }
 }
