@@ -49,6 +49,7 @@ export default function PlaylistListPage() {
   const [newThumbFile, setNewThumbFile] = useState<File | null>(null);
   const [newThumbPreview, setNewThumbPreview] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const newThumbPreviewObjectURLRef = useRef<string | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<Playlist | null>(null);
   const [deleteTargetOwnerKey, setDeleteTargetOwnerKey] = useState<string | null>(null);
@@ -164,12 +165,22 @@ export default function PlaylistListPage() {
       ? deleteTarget
       : null;
 
+  const releaseNewThumbPreview = useCallback(() => {
+    const objectURL = newThumbPreviewObjectURLRef.current;
+    if (objectURL === null) return;
+    newThumbPreviewObjectURLRef.current = null;
+    URL.revokeObjectURL(objectURL);
+  }, []);
+
   const resetCreateForm = useCallback(() => {
+    releaseNewThumbPreview();
     setNewTitle('');
     setNewDesc('');
     setNewThumbFile(null);
     setNewThumbPreview(null);
-  }, []);
+  }, [releaseNewThumbPreview]);
+
+  useEffect(() => () => releaseNewThumbPreview(), [releaseNewThumbPreview]);
 
   useEffect(() => {
     setShowCreate(false);
@@ -238,6 +249,7 @@ export default function PlaylistListPage() {
 
   function handleThumbChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
+    releaseNewThumbPreview();
     setNewThumbFile(file);
 
     if (!file) {
@@ -246,6 +258,7 @@ export default function PlaylistListPage() {
     }
 
     const previewUrl = URL.createObjectURL(file);
+    newThumbPreviewObjectURLRef.current = previewUrl;
     setNewThumbPreview(previewUrl);
   }
 
@@ -473,6 +486,7 @@ export default function PlaylistListPage() {
                     type="button"
                     className={styles.thumbRemoveBtn}
                     onClick={() => {
+                      releaseNewThumbPreview();
                       setNewThumbFile(null);
                       setNewThumbPreview(null);
                     }}

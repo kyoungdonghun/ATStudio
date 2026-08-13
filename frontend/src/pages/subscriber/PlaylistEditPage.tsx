@@ -37,6 +37,7 @@ export default function PlaylistEditPage() {
   const [description, setDescription] = useState('');
   const [thumbFile, setThumbFile] = useState<File | null>(null);
   const [thumbPreview, setThumbPreview] = useState<string | null>(null);
+  const thumbPreviewObjectURLRef = useRef<string | null>(null);
   const [tracks, setTracks] = useState<PlaylistTrack[]>([]);
   const [saving, setSaving] = useState(false);
   const requestGeneration = useRef(0);
@@ -85,6 +86,13 @@ export default function PlaylistEditPage() {
       JSON.stringify(currentTracks.map((t) => t.trackId)) !==
         JSON.stringify(currentDetail.tracks.map((t) => t.trackId)));
 
+  const releaseThumbPreview = useCallback(() => {
+    const objectURL = thumbPreviewObjectURLRef.current;
+    if (objectURL === null) return;
+    thumbPreviewObjectURLRef.current = null;
+    URL.revokeObjectURL(objectURL);
+  }, []);
+
   /* ── Fetch ── */
   const load = useCallback(async () => {
     const requestKey = readKey;
@@ -104,6 +112,7 @@ export default function PlaylistEditPage() {
       setDetail(null);
       setTitle('');
       setDescription('');
+      releaseThumbPreview();
       setThumbFile(null);
       setThumbPreview(null);
       setTracks([]);
@@ -125,12 +134,13 @@ export default function PlaylistEditPage() {
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [id, ownerKey, readKey]);
+  }, [id, ownerKey, readKey, releaseThumbPreview]);
 
   useEffect(() => {
     if (!validID) {
       requestController.current?.abort();
       requestGeneration.current += 1;
+      releaseThumbPreview();
       setDetail(null);
       setLoading(false);
       setError(null);
@@ -140,17 +150,21 @@ export default function PlaylistEditPage() {
     return () => {
       requestController.current?.abort();
       requestGeneration.current += 1;
+      releaseThumbPreview();
     };
-  }, [accessToken, load, userID, validID]);
+  }, [accessToken, load, releaseThumbPreview, userID, validID]);
 
   /* ── Handlers ── */
 
   function handleThumbChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (!isCurrentProjection()) return;
     const file = e.target.files?.[0] ?? null;
+    releaseThumbPreview();
     setThumbFile(file);
     if (file) {
-      setThumbPreview(URL.createObjectURL(file));
+      const previewURL = URL.createObjectURL(file);
+      thumbPreviewObjectURLRef.current = previewURL;
+      setThumbPreview(previewURL);
     } else {
       setThumbPreview(toUploadUrl(currentDetail?.thumbnail));
     }

@@ -205,7 +205,7 @@ describe('player auxiliary components', () => {
     expect(api.fetchMyPlaylists).not.toHaveBeenCalled();
   });
 
-  it('loads a playlist, plays a track, removes it, and deletes the playlist', async () => {
+  it('requires target-specific confirmation before removing a track or deleting a playlist', async () => {
     const play = vi.fn();
     usePlayerStore.setState({ play });
     const { container } = render(<PlaylistDrawer open onClose={vi.fn()} />);
@@ -216,13 +216,241 @@ describe('player auxiliary components', () => {
     fireEvent.click(within(firstTrack).getAllByRole('button')[0]!);
     expect(play).toHaveBeenCalledWith(expect.objectContaining({ id: 11, bpm: 100 }));
     fireEvent.click(within(firstTrack).getAllByRole('button')[1]!);
+    expect(api.removeTrackFromPlaylist).not.toHaveBeenCalled();
+    const removeDialog = screen.getByRole('dialog', { name: '곡 삭제' });
+    expect(removeDialog).toHaveTextContent('Song A');
+    expect(removeDialog).toHaveTextContent('Focus List');
+    fireEvent.click(within(removeDialog).getByRole('button', { name: '삭제' }));
     await waitFor(() => expect(api.removeTrackFromPlaylist).toHaveBeenCalledWith(3, 11));
 
     const deletePlaylistButton = container.querySelector(
       '[class*="deletePlaylistBtn"]',
     ) as HTMLButtonElement;
     fireEvent.click(deletePlaylistButton);
+    expect(api.deletePlaylist).not.toHaveBeenCalled();
+    const deleteDialog = screen.getByRole('dialog', { name: '재생목록 삭제' });
+    expect(deleteDialog).toHaveTextContent('Focus List');
+    fireEvent.click(within(deleteDialog).getByRole('button', { name: '삭제' }));
     await waitFor(() => expect(api.deletePlaylist).toHaveBeenCalledWith(3));
+  });
+
+  it('fences duplicate track removal and retries the same current target after failure', async () => {
+    const firstAttempt = deferred<void>();
+    api.removeTrackFromPlaylist
+      .mockReturnValueOnce(firstAttempt.promise)
+      .mockResolvedValueOnce(undefined);
+    render(<PlaylistDrawer open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    const firstTrack = (await screen.findByText('Song A')).closest('li')!;
+
+    fireEvent.click(within(firstTrack).getAllByRole('button')[1]!);
+    const removeDialog = screen.getByRole('dialog', { name: '곡 삭제' });
+    const confirmButton = within(removeDialog).getByRole('button', { name: '삭제' });
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
+    expect(api.removeTrackFromPlaylist).toHaveBeenCalledTimes(1);
+
+    await act(async () => firstAttempt.reject(new Error('remove failed')));
+    expect(
+      await screen.findByText('재생목록에서 곡을 삭제하지 못했습니다. 다시 시도해 주세요.'),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+    await waitFor(() => expect(api.removeTrackFromPlaylist).toHaveBeenCalledTimes(2));
+    expect(api.removeTrackFromPlaylist).toHaveBeenLastCalledWith(3, 11);
+    await waitFor(() => expect(api.fetchPlaylistDetail).toHaveBeenCalledTimes(2));
+  });
+
+  it('keeps a failed playlist deletion visible and retryable for the same target', async () => {
+    api.deletePlaylist.mockRejectedValueOnce(new Error('delete failed'));
+    render(<PlaylistDrawer open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    await screen.findByText('Song A');
+
+    fireEvent.click(document.querySelector('[class*="deletePlaylistBtn"]')!);
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: '재생목록 삭제' })).getByRole('button', {
+        name: '삭제',
+      }),
+    );
+
+    expect(
+      await screen.findByText('재생목록을 삭제하지 못했습니다. 다시 시도해 주세요.'),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+
+    await waitFor(() => expect(api.deletePlaylist).toHaveBeenCalledTimes(2));
+    expect(api.deletePlaylist).toHaveBeenLastCalledWith(3);
+    await waitFor(() => expect(api.fetchMyPlaylists).toHaveBeenCalledTimes(2));
+  });
+
+  it('retires a detached destructive confirmation when the authenticated owner changes', async () => {
+    render(<PlaylistDrawer open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    await screen.findByText('Song A');
+    fireEvent.click(document.querySelector('[class*="deletePlaylistBtn"]')!);
+    const detachedConfirm = within(screen.getByRole('dialog', { name: '재생목록 삭제' })).getByRole(
+      'button',
+      { name: '삭제' },
+    );
+
+    act(() => {
+      useAuthStore.setState({
+        user: { id: 2 } as User,
+        accessToken: 'replacement-token',
+        role: 'USER',
+      });
+      detachedConfirm.click();
+    });
+
+    expect(api.deletePlaylist).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: '재생목록 삭제' })).not.toBeInTheDocument();
+  });
+
+  it('ignores an in-flight track removal after back navigation selects another detail', async () => {
+    const pendingRemove = deferred<void>();
+    const replacementPlaylist = { ...playlist, id: 4, title: 'Replacement List' };
+    const replacementDetail = {
+      ...detail,
+      ...replacementPlaylist,
+      tracks: [{ ...detail.tracks[0], trackId: 41, title: 'Replacement Song' }],
+    };
+    api.fetchMyPlaylists.mockResolvedValue({
+      dataList: [playlist, replacementPlaylist],
+    });
+    api.fetchPlaylistDetail.mockResolvedValueOnce(detail).mockResolvedValueOnce(replacementDetail);
+    api.removeTrackFromPlaylist.mockReturnValue(pendingRemove.promise);
+    const { container } = render(<PlaylistDrawer open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    const firstTrack = (await screen.findByText('Song A')).closest('li')!;
+
+    fireEvent.click(within(firstTrack).getAllByRole('button')[1]!);
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: '곡 삭제' })).getByRole('button', {
+        name: '삭제',
+      }),
+    );
+    expect(api.removeTrackFromPlaylist).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(container.querySelector('button[class*="backBtn"]')!);
+    fireEvent.click(await screen.findByText('Replacement List'));
+    expect(await screen.findByText('Replacement Song')).toBeInTheDocument();
+    await act(async () => pendingRemove.resolve());
+
+    expect(api.fetchPlaylistDetail).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('Replacement Song')).toBeInTheDocument();
+  });
+
+  it('lets a reopened detail own a new mutation until that exact operation settles', async () => {
+    const retiredRemove = deferred<void>();
+    const currentRemove = deferred<void>();
+    api.removeTrackFromPlaylist
+      .mockReturnValueOnce(retiredRemove.promise)
+      .mockReturnValueOnce(currentRemove.promise);
+    const { container } = render(<PlaylistDrawer open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    const firstTrack = (await screen.findByText('Song A')).closest('li')!;
+
+    fireEvent.click(within(firstTrack).getAllByRole('button')[1]!);
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: '곡 삭제' })).getByRole('button', {
+        name: '삭제',
+      }),
+    );
+    expect(api.removeTrackFromPlaylist).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(container.querySelector('button[class*="backBtn"]')!);
+    fireEvent.click(await screen.findByText('Focus List'));
+    const reopenedTrack = (await screen.findByText('Song A')).closest('li')!;
+    const reopenedRemove = within(reopenedTrack).getAllByRole('button')[1]!;
+    expect(reopenedRemove).not.toBeDisabled();
+
+    fireEvent.click(reopenedRemove);
+    const currentDialog = screen.getByRole('dialog', { name: '곡 삭제' });
+    fireEvent.click(within(currentDialog).getByRole('button', { name: '삭제' }));
+    expect(api.removeTrackFromPlaylist).toHaveBeenCalledTimes(2);
+
+    await act(async () => retiredRemove.resolve());
+    expect(currentDialog).toBeInTheDocument();
+    expect(within(currentDialog).getByRole('button', { name: '삭제' })).toBeDisabled();
+    expect(api.fetchPlaylistDetail).toHaveBeenCalledTimes(2);
+
+    await act(async () => currentRemove.resolve());
+    await waitFor(() => expect(api.fetchPlaylistDetail).toHaveBeenCalledTimes(3));
+  });
+
+  it('ignores an in-flight playlist deletion after switching tabs', async () => {
+    const pendingDelete = deferred<void>();
+    api.deletePlaylist.mockReturnValue(pendingDelete.promise);
+    const { container } = render(<PlaylistDrawer open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    await screen.findByText('Song A');
+
+    fireEvent.click(container.querySelector('button[class*="deletePlaylistBtn"]')!);
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: '재생목록 삭제' })).getByRole('button', {
+        name: '삭제',
+      }),
+    );
+    expect(api.deletePlaylist).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(container.querySelectorAll('button[class*="tab"]')[1]!);
+    await waitFor(() => expect(api.fetchLikes).toHaveBeenCalledTimes(1));
+    await act(async () => pendingDelete.resolve());
+
+    expect(api.fetchMyPlaylists).toHaveBeenCalledTimes(1);
+    expect(api.fetchPlaylistDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores an in-flight track removal after the drawer closes', async () => {
+    const pendingRemove = deferred<void>();
+    api.removeTrackFromPlaylist.mockReturnValue(pendingRemove.promise);
+    render(<DrawerLifecycleHarness onClosedLayout={() => undefined} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    const firstTrack = (await screen.findByText('Song A')).closest('li')!;
+
+    fireEvent.click(within(firstTrack).getAllByRole('button')[1]!);
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: '곡 삭제' })).getByRole('button', {
+        name: '삭제',
+      }),
+    );
+    expect(api.removeTrackFromPlaylist).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'close drawer lifecycle' }));
+    await act(async () => pendingRemove.resolve());
+
+    expect(api.fetchPlaylistDetail).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Song A')).not.toBeInTheDocument();
+  });
+
+  it('ignores an in-flight playlist deletion after the owner session changes', async () => {
+    const pendingDelete = deferred<void>();
+    api.deletePlaylist.mockReturnValue(pendingDelete.promise);
+    render(<PlaylistDrawer open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    await screen.findByText('Song A');
+
+    fireEvent.click(document.querySelector('button[class*="deletePlaylistBtn"]')!);
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: '재생목록 삭제' })).getByRole('button', {
+        name: '삭제',
+      }),
+    );
+    expect(api.deletePlaylist).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      useAuthStore.setState({
+        user: { id: 2 } as User,
+        accessToken: 'replacement-token',
+        role: 'USER',
+      });
+    });
+    await waitFor(() => expect(api.fetchMyPlaylists).toHaveBeenCalledTimes(2));
+    await act(async () => pendingDelete.resolve());
+
+    expect(api.fetchMyPlaylists).toHaveBeenCalledTimes(2);
+    expect(api.fetchPlaylistDetail).toHaveBeenCalledTimes(1);
   });
 
   it('creates a trimmed playlist and refreshes the list', async () => {

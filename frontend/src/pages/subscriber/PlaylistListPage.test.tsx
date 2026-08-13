@@ -10,6 +10,8 @@ const showToast = vi.fn();
 const fetchMyPlaylistsMock = vi.fn();
 const createPlaylistMock = vi.fn();
 const fetchMySubscriptionMock = vi.fn();
+const createObjectURLMock = vi.fn();
+const revokeObjectURLMock = vi.fn();
 
 vi.mock('@/store/toastStore', () => ({
   useToastStore: (selector: (state: { show: typeof showToast }) => unknown) =>
@@ -70,6 +72,16 @@ describe('PlaylistListPage', () => {
     fetchMyPlaylistsMock.mockReset();
     createPlaylistMock.mockReset();
     fetchMySubscriptionMock.mockReset();
+    createObjectURLMock.mockReset();
+    revokeObjectURLMock.mockReset();
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: createObjectURLMock,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: revokeObjectURLMock,
+    });
     useAuthStore.setState({
       user: { id: 1 } as User,
       accessToken: 'owner-one-token',
@@ -280,5 +292,50 @@ describe('PlaylistListPage', () => {
       expect(screen.queryByRole('dialog', { name: '새 재생목록 만들기' })).not.toBeInTheDocument();
       expect(screen.getByTestId('playlist-location')).toHaveTextContent('/playlists:null');
     });
+  });
+
+  it('revokes each local create-thumbnail preview exactly once across lifecycle boundaries', async () => {
+    createObjectURLMock
+      .mockReturnValueOnce('blob:list-a')
+      .mockReturnValueOnce('blob:list-b')
+      .mockReturnValueOnce('blob:list-c')
+      .mockReturnValueOnce('blob:list-d');
+    const { unmount } = renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: '새 재생목록' }));
+    let fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [new File(['a'], 'a.png')] } });
+    fireEvent.click(document.querySelector('[class*="thumbRemoveBtn"]')!);
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:list-a');
+
+    fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [new File(['b'], 'b.png')] } });
+    fireEvent.click(screen.getByRole('button', { name: '취소' }));
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:list-b');
+
+    fireEvent.click(screen.getByRole('button', { name: '새 재생목록' }));
+    fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [new File(['c'], 'c.png')] } });
+    act(() => {
+      useAuthStore.setState({
+        user: { id: 2 } as User,
+        accessToken: 'owner-two-token',
+        role: 'USER',
+      });
+    });
+    await waitFor(() => expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:list-c'));
+
+    fireEvent.click(await screen.findByRole('button', { name: '새 재생목록' }));
+    fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [new File(['d'], 'd.png')] } });
+    unmount();
+
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:list-d');
+    expect(revokeObjectURLMock.mock.calls.map(([url]) => url)).toEqual([
+      'blob:list-a',
+      'blob:list-b',
+      'blob:list-c',
+      'blob:list-d',
+    ]);
   });
 });

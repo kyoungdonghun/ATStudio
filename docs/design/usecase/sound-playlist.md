@@ -10,7 +10,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-002 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-13 |
 | **Description** | Member creates a new playlist. |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. Has a service-enabled subscription (`user_subscriptions.status=ACTIVE`, or `status=CANCELLED` with `expiresAt` still in the future). |
@@ -32,6 +32,9 @@
   `maxPlaylists` value. Capacity loading or failure is fail-closed, exposes a
   bounded retry, and never uses a client fallback. Owner change or either
   unknown read resets the modal; submit revalidates both reads.
+- A locally selected thumbnail owns one browser object URL. Replacement,
+  removal, modal close, authenticated-owner replacement, and unmount revoke
+  that local URL exactly once. Backend thumbnail URLs are never revoked.
 
 **Postconditions**
 - playlists record created. No tracks yet (empty playlist).
@@ -103,7 +106,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-019 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-13 |
 | **Description** | User adds a track to an existing playlist. |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). Must own the playlist. |
@@ -112,14 +115,23 @@
 
 **Main Flow**
 1. User clicks the 'Add to Playlist' button on the track list or detail screen.
-2. Selects the target playlist.
-3. Frontend sends playlistId and trackId to the backend.
-4. Backend verifies the playlist belongs to the user.
-5. Backend locks the playlist row, creates a record in playlist_tracks (trackOrder = current last order + 1), and returns a 201 response.
+2. The open modal immediately displays playlist-list loading.
+3. User selects the target playlist.
+4. Frontend fences duplicate submits and sends playlistId and trackId to the backend.
+5. Backend verifies the playlist belongs to the user.
+6. Backend locks the playlist row, creates a record in playlist_tracks (trackOrder = current last order + 1), and returns a 201 response.
 
-The modal treats close/reopen as a new lifecycle generation. Stale list/add responses and delayed success-close timers cannot affect a later modal session, while parent rerenders alone do not restart the playlist query.
+The modal treats close/reopen and Track replacement as new lifecycle
+generations. Stale list/add responses and delayed success-close timers cannot
+affect a later modal session, while parent callback rerenders alone do not
+restart the playlist query.
 
 **Exception / Alternative Flow**
+- Playlist-list failure shows fixed copy and one explicit manual retry. Retry
+  loading remains visible and only the current attempt may commit.
+- Subscription-required list or add results invoke the supplied parent outcome
+  callback. When no callback exists, the modal remains open with an explicit
+  subscription-required result instead of closing silently.
 - Track already in playlist: 409 response.
 
 **Postconditions**
@@ -144,6 +156,10 @@ The modal treats close/reopen as a new lifecycle generation. Stale list/add resp
 2. Frontend sends playlistId and changed data as multipart/form-data to the backend.
 3. Backend updates the playlists record and returns a 200 response.
 
+A newly selected thumbnail owns one local browser object URL. Replacement,
+selection removal, route/owner replacement, and unmount revoke that URL exactly
+once. The existing backend thumbnail URL is display-only and is never revoked.
+
 **Main Flow B -- Track Order Change**
 1. User reorders tracks via drag-and-drop.
 2. Frontend sends [{trackId, trackOrder}, ...] array to the backend.
@@ -165,7 +181,7 @@ The modal treats close/reopen as a new lifecycle generation. Stale list/add resp
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-020 |
-| **Version** | 26-08-09 |
+| **Version** | 26-08-13 |
 | **Description** | User removes a specific track from a playlist. |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). Owns the playlist. The track must be in the playlist. |
@@ -174,11 +190,16 @@ The modal treats close/reopen as a new lifecycle generation. Stale list/add resp
 
 **Main Flow**
 1. User clicks the 'Remove' button on a specific track in the playlist detail.
-2. Frontend sends a remove request including playlistId and trackId to the backend.
-3. Backend verifies the playlist belongs to the user.
-4. Backend locks the playlist row, deletes the requested `playlist_tracks` row,
+2. Frontend displays a target-specific confirmation and sends no request before
+   explicit confirmation.
+3. Confirmation establishes one pending owner and sends the remove request with
+   playlistId and trackId. Duplicate confirmation is ignored.
+4. Backend verifies the playlist belongs to the user.
+5. Backend locks the playlist row, deletes the requested `playlist_tracks` row,
    compacts all retained active and inactive membership orders without
    duplicates, and returns 204 No Content.
+6. Success reloads authoritative Playlist detail. Failure keeps the same
+   current target visible with fixed Korean copy and one manual retry action.
 
 **Postconditions**
 - Record deleted from playlist_tracks. Playlist track count decreased.
@@ -190,7 +211,7 @@ The modal treats close/reopen as a new lifecycle generation. Stale list/add resp
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-017 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-13 |
 | **Description** | User deletes their own playlist. |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. Has a service-enabled subscription (`ACTIVE`, or `CANCELLED` within grace period). Owns the playlist. |
@@ -199,12 +220,18 @@ The modal treats close/reopen as a new lifecycle generation. Stale list/add resp
 
 **Main Flow**
 1. User clicks the playlist 'Delete' button.
-2. Frontend displays a deletion confirmation dialog.
-3. Upon confirmation, frontend sends a delete request including playlistId to the backend.
+2. Frontend displays a target-specific deletion confirmation dialog and sends
+   no request before confirmation.
+3. Confirmation establishes one pending owner and sends one delete request
+   including playlistId. Duplicate confirmation is ignored.
 4. Backend verifies the playlist belongs to the user.
 5. Backend locks the playlist row, physically deletes its `playlist_tracks`
    membership rows, soft-deletes the parent through `playlist.deactivate()`, and
    returns 204 No Content.
+6. Success closes the retired detail and reloads the authoritative Playlist
+   list. Failure retains fixed Korean copy and a retry for the same current
+   target. Owner, detail, tab, drawer-session, or close retirement suppresses
+   stale completion.
 
 **Postconditions**
 - The parent `playlists` row remains as an inactive soft-deleted record, while

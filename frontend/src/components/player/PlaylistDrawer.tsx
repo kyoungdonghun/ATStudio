@@ -24,10 +24,31 @@ import {
   getCurrentOwnerKey,
   type OwnerProjectionKey,
 } from '@/utils/ownerProjection';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import styles from './PlaylistDrawer.module.css';
 
 type Tab = 'playlists' | 'likes';
 type CapacityState = 'loading' | 'known' | 'error';
+type DrawerMutationTarget =
+  | {
+      kind: 'delete-playlist';
+      detailKey: string;
+      playlistID: number;
+      playlistTitle: string;
+    }
+  | {
+      kind: 'remove-track';
+      detailKey: string;
+      playlistID: number;
+      playlistTitle: string;
+      trackID: number;
+      trackTitle: string;
+    };
+
+interface DrawerMutationOperation {
+  id: number;
+  target: DrawerMutationTarget;
+}
 
 interface PlaylistDrawerProps {
   open: boolean;
@@ -98,6 +119,14 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
   const [likesLoading, setLikesLoading] = useState(false);
   const [likesError, setLikesError] = useState<string | null>(null);
 
+  /* ── Destructive mutation state ── */
+  const [mutationTarget, setMutationTarget] = useState<DrawerMutationTarget | null>(null);
+  const [mutationOperation, setMutationOperation] = useState<DrawerMutationOperation | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const mutationTargetRef = useRef<DrawerMutationTarget | null>(null);
+  const mutationOperationSequenceRef = useRef(0);
+  const mutationOperationRef = useRef<DrawerMutationOperation | null>(null);
+
   const playlistGeneration = useRef(0);
   const playlistController = useRef<AbortController | null>(null);
   const capacityGeneration = useRef(0);
@@ -108,6 +137,9 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
   const detailGeneration = useRef(0);
   const detailController = useRef<AbortController | null>(null);
   const sessionActive = useRef(false);
+  const selectedPlaylistIDRef = useRef<number | null>(null);
+  const currentDetailKeyRef = useRef<string | null>(null);
+  const currentSelectedPlRef = useRef<PlaylistDetail | null>(null);
 
   const isCurrentSession = useCallback(
     () => sessionActive.current && getCurrentOwnerKey(ownerKey) === ownerKey,
@@ -127,6 +159,8 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
       likesGeneration.current += 1;
       detailGeneration.current += 1;
       capacityInFlight.current = false;
+      mutationTargetRef.current = null;
+      mutationOperationRef.current = null;
     };
   }, []);
 
@@ -297,6 +331,16 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
   const currentSelectedDetailKey = createReadKey(readKey, 'playlist-detail', selectedPlaylistID);
   const currentSelectedPl = detailProjectionKey === currentSelectedDetailKey ? selectedPl : null;
   const currentDetailError = detailErrorKey === currentSelectedDetailKey ? detailError : null;
+  selectedPlaylistIDRef.current = selectedPlaylistID;
+  currentDetailKeyRef.current = currentSelectedDetailKey;
+  currentSelectedPlRef.current = currentSelectedPl;
+  const currentMutationTarget =
+    mutationTarget !== null && isMutationTargetCurrent(mutationTarget) ? mutationTarget : null;
+  const currentMutationOperation =
+    mutationOperation !== null && isMutationTargetCurrent(mutationOperation.target)
+      ? mutationOperation
+      : null;
+  const mutationPending = currentMutationOperation !== null;
   const canCreate =
     playlistProjectionKey === readKey &&
     capacityCurrent &&
@@ -317,7 +361,51 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
     await loadPlaylistDetail(pl.id);
   }
 
+  function isMutationTargetCurrent(target: DrawerMutationTarget): boolean {
+    const currentDetail = currentSelectedPlRef.current;
+    if (
+      !isCurrentSession() ||
+      currentDetailKeyRef.current !== target.detailKey ||
+      selectedPlaylistIDRef.current !== target.playlistID ||
+      currentDetail?.id !== target.playlistID
+    ) {
+      return false;
+    }
+
+    return (
+      target.kind === 'delete-playlist' ||
+      currentDetail.tracks.some((track) => track.trackId === target.trackID)
+    );
+  }
+
+  function isActiveMutationOperation(operation: DrawerMutationOperation): boolean {
+    const activeOperation = mutationOperationRef.current;
+    return activeOperation?.id === operation.id && isMutationTargetCurrent(operation.target);
+  }
+
+  function clearMutationConfirmation() {
+    mutationTargetRef.current = null;
+    mutationOperationRef.current = null;
+    setMutationTarget(null);
+    setMutationOperation(null);
+    setMutationError(null);
+  }
+
+  function openMutationConfirmation(target: DrawerMutationTarget) {
+    if (
+      mutationOperationRef.current !== null ||
+      mutationTargetRef.current !== null ||
+      !isMutationTargetCurrent(target)
+    ) {
+      return;
+    }
+    mutationTargetRef.current = target;
+    setMutationTarget(target);
+    setMutationError(null);
+  }
+
   function closePlaylistDetail() {
+    clearMutationConfirmation();
     detailController.current?.abort();
     detailGeneration.current += 1;
     setSelectedPlaylistID(null);
@@ -350,35 +438,87 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
     if (isCurrentSession()) setCreating(false);
   }
 
-  async function handleDeletePlaylist(id: number) {
-    if (!isCurrentSession() || selectedPlaylistID !== id || currentSelectedPl?.id !== id) {
-      return;
-    }
-    try {
-      await deletePlaylist(id);
-      if (!isCurrentSession()) return;
-      closePlaylistDetail();
-      await loadPlaylists();
-    } catch {
-      /* ignore */
-    }
-  }
-
-  async function handleRemoveTrack(trackId: number) {
+  function requestDeletePlaylist(id: number) {
     if (
-      !currentSelectedPl ||
+      currentSelectedDetailKey === null ||
       !isCurrentSession() ||
-      !currentSelectedPl.tracks.some((track) => track.trackId === trackId)
+      selectedPlaylistID !== id ||
+      currentSelectedPl?.id !== id
     ) {
       return;
     }
-    const playlistID = currentSelectedPl.id;
+    openMutationConfirmation({
+      kind: 'delete-playlist',
+      detailKey: currentSelectedDetailKey,
+      playlistID: id,
+      playlistTitle: currentSelectedPl.title,
+    });
+  }
+
+  function requestRemoveTrack(track: PlaylistTrack) {
+    if (
+      currentSelectedDetailKey === null ||
+      !currentSelectedPl ||
+      !isCurrentSession() ||
+      !currentSelectedPl.tracks.some((item) => item.trackId === track.trackId)
+    ) {
+      return;
+    }
+    openMutationConfirmation({
+      kind: 'remove-track',
+      detailKey: currentSelectedDetailKey,
+      playlistID: currentSelectedPl.id,
+      playlistTitle: currentSelectedPl.title,
+      trackID: track.trackId,
+      trackTitle: track.title,
+    });
+  }
+
+  async function confirmMutation() {
+    const target = mutationTargetRef.current;
+    if (
+      target === null ||
+      mutationOperationRef.current !== null ||
+      !isMutationTargetCurrent(target)
+    ) {
+      return;
+    }
+    const operation: DrawerMutationOperation = {
+      id: ++mutationOperationSequenceRef.current,
+      target,
+    };
+    mutationOperationRef.current = operation;
+    setMutationOperation(operation);
+    setMutationError(null);
+
     try {
-      await removeTrackFromPlaylist(playlistID, trackId);
-      if (!isCurrentSession() || selectedPlaylistID !== playlistID) return;
-      await loadPlaylistDetail(playlistID, true);
+      if (target.kind === 'delete-playlist') {
+        await deletePlaylist(target.playlistID);
+      } else {
+        await removeTrackFromPlaylist(target.playlistID, target.trackID);
+      }
+      if (!isActiveMutationOperation(operation)) return;
+
+      clearMutationConfirmation();
+      if (target.kind === 'delete-playlist') {
+        closePlaylistDetail();
+        await loadPlaylists();
+      } else {
+        await loadPlaylistDetail(target.playlistID, true);
+      }
     } catch {
-      /* ignore */
+      if (isActiveMutationOperation(operation)) {
+        setMutationError(
+          target.kind === 'delete-playlist'
+            ? '재생목록을 삭제하지 못했습니다. 다시 시도해 주세요.'
+            : '재생목록에서 곡을 삭제하지 못했습니다. 다시 시도해 주세요.',
+        );
+      }
+    } finally {
+      if (mutationOperationRef.current?.id === operation.id) {
+        mutationOperationRef.current = null;
+        if (isCurrentSession()) setMutationOperation(null);
+      }
     }
   }
 
@@ -538,7 +678,8 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
                 <span className={styles.detailCount}>{currentSelectedPl.tracks.length}곡</span>
                 <button
                   className={styles.deletePlaylistBtn}
-                  onClick={() => handleDeletePlaylist(currentSelectedPl.id)}
+                  onClick={() => requestDeletePlaylist(currentSelectedPl.id)}
+                  disabled={mutationPending}
                   title="재생목록 삭제"
                 >
                   {'\u2715'}
@@ -584,7 +725,8 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
                       </div>
                       <button
                         className={styles.removeBtn}
-                        onClick={() => handleRemoveTrack(t.trackId)}
+                        onClick={() => requestRemoveTrack(t)}
+                        disabled={mutationPending}
                         title="삭제"
                       >
                         &times;
@@ -724,6 +866,21 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={currentMutationTarget !== null}
+        title={currentMutationTarget?.kind === 'remove-track' ? '곡 삭제' : '재생목록 삭제'}
+        message={
+          mutationError ??
+          (currentMutationTarget?.kind === 'remove-track'
+            ? `"${currentMutationTarget.trackTitle}"을(를) "${currentMutationTarget.playlistTitle}" 재생목록에서 삭제하시겠습니까?`
+            : `"${currentMutationTarget?.playlistTitle ?? ''}" 재생목록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)
+        }
+        confirmLabel={mutationError ? '다시 시도' : '삭제'}
+        confirmVariant="danger"
+        busy={mutationPending}
+        onConfirm={() => void confirmMutation()}
+        onCancel={clearMutationConfirmation}
+      />
     </div>
   );
 }

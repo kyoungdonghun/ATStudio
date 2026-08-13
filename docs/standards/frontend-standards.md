@@ -517,6 +517,23 @@ and issue no request. Playlist capacity has independent `loading`, positive
 `known`, and retryable `error` states. Create remains fail-closed until current
 playlist and server capacity reads agree; no client default is substituted.
 
+Playlist Drawer destructive mutations snapshot the current detail target and
+require explicit confirmation before the request. A synchronous pending owner
+fences duplicate confirms; stale owner/detail lifecycles cannot start or commit
+the operation. Failure uses fixed Korean copy and retains a same-target manual
+retry. Success reloads the authoritative list or detail without changing the
+zero-based reorder contract.
+
+Add-to-Playlist list loading is always visible. List failure exposes a bounded
+manual retry, and subscription-required outcomes remain explicit when no parent
+callback is supplied. Open and Track lifecycle generations retire list/add
+responses and delayed success timers.
+
+Components that call `URL.createObjectURL()` retain only their locally created
+URL in an ownership ref. Replacement, removal, close, route/owner retirement,
+and unmount revoke that URL once and clear the ref immediately. Backend/upload
+URLs are never stored in that ref or passed to `URL.revokeObjectURL()`.
+
 ```tsx
 const TrackListPage = () => {
   const [tracks, setTracks] = useState<TrackListItem[]>([]);

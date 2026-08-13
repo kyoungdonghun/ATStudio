@@ -12,6 +12,34 @@
   font-weight: 600;
 }
 
+.stateMessage {
+  min-height: 112px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text2);
+  padding: 24px 0;
+  font-size: 14px;
+  text-align: center;
+}
+
+.retryBtn {
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  background: var(--bg3);
+  color: var(--text1);
+  padding: 7px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.retryBtn:hover {
+  color: var(--text0);
+  border-color: var(--accent-border);
+}
+
 .list {
   list-style: none;
   padding: 0;
@@ -76,6 +104,10 @@
   color: var(--error);
   font-size: 12px;
   margin-bottom: 12px;
+}
+
+.stateMessage .errorMsg {
+  margin-bottom: 0;
 }
 
 .footer {

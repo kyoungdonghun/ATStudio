@@ -129,6 +129,16 @@ storage snapshot. No server Play History table participates.
   invalid IDs show fixed Korean list recovery and issue no request. Playlist
   creation requires current-owner list data and positive server-provided
   `maxPlaylists`; loading or retryable failure uses no client fallback.
+- Playlist Drawer delete/remove requests start only after target-specific
+  confirmation. Pending ownership fences duplicates and stale projections;
+  fixed failure remains retryable for the same target, while success reloads
+  the authoritative list or detail.
+- Add-to-Playlist always renders loading while its list is pending, exposes a
+  fixed manual-retry failure, and keeps subscription-required feedback visible
+  when no parent outcome callback exists. Retired responses and timers cannot
+  affect a later open or Track lifecycle.
+- Playlist create/edit revoke each locally created thumbnail preview URL once
+  on its lifecycle boundaries and never revoke backend media URLs.
 - Download History binds ID preparation, confirmation, download iterations,
   browser effects, feedback, count refresh, and cleanup to the initiating
   owner/read key and abort signal.

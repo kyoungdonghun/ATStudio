@@ -110,6 +110,17 @@ route, public wildcard 404, and ADMIN route matching semantics remain unchanged.
    known; failure offers retry and never uses a fallback limit.
 5. Detail/edit accepts only canonical positive ASCII decimal safe-integer IDs.
    Invalid IDs show fixed Korean list recovery and make no request.
+6. Drawer playlist deletion and Track removal require target-specific
+   confirmation. One pending owner fences duplicates; failure stays visible
+   with a same-target retry, and success reloads the authoritative list or
+   detail projection.
+7. Add-to-Playlist renders list loading, fixed failure with manual retry, and
+   an explicit subscription-required result when no parent callback is
+   available. Close/reopen, Track replacement, stale responses, and old success
+   timers cannot alter the current lifecycle.
+8. Playlist create/edit revoke only locally created thumbnail preview object
+   URLs at replacement, removal, close, route/owner replacement, and unmount
+   boundaries. Backend URLs remain untouched.
 
 ## Member Read Recovery
 
