@@ -1,5 +1,5 @@
 ---
-version: 2.6
+version: 2.7
 last_updated: 2026-08-13
 project: ATS
 owner: SA
@@ -158,6 +158,12 @@ Key methods: `play(track)`, `pause()`, `resume()`, `next()`, `prev()`, `addToQue
 
 - `play()` records browser-local play history in `localStorage`; this is not a server API call.
 - `volume` is persisted in `localStorage` under key `'playerVolume'`.
+- `setTrackListContext(tracks)` returns an owner cleanup. Cleanup removes only
+  that owner's visible-list context and does not stop the current Track or
+  alter the durable queue, shuffle, or repeat state.
+- Restored and seeked current time is finite, non-negative, and clamped to the
+  current media duration once a positive duration is known. Player time,
+  waveform progress, and persisted progress use the same bound.
 
 ---
 
@@ -233,6 +239,19 @@ social-provider, and QA-bootstrap availability is rendered only from a `ready`
 response. A missing or failed response is never interpreted as an enabled
 capability. Each manual retry owns the latest request so an older response
 cannot restore stale capability state.
+
+### 4.9 Public Catalog Requests
+
+Track and Album catalogs use a 1-based URL page and a shared page size of 20.
+Malformed, non-integer, zero, negative, and beyond-last-page values replace the
+URL with a bounded page before issuing the corresponding request. Album grid
+and list links preserve compatible query state and therefore request the same
+projection.
+
+Every Album list/detail request has an abort signal plus a generation owner.
+Only the latest mounted owner may commit data, error, empty, or loading state.
+Catalog recovery copy is fixed and localized; raw Axios or server text is not
+rendered.
 
 ---
 
@@ -476,6 +495,9 @@ Theme is toggled by `useThemeStore.toggle()` which sets/removes the `data-theme=
 ### 9.1 Page Components
 
 Page components manage their own data fetching via `useState` + `useEffect`.
+When route or query changes can overlap, the effect must abort the retired
+request and fence commits with a constant-time generation check. Cleanup must
+also release page-owned player context.
 
 ```tsx
 const TrackListPage = () => {

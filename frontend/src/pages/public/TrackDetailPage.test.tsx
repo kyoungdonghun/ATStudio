@@ -211,4 +211,22 @@ describe('TrackDetailPage player mapping', () => {
     expect(screen.getByRole('heading', { name: nextDetail.title })).toBeInTheDocument();
     expect(screen.queryByText('Failed to load track')).not.toBeInTheDocument();
   });
+
+  it('shows localized missing recovery without raw server text and bounds retry clicks', async () => {
+    const retry = deferred<TrackDetail>();
+    mocks.fetchTrackDetail
+      .mockRejectedValueOnce({ response: { status: 404, data: { message: 'raw detail' } } })
+      .mockReturnValueOnce(retry.promise);
+    renderPage();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('음원을 찾을 수 없습니다');
+    expect(screen.queryByText('raw detail')).not.toBeInTheDocument();
+    const retryButton = screen.getByRole('button', { name: '다시 시도' });
+    fireEvent.click(retryButton);
+    fireEvent.click(retryButton);
+    expect(mocks.fetchTrackDetail).toHaveBeenCalledTimes(2);
+
+    await act(async () => retry.resolve(detail));
+    expect(await screen.findByRole('heading', { name: detail.title })).toBeInTheDocument();
+  });
 });

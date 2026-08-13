@@ -1,5 +1,5 @@
 ---
-version: 8.6
+version: 8.7
 last_updated: 2026-08-13
 project: ATS
 owner: docops
@@ -108,6 +108,19 @@ storage snapshot. No server Play History table participates.
   use the shared PlayableTrack fields. Omitted nullable thumbnail or waveform
   keys normalize to `null`, and a selected Track's duration becomes the player
   duration in the same transition that resets current time.
+- Public Track and Album list URLs use a bounded 1-based `page` and a shared
+  page size of 20. Album image/list switches preserve compatible sort and page
+  queries, and both views keep one result projection.
+- Album list/detail loading is owned by the latest mounted route/query. Retired
+  requests cannot commit data, error, empty, or loading state. Missing and
+  retryable Track/Album details show fixed Korean Retry, Back, and Home actions
+  without raw transport text.
+- Album Track positions render one-based while canonical membership order and
+  Track IDs remain unchanged. Page-owned visible-list context is released on
+  departure without clearing the active Track, queue, shuffle, or repeat mode.
+- Restored and seeked progress is finite and clamped to a known duration before
+  persistence and rendering. The public player still streams the complete
+  active Track; no preview or playback entitlement gate is introduced.
 
 ### Track Authoring
 

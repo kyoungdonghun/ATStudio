@@ -75,7 +75,7 @@ export default function PlaylistDetailPage() {
   useEffect(() => {
     if (!detail) return;
     const tracks = detail.tracks.map((track) => toPlayableTrack(track));
-    setTrackListContext(tracks);
+    return setTrackListContext(tracks);
   }, [detail, setTrackListContext]);
 
   /* ── Track action handlers ── */

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchAlbums } from '@/api/albums';
 import type { Album, PageInfo } from '@/types';
@@ -6,19 +6,29 @@ import AlbumCard from '@/components/album/AlbumCard';
 import Pagination from '@/components/ui/Pagination';
 import { useAuthStore } from '@/store/authStore';
 import { useAlbumLikeStore } from '@/store/albumLikeStore';
+import { classifyLoadError, getLoadErrorMessage } from '@/api/loadError';
+import {
+  getCatalogTotalPages,
+  normalizeCatalogPage,
+  PUBLIC_CATALOG_PAGE_SIZE,
+  withCatalogQuery,
+} from '@/utils/catalogPagination';
 import styles from './AlbumListImagePage.module.css';
-
-const PAGE_SIZE = 24;
 
 export default function AlbumListImagePage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const latestSearchParamsRef = useRef(searchParams);
+  latestSearchParamsRef.current = searchParams;
 
   /* ── State ── */
   const [albums, setAlbums] = useState<Album[]>([]);
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestGenerationRef = useRef(0);
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const retryInFlightRef = useRef(false);
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const albumLikeLoaded = useAlbumLikeStore((s) => s.loaded);
@@ -26,28 +36,81 @@ export default function AlbumListImagePage() {
   const likedAlbumIds = useAlbumLikeStore((s) => s.likedAlbumIds);
   const toggleAlbumLike = useAlbumLikeStore((s) => s.toggle);
 
-  const currentPage = Number(searchParams.get('page') ?? '1');
+  const rawPage = searchParams.get('page');
+  const currentPage = normalizeCatalogPage(rawPage);
+  const pageNeedsNormalization = rawPage !== null && rawPage !== String(currentPage);
   const sortValue = (searchParams.get('sort') ?? 'latest') as 'latest' | 'trackCount';
+  const requestKey = `${currentPage}:${sortValue}`;
+  const latestRequestKeyRef = useRef(requestKey);
+  latestRequestKeyRef.current = requestKey;
+
+  useEffect(() => {
+    if (rawPage === null || rawPage === String(currentPage)) return;
+    const next = new URLSearchParams(searchParams);
+    next.set('page', String(currentPage));
+    setSearchParams(next, { replace: true });
+  }, [currentPage, rawPage, searchParams, setSearchParams]);
 
   /* ── Data fetch ── */
   const loadAlbums = useCallback(async () => {
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    const generation = ++requestGenerationRef.current;
+    const ownedRequestKey = requestKey;
+    const isCurrentRequest = () =>
+      generation === requestGenerationRef.current &&
+      ownedRequestKey === latestRequestKeyRef.current &&
+      !controller.signal.aborted;
+
     setLoading(true);
     setError(null);
 
     try {
-      const res = await fetchAlbums({ page: currentPage, size: PAGE_SIZE, sort: sortValue });
+      const res = await fetchAlbums(
+        { page: currentPage, size: PUBLIC_CATALOG_PAGE_SIZE, sort: sortValue },
+        controller.signal,
+      );
+      if (!isCurrentRequest()) return;
+      const totalPages = getCatalogTotalPages(res.pageInfo.total, PUBLIC_CATALOG_PAGE_SIZE);
+      if (currentPage > totalPages && res.dataList.length === 0) {
+        const next = new URLSearchParams(latestSearchParamsRef.current);
+        next.set('page', String(totalPages));
+        setSearchParams(next, { replace: true });
+        return;
+      }
       setAlbums(res.dataList);
       setPageInfo(res.pageInfo ?? null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load albums');
+    } catch (loadError) {
+      if (!isCurrentRequest() || classifyLoadError(loadError) === 'cancelled') return;
+      setAlbums([]);
+      setPageInfo(null);
+      setError(getLoadErrorMessage(loadError, '앨범 목록'));
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) {
+        setLoading(false);
+        requestControllerRef.current = null;
+      }
     }
-  }, [currentPage, sortValue]);
+  }, [currentPage, requestKey, setSearchParams, sortValue]);
 
   useEffect(() => {
-    loadAlbums();
-  }, [loadAlbums]);
+    if (pageNeedsNormalization) return;
+    void loadAlbums();
+    return () => {
+      requestControllerRef.current?.abort();
+      requestControllerRef.current = null;
+      requestGenerationRef.current += 1;
+    };
+  }, [loadAlbums, pageNeedsNormalization]);
+
+  const retryLoadAlbums = useCallback(() => {
+    if (retryInFlightRef.current || loading) return;
+    retryInFlightRef.current = true;
+    void loadAlbums().finally(() => {
+      retryInFlightRef.current = false;
+    });
+  }, [loadAlbums, loading]);
 
   useEffect(() => {
     if (isAuthenticated && !albumLikeLoaded) {
@@ -94,7 +157,7 @@ export default function AlbumListImagePage() {
           </div>
           <div className={styles.viewToggle}>
             <span className={`${styles.viewBtn} ${styles.viewBtnActive}`}>{'카드'}</span>
-            <Link to="/albums/list" className={styles.viewBtn}>
+            <Link to={withCatalogQuery('/albums/list', searchParams)} className={styles.viewBtn}>
               {'리스트'}
             </Link>
           </div>
@@ -113,7 +176,12 @@ export default function AlbumListImagePage() {
           ))}
         </div>
       ) : error ? (
-        <div className={styles.error}>{error}</div>
+        <div className={styles.error} role="alert">
+          <p className={styles.errorMessage}>{error}</p>
+          <button type="button" className={styles.retryButton} onClick={retryLoadAlbums}>
+            {'다시 시도'}
+          </button>
+        </div>
       ) : albums.length === 0 ? (
         <div className={styles.empty}>{'앨범이 없습니다.'}</div>
       ) : (

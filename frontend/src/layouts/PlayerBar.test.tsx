@@ -287,6 +287,25 @@ describe('PlayerBar playback feedback', () => {
     expect(mocks.playerState.seek).toHaveBeenLastCalledWith(45);
   });
 
+  it.each([
+    ['negative', -20, '0'],
+    ['NaN', Number.NaN, '0'],
+    ['infinite', Number.POSITIVE_INFINITY, '0'],
+    ['past duration', 250, '1'],
+  ])('renders %s progress inside the current Track bounds', (_label, currentTime, progress) => {
+    mocks.playerState.currentTime = currentTime;
+    mocks.playerState.duration = 100;
+    renderPlayerBar();
+
+    const seekControl = screen.getByRole('slider', { name: '재생 위치' });
+    expect(within(seekControl).getByTestId('waveform')).toHaveAttribute('data-progress', progress);
+    expect(seekControl).toHaveAttribute('aria-valuenow', progress === '1' ? '100' : '0');
+    expect(seekControl).toHaveAttribute(
+      'aria-valuetext',
+      progress === '1' ? '1:40 / 1:40' : '0:00 / 1:40',
+    );
+  });
+
   it('keeps focus on the mobile expand control while responsive controls change', () => {
     renderPlayerBar();
     const expandButton = screen.getByLabelText('플레이어 상세 펼치기');

@@ -701,7 +701,10 @@ describe('public discovery pages', () => {
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'trackCount' } });
     fireEvent.click(await screen.findByRole('button', { name: 'page-3' }));
     await waitFor(() => {
-      expect(mocks.fetchAlbums).toHaveBeenCalledWith({ page: 3, size: 20, sort: 'trackCount' });
+      expect(mocks.fetchAlbums).toHaveBeenCalledWith(
+        { page: 3, size: 20, sort: 'trackCount' },
+        expect.any(AbortSignal),
+      );
     });
   });
 
@@ -721,7 +724,10 @@ describe('public discovery pages', () => {
 
     mocks.fetchAlbums.mockRejectedValueOnce(new Error('album failure'));
     renderAt(<AlbumListImagePage />, '/albums');
-    expect(await screen.findByText('album failure')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '앨범 목록 정보를 불러오지 못했습니다. 네트워크 연결을 확인하고 다시 시도해주세요.',
+    );
+    expect(screen.queryByText('album failure')).not.toBeInTheDocument();
   });
 
   it('runs album playback, likes, playlist gating, and unauthenticated redirect behavior', async () => {
@@ -774,7 +780,10 @@ describe('public discovery pages', () => {
   it('shows album and notice load failures and downloads notice attachments', async () => {
     mocks.fetchAlbumDetail.mockRejectedValueOnce(new Error('missing album'));
     const missingAlbum = renderAt(<AlbumDetailPage />, '/albums/11', '/albums/:albumId');
-    expect(await screen.findByText('Failed to load album')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '앨범 정보를 불러오지 못했습니다. 네트워크 연결을 확인하고 다시 시도해주세요.',
+    );
+    expect(screen.queryByText('missing album')).not.toBeInTheDocument();
     missingAlbum.unmount();
 
     const notice: Notice = {
@@ -876,12 +885,18 @@ describe('public discovery pages', () => {
     const genericFailure = renderAt(<TrackDetailPage />, '/tracks/21', '/tracks/:trackId');
     await screen.findByRole('heading', { name: 'Fresh Track' });
     fireEvent.click(screen.getByRole('button', { name: '다운로드' }));
-    expect(await screen.findByText('다운로드에 실패했습니다.')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mocks.toast).toHaveBeenLastCalledWith('error', '다운로드에 실패했습니다.');
+    });
+    expect(screen.queryByText('다운로드에 실패했습니다.')).not.toBeInTheDocument();
     genericFailure.unmount();
 
     mocks.fetchTrackDetail.mockRejectedValueOnce(new Error('missing track'));
     renderAt(<TrackDetailPage />, '/tracks/404', '/tracks/:trackId');
-    expect(await screen.findByText('Failed to load track')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '음원 정보를 불러오지 못했습니다. 네트워크 연결을 확인하고 다시 시도해주세요.',
+    );
+    expect(screen.queryByText('missing track')).not.toBeInTheDocument();
   });
 
   it('pauses and resumes the current track without restarting it', async () => {

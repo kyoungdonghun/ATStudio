@@ -133,7 +133,7 @@ export default function DownloadHistoryPage() {
         return true;
       })
       .map((item) => toPlayableTrack(item));
-    setTrackListContext(tracks);
+    return setTrackListContext(tracks);
   }, [items, setTrackListContext]);
 
   function updateParams(patch: Record<string, string | null>) {

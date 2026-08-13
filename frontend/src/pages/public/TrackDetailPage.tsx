@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { fetchTrackDetail, type TrackDetail } from '@/api/tracks';
 import { toUploadUrl, getApiErrorCode } from '@/api/client';
-import { classifyLoadError } from '@/api/loadError';
+import { classifyLoadError, getLoadErrorMessageForKind, type LoadErrorKind } from '@/api/loadError';
 import { downloadTrack, triggerBlobDownload, fetchDownloadCount } from '@/api/downloads';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
@@ -11,6 +11,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
 import { formatDate } from '@/utils/format';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
+import CatalogDetailRecovery from '@/components/catalog/CatalogDetailRecovery';
 import styles from './TrackDetailPage.module.css';
 import { toPlayableTrack } from '@/utils/playableTrack';
 
@@ -18,10 +19,12 @@ export default function TrackDetailPage() {
   const { trackId } = useParams<{ trackId: string }>();
   const [track, setTrack] = useState<TrackDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<Exclude<LoadErrorKind, 'cancelled'> | null>(null);
   const [showPlModal, setShowPlModal] = useState(false);
   const [dlStatus, setDlStatus] = useState<'idle' | 'downloading'>('idle');
   const loadGenerationRef = useRef(0);
+  const loadInFlightRef = useRef(false);
+  const [retryGeneration, setRetryGeneration] = useState(0);
 
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlayerPlaying = usePlayerStore((s) => s.isPlaying);
@@ -37,14 +40,22 @@ export default function TrackDetailPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!trackId) return;
+    const parsedTrackId = Number(trackId);
+    if (!Number.isSafeInteger(parsedTrackId) || parsedTrackId <= 0) {
+      setTrack(null);
+      setLoadError('not-found');
+      setLoading(false);
+      loadInFlightRef.current = false;
+      return;
+    }
 
     const generation = ++loadGenerationRef.current;
     const controller = new AbortController();
+    loadInFlightRef.current = true;
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     setTrack(null);
-    fetchTrackDetail(Number(trackId), controller.signal)
+    fetchTrackDetail(parsedTrackId, controller.signal)
       .then((nextTrack) => {
         if (loadGenerationRef.current === generation) setTrack(nextTrack);
       })
@@ -53,18 +64,28 @@ export default function TrackDetailPage() {
           loadGenerationRef.current === generation &&
           classifyLoadError(loadError) !== 'cancelled'
         ) {
-          setError('Failed to load track');
+          const kind = classifyLoadError(loadError);
+          if (kind !== 'cancelled') setLoadError(kind);
         }
       })
       .finally(() => {
-        if (loadGenerationRef.current === generation) setLoading(false);
+        if (loadGenerationRef.current === generation) {
+          setLoading(false);
+          loadInFlightRef.current = false;
+        }
       });
 
     return () => {
       controller.abort();
       if (loadGenerationRef.current === generation) loadGenerationRef.current += 1;
     };
-  }, [trackId]);
+  }, [retryGeneration, trackId]);
+
+  function retryLoad() {
+    if (loadInFlightRef.current || loading) return;
+    loadInFlightRef.current = true;
+    setRetryGeneration((generation) => generation + 1);
+  }
 
   useEffect(() => {
     if (isAuthenticated && !likeLoaded) {
@@ -76,7 +97,6 @@ export default function TrackDetailPage() {
     if (!track) return;
     try {
       setDlStatus('downloading');
-      setError(null);
       const blob = await downloadTrack(track.id);
       triggerBlobDownload(blob, `${track.title}.mp3`);
       try {
@@ -96,7 +116,7 @@ export default function TrackDetailPage() {
         toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
         return;
       }
-      setError('다운로드에 실패했습니다.');
+      toast('error', '다운로드에 실패했습니다.');
     } finally {
       setDlStatus('idle');
     }
@@ -105,15 +125,24 @@ export default function TrackDetailPage() {
   if (loading) {
     return (
       <div className={styles.page}>
-        <div className={styles.loading}>Loading...</div>
+        <div className={styles.loading}>음원 정보를 불러오는 중...</div>
       </div>
     );
   }
 
-  if (error || !track) {
+  if (loadError || !track) {
+    const missing = loadError === 'not-found';
     return (
       <div className={styles.page}>
-        <div className={styles.error}>{error ?? 'Track not found'}</div>
+        <CatalogDetailRecovery
+          title={missing ? '음원을 찾을 수 없습니다' : '음원 정보를 불러오지 못했습니다'}
+          message={
+            missing
+              ? '삭제되었거나 공개되지 않은 음원입니다.'
+              : getLoadErrorMessageForKind(loadError ?? 'unknown', '음원')
+          }
+          onRetry={retryLoad}
+        />
       </div>
     );
   }

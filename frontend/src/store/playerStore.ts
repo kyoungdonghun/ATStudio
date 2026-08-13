@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { fetchPlayableTracks } from '@/api/tracks';
 import type { PlayableTrack } from '@/types';
 import { safeStorage } from '@/utils/safeStorage';
+import { clampPlaybackTime, getFiniteMediaDuration } from '@/utils/playbackProgress';
 
 const audio = new Audio();
 const STREAM_BASE = '/api/tracks';
@@ -36,6 +37,7 @@ function persistState(state: {
   currentTrack: PlayableTrack | null;
   queue: PlayableTrack[];
   currentTime: number;
+  duration?: number;
 }) {
   try {
     const queueTrackIds = Array.from(new Set(state.queue.map((track) => track.id)));
@@ -46,7 +48,10 @@ function persistState(state: {
       version: 2,
       currentTrackId: state.currentTrack?.id ?? null,
       queueTrackIds: queueTrackIds.slice(0, MAX_HYDRATION_IDS),
-      currentTime: state.currentTime,
+      currentTime: clampPlaybackTime(
+        state.currentTime,
+        getFiniteMediaDuration(state.duration ?? 0, state.currentTrack?.duration ?? 0),
+      ),
     };
     safeStorage.setItem('playerState', JSON.stringify(saved));
   } catch {
@@ -128,14 +133,15 @@ let playerHydrationPromise: Promise<void> | null = null;
 let playerStateGeneration = 0;
 
 function restoreAudioSource(track: PlayableTrack, currentTime: number): void {
+  const boundedTime = clampPlaybackTime(currentTime, track.duration);
   audio.src = `${STREAM_BASE}/${track.id}/stream`;
   try {
-    audio.currentTime = currentTime;
+    audio.currentTime = boundedTime;
   } catch {
     audio.addEventListener(
       'loadedmetadata',
       () => {
-        audio.currentTime = currentTime;
+        audio.currentTime = boundedTime;
       },
       { once: true },
     );
@@ -319,10 +325,12 @@ interface PlayerState {
   removeFromQueue: (trackId: number) => void;
   reorderQueue: (fromIndex: number, toIndex: number) => void;
   clearQueue: () => void;
-  setTrackListContext: (tracks: PlayableTrack[]) => void;
+  setTrackListContext: (tracks: PlayableTrack[]) => () => void;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => {
+  let trackListContextOwner = 0;
+
   const supersedePersistedHydration = () => {
     playerStateGeneration += 1;
     pendingPlayerState = null;
@@ -405,7 +413,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
   // Audio event listeners
   audio.addEventListener('timeupdate', () => {
-    cancelBuffering({ currentTime: audio.currentTime, duration: audio.duration || 0 });
+    const fallbackDuration = get().currentTrack?.duration ?? 0;
+    const duration = getFiniteMediaDuration(audio.duration, fallbackDuration);
+    const currentTime = clampPlaybackTime(audio.currentTime, duration);
+    if (audio.currentTime !== currentTime) audio.currentTime = currentTime;
+    cancelBuffering({ currentTime, duration });
   });
 
   audio.addEventListener('ended', () => {
@@ -420,7 +432,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
   });
 
   audio.addEventListener('loadedmetadata', () => {
-    set({ duration: audio.duration || 0 });
+    const state = get();
+    const duration = getFiniteMediaDuration(audio.duration, state.currentTrack?.duration ?? 0);
+    const currentTime = clampPlaybackTime(audio.currentTime, duration);
+    if (audio.currentTime !== currentTime) audio.currentTime = currentTime;
+    set({ duration, currentTime });
+    persistState({ ...state, duration, currentTime });
   });
 
   audio.addEventListener('stalled', beginBuffering);
@@ -491,7 +508,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
           const currentTrack = snapshot.currentTrackId
             ? (tracksById.get(snapshot.currentTrackId) ?? null)
             : null;
-          const currentTime = currentTrack ? snapshot.currentTime : 0;
+          const currentTime = currentTrack
+            ? clampPlaybackTime(snapshot.currentTime, currentTrack.duration)
+            : 0;
           if (currentTrack) {
             restoreAudioSource(currentTrack, currentTime);
           }
@@ -636,9 +655,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     seek: (time: number) => {
       supersedePersistedHydration();
       isSeeking = true;
-      audio.currentTime = time;
-      set({ currentTime: time, persistedHydration: 'ready' });
-      persistState({ ...get(), currentTime: time });
+      const state = get();
+      const duration = getFiniteMediaDuration(state.duration, state.currentTrack?.duration ?? 0);
+      const currentTime = clampPlaybackTime(time, duration);
+      audio.currentTime = currentTime;
+      set({ currentTime, persistedHydration: 'ready' });
+      persistState({ ...state, currentTime });
       setTimeout(() => {
         isSeeking = false;
       }, 100);
@@ -717,7 +739,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     setTrackListContext: (tracks: PlayableTrack[]) => {
+      const owner = ++trackListContextOwner;
       set({ trackListContext: tracks });
+      return () => {
+        if (owner !== trackListContextOwner) return;
+        trackListContextOwner += 1;
+        set({ trackListContext: [] });
+      };
     },
 
     clearQueue: () => {

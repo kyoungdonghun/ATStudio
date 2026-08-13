@@ -1,5 +1,5 @@
 /** Screen L-3: Album detail */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { fetchAlbumDetail, type AlbumDetail } from '@/api/albums';
 import { toUploadUrl } from '@/api/client';
@@ -11,27 +11,68 @@ import { formatDate } from '@/utils/format';
 import { toPlayableTrack } from '@/utils/playableTrack';
 import { useToastStore } from '@/store/toastStore';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
+import CatalogDetailRecovery from '@/components/catalog/CatalogDetailRecovery';
+import { classifyLoadError, getLoadErrorMessageForKind, type LoadErrorKind } from '@/api/loadError';
 import styles from './AlbumDetailPage.module.css';
 
 export default function AlbumDetailPage() {
   const { albumId } = useParams<{ albumId: string }>();
   const [album, setAlbum] = useState<AlbumDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<Exclude<LoadErrorKind, 'cancelled'> | null>(null);
   const [addToPlTrackId, setAddToPlTrackId] = useState<number | null>(null);
+  const loadGenerationRef = useRef(0);
+  const loadInFlightRef = useRef(false);
+  const [retryGeneration, setRetryGeneration] = useState(0);
   const toast = useToastStore((s) => s.show);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!albumId) return;
+    const parsedAlbumId = Number(albumId);
+    if (!Number.isSafeInteger(parsedAlbumId) || parsedAlbumId <= 0) {
+      setAlbum(null);
+      setLoadError('not-found');
+      setLoading(false);
+      loadInFlightRef.current = false;
+      return;
+    }
 
+    const generation = ++loadGenerationRef.current;
+    const controller = new AbortController();
+    loadInFlightRef.current = true;
     setLoading(true);
-    setError(null);
-    fetchAlbumDetail(Number(albumId))
-      .then(setAlbum)
-      .catch(() => setError('Failed to load album'))
-      .finally(() => setLoading(false));
-  }, [albumId]);
+    setLoadError(null);
+    setAlbum(null);
+    fetchAlbumDetail(parsedAlbumId, controller.signal)
+      .then((nextAlbum) => {
+        if (loadGenerationRef.current === generation && !controller.signal.aborted) {
+          setAlbum(nextAlbum);
+        }
+      })
+      .catch((error: unknown) => {
+        if (loadGenerationRef.current !== generation || controller.signal.aborted) return;
+        const kind = classifyLoadError(error);
+        if (kind !== 'cancelled') setLoadError(kind);
+      })
+      .finally(() => {
+        if (loadGenerationRef.current === generation && !controller.signal.aborted) {
+          setLoading(false);
+          loadInFlightRef.current = false;
+        }
+      });
+
+    return () => {
+      controller.abort();
+      if (loadGenerationRef.current === generation) loadGenerationRef.current += 1;
+      loadInFlightRef.current = false;
+    };
+  }, [albumId, retryGeneration]);
+
+  function retryLoad() {
+    if (loadInFlightRef.current || loading) return;
+    loadInFlightRef.current = true;
+    setRetryGeneration((generation) => generation + 1);
+  }
 
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlayerPlaying = usePlayerStore((s) => s.isPlaying);
@@ -66,21 +107,30 @@ export default function AlbumDetailPage() {
   useEffect(() => {
     if (!album) return;
     const tracks = album.tracks.map((track) => toPlayableTrack(track));
-    setTrackListContext(tracks);
+    return setTrackListContext(tracks);
   }, [album, setTrackListContext]);
 
   if (loading) {
     return (
       <div className={styles.page}>
-        <div className={styles.loading}>Loading...</div>
+        <div className={styles.loading}>앨범 정보를 불러오는 중...</div>
       </div>
     );
   }
 
-  if (error || !album) {
+  if (loadError || !album) {
+    const missing = loadError === 'not-found';
     return (
       <div className={styles.page}>
-        <div className={styles.error}>{error ?? 'Album not found'}</div>
+        <CatalogDetailRecovery
+          title={missing ? '앨범을 찾을 수 없습니다' : '앨범 정보를 불러오지 못했습니다'}
+          message={
+            missing
+              ? '삭제되었거나 공개되지 않은 앨범입니다.'
+              : getLoadErrorMessageForKind(loadError ?? 'unknown', '앨범')
+          }
+          onRetry={retryLoad}
+        />
       </div>
     );
   }
@@ -214,7 +264,7 @@ export default function AlbumDetailPage() {
                       </div>
                     </Link>
                   </td>
-                  <td className={styles.tdOrder}>{t.order}</td>
+                  <td className={styles.tdOrder}>{t.order + 1}</td>
                   <td className={styles.tdActions}>
                     <div className={styles.tdActionsInner}>
                       {isAuthenticated ? (

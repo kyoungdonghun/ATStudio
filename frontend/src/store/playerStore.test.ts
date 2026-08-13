@@ -604,6 +604,65 @@ describe('playerStore playback lifecycle', () => {
     expect(usePlayerStore.getState().queue.map((item) => item.id)).toEqual([2]);
   });
 
+  it('clears only the currently owned visible context without changing durable playback state', () => {
+    usePlayerStore.setState({
+      currentTrack: firstTrack,
+      queue: [firstTrack, secondTrack],
+      shuffle: true,
+      repeat: 'all',
+    });
+
+    const clearFirstOwner = usePlayerStore.getState().setTrackListContext([firstTrack]);
+    const clearSecondOwner = usePlayerStore.getState().setTrackListContext([secondTrack]);
+    act(() => clearFirstOwner());
+    expect(usePlayerStore.getState().trackListContext).toEqual([secondTrack]);
+
+    act(() => clearSecondOwner());
+    expect(usePlayerStore.getState()).toMatchObject({
+      currentTrack: firstTrack,
+      queue: [firstTrack, secondTrack],
+      shuffle: true,
+      repeat: 'all',
+      trackListContext: [],
+    });
+  });
+
+  it.each([
+    ['negative', -10, 0],
+    ['NaN', Number.NaN, 0],
+    ['positive infinity', Number.POSITIVE_INFINITY, 0],
+    ['past duration', 999, 120],
+  ])('clamps %s seek progress to finite media bounds', (_label, requested, expected) => {
+    vi.useFakeTimers();
+    usePlayerStore.setState({ currentTrack: firstTrack, duration: firstTrack.duration });
+
+    act(() => usePlayerStore.getState().seek(requested));
+
+    expect(audio.currentTime).toBe(expected);
+    expect(usePlayerStore.getState().currentTime).toBe(expected);
+    expect(JSON.parse(localStorage.getItem('playerState') ?? '{}')).toMatchObject({
+      currentTime: expected,
+    });
+    act(() => vi.advanceTimersByTime(100));
+  });
+
+  it('persists seek progress against the decoded media duration when it refines Track metadata', () => {
+    vi.useFakeTimers();
+    usePlayerStore.setState({
+      currentTrack: { ...firstTrack, duration: 90 },
+      duration: 120,
+    });
+
+    act(() => usePlayerStore.getState().seek(110));
+
+    expect(audio.currentTime).toBe(110);
+    expect(usePlayerStore.getState().currentTime).toBe(110);
+    expect(JSON.parse(localStorage.getItem('playerState') ?? '{}')).toMatchObject({
+      currentTime: 110,
+    });
+    act(() => vi.advanceTimersByTime(100));
+  });
+
   it('plays a complete list, ignores duplicates, and clears playback state', async () => {
     act(() => usePlayerStore.getState().playAll([]));
     expect(audio.play).not.toHaveBeenCalled();

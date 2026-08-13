@@ -52,8 +52,8 @@ export function classifyLoadError(error: unknown): LoadErrorKind {
   return 'unknown';
 }
 
-export function getLoadErrorMessage(error: unknown, subject: string): string {
-  switch (classifyLoadError(error)) {
+export function getLoadErrorMessageForKind(kind: LoadErrorKind, subject: string): string {
+  switch (kind) {
     case 'unauthorized':
       return `${subject} 정보를 불러오는 데 필요한 로그인 상태를 확인하지 못했습니다. 다시 시도해주세요.`;
     case 'forbidden':
@@ -69,4 +69,8 @@ export function getLoadErrorMessage(error: unknown, subject: string): string {
     default:
       return `${subject} 정보를 불러오지 못했습니다. 다시 시도해주세요.`;
   }
+}
+
+export function getLoadErrorMessage(error: unknown, subject: string): string {
+  return getLoadErrorMessageForKind(classifyLoadError(error), subject);
 }

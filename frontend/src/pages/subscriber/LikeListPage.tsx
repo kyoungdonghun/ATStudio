@@ -78,7 +78,7 @@ export default function LikeListPage() {
   useEffect(() => {
     if (tab !== 'tracks') return;
     const tracks = items.map((item) => toPlayableTrack(item));
-    setTrackListContext(tracks);
+    return setTrackListContext(tracks);
   }, [tab, items, setTrackListContext]);
 
   /* ── Track handlers ── */

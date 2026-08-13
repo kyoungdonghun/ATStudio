@@ -1,5 +1,5 @@
 ---
-version: 5.9
+version: 6.0
 last_updated: 2026-08-13
 project: ATS
 owner: docops
@@ -85,6 +85,20 @@ route, public wildcard 404, and ADMIN route matching semantics remain unchanged.
 6. After playback starts, the SPA records the Track ID in browser
    `localStorage` under `playHistory`.
 7. The local list is capped at 100; no server Play History table participates.
+8. Public Track and Album catalogs canonicalize `page` to a bounded 1-based
+   value and use 20 results per page. Album grid/list switching preserves sort
+   and page query state, so both views retain the same result projection.
+9. Album list/detail requests are latest-owner wins. Route, query, view, or
+   unmount retirement prevents stale data, error, empty, or loading commits.
+   Missing and recoverable Track/Album detail states use fixed Korean Retry,
+   Back, and Home recovery without transport text.
+10. A page that publishes a visible Track-list context releases only that
+    context on departure. The active Track and durable queue/shuffle/repeat
+    state remain intact. Album positions display as one-based while stored
+    order remains zero-based.
+11. Restored and seeked playback time is finite and clamped between zero and a
+    known positive duration. Time and waveform UI never exceed that duration.
+    Public playback continues to stream the complete active Track.
 
 ## Playlist
 

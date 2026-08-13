@@ -48,7 +48,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-005 |
-| **Version** | 26-08-09 |
+| **Version** | 26-08-13 |
 | **Description** | User (including non-members) views the track list. Only tracks with is_active=1 are returned. |
 | **Actor** | User (including non-members), Backend |
 | **Preconditions** | - |
@@ -69,6 +69,9 @@
    1-based `pageInfo`.
 6. Frontend restores all four Tag types from the URL, preserves them through
    sort/page changes, and renders `USAGE` as a visible hashtag subline.
+7. Frontend canonicalizes malformed, non-integer, zero, negative, and
+   beyond-last-page values before the corresponding bounded request. The
+   public catalog uses page size 20 and keeps all compatible query state.
 
 **Sort Parameter**
 | Value | Sort behavior |
@@ -98,6 +101,8 @@
 - No search results: returns an empty `dataList` with `pageInfo`.
 - Invalid page or size: returns 400 `INVALID_ARGUMENT` without querying Track
   search results.
+- A frontend URL with an invalid or beyond-last page is replaced with its
+  canonical 1-based page and does not repeat the invalid request.
 - If available-Tag loading fails, every registered filter choice remains
   selectable rather than being disabled from stale availability data.
 
@@ -111,7 +116,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-006 |
-| **Version** | 26-06-02 |
+| **Version** | 26-08-13 |
 | **Description** | User (including non-members) views detailed track information. |
 | **Actor** | User (including non-members), Backend |
 | **Preconditions** | Target track exists in DB with is_active=1. |
@@ -125,6 +130,8 @@
 
 **Exception / Alternative Flow**
 - Track not found or is_active=0: 404 response.
+- A missing Track or recoverable request failure renders fixed Korean retry,
+  safe Back, and Home recovery. Raw transport and server error text is absent.
 
 **Postconditions**
 - Track metadata (title, BPM, key, description, tags, visible usage guide hashtags, counts, waveform data, etc.) is displayed. The original storage key is not included in public detail data.
@@ -136,7 +143,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-010 |
-| **Version** | 26-08-09 |
+| **Version** | 26-08-13 |
 | **Description** | User (including non-members) listens to the complete active Track through the public controller-mediated stream. Listening remains separate from official download and License entitlement. Play history recording is handled by the frontend calling SOUND-004 separately. |
 | **Actor** | User (including non-members), Backend |
 | **Preconditions** | Track exists in DB with is_active=1. audio_file exists in file storage. |
@@ -156,6 +163,9 @@
 7. `audio.error` and rejected `play()` use the separate playback-error state;
    an actual error takes precedence over the buffering status.
 8. Frontend records browser-local Play History only after playback starts.
+9. Restored and seeked current time is normalized to a finite non-negative
+   value and clamped to the current positive media duration when known. The
+   player time and waveform use that same bound.
 
 **Exception / Alternative Flow**
 - No `Range` header: returns `200` with the full resource length.

@@ -13,6 +13,7 @@ import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import WaveformCanvas from '@/components/player/WaveformCanvas';
 import styles from './PlayerBar.module.css';
 import { createLoginPath } from '@/utils/loginReturn';
+import { clampPlaybackTime, getFiniteMediaDuration } from '@/utils/playbackProgress';
 
 const STALLED_MESSAGE = '재생이 지연되고 있습니다. 연결을 확인한 뒤 다시 시도해 주세요.';
 const SEEK_STEP_SECONDS = 5;
@@ -169,8 +170,9 @@ export default function PlayerBar() {
     }
   }, [currentTrack?.waveformData]);
 
-  const trackDuration = duration || currentTrack?.duration || 0;
-  const progressRatio = trackDuration > 0 ? currentTime / trackDuration : 0;
+  const trackDuration = getFiniteMediaDuration(duration, currentTrack?.duration ?? 0);
+  const boundedCurrentTime = clampPlaybackTime(currentTime, trackDuration);
+  const progressRatio = trackDuration > 0 ? boundedCurrentTime / trackDuration : 0;
 
   const handleSeek = useCallback(
     (ratio: number) => {
@@ -222,9 +224,9 @@ export default function PlayerBar() {
 
       let targetTime: number | null = null;
       if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-        targetTime = currentTime + SEEK_STEP_SECONDS;
+        targetTime = boundedCurrentTime + SEEK_STEP_SECONDS;
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
-        targetTime = currentTime - SEEK_STEP_SECONDS;
+        targetTime = boundedCurrentTime - SEEK_STEP_SECONDS;
       } else if (e.key === 'Home') {
         targetTime = 0;
       } else if (e.key === 'End') {
@@ -235,7 +237,7 @@ export default function PlayerBar() {
       e.preventDefault();
       seek(Math.max(0, Math.min(trackDuration, targetTime)));
     },
-    [currentTime, seek, trackDuration],
+    [boundedCurrentTime, seek, trackDuration],
   );
 
   /* ── Repeat icon SVG helper ── */
@@ -720,14 +722,14 @@ export default function PlayerBar() {
             aria-label="재생 위치"
             aria-valuemin={0}
             aria-valuemax={trackDuration}
-            aria-valuenow={Math.max(0, Math.min(trackDuration, currentTime))}
-            aria-valuetext={`${formatTime(currentTime)} / ${formatTime(trackDuration)}`}
+            aria-valuenow={boundedCurrentTime}
+            aria-valuetext={`${formatTime(boundedCurrentTime)} / ${formatTime(trackDuration)}`}
             onKeyDown={handleSeekKeyDown}
           >
             <WaveformCanvas peaks={parsedPeaks} progress={progressRatio} onSeek={handleSeek} />
           </div>
           <div className={styles.timeDisplay}>
-            <span>{formatTime(currentTime)}</span>
+            <span>{formatTime(boundedCurrentTime)}</span>
             <span className={styles.timeSep}>/</span>
             <span>{formatTime(trackDuration)}</span>
           </div>
@@ -841,8 +843,8 @@ export default function PlayerBar() {
           aria-label="모바일 재생 위치"
           aria-valuemin={0}
           aria-valuemax={trackDuration}
-          aria-valuenow={Math.max(0, Math.min(trackDuration, currentTime))}
-          aria-valuetext={`${formatTime(currentTime)} / ${formatTime(trackDuration)}`}
+          aria-valuenow={boundedCurrentTime}
+          aria-valuetext={`${formatTime(boundedCurrentTime)} / ${formatTime(trackDuration)}`}
         >
           <div className={styles.mobileProgressFill} style={{ width: `${progressPercent}%` }} />
         </div>
@@ -974,7 +976,7 @@ export default function PlayerBar() {
 
           {/* Waveform seek (replaces plain progress bar) */}
           <div className={styles.mobileWaveform}>
-            <span className={styles.mobileSeekTime}>{formatTime(currentTime)}</span>
+            <span className={styles.mobileSeekTime}>{formatTime(boundedCurrentTime)}</span>
             <div
               className={styles.mobileWaveformWrap}
               role="slider"
@@ -982,8 +984,8 @@ export default function PlayerBar() {
               aria-label="모바일 상세 재생 위치"
               aria-valuemin={0}
               aria-valuemax={trackDuration}
-              aria-valuenow={Math.max(0, Math.min(trackDuration, currentTime))}
-              aria-valuetext={`${formatTime(currentTime)} / ${formatTime(trackDuration)}`}
+              aria-valuenow={boundedCurrentTime}
+              aria-valuetext={`${formatTime(boundedCurrentTime)} / ${formatTime(trackDuration)}`}
               onKeyDown={handleSeekKeyDown}
             >
               <WaveformCanvas

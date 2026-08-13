@@ -34,7 +34,10 @@ export interface AlbumListParams {
 /* ── API functions ── */
 
 /** GET /api/albums -- public album list */
-export async function fetchAlbums(params: AlbumListParams = {}): Promise<PagedResponse<Album>> {
+export async function fetchAlbums(
+  params: AlbumListParams = {},
+  signal?: AbortSignal,
+): Promise<PagedResponse<Album>> {
   const query: Record<string, string | number> = {};
 
   if (params.page !== undefined) query.page = params.page;
@@ -43,13 +46,17 @@ export async function fetchAlbums(params: AlbumListParams = {}): Promise<PagedRe
 
   const { data } = await client.get<PagedResponse<Album>>('/albums', {
     params: query,
+    signal,
   });
   return data;
 }
 
 /** GET /api/albums/{id} -- album detail */
-export async function fetchAlbumDetail(albumId: number): Promise<AlbumDetail> {
-  const { data } = await client.get<ApiResponse<AlbumDetail>>(`/albums/${albumId}`);
+export async function fetchAlbumDetail(
+  albumId: number,
+  signal?: AbortSignal,
+): Promise<AlbumDetail> {
+  const { data } = await client.get<ApiResponse<AlbumDetail>>(`/albums/${albumId}`, { signal });
   return data.data;
 }
 

@@ -18,6 +18,11 @@ import { useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
 import { toPlayableTrack } from '@/utils/playableTrack';
 import { formatTagNameForDisplay } from '@/utils/tagName';
+import {
+  getCatalogTotalPages,
+  normalizeCatalogPage,
+  PUBLIC_CATALOG_PAGE_SIZE,
+} from '@/utils/catalogPagination';
 import styles from './TrackListPage.module.css';
 
 /* ── BPM filter presets ── */
@@ -31,7 +36,6 @@ const BPM_PRESETS: readonly { label: string; min: number | undefined; max: numbe
     { label: '140 ~', min: 140, max: undefined },
   ];
 
-const PAGE_SIZE = 20;
 const TAXONOMY_TYPES: readonly TagType[] = ['GENRE', 'MOOD', 'INSTRUMENT', 'USAGE'];
 const TAXONOMY_LABELS: Record<TagType, string> = {
   GENRE: '장르',
@@ -143,6 +147,8 @@ function tagValuesFromKey(key: string): string[] {
 
 export default function TrackListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const latestSearchParamsRef = useRef(searchParams);
+  latestSearchParamsRef.current = searchParams;
 
   /* ── State ── */
   const [tracks, setTracks] = useState<TrackListItem[]>([]);
@@ -166,7 +172,9 @@ export default function TrackListPage() {
   }
 
   /* ── Derive filters from URL ── */
-  const currentPage = Number(searchParams.get('page') ?? '1');
+  const rawPage = searchParams.get('page');
+  const currentPage = normalizeCatalogPage(rawPage);
+  const pageNeedsNormalization = rawPage !== null && rawPage !== String(currentPage);
   const activeKeyword = searchParams.get('keyword') ?? '';
   const activeGenres = searchParams.getAll('genre');
   const activeMoods = searchParams.getAll('mood');
@@ -194,6 +202,13 @@ export default function TrackListPage() {
   ].join('\u001f');
   const latestTrackRequestKeyRef = useRef(trackRequestKey);
   latestTrackRequestKeyRef.current = trackRequestKey;
+
+  useEffect(() => {
+    if (rawPage === null || rawPage === String(currentPage)) return;
+    const next = new URLSearchParams(searchParams);
+    next.set('page', String(currentPage));
+    setSearchParams(next, { replace: true });
+  }, [currentPage, rawPage, searchParams, setSearchParams]);
   const genreTags = taxonomies.GENRE.tags;
   const moodTags = taxonomies.MOOD.tags;
   const instrumentTags = taxonomies.INSTRUMENT.tags;
@@ -227,7 +242,7 @@ export default function TrackListPage() {
   /* SR-83: Publish the currently visible track list as player context.
      The Next/Prev buttons and keyboard ↓/↑ both read from this context. */
   useEffect(() => {
-    setTrackListContext(tracks.map((track) => toPlayableTrack(track)));
+    return setTrackListContext(tracks.map((track) => toPlayableTrack(track)));
   }, [tracks, setTrackListContext]);
 
   /* Like store */
@@ -325,7 +340,7 @@ export default function TrackListPage() {
 
     const params: TrackListParams = {
       page: currentPage,
-      size: PAGE_SIZE,
+      size: PUBLIC_CATALOG_PAGE_SIZE,
       sort: sortValue,
     };
 
@@ -346,6 +361,13 @@ export default function TrackListPage() {
     try {
       const res = await fetchTracks(params, controller.signal);
       if (!isCurrentRequest()) {
+        return;
+      }
+      const totalPages = getCatalogTotalPages(res.pageInfo.total, PUBLIC_CATALOG_PAGE_SIZE);
+      if (currentPage > totalPages && res.dataList.length === 0) {
+        const next = new URLSearchParams(latestSearchParamsRef.current);
+        next.set('page', String(totalPages));
+        setSearchParams(next, { replace: true });
         return;
       }
       setTracks(res.dataList);
@@ -376,16 +398,18 @@ export default function TrackListPage() {
     activeUsagesKey,
     activeBpmLabel,
     trackRequestKey,
+    setSearchParams,
   ]);
 
   useEffect(() => {
+    if (pageNeedsNormalization) return;
     void loadTracks();
     return () => {
       trackRequestControllerRef.current?.abort();
       trackRequestControllerRef.current = null;
       trackRequestGenerationRef.current += 1;
     };
-  }, [loadTracks]);
+  }, [loadTracks, pageNeedsNormalization]);
 
   const retryLoadTracks = useCallback(() => {
     if (trackRetryInFlightRef.current || loading) {
@@ -835,7 +859,7 @@ export default function TrackListPage() {
                 {tracks.map((track, idx) => (
                   <TrackRow
                     key={track.id}
-                    index={(currentPage - 1) * PAGE_SIZE + idx + 1}
+                    index={(currentPage - 1) * PUBLIC_CATALOG_PAGE_SIZE + idx + 1}
                     track={track}
                     playing={currentTrack?.id === track.id && isPlaying}
                     liked={likedIds.has(track.id)}

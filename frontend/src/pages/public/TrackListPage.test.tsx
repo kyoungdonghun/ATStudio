@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TrackListPage from '@/pages/public/TrackListPage';
 import type { PagedResponse, TrackListItem } from '@/types';
@@ -187,6 +187,11 @@ function QueryControls() {
   );
 }
 
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
+}
+
 function renderPage(initialEntry = '/tracks?keyword=old&page=1') {
   return render(
     <MemoryRouter
@@ -194,6 +199,7 @@ function renderPage(initialEntry = '/tracks?keyword=old&page=1') {
       future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
     >
       <QueryControls />
+      <LocationProbe />
       <Routes>
         <Route path="/tracks" element={<TrackListPage />} />
       </Routes>
@@ -214,6 +220,7 @@ describe('TrackListPage latest-request-wins', () => {
     mocks.fetchDownloadCount.mockReset();
     mocks.downloadTrack.mockReset();
     mocks.triggerBlobDownload.mockReset();
+    mocks.playerState.setTrackListContext.mockReset();
     mocks.fetchTags.mockResolvedValue([]);
     mocks.fetchAvailableTags.mockResolvedValue([]);
   });
@@ -247,6 +254,51 @@ describe('TrackListPage latest-request-wins', () => {
     expect(screen.queryByText('old result')).not.toBeInTheDocument();
     expect(screen.getByTestId('pagination-total')).toHaveTextContent('2');
     expect((mocks.fetchTracks.mock.calls[0][1] as AbortSignal).aborted).toBe(true);
+  });
+
+  it.each(['abc', '-1', '0', '1.5'])(
+    'replaces invalid page=%s before one valid request',
+    async (page) => {
+      mocks.fetchTracks.mockResolvedValue(trackPage('normalized', 1));
+      renderPage(`/tracks?keyword=old&page=${page}`);
+
+      await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('page=1'));
+      await waitFor(() => expect(mocks.fetchTracks).toHaveBeenCalledTimes(1));
+      expect(mocks.fetchTracks).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 1, size: 20 }),
+        expect.any(AbortSignal),
+      );
+    },
+  );
+
+  it('normalizes an out-of-range page to the last page with one bounded follow-up', async () => {
+    mocks.fetchTracks
+      .mockResolvedValueOnce({ ...trackPage('unused', 999, 21), dataList: [] })
+      .mockResolvedValueOnce(trackPage('last page', 2, 21));
+    renderPage('/tracks?page=999');
+
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/tracks?page=2'));
+    expect(await screen.findByText('last page')).toBeInTheDocument();
+    expect(mocks.fetchTracks).toHaveBeenCalledTimes(2);
+    expect(mocks.fetchTracks.mock.calls.map(([params]) => params.page)).toEqual([999, 2]);
+  });
+
+  it('runs the visible-list cleanup returned by the player store on unmount', async () => {
+    const cleanups: Array<ReturnType<typeof vi.fn>> = [];
+    mocks.playerState.setTrackListContext.mockImplementation(() => {
+      const cleanup = vi.fn();
+      cleanups.push(cleanup);
+      return cleanup;
+    });
+    mocks.fetchTracks.mockResolvedValue(trackPage('owned context', 1));
+    const view = renderPage();
+
+    await screen.findByText('owned context');
+    view.unmount();
+
+    expect(cleanups).toHaveLength(2);
+    expect(cleanups[0]).toHaveBeenCalledTimes(1);
+    expect(cleanups[1]).toHaveBeenCalledTimes(1);
   });
 
   it('ignores an older failure after the newer request succeeds', async () => {

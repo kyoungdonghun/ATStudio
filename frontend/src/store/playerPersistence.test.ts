@@ -139,6 +139,34 @@ describe('player persistence', () => {
   });
 
   it.each([
+    ['negative progress', '-5', 0],
+    ['non-numeric progress', '"NaN"', 0],
+    ['infinite progress', '1e999', 0],
+    ['progress beyond the hydrated duration', '999', 180],
+  ])(
+    'clamps restored %s when the current Track becomes known',
+    async (_label, rawTime, expected) => {
+      localStorage.setItem(
+        'playerState',
+        `{"version":2,"currentTrackId":7,"queueTrackIds":[7],"currentTime":${rawTime}}`,
+      );
+      apiMocks.fetchPlayableTracks.mockResolvedValue([track]);
+
+      const { usePlayerStore } = await import('@/store/playerStore');
+      await usePlayerStore.getState().hydratePersistedState();
+
+      expect(usePlayerStore.getState()).toMatchObject({
+        currentTrack: track,
+        currentTime: expected,
+      });
+      expect(audioInstances[0].currentTime).toBe(expected);
+      expect(JSON.parse(localStorage.getItem('playerState') ?? '{}')).toMatchObject({
+        currentTime: expected,
+      });
+    },
+  );
+
+  it.each([
     ['obsolete version', { version: 0, currentTrack: track, queue: [track], currentTime: 5 }],
     ['wrong field shapes', { version: 1, currentTrack: {}, queue: {}, currentTime: '5' }],
   ])('falls back safely for %s', async (_label, persistedState) => {

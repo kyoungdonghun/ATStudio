@@ -57,7 +57,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | ALBUM-002 |
-| **Version** | 26-08-09 |
+| **Version** | 26-08-13 |
 | **Description** | Any user (including unauthenticated) views the list of active albums. Supports sort parameter. |
 | **Actor** | Anyone, Backend |
 | **Preconditions** | None. |
@@ -70,6 +70,11 @@
 3. Backend returns the album list with active Track counts and `likeCount` per
    album. Inactive Track memberships remain persisted but do not contribute to
    the public count.
+4. Frontend uses a bounded 1-based page and page size 20. Image/list view links
+   preserve compatible sort and page query state, so both views request the
+   same projection.
+5. Every list request is abortable and generation-owned. Only the latest
+   mounted route/query may commit data, error, empty, or loading state.
 
 **Sort Parameter**
 | Value | Sort behavior |
@@ -94,7 +99,7 @@ Includes `likeCount` field (from `albums.like_count`) in addition to id, title, 
 | Field | Value |
 |-------|-------|
 | **Code** | ALBUM-003 |
-| **Version** | 26-08-09 |
+| **Version** | 26-08-13 |
 | **Description** | Any user views album detail including the included track list and track order. |
 | **Actor** | Anyone, Backend |
 | **Preconditions** | None. Album must be active (is_active=true). |
@@ -105,9 +110,15 @@ Includes `likeCount` field (from `albums.like_count`) in addition to id, title, 
 1. Frontend sends a detail request including albumId to the backend.
 2. Backend returns album information and active Track membership rows only,
    sorted by `track_order`. Inactive membership rows remain persisted.
+3. Frontend displays `track_order + 1` to users without changing canonical
+   membership order or Track identity. Its page-owned playback context is
+   released on departure without changing the active Track or durable queue.
 
 **Exception / Alternative Flow**
 - Album not found or inactive: 404 response.
+- A missing Album or recoverable request failure renders fixed Korean retry,
+  safe Back, and Home recovery without raw transport text. Retired detail
+  requests cannot commit state.
 
 **Postconditions**
 - Album detail and included track list (sorted by track_order) displayed on screen.
