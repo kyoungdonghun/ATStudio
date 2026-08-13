@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CompanyCertApplyPage from '@/pages/subscriber/CompanyCertApplyPage';
@@ -28,14 +29,31 @@ function sizedFile(name: string, size: number): File {
   return testFile;
 }
 
-function renderPage() {
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
+}
+
+function renderPage(strict = false) {
+  const page = strict ? (
+    <StrictMode>
+      <CompanyCertApplyPage />
+    </StrictMode>
+  ) : (
+    <CompanyCertApplyPage />
+  );
   return render(
     <MemoryRouter
       initialEntries={['/company-certification/apply']}
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
       <Routes>
-        <Route path="/company-certification/apply" element={<CompanyCertApplyPage />} />
+        <Route path="/company-certification/apply" element={page} />
         <Route path="/company-certification/status" element={<div>인증 현황</div>} />
       </Routes>
     </MemoryRouter>,
@@ -82,6 +100,57 @@ describe('CompanyCertApplyPage', () => {
       '기업 회원만 기업 인증을 이용할 수 있습니다.',
     );
     expect(screen.queryByLabelText('기업 인증 서류 선택')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { label: 'server', error: { response: { status: 500 } } },
+    { label: 'network', error: new Error('network failure') },
+  ])(
+    'blocks submission after a $label lookup failure and opens only after retry proves 404',
+    async ({ error }) => {
+      fetchMyCompanyCert
+        .mockRejectedValueOnce(error)
+        .mockRejectedValueOnce({ response: { status: 404 } });
+
+      renderPage();
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('인증 상태를 확인할 수 없습니다.');
+      expect(screen.queryByLabelText('기업 인증 서류 선택')).not.toBeInTheDocument();
+      expect(applyCompanyCert).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+
+      expect(await screen.findByLabelText('기업 인증 서류 선택')).toBeInTheDocument();
+      expect(fetchMyCompanyCert).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('opens the form after a definitive REJECTED lookup result', async () => {
+    fetchMyCompanyCert.mockResolvedValue({ status: 'REJECTED' });
+
+    renderPage();
+
+    expect(await screen.findByLabelText('기업 인증 서류 선택')).toBeInTheDocument();
+    expect(screen.getByText(/이전 신청은 반려/)).toBeInTheDocument();
+  });
+
+  it('ignores a stale lookup completion after the latest strict-mode request proves no existing application', async () => {
+    const stale = deferred<{ status: 'PENDING' }>();
+    const latest = deferred<never>();
+    fetchMyCompanyCert
+      .mockImplementationOnce(() => stale.promise)
+      .mockImplementationOnce(() => latest.promise);
+
+    renderPage(true);
+    await waitFor(() => expect(fetchMyCompanyCert).toHaveBeenCalledTimes(2));
+
+    latest.reject({ response: { status: 404 } });
+    expect(await screen.findByLabelText('기업 인증 서류 선택')).toBeInTheDocument();
+
+    stale.resolve({ status: 'PENDING' });
+    await waitFor(() => expect(screen.queryByText('인증 현황')).not.toBeInTheDocument());
+    expect(screen.getByLabelText('기업 인증 서류 선택')).toBeInTheDocument();
   });
 
   it('shows the backend validation message when application submission fails', async () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
+import { useState, useEffect, useCallback, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   fetchMyCompanyCert,
@@ -44,32 +44,36 @@ export default function CompanyCertStatusPage() {
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const loadRequestId = useRef(0);
+
+  const loadCert = useCallback(async () => {
+    const currentRequestId = ++loadRequestId.current;
+    setLoading(true);
+    setError(null);
+    setNotFound(false);
+    setCert(null);
+    try {
+      const data = await fetchMyCompanyCert();
+      if (currentRequestId === loadRequestId.current) setCert(data);
+    } catch (err: unknown) {
+      if (currentRequestId !== loadRequestId.current) return;
+      const status = getCompanyCertErrorStatus(err);
+      if (status === 404) {
+        setNotFound(true);
+      } else {
+        setError(getCompanyCertErrorMessage(err, '인증 현황을 불러올 수 없습니다.'));
+      }
+    } finally {
+      if (currentRequestId === loadRequestId.current) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadCert() {
-      try {
-        const data = await fetchMyCompanyCert();
-        if (!cancelled) setCert(data);
-      } catch (err: unknown) {
-        if (cancelled) return;
-        const status = getCompanyCertErrorStatus(err);
-        if (status === 404) {
-          setNotFound(true);
-        } else {
-          setError(getCompanyCertErrorMessage(err, '인증 현황을 불러올 수 없습니다.'));
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    loadCert();
+    void loadCert();
     return () => {
-      cancelled = true;
+      loadRequestId.current += 1;
     };
-  }, []);
+  }, [loadCert]);
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files;
@@ -127,7 +131,10 @@ export default function CompanyCertStatusPage() {
       <div className={styles.page}>
         <h1 className={styles.pageTitle}>{'기업 인증 현황'}</h1>
         <div className={styles.error} role="alert">
-          {error}
+          <p>{error}</p>
+          <Button type="button" onClick={() => void loadCert()}>
+            {'다시 시도'}
+          </Button>
         </div>
       </div>
     );

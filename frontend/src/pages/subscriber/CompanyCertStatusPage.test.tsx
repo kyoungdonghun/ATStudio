@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CompanyCertStatusPage from '@/pages/subscriber/CompanyCertStatusPage';
@@ -39,10 +40,26 @@ function sizedFile(name: string, size: number): File {
   return testFile;
 }
 
-function renderPage() {
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
+}
+
+function renderPage(strict = false) {
   return render(
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <CompanyCertStatusPage />
+      {strict ? (
+        <StrictMode>
+          <CompanyCertStatusPage />
+        </StrictMode>
+      ) : (
+        <CompanyCertStatusPage />
+      )}
     </MemoryRouter>,
   );
 }
@@ -82,5 +99,38 @@ describe('CompanyCertStatusPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '기업 회원만 기업 인증을 이용할 수 있습니다.',
     );
+    expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument();
+  });
+
+  it('retries a failed status load on the current route', async () => {
+    fetchMyCompanyCert
+      .mockRejectedValueOnce({ response: { status: 500 } })
+      .mockResolvedValueOnce(revisionRequested);
+
+    renderPage();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('인증 현황을 불러올 수 없습니다.');
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+
+    expect(await screen.findByText('처리 사유')).toBeInTheDocument();
+    expect(fetchMyCompanyCert).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores stale status completion and keeps the latest result', async () => {
+    const stale = deferred<CompanyCertification>();
+    const latest = deferred<CompanyCertification>();
+    fetchMyCompanyCert
+      .mockImplementationOnce(() => stale.promise)
+      .mockImplementationOnce(() => latest.promise);
+
+    renderPage(true);
+    await waitFor(() => expect(fetchMyCompanyCert).toHaveBeenCalledTimes(2));
+
+    await act(async () => latest.resolve(revisionRequested));
+    expect(await screen.findByText('처리 사유')).toBeInTheDocument();
+
+    await act(async () => stale.resolve({ ...revisionRequested, status: 'APPROVED' }));
+    expect(screen.getByText('보완 요청')).toBeInTheDocument();
+    expect(screen.queryByText('승인')).not.toBeInTheDocument();
   });
 });

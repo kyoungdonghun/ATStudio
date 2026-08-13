@@ -20,6 +20,9 @@ describe('getSafeYoutubeUrl', () => {
     'https://notyoutube.com/@atm',
     'https://youtube.com.evil.test/@atm',
     'https://youtube.com:8443/@atm',
+    '//youtube.com/@atm',
+    'https:youtube.com/@atm',
+    'https:\\youtube.com\\@atm',
     'not a url',
   ])('rejects unsafe or lookalike URLs: %s', (value) => {
     expect(getSafeYoutubeUrl(value)).toBeNull();

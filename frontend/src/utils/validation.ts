@@ -53,7 +53,7 @@ export const SEARCH_KEYWORD_MAX = 100;
 
 // ── Whitelist Channel ──
 export const CHANNEL_NAME_MAX = 100;
-export const CHANNEL_URL_PATTERN = /^https?:\/\/.+/;
+export const CHANNEL_URL_MAX = 255;
 export const YOUTUBE_HANDLE_MAX = 100;
 export const YOUTUBE_CHANNEL_ID_MAX = 100;
 

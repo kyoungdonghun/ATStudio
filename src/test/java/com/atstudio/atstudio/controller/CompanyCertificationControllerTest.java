@@ -378,6 +378,41 @@ class CompanyCertificationControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
+    @DisplayName("PUT /api/company-certifications/1 - 500자 메모 허용 및 정확한 전달")
+    void processReview_500CharacterNote_reachesService() throws Exception {
+        String adminNote = "가".repeat(500);
+        given(certificationService.processReview(anyLong(), any(), any()))
+                .willReturn(MOCK_APPROVED_RESPONSE);
+
+        mockMvc.perform(put("/api/company-certifications/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"APPROVED","adminNote":"%s"}"""
+                                .formatted(adminNote)))
+                .andExpect(status().isOk());
+
+        verify(certificationService).processReview(
+                eq(1L), any(), argThat(request -> adminNote.equals(request.adminNote())));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("PUT /api/company-certifications/1 - 501자 메모는 요청 경계에서 거부")
+    void processReview_501CharacterNote_rejectedBeforeService() throws Exception {
+        String adminNote = "가".repeat(501);
+
+        mockMvc.perform(put("/api/company-certifications/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"APPROVED","adminNote":"%s"}"""
+                                .formatted(adminNote)))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(certificationService);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
     @DisplayName("PUT /api/company-certifications/99 - 미존재 -> 404")
     void processReview_notFound() throws Exception {
         given(certificationService.processReview(anyLong(), any(), any()))

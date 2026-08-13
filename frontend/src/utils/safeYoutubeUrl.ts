@@ -1,4 +1,8 @@
 export function getSafeYoutubeUrl(value: string): string | null {
+  if (!/^https:\/\//i.test(value) || value.includes('\\')) {
+    return null;
+  }
+
   try {
     const url = new URL(value);
     const hostname = url.hostname.toLowerCase();

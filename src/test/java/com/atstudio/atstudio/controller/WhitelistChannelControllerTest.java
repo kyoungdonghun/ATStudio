@@ -22,6 +22,8 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -76,6 +78,40 @@ class WhitelistChannelControllerTest {
                         .content("""
                             {"channelUrl":"https://vimeo.com/@ch","channelName":"채널"}"""))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("POST /api/whitelist-channels - 255자 URL 허용")
+    void registerChannel_255CharacterUrl_reachesService() throws Exception {
+        String channelUrl = "https://youtube.com/".concat("a".repeat(235));
+        given(whitelistChannelService.registerChannel(any(), any())).willReturn(MOCK_RESPONSE);
+
+        mockMvc.perform(post("/api/whitelist-channels")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"channelUrl":"%s","channelName":"채널"}"""
+                                .formatted(channelUrl)))
+                .andExpect(status().isCreated());
+
+        verify(whitelistChannelService).registerChannel(
+                any(), argThat(request -> channelUrl.equals(request.channelUrl())));
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("POST /api/whitelist-channels - 256자 URL은 요청 경계에서 거부")
+    void registerChannel_256CharacterUrl_rejectedBeforeService() throws Exception {
+        String channelUrl = "https://youtube.com/".concat("a".repeat(236));
+
+        mockMvc.perform(post("/api/whitelist-channels")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"channelUrl":"%s","channelName":"채널"}"""
+                                .formatted(channelUrl)))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(whitelistChannelService);
     }
 
     // ── 12.2 GET /api/whitelist-channels ─────────────────────────────────────

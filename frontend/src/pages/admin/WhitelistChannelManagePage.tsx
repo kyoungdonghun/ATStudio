@@ -30,6 +30,8 @@ const STATUSES: Array<WhitelistChannelStatus | ''> = [
   'REMOVAL_REQUESTED',
 ];
 
+const ADMIN_NOTE_MAX = 500;
+
 const STATUS_LABELS: Record<WhitelistChannelStatus, string> = {
   DRAFT: '저장됨',
   PENDING: '등록 요청',
@@ -173,9 +175,14 @@ export default function WhitelistChannelManagePage() {
   function handleStatusUpdate(channel: AdminWhitelistChannel) {
     const edit = edits[channel.id];
     if (!edit) return;
+    const normalizedAdminNote = edit.adminNote.trim();
+    if (normalizedAdminNote.length > ADMIN_NOTE_MAX) {
+      setError(`운영자 메모는 최대 ${ADMIN_NOTE_MAX}자까지 입력할 수 있습니다.`);
+      return;
+    }
     const request = {
       status: edit.status,
-      adminNote: edit.adminNote.trim() || undefined,
+      adminNote: normalizedAdminNote || undefined,
     };
     requestConfirmation({
       title: '채널 상태 변경',
@@ -470,6 +477,8 @@ export default function WhitelistChannelManagePage() {
                       <textarea
                         value={edit.adminNote}
                         placeholder="운영자 메모"
+                        maxLength={ADMIN_NOTE_MAX}
+                        aria-describedby={`whitelist-admin-note-help-${channel.id}`}
                         onChange={(e) =>
                           setEdits((prev) => ({
                             ...prev,
@@ -480,6 +489,12 @@ export default function WhitelistChannelManagePage() {
                           }))
                         }
                       />
+                      <span
+                        id={`whitelist-admin-note-help-${channel.id}`}
+                        className={styles.subText}
+                      >
+                        {`운영자 메모 ${edit.adminNote.length}/${ADMIN_NOTE_MAX}`}
+                      </span>
                       <Button
                         size="sm"
                         onClick={() => void handleStatusUpdate(channel)}

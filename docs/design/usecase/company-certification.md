@@ -26,13 +26,19 @@
 | **Related UC** | CC-002 (resubmit), CC-003 (view status), PAYMENT-001 (subscribe) |
 
 **Main Flow**
-1. User uploads review document files. Frontend permits PDF/JPG/JPEG/PNG, at most 10 files, 20 MiB per file, 50 MiB in aggregate, 255 characters per filename, and rejects empty files across consecutive selections.
-2. Frontend sends the files to the backend as multipart/form-data. These checks are early guidance only; backend validation is authoritative.
-3. Backend locks the owning user row before checking open applications, then verifies userType=BUSINESS.
-4. Backend rejects any null/empty multipart part and enforces count, per-file/aggregate size, filename length, extension, signature, and MIME rules.
-5. Backend stores the document files under a private per-submission directory.
-6. Backend creates `company_certifications` (status=PENDING) and `company_certification_documents` metadata rows.
-7. Backend returns a success response without a storage directory hint or stored path.
+1. Frontend first owns one latest `GET /api/company-certifications/me`
+   lookup. A definitive `404` or an existing `REJECTED` application opens the
+   form. Another existing status redirects to status. A `403` remains denied;
+   a network or server failure is blocking and exposes a manual retry.
+2. User uploads review document files. Frontend permits PDF/JPG/JPEG/PNG, at most 10 files, 20 MiB per file, 50 MiB in aggregate, 255 characters per filename, and rejects empty files across consecutive selections.
+3. Frontend sends the files to the backend as multipart/form-data only after
+   the definitive allowed lookup result. These checks are early guidance only;
+   backend validation is authoritative.
+4. Backend locks the owning user row before checking open applications, then verifies userType=BUSINESS.
+5. Backend rejects any null/empty multipart part and enforces count, per-file/aggregate size, filename length, extension, signature, and MIME rules.
+6. Backend stores the document files under a private per-submission directory.
+7. Backend creates `company_certifications` (status=PENDING) and `company_certification_documents` metadata rows.
+8. Backend returns a success response without a storage directory hint or stored path.
 
 **Exception / Alternative Flow**
 - Not a BUSINESS type member: 403 response.
@@ -93,6 +99,8 @@
 1. Frontend sends a request with the auth token to the backend.
 2. Backend extracts userId from the JWT and queries the latest company_certifications record (`createdAt DESC`, then `id DESC`).
 3. Backend returns status, adminNote, certificationCode, approvedAt, and submitted document metadata. The response omits `documentPath` and all individual stored paths.
+4. A failed status read exposes a manual retry on the same route. Only the
+   latest mounted request may commit status, not-found, error, or loading state.
 
 **Postconditions**
 - PENDING: review status displayed.
@@ -117,6 +125,8 @@
 **Main Flow**
 1. Frontend sends a request with optional status filter and page parameters.
 2. Backend returns a paginated list of certification records with applicant email and company name; page size is bounded to 100.
+3. A failed list read exposes a manual retry with the current status filter and
+   page. Stale completions cannot replace the newer list context.
 
 **Postconditions**
 - Review list and pageInfo displayed on screen.
@@ -138,8 +148,10 @@
 **Main Flow**
 1. Frontend requests certification detail by certificationId.
 2. Backend returns applicant info, status, adminNote, certificationCode, and document metadata.
-3. Admin clicks a document download action.
-4. Backend resolves the private file through an authenticated admin-only API and records narrow access-grant evidence (actor, time, action, certification ID, opaque document ID) before the controller streams bytes.
+3. A failed detail read exposes a manual retry for the selected certification
+   ID. Closing or selecting a newer detail retires the previous request.
+4. Admin clicks a document download action.
+5. Backend resolves the private file through an authenticated admin-only API and records narrow access-grant evidence (actor, time, action, certification ID, opaque document ID) before the controller streams bytes.
 
 **Postconditions**
 - Admin can review actual submitted documents before processing the application.
@@ -160,7 +172,9 @@
 
 **Main Flow**
 1. Admin enters the review result and applicant-visible note. `REVISION_REQUESTED` and `REJECTED` require a trimmed nonblank reason; `APPROVED` may omit its note. Every supplied note is limited to 500 characters.
-2. Frontend sends certificationId, status, and adminNote to the backend.
+2. The admin UI displays the 500-character bound and counter, rejects a
+   501-character value before invocation, trims the note, and sends the exact
+   normalized `adminNote` payload (or omits a blank optional approval note).
 3. Backend locks the owning user row and then the target certification row, validates the transition and conditional reason before any state/audit mutation, and updates the company_certifications record.
    - APPROVED: auto-generates certification_code, records approved_at.
    - REVISION_REQUESTED: stores reason in adminNote. User may resubmit documents through CC-002.

@@ -36,7 +36,9 @@
 
 **Main Flow**
 1. User enters `channelName`, `channelUrl`, and optional `youtubeHandle` / `youtubeChannelId`.
-2. Frontend sends the input to the backend.
+2. Frontend trims `channelUrl`, enforces the 255-character request bound, and
+   accepts only the HTTPS YouTube URL shape described below before invoking the
+   API.
 3. Backend parses and normalizes `channelUrl`, then accepts only HTTPS URLs with
    no user info, no explicit port other than standard HTTPS port 443, and a
    lowercase host equal to `youtube.com` or ending with `.youtube.com`.
@@ -71,6 +73,10 @@
 2. Backend extracts userId from JWT and queries at most `APP_WHITELIST_MAX_SAVED_CHANNELS` rows ordered by primary flag and creation time.
 3. Backend returns channel metadata, status, primary flag, operator note, and status timestamps.
 4. Frontend displays saved channels and the registration slot usage based on plan-counting statuses. It applies the same safe-link predicate before creating an `href`; a retained unsafe value is shown as text only.
+5. Subscriber actions mirror backend predicates. Primary selection is absent
+   for `REMOVAL_REQUESTED` and `CANCELLED`. `REMOVAL_REQUESTED` is shown as an
+   already-requested pending-removal state and exposes no second delete or
+   removal call.
 
 **Postconditions**
 - Normal users see their bounded channel list in the existing response shape. A retained user above the technical cap sees only the deterministic primary-first/newest-first leading window; older rows are not claimed as returned.
@@ -91,14 +97,19 @@
 
 **Main Flow**
 1. User changes channel metadata.
-2. Frontend sends `channelId` and updated data to the backend.
-3. Frontend and backend apply the same HTTPS-only YouTube URL contract defined
+2. For `EXPORTED`, `REGISTERED`, or `REVISION_REQUESTED`, the frontend states
+   that saving returns the channel to `PENDING` for operator reprocessing and
+   requires explicit confirmation before one update request. This disclosure
+   does not alter the separate direct re-request behavior for
+   `REVISION_REQUESTED`.
+3. Frontend sends `channelId` and the confirmed updated data to the backend.
+4. Frontend and backend apply the same HTTPS-only YouTube URL contract defined
    by WL-001. The backend remains authoritative.
-4. Backend validates ownership and channel URL.
-5. Backend updates the channel.
-6. If a previously exported/registered/revision-requested channel is edited, backend treats the edit as a reprocessing request.
-7. For that reprocessing path, backend checks active subscription and plan limit using the same self-slot exclusion rule as WL-005.
-8. If allowed, backend moves the channel back to `PENDING` for operator reprocessing.
+5. Backend validates ownership and channel URL.
+6. Backend updates the channel.
+7. If a previously exported/registered/revision-requested channel is edited, backend treats the edit as a reprocessing request.
+8. For that reprocessing path, backend checks active subscription and plan limit using the same self-slot exclusion rule as WL-005.
+9. If allowed, backend moves the channel back to `PENDING` for operator reprocessing.
 
 **Exception / Alternative Flow**
 - Attempt to update another user's channel: 403 `RESOURCE_NOT_ACCESS`.
@@ -136,6 +147,8 @@
 5. For `EXPORTED` or `REGISTERED`, backend keeps the row and changes status to `REMOVAL_REQUESTED`.
 6. Repeating removal for `REMOVAL_REQUESTED` is idempotent and preserves the original request timestamp.
 7. Operator completes external removal through `REMOVAL_REQUESTED -> CANCELLED`.
+8. The subscriber screen does not offer another destructive-looking action for
+   `REMOVAL_REQUESTED`; it identifies that external removal is still pending.
 
 **Account Withdrawal Flow**
 1. Backend deletes local-only `DRAFT`, `PENDING`, `REVISION_REQUESTED`, `REJECTED`, and `CANCELLED` rows.
@@ -196,9 +209,11 @@
 
 **Main Flow**
 1. Frontend calls `PUT /api/whitelist-channels/{channelId}/primary`.
-2. Backend clears the current primary channel for the user if one exists.
-3. Backend marks the selected channel as primary.
-4. Backend returns the updated channel.
+2. Frontend exposes this action only when the current status is not
+   `REMOVAL_REQUESTED` or `CANCELLED`.
+3. Backend clears the current primary channel for the user if one exists.
+4. Backend marks the selected channel as primary.
+5. Backend returns the updated channel.
 
 **Exception / Alternative Flow**
 - `REMOVAL_REQUESTED` or `CANCELLED`: 400 `INVALID_STATE_TRANSITION`.

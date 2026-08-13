@@ -197,6 +197,48 @@ describe('WhitelistChannelManagePage persisted URL defense', () => {
     await waitFor(() => expect(mocks.fetchChannels).toHaveBeenCalledTimes(2));
   });
 
+  it('accepts exactly 500 admin-note characters and sends the exact status payload', async () => {
+    const note = '가'.repeat(500);
+    mocks.fetchChannels.mockResolvedValue(channelPage(unsafeChannel));
+    mocks.updateChannelStatus.mockResolvedValue(undefined);
+
+    render(<WhitelistChannelManagePage />);
+    await screen.findByText(unsafeChannel.channelName);
+
+    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'REGISTERED' } });
+    const noteInput = screen.getByPlaceholderText('운영자 메모');
+    expect(noteInput).toHaveAttribute('maxlength', '500');
+    fireEvent.change(noteInput, { target: { value: note } });
+    expect(screen.getByText('운영자 메모 500/500')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '변경' }));
+
+    await waitFor(() => expect(mocks.updateChannelStatus).toHaveBeenCalledTimes(1));
+    expect(mocks.updateChannelStatus).toHaveBeenCalledWith(unsafeChannel.id, {
+      status: 'REGISTERED',
+      adminNote: note,
+    });
+  });
+
+  it('blocks a 501-character admin note locally before confirmation or API invocation', async () => {
+    mocks.fetchChannels.mockResolvedValue(channelPage(unsafeChannel));
+
+    render(<WhitelistChannelManagePage />);
+    await screen.findByText(unsafeChannel.channelName);
+
+    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'REGISTERED' } });
+    fireEvent.change(screen.getByPlaceholderText('운영자 메모'), {
+      target: { value: '가'.repeat(501) },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+
+    expect(
+      screen.getByText('운영자 메모는 최대 500자까지 입력할 수 있습니다.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '채널 상태 변경' })).not.toBeInTheDocument();
+    expect(mocks.updateChannelStatus).not.toHaveBeenCalled();
+  });
+
   it('cancels CSV export without calling the API', async () => {
     mocks.fetchChannels.mockResolvedValue(channelPage(unsafeChannel));
 

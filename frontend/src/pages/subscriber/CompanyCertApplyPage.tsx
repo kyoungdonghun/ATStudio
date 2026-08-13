@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, type FormEvent, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   applyCompanyCert,
@@ -30,8 +30,10 @@ export default function CompanyCertApplyPage() {
   const [error, setError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const [existingRejected, setExistingRejected] = useState(false);
+  const [lookupAllowed, setLookupAllowed] = useState(false);
   const [guideText, setGuideText] = useState<string | null>(null);
   const [guideLoading, setGuideLoading] = useState(true);
+  const lookupRequestId = useRef(0);
 
   /* ── Load guide text ── */
   useEffect(() => {
@@ -56,39 +58,42 @@ export default function CompanyCertApplyPage() {
   }, []);
 
   /* ── Check existing certification ── */
-  useEffect(() => {
-    let cancelled = false;
-
-    async function checkExisting() {
-      try {
-        const cert = await fetchMyCompanyCert();
-        // Rejected applications are kept for history, but the user may start a new one.
-        if (!cancelled && cert.status === 'REJECTED') {
-          setExistingRejected(true);
-          return;
-        }
-        if (!cancelled) {
-          navigate('/company-certification/status', { replace: true });
-        }
-      } catch (err: unknown) {
-        // 404 means no existing cert → show form
-        const status = getCompanyCertErrorStatus(err);
-        if (status !== 404) {
-          if (!cancelled) {
-            setAccessDenied(status === 403);
-            setError(getCompanyCertErrorMessage(err, '인증 상태를 확인할 수 없습니다.'));
-          }
-        }
-      } finally {
-        if (!cancelled) setChecking(false);
+  const checkExisting = useCallback(async () => {
+    const currentRequestId = ++lookupRequestId.current;
+    setChecking(true);
+    setError(null);
+    setAccessDenied(false);
+    setExistingRejected(false);
+    setLookupAllowed(false);
+    try {
+      const cert = await fetchMyCompanyCert();
+      if (currentRequestId !== lookupRequestId.current) return;
+      if (cert.status === 'REJECTED') {
+        setExistingRejected(true);
+        setLookupAllowed(true);
+        return;
       }
+      navigate('/company-certification/status', { replace: true });
+    } catch (err: unknown) {
+      if (currentRequestId !== lookupRequestId.current) return;
+      const status = getCompanyCertErrorStatus(err);
+      if (status === 404) {
+        setLookupAllowed(true);
+      } else {
+        setAccessDenied(status === 403);
+        setError(getCompanyCertErrorMessage(err, '인증 상태를 확인할 수 없습니다.'));
+      }
+    } finally {
+      if (currentRequestId === lookupRequestId.current) setChecking(false);
     }
-
-    checkExisting();
-    return () => {
-      cancelled = true;
-    };
   }, [navigate]);
+
+  useEffect(() => {
+    void checkExisting();
+    return () => {
+      lookupRequestId.current += 1;
+    };
+  }, [checkExisting]);
 
   /* ── File handlers ── */
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -118,6 +123,11 @@ export default function CompanyCertApplyPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!lookupAllowed) {
+      setError('기존 인증 신청 확인이 완료되지 않았습니다. 다시 시도해주세요.');
+      return;
+    }
 
     if (files.length === 0) {
       setError('서류 파일을 하나 이상 첨부해주세요.');
@@ -149,6 +159,20 @@ export default function CompanyCertApplyPage() {
         <h1 className={styles.pageTitle}>{'기업 인증 신청'}</h1>
         <div className={styles.error} role="alert">
           {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!lookupAllowed) {
+    return (
+      <div className={styles.page}>
+        <h1 className={styles.pageTitle}>{'기업 인증 신청'}</h1>
+        <div className={styles.error} role="alert">
+          <p>{error ?? '인증 상태를 확인할 수 없습니다.'}</p>
+          <Button type="button" onClick={() => void checkExisting()}>
+            {'다시 시도'}
+          </Button>
         </div>
       </div>
     );

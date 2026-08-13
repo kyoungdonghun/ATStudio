@@ -87,8 +87,11 @@ export default function CompanyCertManagePage() {
   const [detail, setDetail] = useState<CompanyCertification | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [selectedDetailId, setSelectedDetailId] = useState<number | null>(null);
   const [downloadId, setDownloadId] = useState<number | null>(null);
   const detailRequestId = useRef(0);
+  const detailOwnerId = useRef(0);
+  const selectedDetailIdRef = useRef<number | null>(null);
 
   const [reviewAction, setReviewAction] = useState<Exclude<CertificationStatus, 'PENDING'> | null>(
     null,
@@ -111,6 +114,8 @@ export default function CompanyCertManagePage() {
       })
       .catch(() => {
         if (currentRequestId === listRequestId.current) {
+          setCerts([]);
+          setPageInfo(null);
           setError('기업 인증 신청 목록을 불러오지 못했습니다.');
         }
       })
@@ -131,36 +136,56 @@ export default function CompanyCertManagePage() {
   useEffect(
     () => () => {
       detailRequestId.current += 1;
+      detailOwnerId.current += 1;
+      selectedDetailIdRef.current = null;
     },
     [],
   );
 
-  async function openDetail(certId: number) {
+  async function loadDetail(certId: number, clearCurrent = true) {
     const currentRequestId = ++detailRequestId.current;
-    setDetailOpen(true);
-    setDetail(null);
+    if (clearCurrent) setDetail(null);
     setDetailError(null);
     setDetailLoading(true);
     try {
       const data = await fetchCompanyCert(certId);
-      if (currentRequestId !== detailRequestId.current) return;
+      if (currentRequestId !== detailRequestId.current || selectedDetailIdRef.current !== certId) {
+        return;
+      }
       setDetail(data);
     } catch {
-      if (currentRequestId !== detailRequestId.current) return;
+      if (currentRequestId !== detailRequestId.current || selectedDetailIdRef.current !== certId) {
+        return;
+      }
       setDetailError('기업 인증 신청 상세를 불러오지 못했습니다.');
     } finally {
-      if (currentRequestId === detailRequestId.current) {
+      if (currentRequestId === detailRequestId.current && selectedDetailIdRef.current === certId) {
         setDetailLoading(false);
       }
     }
   }
 
+  function openDetail(certId: number) {
+    detailOwnerId.current += 1;
+    selectedDetailIdRef.current = certId;
+    setSelectedDetailId(certId);
+    setDetailOpen(true);
+    setReviewAction(null);
+    setAdminNote('');
+    setReviewError(null);
+    setReviewLoading(false);
+    void loadDetail(certId);
+  }
+
   function closeDetail() {
     detailRequestId.current += 1;
+    detailOwnerId.current += 1;
+    selectedDetailIdRef.current = null;
     setDetailOpen(false);
     setDetail(null);
     setDetailLoading(false);
     setDetailError(null);
+    setSelectedDetailId(null);
     setReviewAction(null);
     setAdminNote('');
     setReviewError(null);
@@ -172,17 +197,15 @@ export default function CompanyCertManagePage() {
     setReviewError(null);
   }
 
-  async function refreshDetail(certId: number) {
-    const data = await fetchCompanyCert(certId);
-    setDetail(data);
-  }
-
   async function confirmReview() {
     if (!detail || !reviewAction) return;
+    const reviewTargetId = detail.id;
+    const reviewTargetOwnerId = detailOwnerId.current;
+    const action = reviewAction;
     const normalizedNote = adminNote.trim();
-    const requiresReason = reviewAction === 'REVISION_REQUESTED' || reviewAction === 'REJECTED';
+    const requiresReason = action === 'REVISION_REQUESTED' || action === 'REJECTED';
     if (requiresReason && !normalizedNote) {
-      setReviewError(`${REVIEW_ACTION_LABELS[reviewAction]} 사유를 입력해주세요.`);
+      setReviewError(`${REVIEW_ACTION_LABELS[action]} 사유를 입력해주세요.`);
       return;
     }
     if (normalizedNote.length > CERT_REVIEW_NOTE_MAX) {
@@ -192,19 +215,26 @@ export default function CompanyCertManagePage() {
 
     setReviewError(null);
     setReviewLoading(true);
+    const ownsReviewTarget = () =>
+      detailOwnerId.current === reviewTargetOwnerId &&
+      selectedDetailIdRef.current === reviewTargetId;
     try {
-      await processCompanyCert(detail.id, {
-        status: reviewAction,
+      await processCompanyCert(reviewTargetId, {
+        status: action,
         adminNote: normalizedNote || undefined,
       });
+      if (!ownsReviewTarget()) return;
       setReviewAction(null);
       setAdminNote('');
-      await refreshDetail(detail.id);
+      await loadDetail(reviewTargetId, false);
       loadCerts();
     } catch (error) {
+      if (!ownsReviewTarget()) return;
       setReviewError(getAdminReviewErrorMessage(error));
     } finally {
-      setReviewLoading(false);
+      if (ownsReviewTarget()) {
+        setReviewLoading(false);
+      }
     }
   }
 
@@ -237,7 +267,12 @@ export default function CompanyCertManagePage() {
   if (error) {
     return (
       <div className={styles.page}>
-        <div className={styles.error}>{error}</div>
+        <div className={styles.error} role="alert">
+          <p>{error}</p>
+          <Button type="button" onClick={loadCerts}>
+            다시 시도
+          </Button>
+        </div>
       </div>
     );
   }
@@ -316,7 +351,20 @@ export default function CompanyCertManagePage() {
       <Modal open={detailOpen} onClose={closeDetail} title="기업 인증 상세">
         <div className={styles.modalBody}>
           {detailLoading && <div className={styles.loadingInline}>상세를 불러오는 중...</div>}
-          {detailError && <div className={styles.modalError}>{detailError}</div>}
+          {detailError && (
+            <div className={styles.modalError} role="alert">
+              <p>{detailError}</p>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  if (selectedDetailId !== null) void loadDetail(selectedDetailId);
+                }}
+              >
+                다시 시도
+              </Button>
+            </div>
+          )}
           {detail && (
             <>
               <div className={styles.detailGrid}>

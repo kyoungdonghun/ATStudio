@@ -746,6 +746,31 @@ before announcing success or navigating.
 - `PUT /api/whitelist-channels/{channelId}/primary`
 - `POST /api/whitelist-channels/{channelId}/request`
 
+#### Subscriber Whitelist and Certification Read Contract
+
+Whitelist channel create/update inputs trim `channelUrl` at the SPA boundary,
+enforce the existing 255-character DTO limit, and mirror the backend absolute
+HTTPS YouTube host, no-user-info, and standard-port predicate. Subscriber action
+visibility mirrors backend status predicates: primary selection excludes
+`REMOVAL_REQUESTED` and `CANCELLED`; an existing `REMOVAL_REQUESTED` row exposes
+no repeated destructive-looking call. Editing `EXPORTED`, `REGISTERED`, or
+`REVISION_REQUESTED` requires an explicit disclosure and confirmation that the
+existing update contract returns the row to `PENDING`. This adds no status or
+workflow transition and does not change ADMIN export behavior.
+
+The company-certification apply route remains closed until its owned latest
+`GET /api/company-certifications/me` returns definitive `404` absence or an
+existing `REJECTED` application. Another returned status navigates to the status
+route; `403` remains denied; a network or server failure is blocking and
+manually retryable. User status and ADMIN list/detail reads expose bounded
+manual retries. Request generations ensure stale completions cannot replace a
+newer route, status-filter/page, or selected-detail context.
+
+ADMIN Whitelist review notes retain the existing 500-character DTO bound. The
+Whitelist review UI displays the bound and counter, trims the note, rejects 501
+characters before invocation, and sends the exact normalized `adminNote` or
+omits a blank note.
+
 ### Utilities and SPA (8)
 
 - `GET /api/utils/check-email`

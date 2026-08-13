@@ -22,12 +22,17 @@ import { getSafeYoutubeUrl } from '@/utils/safeYoutubeUrl';
 import type { WhitelistChannel, WhitelistChannelStatus } from '@/types';
 import {
   CHANNEL_NAME_MAX,
-  CHANNEL_URL_PATTERN,
+  CHANNEL_URL_MAX,
   YOUTUBE_CHANNEL_ID_MAX,
   YOUTUBE_HANDLE_MAX,
 } from '@/utils/validation';
 import styles from './WhitelistChannelPage.module.css';
-import { isWhitelistChannelEditable } from './whitelistChannelPolicy';
+import {
+  isWhitelistChannelDeleteActionVisible,
+  isWhitelistChannelEditable,
+  isWhitelistChannelPrimaryEligible,
+  requiresWhitelistReprocessingConfirmation,
+} from './whitelistChannelPolicy';
 
 const STATUS_LABELS: Record<WhitelistChannelStatus, string> = {
   DRAFT: '저장됨',
@@ -66,6 +71,11 @@ interface DeleteConfirmation {
   removalFlow: boolean;
 }
 
+interface RequeueConfirmation {
+  channelId: number;
+  request: WhitelistChannelRequest;
+}
+
 const EMPTY_FORM: FormState = {
   channelName: '',
   youtubeHandle: '',
@@ -85,6 +95,7 @@ export default function WhitelistChannelPage() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null);
   const [deleteConfirmationBusy, setDeleteConfirmationBusy] = useState(false);
+  const [requeueConfirmation, setRequeueConfirmation] = useState<RequeueConfirmation | null>(null);
   const requestId = useRef(0);
   const loadBlocked = useRef(false);
   const loadQueued = useRef(false);
@@ -150,20 +161,30 @@ export default function WhitelistChannelPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function validate(): boolean {
+  function validate(): string | null {
     if (!form.channelName.trim()) {
       setError('채널명을 입력해주세요.');
-      return false;
+      return null;
     }
     if (!form.channelUrl.trim()) {
       setError('채널 링크를 입력해주세요.');
-      return false;
+      return null;
     }
-    if (!CHANNEL_URL_PATTERN.test(form.channelUrl.trim())) {
-      setError('올바른 채널 링크를 입력해주세요. 예: https://www.youtube.com/@your_channel');
-      return false;
+    const normalizedChannelUrl = form.channelUrl.trim();
+    if (normalizedChannelUrl.length > CHANNEL_URL_MAX) {
+      setError(`채널 링크는 ${CHANNEL_URL_MAX}자까지 입력할 수 있습니다.`);
+      return null;
     }
-    return true;
+    const safeChannelUrl = getSafeYoutubeUrl(normalizedChannelUrl);
+    if (!safeChannelUrl) {
+      setError('YouTube HTTPS 채널 링크를 입력해주세요. 예: https://www.youtube.com/@your_channel');
+      return null;
+    }
+    if (safeChannelUrl.length > CHANNEL_URL_MAX) {
+      setError(`채널 링크는 ${CHANNEL_URL_MAX}자까지 입력할 수 있습니다.`);
+      return null;
+    }
+    return safeChannelUrl;
   }
 
   function resetForm() {
@@ -171,10 +192,10 @@ export default function WhitelistChannelPage() {
     setEditId(null);
   }
 
-  function buildRequest(): WhitelistChannelRequest {
+  function buildRequest(channelUrl: string): WhitelistChannelRequest {
     return {
       channelName: form.channelName.trim(),
-      channelUrl: form.channelUrl.trim(),
+      channelUrl,
       youtubeHandle: form.youtubeHandle.trim() || null,
       youtubeChannelId: form.youtubeChannelId.trim() || null,
     };
@@ -184,17 +205,47 @@ export default function WhitelistChannelPage() {
     e.preventDefault();
     setError(null);
     setMessage(null);
-    if (!validate()) return;
+    const channelUrl = validate();
+    if (!channelUrl) return;
+
+    const request = buildRequest(channelUrl);
+    if (editId) {
+      const editedChannel = channels.find((channel) => channel.id === editId);
+      if (editedChannel && requiresWhitelistReprocessingConfirmation(editedChannel.status)) {
+        setRequeueConfirmation({ channelId: editId, request });
+        return;
+      }
+    }
 
     try {
       setBusyKey('save');
       if (editId) {
-        await updateChannel(editId, buildRequest());
+        await updateChannel(editId, request);
         setMessage('채널 정보가 저장되었습니다.');
       } else {
-        await registerChannel(buildRequest());
+        await registerChannel(request);
         setMessage('채널이 저장되었습니다. 필요하면 화이트리스트 등록 요청을 진행해주세요.');
       }
+      resetForm();
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, '채널 저장에 실패했습니다.'));
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  async function confirmRequeueUpdate() {
+    const confirmation = requeueConfirmation;
+    if (!confirmation || busyKey === 'save') return;
+
+    try {
+      setBusyKey('save');
+      setError(null);
+      setMessage(null);
+      await updateChannel(confirmation.channelId, confirmation.request);
+      setMessage('채널 정보가 저장되어 등록 요청 상태로 돌아갔습니다. 관리자 재처리가 필요합니다.');
+      setRequeueConfirmation(null);
       resetForm();
       await load();
     } catch (err) {
@@ -358,6 +409,7 @@ export default function WhitelistChannelPage() {
             label="채널 링크"
             value={form.channelUrl}
             placeholder="예: https://www.youtube.com/@your_channel"
+            maxLength={CHANNEL_URL_MAX}
             onChange={(value) => updateForm('channelUrl', value)}
           />
           <Field
@@ -369,6 +421,14 @@ export default function WhitelistChannelPage() {
             onChange={(value) => updateForm('youtubeChannelId', value)}
           />
         </div>
+        {editId &&
+          requiresWhitelistReprocessingConfirmation(
+            channels.find((channel) => channel.id === editId)?.status ?? 'DRAFT',
+          ) && (
+            <p className={styles.requeueNotice}>
+              {'저장하면 채널이 등록 요청 상태로 돌아가며 관리자 재처리가 필요합니다.'}
+            </p>
+          )}
         <div className={styles.formActions}>
           <Button type="submit" loading={busyKey === 'save'}>
             {editId ? '수정 저장' : '채널 저장'}
@@ -421,7 +481,7 @@ export default function WhitelistChannelPage() {
                   </div>
                 </div>
                 <div className={styles.cardActions}>
-                  {!channel.primary && (
+                  {!channel.primary && isWhitelistChannelPrimaryEligible(channel.status) && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -450,16 +510,20 @@ export default function WhitelistChannelPage() {
                       {'수정'}
                     </Button>
                   )}
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => void handleDelete(channel)}
-                    loading={busyKey === `delete-${channel.id}`}
-                  >
-                    {channel.status === 'EXPORTED' || channel.status === 'REGISTERED'
-                      ? '해제 요청'
-                      : '삭제'}
-                  </Button>
+                  {isWhitelistChannelDeleteActionVisible(channel.status) ? (
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => void handleDelete(channel)}
+                      loading={busyKey === `delete-${channel.id}`}
+                    >
+                      {channel.status === 'EXPORTED' || channel.status === 'REGISTERED'
+                        ? '해제 요청'
+                        : '삭제'}
+                    </Button>
+                  ) : (
+                    <span className={styles.removalPending}>{'해제 요청 처리 중'}</span>
+                  )}
                 </div>
               </article>
             );
@@ -480,6 +544,15 @@ export default function WhitelistChannelPage() {
         busy={deleteConfirmationBusy}
         onConfirm={() => void confirmDelete()}
         onCancel={() => setDeleteConfirmation(null)}
+      />
+      <ConfirmDialog
+        open={requeueConfirmation !== null}
+        title="채널 재처리 확인"
+        message="이 채널은 외부 처리 이력이 있습니다. 저장하면 등록 요청 상태로 돌아가며 관리자 재처리가 필요합니다. 계속할까요?"
+        confirmLabel="저장 후 재처리 요청"
+        busy={busyKey === 'save'}
+        onConfirm={() => void confirmRequeueUpdate()}
+        onCancel={() => setRequeueConfirmation(null)}
       />
     </div>
   );

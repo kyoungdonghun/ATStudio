@@ -121,7 +121,7 @@ class WhitelistChannelServiceTest {
             Subscription plan = buildSubscription(5);
             UserSubscription sub = buildUserSubscription(user, plan);
             WhitelistChannel saved = buildChannel(1L, user,
-                    "https://www.youtube.com/channel/xxx", "채널WWW");
+                    "https://www.youtube.com:443/channel/xxx", "채널WWW");
 
             given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
             given(whitelistChannelRepository.existsByUserAndPrimaryTrue(user)).willReturn(false);
@@ -129,9 +129,9 @@ class WhitelistChannelServiceTest {
 
             WhitelistChannelResponse result = whitelistChannelService.registerChannel(
                     buildUserDetails(1L, UserRole.USER),
-                    new WhitelistChannelRequest("https://www.youtube.com/channel/xxx", "채널WWW"));
+                    new WhitelistChannelRequest("https://www.youtube.com:443/channel/xxx", "채널WWW"));
 
-            assertThat(result.channelUrl()).isEqualTo("https://www.youtube.com/channel/xxx");
+            assertThat(result.channelUrl()).isEqualTo("https://www.youtube.com:443/channel/xxx");
         }
 
         @Test
@@ -181,6 +181,7 @@ class WhitelistChannelServiceTest {
                 "data://youtube.com/text/html,test",
                 "file://youtube.com/test",
                 "ftp://youtube.com/test",
+                "http://youtube.com/@channel1",
                 "https://user:password@youtube.com/@channel1",
                 "https://youtube.com.evil.test/@channel1",
                 "https://youtube.com:8443/@channel1"
