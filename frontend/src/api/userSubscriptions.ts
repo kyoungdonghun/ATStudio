@@ -288,10 +288,11 @@ export async function executeAdminSubscriptionCorrection(
 export async function fetchSubscriptionChangePreview(
   subscriptionId: number,
   billingCycle: SubscriptionBillingCycle,
+  signal?: AbortSignal,
 ): Promise<SubscriptionChangePreview> {
   const { data } = await client.get<ApiResponse<SubscriptionChangePreview>>(
     '/utils/subscription-change-preview',
-    { params: { subscriptionId, billingCycle } },
+    { params: { subscriptionId, billingCycle }, signal },
   );
   return data.data;
 }

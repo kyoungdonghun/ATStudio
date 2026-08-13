@@ -1,13 +1,23 @@
 /** Screen 16-1: Subscription plan comparison */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptions';
-import { fetchMySubscription, type MySubscription } from '@/api/userSubscriptions';
+import {
+  fetchMySubscription,
+  isNoActiveSubscriptionError,
+  type MySubscription,
+} from '@/api/userSubscriptions';
 import { useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
 import { formatPrice } from '@/utils/format';
 import type { UserType } from '@/types';
+import Button from '@/components/ui/Button';
 import styles from './SubscriptionPlanPage.module.css';
+
+const PLAN_LOAD_ERROR_MESSAGE =
+  '\uD50C\uB79C \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.';
+const SUBSCRIPTION_LOAD_ERROR_MESSAGE =
+  '\uAD6C\uB3C5 \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.';
 
 /* ── Display name mapping ── */
 
@@ -131,40 +141,63 @@ export default function SubscriptionPlanPage() {
   const [isYearly, setIsYearly] = useState(true);
   const [openFaq, setOpenFaq] = useState<number>(0);
   const [viewType, setViewType] = useState<UserType>(loggedInUserType ?? 'INDIVIDUAL');
+  const requestVersionRef = useRef(0);
+  const requestAbortRef = useRef<AbortController | null>(null);
 
   const loadPlans = useCallback(
     async (userType: UserType) => {
+      requestAbortRef.current?.abort();
+      const controller = new AbortController();
+      requestAbortRef.current = controller;
+      const requestVersion = ++requestVersionRef.current;
+
+      setLoading(true);
+      setError(null);
+      setMySub(null);
+
       try {
-        setLoading(true);
-        setError(null);
-        const fetched = await fetchSubscriptionPlans(userType);
+        const plansPromise = fetchSubscriptionPlans(userType, controller.signal).catch(
+          (cause: unknown) => Promise.reject({ source: 'plans', cause }),
+        );
+        const subscriptionPromise = isAuthenticated
+          ? fetchMySubscription(controller.signal).catch((cause: unknown) => {
+              if (isNoActiveSubscriptionError(cause)) return null;
+              return Promise.reject({ source: 'subscription', cause });
+            })
+          : Promise.resolve(null);
+        const [fetched, subscription] = await Promise.all([plansPromise, subscriptionPromise]);
+        if (requestVersion !== requestVersionRef.current || controller.signal.aborted) return;
         setPlans(fetched);
-        if (isAuthenticated) {
-          try {
-            const sub = await fetchMySubscription();
-            setMySub(sub);
-          } catch {
-            /* no active subscription */
-          }
-        }
-      } catch {
+        setMySub(subscription);
+      } catch (failure: unknown) {
+        if (requestVersion !== requestVersionRef.current || controller.signal.aborted) return;
+        const source = (failure as { source?: string })?.source;
         setError(
-          '\uD50C\uB79C \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.',
+          source === 'subscription' ? SUBSCRIPTION_LOAD_ERROR_MESSAGE : PLAN_LOAD_ERROR_MESSAGE,
         );
       } finally {
-        setLoading(false);
+        if (requestVersion === requestVersionRef.current) {
+          setLoading(false);
+          requestAbortRef.current = null;
+        }
       }
     },
     [isAuthenticated],
   );
 
   useEffect(() => {
-    loadPlans(viewType);
+    void loadPlans(viewType);
+    return () => {
+      requestVersionRef.current += 1;
+      requestAbortRef.current?.abort();
+      requestAbortRef.current = null;
+    };
   }, [viewType, loadPlans]);
 
   const toastShow = useToastStore((s) => s.show);
 
   const handleSubscribe = (plan: SubscriptionPlan) => {
+    if (loading) return;
     if (!isAuthenticated) {
       toastShow('warning', '로그인 후 구독을 진행할 수 있습니다.');
       navigate('/login');
@@ -196,10 +229,12 @@ export default function SubscriptionPlanPage() {
     setOpenFaq(openFaq === idx ? -1 : idx);
   };
 
-  if (loading) {
+  if (loading && plans.length === 0) {
     return (
       <div className={styles.page}>
-        <div className={styles.loading}>Loading...</div>
+        <div className={styles.loading}>
+          {'\uAD6C\uB3C5 \uD50C\uB79C\uC744 \uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4.'}
+        </div>
       </div>
     );
   }
@@ -207,15 +242,37 @@ export default function SubscriptionPlanPage() {
   if (error) {
     return (
       <div className={styles.page}>
-        <div className={styles.error}>{error}</div>
+        <div className={styles.error}>
+          <p>{error}</p>
+          <Button variant="primary" onClick={() => void loadPlans(viewType)}>
+            {'\uB2E4\uC2DC \uC2DC\uB3C4'}
+          </Button>
+        </div>
       </div>
     );
   }
 
   /* Sort plans by priceMonthly for consistent ordering */
   const sortedPlans = [...plans]
-    .filter((p) => p.isActive)
+    .filter((p) => p.isActive && p.userType === viewType)
     .sort((a, b) => a.priceMonthly - b.priceMonthly);
+
+  if (!loading && sortedPlans.length === 0) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.error}>
+          <p>
+            {
+              '\uD604\uC7AC \uC120\uD0DD\uD560 \uC218 \uC788\uB294 \uAD6C\uB3C5 \uD50C\uB79C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.'
+            }
+          </p>
+          <Button variant="primary" onClick={() => void loadPlans(viewType)}>
+            {'\uB2E4\uC2DC \uC2DC\uB3C4'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   /* Build dynamic compare rows */
   const compareRows: Array<{ label: string; values: string[] }> = [
@@ -278,6 +335,12 @@ export default function SubscriptionPlanPage() {
           {'\uAE30\uC5C5'}
         </button>
       </div>
+
+      {loading && (
+        <div className={styles.loading}>
+          {'\uAD6C\uB3C5 \uD50C\uB79C\uC744 \uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4.'}
+        </div>
+      )}
 
       {/* Billing Toggle */}
       <div className={styles.billingToggle}>
@@ -378,7 +441,7 @@ export default function SubscriptionPlanPage() {
               <button
                 className={`${styles.btnPlan} ${isCurrentPlan ? styles.btnCurrent : tier.btnVariant === 'fill' ? styles.btnFill : styles.btnGhost}`}
                 onClick={() => handleSubscribe(plan)}
-                disabled={isCurrentPlan}
+                disabled={loading || isCurrentPlan}
               >
                 {isCurrentPlan ? '\uD604\uC7AC \uD50C\uB79C' : tier.btnLabel}
               </button>

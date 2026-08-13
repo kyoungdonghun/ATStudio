@@ -46,6 +46,11 @@ management screen. There is no separate ADMIN detail-read endpoint.
 subscription. Service-enabled includes `ACTIVE` and a valid `CANCELLED`
 grace period before `expiresAt`.
 
+Only HTTP `403 NO_ACTIVE_SUBSCRIPTION` is displayed as no current
+subscription. Other authorization, server, and network failures remain
+retryable errors. Audience changes retire earlier plan/subscription reads so a
+late completion cannot overwrite the current audience.
+
 ## PAYMENT-007: Change My Subscription
 
 `PUT /api/user-subscriptions/me` applies these rules:
@@ -57,6 +62,11 @@ grace period before `expiresAt`.
 - current plan/cycle: clear a pending change;
 - removed/invalid billing key: expire local agreement metadata and require
   payment-method registration without mutating the subscription.
+
+The management UI treats only HTTP `404 BILLING_AGREEMENT_NOT_FOUND` as no
+registered Billing Agreement. Other read failures remain visible and
+retryable. Change-preview failures are also visible and retryable; a retired
+preview completion cannot replace a newer selection.
 
 ## PAYMENT-012: General ADMIN Local Subscription Correction
 
@@ -127,6 +137,14 @@ continues through `expiresAt`.
 
 `POST /api/user-subscriptions/me/reactivate` reactivates a valid cancelled
 grace-period subscription when its billing agreement is reusable.
+
+The management UI requires a separate confirmation before this mutation. The
+confirmation names the next billing date and amount, cancel causes zero
+reactivation calls, and the approve command is disabled while its request is in
+flight. For a cancelled Billing Agreement, the date is the Subscription
+`expiresAt` that the backend passes to `resume`; for an agreement already in
+`ACTIVE`, the date is its retained canonical `nextBillingAt`. Missing canonical
+date input disables reactivation rather than producing a fallback date.
 
 ## Provider Boundary
 

@@ -189,7 +189,7 @@ describe('SubscriptionPaymentPage', () => {
     });
 
     expect(screen.getByText('ATS-BILL-1')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '카드 등록하기' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '결제수단 등록 및 첫 결제하기' })).toBeEnabled();
   });
 
   it('reuses one session-scoped attempt key across StrictMode remount and reload', async () => {
@@ -233,13 +233,17 @@ describe('SubscriptionPaymentPage', () => {
 
     renderPage();
 
-    await screen.findByText('결제 준비 다시 시도');
+    await screen.findByText('결제 준비를 완료하지 못했습니다. 다시 시도해주세요.');
+    expect(screen.getByText('ERROR')).toBeInTheDocument();
+    expect(screen.getByText('결제 주문 준비에 실패했습니다.')).toBeInTheDocument();
+    expect(screen.queryByText('결제 주문을 준비 중입니다.')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '새 결제 시도 시작' })).not.toBeInTheDocument();
     const firstAttemptKey = prepareBillingAgreementMock.mock.calls[0][1];
     fireEvent.click(screen.getByRole('button', { name: '결제 준비 다시 시도' }));
 
     await waitFor(() => expect(prepareBillingAgreementMock).toHaveBeenCalledTimes(2));
     expect(prepareBillingAgreementMock.mock.calls[1][1]).toBe(firstAttemptKey);
+    expect(await screen.findByText('READY')).toBeInTheDocument();
   });
 
   it.each([
@@ -338,7 +342,7 @@ describe('SubscriptionPaymentPage', () => {
     renderPage();
 
     await screen.findByText('ATS-BILL-1');
-    fireEvent.click(screen.getByRole('button', { name: '카드 등록하기' }));
+    fireEvent.click(screen.getByRole('button', { name: '결제수단 등록 및 첫 결제하기' }));
 
     await waitFor(() => {
       expect(requestBillingAuthMock).toHaveBeenCalledWith({
@@ -528,6 +532,22 @@ describe('SubscriptionPaymentPage', () => {
       'unsupported purpose',
       '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=UPGRADE',
     ],
+    [
+      'duplicate plan ID',
+      '/subscriptions/checkout?planId=1&planId=2&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=SUBSCRIBE',
+    ],
+    [
+      'duplicate audience',
+      '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&userType=BUSINESS&billingCycle=MONTHLY&purpose=SUBSCRIBE',
+    ],
+    [
+      'duplicate billing cycle',
+      '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&billingCycle=YEARLY&purpose=SUBSCRIBE',
+    ],
+    [
+      'duplicate purpose',
+      '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=SUBSCRIBE&purpose=BILLING_AGREEMENT',
+    ],
   ])('rejects a %s route before prepare', async (_label, path) => {
     renderPage(path);
 
@@ -633,10 +653,45 @@ describe('SubscriptionPaymentPage', () => {
     expect(requestBillingAuthMock).not.toHaveBeenCalled();
   });
 
-  it('rejects an invalid immutable return identity before prepare', async () => {
-    renderPage(
+  it.each([
+    [
+      'missing return plan ID',
+      '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=BILLING_AGREEMENT&returnUserType=INDIVIDUAL&returnBillingCycle=YEARLY',
+    ],
+    [
+      'malformed return plan ID',
+      '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=BILLING_AGREEMENT&returnPlanId=invalid&returnUserType=INDIVIDUAL&returnBillingCycle=YEARLY',
+    ],
+    [
+      'unknown return plan ID',
       '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=BILLING_AGREEMENT&returnPlanId=99&returnUserType=INDIVIDUAL&returnBillingCycle=YEARLY',
-    );
+    ],
+    [
+      'missing return billing cycle',
+      '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=BILLING_AGREEMENT&returnPlanId=1&returnUserType=INDIVIDUAL',
+    ],
+    [
+      'unsupported return billing cycle',
+      '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=BILLING_AGREEMENT&returnPlanId=1&returnUserType=INDIVIDUAL&returnBillingCycle=WEEKLY',
+    ],
+    [
+      'mismatched return audience',
+      '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=BILLING_AGREEMENT&returnPlanId=1&returnUserType=BUSINESS&returnBillingCycle=YEARLY',
+    ],
+    [
+      'negative return amount',
+      '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=BILLING_AGREEMENT&returnPlanId=1&returnUserType=INDIVIDUAL&returnBillingCycle=YEARLY&returnAmount=-1',
+    ],
+    [
+      'duplicate return amount',
+      '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=BILLING_AGREEMENT&returnPlanId=1&returnUserType=INDIVIDUAL&returnBillingCycle=YEARLY&returnAmount=1&returnAmount=2',
+    ],
+    [
+      'return context for initial subscription',
+      '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=SUBSCRIBE&returnPlanId=1&returnUserType=INDIVIDUAL&returnBillingCycle=YEARLY',
+    ],
+  ])('rejects %s before prepare', async (_label, path) => {
+    renderPage(path);
 
     await waitFor(() => expect(toastShowMock).toHaveBeenCalled());
     expect(prepareBillingAgreementMock).not.toHaveBeenCalled();
@@ -718,6 +773,39 @@ describe('SubscriptionPaymentPage', () => {
 
     await screen.findByText('플랜 변경은 내 구독 화면에서 변경 내역을 확인한 뒤 진행해주세요.');
     expect(prepareBillingAgreementMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'missing order ID',
+      '/subscriptions/checkout/success?authKey=auth-key&customerKey=customer&amount=9900',
+    ],
+    [
+      'blank order ID',
+      '/subscriptions/checkout/success?orderId=%20&authKey=auth-key&customerKey=customer&amount=9900',
+    ],
+    [
+      'partial authentication keys',
+      '/subscriptions/checkout/success?orderId=order&authKey=auth-key&amount=9900',
+    ],
+    [
+      'duplicate authentication key',
+      '/subscriptions/checkout/success?orderId=order&authKey=first&authKey=second&customerKey=customer&amount=9900',
+    ],
+    [
+      'unsupported purpose',
+      '/subscriptions/checkout/success?orderId=order&authKey=auth-key&customerKey=customer&amount=9900&purpose=UPGRADE',
+    ],
+  ])('rejects %s callback state without API invocation', async (_label, path) => {
+    renderPage(path);
+
+    expect(await screen.findByText('자동결제 인증 정보가 올바르지 않습니다.')).toBeInTheDocument();
+    expect(fetchSubscriptionPlansMock).not.toHaveBeenCalled();
+    expect(prepareBillingAgreementMock).not.toHaveBeenCalled();
+    expect(confirmBillingAgreementMock).not.toHaveBeenCalled();
+    expect(fetchPaymentCommandOutcomeMock).not.toHaveBeenCalled();
+    expect(fetchMySubscriptionMock).not.toHaveBeenCalled();
+    expect(fetchMyBillingAgreementMock).not.toHaveBeenCalled();
   });
 
   it('confirms Toss billing success redirect with authKey', async () => {
@@ -829,6 +917,44 @@ describe('SubscriptionPaymentPage', () => {
       });
     },
   );
+
+  it('uses bounded failure copy when the provider message is blank', async () => {
+    fetchPaymentCommandOutcomeMock.mockResolvedValueOnce({
+      purpose: 'SUBSCRIBE',
+      orderStatus: 'FAILED',
+      userSubscriptionId: null,
+      targetSubscriptionId: 1,
+      targetBillingCycle: 'MONTHLY',
+    });
+
+    renderPage('/subscriptions/checkout/fail?orderId=ATS-BILL-1&message=');
+
+    expect(
+      await screen.findByText(
+        '\uC694\uCCAD\uC774 \uC644\uB8CC\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('message')).not.toBeInTheDocument();
+    expect(confirmBillingAgreementMock).not.toHaveBeenCalled();
+    expect(prepareBillingAgreementMock).not.toHaveBeenCalled();
+  });
+
+  it('does not invoke APIs for a fail callback without an order ID', async () => {
+    renderPage('/subscriptions/checkout/fail?message=provider-failure');
+
+    expect(
+      await screen.findByText(
+        '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('provider-failure')).not.toBeInTheDocument();
+    expect(fetchSubscriptionPlansMock).not.toHaveBeenCalled();
+    expect(prepareBillingAgreementMock).not.toHaveBeenCalled();
+    expect(confirmBillingAgreementMock).not.toHaveBeenCalled();
+    expect(fetchPaymentCommandOutcomeMock).not.toHaveBeenCalled();
+    expect(fetchMySubscriptionMock).not.toHaveBeenCalled();
+    expect(fetchMyBillingAgreementMock).not.toHaveBeenCalled();
+  });
 
   it('keeps a fail callback UNKNOWN for a nonterminal outcome', async () => {
     fetchPaymentCommandOutcomeMock.mockResolvedValueOnce({
@@ -1046,12 +1172,18 @@ describe('SubscriptionPaymentPage', () => {
     ['empty', '&amount='],
     ['negative', '&amount=-1'],
     ['fractional', '&amount=1.5'],
+    ['duplicate', '&amount=9900&amount=9901'],
   ])('rejects a %s callback amount before confirmation', async (_label, amountQuery) => {
     renderPage(
       `/subscriptions/checkout/success?authKey=auth-key&customerKey=customer&orderId=order${amountQuery}`,
     );
 
     expect(await screen.findByText('자동결제 인증 정보가 올바르지 않습니다.')).toBeInTheDocument();
+    expect(fetchSubscriptionPlansMock).not.toHaveBeenCalled();
+    expect(prepareBillingAgreementMock).not.toHaveBeenCalled();
     expect(confirmBillingAgreementMock).not.toHaveBeenCalled();
+    expect(fetchPaymentCommandOutcomeMock).not.toHaveBeenCalled();
+    expect(fetchMySubscriptionMock).not.toHaveBeenCalled();
+    expect(fetchMyBillingAgreementMock).not.toHaveBeenCalled();
   });
 });

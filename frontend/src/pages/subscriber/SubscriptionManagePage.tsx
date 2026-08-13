@@ -7,6 +7,7 @@ import {
   reactivateMySubscription,
   changeMySubscription,
   fetchSubscriptionChangePreview,
+  isNoActiveSubscriptionError,
   type MySubscription,
   type SubscriptionChangePreview,
   type SubscriptionChangeType,
@@ -15,9 +16,10 @@ import { fetchSubscriptionPlans, type SubscriptionPlan } from '@/api/subscriptio
 import {
   fetchMyBillingAgreement,
   fetchSubscriptionUpgradeOutcome,
+  isBillingAgreementNotFoundError,
   type BillingAgreementResponse,
 } from '@/api/payments';
-import { getApiErrorCode, isSubscriptionRequired } from '@/api/client';
+import { getApiErrorCode } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import type { UserType } from '@/types';
 import Button from '@/components/ui/Button';
@@ -27,6 +29,7 @@ import styles from './SubscriptionManagePage.module.css';
 type BillingCycle = 'MONTHLY' | 'YEARLY';
 type RecoveryOutcome = 'RELOAD_FAILED' | 'UNKNOWN' | 'FAILED';
 type ManageOperationKind = 'CHANGE' | 'CANCEL' | 'REACTIVATE';
+type BillingAgreementReadState = 'idle' | 'loading' | 'ready' | 'absent' | 'error';
 
 interface ManageOperationContext {
   kind: ManageOperationKind;
@@ -63,6 +66,12 @@ const UNKNOWN_MESSAGE =
   '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.';
 const FAILED_MESSAGE =
   '\uC694\uCCAD\uC774 \uC644\uB8CC\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.';
+const MANAGE_LOAD_ERROR_MESSAGE =
+  '\uAD6C\uB3C5 \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.';
+const BILLING_AGREEMENT_READ_ERROR_MESSAGE =
+  '\uC790\uB3D9\uACB0\uC81C \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.';
+const PREVIEW_READ_ERROR_MESSAGE =
+  '\uD50C\uB79C \uBCC0\uACBD \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.';
 
 /** Format amount with comma separator */
 function formatAmount(amount: number): string {
@@ -227,6 +236,27 @@ function isPendingCycleOnlyChange(sub: MySubscription | null): boolean {
   return pendingPlanId === sub.subscription.id;
 }
 
+function getReactivationAmount(sub: MySubscription, plans: SubscriptionPlan[]): number | null {
+  const renewalPlan =
+    sub.pendingSubscriptionId == null || sub.pendingSubscriptionId === sub.subscription.id
+      ? sub.subscription
+      : plans.find((plan) => plan.id === sub.pendingSubscriptionId);
+  if (!renewalPlan) return null;
+
+  const renewalCycle = sub.pendingBillingCycle ?? sub.billingCycle;
+  return renewalCycle === 'MONTHLY' ? renewalPlan.priceMonthly : renewalPlan.priceYearly;
+}
+
+function getReactivationBillingDate(
+  sub: MySubscription,
+  agreement: BillingAgreementResponse | null,
+): string | null {
+  if (!agreement) return null;
+  if (agreement.status === 'CANCELLED') return sub.expiresAt || null;
+  if (agreement.status === 'ACTIVE') return agreement.nextBillingAt;
+  return null;
+}
+
 interface PaymentMethodRegistrationContext {
   returnPlanId?: number;
   returnUserType?: UserType;
@@ -307,23 +337,34 @@ export default function SubscriptionManagePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [billingAgreement, setBillingAgreement] = useState<BillingAgreementResponse | null>(null);
+  const [billingAgreementReadState, setBillingAgreementReadState] =
+    useState<BillingAgreementReadState>('idle');
   const [recovery, setRecovery] = useState<ManageRecovery | null>(null);
   const [recovering, setRecovering] = useState(false);
   const recoveryInFlightRef = useRef(false);
   const recoveryVersionRef = useRef(0);
   const recoveryMutationBlockedRef = useRef(false);
+  const loadVersionRef = useRef(0);
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const billingReadVersionRef = useRef(0);
+  const billingReadAbortRef = useRef<AbortController | null>(null);
 
   /* ── Change Plan ── */
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [selectedCycle, setSelectedCycle] = useState<BillingCycle>('MONTHLY');
   const [preview, setPreview] = useState<SubscriptionChangePreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [previewRetryVersion, setPreviewRetryVersion] = useState(0);
+  const previewVersionRef = useRef(0);
+  const previewAbortRef = useRef<AbortController | null>(null);
   const [changingPlan, setChangingPlan] = useState(false);
   const [changeMsg, setChangeMsg] = useState<string | null>(null);
   const [changeError, setChangeError] = useState<string | null>(null);
 
   /* ── Cancel ── */
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showReactivateModal, setShowReactivateModal] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [reactivating, setReactivating] = useState(false);
   const mutationInFlightRef = useRef(false);
@@ -332,124 +373,193 @@ export default function SubscriptionManagePage() {
     recovery?.outcome === 'UNKNOWN' || recovery?.outcome === 'RELOAD_FAILED';
   const mutationBlocked = mutationBusy || ambiguousRecovery;
   const hasPendingChange = Boolean(sub?.pendingSubscriptionId || sub?.pendingBillingCycle);
-  const needsPaymentMethodRegistration = requiresPaymentMethodRegistration(
-    billingAgreement,
-    Boolean(sub),
-  );
+  const hasKnownBillingAgreementState =
+    billingAgreementReadState === 'ready' || billingAgreementReadState === 'absent';
+  const needsPaymentMethodRegistration =
+    hasKnownBillingAgreementState &&
+    requiresPaymentMethodRegistration(billingAgreement, Boolean(sub));
+
+  const retireBillingAgreementRead = useCallback(() => {
+    billingReadVersionRef.current += 1;
+    billingReadAbortRef.current?.abort();
+    billingReadAbortRef.current = null;
+  }, []);
+
+  const startBillingAgreementRead = useCallback(() => {
+    retireBillingAgreementRead();
+    const controller = new AbortController();
+    billingReadAbortRef.current = controller;
+    return { controller, version: billingReadVersionRef.current };
+  }, [retireBillingAgreementRead]);
 
   /* ── Fetch ── */
-  const load = useCallback(async () => {
+  const loadBillingAgreement = useCallback(async () => {
+    const { controller, version } = startBillingAgreementRead();
+    setBillingAgreementReadState('loading');
+
     try {
-      setLoading(true);
-      setError(null);
-      const userType = useAuthStore.getState().user?.userType ?? 'INDIVIDUAL';
-      const plansRes = await fetchSubscriptionPlans(userType);
-      setPlans(plansRes);
-      try {
-        const subRes = await fetchMySubscription();
-        setSub(subRes);
-        try {
-          const billingRes = await fetchMyBillingAgreement();
-          setBillingAgreement(billingRes);
-        } catch {
-          setBillingAgreement(null);
-        }
-      } catch (err) {
-        if (isSubscriptionRequired(err)) {
-          setSub(null);
-          setBillingAgreement(null);
-          return;
-        }
-        throw err;
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '구독 정보를 불러오지 못했습니다.');
+      const result = await fetchMyBillingAgreement(controller.signal);
+      if (version !== billingReadVersionRef.current || controller.signal.aborted) return;
+      setBillingAgreement(result);
+      setBillingAgreementReadState('ready');
+    } catch (readError: unknown) {
+      if (version !== billingReadVersionRef.current || controller.signal.aborted) return;
+      setBillingAgreement(null);
+      setBillingAgreementReadState(isBillingAgreementNotFoundError(readError) ? 'absent' : 'error');
     } finally {
-      setLoading(false);
+      if (version === billingReadVersionRef.current) {
+        billingReadAbortRef.current = null;
+      }
     }
-  }, []);
+  }, [startBillingAgreementRead]);
 
-  const reconcileOperation = useCallback(async (context: ManageOperationContext) => {
-    if (recoveryInFlightRef.current) return;
-    recoveryInFlightRef.current = true;
-    const version = ++recoveryVersionRef.current;
-    setRecovering(true);
+  const load = useCallback(async () => {
+    loadAbortRef.current?.abort();
+    retireBillingAgreementRead();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
+    const version = ++loadVersionRef.current;
 
-    const setUnproven = (outcome: RecoveryOutcome) => {
-      if (version !== recoveryVersionRef.current) return;
-      recoveryMutationBlockedRef.current = outcome === 'UNKNOWN' || outcome === 'RELOAD_FAILED';
-      setRecovery({ outcome, context });
-      setChangeError(null);
-    };
+    setLoading(true);
+    setError(null);
+    setPlans([]);
+    setSub(null);
+    setBillingAgreement(null);
+    setBillingAgreementReadState('idle');
+    setSelectedPlan(null);
+    setPreview(null);
+    setPreviewError(null);
 
     try {
-      let outcomeUserSubscriptionId: number | null = null;
-      if (context.chargedUpgrade) {
+      const userType = authenticatedUserType ?? 'INDIVIDUAL';
+      const subscriptionPromise = fetchMySubscription(controller.signal).catch(
+        (subscriptionError: unknown) => {
+          if (isNoActiveSubscriptionError(subscriptionError)) return null;
+          return Promise.reject(subscriptionError);
+        },
+      );
+      const [plansRes, subRes] = await Promise.all([
+        fetchSubscriptionPlans(userType, controller.signal),
+        subscriptionPromise,
+      ]);
+      if (version !== loadVersionRef.current || controller.signal.aborted) return;
+      setPlans(plansRes);
+      setSub(subRes);
+      if (subRes) {
+        await loadBillingAgreement();
+      }
+    } catch {
+      if (version !== loadVersionRef.current || controller.signal.aborted) return;
+      setError(MANAGE_LOAD_ERROR_MESSAGE);
+    } finally {
+      if (version === loadVersionRef.current) {
+        setLoading(false);
+        loadAbortRef.current = null;
+      }
+    }
+  }, [authenticatedUserType, loadBillingAgreement, retireBillingAgreementRead]);
+
+  const reconcileOperation = useCallback(
+    async (context: ManageOperationContext) => {
+      if (recoveryInFlightRef.current) return;
+      recoveryInFlightRef.current = true;
+      const version = ++recoveryVersionRef.current;
+      setRecovering(true);
+
+      const setUnproven = (outcome: RecoveryOutcome) => {
+        if (version !== recoveryVersionRef.current) return;
+        recoveryMutationBlockedRef.current = outcome === 'UNKNOWN' || outcome === 'RELOAD_FAILED';
+        setRecovery({ outcome, context });
+        setChangeError(null);
+      };
+
+      try {
+        let outcomeUserSubscriptionId: number | null = null;
+        if (context.chargedUpgrade) {
+          try {
+            const outcome = await fetchSubscriptionUpgradeOutcome(
+              context.targetSubscriptionId!,
+              context.targetBillingCycle!,
+            );
+            if (
+              outcome.purpose !== 'UPGRADE' ||
+              outcome.targetSubscriptionId !== context.targetSubscriptionId ||
+              outcome.targetBillingCycle !== context.targetBillingCycle
+            ) {
+              setUnproven('UNKNOWN');
+              return;
+            }
+            if (['FAILED', 'CANCELLED', 'EXPIRED'].includes(outcome.orderStatus)) {
+              setUnproven('FAILED');
+              return;
+            }
+            if (outcome.orderStatus !== 'DONE') {
+              setUnproven('UNKNOWN');
+              return;
+            }
+            if (outcome.userSubscriptionId == null) {
+              setUnproven('UNKNOWN');
+              return;
+            }
+            outcomeUserSubscriptionId = outcome.userSubscriptionId;
+          } catch {
+            setUnproven(context.mutationSucceeded ? 'RELOAD_FAILED' : 'UNKNOWN');
+            return;
+          }
+        }
+
+        let canonicalSubscription: MySubscription;
+        let canonicalAgreement: BillingAgreementResponse;
+        const { controller: billingController, version: billingVersion } =
+          startBillingAgreementRead();
         try {
-          const outcome = await fetchSubscriptionUpgradeOutcome(
-            context.targetSubscriptionId!,
-            context.targetBillingCycle!,
-          );
-          if (
-            outcome.purpose !== 'UPGRADE' ||
-            outcome.targetSubscriptionId !== context.targetSubscriptionId ||
-            outcome.targetBillingCycle !== context.targetBillingCycle
-          ) {
-            setUnproven('UNKNOWN');
-            return;
-          }
-          if (['FAILED', 'CANCELLED', 'EXPIRED'].includes(outcome.orderStatus)) {
-            setUnproven('FAILED');
-            return;
-          }
-          if (outcome.orderStatus !== 'DONE') {
-            setUnproven('UNKNOWN');
-            return;
-          }
-          if (outcome.userSubscriptionId == null) {
-            setUnproven('UNKNOWN');
-            return;
-          }
-          outcomeUserSubscriptionId = outcome.userSubscriptionId;
+          [canonicalSubscription, canonicalAgreement] = await Promise.all([
+            fetchMySubscription(),
+            fetchMyBillingAgreement(billingController.signal),
+          ]);
         } catch {
+          if (
+            billingVersion !== billingReadVersionRef.current ||
+            billingController.signal.aborted
+          ) {
+            return;
+          }
+          billingController.abort();
           setUnproven(context.mutationSucceeded ? 'RELOAD_FAILED' : 'UNKNOWN');
           return;
+        } finally {
+          if (billingVersion === billingReadVersionRef.current) {
+            billingReadAbortRef.current = null;
+          }
         }
-      }
 
-      let canonicalSubscription: MySubscription;
-      let canonicalAgreement: BillingAgreementResponse;
-      try {
-        [canonicalSubscription, canonicalAgreement] = await Promise.all([
-          fetchMySubscription(),
-          fetchMyBillingAgreement(),
-        ]);
-      } catch {
-        setUnproven(context.mutationSucceeded ? 'RELOAD_FAILED' : 'UNKNOWN');
-        return;
-      }
+        if (billingVersion !== billingReadVersionRef.current || billingController.signal.aborted)
+          return;
 
-      if (context.chargedUpgrade && outcomeUserSubscriptionId !== canonicalSubscription.id) {
-        setUnproven('UNKNOWN');
-        return;
+        if (context.chargedUpgrade && outcomeUserSubscriptionId !== canonicalSubscription.id) {
+          setUnproven('UNKNOWN');
+          return;
+        }
+        if (!canonicalStateMatches(context, canonicalSubscription, canonicalAgreement)) {
+          setUnproven('UNKNOWN');
+          return;
+        }
+        if (version !== recoveryVersionRef.current) return;
+        setSub(canonicalSubscription);
+        setBillingAgreement(canonicalAgreement);
+        setBillingAgreementReadState('ready');
+        recoveryMutationBlockedRef.current = false;
+        setRecovery(null);
+        setError(null);
+        setChangeError(null);
+        if (!context.mutationSucceeded) setChangeMsg(recoveredOperationMessage(context.kind));
+      } finally {
+        if (version === recoveryVersionRef.current) setRecovering(false);
+        recoveryInFlightRef.current = false;
       }
-      if (!canonicalStateMatches(context, canonicalSubscription, canonicalAgreement)) {
-        setUnproven('UNKNOWN');
-        return;
-      }
-      if (version !== recoveryVersionRef.current) return;
-      setSub(canonicalSubscription);
-      setBillingAgreement(canonicalAgreement);
-      recoveryMutationBlockedRef.current = false;
-      setRecovery(null);
-      setError(null);
-      setChangeError(null);
-      if (!context.mutationSucceeded) setChangeMsg(recoveredOperationMessage(context.kind));
-    } finally {
-      if (version === recoveryVersionRef.current) setRecovering(false);
-      recoveryInFlightRef.current = false;
-    }
-  }, []);
+    },
+    [startBillingAgreementRead],
+  );
 
   const setAuthoritativeFailure = useCallback(
     (context: ManageOperationContext, message: string) => {
@@ -469,7 +579,15 @@ export default function SubscriptionManagePage() {
   }
 
   useEffect(() => {
-    load();
+    void load();
+    return () => {
+      loadVersionRef.current += 1;
+      loadAbortRef.current?.abort();
+      loadAbortRef.current = null;
+      billingReadVersionRef.current += 1;
+      billingReadAbortRef.current?.abort();
+      billingReadAbortRef.current = null;
+    };
   }, [load]);
 
   /* ── Pre-select plan from URL params (from SubscriptionPlanPage) ── */
@@ -505,30 +623,50 @@ export default function SubscriptionManagePage() {
 
   /* ── Preview change when plan/cycle selected ── */
   useEffect(() => {
+    previewAbortRef.current?.abort();
+    previewAbortRef.current = null;
+    const version = ++previewVersionRef.current;
+
     if (!selectedPlan || !sub) {
       setPreview(null);
+      setPreviewError(null);
+      setLoadingPreview(false);
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
+    previewAbortRef.current = controller;
+    setLoadingPreview(true);
+    setPreview(null);
+    setPreviewError(null);
 
     async function loadPreview() {
       try {
-        setLoadingPreview(true);
-        const res = await fetchSubscriptionChangePreview(selectedPlan!.id, selectedCycle);
-        if (!cancelled) setPreview(res);
+        const res = await fetchSubscriptionChangePreview(
+          selectedPlan!.id,
+          selectedCycle,
+          controller.signal,
+        );
+        if (version !== previewVersionRef.current || controller.signal.aborted) return;
+        setPreview(res);
       } catch {
-        if (!cancelled) setPreview(null);
+        if (version !== previewVersionRef.current || controller.signal.aborted) return;
+        setPreviewError(PREVIEW_READ_ERROR_MESSAGE);
       } finally {
-        if (!cancelled) setLoadingPreview(false);
+        if (version === previewVersionRef.current) {
+          setLoadingPreview(false);
+          previewAbortRef.current = null;
+        }
       }
     }
 
-    loadPreview();
+    void loadPreview();
     return () => {
-      cancelled = true;
+      if (version === previewVersionRef.current) previewVersionRef.current += 1;
+      controller.abort();
+      if (previewAbortRef.current === controller) previewAbortRef.current = null;
     };
-  }, [selectedPlan, selectedCycle, sub]);
+  }, [previewRetryVersion, selectedPlan, selectedCycle, sub]);
 
   /* ── Change subscription ── */
   function handleSelectPlan(plan: SubscriptionPlan) {
@@ -585,6 +723,7 @@ export default function SubscriptionManagePage() {
 
   async function handleChangePlan() {
     if (!selectedPlan || !preview || !sub) return;
+    if (preview.changeType === 'UPGRADE' && !hasKnownBillingAgreementState) return;
     const hasReusablePaymentMethod = isReusableBillingAgreement(billingAgreement, sub?.status);
     if (preview.changeType === 'UPGRADE' && !hasReusablePaymentMethod) {
       setChangeError(
@@ -713,6 +852,7 @@ export default function SubscriptionManagePage() {
     } finally {
       mutationInFlightRef.current = false;
       setReactivating(false);
+      setShowReactivateModal(false);
     }
   }
 
@@ -752,7 +892,12 @@ export default function SubscriptionManagePage() {
   if (error) {
     return (
       <div className={styles.page}>
-        <div className={styles.error}>{error}</div>
+        <div className={styles.error}>
+          <p>{error}</p>
+          <Button variant="primary" onClick={() => void load()}>
+            {'\uB2E4\uC2DC \uC2DC\uB3C4'}
+          </Button>
+        </div>
       </div>
     );
   }
@@ -797,8 +942,20 @@ export default function SubscriptionManagePage() {
       ? `예약된 ${pendingCycleLabel} 전환을 취소하고 현재 ${getBillingCycleLabel(sub.billingCycle)} 결제를 유지합니다.`
       : null;
   const upgradeRequiresPaymentMethodRegistration = Boolean(
-    preview?.changeType === 'UPGRADE' && !isReusableBillingAgreement(billingAgreement, sub.status),
+    preview?.changeType === 'UPGRADE' &&
+    hasKnownBillingAgreementState &&
+    !isReusableBillingAgreement(billingAgreement, sub.status),
   );
+  const upgradeBlockedByBillingRead = Boolean(
+    preview?.changeType === 'UPGRADE' && !hasKnownBillingAgreementState,
+  );
+  const reactivationAmount = getReactivationAmount(sub, plans);
+  const reactivationBillingDate = getReactivationBillingDate(sub, billingAgreement);
+  const canReactivate =
+    billingAgreementReadState === 'ready' &&
+    isReusableBillingAgreement(billingAgreement, sub.status) &&
+    reactivationAmount !== null &&
+    reactivationBillingDate !== null;
   const recoveryMessage =
     recovery?.outcome === 'RELOAD_FAILED'
       ? RELOAD_FAILED_MESSAGE
@@ -862,7 +1019,28 @@ export default function SubscriptionManagePage() {
       {/* ── Payment Info ── */}
       <div className={styles.actionSection}>
         <div className={styles.actionTitle}>{'결제 정보'}</div>
-        {billingAgreement ? (
+        {billingAgreementReadState === 'error' && (
+          <>
+            <div className={styles.errorMsg}>{BILLING_AGREEMENT_READ_ERROR_MESSAGE}</div>
+            <div className={styles.actionButtons}>
+              <Button
+                variant="primary"
+                onClick={() => void loadBillingAgreement()}
+                disabled={mutationBlocked}
+              >
+                {'\uC790\uB3D9\uACB0\uC81C \uC815\uBCF4 \uB2E4\uC2DC \uC2DC\uB3C4'}
+              </Button>
+            </div>
+          </>
+        )}
+        {(billingAgreementReadState === 'idle' || billingAgreementReadState === 'loading') && (
+          <div className={styles.actionDesc}>
+            {
+              '\uC790\uB3D9\uACB0\uC81C \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4.'
+            }
+          </div>
+        )}
+        {billingAgreementReadState === 'ready' && billingAgreement && (
           <>
             <div className={styles.planInfo}>
               <div className={styles.infoItem}>
@@ -892,7 +1070,8 @@ export default function SubscriptionManagePage() {
               </div>
             )}
           </>
-        ) : (
+        )}
+        {billingAgreementReadState === 'absent' && (
           <div className={styles.actionDesc}>{'현재 등록된 정기결제 수단이 없습니다.'}</div>
         )}
         {needsPaymentMethodRegistration && (
@@ -990,6 +1169,19 @@ export default function SubscriptionManagePage() {
 
           {/* Preview */}
           {loadingPreview && <div className={styles.loading}>{'변경 내역을 미리 보는 중...'}</div>}
+          {previewError && !loadingPreview && (
+            <>
+              <div className={styles.errorMsg}>{previewError}</div>
+              <div className={styles.actionButtons}>
+                <Button
+                  variant="primary"
+                  onClick={() => setPreviewRetryVersion((version) => version + 1)}
+                >
+                  {'\uBCC0\uACBD \uC815\uBCF4 \uB2E4\uC2DC \uC2DC\uB3C4'}
+                </Button>
+              </div>
+            </>
+          )}
           {preview && !loadingPreview && (
             <div className={styles.previewBox}>
               <div className={styles.previewHeader}>
@@ -1065,6 +1257,7 @@ export default function SubscriptionManagePage() {
                 onClick={() => {
                   setSelectedPlan(null);
                   setPreview(null);
+                  setPreviewError(null);
                 }}
               >
                 {'취소'}
@@ -1083,7 +1276,7 @@ export default function SubscriptionManagePage() {
                     : handleChangePlan
                 }
                 loading={changingPlan}
-                disabled={mutationBlocked}
+                disabled={mutationBlocked || upgradeBlockedByBillingRead}
               >
                 {upgradeRequiresPaymentMethodRegistration
                   ? '결제수단 등록하기'
@@ -1131,9 +1324,8 @@ export default function SubscriptionManagePage() {
           </div>
           <Button
             variant="primary"
-            onClick={handleReactivate}
-            loading={reactivating}
-            disabled={mutationBlocked}
+            onClick={() => setShowReactivateModal(true)}
+            disabled={mutationBlocked || !canReactivate}
           >
             {'구독 유지하기'}
           </Button>
@@ -1165,6 +1357,45 @@ export default function SubscriptionManagePage() {
             disabled={mutationBlocked}
           >
             {'취소 확정'}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={showReactivateModal}
+        onClose={() => {
+          if (!reactivating) setShowReactivateModal(false);
+        }}
+        title="구독 유지 확인"
+      >
+        <div className={styles.modalBody}>
+          <p>{'구독을 유지하고 자동 갱신을 다시 시작하시겠습니까?'}</p>
+          {reactivationAmount !== null && reactivationBillingDate !== null ? (
+            <p style={{ marginTop: 8, fontSize: 13, color: 'var(--text2)' }}>
+              {formatDate(reactivationBillingDate)}
+              {'에 '}
+              {formatAmount(reactivationAmount)}
+              {'원이 결제되며 자동 갱신이 재개됩니다.'}
+            </p>
+          ) : null}
+        </div>
+        <div className={styles.modalFooter}>
+          <Button
+            variant="ghost"
+            onClick={() => setShowReactivateModal(false)}
+            disabled={reactivating}
+          >
+            {'돌아가기'}
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleReactivate}
+            loading={reactivating}
+            disabled={
+              mutationBlocked || reactivationAmount === null || reactivationBillingDate === null
+            }
+          >
+            {'구독 유지 확정'}
           </Button>
         </div>
       </Modal>

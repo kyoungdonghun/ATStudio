@@ -18,10 +18,14 @@ interface SubscriptionListResponse {
   dataList: SubscriptionPlan[];
 }
 
-export async function fetchSubscriptionPlans(userType?: string): Promise<SubscriptionPlan[]> {
+export async function fetchSubscriptionPlans(
+  userType?: string,
+  signal?: AbortSignal,
+): Promise<SubscriptionPlan[]> {
   const params = userType ? { userType } : {};
   const { data } = await client.get<SubscriptionListResponse>('/subscriptions', {
     params,
+    signal,
   });
   return data.dataList;
 }

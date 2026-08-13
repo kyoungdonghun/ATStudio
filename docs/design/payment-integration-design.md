@@ -69,6 +69,12 @@ the authenticated user, loads plans for that audience, resolves the exact
 route context leaves checkout non-actionable and does not invoke prepare or the
 Toss SDK.
 
+Each required value must occur exactly once. Missing, malformed, unsupported,
+or duplicate plan, audience, cycle, or purpose values cause zero prepare calls.
+Optional payment-method-registration return context must be a complete,
+single-valued, same-audience plan/cycle tuple; partial or malformed context also
+causes zero prepare calls.
+
 The prepare request contains exactly the payment-intent fields below:
 
 ```json
@@ -121,6 +127,12 @@ clears the actionable order and prevents SDK loading and `requestBillingAuth`.
 Because that mismatch is detected after prepare returned, frontend SDK
 non-invocation alone does not prove that no server order or test Provider
 prepare occurred.
+
+A prepare failure renders terminal `ERROR` state with bounded Korean product
+copy and an explicit same-attempt retry. It never remains labeled
+`PREPARING`. The initial subscription CTA states both payment-method
+registration and the immediate first charge; the zero-amount re-registration
+CTA remains separate.
 
 ## Prepare Attempt And Claiming
 
@@ -222,12 +234,12 @@ fails closed.
 The frontend uses one frozen outcome vocabulary after a callback or Manage
 mutation starts:
 
-| Outcome | Required proof and UI meaning |
-| --- | --- |
-| `COMMITTED` | The payment order is `DONE` where a payment command applies, and fresh canonical Subscription plus Billing Agreement reads prove exact target identity and the same `userSubscriptionId` aggregate linkage. Only this state permits a success announcement or success navigation. |
-| `FAILED` | A terminal payment order is `FAILED`, `CANCELLED`, or `EXPIRED`, or a local-only cancel/reactivate endpoint returns one of its narrow authoritative terminal business errors. The operation is proved not committed and is no longer ambiguous. |
-| `RELOAD_FAILED` | The mutation response explicitly reported success, but the required outcome or canonical aggregate reload failed. The successful mutation context and message are retained; the mutation is never relabeled as failed. |
-| `UNKNOWN` | The request may have reached the server or Provider, or available reads do not prove either durable success or terminal failure. The UI warns that processing may already have completed and exposes only read-only status recheck. |
+| Outcome         | Required proof and UI meaning                                                                                                                                                                                                                                                     |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `COMMITTED`     | The payment order is `DONE` where a payment command applies, and fresh canonical Subscription plus Billing Agreement reads prove exact target identity and the same `userSubscriptionId` aggregate linkage. Only this state permits a success announcement or success navigation. |
+| `FAILED`        | A terminal payment order is `FAILED`, `CANCELLED`, or `EXPIRED`, or a local-only cancel/reactivate endpoint returns one of its narrow authoritative terminal business errors. The operation is proved not committed and is no longer ambiguous.                                   |
+| `RELOAD_FAILED` | The mutation response explicitly reported success, but the required outcome or canonical aggregate reload failed. The successful mutation context and message are retained; the mutation is never relabeled as failed.                                                            |
+| `UNKNOWN`       | The request may have reached the server or Provider, or available reads do not prove either durable success or terminal failure. The UI warns that processing may already have completed and exposes only read-only status recheck.                                               |
 
 HTTP `2xx`, a success toast, redirect state, stale component state, or payment
 order `DONE` without canonical aggregate linkage is insufficient for
@@ -240,6 +252,11 @@ The callback page captures `orderId`, `authKey`, `customerKey`, and amount once,
 then removes `authKey` and `customerKey` from the visible URL immediately with
 history replacement before confirmation settles. The raw values are used only
 for the one callback confirmation attempt and are not rendered.
+
+Callback fields use single-value allowlist parsing. Missing, blank, malformed,
+unsupported, or duplicate required state cannot invoke confirmation or
+prepare. Provider `message` query content is never rendered; fail callbacks
+use bounded product copy even when that value is blank or arbitrary.
 
 - A success callback with authorization values invokes confirmation once, then
   performs the owner-scoped order-outcome read and canonical Subscription and
@@ -273,12 +290,26 @@ reactivate, and payment-method mutation controls together. Its only recovery
 action reruns the bounded reads. Rapid mutations and recovery clicks are fenced
 so an older read cannot overwrite newer authoritative state.
 
+The latest audience or selection request also owns initial plan, Subscription,
+Billing Agreement, and preview reads. Only HTTP
+`404 BILLING_AGREEMENT_NOT_FOUND` is Billing Agreement absence; 401, 403,
+other 404, 5xx, and network failures remain retryable errors. Preview failure
+is visible and retryable instead of being projected as no available change.
+
+Reactivation requires a separate confirmation naming the next billing date and
+amount. Dismissal causes zero mutations, and repeated approval is disabled
+while the request is in flight. The date follows the backend reactivation
+branch: a cancelled Billing Agreement uses the Subscription `expiresAt` passed
+to `resume`, while an already active agreement retains and displays its
+canonical `nextBillingAt`. If that branch's canonical date is unavailable,
+reactivation remains disabled instead of displaying an invented date.
+
 `CANCEL` and `REACTIVATE` are local-only state transitions. Only these narrow
 response errors are terminal without reconciliation:
 
-| Operation | Authoritative terminal errors |
-| --- | --- |
-| `CANCEL` | `NO_ACTIVE_SUBSCRIPTION`, `RESOURCE_NOT_FOUND` |
+| Operation    | Authoritative terminal errors                                                                                    |
+| ------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `CANCEL`     | `NO_ACTIVE_SUBSCRIPTION`, `RESOURCE_NOT_FOUND`                                                                   |
 | `REACTIVATE` | `NO_ACTIVE_SUBSCRIPTION`, `RESOURCE_NOT_FOUND`, `BILLING_AGREEMENT_NOT_FOUND`, `BILLING_AGREEMENT_INVALID_STATE` |
 
 Every `CHANGE` error is reconciled, regardless of HTTP class. In particular, a

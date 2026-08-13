@@ -1,4 +1,5 @@
 import client from '@/api/client';
+import { getApiErrorCode } from '@/api/loadError';
 import type { ApiResponse } from '@/types';
 import type { MySubscription } from '@/api/userSubscriptions';
 
@@ -103,11 +104,19 @@ export async function confirmBillingAgreement(
   return data.data;
 }
 
-export async function fetchMyBillingAgreement(): Promise<BillingAgreementResponse> {
+export async function fetchMyBillingAgreement(
+  signal?: AbortSignal,
+): Promise<BillingAgreementResponse> {
   const { data } = await client.get<ApiResponse<BillingAgreementResponse>>(
     '/payments/billing-agreements/me',
+    { signal },
   );
   return data.data;
+}
+
+export function isBillingAgreementNotFoundError(error: unknown): boolean {
+  const status = (error as { response?: { status?: number } })?.response?.status;
+  return status === 404 && getApiErrorCode(error) === 'BILLING_AGREEMENT_NOT_FOUND';
 }
 
 export async function fetchPaymentCommandOutcome(orderId: string): Promise<PaymentCommandOutcome> {

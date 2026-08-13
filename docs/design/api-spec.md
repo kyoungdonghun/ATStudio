@@ -115,7 +115,7 @@ application is authoritative for request and response schemas.
 | `AdminStatsController`                      |        1 | ADMIN dashboard statistics                                                                    |
 | `AdminTrackAudioAnalysisController`         |        1 | ADMIN read-only existing-Track audio-analysis dry-run                                         |
 | `AdminUserSubscriptionCorrectionController` |        7 | ADMIN local subscription correction workflow                                                  |
-| `AdminWhitelistChannelController`           |        5 | ADMIN whitelist review, export, and owner-scoped recovery                                      |
+| `AdminWhitelistChannelController`           |        5 | ADMIN whitelist review, export, and owner-scoped recovery                                     |
 | `AlbumController`                           |        8 | Public album reads and ADMIN mutations                                                        |
 | `AuthController`                            |        7 | Login, logout, refresh, social auth, email and password flows                                 |
 | `CompanyCertificationController`            |        7 | BUSINESS submission and ADMIN review/document access                                          |
@@ -123,7 +123,7 @@ application is authoritative for request and response schemas.
 | `LicenseController`                         |        4 | User and ADMIN License reads                                                                  |
 | `LikeController`                            |        6 | Track and album likes                                                                         |
 | `NoticeController`                          |        7 | Public Notice reads/download plus ADMIN non-counting edit read and mutations                  |
-| `PaymentController`                         |        6 | USER-only recurring billing agreement lifecycle and read-only outcome recovery                 |
+| `PaymentController`                         |        6 | USER-only recurring billing agreement lifecycle and read-only outcome recovery                |
 | `PlaylistController`                        |        9 | Subscriber playlist CRUD and Track membership                                                 |
 | `QuestionController`                        |        7 | Inquiry, answer, attachment, status, and deletion                                             |
 | `SettingController`                         |        1 | Public site-setting read                                                                      |
@@ -374,12 +374,12 @@ refresh queue. Concurrent first `401` responses share one refresh, and each
 marked request is replayed at most once. A replay that receives another `401`
 rejects that second response without another refresh, queue entry, or replay.
 
-| UI outcome | Refund durable predicate | Entitlement-correction durable predicate |
-| --- | --- | --- |
-| `COMMITTED` | Exact detail status `SUCCEEDED` | Exact detail status `SUCCEEDED` |
-| `FAILED` | Exact execute/detail status `FAILED` or `CANCELLED` | Exact execute/detail status `FAILED` or `CANCELLED` |
-| `RELOAD_FAILED` | Execute returned `SUCCEEDED`, then the required detail or committed-result list reload failed | Execute returned `SUCCEEDED`, then the required detail or committed-result list reload failed |
-| `UNKNOWN` | Any unproved result, including `PROCESSING` or `PENDING_PROVIDER_CONFIRMATION`, a failed recovery read, or another non-terminal status | Any unproved result, including `PROCESSING`, a failed recovery read, or another non-terminal status |
+| UI outcome      | Refund durable predicate                                                                                                               | Entitlement-correction durable predicate                                                            |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `COMMITTED`     | Exact detail status `SUCCEEDED`                                                                                                        | Exact detail status `SUCCEEDED`                                                                     |
+| `FAILED`        | Exact execute/detail status `FAILED` or `CANCELLED`                                                                                    | Exact execute/detail status `FAILED` or `CANCELLED`                                                 |
+| `RELOAD_FAILED` | Execute returned `SUCCEEDED`, then the required detail or committed-result list reload failed                                          | Execute returned `SUCCEEDED`, then the required detail or committed-result list reload failed       |
+| `UNKNOWN`       | Any unproved result, including `PROCESSING` or `PENDING_PROVIDER_CONFIRMATION`, a failed recovery read, or another non-terminal status | Any unproved result, including `PROCESSING`, a failed recovery read, or another non-terminal status |
 
 `RELOAD_FAILED` preserves the successful execute response and uses distinct
 feedback; it is not converted into an execute failure. A later successful exact
@@ -528,6 +528,21 @@ is never an assignable wire value.
 - `GET|PUT|DELETE /api/user-subscriptions/me`
 - `POST /api/user-subscriptions/me/reactivate`
 
+#### Subscription Read and Checkout UI Contract
+
+`GET /api/user-subscriptions/me` represents subscription absence only as HTTP
+`403 NO_ACTIVE_SUBSCRIPTION`. `GET /api/payments/billing-agreements/me`
+represents Billing Agreement absence only as HTTP
+`404 BILLING_AGREEMENT_NOT_FOUND`. The SPA may project only those exact
+status/code pairs as absence; authentication, authorization, other not-found,
+server, and network failures remain visible retryable errors.
+
+Plan, Subscription, Billing Agreement, and change-preview reads are owned by
+the latest audience or selection request. Retired async completions cannot
+replace a newer audience, subscription, payment-method, or preview state.
+Preview read failure remains visible and retryable rather than becoming an
+empty preview.
+
 #### Billing Agreement Prepare Contract
 
 `POST /api/payments/billing-agreements/prepare` is USER-only. Every request
@@ -565,6 +580,16 @@ The body does not accept plan name, `userType`, amount, callback URL, or client
 checkout metadata as authority. Missing, malformed, or unsupported purpose,
 including `UPGRADE`, fails request validation before service invocation.
 
+Before calling this endpoint, `/subscriptions/checkout` requires exactly one
+`planId`, `userType`, `billingCycle`, and `purpose` query value. The accepted
+allowlists are positive integer plan ID, `INDIVIDUAL|BUSINESS`,
+`MONTHLY|YEARLY`, and `SUBSCRIBE|BILLING_AGREEMENT`. A missing, malformed,
+unsupported, or duplicate required value leaves checkout non-actionable and
+causes zero prepare calls. Optional payment-method-registration return context
+is accepted only as one complete, same-audience plan/cycle tuple; partial,
+malformed, duplicate, or initial-subscription return context also causes zero
+prepare calls.
+
 The server resolves the authenticated USER and exact plan, verifies the plan
 audience against the authenticated `userType`, resolves the service-enabled
 subscription state, and derives authoritative purpose before any
@@ -587,14 +612,14 @@ never persisted or logged.
 
 The replay contract is:
 
-| Attempt state | API result | Durable and Provider result |
-| --- | --- | --- |
-| Same owner and key, exact authoritative purpose/plan/audience/cycle/agreement/subscription tuple, reusable and unexpired order | HTTP `201`, same `orderId`, equal authoritative response | Reuse one order and immutable command key; repeated prepare descriptor calls remain pure and side-effect-free |
-| Same owner and key with a changed authoritative tuple | HTTP `409` `PAYMENT_PREPARE_ATTEMPT_CONFLICT` | No mutation and no Provider descriptor call |
-| Same raw UUID under another authenticated owner | Normal independent owner namespace | Cannot select or disclose the first owner's order; may create or reuse only the second owner's digest and order |
-| Exact tuple with `expiresAt <= now` or status `EXPIRED` | HTTP `400` `PAYMENT_ORDER_EXPIRED` | No reuse, Provider call, or command-key rewrite; old row remains history |
-| Exact tuple with safe terminal status `FAILED` or `CANCELLED` | HTTP `409` `PAYMENT_ORDER_TERMINAL` | No reuse, Provider call, or command-key rewrite; old row remains history |
-| Exact tuple with `PROCESSING`, `PROVIDER_SUCCEEDED`, or `PENDING_PROVIDER_CONFIRMATION` | HTTP `400` `PAYMENT_ORDER_INVALID_STATE` | No replacement prepare; use the WI-034 read-only outcome recovery path after confirm or upgrade starts |
+| Attempt state                                                                                                                  | API result                                               | Durable and Provider result                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Same owner and key, exact authoritative purpose/plan/audience/cycle/agreement/subscription tuple, reusable and unexpired order | HTTP `201`, same `orderId`, equal authoritative response | Reuse one order and immutable command key; repeated prepare descriptor calls remain pure and side-effect-free   |
+| Same owner and key with a changed authoritative tuple                                                                          | HTTP `409` `PAYMENT_PREPARE_ATTEMPT_CONFLICT`            | No mutation and no Provider descriptor call                                                                     |
+| Same raw UUID under another authenticated owner                                                                                | Normal independent owner namespace                       | Cannot select or disclose the first owner's order; may create or reuse only the second owner's digest and order |
+| Exact tuple with `expiresAt <= now` or status `EXPIRED`                                                                        | HTTP `400` `PAYMENT_ORDER_EXPIRED`                       | No reuse, Provider call, or command-key rewrite; old row remains history                                        |
+| Exact tuple with safe terminal status `FAILED` or `CANCELLED`                                                                  | HTTP `409` `PAYMENT_ORDER_TERMINAL`                      | No reuse, Provider call, or command-key rewrite; old row remains history                                        |
+| Exact tuple with `PROCESSING`, `PROVIDER_SUCCEEDED`, or `PENDING_PROVIDER_CONFIRMATION`                                        | HTTP `400` `PAYMENT_ORDER_INVALID_STATE`                 | No replacement prepare; use the WI-034 read-only outcome recovery path after confirm or upgrade starts          |
 
 Legacy rows whose `command_key` is null do not participate in prepare replay
 lookup and are not rewritten, backfilled, or deleted. A non-null prepare
@@ -636,6 +661,14 @@ server plan price for `SUBSCRIBE` or zero for `BILLING_AGREEMENT`; currency is
 HTTP(S) URLs. A mismatch clears actionable state and prevents Toss SDK loading
 and `requestBillingAuth`. Callback query construction uses the validated
 response `orderId`, `amount`, and `purpose`.
+
+Prepare failure is a terminal `ERROR` presentation with fixed product copy and
+an explicit same-attempt retry; it is not displayed as still preparing. The
+initial subscription command names both payment-method registration and the
+immediate first charge. Payment-method re-registration remains a distinct
+zero-immediate-charge command. Callback fields are parsed as single values;
+invalid required state invokes neither prepare nor confirmation. Fail callback
+query text is never rendered directly, including a blank `message` value.
 
 WI-033 owns prepare-attempt identity, exact replay, and local claim reuse. The
 prepare contract does not treat in-flight or unknown-outcome states as
@@ -688,13 +721,13 @@ Both endpoints return the same minimal response under `data`:
 }
 ```
 
-| Field | Contract |
-| --- | --- |
-| `purpose` | `SUBSCRIBE`, `BILLING_AGREEMENT`, or `UPGRADE`, constrained by the selected endpoint |
-| `orderStatus` | Current persisted payment-order status; not by itself a frontend success claim |
-| `userSubscriptionId` | Canonical aggregate linkage recorded by the order; nullable until final linkage exists |
-| `targetSubscriptionId` | Exact target plan identity stored on the order |
-| `targetBillingCycle` | Exact effective target cycle; upgrade target cycle for `UPGRADE`, order cycle otherwise |
+| Field                  | Contract                                                                                |
+| ---------------------- | --------------------------------------------------------------------------------------- |
+| `purpose`              | `SUBSCRIBE`, `BILLING_AGREEMENT`, or `UPGRADE`, constrained by the selected endpoint    |
+| `orderStatus`          | Current persisted payment-order status; not by itself a frontend success claim          |
+| `userSubscriptionId`   | Canonical aggregate linkage recorded by the order; nullable until final linkage exists  |
+| `targetSubscriptionId` | Exact target plan identity stored on the order                                          |
+| `targetBillingCycle`   | Exact effective target cycle; upgrade target cycle for `UPGRADE`, order cycle otherwise |
 
 The response contains no `authKey`, `customerKey`, billing key, Provider
 payload, payment method, email, nickname, amount, or unrelated identifier. A

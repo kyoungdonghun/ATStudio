@@ -260,6 +260,7 @@ describe('domain API contracts', () => {
       billingCycle: 'MONTHLY' as const,
       purpose: 'SUBSCRIBE' as const,
     };
+    const controller = new AbortController();
     const idempotencyKey = '11111111-1111-4111-8111-111111111111';
     await payments.prepareBillingAgreement(prepare, idempotencyKey);
     expect(mockedClient.post).toHaveBeenNthCalledWith(
@@ -271,7 +272,10 @@ describe('domain API contracts', () => {
     expect(prepare).not.toHaveProperty('idempotencyKey');
     const confirm = { orderId: 'order-1', authKey: 'auth', customerKey: 'customer', amount: 9900 };
     await payments.confirmBillingAgreement(confirm);
-    await payments.fetchMyBillingAgreement();
+    await payments.fetchMyBillingAgreement(controller.signal);
+    expect(mockedClient.get).toHaveBeenCalledWith('/payments/billing-agreements/me', {
+      signal: controller.signal,
+    });
     await payments.fetchPaymentCommandOutcome('order/with space');
     await payments.fetchSubscriptionUpgradeOutcome(2, 'YEARLY');
     expect(mockedClient.get).toHaveBeenCalledWith('/payments/orders/order%2Fwith%20space/outcome');
@@ -279,7 +283,6 @@ describe('domain API contracts', () => {
       params: { subscriptionId: 2, billingCycle: 'YEARLY' },
     });
 
-    const controller = new AbortController();
     await userSubscriptions.fetchMySubscription(controller.signal);
     await userSubscriptions.changeMySubscription({
       subscriptionId: prepare.subscriptionId,
@@ -288,9 +291,10 @@ describe('domain API contracts', () => {
     await userSubscriptions.cancelMySubscription();
     await userSubscriptions.reactivateMySubscription();
     await userSubscriptions.fetchAdminUserSubscriptions(2, 30, controller.signal);
-    await userSubscriptions.fetchSubscriptionChangePreview(2, 'YEARLY');
+    await userSubscriptions.fetchSubscriptionChangePreview(2, 'YEARLY', controller.signal);
     expect(mockedClient.get).toHaveBeenCalledWith('/utils/subscription-change-preview', {
       params: { subscriptionId: 2, billingCycle: 'YEARLY' },
+      signal: controller.signal,
     });
   });
 
@@ -409,6 +413,25 @@ describe('domain API contracts', () => {
       }),
     ).toBe(false);
     expect(userSubscriptions.isNoActiveSubscriptionError(new Error('network'))).toBe(false);
+  });
+
+  it('identifies only the documented missing Billing Agreement error', () => {
+    expect(
+      payments.isBillingAgreementNotFoundError({
+        response: { status: 404, data: { errorCode: 'BILLING_AGREEMENT_NOT_FOUND' } },
+      }),
+    ).toBe(true);
+    expect(
+      payments.isBillingAgreementNotFoundError({
+        response: { status: 404, data: { errorCode: 'NOT_FOUND' } },
+      }),
+    ).toBe(false);
+    expect(
+      payments.isBillingAgreementNotFoundError({
+        response: { status: 403, data: { errorCode: 'BILLING_AGREEMENT_NOT_FOUND' } },
+      }),
+    ).toBe(false);
+    expect(payments.isBillingAgreementNotFoundError(new Error('network'))).toBe(false);
   });
 
   it('builds playlist multipart requests and track mutations', async () => {
@@ -534,7 +557,13 @@ describe('domain API contracts', () => {
 
     await expect(settings.getSetting('downloads')).resolves.toBe('20');
     await settings.updateSetting('downloads', '30');
-    await expect(subscriptions.fetchSubscriptionPlans('PERSONAL')).resolves.toEqual([payload]);
+    await expect(
+      subscriptions.fetchSubscriptionPlans('PERSONAL', controller.signal),
+    ).resolves.toEqual([payload]);
+    expect(mockedClient.get).toHaveBeenNthCalledWith(2, '/subscriptions', {
+      params: { userType: 'PERSONAL' },
+      signal: controller.signal,
+    });
     await subscriptions.fetchAdminSubscriptionPlans(controller.signal);
 
     await tags.fetchTags('GENRE');

@@ -34,12 +34,18 @@ interface BillingCallbackContext {
   authKey: string | null;
   customerKey: string | null;
   amount: number | null;
+  hasAuthenticationContext: boolean;
+  isMalformed: boolean;
 }
 
 const INVALID_CHECKOUT_CONTEXT_MESSAGE =
   '\uC120\uD0DD\uD55C \uACB0\uC81C \uC815\uBCF4\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.';
 const INVALID_PREPARE_RESPONSE_MESSAGE =
   '\uACB0\uC81C \uC900\uBE44 \uC751\uB2F5\uC744 \uD655\uC778\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.';
+const INVALID_CALLBACK_CONTEXT_MESSAGE =
+  '\uC790\uB3D9\uACB0\uC81C \uC778\uC99D \uC815\uBCF4\uAC00 \uC62C\uBC14\uB974\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.';
+const PREPARE_FAILED_MESSAGE =
+  '\uACB0\uC81C \uC900\uBE44\uB97C \uC644\uB8CC\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.';
 const UPGRADE_ROUTE_MESSAGE =
   '\uD50C\uB79C \uBCC0\uACBD\uC740 \uB0B4 \uAD6C\uB3C5 \uD654\uBA74\uC5D0\uC11C \uBCC0\uACBD \uB0B4\uC5ED\uC744 \uD655\uC778\uD55C \uB4A4 \uC9C4\uD589\uD574\uC8FC\uC138\uC694.';
 const RELOAD_FAILED_MESSAGE =
@@ -55,29 +61,46 @@ export default function SubscriptionPaymentPage() {
   const showToast = useToastStore((s) => s.show);
   const authenticatedUserType = useAuthStore((s) => s.user?.userType);
   const [searchParams] = useSearchParams();
-  const purposeParam = searchParams.get('purpose');
+  const purposeParam = getSingleSearchParam(searchParams, 'purpose');
   const isSuccessRedirect = location.pathname === '/subscriptions/checkout/success';
   const isFailRedirect = location.pathname === '/subscriptions/checkout/fail';
   const isRedirect = isSuccessRedirect || isFailRedirect;
-  const routePlanId = toPositiveInteger(searchParams.get('planId'));
-  const routeUserType = toUserType(searchParams.get('userType'));
-  const routeCycle = toBillingCycle(searchParams.get('billingCycle'));
+  const routePlanId = toPositiveInteger(getSingleSearchParam(searchParams, 'planId'));
+  const routeUserType = toUserType(getSingleSearchParam(searchParams, 'userType'));
+  const routeCycle = toBillingCycle(getSingleSearchParam(searchParams, 'billingCycle'));
   const routePurpose = toBillingPurpose(purposeParam);
-  const callbackPurpose = purposeParam === null ? 'SUBSCRIBE' : toBillingPurpose(purposeParam);
+  const callbackPurpose = searchParams.has('purpose')
+    ? toBillingPurpose(purposeParam)
+    : 'SUBSCRIBE';
   const callbackContextRef = useRef<BillingCallbackContext | null>(null);
   if (isRedirect && callbackContextRef.current === null) {
+    const orderIdParam = getSingleSearchParam(searchParams, 'orderId');
+    const authKeyParam = getSingleSearchParam(searchParams, 'authKey');
+    const customerKeyParam = getSingleSearchParam(searchParams, 'customerKey');
+    const amountParam = getSingleSearchParam(searchParams, 'amount');
+    const hasAuthenticationContext = searchParams.has('authKey') || searchParams.has('customerKey');
     callbackContextRef.current = {
-      orderId: searchParams.get('orderId'),
-      authKey: searchParams.get('authKey'),
-      customerKey: searchParams.get('customerKey'),
-      amount: parseCallbackAmount(searchParams.get('amount'), callbackPurpose),
+      orderId: toNonBlankString(orderIdParam),
+      authKey: toNonBlankString(authKeyParam),
+      customerKey: toNonBlankString(customerKeyParam),
+      amount: parseCallbackAmount(amountParam, callbackPurpose),
+      hasAuthenticationContext,
+      isMalformed:
+        callbackPurpose === null ||
+        ['orderId', 'authKey', 'customerKey', 'amount', 'purpose'].some(
+          (key) => searchParams.getAll(key).length > 1,
+        ) ||
+        (searchParams.has('orderId') && !toNonBlankString(orderIdParam)) ||
+        (searchParams.has('authKey') && !toNonBlankString(authKeyParam)) ||
+        (searchParams.has('customerKey') && !toNonBlankString(customerKeyParam)),
     };
   }
-  const returnPlanId = toPositiveInteger(searchParams.get('returnPlanId'));
-  const returnUserType = toUserType(searchParams.get('returnUserType'));
-  const returnCycle = toBillingCycle(searchParams.get('returnBillingCycle'));
-  const returnAmountRaw = searchParams.get('returnAmount');
+  const returnPlanId = toPositiveInteger(getSingleSearchParam(searchParams, 'returnPlanId'));
+  const returnUserType = toUserType(getSingleSearchParam(searchParams, 'returnUserType'));
+  const returnCycle = toBillingCycle(getSingleSearchParam(searchParams, 'returnBillingCycle'));
+  const returnAmountRaw = getSingleSearchParam(searchParams, 'returnAmount');
   const returnAmount = toOptionalNonNegativeInteger(returnAmountRaw);
+  const hasReturnAmountParam = searchParams.has('returnAmount');
   const hasAnyReturnContext = [
     'returnPlanId',
     'returnUserType',
@@ -224,6 +247,13 @@ export default function SubscriptionPaymentPage() {
 
       const callbackContext = callbackContextRef.current;
       const orderId = callbackContext?.orderId ?? null;
+      if (!callbackContext || callbackContext.isMalformed) {
+        setRecoveryState('UNKNOWN');
+        setErrorMessage(INVALID_CALLBACK_CONTEXT_MESSAGE);
+        showToast('error', INVALID_CALLBACK_CONTEXT_MESSAGE);
+        setLoading(false);
+        return;
+      }
       if (isFailRedirect) {
         if (orderId) {
           await reconcileCallback(orderId);
@@ -238,23 +268,21 @@ export default function SubscriptionPaymentPage() {
       const authKey = callbackContext?.authKey ?? null;
       const customerKey = callbackContext?.customerKey ?? null;
       const amount = callbackContext?.amount ?? null;
-      if (!orderId || (authKey === null) !== (customerKey === null)) {
-        const message = '자동결제 인증 정보가 올바르지 않습니다.';
-        setErrorMessage(message);
-        showToast('error', message);
+      if (!orderId) {
+        setErrorMessage(INVALID_CALLBACK_CONTEXT_MESSAGE);
+        showToast('error', INVALID_CALLBACK_CONTEXT_MESSAGE);
         setLoading(false);
         return;
       }
 
-      if (authKey === null && customerKey === null) {
+      if (!callbackContext.hasAuthenticationContext) {
         await reconcileCallback(orderId);
         return;
       }
 
       if (!authKey || !customerKey || amount === null) {
-        const message = '자동결제 인증 정보가 올바르지 않습니다.';
-        setErrorMessage(message);
-        showToast('error', message);
+        setErrorMessage(INVALID_CALLBACK_CONTEXT_MESSAGE);
+        showToast('error', INVALID_CALLBACK_CONTEXT_MESSAGE);
         setLoading(false);
         return;
       }
@@ -297,7 +325,7 @@ export default function SubscriptionPaymentPage() {
             !returnUserType ||
             !returnCycle ||
             returnUserType !== routeUserType ||
-            (returnAmountRaw !== null && returnAmount === null));
+            (hasReturnAmountParam && returnAmount === null));
         if (
           !routePlanId ||
           !routeUserType ||
@@ -365,8 +393,7 @@ export default function SubscriptionPaymentPage() {
         const requiresCertification = errorCode === 'COMPANY_CERTIFICATION_REQUIRED';
         const msg = requiresCertification
           ? '기업 인증 승인 후 기업용 구독 결제를 진행할 수 있습니다.'
-          : ((err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-            '결제 준비 중 오류가 발생했습니다.');
+          : PREPARE_FAILED_MESSAGE;
         setRequiresCompanyCertification(requiresCertification);
         setCanStartNewAttempt(
           err instanceof CorruptCheckoutPrepareAttemptError ||
@@ -387,6 +414,7 @@ export default function SubscriptionPaymentPage() {
   }, [
     authenticatedUserType,
     hasAnyReturnContext,
+    hasReturnAmountParam,
     isRedirect,
     purposeParam,
     returnAmount,
@@ -622,7 +650,9 @@ export default function SubscriptionPaymentPage() {
             <span>{paymentOrder.provider}</span>
           </div>
         ) : (
-          <div className={styles.providerMeta}>{'결제 주문을 준비 중입니다.'}</div>
+          <div className={styles.providerMeta}>
+            {errorMessage ? '결제 주문 준비에 실패했습니다.' : '결제 주문을 준비 중입니다.'}
+          </div>
         )}
         {errorMessage && <div className={styles.providerError}>{errorMessage}</div>}
       </div>
@@ -650,7 +680,11 @@ export default function SubscriptionPaymentPage() {
           </button>
         )}
         <button className={styles.btnPay} onClick={handleConfirm} disabled={!canConfirm}>
-          {submitting ? '처리 중...' : '카드 등록하기'}
+          {submitting
+            ? '처리 중...'
+            : isBillingAgreementOnly
+              ? '카드 등록하기'
+              : '결제수단 등록 및 첫 결제하기'}
         </button>
       </div>
     </div>
@@ -666,6 +700,15 @@ function parseCallbackAmount(
   if (!Number.isSafeInteger(amount)) return null;
   if (purpose === 'BILLING_AGREEMENT') return amount;
   return amount > 0 ? amount : null;
+}
+
+function getSingleSearchParam(searchParams: URLSearchParams, key: string): string | null {
+  const values = searchParams.getAll(key);
+  return values.length === 1 ? values[0] : null;
+}
+
+function toNonBlankString(value: string | null): string | null {
+  return value && value.trim().length > 0 ? value : null;
 }
 
 interface BillingReturnContext {

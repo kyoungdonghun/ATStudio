@@ -5,9 +5,12 @@ import SubscriptionManagePage from '@/pages/subscriber/SubscriptionManagePage';
 
 const navigateMock = vi.hoisted(() => vi.fn());
 
-const authState = {
+const authState: {
+  role: string;
+  user: { userType: 'INDIVIDUAL' | 'BUSINESS' };
+} = {
   role: 'USER',
-  user: { userType: 'INDIVIDUAL' as const },
+  user: { userType: 'INDIVIDUAL' },
 };
 
 const fetchMySubscriptionMock = vi.fn();
@@ -37,6 +40,11 @@ vi.mock('@/store/authStore', () => ({
 
 vi.mock('@/api/userSubscriptions', () => ({
   fetchMySubscription: (...args: unknown[]) => fetchMySubscriptionMock(...args),
+  isNoActiveSubscriptionError: (error: unknown) =>
+    (error as { response?: { status?: number; data?: { errorCode?: string } } })?.response
+      ?.status === 403 &&
+    (error as { response?: { data?: { errorCode?: string } } })?.response?.data?.errorCode ===
+      'NO_ACTIVE_SUBSCRIPTION',
   fetchSubscriptionChangePreview: (...args: unknown[]) =>
     fetchSubscriptionChangePreviewMock(...args),
   changeMySubscription: (...args: unknown[]) => changeMySubscriptionMock(...args),
@@ -52,6 +60,11 @@ vi.mock('@/api/payments', () => ({
   fetchMyBillingAgreement: (...args: unknown[]) => fetchMyBillingAgreementMock(...args),
   fetchSubscriptionUpgradeOutcome: (...args: unknown[]) =>
     fetchSubscriptionUpgradeOutcomeMock(...args),
+  isBillingAgreementNotFoundError: (error: unknown) =>
+    (error as { response?: { status?: number; data?: { errorCode?: string } } })?.response
+      ?.status === 404 &&
+    (error as { response?: { data?: { errorCode?: string } } })?.response?.data?.errorCode ===
+      'BILLING_AGREEMENT_NOT_FOUND',
 }));
 
 vi.mock('@/api/client', () => ({
@@ -65,13 +78,47 @@ vi.mock('@/api/client', () => ({
 }));
 
 function renderPage() {
-  return render(
+  return render(managePageElement());
+}
+
+function managePageElement() {
+  return (
     <MemoryRouter
       initialEntries={['/subscriptions/manage']}
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
       <SubscriptionManagePage />
-    </MemoryRouter>,
+    </MemoryRouter>
+  );
+}
+
+function billingAgreementNotFoundError() {
+  return {
+    response: {
+      status: 404,
+      data: { errorCode: 'BILLING_AGREEMENT_NOT_FOUND' },
+    },
+  };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((next, fail) => {
+    resolve = next;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+}
+
+async function confirmReactivation() {
+  fireEvent.click(
+    await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30' }),
+  );
+  fireEvent.click(
+    await screen.findByRole('button', {
+      name: '\uAD6C\uB3C5 \uC720\uC9C0 \uD655\uC815',
+    }),
   );
 }
 
@@ -103,14 +150,13 @@ describe('SubscriptionManagePage', () => {
         isActive: true,
       },
     ]);
-    fetchMyBillingAgreementMock.mockRejectedValue({
-      response: { data: { errorCode: 'BILLING_AGREEMENT_NOT_FOUND' } },
-    });
+    fetchMyBillingAgreementMock.mockRejectedValue(billingAgreementNotFoundError());
   });
 
   it('shows the no-subscription CTA when the API returns NO_ACTIVE_SUBSCRIPTION', async () => {
     fetchMySubscriptionMock.mockRejectedValue({
       response: {
+        status: 403,
         data: {
           errorCode: 'NO_ACTIVE_SUBSCRIPTION',
         },
@@ -134,9 +180,151 @@ describe('SubscriptionManagePage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('subscription service unavailable')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          '\uAD6C\uB3C5 \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.',
+        ),
+      ).toBeInTheDocument();
     });
+    expect(screen.queryByText('subscription service unavailable')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '\uB2E4\uC2DC \uC2DC\uB3C4' })).toBeEnabled();
   });
+
+  it('renders only the documented billing-agreement 404 as absence', async () => {
+    fetchMySubscriptionMock.mockResolvedValue(subscriptionState(1, 'ACTIVE'));
+
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        '\uD604\uC7AC \uB4F1\uB85D\uB41C \uC815\uAE30\uACB0\uC81C \uC218\uB2E8\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: '\uACB0\uC81C\uC218\uB2E8 \uB2E4\uC2DC \uB4F1\uB85D',
+      }),
+    ).toBeEnabled();
+  });
+
+  it.each([
+    ['unauthorized', { response: { status: 401, data: { errorCode: 'UNAUTHORIZED' } } }],
+    ['forbidden', { response: { status: 403, data: { errorCode: 'FORBIDDEN' } } }],
+    ['wrong 404', { response: { status: 404, data: { errorCode: 'RESOURCE_NOT_FOUND' } } }],
+    ['server', { response: { status: 503, data: { errorCode: 'SERVER_ERROR' } } }],
+    ['network', new Error('network unavailable')],
+  ])('keeps a %s billing read failure visible and retryable', async (_label, error) => {
+    fetchMySubscriptionMock.mockResolvedValue(subscriptionState(1, 'ACTIVE'));
+    fetchMyBillingAgreementMock
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce(billingState('ACTIVE'));
+
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        '\uC790\uB3D9\uACB0\uC81C \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', {
+        name: '\uACB0\uC81C\uC218\uB2E8 \uB2E4\uC2DC \uB4F1\uB85D',
+      }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: '\uC790\uB3D9\uACB0\uC81C \uC815\uBCF4 \uB2E4\uC2DC \uC2DC\uB3C4',
+      }),
+    );
+
+    expect(await screen.findByText('\uC790\uB3D9 \uAC31\uC2E0 \uC911')).toBeInTheDocument();
+    expect(fetchMyBillingAgreementMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a late billing read from a retired authenticated audience', async () => {
+    const staleBilling = deferred<ReturnType<typeof billingState>>();
+    const businessSubscription = {
+      ...subscriptionState(2, 'ACTIVE'),
+      subscription: {
+        ...plan(2, 'DELUXE', 19900),
+        userType: 'BUSINESS' as const,
+      },
+    };
+    fetchSubscriptionPlansMock
+      .mockResolvedValueOnce([plan(1, 'STANDARD', 9900)])
+      .mockResolvedValueOnce([businessSubscription.subscription]);
+    fetchMySubscriptionMock
+      .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'))
+      .mockResolvedValueOnce(businessSubscription);
+    fetchMyBillingAgreementMock
+      .mockReturnValueOnce(staleBilling.promise)
+      .mockRejectedValueOnce(billingAgreementNotFoundError());
+
+    const view = renderPage();
+    await waitFor(() => expect(fetchMyBillingAgreementMock).toHaveBeenCalledTimes(1));
+
+    authState.user = { userType: 'BUSINESS' };
+    view.rerender(managePageElement());
+
+    expect(
+      await screen.findByText(
+        '\uD604\uC7AC \uB4F1\uB85D\uB41C \uC815\uAE30\uACB0\uC81C \uC218\uB2E8\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.',
+      ),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      staleBilling.resolve(billingState('ACTIVE'));
+    });
+
+    expect(screen.queryByText('\uC790\uB3D9 \uAC31\uC2E0 \uC911')).not.toBeInTheDocument();
+  });
+
+  it.each(['success', 'failure'] as const)(
+    'ignores a stale billing retry %s after cancellation reconciliation',
+    async (retryOutcome) => {
+      const staleBilling = deferred<ReturnType<typeof billingState>>();
+      fetchMySubscriptionMock
+        .mockResolvedValueOnce(subscriptionState(1, 'ACTIVE'))
+        .mockResolvedValueOnce(subscriptionState(1, 'CANCELLED'));
+      fetchMyBillingAgreementMock
+        .mockRejectedValueOnce(new Error('initial read unavailable'))
+        .mockReturnValueOnce(staleBilling.promise)
+        .mockResolvedValueOnce(billingState('CANCELLED'));
+      cancelMySubscriptionMock.mockResolvedValue({ status: 'CANCELLED' });
+
+      renderPage();
+
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: '\uC790\uB3D9\uACB0\uC81C \uC815\uBCF4 \uB2E4\uC2DC \uC2DC\uB3C4',
+        }),
+      );
+      await waitFor(() => expect(fetchMyBillingAgreementMock).toHaveBeenCalledTimes(2));
+
+      fireEvent.click(await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uCDE8\uC18C' }));
+      fireEvent.click(screen.getByRole('button', { name: '\uCDE8\uC18C \uD655\uC815' }));
+
+      expect(
+        await screen.findByText('\uB2E4\uC74C \uAC31\uC2E0 \uC911\uC9C0\uB428'),
+      ).toBeInTheDocument();
+
+      await act(async () => {
+        if (retryOutcome === 'success') {
+          staleBilling.resolve(billingState('ACTIVE'));
+        } else {
+          staleBilling.reject(new Error('stale retry failed'));
+        }
+      });
+
+      expect(screen.getByText('\uB2E4\uC74C \uAC31\uC2E0 \uC911\uC9C0\uB428')).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          '\uC790\uB3D9\uACB0\uC81C \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.',
+        ),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it('changes upgrades through the subscription API after preview confirmation', async () => {
     fetchSubscriptionPlansMock.mockResolvedValue([
@@ -339,6 +527,97 @@ describe('SubscriptionManagePage', () => {
     expect(currentPlanButton).toBeDisabled();
     expect(screen.queryByText('변경 미리보기')).not.toBeInTheDocument();
     expect(fetchSubscriptionChangePreviewMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps preview failure visible, retryable, and non-actionable', async () => {
+    fetchSubscriptionPlansMock.mockResolvedValue([
+      plan(1, 'STANDARD', 9900),
+      plan(2, 'DELUXE', 19900),
+    ]);
+    fetchMySubscriptionMock.mockResolvedValue(subscriptionState(1, 'ACTIVE'));
+    fetchMyBillingAgreementMock.mockResolvedValue(billingState('ACTIVE'));
+    fetchSubscriptionChangePreviewMock
+      .mockRejectedValueOnce(new Error('preview unavailable'))
+      .mockResolvedValueOnce({
+        changeType: 'UPGRADE',
+        proratedAmount: 5000,
+        effectiveDate: '2026-08-14',
+        nextBillingDate: '2026-09-01',
+        nextBillingAmount: 19900,
+        newPlanName: 'DELUXE',
+        newBillingCycle: 'MONTHLY',
+      });
+
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /\uB514\uB7ED\uC2A4/ }));
+
+    expect(
+      await screen.findByText(
+        '\uD50C\uB79C \uBCC0\uACBD \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.',
+      ),
+    ).toBeInTheDocument();
+    expect(changeMySubscriptionMock).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole('button', {
+        name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
+      }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: '\uBCC0\uACBD \uC815\uBCF4 \uB2E4\uC2DC \uC2DC\uB3C4',
+      }),
+    );
+
+    expect(
+      await screen.findByRole('button', {
+        name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
+      }),
+    ).toBeEnabled();
+    expect(fetchSubscriptionChangePreviewMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a late preview completion after the selected plan changes', async () => {
+    const stalePreview = deferred<Record<string, unknown>>();
+    fetchSubscriptionPlansMock.mockResolvedValue([
+      plan(1, 'STANDARD', 9900),
+      plan(2, 'DELUXE', 19900),
+      plan(3, 'PREMIUM', 29900),
+    ]);
+    fetchMySubscriptionMock.mockResolvedValue(subscriptionState(1, 'ACTIVE'));
+    fetchMyBillingAgreementMock.mockResolvedValue(billingState('ACTIVE'));
+    fetchSubscriptionChangePreviewMock
+      .mockReturnValueOnce(stalePreview.promise)
+      .mockResolvedValueOnce({
+        changeType: 'UPGRADE',
+        proratedAmount: 10000,
+        effectiveDate: '2026-08-14',
+        nextBillingDate: '2026-09-01',
+        nextBillingAmount: 29900,
+        newPlanName: 'PREMIUM',
+        newBillingCycle: 'MONTHLY',
+      });
+
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /\uB514\uB7ED\uC2A4/ }));
+    fireEvent.click(screen.getByRole('button', { name: /\uD504\uB9AC\uBBF8\uC5C4/ }));
+
+    expect(await screen.findByText('\u20A929,900')).toBeInTheDocument();
+
+    await act(async () => {
+      stalePreview.resolve({
+        changeType: 'UPGRADE',
+        proratedAmount: 5000,
+        effectiveDate: '2026-08-14',
+        nextBillingDate: '2026-09-01',
+        nextBillingAmount: 19900,
+        newPlanName: 'DELUXE',
+        newBillingCycle: 'MONTHLY',
+      });
+    });
+
+    expect(screen.getByText('\u20A929,900')).toBeInTheDocument();
+    expect(screen.queryByText('\u20A919,900')).not.toBeInTheDocument();
   });
 
   it('shows billing agreement state without a separate automatic-renewal cancel action', async () => {
@@ -558,7 +837,7 @@ describe('SubscriptionManagePage', () => {
     );
   });
 
-  it('lets a cancelled grace-period subscription resume before expiry', async () => {
+  it('quotes the grace-extended subscription expiry and keeps cancel at zero mutations', async () => {
     fetchMySubscriptionMock.mockResolvedValue({
       id: 100,
       subscription: {
@@ -576,7 +855,7 @@ describe('SubscriptionManagePage', () => {
       billingCycle: 'MONTHLY',
       status: 'CANCELLED',
       startedAt: '2026-05-01',
-      expiresAt: '2026-06-01',
+      expiresAt: '2026-06-08',
       pendingSubscriptionId: null,
       pendingBillingCycle: null,
     });
@@ -597,11 +876,149 @@ describe('SubscriptionManagePage', () => {
 
     renderPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: '구독 유지하기' }));
+    const reactivateButton = await screen.findByRole('button', {
+      name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30',
+    });
+    fireEvent.click(reactivateButton);
+
+    expect(reactivateMySubscriptionMock).not.toHaveBeenCalled();
+    expect(screen.getByText(/2026\.06\.08.*9,900/)).toBeInTheDocument();
+    expect(screen.queryByText(/2026\.06\.01.*9,900/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '\uB3CC\uC544\uAC00\uAE30' }));
+    expect(reactivateMySubscriptionMock).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole('button', {
+        name: '\uAD6C\uB3C5 \uC720\uC9C0 \uD655\uC815',
+      }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(reactivateButton);
+    expect(reactivateMySubscriptionMock).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: '\uAD6C\uB3C5 \uC720\uC9C0 \uD655\uC815',
+      }),
+    );
 
     await waitFor(() => {
-      expect(reactivateMySubscriptionMock).toHaveBeenCalled();
+      expect(reactivateMySubscriptionMock).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('quotes an already-active billing agreement canonical next billing date', async () => {
+    fetchMySubscriptionMock.mockResolvedValue({
+      ...subscriptionState(1, 'CANCELLED'),
+      expiresAt: '2026-09-08',
+    });
+    fetchMyBillingAgreementMock.mockResolvedValue({
+      ...billingState('ACTIVE'),
+      nextBillingAt: '2026-09-15',
+    });
+
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30' }),
+    );
+
+    expect(screen.getByText(/2026\.09\.15.*9,900/)).toBeInTheDocument();
+    expect(screen.queryByText(/2026\.09\.08.*9,900/)).not.toBeInTheDocument();
+    expect(reactivateMySubscriptionMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks reactivation when an active billing agreement has no canonical billing date', async () => {
+    fetchMySubscriptionMock.mockResolvedValue(subscriptionState(1, 'CANCELLED'));
+    fetchMyBillingAgreementMock.mockResolvedValue({
+      ...billingState('ACTIVE'),
+      nextBillingAt: null,
+    });
+
+    renderPage();
+
+    const reactivateButton = await screen.findByRole('button', {
+      name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30',
+    });
+    expect(reactivateButton).toBeDisabled();
+    fireEvent.click(reactivateButton);
+    expect(
+      screen.queryByRole('button', {
+        name: '\uAD6C\uB3C5 \uC720\uC9C0 \uD655\uC815',
+      }),
+    ).not.toBeInTheDocument();
+    expect(reactivateMySubscriptionMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['pending plan and cycle', 2, 'YEARLY', '199,000'],
+    ['pending cycle only', 1, 'YEARLY', '99,000'],
+    ['pending plan only', 2, null, '19,900'],
+  ] as const)(
+    'quotes the backend renewal target for %s reactivation',
+    async (_label, pendingSubscriptionId, pendingBillingCycle, expectedAmount) => {
+      fetchSubscriptionPlansMock.mockResolvedValue([
+        plan(1, 'STANDARD', 9900),
+        plan(2, 'DELUXE', 19900),
+      ]);
+      fetchMySubscriptionMock.mockResolvedValue({
+        ...subscriptionState(1, 'CANCELLED'),
+        pendingSubscriptionId,
+        pendingBillingCycle,
+      });
+      fetchMyBillingAgreementMock.mockResolvedValue(billingState('CANCELLED'));
+
+      renderPage();
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30' }),
+      );
+
+      expect(screen.getByText(new RegExp(`2026\\.09\\.01.*${expectedAmount}`))).toBeInTheDocument();
+      expect(reactivateMySubscriptionMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it('quotes the embedded current plan when a cycle-only target is absent from active plans', async () => {
+    fetchSubscriptionPlansMock.mockResolvedValue([plan(2, 'DELUXE', 19900)]);
+    fetchMySubscriptionMock.mockResolvedValue({
+      ...subscriptionState(1, 'CANCELLED'),
+      pendingSubscriptionId: 1,
+      pendingBillingCycle: 'YEARLY',
+    });
+    fetchMyBillingAgreementMock.mockResolvedValue(billingState('CANCELLED'));
+
+    renderPage();
+
+    const reactivateButton = await screen.findByRole('button', {
+      name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30',
+    });
+    expect(reactivateButton).toBeEnabled();
+    fireEvent.click(reactivateButton);
+
+    expect(screen.getByText(/2026\.09\.01.*99,000/)).toBeInTheDocument();
+    expect(reactivateMySubscriptionMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks reactivation when the pending target plan cannot be resolved', async () => {
+    fetchMySubscriptionMock.mockResolvedValue({
+      ...subscriptionState(1, 'CANCELLED'),
+      pendingSubscriptionId: 999,
+      pendingBillingCycle: 'YEARLY',
+    });
+    fetchMyBillingAgreementMock.mockResolvedValue(billingState('CANCELLED'));
+
+    renderPage();
+
+    const reactivateButton = await screen.findByRole('button', {
+      name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30',
+    });
+    expect(reactivateButton).toBeDisabled();
+    fireEvent.click(reactivateButton);
+    expect(
+      screen.queryByRole('button', {
+        name: '\uAD6C\uB3C5 \uC720\uC9C0 \uD655\uC815',
+      }),
+    ).not.toBeInTheDocument();
+    expect(reactivateMySubscriptionMock).not.toHaveBeenCalled();
   });
 
   it('preserves a successful charged upgrade as RELOAD_FAILED and retries reads only', async () => {
@@ -748,9 +1165,7 @@ describe('SubscriptionManagePage', () => {
     reactivateMySubscriptionMock.mockRejectedValue(new Error('response lost'));
 
     renderPage();
-    fireEvent.click(
-      await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30' }),
-    );
+    await confirmReactivation();
 
     expect(
       await screen.findByText(
@@ -814,9 +1229,7 @@ describe('SubscriptionManagePage', () => {
     reactivateMySubscriptionMock.mockResolvedValue({ status: 'ACTIVE' });
 
     renderPage();
-    fireEvent.click(
-      await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30' }),
-    );
+    await confirmReactivation();
 
     expect(
       await screen.findByText(
@@ -1029,9 +1442,7 @@ describe('SubscriptionManagePage', () => {
       });
 
       renderPage();
-      fireEvent.click(
-        await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30' }),
-      );
+      await confirmReactivation();
 
       expect(await screen.findByText('자동결제 등록 정보를 찾을 수 없습니다.')).toBeInTheDocument();
       expect(reactivateMySubscriptionMock).toHaveBeenCalledTimes(1);
@@ -1182,9 +1593,7 @@ describe('SubscriptionManagePage', () => {
     reactivateMySubscriptionMock.mockRejectedValue(new Error('response lost'));
 
     renderPage();
-    fireEvent.click(
-      await screen.findByRole('button', { name: '\uAD6C\uB3C5 \uC720\uC9C0\uD558\uAE30' }),
-    );
+    await confirmReactivation();
 
     expect(
       await screen.findByText(

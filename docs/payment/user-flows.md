@@ -25,21 +25,28 @@ dependencies:
 Entry points:
 
 - `/subscriptions`
-- `/subscriptions/checkout?plan={PLAN}&cycle={MONTHLY|YEARLY}`
+- `/subscriptions/checkout?planId={ID}&userType={INDIVIDUAL|BUSINESS}&billingCycle={MONTHLY|YEARLY}&purpose=SUBSCRIBE`
 
 Flow:
 
-1. User chooses a plan and billing cycle.
-2. Frontend calls `POST /api/payments/billing-agreements/prepare`.
-3. Backend creates a `payment_orders` row with purpose `SUBSCRIBE`.
-4. Frontend opens Toss billing auth through the Toss Payments SDK.
-5. Toss redirects to `/subscriptions/checkout/success` with `authKey`, `customerKey`, and order context.
-6. Frontend calls `POST /api/payments/billing-agreements/confirm`.
-7. Backend exchanges `authKey` for billing key.
-8. Backend stores encrypted billing key in `billing_agreements`.
-9. Backend immediately charges the first subscription period.
-10. Backend creates or updates `user_subscriptions` and records `subscription_payments`.
-11. Frontend moves the user to `/subscriptions/manage`.
+1. User chooses an exact plan and billing cycle.
+2. Frontend accepts one allowlisted value for every required checkout query
+   field. Missing, malformed, unsupported, or duplicate state causes zero
+   prepare calls.
+3. The initial CTA states both payment-method registration and the immediate
+   first charge, then the frontend calls
+   `POST /api/payments/billing-agreements/prepare`.
+4. Backend creates a `payment_orders` row with purpose `SUBSCRIBE`.
+5. Frontend opens Toss billing auth through the Toss Payments SDK.
+6. Toss redirects to `/subscriptions/checkout/success` with `authKey`,
+   `customerKey`, and order context.
+7. Frontend calls `POST /api/payments/billing-agreements/confirm`.
+8. Backend exchanges `authKey` for billing key.
+9. Backend stores encrypted billing key in `billing_agreements`.
+10. Backend immediately charges the first subscription period.
+11. Backend creates or updates `user_subscriptions` and records
+    `subscription_payments`.
+12. Frontend moves the user to `/subscriptions/manage`.
 
 Expected result:
 
@@ -61,6 +68,9 @@ Flow:
 4. User can start a new checkout attempt.
 5. Stale orders are expired by the scheduled order expiration job.
 
+Prepare failure is shown as terminal `ERROR` with bounded copy and a retry. A
+fail callback never displays raw or blank Provider query text.
+
 Expected result:
 
 - Stale callback URLs are not reused.
@@ -72,7 +82,7 @@ Expected result:
 Entry point:
 
 - `/subscriptions/manage`
-- `/subscriptions/checkout?purpose=BILLING_AGREEMENT`
+- `/subscriptions/checkout?planId={ID}&userType={INDIVIDUAL|BUSINESS}&billingCycle={MONTHLY|YEARLY}&purpose=BILLING_AGREEMENT`
 
 Flow:
 
@@ -198,8 +208,16 @@ Flow:
 
 1. User has `CANCELLED` subscription with `expiresAt` not passed.
 2. User chooses to keep/reactivate subscription.
-3. Backend returns status to `ACTIVE`.
-4. If local billing agreement was cancelled but still has usable issued-key metadata, it is resumed for the same expiration date.
+3. Frontend shows a confirmation with the next billing date and amount. A
+   cancelled Billing Agreement uses the Subscription `expiresAt`; an already
+   active agreement uses its retained canonical `nextBillingAt`. Missing
+   canonical date input keeps reactivation disabled.
+4. Canceling the confirmation makes zero reactivation calls; approving it sends
+   one request and disables repeat submission while in flight.
+5. Backend returns status to `ACTIVE`.
+6. If the local Billing Agreement was cancelled but still has usable issued-key
+   metadata, it is resumed with the Subscription `expiresAt`; an already active
+   agreement retains its existing `nextBillingAt`.
 
 Expected result:
 
