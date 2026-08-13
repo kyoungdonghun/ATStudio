@@ -1,14 +1,10 @@
-import { useState, type FormEvent, type ChangeEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createAlbum } from '@/api/albums';
-import {
-  TITLE_ALBUM_MAX,
-  DESCRIPTION_MAX,
-  IMAGE_MAX_SIZE_MB,
-  isFileSizeOk,
-  validateImageDimensions,
-} from '@/utils/validation';
+import { TITLE_ALBUM_MAX, DESCRIPTION_MAX } from '@/utils/validation';
 import Button from '@/components/ui/Button';
+import AlbumThumbnailField from './AlbumThumbnailField';
+import { emptyAlbumThumbnailSelection, isAlbumThumbnailBlocked } from './albumThumbnail';
 import styles from './AlbumCreatePage.module.css';
 
 /** Screen L-4: Album create */
@@ -18,49 +14,18 @@ export default function AlbumCreatePage() {
   /* ── Form state ── */
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [thumbnail, setThumbnail] = useState<File | null>(null);
-  const [thumbPreview, setThumbPreview] = useState<string | null>(null);
+  const [thumbnail, setThumbnail] = useState(emptyAlbumThumbnailSelection);
 
   /* ── UI state ── */
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /* ── Thumbnail handler ── */
-  async function handleThumbnailChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    if (!file) {
-      setThumbnail(null);
-      if (thumbPreview) URL.revokeObjectURL(thumbPreview);
-      setThumbPreview(null);
-      return;
-    }
-
-    if (!isFileSizeOk(file, IMAGE_MAX_SIZE_MB)) {
-      setError(`썸네일 이미지는 ${IMAGE_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`);
-      e.target.value = '';
-      return;
-    }
-
-    const dimError = await validateImageDimensions(file);
-    if (dimError) {
-      setError(dimError);
-      e.target.value = '';
-      return;
-    }
-
-    setError(null);
-    setThumbnail(file);
-
-    if (thumbPreview) {
-      URL.revokeObjectURL(thumbPreview);
-    }
-    setThumbPreview(URL.createObjectURL(file));
-  }
-
   /* ── Submit ── */
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (isAlbumThumbnailBlocked(thumbnail)) return;
 
     if (!title.trim()) {
       setError('앨범 제목을 입력해주세요.');
@@ -72,8 +37,8 @@ export default function AlbumCreatePage() {
     if (description.trim()) {
       formData.append('description', description.trim());
     }
-    if (thumbnail) {
-      formData.append('thumbnailFile', thumbnail);
+    if (thumbnail.file) {
+      formData.append('thumbnailFile', thumbnail.file);
     }
 
     setSubmitting(true);
@@ -120,31 +85,14 @@ export default function AlbumCreatePage() {
           />
         </div>
 
-        {/* Thumbnail */}
-        <div className={styles.field}>
-          <span className={styles.label}>{'썸네일'}</span>
-          <div className={styles.thumbArea}>
-            {thumbPreview && (
-              <img src={thumbPreview} alt="썸네일 미리보기" className={styles.thumbPreview} />
-            )}
-            <label className={`${styles.fileLabel} ${thumbnail ? styles.fileLabelSelected : ''}`}>
-              <input
-                type="file"
-                accept="image/*"
-                className={styles.fileHidden}
-                onChange={handleThumbnailChange}
-              />
-              {thumbnail ? thumbnail.name : '이미지 선택'}
-            </label>
-          </div>
-        </div>
+        <AlbumThumbnailField value={thumbnail} onChange={setThumbnail} disabled={submitting} />
 
         {/* Actions */}
         <div className={styles.actions}>
           <Button variant="ghost" type="button" onClick={() => navigate(-1)} disabled={submitting}>
             {'취소'}
           </Button>
-          <Button type="submit" loading={submitting}>
+          <Button type="submit" loading={submitting} disabled={isAlbumThumbnailBlocked(thumbnail)}>
             {'만들기'}
           </Button>
         </div>

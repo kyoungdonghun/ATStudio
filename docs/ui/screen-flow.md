@@ -1,5 +1,5 @@
 ---
-version: 6.0
+version: 6.1
 last_updated: 2026-08-13
 project: ATS
 owner: docops
@@ -311,6 +311,20 @@ database, deployment, schema, policy, or secret action.
   existing-row backfill remains separately approved and outside this flow.
 - Track upload/edit requires square new/replacement thumbnails. Existing
   non-square thumbnails remain visible and unchanged until explicit replacement.
+- Album management uses 20 active Albums per 1-based URL page. Invalid and
+  beyond-last pages normalize with bounded replace navigation, every list read
+  is latest-owner wins, and list retry is manual.
+- Album edit modals clear prior target state before an abortable detail read;
+  loading or failure cannot submit, and close/retry/target switch retires stale
+  responses. A blank edit description is sent as an explicit clear.
+- Album thumbnail create/edit entry points share JPEG/PNG, 10 MiB, 4096 pixel
+  per-dimension, and 16,777,216 decoded-pixel browser checks. Pending or failed
+  validation blocks submit, each local preview URL is released at lifecycle
+  boundaries, and server validation remains authoritative.
+- Album Track search uses title plus Usage Guide Tag, latest-request ownership,
+  and keyboard-operable combobox/listbox state. Membership mutation success and
+  follow-up read failure are displayed separately; refresh retry never repeats
+  the mutation. Invalid Album edit IDs issue no protected request.
 
 ## Environment Boundary
 

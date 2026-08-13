@@ -1,6 +1,6 @@
 ---
-version: 2.4
-last_updated: 2026-08-09
+version: 2.5
+last_updated: 2026-08-13
 project: ATS
 owner: docops
 category: reference
@@ -10,6 +10,8 @@ dependencies:
     reason: Shared modal implementation
   - path: ../../frontend/src/pages/subscriber/PlaylistListPage.tsx
     reason: Playlist creation modal entry point
+  - path: ../../frontend/src/pages/creator/AlbumManagePage.tsx
+    reason: Album create and edit modal ownership
   - path: atstudio-front-list.md
     reason: Screen count contract
 ---
@@ -43,6 +45,9 @@ confirmation; the removed direct update/cancel dialogs are not current flows.
 - Closing or completing a modal resets transient form state.
 - Reopened playlist create/edit modals refresh current limits and clear stale errors.
 - Async list/detail modals must ignore superseded responses.
+- The Album edit modal clears title, description, thumbnail, error, and target
+  state before each detail read. Only the active Album generation may enable or
+  populate the form; close, retry, and target switch retire earlier responses.
 - Tag save/delete errors remain modal-local and preserve list/filter/input state.
 - The subscription-correction modal resumes persisted open workflow state and
   fences superseded open/preview responses. HTTP 4xx mutation responses retain

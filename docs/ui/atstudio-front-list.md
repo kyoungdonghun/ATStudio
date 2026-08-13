@@ -1,5 +1,5 @@
 ---
-version: 8.7
+version: 8.8
 last_updated: 2026-08-13
 project: ATS
 owner: docops
@@ -149,6 +149,26 @@ New and replacement Track thumbnails require a square JPEG/PNG. The field shows
 the selected image in the same 1:1 centered `cover` viewport as the card. An
 existing non-square thumbnail is shown with a replacement recommendation and is
 not uploaded, rewritten, or removed unless the operator selects a new file.
+
+### Album Authoring
+
+- Album management pages through all active Albums with a 1-based URL page and
+  20 rows per request. Invalid and beyond-last pages normalize with replace
+  navigation, retired list responses cannot commit, and list failure exposes
+  one manual retry action without a request loop.
+- An Album edit modal owns one immutable target while detail loads. Close,
+  retry, or target switch retires the prior request; loading and error states
+  cannot submit. Blank edit descriptions are sent explicitly and clear the
+  stored value.
+- Create, route edit, and modal edit share JPEG/PNG, 10 MiB, 4096-by-4096, and
+  decoded-pixel thumbnail checks. Pending or failed validation blocks submit,
+  and locally created preview URLs are released on every lifecycle boundary.
+- Album Track search matches title plus Usage Guide Tag, is latest-request
+  owned, and exposes combobox/listbox keyboard selection. A committed membership
+  mutation whose detail refresh fails remains visible as partial success; its
+  retry reads membership only.
+- Album edit route IDs must be canonical positive decimal safe integers.
+  Invalid IDs render management/Home recovery and issue no Album request.
 
 ### Subscription Checkout
 

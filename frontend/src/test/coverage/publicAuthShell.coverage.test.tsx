@@ -931,7 +931,11 @@ describe('creator forms', () => {
     fireEvent.change(container.querySelector('input[type="file"]')!, {
       target: { files: [image] },
     });
-    expect(await screen.findByAltText('썸네일 미리보기')).toHaveAttribute('src', 'blob:test');
+    const preview = await screen.findByAltText('선택한 앨범 썸네일 미리보기');
+    expect(preview).toHaveAttribute('src', 'blob:test');
+    Object.defineProperty(preview, 'naturalWidth', { configurable: true, value: 1200 });
+    Object.defineProperty(preview, 'naturalHeight', { configurable: true, value: 800 });
+    fireEvent.load(preview);
 
     fireEvent.click(screen.getByRole('button', { name: '만들기' }));
     await waitFor(() => expect(mocks.createAlbum).toHaveBeenCalledTimes(1));
@@ -943,16 +947,24 @@ describe('creator forms', () => {
   });
 
   it('surfaces album creation validation and provider failures', async () => {
-    mocks.imageDimensionError.mockResolvedValueOnce('이미지 크기가 올바르지 않습니다.');
     const { container } = renderAt(<AlbumCreatePage />);
-    const image = new File(['image'], 'bad.png', { type: 'image/png' });
+    const image = new File(['image'], 'bad.gif', { type: 'image/gif' });
     fireEvent.change(container.querySelector('input[type="file"]')!, {
       target: { files: [image] },
     });
-    expect(await screen.findByText('이미지 크기가 올바르지 않습니다.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('앨범 썸네일은 JPEG 또는 PNG 파일만 업로드할 수 있습니다.'),
+    ).toBeInTheDocument();
 
     mocks.createAlbum.mockRejectedValueOnce(new Error('create failed'));
     fireEvent.change(screen.getByPlaceholderText('앨범 제목'), { target: { value: 'Valid' } });
+    fireEvent.change(container.querySelector('input[type="file"]')!, {
+      target: { files: [new File(['image'], 'valid.png', { type: 'image/png' })] },
+    });
+    const preview = await screen.findByAltText('선택한 앨범 썸네일 미리보기');
+    Object.defineProperty(preview, 'naturalWidth', { configurable: true, value: 800 });
+    Object.defineProperty(preview, 'naturalHeight', { configurable: true, value: 600 });
+    fireEvent.load(preview);
     fireEvent.click(screen.getByRole('button', { name: '만들기' }));
     expect(await screen.findByText('create failed')).toBeInTheDocument();
   });
@@ -971,7 +983,9 @@ describe('creator forms', () => {
     await waitFor(() => expect(mocks.createAlbum).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole('button', { name: '수정' }));
-    await waitFor(() => expect(mocks.fetchAlbumDetail).toHaveBeenCalledWith(11));
+    await waitFor(() =>
+      expect(mocks.fetchAlbumDetail).toHaveBeenCalledWith(11, expect.any(AbortSignal)),
+    );
     fireEvent.change(screen.getByPlaceholderText('앨범 제목'), { target: { value: 'Edited' } });
     fireEvent.click(screen.getByRole('button', { name: '저장' }));
     await waitFor(() => expect(mocks.updateAlbum).toHaveBeenCalledWith(11, expect.any(FormData)));
@@ -987,7 +1001,7 @@ describe('creator forms', () => {
     expect(await screen.findByRole('heading', { name: '앨범 수정' })).toBeInTheDocument();
     expect(screen.getByDisplayValue('Night Drive')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText('트랙 검색 (제목 또는 아티스트)'), {
+    fireEvent.change(screen.getByPlaceholderText('트랙 제목 또는 Usage 태그 검색'), {
       target: { value: 'Fresh' },
     });
     fireEvent.click(screen.getByRole('button', { name: '검색' }));
@@ -1012,13 +1026,13 @@ describe('creator forms', () => {
     renderAt(<AlbumEditPage />, '/admin/albums/11/edit', '/admin/albums/:albumId/edit');
     await screen.findByRole('heading', { name: '앨범 수정' });
 
-    fireEvent.change(screen.getByPlaceholderText('트랙 검색 (제목 또는 아티스트)'), {
+    fireEvent.change(screen.getByPlaceholderText('트랙 제목 또는 Usage 태그 검색'), {
       target: { value: 'Candidate' },
     });
-    fireEvent.keyDown(screen.getByPlaceholderText('트랙 검색 (제목 또는 아티스트)'), {
+    fireEvent.keyDown(screen.getByPlaceholderText('트랙 제목 또는 Usage 태그 검색'), {
       key: 'Enter',
     });
-    fireEvent.click(await screen.findByRole('button', { name: '+ 추가' }));
+    fireEvent.click(await screen.findByRole('option', { name: /Candidate Track/ }));
     await waitFor(() => expect(mocks.addTrackToAlbum).toHaveBeenCalledWith(11, 23));
     expect(mocks.toast).toHaveBeenCalledWith('success', '트랙이 추가되었습니다.');
 
@@ -1042,7 +1056,10 @@ describe('creator forms', () => {
       '/admin/albums/11/edit',
       '/admin/albums/:albumId/edit',
     );
-    expect(await screen.findByText('album load failed')).toBeInTheDocument();
+    expect(await screen.findByRole('alert', { name: '앨범 정보 불러오기 실패' })).toHaveTextContent(
+      '앨범 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
+    );
+    expect(screen.queryByText('album load failed')).not.toBeInTheDocument();
     loadFailure.unmount();
 
     const editor = renderAt(
@@ -1051,13 +1068,13 @@ describe('creator forms', () => {
       '/admin/albums/:albumId/edit',
     );
     await screen.findByDisplayValue('Night Drive');
-    const search = screen.getByPlaceholderText('트랙 검색 (제목 또는 아티스트)');
+    const search = screen.getByPlaceholderText('트랙 제목 또는 Usage 태그 검색');
     mocks.fetchTracks.mockRejectedValueOnce(new Error('search failed'));
     fireEvent.change(search, { target: { value: 'Missing' } });
     fireEvent.click(screen.getByRole('button', { name: '검색' }));
-    await waitFor(() => {
-      expect(mocks.toast).toHaveBeenCalledWith('error', '트랙 검색에 실패했습니다.');
-    });
+    expect(await screen.findByRole('alert', { name: '트랙 검색 실패' })).toHaveTextContent(
+      '트랙 검색 결과를 불러오지 못했습니다.',
+    );
 
     fireEvent.change(screen.getByDisplayValue('Night Drive'), { target: { value: '   ' } });
     fireEvent.click(screen.getByRole('button', { name: '저장' }));
@@ -1068,17 +1085,23 @@ describe('creator forms', () => {
     fireEvent.change(fileInput, {
       target: { files: [new File(['large'], 'large.png', { type: 'image/png' })] },
     });
-    expect(screen.getByText(/썸네일 이미지는 .*MB 이하/)).toBeInTheDocument();
+    expect(screen.getByText(/앨범 썸네일은 .*MB 이하/)).toBeInTheDocument();
 
-    mocks.imageDimensionError.mockResolvedValueOnce('이미지 비율이 올바르지 않습니다.');
     fireEvent.change(fileInput, {
       target: { files: [new File(['image'], 'wrong.png', { type: 'image/png' })] },
     });
-    expect(await screen.findByText('이미지 비율이 올바르지 않습니다.')).toBeInTheDocument();
+    const preview = await screen.findByAltText('선택한 앨범 썸네일 미리보기');
+    Object.defineProperty(preview, 'naturalWidth', { configurable: true, value: 4097 });
+    Object.defineProperty(preview, 'naturalHeight', { configurable: true, value: 100 });
+    fireEvent.load(preview);
+    expect(
+      await screen.findByText('앨범 썸네일은 가로와 세로가 각각 4096px 이하여야 합니다.'),
+    ).toBeInTheDocument();
 
     fireEvent.change(screen.getAllByRole('textbox')[0], {
       target: { value: 'Updated Album' },
     });
+    fireEvent.click(screen.getByRole('button', { name: '선택 지우기' }));
     mocks.updateAlbum.mockRejectedValueOnce(new Error('update failed'));
     fireEvent.click(screen.getByRole('button', { name: '저장' }));
     expect(await screen.findByText('update failed')).toBeInTheDocument();

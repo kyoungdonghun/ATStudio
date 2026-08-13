@@ -20,6 +20,51 @@
   retained key with a non-JPEG extension.
 - A rejected image or failed storage operation does not mutate the Album row.
 
+## Album Administration UI Contract
+
+- Album management uses the paged active-Album response with `dataList` and
+  `pageInfo`, a 1-based URL page, and 20 rows per request. Invalid URL pages are
+  replaced before loading; an empty beyond-last response replaces the URL with
+  the last bounded page. List failures require an explicit retry and do not
+  poll.
+- The management edit modal clears prior target state before loading detail.
+  Each open owns an abortable generation, so close, retry, or Album switching
+  prevents a retired response from populating or submitting the current modal.
+  Loading and failed detail states are non-submittable.
+- Both edit entry points always send `description` on update. A blank value is
+  an explicit clear; omission remains the preserve contract for other API
+  callers.
+- Create, route edit, and management modal use one thumbnail field contract:
+  an advisory JPEG/PNG picker hint, compatible supplied MIME, at most 10 MiB,
+  decodability, at most 4096 pixels per dimension, and at most 16,777,216
+  decoded pixels. Filename extensions are not a validation authority; blank or
+  generic binary MIME is deferred to decode and server signature validation.
+  Submission is blocked while browser validation is pending or failed. Browser
+  object URLs are revoked on replacement, rejection, clear, and unmount; the
+  backend remains authoritative for signature, animation, decoding, and
+  canonicalization.
+- The Album Track search UI describes and sends the current title-plus-`USAGE`
+  keyword contract. Its abortable latest request owns loading, empty, failure,
+  and listbox state. The combobox supports Arrow Up/Down, Home, End, Enter,
+  Escape, Tab, outside-focus dismissal, pointer selection, and an active option.
+  Current members and locally fenced committed additions are excluded from
+  results; a successful authoritative membership read reconciles the fence.
+- A successful add, remove, or reorder followed by a failed membership read is
+  shown as committed-but-refresh-failed. Its retry performs only the Album
+  detail read and never repeats the mutation. A rejected or otherwise
+  unconfirmed mutation retains that provenance across failed read retries and
+  is never upgraded to committed by a read failure. Canonical reorder payloads
+  remain exact zero-based contiguous membership orders.
+- Each add, remove, or reorder snapshots an immutable page owner tied to the
+  canonical Album ID and component lifetime. Every mutation and membership-read
+  continuation revalidates that owner after its await. Route replacement or
+  unmount therefore retires follow-up reads, feedback, local membership fences,
+  and state commits; a membership read must own both the current page and the
+  latest membership-request generation.
+- `/admin/albums/:albumId/edit` accepts only a canonical positive decimal safe
+  integer. An invalid or missing ID renders fixed recovery navigation and sends
+  no Album, membership, or mutation request.
+
 ---
 
 ## ALBUM-001: Create Album
@@ -142,8 +187,11 @@ Includes `likeCount` field (from `albums.like_count`) in addition to id, title, 
 | **Related UC** | ALBUM-003 (view detail) |
 
 **Main Flow**
-1. Admin modifies title, description, or thumbnail (all fields optional).
+1. Admin modifies title, description, or thumbnail. The API accepts optional
+   fields; the active SPA sends title and description explicitly.
 2. Frontend sends albumId and changed data as multipart/form-data to the backend.
+   A present blank description clears the stored value, while an omitted
+   description preserves it.
 3. Backend canonicalizes a supplied replacement before storage, stores a new
    generated `.jpg` key, and schedules the previous key for after-commit
    deletion.

@@ -212,6 +212,12 @@
   background: var(--bg2);
 }
 
+.searchItemActive {
+  background: var(--bg2);
+  outline: 1px solid var(--accent-border);
+  outline-offset: -1px;
+}
+
 .searchItemInfo {
   display: flex;
   flex-direction: column;
@@ -234,7 +240,7 @@
   color: var(--text2);
 }
 
-.addBtn {
+.addIndicator {
   flex-shrink: 0;
   padding: 5px 12px;
   font-size: 12px;
@@ -243,20 +249,11 @@
   background: transparent;
   border: 1px solid var(--accent-border);
   border-radius: 4px;
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    color 0.15s;
+  cursor: inherit;
 }
 
-.addBtn:hover:not(:disabled) {
-  background: var(--accent);
-  color: var(--bg0);
-}
-
-.addBtn:disabled {
+.addIndicatorDisabled {
   opacity: 0.5;
-  cursor: default;
 }
 
 .searchEmpty {
@@ -268,6 +265,59 @@
   border: 1px solid var(--border2);
   border-radius: 6px;
   text-align: center;
+}
+
+.searchEmpty p {
+  margin: 0 0 8px;
+}
+
+.searchEmpty button,
+.membershipError button,
+.recoveryActions button,
+.recoveryActions a {
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text1);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  text-decoration: none;
+}
+
+.membershipError {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--warning-border);
+  border-radius: 6px;
+  background: var(--warning-dim);
+  color: var(--text1);
+  font-size: 13px;
+}
+
+.membershipError button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.recovery {
+  padding: 32px 0;
+  color: var(--text1);
+}
+
+.recovery p {
+  margin: 0 0 20px;
+}
+
+.recoveryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 /* ── Track List ── */

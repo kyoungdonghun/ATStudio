@@ -1,5 +1,5 @@
 ---
-version: 30.5
+version: 30.6
 last_updated: 2026-08-13
 project: ATS
 owner: SA
@@ -16,7 +16,7 @@ dependencies:
     reason: Current persistence contract
 ---
 
-# ATStudio API Specification v30.5
+# ATStudio API Specification v30.6
 
 ## Current Contract
 
@@ -80,6 +80,9 @@ application is authoritative for request and response schemas.
   field `replaceTags=true`. A true value with no `tagIds` clears associations;
   false or omitted preserves them for non-UI callers, including when `tagIds`
   is present. The Track edit SPA always sends explicit replace intent.
+- `PUT /api/albums/{id}` preserves description for callers that omit the
+  multipart `description` field. A present blank value is an explicit clear;
+  both active Album edit entry points send the field on update.
 - `GET /api/tags/{tagId}/deletion-impact` is ADMIN-only and returns only Tag
   identity (`id`, `name`, `type`) plus `trackAssociationCount`. It performs no
   deletion and exposes no associated Track details.
@@ -764,6 +767,8 @@ before announcing success or navigating.
 - Public Track search accepts `page >= 1` and `1 <= size <= 100`. Invalid
   pagination returns 400 `INVALID_ARGUMENT` before repository access, while
   `pageInfo.page` remains 1-based.
+- Public Track `keyword` search matches title and associated `USAGE` Tag names;
+  it does not search creator or artist display names.
 - `genre`, `mood`, `instrument`, and `usage` search values are repeated query
   parameters. Values are canonicalized, de-duplicated, and combined with AND
   semantics within and across Tag types. Commas and `#` remain part of one Tag

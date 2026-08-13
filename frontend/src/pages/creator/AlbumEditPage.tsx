@@ -1,5 +1,13 @@
-import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import {
+  useState,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type FormEvent,
+} from 'react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
   fetchAlbumDetail,
   updateAlbum,
@@ -12,27 +20,50 @@ import { fetchTracks } from '@/api/tracks';
 import { toUploadUrl } from '@/api/client';
 import { useToastStore } from '@/store/toastStore';
 import type { TrackListItem } from '@/types';
-import {
-  TITLE_ALBUM_MAX,
-  DESCRIPTION_MAX,
-  IMAGE_MAX_SIZE_MB,
-  isFileSizeOk,
-  validateImageDimensions,
-} from '@/utils/validation';
+import { TITLE_ALBUM_MAX, DESCRIPTION_MAX } from '@/utils/validation';
+import { parsePositiveDecimalRouteID } from '@/utils/routeId';
 import Button from '@/components/ui/Button';
+import AlbumThumbnailField from './AlbumThumbnailField';
+import { emptyAlbumThumbnailSelection, isAlbumThumbnailBlocked } from './albumThumbnail';
 import styles from './AlbumEditPage.module.css';
+
+type MembershipRefreshProvenance = 'committed' | 'unconfirmed';
+type AlbumPageOwner = Readonly<{ albumId: number; generation: symbol }>;
 
 /** Screen L-5: Album edit */
 export default function AlbumEditPage() {
   const { albumId: id } = useParams<{ albumId: string }>();
+  const albumId = useMemo(() => parsePositiveDecimalRouteID(id), [id]);
   const navigate = useNavigate();
   const toast = useToastStore((s) => s.show);
+  const pageOwner = useMemo<AlbumPageOwner | null>(
+    () => (albumId === null ? null : { albumId, generation: Symbol() }),
+    [albumId],
+  );
+  const currentPageOwnerRef = useRef<AlbumPageOwner | null>(pageOwner);
+
+  useLayoutEffect(() => {
+    currentPageOwnerRef.current = pageOwner;
+    return () => {
+      if (currentPageOwnerRef.current?.generation === pageOwner?.generation) {
+        currentPageOwnerRef.current = null;
+      }
+    };
+  }, [pageOwner]);
+
+  function isPageOwnerCurrent(owner: AlbumPageOwner | null): owner is AlbumPageOwner {
+    const currentOwner = currentPageOwnerRef.current;
+    return (
+      owner !== null &&
+      currentOwner?.albumId === owner.albumId &&
+      currentOwner.generation === owner.generation
+    );
+  }
 
   /* ── Form state ── */
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [thumbnail, setThumbnail] = useState<File | null>(null);
-  const [thumbPreview, setThumbPreview] = useState<string | null>(null);
+  const [thumbnail, setThumbnail] = useState(emptyAlbumThumbnailSelection);
 
   /* ── Existing data ── */
   const [currentThumbUrl, setCurrentThumbUrl] = useState<string | null>(null);
@@ -40,130 +71,335 @@ export default function AlbumEditPage() {
   /* ── Track management state ── */
   const [tracks, setTracks] = useState<AlbumTrack[]>([]);
   const [trackBusy, setTrackBusy] = useState(false);
+  const [membershipRefreshFailure, setMembershipRefreshFailure] =
+    useState<MembershipRefreshProvenance | null>(null);
+  const [committedMembershipFence, setCommittedMembershipFence] = useState<ReadonlySet<number>>(
+    () => new Set(),
+  );
+  const committedMembershipFenceRef = useRef<Set<number>>(new Set());
+  const membershipRequestGenerationRef = useRef(0);
+  const membershipRequestControllerRef = useRef<AbortController | null>(null);
 
   /* ── Track search state ── */
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchResults, setSearchResults] = useState<TrackListItem[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState(false);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
   const searchRef = useRef<HTMLDivElement>(null);
+  const searchListboxId = useId();
+  const searchRequestGenerationRef = useRef(0);
+  const searchRequestControllerRef = useRef<AbortController | null>(null);
+  const lastSearchKeywordRef = useRef('');
+
+  const availableSearchResults = useMemo(() => {
+    const currentMemberIDs = new Set(tracks.map((track) => track.trackId));
+    return searchResults.filter(
+      (track) => !currentMemberIDs.has(track.id) && !committedMembershipFence.has(track.id),
+    );
+  }, [committedMembershipFence, searchResults, tracks]);
+  const activeSearchResult = availableSearchResults[activeSearchIndex];
+  const membershipRefreshError =
+    membershipRefreshFailure === 'committed'
+      ? '변경은 완료되었지만 최신 트랙 목록을 불러오지 못했습니다.'
+      : membershipRefreshFailure === 'unconfirmed'
+        ? '변경 결과와 최신 트랙 목록을 확인하지 못했습니다.'
+        : null;
 
   /* ── UI state ── */
-  const [pageLoading, setPageLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(albumId !== null);
+  const [pageRetryToken, setPageRetryToken] = useState(0);
+  const [pageLoadError, setPageLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pageRequestGenerationRef = useRef(0);
 
   /* ── Load existing album ── */
   useEffect(() => {
-    let cancelled = false;
+    searchRequestControllerRef.current?.abort();
+    searchRequestControllerRef.current = null;
+    membershipRequestControllerRef.current?.abort();
+    membershipRequestControllerRef.current = null;
+    searchRequestGenerationRef.current += 1;
+    membershipRequestGenerationRef.current += 1;
+    setSearchKeyword('');
+    setSearchResults([]);
+    setSearchOpen(false);
+    setSearching(false);
+    setSearchError(false);
+    setActiveSearchIndex(-1);
+    setTrackBusy(false);
+
+    if (albumId === null) {
+      setPageLoading(false);
+      setPageLoadError(null);
+      return;
+    }
+
+    const ownedAlbumId = albumId;
+    const controller = new AbortController();
+    const generation = ++pageRequestGenerationRef.current;
+    const isCurrent = () =>
+      generation === pageRequestGenerationRef.current && !controller.signal.aborted;
 
     async function loadAlbum() {
-      if (!id) return;
+      setPageLoading(true);
+      setPageLoadError(null);
+      setError(null);
+      setTitle('');
+      setDescription('');
+      setCurrentThumbUrl(null);
+      setTracks([]);
+      setMembershipRefreshFailure(null);
+      setThumbnail(emptyAlbumThumbnailSelection());
 
       try {
-        const album = await fetchAlbumDetail(Number(id));
-        if (cancelled) return;
+        const album = await fetchAlbumDetail(ownedAlbumId, controller.signal);
+        if (!isCurrent()) return;
 
         setTitle(album.title);
         setDescription(album.description ?? '');
         setCurrentThumbUrl(toUploadUrl(album.thumbnailUrl));
         setTracks([...album.tracks].sort((a, b) => a.order - b.order));
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : '앨범 정보를 불러올 수 없습니다.');
+        const authoritativeFence = new Set<number>();
+        committedMembershipFenceRef.current = authoritativeFence;
+        setCommittedMembershipFence(authoritativeFence);
+      } catch {
+        if (isCurrent()) {
+          setPageLoadError('앨범 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
         }
       } finally {
-        if (!cancelled) setPageLoading(false);
+        if (isCurrent()) setPageLoading(false);
       }
     }
 
-    loadAlbum();
+    void loadAlbum();
     return () => {
-      cancelled = true;
+      controller.abort();
+      pageRequestGenerationRef.current += 1;
     };
-  }, [id]);
+  }, [albumId, pageRetryToken]);
 
   /* ── Close search dropdown on outside click ── */
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setSearchOpen(false);
+        setActiveSearchIndex(-1);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      searchRequestControllerRef.current?.abort();
+      membershipRequestControllerRef.current?.abort();
+      searchRequestGenerationRef.current += 1;
+      membershipRequestGenerationRef.current += 1;
+    };
   }, []);
 
   /* ── Refetch album tracks ── */
-  async function refetchTracks() {
-    if (!id) return;
+  async function refetchTracks(
+    provenance: MembershipRefreshProvenance,
+    owner: AlbumPageOwner,
+  ): Promise<boolean> {
+    if (!isPageOwnerCurrent(owner)) return false;
+    membershipRequestControllerRef.current?.abort();
+    const controller = new AbortController();
+    membershipRequestControllerRef.current = controller;
+    const generation = ++membershipRequestGenerationRef.current;
+    const isCurrent = () =>
+      generation === membershipRequestGenerationRef.current &&
+      !controller.signal.aborted &&
+      isPageOwnerCurrent(owner);
+
     try {
-      const album = await fetchAlbumDetail(Number(id));
+      const album = await fetchAlbumDetail(owner.albumId, controller.signal);
+      if (!isCurrent()) return false;
       setTracks([...album.tracks].sort((a, b) => a.order - b.order));
+      const authoritativeFence = new Set<number>();
+      committedMembershipFenceRef.current = authoritativeFence;
+      setCommittedMembershipFence(authoritativeFence);
+      setMembershipRefreshFailure(null);
+      return true;
     } catch {
-      /* silent — list will be stale but non-critical */
+      if (isCurrent()) {
+        setMembershipRefreshFailure(provenance);
+      }
+      return false;
+    } finally {
+      if (isCurrent()) membershipRequestControllerRef.current = null;
     }
   }
 
   /* ── Track search handler ── */
-  async function handleTrackSearch() {
-    const kw = searchKeyword.trim();
+  async function runTrackSearch(keyword: string) {
+    const kw = keyword.trim();
     if (!kw) return;
 
+    searchRequestControllerRef.current?.abort();
+    const controller = new AbortController();
+    searchRequestControllerRef.current = controller;
+    const generation = ++searchRequestGenerationRef.current;
+    const isCurrent = () =>
+      generation === searchRequestGenerationRef.current && !controller.signal.aborted;
+    lastSearchKeywordRef.current = kw;
     setSearching(true);
+    setSearchError(false);
+    setSearchOpen(true);
+    setActiveSearchIndex(-1);
     try {
-      const res = await fetchTracks({ keyword: kw, size: 10 });
+      const res = await fetchTracks({ keyword: kw, size: 10 }, controller.signal);
+      if (!isCurrent()) return;
       setSearchResults(res.dataList);
-      setSearchOpen(true);
     } catch {
-      toast('error', '트랙 검색에 실패했습니다.');
+      if (!isCurrent()) return;
+      setSearchResults([]);
+      setSearchError(true);
     } finally {
-      setSearching(false);
+      if (isCurrent()) {
+        setSearching(false);
+        searchRequestControllerRef.current = null;
+      }
     }
+  }
+
+  function handleTrackSearch() {
+    void runTrackSearch(searchKeyword);
+  }
+
+  function handleSearchKeywordChange(value: string) {
+    searchRequestControllerRef.current?.abort();
+    searchRequestControllerRef.current = null;
+    searchRequestGenerationRef.current += 1;
+    setSearchKeyword(value);
+    setSearchResults([]);
+    setSearchError(false);
+    setSearchOpen(false);
+    setSearching(false);
+    setActiveSearchIndex(-1);
+  }
+
+  function dismissSearch() {
+    setSearchOpen(false);
+    setActiveSearchIndex(-1);
+  }
+
+  function handleSearchFocusOut(event: React.FocusEvent<HTMLDivElement>) {
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
+    dismissSearch();
+  }
+
+  function handleSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      dismissSearch();
+      return;
+    }
+    if (event.key === 'Tab') {
+      dismissSearch();
+      return;
+    }
+    if (
+      event.key === 'ArrowDown' ||
+      event.key === 'ArrowUp' ||
+      event.key === 'Home' ||
+      event.key === 'End'
+    ) {
+      if (availableSearchResults.length === 0) return;
+      event.preventDefault();
+      setSearchOpen(true);
+      setActiveSearchIndex((current) => {
+        if (event.key === 'Home') return 0;
+        if (event.key === 'End') return availableSearchResults.length - 1;
+        if (event.key === 'ArrowDown') {
+          return current < availableSearchResults.length - 1 ? current + 1 : 0;
+        }
+        return current > 0 ? current - 1 : availableSearchResults.length - 1;
+      });
+      return;
+    }
+    if (event.key !== 'Enter') return;
+
+    event.preventDefault();
+    const selected = availableSearchResults[activeSearchIndex];
+    if (searchOpen && selected) {
+      const isUnavailable =
+        trackBusy ||
+        tracks.some((track) => track.trackId === selected.id) ||
+        committedMembershipFenceRef.current.has(selected.id);
+      if (!isUnavailable) void handleAddTrack(selected.id);
+      return;
+    }
+    handleTrackSearch();
   }
 
   /* ── Add track ── */
   async function handleAddTrack(trackId: number) {
-    if (!id) return;
-    if (tracks.some((t) => t.trackId === trackId)) {
+    const owner = pageOwner;
+    if (!isPageOwnerCurrent(owner)) return;
+    if (
+      tracks.some((track) => track.trackId === trackId) ||
+      committedMembershipFenceRef.current.has(trackId)
+    ) {
       toast('error', '이미 앨범에 포함된 트랙입니다.');
       return;
     }
     setTrackBusy(true);
     try {
-      await addTrackToAlbum(Number(id), trackId);
-      await refetchTracks();
-      toast('success', '트랙이 추가되었습니다.');
-      setSearchOpen(false);
+      await addTrackToAlbum(owner.albumId, trackId);
+      if (!isPageOwnerCurrent(owner)) return;
+      const nextMembershipFence = new Set(committedMembershipFenceRef.current);
+      nextMembershipFence.add(trackId);
+      committedMembershipFenceRef.current = nextMembershipFence;
+      setCommittedMembershipFence(nextMembershipFence);
+      const refreshed = await refetchTracks('committed', owner);
+      if (!isPageOwnerCurrent(owner)) return;
+      toast(
+        refreshed ? 'success' : 'warning',
+        refreshed ? '트랙이 추가되었습니다.' : '트랙 추가는 완료되었습니다.',
+      );
+      dismissSearch();
       setSearchKeyword('');
       setSearchResults([]);
     } catch (err) {
+      if (!isPageOwnerCurrent(owner)) return;
       const msg = err instanceof Error ? err.message : '트랙 추가에 실패했습니다.';
       toast('error', msg);
     } finally {
-      setTrackBusy(false);
+      if (isPageOwnerCurrent(owner)) setTrackBusy(false);
     }
   }
 
   /* ── Remove track ── */
   async function handleRemoveTrack(trackId: number) {
-    if (!id) return;
+    const owner = pageOwner;
+    if (!isPageOwnerCurrent(owner)) return;
     setTrackBusy(true);
     try {
-      await removeTrackFromAlbum(Number(id), trackId);
-      await refetchTracks();
-      toast('success', '트랙이 제거되었습니다.');
+      await removeTrackFromAlbum(owner.albumId, trackId);
+      if (!isPageOwnerCurrent(owner)) return;
+      const refreshed = await refetchTracks('committed', owner);
+      if (!isPageOwnerCurrent(owner)) return;
+      toast(
+        refreshed ? 'success' : 'warning',
+        refreshed ? '트랙이 제거되었습니다.' : '트랙 제거는 완료되었습니다.',
+      );
     } catch (err) {
+      if (!isPageOwnerCurrent(owner)) return;
       const msg = err instanceof Error ? err.message : '트랙 제거에 실패했습니다.';
       toast('error', msg);
     } finally {
-      setTrackBusy(false);
+      if (isPageOwnerCurrent(owner)) setTrackBusy(false);
     }
   }
 
   /* ── Reorder tracks (move up / down) ── */
   async function handleMoveTrack(index: number, direction: 'up' | 'down') {
-    if (!id) return;
+    const owner = pageOwner;
+    if (!isPageOwnerCurrent(owner)) return;
     const swapIdx = direction === 'up' ? index - 1 : index + 1;
     if (swapIdx < 0 || swapIdx >= tracks.length) return;
 
@@ -176,58 +412,27 @@ export default function AlbumEditPage() {
     setTracks(reordered);
     setTrackBusy(true);
     try {
-      await reorderAlbumTracks(Number(id), trackOrders);
-      await refetchTracks();
+      await reorderAlbumTracks(owner.albumId, trackOrders);
+      if (!isPageOwnerCurrent(owner)) return;
+      await refetchTracks('committed', owner);
+      if (!isPageOwnerCurrent(owner)) return;
     } catch (err) {
+      if (!isPageOwnerCurrent(owner)) return;
       const msg = err instanceof Error ? err.message : '순서 변경에 실패했습니다.';
       toast('error', msg);
-      await refetchTracks();
+      await refetchTracks('unconfirmed', owner);
+      if (!isPageOwnerCurrent(owner)) return;
     } finally {
-      setTrackBusy(false);
+      if (isPageOwnerCurrent(owner)) setTrackBusy(false);
     }
   }
-
-  /* ── Thumbnail handler ── */
-  async function handleThumbnailChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    if (!file) {
-      setThumbnail(null);
-      if (thumbPreview) URL.revokeObjectURL(thumbPreview);
-      setThumbPreview(null);
-      return;
-    }
-
-    if (!isFileSizeOk(file, IMAGE_MAX_SIZE_MB)) {
-      setError(`썸네일 이미지는 ${IMAGE_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`);
-      e.target.value = '';
-      return;
-    }
-
-    const dimError = await validateImageDimensions(file);
-    if (dimError) {
-      setError(dimError);
-      e.target.value = '';
-      return;
-    }
-
-    setError(null);
-    setThumbnail(file);
-
-    if (thumbPreview) {
-      URL.revokeObjectURL(thumbPreview);
-    }
-    setThumbPreview(URL.createObjectURL(file));
-  }
-
-  /* ── Displayed thumbnail: new preview > current ── */
-  const displayThumb = thumbPreview ?? currentThumbUrl;
 
   /* ── Submit ── */
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
 
-    if (!id) return;
+    if (albumId === null || isAlbumThumbnailBlocked(thumbnail)) return;
 
     if (!title.trim()) {
       setError('앨범 제목을 입력해주세요.');
@@ -237,13 +442,13 @@ export default function AlbumEditPage() {
     const formData = new FormData();
     formData.append('title', title.trim());
     formData.append('description', description.trim());
-    if (thumbnail) {
-      formData.append('thumbnailFile', thumbnail);
+    if (thumbnail.file) {
+      formData.append('thumbnailFile', thumbnail.file);
     }
 
     setSubmitting(true);
     try {
-      await updateAlbum(Number(id), formData);
+      await updateAlbum(albumId, formData);
       navigate('/admin/albums');
     } catch (err) {
       const msg = err instanceof Error ? err.message : '앨범 수정에 실패했습니다.';
@@ -257,6 +462,39 @@ export default function AlbumEditPage() {
     return (
       <div className={styles.page}>
         <div className={styles.loading}>{'Loading...'}</div>
+      </div>
+    );
+  }
+
+  if (albumId === null) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.recovery}>
+          <h1 className={styles.pageTitle}>앨범을 열 수 없습니다.</h1>
+          <p>올바른 앨범을 다시 선택해주세요.</p>
+          <div className={styles.recoveryActions}>
+            <Link to="/admin/albums">앨범 관리로 이동</Link>
+            <Link to="/">홈으로 이동</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (pageLoadError) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.recovery} role="alert" aria-label="앨범 정보 불러오기 실패">
+          <h1 className={styles.pageTitle}>앨범 정보를 불러오지 못했습니다.</h1>
+          <p>{pageLoadError}</p>
+          <div className={styles.recoveryActions}>
+            <button type="button" onClick={() => setPageRetryToken((value) => value + 1)}>
+              다시 시도
+            </button>
+            <Link to="/admin/albums">앨범 관리로 이동</Link>
+            <Link to="/">홈으로 이동</Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -291,34 +529,19 @@ export default function AlbumEditPage() {
           />
         </div>
 
-        {/* Thumbnail */}
-        <div className={styles.field}>
-          <span className={styles.label}>{'썸네일'}</span>
-          <div className={styles.thumbArea}>
-            {displayThumb && (
-              <img src={displayThumb} alt="앨범 썸네일" className={styles.thumbPreview} />
-            )}
-            <label className={`${styles.fileLabel} ${thumbnail ? styles.fileLabelSelected : ''}`}>
-              <input
-                type="file"
-                accept="image/*"
-                className={styles.fileHidden}
-                onChange={handleThumbnailChange}
-              />
-              {thumbnail ? thumbnail.name : '새 이미지 선택'}
-            </label>
-            {currentThumbUrl && !thumbnail && (
-              <span className={styles.currentFile}>{'현재 썸네일이 설정되어 있습니다'}</span>
-            )}
-          </div>
-        </div>
+        <AlbumThumbnailField
+          value={thumbnail}
+          onChange={setThumbnail}
+          existingImageUrl={currentThumbUrl}
+          disabled={submitting}
+        />
 
         {/* Actions */}
         <div className={styles.actions}>
           <Button variant="ghost" type="button" onClick={() => navigate(-1)} disabled={submitting}>
             {'취소'}
           </Button>
-          <Button type="submit" loading={submitting}>
+          <Button type="submit" loading={submitting} disabled={isAlbumThumbnailBlocked(thumbnail)}>
             {'저장'}
           </Button>
         </div>
@@ -329,17 +552,25 @@ export default function AlbumEditPage() {
         <h2 className={styles.trackSectionTitle}>{'앨범 트랙'}</h2>
 
         {/* Search */}
-        <div className={styles.trackSearch} ref={searchRef}>
+        <div className={styles.trackSearch} ref={searchRef} onBlur={handleSearchFocusOut}>
           <div className={styles.trackSearchRow}>
             <input
               className={styles.input}
               type="text"
-              placeholder="트랙 검색 (제목 또는 아티스트)"
+              role="combobox"
+              aria-label="앨범에 추가할 트랙 검색"
+              aria-autocomplete="list"
+              aria-expanded={searchOpen}
+              aria-controls={searchOpen ? searchListboxId : undefined}
+              aria-activedescendant={
+                searchOpen && activeSearchResult
+                  ? `${searchListboxId}-option-${activeSearchResult.id}`
+                  : undefined
+              }
+              placeholder="트랙 제목 또는 Usage 태그 검색"
               value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleTrackSearch();
-              }}
+              onChange={(e) => handleSearchKeywordChange(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
             />
             <Button
               type="button"
@@ -352,33 +583,88 @@ export default function AlbumEditPage() {
             </Button>
           </div>
 
-          {searchOpen && searchResults.length > 0 && (
-            <ul className={styles.searchDropdown}>
-              {searchResults.map((t) => (
-                <li key={t.id} className={styles.searchItem}>
-                  <span className={styles.searchItemInfo}>
-                    <span className={styles.searchItemTitle}>{t.title}</span>
-                    <span className={styles.searchItemArtist}>{t.artistName}</span>
-                  </span>
-                  <button
-                    type="button"
-                    className={styles.addBtn}
-                    disabled={trackBusy || tracks.some((at) => at.trackId === t.id)}
-                    onClick={() => handleAddTrack(t.id)}
+          {searchOpen && searching && (
+            <div className={styles.searchEmpty} role="status">
+              트랙을 검색하는 중입니다.
+            </div>
+          )}
+
+          {searchOpen && !searching && !searchError && availableSearchResults.length > 0 && (
+            <ul
+              id={searchListboxId}
+              className={styles.searchDropdown}
+              role="listbox"
+              aria-label="트랙 검색 결과"
+            >
+              {availableSearchResults.map((t, index) => {
+                const isActive = index === activeSearchIndex;
+                return (
+                  <li
+                    id={`${searchListboxId}-option-${t.id}`}
+                    key={t.id}
+                    className={`${styles.searchItem} ${isActive ? styles.searchItemActive : ''}`}
+                    role="option"
+                    aria-selected={isActive}
+                    aria-disabled={trackBusy}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseMove={() => setActiveSearchIndex(index)}
+                    onClick={() => {
+                      if (!trackBusy) void handleAddTrack(t.id);
+                    }}
                   >
-                    {tracks.some((at) => at.trackId === t.id) ? '추가됨' : '+ 추가'}
-                  </button>
-                </li>
-              ))}
+                    <span className={styles.searchItemInfo}>
+                      <span className={styles.searchItemTitle}>{t.title}</span>
+                      <span className={styles.searchItemArtist}>{t.artistName}</span>
+                    </span>
+                    <span
+                      className={`${styles.addIndicator} ${trackBusy ? styles.addIndicatorDisabled : ''}`}
+                      aria-hidden="true"
+                    >
+                      + 추가
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
 
-          {searchOpen && searchResults.length === 0 && !searching && (
+          {searchOpen && !searching && searchError && (
+            <div className={styles.searchEmpty} role="alert" aria-label="트랙 검색 실패">
+              <p>트랙 검색 결과를 불러오지 못했습니다.</p>
+              <button
+                type="button"
+                onClick={() => void runTrackSearch(lastSearchKeywordRef.current)}
+              >
+                검색 다시 시도
+              </button>
+            </div>
+          )}
+
+          {searchOpen && !searching && !searchError && availableSearchResults.length === 0 && (
             <div className={styles.searchEmpty}>{'검색 결과가 없습니다.'}</div>
           )}
         </div>
 
         {/* Track list */}
+        {membershipRefreshError && (
+          <div className={styles.membershipError} role="alert" aria-label="앨범 트랙 새로고침 실패">
+            <span>{membershipRefreshError}</span>
+            <button
+              type="button"
+              disabled={trackBusy}
+              onClick={() => {
+                const owner = pageOwner;
+                if (!isPageOwnerCurrent(owner)) return;
+                setTrackBusy(true);
+                void refetchTracks(membershipRefreshFailure ?? 'unconfirmed', owner).finally(() => {
+                  if (isPageOwnerCurrent(owner)) setTrackBusy(false);
+                });
+              }}
+            >
+              트랙 목록 다시 불러오기
+            </button>
+          </div>
+        )}
         {tracks.length === 0 ? (
           <p className={styles.trackEmpty}>{'앨범에 트랙이 없습니다.'}</p>
         ) : (

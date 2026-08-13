@@ -300,6 +300,24 @@ class AlbumServiceTest {
     }
 
     @Test
+    @DisplayName("updateAlbum preserves an explicit blank description as a clear")
+    void updateAlbum_blankDescription_clearsExistingValue() {
+        User user = buildUser(1L);
+        Album album = buildAlbum(1L, user, "Album");
+        ReflectionTestUtils.setField(album, "description", "Old description");
+        AlbumUpdateRequest request = new AlbumUpdateRequest();
+        request.setDescription("");
+
+        given(albumRepository.findByIdForUpdate(1L)).willReturn(Optional.of(album));
+        given(albumTrackRepository.countByAlbum(album)).willReturn(0L);
+
+        AlbumResponse result = albumService.updateAlbum(1L, request, null);
+
+        assertThat(result.description()).isEmpty();
+        assertThat(album.getDescription()).isEmpty();
+    }
+
+    @Test
     @DisplayName("updateAlbum canonicalizes a replacement before public storage")
     void updateAlbum_thumbnailReplacement_storesCanonicalJpeg() throws Exception {
         User user = buildUser(1L);
