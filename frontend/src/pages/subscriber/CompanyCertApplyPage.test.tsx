@@ -30,7 +30,10 @@ function sizedFile(name: string, size: number): File {
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/company-certification/apply']}>
+    <MemoryRouter
+      initialEntries={['/company-certification/apply']}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Routes>
         <Route path="/company-certification/apply" element={<CompanyCertApplyPage />} />
         <Route path="/company-certification/status" element={<div>인증 현황</div>} />

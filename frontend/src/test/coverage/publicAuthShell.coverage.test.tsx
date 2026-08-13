@@ -308,7 +308,10 @@ const track: Track = {
 
 function renderAt(element: ReactElement, route = '/', path = '*') {
   return render(
-    <MemoryRouter initialEntries={[route]}>
+    <MemoryRouter
+      initialEntries={[route]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Routes>
         <Route path={path} element={element} />
       </Routes>
@@ -566,6 +569,20 @@ describe('public authentication recovery', () => {
     states.capabilities.capabilities = null;
     states.capabilities.error = '설정 조회 실패.';
     states.capabilities.status = 'error';
+    states.auth.user = {
+      id: 7,
+      email: 'member@example.com',
+      nickname: 'member_7',
+      role: 'USER',
+      phonePersonal: '010-1234-5678',
+      phoneCompany: null,
+      job: 'EDITOR',
+      companyName: null,
+      userType: 'INDIVIDUAL',
+      isVerified: true,
+      createdAt: '2026-07-01T00:00:00Z',
+    };
+    states.auth.role = 'USER';
     states.auth.isAuthenticated.mockReturnValue(true);
     renderAt(<LoginPage />, '/login?returnTo=%2Ftracks');
 
@@ -1112,7 +1129,7 @@ describe('application shells and error routes', () => {
     states.player.trackListContext = [track, { ...track, id: 22, title: 'Next' }];
     states.player.isPlaying = true;
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route element={<MainLayout />}>
             <Route index element={<input aria-label="editor" />} />
@@ -1138,7 +1155,7 @@ describe('application shells and error routes', () => {
     states.player.currentTrack = null;
     states.player.trackListContext = [track];
     const main = render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route element={<MainLayout />}>
             <Route index element={<div>main-content</div>} />
@@ -1164,7 +1181,10 @@ describe('application shells and error routes', () => {
       createdAt: '2026-01-01T00:00:00',
     };
     const admin = render(
-      <MemoryRouter initialEntries={['/admin/albums/11/edit']}>
+      <MemoryRouter
+        initialEntries={['/admin/albums/11/edit']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <Routes>
           <Route element={<AdminLayout />}>
             <Route path="/admin/albums/:albumId/edit" element={<div>admin-content</div>} />

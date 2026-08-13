@@ -13,7 +13,7 @@ describe('Header search accessibility', () => {
 
   it('provides explicit labels for desktop and mobile search', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Header />
       </MemoryRouter>,
     );

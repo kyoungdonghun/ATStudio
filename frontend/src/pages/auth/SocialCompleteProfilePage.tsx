@@ -17,6 +17,7 @@ import {
 } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import { consumeOAuthProfileReturnTarget } from '@/utils/oauthAttempt';
+import { getAccessibleLoginReturnTarget } from '@/utils/loginReturn';
 import styles from './SignupPage.module.css';
 
 const JOB_OPTIONS = [
@@ -187,7 +188,13 @@ export default function SocialCompleteProfilePage() {
         return;
       }
 
-      navigate(consumeOAuthProfileReturnTarget() ?? '/', { replace: true });
+      navigate(
+        getAccessibleLoginReturnTarget(
+          consumeOAuthProfileReturnTarget(refreshedUser.id),
+          refreshedUser,
+        ) ?? '/',
+        { replace: true },
+      );
     } catch (submitError: unknown) {
       if (!mountedRef.current) return;
       if (getApiErrorCode(submitError) === 'PROFILE_ALREADY_COMPLETE') {

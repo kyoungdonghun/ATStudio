@@ -36,7 +36,10 @@ function renderPage(
   initialEntry: string | { pathname: string; state: { openCreate: boolean } } = '/playlists',
 ) {
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
+    <MemoryRouter
+      initialEntries={[initialEntry]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <LocationProbe />
       <Routes>
         <Route path="/playlists" element={<PlaylistListPage />} />
@@ -106,7 +109,7 @@ describe('PlaylistListPage', () => {
     });
   });
 
-  it('clears the create route state after successful creation', async () => {
+  it('consumes the create route request once when refresh races the transition', async () => {
     fetchMyPlaylistsMock.mockResolvedValue({ dataList: [] });
 
     renderPage({ pathname: '/playlists', state: { openCreate: true } });
@@ -123,6 +126,7 @@ describe('PlaylistListPage', () => {
         description: undefined,
         thumbnail: undefined,
       });
+      expect(fetchMyPlaylistsMock).toHaveBeenCalledTimes(2);
       expect(screen.queryByRole('dialog', { name: '새 재생목록 만들기' })).not.toBeInTheDocument();
       expect(screen.getByTestId('playlist-location')).toHaveTextContent('/playlists:null');
     });

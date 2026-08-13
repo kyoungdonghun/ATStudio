@@ -41,7 +41,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | INFO-008 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-13 |
 | **Description** | Member logs in with email/password and receives an Access Token and Refresh Token. |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Account registered with the email exists in the users table. is_deleted=0. |
@@ -58,10 +58,16 @@
 5. Backend issues an Access Token (short-lived) and Refresh Token (long-lived).
 6. Backend returns token information (accessToken, refreshToken, tokenType, expiresIn).
 7. Frontend stores both the Access Token and Refresh Token in browser storage.
+8. If Login carries a structurally safe internal return target, frontend
+   revalidates it against the authenticated role and user type before replace
+   navigation. Malformed, external, auth-loop, API/upload, or access-mismatched
+   targets fall back to Home. Pathname and query are retained; hash is excluded.
 
 **Exception / Alternative Flow**
 - Email not found or password mismatch: 401 response.
 - Withdrawn account (is_deleted=1): 403 response.
+- Unsafe or access-inappropriate return target: authentication may succeed, but
+  navigation falls back to Home.
 
 **Postconditions**
 - Access Token and Refresh Token issued successfully. Can be used as Bearer token for subsequent authenticated API calls.
@@ -101,9 +107,12 @@
    b. Creates a social_accounts record and links it.
    c. Issues Access/Refresh Token.
    d. Returns response with isProfileComplete=false.
-11. For a complete profile, frontend revalidates and navigates to the consumed
-    internal target. For an incomplete profile, it stores a separate one-time
-    profile-continuation target and navigates to INFO-014.
+11. For a complete profile, frontend revalidates the consumed internal target
+    against the loaded role and user type before navigation. For an incomplete
+    profile, it first clears any previous continuation and stores a separate
+    one-time profile-continuation target bound to the authenticated user ID,
+    moves to INFO-014, and applies the same access revalidation after profile
+    refresh. Storage failure proceeds to INFO-014 without a continuation.
 
 **Environment Boundary**
 - Google, Kakao, and Naver happy paths are locally verified with typed-response tests. Real-provider payload compatibility remains `ENVIRONMENT-CONDITIONAL` until an approved environment run; no live provider call is part of this flow's evidence.
@@ -146,8 +155,10 @@
     user-ID guarded auth-store flow. Logout or user change prevents a late result
     from repopulating storage, while component unmount prevents late navigation.
 11. Only after guarded refresh success, frontend consumes the one-time
-    profile-continuation target and navigates to that revalidated internal path.
-    Missing, stale, malformed, or replayed continuation data falls back to `/`.
+    profile-continuation target for the exact refreshed user ID and navigates to
+    that revalidated internal path. Consumption deletes the record before
+    validation, so missing, mismatched, stale, malformed, replayed, or
+    access-inappropriate continuation data falls back to `/`.
 
 **Exception / Alternative Flow**
 - Nickname duplicate: UTIL-012 returns available=false. Prompts re-entry.

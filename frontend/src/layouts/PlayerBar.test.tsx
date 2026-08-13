@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PlayerBar from '@/layouts/PlayerBar';
 import type { Track } from '@/types';
@@ -129,10 +129,28 @@ vi.mock('@/components/playlist/AddToPlaylistModal', () => ({
   default: () => null,
 }));
 
-function renderPlayerBar() {
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
+}
+
+function renderPlayerBar(initialEntry = '/') {
   return render(
-    <MemoryRouter>
-      <PlayerBar />
+    <MemoryRouter
+      initialEntries={[initialEntry]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
+      <Routes>
+        <Route
+          path="*"
+          element={
+            <>
+              <PlayerBar />
+              <LocationProbe />
+            </>
+          }
+        />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -250,7 +268,7 @@ describe('PlayerBar playback feedback', () => {
     mocks.playerState.currentTime = 0;
     mocks.playerState.duration = 45;
     view.rerender(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <PlayerBar />
       </MemoryRouter>,
     );
@@ -279,6 +297,22 @@ describe('PlayerBar playback feedback', () => {
     const collapseButton = screen.getByLabelText('플레이어 상세 접기');
     expect(collapseButton).toHaveAttribute('aria-expanded', 'true');
     expect(collapseButton).toHaveFocus();
+  });
+
+  it.each([
+    ['desktop Like', 'button[aria-label="좋아요"]', 0],
+    ['mobile Like', 'button[aria-label="좋아요"]', 1],
+    ['Add to Playlist', 'button[aria-label="재생목록에 추가"]', 0],
+  ])('preserves the safe current origin for guest %s', (_label, selector, index) => {
+    const view = renderPlayerBar('/tracks/1?from=player&view=compact#ignored');
+
+    const actions = view.container.querySelectorAll<HTMLButtonElement>(selector);
+    fireEvent.click(actions[index]);
+
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/login?returnTo=%2Ftracks%2F1%3Ffrom%3Dplayer%26view%3Dcompact',
+    );
+    view.unmount();
   });
 
   it('enables subscriber actions only after an active subscription response', async () => {
@@ -359,7 +393,7 @@ describe('PlayerBar playback feedback', () => {
     mocks.authState.accessToken = 'token-b';
     mocks.authState.user = { id: 2 };
     view.rerender(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <PlayerBar />
       </MemoryRouter>,
     );
@@ -391,7 +425,7 @@ describe('PlayerBar playback feedback', () => {
     mocks.authState.accessToken = null;
     mocks.authState.user = null;
     view.rerender(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <PlayerBar />
       </MemoryRouter>,
     );

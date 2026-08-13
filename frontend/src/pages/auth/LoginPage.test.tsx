@@ -70,11 +70,17 @@ function DestinationProbe() {
 
 function renderPage(initialEntry = '/login') {
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
+    <MemoryRouter
+      initialEntries={[initialEntry]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<DestinationProbe />} />
         <Route path="/profile" element={<DestinationProbe />} />
+        <Route path="/admin/dashboard" element={<DestinationProbe />} />
+        <Route path="/subscriptions/checkout" element={<DestinationProbe />} />
+        <Route path="/company-certification/status" element={<DestinationProbe />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -296,7 +302,6 @@ describe('LoginPage', () => {
   it.each([
     'https://evil.example/steal',
     '//evil.example/steal',
-    '/admin/dashboard',
     '/social-login/google',
     '/profile%zz',
   ])('falls back to the existing home for unsafe return target %s', async (returnTo) => {
@@ -317,5 +322,46 @@ describe('LoginPage', () => {
     await submitPasswordLogin();
 
     expect(await screen.findByText('Destination: /')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['ADMIN destination for USER', '/admin/dashboard', me, '/'],
+    [
+      'USER-only payment destination for ADMIN',
+      '/subscriptions/checkout',
+      { ...me, role: 'ADMIN' as const },
+      '/',
+    ],
+    ['BUSINESS destination for INDIVIDUAL', '/company-certification/status', me, '/'],
+    [
+      'ADMIN destination for ADMIN',
+      '/admin/dashboard',
+      { ...me, role: 'ADMIN' as const },
+      '/admin/dashboard',
+    ],
+    [
+      'BUSINESS destination for BUSINESS USER',
+      '/company-certification/status',
+      { ...me, userType: 'BUSINESS' as const },
+      '/company-certification/status',
+    ],
+  ])('applies post-login access policy for %s', async (_, returnTo, identity, expected) => {
+    usePublicCapabilitiesMock.mockReturnValue({
+      capabilities: buildCapabilities(),
+      loading: false,
+      error: '',
+    });
+    loginRequestMock.mockResolvedValue({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      tokenType: 'Bearer',
+      expiresIn: 900,
+    });
+    fetchMeMock.mockResolvedValue(identity);
+
+    renderPage(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+    await submitPasswordLogin();
+
+    expect(await screen.findByText(`Destination: ${expected}`)).toBeInTheDocument();
   });
 });

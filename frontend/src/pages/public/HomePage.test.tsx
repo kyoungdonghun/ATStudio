@@ -47,7 +47,10 @@ function tag(id: number, name: string, type: TagItem['type']): TagItem {
 
 function renderHome() {
   return render(
-    <MemoryRouter initialEntries={['/']}>
+    <MemoryRouter
+      initialEntries={['/']}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <HomePage />
     </MemoryRouter>,
   );

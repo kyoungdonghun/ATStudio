@@ -34,7 +34,10 @@ function renderProtected(
   initialEntry = '/protected',
 ) {
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
+    <MemoryRouter
+      initialEntries={[initialEntry]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Routes>
         <Route
           path="/protected"

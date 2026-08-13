@@ -32,7 +32,7 @@ function renderPage() {
     { initialEntries: ['/playlists/41/edit'] },
   );
 
-  render(<RouterProvider router={router} />);
+  render(<RouterProvider router={router} future={{ v7_startTransition: true }} />);
   return router;
 }
 

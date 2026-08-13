@@ -44,11 +44,13 @@ function renderPage(strict = false) {
   const routes = (
     <MemoryRouter
       initialEntries={['/social-login/google?code=authorization-code&state=expected-state-1234']}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
       <Routes>
         <Route path="/social-login/:provider" element={<SocialLoginPage />} />
         <Route path="/" element={<p>home</p>} />
         <Route path="/profile" element={<p>profile destination</p>} />
+        <Route path="/admin/dashboard" element={<p>admin destination</p>} />
         <Route path="/complete-profile" element={<p>complete profile</p>} />
       </Routes>
     </MemoryRouter>
@@ -136,6 +138,39 @@ describe('SocialLoginPage', () => {
     });
   });
 
+  it('clears stale continuation and proceeds without one when profile storage fails', async () => {
+    prepareCallbackStorage();
+    sessionStorage.setItem(
+      'oauth_profile_return',
+      JSON.stringify({
+        attemptId: 'stale-state-1234567',
+        userId: 99,
+        returnTarget: '/admin/dashboard',
+        createdAt: Date.now(),
+      }),
+    );
+    const originalSetItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (this === sessionStorage && key === 'oauth_profile_return') {
+        throw new Error('storage unavailable');
+      }
+      return originalSetItem.call(this, key, value);
+    });
+    socialLoginMock.mockResolvedValue({
+      accessToken: 'issued-access-token',
+      refreshToken: 'issued-refresh-token',
+      tokenType: 'Bearer',
+      expiresIn: 3600,
+      isProfileComplete: false,
+    });
+    fetchMeMock.mockResolvedValue(profile);
+
+    renderPage();
+
+    expect(await screen.findByText('complete profile')).toBeInTheDocument();
+    expect(sessionStorage.getItem('oauth_profile_return')).toBeNull();
+  });
+
   it('returns a complete social login to the stored safe internal target', async () => {
     createOAuthAttempt('expected-state-1234', 'pkce-verifier', '/profile?tab=edit');
     socialLoginMock.mockResolvedValue({
@@ -151,6 +186,23 @@ describe('SocialLoginPage', () => {
 
     expect(await screen.findByText('profile destination')).toBeInTheDocument();
     expect(sessionStorage.getItem('oauth_attempt:expected-state-1234')).toBeNull();
+  });
+
+  it('rejects a stored target that does not match the authenticated role', async () => {
+    createOAuthAttempt('expected-state-1234', 'pkce-verifier', '/admin/dashboard');
+    socialLoginMock.mockResolvedValue({
+      accessToken: 'issued-access-token',
+      refreshToken: 'issued-refresh-token',
+      tokenType: 'Bearer',
+      expiresIn: 3600,
+      isProfileComplete: true,
+    });
+    fetchMeMock.mockResolvedValue(profile);
+
+    renderPage();
+
+    expect(await screen.findByText('home')).toBeInTheDocument();
+    expect(screen.queryByText('admin destination')).not.toBeInTheDocument();
   });
 
   it('rejects a missing or already consumed callback attempt before provider exchange', async () => {

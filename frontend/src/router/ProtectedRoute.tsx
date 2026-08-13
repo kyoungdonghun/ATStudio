@@ -3,6 +3,7 @@ import { type ReactNode, useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
 import type { UserRole, UserType } from '@/types';
+import { createLoginPath } from '@/utils/loginReturn';
 
 const ROLE_LEVEL: Record<UserRole, number> = {
   GUEST: 0,
@@ -51,9 +52,7 @@ export default function ProtectedRoute({
   }, [needsLogin, accessDenied]);
 
   if (needsLogin) {
-    const returnTo = `${location.pathname}${location.search}`;
-    const loginSearch = new URLSearchParams({ returnTo }).toString();
-    return <Navigate to={`/login?${loginSearch}`} replace />;
+    return <Navigate to={createLoginPath(location)} replace />;
   }
 
   if (accessDenied) {

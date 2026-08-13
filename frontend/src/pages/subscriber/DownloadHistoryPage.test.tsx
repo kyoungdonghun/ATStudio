@@ -91,7 +91,10 @@ function buildHistoryItem(overrides: Partial<DownloadHistoryItem> = {}): Downloa
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/downloads']}>
+    <MemoryRouter
+      initialEntries={['/downloads']}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <HistorySwitcher />
       <DownloadHistoryPage />
     </MemoryRouter>,

@@ -78,7 +78,7 @@ describe('SubscriptionPaymentPage callback history', () => {
       { initialEntries: ['/origin', callback], initialIndex: 1 },
     );
 
-    render(<RouterProvider router={router} />);
+    render(<RouterProvider router={router} future={{ v7_startTransition: true }} />);
 
     expect(await screen.findByText('manage')).toBeInTheDocument();
     expect(confirmBillingAgreementMock).toHaveBeenCalledTimes(1);
@@ -111,7 +111,7 @@ describe('SubscriptionPaymentPage callback history', () => {
       },
     );
 
-    render(<RouterProvider router={router} />);
+    render(<RouterProvider router={router} future={{ v7_startTransition: true }} />);
 
     await waitFor(() => {
       expect(router.state.location.search).toBe('?orderId=order-1&amount=9900');

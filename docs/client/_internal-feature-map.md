@@ -1,6 +1,6 @@
 ---
-version: 2.5
-last_updated: 2026-08-12
+version: 2.6
+last_updated: 2026-08-13
 project: ATS
 owner: docops
 category: reference
@@ -26,7 +26,7 @@ This file is excluded from the client PDF.
 | Database | 42 | `CREATE TABLE` declarations; also 42 JPA entities |
 | Frontend screens | 53 | Distinct visual page UIs, including 2 error screens |
 | Router declarations | 57 | 56 path routes plus 1 index redirect |
-| Lazy page components | 53 | Every current `lazyPage(...)` declaration |
+| Lazy page components | 53 | Every current `createLazyPage(...)` declaration |
 | Modal occurrences | 22 | `<Modal>` renders across 17 non-test TSX files |
 | SR items | 100 | 82 DONE, 15 OPEN, 2 NOT CONFIRMED, 1 DROPPED |
 

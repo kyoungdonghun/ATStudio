@@ -39,7 +39,7 @@ describe('TrackUploadPage thumbnail contract', () => {
 
   it('blocks the multi-row submit for pending or invalid covers and submits a valid square file', async () => {
     const view = render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <TrackUploadPage />
       </MemoryRouter>,
     );

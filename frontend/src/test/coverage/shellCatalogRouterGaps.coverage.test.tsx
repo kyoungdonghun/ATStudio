@@ -430,7 +430,10 @@ const trackPage: PagedResponse<TrackListItem> = {
 
 function renderAt(element: ReactElement, route = '/', path = '*') {
   return render(
-    <MemoryRouter initialEntries={[route]}>
+    <MemoryRouter
+      initialEntries={[route]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Routes>
         <Route path={path} element={element} />
       </Routes>
@@ -448,7 +451,7 @@ function renderCatalog(route = '/tracks?page=1') {
 
 function renderAppRoute(path: string) {
   const memoryRouter = createMemoryRouter(routes, { initialEntries: [path] });
-  return render(<RouterProvider router={memoryRouter} />);
+  return render(<RouterProvider router={memoryRouter} future={{ v7_startTransition: true }} />);
 }
 
 function deferred<T>() {
@@ -674,7 +677,7 @@ describe('player transport, subscription, and recovery behavior', () => {
     states.player.shuffle = true;
     states.player.repeat = 'one';
     view.rerender(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="*" element={<PlayerBar />} />
         </Routes>
@@ -720,10 +723,10 @@ describe('player transport, subscription, and recovery behavior', () => {
     const view = renderPlayer();
     fireEvent.click(screen.getAllByRole('button', { name: '좋아요' })[0]);
     expect(mocks.toast).toHaveBeenCalledWith('warning', '로그인 후 이용 가능합니다.');
-    expect(mocks.navigate).toHaveBeenCalledWith('/login');
+    expect(mocks.navigate).toHaveBeenCalledWith('/login?returnTo=%2F');
 
     fireEvent.click(screen.getByRole('button', { name: '재생목록에 추가' }));
-    expect(mocks.navigate).toHaveBeenCalledWith('/login');
+    expect(mocks.navigate).toHaveBeenCalledWith('/login?returnTo=%2F');
     fireEvent.click(screen.getAllByRole('button', { name: `${currentTrack.title} 상세 보기` })[0]);
     expect(mocks.navigate).toHaveBeenCalledWith(`/tracks/${currentTrack.id}`);
     view.unmount();
@@ -877,7 +880,10 @@ describe('catalog filters, actions, and pagination', () => {
     states.player.currentTrack = currentTrack;
     states.player.isPlaying = false;
     view.rerender(
-      <MemoryRouter initialEntries={['/tracks?page=1']}>
+      <MemoryRouter
+        initialEntries={['/tracks?page=1']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <Routes>
           <Route path="/tracks" element={<TrackListPage />} />
         </Routes>
@@ -888,7 +894,10 @@ describe('catalog filters, actions, and pagination', () => {
 
     states.player.isPlaying = true;
     view.rerender(
-      <MemoryRouter initialEntries={['/tracks?page=1']}>
+      <MemoryRouter
+        initialEntries={['/tracks?page=1']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <Routes>
           <Route path="/tracks" element={<TrackListPage />} />
         </Routes>

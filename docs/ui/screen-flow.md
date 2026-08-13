@@ -1,5 +1,5 @@
 ---
-version: 5.8
+version: 5.9
 last_updated: 2026-08-13
 project: ATS
 owner: docops
@@ -18,17 +18,37 @@ dependencies:
 
 ## Navigation Model
 
-The main layout serves public and authenticated user workflows with the shared player. The admin layout has a separate sidebar/topbar and no player. Route guards preserve safe internal return targets and reject external or protocol-relative redirects.
+The main layout serves public and authenticated user workflows with the shared
+player. The admin layout has a separate sidebar/topbar and no player. Protected
+and Subscriber guards plus guest Player Like/Add-to-Playlist actions construct
+one safe Login return target from the current pathname and query; hashes are
+excluded. Login revalidates every consumed target after identity loading and
+falls back to Home for malformed, external, auth-loop, or role/user-type
+inappropriate destinations. Subscriber redirect notifications are effect-owned
+and emitted once per reason.
+
+Every lazy route keeps the current internal URL while loading. A rejected page
+import renders fixed Korean recovery UI without raw error details, permits one
+explicit fresh retry, then retains only safe Home/Back recovery after another
+failure. It does not poll, recurse, or hard reload. The `/error` server-error
+route, public wildcard 404, and ADMIN route matching semantics remain unchanged.
 
 ## Authentication
 
 1. Login, signup, and password-reset screens load public runtime capabilities.
    Loading and failure expose no capability as enabled. Every failed attempt
    offers an explicit manual retry, and no automatic retry occurs.
-2. Password or enabled social login authenticates the user.
+2. Password or enabled social login authenticates the user. A structurally safe
+   return target is retained across the login attempt, then revalidated against
+   the authenticated role and user type using a percent-decoded, lowercase
+   canonical pathname before navigation. Authorized navigation retains the
+   original validated target.
 3. A new social account revalidates current identity before profile completion.
-   Complete profiles redirect to canonical Profile, while unresolved or failed
-   identity cannot mutate. One pending fence covers validation and submission.
+   Its one-time continuation is bound to the authenticated user ID, replacing
+   any old value. Storage failure proceeds without a continuation; consumption
+   removes the record even when the refreshed user does not match. Complete
+   profiles redirect to canonical Profile, while unresolved or failed identity
+   cannot mutate. One pending fence covers validation and submission.
    Post-mutation identity refresh rejects stale session generations and user IDs;
    logout prevents late storage updates, and unmount prevents late navigation.
 4. Logout calls `POST /api/auth/logout` and clears frontend session state.

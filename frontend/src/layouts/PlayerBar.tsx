@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toUploadUrl } from '@/api/client';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
@@ -12,6 +12,7 @@ import PlaylistDrawer from '@/components/player/PlaylistDrawer';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import WaveformCanvas from '@/components/player/WaveformCanvas';
 import styles from './PlayerBar.module.css';
+import { createLoginPath } from '@/utils/loginReturn';
 
 const STALLED_MESSAGE = '재생이 지연되고 있습니다. 연결을 확인한 뒤 다시 시도해 주세요.';
 const SEEK_STEP_SECONDS = 5;
@@ -69,6 +70,8 @@ export default function PlayerBar() {
   const mobileMiniProgressRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const loginPath = createLoginPath(location);
 
   useEffect(() => {
     void hydratePersistedState?.();
@@ -657,7 +660,7 @@ export default function PlayerBar() {
             onClick={() => {
               if (!isAuthenticated) {
                 toast('warning', '로그인 후 이용 가능합니다.');
-                navigate('/login');
+                navigate(loginPath);
                 return;
               }
               void toggleLike(currentTrack.id);
@@ -671,7 +674,7 @@ export default function PlayerBar() {
             onClick={() => {
               if (!isAuthenticated) {
                 toast('warning', '로그인 후 이용 가능합니다.');
-                navigate('/login');
+                navigate(loginPath);
                 return;
               }
               setShowPlModal(true);
@@ -883,7 +886,7 @@ export default function PlayerBar() {
                   onClick={() => {
                     if (!isAuthenticated) {
                       toast('warning', '로그인 후 이용 가능합니다.');
-                      navigate('/login');
+                      navigate(loginPath);
                       return;
                     }
                     void toggleLike(currentTrack.id);

@@ -74,7 +74,11 @@ function renderPage({
   initialIndex?: number;
 } = {}) {
   return render(
-    <MemoryRouter initialEntries={initialEntries} initialIndex={initialIndex}>
+    <MemoryRouter
+      initialEntries={initialEntries}
+      initialIndex={initialIndex}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <RouterProbe />
       <ProfilePage />
     </MemoryRouter>,

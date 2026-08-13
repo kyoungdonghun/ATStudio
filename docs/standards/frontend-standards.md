@@ -1,5 +1,5 @@
 ---
-version: 2.5
+version: 2.6
 last_updated: 2026-08-13
 project: ATS
 owner: SA
@@ -36,7 +36,7 @@ task_types:
 |----------|-----------|---------|-------|
 | Language | TypeScript | ~5.6.3 | Strict mode via tsconfig |
 | Framework | React | ^18.3.1 | |
-| Routing | React Router v6 | ^6.28.0 | `createBrowserRouter` API |
+| Routing | React Router v6 | ^6.30.4 | `createBrowserRouter` API |
 | State | Zustand | ^5.0.2 | All global state; no React Context for state |
 | HTTP Client | Axios | ^1.7.9 | Single `client.ts` instance with interceptors |
 | Build | Vite | ^6.0.5 | |
@@ -290,7 +290,19 @@ export default function App() {
 ```
 
 No `AuthProvider` or `ToastProvider` wrappers — all state is Zustand-based and available globally without React Context.
-Route pages are loaded with `React.lazy()` + `Suspense` at the route level; layouts remain eagerly loaded.
+Route pages are loaded through the shared `createLazyPage()` wrapper, which
+retains `React.lazy()` + `Suspense` at the route level; layouts remain eagerly
+loaded. A rejected page import renders fixed Korean recovery UI at the current
+internal URL. One explicit retry creates one fresh loader attempt. A second
+failure removes retry and retains safe Home/Back actions without exposing the
+raw error, chunk URL, stack, token, or local path. No polling or hard reload is
+used. The `/error` server-error route and public wildcard 404 semantics remain
+separate.
+
+`RouterProvider` and test routers opt into the supported React Router v7
+transition behavior. Memory routers also opt into relative-splat behavior so
+tests do not preserve migration warnings. The installed dependency is not
+upgraded by this configuration.
 
 ### 6.2 Route Guard: ProtectedRoute
 
@@ -301,7 +313,14 @@ interface ProtectedRouteProps {
 }
 ```
 
-Role hierarchy: `GUEST (0) < USER (1) < ADMIN (2)`. Redirects to `/login` if not authenticated, or to `/` if role level is insufficient.
+Role hierarchy: `GUEST (0) < USER (1) < ADMIN (2)`. Redirects to Login if not
+authenticated, or to the configured denial route if role level, maximum role,
+or required user type is not satisfied. Login return navigation is constructed
+through one shared helper from the current pathname and query; hashes are
+excluded. Login revalidates the consumed target after identity loads. Absolute,
+protocol-relative, malformed, auth-loop, API/upload, ADMIN-for-USER,
+USER-payment-for-ADMIN, and BUSINESS-for-inappropriate-user targets fall back
+to Home.
 
 Usage in router:
 ```tsx
@@ -318,7 +337,19 @@ function adminOnly(element: ReactNode): ReactNode {
 
 ### 6.3 Route Guard: SubscriberRoute
 
-Checks for an active subscription via `fetchMySubscription()`. Redirects unauthenticated users to `/login`; redirects users without an active subscription to `/subscriptions`.
+Checks for an active subscription via `fetchMySubscription()`. Redirects
+unauthenticated users to Login with the same validated pathname-and-query
+return target; redirects users without an active subscription to
+`/subscriptions`. Login/subscription warnings run from an effect and are
+emitted at most once per redirect reason for the mounted guard.
+
+Access-aware return classification uses the same percent-decoded, lowercase
+canonical pathname as structural route classification. Authorized navigation
+preserves the original validated pathname and query. A social profile
+continuation is session-scoped, one-time, and bound to the authenticated user
+ID. Any previous continuation is removed before replacement; storage failure
+continues profile completion without a return target; consumption removes the
+record before validating the current refreshed user ID.
 
 ```tsx
 function subscriberOnly(element: ReactNode): ReactNode {

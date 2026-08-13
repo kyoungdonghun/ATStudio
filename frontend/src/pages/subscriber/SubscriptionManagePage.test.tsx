@@ -66,7 +66,10 @@ vi.mock('@/api/client', () => ({
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/subscriptions/manage']}>
+    <MemoryRouter
+      initialEntries={['/subscriptions/manage']}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <SubscriptionManagePage />
     </MemoryRouter>,
   );

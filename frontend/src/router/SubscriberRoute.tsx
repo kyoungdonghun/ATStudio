@@ -1,9 +1,10 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { type ReactNode, useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
 import { fetchMySubscription, isNoActiveSubscriptionError } from '@/api/userSubscriptions';
 import { classifyLoadError, getLoadErrorMessage } from '@/api/loadError';
+import { createLoginPath } from '@/utils/loginReturn';
 
 interface SubscriberRouteProps {
   children: ReactNode;
@@ -18,9 +19,20 @@ export default function SubscriberRoute({ children }: SubscriberRouteProps) {
   const [status, setStatus] = useState<'loading' | 'active' | 'inactive' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
-  const toastShown = useRef(false);
+  const location = useLocation();
+  const warnedReasonsRef = useRef(new Set<'login' | 'subscription'>());
   const retryBlocked = useRef(false);
   const requestGenerationRef = useRef(0);
+  const redirectReason = !isAuthenticated ? 'login' : status === 'inactive' ? 'subscription' : null;
+
+  useEffect(() => {
+    if (!redirectReason || warnedReasonsRef.current.has(redirectReason)) return;
+
+    warnedReasonsRef.current.add(redirectReason);
+    const message =
+      redirectReason === 'login' ? '로그인이 필요한 기능입니다.' : '구독이 필요한 기능입니다.';
+    useToastStore.getState().show('warning', message);
+  }, [redirectReason]);
 
   useEffect(() => {
     const requestGeneration = ++requestGenerationRef.current;
@@ -83,11 +95,7 @@ export default function SubscriberRoute({ children }: SubscriberRouteProps) {
   }
 
   if (!isAuthenticated) {
-    if (!toastShown.current) {
-      toastShown.current = true;
-      useToastStore.getState().show('warning', '로그인이 필요한 기능입니다.');
-    }
-    return <Navigate to="/login" replace />;
+    return <Navigate to={createLoginPath(location)} replace />;
   }
 
   if (status === 'loading' && !errorMessage) {
@@ -130,10 +138,6 @@ export default function SubscriberRoute({ children }: SubscriberRouteProps) {
   }
 
   if (status === 'inactive') {
-    if (!toastShown.current) {
-      toastShown.current = true;
-      useToastStore.getState().show('warning', '구독이 필요한 기능입니다.');
-    }
     return <Navigate to="/subscriptions" replace />;
   }
 

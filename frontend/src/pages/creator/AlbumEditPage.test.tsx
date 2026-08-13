@@ -73,7 +73,10 @@ function albumWithOrder(trackIds: number[]): AlbumDetail {
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/admin/albums/11/edit']}>
+    <MemoryRouter
+      initialEntries={['/admin/albums/11/edit']}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Routes>
         <Route path="/admin/albums/:albumId/edit" element={<AlbumEditPage />} />
       </Routes>

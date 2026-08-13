@@ -6,6 +6,7 @@ import { getSocialLoginErrorMessage } from '@/api/authError';
 import { useAuthStore } from '@/store/authStore';
 import { consumeOAuthCallbackAttempt, storeOAuthProfileReturnTarget } from '@/utils/oauthAttempt';
 import type { UserJob, UserType } from '@/types';
+import { getAccessibleLoginReturnTarget } from '@/utils/loginReturn';
 import styles from './LoginPage.module.css';
 
 export default function SocialLoginPage() {
@@ -65,12 +66,22 @@ export default function SocialLoginPage() {
         );
 
         if (!res.isProfileComplete) {
-          storeOAuthProfileReturnTarget(attempt.attemptId, attempt.returnTarget);
+          const continuationStored = storeOAuthProfileReturnTarget(
+            attempt.attemptId,
+            attempt.returnTarget,
+            me.id,
+          );
+          if (!continuationStored) {
+            navigate('/complete-profile', { replace: true });
+            return;
+          }
           navigate('/complete-profile', { replace: true });
           return;
         }
 
-        navigate(attempt.returnTarget, { replace: true });
+        navigate(getAccessibleLoginReturnTarget(attempt.returnTarget, me) ?? '/', {
+          replace: true,
+        });
       } catch (err: unknown) {
         if (tokensStaged) {
           await authLogout();

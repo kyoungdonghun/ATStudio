@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchMyPlaylists, createPlaylist, deletePlaylist } from '@/api/playlists';
 import { fetchMySubscription } from '@/api/userSubscriptions';
@@ -18,6 +18,7 @@ export default function PlaylistListPage() {
   const location = useLocation();
   const showToast = useToastStore((s) => s.show);
   const createRequested = (location.state as { openCreate?: boolean } | null)?.openCreate === true;
+  const handledCreateRequestKeyRef = useRef<string | null>(null);
 
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [maxPlaylists, setMaxPlaylists] = useState(DEFAULT_MAX_PLAYLISTS);
@@ -87,7 +88,16 @@ export default function PlaylistListPage() {
   }
 
   useEffect(() => {
-    if (loading || error || !createRequested) return;
+    if (
+      loading ||
+      error ||
+      !createRequested ||
+      handledCreateRequestKeyRef.current === location.key
+    ) {
+      return;
+    }
+
+    handledCreateRequestKeyRef.current = location.key;
 
     if (!canCreate) {
       showToast('error', '구독 플랜의 재생목록 한도를 초과했습니다. 플랜을 업그레이드해 주세요.');
@@ -100,7 +110,7 @@ export default function PlaylistListPage() {
     setNewThumbFile(null);
     setNewThumbPreview(null);
     setShowCreate(true);
-  }, [canCreate, createRequested, error, loading, navigate, showToast]);
+  }, [canCreate, createRequested, error, loading, location.key, navigate, showToast]);
 
   function handleThumbChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;

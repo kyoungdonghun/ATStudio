@@ -104,7 +104,10 @@ const expectedPlayerTrack: PlayableTrack = {
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/tracks/7']}>
+    <MemoryRouter
+      initialEntries={['/tracks/7']}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <RouteSwitcher />
       <Routes>
         <Route path="/tracks/:trackId" element={<TrackDetailPage />} />

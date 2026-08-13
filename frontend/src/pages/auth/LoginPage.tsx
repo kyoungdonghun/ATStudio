@@ -5,7 +5,8 @@ import { login, fetchMe } from '@/api/auth';
 import type { MeResponse, PublicCapabilitiesResponse } from '@/api/auth';
 import { usePublicCapabilities } from '@/hooks/usePublicCapabilities';
 import { isValidEmail, PASSWORD_MIN } from '@/utils/validation';
-import { createOAuthAttempt, getSafeLoginReturnTarget } from '@/utils/oauthAttempt';
+import { createOAuthAttempt } from '@/utils/oauthAttempt';
+import { getAccessibleLoginReturnTarget, getSafeLoginReturnTarget } from '@/utils/loginReturn';
 import Button from '@/components/ui/Button';
 import styles from './LoginPage.module.css';
 
@@ -72,7 +73,13 @@ export default function LoginPage() {
   const [searchParams] = useSearchParams();
   const authLogin = useAuthStore((s) => s.login);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
-  const postLoginTarget = getSafeLoginReturnTarget(searchParams.get('returnTo')) ?? '/';
+  const authenticatedUser = useAuthStore((s) => s.user);
+  const requestedReturnTarget = getSafeLoginReturnTarget(searchParams.get('returnTo'));
+  const postLoginTarget = isAuthenticated
+    ? authenticatedUser
+      ? (getAccessibleLoginReturnTarget(requestedReturnTarget, authenticatedUser) ?? '/')
+      : '/'
+    : (requestedReturnTarget ?? '/');
   const {
     capabilities,
     loading: capabilitiesLoading,
@@ -151,7 +158,9 @@ export default function LoginPage() {
         tokens.refreshToken,
       );
 
-      navigate(postLoginTarget, { replace: true });
+      navigate(getAccessibleLoginReturnTarget(requestedReturnTarget, me) ?? '/', {
+        replace: true,
+      });
     } catch (err: unknown) {
       const axiosErr = err as { response?: { status?: number } };
       if (axiosErr.response?.status === 401) {
@@ -184,7 +193,7 @@ export default function LoginPage() {
     // PKCE: generate code_verifier + code_challenge
     const codeVerifier = generateRandomString(64);
     const codeChallenge = await generateCodeChallenge(codeVerifier);
-    if (!createOAuthAttempt(state, codeVerifier, postLoginTarget)) {
+    if (!createOAuthAttempt(state, codeVerifier, requestedReturnTarget ?? '/')) {
       setError('소셜 로그인 보안 정보를 저장하지 못했습니다. 브라우저 저장소 설정을 확인해주세요.');
       return;
     }

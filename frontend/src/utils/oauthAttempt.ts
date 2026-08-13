@@ -1,20 +1,11 @@
 import { safeSessionStorage } from '@/utils/safeStorage';
+import { getSafeLoginReturnTarget } from '@/utils/loginReturn';
+
+export { getSafeLoginReturnTarget } from '@/utils/loginReturn';
 
 const OAUTH_ATTEMPT_PREFIX = 'oauth_attempt:';
 const OAUTH_PROFILE_RETURN_KEY = 'oauth_profile_return';
 const OAUTH_ATTEMPT_MAX_AGE_MS = 10 * 60 * 1000;
-const RETURN_TARGET_MAX_LENGTH = 2048;
-const FORBIDDEN_RETURN_PREFIXES = [
-  '/admin',
-  '/api',
-  '/uploads',
-  '/login',
-  '/signup',
-  '/email-verify',
-  '/password-reset',
-  '/social-login',
-  '/complete-profile',
-] as const;
 
 interface OAuthAttemptRecord {
   state: string;
@@ -25,6 +16,7 @@ interface OAuthAttemptRecord {
 
 interface OAuthProfileReturnRecord {
   attemptId: string;
+  userId: number;
   returnTarget: string;
   createdAt: number;
 }
@@ -33,53 +25,6 @@ export interface OAuthCallbackAttempt {
   attemptId: string;
   codeVerifier: string;
   returnTarget: string;
-}
-
-export function getSafeLoginReturnTarget(candidate: string | null): string | null {
-  if (
-    !candidate ||
-    candidate.length > RETURN_TARGET_MAX_LENGTH ||
-    !candidate.startsWith('/') ||
-    candidate.startsWith('//') ||
-    candidate.includes('\\') ||
-    candidate.includes('#')
-  ) {
-    return null;
-  }
-
-  let decodedCandidate: string;
-  try {
-    decodedCandidate = decodeURIComponent(candidate);
-  } catch {
-    return null;
-  }
-
-  if (
-    decodedCandidate.startsWith('//') ||
-    decodedCandidate.includes('\\') ||
-    Array.from(decodedCandidate).some((character) => {
-      const code = character.charCodeAt(0);
-      return code <= 31 || code === 127;
-    })
-  ) {
-    return null;
-  }
-
-  try {
-    const base = new URL('https://local.invalid');
-    const parsed = new URL(candidate, base);
-    const normalizedTarget = `${parsed.pathname}${parsed.search}`;
-    const normalizedPath = decodeURIComponent(parsed.pathname).toLowerCase();
-
-    if (parsed.origin !== base.origin || normalizedTarget !== candidate) return null;
-
-    const isForbidden = FORBIDDEN_RETURN_PREFIXES.some(
-      (prefix) => normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`),
-    );
-    return isForbidden ? null : normalizedTarget;
-  } catch {
-    return null;
-  }
 }
 
 export function createOAuthAttempt(
@@ -117,24 +62,37 @@ export function consumeOAuthCallbackAttempt(state: string | null): OAuthCallback
   return { attemptId: state, codeVerifier: record.codeVerifier, returnTarget: record.returnTarget };
 }
 
-export function storeOAuthProfileReturnTarget(attemptId: string, returnTarget: string): boolean {
-  if (!isSafeAttemptId(attemptId) || getSafeLoginReturnTarget(returnTarget) !== returnTarget) {
+export function storeOAuthProfileReturnTarget(
+  attemptId: string,
+  returnTarget: string,
+  userId: number,
+): boolean {
+  safeSessionStorage.removeItem(OAUTH_PROFILE_RETURN_KEY);
+  if (
+    !isSafeAttemptId(attemptId) ||
+    !isSafeUserId(userId) ||
+    getSafeLoginReturnTarget(returnTarget) !== returnTarget
+  ) {
     return false;
   }
   const record: OAuthProfileReturnRecord = {
     attemptId,
+    userId,
     returnTarget,
     createdAt: Date.now(),
   };
   return safeSessionStorage.setItem(OAUTH_PROFILE_RETURN_KEY, JSON.stringify(record));
 }
 
-export function consumeOAuthProfileReturnTarget(): string | null {
+export function consumeOAuthProfileReturnTarget(currentUserId: number): string | null {
   const raw = safeSessionStorage.getItem(OAUTH_PROFILE_RETURN_KEY);
   safeSessionStorage.removeItem(OAUTH_PROFILE_RETURN_KEY);
   const record = parseRecord<OAuthProfileReturnRecord>(raw);
   if (
     !record ||
+    !isSafeUserId(currentUserId) ||
+    !isSafeUserId(record.userId) ||
+    record.userId !== currentUserId ||
     !isSafeAttemptId(record.attemptId) ||
     !isFresh(record.createdAt) ||
     getSafeLoginReturnTarget(record.returnTarget) !== record.returnTarget
@@ -146,6 +104,10 @@ export function consumeOAuthProfileReturnTarget(): string | null {
 
 function isSafeAttemptId(value: string): boolean {
   return value.length >= 16 && value.length <= 256 && /^[A-Za-z0-9._~-]+$/.test(value);
+}
+
+function isSafeUserId(value: number): boolean {
+  return Number.isSafeInteger(value) && value > 0;
 }
 
 function isFresh(createdAt: number): boolean {

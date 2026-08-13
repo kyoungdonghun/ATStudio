@@ -54,7 +54,10 @@ function deferred<T>() {
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/complete-profile']}>
+    <MemoryRouter
+      initialEntries={['/complete-profile']}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Routes>
         <Route path="/complete-profile" element={<SocialCompleteProfilePage />} />
         <Route path="/tracks/7" element={<p>stored destination</p>} />
@@ -181,7 +184,7 @@ describe('SocialCompleteProfilePage', () => {
   });
 
   it('consumes the stored OAuth return target after profile completion', async () => {
-    storeOAuthProfileReturnTarget('expected-state-1234', '/tracks/7');
+    storeOAuthProfileReturnTarget('expected-state-1234', '/tracks/7', 1);
     fetchMeMock
       .mockResolvedValueOnce(buildIncompleteProfile())
       .mockResolvedValueOnce(buildProfile({ nickname: 'creator02', job: 'ARTIST' }));
@@ -194,6 +197,24 @@ describe('SocialCompleteProfilePage', () => {
     fireEvent.click(screen.getByRole('button', { name: '완료' }));
 
     expect(await screen.findByText('stored destination')).toBeInTheDocument();
+    expect(sessionStorage.getItem('oauth_profile_return')).toBeNull();
+  });
+
+  it('deletes but does not use a continuation bound to another account', async () => {
+    storeOAuthProfileReturnTarget('expected-state-1234', '/tracks/7', 2);
+    fetchMeMock
+      .mockResolvedValueOnce(buildIncompleteProfile())
+      .mockResolvedValueOnce(buildProfile({ nickname: 'creator02', job: 'ARTIST' }));
+    clientPutMock.mockResolvedValue({ data: {} });
+
+    renderPage();
+    fireEvent.change(await screen.findByLabelText('닉네임'), { target: { value: 'creator02' } });
+    fireEvent.change(screen.getByLabelText('연락처'), { target: { value: '01012345678' } });
+    fireEvent.change(screen.getByLabelText('직업'), { target: { value: 'ARTIST' } });
+    fireEvent.click(screen.getByRole('button', { name: '완료' }));
+
+    expect(await screen.findByText('home destination')).toBeInTheDocument();
+    expect(screen.queryByText('stored destination')).not.toBeInTheDocument();
     expect(sessionStorage.getItem('oauth_profile_return')).toBeNull();
   });
 
@@ -254,7 +275,7 @@ describe('SocialCompleteProfilePage', () => {
 
   it('does not restore or navigate after the session is cleared during a deferred refresh', async () => {
     const refresh = deferred<MeResponse>();
-    storeOAuthProfileReturnTarget('expected-state-1234', '/tracks/7');
+    storeOAuthProfileReturnTarget('expected-state-1234', '/tracks/7', 1);
     fetchMeMock
       .mockResolvedValueOnce(buildIncompleteProfile())
       .mockReturnValueOnce(refresh.promise);

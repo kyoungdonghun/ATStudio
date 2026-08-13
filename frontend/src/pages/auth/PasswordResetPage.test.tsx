@@ -33,7 +33,10 @@ function buildCapabilities(): PublicCapabilitiesResponse {
 
 function renderPage(initialEntry = '/password-reset') {
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
+    <MemoryRouter
+      initialEntries={[initialEntry]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <PasswordResetPage />
     </MemoryRouter>,
   );

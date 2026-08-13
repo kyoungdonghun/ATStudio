@@ -27,10 +27,15 @@ describe('OAuth attempt continuity', () => {
     'https://evil.example/steal',
     '//evil.example/steal',
     '/%2f%2fevil.example/steal',
-    '/admin/payments',
     '/social-login/google',
   ])('rejects missing or unsafe return target %s', (target) => {
     expect(getSafeLoginReturnTarget(target)).toBeNull();
+  });
+
+  it('retains a structurally safe ADMIN target for post-login role validation', () => {
+    expect(createOAuthAttempt(attemptId, 'verifier-123', '/admin/payments')).toBe(true);
+
+    expect(consumeOAuthCallbackAttempt(attemptId)?.returnTarget).toBe('/admin/payments');
   });
 
   it('stores one attempt by state and consumes it exactly once', () => {
@@ -74,19 +79,55 @@ describe('OAuth attempt continuity', () => {
     expect(consumeOAuthCallbackAttempt(attemptId)).toBeNull();
   });
 
-  it('carries an incomplete-profile target once and rejects a stale continuation', () => {
-    expect(storeOAuthProfileReturnTarget(attemptId, '/tracks/7')).toBe(true);
-    expect(consumeOAuthProfileReturnTarget()).toBe('/tracks/7');
-    expect(consumeOAuthProfileReturnTarget()).toBeNull();
+  it('carries an identity-bound incomplete-profile target exactly once', () => {
+    expect(storeOAuthProfileReturnTarget(attemptId, '/tracks/7', 17)).toBe(true);
+    expect(consumeOAuthProfileReturnTarget(17)).toBe('/tracks/7');
+    expect(consumeOAuthProfileReturnTarget(17)).toBeNull();
+  });
 
+  it('deletes an incomplete-profile continuation when the account does not match', () => {
+    expect(storeOAuthProfileReturnTarget(attemptId, '/tracks/7', 17)).toBe(true);
+
+    expect(consumeOAuthProfileReturnTarget(18)).toBeNull();
+    expect(sessionStorage.getItem('oauth_profile_return')).toBeNull();
+    expect(consumeOAuthProfileReturnTarget(17)).toBeNull();
+  });
+
+  it('clears an old continuation before rejecting or replacing a new record', () => {
+    expect(storeOAuthProfileReturnTarget(attemptId, '/tracks/7', 17)).toBe(true);
+    expect(storeOAuthProfileReturnTarget('bad state', '/tracks/8', 18)).toBe(false);
+    expect(sessionStorage.getItem('oauth_profile_return')).toBeNull();
+
+    expect(storeOAuthProfileReturnTarget(attemptId, '/tracks/7', 17)).toBe(true);
+    expect(storeOAuthProfileReturnTarget('next-state-1234567', '/tracks/8', 18)).toBe(true);
+    expect(consumeOAuthProfileReturnTarget(18)).toBe('/tracks/8');
+  });
+
+  it('clears an old continuation when replacement storage fails', () => {
+    expect(storeOAuthProfileReturnTarget(attemptId, '/tracks/7', 17)).toBe(true);
+    const originalSetItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (this === sessionStorage && key === 'oauth_profile_return') {
+        throw new Error('storage unavailable');
+      }
+      return originalSetItem.call(this, key, value);
+    });
+
+    expect(storeOAuthProfileReturnTarget('next-state-1234567', '/tracks/8', 18)).toBe(false);
+    expect(sessionStorage.getItem('oauth_profile_return')).toBeNull();
+  });
+
+  it('rejects and removes a stale incomplete-profile continuation', () => {
     sessionStorage.setItem(
       'oauth_profile_return',
       JSON.stringify({
         attemptId,
+        userId: 17,
         returnTarget: '/tracks/8',
         createdAt: Date.now() - 10 * 60 * 1000 - 1,
       }),
     );
-    expect(consumeOAuthProfileReturnTarget()).toBeNull();
+    expect(consumeOAuthProfileReturnTarget(17)).toBeNull();
+    expect(sessionStorage.getItem('oauth_profile_return')).toBeNull();
   });
 });

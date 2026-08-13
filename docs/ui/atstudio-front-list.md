@@ -1,5 +1,5 @@
 ---
-version: 8.5
+version: 8.6
 last_updated: 2026-08-13
 project: ATS
 owner: docops
@@ -25,12 +25,12 @@ The stable product count is **53 distinct visual page UIs**.
 | Path-bearing route objects | 56 | Every `path:` entry in `frontend/src/router/index.tsx` |
 | Index redirects | 1 | `/admin` redirects to `dashboard` |
 | Routable declarations | 57 | 56 paths plus 1 index redirect |
-| Lazy route-level page components | 53 | Every `lazyPage(...)` declaration |
+| Lazy route-level page components | 53 | Every `createLazyPage(...)` declaration |
 | Distinct visual page UIs | 53 | Every lazy page is a distinct UI; includes 2 error screens |
 
 `frontend/src/router/index.tsx` points to this inventory instead of embedding a
 fixed screen total. This inventory is derived from the route and
-`lazyPage(...)` declarations themselves.
+`createLazyPage(...)` declarations themselves.
 
 Repeated callback paths do not create new screens. Three checkout paths reuse one `SubscriptionPaymentPage`, and the admin index is a redirect rather than a screen.
 
@@ -69,6 +69,19 @@ Repeated callback paths do not create new screens. Three checkout paths reuse on
 - Forgot-password acceptance remains account-enumeration safe. Auth and Profile
   mutation errors render only fixed allowlisted guidance, never arbitrary
   backend message text.
+- Protected/subscriber guards and guest Player actions preserve the current
+  pathname and query in one validated Login return target and exclude hashes.
+  Login revalidates after identity loading and rejects external, malformed,
+  auth-loop, and role/user-type-inappropriate destinations.
+
+### Routing and Error Recovery
+
+- Route pages use one application-owned lazy loader. Pending UI remains the
+  Korean loading state at the same internal URL. A rejected import shows fixed
+  Korean recovery copy, allows one fresh retry, and then offers only Home/Back
+  without raw error or chunk details and without reload/polling loops.
+- The `/error` server-error UI, public wildcard 404 UI, ADMIN index redirect,
+  and the absence of an ADMIN wildcard remain unchanged.
 
 ### Play History
 

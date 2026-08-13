@@ -245,7 +245,7 @@ function renderRoute(element: ReactElement, path: string, initialEntry = path) {
     ],
     { initialEntries: [initialEntry] },
   );
-  render(<RouterProvider router={router} />);
+  render(<RouterProvider router={router} future={{ v7_startTransition: true }} />);
   return router;
 }
 

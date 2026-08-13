@@ -1,5 +1,5 @@
 ---
-version: 3.1
+version: 3.2
 last_updated: 2026-08-13
 project: ATS
 owner: EO
@@ -69,7 +69,7 @@ status: stable
 
 - **Tech Stack**: Java 17, Spring Boot 4.x, MySQL 8.x + React 18, TypeScript 5.6, Vite 6 (Phase 2 — active)
 - **Project Stats**: 150 method-level REST mappings, 42 DB tables / 42 JPA entities, 53 distinct screen UIs, 13 agents
-- **Screen Count Unit**: 53 distinct visual page UIs = 53 `lazyPage(...)` declarations, including 2 error screens. The router separately contains 56 path routes plus 1 index redirect; reused pages are not additional screens.
+- **Screen Count Unit**: 53 distinct visual page UIs = 53 `createLazyPage(...)` declarations, including 2 error screens. The router separately contains 56 path routes plus 1 index redirect; reused pages are not additional screens.
 - **Phase 2 Freshness**: React/Vite SPA is active on the official V1 baseline branch `codex/p1-acceptance-hardening`. The current install resolves Vite 6.4.3. No separate client-demo branch is maintained. Public access requires the operator-controlled acceptance lifecycle and a newly verified URL; historical demo URLs are never current runtime evidence.
 - **Project Registry**: See [Project Registry](registry/project-registry.md)
 

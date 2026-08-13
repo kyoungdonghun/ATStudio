@@ -1,6 +1,8 @@
 import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { renderToString } from 'react-dom/server';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { StaticRouter } from 'react-router-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SubscriberRoute from '@/router/SubscriberRoute';
 
@@ -40,9 +42,17 @@ function createDeferred<T>() {
   return { promise, resolve, reject };
 }
 
-function renderSubscriber({ strict = false } = {}) {
+function LocationProbe({ label }: { label: string }) {
+  const location = useLocation();
+  return <div>{`${label}: ${location.pathname}${location.search}`}</div>;
+}
+
+function renderSubscriber({ strict = false, initialEntry = '/subscriber' } = {}) {
   const tree = (
-    <MemoryRouter initialEntries={['/subscriber']}>
+    <MemoryRouter
+      initialEntries={[initialEntry]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Routes>
         <Route
           path="/subscriber"
@@ -52,7 +62,7 @@ function renderSubscriber({ strict = false } = {}) {
             </SubscriberRoute>
           }
         />
-        <Route path="/login" element={<div>Login Page</div>} />
+        <Route path="/login" element={<LocationProbe label="Login Page" />} />
         <Route path="/subscriptions" element={<div>Subscriptions Page</div>} />
       </Routes>
     </MemoryRouter>
@@ -71,11 +81,42 @@ describe('SubscriberRoute', () => {
   it('redirects unauthenticated users to login and shows a warning toast', async () => {
     renderSubscriber();
 
-    expect(screen.getByText('Login Page')).toBeInTheDocument();
+    expect(screen.getByText(/^Login Page:/)).toBeInTheDocument();
     await waitFor(() => {
       expect(showToast).toHaveBeenCalledWith('warning', '로그인이 필요한 기능입니다.');
     });
     expect(fetchMySubscription).not.toHaveBeenCalled();
+  });
+
+  it('preserves pathname and query, excludes hash, and warns once in StrictMode', async () => {
+    renderSubscriber({
+      strict: true,
+      initialEntry: '/subscriber?tab=recent&page=2#ignored',
+    });
+
+    expect(
+      screen.getByText('Login Page: /login?returnTo=%2Fsubscriber%3Ftab%3Drecent%26page%3D2'),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(showToast).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not mutate the toast store during render', () => {
+    renderToString(
+      <StaticRouter location="/subscriber?from=render">
+        <Routes>
+          <Route
+            path="/subscriber"
+            element={
+              <SubscriberRoute>
+                <div>Subscriber Page</div>
+              </SubscriberRoute>
+            }
+          />
+        </Routes>
+      </StaticRouter>,
+    );
+
+    expect(showToast).not.toHaveBeenCalled();
   });
 
   it('renders children when the user has an active subscription', async () => {
@@ -106,6 +147,21 @@ describe('SubscriberRoute', () => {
       expect(screen.getByText('Subscriptions Page')).toBeInTheDocument();
     });
     expect(showToast).toHaveBeenCalledWith('warning', '구독이 필요한 기능입니다.');
+  });
+
+  it('emits the inactive-subscription warning once in StrictMode', async () => {
+    authState.isAuthenticated = () => true;
+    fetchMySubscription.mockRejectedValue({
+      response: {
+        status: 403,
+        data: { errorCode: 'NO_ACTIVE_SUBSCRIPTION' },
+      },
+    });
+
+    renderSubscriber({ strict: true });
+
+    await waitFor(() => expect(screen.getByText('Subscriptions Page')).toBeInTheDocument());
+    expect(showToast).toHaveBeenCalledTimes(1);
   });
 
   it.each([

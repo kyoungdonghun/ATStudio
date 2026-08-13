@@ -60,3 +60,20 @@ describe('router download history boundary', () => {
     expect(element.type).toBe(SubscriberRoute);
   });
 });
+
+describe('router error route semantics', () => {
+  it('keeps the public wildcard on the existing NotFound lazy page', () => {
+    const wildcard = routes[0]?.children?.find((candidate) => candidate.path === '*');
+    const serverError = routes[0]?.children?.find((candidate) => candidate.path === '/error');
+
+    expect(wildcard?.element).toBeDefined();
+    expect(serverError?.element).toBeDefined();
+  });
+
+  it('does not add a new ADMIN wildcard or alter the existing child route catalog', () => {
+    const adminRoute = routes.find((candidate) => candidate.path === '/admin');
+
+    expect(adminRoute?.children?.some((candidate) => candidate.path === '*')).toBe(false);
+    expect(adminRoute?.children?.some((candidate) => candidate.index)).toBe(true);
+  });
+});
