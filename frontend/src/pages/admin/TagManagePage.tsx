@@ -41,6 +41,8 @@ export default function TagManagePage() {
   const [formLoading, setFormLoading] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const formGenerationRef = useRef(0);
+  const formPendingRef = useRef(false);
 
   /* Type filter tab */
   const [activeType, setActiveType] = useState<string>('ALL');
@@ -52,6 +54,7 @@ export default function TagManagePage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const impactRequestGenerationRef = useRef(0);
+  const deletePendingRef = useRef(false);
 
   const loadTags = useCallback(() => {
     setLoading(true);
@@ -68,6 +71,7 @@ export default function TagManagePage() {
 
   /* Open create modal */
   const openCreate = () => {
+    formGenerationRef.current += 1;
     setIsCreateMode(true);
     setEditTag(null);
     setFormName('');
@@ -78,6 +82,7 @@ export default function TagManagePage() {
 
   /* Open edit modal */
   const openEdit = (tag: TagItem) => {
+    formGenerationRef.current += 1;
     setIsCreateMode(false);
     setEditTag(tag);
     setFormName(tag.name);
@@ -88,6 +93,8 @@ export default function TagManagePage() {
 
   /* Close form modal */
   const closeFormModal = () => {
+    if (formPendingRef.current) return;
+    formGenerationRef.current += 1;
     setEditTag(null);
     setIsCreateMode(false);
     setNameError(null);
@@ -110,6 +117,7 @@ export default function TagManagePage() {
 
   /* Submit create/edit */
   const handleFormSubmit = async () => {
+    if (formPendingRef.current) return;
     const validationError = getTagNameValidationError(formName);
     if (validationError) {
       setNameError(validationError);
@@ -121,18 +129,33 @@ export default function TagManagePage() {
     }
 
     const canonicalName = normalizeTagName(formName);
+    const generation = formGenerationRef.current;
+    const operation = isCreateMode
+      ? { mode: 'create' as const, name: canonicalName, type: formType }
+      : editTag
+        ? { mode: 'edit' as const, id: editTag.id, name: canonicalName, type: formType }
+        : null;
+    if (!operation) return;
     setNameError(null);
     setFormError(null);
+    formPendingRef.current = true;
     setFormLoading(true);
     try {
-      if (isCreateMode) {
-        await createTag({ name: canonicalName, type: formType });
-      } else if (editTag) {
-        await updateTag(editTag.id, { name: canonicalName, type: formType });
+      if (operation.mode === 'create') {
+        await createTag({ name: operation.name, type: operation.type });
+      } else {
+        await updateTag(operation.id, { name: operation.name, type: operation.type });
       }
-      closeFormModal();
+      if (formGenerationRef.current === generation) {
+        formGenerationRef.current += 1;
+        setEditTag(null);
+        setIsCreateMode(false);
+        setNameError(null);
+        setFormError(null);
+      }
       loadTags();
     } catch (error) {
+      if (formGenerationRef.current !== generation) return;
       const errorCode = getApiErrorCode(error);
       if (errorCode === 'TAG_NAME_DUPLICATED') {
         setNameError(TAG_NAME_DUPLICATE_MESSAGE);
@@ -142,6 +165,7 @@ export default function TagManagePage() {
         setFormError(getSafeApiMessage(error, TAG_SAVE_FAILURE_MESSAGE));
       }
     } finally {
+      formPendingRef.current = false;
       setFormLoading(false);
     }
   };
@@ -173,7 +197,7 @@ export default function TagManagePage() {
   };
 
   const openDelete = (tag: TagItem) => {
-    if (deleteLoading) return;
+    if (deletePendingRef.current) return;
     const generation = ++impactRequestGenerationRef.current;
     setDeleteTarget(tag);
     setDeletionImpact(null);
@@ -182,7 +206,7 @@ export default function TagManagePage() {
   };
 
   const closeDeleteModal = () => {
-    if (deleteLoading) return;
+    if (deletePendingRef.current) return;
     impactRequestGenerationRef.current += 1;
     setDeleteTarget(null);
     setDeletionImpact(null);
@@ -192,18 +216,26 @@ export default function TagManagePage() {
 
   /* Confirm delete */
   const confirmDelete = async () => {
-    if (!deleteTarget || !deletionImpact || deleteLoading) return;
+    if (!deleteTarget || !deletionImpact || deletePendingRef.current) return;
+    const targetID = deleteTarget.id;
+    const generation = impactRequestGenerationRef.current;
+    deletePendingRef.current = true;
     setDeleteLoading(true);
     try {
-      await deleteTag(deleteTarget.id);
-      impactRequestGenerationRef.current += 1;
-      setDeleteTarget(null);
-      setDeletionImpact(null);
-      setDeleteError(null);
+      await deleteTag(targetID);
+      if (impactRequestGenerationRef.current === generation) {
+        impactRequestGenerationRef.current += 1;
+        setDeleteTarget(null);
+        setDeletionImpact(null);
+        setDeleteError(null);
+      }
       loadTags();
     } catch (error) {
-      setDeleteError(getSafeApiMessage(error, TAG_DELETE_FAILURE_MESSAGE));
+      if (impactRequestGenerationRef.current === generation) {
+        setDeleteError(getSafeApiMessage(error, TAG_DELETE_FAILURE_MESSAGE));
+      }
     } finally {
+      deletePendingRef.current = false;
       setDeleteLoading(false);
     }
   };
@@ -307,6 +339,7 @@ export default function TagManagePage() {
         open={formModalOpen}
         onClose={closeFormModal}
         title={isCreateMode ? 'Create Tag' : 'Edit Tag'}
+        busy={formLoading}
       >
         <div className={styles.modalBody}>
           <div className={styles.formGroup}>
@@ -319,6 +352,7 @@ export default function TagManagePage() {
               placeholder="Tag name"
               maxLength={TAG_NAME_RAW_MAX}
               value={formName}
+              disabled={formLoading}
               onChange={(event) => handleNameChange(event.target.value)}
               aria-invalid={nameError ? 'true' : undefined}
               aria-describedby={nameError ? 'tag-name-error' : undefined}
@@ -337,6 +371,7 @@ export default function TagManagePage() {
               id="tag-type"
               className={styles.formSelect}
               value={formType}
+              disabled={formLoading}
               onChange={(event) => {
                 setFormType(event.target.value as TagType);
                 setFormError(null);
@@ -356,7 +391,7 @@ export default function TagManagePage() {
           ) : null}
         </div>
         <div className={styles.modalActions}>
-          <Button variant="ghost" size="sm" onClick={closeFormModal}>
+          <Button variant="ghost" size="sm" onClick={closeFormModal} disabled={formLoading}>
             Cancel
           </Button>
           <Button size="sm" loading={formLoading} onClick={handleFormSubmit}>
@@ -366,7 +401,12 @@ export default function TagManagePage() {
       </Modal>
 
       {/* Delete confirm modal */}
-      <Modal open={deleteTarget !== null} onClose={closeDeleteModal} title="Delete Tag">
+      <Modal
+        open={deleteTarget !== null}
+        onClose={closeDeleteModal}
+        title="Delete Tag"
+        busy={deleteLoading}
+      >
         <div className={styles.deleteText}>
           {impactLoading ? (
             'Track 연결 영향을 확인하고 있습니다.'

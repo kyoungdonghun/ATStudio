@@ -1,6 +1,6 @@
 ---
-version: 1.6
-last_updated: 2026-08-13
+version: 1.7
+last_updated: 2026-08-14
 project: ATS
 owner: docops
 category: guide
@@ -26,11 +26,11 @@ Use `/admin/payments` for payment evidence and payment-operation workflows.
 
 Use `/admin/user-subscriptions` for ordinary subscription state management that is not tied to a specific payment operation.
 
-| Need | Use |
-| :-- | :-- |
-| Review payment orders, charges, billing agreements, provider issues, refund, correction, settlement | `/admin/payments` |
-| Manually adjust a user's subscription status, cycle, or expiration without refund evidence | `/admin/user-subscriptions` |
-| Explain a user-facing subscription plan list | `/admin/subscriptions` |
+| Need                                                                                                | Use                         |
+| :-------------------------------------------------------------------------------------------------- | :-------------------------- |
+| Review payment orders, charges, billing agreements, provider issues, refund, correction, settlement | `/admin/payments`           |
+| Manually adjust a user's subscription status, cycle, or expiration without refund evidence          | `/admin/user-subscriptions` |
+| Explain a user-facing subscription plan list                                                        | `/admin/subscriptions`      |
 
 ## 2. Shared Safety Rules
 
@@ -166,11 +166,11 @@ Purpose:
 
 Current source adapters:
 
-| Source | Status |
-| :-- | :-- |
-| `CSV_MANUAL` | Implemented |
-| `SYSTEM_RECONCILIATION` | Implemented |
-| `TOSS_API` | Future adapter |
+| Source                  | Status         |
+| :---------------------- | :------------- |
+| `CSV_MANUAL`            | Implemented    |
+| `SYSTEM_RECONCILIATION` | Implemented    |
+| `TOSS_API`              | Future adapter |
 
 Operator workflow:
 
@@ -231,13 +231,13 @@ Current strict CSV policy:
 
 Settlement statuses:
 
-| Status | Meaning |
-| :-- | :-- |
-| `MATCHED` | Local payment/refund data aligns with settlement evidence. |
-| `MISMATCHED` | Local record exists but amount/refund/fee/VAT/net comparison needs review. |
-| `LOCAL_PAYMENT_NOT_FOUND` | Provider settlement evidence has no matching local payment. |
+| Status                          | Meaning                                                                                       |
+| :------------------------------ | :-------------------------------------------------------------------------------------------- |
+| `MATCHED`                       | Local payment/refund data aligns with settlement evidence.                                    |
+| `MISMATCHED`                    | Local record exists but amount/refund/fee/VAT/net comparison needs review.                    |
+| `LOCAL_PAYMENT_NOT_FOUND`       | Provider settlement evidence has no matching local payment.                                   |
 | `PROVIDER_SETTLEMENT_NOT_FOUND` | Local finalized payment has no imported provider settlement evidence for the selected period. |
-| `IGNORED` | Operator reviewed and intentionally ignored the row. |
+| `IGNORED`                       | Operator reviewed and intentionally ignored the row.                                          |
 
 Rule:
 
@@ -267,8 +267,9 @@ Rule:
   independent validation, all three isolated settlement concurrency tests
   passed under `ddl-auto=validate`, and both exact disposable databases were
   dropped. This does not authorize a new database run or establish production
-  readiness. Typed confirmation for the separate general local-subscription
-  correction flow remains with WI-20260809-ATS-054.
+  readiness. In the separate general local-Subscription correction flow,
+  execute alone requires the trimmed exact phrase `권한 보정 실행`; approval
+  remains an ordinary confirmation.
 
 ## 10. Refund Tab
 
@@ -339,12 +340,12 @@ Exact recovery reads:
 
 The screen uses four outcomes in addition to the domain status:
 
-| Outcome | Operator interpretation |
-| --- | --- |
-| `COMMITTED` | The exact durable refund or correction detail is `SUCCEEDED`. |
-| `FAILED` | The exact execute/detail result is terminal `FAILED` or `CANCELLED`. |
+| Outcome         | Operator interpretation                                                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `COMMITTED`     | The exact durable refund or correction detail is `SUCCEEDED`.                                                                        |
+| `FAILED`        | The exact execute/detail result is terminal `FAILED` or `CANCELLED`.                                                                 |
 | `RELOAD_FAILED` | Execute returned `SUCCEEDED`, but the required detail or committed-result list reload failed. The execute result remains successful. |
-| `UNKNOWN` | The durable result is in flight or unreadable, so neither success nor terminal failure is proved. |
+| `UNKNOWN`       | The durable result is in flight or unreadable, so neither success nor terminal failure is proved.                                    |
 
 Operator controls:
 
@@ -372,17 +373,17 @@ Operator controls:
 
 ## 13. Suggested Support Triage
 
-| User Report | First Check | Next Check |
-| :-- | :-- | :-- |
-| "I paid but subscription did not activate." | Orders tab | Payments tab, incidents tab |
-| "I cannot upgrade." | Automatic payment tab | Manage page billing method re-registration flow |
-| "I was charged twice." | Payments tab | Refund preview, orders tab |
-| "I cancelled but still have access." | User subscription status | This is expected until `expiresAt` |
-| "Payment failed during renewal." | Automatic payment tab | Orders tab, renewal failure email/logs |
-| "A renewal retry looks duplicated." | Orders tab; compare billing period and command/order identity | Payments tab; confirm only one finalized payment exists |
-| "Provider and local numbers do not match." | Incidents tab | Settlement tab, runbook |
-| "A refund is stuck in progress." | Refund tab; keep the same refund row | Incident/audit evidence; do not submit a replacement refund |
-| "I withdrew, but automatic payment may still be active." | Automatic payment tab | Incidents tab; verify local `CANCELLED`, deleted user, and cleanup retry state |
+| User Report                                              | First Check                                                   | Next Check                                                                     |
+| :------------------------------------------------------- | :------------------------------------------------------------ | :----------------------------------------------------------------------------- |
+| "I paid but subscription did not activate."              | Orders tab                                                    | Payments tab, incidents tab                                                    |
+| "I cannot upgrade."                                      | Automatic payment tab                                         | Manage page billing method re-registration flow                                |
+| "I was charged twice."                                   | Payments tab                                                  | Refund preview, orders tab                                                     |
+| "I cancelled but still have access."                     | User subscription status                                      | This is expected until `expiresAt`                                             |
+| "Payment failed during renewal."                         | Automatic payment tab                                         | Orders tab, renewal failure email/logs                                         |
+| "A renewal retry looks duplicated."                      | Orders tab; compare billing period and command/order identity | Payments tab; confirm only one finalized payment exists                        |
+| "Provider and local numbers do not match."               | Incidents tab                                                 | Settlement tab, runbook                                                        |
+| "A refund is stuck in progress."                         | Refund tab; keep the same refund row                          | Incident/audit evidence; do not submit a replacement refund                    |
+| "I withdrew, but automatic payment may still be active." | Automatic payment tab                                         | Incidents tab; verify local `CANCELLED`, deleted user, and cleanup retry state |
 
 ## Related Documents
 

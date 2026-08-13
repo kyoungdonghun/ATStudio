@@ -54,13 +54,17 @@ export default function UserManagePage() {
   const [roleTarget, setRoleTarget] = useState<{
     user: AdminUserListItem;
     newRole: AdminAssignableRole;
+    generation: number;
   } | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
+  const roleGenerationRef = useRef(0);
+  const roleMutationPendingRef = useRef(false);
   const [roleReason, setRoleReason] = useState('');
   const [roleReasonError, setRoleReasonError] = useState<string | null>(null);
   const [roleFeedback, setRoleFeedback] = useState<{
     userID: number;
     message: string;
+    generation: number;
   } | null>(null);
 
   /* Read-only User detail modal */
@@ -99,6 +103,7 @@ export default function UserManagePage() {
                 setRoleFeedback({
                   userID: listedCurrentUser.id,
                   message: ROLE_SYNC_FAILURE_MESSAGE,
+                  generation: roleGenerationRef.current,
                 });
               }
             }
@@ -147,13 +152,26 @@ export default function UserManagePage() {
   const handleRoleChange = (user: AdminUserListItem, newRole: AdminAssignableRole) => {
     if (newRole === user.role) return;
     if (user.id === currentUserID && user.role === 'ADMIN' && newRole === 'USER') {
-      setRoleFeedback({ userID: user.id, message: SELF_DEMOTION_MESSAGE });
+      setRoleFeedback({
+        userID: user.id,
+        message: SELF_DEMOTION_MESSAGE,
+        generation: roleGenerationRef.current,
+      });
       return;
     }
+    const generation = ++roleGenerationRef.current;
     setRoleFeedback(null);
     setRoleReason('');
     setRoleReasonError(null);
-    setRoleTarget({ user, newRole });
+    setRoleTarget({ user, newRole, generation });
+  };
+
+  const closeRoleChange = () => {
+    if (roleMutationPendingRef.current) return;
+    roleGenerationRef.current += 1;
+    setRoleTarget(null);
+    setRoleReason('');
+    setRoleReasonError(null);
   };
 
   const closeUserDetail = () => {
@@ -192,37 +210,44 @@ export default function UserManagePage() {
   };
 
   const confirmRoleChange = async () => {
-    if (!roleTarget) return;
+    if (!roleTarget || roleMutationPendingRef.current) return;
+    const operation = roleTarget;
     const normalizedReason = roleReason.trim();
     if (!normalizedReason) {
       setRoleReasonError(ROLE_REASON_REQUIRED_MESSAGE);
       return;
     }
+    roleMutationPendingRef.current = true;
     setRoleLoading(true);
+    const ownsModal = () => roleGenerationRef.current === operation.generation;
     try {
-      const updatedUser = await updateUserAdmin(roleTarget.user.id, {
-        role: roleTarget.newRole,
+      const updatedUser = await updateUserAdmin(operation.user.id, {
+        role: operation.newRole,
         reason: normalizedReason,
       });
       setUsers((currentUsers) =>
         currentUsers.map((user) => (user.id === updatedUser.id ? updatedUser : user)),
       );
-      setRoleFeedback(null);
-      setRoleTarget(null);
-      setRoleReason('');
-      setRoleReasonError(null);
+      setRoleFeedback((current) => (current?.userID === updatedUser.id ? null : current));
+      if (ownsModal()) {
+        setRoleTarget(null);
+        setRoleReason('');
+        setRoleReasonError(null);
+      }
       const refreshedUser = await refreshRoleSnapshot();
       if (!refreshedUser) {
         setRoleFeedback({
           userID: updatedUser.id,
           message: ROLE_SYNC_FAILURE_MESSAGE,
+          generation: operation.generation,
         });
       }
     } catch (roleChangeError: unknown) {
       const errorCode = getApiErrorCode(roleChangeError);
       setRoleFeedback({
-        userID: roleTarget.user.id,
+        userID: operation.user.id,
         message: roleChangeErrorMessage(roleChangeError),
+        generation: operation.generation,
       });
       if (
         errorCode === 'ADMIN_ROLE_REQUIRED' &&
@@ -231,12 +256,14 @@ export default function UserManagePage() {
         const refreshedUser = await refreshRoleSnapshot();
         if (!refreshedUser) {
           setRoleFeedback({
-            userID: roleTarget.user.id,
+            userID: operation.user.id,
             message: ROLE_SYNC_FAILURE_MESSAGE,
+            generation: operation.generation,
           });
         }
       }
     } finally {
+      roleMutationPendingRef.current = false;
       setRoleLoading(false);
     }
   };
@@ -414,12 +441,9 @@ export default function UserManagePage() {
       {/* Role change confirm modal */}
       <Modal
         open={roleTarget !== null}
-        onClose={() => {
-          setRoleTarget(null);
-          setRoleReason('');
-          setRoleReasonError(null);
-        }}
+        onClose={closeRoleChange}
         title="Confirm Role Change"
+        busy={roleLoading}
       >
         <div className={styles.modalBody}>
           <p>
@@ -454,22 +478,16 @@ export default function UserManagePage() {
               {roleReasonError}
             </div>
           )}
-          {roleTarget && roleFeedback?.userID === roleTarget.user.id && (
-            <div className={styles.modalError} role="alert">
-              {roleFeedback.message}
-            </div>
-          )}
+          {roleTarget &&
+            roleFeedback?.userID === roleTarget.user.id &&
+            roleFeedback.generation === roleTarget.generation && (
+              <div className={styles.modalError} role="alert">
+                {roleFeedback.message}
+              </div>
+            )}
         </div>
         <div className={styles.modalActions}>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setRoleTarget(null);
-              setRoleReason('');
-              setRoleReasonError(null);
-            }}
-          >
+          <Button variant="ghost" size="sm" disabled={roleLoading} onClick={closeRoleChange}>
             Cancel
           </Button>
           <Button size="sm" loading={roleLoading} onClick={confirmRoleChange}>

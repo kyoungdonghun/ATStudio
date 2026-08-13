@@ -647,8 +647,12 @@ describe('admin subscription and user management gaps', () => {
       target: { value: 'coverage execution' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '실행 확인' }));
+    const confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
+    fireEvent.change(within(confirmationDialog).getByLabelText('실행 확인 문구'), {
+      target: { value: '권한 보정 실행' },
+    });
     fireEvent.click(
-      within(screen.getByRole('dialog', { name: '권한 보정 실행 확인' })).getByRole('button', {
+      within(confirmationDialog).getByRole('button', {
         name: '권한 보정 실행',
       }),
     );

@@ -21,6 +21,8 @@ const mocks = vi.hoisted(() => ({
   executeCorrection: vi.fn(),
 }));
 
+const EXECUTION_CONFIRM_TEXT = '권한 보정 실행';
+
 vi.mock('@/api/userSubscriptions', () => ({
   fetchAdminUserSubscriptions: (...args: unknown[]) => mocks.fetchSubscriptions(...args),
   fetchOpenAdminSubscriptionCorrection: (...args: unknown[]) => mocks.fetchOpenCorrection(...args),
@@ -224,6 +226,12 @@ function enterValidDraft(dialog: HTMLElement) {
   });
 }
 
+function enterExecutionConfirmation(dialog: HTMLElement, value = EXECUTION_CONFIRM_TEXT) {
+  fireEvent.change(within(dialog).getByLabelText('실행 확인 문구'), {
+    target: { value },
+  });
+}
+
 function renderStrictPage() {
   return render(
     <StrictMode>
@@ -381,10 +389,10 @@ describe('UserSubscriptionManagePage request fencing', () => {
       target: { value: '재개 실행' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '실행 확인' }));
+    const confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
+    enterExecutionConfirmation(confirmationDialog);
     fireEvent.click(
-      within(screen.getByRole('dialog', { name: '권한 보정 실행 확인' })).getByRole('button', {
-        name: '권한 보정 실행',
-      }),
+      within(confirmationDialog).getByRole('button', { name: EXECUTION_CONFIRM_TEXT }),
     );
 
     expect(await within(dialog).findByText('권한 보정 실행 완료')).toBeInTheDocument();
@@ -469,6 +477,109 @@ describe('UserSubscriptionManagePage request fencing', () => {
     expect(within(dialog).getByText('진행 중 요청 #602을 이어서 처리합니다.')).toBeInTheDocument();
     expect(within(dialog).queryByText('진행 중 요청 #601을 이어서 처리합니다.')).toBeNull();
   });
+
+  it.each(['request', 'approval', 'execution'] as const)(
+    'keeps target A immutable while a deferred $stage and its bounded recovery settle',
+    async (stage) => {
+      const targetA = subscription(1, 'Target A');
+      const targetB = subscription(2, 'Target B');
+      const pendingMutation = deferred<AdminSubscriptionCorrection>();
+      const pendingRecovery = deferred<AdminSubscriptionCorrection | null>();
+      const recoveryStatus =
+        stage === 'request' ? 'REQUESTED' : stage === 'approval' ? 'APPROVED' : 'SUCCEEDED';
+
+      mocks.fetchSubscriptions.mockResolvedValue(pageOf([targetA, targetB]));
+      if (stage === 'request') {
+        mocks.fetchOpenCorrection
+          .mockResolvedValueOnce(null)
+          .mockReturnValueOnce(pendingRecovery.promise);
+        mocks.previewCorrection.mockResolvedValue(correctionPreview());
+        mocks.createCorrection.mockReturnValueOnce(pendingMutation.promise);
+      } else {
+        mocks.fetchOpenCorrection.mockResolvedValue(
+          correction(stage === 'approval' ? 'REQUESTED' : 'APPROVED'),
+        );
+        mocks.fetchCorrection.mockReturnValueOnce(pendingRecovery.promise);
+        if (stage === 'approval') {
+          mocks.approveCorrection.mockReturnValueOnce(pendingMutation.promise);
+        } else {
+          mocks.executeCorrection.mockReturnValueOnce(pendingMutation.promise);
+        }
+      }
+
+      render(<UserSubscriptionManagePage />);
+      expect(await screen.findByText('Target A')).toBeInTheDocument();
+      const workflowDialog = await openWorkflow(
+        'Target A',
+        stage === 'request' ? 'new' : 'existing',
+      );
+
+      if (stage === 'request') {
+        enterValidDraft(workflowDialog);
+        fireEvent.click(within(workflowDialog).getByRole('button', { name: '미리보기' }));
+        await within(workflowDialog).findByText(/외부 결제 실행 없음/);
+        fireEvent.click(within(workflowDialog).getByRole('button', { name: '요청 생성' }));
+      } else if (stage === 'approval') {
+        fireEvent.click(within(workflowDialog).getByRole('button', { name: '승인 단계로 이동' }));
+        const confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 승인 확인' });
+        fireEvent.click(within(confirmationDialog).getByRole('button', { name: '승인 확정' }));
+      } else {
+        fireEvent.click(within(workflowDialog).getByRole('button', { name: '실행 확인' }));
+        const confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
+        enterExecutionConfirmation(confirmationDialog);
+        fireEvent.click(
+          within(confirmationDialog).getByRole('button', { name: EXECUTION_CONFIRM_TEXT }),
+        );
+      }
+
+      const mutationMock =
+        stage === 'request'
+          ? mocks.createCorrection
+          : stage === 'approval'
+            ? mocks.approveCorrection
+            : mocks.executeCorrection;
+      expect(mutationMock).toHaveBeenCalledTimes(1);
+
+      const targetBRow = screen.getByText('Target B').closest('tr');
+      const targetBButton = within(targetBRow as HTMLElement).getByRole('button', {
+        name: '권한 보정',
+      });
+      expect(targetBButton).toBeDisabled();
+      fireEvent.click(targetBButton);
+      expect(within(workflowDialog).getByText('Target A')).toBeInTheDocument();
+      expect(within(workflowDialog).queryByText('Target B')).not.toBeInTheDocument();
+
+      await act(async () =>
+        pendingMutation.reject(
+          stage === 'request'
+            ? Object.assign(new Error('response lost'), { code: 'ERR_NETWORK' })
+            : { response: { status: 503 } },
+        ),
+      );
+
+      if (stage === 'request') {
+        await waitFor(() => expect(mocks.fetchOpenCorrection).toHaveBeenCalledTimes(2));
+      } else {
+        await waitFor(() => expect(mocks.fetchCorrection).toHaveBeenCalledTimes(1));
+      }
+      expect(targetBButton).toBeDisabled();
+      fireEvent.click(targetBButton);
+      expect(within(workflowDialog).getByText('Target A')).toBeInTheDocument();
+
+      await act(async () =>
+        pendingRecovery.resolve(correction(recoveryStatus, { userNickname: 'Target A' })),
+      );
+
+      await waitFor(() => expect(targetBButton).toBeEnabled());
+      expect(mutationMock).toHaveBeenCalledTimes(1);
+      expect(mocks.fetchOpenCorrection.mock.calls.map(([targetId]) => targetId)).toEqual(
+        stage === 'request' ? [1, 1] : [1],
+      );
+      expect(mocks.fetchCorrection).toHaveBeenCalledTimes(stage === 'request' ? 0 : 1);
+      expect(within(workflowDialog).getByText('Target A')).toBeInTheDocument();
+      expect(within(workflowDialog).queryByText('Target B')).not.toBeInTheDocument();
+    },
+  );
 
   it('blocks request creation when the preview is not executable', async () => {
     mocks.fetchSubscriptions.mockResolvedValue(page(subscription(1, 'CurrentSubscriber')));
@@ -594,6 +705,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '승인 단계로 이동' }));
     let confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 승인 확인' });
+    expect(within(confirmationDialog).queryByLabelText('실행 확인 문구')).toBeNull();
     expect(within(confirmationDialog).getByText(/저장할 승인 메모: "승인 메모"/)).toBeVisible();
     fireEvent.click(within(confirmationDialog).getByRole('button', { name: '취소' }));
     expect(mocks.approveCorrection).not.toHaveBeenCalled();
@@ -621,7 +733,16 @@ describe('UserSubscriptionManagePage request fencing', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: '실행 확인' }));
     confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
-    fireEvent.click(within(confirmationDialog).getByRole('button', { name: '권한 보정 실행' }));
+    const executeButton = within(confirmationDialog).getByRole('button', {
+      name: EXECUTION_CONFIRM_TEXT,
+    });
+    expect(executeButton).toBeDisabled();
+    enterExecutionConfirmation(confirmationDialog, '권한 보정');
+    fireEvent.click(executeButton);
+    expect(mocks.executeCorrection).not.toHaveBeenCalled();
+    enterExecutionConfirmation(confirmationDialog, `  ${EXECUTION_CONFIRM_TEXT}  `);
+    expect(executeButton).toBeEnabled();
+    fireEvent.click(executeButton);
 
     expect(await within(dialog).findByText('권한 보정 실행 완료')).toBeInTheDocument();
     expect(mocks.executeCorrection).toHaveBeenCalledWith(
@@ -633,6 +754,46 @@ describe('UserSubscriptionManagePage request fencing', () => {
     expect(
       await screen.findByText('권한 보정 #501 실행이 완료되어 최신 구독 목록에 반영했습니다.'),
     ).toBeInTheDocument();
+  });
+
+  it('allows one correctly typed execute and blocks every close path while it is pending', async () => {
+    const pendingExecute = deferred<AdminSubscriptionCorrection>();
+    mocks.fetchSubscriptions.mockResolvedValue(page(subscription(1, 'CurrentSubscriber')));
+    mocks.fetchOpenCorrection.mockResolvedValue(correction('APPROVED'));
+    mocks.executeCorrection.mockReturnValueOnce(pendingExecute.promise);
+
+    render(<UserSubscriptionManagePage />);
+    expect(await screen.findByText('CurrentSubscriber')).toBeInTheDocument();
+    const workflowDialog = await openWorkflow('CurrentSubscriber', 'existing');
+    fireEvent.click(within(workflowDialog).getByRole('button', { name: '실행 확인' }));
+    const confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
+    enterExecutionConfirmation(confirmationDialog);
+    const executeButton = within(confirmationDialog).getByRole('button', {
+      name: EXECUTION_CONFIRM_TEXT,
+    });
+    fireEvent.click(executeButton);
+    fireEvent.click(executeButton);
+
+    expect(mocks.executeCorrection).toHaveBeenCalledTimes(1);
+    expect(confirmationDialog).toHaveAttribute('aria-busy', 'true');
+    expect(workflowDialog).toHaveAttribute('aria-busy', 'true');
+    expect(within(confirmationDialog).getByRole('button', { name: '닫기' })).toBeDisabled();
+    expect(within(confirmationDialog).getByRole('button', { name: '취소' })).toBeDisabled();
+    expect(
+      within(workflowDialog)
+        .getAllByRole('button', { name: '닫기' })
+        .every((button) => button.hasAttribute('disabled')),
+    ).toBe(true);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(confirmationDialog.parentElement!);
+    fireEvent.click(within(confirmationDialog).getByRole('button', { name: '닫기' }));
+    fireEvent.click(within(confirmationDialog).getByRole('button', { name: '취소' }));
+    expect(screen.getByRole('dialog', { name: '권한 보정 실행 확인' })).toBeInTheDocument();
+
+    await act(async () => pendingExecute.resolve(correction('SUCCEEDED')));
+
+    expect(await within(workflowDialog).findByText('권한 보정 실행 완료')).toBeInTheDocument();
+    expect(mocks.executeCorrection).toHaveBeenCalledTimes(1);
   });
 
   it('preserves a definite 4xx mutation error without reconciliation', async () => {
@@ -803,10 +964,10 @@ describe('UserSubscriptionManagePage request fencing', () => {
       target: { value: ' 실행 메모 ' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '실행 확인' }));
+    const confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
+    enterExecutionConfirmation(confirmationDialog);
     fireEvent.click(
-      within(screen.getByRole('dialog', { name: '권한 보정 실행 확인' })).getByRole('button', {
-        name: '권한 보정 실행',
-      }),
+      within(confirmationDialog).getByRole('button', { name: EXECUTION_CONFIRM_TEXT }),
     );
 
     expect(
@@ -824,7 +985,9 @@ describe('UserSubscriptionManagePage request fencing', () => {
   });
 
   it('locks an unknown execution outcome and reconciles it through one explicit retry', async () => {
-    mocks.fetchSubscriptions.mockResolvedValue(page(subscription(1, 'CurrentSubscriber')));
+    mocks.fetchSubscriptions.mockResolvedValue(
+      pageOf([subscription(1, 'CurrentSubscriber'), subscription(2, 'Target B')]),
+    );
     mocks.fetchOpenCorrection.mockResolvedValue(correction('APPROVED'));
     mocks.executeCorrection.mockRejectedValue(new Error('execute response lost'));
     mocks.fetchCorrection
@@ -838,10 +1001,10 @@ describe('UserSubscriptionManagePage request fencing', () => {
       target: { value: ' 재시도 메모 ' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '실행 확인' }));
+    const confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
+    enterExecutionConfirmation(confirmationDialog);
     fireEvent.click(
-      within(screen.getByRole('dialog', { name: '권한 보정 실행 확인' })).getByRole('button', {
-        name: '권한 보정 실행',
-      }),
+      within(confirmationDialog).getByRole('button', { name: EXECUTION_CONFIRM_TEXT }),
     );
 
     expect(
@@ -856,6 +1019,14 @@ describe('UserSubscriptionManagePage request fencing', () => {
     expect(within(dialog).getByRole('button', { name: '실행 확인' })).toBeDisabled();
     expect(within(dialog).getAllByRole('button', { name: '상태 다시 확인' })).toHaveLength(1);
     expect(mocks.executeCorrection).toHaveBeenCalledTimes(1);
+    const targetBRow = screen.getByText('Target B').closest('tr');
+    const targetBButton = within(targetBRow as HTMLElement).getByRole('button', {
+      name: '권한 보정',
+    });
+    expect(targetBButton).toBeDisabled();
+    fireEvent.click(targetBButton);
+    expect(within(dialog).getByText('CurrentSubscriber')).toBeInTheDocument();
+    expect(mocks.fetchOpenCorrection).toHaveBeenCalledTimes(1);
 
     fireEvent.click(within(dialog).getByRole('button', { name: '상태 다시 확인' }));
 
@@ -866,6 +1037,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
     expect(within(dialog).queryByRole('button', { name: '상태 다시 확인' })).toBeNull();
     expect(mocks.fetchCorrection).toHaveBeenCalledTimes(2);
     expect(mocks.executeCorrection).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(targetBButton).toBeEnabled());
   });
 
   it('aborts and ignores a preview response from a closed workflow', async () => {

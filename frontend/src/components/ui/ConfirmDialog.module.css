@@ -9,6 +9,46 @@
   line-height: 1.6;
 }
 
+.typedField {
+  display: grid;
+  gap: 7px;
+}
+
+.typedLabel {
+  color: var(--text0);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.typedInput {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  background: var(--bg1);
+  color: var(--text0);
+  font: inherit;
+}
+
+.typedInput:focus {
+  border-color: var(--primary);
+  outline: 2px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  outline-offset: 1px;
+}
+
+.typedInput:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.typedHint {
+  color: var(--text1);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;

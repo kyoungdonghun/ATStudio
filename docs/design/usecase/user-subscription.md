@@ -1,5 +1,5 @@
 ---
-version: 3.4
+version: 3.5
 last_updated: 2026-08-14
 project: ATS
 owner: docops
@@ -105,6 +105,15 @@ draft and preview, keeps the unknown-outcome duplicate fence, and exposes one
 read-only status retry. A repeated 204 remains unknown. Approval and execution
 use the known correction ID and may converge through detail, including terminal
 state. This flow does not poll and adds no backend correlation protocol.
+
+The parent management screen synchronously retains the selected Subscription
+row while request, approval, execution, or their bounded recovery read owns the
+accepted mutation. Another row cannot replace that target or abort its recovery.
+An inconclusive recovery keeps the same owner until an explicit read-only status
+retry proves the outcome. All shared close paths stay blocked during the same
+ownership interval. Execution alone requires the trimmed exact phrase
+`권한 보정 실행`; approval uses the ordinary confirmation and has no
+typed-phrase requirement.
 
 One ADMIN may perform all stages; this is explicit single-operator confirmation,
 not two-person approval. Mutation locks use these fixed orders:

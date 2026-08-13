@@ -70,7 +70,10 @@ type WorkflowBusy = 'open' | 'preview' | 'request' | 'approve' | 'execute' | 'st
 type ConfirmationStage = 'approve' | 'execute' | null;
 type OpenLookupState = 'idle' | 'loading' | 'ready' | 'error';
 type MutationStage = 'request' | 'approve' | 'execute';
+type PendingOwner = MutationStage | 'status';
 type MutationFailureKind = 'cancelled' | 'definite' | 'ambiguous';
+
+const CORRECTION_EXECUTION_CONFIRM_TEXT = '권한 보정 실행';
 
 interface UnknownOutcome {
   stage: MutationStage;
@@ -102,6 +105,7 @@ interface UserSubscriptionCorrectionModalProps {
   planError: string | null;
   onClose: () => void;
   onSucceeded: (correction: AdminSubscriptionCorrection) => Promise<void>;
+  onMutationOwnershipChange: (owned: boolean) => void;
 }
 
 function toDateInput(value: string): string {
@@ -253,6 +257,7 @@ export default function UserSubscriptionCorrectionModal({
   planError,
   onClose,
   onSucceeded,
+  onMutationOwnershipChange,
 }: UserSubscriptionCorrectionModalProps) {
   const [draft, setDraft] = useState<CorrectionDraft | null>(null);
   const [preview, setPreview] = useState<AdminSubscriptionCorrectionPreview | null>(null);
@@ -264,10 +269,14 @@ export default function UserSubscriptionCorrectionModal({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [unknownOutcome, setUnknownOutcome] = useState<UnknownOutcome | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationStage>(null);
+  const [executionConfirmationText, setExecutionConfirmationText] = useState('');
   const [openLookupState, setOpenLookupState] = useState<OpenLookupState>('idle');
   const [openLookupAttempt, setOpenLookupAttempt] = useState(0);
   const requestGenerationRef = useRef(0);
   const requestControllerRef = useRef<AbortController | null>(null);
+  const pendingMutationRef = useRef<PendingOwner | null>(null);
+  const targetOwnershipRef = useRef(false);
+  const unknownOutcomeRef = useRef<UnknownOutcome | null>(null);
 
   const eligiblePlans = useMemo(() => {
     if (!target) return [];
@@ -294,8 +303,10 @@ export default function UserSubscriptionCorrectionModal({
     setBusy(null);
     setError(null);
     setStatusMessage(null);
+    unknownOutcomeRef.current = null;
     setUnknownOutcome(null);
     setConfirmation(null);
+    setExecutionConfirmationText('');
     setOpenLookupState(target ? 'loading' : 'idle');
 
     if (!target) {
@@ -357,6 +368,24 @@ export default function UserSubscriptionCorrectionModal({
     return requestGenerationRef.current === generation && !controller.signal.aborted;
   }
 
+  function claimPendingOwner(owner: PendingOwner): boolean {
+    if (pendingMutationRef.current) return false;
+    pendingMutationRef.current = owner;
+    if (!targetOwnershipRef.current) {
+      targetOwnershipRef.current = true;
+      onMutationOwnershipChange(true);
+    }
+    return true;
+  }
+
+  function releasePendingOwner(owner: PendingOwner) {
+    if (pendingMutationRef.current !== owner) return;
+    pendingMutationRef.current = null;
+    if (unknownOutcomeRef.current) return;
+    targetOwnershipRef.current = false;
+    onMutationOwnershipChange(false);
+  }
+
   function invalidatePreview(patch: Partial<CorrectionDraft>) {
     requestControllerRef.current?.abort();
     requestControllerRef.current = null;
@@ -369,11 +398,18 @@ export default function UserSubscriptionCorrectionModal({
   }
 
   function closeWorkflow() {
-    if (busy && busy !== 'open' && busy !== 'preview') return;
+    if (
+      pendingMutationRef.current ||
+      unknownOutcomeRef.current ||
+      (busy && busy !== 'open' && busy !== 'preview')
+    ) {
+      return;
+    }
     requestControllerRef.current?.abort();
     requestControllerRef.current = null;
     requestGenerationRef.current += 1;
     setConfirmation(null);
+    setExecutionConfirmationText('');
     onClose();
   }
 
@@ -456,6 +492,7 @@ export default function UserSubscriptionCorrectionModal({
     outcome: UnknownOutcome,
     result: AdminSubscriptionCorrection,
   ) {
+    unknownOutcomeRef.current = null;
     setUnknownOutcome(null);
     setError(null);
     setStatusMessage(reconciledStatusMessage(outcome, result));
@@ -474,6 +511,7 @@ export default function UserSubscriptionCorrectionModal({
   function markOutcomeUnknown(outcome: UnknownOutcome) {
     const actionLabel =
       outcome.stage === 'request' ? '요청 생성' : outcome.stage === 'approve' ? '승인' : '실행';
+    unknownOutcomeRef.current = outcome;
     setUnknownOutcome(outcome);
     setStatusMessage(null);
     setError(
@@ -521,12 +559,16 @@ export default function UserSubscriptionCorrectionModal({
   }
 
   async function handleStatusRetry() {
-    if (!unknownOutcome) return;
+    if (!unknownOutcome || !claimPendingOwner('status')) return;
     const outcome = unknownOutcome;
     const { controller, generation } = beginRequest();
     setBusy('status');
-    await reconcileMutation(outcome, controller, generation);
-    if (isCurrentRequest(generation, controller)) setBusy(null);
+    try {
+      await reconcileMutation(outcome, controller, generation);
+    } finally {
+      releasePendingOwner('status');
+      if (isCurrentRequest(generation, controller)) setBusy(null);
+    }
   }
 
   async function handlePreview() {
@@ -561,7 +603,7 @@ export default function UserSubscriptionCorrectionModal({
   }
 
   async function handleCreateRequest() {
-    if (unknownOutcome) return;
+    if (unknownOutcome || pendingMutationRef.current) return;
     if (openLookupState !== 'ready') {
       setError('진행 중 요청 조회를 완료한 뒤 새 요청을 생성하세요.');
       return;
@@ -571,6 +613,7 @@ export default function UserSubscriptionCorrectionModal({
       setError('외부 결제 실행이 없는 실행 가능한 미리보기를 먼저 확인하세요.');
       return;
     }
+    if (!claimPendingOwner('request')) return;
     const { controller, generation } = beginRequest();
     setBusy('request');
     setError(null);
@@ -587,12 +630,21 @@ export default function UserSubscriptionCorrectionModal({
         generation,
       );
     } finally {
+      releasePendingOwner('request');
       if (isCurrentRequest(generation, controller)) setBusy(null);
     }
   }
 
   async function handleApprove() {
-    if (!correction || correction.status !== 'REQUESTED' || unknownOutcome) return;
+    if (
+      !correction ||
+      correction.status !== 'REQUESTED' ||
+      unknownOutcome ||
+      pendingMutationRef.current
+    ) {
+      return;
+    }
+    if (!claimPendingOwner('approve')) return;
     const correctionId = correction.id;
     const { controller, generation } = beginRequest();
     setBusy('approve');
@@ -614,15 +666,26 @@ export default function UserSubscriptionCorrectionModal({
         generation,
       );
     } finally {
+      releasePendingOwner('approve');
       if (isCurrentRequest(generation, controller)) {
         setBusy(null);
         setConfirmation(null);
+        setExecutionConfirmationText('');
       }
     }
   }
 
   async function handleExecute() {
-    if (!correction || correction.status !== 'APPROVED' || unknownOutcome) return;
+    if (
+      !correction ||
+      correction.status !== 'APPROVED' ||
+      unknownOutcome ||
+      pendingMutationRef.current ||
+      executionConfirmationText.trim() !== CORRECTION_EXECUTION_CONFIRM_TEXT
+    ) {
+      return;
+    }
+    if (!claimPendingOwner('execute')) return;
     const correctionId = correction.id;
     const { controller, generation } = beginRequest();
     setBusy('execute');
@@ -653,22 +716,32 @@ export default function UserSubscriptionCorrectionModal({
         generation,
       );
     } finally {
+      releasePendingOwner('execute');
       if (isCurrentRequest(generation, controller)) {
         setBusy(null);
         setConfirmation(null);
+        setExecutionConfirmationText('');
       }
     }
   }
 
   function confirmStage() {
     if (confirmation === 'approve') void handleApprove();
-    if (confirmation === 'execute') void handleExecute();
+    if (
+      confirmation === 'execute' &&
+      executionConfirmationText.trim() === CORRECTION_EXECUTION_CONFIRM_TEXT
+    ) {
+      void handleExecute();
+    }
   }
 
   function openConfirmation(stage: Exclude<ConfirmationStage, null>) {
     if (unknownOutcome || busy) return;
     if (stage === 'approve') setApprovalNote((current) => current.trim());
-    if (stage === 'execute') setExecutionNote((current) => current.trim());
+    if (stage === 'execute') {
+      setExecutionNote((current) => current.trim());
+      setExecutionConfirmationText('');
+    }
     setConfirmation(stage);
   }
 
@@ -687,10 +760,12 @@ export default function UserSubscriptionCorrectionModal({
   const canRequest = Boolean(
     openLookupReady && !unknownOutcome && preview?.executable && !preview.externalPaymentExecuted,
   );
+  const workflowCloseBlocked =
+    unknownOutcome !== null || (busy !== null && busy !== 'open' && busy !== 'preview');
 
   return (
     <>
-      <Modal open onClose={closeWorkflow} title="사용자 구독 권한 보정">
+      <Modal open onClose={closeWorkflow} title="사용자 구독 권한 보정" busy={workflowCloseBlocked}>
         <div className={styles.workflowBody}>
           <div className={styles.targetSummary}>
             <strong>{target.userNickname ?? `사용자 #${target.userId}`}</strong>
@@ -1056,12 +1131,7 @@ export default function UserSubscriptionCorrectionModal({
         </div>
 
         <div className={styles.modalActions}>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={busy !== null && busy !== 'open' && busy !== 'preview'}
-            onClick={closeWorkflow}
-          >
+          <Button variant="ghost" size="sm" disabled={workflowCloseBlocked} onClick={closeWorkflow}>
             닫기
           </Button>
           {!correction ? (
@@ -1104,9 +1174,23 @@ export default function UserSubscriptionCorrectionModal({
         confirmLabel={confirmation === 'execute' ? '권한 보정 실행' : '승인 확정'}
         confirmVariant={confirmation === 'execute' ? 'danger' : 'primary'}
         busy={busy === 'approve' || busy === 'execute'}
+        typedConfirmation={
+          confirmation === 'execute'
+            ? {
+                label: '실행 확인 문구',
+                requiredText: CORRECTION_EXECUTION_CONFIRM_TEXT,
+                value: executionConfirmationText,
+                hint: `"${CORRECTION_EXECUTION_CONFIRM_TEXT}"을 정확히 입력하세요.`,
+                onChange: setExecutionConfirmationText,
+              }
+            : undefined
+        }
         onConfirm={confirmStage}
         onCancel={() => {
-          if (!busy) setConfirmation(null);
+          if (!busy) {
+            setConfirmation(null);
+            setExecutionConfirmationText('');
+          }
         }}
       />
     </>

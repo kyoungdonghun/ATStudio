@@ -1,6 +1,6 @@
 ---
-version: 2.7
-last_updated: 2026-08-13
+version: 2.8
+last_updated: 2026-08-14
 project: ATS
 owner: docops
 category: reference
@@ -51,8 +51,17 @@ confirmation; the removed direct update/cancel dialogs are not current flows.
 - Tag save/delete errors remain modal-local and preserve list/filter/input state.
 - The shared modal's optional busy contract exposes `aria-busy`, disables and
   removes the header close action from focus, and suppresses Escape and backdrop
-  close through the same state. Notice deletion uses this contract while its
-  owned operation is pending.
+  close through the same state. `ConfirmDialog` forwards its busy state to this
+  contract. Notice deletion uses the same contract while its owned operation is
+  pending.
+- User-role changes, Tag form/delete mutations, Track deletion, Company review,
+  and local Subscription correction retain an immutable target and request
+  generation while an accepted mutation owns the operation. Their owner pages
+  reject close, cancel, and row-retarget actions during that interval. Company
+  review retains ownership through the same-target detail refresh and canonical
+  list refresh; Subscription correction retains it through the one bounded
+  recovery read for an ambiguous mutation result. An inconclusive recovery
+  keeps the same owner immutable through explicit read-only status retries.
 - An authoritative Notice-delete rejection remains inside the recovered modal
   for an explicit retry without changing the edit form. An ambiguous outcome
   closes the modal, disables another DELETE, and moves to the page-level
@@ -66,7 +75,8 @@ confirmation; the removed direct update/cancel dialogs are not current flows.
   blocks duplicate mutation, and exposes one read-only status-retry action.
   Repeated request 204 remains unknown. Browser date bounds do not block server
   preview, and normalized persisted text is shown at preview or confirmation.
-  Execute requires typed confirmation.
+  Execute alone requires the trimmed exact phrase `권한 보정 실행`; approval
+  remains an ordinary confirmation with no typed phrase.
 - Modal labels and buttons must describe the action, not implementation details.
 
 ## Playlist Creation Entry Point

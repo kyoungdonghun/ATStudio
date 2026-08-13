@@ -352,6 +352,49 @@ describe('UserManagePage administrator role safety', () => {
     expect(useAuthStore.getState().role).toBe('ADMIN');
   });
 
+  it('keeps a pending role result owned by its immutable target and modal generation', async () => {
+    const targetA = adminUser(2, 'TargetA');
+    const targetB = adminUser(3, 'TargetB');
+    const pendingMutation = deferred<AdminUserDetail>();
+    setSession(currentAdmin);
+    mocks.fetchUsers.mockResolvedValue(page(targetA, targetB));
+    mocks.updateUserAdmin.mockReturnValueOnce(pendingMutation.promise);
+    mocks.fetchMe.mockResolvedValue(currentAdmin);
+    renderPage();
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Change role for TargetA' }), {
+      target: { value: 'ADMIN' },
+    });
+    let dialog = screen.getByRole('dialog', { name: 'Confirm Role Change' });
+    fireEvent.change(within(dialog).getByLabelText('Operator reason'), {
+      target: { value: 'Target A change' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+
+    expect(dialog).toHaveAttribute('aria-busy', 'true');
+    expect(within(dialog).getByRole('button', { name: '닫기' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(dialog.parentElement!);
+    fireEvent.click(within(dialog).getByRole('button', { name: '닫기' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('dialog', { name: 'Confirm Role Change' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Change role for TargetB' }), {
+      target: { value: 'ADMIN' },
+    });
+    dialog = screen.getByRole('dialog', { name: 'Confirm Role Change' });
+    expect(within(dialog).getByText('TargetB')).toBeInTheDocument();
+
+    await act(async () => pendingMutation.resolve(adminUserDetail({ ...targetA, role: 'ADMIN' })));
+
+    dialog = screen.getByRole('dialog', { name: 'Confirm Role Change' });
+    expect(within(dialog).getByText('TargetB')).toBeInTheDocument();
+    expect(within(dialog).queryByText('TargetA')).not.toBeInTheDocument();
+    expect(mocks.updateUserAdmin).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('combobox', { name: 'Change role for TargetA' })).toHaveValue('ADMIN');
+  });
+
   it('refreshes a typed stale-authority rejection once and lets the guard remove ADMIN access', async () => {
     const targetAdmin = adminUser(2, 'TargetAdmin', 'ADMIN');
     const demotedCurrentUser: User = { ...currentAdmin, role: 'USER' };

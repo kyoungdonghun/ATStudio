@@ -99,35 +99,37 @@ export default function CompanyCertManagePage() {
   const [adminNote, setAdminNote] = useState('');
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
+  const reviewPendingRef = useRef(false);
 
-  const loadCerts = useCallback(() => {
-    const currentRequestId = ++listRequestId.current;
-    setLoading(true);
-    setError(null);
-    const params: Record<string, unknown> = { page, size: 20 };
-    if (statusFilter) params.status = statusFilter;
-    fetchCompanyCerts(params as Parameters<typeof fetchCompanyCerts>[0])
-      .then((result) => {
+  const loadCerts = useCallback(
+    async (showLoading = true) => {
+      const currentRequestId = ++listRequestId.current;
+      if (showLoading) setLoading(true);
+      setError(null);
+      const params: Record<string, unknown> = { page, size: 20 };
+      if (statusFilter) params.status = statusFilter;
+      try {
+        const result = await fetchCompanyCerts(params as Parameters<typeof fetchCompanyCerts>[0]);
         if (currentRequestId !== listRequestId.current) return;
         setCerts(result.dataList);
         setPageInfo(result.pageInfo);
-      })
-      .catch(() => {
+      } catch {
         if (currentRequestId === listRequestId.current) {
           setCerts([]);
           setPageInfo(null);
           setError('기업 인증 신청 목록을 불러오지 못했습니다.');
         }
-      })
-      .finally(() => {
-        if (currentRequestId === listRequestId.current) {
+      } finally {
+        if (currentRequestId === listRequestId.current && showLoading) {
           setLoading(false);
         }
-      });
-  }, [page, statusFilter]);
+      }
+    },
+    [page, statusFilter],
+  );
 
   useEffect(() => {
-    loadCerts();
+    void loadCerts();
     return () => {
       listRequestId.current += 1;
     };
@@ -166,6 +168,7 @@ export default function CompanyCertManagePage() {
   }
 
   function openDetail(certId: number) {
+    if (reviewPendingRef.current) return;
     detailOwnerId.current += 1;
     selectedDetailIdRef.current = certId;
     setSelectedDetailId(certId);
@@ -173,11 +176,11 @@ export default function CompanyCertManagePage() {
     setReviewAction(null);
     setAdminNote('');
     setReviewError(null);
-    setReviewLoading(false);
     void loadDetail(certId);
   }
 
   function closeDetail() {
+    if (reviewPendingRef.current) return;
     detailRequestId.current += 1;
     detailOwnerId.current += 1;
     selectedDetailIdRef.current = null;
@@ -192,13 +195,14 @@ export default function CompanyCertManagePage() {
   }
 
   function openReview(action: Exclude<CertificationStatus, 'PENDING'>) {
+    if (reviewPendingRef.current) return;
     setReviewAction(action);
     setAdminNote('');
     setReviewError(null);
   }
 
   async function confirmReview() {
-    if (!detail || !reviewAction) return;
+    if (!detail || !reviewAction || reviewPendingRef.current) return;
     const reviewTargetId = detail.id;
     const reviewTargetOwnerId = detailOwnerId.current;
     const action = reviewAction;
@@ -214,6 +218,7 @@ export default function CompanyCertManagePage() {
     }
 
     setReviewError(null);
+    reviewPendingRef.current = true;
     setReviewLoading(true);
     const ownsReviewTarget = () =>
       detailOwnerId.current === reviewTargetOwnerId &&
@@ -227,14 +232,13 @@ export default function CompanyCertManagePage() {
       setReviewAction(null);
       setAdminNote('');
       await loadDetail(reviewTargetId, false);
-      loadCerts();
+      await loadCerts(false);
     } catch (error) {
       if (!ownsReviewTarget()) return;
       setReviewError(getAdminReviewErrorMessage(error));
     } finally {
-      if (ownsReviewTarget()) {
-        setReviewLoading(false);
-      }
+      reviewPendingRef.current = false;
+      setReviewLoading(false);
     }
   }
 
@@ -269,7 +273,7 @@ export default function CompanyCertManagePage() {
       <div className={styles.page}>
         <div className={styles.error} role="alert">
           <p>{error}</p>
-          <Button type="button" onClick={loadCerts}>
+          <Button type="button" onClick={() => void loadCerts()}>
             다시 시도
           </Button>
         </div>
@@ -334,7 +338,12 @@ export default function CompanyCertManagePage() {
                 </td>
                 <td>{formatDate(cert.createdAt)}</td>
                 <td>
-                  <Button variant="outline" size="sm" onClick={() => openDetail(cert.id)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={reviewLoading}
+                    onClick={() => openDetail(cert.id)}
+                  >
                     상세
                   </Button>
                 </td>
@@ -348,7 +357,7 @@ export default function CompanyCertManagePage() {
         <Pagination pageInfo={pageInfo} currentPage={page} onPageChange={setPage} />
       )}
 
-      <Modal open={detailOpen} onClose={closeDetail} title="기업 인증 상세">
+      <Modal open={detailOpen} onClose={closeDetail} title="기업 인증 상세" busy={reviewLoading}>
         <div className={styles.modalBody}>
           {detailLoading && <div className={styles.loadingInline}>상세를 불러오는 중...</div>}
           {detailError && (
@@ -450,10 +459,12 @@ export default function CompanyCertManagePage() {
       <Modal
         open={reviewAction !== null}
         onClose={() => {
+          if (reviewPendingRef.current) return;
           setReviewAction(null);
           setReviewError(null);
         }}
         title={reviewAction ? `${REVIEW_ACTION_LABELS[reviewAction]} 처리` : '심사 처리'}
+        busy={reviewLoading}
       >
         <div className={styles.modalBody}>
           <p className={styles.confirmText}>
@@ -497,7 +508,9 @@ export default function CompanyCertManagePage() {
           <Button
             variant="ghost"
             size="sm"
+            disabled={reviewLoading}
             onClick={() => {
+              if (reviewPendingRef.current) return;
               setReviewAction(null);
               setReviewError(null);
             }}

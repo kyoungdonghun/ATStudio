@@ -167,6 +167,41 @@ describe('CompanyCertManagePage review validation', () => {
     );
   });
 
+  it('blocks all review close paths and duplicate processing while pending', async () => {
+    const pendingReview = deferred<unknown>();
+    processCompanyCert.mockReturnValueOnce(pendingReview.promise);
+    const reviewDialog = await openReview('승인');
+    const detailDialog = screen.getByRole('dialog', { name: '기업 인증 상세' });
+    const approveButton = within(reviewDialog).getByRole('button', { name: '승인' });
+    fireEvent.click(approveButton);
+
+    expect(reviewDialog).toHaveAttribute('aria-busy', 'true');
+    expect(detailDialog).toHaveAttribute('aria-busy', 'true');
+    expect(within(reviewDialog).getByRole('button', { name: '닫기' })).toBeDisabled();
+    expect(within(reviewDialog).getByRole('button', { name: '취소' })).toBeDisabled();
+    expect(within(detailDialog).getByRole('button', { name: '닫기' })).toBeDisabled();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(reviewDialog.parentElement!);
+    fireEvent.click(within(reviewDialog).getByRole('button', { name: '닫기' }));
+    fireEvent.click(within(reviewDialog).getByRole('button', { name: '취소' }));
+    fireEvent.click(approveButton);
+
+    expect(screen.getByRole('dialog', { name: '승인 처리' })).toBeInTheDocument();
+    expect(processCompanyCert).toHaveBeenCalledTimes(1);
+
+    await act(async () =>
+      pendingReview.resolve({
+        id: detail.id,
+        status: 'APPROVED',
+        certificationCode: 'CERT-1',
+        approvedAt: '2026-08-14T00:00:00',
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '승인 처리' })).not.toBeInTheDocument(),
+    );
+  });
+
   it.each(['success', 'failure'] as const)(
     'lets only the latest list request own state after stale $completion',
     async (completion) => {
@@ -287,7 +322,7 @@ describe('CompanyCertManagePage review validation', () => {
   );
 
   it.each(['success', 'failure'] as const)(
-    'ignores a late post-review refresh $completion after the detail closes',
+    'blocks detail close until the late post-review refresh $completion settles',
     async (completion) => {
       const lateRefresh = deferred<CompanyCertification>();
       fetchCompanyCert
@@ -298,7 +333,10 @@ describe('CompanyCertManagePage review validation', () => {
       fireEvent.click(within(reviewDialog).getByRole('button', { name: '승인' }));
       await waitFor(() => expect(fetchCompanyCert).toHaveBeenCalledTimes(2));
       const detailDialog = screen.getByRole('dialog', { name: '기업 인증 상세' });
-      fireEvent.click(within(detailDialog).getByText('X'));
+      const closeButton = within(detailDialog).getByRole('button', { name: '닫기' });
+      expect(closeButton).toBeDisabled();
+      fireEvent.click(closeButton);
+      expect(screen.getByRole('dialog', { name: '기업 인증 상세' })).toBeInTheDocument();
 
       if (completion === 'success') {
         await act(async () => lateRefresh.resolve({ ...detail, status: 'APPROVED' }));
@@ -306,6 +344,14 @@ describe('CompanyCertManagePage review validation', () => {
         await act(async () => lateRefresh.reject(new Error('late refresh failure')));
       }
 
+      const settledDetailDialog = await screen.findByRole('dialog', {
+        name: '기업 인증 상세',
+      });
+      const settledCloseButton = within(settledDetailDialog).getByRole('button', {
+        name: '닫기',
+      });
+      await waitFor(() => expect(settledCloseButton).toBeEnabled());
+      fireEvent.click(settledCloseButton);
       expect(screen.queryByRole('dialog', { name: '기업 인증 상세' })).not.toBeInTheDocument();
       expect(
         screen.queryByText('기업 인증 신청 상세를 불러오지 못했습니다.'),
@@ -313,125 +359,124 @@ describe('CompanyCertManagePage review validation', () => {
     },
   );
 
-  it.each(['success', 'failure'] as const)(
-    'keeps a newer detail target after a late post-review refresh $completion',
-    async (completion) => {
-      const lateRefresh = deferred<CompanyCertification>();
-      const newerDetail = {
-        ...detail,
-        id: 2,
-        userId: 20,
-        userNickname: 'newer-owner',
-        userEmail: 'newer@example.com',
-        companyName: 'Newer company',
-      };
-      fetchCompanyCerts.mockResolvedValue({
-        dataList: [detail, newerDetail],
+  it('keeps review target A immutable until its detail and list refreshes settle', async () => {
+    const pendingMutation = deferred<unknown>();
+    const pendingDetailRefresh = deferred<CompanyCertification>();
+    const pendingListRefresh = deferred<{
+      dataList: CompanyCertification[];
+      pageInfo: typeof pageInfo;
+    }>();
+    const newerDetail: CompanyCertification = {
+      ...detail,
+      id: 2,
+      userId: 20,
+      userNickname: 'newer-owner',
+      userEmail: 'newer@example.com',
+      companyName: 'Newer company',
+    };
+    const listResult = {
+      dataList: [detail, newerDetail],
+      pageInfo: { ...pageInfo, total: 2, end: 2 },
+    };
+    fetchCompanyCerts
+      .mockResolvedValueOnce(listResult)
+      .mockReturnValueOnce(pendingListRefresh.promise);
+    fetchCompanyCert
+      .mockResolvedValue(newerDetail)
+      .mockResolvedValueOnce(detail)
+      .mockReturnValueOnce(pendingDetailRefresh.promise);
+    processCompanyCert.mockReturnValueOnce(pendingMutation.promise);
+
+    render(<CompanyCertManagePage />);
+    const detailButtons = await screen.findAllByRole('button', { name: '상세' });
+    fireEvent.click(detailButtons[0]);
+    const detailDialog = await screen.findByRole('dialog', { name: '기업 인증 상세' });
+    expect(await within(detailDialog).findByText(detail.userNickname)).toBeInTheDocument();
+    fireEvent.click(within(detailDialog).getByRole('button', { name: '승인' }));
+    const reviewDialog = await screen.findByRole('dialog', { name: '승인 처리' });
+    fireEvent.click(within(reviewDialog).getByRole('button', { name: '승인' }));
+
+    expect(detailButtons[1]).toBeDisabled();
+    fireEvent.click(detailButtons[1]);
+    expect(fetchCompanyCert).toHaveBeenCalledTimes(1);
+    expect(within(detailDialog).getByText(detail.userNickname)).toBeInTheDocument();
+
+    await act(async () =>
+      pendingMutation.resolve({
+        id: detail.id,
+        status: 'APPROVED',
+        certificationCode: 'CERT-1',
+        approvedAt: '2026-08-14T00:00:00',
+      }),
+    );
+    await waitFor(() => expect(fetchCompanyCert).toHaveBeenCalledTimes(2));
+    expect(detailButtons[1]).toBeDisabled();
+    fireEvent.click(detailButtons[1]);
+    expect(fetchCompanyCert).toHaveBeenCalledTimes(2);
+
+    await act(async () => pendingDetailRefresh.resolve({ ...detail, status: 'APPROVED' }));
+    await waitFor(() => expect(fetchCompanyCerts).toHaveBeenCalledTimes(2));
+    expect(detailButtons[1]).toBeDisabled();
+    fireEvent.click(detailButtons[1]);
+    expect(fetchCompanyCert).toHaveBeenCalledTimes(2);
+
+    await act(async () =>
+      pendingListRefresh.resolve({
+        dataList: [{ ...detail, status: 'APPROVED' }, newerDetail],
         pageInfo: { ...pageInfo, total: 2, end: 2 },
-      });
-      fetchCompanyCert
-        .mockResolvedValueOnce(detail)
-        .mockImplementationOnce(() => lateRefresh.promise)
-        .mockResolvedValueOnce(newerDetail);
+      }),
+    );
+    await waitFor(() => expect(detailButtons[1]).toBeEnabled());
 
-      render(<CompanyCertManagePage />);
-      fireEvent.click((await screen.findAllByRole('button', { name: '상세' }))[0]);
-      const detailDialog = await screen.findByRole('dialog', { name: '기업 인증 상세' });
-      fireEvent.click(within(detailDialog).getByRole('button', { name: '승인' }));
-      const reviewDialog = await screen.findByRole('dialog', { name: '승인 처리' });
-      fireEvent.click(within(reviewDialog).getByRole('button', { name: '승인' }));
-      await waitFor(() => expect(fetchCompanyCert).toHaveBeenCalledTimes(2));
+    expect(processCompanyCert).toHaveBeenCalledTimes(1);
+    expect(fetchCompanyCert).toHaveBeenNthCalledWith(1, detail.id);
+    expect(fetchCompanyCert).toHaveBeenNthCalledWith(2, detail.id);
+    expect(fetchCompanyCerts).toHaveBeenCalledTimes(2);
+    expect(within(detailDialog).getByText(detail.userNickname)).toBeInTheDocument();
+    expect(within(detailDialog).queryByText(newerDetail.userNickname)).not.toBeInTheDocument();
 
-      fireEvent.click(screen.getAllByRole('button', { name: '상세' })[1]);
-      expect(await within(detailDialog).findByText('newer-owner')).toBeInTheDocument();
+    fireEvent.click(detailButtons[1]);
+    expect(await within(detailDialog).findByText(newerDetail.userNickname)).toBeInTheDocument();
+    expect(fetchCompanyCert).toHaveBeenNthCalledWith(3, newerDetail.id);
+  });
 
-      if (completion === 'success') {
-        await act(async () => lateRefresh.resolve({ ...detail, status: 'APPROVED' }));
-      } else {
-        await act(async () => lateRefresh.reject(new Error('late refresh failure')));
-      }
+  it('keeps a failed review attached to target A when target B is activated while pending', async () => {
+    const pendingMutation = deferred<unknown>();
+    const newerDetail: CompanyCertification = {
+      ...detail,
+      id: 2,
+      userId: 20,
+      userNickname: 'newer-owner',
+      userEmail: 'newer@example.com',
+      companyName: 'Newer company',
+    };
+    fetchCompanyCerts.mockResolvedValue({
+      dataList: [detail, newerDetail],
+      pageInfo: { ...pageInfo, total: 2, end: 2 },
+    });
+    processCompanyCert.mockReturnValueOnce(pendingMutation.promise);
 
-      const currentDetailDialog = screen.getByRole('dialog', { name: '기업 인증 상세' });
-      expect(within(currentDetailDialog).getByText('newer-owner')).toBeInTheDocument();
-      expect(within(currentDetailDialog).queryByText(detail.userNickname)).not.toBeInTheDocument();
-      expect(
-        within(currentDetailDialog).queryByText('기업 인증 신청 상세를 불러오지 못했습니다.'),
-      ).not.toBeInTheDocument();
-    },
-  );
+    render(<CompanyCertManagePage />);
+    const detailButtons = await screen.findAllByRole('button', { name: '상세' });
+    fireEvent.click(detailButtons[0]);
+    const detailDialog = await screen.findByRole('dialog', { name: '기업 인증 상세' });
+    expect(await within(detailDialog).findByText(detail.userNickname)).toBeInTheDocument();
+    fireEvent.click(within(detailDialog).getByRole('button', { name: '승인' }));
+    const reviewDialog = await screen.findByRole('dialog', { name: '승인 처리' });
+    fireEvent.click(within(reviewDialog).getByRole('button', { name: '승인' }));
 
-  it.each([
-    { mutationCompletion: 'success', detailCompletion: 'success' },
-    { mutationCompletion: 'success', detailCompletion: 'failure' },
-    { mutationCompletion: 'failure', detailCompletion: 'success' },
-    { mutationCompletion: 'failure', detailCompletion: 'failure' },
-  ] as const)(
-    'keeps B detail owned after late A mutation $mutationCompletion and B detail $detailCompletion',
-    async ({ mutationCompletion, detailCompletion }) => {
-      const pendingMutation = deferred<unknown>();
-      const pendingNewerDetail = deferred<CompanyCertification>();
-      const newerDetail: CompanyCertification = {
-        ...detail,
-        id: 2,
-        userId: 20,
-        userNickname: 'newer-owner',
-        userEmail: 'newer@example.com',
-        companyName: 'Newer company',
-      };
-      fetchCompanyCerts.mockResolvedValue({
-        dataList: [detail, newerDetail],
-        pageInfo: { ...pageInfo, total: 2, end: 2 },
-      });
-      fetchCompanyCert
-        .mockResolvedValueOnce(detail)
-        .mockImplementationOnce(() => pendingNewerDetail.promise);
-      processCompanyCert.mockImplementationOnce(() => pendingMutation.promise);
+    expect(detailButtons[1]).toBeDisabled();
+    fireEvent.click(detailButtons[1]);
+    await act(async () => pendingMutation.reject(new Error('late mutation failure')));
 
-      render(<CompanyCertManagePage />);
-      const detailButtons = await screen.findAllByRole('button', { name: '상세' });
-      fireEvent.click(detailButtons[0]);
-      const detailDialog = await screen.findByRole('dialog', { name: '기업 인증 상세' });
-      fireEvent.click(await within(detailDialog).findByRole('button', { name: '승인' }));
-      const reviewDialog = await screen.findByRole('dialog', { name: '승인 처리' });
-      fireEvent.click(within(reviewDialog).getByRole('button', { name: '승인' }));
-      await waitFor(() => expect(processCompanyCert).toHaveBeenCalledTimes(1));
-
-      fireEvent.click(detailButtons[1]);
-      await waitFor(() => {
-        expect(fetchCompanyCert).toHaveBeenCalledTimes(2);
-        expect(fetchCompanyCert).toHaveBeenNthCalledWith(2, newerDetail.id);
-      });
-      expect(within(detailDialog).getByText('상세를 불러오는 중...')).toBeInTheDocument();
-
-      if (mutationCompletion === 'success') {
-        await act(async () =>
-          pendingMutation.resolve({
-            id: detail.id,
-            status: 'APPROVED',
-            certificationCode: null,
-            approvedAt: null,
-          }),
-        );
-      } else {
-        await act(async () => pendingMutation.reject(new Error('late mutation failure')));
-      }
-
-      if (detailCompletion === 'success') {
-        await act(async () => pendingNewerDetail.resolve(newerDetail));
-        expect(await within(detailDialog).findByText(newerDetail.userNickname)).toBeInTheDocument();
-        expect(within(detailDialog).queryByText(detail.userNickname)).not.toBeInTheDocument();
-      } else {
-        await act(async () => pendingNewerDetail.reject(new Error('newer detail failure')));
-        expect(await within(detailDialog).findByRole('alert')).toHaveTextContent(
-          '기업 인증 신청 상세를 불러오지 못했습니다.',
-        );
-      }
-
-      expect(within(detailDialog).queryByText('상세를 불러오는 중...')).not.toBeInTheDocument();
-      expect(screen.queryByRole('dialog', { name: '승인 처리' })).not.toBeInTheDocument();
-      expect(screen.queryByText('기업 인증 심사 처리에 실패했습니다.')).not.toBeInTheDocument();
-      expect(fetchCompanyCert).toHaveBeenCalledTimes(2);
-      expect(fetchCompanyCerts).toHaveBeenCalledTimes(1);
-    },
-  );
+    expect(await within(reviewDialog).findByRole('alert')).toHaveTextContent(
+      '기업 인증 심사 처리에 실패했습니다.',
+    );
+    expect(within(detailDialog).getByText(detail.userNickname)).toBeInTheDocument();
+    expect(within(detailDialog).queryByText(newerDetail.userNickname)).not.toBeInTheDocument();
+    expect(processCompanyCert).toHaveBeenCalledTimes(1);
+    expect(fetchCompanyCert).toHaveBeenCalledTimes(1);
+    expect(fetchCompanyCert).toHaveBeenCalledWith(detail.id);
+    expect(fetchCompanyCerts).toHaveBeenCalledTimes(1);
+  });
 });

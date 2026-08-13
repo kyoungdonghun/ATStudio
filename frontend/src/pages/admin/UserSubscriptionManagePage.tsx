@@ -36,6 +36,13 @@ export default function UserSubscriptionManagePage() {
   const planGenerationRef = useRef(0);
 
   const [correctionTarget, setCorrectionTarget] = useState<MySubscription | null>(null);
+  const [correctionMutationOwned, setCorrectionMutationOwned] = useState(false);
+  const correctionMutationOwnedRef = useRef(false);
+
+  const handleCorrectionMutationOwnershipChange = useCallback((owned: boolean) => {
+    correctionMutationOwnedRef.current = owned;
+    setCorrectionMutationOwned(owned);
+  }, []);
 
   const loadData = useCallback(async (): Promise<boolean> => {
     loadControllerRef.current?.abort();
@@ -172,7 +179,9 @@ export default function UserSubscriptionManagePage() {
                 <td>
                   <Button
                     size="sm"
+                    disabled={correctionMutationOwned}
                     onClick={() => {
+                      if (correctionMutationOwnedRef.current) return;
                       setSuccess(null);
                       setCorrectionTarget(sub);
                     }}
@@ -196,6 +205,7 @@ export default function UserSubscriptionManagePage() {
         planError={planError}
         onClose={() => setCorrectionTarget(null)}
         onSucceeded={(correction) => handleSucceeded(correction.id)}
+        onMutationOwnershipChange={handleCorrectionMutationOwnershipChange}
       />
     </div>
   );

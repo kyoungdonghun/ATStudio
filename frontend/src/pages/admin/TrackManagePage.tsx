@@ -64,6 +64,7 @@ export default function TrackManagePage() {
   const [deleteCommitted, setDeleteCommitted] = useState(false);
   const deletePendingRef = useRef(false);
   const deleteCommittedRef = useRef(false);
+  const deleteGenerationRef = useRef(0);
 
   useEffect(() => {
     if (!urlNeedsNormalization) return;
@@ -118,12 +119,6 @@ export default function TrackManagePage() {
 
       setTracks(response.dataList);
       setPageInfo(response.pageInfo);
-      if (deleteCommittedRef.current) {
-        deleteCommittedRef.current = false;
-        setDeleteCommitted(false);
-        setDeleteTarget(null);
-        setDeleteError(null);
-      }
       return true;
     } catch {
       if (controller.signal.aborted || listGenerationRef.current !== generation) return false;
@@ -171,6 +166,7 @@ export default function TrackManagePage() {
 
   function openDelete(track: AdminTrackListItem) {
     if (deletePendingRef.current) return;
+    deleteGenerationRef.current += 1;
     setDeleteTarget(track);
     setDeleteError(null);
     setDeleteCommitted(false);
@@ -179,6 +175,7 @@ export default function TrackManagePage() {
 
   function closeDeleteModal() {
     if (deletePendingRef.current) return;
+    deleteGenerationRef.current += 1;
     setDeleteTarget(null);
     setDeleteError(null);
     setDeleteCommitted(false);
@@ -188,6 +185,8 @@ export default function TrackManagePage() {
   async function handleDelete() {
     if (!deleteTarget || deletePendingRef.current || deleteCommittedRef.current) return;
     const targetID = deleteTarget.id;
+    const generation = deleteGenerationRef.current;
+    const ownsDelete = () => deleteGenerationRef.current === generation;
     deletePendingRef.current = true;
     setDeleting(true);
     setDeleteError(null);
@@ -195,30 +194,44 @@ export default function TrackManagePage() {
     try {
       await deleteTrack(targetID);
       deleteCommittedRef.current = true;
-      setDeleteCommitted(true);
+      if (ownsDelete()) setDeleteCommitted(true);
       const refreshed = await loadTracks();
-      if (!refreshed && deleteCommittedRef.current) {
+      if (ownsDelete() && refreshed) {
+        deleteCommittedRef.current = false;
+        setDeleteCommitted(false);
+        setDeleteTarget(null);
+        setDeleteError(null);
+      } else if (ownsDelete() && deleteCommittedRef.current) {
         setDeleteError(TRACK_REFRESH_ERROR);
       }
     } catch {
-      setDeleteError(TRACK_DELETE_ERROR);
+      if (ownsDelete()) setDeleteError(TRACK_DELETE_ERROR);
     } finally {
       deletePendingRef.current = false;
-      setDeleting(false);
+      if (ownsDelete()) setDeleting(false);
     }
   }
 
   async function retryCommittedRefresh() {
     if (deletePendingRef.current || !deleteCommittedRef.current) return;
+    const generation = deleteGenerationRef.current;
+    const ownsDelete = () => deleteGenerationRef.current === generation;
     deletePendingRef.current = true;
     setDeleting(true);
     setDeleteError(null);
     try {
       const refreshed = await loadTracks();
-      if (!refreshed && deleteCommittedRef.current) setDeleteError(TRACK_REFRESH_ERROR);
+      if (ownsDelete() && refreshed) {
+        deleteCommittedRef.current = false;
+        setDeleteCommitted(false);
+        setDeleteTarget(null);
+        setDeleteError(null);
+      } else if (ownsDelete() && deleteCommittedRef.current) {
+        setDeleteError(TRACK_REFRESH_ERROR);
+      }
     } finally {
       deletePendingRef.current = false;
-      setDeleting(false);
+      if (ownsDelete()) setDeleting(false);
     }
   }
 
@@ -354,7 +367,12 @@ export default function TrackManagePage() {
         </>
       )}
 
-      <Modal open={deleteTarget !== null} onClose={closeDeleteModal} title="음원 삭제">
+      <Modal
+        open={deleteTarget !== null}
+        onClose={closeDeleteModal}
+        title="음원 삭제"
+        busy={deleting}
+      >
         <div className={styles.modalBody}>
           <strong>{deleteTarget?.title}</strong> 음원을 삭제하시겠습니까?
           <br />이 작업은 기존 정책에 따라 비활성화로 처리됩니다.

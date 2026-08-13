@@ -191,6 +191,36 @@ describe('TagManagePage', () => {
     expect(screen.getByRole('heading', { name: 'Tag Management' })).toBeInTheDocument();
   });
 
+  it('keeps a pending save owned by its original form generation and blocks close paths', async () => {
+    const pendingCreate = deferred<TagItem>();
+    mocks.createTag.mockReturnValueOnce(pendingCreate.promise);
+    await renderLoadedPage();
+    let dialog = openCreateDialog();
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'New Tag' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }));
+
+    expect(dialog).toHaveAttribute('aria-busy', 'true');
+    expect(within(dialog).getByRole('button', { name: '닫기' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(dialog.parentElement!);
+    fireEvent.click(within(dialog).getByRole('button', { name: '닫기' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    const editRow = screen.getByText('Focus').closest('tr');
+    fireEvent.click(within(editRow as HTMLTableRowElement).getByRole('button', { name: 'Edit' }));
+    dialog = screen.getByRole('dialog', { name: 'Edit Tag' });
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('Focus');
+
+    await act(async () => pendingCreate.resolve({ id: 5, name: 'New Tag', type: 'GENRE' }));
+
+    dialog = screen.getByRole('dialog', { name: 'Edit Tag' });
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('Focus');
+    expect(within(dialog).queryByText('New Tag')).not.toBeInTheDocument();
+    expect(mocks.createTag).toHaveBeenCalledTimes(1);
+    expect(mocks.updateTag).not.toHaveBeenCalled();
+  });
+
   it('keeps delete failure inside the delete modal and displays the USAGE hash', async () => {
     mocks.deleteTag.mockRejectedValue({
       response: { status: 409, data: { message: '연결된 트랙 때문에 삭제할 수 없습니다.' } },
@@ -211,6 +241,38 @@ describe('TagManagePage', () => {
     expect(within(dialog).getByText('#Shorts')).toBeInTheDocument();
     expect(filterButton('USAGE')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('heading', { name: 'Tag Management' })).toBeInTheDocument();
+  });
+
+  it('blocks every close path, retarget, and duplicate delete while pending', async () => {
+    const pendingDelete = deferred<void>();
+    mocks.deleteTag.mockReturnValueOnce(pendingDelete.promise);
+    await renderLoadedPage();
+    const targetRow = screen.getByText('Hip Hop').closest('tr');
+    fireEvent.click(
+      within(targetRow as HTMLTableRowElement).getByRole('button', { name: 'Delete' }),
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Delete Tag' });
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Delete' }));
+
+    expect(dialog).toHaveAttribute('aria-busy', 'true');
+    expect(within(dialog).getByRole('button', { name: '닫기' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(dialog.parentElement!);
+    fireEvent.click(within(dialog).getByRole('button', { name: '닫기' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    const otherRow = screen.getByText('Focus').closest('tr');
+    fireEvent.click(
+      within(otherRow as HTMLTableRowElement).getByRole('button', { name: 'Delete' }),
+    );
+    expect(within(dialog).getByText('Hip Hop')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Focus')).not.toBeInTheDocument();
+    expect(mocks.deleteTag).toHaveBeenCalledTimes(1);
+
+    await act(async () => pendingDelete.resolve());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete Tag' })).toBeNull());
   });
 
   it('shows an unused Tag impact before exposing destructive confirmation', async () => {

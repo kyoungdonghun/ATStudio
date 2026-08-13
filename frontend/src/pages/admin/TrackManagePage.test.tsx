@@ -204,7 +204,17 @@ describe('TrackManagePage', () => {
     const dialog = screen.getByRole('dialog', { name: '음원 삭제' });
     fireEvent.click(within(dialog).getByRole('button', { name: '삭제' }));
 
-    expect(within(dialog).getByText('닫기', { selector: 'button' })).toBeDisabled();
+    expect(dialog).toHaveAttribute('aria-busy', 'true');
+    expect(
+      within(dialog)
+        .getAllByRole('button', { name: '닫기' })
+        .every((button) => button.hasAttribute('disabled')),
+    ).toBe(true);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(dialog.parentElement!);
+    for (const closeButton of within(dialog).getAllByRole('button', { name: '닫기' })) {
+      fireEvent.click(closeButton);
+    }
     expect(
       screen
         .getAllByRole('button', { name: '삭제' })
