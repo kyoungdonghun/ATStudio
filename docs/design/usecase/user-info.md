@@ -10,7 +10,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | INFO-001 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-13 |
 | **Description** | A non-member registers as a new member. |
 | **Actor** | User (non-member), Backend |
 | **Preconditions** | Email must not be registered. Phone number must not be registered. Nickname must not be in use. |
@@ -49,12 +49,15 @@
 | **Related UC** | UTIL-004 (reissue token), INFO-013 (social login) |
 
 **Main Flow**
-1. User enters email and password, then clicks the 'Login' button.
-2. Frontend sends email and password to the backend.
-3. Backend looks up the user by email and verifies the BCrypt password.
-4. Backend issues an Access Token (short-lived) and Refresh Token (long-lived).
-5. Backend returns token information (accessToken, refreshToken, tokenType, expiresIn).
-6. Frontend stores both the Access Token and Refresh Token in browser storage.
+1. Frontend loads public capabilities. Loading or failure does not expose any
+   login method as available; every failed attempt provides an explicit manual
+   retry and no automatic retry occurs.
+2. User enters email and password, then clicks the 'Login' button.
+3. Frontend sends email and password to the backend.
+4. Backend looks up the user by email and verifies the BCrypt password.
+5. Backend issues an Access Token (short-lived) and Refresh Token (long-lived).
+6. Backend returns token information (accessToken, refreshToken, tokenType, expiresIn).
+7. Frontend stores both the Access Token and Refresh Token in browser storage.
 
 **Exception / Alternative Flow**
 - Email not found or password mismatch: 401 response.
@@ -70,7 +73,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | INFO-013 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-13 |
 | **Description** | User logs in via a social account (Google/Kakao/Naver). On first login, a minimal record is created and the user is guided to the profile completion step (INFO-014). |
 | **Actor** | User, Social OAuth Server, Backend |
 | **Preconditions** | - |
@@ -117,7 +120,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | INFO-014 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-13 |
 | **Description** | A member who first signed up via social login enters required profile information to complete their profile. `INDIVIDUAL` members provide job, while `BUSINESS` members provide companyName. |
 | **Actor** | User (new social sign-up), Backend |
 | **Preconditions** | Logged in. users record exists with isProfileComplete=false. |
@@ -125,19 +128,26 @@
 | **Related UC** | INFO-013 (social login), UTIL-003 (phone duplicate check), UTIL-012 (nickname duplicate check) |
 
 **Main Flow**
-1. Frontend displays the profile completion screen.
-2. User enters nickname (required), personal phone number (required), user type (INDIVIDUAL/BUSINESS, required), and the user-type-specific profile field.
+1. The authenticated frontend reads current identity before rendering mutation
+   controls. A complete profile redirects to `/profile?tab=account`; a failed
+   read exposes only retry guidance.
+2. Frontend displays the profile completion screen only for an incomplete profile.
+3. User enters nickname (required), personal phone number (required), user type (INDIVIDUAL/BUSINESS, required), and the user-type-specific profile field.
    - `INDIVIDUAL`: job (required)
    - `BUSINESS`: companyName (required)
-3. Frontend performs UTIL-003 (phone duplicate) and UTIL-012 (nickname duplicate) checks before submit.
-4. User clicks the 'Complete' button.
-5. Frontend sends auth token and profile information to `PUT /api/users/me/complete-profile`.
-6. Backend verifies isProfileComplete=false and repeats the uniqueness checks for nickname and phone number.
-7. Backend updates the users record (nickname, phonePersonal, userType, and either job or companyName depending on member type).
-8. Backend returns the updated user information (same format as 5.4 view my info).
-9. Frontend consumes the one-time profile-continuation target and navigates to
-   that revalidated internal path. Missing, stale, malformed, or replayed
-   continuation data falls back to `/`.
+4. User clicks the 'Complete' button. One pending fence immediately disables
+   every related control before asynchronous validation starts.
+5. Frontend performs UTIL-003 (phone duplicate) and UTIL-012 (nickname duplicate) checks.
+6. Frontend sends auth token and profile information to `PUT /api/users/me/complete-profile`.
+7. Backend verifies isProfileComplete=false and repeats the uniqueness checks for nickname and phone number.
+8. Backend updates the users record (nickname, phonePersonal, userType, and either job or companyName depending on member type).
+9. Backend returns the updated user information (same format as 5.4 view my info).
+10. Frontend refreshes current identity through the session-generation and
+    user-ID guarded auth-store flow. Logout or user change prevents a late result
+    from repopulating storage, while component unmount prevents late navigation.
+11. Only after guarded refresh success, frontend consumes the one-time
+    profile-continuation target and navigates to that revalidated internal path.
+    Missing, stale, malformed, or replayed continuation data falls back to `/`.
 
 **Exception / Alternative Flow**
 - Nickname duplicate: UTIL-012 returns available=false. Prompts re-entry.
@@ -154,7 +164,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | INFO-002 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-13 |
 | **Description** | Logged-in user views their own account information. |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. |
@@ -165,6 +175,11 @@
 1. Frontend sends a request including auth token to the backend.
 2. Backend extracts userId from the JWT and queries the users table.
 3. Backend returns user information (id, nickname, email, phonePersonal, phoneCompany, job, userType, role, isVerified, createdAt).
+4. Frontend keeps `account`, `edit`, `password`, and `subscription` as Profile
+   query panels, replace-navigates legacy activity query keys to canonical
+   activity routes, and normalizes other unsupported tabs to `account`.
+5. Frontend separately renders subscription loading, known data, authoritative
+   absence, or retryable failure.
 
 **Postconditions**
 - My info displayed on screen.
@@ -338,23 +353,23 @@
 | Field | Value |
 |-------|-------|
 | **Code** | INFO-015 |
-| **Version** | 26-03-08 |
+| **Version** | 26-08-13 |
 | **Description** | Logged-in member changes their account password by providing the current password and a new password. |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. Account was registered via email/password (non-social). |
-| **Trigger** | User clicks the 'Change Password' button on the personal info page (Screen 10). |
+| **Trigger** | User submits the password form on the Profile password tab. |
 | **Related UC** | INFO-002 (view my info) |
 
 **Main Flow**
-1. User clicks the 'Change Password' button on the personal info page.
-2. Frontend displays an input modal (M-01 InputModal) prompting for currentPassword and newPassword.
-3. User enters the current password and the new password, then submits.
+1. User opens the Profile password tab.
+2. Frontend displays inline current-password, new-password, and confirmation fields.
+3. User enters the current password and matching new password values, then submits.
 4. Frontend sends a request to `PUT /api/users/me/password` with `{ currentPassword, newPassword }` and the auth token.
 5. Backend extracts userId from the JWT and retrieves the users record.
 6. Backend verifies the currentPassword against the stored BCrypt hash.
 7. Backend hashes the newPassword with BCrypt and updates the users record.
 8. Backend returns 204 No Content.
-9. Frontend closes the modal and displays a success toast.
+9. Frontend clears the fields and displays inline success feedback.
 
 **Request Body**
 | Field | Type | Required | Description |
@@ -363,7 +378,10 @@
 | newPassword | String | Yes | New password to set |
 
 **Exception / Alternative Flow**
-- Current password mismatch: 400 Bad Request.
+- Current password mismatch: fixed inline guidance selected from
+  `INVALID_CREDENTIALS`.
+- Validation, rate-limit, network, and server failures use bounded fixed
+  guidance. Arbitrary backend messages are not rendered.
 
 **Postconditions**
 - Password updated in the users record. Subsequent logins require the new password.

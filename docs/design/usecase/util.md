@@ -1,6 +1,6 @@
 ---
-version: 2.0
-last_updated: 2026-07-17
+version: 2.1
+last_updated: 2026-08-13
 project: ATS
 owner: docops
 category: design
@@ -50,6 +50,12 @@ subscription or payment state.
 The endpoint reports whether password login, mail-dependent flows, social
 providers, and non-production QA bootstrap exposure are available. It does not
 return secret values.
+
+Frontend consumers distinguish loading, a known response, and failure. Until a
+known response exists, no password login, signup, email verification, password
+reset, social Provider, or QA bootstrap capability is presented as enabled.
+Failure offers an explicit manual retry after each failed attempt and never
+retries automatically. An older request cannot replace the latest retry result.
 
 Token refresh, email verification, password reset, profile reads, and current
 subscription reads are owned by their dedicated auth/user/subscription

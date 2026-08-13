@@ -148,6 +148,28 @@ describe('LoginPage', () => {
     expect(screen.getByRole('link', { name: '비밀번호 찾기' })).toBeInTheDocument();
   });
 
+  it('advertises no auth capability when discovery fails and retries once on request', () => {
+    const retry = vi.fn();
+    usePublicCapabilitiesMock.mockReturnValue({
+      capabilities: null,
+      loading: false,
+      error: '로그인 환경 설정을 불러오지 못했습니다.',
+      retry,
+      status: 'error',
+    });
+
+    renderPage();
+
+    expect(screen.queryByRole('button', { name: '로그인' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '회원가입' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '비밀번호 찾기' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Google|Kakao|Naver/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/QA 테스트 계정/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
   it('shows disabled-state guidance when social and password reset flows are unavailable', () => {
     usePublicCapabilitiesMock.mockReturnValue({
       capabilities: buildCapabilities({

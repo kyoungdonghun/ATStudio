@@ -25,7 +25,7 @@ status: stable
 
 | Document | Description | Status |
 |---|---|---|
-| **[API Specification](api-spec.md)** | REST API spec v30.0 - 149 current method-level mappings | confirmed |
+| **[API Specification](api-spec.md)** | REST API spec v30.3 - 150 current method-level mappings | confirmed |
 | **[DB Schema](db-schema.md)** | Database schema v24.0 - 42 source tables / 42 JPA entities; current 42/506/173/90/6 MySQL manifest recorded and DG-067-09B `RUN-PASS-CLEANED` | confirmed |
 | **[Use Case Index](usecase/index.md)** | Domain use case documents | stable |
 | **[Payment Integration Design](payment-integration-design.md)** | TOSS recurring-only V1 with provider-neutral extension interfaces | stable |

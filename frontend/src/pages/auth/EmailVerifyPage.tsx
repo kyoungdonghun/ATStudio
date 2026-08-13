@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { verifyEmail } from '@/api/auth';
+import { getEmailVerificationErrorMessage } from '@/api/authError';
 import styles from './EmailVerifyPage.module.css';
 
 export default function EmailVerifyPage() {
@@ -19,10 +20,9 @@ export default function EmailVerifyPage() {
     verificationStartedRef.current = true;
     verifyEmail(token)
       .then(() => setStatus('success'))
-      .catch((err) => {
+      .catch((verificationError: unknown) => {
         setStatus('error');
-        const msg = err?.response?.data?.message;
-        setErrorMessage(msg || '인증에 실패했습니다. 링크가 만료되었거나 이미 사용되었습니다.');
+        setErrorMessage(getEmailVerificationErrorMessage(verificationError));
       });
   }, [token]);
 

@@ -77,6 +77,7 @@ export default function LoginPage() {
     capabilities,
     loading: capabilitiesLoading,
     error: capabilitiesError,
+    retry: retryCapabilities,
   } = usePublicCapabilities();
 
   useEffect(() => {
@@ -91,9 +92,9 @@ export default function LoginPage() {
   const enabledSocialProviders = (Object.keys(PROVIDER_CONFIG) as SocialProvider[]).filter(
     (provider) => getProviderCapability(capabilities, provider)?.enabled,
   );
-  const isPasswordLoginEnabled = capabilities?.passwordLoginEnabled ?? true;
-  const isQaBootstrapEnabled = capabilities?.testUsersEnabled ?? false;
-  const isPasswordResetAvailable = capabilities?.passwordReset.enabled ?? true;
+  const isPasswordLoginEnabled = capabilities?.passwordLoginEnabled === true;
+  const isQaBootstrapEnabled = capabilities?.testUsersEnabled === true;
+  const isPasswordResetAvailable = capabilities?.passwordReset.enabled === true;
   const isLocalMailMode = capabilities?.passwordReset.deliveryMode === 'LOCAL_SMTP';
 
   function validate(): boolean {
@@ -201,6 +202,39 @@ export default function LoginPage() {
     window.location.href = `${config.authUrl}?${params.toString()}`;
   }
 
+  if (capabilitiesLoading) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.card}>
+          <h1 className={styles.title}>AT.M</h1>
+          <p className={styles.subtitle}>로그인 환경을 확인하는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (capabilitiesError || !capabilities) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.card}>
+          <h1 className={styles.title}>AT.M</h1>
+          <p className={styles.helperText}>
+            {capabilitiesError || '현재 사용할 수 있는 로그인 방식을 확인하지 못했습니다.'}
+          </p>
+          <Button
+            type="button"
+            variant="primary"
+            size="lg"
+            className={styles.submitButton}
+            onClick={() => void retryCapabilities()}
+          >
+            다시 시도
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.card}>
@@ -273,12 +307,6 @@ export default function LoginPage() {
           </div>
         ) : !capabilitiesLoading ? (
           <p className={styles.helperText}>이 환경에서는 소셜 로그인이 비활성화되어 있습니다.</p>
-        ) : null}
-
-        {capabilitiesError ? (
-          <p className={styles.helperText}>
-            {capabilitiesError} 이메일 로그인만 사용할 수 있습니다.
-          </p>
         ) : null}
 
         {!isPasswordLoginEnabled && !capabilitiesLoading ? (

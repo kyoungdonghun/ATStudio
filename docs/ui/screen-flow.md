@@ -1,5 +1,5 @@
 ---
-version: 5.7
+version: 5.8
 last_updated: 2026-08-13
 project: ATS
 owner: docops
@@ -22,11 +22,24 @@ The main layout serves public and authenticated user workflows with the shared p
 
 ## Authentication
 
-1. Login/signup screens load public runtime capabilities.
+1. Login, signup, and password-reset screens load public runtime capabilities.
+   Loading and failure expose no capability as enabled. Every failed attempt
+   offers an explicit manual retry, and no automatic retry occurs.
 2. Password or enabled social login authenticates the user.
-3. A new social account completes the required profile before protected workflows.
+3. A new social account revalidates current identity before profile completion.
+   Complete profiles redirect to canonical Profile, while unresolved or failed
+   identity cannot mutate. One pending fence covers validation and submission.
+   Post-mutation identity refresh rejects stale session generations and user IDs;
+   logout prevents late storage updates, and unmount prevents late navigation.
 4. Logout calls `POST /api/auth/logout` and clears frontend session state.
 5. Social-only account withdrawal remains policy-pending; password confirmation is not treated as social proof.
+6. Profile keeps account, edit, password, and subscription query panels. Legacy
+   activity query keys redirect to canonical activity routes, while other
+   unsupported tabs normalize to `account`. Subscription loading, authoritative
+   absence, and retryable failure remain distinct.
+7. Forgot-password acceptance is generic for all submitted addresses. Auth and
+   account failures use fixed allowlisted guidance rather than backend message
+   text.
 
 ## Discovery And Playback
 

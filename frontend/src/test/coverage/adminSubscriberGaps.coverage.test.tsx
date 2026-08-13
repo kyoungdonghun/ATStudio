@@ -1379,7 +1379,12 @@ describe('profile behavior gaps', () => {
   it('renders load failure and navigates account, subscription, and activity destinations', async () => {
     mocks.fetchMe.mockRejectedValueOnce(new Error('profile unavailable'));
     const failed = renderRoute(<ProfilePage />, '/profile');
-    expect(await screen.findByText('profile unavailable')).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        '프로필 정보를 불러오지 못했습니다. 네트워크 연결을 확인하고 다시 시도해주세요.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('profile unavailable')).not.toBeInTheDocument();
     failed.unmount();
     failed.dispose();
 
@@ -1474,7 +1479,10 @@ describe('profile behavior gaps', () => {
     fireEvent.change(passwordInputs[2], { target: { value: 'new-password-456' } });
     mocks.clientPut.mockRejectedValueOnce(new Error('password unavailable'));
     fireEvent.click(last(screen.getAllByRole('button')));
-    expect(await screen.findByText('password unavailable')).toBeInTheDocument();
+    expect(
+      await screen.findByText('네트워크 연결을 확인하고 비밀번호 변경을 다시 시도해주세요.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('password unavailable')).not.toBeInTheDocument();
   });
 });
 

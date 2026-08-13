@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   checkNicknameAvailability,
@@ -6,8 +6,14 @@ import {
   fetchMe,
   type MeResponse,
 } from '@/api/auth';
-import { fetchMySubscription, type MySubscription } from '@/api/userSubscriptions';
+import {
+  fetchMySubscription,
+  isNoActiveSubscriptionError,
+  type MySubscription,
+} from '@/api/userSubscriptions';
 import client from '@/api/client';
+import { classifyLoadError, getLoadErrorMessage } from '@/api/loadError';
+import { getPasswordUpdateErrorMessage, getProfileUpdateErrorMessage } from '@/api/authError';
 import { formatDate } from '@/utils/format';
 import type { ApiResponse, UserJob } from '@/types';
 import {
@@ -51,16 +57,24 @@ const JOB_OPTIONS: Array<{ value: UserJob; label: string }> = [
   { value: 'FREELANCER', label: '프리랜서' },
 ];
 
-type TabKey =
-  | 'account'
-  | 'subscription'
-  | 'edit'
-  | 'password'
-  | 'likes'
-  | 'downloads'
-  | 'playlists'
-  | 'history'
-  | 'licenses';
+type PanelTabKey = 'account' | 'subscription' | 'edit' | 'password';
+type ActivityTabKey = 'likes' | 'downloads' | 'playlists' | 'history' | 'licenses';
+type TabKey = PanelTabKey | ActivityTabKey;
+
+const PANEL_TABS: ReadonlySet<string> = new Set<PanelTabKey>([
+  'account',
+  'subscription',
+  'edit',
+  'password',
+]);
+
+const ACTIVITY_ROUTES: Record<ActivityTabKey, string> = {
+  likes: '/likes',
+  downloads: '/downloads',
+  playlists: '/playlists',
+  history: '/play-history',
+  licenses: '/licenses',
+};
 
 interface MenuItem {
   key: TabKey;
@@ -80,17 +94,32 @@ const MENU_ITEMS: MenuItem[] = [
   { key: 'licenses', label: '라이선스', group: '내 활동' },
 ];
 
+function isPanelTabKey(value: string | null): value is PanelTabKey {
+  return value !== null && PANEL_TABS.has(value);
+}
+
+function isActivityTabKey(value: string | null): value is ActivityTabKey {
+  return value !== null && Object.prototype.hasOwnProperty.call(ACTIVITY_ROUTES, value);
+}
+
+type SubscriptionLoadState = 'loading' | 'success' | 'empty' | 'error';
+
 export default function ProfilePage() {
   const navigate = useNavigate();
   const updateAuthUser = useAuthStore((state) => state.updateUser);
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get('tab') as TabKey) || 'account';
+  const requestedTab = searchParams.get('tab');
+  const activeTab: PanelTabKey = isPanelTabKey(requestedTab) ? requestedTab : 'account';
 
   /* ── Profile State ── */
   const [profile, setProfile] = useState<MeResponse | null>(null);
   const [mySub, setMySub] = useState<MySubscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [subscriptionState, setSubscriptionState] = useState<SubscriptionLoadState>('loading');
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+  const subscriptionRequestIdRef = useRef(0);
+  const subscriptionAbortRef = useRef<AbortController | null>(null);
 
   /* ── Edit Profile ── */
   const [nickname, setNickname] = useState('');
@@ -110,7 +139,55 @@ export default function ProfilePage() {
   const [passwordMsg, setPasswordMsg] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  /* ── Load profile ── */
+  useEffect(() => {
+    if (isActivityTabKey(requestedTab)) {
+      navigate(ACTIVITY_ROUTES[requestedTab], { replace: true });
+      return;
+    }
+    if (requestedTab === null || isPanelTabKey(requestedTab)) return;
+
+    const normalizedParams = new URLSearchParams(searchParams);
+    normalizedParams.set('tab', 'account');
+    setSearchParams(normalizedParams, { replace: true });
+  }, [navigate, requestedTab, searchParams, setSearchParams]);
+
+  const loadSubscription = useCallback(async () => {
+    const requestId = ++subscriptionRequestIdRef.current;
+    subscriptionAbortRef.current?.abort();
+    const controller = new AbortController();
+    subscriptionAbortRef.current = controller;
+    setMySub(null);
+    setSubscriptionError(null);
+    setSubscriptionState('loading');
+
+    try {
+      const subscription = await fetchMySubscription(controller.signal);
+      if (requestId !== subscriptionRequestIdRef.current) return;
+
+      setMySub(subscription);
+      setSubscriptionState('success');
+    } catch (subscriptionLoadError: unknown) {
+      if (requestId !== subscriptionRequestIdRef.current) return;
+      if (classifyLoadError(subscriptionLoadError) === 'cancelled') return;
+
+      if (isNoActiveSubscriptionError(subscriptionLoadError)) {
+        setSubscriptionState('empty');
+        return;
+      }
+
+      setSubscriptionError(getLoadErrorMessage(subscriptionLoadError, '구독'));
+      setSubscriptionState('error');
+    } finally {
+      if (
+        requestId === subscriptionRequestIdRef.current &&
+        subscriptionAbortRef.current === controller
+      ) {
+        subscriptionAbortRef.current = null;
+      }
+    }
+  }, []);
+
+  /* ── Load profile and subscription independently ── */
   useEffect(() => {
     let cancelled = false;
 
@@ -127,15 +204,9 @@ export default function ProfilePage() {
           setJob(me.job ?? '');
           setCompanyName(me.companyName ?? '');
         }
-        try {
-          const sub = await fetchMySubscription();
-          if (!cancelled) setMySub(sub);
-        } catch {
-          /* no subscription */
-        }
-      } catch (err) {
+      } catch (profileLoadError: unknown) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : '프로필을 불러오지 못했습니다.');
+          setError(getLoadErrorMessage(profileLoadError, '프로필'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -147,6 +218,15 @@ export default function ProfilePage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    void loadSubscription();
+    return () => {
+      subscriptionRequestIdRef.current += 1;
+      subscriptionAbortRef.current?.abort();
+      subscriptionAbortRef.current = null;
+    };
+  }, [loadSubscription]);
 
   const isBusinessUser = profile?.userType === 'BUSINESS';
   const normalizedNickname = nickname.trim();
@@ -238,11 +318,8 @@ export default function ProfilePage() {
       setJob(updatedProfile.job ?? '');
       setCompanyName(updatedProfile.companyName ?? '');
       setProfileMsg('프로필이 저장되었습니다.');
-    } catch (err) {
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        (err instanceof Error ? err.message : '프로필 저장에 실패했습니다.');
-      setProfileError(msg);
+    } catch (profileUpdateError: unknown) {
+      setProfileError(getProfileUpdateErrorMessage(profileUpdateError));
     } finally {
       setSavingProfile(false);
     }
@@ -273,25 +350,16 @@ export default function ProfilePage() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (err) {
-      setPasswordError(err instanceof Error ? err.message : '비밀번호 변경에 실패했습니다.');
+    } catch (passwordUpdateError: unknown) {
+      setPasswordError(getPasswordUpdateErrorMessage(passwordUpdateError));
     } finally {
       setSavingPassword(false);
     }
   }
 
-  function switchTab(key: TabKey) {
+  function switchTab(key: PanelTabKey) {
     setSearchParams({ tab: key }, { replace: true });
   }
-
-  /* ── Navigation shortcuts for activity tabs ── */
-  const ACTIVITY_ROUTES: Record<string, string> = {
-    likes: '/likes',
-    downloads: '/downloads',
-    playlists: '/playlists',
-    history: '/play-history',
-    licenses: '/licenses',
-  };
 
   /* ── Render ── */
 
@@ -332,7 +400,7 @@ export default function ProfilePage() {
                   key={item.key}
                   className={`${styles.menuItem} ${activeTab === item.key ? styles.menuItemActive : ''}`}
                   onClick={() => {
-                    if (ACTIVITY_ROUTES[item.key]) {
+                    if (isActivityTabKey(item.key)) {
                       navigate(ACTIVITY_ROUTES[item.key]);
                     } else {
                       switchTab(item.key);
@@ -422,7 +490,18 @@ export default function ProfilePage() {
           {activeTab === 'subscription' && (
             <div className={styles.section}>
               <div className={styles.sectionTitle}>{'구독 정보'}</div>
-              {mySub ? (
+              {subscriptionState === 'loading' ? (
+                <div className={styles.noSub}>구독 정보를 불러오는 중...</div>
+              ) : subscriptionState === 'error' ? (
+                <div className={styles.noSub}>
+                  <p className={styles.errorMsg}>
+                    {subscriptionError ?? '구독 정보를 불러오지 못했습니다.'}
+                  </p>
+                  <Button variant="primary" size="sm" onClick={() => void loadSubscription()}>
+                    다시 시도
+                  </Button>
+                </div>
+              ) : subscriptionState === 'success' && mySub ? (
                 <>
                   <div className={styles.infoRow}>
                     <span className={styles.infoLabel}>{'현재 플랜'}</span>
@@ -464,7 +543,7 @@ export default function ProfilePage() {
                     </Button>
                   </div>
                 </>
-              ) : (
+              ) : subscriptionState === 'empty' ? (
                 <div className={styles.noSub}>
                   <p>{'현재 구독 중인 플랜이 없습니다.'}</p>
                   {profile.role !== 'ADMIN' && (
@@ -473,7 +552,7 @@ export default function ProfilePage() {
                     </Button>
                   )}
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 

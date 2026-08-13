@@ -185,7 +185,10 @@ describe('SocialLoginPage', () => {
 
     renderPage();
 
-    expect(await screen.findByText('사용자 정보를 불러오지 못했습니다.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('소셜 로그인에 실패했습니다. 다시 시도해주세요.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('사용자 정보를 불러오지 못했습니다.')).not.toBeInTheDocument();
     expect(logoutSessionMock).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem('accessToken')).toBeNull();
     expect(localStorage.getItem('refreshToken')).toBeNull();

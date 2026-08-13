@@ -123,6 +123,24 @@ describe('SignupPage', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('renders no signup form when capability discovery fails and supports explicit retry', () => {
+    const retry = vi.fn();
+    usePublicCapabilitiesMock.mockReturnValue({
+      capabilities: null,
+      loading: false,
+      error: '로그인 환경 설정을 불러오지 못했습니다.',
+      retry,
+      status: 'error',
+    });
+
+    renderPage();
+
+    expect(screen.queryByLabelText('이메일')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '가입하기' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
   it('shows local mail guidance instead of the old auto-skip claim', () => {
     usePublicCapabilitiesMock.mockReturnValue({
       capabilities: buildCapabilities({

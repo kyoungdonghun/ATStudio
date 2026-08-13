@@ -54,9 +54,11 @@ const states = vi.hoisted(() => ({
         naver: { enabled: false, clientId: null, redirectUri: null },
       },
       testUsersEnabled: false,
-    },
+    } as import('@/api/auth').PublicCapabilitiesResponse | null,
     loading: false,
     error: '',
+    status: 'ready' as import('@/hooks/usePublicCapabilities').PublicCapabilitiesStatus,
+    retry: vi.fn(),
   },
   auth: {
     user: null as User | null,
@@ -402,17 +404,20 @@ function setDefaultApiResponses() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  states.capabilities.capabilities.passwordLoginEnabled = true;
-  states.capabilities.capabilities.emailVerification = {
-    enabled: true,
-    deliveryMode: 'REMOTE_SMTP',
-  };
-  states.capabilities.capabilities.passwordReset = {
-    enabled: true,
-    deliveryMode: 'REMOTE_SMTP',
+  states.capabilities.capabilities = {
+    passwordLoginEnabled: true,
+    emailVerification: { enabled: true, deliveryMode: 'REMOTE_SMTP' },
+    passwordReset: { enabled: true, deliveryMode: 'REMOTE_SMTP' },
+    socialLogin: {
+      google: { enabled: false, clientId: null, redirectUri: null },
+      kakao: { enabled: false, clientId: null, redirectUri: null },
+      naver: { enabled: false, clientId: null, redirectUri: null },
+    },
+    testUsersEnabled: false,
   };
   states.capabilities.loading = false;
   states.capabilities.error = '';
+  states.capabilities.status = 'ready';
   states.auth.user = null;
   states.auth.accessToken = null;
   states.auth.role = 'GUEST';
@@ -456,12 +461,16 @@ describe('public authentication recovery', () => {
     renderAt(<div />).unmount();
   });
 
-  it('shows the server reason when email verification fails', async () => {
+  it('maps email verification failure without exposing the server reason', async () => {
     mocks.verifyEmail.mockRejectedValue({
-      response: { data: { message: '인증 링크가 만료되었습니다.' } },
+      response: {
+        status: 400,
+        data: { errorCode: 'INVALID_TOKEN', message: 'private verification detail' },
+      },
     });
     renderAt(<EmailVerifyPage />, '/verify-email?token=expired');
-    expect(await screen.findByText('인증 링크가 만료되었습니다.')).toBeInTheDocument();
+    expect(await screen.findByText('유효하지 않거나 만료된 인증 링크입니다.')).toBeInTheDocument();
+    expect(screen.queryByText('private verification detail')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '인증 실패' })).toBeInTheDocument();
   });
 
@@ -475,19 +484,28 @@ describe('public authentication recovery', () => {
     await waitFor(() => {
       expect(mocks.requestPasswordReset).toHaveBeenCalledWith({ email: 'member@example.com' });
     });
-    expect(screen.getByRole('heading', { name: '메일 발송 완료' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '요청 접수 완료' })).toBeInTheDocument();
   });
 
   it('covers password-reset availability, validation, failure, and token completion', async () => {
-    states.capabilities.capabilities.passwordReset = {
-      enabled: false,
-      deliveryMode: 'UNCONFIGURED',
+    states.capabilities.capabilities = {
+      ...states.capabilities.capabilities!,
+      passwordReset: { enabled: false, deliveryMode: 'UNCONFIGURED' },
     };
     const disabled = renderAt(<PasswordResetPage />, '/password-reset');
     expect(screen.getByText(/비활성화되어 있습니다/)).toBeInTheDocument();
     disabled.unmount();
 
-    mocks.resetPassword.mockRejectedValueOnce({ response: { data: { message: '토큰 오류' } } });
+    states.capabilities.capabilities = {
+      ...states.capabilities.capabilities!,
+      passwordReset: { enabled: true, deliveryMode: 'REMOTE_SMTP' },
+    };
+    mocks.resetPassword.mockRejectedValueOnce({
+      response: {
+        status: 400,
+        data: { errorCode: 'INVALID_TOKEN', message: 'private reset token detail' },
+      },
+    });
     renderAt(<PasswordResetPage />, '/password-reset?token=reset-token');
     fireEvent.change(screen.getByPlaceholderText('8자 이상'), { target: { value: 'password123' } });
     fireEvent.change(screen.getByPlaceholderText('비밀번호 재입력'), {
@@ -501,7 +519,10 @@ describe('public authentication recovery', () => {
       target: { value: 'password123' },
     });
     fireEvent.click(screen.getByRole('button', { name: '비밀번호 변경' }));
-    expect(await screen.findByText('토큰 오류')).toBeInTheDocument();
+    expect(
+      await screen.findByText('유효하지 않거나 만료된 재설정 링크입니다.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('private reset token detail')).not.toBeInTheDocument();
 
     mocks.resetPassword.mockResolvedValueOnce(undefined);
     fireEvent.click(screen.getByRole('button', { name: '비밀번호 변경' }));
@@ -541,20 +562,19 @@ describe('public authentication recovery', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows capability fallback guidance and redirects an authenticated login visitor', () => {
-    states.capabilities.capabilities.passwordReset = {
-      enabled: true,
-      deliveryMode: 'LOCAL_SMTP',
-    };
-    states.capabilities.capabilities.testUsersEnabled = true;
+  it('fails closed with an explicit capability retry and redirects an authenticated visitor', () => {
+    states.capabilities.capabilities = null;
     states.capabilities.error = '설정 조회 실패.';
+    states.capabilities.status = 'error';
     states.auth.isAuthenticated.mockReturnValue(true);
     renderAt(<LoginPage />, '/login?returnTo=%2Ftracks');
 
     expect(mocks.navigate).toHaveBeenCalledWith('/tracks', { replace: true });
-    expect(screen.getByText(/QA 테스트 계정이 활성화/)).toBeInTheDocument();
     expect(screen.getByText(/설정 조회 실패/)).toBeInTheDocument();
-    expect(screen.getByText(/로컬 메일 환경에서만/)).toBeInTheDocument();
+    expect(screen.queryByText(/QA 테스트 계정이 활성화/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('이메일')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+    expect(states.capabilities.retry).toHaveBeenCalledTimes(1);
   });
 
   it('registers a business member and reports duplicate and provider failures', async () => {
@@ -605,10 +625,13 @@ describe('public authentication recovery', () => {
     expect(await screen.findByText('이미 사용 중인 닉네임입니다.')).toBeInTheDocument();
 
     mocks.register.mockRejectedValueOnce({
-      response: { data: { message: '가입 정책에 맞지 않습니다.' } },
+      response: { status: 400, data: { message: '가입 정책에 맞지 않습니다.' } },
     });
     fireEvent.click(screen.getByRole('button', { name: '가입하기' }));
-    expect(await screen.findByText('가입 정책에 맞지 않습니다.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('회원가입에 실패했습니다. 입력값을 확인하고 다시 시도해주세요.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('가입 정책에 맞지 않습니다.')).not.toBeInTheDocument();
   });
 });
 

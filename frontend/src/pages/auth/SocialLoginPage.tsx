@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { socialLogin, fetchMe, type MeResponse } from '@/api/auth';
+import { getSocialLoginErrorMessage } from '@/api/authError';
 import { useAuthStore } from '@/store/authStore';
 import { consumeOAuthCallbackAttempt, storeOAuthProfileReturnTarget } from '@/utils/oauthAttempt';
 import type { UserJob, UserType } from '@/types';
@@ -77,10 +78,7 @@ export default function SocialLoginPage() {
           clearSession();
         }
 
-        const msg =
-          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          '소셜 로그인에 실패했습니다.';
-        setError(msg);
+        setError(getSocialLoginErrorMessage(err));
       }
     })();
   }, [provider, code, returnedState, navigate, stageTokens, authLogin, authLogout, clearSession]);

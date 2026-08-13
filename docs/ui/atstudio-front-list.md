@@ -1,6 +1,6 @@
 ---
-version: 8.4
-last_updated: 2026-08-09
+version: 8.5
+last_updated: 2026-08-13
 project: ATS
 owner: docops
 category: reference
@@ -47,6 +47,28 @@ Repeated callback paths do not create new screens. Three checkout paths reuse on
 | **Total** | **53** | | |
 
 ## Important Current Screen Contracts
+
+### Authentication and Profile
+
+- Login, signup, and both password-reset steps expose authentication methods
+  only after public capabilities load successfully. Loading and failure do not
+  imply availability. Every failed attempt provides an explicit manual retry
+  action, and no automatic retry occurs.
+- Social profile completion verifies current identity before showing the form.
+  Complete profiles move to `/profile?tab=account`; failed identity remains
+  non-mutating. One pending fence covers availability checks and profile
+  mutation, with all related controls disabled until completion. The
+  post-mutation identity refresh is session-generation and user-ID guarded, so
+  logout cannot restore a stale session and unmount cannot trigger late
+  navigation.
+- Profile query panels are `account`, `edit`, `password`, and `subscription`.
+  Legacy activity query keys redirect to canonical activity routes; other
+  unsupported tabs normalize to `account`. Subscription loading, authoritative
+  absence, and retryable failure render separately, and retry clears stale
+  subscription content.
+- Forgot-password acceptance remains account-enumeration safe. Auth and Profile
+  mutation errors render only fixed allowlisted guidance, never arbitrary
+  backend message text.
 
 ### Play History
 

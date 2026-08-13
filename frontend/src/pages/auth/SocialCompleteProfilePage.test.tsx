@@ -1,23 +1,15 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SocialCompleteProfilePage from '@/pages/auth/SocialCompleteProfilePage';
 import type { CheckAvailabilityResponse, MeResponse } from '@/api/auth';
 import { storeOAuthProfileReturnTarget } from '@/utils/oauthAttempt';
-
-const authState = {
-  login: vi.fn(),
-  accessToken: 'access-token',
-};
+import { useAuthStore } from '@/store/authStore';
 
 const fetchMeMock = vi.fn();
 const checkNicknameAvailabilityMock = vi.fn();
 const checkPhoneAvailabilityMock = vi.fn();
 const clientPutMock = vi.fn();
-
-vi.mock('@/store/authStore', () => ({
-  useAuthStore: (selector: (state: typeof authState) => unknown) => selector(authState),
-}));
 
 vi.mock('@/api/auth', () => ({
   fetchMe: (...args: unknown[]) => fetchMeMock(...args),
@@ -48,12 +40,25 @@ function buildProfile(overrides: Partial<MeResponse> = {}): MeResponse {
   };
 }
 
+function buildIncompleteProfile(overrides: Partial<MeResponse> = {}): MeResponse {
+  return buildProfile({ phonePersonal: null, job: null, ...overrides });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/complete-profile']}>
       <Routes>
         <Route path="/complete-profile" element={<SocialCompleteProfilePage />} />
         <Route path="/tracks/7" element={<p>stored destination</p>} />
+        <Route path="/profile" element={<p>profile destination</p>} />
         <Route path="/" element={<p>home destination</p>} />
       </Routes>
     </MemoryRouter>,
@@ -62,12 +67,16 @@ function renderPage() {
 
 describe('SocialCompleteProfilePage', () => {
   beforeEach(() => {
-    authState.login.mockReset();
     fetchMeMock.mockReset();
     checkNicknameAvailabilityMock.mockReset();
     checkPhoneAvailabilityMock.mockReset();
     clientPutMock.mockReset();
+    localStorage.clear();
     sessionStorage.clear();
+    useAuthStore.getState().clearSession();
+    useAuthStore.getState().login('access-token', buildIncompleteProfile(), 'refresh-token');
+
+    fetchMeMock.mockResolvedValue(buildIncompleteProfile());
 
     checkNicknameAvailabilityMock.mockResolvedValue({
       available: true,
@@ -78,12 +87,14 @@ describe('SocialCompleteProfilePage', () => {
   });
 
   it('submits the individual complete-profile payload with job', async () => {
-    fetchMeMock.mockResolvedValue(buildProfile({ nickname: 'creator02', job: 'ARTIST' }));
+    fetchMeMock
+      .mockResolvedValueOnce(buildIncompleteProfile())
+      .mockResolvedValueOnce(buildProfile({ nickname: 'creator02', job: 'ARTIST' }));
     clientPutMock.mockResolvedValue({ data: {} });
 
     renderPage();
 
-    fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: 'creator02' } });
+    fireEvent.change(await screen.findByLabelText('닉네임'), { target: { value: 'creator02' } });
     fireEvent.change(screen.getByLabelText('연락처'), { target: { value: '01012345678' } });
     fireEvent.change(screen.getByLabelText('직업'), { target: { value: 'ARTIST' } });
     fireEvent.click(screen.getByRole('button', { name: '완료' }));
@@ -101,17 +112,18 @@ describe('SocialCompleteProfilePage', () => {
       });
     });
 
-    expect(authState.login).toHaveBeenCalledWith(
-      'access-token',
-      expect.objectContaining({
-        nickname: 'creator02',
-        job: 'ARTIST',
-      }),
-    );
+    await waitFor(() => {
+      expect(useAuthStore.getState().user).toEqual(
+        expect.objectContaining({
+          nickname: 'creator02',
+          job: 'ARTIST',
+        }),
+      );
+    });
   });
 
   it('submits the business complete-profile payload with companyName and no job', async () => {
-    fetchMeMock.mockResolvedValue(
+    fetchMeMock.mockResolvedValueOnce(buildIncompleteProfile()).mockResolvedValueOnce(
       buildProfile({
         nickname: 'bizcreator',
         phoneCompany: '02-1234-5678',
@@ -124,7 +136,7 @@ describe('SocialCompleteProfilePage', () => {
 
     renderPage();
 
-    fireEvent.click(screen.getByRole('button', { name: '기업' }));
+    fireEvent.click(await screen.findByRole('button', { name: '기업' }));
     expect(screen.queryByLabelText('직업')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: 'bizcreator' } });
@@ -146,19 +158,20 @@ describe('SocialCompleteProfilePage', () => {
       });
     });
 
-    expect(authState.login).toHaveBeenCalledWith(
-      'access-token',
-      expect.objectContaining({
-        companyName: 'ATStudio Biz',
-        userType: 'BUSINESS',
-      }),
-    );
+    await waitFor(() => {
+      expect(useAuthStore.getState().user).toEqual(
+        expect.objectContaining({
+          companyName: 'ATStudio Biz',
+          userType: 'BUSINESS',
+        }),
+      );
+    });
   });
 
   it('blocks business submit when companyName is blank', async () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole('button', { name: '기업' }));
+    fireEvent.click(await screen.findByRole('button', { name: '기업' }));
     fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: 'bizcreator' } });
     fireEvent.change(screen.getByLabelText('연락처'), { target: { value: '01012345678' } });
     fireEvent.click(screen.getByRole('button', { name: '완료' }));
@@ -169,16 +182,105 @@ describe('SocialCompleteProfilePage', () => {
 
   it('consumes the stored OAuth return target after profile completion', async () => {
     storeOAuthProfileReturnTarget('expected-state-1234', '/tracks/7');
-    fetchMeMock.mockResolvedValue(buildProfile({ nickname: 'creator02', job: 'ARTIST' }));
+    fetchMeMock
+      .mockResolvedValueOnce(buildIncompleteProfile())
+      .mockResolvedValueOnce(buildProfile({ nickname: 'creator02', job: 'ARTIST' }));
     clientPutMock.mockResolvedValue({ data: {} });
 
     renderPage();
-    fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: 'creator02' } });
+    fireEvent.change(await screen.findByLabelText('닉네임'), { target: { value: 'creator02' } });
     fireEvent.change(screen.getByLabelText('연락처'), { target: { value: '01012345678' } });
     fireEvent.change(screen.getByLabelText('직업'), { target: { value: 'ARTIST' } });
     fireEvent.click(screen.getByRole('button', { name: '완료' }));
 
     expect(await screen.findByText('stored destination')).toBeInTheDocument();
     expect(sessionStorage.getItem('oauth_profile_return')).toBeNull();
+  });
+
+  it('fences the whole submit while delayed availability validation is pending', async () => {
+    const nicknameCheck = deferred<CheckAvailabilityResponse>();
+    fetchMeMock
+      .mockResolvedValueOnce(buildIncompleteProfile())
+      .mockResolvedValueOnce(buildProfile({ nickname: 'creator02', job: 'ARTIST' }));
+    checkNicknameAvailabilityMock.mockReturnValueOnce(nicknameCheck.promise);
+    clientPutMock.mockResolvedValue({ data: {} });
+
+    renderPage();
+    fireEvent.change(await screen.findByLabelText('닉네임'), { target: { value: 'creator02' } });
+    fireEvent.change(screen.getByLabelText('연락처'), { target: { value: '01012345678' } });
+    fireEvent.change(screen.getByLabelText('직업'), { target: { value: 'ARTIST' } });
+    const form = screen.getByRole('button', { name: '완료' }).closest('form');
+
+    fireEvent.submit(form!);
+    fireEvent.submit(form!);
+
+    expect(checkNicknameAvailabilityMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('닉네임')).toBeDisabled();
+    expect(screen.getByLabelText('연락처')).toBeDisabled();
+    expect(screen.getByLabelText('직업')).toBeDisabled();
+    expect(screen.getByRole('button', { name: '개인' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '기업' })).toBeDisabled();
+
+    nicknameCheck.resolve({ available: true });
+    await waitFor(() => expect(clientPutMock).toHaveBeenCalledTimes(1));
+    expect(checkPhoneAvailabilityMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('redirects a known complete profile before rendering or mutating the form', async () => {
+    fetchMeMock.mockResolvedValue(buildProfile());
+
+    renderPage();
+
+    expect(await screen.findByText('profile destination')).toBeInTheDocument();
+    expect(screen.queryByLabelText('닉네임')).not.toBeInTheDocument();
+    expect(clientPutMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps identity failure non-mutating and retries only on explicit request', async () => {
+    fetchMeMock
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(buildIncompleteProfile());
+
+    renderPage();
+
+    expect(await screen.findByText(/프로필 상태 정보를 불러오지 못했습니다/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('닉네임')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+
+    expect(await screen.findByLabelText('닉네임')).toBeInTheDocument();
+    expect(fetchMeMock).toHaveBeenCalledTimes(2);
+    expect(clientPutMock).not.toHaveBeenCalled();
+  });
+
+  it('does not restore or navigate after the session is cleared during a deferred refresh', async () => {
+    const refresh = deferred<MeResponse>();
+    storeOAuthProfileReturnTarget('expected-state-1234', '/tracks/7');
+    fetchMeMock
+      .mockResolvedValueOnce(buildIncompleteProfile())
+      .mockReturnValueOnce(refresh.promise);
+    clientPutMock.mockResolvedValue({ data: {} });
+
+    const view = renderPage();
+    fireEvent.change(await screen.findByLabelText('닉네임'), { target: { value: 'creator02' } });
+    fireEvent.change(screen.getByLabelText('연락처'), { target: { value: '01012345678' } });
+    fireEvent.change(screen.getByLabelText('직업'), { target: { value: 'ARTIST' } });
+    fireEvent.click(screen.getByRole('button', { name: '완료' }));
+
+    await waitFor(() => expect(fetchMeMock).toHaveBeenCalledTimes(2));
+    useAuthStore.getState().clearSession();
+    view.unmount();
+
+    await act(async () => {
+      refresh.resolve(buildProfile({ nickname: 'creator02', job: 'ARTIST' }));
+      await refresh.promise;
+    });
+
+    expect(useAuthStore.getState()).toEqual(
+      expect.objectContaining({ accessToken: null, user: null, role: 'GUEST' }),
+    );
+    expect(localStorage.getItem('accessToken')).toBeNull();
+    expect(localStorage.getItem('refreshToken')).toBeNull();
+    expect(localStorage.getItem('user')).toBeNull();
+    expect(sessionStorage.getItem('oauth_profile_return')).not.toBeNull();
   });
 });

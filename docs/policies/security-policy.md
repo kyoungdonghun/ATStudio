@@ -1,5 +1,5 @@
 ---
-version: 2.4
+version: 2.5
 last_updated: 2026-08-13
 project: ATS
 owner: PG
@@ -148,6 +148,19 @@ not enter refresh or replay processing.
 
 **Current state:** `application.yml` no longer carries a fallback JWT secret, and local-only conveniences (DDL auto-update, SQL logging, localhost mail/OAuth redirects) belong in the gitignored root `application-local.yml`.
 Local password auth availability is controlled by `APP_AUTH_PASSWORD_LOGIN_ENABLED` / `app.auth.password-login.enabled`. When disabled, `/api/utils/public-capabilities` reports `passwordLoginEnabled=false`, and local email/password login, signup, verification mail, and password reset must be treated as unavailable.
+
+The SPA treats public-capability loading and failure as unknown, not enabled.
+It exposes no authentication method, mail-dependent flow, social Provider, or
+QA bootstrap as available until a successful capability response is known.
+Authentication/account errors are selected from fixed frontend mappings keyed
+by bounded `errorCode` and response class; arbitrary backend messages are not
+rendered. Forgot-password success and failure presentation must not disclose
+whether an account or a delivered email exists.
+
+After social-profile mutation, the SPA refreshes current identity only through
+the auth store's initiating session-generation and user-ID guard. A result that
+arrives after logout or session replacement cannot persist identity. The page's
+component-lifecycle guard separately prevents navigation after unmount.
 
 ### 6.4 Environment Baseline
 

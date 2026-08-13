@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ProfilePage from '@/pages/subscriber/ProfilePage';
 import type { MeResponse, CheckAvailabilityResponse } from '@/api/auth';
@@ -19,6 +19,11 @@ vi.mock('@/api/auth', () => ({
 
 vi.mock('@/api/userSubscriptions', () => ({
   fetchMySubscription: (...args: unknown[]) => fetchMySubscriptionMock(...args),
+  isNoActiveSubscriptionError: (error: unknown) => {
+    const response = (error as { response?: { status?: number; data?: { errorCode?: string } } })
+      ?.response;
+    return response?.status === 403 && response.data?.errorCode === 'NO_ACTIVE_SUBSCRIPTION';
+  },
 }));
 
 vi.mock('@/api/client', () => ({
@@ -44,9 +49,33 @@ function buildProfile(overrides: Partial<MeResponse> = {}): MeResponse {
   };
 }
 
-function renderPage() {
+function RouterProbe() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  return (
+    <>
+      <div data-testid="location">{`${location.pathname}${location.search}`}</div>
+      <button type="button" onClick={() => navigate(-1)}>
+        history back
+      </button>
+      <button type="button" onClick={() => navigate(1)}>
+        history forward
+      </button>
+    </>
+  );
+}
+
+function renderPage({
+  initialEntries = ['/profile?tab=edit'],
+  initialIndex,
+}: {
+  initialEntries?: string[];
+  initialIndex?: number;
+} = {}) {
   return render(
-    <MemoryRouter initialEntries={['/profile?tab=edit']}>
+    <MemoryRouter initialEntries={initialEntries} initialIndex={initialIndex}>
+      <RouterProbe />
       <ProfilePage />
     </MemoryRouter>,
   );
@@ -203,10 +232,12 @@ describe('ProfilePage', () => {
     expect(clientPutMock).not.toHaveBeenCalled();
   });
 
-  it('keeps page, global, and persisted profile state unchanged when save fails', async () => {
+  it('keeps profile state unchanged and hides arbitrary backend detail when save fails', async () => {
     const initialProfile = buildProfile();
     fetchMeMock.mockResolvedValue(initialProfile);
-    clientPutMock.mockRejectedValue(new Error('server unavailable'));
+    clientPutMock.mockRejectedValue({
+      response: { status: 500, data: { message: 'private server detail' } },
+    });
 
     renderPage();
 
@@ -214,9 +245,150 @@ describe('ProfilePage', () => {
     fireEvent.change(nicknameInput, { target: { value: 'creator02' } });
     fireEvent.click(screen.getByRole('button', { name: '저장' }));
 
-    expect(await screen.findByText('server unavailable')).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        '프로필 저장 중 서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('private server detail')).not.toBeInTheDocument();
     expect(useAuthStore.getState().user).toEqual(initialProfile);
     expect(JSON.parse(localStorage.getItem('user') ?? 'null')).toEqual(initialProfile);
     expect(nicknameInput).toHaveValue('creator02');
+  });
+
+  it('normalizes an unsupported tab to account without rendering a blank panel', async () => {
+    fetchMeMock.mockResolvedValue(buildProfile());
+
+    renderPage({ initialEntries: ['/profile?tab=unsupported'] });
+
+    expect(await screen.findByText('creator@example.com')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/profile?tab=account');
+    });
+  });
+
+  it.each([
+    ['likes', '/likes'],
+    ['downloads', '/downloads'],
+    ['playlists', '/playlists'],
+    ['history', '/play-history'],
+    ['licenses', '/licenses'],
+  ])('redirects the legacy %s query tab to its activity route', async (tab, route) => {
+    fetchMeMock.mockResolvedValue(buildProfile());
+
+    renderPage({ initialEntries: [`/profile?tab=${tab}`] });
+
+    expect(await screen.findByText('creator@example.com')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent(route);
+    });
+  });
+
+  it('keeps activity query redirects canonical through browser back and forward', async () => {
+    fetchMeMock.mockResolvedValue(buildProfile());
+
+    renderPage({
+      initialEntries: ['/profile?tab=account', '/profile?tab=likes'],
+      initialIndex: 1,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/likes');
+    });
+    expect(await screen.findByText('creator@example.com')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'history back' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/profile?tab=account');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'history forward' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/likes');
+    });
+    expect(screen.getByText('creator@example.com')).toBeInTheDocument();
+  });
+
+  it('keeps valid content through browser back and forward after invalid-tab normalization', async () => {
+    fetchMeMock.mockResolvedValue(buildProfile());
+
+    renderPage({
+      initialEntries: ['/profile?tab=subscription', '/profile?tab=unsupported'],
+      initialIndex: 1,
+    });
+
+    expect(await screen.findByText('creator@example.com')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/profile?tab=account');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'history back' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/profile?tab=subscription');
+    });
+    expect(screen.getByText('구독 정보')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'history forward' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/profile?tab=account');
+    });
+    expect(screen.getByText('creator@example.com')).toBeInTheDocument();
+  });
+
+  it('separates retryable subscription failure from authoritative absence', async () => {
+    fetchMeMock.mockResolvedValue(buildProfile());
+    fetchMySubscriptionMock.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({
+      id: 7,
+      subscription: { name: 'STANDARD' },
+      billingCycle: 'MONTHLY',
+      status: 'ACTIVE',
+      startedAt: '2026-08-01T00:00:00',
+      expiresAt: '2026-09-01T00:00:00',
+      pendingSubscriptionId: null,
+      pendingBillingCycle: null,
+    });
+
+    renderPage({ initialEntries: ['/profile?tab=subscription'] });
+
+    expect(await screen.findByText(/구독 정보를 불러오지 못했습니다/)).toBeInTheDocument();
+    expect(screen.queryByText('현재 구독 중인 플랜이 없습니다.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+
+    expect(await screen.findByText('스탠다드')).toBeInTheDocument();
+    expect(fetchMySubscriptionMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('renders no subscription only for the authoritative no-active response', async () => {
+    fetchMeMock.mockResolvedValue(buildProfile());
+    fetchMySubscriptionMock.mockRejectedValue({
+      response: { status: 403, data: { errorCode: 'NO_ACTIVE_SUBSCRIPTION' } },
+    });
+
+    renderPage({ initialEntries: ['/profile?tab=subscription'] });
+
+    expect(await screen.findByText('현재 구독 중인 플랜이 없습니다.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument();
+  });
+
+  it('maps password-update rejection to bounded guidance', async () => {
+    fetchMeMock.mockResolvedValue(buildProfile());
+    clientPutMock.mockRejectedValue({
+      response: {
+        status: 401,
+        data: { errorCode: 'INVALID_CREDENTIALS', message: 'private credential detail' },
+      },
+    });
+
+    const { container } = renderPage({ initialEntries: ['/profile?tab=password'] });
+    await screen.findByText('현재 비밀번호');
+    const passwordInputs = container.querySelectorAll<HTMLInputElement>('input[type="password"]');
+    fireEvent.change(passwordInputs[0], { target: { value: 'current-password' } });
+    fireEvent.change(passwordInputs[1], { target: { value: 'new-password' } });
+    fireEvent.change(passwordInputs[2], { target: { value: 'new-password' } });
+    const passwordButtons = screen.getAllByRole('button', { name: '비밀번호 변경' });
+    fireEvent.click(passwordButtons[passwordButtons.length - 1]);
+
+    expect(await screen.findByText('현재 비밀번호가 올바르지 않습니다.')).toBeInTheDocument();
+    expect(screen.queryByText('private credential detail')).not.toBeInTheDocument();
   });
 });

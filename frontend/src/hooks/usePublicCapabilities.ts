@@ -1,34 +1,47 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchPublicCapabilities, type PublicCapabilitiesResponse } from '@/api/auth';
+
+export type PublicCapabilitiesStatus = 'loading' | 'ready' | 'error';
 
 export function usePublicCapabilities() {
   const [capabilities, setCapabilities] = useState<PublicCapabilitiesResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<PublicCapabilitiesStatus>('loading');
   const [error, setError] = useState('');
+  const requestIdRef = useRef(0);
 
-  useEffect(() => {
-    let active = true;
+  const loadCapabilities = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
+    setCapabilities(null);
+    setError('');
+    setStatus('loading');
 
-    void (async () => {
-      try {
-        const result = await fetchPublicCapabilities();
-        if (!active) return;
+    try {
+      const result = await fetchPublicCapabilities();
+      if (requestId !== requestIdRef.current) return;
 
-        setCapabilities(result);
-      } catch {
-        if (!active) return;
-        setError('로그인 환경 설정을 불러오지 못했습니다.');
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    })();
+      setCapabilities(result);
+      setStatus('ready');
+    } catch {
+      if (requestId !== requestIdRef.current) return;
 
-    return () => {
-      active = false;
-    };
+      setError('로그인 환경 설정을 불러오지 못했습니다.');
+      setStatus('error');
+    }
   }, []);
 
-  return { capabilities, loading, error };
+  useEffect(() => {
+    void loadCapabilities();
+
+    return () => {
+      requestIdRef.current += 1;
+    };
+  }, [loadCapabilities]);
+
+  return {
+    capabilities,
+    loading: status === 'loading',
+    error,
+    status,
+    retry: loadCapabilities,
+  };
 }

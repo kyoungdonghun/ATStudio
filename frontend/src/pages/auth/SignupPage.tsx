@@ -8,6 +8,7 @@ import {
   checkPhoneAvailability,
 } from '@/api/auth';
 import { usePublicCapabilities } from '@/hooks/usePublicCapabilities';
+import { getSignupErrorMessage } from '@/api/authError';
 import {
   formatPhone,
   isValidEmail,
@@ -36,6 +37,7 @@ export default function SignupPage() {
     capabilities,
     loading: capabilitiesLoading,
     error: capabilitiesError,
+    retry: retryCapabilities,
   } = usePublicCapabilities();
 
   useEffect(() => {
@@ -53,8 +55,8 @@ export default function SignupPage() {
   const [companyName, setCompanyName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const isPasswordLoginEnabled = capabilities?.passwordLoginEnabled ?? true;
-  const isEmailVerificationAvailable = capabilities?.emailVerification.enabled ?? true;
+  const isPasswordLoginEnabled = capabilities?.passwordLoginEnabled === true;
+  const isEmailVerificationAvailable = capabilities?.emailVerification.enabled === true;
   const isSignupEnabled = isPasswordLoginEnabled && isEmailVerificationAvailable;
   const isLocalMailMode = capabilities?.emailVerification.deliveryMode === 'LOCAL_SMTP';
 
@@ -163,12 +165,48 @@ export default function SignupPage() {
         replace: true,
       });
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
-      setError(msg ?? '회원가입에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      setError(getSignupErrorMessage(err));
     } finally {
       setLoading(false);
     }
+  }
+
+  if (capabilitiesLoading) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.card}>
+          <h1 className={styles.title}>회원가입</h1>
+          <p className={styles.subtitle}>가입 환경을 확인하는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (capabilitiesError || !capabilities) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.card}>
+          <h1 className={styles.title}>회원가입</h1>
+          <p className={styles.noticeText}>
+            {capabilitiesError || '현재 회원가입 가능 여부를 확인하지 못했습니다.'}
+          </p>
+          <Button
+            type="button"
+            variant="primary"
+            size="lg"
+            className={styles.submitButton}
+            onClick={() => void retryCapabilities()}
+          >
+            다시 시도
+          </Button>
+          <div className={styles.links}>
+            <Link to="/login" className={styles.link}>
+              로그인으로 돌아가기
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -365,13 +403,6 @@ export default function SignupPage() {
             <p className={styles.noticeText}>
               현재 이 환경에서는 로컬 메일 수신 환경(MailHog 등)에서만 인증 링크를 확인할 수
               있습니다.
-            </p>
-          ) : null}
-
-          {capabilitiesError ? (
-            <p className={styles.noticeText}>
-              이메일 인증 환경을 확인하지 못했습니다. 메일 수신 여부는 현재 운영 환경 기준으로
-              확인해주세요.
             </p>
           ) : null}
 

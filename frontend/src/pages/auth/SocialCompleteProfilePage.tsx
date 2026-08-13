@@ -1,11 +1,13 @@
 /** Screen A-4: Social user complete profile */
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { fetchMe, checkNicknameAvailability, checkPhoneAvailability } from '@/api/auth';
 import type { MeResponse } from '@/api/auth';
 import type { UserJob, UserType } from '@/types';
 import client from '@/api/client';
+import { getCompleteProfileErrorMessage } from '@/api/authError';
+import { getApiErrorCode, getLoadErrorMessage } from '@/api/loadError';
 import {
   COMPANY_NAME_MAX,
   formatPhone,
@@ -33,9 +35,17 @@ interface CompleteProfileRequest {
   userType: UserType;
 }
 
+type IdentityState = 'checking' | 'incomplete' | 'error';
+
+function isProfileComplete(profile: MeResponse): boolean {
+  if (!profile.phonePersonal?.trim()) return false;
+  if (profile.userType === 'BUSINESS') return Boolean(profile.companyName?.trim());
+  return profile.job !== null;
+}
+
 export default function SocialCompleteProfilePage() {
   const navigate = useNavigate();
-  const authLogin = useAuthStore((s) => s.login);
+  const refreshCurrentUser = useAuthStore((s) => s.refreshCurrentUser);
   const accessToken = useAuthStore((s) => s.accessToken);
 
   const [userType, setUserType] = useState<UserType>('INDIVIDUAL');
@@ -46,9 +56,46 @@ export default function SocialCompleteProfilePage() {
   const [companyName, setCompanyName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [identityState, setIdentityState] = useState<IdentityState>('checking');
+  const [identityError, setIdentityError] = useState('');
+  const identityRequestIdRef = useRef(0);
+  const submitPendingRef = useRef(false);
+  const mountedRef = useRef(true);
   const normalizedNickname = nickname.trim();
   const normalizedCompanyName = companyName.trim();
   const isBusinessUser = userType === 'BUSINESS';
+
+  const checkIdentity = useCallback(async () => {
+    const requestId = ++identityRequestIdRef.current;
+    setIdentityState('checking');
+    setIdentityError('');
+
+    try {
+      const me = await fetchMe();
+      if (requestId !== identityRequestIdRef.current) return;
+
+      if (isProfileComplete(me)) {
+        navigate('/profile?tab=account', { replace: true });
+        return;
+      }
+
+      setIdentityState('incomplete');
+    } catch (identityLoadError: unknown) {
+      if (requestId !== identityRequestIdRef.current) return;
+
+      setIdentityError(getLoadErrorMessage(identityLoadError, '프로필 상태'));
+      setIdentityState('error');
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    void checkIdentity();
+    return () => {
+      mountedRef.current = false;
+      identityRequestIdRef.current += 1;
+    };
+  }, [checkIdentity]);
 
   async function validate(): Promise<boolean> {
     if (!normalizedNickname) {
@@ -104,13 +151,20 @@ export default function SocialCompleteProfilePage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitPendingRef.current || identityState !== 'incomplete') return;
+
+    submitPendingRef.current = true;
+    setLoading(true);
     setError('');
 
-    const valid = await validate();
-    if (!valid) return;
-
-    setLoading(true);
     try {
+      const valid = await validate();
+      if (!valid) return;
+      if (!accessToken) {
+        setError('로그인 상태를 확인하지 못했습니다. 다시 로그인해주세요.');
+        return;
+      }
+
       const submitJob: UserJob | null = isBusinessUser ? null : job || null;
       const body: CompleteProfileRequest = {
         nickname: normalizedNickname,
@@ -123,30 +177,59 @@ export default function SocialCompleteProfilePage() {
 
       await client.put('/users/me/complete-profile', body);
 
-      const me: MeResponse = await fetchMe();
-      authLogin(accessToken!, {
-        id: me.id,
-        email: me.email,
-        nickname: me.nickname,
-        role: me.role,
-        phonePersonal: me.phonePersonal,
-        phoneCompany: me.phoneCompany,
-        job: me.job,
-        companyName: me.companyName,
-        userType: me.userType,
-        isVerified: me.isVerified,
-        createdAt: me.createdAt,
-      });
+      const refreshedUser = await refreshCurrentUser();
+      const currentSession = useAuthStore.getState();
+      if (
+        !mountedRef.current ||
+        currentSession.accessToken === null ||
+        currentSession.user?.id !== refreshedUser.id
+      ) {
+        return;
+      }
 
       navigate(consumeOAuthProfileReturnTarget() ?? '/', { replace: true });
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        '프로필 완성에 실패했습니다.';
-      setError(msg);
+    } catch (submitError: unknown) {
+      if (!mountedRef.current) return;
+      if (getApiErrorCode(submitError) === 'PROFILE_ALREADY_COMPLETE') {
+        navigate('/profile?tab=account', { replace: true });
+        return;
+      }
+      setError(getCompleteProfileErrorMessage(submitError));
     } finally {
-      setLoading(false);
+      submitPendingRef.current = false;
+      if (mountedRef.current) setLoading(false);
     }
+  }
+
+  if (identityState === 'checking') {
+    return (
+      <div className={styles.page}>
+        <div className={styles.card}>
+          <h1 className={styles.title}>프로필 완성</h1>
+          <p className={styles.subtitle}>프로필 상태를 확인하는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (identityState === 'error') {
+    return (
+      <div className={styles.page}>
+        <div className={styles.card}>
+          <h1 className={styles.title}>프로필 완성</h1>
+          <p className={styles.errorText}>{identityError}</p>
+          <Button
+            type="button"
+            variant="primary"
+            size="lg"
+            className={styles.submitButton}
+            onClick={() => void checkIdentity()}
+          >
+            다시 시도
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -164,6 +247,7 @@ export default function SocialCompleteProfilePage() {
                 type="button"
                 className={userType === 'INDIVIDUAL' ? styles.roleOptionActive : styles.roleOption}
                 onClick={() => setUserType('INDIVIDUAL')}
+                disabled={loading}
               >
                 개인
               </button>
@@ -171,6 +255,7 @@ export default function SocialCompleteProfilePage() {
                 type="button"
                 className={userType === 'BUSINESS' ? styles.roleOptionActive : styles.roleOption}
                 onClick={() => setUserType('BUSINESS')}
+                disabled={loading}
               >
                 기업
               </button>
@@ -190,6 +275,7 @@ export default function SocialCompleteProfilePage() {
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               maxLength={NICKNAME_MAX}
+              disabled={loading}
             />
           </div>
 
@@ -205,6 +291,7 @@ export default function SocialCompleteProfilePage() {
               placeholder="010-0000-0000"
               value={phonePersonal}
               onChange={(e) => setPhonePersonal(formatPhone(e.target.value))}
+              disabled={loading}
             />
           </div>
 
@@ -221,6 +308,7 @@ export default function SocialCompleteProfilePage() {
                 placeholder="02-0000-0000"
                 value={phoneCompany}
                 onChange={(e) => setPhoneCompany(formatPhone(e.target.value))}
+                disabled={loading}
               />
             </div>
           )}
@@ -238,6 +326,7 @@ export default function SocialCompleteProfilePage() {
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 maxLength={COMPANY_NAME_MAX}
+                disabled={loading}
               />
             </div>
           ) : (
@@ -250,6 +339,7 @@ export default function SocialCompleteProfilePage() {
                 className={styles.input}
                 value={job}
                 onChange={(e) => setJob(e.target.value as UserJob | '')}
+                disabled={loading}
               >
                 {JOB_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>

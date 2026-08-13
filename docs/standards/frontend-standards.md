@@ -1,5 +1,5 @@
 ---
-version: 2.4
+version: 2.5
 last_updated: 2026-08-13
 project: ATS
 owner: SA
@@ -224,6 +224,16 @@ Converts a relative backend storage path to a full frontend URL by prepending `/
 
 Pages call `client.get(...)`, `client.post(...)`, etc. directly, or via thin domain API files (e.g., `api/likes.ts`, `api/downloads.ts`). There are no generic `apiGet`/`apiPost`/`apiPatch` wrapper functions with `HandleConfig`.
 
+### 4.8 Public Authentication Capabilities
+
+`usePublicCapabilities()` exposes explicit `loading`, `ready`, and `error`
+states plus an explicit manual `retry()` action after every failed attempt. It
+does not retry automatically. Login, signup, verification-mail, reset,
+social-provider, and QA-bootstrap availability is rendered only from a `ready`
+response. A missing or failed response is never interpreted as an enabled
+capability. Each manual retry owns the latest request so an older response
+cannot restore stale capability state.
+
 ---
 
 ## 5. Input Handling
@@ -254,6 +264,13 @@ Inline error messages below each field.
 ```
 
 **Rule:** Use CSS Modules classes for error styles, not global class names.
+
+Authentication and account mutations use fixed frontend messages selected by
+HTTP class and allowlisted `errorCode`. Components must not render arbitrary
+backend `message`, exception text, stack detail, Provider payload text, or
+account-existence signals. Accepted forgot-password requests use the same
+generic receipt state whether or not the submitted address belongs to an
+account.
 
 ---
 
@@ -329,6 +346,26 @@ category guide, not a screen-count source of truth.
 
 - `MainLayout` — public+subscriber routes: includes Header, PlayerBar
 - `AdminLayout` — admin routes: sidebar + topbar, no PlayerBar
+
+### 6.6 Account Route State
+
+- `/complete-profile` retains `ProtectedRoute` and revalidates `/users/me`
+  before rendering mutation controls. The frontend applies the same completion
+  predicate as the backend response fields: personal phone plus `job` for an
+  individual or `companyName` for a business. Complete profiles redirect to
+  `/profile?tab=account`; unresolved or failed identity shows only bounded
+  loading/error/retry UI. After mutation, `refreshCurrentUser()` may persist the
+  refreshed identity only for the initiating session generation and user ID;
+  logout or user change prevents stale persistence, and component unmount
+  prevents late navigation.
+- Profile query panels are limited to `account`, `edit`, `password`, and
+  `subscription`. Legacy activity query keys replace-navigate to their canonical
+  activity routes, while all other unsupported values render the account panel
+  immediately and replace the query with `tab=account`, including browser
+  history traversal.
+- Profile subscription loading, success, authoritative
+  `NO_ACTIVE_SUBSCRIPTION`, and retryable failure are separate states. A new
+  request clears prior subscription data and only its latest result may render.
 
 ---
 

@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { requestPasswordReset, resetPassword } from '@/api/auth';
+import { getForgotPasswordErrorMessage, getPasswordResetErrorMessage } from '@/api/authError';
 import { usePublicCapabilities } from '@/hooks/usePublicCapabilities';
 import { isValidEmail, PASSWORD_MIN } from '@/utils/validation';
 import Button from '@/components/ui/Button';
@@ -9,27 +10,84 @@ import styles from './PasswordResetPage.module.css';
 export default function PasswordResetPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
-
-  if (token) {
-    return <ResetForm token={token} />;
-  }
-  return <ForgotForm />;
-}
-
-/* ── Step 1: 이메일 입력 (비밀번호 찾기) ── */
-function ForgotForm() {
-  const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
-  const [sent, setSent] = useState(false);
-  const [loading, setLoading] = useState(false);
   const {
     capabilities,
     loading: capabilitiesLoading,
     error: capabilitiesError,
+    retry: retryCapabilities,
   } = usePublicCapabilities();
 
-  const isPasswordResetAvailable = capabilities?.passwordReset.enabled ?? true;
-  const isLocalMailMode = capabilities?.passwordReset.deliveryMode === 'LOCAL_SMTP';
+  if (capabilitiesLoading) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.card}>
+          <h1 className={styles.title}>비밀번호 재설정</h1>
+          <p className={styles.description}>비밀번호 재설정 환경을 확인하는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (capabilitiesError || !capabilities) {
+    return (
+      <div className={styles.page}>
+        <div className={`${styles.card} ${styles.noticeCard}`}>
+          <h1 className={styles.title}>비밀번호 재설정</h1>
+          <p className={styles.noticeText}>
+            {capabilitiesError || '현재 비밀번호 재설정 가능 여부를 확인하지 못했습니다.'}
+          </p>
+          <Button
+            type="button"
+            variant="primary"
+            size="lg"
+            className={styles.submitButton}
+            onClick={() => void retryCapabilities()}
+          >
+            다시 시도
+          </Button>
+          <div className={styles.links}>
+            <Link to="/login" className={styles.link}>
+              로그인으로 돌아가기
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isPasswordResetAvailable =
+    capabilities.passwordLoginEnabled && capabilities.passwordReset.enabled;
+
+  if (!isPasswordResetAvailable) {
+    return (
+      <div className={styles.page}>
+        <div className={`${styles.card} ${styles.noticeCard}`}>
+          <h1 className={styles.title}>비밀번호 재설정</h1>
+          <p className={styles.description}>
+            현재 이 환경에서는 비밀번호 재설정 기능이 비활성화되어 있습니다.
+          </p>
+          <div className={styles.links}>
+            <Link to="/login" className={styles.link}>
+              로그인으로 돌아가기
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (token) {
+    return <ResetForm token={token} />;
+  }
+  return <ForgotForm isLocalMailMode={capabilities.passwordReset.deliveryMode === 'LOCAL_SMTP'} />;
+}
+
+/* ── Step 1: 이메일 입력 (비밀번호 찾기) ── */
+function ForgotForm({ isLocalMailMode }: { isLocalMailMode: boolean }) {
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   function validate(): boolean {
     if (!email.trim()) {
@@ -52,8 +110,8 @@ function ForgotForm() {
     try {
       await requestPasswordReset({ email: email.trim() });
       setSent(true);
-    } catch {
-      setError('요청에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } catch (requestError: unknown) {
+      setError(getForgotPasswordErrorMessage(requestError));
     } finally {
       setLoading(false);
     }
@@ -66,30 +124,12 @@ function ForgotForm() {
           <div className={styles.successIcon} aria-hidden="true">
             &#9993;
           </div>
-          <h1 className={styles.title}>메일 발송 완료</h1>
-          <p className={styles.successText}>비밀번호 재설정 링크를 발송했습니다.</p>
+          <h1 className={styles.title}>요청 접수 완료</h1>
+          <p className={styles.successText}>비밀번호 재설정 요청을 접수했습니다.</p>
           <p className={styles.successDetail}>
-            입력하신 이메일({email})로 비밀번호 재설정 링크를 보냈습니다.
+            입력하신 이메일({email})로 가입된 계정이 있다면 재설정 링크를 안내합니다.
             <br />
             메일이 도착하지 않으면 스팸 폴더를 확인해주세요.
-          </p>
-          <div className={styles.links}>
-            <Link to="/login" className={styles.link}>
-              로그인으로 돌아가기
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!capabilitiesLoading && capabilities && !isPasswordResetAvailable) {
-    return (
-      <div className={styles.page}>
-        <div className={`${styles.card} ${styles.noticeCard}`}>
-          <h1 className={styles.title}>비밀번호 찾기</h1>
-          <p className={styles.description}>
-            현재 이 환경에서는 비밀번호 재설정 메일이 비활성화되어 있습니다.
           </p>
           <div className={styles.links}>
             <Link to="/login" className={styles.link}>
@@ -114,11 +154,6 @@ function ForgotForm() {
           <p className={styles.noticeText}>
             현재 이 환경에서는 로컬 메일 수신 환경(MailHog 등)에서만 재설정 링크를 확인할 수
             있습니다.
-          </p>
-        ) : null}
-        {capabilitiesError ? (
-          <p className={styles.noticeText}>
-            메일 설정 상태를 확인하지 못했습니다. 수신 여부는 현재 운영 환경 기준으로 확인해주세요.
           </p>
         ) : null}
         <form className={styles.form} onSubmit={handleSubmit} noValidate>
@@ -190,9 +225,8 @@ function ResetForm({ token }: { token: string }) {
     try {
       await resetPassword(token, password);
       setDone(true);
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(msg || '비밀번호 재설정에 실패했습니다. 링크가 만료되었을 수 있습니다.');
+    } catch (resetError: unknown) {
+      setError(getPasswordResetErrorMessage(resetError));
     } finally {
       setLoading(false);
     }
