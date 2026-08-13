@@ -1,5 +1,5 @@
 /** Screen 15: Question detail */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   fetchQuestionDetail,
@@ -8,8 +8,11 @@ import {
   createAnswer,
   type QuestionDetail,
 } from '@/api/questions';
+import { classifyLoadError } from '@/api/loadError';
 import { formatDate } from '@/utils/format';
+import { parsePositiveDecimalRouteID } from '@/utils/routeId';
 import { useAuthStore } from '@/store/authStore';
+import { createOwnerKey, createReadKey, getCurrentOwnerKey } from '@/utils/ownerProjection';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import styles from './QuestionDetailPage.module.css';
@@ -48,11 +51,14 @@ function statusClass(status: string): string {
 }
 
 export default function QuestionDetailPage() {
-  const { questionId: id } = useParams<{ questionId: string }>();
+  const { questionId } = useParams<{ questionId: string }>();
   const navigate = useNavigate();
+  const parsedID = parsePositiveDecimalRouteID(questionId);
+  const validID = parsedID !== null;
 
   const currentUser = useAuthStore((s) => s.user);
   const role = useAuthStore((s) => s.role);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const [question, setQuestion] = useState<QuestionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,56 +69,126 @@ export default function QuestionDetailPage() {
   const [answerContent, setAnswerContent] = useState('');
   const [answerSubmitting, setAnswerSubmitting] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
+  const requestGeneration = useRef(0);
+  const requestController = useRef<AbortController | null>(null);
+  const ownerKey = createOwnerKey(currentUser?.id ?? null, accessToken);
+  const readKey = createReadKey(ownerKey, 'question-detail', parsedID);
+  const currentReadKeyRef = useRef(readKey);
+  const projectionKeyRef = useRef<string | null>(null);
+  const [projectionKey, setProjectionKey] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
+  currentReadKeyRef.current = readKey;
+  const projectionCurrent = readKey !== null && projectionKey === readKey;
+  const currentQuestion = projectionCurrent ? question : null;
+  const currentError = errorKey === readKey ? error : null;
+  const currentLoading = loading || (!projectionCurrent && currentError === null);
+
+  function isCurrentProjection(expectedReadKey = readKey): boolean {
+    return (
+      expectedReadKey !== null &&
+      currentReadKeyRef.current === expectedReadKey &&
+      projectionKeyRef.current === expectedReadKey &&
+      getCurrentOwnerKey(ownerKey) === ownerKey
+    );
+  }
 
   const load = useCallback(async () => {
-    if (!id) return;
+    const requestKey = readKey;
+    const requestOwnerKey = ownerKey;
+    if (parsedID === null || requestKey === null) return;
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    const generation = ++requestGeneration.current;
+    const isCurrent = () =>
+      generation === requestGeneration.current &&
+      currentReadKeyRef.current === requestKey &&
+      getCurrentOwnerKey(requestOwnerKey) === requestOwnerKey;
     try {
       setLoading(true);
       setError(null);
-      const result = await fetchQuestionDetail(Number(id));
-      setQuestion(result);
-    } catch {
-      setError('문의를 불러오지 못했습니다.');
+      setQuestion(null);
+      const result = await fetchQuestionDetail(parsedID, controller.signal);
+      if (isCurrent()) {
+        setQuestion(result);
+        projectionKeyRef.current = requestKey;
+        setProjectionKey(requestKey);
+      }
+    } catch (loadError) {
+      if (isCurrent() && classifyLoadError(loadError) !== 'cancelled') {
+        setError('문의를 불러오지 못했습니다.');
+        setErrorKey(requestKey);
+      }
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [id]);
+  }, [ownerKey, parsedID, readKey]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!validID) {
+      requestController.current?.abort();
+      requestGeneration.current += 1;
+      setQuestion(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    void load();
+    return () => {
+      requestController.current?.abort();
+      requestGeneration.current += 1;
+    };
+  }, [accessToken, currentUser?.id, load, validID]);
 
   async function handleDelete() {
-    if (!id) return;
+    const operationKey = readKey;
+    if (parsedID === null || !isCurrentProjection(operationKey)) return;
     try {
       setDeleting(true);
-      await deleteQuestion(Number(id));
+      await deleteQuestion(parsedID);
+      if (!isCurrentProjection(operationKey)) return;
       navigate('/questions');
     } catch {
+      if (!isCurrentProjection(operationKey)) return;
       setError('삭제에 실패했습니다.');
+      setErrorKey(operationKey);
       setDeleteOpen(false);
     } finally {
-      setDeleting(false);
+      if (isCurrentProjection(operationKey)) setDeleting(false);
     }
   }
 
   async function handleAnswerSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!id || !answerContent.trim()) return;
+    const operationKey = readKey;
+    if (parsedID === null || !answerContent.trim() || !isCurrentProjection(operationKey)) return;
     try {
       setAnswerSubmitting(true);
       setAnswerError(null);
-      await createAnswer(Number(id), answerContent.trim());
+      await createAnswer(parsedID, answerContent.trim());
+      if (!isCurrentProjection(operationKey)) return;
       setAnswerContent('');
       await load();
     } catch {
+      if (!isCurrentProjection(operationKey)) return;
       setAnswerError('답변 등록에 실패했습니다.');
     } finally {
-      setAnswerSubmitting(false);
+      if (isCurrentProjection(operationKey)) setAnswerSubmitting(false);
     }
   }
 
-  if (loading) {
+  if (parsedID === null) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.error}>{'문의 주소가 올바르지 않습니다.'}</div>
+        <Link to="/questions" className={styles.backLink}>
+          {'문의 목록으로'}
+        </Link>
+      </div>
+    );
+  }
+
+  if (currentLoading) {
     return (
       <div className={styles.page}>
         <div className={styles.loading}>{'불러오는 중...'}</div>
@@ -120,10 +196,10 @@ export default function QuestionDetailPage() {
     );
   }
 
-  if (error || !question) {
+  if (currentError || !currentQuestion) {
     return (
       <div className={styles.page}>
-        <div className={styles.error}>{error ?? '문의를 찾을 수 없습니다.'}</div>
+        <div className={styles.error}>{currentError ?? '문의를 찾을 수 없습니다.'}</div>
         <Link to="/questions" className={styles.backLink}>
           {'목록으로'}
         </Link>
@@ -131,8 +207,8 @@ export default function QuestionDetailPage() {
     );
   }
 
-  const attachments = question.attachments ?? [];
-  const answers = question.answers ?? [];
+  const attachments = currentQuestion.attachments ?? [];
+  const answers = currentQuestion.answers ?? [];
 
   return (
     <div className={styles.page}>
@@ -143,21 +219,21 @@ export default function QuestionDetailPage() {
 
       {/* Header */}
       <div className={styles.header}>
-        <h1 className={styles.title}>{question.title}</h1>
+        <h1 className={styles.title}>{currentQuestion.title}</h1>
         <div className={styles.meta}>
           <span className={`${styles.categoryBadge}`}>
-            {CATEGORY_LABELS[question.category] ?? question.category}
+            {CATEGORY_LABELS[currentQuestion.category] ?? currentQuestion.category}
           </span>
-          <span className={statusClass(question.status)}>
-            {STATUS_LABELS[question.status] ?? question.status}
+          <span className={statusClass(currentQuestion.status)}>
+            {STATUS_LABELS[currentQuestion.status] ?? currentQuestion.status}
           </span>
-          <span className={styles.date}>{formatDate(question.createdAt)}</span>
-          {!question.isPublic && <span className={styles.privateBadge}>{'비공개'}</span>}
+          <span className={styles.date}>{formatDate(currentQuestion.createdAt)}</span>
+          {!currentQuestion.isPublic && <span className={styles.privateBadge}>{'비공개'}</span>}
         </div>
       </div>
 
       {/* Content */}
-      <div className={styles.content}>{question.content}</div>
+      <div className={styles.content}>{currentQuestion.content}</div>
 
       {/* Attachments */}
       {attachments.length > 0 && (
@@ -169,7 +245,11 @@ export default function QuestionDetailPage() {
                 <button
                   type="button"
                   className={styles.attachLink}
-                  onClick={() => downloadAttachment(question.id, att.id, att.originalName)}
+                  onClick={() => {
+                    if (isCurrentProjection()) {
+                      void downloadAttachment(currentQuestion.id, att.id, att.originalName);
+                    }
+                  }}
                 >
                   {att.originalName}
                 </button>
@@ -206,9 +286,9 @@ export default function QuestionDetailPage() {
       )}
 
       {/* Answer Form — ADMIN or question owner, not CLOSED */}
-      {question.status !== 'CLOSED' &&
+      {currentQuestion.status !== 'CLOSED' &&
         currentUser &&
-        (role === 'ADMIN' || question.user?.id === currentUser.id) && (
+        (role === 'ADMIN' || currentQuestion.user?.id === currentUser.id) && (
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>{'답변 작성'}</h2>
             <form className={styles.answerForm} onSubmit={handleAnswerSubmit}>
@@ -237,16 +317,26 @@ export default function QuestionDetailPage() {
         )}
 
       {/* Actions — owner only */}
-      {question.user && currentUser && question.user.id === currentUser.id && (
+      {currentQuestion.user && currentUser && currentQuestion.user.id === currentUser.id && (
         <div className={styles.actions}>
-          <Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => {
+              if (isCurrentProjection()) setDeleteOpen(true);
+            }}
+          >
             {'삭제'}
           </Button>
         </div>
       )}
 
       {/* Delete confirm modal */}
-      <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="문의 삭제">
+      <Modal
+        open={projectionCurrent && deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="문의 삭제"
+      >
         <div className={styles.modalBody}>
           {'이 문의를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.'}
         </div>

@@ -105,6 +105,22 @@ route, public wildcard 404, and ADMIN route matching semantics remain unchanged.
 1. A subscriber opens the playlist list.
 2. Create actions use the existing modal.
 3. Detail/edit pages add, remove, and reorder tracks under current plan limits.
+4. Playlist list and capacity load independently. Create remains hidden until
+   current-owner list data and a positive server `maxPlaylists` value are
+   known; failure offers retry and never uses a fallback limit.
+5. Detail/edit accepts only canonical positive ASCII decimal safe-integer IDs.
+   Invalid IDs show fixed Korean list recovery and make no request.
+
+## Member Read Recovery
+
+Playlist, likes, License, Question, drawer, and Download History reads retire
+stale work when their relevant route, page, filter, tab, drawer session, or
+authenticated owner changes. Only the current owner projection may render or
+commit data, fixed errors, loading, dialogs, controls, or player context.
+
+Download History keeps one owner/read key and abort signal through Track-ID
+preparation, confirmation, download iterations, browser effects, feedback,
+count refresh, and cleanup. Retirement stops remaining effects.
 
 ## Subscription And Payment
 

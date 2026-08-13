@@ -11,9 +11,10 @@ export interface DownloadCount {
 }
 
 /** GET /api/tracks/{trackId}/download -- download track file (subscribers only) */
-export async function downloadTrack(trackId: number): Promise<Blob> {
+export async function downloadTrack(trackId: number, signal?: AbortSignal): Promise<Blob> {
   const { data } = await client.get(`/tracks/${trackId}/download`, {
     responseType: 'blob',
+    signal,
   });
   return data;
 }
@@ -67,11 +68,15 @@ export async function fetchDownloadHistory(
 }
 
 /** GET /api/downloads/history/track-ids -- all matching track ids for bulk re-download */
-export async function fetchDownloadHistoryTrackIds(keyword?: string): Promise<number[]> {
+export async function fetchDownloadHistoryTrackIds(
+  keyword?: string,
+  signal?: AbortSignal,
+): Promise<number[]> {
   const query: Record<string, string> = {};
   if (keyword) query.keyword = keyword;
   const { data } = await client.get<{ dataList: number[] }>('/downloads/history/track-ids', {
     params: query,
+    signal,
   });
   return data.dataList ?? [];
 }

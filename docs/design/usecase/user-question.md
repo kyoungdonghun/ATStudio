@@ -79,6 +79,10 @@
 2. Backend filters the inquiry list based on user role and returns paginated results.
    - Regular member: is_public=1 OR (is_public=0 AND user_id=self)
    - Admin: all
+3. Filter, page, tab, route, or authenticated-owner changes clear and retire
+   the prior request. List/detail data, forms, attachment controls, and
+   confirmation targets render only for the current projection; detached
+   controls and mutation continuations revalidate it.
 
 **Postconditions**
 - Inquiry list matching access permissions and pageInfo displayed on screen.
@@ -104,6 +108,10 @@
 
 **Exception / Alternative Flow**
 - Non-author accessing a private inquiry: 403 response.
+- Detail accepts only a canonical ASCII decimal `questionId` matching
+  `[1-9][0-9]*` and a safe integer. Invalid values render fixed Korean list
+  recovery with no request; valid route changes retire and hide the prior
+  projection, dialogs, controls, and stale completions.
 
 **Postconditions**
 - Inquiry detail and answer list displayed on screen.

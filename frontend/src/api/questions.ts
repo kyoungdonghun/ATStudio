@@ -46,20 +46,26 @@ export interface QuestionListResponse {
 /* ── API Functions ── */
 
 /** 8.3 GET /api/questions — list (mine=true for subscriber) */
-export async function fetchQuestions(params: {
-  page?: number;
-  size?: number;
-  category?: QuestionCategory;
-  status?: QuestionStatus;
-  mine?: boolean;
-}): Promise<QuestionListResponse> {
-  const { data } = await client.get<QuestionListResponse>('/questions', { params });
+export async function fetchQuestions(
+  params: {
+    page?: number;
+    size?: number;
+    category?: QuestionCategory;
+    status?: QuestionStatus;
+    mine?: boolean;
+  },
+  signal?: AbortSignal,
+): Promise<QuestionListResponse> {
+  const { data } = await client.get<QuestionListResponse>('/questions', { params, signal });
   return data;
 }
 
 /** 8.4 GET /api/questions/{id} — detail */
-export async function fetchQuestionDetail(id: number): Promise<QuestionDetail> {
-  const { data } = await client.get<ApiResponse<QuestionDetail>>(`/questions/${id}`);
+export async function fetchQuestionDetail(
+  id: number,
+  signal?: AbortSignal,
+): Promise<QuestionDetail> {
+  const { data } = await client.get<ApiResponse<QuestionDetail>>(`/questions/${id}`, { signal });
   return data.data;
 }
 

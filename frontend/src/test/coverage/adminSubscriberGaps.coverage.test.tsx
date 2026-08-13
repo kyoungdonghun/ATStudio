@@ -1643,7 +1643,9 @@ describe('download history gaps', () => {
     fireEvent.click(allButton);
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(last(within(dialog).getAllByRole('button')));
-    await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledWith(191));
+    await waitFor(() =>
+      expect(mocks.downloadTrack).toHaveBeenCalledWith(191, expect.any(AbortSignal)),
+    );
     expect(mocks.fetchDownloadCount).not.toHaveBeenCalled();
   });
 });

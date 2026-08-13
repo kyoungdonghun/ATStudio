@@ -1,6 +1,6 @@
 ---
-version: 2.1
-last_updated: 2026-08-09
+version: 2.2
+last_updated: 2026-08-13
 project: ATS
 owner: docops
 category: design
@@ -28,6 +28,14 @@ dependencies:
   `pageInfo`. Playback maps the returned Track data to the shared
   `PlayableTrack` contract; missing waveform data is hydrated in one bounded
   batch rather than one detail request per row.
+- The read is keyed by authenticated owner (user ID and token identity), page,
+  search, sort, and role. A key change clears prior rows, page metadata,
+  download count, and selection, aborts retired work, and permits only the
+  current generation to render or commit data, error, loading, or player
+  context. The opaque key is never displayed or logged.
+- Single and bulk downloads keep the initiating key and abort signal through
+  ID preparation, confirmation, each iteration, blob trigger, feedback, count
+  refresh, and cleanup. Owner retirement suppresses all remaining effects.
 
 ## DOWNLOAD-002: Read Downloaded Track IDs
 

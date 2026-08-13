@@ -25,6 +25,10 @@
 1. Frontend sends a request including auth token and page parameters to the backend.
 2. Backend extracts userId from JWT and queries the licenses table for the user's license list.
 3. Backend returns the license list (id, track info, licenseCode, issuedAt) paginated.
+4. Page, route, or authenticated-owner changes clear and retire the prior
+   request. Rows, pagination, detail dialog, license values, and controls
+   render only for the current owner-and-page projection; detached controls
+   revalidate it before acting.
 
 **Postconditions**
 - License list displayed on screen. Pagination works correctly.
@@ -73,6 +77,10 @@
 
 **Exception / Alternative Flow**
 - Accessing another user's license: 403 response.
+- Detail accepts only a canonical ASCII decimal `licenseId` matching
+  `[1-9][0-9]*` and a safe integer. Invalid values render fixed Korean list
+  recovery with no request; route or owner changes retire and hide the prior
+  projection and its completions.
 
 **Postconditions**
 - License detail displayed on screen.

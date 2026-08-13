@@ -32,9 +32,11 @@ export async function fetchUserLicenses(
   userId: number,
   page = 1,
   size = 20,
+  signal?: AbortSignal,
 ): Promise<PagedResponse<LicenseListItem>> {
   const { data } = await client.get<PagedResponse<LicenseListItem>>(`/users/${userId}/licenses`, {
     params: { page, size },
+    signal,
   });
   return data;
 }
@@ -43,15 +45,22 @@ export async function fetchUserLicenses(
 export async function fetchMyLicenses(
   page = 1,
   size = 20,
+  signal?: AbortSignal,
 ): Promise<PagedResponse<LicenseListItem>> {
   const { data } = await client.get<PagedResponse<LicenseListItem>>('/licenses/me', {
     params: { page, size },
+    signal,
   });
   return data;
 }
 
 /** GET /api/licenses/{licenseId} -- license detail */
-export async function fetchLicenseDetail(licenseId: number): Promise<LicenseDetail> {
-  const { data } = await client.get<ApiResponse<LicenseDetail>>(`/licenses/${licenseId}`);
+export async function fetchLicenseDetail(
+  licenseId: number,
+  signal?: AbortSignal,
+): Promise<LicenseDetail> {
+  const { data } = await client.get<ApiResponse<LicenseDetail>>(`/licenses/${licenseId}`, {
+    signal,
+  });
   return data.data;
 }

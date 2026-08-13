@@ -2,8 +2,8 @@ import client from '@/api/client';
 import type { LikeItem, AlbumLikeItem } from '@/types';
 
 /** GET /api/likes — 트랙 좋아요 목록 */
-export async function fetchLikes(): Promise<{ dataList: LikeItem[] }> {
-  const { data } = await client.get<{ dataList: LikeItem[] }>('/likes');
+export async function fetchLikes(signal?: AbortSignal): Promise<{ dataList: LikeItem[] }> {
+  const { data } = await client.get<{ dataList: LikeItem[] }>('/likes', { signal });
   return data;
 }
 
@@ -20,8 +20,10 @@ export async function removeLike(trackId: number): Promise<void> {
 // ── Album Likes ──────────────────────────────────────────────────────────
 
 /** GET /api/likes/albums — 앨범 좋아요 목록 */
-export async function fetchAlbumLikes(): Promise<{ dataList: AlbumLikeItem[] }> {
-  const { data } = await client.get<{ dataList: AlbumLikeItem[] }>('/likes/albums');
+export async function fetchAlbumLikes(
+  signal?: AbortSignal,
+): Promise<{ dataList: AlbumLikeItem[] }> {
+  const { data } = await client.get<{ dataList: AlbumLikeItem[] }>('/likes/albums', { signal });
   return data;
 }
 

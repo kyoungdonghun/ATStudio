@@ -1,7 +1,8 @@
 /** Screen D-1: Liked tracks + albums (tabbed) */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchLikes, removeLike, fetchAlbumLikes, removeAlbumLike } from '@/api/likes';
+import { classifyLoadError } from '@/api/loadError';
 import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
 import { toUploadUrl } from '@/api/client';
 import { formatDate } from '@/utils/format';
@@ -9,9 +10,11 @@ import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import { useToastStore } from '@/store/toastStore';
+import { useAuthStore } from '@/store/authStore';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import type { LikeItem, AlbumLikeItem } from '@/types';
 import { toPlayableTrack } from '@/utils/playableTrack';
+import { createOwnerKey, createReadKey, getCurrentOwnerKey } from '@/utils/ownerProjection';
 import styles from './LikeListPage.module.css';
 
 type TabKey = 'tracks' | 'albums';
@@ -39,52 +42,119 @@ export default function LikeListPage() {
   const likeStore = useLikeStore();
   const albumLikeStore = useAlbumLikeStore();
   const toast = useToastStore((s) => s.show);
+  const userID = useAuthStore((s) => s.user?.id ?? null);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const navigate = useNavigate();
+  const requestGeneration = useRef(0);
+  const ownerKey = createOwnerKey(userID, accessToken);
+  const readKey = createReadKey(ownerKey, 'like-list', tab);
+  const currentReadKeyRef = useRef(readKey);
+  const projectionKeyRef = useRef<string | null>(null);
+  const [projectionKey, setProjectionKey] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
+  currentReadKeyRef.current = readKey;
+  const projectionCurrent = readKey !== null && projectionKey === readKey;
+  const currentItems = useMemo(
+    () => (projectionCurrent && tab === 'tracks' ? items : []),
+    [items, projectionCurrent, tab],
+  );
+  const currentAlbumItems = useMemo(
+    () => (projectionCurrent && tab === 'albums' ? albumItems : []),
+    [albumItems, projectionCurrent, tab],
+  );
+  const currentError = errorKey === readKey ? (tab === 'tracks' ? error : albumError) : null;
+  const currentLoading =
+    (tab === 'tracks' ? loading : albumLoading) || (!projectionCurrent && currentError === null);
 
-  /* ── Load tracks ── */
-  const loadTracks = useCallback(async () => {
-    try {
+  function isCurrentProjection(expectedReadKey = readKey): boolean {
+    return (
+      expectedReadKey !== null &&
+      currentReadKeyRef.current === expectedReadKey &&
+      projectionKeyRef.current === expectedReadKey &&
+      getCurrentOwnerKey(ownerKey) === ownerKey
+    );
+  }
+
+  useEffect(() => {
+    const requestKey = readKey;
+    const requestOwnerKey = ownerKey;
+    const generation = ++requestGeneration.current;
+    const controller = new AbortController();
+    const isCurrent = () =>
+      requestKey !== null &&
+      generation === requestGeneration.current &&
+      currentReadKeyRef.current === requestKey &&
+      getCurrentOwnerKey(requestOwnerKey) === requestOwnerKey;
+
+    if (tab === 'tracks') {
+      setItems([]);
       setLoading(true);
       setError(null);
-      const res = await fetchLikes();
-      setItems(res.dataList ?? []);
-    } catch {
-      setError('좋아요 목록을 불러오지 못했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /* ── Load albums ── */
-  const loadAlbums = useCallback(async () => {
-    try {
+      void fetchLikes(controller.signal)
+        .then((res) => {
+          if (isCurrent()) {
+            setItems(res.dataList ?? []);
+            projectionKeyRef.current = requestKey;
+            setProjectionKey(requestKey);
+          }
+        })
+        .catch((loadError: unknown) => {
+          if (isCurrent() && classifyLoadError(loadError) !== 'cancelled') {
+            setError('좋아요 목록을 불러오지 못했습니다.');
+            setErrorKey(requestKey);
+          }
+        })
+        .finally(() => {
+          if (isCurrent()) setLoading(false);
+        });
+    } else {
+      setAlbumItems([]);
       setAlbumLoading(true);
       setAlbumError(null);
-      const res = await fetchAlbumLikes();
-      setAlbumItems(res.dataList ?? []);
-    } catch {
-      setAlbumError('좋아요 앨범을 불러오지 못했습니다.');
-    } finally {
-      setAlbumLoading(false);
+      void fetchAlbumLikes(controller.signal)
+        .then((res) => {
+          if (isCurrent()) {
+            setAlbumItems(res.dataList ?? []);
+            projectionKeyRef.current = requestKey;
+            setProjectionKey(requestKey);
+          }
+        })
+        .catch((loadError: unknown) => {
+          if (isCurrent() && classifyLoadError(loadError) !== 'cancelled') {
+            setAlbumError('좋아요 앨범을 불러오지 못했습니다.');
+            setErrorKey(requestKey);
+          }
+        })
+        .finally(() => {
+          if (isCurrent()) setAlbumLoading(false);
+        });
     }
-  }, []);
 
-  useEffect(() => {
-    if (tab === 'tracks') loadTracks();
-    else loadAlbums();
-  }, [tab, loadTracks, loadAlbums]);
+    return () => {
+      controller.abort();
+      if (requestGeneration.current === generation) requestGeneration.current += 1;
+    };
+  }, [ownerKey, readKey, tab]);
 
   /* SR-83: Publish liked tracks as player context so Next/Prev traverses them. */
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (tab !== 'tracks') return;
-    const tracks = items.map((item) => toPlayableTrack(item));
+    const tracks = currentItems.map((item) => toPlayableTrack(item));
     return setTrackListContext(tracks);
-  }, [tab, items, setTrackListContext]);
+  }, [tab, currentItems, setTrackListContext]);
 
   /* ── Track handlers ── */
   async function handleUnlike(trackId: number) {
+    const operationKey = readKey;
+    if (
+      !isCurrentProjection(operationKey) ||
+      !currentItems.some((item) => item.trackId === trackId)
+    ) {
+      return;
+    }
     try {
       await removeLike(trackId);
+      if (!isCurrentProjection(operationKey)) return;
       setItems((prev) => prev.filter((it) => it.trackId !== trackId));
       likeStore.remove(trackId);
     } catch {
@@ -93,15 +163,30 @@ export default function LikeListPage() {
   }
 
   async function handleDownload(item: LikeItem) {
+    const operationKey = readKey;
+    if (
+      !isCurrentProjection(operationKey) ||
+      !currentItems.some((candidate) => candidate.trackId === item.trackId)
+    ) {
+      return;
+    }
     try {
       const blob = await downloadTrack(item.trackId);
+      if (!isCurrentProjection(operationKey)) return;
       triggerBlobDownload(blob, `${item.title}.mp3`);
     } catch {
+      if (!isCurrentProjection(operationKey)) return;
       toast('error', '다운로드에 실패했습니다.');
     }
   }
 
   function handlePlay(item: LikeItem) {
+    if (
+      !isCurrentProjection() ||
+      !currentItems.some((candidate) => candidate.trackId === item.trackId)
+    ) {
+      return;
+    }
     if (currentTrack?.id === item.trackId) {
       if (isPlayerPlaying) pauseTrack();
       else resumeTrack();
@@ -112,8 +197,16 @@ export default function LikeListPage() {
 
   /* ── Album handlers ── */
   async function handleUnlikeAlbum(albumId: number) {
+    const operationKey = readKey;
+    if (
+      !isCurrentProjection(operationKey) ||
+      !currentAlbumItems.some((item) => item.albumId === albumId)
+    ) {
+      return;
+    }
     try {
       await removeAlbumLike(albumId);
+      if (!isCurrentProjection(operationKey)) return;
       setAlbumItems((prev) => prev.filter((it) => it.albumId !== albumId));
       albumLikeStore.remove(albumId);
     } catch {
@@ -127,7 +220,7 @@ export default function LikeListPage() {
         <div className={styles.pageTitle}>
           {'좋아요'}
           <span className={styles.pageTitleCount}>
-            {tab === 'tracks' ? `${items.length}곡` : `${albumItems.length}앨범`}
+            {tab === 'tracks' ? `${currentItems.length}곡` : `${currentAlbumItems.length}앨범`}
           </span>
         </div>
       </div>
@@ -151,11 +244,11 @@ export default function LikeListPage() {
       {/* ── Track tab ── */}
       {tab === 'tracks' && (
         <>
-          {loading ? (
+          {currentLoading ? (
             <div className={styles.loading}>Loading...</div>
-          ) : error ? (
-            <div className={styles.error}>{error}</div>
-          ) : items.length === 0 ? (
+          ) : currentError ? (
+            <div className={styles.error}>{currentError}</div>
+          ) : currentItems.length === 0 ? (
             <div className={styles.empty}>
               {'좋아요한 음원이 없습니다.'}
               <br />
@@ -177,7 +270,7 @@ export default function LikeListPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item, idx) => (
+                  {currentItems.map((item, idx) => (
                     <tr
                       key={item.trackId}
                       className={`${styles.row} ${currentTrack?.id === item.trackId && isPlayerPlaying ? styles.rowPlaying : ''}`}
@@ -219,7 +312,9 @@ export default function LikeListPage() {
                         <span className={styles.hoverActions}>
                           <button
                             className={styles.addPlBtn}
-                            onClick={() => setAddToPlTrackId(item.trackId)}
+                            onClick={() => {
+                              if (isCurrentProjection()) setAddToPlTrackId(item.trackId);
+                            }}
                             title="재생목록에 추가"
                           >
                             +
@@ -247,8 +342,8 @@ export default function LikeListPage() {
             </div>
           )}
           <AddToPlaylistModal
-            open={addToPlTrackId !== null}
-            trackId={addToPlTrackId}
+            open={projectionCurrent && addToPlTrackId !== null}
+            trackId={projectionCurrent ? addToPlTrackId : null}
             onClose={() => setAddToPlTrackId(null)}
           />
         </>
@@ -257,11 +352,11 @@ export default function LikeListPage() {
       {/* ── Album tab ── */}
       {tab === 'albums' && (
         <>
-          {albumLoading ? (
+          {currentLoading ? (
             <div className={styles.loading}>Loading...</div>
-          ) : albumError ? (
-            <div className={styles.error}>{albumError}</div>
-          ) : albumItems.length === 0 ? (
+          ) : currentError ? (
+            <div className={styles.error}>{currentError}</div>
+          ) : currentAlbumItems.length === 0 ? (
             <div className={styles.empty}>
               {'좋아요한 앨범이 없습니다.'}
               <br />
@@ -281,11 +376,13 @@ export default function LikeListPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {albumItems.map((item) => (
+                  {currentAlbumItems.map((item) => (
                     <tr
                       key={item.albumId}
                       className={styles.row}
-                      onClick={() => navigate(`/albums/${item.albumId}`)}
+                      onClick={() => {
+                        if (isCurrentProjection()) navigate(`/albums/${item.albumId}`);
+                      }}
                     >
                       <td className={styles.cellInfo}>
                         <div className={styles.info}>

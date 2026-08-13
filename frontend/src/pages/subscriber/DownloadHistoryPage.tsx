@@ -1,5 +1,5 @@
 /** SR-79: Download history */
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   downloadTrack,
@@ -20,9 +20,12 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Pagination from '@/components/ui/Pagination';
 import type { PageInfo } from '@/types';
 import { toPlayableTrack } from '@/utils/playableTrack';
+import { createOwnerKey, createReadKey, getCurrentOwnerKey } from '@/utils/ownerProjection';
 import styles from './DownloadHistoryPage.module.css';
 
 const PAGE_SIZE = 20;
+const EMPTY_HISTORY_ITEMS: DownloadHistoryItem[] = [];
+const EMPTY_SELECTED_IDS = new Set<number>();
 
 const defaultPageInfo: PageInfo = {
   page: 1,
@@ -36,6 +39,16 @@ const defaultPageInfo: PageInfo = {
 
 type SortMode = 'latest' | 'oldest';
 
+interface DownloadConfirmation {
+  readKey: string;
+  trackIDs: number[];
+}
+
+interface SingleDownloadState {
+  readKey: string;
+  trackID: number;
+}
+
 export default function DownloadHistoryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const currentPage = Number(searchParams.get('page') ?? '1') || 1;
@@ -47,12 +60,24 @@ export default function DownloadHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dlCount, setDlCount] = useState<DownloadCount | null>(null);
-  const [downloading, setDownloading] = useState<number | null>(null);
-  const [bulkBusy, setBulkBusy] = useState(false);
+  const [downloading, setDownloading] = useState<SingleDownloadState | null>(null);
+  const [bulkBusyKey, setBulkBusyKey] = useState<string | null>(null);
+  const [preparingKey, setPreparingKey] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [keywordInput, setKeywordInput] = useState(urlKeyword);
-  const [confirmDownloadAllIds, setConfirmDownloadAllIds] = useState<number[] | null>(null);
+  const [downloadConfirmation, setDownloadConfirmation] = useState<DownloadConfirmation | null>(
+    null,
+  );
+  const [projectionKey, setProjectionKey] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
   const loadGenerationRef = useRef(0);
+  const projectionKeyRef = useRef<string | null>(null);
+  const singleGenerationRef = useRef(0);
+  const singleControllerRef = useRef<AbortController | null>(null);
+  const preparationGenerationRef = useRef(0);
+  const preparationControllerRef = useRef<AbortController | null>(null);
+  const bulkGenerationRef = useRef(0);
+  const bulkControllerRef = useRef<AbortController | null>(null);
 
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlayerPlaying = usePlayerStore((s) => s.isPlaying);
@@ -60,9 +85,34 @@ export default function DownloadHistoryPage() {
   const pauseTrack = usePlayerStore((s) => s.pause);
   const resumeTrack = usePlayerStore((s) => s.resume);
   const setTrackListContext = usePlayerStore((s) => s.setTrackListContext);
+  const userID = useAuthStore((s) => s.user?.id ?? null);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const role = useAuthStore((s) => s.role);
+  const ownerKey = createOwnerKey(userID, accessToken);
   const isAdmin = role === 'ADMIN';
   const toast = useToastStore((s) => s.show);
+  const readKey = createReadKey(
+    ownerKey,
+    'download-history',
+    currentPage,
+    urlKeyword,
+    urlSort,
+    isAdmin,
+  );
+  const currentReadKeyRef = useRef(readKey);
+  currentReadKeyRef.current = readKey;
+
+  function isCurrentRead(expectedReadKey: string | null): expectedReadKey is string {
+    return (
+      expectedReadKey !== null &&
+      currentReadKeyRef.current === expectedReadKey &&
+      getCurrentOwnerKey(ownerKey) === ownerKey
+    );
+  }
+
+  function isCurrentProjection(expectedReadKey = readKey): expectedReadKey is string {
+    return isCurrentRead(expectedReadKey) && projectionKeyRef.current === expectedReadKey;
+  }
 
   // Keep input synced if URL changes externally (back/forward nav)
   useEffect(() => {
@@ -71,10 +121,23 @@ export default function DownloadHistoryPage() {
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
+      const requestKey = readKey;
+      const requestOwnerKey = ownerKey;
       const generation = ++loadGenerationRef.current;
+      const isCurrent = () =>
+        requestKey !== null &&
+        loadGenerationRef.current === generation &&
+        currentReadKeyRef.current === requestKey &&
+        getCurrentOwnerKey(requestOwnerKey) === requestOwnerKey;
       try {
         setLoading(true);
         setError(null);
+        setItems([]);
+        setPageInfo(defaultPageInfo);
+        setDlCount(null);
+        setSelectedIds(new Set());
+        setDownloadConfirmation(null);
+        if (requestKey === null) return;
         const [historyResult, countResult] = await Promise.all([
           fetchDownloadHistory(
             {
@@ -92,24 +155,24 @@ export default function DownloadHistoryPage() {
                 return null;
               }),
         ]);
-        if (loadGenerationRef.current === generation) {
+        if (isCurrent()) {
           setItems(historyResult.dataList ?? []);
           setPageInfo(historyResult.pageInfo ?? defaultPageInfo);
           setDlCount(countResult);
           setSelectedIds(new Set());
+          projectionKeyRef.current = requestKey;
+          setProjectionKey(requestKey);
         }
       } catch (loadError: unknown) {
-        if (
-          loadGenerationRef.current === generation &&
-          classifyLoadError(loadError) !== 'cancelled'
-        ) {
+        if (isCurrent() && classifyLoadError(loadError) !== 'cancelled') {
           setError('다운로드 기록을 불러오지 못했습니다.');
+          setErrorKey(requestKey);
         }
       } finally {
-        if (loadGenerationRef.current === generation) setLoading(false);
+        if (isCurrent()) setLoading(false);
       }
     },
-    [currentPage, urlKeyword, urlSort, isAdmin],
+    [currentPage, isAdmin, ownerKey, readKey, urlKeyword, urlSort],
   );
 
   useEffect(() => {
@@ -121,12 +184,36 @@ export default function DownloadHistoryPage() {
     };
   }, [load]);
 
+  useLayoutEffect(() => {
+    return () => {
+      singleControllerRef.current?.abort();
+      preparationControllerRef.current?.abort();
+      bulkControllerRef.current?.abort();
+      singleGenerationRef.current += 1;
+      preparationGenerationRef.current += 1;
+      bulkGenerationRef.current += 1;
+    };
+  }, [readKey]);
+
+  const projectionCurrent = readKey !== null && projectionKey === readKey;
+  const currentItems = projectionCurrent ? items : EMPTY_HISTORY_ITEMS;
+  const currentPageInfo = projectionCurrent ? pageInfo : defaultPageInfo;
+  const currentDlCount = projectionCurrent ? dlCount : null;
+  const currentSelectedIds = projectionCurrent ? selectedIds : EMPTY_SELECTED_IDS;
+  const currentError = errorKey === readKey ? error : null;
+  const currentLoading = loading || (!projectionCurrent && currentError === null);
+  const currentDownloading = downloading?.readKey === readKey ? downloading.trackID : null;
+  const bulkBusy = bulkBusyKey === readKey;
+  const bulkPreparing = preparingKey === readKey;
+  const currentConfirmation =
+    downloadConfirmation?.readKey === readKey ? downloadConfirmation : null;
+
   /* SR-83: Publish downloaded tracks as player context so Next/Prev traverses them.
      Note: download history can contain duplicates (same track downloaded multiple times),
      so we de-duplicate by trackId, keeping the first occurrence. */
-  useEffect(() => {
+  useLayoutEffect(() => {
     const seen = new Set<number>();
-    const tracks = items
+    const tracks = currentItems
       .filter((item) => {
         if (seen.has(item.trackId)) return false;
         seen.add(item.trackId);
@@ -134,7 +221,7 @@ export default function DownloadHistoryPage() {
       })
       .map((item) => toPlayableTrack(item));
     return setTrackListContext(tracks);
-  }, [items, setTrackListContext]);
+  }, [currentItems, setTrackListContext]);
 
   function updateParams(patch: Record<string, string | null>) {
     const next = new URLSearchParams(searchParams);
@@ -160,91 +247,153 @@ export default function DownloadHistoryPage() {
   }
 
   async function handleDownloadOne(item: DownloadHistoryItem) {
+    const operationKey = readKey;
+    if (
+      !isCurrentProjection(operationKey) ||
+      !currentItems.some((candidate) => candidate.downloadId === item.downloadId)
+    ) {
+      return;
+    }
+    singleControllerRef.current?.abort();
+    const controller = new AbortController();
+    singleControllerRef.current = controller;
+    const generation = ++singleGenerationRef.current;
+    const isCurrent = () =>
+      generation === singleGenerationRef.current &&
+      !controller.signal.aborted &&
+      isCurrentProjection(operationKey);
     try {
-      setDownloading(item.trackId);
-      const blob = await downloadTrack(item.trackId);
+      setDownloading({ readKey: operationKey, trackID: item.trackId });
+      const blob = await downloadTrack(item.trackId, controller.signal);
+      if (!isCurrent()) return;
       triggerBlobDownload(blob, `${item.title}.mp3`);
       toast('success', `${item.title} 다운로드 완료`);
     } catch (err: unknown) {
+      if (!isCurrent() || classifyLoadError(err) === 'cancelled') return;
       const msg = err instanceof Error ? err.message : '다운로드에 실패했습니다.';
       setError(msg);
+      setErrorKey(operationKey);
     } finally {
-      setDownloading(null);
+      if (isCurrent()) setDownloading(null);
     }
   }
 
-  async function downloadByTrackIds(trackIds: number[]) {
-    if (trackIds.length === 0) return;
+  async function downloadByTrackIds(trackIds: number[], operationKey: string) {
+    if (trackIds.length === 0 || !isCurrentProjection(operationKey)) return;
+    bulkControllerRef.current?.abort();
+    const controller = new AbortController();
+    bulkControllerRef.current = controller;
+    const generation = ++bulkGenerationRef.current;
+    const isCurrent = () =>
+      generation === bulkGenerationRef.current &&
+      !controller.signal.aborted &&
+      isCurrentProjection(operationKey);
     try {
-      setBulkBusy(true);
+      setBulkBusyKey(operationKey);
       let ok = 0;
       let fail = 0;
       // Look up titles on-page for a nicer filename; fall back to id.
-      const titleById = new Map(items.map((i) => [i.trackId, i.title] as const));
+      const titleById = new Map(currentItems.map((i) => [i.trackId, i.title] as const));
       for (const trackId of trackIds) {
+        if (!isCurrent()) return;
         try {
-          const blob = await downloadTrack(trackId);
+          const blob = await downloadTrack(trackId, controller.signal);
+          if (!isCurrent()) return;
           const title = titleById.get(trackId) ?? `track-${trackId}`;
           triggerBlobDownload(blob, `${title}.mp3`);
           ok += 1;
-        } catch {
+        } catch (downloadError) {
+          if (!isCurrent() || classifyLoadError(downloadError) === 'cancelled') return;
           fail += 1;
         }
       }
+      if (!isCurrent()) return;
       if (fail === 0) {
         toast('success', `${ok}곡 다운로드 완료`);
       } else {
         toast('error', `${ok}곡 성공, ${fail}곡 실패`);
       }
       if (!isAdmin) {
-        fetchDownloadCount()
-          .then(setDlCount)
-          .catch(() => {});
+        try {
+          const count = await fetchDownloadCount(controller.signal);
+          if (isCurrent()) setDlCount(count);
+        } catch (countError) {
+          if (!isCurrent() || classifyLoadError(countError) === 'cancelled') return;
+        }
       }
     } finally {
-      setBulkBusy(false);
+      if (isCurrent()) setBulkBusyKey(null);
     }
   }
 
   async function handleDownloadSelected() {
+    const operationKey = readKey;
+    if (!isCurrentProjection(operationKey)) return;
     const trackIds = [
       ...new Set(
-        items.filter((item) => selectedIds.has(item.downloadId)).map((item) => item.trackId),
+        currentItems
+          .filter((item) => currentSelectedIds.has(item.downloadId))
+          .map((item) => item.trackId),
       ),
     ];
     if (trackIds.length === 0) return;
-    await downloadByTrackIds(trackIds);
+    await downloadByTrackIds(trackIds, operationKey);
   }
 
   async function handleDownloadAll() {
+    const operationKey = readKey;
+    if (!isCurrentProjection(operationKey)) return;
+    preparationControllerRef.current?.abort();
+    const controller = new AbortController();
+    preparationControllerRef.current = controller;
+    const generation = ++preparationGenerationRef.current;
+    const isCurrent = () =>
+      generation === preparationGenerationRef.current &&
+      !controller.signal.aborted &&
+      isCurrentProjection(operationKey);
     try {
-      const ids = await fetchDownloadHistoryTrackIds(urlKeyword || undefined);
+      setPreparingKey(operationKey);
+      const ids = await fetchDownloadHistoryTrackIds(urlKeyword || undefined, controller.signal);
+      if (!isCurrent()) return;
       if (ids.length === 0) {
         toast('error', '다운로드할 항목이 없습니다.');
         return;
       }
-      setConfirmDownloadAllIds(ids);
-    } catch {
+      setDownloadConfirmation({ readKey: operationKey, trackIDs: ids });
+    } catch (preparationError) {
+      if (!isCurrent() || classifyLoadError(preparationError) === 'cancelled') return;
       toast('error', '전체 재다운로드에 실패했습니다.');
+    } finally {
+      if (isCurrent()) setPreparingKey(null);
     }
   }
 
   async function confirmDownloadAll() {
-    if (!confirmDownloadAllIds || confirmDownloadAllIds.length === 0) return;
-    const ids = confirmDownloadAllIds;
-    setConfirmDownloadAllIds(null);
-    await downloadByTrackIds(ids);
+    if (
+      !currentConfirmation ||
+      currentConfirmation.trackIDs.length === 0 ||
+      !isCurrentProjection(currentConfirmation.readKey)
+    ) {
+      return;
+    }
+    const confirmation = currentConfirmation;
+    setDownloadConfirmation(null);
+    await downloadByTrackIds(confirmation.trackIDs, confirmation.readKey);
   }
 
   function toggleSelectAll(checked: boolean) {
+    if (!isCurrentProjection()) return;
     if (checked) {
-      setSelectedIds(new Set(items.map((i) => i.downloadId)));
+      setSelectedIds(new Set(currentItems.map((i) => i.downloadId)));
     } else {
       setSelectedIds(new Set());
     }
   }
 
   function toggleSelectOne(downloadId: number) {
+    if (!isCurrentProjection() || !currentItems.some((item) => item.downloadId === downloadId)) {
+      return;
+    }
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(downloadId)) next.delete(downloadId);
@@ -254,6 +403,12 @@ export default function DownloadHistoryPage() {
   }
 
   function handlePlay(item: DownloadHistoryItem) {
+    if (
+      !isCurrentProjection() ||
+      !currentItems.some((candidate) => candidate.downloadId === item.downloadId)
+    ) {
+      return;
+    }
     if (currentTrack?.id === item.trackId) {
       if (isPlayerPlaying) pauseTrack();
       else resumeTrack();
@@ -263,24 +418,27 @@ export default function DownloadHistoryPage() {
   }
 
   const allSelected = useMemo(
-    () => items.length > 0 && items.every((i) => selectedIds.has(i.downloadId)),
-    [items, selectedIds],
+    () =>
+      currentItems.length > 0 && currentItems.every((i) => currentSelectedIds.has(i.downloadId)),
+    [currentItems, currentSelectedIds],
   );
   // Derive selected unique track count for button label.
   const selectedUniqueTrackCount = useMemo(() => {
     const set = new Set<number>();
-    for (const i of items) {
-      if (selectedIds.has(i.downloadId)) set.add(i.trackId);
+    for (const i of currentItems) {
+      if (currentSelectedIds.has(i.downloadId)) set.add(i.trackId);
     }
     return set.size;
-  }, [items, selectedIds]);
+  }, [currentItems, currentSelectedIds]);
 
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>
           {'다운로드 기록'}
-          {pageInfo.total > 0 && <span className={styles.count}>{pageInfo.total}건</span>}
+          {currentPageInfo.total > 0 && (
+            <span className={styles.count}>{currentPageInfo.total}건</span>
+          )}
         </h1>
       </div>
 
@@ -288,13 +446,13 @@ export default function DownloadHistoryPage() {
       <div className={styles.limitInfo}>
         {isAdmin ? (
           <span className={styles.limitBadge}>{'무제한 다운로드'}</span>
-        ) : dlCount ? (
+        ) : currentDlCount ? (
           <span className={styles.limitBadge}>
             {'오늘 '}
-            {dlCount.todayDownloads}
+            {currentDlCount.todayDownloads}
             {' / '}
-            {dlCount.dailyLimit === -1 ? '무제한' : `${dlCount.dailyLimit}곡`}
-            {dlCount.dailyLimit !== -1 && ` (남은 횟수: ${dlCount.remaining})`}
+            {currentDlCount.dailyLimit === -1 ? '무제한' : `${currentDlCount.dailyLimit}곡`}
+            {currentDlCount.dailyLimit !== -1 && ` (남은 횟수: ${currentDlCount.remaining})`}
           </span>
         ) : null}
       </div>
@@ -327,7 +485,7 @@ export default function DownloadHistoryPage() {
           <button
             type="button"
             className={styles.bulkBtn}
-            disabled={selectedIds.size === 0 || bulkBusy}
+            disabled={currentSelectedIds.size === 0 || bulkBusy || bulkPreparing}
             onClick={handleDownloadSelected}
           >
             {`선택 재다운로드${selectedUniqueTrackCount > 0 ? ` (${selectedUniqueTrackCount})` : ''}`}
@@ -335,7 +493,7 @@ export default function DownloadHistoryPage() {
           <button
             type="button"
             className={styles.bulkBtnPrimary}
-            disabled={bulkBusy || pageInfo.total === 0}
+            disabled={bulkBusy || bulkPreparing || currentPageInfo.total === 0}
             onClick={handleDownloadAll}
           >
             {'전체 재다운로드'}
@@ -343,11 +501,11 @@ export default function DownloadHistoryPage() {
         </div>
       </div>
 
-      {loading ? (
+      {currentLoading ? (
         <div className={styles.loading}>{'불러오는 중...'}</div>
-      ) : error ? (
-        <div className={styles.error}>{error}</div>
-      ) : items.length === 0 ? (
+      ) : currentError ? (
+        <div className={styles.error}>{currentError}</div>
+      ) : currentItems.length === 0 ? (
         <div className={styles.empty}>
           <p>{urlKeyword ? '검색 결과가 없습니다.' : '다운로드 기록이 없습니다.'}</p>
           <Link to="/tracks" className={styles.emptyLink}>
@@ -377,8 +535,8 @@ export default function DownloadHistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => {
-                  const checked = selectedIds.has(item.downloadId);
+                {currentItems.map((item) => {
+                  const checked = currentSelectedIds.has(item.downloadId);
                   return (
                     <tr key={item.downloadId} className={styles.row}>
                       <td className={styles.cellCheck}>
@@ -432,10 +590,10 @@ export default function DownloadHistoryPage() {
                           className={styles.dlBtn}
                           aria-label={`${item.title} 재다운로드`}
                           onClick={() => handleDownloadOne(item)}
-                          disabled={downloading === item.trackId || bulkBusy}
+                          disabled={currentDownloading === item.trackId || bulkBusy}
                           title="다시 다운로드 (카운트 차감 없음)"
                         >
-                          {downloading === item.trackId ? '...' : '\u2B07'}
+                          {currentDownloading === item.trackId ? '...' : '\u2B07'}
                         </button>
                       </td>
                     </tr>
@@ -446,7 +604,7 @@ export default function DownloadHistoryPage() {
           </div>
           <div className={styles.paginationWrap}>
             <Pagination
-              pageInfo={pageInfo}
+              pageInfo={currentPageInfo}
               currentPage={currentPage}
               onPageChange={handlePageChange}
             />
@@ -455,15 +613,15 @@ export default function DownloadHistoryPage() {
       )}
 
       <ConfirmDialog
-        open={confirmDownloadAllIds !== null}
+        open={currentConfirmation !== null}
         title="전체 재다운로드"
-        message={`${confirmDownloadAllIds?.length ?? 0}곡을 다운로드합니다. 계속하시겠습니까?`}
+        message={`${currentConfirmation?.trackIDs.length ?? 0}곡을 다운로드합니다. 계속하시겠습니까?`}
         confirmLabel="다운로드"
         busy={bulkBusy}
         onConfirm={() => {
           void confirmDownloadAll();
         }}
-        onCancel={() => setConfirmDownloadAllIds(null)}
+        onCancel={() => setDownloadConfirmation(null)}
       />
     </div>
   );

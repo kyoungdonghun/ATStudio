@@ -1,7 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createMemoryRouter, RouterProvider, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PlaylistEditPage from '@/pages/subscriber/PlaylistEditPage';
+import { useAuthStore } from '@/store/authStore';
+import type { User } from '@/types';
 
 const mocks = vi.hoisted(() => ({
   fetchPlaylistDetail: vi.fn(),
@@ -23,22 +25,48 @@ vi.mock('@/api/client', () => ({
   toUploadUrl: (path: string | null | undefined) => path,
 }));
 
-function renderPage() {
+function EditHarness() {
+  const navigate = useNavigate();
+  return (
+    <>
+      <button type="button" onClick={() => navigate('/playlists/42/edit')}>
+        next edit
+      </button>
+      <PlaylistEditPage />
+    </>
+  );
+}
+
+function renderPage(initialEntry = '/playlists/41/edit') {
   const router = createMemoryRouter(
     [
-      { path: '/playlists/:playlistId/edit', element: <PlaylistEditPage /> },
+      { path: '/playlists/:playlistId/edit', element: <EditHarness /> },
       { path: '/playlists/:playlistId', element: <div>Playlist detail</div> },
+      { path: '/playlists', element: <div>Playlist list</div> },
     ],
-    { initialEntries: ['/playlists/41/edit'] },
+    { initialEntries: [initialEntry] },
   );
 
   render(<RouterProvider router={router} future={{ v7_startTransition: true }} />);
   return router;
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
 describe('PlaylistEditPage', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    useAuthStore.setState({
+      user: { id: 1 } as User,
+      accessToken: 'owner-token',
+      role: 'USER',
+    });
     mocks.fetchPlaylistDetail.mockResolvedValue({
       id: 41,
       title: 'Focus Mix',
@@ -96,5 +124,63 @@ describe('PlaylistEditPage', () => {
     });
     expect(mocks.updatePlaylist).not.toHaveBeenCalled();
     await waitFor(() => expect(router.state.location.pathname).toBe('/playlists/41'));
+  });
+
+  it.each(['1e3', '0x10', '+7', ' 7', '7 ', '7.5', '0', '-1', '9007199254740992', 'abc'])(
+    'rejects noncanonical edit id %s without a request',
+    (id) => {
+      mocks.fetchPlaylistDetail.mockReset();
+      renderPage(`/playlists/${id}/edit`);
+
+      expect(screen.getByText('재생목록 주소가 올바르지 않습니다.')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: '재생목록 목록으로' })).toHaveAttribute(
+        'href',
+        '/playlists',
+      );
+      expect(mocks.fetchPlaylistDetail).not.toHaveBeenCalled();
+    },
+  );
+
+  it('ignores a stale edit load after the route owner changes', async () => {
+    const oldDetail = deferred<Awaited<ReturnType<typeof mocks.fetchPlaylistDetail>>>();
+    const currentDetail = deferred<Awaited<ReturnType<typeof mocks.fetchPlaylistDetail>>>();
+    mocks.fetchPlaylistDetail
+      .mockReset()
+      .mockReturnValueOnce(oldDetail.promise)
+      .mockReturnValueOnce(currentDetail.promise);
+
+    renderPage();
+    await waitFor(() => expect(mocks.fetchPlaylistDetail).toHaveBeenCalledTimes(1));
+    const oldSignal = mocks.fetchPlaylistDetail.mock.calls[0][1] as AbortSignal;
+    fireEvent.click(screen.getByRole('button', { name: 'next edit' }));
+    await waitFor(() => expect(mocks.fetchPlaylistDetail).toHaveBeenCalledTimes(2));
+    expect(oldSignal.aborted).toBe(true);
+
+    await act(async () =>
+      currentDetail.resolve({
+        id: 42,
+        title: 'Current Edit',
+        description: null,
+        thumbnail: null,
+        tracks: [],
+        createdAt: '',
+        updatedAt: '',
+      }),
+    );
+    expect(await screen.findByDisplayValue('Current Edit')).toBeInTheDocument();
+
+    await act(async () =>
+      oldDetail.resolve({
+        id: 41,
+        title: 'Old Edit',
+        description: null,
+        thumbnail: null,
+        tracks: [],
+        createdAt: '',
+        updatedAt: '',
+      }),
+    );
+    expect(screen.queryByDisplayValue('Old Edit')).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('Current Edit')).toBeInTheDocument();
   });
 });

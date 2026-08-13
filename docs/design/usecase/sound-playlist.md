@@ -28,6 +28,10 @@
 
 **Exception / Alternative Flow**
 - Active playlist count already at the current plan's `subscriptions.max_playlists`: 409 `PLAYLIST_LIMIT_EXCEEDED`. The backend locks the owning user row before checking the active count and creating the playlist, so concurrent creates cannot exceed the plan. Frontend pre-empts this by hiding the 'Create Playlist' button when the active playlist count reaches the subscribed tier limit (client-side guard before API call).
+- Create actions require current-owner playlist data and a positive server
+  `maxPlaylists` value. Capacity loading or failure is fail-closed, exposes a
+  bounded retry, and never uses a client fallback. Owner change or either
+  unknown read resets the modal; submit revalidates both reads.
 
 **Postconditions**
 - playlists record created. No tracks yet (empty playlist).
@@ -50,6 +54,11 @@
 1. Frontend sends a list request including auth token to the backend.
 2. Backend returns the user's playlist list (id, title, thumbnail, active Track
    count). Persisted memberships whose Track is inactive are not counted.
+3. List, capacity, detail, and drawer reads use authenticated-owner and
+   generation keys. Relevant route, tab, drawer-session, or owner changes
+   abort retired work; stale data, error, loading, dialogs, controls, and
+   player context cannot render or commit.
+4. Mutation and playback handlers revalidate the current owner and projection.
 
 **Postconditions**
 - User's playlist list displayed on screen.
@@ -79,6 +88,10 @@
 
 **Exception / Alternative Flow**
 - Accessing another user's playlist: 403 response.
+- Detail and edit accept only a canonical ASCII decimal `playlistId` matching
+  `[1-9][0-9]*` and a safe integer. Invalid values render fixed list recovery
+  locally and send no detail request; a newer valid route retires the old
+  projection before it can render or commit.
 
 **Postconditions**
 - Playlist detail and included track list (sorted by trackOrder) displayed on screen.

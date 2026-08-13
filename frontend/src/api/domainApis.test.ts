@@ -99,9 +99,10 @@ describe('domain API contracts', () => {
       .mockResolvedValueOnce({ data: { dataList: [9, 10] } })
       .mockResolvedValueOnce({ data: {} });
 
-    await expect(downloads.downloadTrack(9)).resolves.toBe(blob);
+    await expect(downloads.downloadTrack(9, abortController.signal)).resolves.toBe(blob);
     expect(mockedClient.get).toHaveBeenNthCalledWith(1, '/tracks/9/download', {
       responseType: 'blob',
+      signal: abortController.signal,
     });
     await downloads.fetchDownloadCount(abortController.signal);
     await downloads.fetchDownloadHistory(
@@ -112,7 +113,13 @@ describe('domain API contracts', () => {
       params: { page: 3, size: 5, keyword: 'spring', sort: 'oldest' },
       signal: abortController.signal,
     });
-    await expect(downloads.fetchDownloadHistoryTrackIds('spring')).resolves.toEqual([9, 10]);
+    await expect(
+      downloads.fetchDownloadHistoryTrackIds('spring', abortController.signal),
+    ).resolves.toEqual([9, 10]);
+    expect(mockedClient.get).toHaveBeenNthCalledWith(4, '/downloads/history/track-ids', {
+      params: { keyword: 'spring' },
+      signal: abortController.signal,
+    });
     await expect(downloads.fetchDownloadHistoryTrackIds()).resolves.toEqual([]);
 
     const click = vi.fn();
@@ -130,6 +137,7 @@ describe('domain API contracts', () => {
   });
 
   it('uses license and like endpoint contracts', async () => {
+    const controller = new AbortController();
     mockedClient.get
       .mockResolvedValueOnce({ data: paged })
       .mockResolvedValueOnce({ data: paged })
@@ -139,20 +147,33 @@ describe('domain API contracts', () => {
     mockedClient.post.mockResolvedValue({});
     mockedClient.delete.mockResolvedValue({});
 
-    await licenses.fetchUserLicenses(3, 2, 15);
+    await licenses.fetchUserLicenses(3, 2, 15, controller.signal);
     expect(mockedClient.get).toHaveBeenNthCalledWith(1, '/users/3/licenses', {
       params: { page: 2, size: 15 },
+      signal: controller.signal,
     });
-    await licenses.fetchMyLicenses();
+    await licenses.fetchMyLicenses(1, 20, controller.signal);
     expect(mockedClient.get).toHaveBeenNthCalledWith(2, '/licenses/me', {
       params: { page: 1, size: 20 },
+      signal: controller.signal,
     });
-    await expect(licenses.fetchLicenseDetail(7)).resolves.toEqual(payload);
+    await expect(licenses.fetchLicenseDetail(7, controller.signal)).resolves.toEqual(payload);
+    expect(mockedClient.get).toHaveBeenNthCalledWith(3, '/licenses/7', {
+      signal: controller.signal,
+    });
 
-    await expect(likes.fetchLikes()).resolves.toEqual({ dataList: [payload] });
+    await expect(likes.fetchLikes(controller.signal)).resolves.toEqual({ dataList: [payload] });
+    expect(mockedClient.get).toHaveBeenNthCalledWith(4, '/likes', {
+      signal: controller.signal,
+    });
     await likes.addLike(7);
     await likes.removeLike(7);
-    await expect(likes.fetchAlbumLikes()).resolves.toEqual({ dataList: [payload] });
+    await expect(likes.fetchAlbumLikes(controller.signal)).resolves.toEqual({
+      dataList: [payload],
+    });
+    expect(mockedClient.get).toHaveBeenNthCalledWith(5, '/likes/albums', {
+      signal: controller.signal,
+    });
     await likes.addAlbumLike(8);
     await likes.removeAlbumLike(8);
     expect(mockedClient.post).toHaveBeenCalledWith('/likes/7');
@@ -391,6 +412,7 @@ describe('domain API contracts', () => {
   });
 
   it('builds playlist multipart requests and track mutations', async () => {
+    const controller = new AbortController();
     mockedClient.get
       .mockResolvedValueOnce({ data: { dataList: [payload] } })
       .mockResolvedValueOnce(apiResponse(payload));
@@ -398,8 +420,14 @@ describe('domain API contracts', () => {
     mockedClient.put.mockResolvedValue({});
     mockedClient.delete.mockResolvedValue({});
 
-    await playlists.fetchMyPlaylists();
-    await expect(playlists.fetchPlaylistDetail(4)).resolves.toEqual(payload);
+    await playlists.fetchMyPlaylists(controller.signal);
+    expect(mockedClient.get).toHaveBeenNthCalledWith(1, '/playlists', {
+      signal: controller.signal,
+    });
+    await expect(playlists.fetchPlaylistDetail(4, controller.signal)).resolves.toEqual(payload);
+    expect(mockedClient.get).toHaveBeenNthCalledWith(2, '/playlists/4', {
+      signal: controller.signal,
+    });
     const thumbnail = new File(['image'], 'cover.png');
     await playlists.createPlaylist({ title: 'Mix', description: 'Focus', thumbnail });
     const createForm = mockedClient.post.mock.calls[0]?.[1] as FormData;
@@ -420,6 +448,7 @@ describe('domain API contracts', () => {
   });
 
   it('uses question CRUD, answer, status, and attachment contracts', async () => {
+    const controller = new AbortController();
     const blob = new Blob(['question']);
     mockedClient.get
       .mockResolvedValueOnce({ data: paged })
@@ -432,9 +461,15 @@ describe('domain API contracts', () => {
     mockedClient.delete.mockResolvedValue({});
 
     const params = { page: 2, size: 10, category: 'OTHER' as const, mine: true };
-    await questions.fetchQuestions(params);
-    expect(mockedClient.get).toHaveBeenNthCalledWith(1, '/questions', { params });
-    await questions.fetchQuestionDetail(2);
+    await questions.fetchQuestions(params, controller.signal);
+    expect(mockedClient.get).toHaveBeenNthCalledWith(1, '/questions', {
+      params,
+      signal: controller.signal,
+    });
+    await questions.fetchQuestionDetail(2, controller.signal);
+    expect(mockedClient.get).toHaveBeenNthCalledWith(2, '/questions/2', {
+      signal: controller.signal,
+    });
     const file = new File(['question'], 'question.txt');
     await questions.createQuestion({
       title: 'Help',

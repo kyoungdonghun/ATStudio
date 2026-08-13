@@ -34,14 +34,19 @@ export interface PlaylistCreateRequest {
 /* ── API functions ── */
 
 /** GET /api/playlists -- my playlists (no pagination, limit per subscription tier) */
-export async function fetchMyPlaylists(): Promise<{ dataList: Playlist[] }> {
-  const { data } = await client.get<{ dataList: Playlist[] }>('/playlists');
+export async function fetchMyPlaylists(signal?: AbortSignal): Promise<{ dataList: Playlist[] }> {
+  const { data } = await client.get<{ dataList: Playlist[] }>('/playlists', { signal });
   return data;
 }
 
 /** GET /api/playlists/{playlistId} -- playlist detail with tracks */
-export async function fetchPlaylistDetail(playlistId: number): Promise<PlaylistDetail> {
-  const { data } = await client.get<ApiResponse<PlaylistDetail>>(`/playlists/${playlistId}`);
+export async function fetchPlaylistDetail(
+  playlistId: number,
+  signal?: AbortSignal,
+): Promise<PlaylistDetail> {
+  const { data } = await client.get<ApiResponse<PlaylistDetail>>(`/playlists/${playlistId}`, {
+    signal,
+  });
   return data.data;
 }
 

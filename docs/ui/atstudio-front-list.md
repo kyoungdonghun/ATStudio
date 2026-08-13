@@ -121,6 +121,17 @@ storage snapshot. No server Play History table participates.
 - Restored and seeked progress is finite and clamped to a known duration before
   persistence and rendering. The public player still streams the complete
   active Track; no preview or playback entitlement gate is introduced.
+- Playlist, likes, License, Question, and Download History reads are
+  latest-owner wins. Relevant route, page, filter, tab, drawer-session, or
+  authenticated-owner changes retire stale work and hide its data, dialogs,
+  controls, and player context before passive effects run.
+- Detail routes accept only canonical positive ASCII decimal safe-integer IDs;
+  invalid IDs show fixed Korean list recovery and issue no request. Playlist
+  creation requires current-owner list data and positive server-provided
+  `maxPlaylists`; loading or retryable failure uses no client fallback.
+- Download History binds ID preparation, confirmation, download iterations,
+  browser effects, feedback, count refresh, and cleanup to the initiating
+  owner/read key and abort signal.
 
 ### Track Authoring
 

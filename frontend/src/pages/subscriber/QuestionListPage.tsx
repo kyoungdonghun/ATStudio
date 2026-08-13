@@ -1,11 +1,14 @@
 /** Screen 13: Question list (mine) */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { fetchQuestions, type QuestionListItem } from '@/api/questions';
+import { classifyLoadError } from '@/api/loadError';
 import { formatDate } from '@/utils/format';
 import type { PageInfo } from '@/types';
 import Pagination from '@/components/ui/Pagination';
 import Button from '@/components/ui/Button';
+import { useAuthStore } from '@/store/authStore';
+import { createOwnerKey, createReadKey, getCurrentOwnerKey } from '@/utils/ownerProjection';
 import styles from './QuestionListPage.module.css';
 
 /* ── Constants ── */
@@ -51,6 +54,9 @@ function statusClass(status: string): string {
 export default function QuestionListPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const userID = useAuthStore((s) => s.user?.id ?? null);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const requestGeneration = useRef(0);
 
   const currentPage = Number(searchParams.get('page')) || 1;
   const categoryFilter = searchParams.get('category') ?? '';
@@ -61,28 +67,77 @@ export default function QuestionListPage() {
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const ownerKey = createOwnerKey(userID, accessToken);
+  const readKey = createReadKey(
+    ownerKey,
+    'question-list',
+    currentPage,
+    categoryFilter,
+    statusFilter,
+    tab,
+  );
+  const currentReadKeyRef = useRef(readKey);
+  const projectionKeyRef = useRef<string | null>(null);
+  const [projectionKey, setProjectionKey] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
+  currentReadKeyRef.current = readKey;
+  const projectionCurrent = readKey !== null && projectionKey === readKey;
+  const currentItems = projectionCurrent ? items : [];
+  const currentPageInfo = projectionCurrent ? pageInfo : null;
+  const currentError = errorKey === readKey ? error : null;
+  const currentLoading = loading || (!projectionCurrent && currentError === null);
 
-  const load = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const params: Record<string, unknown> = { page: currentPage, size: 20 };
-      if (tab === 'mine') params.mine = true;
-      if (categoryFilter) params.category = categoryFilter;
-      if (statusFilter) params.status = statusFilter;
-      const result = await fetchQuestions(params as Parameters<typeof fetchQuestions>[0]);
-      setItems(result.dataList);
-      setPageInfo(result.pageInfo);
-    } catch {
-      setError('문의 목록을 불러오지 못했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  }, [currentPage, categoryFilter, statusFilter, tab]);
+  function isCurrentProjection(): boolean {
+    return (
+      readKey !== null &&
+      currentReadKeyRef.current === readKey &&
+      projectionKeyRef.current === readKey &&
+      getCurrentOwnerKey(ownerKey) === ownerKey
+    );
+  }
 
   useEffect(() => {
-    load();
-  }, [load]);
+    const requestKey = readKey;
+    const requestOwnerKey = ownerKey;
+    const generation = ++requestGeneration.current;
+    const controller = new AbortController();
+    const isCurrent = () =>
+      requestKey !== null &&
+      generation === requestGeneration.current &&
+      currentReadKeyRef.current === requestKey &&
+      getCurrentOwnerKey(requestOwnerKey) === requestOwnerKey;
+    const params: Record<string, unknown> = { page: currentPage, size: 20 };
+    if (tab === 'mine') params.mine = true;
+    if (categoryFilter) params.category = categoryFilter;
+    if (statusFilter) params.status = statusFilter;
+
+    setItems([]);
+    setPageInfo(null);
+    setLoading(true);
+    setError(null);
+    void fetchQuestions(params as Parameters<typeof fetchQuestions>[0], controller.signal)
+      .then((result) => {
+        if (!isCurrent()) return;
+        setItems(result.dataList);
+        setPageInfo(result.pageInfo);
+        projectionKeyRef.current = requestKey;
+        setProjectionKey(requestKey);
+      })
+      .catch((loadError: unknown) => {
+        if (isCurrent() && classifyLoadError(loadError) !== 'cancelled') {
+          setError('문의 목록을 불러오지 못했습니다.');
+          setErrorKey(requestKey);
+        }
+      })
+      .finally(() => {
+        if (isCurrent()) setLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+      if (requestGeneration.current === generation) requestGeneration.current += 1;
+    };
+  }, [categoryFilter, currentPage, ownerKey, readKey, statusFilter, tab]);
 
   function updateParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams);
@@ -101,7 +156,7 @@ export default function QuestionListPage() {
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>
           {'문의 게시판'}
-          {pageInfo && <span className={styles.count}>{pageInfo.total}건</span>}
+          {currentPageInfo && <span className={styles.count}>{currentPageInfo.total}건</span>}
         </h1>
       </div>
 
@@ -148,11 +203,11 @@ export default function QuestionListPage() {
       </div>
 
       {/* Content */}
-      {loading ? (
+      {currentLoading ? (
         <div className={styles.loading}>{'불러오는 중...'}</div>
-      ) : error ? (
-        <div className={styles.error}>{error}</div>
-      ) : items.length === 0 ? (
+      ) : currentError ? (
+        <div className={styles.error}>{currentError}</div>
+      ) : currentItems.length === 0 ? (
         <div className={styles.empty}>{'등록된 문의가 없습니다.'}</div>
       ) : (
         <>
@@ -167,11 +222,13 @@ export default function QuestionListPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => (
+                {currentItems.map((item) => (
                   <tr
                     key={item.id}
                     className={styles.row}
-                    onClick={() => navigate(`/questions/${item.id}`)}
+                    onClick={() => {
+                      if (isCurrentProjection()) navigate(`/questions/${item.id}`);
+                    }}
                   >
                     <td className={styles.cellTitle}>
                       {item.title}
@@ -192,9 +249,9 @@ export default function QuestionListPage() {
             </table>
           </div>
 
-          {pageInfo && pageInfo.total > pageInfo.size && (
+          {currentPageInfo && currentPageInfo.total > currentPageInfo.size && (
             <Pagination
-              pageInfo={pageInfo}
+              pageInfo={currentPageInfo}
               currentPage={currentPage}
               onPageChange={(p) => updateParam('page', String(p))}
             />

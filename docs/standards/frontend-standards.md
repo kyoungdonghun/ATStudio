@@ -499,6 +499,24 @@ When route or query changes can overlap, the effect must abort the retired
 request and fence commits with a constant-time generation check. Cleanup must
 also release page-owned player context.
 
+Playlist, Like, License, Question, and Download History reads key projections
+by authenticated owner (user ID and token identity) plus each view's route,
+page, filter, tab, or drawer session. A key change clears prior-owner state
+and retires old work; only the current generation may render or commit data,
+error, empty, loading, dialogs, controls, or page-owned player context. Keys
+and token material must never be displayed or logged.
+
+Handlers revalidate the current owner and projection. Multi-step Download
+History operations carry one initiating key and abort signal through ID
+preparation, loop iterations, browser effects, feedback, follow-up count reads,
+and cleanup.
+
+Playlist, License, and Question detail routes accept only canonical positive
+ASCII decimal safe-integer IDs; invalid IDs render fixed Korean list recovery
+and issue no request. Playlist capacity has independent `loading`, positive
+`known`, and retryable `error` states. Create remains fail-closed until current
+playlist and server capacity reads agree; no client default is substituted.
+
 ```tsx
 const TrackListPage = () => {
   const [tracks, setTracks] = useState<TrackListItem[]>([]);

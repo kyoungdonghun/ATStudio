@@ -814,7 +814,7 @@ describe('subscriber page behavior coverage', () => {
     expect(screen.getByText('License Track')).toBeInTheDocument();
     expect(screen.getByText('120')).toBeInTheDocument();
     expect(screen.getByText('Member')).toBeInTheDocument();
-    expect(mocks.fetchLicenseDetail).toHaveBeenCalledWith(31);
+    expect(mocks.fetchLicenseDetail).toHaveBeenCalledWith(31, expect.any(AbortSignal));
   });
 
   it('validates and submits a private question with an attachment', async () => {
@@ -865,13 +865,16 @@ describe('subscriber page behavior coverage', () => {
     );
 
     expect(await screen.findByText('My private question')).toBeInTheDocument();
-    expect(mocks.fetchQuestions).toHaveBeenCalledWith({
-      page: 1,
-      size: 20,
-      mine: true,
-      category: 'COPYRIGHT',
-      status: 'IN_PROGRESS',
-    });
+    expect(mocks.fetchQuestions).toHaveBeenCalledWith(
+      {
+        page: 1,
+        size: 20,
+        mine: true,
+        category: 'COPYRIGHT',
+        status: 'IN_PROGRESS',
+      },
+      expect.any(AbortSignal),
+    );
     fireEvent.click(screen.getByText('My private question').closest('tr')!);
     await waitFor(() => expect(router.state.location.pathname).toBe('/questions/61'));
   });
@@ -1037,11 +1040,11 @@ describe('subscriber page behavior coverage', () => {
   it('reports license list, detail, download, and clipboard failures', async () => {
     mocks.fetchMyLicenses.mockRejectedValueOnce(new Error('license list unavailable'));
     renderRoute(<LicenseListPage />, '/licenses');
-    expect(await screen.findByText('license list unavailable')).toBeInTheDocument();
+    expect(await screen.findByText('라이선스를 불러오지 못했습니다.')).toBeInTheDocument();
 
     mocks.fetchLicenseDetail.mockRejectedValueOnce(new Error('license detail unavailable'));
     renderRoute(<LicenseDetailPage />, '/licenses/:licenseId', '/licenses/99');
-    expect(await screen.findByText('license detail unavailable')).toBeInTheDocument();
+    expect(await screen.findByText('라이선스 정보를 불러오지 못했습니다.')).toBeInTheDocument();
 
     mocks.fetchMyLicenses.mockResolvedValueOnce({ dataList: [licenseItem()], pageInfo: firstPage });
     mocks.downloadTrack.mockRejectedValueOnce(new Error('download blocked'));
@@ -1116,7 +1119,7 @@ describe('subscriber page behavior coverage', () => {
 
     mocks.fetchPlaylistDetail.mockRejectedValueOnce(new Error('playlist unavailable'));
     renderRoute(<PlaylistDetailPage />, '/playlists/:playlistId', '/playlists/4');
-    expect(await screen.findByText('playlist unavailable')).toBeInTheDocument();
+    expect(await screen.findByText('재생목록을 불러오지 못했습니다.')).toBeInTheDocument();
 
     mocks.fetchPlaylistDetail.mockResolvedValueOnce({ ...playlistDetail(), id: 5, tracks: [] });
     renderRoute(<PlaylistDetailPage />, '/playlists/:playlistId', '/playlists/5');
@@ -1174,7 +1177,10 @@ describe('subscriber page behavior coverage', () => {
     });
     renderRoute(<QuestionListPage />, '/questions', '/questions?tab=mine');
     expect(await screen.findByText('등록된 문의가 없습니다.')).toBeInTheDocument();
-    expect(mocks.fetchQuestions).toHaveBeenLastCalledWith({ page: 1, size: 20, mine: true });
+    expect(mocks.fetchQuestions).toHaveBeenLastCalledWith(
+      { page: 1, size: 20, mine: true },
+      expect.any(AbortSignal),
+    );
   });
 
   it('moves to the final history page, selects all visible rows, and returns to page one after deletion', async () => {

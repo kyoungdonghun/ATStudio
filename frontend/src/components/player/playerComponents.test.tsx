@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useLayoutEffect, useState } from 'react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = vi.hoisted(() => ({
@@ -33,6 +34,7 @@ import PlaylistDrawer from '@/components/player/PlaylistDrawer';
 import { useAuthStore } from '@/store/authStore';
 import { usePlayerStore } from '@/store/playerStore';
 import { useToastStore } from '@/store/toastStore';
+import type { User } from '@/types';
 
 const playlist = {
   id: 3,
@@ -71,10 +73,39 @@ const detail = {
   updatedAt: '2026-07-17T00:00:00Z',
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
+}
+
+function DrawerLifecycleHarness({ onClosedLayout }: { onClosedLayout: () => void }) {
+  const [open, setOpen] = useState(true);
+  useLayoutEffect(() => {
+    if (!open) onClosedLayout();
+  }, [onClosedLayout, open]);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(false)}>
+        close drawer lifecycle
+      </button>
+      <PlaylistDrawer open={open} onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
 describe('player auxiliary components', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useAuthStore.setState({ user: null, accessToken: 'token', role: 'USER' });
+    useAuthStore.setState({
+      user: { id: 1 } as User,
+      accessToken: 'token',
+      role: 'USER',
+    });
     usePlayerStore.setState({
       currentTrack: null,
       isPlaying: false,
@@ -206,6 +237,132 @@ describe('player auxiliary components', () => {
     expect(api.fetchMyPlaylists).toHaveBeenCalledTimes(2);
   });
 
+  it('fails closed on capacity error and recovers through one in-flight retry', async () => {
+    const capacityRetry = deferred<{ subscription: { maxPlaylists: number } }>();
+    api.fetchMySubscription
+      .mockRejectedValueOnce(new Error('capacity unavailable'))
+      .mockReturnValueOnce(capacityRetry.promise);
+
+    const { container } = render(<PlaylistDrawer open onClose={vi.fn()} />);
+    expect(
+      await screen.findByText('재생목록 생성 한도를 확인하지 못했습니다.'),
+    ).toBeInTheDocument();
+    expect(container.querySelector('[class*="createBtn"]')).not.toBeInTheDocument();
+
+    const retryButton = screen.getByRole('button', { name: '한도 다시 확인' });
+    fireEvent.click(retryButton);
+    fireEvent.click(retryButton);
+    expect(api.fetchMySubscription).toHaveBeenCalledTimes(2);
+
+    await act(async () => capacityRetry.resolve({ subscription: { maxPlaylists: 5 } }));
+    expect(await screen.findByText('최대 5개')).toBeInTheDocument();
+    expect(container.querySelector('[class*="createBtn"]')).toBeInTheDocument();
+  });
+
+  it('prevents an earlier list or capacity response from populating a reopened drawer', async () => {
+    const oldPlaylists = deferred<{ dataList: (typeof playlist)[] }>();
+    const oldCapacity = deferred<{ subscription: { maxPlaylists: number } }>();
+    const currentPlaylists = deferred<{ dataList: (typeof playlist)[] }>();
+    const currentCapacity = deferred<{ subscription: { maxPlaylists: number } }>();
+    api.fetchMyPlaylists
+      .mockReturnValueOnce(oldPlaylists.promise)
+      .mockReturnValueOnce(currentPlaylists.promise);
+    api.fetchMySubscription
+      .mockReturnValueOnce(oldCapacity.promise)
+      .mockReturnValueOnce(currentCapacity.promise);
+
+    const { rerender } = render(<PlaylistDrawer open onClose={vi.fn()} />);
+    await waitFor(() => expect(api.fetchMyPlaylists).toHaveBeenCalledTimes(1));
+    const oldListSignal = api.fetchMyPlaylists.mock.calls[0][0] as AbortSignal;
+
+    rerender(<PlaylistDrawer open={false} onClose={vi.fn()} />);
+    rerender(<PlaylistDrawer open onClose={vi.fn()} />);
+    await waitFor(() => expect(api.fetchMyPlaylists).toHaveBeenCalledTimes(2));
+    expect(oldListSignal.aborted).toBe(true);
+
+    const currentRows = [
+      { ...playlist, id: 20, title: '현재 목록 1' },
+      { ...playlist, id: 21, title: '현재 목록 2' },
+      { ...playlist, id: 22, title: '현재 목록 3' },
+    ];
+    await act(async () => {
+      currentPlaylists.resolve({ dataList: currentRows });
+      currentCapacity.resolve({ subscription: { maxPlaylists: 3 } });
+    });
+    expect(await screen.findByText('현재 목록 1')).toBeInTheDocument();
+
+    await act(async () => {
+      oldPlaylists.resolve({ dataList: [{ ...playlist, title: '이전 목록' }] });
+      oldCapacity.resolve({ subscription: { maxPlaylists: 5 } });
+    });
+    expect(screen.queryByText('이전 목록')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /새 재생목록/ })).not.toBeInTheDocument();
+  });
+
+  it('prevents an earlier detail response from populating a reopened drawer', async () => {
+    const oldDetail = deferred<typeof detail>();
+    api.fetchPlaylistDetail.mockReturnValueOnce(oldDetail.promise);
+    const { rerender } = render(<PlaylistDrawer open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('Focus List'));
+    await waitFor(() => expect(api.fetchPlaylistDetail).toHaveBeenCalledTimes(1));
+    const oldDetailSignal = api.fetchPlaylistDetail.mock.calls[0][1] as AbortSignal;
+
+    rerender(<PlaylistDrawer open={false} onClose={vi.fn()} />);
+    api.fetchMyPlaylists.mockResolvedValueOnce({
+      dataList: [{ ...playlist, id: 4, title: 'Reopened List' }],
+    });
+    rerender(<PlaylistDrawer open onClose={vi.fn()} />);
+    expect(await screen.findByText('Reopened List')).toBeInTheDocument();
+    expect(oldDetailSignal.aborted).toBe(true);
+
+    await act(async () => oldDetail.resolve(detail));
+    expect(screen.queryByText('Song A')).not.toBeInTheDocument();
+    expect(screen.getByText('Reopened List')).toBeInTheDocument();
+  });
+
+  it('retires a detached delete control in the drawer-close layout commit', async () => {
+    let detachedDelete: HTMLButtonElement | null = null;
+    render(
+      <DrawerLifecycleHarness
+        onClosedLayout={() => {
+          detachedDelete?.click();
+        }}
+      />,
+    );
+    fireEvent.click(await screen.findByText('Focus List'));
+    expect(await screen.findByText('Song A')).toBeInTheDocument();
+    detachedDelete = document.querySelector('[class*="deletePlaylistBtn"]');
+
+    fireEvent.click(screen.getByRole('button', { name: 'close drawer lifecycle' }));
+
+    expect(api.deletePlaylist).not.toHaveBeenCalled();
+    expect(screen.queryByText('Song A')).not.toBeInTheDocument();
+  });
+
+  it('prevents an earlier likes response from populating a reopened drawer', async () => {
+    const oldLikes = deferred<{ dataList: Array<{ trackId: number; title: string }> }>();
+    const currentLikes = deferred<{ dataList: Array<{ trackId: number; title: string }> }>();
+    api.fetchLikes.mockReturnValueOnce(oldLikes.promise).mockReturnValueOnce(currentLikes.promise);
+    const { rerender } = render(<PlaylistDrawer open onClose={vi.fn()} />);
+    await screen.findByText('Focus List');
+    fireEvent.click(screen.getByRole('button', { name: '좋아요' }));
+    await waitFor(() => expect(api.fetchLikes).toHaveBeenCalledTimes(1));
+    const oldLikesSignal = api.fetchLikes.mock.calls[0][0] as AbortSignal;
+
+    rerender(<PlaylistDrawer open={false} onClose={vi.fn()} />);
+    rerender(<PlaylistDrawer open onClose={vi.fn()} />);
+    await waitFor(() => expect(api.fetchLikes).toHaveBeenCalledTimes(2));
+    expect(oldLikesSignal.aborted).toBe(true);
+
+    await act(async () =>
+      currentLikes.resolve({ dataList: [{ trackId: 31, title: 'Current Like' }] }),
+    );
+    expect(await screen.findByText('Current Like')).toBeInTheDocument();
+    await act(async () => oldLikes.resolve({ dataList: [{ trackId: 30, title: 'Old Like' }] }));
+    expect(screen.queryByText('Old Like')).not.toBeInTheDocument();
+    expect(screen.getByText('Current Like')).toBeInTheDocument();
+  });
+
   it('shows the playlist-limit toast when creation is rejected', async () => {
     api.createPlaylist.mockRejectedValueOnce(new Error('limit'));
     api.getApiErrorCode.mockResolvedValueOnce('PLAYLIST_LIMIT_EXCEEDED');
@@ -293,7 +450,7 @@ describe('player auxiliary components', () => {
     });
     expect(api.reorderTracks).toHaveBeenCalledTimes(1);
     expect(api.fetchPlaylistDetail).toHaveBeenCalledTimes(2);
-    expect(api.fetchPlaylistDetail).toHaveBeenLastCalledWith(3);
+    expect(api.fetchPlaylistDetail).toHaveBeenLastCalledWith(3, expect.any(AbortSignal));
   });
 
   it('keeps the last confirmed order when the rejection reload also fails', async () => {
@@ -317,7 +474,7 @@ describe('player auxiliary components', () => {
       ),
     ).toEqual(['Song A', 'Song B']);
     expect(api.reorderTracks).toHaveBeenCalledTimes(1);
-    expect(api.fetchPlaylistDetail).toHaveBeenLastCalledWith(3);
+    expect(api.fetchPlaylistDetail).toHaveBeenLastCalledWith(3, expect.any(AbortSignal));
   });
 
   it('submits the same zero-based reorder contract through touch drag', async () => {
