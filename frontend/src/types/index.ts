@@ -116,6 +116,13 @@ export interface TagItem {
   type: TagType;
 }
 
+export interface TagDeletionImpact {
+  id: number;
+  name: string;
+  type: TagType;
+  trackAssociationCount: number;
+}
+
 /* ── Album ── */
 
 /** Album list item (from GET /api/albums) */

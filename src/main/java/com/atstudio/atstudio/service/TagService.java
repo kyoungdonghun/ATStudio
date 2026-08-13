@@ -4,6 +4,7 @@ import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.common.validation.TagNamePolicy;
 import com.atstudio.atstudio.dto.tag.TagCreateRequest;
+import com.atstudio.atstudio.dto.tag.TagDeletionImpactResponse;
 import com.atstudio.atstudio.dto.tag.TagResponse;
 import com.atstudio.atstudio.entity.Tag;
 import com.atstudio.atstudio.entity.enums.TagType;
@@ -51,6 +52,13 @@ public class TagService {
                 ? tagRepository.findAllByType(type)
                 : tagRepository.findAll();
         return tags.stream().map(TagResponse::from).toList();
+    }
+
+    public TagDeletionImpactResponse getDeletionImpact(Long id) {
+        Tag tag = tagRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TAG_NOT_FOUND));
+        long trackAssociationCount = trackTagRepository.countByTag(tag);
+        return TagDeletionImpactResponse.from(tag, trackAssociationCount);
     }
 
     @Transactional

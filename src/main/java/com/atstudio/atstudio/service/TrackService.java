@@ -202,7 +202,7 @@ public class TrackService {
         }
 
         List<Tag> tags;
-        if (request.getTagIds() != null) {
+        if (Boolean.TRUE.equals(request.getReplaceTags())) {
             trackTagRepository.deleteAllByTrack(track);
             tags = saveTrackTags(track, request.getTagIds());
         } else {

@@ -11,9 +11,11 @@ import {
   DESCRIPTION_MAX,
   AUDIO_MAX_SIZE_MB,
   isFileSizeOk,
-  AUDIO_ACCEPT,
+  getAudioAccept,
+  AUDIO_FORMAT_LABEL,
   hasValidAudioExtension,
 } from '@/utils/validation';
+import { parsePositiveDecimalRouteID } from '@/utils/routeId';
 import Button from '@/components/ui/Button';
 import Tag from '@/components/ui/Tag';
 import TrackThumbnailField from './TrackThumbnailField';
@@ -51,6 +53,7 @@ const TONALITIES = [
 export default function TrackEditPage() {
   const { trackId } = useParams<{ trackId: string }>();
   const navigate = useNavigate();
+  const canonicalTrackID = parsePositiveDecimalRouteID(trackId);
 
   /* ── Form state ── */
   const [title, setTitle] = useState('');
@@ -75,7 +78,7 @@ export default function TrackEditPage() {
   const [usageTags, setUsageTags] = useState<TagItem[]>([]);
 
   /* ── UI state ── */
-  const [pageLoading, setPageLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(canonicalTrackID !== null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,11 +87,17 @@ export default function TrackEditPage() {
     let cancelled = false;
 
     async function loadData() {
-      if (!trackId) return;
+      if (canonicalTrackID === null) {
+        setPageLoading(false);
+        return;
+      }
+
+      setPageLoading(true);
+      setError(null);
 
       try {
         const [track, genres, moods, instruments, usages] = await Promise.all([
-          fetchTrackDetailForAdmin(Number(trackId)),
+          fetchTrackDetailForAdmin(canonicalTrackID),
           fetchTags('GENRE'),
           fetchTags('MOOD'),
           fetchTags('INSTRUMENT'),
@@ -123,7 +132,7 @@ export default function TrackEditPage() {
     return () => {
       cancelled = true;
     };
-  }, [trackId]);
+  }, [canonicalTrackID]);
 
   /* ── Tag toggle ── */
   function toggleTag(tagId: number) {
@@ -137,15 +146,17 @@ export default function TrackEditPage() {
     const file = e.target.files?.[0] ?? null;
     if (file) {
       if (!hasValidAudioExtension(file.name)) {
-        setError(`지원하지 않는 파일 형식입니다. (MP3, WAV, M4A, AAC, FLAC, OGG만 업로드 가능)`);
+        setError(`지원하지 않는 파일 형식입니다. ${AUDIO_FORMAT_LABEL}만 업로드할 수 있습니다.`);
         e.target.value = '';
         return;
       }
       if (!isFileSizeOk(file, AUDIO_MAX_SIZE_MB)) {
         setError(`오디오 파일은 ${AUDIO_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다.`);
+        e.target.value = '';
         return;
       }
     }
+    setError(null);
     setAudioFile(file);
   }
 
@@ -154,7 +165,7 @@ export default function TrackEditPage() {
     e.preventDefault();
     setError(null);
 
-    if (!trackId) return;
+    if (canonicalTrackID === null) return;
     if (thumbnail.status === 'pending') {
       setError('썸네일 이미지 크기를 확인하고 있습니다. 잠시 후 다시 시도해주세요.');
       return;
@@ -164,12 +175,33 @@ export default function TrackEditPage() {
       return;
     }
 
+    const normalizedTitle = title.trim();
+    const parsedBpm = Number(bpm);
+    if (!normalizedTitle) {
+      setError('제목을 입력해 주세요.');
+      return;
+    }
+    if (
+      !/^\d+$/.test(bpm) ||
+      !Number.isInteger(parsedBpm) ||
+      parsedBpm < BPM_MIN ||
+      parsedBpm > BPM_MAX
+    ) {
+      setError(`BPM은 ${BPM_MIN}부터 ${BPM_MAX} 사이의 정수여야 합니다.`);
+      return;
+    }
+    if (!tonality.trim()) {
+      setError('조성을 선택해 주세요.');
+      return;
+    }
+
     const formData = new FormData();
-    if (title.trim()) formData.append('title', title.trim());
-    if (bpm) formData.append('bpm', bpm);
-    if (tonality) formData.append('tonality', tonality);
+    formData.append('title', normalizedTitle);
+    formData.append('bpm', String(parsedBpm));
+    formData.append('tonality', tonality.trim());
     formData.append('description', description.trim());
     formData.append('isActive', String(isActive));
+    formData.append('replaceTags', 'true');
 
     if (audioFile) {
       formData.append('audioFile', audioFile);
@@ -183,7 +215,7 @@ export default function TrackEditPage() {
 
     setSubmitting(true);
     try {
-      await updateTrack(Number(trackId), formData);
+      await updateTrack(canonicalTrackID, formData);
       navigate('/admin/track-manage');
     } catch (err) {
       const msg = err instanceof Error ? err.message : '음원 수정에 실패했습니다.';
@@ -197,6 +229,21 @@ export default function TrackEditPage() {
     return (
       <div className={styles.page}>
         <div className={styles.loading}>{'Loading...'}</div>
+      </div>
+    );
+  }
+
+  if (canonicalTrackID === null) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.error} role="alert">
+          올바른 음원 주소가 아닙니다.
+        </div>
+        <div className={styles.actions}>
+          <Button type="button" onClick={() => navigate('/admin/track-manage')}>
+            음원 관리로 이동
+          </Button>
+        </div>
       </div>
     );
   }
@@ -216,7 +263,7 @@ export default function TrackEditPage() {
               <label className={`${styles.fileLabel} ${audioFile ? styles.fileLabelSelected : ''}`}>
                 <input
                   type="file"
-                  {...(AUDIO_ACCEPT && { accept: AUDIO_ACCEPT })}
+                  accept={getAudioAccept()}
                   className={styles.fileHidden}
                   onChange={handleAudioChange}
                 />

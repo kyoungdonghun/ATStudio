@@ -143,6 +143,35 @@ class TagServiceTest {
         verify(tagRepository).findAllByType(TagType.GENRE);
     }
 
+    @Test
+    @DisplayName("getDeletionImpact() returns bounded Tag identity and authoritative association count")
+    void getDeletionImpact_returnsAssociationCount() {
+        Tag tag = buildTag(7L, "Shorts", TagType.USAGE);
+        given(tagRepository.findById(7L)).willReturn(Optional.of(tag));
+        given(trackTagRepository.countByTag(tag)).willReturn(4L);
+
+        var response = tagService.getDeletionImpact(7L);
+
+        assertThat(response.id()).isEqualTo(7L);
+        assertThat(response.name()).isEqualTo("Shorts");
+        assertThat(response.type()).isEqualTo(TagType.USAGE);
+        assertThat(response.trackAssociationCount()).isEqualTo(4L);
+        verify(trackTagRepository).countByTag(tag);
+    }
+
+    @Test
+    @DisplayName("getDeletionImpact() rejects a missing Tag before association count")
+    void getDeletionImpact_missingTagDoesNotCount() {
+        given(tagRepository.findById(99L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> tagService.getDeletionImpact(99L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.TAG_NOT_FOUND));
+
+        verify(trackTagRepository, never()).countByTag(any());
+    }
+
     // ── updateTag() ───────────────────────────────────────────────────────────
 
     @Test

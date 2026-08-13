@@ -2,6 +2,7 @@ package com.atstudio.atstudio.controller;
 
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.dto.tag.TagCreateRequest;
+import com.atstudio.atstudio.dto.tag.TagDeletionImpactResponse;
 import com.atstudio.atstudio.dto.tag.TagResponse;
 import com.atstudio.atstudio.entity.enums.TagType;
 import com.atstudio.atstudio.service.TagService;
@@ -56,6 +57,16 @@ public class TagController {
         return ResponseEntity.ok(ResponseDTO.<TagResponse>builder()
                 .message("Tag list retrieved")
                 .dataList(tags)
+                .build());
+    }
+
+    @GetMapping("/{tagId}/deletion-impact")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<TagDeletionImpactResponse>> getDeletionImpact(
+            @PathVariable Long tagId) {
+        return ResponseEntity.ok(ResponseDTO.<TagDeletionImpactResponse>withSingleData()
+                .message("Tag deletion impact retrieved")
+                .data(tagService.getDeletionImpact(tagId))
                 .build());
     }
 

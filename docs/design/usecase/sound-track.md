@@ -10,7 +10,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-001 |
-| **Version** | 26-08-09 |
+| **Version** | 26-08-13 |
 | **Description** | Admin registers a new track. The service stores the original and waveform metadata; public listening later uses the controller without exposing the storage key or a direct static URL. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Admin logged in. At least one tag exists in the tags DB. |
@@ -19,7 +19,7 @@
 
 **Main Flow**
 1. Admin enters metadata (title, BPM, key, description) and selects tags, including optional visible `USAGE` guide tags.
-2. Admin attaches the audio file and an optional square JPEG/PNG thumbnail.
+2. Admin attaches an MP3 or WAV audio file and an optional square JPEG/PNG thumbnail. On non-iOS platforms, the file picker advertises only MP3 and WAV hints. On iOS, the SPA omits the native `accept` hint to avoid a UTI mismatch that can disable valid MP3 files; JavaScript validation still accepts only MP3 and WAV and clears rejected selections.
 3. Frontend validates the thumbnail type, size, and 1:1 natural dimensions and
    shows the selected image in the same centered square `cover` viewport used
    by Track cards. The backend remains authoritative.
@@ -232,7 +232,7 @@ Play History paths.
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-012 |
-| **Version** | 26-08-09 |
+| **Version** | 26-08-13 |
 | **Description** | Admin updates track metadata and files. Includes publish/unpublish via is_active change. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Admin logged in. Target track exists in DB. |
@@ -240,19 +240,22 @@ Play History paths.
 | **Related UC** | SOUND-006 (view track detail) |
 
 **Main Flow**
-1. Admin modifies fields (title, BPM, key, description, tags, files, is_active).
-2. Frontend sends the changed data as multipart/form-data to the backend.
-3. Backend performs authorization and validation.
-4. If audio changes, Backend analyzes first, then replaces the storage key,
+1. Frontend accepts only a canonical positive integer Track ID. An invalid route ID renders a bounded error and safe navigation without requesting Track or Tag data.
+2. Admin modifies fields (title, BPM, key, description, tags, files, is_active).
+3. Frontend requires a nonblank title and key plus an integer BPM from 1 through 999. Description may be submitted as an empty string so an existing description can be cleared. Replacement audio is limited to MP3 or WAV.
+4. The Track edit UI sends the complete edit state as multipart/form-data with `replaceTags=true`. It appends each selected `tagIds` value; an empty selection sends no `tagIds` values and explicitly clears all associations.
+5. Backend replaces Track-Tag associations only when `replaceTags=true`. When `replaceTags` is false or omitted, associations are preserved for non-UI callers even if `tagIds` is present.
+6. Backend performs authorization and validation.
+7. If audio changes, Backend analyzes first, then replaces the storage key,
    duration, and waveform as one logical change. Analysis/storage/DB failure
    keeps all old values.
-5. If a new thumbnail is supplied, the same square/canonical-JPEG rule as
+8. If a new thumbnail is supplied, the same square/canonical-JPEG rule as
    create applies before replacement. An existing non-square thumbnail is
    preserved when no replacement file is supplied; the UI only warns that a
    square replacement is recommended.
-6. If tags changed: updates track_tags + updates tracks.updated_at.
-7. Metadata-only update does not decode audio and preserves duration/waveform.
-8. Backend updates the DB record and returns the updated track information.
+9. If explicit Tag replacement was requested: updates track_tags + updates tracks.updated_at.
+10. Metadata-only update does not decode audio and preserves duration/waveform.
+11. Backend updates the DB record and returns the updated track information.
 
 **Exception / Alternative Flow**
 - -
@@ -330,8 +333,8 @@ Play History paths.
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-021 |
-| **Version** | 26-03-08 |
-| **Description** | Admin retrieves the full track list including both active and inactive tracks. Supports optional filtering by isActive status. |
+| **Version** | 26-08-13 |
+| **Description** | Admin retrieves the full track list including both active and inactive tracks. Supports optional filtering by `is_active` status and title keyword. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Admin logged in. |
 | **Trigger** | Admin navigates to the track management screen (K-7). |
@@ -339,33 +342,45 @@ Play History paths.
 
 **Main Flow**
 1. Admin navigates to the track management screen.
-2. Frontend sends a request to `GET /api/tracks/admin` with optional query parameters (page, size, isActive).
+2. Frontend canonicalizes URL-backed page, status filter, and keyword state before sending `GET /api/tracks/admin` with optional query parameters (`page`, `size`, `is_active`, `keyword`).
 3. Backend verifies ADMIN role authorization.
 4. Backend applies filtering:
-   - `isActive=true`: returns active tracks only (is_active=1).
-   - `isActive=false`: returns inactive tracks only (is_active=0).
-   - `isActive` not provided: returns all tracks regardless of is_active status.
+   - `is_active=true`: returns active tracks only (`is_active=1`).
+   - `is_active=false`: returns inactive tracks only (`is_active=0`).
+   - `is_active` not provided: returns all tracks regardless of `is_active` status.
 5. Backend returns a paginated list of `AdminTrackListItemResponse` objects.
-6. Frontend displays the track list on the management screen.
+6. Frontend displays the track list on the management screen. Browser history restores the applied URL state, while the search input remains a separate draft until submission.
+7. A failed list request clears stale rows and pagination and exposes an explicit retry. A page beyond the last result page is replaced with the last canonical page and loaded again.
+8. Delete confirmation is single-flight: close, retarget, and duplicate delete actions are blocked while the request is pending. A failed delete retains the target and permits an explicit retry.
+9. After a committed delete, the dialog closes only after an authoritative list refresh succeeds. If that refresh fails, the dialog offers list refresh only and never repeats the committed delete request.
 
 **Query Parameters**
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | page | Integer | 1 | Page number (1-based) |
 | size | Integer | 20 | Items per page |
-| isActive | Boolean | (none) | Optional filter by active status |
+| is_active | Boolean | (none) | Optional request filter by active status |
+| keyword | String | (none) | Optional trimmed title keyword |
+
+The request query name is `is_active`; each response item exposes the distinct camelCase field `isActive`.
+
+The Track deletion operation remains the existing SOUND-016 soft-delete policy. Generic latest-request ownership for overlapping Track list requests is not part of this contract and remains assigned to WI-053.
 
 **Response Fields (AdminTrackListItemResponse)**
 | Field | Type | Description |
 |-------|------|-------------|
 | id | Long | Track ID |
 | title | String | Track title |
+| artistName | String | Uploader nickname |
+| duration | Integer | Duration in seconds |
 | bpm | Integer | BPM value |
 | tonality | String | Key/tonality |
 | thumbnail | String | Thumbnail file path |
 | playCount | Long | Total play count |
+| likeCount | Long | Total like count |
+| downloadCount | Long | Total download count |
 | isActive | Boolean | Active/inactive status |
-| tags | List\<String\> | Associated tag names |
+| tags | List\<TagResponse\> | Associated Tags with `id`, `name`, and `type` |
 | createdAt | LocalDateTime | Track creation timestamp |
 
 **Exception / Alternative Flow**

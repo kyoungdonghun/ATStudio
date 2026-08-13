@@ -31,5 +31,7 @@ public class TrackUpdateRequest {
 
     private List<Long> tagIds;
 
+    private Boolean replaceTags;
+
     private Boolean isActive;
 }

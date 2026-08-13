@@ -1,5 +1,5 @@
 ---
-version: 30.3
+version: 30.5
 last_updated: 2026-08-13
 project: ATS
 owner: SA
@@ -16,11 +16,11 @@ dependencies:
     reason: Current persistence contract
 ---
 
-# ATStudio API Specification v30.3
+# ATStudio API Specification v30.5
 
 ## Current Contract
 
-The current V1 backend exposes **150 method-level mappings across 25 controller
+The current V1 backend exposes **151 method-level mappings across 25 controller
 classes**. This count is derived from the current Java source by counting
 method-level `@GetMapping`, `@PostMapping`, `@PutMapping`,
 `@PatchMapping`, and `@DeleteMapping` annotations. Class-level
@@ -28,12 +28,12 @@ method-level `@GetMapping`, `@PostMapping`, `@PutMapping`,
 
 | Verb      |   Count |
 | --------- | ------: |
-| GET       |      75 |
+| GET       |      76 |
 | POST      |      41 |
 | PUT       |      20 |
 | DELETE    |      14 |
 | PATCH     |       0 |
-| **Total** | **150** |
+| **Total** | **151** |
 
 `SecurityConfig` is authoritative for authorization. Controller annotations are
 authoritative for paths and verbs. OpenAPI output generated from the running
@@ -71,6 +71,18 @@ application is authoritative for request and response schemas.
   correction workflow/success context.
 - Existing-Track audio analysis is exposed only as a read-only ADMIN dry-run.
   Applying a duration backfill remains a separately approved operation.
+- Track create and replacement audio accepts MP3 and WAV only. On non-iOS
+  platforms, the active SPA advertises those two formats through the native
+  picker hint. On iOS, it omits that hint to avoid valid MP3 files being
+  disabled by UTI matching while JavaScript still rejects every non-MP3/WAV
+  selection and clears the rejected input.
+- `PUT /api/tracks/{trackId}` replaces Tag associations only when multipart
+  field `replaceTags=true`. A true value with no `tagIds` clears associations;
+  false or omitted preserves them for non-UI callers, including when `tagIds`
+  is present. The Track edit SPA always sends explicit replace intent.
+- `GET /api/tags/{tagId}/deletion-impact` is ADMIN-only and returns only Tag
+  identity (`id`, `name`, `type`) plus `trackAssociationCount`. It performs no
+  deletion and exposes no associated Track details.
 - Album and Playlist thumbnail uploads accept the existing bounded JPEG/PNG
   input contract, decode and re-encode supplied images once, and persist only a
   generated `.jpg` key with canonical JPEG bytes. Their public static paths use
@@ -110,7 +122,7 @@ application is authoritative for request and response schemas.
 | `SettingController`                         |        1 | Public site-setting read                                                                      |
 | `SpaForwardController`                      |        1 | SPA deep-link forwarding                                                                      |
 | `SubscriptionController`                    |        3 | Public active plans and ADMIN all-plan read                                                   |
-| `TagController`                             |        5 | Public reads and ADMIN mutations                                                              |
+| `TagController`                             |        6 | Public reads, ADMIN deletion impact, and ADMIN mutations                                      |
 | `TrackController`                           |       10 | Public Track reads/listening/batch hydration and protected create/update/download/admin reads |
 | `UserController`                            |        9 | Registration, profile, password, withdrawal, and ADMIN user operations                        |
 | `UserSubscriptionController`                |        5 | My subscription lifecycle plus ADMIN list read                                                |
@@ -321,7 +333,7 @@ production readiness.
 
 WI-035 uses the two existing detail mappings below. WI-056 later added three
 Settlement import-attempt GET mappings, so `AdminPaymentController` is now at
-**27** and the current backend is at **150** method-level mappings:
+**27** and the current backend is at **151** method-level mappings:
 
 - `GET /api/admin/payments/refunds/{refundId}`
 - `GET /api/admin/payments/entitlement-corrections/{correctionId}`
@@ -450,7 +462,7 @@ failure, and completion paths cannot replace a newer request state.
 - `POST /api/admin/user-subscription-corrections/{correctionId}/execute`
 - `GET /api/admin/tracks/audio-analysis/dry-run`
 
-### Albums, Tracks, Tags, and Playlists (32)
+### Albums, Tracks, Tags, and Playlists (33)
 
 - `GET|POST /api/albums`
 - `GET|PUT|DELETE /api/albums/{id}`
@@ -465,6 +477,7 @@ failure, and completion paths cannot replace a newer request state.
 - `GET /api/tracks/admin/{trackId}`
 - `GET|POST /api/tags`
 - `PUT|DELETE /api/tags/{tagId}`
+- `GET /api/tags/{tagId}/deletion-impact`
 - `GET /api/tags/available`
 - `GET|POST /api/playlists`
 - `GET|PUT|DELETE /api/playlists/{playlistId}`
@@ -778,4 +791,4 @@ $controllers = Get-ChildItem src/main/java/com/atstudio/atstudio/controller -Fil
 ($controllers | Select-String '^\s*@(Get|Post|Put|Patch|Delete)Mapping\b').Count
 ```
 
-Expected result: `150`.
+Expected result: `151`.

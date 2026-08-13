@@ -311,6 +311,10 @@
   background: var(--error-dim);
   border-radius: 6px;
   border: 1px solid var(--error-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .empty {
@@ -338,6 +342,16 @@
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.modalError {
+  color: var(--error);
+  font-size: 13px;
+  padding: 10px;
+  margin-bottom: 16px;
+  background: var(--error-dim);
+  border: 1px solid var(--error-border);
+  border-radius: 6px;
 }
 
 /* ── Mobile ── */

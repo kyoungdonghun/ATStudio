@@ -26,6 +26,9 @@ describe('TrackUploadPage thumbnail contract', () => {
   beforeEach(() => {
     mocks.createTrack.mockReset().mockResolvedValue(undefined);
     mocks.fetchTags.mockReset().mockResolvedValue([]);
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Desktop' });
+    Object.defineProperty(navigator, 'platform', { configurable: true, value: 'Win32' });
+    Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, value: 0 });
     vi.stubGlobal('crypto', { randomUUID: vi.fn(() => 'track-entry-1') });
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
@@ -81,5 +84,49 @@ describe('TrackUploadPage thumbnail contract', () => {
     const formData = mocks.createTrack.mock.calls[0][0] as FormData;
     expect(formData.get('audioFile')).toBe(audioFile);
     expect(formData.get('thumbnail')).toBe(squareFile);
+  });
+
+  it('accepts only MP3 and WAV and clears a rejected selection for same-file retry', async () => {
+    const view = render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <TrackUploadPage />
+      </MemoryRouter>,
+    );
+    const audioInput = view.container.querySelector<HTMLInputElement>(
+      'input[type="file"][multiple]',
+    );
+    expect(audioInput).not.toBeNull();
+    expect(audioInput).toHaveAttribute('accept', '.mp3,.wav,audio/mpeg,audio/wav,audio/x-wav');
+
+    const rejected = new File(['audio'], 'unsupported.m4a', { type: 'audio/mp4' });
+    fireEvent.change(audioInput!, { target: { files: [rejected] } });
+    expect(await screen.findByText(/MP3, WAV만 업로드 가능/)).toBeInTheDocument();
+    expect(audioInput).toHaveValue('');
+    expect(screen.queryByDisplayValue('unsupported')).not.toBeInTheDocument();
+
+    const accepted = new File(['audio'], 'accepted.wav', { type: 'audio/wav' });
+    fireEvent.change(audioInput!, { target: { files: [accepted] } });
+    expect(await screen.findByDisplayValue('accepted')).toBeInTheDocument();
+  });
+
+  it('omits the native audio hint on iOS while still rejecting and resetting M4A', async () => {
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'iPhone' });
+    const view = render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <TrackUploadPage />
+      </MemoryRouter>,
+    );
+    const audioInput = view.container.querySelector<HTMLInputElement>(
+      'input[type="file"][multiple]',
+    );
+    expect(audioInput).not.toBeNull();
+    expect(audioInput).not.toHaveAttribute('accept');
+
+    const rejected = new File(['audio'], 'unsupported.m4a', { type: 'audio/mp4' });
+    fireEvent.change(audioInput!, { target: { files: [rejected] } });
+
+    expect(await screen.findByText(/MP3, WAV만 업로드 가능/)).toBeInTheDocument();
+    expect(audioInput).toHaveValue('');
+    expect(screen.queryByDisplayValue('unsupported')).not.toBeInTheDocument();
   });
 });

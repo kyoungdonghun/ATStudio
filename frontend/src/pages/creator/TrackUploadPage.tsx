@@ -11,7 +11,8 @@ import {
   AUDIO_MAX_SIZE_MB,
   TRACK_UPLOAD_MAX_COUNT,
   isFileSizeOk,
-  AUDIO_ACCEPT,
+  getAudioAccept,
+  AUDIO_FORMAT_LABEL,
   hasValidAudioExtension,
 } from '@/utils/validation';
 import Button from '@/components/ui/Button';
@@ -125,7 +126,7 @@ export default function TrackUploadPage() {
       const invalidType = newFiles.filter((f) => !hasValidAudioExtension(f.name));
       if (invalidType.length > 0) {
         setError(
-          `지원하지 않는 파일 형식입니다: ${invalidType.map((f) => f.name).join(', ')} (MP3, WAV, M4A, AAC, FLAC, OGG만 업로드 가능)`,
+          `지원하지 않는 파일 형식입니다: ${invalidType.map((f) => f.name).join(', ')} (${AUDIO_FORMAT_LABEL}만 업로드 가능)`,
         );
         if (audioInputRef.current) audioInputRef.current.value = '';
         return;
@@ -137,12 +138,14 @@ export default function TrackUploadPage() {
         setError(
           `오디오 파일은 ${AUDIO_MAX_SIZE_MB}MB 이하만 업로드할 수 있습니다. (초과: ${oversized.map((f) => f.name).join(', ')})`,
         );
+        if (audioInputRef.current) audioInputRef.current.value = '';
         return;
       }
 
       const remaining = TRACK_UPLOAD_MAX_COUNT - tracks.length;
       if (remaining <= 0) {
         setError(`최대 ${TRACK_UPLOAD_MAX_COUNT}곡까지 업로드할 수 있습니다.`);
+        if (audioInputRef.current) audioInputRef.current.value = '';
         return;
       }
 
@@ -313,7 +316,7 @@ export default function TrackUploadPage() {
             <input
               ref={audioInputRef}
               type="file"
-              {...(AUDIO_ACCEPT && { accept: AUDIO_ACCEPT })}
+              accept={getAudioAccept()}
               multiple
               className={styles.fileHidden}
               onChange={handleAudioSelect}

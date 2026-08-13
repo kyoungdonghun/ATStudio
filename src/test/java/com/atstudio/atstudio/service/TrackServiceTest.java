@@ -4,6 +4,7 @@ import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.track.*;
+import com.atstudio.atstudio.dto.tag.TagResponse;
 import com.atstudio.atstudio.entity.Tag;
 import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.User;
@@ -457,6 +458,7 @@ class TrackServiceTest {
         assertThat(response.waveformData()).isEqualTo("[0.500]");
         verifyNoInteractions(storageMutationCoordinator);
         verifyNoInteractions(audioAnalysisService);
+        verify(trackTagRepository, never()).deleteAllByTrack(track);
     }
 
     @Test
@@ -587,6 +589,7 @@ class TrackServiceTest {
 
         TrackUpdateRequest request = new TrackUpdateRequest();
         request.setTagIds(List.of(5L));
+        request.setReplaceTags(true);
 
         TrackResponse response = trackService.updateTrack(1L, request, null, null);
 
@@ -594,6 +597,74 @@ class TrackServiceTest {
         verify(trackTagRepository).saveAll(any());
         assertThat(response.tags()).hasSize(1);
         assertThat(response.tags().get(0).name()).isEqualTo("Chill");
+    }
+
+    @Test
+    @DisplayName("updateTrack() - explicit empty Tag replacement clears every association")
+    void updateTrack_explicitEmptyTagReplacementClearsAssociations() {
+        Track track = buildTrack(1L, true);
+        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+
+        TrackUpdateRequest request = new TrackUpdateRequest();
+        request.setReplaceTags(true);
+
+        TrackResponse response = trackService.updateTrack(1L, request, null, null);
+
+        verify(trackTagRepository).deleteAllByTrack(track);
+        verify(trackTagRepository, never()).saveAll(any());
+        verify(trackTagRepository, never()).findAllWithTagByTrack(track);
+        assertThat(response.tags()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("updateTrack() - tagIds without explicit replacement intent preserves associations")
+    void updateTrack_tagIdsWithoutReplacementIntentPreservesAssociations() {
+        Track track = buildTrack(1L, true);
+        Tag existingTag = buildTag(3L, "Existing", TagType.GENRE);
+        com.atstudio.atstudio.entity.TrackTag association =
+                com.atstudio.atstudio.entity.TrackTag.builder()
+                        .id(new com.atstudio.atstudio.entity.key.TrackTagId(1L, 3L))
+                        .track(track)
+                        .tag(existingTag)
+                        .build();
+        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(trackTagRepository.findAllWithTagByTrack(track)).willReturn(List.of(association));
+
+        TrackUpdateRequest request = new TrackUpdateRequest();
+        request.setTagIds(List.of(5L));
+
+        TrackResponse response = trackService.updateTrack(1L, request, null, null);
+
+        verify(trackTagRepository, never()).deleteAllByTrack(track);
+        verify(trackTagRepository, never()).saveAll(any());
+        verifyNoInteractions(tagRepository);
+        assertThat(response.tags()).extracting(TagResponse::name).containsExactly("Existing");
+    }
+
+    @Test
+    @DisplayName("updateTrack() - explicit false replacement intent preserves associations with tagIds")
+    void updateTrack_explicitFalseReplacementIntentPreservesAssociations() {
+        Track track = buildTrack(1L, true);
+        Tag existingTag = buildTag(3L, "Existing", TagType.GENRE);
+        com.atstudio.atstudio.entity.TrackTag association =
+                com.atstudio.atstudio.entity.TrackTag.builder()
+                        .id(new com.atstudio.atstudio.entity.key.TrackTagId(1L, 3L))
+                        .track(track)
+                        .tag(existingTag)
+                        .build();
+        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(trackTagRepository.findAllWithTagByTrack(track)).willReturn(List.of(association));
+
+        TrackUpdateRequest request = new TrackUpdateRequest();
+        request.setTagIds(List.of(5L));
+        request.setReplaceTags(false);
+
+        TrackResponse response = trackService.updateTrack(1L, request, null, null);
+
+        verify(trackTagRepository, never()).deleteAllByTrack(track);
+        verify(trackTagRepository, never()).saveAll(any());
+        verifyNoInteractions(tagRepository);
+        assertThat(response.tags()).extracting(TagResponse::name).containsExactly("Existing");
     }
 
     // ── deleteTrack() ─────────────────────────────────────────────────────────

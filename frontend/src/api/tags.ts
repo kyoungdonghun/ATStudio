@@ -1,5 +1,5 @@
 import client from '@/api/client';
-import type { TagItem, TagType } from '@/types';
+import type { ApiResponse, TagDeletionImpact, TagItem, TagType } from '@/types';
 
 /** GET /api/tags -- tag list */
 export async function fetchTags(type?: string): Promise<TagItem[]> {
@@ -55,6 +55,13 @@ export async function createTag(body: TagCreateRequest): Promise<TagItem> {
 
 export async function updateTag(tagId: number, body: TagUpdateRequest): Promise<TagItem> {
   const { data } = await client.put<{ data: TagItem }>(`/tags/${tagId}`, body);
+  return data.data;
+}
+
+export async function fetchTagDeletionImpact(tagId: number): Promise<TagDeletionImpact> {
+  const { data } = await client.get<ApiResponse<TagDeletionImpact>>(
+    `/tags/${tagId}/deletion-impact`,
+  );
   return data.data;
 }
 

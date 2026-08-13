@@ -120,7 +120,7 @@ Tracks under the current cross-filter.
 | Field | Value |
 |-------|-------|
 | **Code** | SOUND-018 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-13 |
 | **Description** | Admin deletes a tag. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Admin logged in. Target tag exists in DB. |
@@ -129,9 +129,13 @@ Tracks under the current cross-filter.
 
 **Main Flow**
 1. Admin clicks the 'Delete' button on the target tag.
-2. Frontend sends a delete request including tagId to the backend.
-3. Backend deletes the tags record. (Associated track_tags are CASCADE-deleted or handled at application level)
-4. Backend returns 204 No Content.
+2. Frontend requests `GET /api/tags/{tagId}/deletion-impact` before enabling confirmation.
+3. Backend verifies ADMIN authorization and returns only Tag identity (`id`, `name`, `type`) and `trackAssociationCount`.
+4. Frontend verifies that the response belongs to the selected Tag and contains a nonnegative safe integer count. It states whether the Tag is unused or shows the exact number of associated Tracks before enabling deletion.
+5. If impact lookup fails or is invalid, frontend does not expose the destructive confirmation and offers an explicit impact retry.
+6. Frontend sends a delete request including tagId only after confirmation.
+7. Backend deletes the tags record. (Associated track_tags are CASCADE-deleted or handled at application level)
+8. Backend returns 204 No Content.
 
 **Exception / Alternative Flow**
 - -

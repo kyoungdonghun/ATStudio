@@ -4,6 +4,7 @@ import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.track.PlayableTrackResponse;
 import com.atstudio.atstudio.dto.track.TrackSearchRequest;
+import com.atstudio.atstudio.dto.track.TrackUpdateRequest;
 import com.atstudio.atstudio.dto.track.TrackResponse;
 import com.atstudio.atstudio.security.CustomUserDetailsService;
 import com.atstudio.atstudio.service.DownloadService;
@@ -32,6 +33,7 @@ import java.util.stream.LongStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -184,6 +186,27 @@ class TrackControllerTest {
                         .with(req -> { req.setMethod("PUT"); return req; })
                         .param("title", "Updated"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("PUT /api/tracks/{id} binds explicit empty Tag replacement intent")
+    void updateTrack_adminBindsExplicitEmptyTagReplacementIntent() throws Exception {
+        given(trackService.updateTrack(eq(7L), any(), any(), any()))
+                .willReturn(trackResponse("tracks/audio/original.mp3"));
+
+        mockMvc.perform(multipart("/api/tracks/7")
+                        .with(request -> {
+                            request.setMethod("PUT");
+                            return request;
+                        })
+                        .param("replaceTags", "true"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<TrackUpdateRequest> request = ArgumentCaptor.forClass(TrackUpdateRequest.class);
+        org.mockito.Mockito.verify(trackService).updateTrack(eq(7L), request.capture(), any(), any());
+        assertEquals(true, request.getValue().getReplaceTags());
+        assertEquals(null, request.getValue().getTagIds());
     }
 
     // ── DELETE /api/tracks/{id} (ADMIN 전용) ──────────────────────────────────

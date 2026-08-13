@@ -37,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   fetchTags: vi.fn(),
   createTag: vi.fn(),
   updateTag: vi.fn(),
+  fetchTagDeletionImpact: vi.fn(),
   deleteTag: vi.fn(),
   createNotice: vi.fn(),
   fetchNotice: vi.fn(),
@@ -139,6 +140,7 @@ vi.mock('@/api/tags', () => ({
   fetchTags: mocks.fetchTags,
   createTag: mocks.createTag,
   updateTag: mocks.updateTag,
+  fetchTagDeletionImpact: mocks.fetchTagDeletionImpact,
   deleteTag: mocks.deleteTag,
 }));
 
@@ -325,6 +327,9 @@ beforeEach(() => {
   mocks.createAnswer.mockResolvedValue({ id: 2 });
   mocks.createTag.mockResolvedValue({ id: 1, name: 'new', type: 'GENRE' });
   mocks.updateTag.mockResolvedValue({ id: 1, name: 'updated', type: 'GENRE' });
+  mocks.fetchTagDeletionImpact.mockImplementation((tagId: number) =>
+    Promise.resolve({ id: tagId, name: 'Old Tag', type: 'MOOD', trackAssociationCount: 0 }),
+  );
 
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
@@ -1006,7 +1011,7 @@ describe('admin page behavior coverage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(mocks.deleteTag).toHaveBeenCalledWith(5));
   });
 
@@ -1091,7 +1096,7 @@ describe('admin page behavior coverage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '삭제' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '삭제' }));
-    expect(await screen.findByText('delete denied')).toBeInTheDocument();
+    expect(await screen.findByText(/음원을 삭제하지 못했습니다/)).toBeInTheDocument();
   });
 
   it('shows admin question and plan load failures as terminal page states', async () => {

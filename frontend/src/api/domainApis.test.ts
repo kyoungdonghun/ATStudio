@@ -516,6 +516,9 @@ describe('domain API contracts', () => {
       .mockResolvedValueOnce({ data: { dataList: [payload] } })
       .mockResolvedValueOnce({ data: { dataList: [payload] } })
       .mockResolvedValueOnce({ data: { dataList: [payload] } })
+      .mockResolvedValueOnce(
+        apiResponse({ id: 7, name: 'Rock', type: 'GENRE', trackAssociationCount: 3 }),
+      )
       .mockResolvedValueOnce({ data: paged })
       .mockResolvedValueOnce(apiResponse(payload))
       .mockResolvedValueOnce(apiResponse(payload))
@@ -557,6 +560,13 @@ describe('domain API contracts', () => {
     expect(availableTagQuery.params.toString()).toBe(
       'genre=K-Pop&genre=%ED%95%9C%EA%B8%80+%EC%9E%A5%EB%A5%B4&mood=bright&instrument=guitar%2C+synth&usage=%23shorts&bpmMin=80&bpmMax=120',
     );
+    await expect(tags.fetchTagDeletionImpact(7)).resolves.toEqual({
+      id: 7,
+      name: 'Rock',
+      type: 'GENRE',
+      trackAssociationCount: 3,
+    });
+    expect(mockedClient.get).toHaveBeenNthCalledWith(6, '/tags/7/deletion-impact');
     await tags.createTag({ name: 'Rock', type: 'GENRE' });
     await tags.updateTag(7, { name: 'Indie', type: 'GENRE' });
     await tags.deleteTag(7);
@@ -575,11 +585,11 @@ describe('domain API contracts', () => {
       sort: 'popular' as const,
     };
     await tracks.fetchTracks(trackFilters, controller.signal);
-    expect(mockedClient.get).toHaveBeenNthCalledWith(6, '/tracks', {
+    expect(mockedClient.get).toHaveBeenNthCalledWith(7, '/tracks', {
       params: expect.any(URLSearchParams),
       signal: controller.signal,
     });
-    const trackQuery = mockedClient.get.mock.calls[5]?.[1] as { params: URLSearchParams };
+    const trackQuery = mockedClient.get.mock.calls[6]?.[1] as { params: URLSearchParams };
     expect(trackQuery.params.toString()).toBe(
       'page=2&size=12&keyword=spring&genre=K-Pop&genre=%ED%95%9C%EA%B8%80+%EC%9E%A5%EB%A5%B4&mood=bright&instrument=guitar%2C+synth&usage=%23shorts&bpmMin=80&bpmMax=120&tonality=C&sort=popular',
     );

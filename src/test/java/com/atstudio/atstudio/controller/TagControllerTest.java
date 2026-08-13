@@ -3,6 +3,7 @@ package com.atstudio.atstudio.controller;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.tag.TagResponse;
+import com.atstudio.atstudio.dto.tag.TagDeletionImpactResponse;
 import com.atstudio.atstudio.entity.enums.TagType;
 import com.atstudio.atstudio.security.CustomUserDetailsService;
 import com.atstudio.atstudio.service.TagService;
@@ -143,6 +144,39 @@ class TagControllerTest {
                 eq(java.util.List.of("쇼츠 용")),
                 isNull(),
                 isNull());
+    }
+
+    @Test
+    @DisplayName("GET /api/tags/{id}/deletion-impact - unauthenticated returns 401")
+    void getDeletionImpact_unauthenticatedReturns401() throws Exception {
+        mockMvc.perform(get("/api/tags/7/deletion-impact"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("GET /api/tags/{id}/deletion-impact - USER returns 403")
+    void getDeletionImpact_userReturns403() throws Exception {
+        mockMvc.perform(get("/api/tags/7/deletion-impact"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("GET /api/tags/{id}/deletion-impact - ADMIN receives only bounded impact fields")
+    void getDeletionImpact_adminReceivesBoundedResponse() throws Exception {
+        given(tagService.getDeletionImpact(7L)).willReturn(
+                new TagDeletionImpactResponse(7L, "Shorts", TagType.USAGE, 3L));
+
+        mockMvc.perform(get("/api/tags/7/deletion-impact"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(7))
+                .andExpect(jsonPath("$.data.name").value("Shorts"))
+                .andExpect(jsonPath("$.data.type").value("USAGE"))
+                .andExpect(jsonPath("$.data.trackAssociationCount").value(3))
+                .andExpect(jsonPath("$.data.trackTitles").doesNotExist())
+                .andExpect(jsonPath("$.data.audioFile").doesNotExist())
+                .andExpect(jsonPath("$.data.createdAt").doesNotExist());
     }
 
     // ── PUT /api/tags/{id} (ADMIN 전용) ───────────────────────────────────────

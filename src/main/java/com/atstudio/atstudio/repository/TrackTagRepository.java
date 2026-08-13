@@ -16,6 +16,8 @@ public interface TrackTagRepository extends JpaRepository<TrackTag, TrackTagId> 
 
     void deleteAllByTag(Tag tag);
 
+    long countByTag(Tag tag);
+
     @Query("SELECT tt FROM TrackTag tt JOIN FETCH tt.tag WHERE tt.track = :track")
     List<TrackTag> findAllWithTagByTrack(@Param("track") Track track);
 

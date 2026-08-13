@@ -1,8 +1,8 @@
 /** Screen K-6: Tag management */
-import { useEffect, useState, useCallback } from 'react';
-import { fetchTags, createTag, updateTag, deleteTag } from '@/api/tags';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { fetchTags, createTag, updateTag, fetchTagDeletionImpact, deleteTag } from '@/api/tags';
 import { getApiErrorCode } from '@/api/loadError';
-import type { TagItem, TagType } from '@/types';
+import type { TagDeletionImpact, TagItem, TagType } from '@/types';
 import {
   formatTagNameForDisplay,
   getTagNameValidationError,
@@ -19,6 +19,8 @@ const TAG_TYPES: TagType[] = ['GENRE', 'MOOD', 'INSTRUMENT', 'USAGE'];
 const TAG_NAME_SERVER_INVALID_MESSAGE = '태그 이름 형식을 확인해주세요.';
 const TAG_SAVE_FAILURE_MESSAGE = '태그를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.';
 const TAG_DELETE_FAILURE_MESSAGE = '태그를 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.';
+const TAG_IMPACT_FAILURE_MESSAGE =
+  '삭제 영향을 확인하지 못했습니다. 삭제하지 않고 다시 시도하거나 닫아 주세요.';
 
 function getSafeApiMessage(error: unknown, fallback: string): string {
   const message = (error as { response?: { data?: { message?: unknown } } })?.response?.data
@@ -45,8 +47,11 @@ export default function TagManagePage() {
 
   /* Delete modal */
   const [deleteTarget, setDeleteTarget] = useState<TagItem | null>(null);
+  const [deletionImpact, setDeletionImpact] = useState<TagDeletionImpact | null>(null);
+  const [impactLoading, setImpactLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const impactRequestGenerationRef = useRef(0);
 
   const loadTags = useCallback(() => {
     setLoading(true);
@@ -141,29 +146,72 @@ export default function TagManagePage() {
     }
   };
 
-  const openDelete = (tag: TagItem) => {
-    setDeleteTarget(tag);
+  const loadDeletionImpact = async (tag: TagItem, generation: number) => {
+    setImpactLoading(true);
+    setDeletionImpact(null);
     setDeleteError(null);
+    try {
+      const impact = await fetchTagDeletionImpact(tag.id);
+      if (impactRequestGenerationRef.current !== generation) return;
+      if (
+        impact.id !== tag.id ||
+        !Number.isSafeInteger(impact.trackAssociationCount) ||
+        impact.trackAssociationCount < 0
+      ) {
+        throw new Error('Invalid Tag deletion impact response');
+      }
+      setDeletionImpact(impact);
+    } catch {
+      if (impactRequestGenerationRef.current === generation) {
+        setDeleteError(TAG_IMPACT_FAILURE_MESSAGE);
+      }
+    } finally {
+      if (impactRequestGenerationRef.current === generation) {
+        setImpactLoading(false);
+      }
+    }
+  };
+
+  const openDelete = (tag: TagItem) => {
+    if (deleteLoading) return;
+    const generation = ++impactRequestGenerationRef.current;
+    setDeleteTarget(tag);
+    setDeletionImpact(null);
+    setDeleteError(null);
+    void loadDeletionImpact(tag, generation);
   };
 
   const closeDeleteModal = () => {
+    if (deleteLoading) return;
+    impactRequestGenerationRef.current += 1;
     setDeleteTarget(null);
+    setDeletionImpact(null);
+    setImpactLoading(false);
     setDeleteError(null);
   };
 
   /* Confirm delete */
   const confirmDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !deletionImpact || deleteLoading) return;
     setDeleteLoading(true);
     try {
       await deleteTag(deleteTarget.id);
-      closeDeleteModal();
+      impactRequestGenerationRef.current += 1;
+      setDeleteTarget(null);
+      setDeletionImpact(null);
+      setDeleteError(null);
       loadTags();
     } catch (error) {
       setDeleteError(getSafeApiMessage(error, TAG_DELETE_FAILURE_MESSAGE));
     } finally {
       setDeleteLoading(false);
     }
+  };
+
+  const retryDeletionImpact = () => {
+    if (!deleteTarget || impactLoading || deleteLoading) return;
+    const generation = ++impactRequestGenerationRef.current;
+    void loadDeletionImpact(deleteTarget, generation);
   };
 
   if (loading) {
@@ -320,13 +368,24 @@ export default function TagManagePage() {
       {/* Delete confirm modal */}
       <Modal open={deleteTarget !== null} onClose={closeDeleteModal} title="Delete Tag">
         <div className={styles.deleteText}>
-          Are you sure you want to delete tag{' '}
-          <strong>
-            {deleteTarget
-              ? formatTagNameForDisplay(deleteTarget.name, deleteTarget.type)
-              : undefined}
-          </strong>
-          ?
+          {impactLoading ? (
+            'Track 연결 영향을 확인하고 있습니다.'
+          ) : deletionImpact ? (
+            <>
+              <strong>{formatTagNameForDisplay(deletionImpact.name, deletionImpact.type)}</strong>
+              {deletionImpact.trackAssociationCount === 0 ? (
+                <> Tag는 연결된 Track이 없어 제거할 Track 연결이 없습니다. Tag만 삭제됩니다.</>
+              ) : (
+                <>
+                  {' '}
+                  Tag는 현재 {deletionImpact.trackAssociationCount.toLocaleString()}개의 Track에
+                  연결되어 있습니다. Tag를 삭제하기 전에 해당 Track 연결을 모두 제거합니다.
+                </>
+              )}
+            </>
+          ) : (
+            '삭제 영향을 확인해야 Tag를 삭제할 수 있습니다.'
+          )}
         </div>
         {deleteError ? (
           <div className={styles.modalError} role="alert">
@@ -334,12 +393,19 @@ export default function TagManagePage() {
           </div>
         ) : null}
         <div className={styles.modalActions}>
-          <Button variant="ghost" size="sm" onClick={closeDeleteModal}>
+          <Button variant="ghost" size="sm" onClick={closeDeleteModal} disabled={deleteLoading}>
             Cancel
           </Button>
-          <Button variant="danger" size="sm" loading={deleteLoading} onClick={confirmDelete}>
-            Delete
-          </Button>
+          {!impactLoading && !deletionImpact ? (
+            <Button size="sm" onClick={retryDeletionImpact}>
+              Retry impact check
+            </Button>
+          ) : null}
+          {deletionImpact ? (
+            <Button variant="danger" size="sm" loading={deleteLoading} onClick={confirmDelete}>
+              Delete
+            </Button>
+          ) : null}
         </div>
       </Modal>
     </div>

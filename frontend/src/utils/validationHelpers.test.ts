@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  AUDIO_ACCEPT,
+  AUDIO_FORMAT_LABEL,
   formatPhone,
+  getAudioAccept,
   hasValidAudioExtension,
   isFileSizeOk,
   isIOS,
@@ -55,8 +58,15 @@ describe('shared validation helpers', () => {
     expect(isFileSizeOk(sizedFile('small.pdf', 1024), 1)).toBe(true);
     expect(isFileSizeOk(sizedFile('large.pdf', 2 * 1024 * 1024), 1)).toBe(false);
     expect(hasValidAudioExtension('TRACK.MP3')).toBe(true);
+    expect(hasValidAudioExtension('mix.WAV')).toBe(true);
+    expect(hasValidAudioExtension('track.m4a')).toBe(false);
+    expect(hasValidAudioExtension('track.aac')).toBe(false);
+    expect(hasValidAudioExtension('track.flac')).toBe(false);
+    expect(hasValidAudioExtension('track.ogg')).toBe(false);
     expect(hasValidAudioExtension('track')).toBe(false);
     expect(hasValidAudioExtension('track.exe')).toBe(false);
+    expect(AUDIO_ACCEPT).toBe('.mp3,.wav,audio/mpeg,audio/wav,audio/x-wav');
+    expect(AUDIO_FORMAT_LABEL).toBe('MP3, WAV');
   });
 
   it('accepts a valid company certification file selection', () => {
@@ -71,12 +81,15 @@ describe('shared validation helpers', () => {
   it('detects iOS user agents and touch-enabled iPad desktop mode', () => {
     Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'iPhone' });
     expect(isIOS()).toBe(true);
+    expect(getAudioAccept()).toBeUndefined();
     Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Desktop' });
     Object.defineProperty(navigator, 'platform', { configurable: true, value: 'MacIntel' });
     Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, value: 5 });
     expect(isIOS()).toBe(true);
+    expect(getAudioAccept()).toBeUndefined();
     Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, value: 0 });
     expect(isIOS()).toBe(false);
+    expect(getAudioAccept()).toBe(AUDIO_ACCEPT);
   });
 
   it.each([

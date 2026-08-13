@@ -1,12 +1,13 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TagManagePage from '@/pages/admin/TagManagePage';
-import type { TagItem, TagType } from '@/types';
+import type { TagDeletionImpact, TagItem, TagType } from '@/types';
 
 const mocks = vi.hoisted(() => ({
   fetchTags: vi.fn(),
   createTag: vi.fn(),
   updateTag: vi.fn(),
+  fetchTagDeletionImpact: vi.fn(),
   deleteTag: vi.fn(),
 }));
 
@@ -14,6 +15,7 @@ vi.mock('@/api/tags', () => ({
   fetchTags: (...args: unknown[]) => mocks.fetchTags(...args),
   createTag: (...args: unknown[]) => mocks.createTag(...args),
   updateTag: (...args: unknown[]) => mocks.updateTag(...args),
+  fetchTagDeletionImpact: (...args: unknown[]) => mocks.fetchTagDeletionImpact(...args),
   deleteTag: (...args: unknown[]) => mocks.deleteTag(...args),
 }));
 
@@ -25,6 +27,16 @@ const TAGS: TagItem[] = [
 ];
 
 const DUPLICATE_MESSAGE = '이미 존재하는 태그 이름입니다.';
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
+}
 
 function filterButton(type: 'ALL' | TagType) {
   return screen.getByRole('button', { name: new RegExp(`^${type === 'ALL' ? '전체' : type}`) });
@@ -58,6 +70,10 @@ describe('TagManagePage', () => {
     mocks.fetchTags.mockReset().mockResolvedValue(TAGS);
     mocks.createTag.mockReset().mockResolvedValue(TAGS[0]);
     mocks.updateTag.mockReset().mockResolvedValue(TAGS[0]);
+    mocks.fetchTagDeletionImpact.mockReset().mockImplementation((tagId: number) => {
+      const tag = TAGS.find((candidate) => candidate.id === tagId) ?? TAGS[0];
+      return Promise.resolve({ ...tag, trackAssociationCount: 0 });
+    });
     mocks.deleteTag.mockReset().mockResolvedValue(undefined);
   });
 
@@ -187,7 +203,7 @@ describe('TagManagePage', () => {
       within(usageRow as HTMLTableRowElement).getByRole('button', { name: 'Delete' }),
     );
     const dialog = screen.getByRole('dialog', { name: 'Delete Tag' });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Delete' }));
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       '연결된 트랙 때문에 삭제할 수 없습니다.',
@@ -195,5 +211,95 @@ describe('TagManagePage', () => {
     expect(within(dialog).getByText('#Shorts')).toBeInTheDocument();
     expect(filterButton('USAGE')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('heading', { name: 'Tag Management' })).toBeInTheDocument();
+  });
+
+  it('shows an unused Tag impact before exposing destructive confirmation', async () => {
+    await renderLoadedPage();
+    const row = screen.getByText('Hip Hop').closest('tr');
+    fireEvent.click(within(row as HTMLTableRowElement).getByRole('button', { name: 'Delete' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Delete Tag' });
+    expect(within(dialog).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(await within(dialog).findByText(/연결된 Track이 없어/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Tag만 삭제됩니다/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+    expect(mocks.fetchTagDeletionImpact).toHaveBeenCalledWith(1);
+  });
+
+  it('states the exact used Track count and association-removal ordering', async () => {
+    mocks.fetchTagDeletionImpact.mockResolvedValue({
+      id: 3,
+      name: 'Shorts',
+      type: 'USAGE',
+      trackAssociationCount: 4,
+    });
+    await renderLoadedPage();
+    const usageRow = screen.getByText('#Shorts').closest('tr');
+    fireEvent.click(
+      within(usageRow as HTMLTableRowElement).getByRole('button', { name: 'Delete' }),
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Delete Tag' });
+    expect(await within(dialog).findByText(/현재 4개의 Track에/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/Tag를 삭제하기 전에 해당 Track 연결을 모두 제거/),
+    ).toBeInTheDocument();
+  });
+
+  it("does not expose A's deletion confirmation after B becomes the current impact target", async () => {
+    const impactA = deferred<TagDeletionImpact>();
+    const impactB = deferred<TagDeletionImpact>();
+    mocks.fetchTagDeletionImpact.mockImplementation((tagID: number) =>
+      tagID === 1 ? impactA.promise : impactB.promise,
+    );
+    await renderLoadedPage();
+
+    const rowA = screen.getByText('Hip Hop').closest('tr');
+    fireEvent.click(within(rowA as HTMLTableRowElement).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(mocks.fetchTagDeletionImpact).toHaveBeenCalledWith(1));
+
+    const rowB = screen.getByText('Focus').closest('tr');
+    fireEvent.click(within(rowB as HTMLTableRowElement).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(mocks.fetchTagDeletionImpact).toHaveBeenCalledWith(2));
+
+    const dialog = screen.getByRole('dialog', { name: 'Delete Tag' });
+    await act(async () => {
+      impactA.resolve({ id: 1, name: 'Hip Hop', type: 'GENRE', trackAssociationCount: 9 });
+    });
+    expect(within(dialog).queryByText('Hip Hop')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/9/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+
+    await act(async () => {
+      impactB.resolve({ id: 2, name: 'Focus', type: 'MOOD', trackAssociationCount: 2 });
+    });
+    expect(await within(dialog).findByText('Focus')).toBeInTheDocument();
+    expect(within(dialog).getByText(/현재 2개의 Track에/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+  });
+
+  it('keeps destructive confirmation hidden after impact failure and supports retry or close', async () => {
+    mocks.fetchTagDeletionImpact
+      .mockRejectedValueOnce(new Error('impact unavailable'))
+      .mockResolvedValueOnce({
+        id: 2,
+        name: 'Focus',
+        type: 'MOOD',
+        trackAssociationCount: 2,
+      });
+    await renderLoadedPage();
+    const row = screen.getByText('Focus').closest('tr');
+    fireEvent.click(within(row as HTMLTableRowElement).getByRole('button', { name: 'Delete' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Delete Tag' });
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      '삭제 영향을 확인하지 못했습니다.',
+    );
+    expect(within(dialog).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeEnabled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Retry impact check' }));
+    expect(await within(dialog).findByText(/현재 2개의 Track에/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Delete' })).toBeInTheDocument();
   });
 });

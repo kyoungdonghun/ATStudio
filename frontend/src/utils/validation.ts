@@ -125,12 +125,7 @@ export function validateCompanyCertFileSelection(
   return null;
 }
 
-/**
- * Detect iOS Safari.
- * iOS Safari has a known bug where audio file inputs with specific `accept` values
- * incorrectly grey out valid MP3 files (UTI mismatch). On iOS we omit `accept` and
- * rely on JS extension validation instead.
- */
+/** Detect iOS Safari. */
 export function isIOS(): boolean {
   if (typeof navigator === 'undefined') return false;
   return (
@@ -139,13 +134,17 @@ export function isIOS(): boolean {
   );
 }
 
-/** Audio file extensions allowed for upload */
-export const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg'];
+/** Audio file extensions supported by the backend analyzer. */
+export const AUDIO_EXTENSIONS = ['.mp3', '.wav'];
+export const AUDIO_FORMAT_LABEL = 'MP3, WAV';
 
-/** accept string for <input type="file"> — empty on iOS to avoid MP3 grey-out bug */
-export const AUDIO_ACCEPT = isIOS()
-  ? undefined
-  : '.mp3,.wav,.m4a,.aac,.flac,.ogg,audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/aac,audio/flac,audio/ogg';
+/** Audio picker contract shared by Track create and edit. */
+export const AUDIO_ACCEPT = '.mp3,.wav,audio/mpeg,audio/wav,audio/x-wav';
+
+/** Omit the native picker hint on iOS, where valid MP3 files can be disabled by UTI matching. */
+export function getAudioAccept(): string | undefined {
+  return isIOS() ? undefined : AUDIO_ACCEPT;
+}
 
 /** Check if file has an allowed audio extension */
 export function hasValidAudioExtension(fileName: string): boolean {
