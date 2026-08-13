@@ -1,6 +1,6 @@
 ---
-version: 2.6
-last_updated: 2026-08-13
+version: 2.7
+last_updated: 2026-08-14
 project: ATS
 owner: PG
 category: policy
@@ -146,6 +146,16 @@ at most once. A replayed request that receives another `401` fails closed with
 that second response; it does not refresh, re-enter the queue, or replay again.
 Authentication endpoint exclusions and explicit `skipAuthReplay` requests do
 not enter refresh or replay processing.
+
+**ADMIN 403 role synchronization:** Generic requests rejected with `403` while
+the SPA still holds an ADMIN role use one centralized current-user refresh and
+then preserve the original rejection without request replay. The User role
+mutation explicitly sets `skipAdminRoleSync`; only that centralized `403`
+branch honors the option. Its page owns the refresh only for the exact
+`403 ADMIN_ROLE_REQUIRED` response so it can report synchronization success or
+failure. The option does not alter `401` refresh/replay behavior, authentication
+endpoint exclusions, `skipAuthReplay`, refresh coalescing, or original-error
+preservation.
 
 **Current state:** `application.yml` no longer carries a fallback JWT secret, and local-only conveniences (DDL auto-update, SQL logging, localhost mail/OAuth redirects) belong in the gitignored root `application-local.yml`.
 Local password auth availability is controlled by `APP_AUTH_PASSWORD_LOGIN_ENABLED` / `app.auth.password-login.enabled`. When disabled, `/api/utils/public-capabilities` reports `passwordLoginEnabled=false`, and local email/password login, signup, verification mail, and password reset must be treated as unavailable.

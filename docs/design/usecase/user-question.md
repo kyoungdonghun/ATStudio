@@ -67,7 +67,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | QUESTION-003 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-14 |
 | **Description** | Logged-in user views the inquiry list. Regular members: public inquiries + own private inquiries. Admin: all. |
 | **Actor** | User (Member or Admin), Backend |
 | **Preconditions** | Logged in. |
@@ -79,10 +79,12 @@
 2. Backend filters the inquiry list based on user role and returns paginated results.
    - Regular member: is_public=1 OR (is_public=0 AND user_id=self)
    - Admin: all
-3. Filter, page, tab, route, or authenticated-owner changes clear and retire
-   the prior request. List/detail data, forms, attachment controls, and
-   confirmation targets render only for the current projection; detached
-   controls and mutation continuations revalidate it.
+3. Filter, page, tab, route, or authenticated-owner changes abort and retire
+   the prior request and advance the request generation. List/detail data,
+   loading, errors, forms, attachment controls, and confirmation targets render
+   only for the current projection; detached controls and mutation
+   continuations revalidate it. A stale success or failure cannot overwrite the
+   newer filter or page.
 
 **Postconditions**
 - Inquiry list matching access permissions and pageInfo displayed on screen.

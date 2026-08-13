@@ -1,62 +1,125 @@
 /** Screen K-3: License management (admin) */
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { fetchUserLicenses, type LicenseListItem } from '@/api/licenses';
-import { fetchUsers, type AdminUserListItem } from '@/api/admin';
+import {
+  fetchUserDetail,
+  fetchUsers,
+  type AdminUserDetail,
+  type AdminUserListItem,
+} from '@/api/admin';
 import type { PageInfo } from '@/types';
 import { formatDate } from '@/utils/format';
+import { parsePositiveDecimalRouteID } from '@/utils/routeId';
 import Button from '@/components/ui/Button';
 import Pagination from '@/components/ui/Pagination';
 import styles from './LicenseManagePage.module.css';
 
 export default function LicenseManagePage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const currentPage = Number(searchParams.get('page')) || 1;
-  const activeUserId = searchParams.get('userId') || '';
+  const currentPage = parsePositiveDecimalRouteID(searchParams.get('page') ?? undefined) ?? 1;
+  const rawActiveUserID = searchParams.get('userId');
+  const activeUserID = parsePositiveDecimalRouteID(rawActiveUserID ?? undefined);
+  const searchContextKey = `${rawActiveUserID ?? ''}:${currentPage}`;
 
   const [keyword, setKeyword] = useState('');
   const [searchResults, setSearchResults] = useState<AdminUserListItem[]>([]);
   const [showResults, setShowResults] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<AdminUserListItem | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUserDetail | null>(null);
   const [licenses, setLicenses] = useState<LicenseListItem[]>([]);
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const listGenerationRef = useRef(0);
+  const searchGenerationRef = useRef(0);
+  const searchControllerRef = useRef<AbortController | null>(null);
+  const keywordRef = useRef('');
+  const searchContextKeyRef = useRef(searchContextKey);
+  searchContextKeyRef.current = searchContextKey;
 
-  const loadLicenses = useCallback(async (userId: string, page: number) => {
-    if (!userId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await fetchUserLicenses(Number(userId), page, 20);
-      setLicenses(result.dataList);
-      setPageInfo(result.pageInfo);
-    } catch {
-      setError('라이선스 목록을 불러올 수 없습니다.');
-      setLicenses([]);
-      setPageInfo(null);
-    } finally {
-      setLoading(false);
-    }
+  const retireSearch = useCallback(() => {
+    searchControllerRef.current?.abort();
+    searchControllerRef.current = null;
+    searchGenerationRef.current += 1;
+    setSearchResults([]);
+    setShowResults(false);
   }, []);
 
   useEffect(() => {
-    if (activeUserId) {
-      loadLicenses(activeUserId, currentPage);
+    retireSearch();
+    const generation = ++listGenerationRef.current;
+    const controller = new AbortController();
+    setSelectedUser(null);
+    setLicenses([]);
+    setPageInfo(null);
+    setError(null);
+
+    if (activeUserID === null) {
+      setLoading(false);
+      if (rawActiveUserID) setError('올바른 사용자를 선택해 주세요.');
+      return () => controller.abort();
     }
-  }, [activeUserId, currentPage, loadLicenses]);
+
+    setLoading(true);
+    void Promise.all([
+      fetchUserDetail(activeUserID, controller.signal),
+      fetchUserLicenses(activeUserID, currentPage, 20, controller.signal),
+    ])
+      .then(([user, result]) => {
+        if (controller.signal.aborted || listGenerationRef.current !== generation) return;
+        setSelectedUser(user);
+        keywordRef.current = user.email;
+        setKeyword(user.email);
+        setLicenses(result.dataList);
+        setPageInfo(result.pageInfo);
+      })
+      .catch(() => {
+        if (controller.signal.aborted || listGenerationRef.current !== generation) return;
+        setError('사용자 또는 라이선스 목록을 불러올 수 없습니다.');
+      })
+      .finally(() => {
+        if (listGenerationRef.current === generation) setLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+      if (listGenerationRef.current === generation) listGenerationRef.current += 1;
+    };
+  }, [activeUserID, currentPage, rawActiveUserID, retireSearch]);
+
+  useEffect(
+    () => () => {
+      searchControllerRef.current?.abort();
+      searchGenerationRef.current += 1;
+    },
+    [],
+  );
 
   const handleSearch = async () => {
     const trimmed = keyword.trim();
     if (!trimmed) return;
 
+    searchControllerRef.current?.abort();
+    const controller = new AbortController();
+    const generation = ++searchGenerationRef.current;
+    const submittedContextKey = searchContextKey;
+    searchControllerRef.current = controller;
+    const isCurrentSearch = () =>
+      !controller.signal.aborted &&
+      searchGenerationRef.current === generation &&
+      keywordRef.current.trim() === trimmed &&
+      searchContextKeyRef.current === submittedContextKey;
     try {
-      const result = await fetchUsers({ keyword: trimmed, page: 1, size: 10 });
+      const result = await fetchUsers({ keyword: trimmed, page: 1, size: 10 }, controller.signal);
+      if (!isCurrentSearch()) return;
       setSearchResults(result.dataList);
       setShowResults(true);
     } catch {
+      if (!isCurrentSearch()) return;
       setSearchResults([]);
       setShowResults(true);
+    } finally {
+      if (searchControllerRef.current === controller) searchControllerRef.current = null;
     }
   };
 
@@ -65,14 +128,15 @@ export default function LicenseManagePage() {
   };
 
   const selectUser = (user: AdminUserListItem) => {
-    setSelectedUser(user);
-    setShowResults(false);
+    retireSearch();
+    keywordRef.current = user.email;
     setKeyword(user.email);
     setSearchParams({ userId: String(user.id), page: '1' });
   };
 
   const handlePageChange = (page: number) => {
-    setSearchParams({ userId: activeUserId, page: String(page) });
+    if (activeUserID === null) return;
+    setSearchParams({ userId: String(activeUserID), page: String(page) });
   };
 
   return (
@@ -88,8 +152,9 @@ export default function LicenseManagePage() {
             placeholder="이메일 또는 닉네임으로 사용자 검색..."
             value={keyword}
             onChange={(e) => {
+              keywordRef.current = e.target.value;
               setKeyword(e.target.value);
-              setShowResults(false);
+              retireSearch();
             }}
             onKeyDown={handleKeyDown}
           />
@@ -133,7 +198,7 @@ export default function LicenseManagePage() {
 
       {error && <div className={styles.error}>{error}</div>}
 
-      {!loading && !error && activeUserId && (
+      {!loading && !error && activeUserID !== null && (
         <>
           <div className={styles.tableWrap}>
             <table className={styles.table}>

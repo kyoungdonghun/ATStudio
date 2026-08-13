@@ -1,6 +1,6 @@
 ---
-version: 2.7
-last_updated: 2026-08-13
+version: 2.8
+last_updated: 2026-08-14
 project: ATS
 owner: SA
 category: standard
@@ -26,7 +26,7 @@ task_types:
 
 # Frontend Standards (React + TypeScript)
 
-> **Purpose:** Define the frontend architecture, coding standards, and patterns for ATStudio's React SPA. This document reflects the **actual implemented** state as of 2026-08-13.
+> **Purpose:** Define the frontend architecture, coding standards, and patterns for ATStudio's React SPA. This document reflects the **actual implemented** state as of 2026-08-14.
 
 ---
 
@@ -213,6 +213,19 @@ replays each marked request at most once. If a replay receives another `401`,
 the interceptor rejects that second failure without another refresh, queue
 entry, or replay. `skipAuthReplay` requests and authentication endpoint
 exclusions remain outside refresh and queue processing.
+
+### 4.4.1 ADMIN 403 Role Synchronization Ownership
+
+The response interceptor coalesces a current-user refresh for generic `403`
+responses received while the auth store still holds ADMIN, then rejects with
+the original error and never replays the request. Requests to current-user and
+authentication endpoints remain excluded.
+
+`updateUserAdmin` sets `skipAdminRoleSync` because `UserManagePage` owns the
+refresh for the exact `403 ADMIN_ROLE_REQUIRED` response and must report its
+success or failure. No other status or error code activates that page-owned
+refresh. The option is read only by the centralized ADMIN `403` branch; it does
+not skip eligible `401` refresh/replay processing or change `skipAuthReplay`.
 
 ### 4.5 FormData Handling
 

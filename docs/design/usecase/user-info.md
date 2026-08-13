@@ -223,7 +223,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | INFO-004 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-14 |
 | **Description** | Admin views detailed information of a specific member. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Admin logged in. Target member exists in DB. |
@@ -231,11 +231,20 @@
 | **Related UC** | INFO-006 (update member info) |
 
 **Main Flow**
-1. Frontend sends a detail request including userId to the backend.
-2. Backend returns the member's information.
+1. Admin opens the read-only detail action for a member in the current list.
+   The action remains visible and operable at widths up to 767 px and stays
+   separate from role mutation controls.
+2. Frontend sends `GET /api/users/{userId}` and shows a bounded loading state.
+3. Backend enforces ADMIN authority and returns only the existing
+   `UserDetailResponse`: id, nickname, email, phonePersonal, phoneCompany, job,
+   companyName, userType, role, isVerified, and createdAt.
+4. Closing the dialog or selecting another member aborts and retires the prior
+   request. A stale success or failure cannot replace the current dialog.
+5. A current read failure keeps the dialog bounded with retry and close actions.
 
 **Postconditions**
-- Member's detailed information displayed on screen.
+- The current member's bounded, read-only detail is displayed without password,
+  token, credential, or any field outside `UserDetailResponse`.
 
 ---
 
@@ -281,7 +290,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | INFO-006 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-14 |
 | **Description** | Admin updates a specific member's role and isVerified. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Admin logged in. Target member exists in DB. |
@@ -303,9 +312,14 @@
    profile fields, passwords, or tokens. Rejection rows preserve stable
    action/target/actor/error/state fields and store a null operator reason;
    successful role-change audits retain the approved reason.
-6. Frontend refreshes `/api/users/me` after success and after an ADMIN API 403,
-   then reevaluates menus and protected routes. Stale refresh responses are
-   rejected by session generation and user ID.
+6. After success, the page refreshes `/api/users/me`. For the exact
+   `403 ADMIN_ROLE_REQUIRED` failure, the role mutation opts out of centralized
+   ADMIN 403 synchronization and the page performs that one refresh so it can
+   report success or failure. Generic ADMIN 403 requests remain centrally
+   synchronized. No rejected role mutation is replayed.
+7. The auth store adopts only the server-returned current-user profile for the
+   initiating session generation and user ID, then protected routes reevaluate
+   the resulting role.
 
 **Postconditions**
 - Member's role and isVerified reflected in DB.

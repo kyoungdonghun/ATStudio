@@ -624,7 +624,14 @@ describe('domain API contracts', () => {
     );
     await tracks.fetchTrackDetail(7, controller.signal);
     await tracks.fetchTrackDetailForAdmin(7);
-    await tracks.fetchAdminTracks({ page: 2, size: 20, is_active: false, keyword: 'old' });
+    await tracks.fetchAdminTracks(
+      { page: 2, size: 20, is_active: false, keyword: 'old' },
+      controller.signal,
+    );
+    expect(mockedClient.get).toHaveBeenNthCalledWith(10, '/tracks/admin', {
+      params: { page: 2, size: 20, is_active: false, keyword: 'old' },
+      signal: controller.signal,
+    });
     const form = new FormData();
     await tracks.createTrack(form);
     await tracks.updateTrack(7, form);

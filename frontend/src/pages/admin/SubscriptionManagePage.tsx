@@ -4,8 +4,12 @@ import { fetchAdminSubscriptionPlans, type SubscriptionPlan } from '@/api/subscr
 import { formatNumber } from '@/utils/format';
 import styles from './SubscriptionManagePage.module.css';
 
-function formatDownloadLimit(value: number): string {
+function formatLimit(value: number): string {
   return value === -1 ? '무제한' : String(value);
+}
+
+function formatAudience(userType: SubscriptionPlan['userType']): string {
+  return userType === 'BUSINESS' ? '기업' : '개인';
 }
 
 export default function AdminSubscriptionManagePage() {
@@ -46,17 +50,19 @@ export default function AdminSubscriptionManagePage() {
           <thead>
             <tr>
               <th>이름</th>
+              <th>대상</th>
               <th className={styles.thRight}>월 요금</th>
               <th className={styles.thRight}>연 요금</th>
               <th className={styles.thRight}>일 다운로드</th>
               <th className={styles.thRight}>채널 한도</th>
+              <th className={styles.thRight}>재생목록 한도</th>
               <th>상태</th>
             </tr>
           </thead>
           <tbody>
             {plans.length === 0 ? (
               <tr>
-                <td colSpan={6} className={styles.empty}>
+                <td colSpan={8} className={styles.empty}>
                   등록된 플랜이 없습니다.
                 </td>
               </tr>
@@ -64,10 +70,12 @@ export default function AdminSubscriptionManagePage() {
               plans.map((plan) => (
                 <tr key={plan.id} className={styles.row}>
                   <td className={styles.planName}>{plan.name}</td>
+                  <td>{formatAudience(plan.userType)}</td>
                   <td className={styles.tdRight}>{formatNumber(plan.priceMonthly)}원</td>
                   <td className={styles.tdRight}>{formatNumber(plan.priceYearly)}원</td>
-                  <td className={styles.tdRight}>{formatDownloadLimit(plan.downloadPerDay)}</td>
+                  <td className={styles.tdRight}>{formatLimit(plan.downloadPerDay)}</td>
                   <td className={styles.tdRight}>{plan.maxWhitelistChannels}</td>
+                  <td className={styles.tdRight}>{formatLimit(plan.maxPlaylists)}</td>
                   <td>
                     <span
                       className={`${styles.badge} ${plan.isActive ? styles.badgeActive : styles.badgeInactive}`}

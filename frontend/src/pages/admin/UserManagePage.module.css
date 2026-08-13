@@ -267,6 +267,49 @@
   padding: 12px 20px;
 }
 
+.detailBody {
+  padding: 16px 20px 4px;
+}
+
+.detailState {
+  display: flex;
+  min-height: 120px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text1);
+  font-size: 14px;
+  text-align: center;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.45fr) minmax(0, 1fr);
+  margin: 0;
+  border-top: 1px solid var(--border);
+}
+
+.detailGrid dt,
+.detailGrid dd {
+  min-width: 0;
+  margin: 0;
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.detailGrid dt {
+  color: var(--text2);
+  font-weight: 600;
+}
+
+.detailGrid dd {
+  color: var(--text0);
+}
+
 /* ══ Mobile ══ */
 @media (max-width: 767px) {
   .page {
@@ -298,13 +341,11 @@
     white-space: nowrap;
   }
 
-  /* Hide ID(1), Change Role(5), Joined(6) on mobile — <select> 최소폭이 레이아웃 깨뜨림 */
-  .table th:nth-child(1),
-  .table td:nth-child(1),
-  .table th:nth-child(5),
-  .table td:nth-child(5),
-  .table th:nth-child(6),
-  .table td:nth-child(6) {
+  .mobileHidden {
     display: none;
+  }
+
+  .detailGrid {
+    grid-template-columns: minmax(90px, 0.4fr) minmax(0, 1fr);
   }
 }

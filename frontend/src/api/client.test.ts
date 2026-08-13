@@ -245,6 +245,57 @@ describe('client auth refresh exclusions', () => {
     expect(adapter).not.toHaveBeenCalled();
   });
 
+  it('honors the admin-role sync opt-out only for centralized 403 synchronization', async () => {
+    authState.role = 'ADMIN';
+    const adapter = vi.fn();
+    const error = {
+      config: {
+        url: '/users/2',
+        method: 'put',
+        headers: {},
+        adapter,
+        skipAdminRoleSync: true,
+      },
+      response: { status: 403 },
+    };
+
+    await expect(getRejectedResponseInterceptor()(error)).rejects.toBe(error);
+
+    expect(refreshCurrentUserMock).not.toHaveBeenCalled();
+    expect(adapter).not.toHaveBeenCalled();
+  });
+
+  it('still refreshes and replays a 401 when only admin-role synchronization opts out', async () => {
+    localStorage.setItem('refreshToken', 'old-refresh');
+    const postSpy = vi.spyOn(axios, 'post').mockResolvedValue({
+      data: { data: { accessToken: 'new-access', refreshToken: 'new-refresh' } },
+    });
+    const adapter = vi.fn().mockResolvedValue({
+      data: { ok: true },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    });
+
+    await expect(
+      getRejectedResponseInterceptor()({
+        config: {
+          url: '/users/2',
+          method: 'put',
+          headers: {},
+          adapter,
+          skipAdminRoleSync: true,
+        },
+        response: { status: 401 },
+      }),
+    ).resolves.toMatchObject({ data: { ok: true } });
+
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(adapter).toHaveBeenCalledTimes(1);
+    expect(clearSessionMock).not.toHaveBeenCalled();
+  });
+
   it('skips centralized 403 role sync for non-admin, /users/me, and auth requests', async () => {
     const rejected = getRejectedResponseInterceptor();
     const errors = [

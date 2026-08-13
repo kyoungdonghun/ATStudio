@@ -9,6 +9,7 @@ import NoticeEditPage from '@/pages/admin/NoticeEditPage';
 import QuestionManagePage from '@/pages/admin/QuestionManagePage';
 import SiteSettingsPage from '@/pages/admin/SiteSettingsPage';
 import AdminSubscriptionManagePage from '@/pages/admin/SubscriptionManagePage';
+import subscriptionStylesSource from '@/pages/admin/SubscriptionManagePage.module.css?raw';
 import TagManagePage from '@/pages/admin/TagManagePage';
 import TrackManagePage from '@/pages/admin/TrackManagePage';
 import LicenseDetailPage from '@/pages/subscriber/LicenseDetailPage';
@@ -46,6 +47,7 @@ const mocks = vi.hoisted(() => ({
   fetchUserLicenses: vi.fn(),
   fetchMyLicenses: vi.fn(),
   fetchLicenseDetail: vi.fn(),
+  fetchUserDetail: vi.fn(),
   fetchUsers: vi.fn(),
   fetchLikes: vi.fn(),
   removeLike: vi.fn(),
@@ -158,6 +160,7 @@ vi.mock('@/api/licenses', () => ({
 }));
 
 vi.mock('@/api/admin', () => ({
+  fetchUserDetail: mocks.fetchUserDetail,
   fetchUsers: mocks.fetchUsers,
 }));
 
@@ -316,6 +319,19 @@ beforeEach(() => {
   mocks.getSetting.mockResolvedValue('Original guide');
   mocks.fetchTags.mockResolvedValue([]);
   mocks.fetchUserLicenses.mockResolvedValue({ dataList: [], pageInfo: firstPage });
+  mocks.fetchUserDetail.mockResolvedValue({
+    id: 7,
+    email: 'member@example.com',
+    nickname: 'Member',
+    role: 'USER',
+    phonePersonal: null,
+    phoneCompany: null,
+    job: null,
+    companyName: null,
+    userType: 'INDIVIDUAL',
+    isVerified: true,
+    createdAt: '2026-07-01T00:00:00Z',
+  });
   mocks.fetchMyLicenses.mockResolvedValue({ dataList: [], pageInfo: firstPage });
   mocks.fetchLikes.mockResolvedValue({ dataList: [] });
   mocks.fetchAlbumLikes.mockResolvedValue({ dataList: [] });
@@ -339,6 +355,12 @@ beforeEach(() => {
 
 describe('admin page behavior coverage', () => {
   it('loads, edits, saves, and resets the company certification guide', async () => {
+    mocks.getSetting
+      .mockReset()
+      .mockResolvedValueOnce('Original guide')
+      .mockResolvedValueOnce('Canonical saved guide')
+      .mockResolvedValueOnce('Reloaded guide');
+    mocks.updateSetting.mockResolvedValue(undefined);
     renderRoute(<SiteSettingsPage />, '/admin/settings');
 
     const guide = await screen.findByDisplayValue('Original guide');
@@ -348,14 +370,15 @@ describe('admin page behavior coverage', () => {
     await waitFor(() =>
       expect(mocks.updateSetting).toHaveBeenCalledWith('COMPANY_CERT_GUIDE', 'Updated guide'),
     );
+    expect(await screen.findByDisplayValue('Canonical saved guide')).toBeInTheDocument();
     expect(mocks.toast).toHaveBeenCalledWith('success', '설정이 저장되었습니다.');
 
-    mocks.getSetting.mockResolvedValueOnce('Reloaded guide');
     fireEvent.click(screen.getByRole('button', { name: '초기화' }));
     expect(await screen.findByDisplayValue('Reloaded guide')).toBeInTheDocument();
   });
 
-  it('renders active, inactive, and unlimited subscription plan policy values', async () => {
+  it('preserves all eight mobile plan columns through horizontal scroll', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 767 });
     mocks.fetchAdminSubscriptionPlans.mockResolvedValue([
       {
         id: 1,
@@ -371,23 +394,33 @@ describe('admin page behavior coverage', () => {
       },
       {
         id: 2,
-        name: 'LEGACY',
+        name: 'STANDARD',
         description: null,
-        userType: 'INDIVIDUAL',
+        userType: 'BUSINESS',
         priceMonthly: 0,
         priceYearly: 0,
         downloadPerDay: 5,
         maxWhitelistChannels: 0,
-        maxPlaylists: 0,
+        maxPlaylists: -1,
         isActive: false,
       },
     ]);
 
     renderRoute(<AdminSubscriptionManagePage />, '/admin/subscriptions');
 
-    expect(await screen.findByText('STANDARD')).toBeInTheDocument();
-    expect(screen.getByText('무제한')).toBeInTheDocument();
-    expect(screen.getByText('비활성')).toBeInTheDocument();
+    expect(subscriptionStylesSource).toMatch(/\.tableWrap\s*{[^}]*overflow-x:\s*auto;/s);
+    expect(subscriptionStylesSource).toMatch(/\.table\s*{[^}]*min-width:\s*\d+px;/s);
+    expect(subscriptionStylesSource).not.toMatch(/nth-child\s*\(/);
+    expect((await screen.findByRole('table')).querySelectorAll('th')).toHaveLength(8);
+    const planRows = (await screen.findAllByText('STANDARD')).map((name) => name.closest('tr')!);
+    expect(planRows).toHaveLength(2);
+    expect(planRows[0].querySelectorAll('td')).toHaveLength(8);
+    expect(planRows[1].querySelectorAll('td')).toHaveLength(8);
+    expect(within(planRows[0]).getByText('개인')).toBeInTheDocument();
+    expect(within(planRows[1]).getByText('기업')).toBeInTheDocument();
+    expect(within(planRows[0]).getByText('3')).toBeInTheDocument();
+    expect(within(planRows[1]).getByText('무제한')).toBeInTheDocument();
+    expect(within(planRows[1]).getByText('비활성')).toBeInTheDocument();
     expect(mocks.fetchAdminSubscriptionPlans).toHaveBeenCalledTimes(1);
   });
 
@@ -512,7 +545,10 @@ describe('admin page behavior coverage', () => {
     expect(await screen.findByRole('button', { name: /Member/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Member/ }));
 
-    await waitFor(() => expect(mocks.fetchUserLicenses).toHaveBeenCalledWith(7, 1, 20));
+    await waitFor(() =>
+      expect(mocks.fetchUserLicenses).toHaveBeenCalledWith(7, 1, 20, expect.any(AbortSignal)),
+    );
+    expect(mocks.fetchUserDetail).toHaveBeenCalledWith(7, expect.any(AbortSignal));
     expect(await screen.findByText('License Track')).toBeInTheDocument();
     expect(screen.getByText('LICENSE-CODE-1234567890')).toBeInTheDocument();
   });
@@ -1080,18 +1116,24 @@ describe('admin page behavior coverage', () => {
 
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'inactive' } });
     await waitFor(() =>
-      expect(mocks.fetchAdminTracks).toHaveBeenCalledWith({ page: 1, size: 20, is_active: false }),
+      expect(mocks.fetchAdminTracks).toHaveBeenCalledWith(
+        { page: 1, size: 20, is_active: false },
+        expect.any(AbortSignal),
+      ),
     );
     const search = screen.getByPlaceholderText('곡 제목 검색');
     fireEvent.change(search, { target: { value: ' Searchable ' } });
     fireEvent.keyDown(search, { key: 'Enter' });
     await waitFor(() =>
-      expect(mocks.fetchAdminTracks).toHaveBeenCalledWith({
-        page: 1,
-        size: 20,
-        is_active: false,
-        keyword: 'Searchable',
-      }),
+      expect(mocks.fetchAdminTracks).toHaveBeenCalledWith(
+        {
+          page: 1,
+          size: 20,
+          is_active: false,
+          keyword: 'Searchable',
+        },
+        expect.any(AbortSignal),
+      ),
     );
 
     fireEvent.click(screen.getByRole('button', { name: '삭제' }));

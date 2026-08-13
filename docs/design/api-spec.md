@@ -1,6 +1,6 @@
 ---
-version: 30.7
-last_updated: 2026-08-13
+version: 30.9
+last_updated: 2026-08-14
 project: ATS
 owner: SA
 category: design
@@ -422,6 +422,16 @@ documented operational need, and sanitize or omit failure text.
 - `GET /api/admin/whitelist-channels/exports/recent`
 - `GET /api/admin/whitelist-channels/exports/{batchID}`
 
+#### Site Settings Canonical Publication Contract
+
+`PUT /api/admin/settings/{key}` remains ADMIN-authorized and stores the exact
+submitted value. While a save is pending, the ADMIN screen freezes the setting
+input. After the PUT succeeds, it reads `GET /api/settings/{key}` and shows
+success only after that public read returns; the returned value replaces the
+submitted draft as the canonical visible value. A failed confirmation read
+does not claim success and does not retry the PUT. The company certification
+application consumes the same public setting read.
+
 #### ADMIN Whitelist Export Recovery Contract
 
 Whitelist export remains an ADMIN-only mutation. Its request scope consists of
@@ -513,6 +523,20 @@ failure, and completion paths cannot replace a newer request state.
 contains `phonePersonal`, `phoneCompany`, `job`, and `companyName`. ADMIN role
 assignment accepts only backend roles `USER` and `ADMIN`; frontend-only `GUEST`
 is never an assignable wire value.
+
+The ADMIN SPA opens `GET /api/users/{userId}` in a read-only, latest-request-
+owned detail dialog. It renders only `id`, `nickname`, `email`,
+`phonePersonal`, `phoneCompany`, `job`, `companyName`, `userType`, `role`,
+`isVerified`, and `createdAt`; no credential or token field is part of this
+contract. Server ADMIN authorization remains authoritative.
+
+The `updateUserAdmin` request opts out of centralized ADMIN `403` role
+synchronization. For the exact `403 ADMIN_ROLE_REQUIRED` response, the User
+Management page performs one current-user read, adopts the server-returned
+profile through the auth store, and lets the canonical route guard reevaluate
+access. The rejected PUT is never replayed. Generic ADMIN `403` requests retain
+centralized role synchronization, and the opt-out does not affect `401`
+authentication refresh/replay.
 
 ### Subscription and Recurring Payment (14)
 

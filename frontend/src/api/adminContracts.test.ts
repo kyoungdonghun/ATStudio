@@ -36,6 +36,7 @@ import {
   fetchCompanyCert,
   fetchCompanyCerts,
   fetchDashboardStats,
+  fetchUserDetail,
   fetchUsers,
   ignoreAdminPaymentSettlement,
   importAdminPaymentSettlements,
@@ -92,6 +93,7 @@ describe('admin API contracts', () => {
         response({ totalUsers: 10, totalTracks: 20, totalSubscribers: 3, recentUsers: [] }),
       )
       .mockResolvedValueOnce({ data: userPage })
+      .mockResolvedValueOnce(response(adminUserDetail))
       .mockResolvedValueOnce({ data: page })
       .mockResolvedValueOnce(response(entity))
       .mockResolvedValueOnce({
@@ -116,6 +118,10 @@ describe('admin API contracts', () => {
       params: { page: 2, size: 25, keyword: 'user', userType: 'BUSINESS' },
       signal: controller.signal,
     });
+    await expect(fetchUserDetail(4, controller.signal)).resolves.toEqual(adminUserDetail);
+    expect(mockedClient.get).toHaveBeenNthCalledWith(3, '/users/4', {
+      signal: controller.signal,
+    });
     await expect(
       updateUserAdmin(4, {
         role: 'ADMIN',
@@ -123,11 +129,16 @@ describe('admin API contracts', () => {
         reason: 'Approved access change',
       }),
     ).resolves.toEqual(adminUserDetail);
-    expect(mockedClient.put).toHaveBeenNthCalledWith(1, '/users/4', {
-      role: 'ADMIN',
-      isVerified: true,
-      reason: 'Approved access change',
-    });
+    expect(mockedClient.put).toHaveBeenNthCalledWith(
+      1,
+      '/users/4',
+      {
+        role: 'ADMIN',
+        isVerified: true,
+        reason: 'Approved access change',
+      },
+      { skipAdminRoleSync: true },
+    );
     expectTypeOf<AdminAssignableRole>().toEqualTypeOf<'USER' | 'ADMIN'>();
     expectTypeOf<NonNullable<Parameters<typeof updateUserAdmin>[1]['role']>>().toEqualTypeOf<
       'USER' | 'ADMIN'
@@ -138,7 +149,7 @@ describe('admin API contracts', () => {
     await processCompanyCert(9, { status: 'APPROVED', adminNote: 'Verified' });
     const document = await downloadCompanyCertDocument(9, 2);
     expect(document.fileName).toBe('business license.pdf');
-    expect(mockedClient.get).toHaveBeenNthCalledWith(5, '/company-certifications/9/documents/2', {
+    expect(mockedClient.get).toHaveBeenNthCalledWith(6, '/company-certifications/9/documents/2', {
       responseType: 'blob',
     });
 

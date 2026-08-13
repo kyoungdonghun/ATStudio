@@ -3,18 +3,21 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import UserManagePage from '@/pages/admin/UserManagePage';
+import styles from '@/pages/admin/UserManagePage.module.css';
 import ProtectedRoute from '@/router/ProtectedRoute';
 import { useAuthStore } from '@/store/authStore';
 import type { AdminAssignableRole, AdminUserDetail, AdminUserListItem } from '@/api/admin';
 import type { PagedResponse, User } from '@/types';
 
 const mocks = vi.hoisted(() => ({
+  fetchUserDetail: vi.fn(),
   fetchUsers: vi.fn(),
   fetchMe: vi.fn(),
   updateUserAdmin: vi.fn(),
 }));
 
 vi.mock('@/api/admin', () => ({
+  fetchUserDetail: (...args: unknown[]) => mocks.fetchUserDetail(...args),
   fetchUsers: (...args: unknown[]) => mocks.fetchUsers(...args),
   updateUserAdmin: (...args: unknown[]) => mocks.updateUserAdmin(...args),
 }));
@@ -129,6 +132,7 @@ describe('UserManagePage request fencing', () => {
     localStorage.clear();
     sessionStorage.clear();
     useAuthStore.setState({ user: null, accessToken: null, role: 'GUEST' });
+    mocks.fetchUserDetail.mockReset();
     mocks.fetchUsers.mockReset();
     mocks.fetchMe.mockReset();
     mocks.updateUserAdmin.mockReset();
@@ -173,6 +177,7 @@ describe('UserManagePage administrator role safety', () => {
     localStorage.clear();
     sessionStorage.clear();
     useAuthStore.setState({ user: null, accessToken: null, role: 'GUEST' });
+    mocks.fetchUserDetail.mockReset();
     mocks.fetchUsers.mockReset();
     mocks.fetchMe.mockReset();
     mocks.updateUserAdmin.mockReset();
@@ -237,9 +242,88 @@ describe('UserManagePage administrator role safety', () => {
       expect(screen.getByRole('heading', { name: 'User Management' })).toBeInTheDocument();
       expect(screen.getAllByText('TargetAdmin')).not.toHaveLength(0);
       expect(screen.getByRole('dialog', { name: 'Confirm Role Change' })).toBeInTheDocument();
-      expect(mocks.fetchMe).not.toHaveBeenCalled();
+      expect(mocks.updateUserAdmin).toHaveBeenCalledTimes(1);
+      if (errorCode === 'ADMIN_ROLE_REQUIRED') {
+        await waitFor(() => expect(mocks.fetchMe).toHaveBeenCalledTimes(1));
+      } else {
+        expect(mocks.fetchMe).not.toHaveBeenCalled();
+      }
     },
   );
+
+  it('renders only the bounded read-only detail and ignores a retired detail response', async () => {
+    const firstTarget = adminUser(2, 'FirstTarget');
+    const secondTarget = adminUser(3, 'SecondTarget');
+    const firstDetail = deferred<AdminUserDetail>();
+    const secondDetail = deferred<AdminUserDetail>();
+    setSession(currentAdmin);
+    mocks.fetchUsers.mockResolvedValue(page(firstTarget, secondTarget));
+    mocks.fetchUserDetail
+      .mockReturnValueOnce(firstDetail.promise)
+      .mockReturnValueOnce(secondDetail.promise);
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'View details for FirstTarget' }));
+    const firstSignal = mocks.fetchUserDetail.mock.calls[0][1] as AbortSignal;
+    fireEvent.click(screen.getByRole('button', { name: 'Close user details' }));
+    expect(firstSignal.aborted).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'View details for SecondTarget' }));
+    await act(async () =>
+      secondDetail.resolve({
+        ...adminUserDetail(secondTarget),
+        phonePersonal: '010-2222-3333',
+        phoneCompany: '02-222-3333',
+        job: 'EDITOR',
+        companyName: 'Second Company',
+      }),
+    );
+
+    const dialog = await screen.findByRole('dialog', { name: 'User Details' });
+    expect(within(dialog).getByText('SecondTarget')).toBeInTheDocument();
+    expect(within(dialog).getByText('010-2222-3333')).toBeInTheDocument();
+    expect(within(dialog).getByText('Second Company')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/password|token/i)).not.toBeInTheDocument();
+
+    await act(async () => firstDetail.resolve(adminUserDetail(firstTarget)));
+    expect(within(dialog).getByText('SecondTarget')).toBeInTheDocument();
+    expect(within(dialog).queryByText('FirstTarget')).not.toBeInTheDocument();
+    expect(mocks.fetchUserDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the mobile detail action visible and supports open, retry, and close', async () => {
+    const target = adminUser(2, 'RetryTarget');
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 767 });
+    setSession(currentAdmin);
+    mocks.fetchUsers.mockResolvedValue(page(target));
+    mocks.fetchUserDetail
+      .mockRejectedValueOnce(new Error('unavailable'))
+      .mockResolvedValueOnce(adminUserDetail(target));
+    renderPage();
+
+    const detailAction = await screen.findByRole('button', {
+      name: 'View details for RetryTarget',
+    });
+    const row = detailAction.closest('tr');
+    expect(row).not.toBeNull();
+    expect(row!.children[0]).toHaveClass(styles.mobileHidden);
+    expect(detailAction.closest('td')).not.toHaveClass(styles.mobileHidden);
+    expect(row!.children[5]).toHaveClass(styles.mobileHidden);
+    expect(row!.children[6]).toHaveClass(styles.mobileHidden);
+
+    fireEvent.click(detailAction);
+    const dialog = await screen.findByRole('dialog', { name: 'User Details' });
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Failed to load user details. Try again.',
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Retry' }));
+
+    expect(await within(dialog).findByText('RetryTarget')).toBeInTheDocument();
+    expect(mocks.fetchUserDetail).toHaveBeenCalledTimes(2);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close user details' }));
+    expect(screen.queryByRole('dialog', { name: 'User Details' })).not.toBeInTheDocument();
+  });
 
   it('refreshes /users/me once after a successful role mutation', async () => {
     const targetAdmin = adminUser(2, 'TargetAdmin', 'ADMIN');
@@ -266,6 +350,54 @@ describe('UserManagePage administrator role safety', () => {
       'USER',
     );
     expect(useAuthStore.getState().role).toBe('ADMIN');
+  });
+
+  it('refreshes a typed stale-authority rejection once and lets the guard remove ADMIN access', async () => {
+    const targetAdmin = adminUser(2, 'TargetAdmin', 'ADMIN');
+    const demotedCurrentUser: User = { ...currentAdmin, role: 'USER' };
+    setSession(currentAdmin);
+    mocks.fetchUsers.mockResolvedValue(page(targetAdmin));
+    mocks.updateUserAdmin.mockRejectedValue({
+      response: { status: 403, data: { errorCode: 'ADMIN_ROLE_REQUIRED' } },
+    });
+    mocks.fetchMe.mockResolvedValue(demotedCurrentUser);
+    renderProtectedPage();
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Change role for TargetAdmin' }), {
+      target: { value: 'USER' },
+    });
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm Role Change' });
+    fireEvent.change(within(dialog).getByLabelText('Operator reason'), {
+      target: { value: 'Stale authority check' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+
+    expect(await screen.findByText('Home Page')).toBeInTheDocument();
+    expect(mocks.updateUserAdmin).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchMe).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().role).toBe('USER');
+  });
+
+  it('does not refresh authority when the stale-authority code is not a 403', async () => {
+    const targetAdmin = adminUser(2, 'TargetAdmin', 'ADMIN');
+    setSession(currentAdmin);
+    mocks.fetchUsers.mockResolvedValue(page(targetAdmin));
+    mocks.updateUserAdmin.mockRejectedValue({
+      response: { status: 409, data: { errorCode: 'ADMIN_ROLE_REQUIRED' } },
+    });
+    renderPage();
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Change role for TargetAdmin' }), {
+      target: { value: 'USER' },
+    });
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm Role Change' });
+    fireEvent.change(within(dialog).getByLabelText('Operator reason'), {
+      target: { value: 'Unexpected status check' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => expect(mocks.updateUserAdmin).toHaveBeenCalledTimes(1));
+    expect(mocks.fetchMe).not.toHaveBeenCalled();
   });
 
   it('requires a trimmed operator reason before sending a role mutation', async () => {

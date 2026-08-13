@@ -18,7 +18,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | CC-001 |
-| **Version** | 26-07-16 |
+| **Version** | 26-08-14 |
 | **Description** | A BUSINESS type member applies for company certification review before subscribing to a business plan. |
 | **Actor** | User (BUSINESS member), Backend |
 | **Preconditions** | Logged in. Member with userType=BUSINESS. No existing PENDING, APPROVED, or REVISION_REQUESTED application. REJECTED history does not block a new application. |
@@ -30,15 +30,18 @@
    lookup. A definitive `404` or an existing `REJECTED` application opens the
    form. Another existing status redirects to status. A `403` remains denied;
    a network or server failure is blocking and exposes a manual retry.
-2. User uploads review document files. Frontend permits PDF/JPG/JPEG/PNG, at most 10 files, 20 MiB per file, 50 MiB in aggregate, 255 characters per filename, and rejects empty files across consecutive selections.
-3. Frontend sends the files to the backend as multipart/form-data only after
+2. Application guidance reads
+   `GET /api/settings/COMPANY_CERT_GUIDE`. When present, the exact public value
+   is displayed; an absent or failed read falls back to the built-in guidance.
+3. User uploads review document files. Frontend permits PDF/JPG/JPEG/PNG, at most 10 files, 20 MiB per file, 50 MiB in aggregate, 255 characters per filename, and rejects empty files across consecutive selections.
+4. Frontend sends the files to the backend as multipart/form-data only after
    the definitive allowed lookup result. These checks are early guidance only;
    backend validation is authoritative.
-4. Backend locks the owning user row before checking open applications, then verifies userType=BUSINESS.
-5. Backend rejects any null/empty multipart part and enforces count, per-file/aggregate size, filename length, extension, signature, and MIME rules.
-6. Backend stores the document files under a private per-submission directory.
-7. Backend creates `company_certifications` (status=PENDING) and `company_certification_documents` metadata rows.
-8. Backend returns a success response without a storage directory hint or stored path.
+5. Backend locks the owning user row before checking open applications, then verifies userType=BUSINESS.
+6. Backend rejects any null/empty multipart part and enforces count, per-file/aggregate size, filename length, extension, signature, and MIME rules.
+7. Backend stores the document files under a private per-submission directory.
+8. Backend creates `company_certifications` (status=PENDING) and `company_certification_documents` metadata rows.
+9. Backend returns a success response without a storage directory hint or stored path.
 
 **Exception / Alternative Flow**
 - Not a BUSINESS type member: 403 response.

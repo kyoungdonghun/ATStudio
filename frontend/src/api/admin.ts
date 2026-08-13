@@ -63,6 +63,16 @@ export async function fetchUsers(
   return data;
 }
 
+export async function fetchUserDetail(
+  userId: number,
+  signal?: AbortSignal,
+): Promise<AdminUserDetail> {
+  const { data } = await client.get<ApiResponse<AdminUserDetail>>(`/users/${userId}`, {
+    signal,
+  });
+  return data.data;
+}
+
 export interface UpdateUserAdminRequest {
   role?: AdminAssignableRole;
   isVerified?: boolean;
@@ -73,7 +83,9 @@ export async function updateUserAdmin(
   userId: number,
   body: UpdateUserAdminRequest,
 ): Promise<AdminUserDetail> {
-  const { data } = await client.put<ApiResponse<AdminUserDetail>>(`/users/${userId}`, body);
+  const { data } = await client.put<ApiResponse<AdminUserDetail>>(`/users/${userId}`, body, {
+    skipAdminRoleSync: true,
+  });
   return data.data;
 }
 

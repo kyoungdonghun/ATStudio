@@ -42,7 +42,7 @@
 | Field | Value |
 |-------|-------|
 | **Code** | INFO-010 |
-| **Version** | 26-02-20 |
+| **Version** | 26-08-14 |
 | **Description** | Admin views the license list of a specific member. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Admin logged in. Target member exists in DB. |
@@ -50,11 +50,23 @@
 | **Related UC** | INFO-012 (license detail) |
 
 **Main Flow**
-1. Frontend sends a request including userId and page parameters to the backend.
-2. Backend queries and returns the member's license list.
+1. User search publication is owned by its request generation, normalized
+   submitted keyword, current input, and current URL context. Input edits,
+   canonical User selection, URL/User context changes, and unmount abort and
+   retire pending search work; a retired response cannot publish rows,
+   dropdown, loading, or error state.
+2. The positive `userId` in the URL is the canonical selected-member key.
+3. Frontend requests both `GET /api/users/{userId}` for the visible canonical
+   member identity and the paginated license list for that exact user and page.
+4. A user, page, or route change aborts and retires the prior context, clears
+   prior identity/list state, and starts one newer context.
+5. Only the current context may publish identity, rows, pageInfo, loading, or
+   error state. A late User A response cannot overwrite User B.
+6. Backend enforces ADMIN authority and returns the member detail and licenses.
 
 **Postconditions**
-- Member's license list displayed on screen.
+- The deep-linked member's canonical visible identity and license list are
+  displayed for the same latest-owned context.
 
 ---
 

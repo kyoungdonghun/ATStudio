@@ -94,63 +94,72 @@ export default function QuestionManagePage() {
   const listRequestGenerationRef = useRef(0);
   currentProjectionRef.current = currentProjection;
 
-  const load = useCallback(async (projection: QuestionListProjection) => {
-    if (currentProjectionRef.current.key !== projection.key) return;
-
+  const retireListRequest = useCallback(() => {
     activeListRequestRef.current?.abort();
-    const controller = new AbortController();
-    const requestGeneration = ++listRequestGenerationRef.current;
-    activeListRequestRef.current = controller;
-
-    try {
-      setLoading(true);
-      setError(null);
-      setMutationError(null);
-      const result = await fetchQuestions(
-        {
-          page: projection.page,
-          size: 20,
-          mine: false,
-          category: projection.category,
-          status: projection.status,
-        },
-        controller.signal,
-      );
-      if (
-        controller.signal.aborted ||
-        listRequestGenerationRef.current !== requestGeneration ||
-        currentProjectionRef.current.key !== projection.key
-      ) {
-        return;
-      }
-      setItems(result.dataList);
-      setPageInfo(result.pageInfo);
-    } catch {
-      if (
-        controller.signal.aborted ||
-        listRequestGenerationRef.current !== requestGeneration ||
-        currentProjectionRef.current.key !== projection.key
-      ) {
-        return;
-      }
-      setError('문의 목록을 불러오지 못했습니다.');
-    } finally {
-      if (
-        listRequestGenerationRef.current === requestGeneration &&
-        currentProjectionRef.current.key === projection.key
-      ) {
-        setLoading(false);
-      }
-      if (activeListRequestRef.current === controller) {
-        activeListRequestRef.current = null;
-      }
-    }
+    activeListRequestRef.current = null;
+    listRequestGenerationRef.current += 1;
   }, []);
+
+  const load = useCallback(
+    async (projection: QuestionListProjection) => {
+      if (currentProjectionRef.current.key !== projection.key) return;
+
+      retireListRequest();
+      const controller = new AbortController();
+      const requestGeneration = ++listRequestGenerationRef.current;
+      activeListRequestRef.current = controller;
+
+      try {
+        setLoading(true);
+        setError(null);
+        setMutationError(null);
+        const result = await fetchQuestions(
+          {
+            page: projection.page,
+            size: 20,
+            mine: false,
+            category: projection.category,
+            status: projection.status,
+          },
+          controller.signal,
+        );
+        if (
+          controller.signal.aborted ||
+          listRequestGenerationRef.current !== requestGeneration ||
+          currentProjectionRef.current.key !== projection.key
+        ) {
+          return;
+        }
+        setItems(result.dataList);
+        setPageInfo(result.pageInfo);
+      } catch {
+        if (
+          controller.signal.aborted ||
+          listRequestGenerationRef.current !== requestGeneration ||
+          currentProjectionRef.current.key !== projection.key
+        ) {
+          return;
+        }
+        setError('문의 목록을 불러오지 못했습니다.');
+      } finally {
+        if (
+          listRequestGenerationRef.current === requestGeneration &&
+          currentProjectionRef.current.key === projection.key
+        ) {
+          setLoading(false);
+        }
+        if (activeListRequestRef.current === controller) {
+          activeListRequestRef.current = null;
+        }
+      }
+    },
+    [retireListRequest],
+  );
 
   useEffect(() => {
     void load(createQuestionListProjection(currentPage, categoryFilter, statusFilter));
-    return () => activeListRequestRef.current?.abort();
-  }, [load, currentPage, categoryFilter, statusFilter]);
+    return retireListRequest;
+  }, [load, retireListRequest, currentPage, categoryFilter, statusFilter]);
 
   function updateParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams);
@@ -160,6 +169,11 @@ export default function QuestionManagePage() {
       next.delete(key);
     }
     if (key !== 'page') next.delete('page');
+    retireListRequest();
+    setItems([]);
+    setPageInfo(null);
+    setError(null);
+    setLoading(true);
     setSearchParams(next, { replace: true });
   }
 

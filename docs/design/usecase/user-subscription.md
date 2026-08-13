@@ -1,6 +1,6 @@
 ---
-version: 3.2
-last_updated: 2026-08-09
+version: 3.4
+last_updated: 2026-08-14
 project: ATS
 owner: docops
 category: design
@@ -32,6 +32,15 @@ There is no direct subscription-creation endpoint or alternate checkout path.
 - `GET /api/subscriptions`: public active plans.
 - `GET /api/subscriptions/{subscriptionId}`: public plan detail.
 - `GET /api/subscriptions/admin`: ADMIN list including inactive plans.
+
+The ADMIN plan table displays the plan name together with its `userType`
+audience, monthly and yearly prices, download/channel limits,
+`maxPlaylists`, and status. `maxPlaylists = -1` is displayed as unlimited.
+Audience remains visible so same-name INDIVIDUAL and BUSINESS plans are
+distinguishable.
+At widths up to 767 px, the table retains all eight fields behind its existing
+horizontal scroll container and a stable minimum table width. Mobile styling
+does not positionally hide any price, limit, audience, or status field.
 
 The six runtime baseline plans are owned by `seed.sql`.
 

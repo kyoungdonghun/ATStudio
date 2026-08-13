@@ -23,6 +23,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.mockito.Mockito.never;
@@ -85,9 +86,34 @@ class UserControllerTest {
     @DisplayName("GET /api/users/{id} - ADMIN → 200")
     void getUser_adminRole_returns200() throws Exception {
         given(userService.getUser(anyLong())).willReturn(
-                new UserDetailResponse(1L, "nick", "user@test.com", null, null, null, null, "INDIVIDUAL", "USER", false, null));
+                new UserDetailResponse(
+                        1L,
+                        "nick",
+                        "user@test.com",
+                        "010-0000-0000",
+                        "02-000-0000",
+                        "EDITOR",
+                        "ATStudio Partner",
+                        "BUSINESS",
+                        "USER",
+                        true,
+                        null));
 
-        mockMvc.perform(get("/api/users/1")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/users/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(1))
+                .andExpect(jsonPath("$.data.nickname").value("nick"))
+                .andExpect(jsonPath("$.data.email").value("user@test.com"))
+                .andExpect(jsonPath("$.data.phonePersonal").value("010-0000-0000"))
+                .andExpect(jsonPath("$.data.phoneCompany").value("02-000-0000"))
+                .andExpect(jsonPath("$.data.job").value("EDITOR"))
+                .andExpect(jsonPath("$.data.companyName").value("ATStudio Partner"))
+                .andExpect(jsonPath("$.data.userType").value("BUSINESS"))
+                .andExpect(jsonPath("$.data.role").value("USER"))
+                .andExpect(jsonPath("$.data.isVerified").value(true))
+                .andExpect(jsonPath("$.data.password").doesNotExist())
+                .andExpect(jsonPath("$.data.accessToken").doesNotExist())
+                .andExpect(jsonPath("$.data.refreshToken").doesNotExist());
     }
 
     // ── PUT /api/users/{id} (ADMIN 전용) ──────────────────────────────────────

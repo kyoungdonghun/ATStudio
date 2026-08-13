@@ -1,9 +1,11 @@
 /** Screen K-1: User management */
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
+  fetchUserDetail,
   fetchUsers,
   updateUserAdmin,
   type AdminAssignableRole,
+  type AdminUserDetail,
   type AdminUserListItem,
 } from '@/api/admin';
 import { classifyLoadError, getApiErrorCode } from '@/api/loadError';
@@ -61,6 +63,14 @@ export default function UserManagePage() {
     message: string;
   } | null>(null);
 
+  /* Read-only User detail modal */
+  const [detailTarget, setDetailTarget] = useState<AdminUserListItem | null>(null);
+  const [detail, setDetail] = useState<AdminUserDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const detailGenerationRef = useRef(0);
+  const detailControllerRef = useRef<AbortController | null>(null);
+
   const refreshRoleSnapshot = useCallback(async () => {
     try {
       return await refreshCurrentUser();
@@ -117,6 +127,14 @@ export default function UserManagePage() {
     };
   }, [loadUsers]);
 
+  useEffect(
+    () => () => {
+      detailControllerRef.current?.abort();
+      detailGenerationRef.current += 1;
+    },
+    [],
+  );
+
   const handleSearch = () => {
     setPage(1);
     setKeyword(searchInput.trim());
@@ -136,6 +154,41 @@ export default function UserManagePage() {
     setRoleReason('');
     setRoleReasonError(null);
     setRoleTarget({ user, newRole });
+  };
+
+  const closeUserDetail = () => {
+    detailControllerRef.current?.abort();
+    detailControllerRef.current = null;
+    detailGenerationRef.current += 1;
+    setDetailTarget(null);
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(false);
+  };
+
+  const openUserDetail = (user: AdminUserListItem) => {
+    detailControllerRef.current?.abort();
+    const controller = new AbortController();
+    const generation = ++detailGenerationRef.current;
+    detailControllerRef.current = controller;
+    setDetailTarget(user);
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(true);
+
+    fetchUserDetail(user.id, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted || detailGenerationRef.current !== generation) return;
+        setDetail(result);
+      })
+      .catch(() => {
+        if (controller.signal.aborted || detailGenerationRef.current !== generation) return;
+        setDetailError('Failed to load user details. Try again.');
+      })
+      .finally(() => {
+        if (detailGenerationRef.current === generation) setDetailLoading(false);
+        if (detailControllerRef.current === controller) detailControllerRef.current = null;
+      });
   };
 
   const confirmRoleChange = async () => {
@@ -166,10 +219,23 @@ export default function UserManagePage() {
         });
       }
     } catch (roleChangeError: unknown) {
+      const errorCode = getApiErrorCode(roleChangeError);
       setRoleFeedback({
         userID: roleTarget.user.id,
         message: roleChangeErrorMessage(roleChangeError),
       });
+      if (
+        errorCode === 'ADMIN_ROLE_REQUIRED' &&
+        classifyLoadError(roleChangeError) === 'forbidden'
+      ) {
+        const refreshedUser = await refreshRoleSnapshot();
+        if (!refreshedUser) {
+          setRoleFeedback({
+            userID: roleTarget.user.id,
+            message: ROLE_SYNC_FAILURE_MESSAGE,
+          });
+        }
+      }
     } finally {
       setRoleLoading(false);
     }
@@ -214,18 +280,19 @@ export default function UserManagePage() {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>ID</th>
+              <th className={styles.mobileHidden}>ID</th>
               <th>Email</th>
               <th>Nickname</th>
               <th>Role</th>
-              <th>Change Role</th>
-              <th>Joined</th>
+              <th>Details</th>
+              <th className={styles.mobileHidden}>Change Role</th>
+              <th className={styles.mobileHidden}>Joined</th>
             </tr>
           </thead>
           <tbody>
             {users.length === 0 && (
               <tr>
-                <td colSpan={6} className={styles.empty}>
+                <td colSpan={7} className={styles.empty}>
                   No users found.
                 </td>
               </tr>
@@ -236,13 +303,23 @@ export default function UserManagePage() {
               const roleControlHintID = `user-role-hint-${u.id}`;
               return (
                 <tr key={u.id} className={styles.row}>
-                  <td>{u.id}</td>
+                  <td className={styles.mobileHidden}>{u.id}</td>
                   <td>{u.email}</td>
                   <td>{u.nickname}</td>
                   <td>
                     <span className={styles.roleBadge}>{u.role}</span>
                   </td>
                   <td>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-label={`View details for ${u.nickname}`}
+                      onClick={() => openUserDetail(u)}
+                    >
+                      View
+                    </Button>
+                  </td>
+                  <td className={styles.mobileHidden}>
                     <div className={styles.roleControl}>
                       <select
                         className={styles.roleSelect}
@@ -270,7 +347,7 @@ export default function UserManagePage() {
                       )}
                     </div>
                   </td>
-                  <td>{formatDate(u.createdAt)}</td>
+                  <td className={styles.mobileHidden}>{formatDate(u.createdAt)}</td>
                 </tr>
               );
             })}
@@ -281,6 +358,58 @@ export default function UserManagePage() {
       {pageInfo && pageInfo.total > pageInfo.size && (
         <Pagination pageInfo={pageInfo} currentPage={page} onPageChange={setPage} />
       )}
+
+      <Modal open={detailTarget !== null} onClose={closeUserDetail} title="User Details">
+        <div className={styles.detailBody}>
+          {detailLoading ? (
+            <div className={styles.detailState}>Loading user details...</div>
+          ) : detailError ? (
+            <div className={styles.detailState} role="alert">
+              <span>{detailError}</span>
+              {detailTarget && (
+                <Button size="sm" variant="outline" onClick={() => openUserDetail(detailTarget)}>
+                  Retry
+                </Button>
+              )}
+            </div>
+          ) : detail ? (
+            <dl className={styles.detailGrid}>
+              <dt>ID</dt>
+              <dd>{detail.id}</dd>
+              <dt>Nickname</dt>
+              <dd>{detail.nickname}</dd>
+              <dt>Email</dt>
+              <dd>{detail.email}</dd>
+              <dt>Personal phone</dt>
+              <dd>{detail.phonePersonal ?? 'Not provided'}</dd>
+              <dt>Company phone</dt>
+              <dd>{detail.phoneCompany ?? 'Not provided'}</dd>
+              <dt>Job</dt>
+              <dd>{detail.job ?? 'Not provided'}</dd>
+              <dt>Company</dt>
+              <dd>{detail.companyName ?? 'Not provided'}</dd>
+              <dt>User type</dt>
+              <dd>{detail.userType}</dd>
+              <dt>Role</dt>
+              <dd>{detail.role}</dd>
+              <dt>Verification</dt>
+              <dd>{detail.isVerified ? 'Verified' : 'Not verified'}</dd>
+              <dt>Joined</dt>
+              <dd>{formatDate(detail.createdAt)}</dd>
+            </dl>
+          ) : null}
+        </div>
+        <div className={styles.modalActions}>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="Close user details"
+            onClick={closeUserDetail}
+          >
+            Close
+          </Button>
+        </div>
+      </Modal>
 
       {/* Role change confirm modal */}
       <Modal

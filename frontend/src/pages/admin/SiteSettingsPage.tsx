@@ -1,5 +1,5 @@
 /** Screen K-10: Site settings (admin) */
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getSetting, updateSetting } from '@/api/settings';
 import { useToastStore } from '@/store/toastStore';
 import Button from '@/components/ui/Button';
@@ -12,6 +12,7 @@ export default function SiteSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const savePendingRef = useRef(false);
   const showToast = useToastStore((s) => s.show);
 
   const loadSetting = useCallback(async () => {
@@ -32,13 +33,26 @@ export default function SiteSettingsPage() {
   }, [loadSetting]);
 
   async function handleSave() {
+    if (savePendingRef.current) return;
+    const submittedValue = value;
+    let updateCompleted = false;
+    savePendingRef.current = true;
     setSaving(true);
     try {
-      await updateSetting(SETTING_KEY, value);
+      await updateSetting(SETTING_KEY, submittedValue);
+      updateCompleted = true;
+      const canonicalValue = await getSetting(SETTING_KEY);
+      setValue(canonicalValue);
       showToast('success', '설정이 저장되었습니다.');
     } catch {
-      showToast('error', '설정 저장에 실패했습니다.');
+      showToast(
+        'error',
+        updateCompleted
+          ? '저장 결과를 확인하지 못했습니다. 초기화로 최신 값을 확인해 주세요.'
+          : '설정 저장에 실패했습니다.',
+      );
     } finally {
+      savePendingRef.current = false;
       setSaving(false);
     }
   }
@@ -73,6 +87,7 @@ export default function SiteSettingsPage() {
         <textarea
           className={styles.textarea}
           value={value}
+          disabled={saving}
           onChange={(e) => setValue(e.target.value)}
           placeholder={'예: 필요 서류 안내\n1. 사업자등록증 사본\n2. 법인인감증명서'}
         />

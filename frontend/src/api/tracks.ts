@@ -120,6 +120,7 @@ export interface AdminTrackListParams {
 /** GET /api/tracks/admin -- admin-only full track list */
 export async function fetchAdminTracks(
   params: AdminTrackListParams = {},
+  signal?: AbortSignal,
 ): Promise<PagedResponse<AdminTrackListItem>> {
   const query: Record<string, string | number | boolean> = {};
 
@@ -130,6 +131,7 @@ export async function fetchAdminTracks(
 
   const { data } = await client.get<PagedResponse<AdminTrackListItem>>('/tracks/admin', {
     params: query,
+    signal,
   });
   return data;
 }

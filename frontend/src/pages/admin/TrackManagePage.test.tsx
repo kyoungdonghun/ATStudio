@@ -73,11 +73,14 @@ describe('TrackManagePage', () => {
     );
 
     await waitFor(() =>
-      expect(mocks.fetchAdminTracks).toHaveBeenCalledWith({
-        page: 1,
-        size: 20,
-        keyword: 'Admin',
-      }),
+      expect(mocks.fetchAdminTracks).toHaveBeenCalledWith(
+        {
+          page: 1,
+          size: 20,
+          keyword: 'Admin',
+        },
+        expect.any(AbortSignal),
+      ),
     );
     expect(mocks.fetchAdminTracks).toHaveBeenCalledTimes(1);
     expect(router.state.location.search).toBe('?page=1&keyword=Admin');
@@ -91,7 +94,10 @@ describe('TrackManagePage', () => {
     const router = renderPage('/admin/tracks?page=4');
 
     await waitFor(() =>
-      expect(mocks.fetchAdminTracks).toHaveBeenLastCalledWith({ page: 2, size: 20 }),
+      expect(mocks.fetchAdminTracks).toHaveBeenLastCalledWith(
+        { page: 2, size: 20 },
+        expect.any(AbortSignal),
+      ),
     );
     expect(router.state.location.search).toBe('?page=2');
     expect(await screen.findByText('Admin Track')).toBeInTheDocument();
@@ -111,11 +117,41 @@ describe('TrackManagePage', () => {
       await router.navigate(-1);
     });
     await waitFor(() => expect(search).toHaveValue('first'));
-    expect(mocks.fetchAdminTracks).toHaveBeenLastCalledWith({
-      page: 1,
-      size: 20,
-      keyword: 'first',
+    expect(mocks.fetchAdminTracks).toHaveBeenLastCalledWith(
+      {
+        page: 1,
+        size: 20,
+        keyword: 'first',
+      },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('keeps the newest filter result when an older request resolves last', async () => {
+    const activeRequest = deferred<{ dataList: (typeof track)[]; pageInfo: typeof pageInfo }>();
+    const inactiveRequest = deferred<{ dataList: (typeof track)[]; pageInfo: typeof pageInfo }>();
+    mocks.fetchAdminTracks
+      .mockReturnValueOnce(activeRequest.promise)
+      .mockReturnValueOnce(inactiveRequest.promise);
+    const router = renderPage('/admin/tracks?filter=active');
+
+    await waitFor(() => expect(mocks.fetchAdminTracks).toHaveBeenCalledTimes(1));
+    const oldSignal = mocks.fetchAdminTracks.mock.calls[0][1] as AbortSignal;
+    await act(async () => {
+      await router.navigate('/admin/tracks?filter=inactive');
     });
+    await waitFor(() => expect(mocks.fetchAdminTracks).toHaveBeenCalledTimes(2));
+    expect(oldSignal.aborted).toBe(true);
+
+    const inactiveTrack = { ...track, id: 16, title: 'Newest Inactive Track', isActive: false };
+    await act(async () =>
+      inactiveRequest.resolve({ dataList: [inactiveTrack], pageInfo: { ...pageInfo, total: 1 } }),
+    );
+    expect(await screen.findByText('Newest Inactive Track')).toBeInTheDocument();
+
+    await act(async () => activeRequest.resolve({ dataList: [track], pageInfo }));
+    expect(screen.getByText('Newest Inactive Track')).toBeInTheDocument();
+    expect(screen.queryByText('Admin Track')).not.toBeInTheDocument();
   });
 
   it('clears failed list data and offers an explicit load retry', async () => {

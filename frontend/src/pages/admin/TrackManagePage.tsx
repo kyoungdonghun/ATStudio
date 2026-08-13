@@ -55,6 +55,8 @@ export default function TrackManagePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState(activeKeyword);
+  const activeListControllerRef = useRef<AbortController | null>(null);
+  const listGenerationRef = useRef(0);
 
   const [deleteTarget, setDeleteTarget] = useState<AdminTrackListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -88,6 +90,10 @@ export default function TrackManagePage() {
   }, [activeKeyword]);
 
   const loadTracks = useCallback(async (): Promise<boolean> => {
+    activeListControllerRef.current?.abort();
+    const controller = new AbortController();
+    const generation = ++listGenerationRef.current;
+    activeListControllerRef.current = controller;
     setLoading(true);
     setLoadError(null);
 
@@ -100,7 +106,8 @@ export default function TrackManagePage() {
     if (activeKeyword) params.keyword = activeKeyword;
 
     try {
-      const response = await fetchAdminTracks(params);
+      const response = await fetchAdminTracks(params, controller.signal);
+      if (controller.signal.aborted || listGenerationRef.current !== generation) return false;
       const totalPages = Math.max(1, Math.ceil(response.pageInfo.total / PAGE_SIZE));
       if (currentPage > totalPages && response.dataList.length === 0) {
         const next = new URLSearchParams(searchParams);
@@ -119,18 +126,24 @@ export default function TrackManagePage() {
       }
       return true;
     } catch {
+      if (controller.signal.aborted || listGenerationRef.current !== generation) return false;
       setTracks([]);
       setPageInfo(null);
       setLoadError(TRACK_LOAD_ERROR);
       return false;
     } finally {
-      setLoading(false);
+      if (listGenerationRef.current === generation) setLoading(false);
+      if (activeListControllerRef.current === controller) activeListControllerRef.current = null;
     }
   }, [activeFilter, activeKeyword, currentPage, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (urlNeedsNormalization) return;
     void loadTracks();
+    return () => {
+      activeListControllerRef.current?.abort();
+      listGenerationRef.current += 1;
+    };
   }, [loadTracks, urlNeedsNormalization]);
 
   function handleFilterChange(value: ActiveFilter) {

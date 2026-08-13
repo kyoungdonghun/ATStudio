@@ -7,6 +7,7 @@ import { safeStorage } from '@/utils/safeStorage';
 declare module 'axios' {
   interface AxiosRequestConfig {
     skipAuthReplay?: boolean;
+    skipAdminRoleSync?: boolean;
   }
 }
 
@@ -93,6 +94,7 @@ client.interceptors.response.use(
       originalRequest &&
       error.response?.status === 403 &&
       useAuthStore.getState().role === 'ADMIN' &&
+      !originalRequest.skipAdminRoleSync &&
       !shouldSkipAdminRoleSync(originalRequest)
     ) {
       await synchronizeAdminRole();
