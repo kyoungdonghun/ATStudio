@@ -152,6 +152,17 @@
   border-color: var(--text2);
 }
 
+.logoutBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.logoutBtn:disabled:hover {
+  background: none;
+  color: var(--text1);
+  border-color: var(--border2);
+}
+
 .menuToggle {
   display: none;
 }

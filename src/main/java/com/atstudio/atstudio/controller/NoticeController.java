@@ -1,6 +1,7 @@
 package com.atstudio.atstudio.controller;
 
 import com.atstudio.atstudio.common.dto.ResponseDTO;
+import com.atstudio.atstudio.dto.notice.NoticeAdminResponse;
 import com.atstudio.atstudio.dto.notice.NoticeCreateRequest;
 import com.atstudio.atstudio.dto.notice.NoticeListItemResponse;
 import com.atstudio.atstudio.dto.notice.NoticeResponse;
@@ -54,6 +55,17 @@ public class NoticeController {
         NoticeResponse response = noticeService.getNotice(noticeId);
         return ResponseEntity.ok(ResponseDTO.<NoticeResponse>withSingleData()
                 .message("Notice retrieved")
+                .data(response)
+                .build());
+    }
+
+    @GetMapping("/{noticeId}/admin")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<NoticeAdminResponse>> getNoticeForAdmin(
+            @PathVariable Long noticeId) {
+        NoticeAdminResponse response = noticeService.getNoticeForAdmin(noticeId);
+        return ResponseEntity.ok(ResponseDTO.<NoticeAdminResponse>withSingleData()
+                .message("Notice edit projection retrieved")
                 .data(response)
                 .build());
     }

@@ -182,11 +182,14 @@ describe('domain API contracts', () => {
     expect(mockedClient.delete).toHaveBeenCalledWith('/likes/albums/8');
   });
 
-  it('builds notice multipart bodies and performs attachment downloads', async () => {
+  it('builds notice multipart bodies and returns attachment bytes', async () => {
     const blob = new Blob(['notice']);
     mockedClient.get
       .mockResolvedValueOnce({ data: paged })
       .mockResolvedValueOnce(apiResponse(payload))
+      .mockResolvedValueOnce(
+        apiResponse({ title: 'Result', content: 'Body', isPinned: false, attachments: [] }),
+      )
       .mockResolvedValueOnce({ data: blob });
     mockedClient.post.mockResolvedValueOnce(apiResponse(payload));
     mockedClient.put.mockResolvedValueOnce(apiResponse(payload));
@@ -194,6 +197,12 @@ describe('domain API contracts', () => {
 
     await notices.fetchNotices({ page: 2, size: 5, sort: 'views' });
     await expect(notices.fetchNotice(7)).resolves.toEqual(payload);
+    await expect(notices.fetchAdminNotice(7)).resolves.toEqual({
+      title: 'Result',
+      content: 'Body',
+      isPinned: false,
+      attachments: [],
+    });
     const attachment = new File(['first'], 'first.txt');
     await notices.createNotice({
       title: 'Notice',
@@ -226,16 +235,7 @@ describe('domain API contracts', () => {
       ['newAttachments', replacement],
     ]);
     await notices.deleteNotice(7);
-
-    const click = vi.fn();
-    const remove = vi.fn();
-    const anchor = { href: '', download: '', click, remove };
-    vi.spyOn(document, 'createElement').mockReturnValueOnce(anchor as unknown as HTMLAnchorElement);
-    vi.spyOn(document.body, 'appendChild').mockImplementationOnce((node) => node);
-    vi.spyOn(URL, 'createObjectURL').mockReturnValueOnce('blob:notice');
-    vi.spyOn(URL, 'revokeObjectURL').mockImplementationOnce(() => undefined);
-    await notices.downloadNoticeAttachment(7, 4, 'notice.txt');
-    expect(anchor).toMatchObject({ href: 'blob:notice', download: 'notice.txt' });
+    await expect(notices.downloadNoticeAttachment(7, 4)).resolves.toBe(blob);
   });
 
   it('uses recurring payment and subscription contracts', async () => {

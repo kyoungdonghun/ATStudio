@@ -5,6 +5,8 @@ import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.notice.NoticeCreateRequest;
+import com.atstudio.atstudio.dto.notice.NoticeAdminResponse;
+import com.atstudio.atstudio.dto.notice.NoticeAttachmentResponse;
 import com.atstudio.atstudio.dto.notice.NoticeListItemResponse;
 import com.atstudio.atstudio.dto.notice.NoticeResponse;
 import com.atstudio.atstudio.dto.notice.NoticeUpdateRequest;
@@ -91,6 +93,27 @@ public class NoticeService {
         List<NoticeAttachment> attachments = attachmentRepository.findAllByNoticeId(noticeId);
 
         return NoticeResponse.from(notice, attachments);
+    }
+
+    public NoticeAdminResponse getNoticeForAdmin(Long noticeId) {
+        List<NoticeRepository.AdminEditRow> rows = noticeRepository.findAdminEditRowsById(noticeId);
+        if (rows.isEmpty()) {
+            throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND);
+        }
+
+        NoticeRepository.AdminEditRow notice = rows.get(0);
+        List<NoticeAttachmentResponse> attachments = rows.stream()
+                .filter(row -> row.getAttachmentId() != null)
+                .map(row -> new NoticeAttachmentResponse(
+                        row.getAttachmentId(),
+                        row.getAttachmentOriginalName(),
+                        row.getAttachmentFileSize()))
+                .toList();
+        return new NoticeAdminResponse(
+                notice.getTitle(),
+                notice.getContent(),
+                notice.getIsPinned(),
+                attachments);
     }
 
     @Transactional

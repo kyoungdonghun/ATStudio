@@ -40,7 +40,7 @@ const mocks = vi.hoisted(() => ({
   fetchTagDeletionImpact: vi.fn(),
   deleteTag: vi.fn(),
   createNotice: vi.fn(),
-  fetchNotice: vi.fn(),
+  fetchAdminNotice: vi.fn(),
   updateNotice: vi.fn(),
   deleteNotice: vi.fn(),
   fetchUserLicenses: vi.fn(),
@@ -146,7 +146,7 @@ vi.mock('@/api/tags', () => ({
 
 vi.mock('@/api/notices', () => ({
   createNotice: mocks.createNotice,
-  fetchNotice: mocks.fetchNotice,
+  fetchAdminNotice: mocks.fetchAdminNotice,
   updateNotice: mocks.updateNotice,
   deleteNotice: mocks.deleteNotice,
 }));
@@ -425,17 +425,17 @@ describe('admin page behavior coverage', () => {
     const router = renderRoute(<NoticeCreatePage />, '/admin/notices/new');
     const file = new File(['notice'], 'notice.txt', { type: 'text/plain' });
 
-    fireEvent.change(screen.getByPlaceholderText('Notice title'), {
+    fireEvent.change(screen.getByLabelText('제목'), {
       target: { value: '  Service update  ' },
     });
-    fireEvent.change(screen.getByPlaceholderText('Notice content...'), {
+    fireEvent.change(screen.getByLabelText('내용'), {
       target: { value: '  Maintenance window  ' },
     });
-    fireEvent.click(screen.getByLabelText('Pin this notice'));
+    fireEvent.click(screen.getByLabelText('상단 고정'));
     fireEvent.change(document.querySelector('input[type="file"]')!, {
       target: { files: [file] },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    fireEvent.click(screen.getByRole('button', { name: '등록' }));
 
     await waitFor(() =>
       expect(mocks.createNotice).toHaveBeenCalledWith({
@@ -449,7 +449,7 @@ describe('admin page behavior coverage', () => {
   });
 
   it('updates a notice while deleting an existing attachment and adding a new one', async () => {
-    mocks.fetchNotice.mockResolvedValue({
+    mocks.fetchAdminNotice.mockResolvedValue({
       id: 9,
       title: 'Old title',
       content: 'Old content',
@@ -473,7 +473,7 @@ describe('admin page behavior coverage', () => {
     fireEvent.change(document.querySelector('input[type="file"]')!, {
       target: { files: [added] },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
 
     await waitFor(() =>
       expect(mocks.updateNotice).toHaveBeenCalledWith(9, {
@@ -1016,7 +1016,7 @@ describe('admin page behavior coverage', () => {
   });
 
   it('rejects excessive notice attachments and surfaces create failures', async () => {
-    mocks.createNotice.mockRejectedValueOnce(new Error('create failed'));
+    mocks.createNotice.mockRejectedValueOnce({ response: { status: 400 } });
     renderRoute(<NoticeCreatePage />, '/admin/notices/new');
     const input = document.querySelector('input[type="file"]')!;
     const files = Array.from(
@@ -1026,16 +1026,16 @@ describe('admin page behavior coverage', () => {
     fireEvent.change(input, { target: { files } });
     expect(screen.getByText(/첨부파일은 최대/)).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText('Notice title'), { target: { value: 'Title' } });
-    fireEvent.change(screen.getByPlaceholderText('Notice content...'), {
+    fireEvent.change(screen.getByLabelText('제목'), { target: { value: 'Title' } });
+    fireEvent.change(screen.getByLabelText('내용'), {
       target: { value: 'Content' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
-    expect(await screen.findByText('Failed to create notice')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '등록' }));
+    expect(await screen.findByText(/공지사항을 등록하지 못했습니다\./)).toBeInTheDocument();
   });
 
   it('deletes a loaded notice only after confirmation', async () => {
-    mocks.fetchNotice.mockResolvedValue({
+    mocks.fetchAdminNotice.mockResolvedValue({
       id: 10,
       title: 'Delete me',
       content: 'Content',
@@ -1051,8 +1051,8 @@ describe('admin page behavior coverage', () => {
       '/admin/notices/10/edit',
     );
     expect(await screen.findByDisplayValue('Delete me')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }));
+    fireEvent.click(screen.getByRole('button', { name: '공지사항 삭제' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '삭제' }));
     await waitFor(() => expect(mocks.deleteNotice).toHaveBeenCalledWith(10));
     await waitFor(() => expect(router.state.location.pathname).toBe('/notices'));
   });
@@ -1110,7 +1110,7 @@ describe('admin page behavior coverage', () => {
   });
 
   it('keeps notice editing available after a save failure and handles load failure separately', async () => {
-    mocks.fetchNotice.mockResolvedValueOnce({
+    mocks.fetchAdminNotice.mockResolvedValueOnce({
       id: 11,
       title: 'Retry notice',
       content: 'Retry content',
@@ -1120,19 +1120,19 @@ describe('admin page behavior coverage', () => {
       createdAt: '2026-07-01T00:00:00Z',
       updatedAt: '2026-07-01T00:00:00Z',
     });
-    mocks.updateNotice.mockRejectedValueOnce(new Error('save failed'));
+    mocks.updateNotice.mockRejectedValueOnce({ response: { status: 400 } });
     renderRoute(<NoticeEditPage />, '/admin/notices/:noticeId/edit', '/admin/notices/11/edit');
     expect(await screen.findByDisplayValue('Retry notice')).toBeInTheDocument();
     fireEvent.change(screen.getByDisplayValue('Retry notice'), {
       target: { value: 'Retry again' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    expect(await screen.findByText('Failed to update notice')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    expect(await screen.findByText(/공지사항을 수정하지 못했습니다\./)).toBeInTheDocument();
     expect(screen.getByDisplayValue('Retry again')).toBeEnabled();
 
-    mocks.fetchNotice.mockRejectedValueOnce(new Error('load failed'));
+    mocks.fetchAdminNotice.mockRejectedValueOnce(new Error('load failed'));
     renderRoute(<NoticeEditPage />, '/admin/notices/:noticeId/edit', '/admin/notices/12/edit');
-    expect(await screen.findByText('Failed to load notice')).toBeInTheDocument();
+    expect(await screen.findByText('공지사항을 불러오지 못했습니다.')).toBeInTheDocument();
   });
 
   it('surfaces an admin question status update failure without applying the transition', async () => {

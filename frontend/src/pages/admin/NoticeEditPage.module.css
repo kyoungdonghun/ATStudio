@@ -20,6 +20,27 @@
   font-size: 15px;
 }
 
+.recovery {
+  padding: 64px 0;
+  text-align: center;
+  color: var(--text1);
+}
+
+.recoveryActions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text1);
+  font-size: 13px;
+  text-decoration: none;
+}
+
 /* ── Form ── */
 
 .form {
@@ -80,6 +101,12 @@
   border-color: var(--accent-border);
 }
 
+.characterCount {
+  align-self: flex-end;
+  color: var(--text2);
+  font-size: 11px;
+}
+
 .checkboxRow {
   display: flex;
   align-items: center;
@@ -125,6 +152,11 @@
 .fileLabel:hover {
   border-color: var(--accent-border);
   color: var(--accent);
+}
+
+.fileLabelDisabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .fileHidden {
@@ -185,6 +217,16 @@
   color: var(--error);
 }
 
+.fileRemove:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.fileItemDeleted .fileName {
+  color: var(--text2);
+  text-decoration: line-through;
+}
+
 .existingBadge {
   font-size: 11px;
   color: var(--accent);
@@ -192,6 +234,42 @@
   padding: 1px 6px;
   border-radius: 3px;
   flex-shrink: 0;
+}
+
+.fieldError,
+.actionError,
+.modalError {
+  margin: 0;
+  color: var(--error);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.actionError {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--error) 35%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+}
+
+.outcomeUnknown {
+  padding: 12px;
+  border: 1px solid var(--warning);
+  border-radius: 6px;
+  color: var(--text0);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.outcomeUnknown p {
+  margin: 4px 0 10px;
+}
+
+.observationActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 /* ── Delete Modal ── */
@@ -208,4 +286,8 @@
   justify-content: flex-end;
   gap: 10px;
   padding: 12px 20px;
+}
+
+.modalError {
+  padding: 0 20px;
 }

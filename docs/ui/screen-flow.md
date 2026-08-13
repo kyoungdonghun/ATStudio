@@ -1,5 +1,5 @@
 ---
-version: 6.1
+version: 6.3
 last_updated: 2026-08-13
 project: ATS
 owner: docops
@@ -100,6 +100,36 @@ route, public wildcard 404, and ADMIN route matching semantics remain unchanged.
     known positive duration. Time and waveform UI never exceed that duration.
     Public playback continues to stream the complete active Track.
 
+## Notice
+
+1. Public Notice detail accepts only a canonical positive ASCII decimal
+   safe-integer ID. The latest mounted route owns the request; route replacement
+   and unmount abort retired work and prevent stale data or error commits.
+2. A missing Notice shows fixed Korean missing-state copy and a safe Notice-list
+   action without retry. Network, timeout, server, and unknown failures show
+   fixed Korean recovery with one manual retry.
+3. Each attachment owns its download state. A pending request blocks only a
+   duplicate for the same file, another file remains available, and a failure
+   stays local to that file with a same-file retry. Route replacement and
+   unmount abort retired downloads before any browser download effect.
+4. Admin create/edit forms expose associated Korean labels and enforce the
+   current title maximum of 200 characters and content maximum of 1,000
+   characters on both client and server. Existing accepted-file behavior is
+   unchanged; exact attachment type, count, and byte policy remains WI-066.
+5. One current-ref create/edit operation fences save, Notice deletion,
+   attachment changes, duplicate submission, modal close, and all in-app
+   navigation, while a separate guard covers browser unload. Component cleanup
+   retires UI writes but does not abort an accepted mutation. Authoritative
+   success releases the fence before destination navigation.
+6. Authoritative validation, authorization, permission, and not-found failures
+   preserve form state for a deliberate retry. Network, server, and unknown
+   outcomes make no success/failure claim, keep the same mutation disabled, and
+   require a Notice-list observation or a fresh non-counting ADMIN edit GET before
+   another deliberate edit is possible.
+7. Edit loading uses `GET /api/notices/{noticeId}/admin`, an ADMIN-only minimized
+   projection that does not increment public `viewCount`. Invalid edit IDs issue
+   no Notice read or mutation request and render safe list navigation.
+
 ## Playlist
 
 1. A subscriber opens the playlist list.
@@ -172,16 +202,16 @@ count refresh, and cleanup. Retirement stops remaining effects.
    Confirmation charges the first period and activates only after server
    confirmation.
 10. Payment-method re-registration carries the exact current plan ID,
-   authenticated audience, and current cycle, uses `BILLING_AGREEMENT`, and
-   returns `amount=0`. Confirmation updates the method without changing the
-   plan or period.
+    authenticated audience, and current cycle, uses `BILLING_AGREEMENT`, and
+    returns `amount=0`. Confirmation updates the method without changing the
+    plan or period.
 11. Re-registration entered from an upgrade preview preserves exact return plan
-   identity and audience, then returns to the preview without executing the
-   upgrade. Upgrade itself charges the prorated difference through the active
-   billing agreement; downgrade/cycle-only changes remain pending until
-   successful renewal.
+    identity and audience, then returns to the preview without executing the
+    upgrade. Upgrade itself charges the prorated difference through the active
+    billing agreement; downgrade/cycle-only changes remain pending until
+    successful renewal.
 12. Cancel stops the next renewal while paid access remains through `expiresAt`;
-   valid grace-period cancellation can be reactivated.
+    valid grace-period cancellation can be reactivated.
 13. A callback captures its values once and immediately removes `authKey` and
     `customerKey` from the visible URL with history replacement. The success
     path confirms at most once, and both success and fail paths use the

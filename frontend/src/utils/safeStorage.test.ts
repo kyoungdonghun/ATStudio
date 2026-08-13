@@ -42,7 +42,7 @@ describe('safe browser storage wrappers', () => {
   it('reads, writes, and removes session storage', () => {
     expect(safeSessionStorage.setItem('key', 'value')).toBe(true);
     expect(safeSessionStorage.getItem('key')).toBe('value');
-    safeSessionStorage.removeItem('key');
+    expect(safeSessionStorage.removeItem('key')).toBe(true);
     expect(safeSessionStorage.getItem('key')).toBeNull();
   });
 
@@ -60,6 +60,6 @@ describe('safe browser storage wrappers', () => {
     vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
       throw new DOMException('blocked');
     });
-    expect(() => safeSessionStorage.removeItem('key')).not.toThrow();
+    expect(safeSessionStorage.removeItem('key')).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 ---
-version: 2.5
+version: 2.7
 last_updated: 2026-08-13
 project: ATS
 owner: docops
@@ -22,13 +22,13 @@ dependencies:
 
 The production frontend contains **22 `<Modal>` render occurrences across 17 non-test TSX files**. This is an implementation-occurrence count, not a count of simultaneously visible dialogs or distinct business workflows.
 
-| Area | Files | Occurrences |
-|---|---:|---:|
-| Shared wrappers/components | 4 | 4 |
-| Admin pages | 6 | 8 |
-| Creator pages | 1 | 2 |
-| Subscriber pages | 6 | 8 |
-| **Total** | **17** | **22** |
+| Area                       |  Files | Occurrences |
+| -------------------------- | -----: | ----------: |
+| Shared wrappers/components |      4 |           4 |
+| Admin pages                |      6 |           8 |
+| Creator pages              |      1 |           2 |
+| Subscriber pages           |      6 |           8 |
+| **Total**                  | **17** |      **22** |
 
 Shared wrappers are `TagFilterModal`, `AddToPlaylistModal`, `HistoryModal`, and
 `ConfirmDialog`. Pages with multiple render occurrences include company
@@ -49,6 +49,14 @@ confirmation; the removed direct update/cancel dialogs are not current flows.
   state before each detail read. Only the active Album generation may enable or
   populate the form; close, retry, and target switch retire earlier responses.
 - Tag save/delete errors remain modal-local and preserve list/filter/input state.
+- The shared modal's optional busy contract exposes `aria-busy`, disables and
+  removes the header close action from focus, and suppresses Escape and backdrop
+  close through the same state. Notice deletion uses this contract while its
+  owned operation is pending.
+- An authoritative Notice-delete rejection remains inside the recovered modal
+  for an explicit retry without changing the edit form. An ambiguous outcome
+  closes the modal, disables another DELETE, and moves to the page-level
+  observation-only recovery state.
 - The subscription-correction modal resumes persisted open workflow state and
   fences superseded open/preview responses. HTTP 4xx mutation responses retain
   their stable error without reconciliation. Network/timeout/no-response and

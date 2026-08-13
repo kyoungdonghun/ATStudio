@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import ToastContainer from '@/components/ui/ToastContainer';
+import { AdminMutationBoundaryContext, type AdminMutationBoundary } from './AdminMutationBoundary';
 import styles from './AdminLayout.module.css';
 
 interface MenuItem {
@@ -47,6 +48,35 @@ export default function AdminLayout() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const mutationOwnersRef = useRef(new Set<object>());
+  const [activeMutationOwnerCount, setActiveMutationOwnerCount] = useState(0);
+  const mountedRef = useRef(true);
+  const mutationBoundary = useMemo<AdminMutationBoundary>(
+    () => ({
+      acquire(owner) {
+        const owners = mutationOwnersRef.current;
+        if (owners.has(owner)) return;
+        owners.add(owner);
+        if (mountedRef.current) setActiveMutationOwnerCount(owners.size);
+      },
+      release(owner) {
+        const owners = mutationOwnersRef.current;
+        if (!owners.delete(owner)) return;
+        if (mountedRef.current) setActiveMutationOwnerCount(owners.size);
+      },
+      hasActiveOwner() {
+        return mutationOwnersRef.current.size > 0;
+      },
+    }),
+    [],
+  );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -54,77 +84,84 @@ export default function AdminLayout() {
   }, [location.pathname]);
 
   function handleLogout() {
+    if (mutationBoundary.hasActiveOwner()) return;
     logout();
     navigate('/', { replace: true });
   }
 
   return (
-    <div className={styles.layout}>
-      {/* Sidebar */}
-      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
-        <div className={styles.sidebarHeader}>
-          <Link to="/admin/dashboard" className={styles.logo}>
-            AT.M
-          </Link>
-          <span className={styles.logoSub}>Admin</span>
-        </div>
-
-        <nav className={styles.sidebarNav}>
-          {MENU_ITEMS.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`${styles.navItem} ${
-                isActive(location.pathname, item.path) ? styles.navItemActive : ''
-              }`}
-            >
-              {item.label}
+    <AdminMutationBoundaryContext.Provider value={mutationBoundary}>
+      <div className={styles.layout}>
+        {/* Sidebar */}
+        <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
+          <div className={styles.sidebarHeader}>
+            <Link to="/admin/dashboard" className={styles.logo}>
+              AT.M
             </Link>
-          ))}
-        </nav>
+            <span className={styles.logoSub}>Admin</span>
+          </div>
 
-        <div className={styles.sidebarFooter}>
-          <div className={styles.navDivider} />
-          <Link to="/" className={styles.backLink}>
-            {'< '}
-            {'사이트로 돌아가기'}
-          </Link>
-        </div>
-      </aside>
+          <nav className={styles.sidebarNav}>
+            {MENU_ITEMS.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`${styles.navItem} ${
+                  isActive(location.pathname, item.path) ? styles.navItemActive : ''
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
 
-      {/* Mobile overlay */}
-      {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
+          <div className={styles.sidebarFooter}>
+            <div className={styles.navDivider} />
+            <Link to="/" className={styles.backLink}>
+              {'< '}
+              {'사이트로 돌아가기'}
+            </Link>
+          </div>
+        </aside>
 
-      {/* Top bar */}
-      <header className={styles.topbar}>
-        {/* Mobile hamburger (hidden on desktop via CSS) */}
-        <button
-          className={styles.menuToggle}
-          onClick={() => setSidebarOpen((v) => !v)}
-          aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
-        >
-          {sidebarOpen ? '\u2715' : '\u2630'}
-        </button>
+        {/* Mobile overlay */}
+        {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
 
-        <div className={styles.userInfo}>
-          {user && (
-            <span>
-              <span className={styles.userName}>{user.nickname}</span>
-              {' (Admin)'}
-            </span>
-          )}
-        </div>
-        <button className={styles.logoutBtn} onClick={handleLogout}>
-          {'로그아웃'}
-        </button>
-      </header>
+        {/* Top bar */}
+        <header className={styles.topbar}>
+          {/* Mobile hamburger (hidden on desktop via CSS) */}
+          <button
+            className={styles.menuToggle}
+            onClick={() => setSidebarOpen((v) => !v)}
+            aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+          >
+            {sidebarOpen ? '\u2715' : '\u2630'}
+          </button>
 
-      {/* Main content */}
-      <main className={styles.content}>
-        <Outlet />
-      </main>
+          <div className={styles.userInfo}>
+            {user && (
+              <span>
+                <span className={styles.userName}>{user.nickname}</span>
+                {' (Admin)'}
+              </span>
+            )}
+          </div>
+          <button
+            className={styles.logoutBtn}
+            onClick={handleLogout}
+            disabled={activeMutationOwnerCount > 0}
+          >
+            {'로그아웃'}
+          </button>
+        </header>
 
-      <ToastContainer />
-    </div>
+        {/* Main content */}
+        <main className={styles.content}>
+          <Outlet />
+        </main>
+
+        <ToastContainer />
+      </div>
+    </AdminMutationBoundaryContext.Provider>
   );
 }

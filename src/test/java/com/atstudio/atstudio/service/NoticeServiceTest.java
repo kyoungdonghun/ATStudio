@@ -3,6 +3,7 @@ package com.atstudio.atstudio.service;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.dto.notice.NoticeAdminResponse;
 import com.atstudio.atstudio.dto.notice.NoticeCreateRequest;
 import com.atstudio.atstudio.dto.notice.NoticeListItemResponse;
 import com.atstudio.atstudio.dto.notice.NoticeResponse;
@@ -354,6 +355,60 @@ class NoticeServiceTest {
         verify(storageService, never()).loadAsResource(
                 StorageRoot.PUBLIC,
                 "notices/attachments/private.html");
+    }
+
+    @Test
+    @DisplayName("Public detail increments viewCount exactly once")
+    void getNotice_incrementsViewCountExactlyOnce() {
+        User user = buildUser(1L);
+        Notice notice = buildNotice(1L, user, "Notice", "Content", false);
+        given(noticeRepository.findById(1L)).willReturn(Optional.of(notice));
+        given(attachmentRepository.findAllByNoticeId(1L)).willReturn(List.of());
+
+        NoticeResponse result = noticeService.getNotice(1L);
+
+        assertThat(result.viewCount()).isEqualTo(1L);
+        assertThat(notice.getViewCount()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("ADMIN detail returns the edit projection without incrementing viewCount")
+    void getNoticeForAdmin_doesNotIncrementViewCount() {
+        User user = buildUser(1L);
+        Notice notice = buildNotice(1L, user, "Notice", "Content", true);
+        NoticeRepository.AdminEditRow row = org.mockito.Mockito.mock(NoticeRepository.AdminEditRow.class);
+        given(row.getTitle()).willReturn("Notice");
+        given(row.getContent()).willReturn("Content");
+        given(row.getIsPinned()).willReturn(true);
+        given(row.getAttachmentId()).willReturn(7L);
+        given(row.getAttachmentOriginalName()).willReturn("guide.pdf");
+        given(row.getAttachmentFileSize()).willReturn(3L);
+        given(noticeRepository.findAdminEditRowsById(1L)).willReturn(List.of(row));
+
+        NoticeAdminResponse result = noticeService.getNoticeForAdmin(1L);
+
+        assertThat(result.title()).isEqualTo("Notice");
+        assertThat(result.content()).isEqualTo("Content");
+        assertThat(result.isPinned()).isTrue();
+        assertThat(result.attachments()).singleElement()
+                .satisfies(item -> assertThat(item.originalName()).isEqualTo("guide.pdf"));
+        assertThat(notice.getViewCount()).isZero();
+        verify(noticeRepository).findAdminEditRowsById(1L);
+        verify(noticeRepository, never()).findById(1L);
+        verify(attachmentRepository, never()).findAllByNoticeId(1L);
+    }
+
+    @Test
+    @DisplayName("ADMIN detail returns RESOURCE_NOT_FOUND when the projection is empty")
+    void getNoticeForAdmin_missingProjection_throwsNotFound() {
+        given(noticeRepository.findAdminEditRowsById(99L)).willReturn(List.of());
+
+        assertThatThrownBy(() -> noticeService.getNoticeForAdmin(99L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+
+        verify(attachmentRepository, never()).findAllByNoticeId(99L);
     }
 
     private User buildUser(Long id) {

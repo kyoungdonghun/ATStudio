@@ -40,6 +40,22 @@ function NestedModalHarness() {
   );
 }
 
+function BusyModalHarness() {
+  const [open, setOpen] = useState(true);
+  const [busy, setBusy] = useState(true);
+
+  return (
+    <>
+      <button type="button" onClick={() => setBusy(false)}>
+        작업 완료
+      </button>
+      <Modal open={open} onClose={() => setOpen(false)} title="처리 모달" busy={busy}>
+        <button type="button">내부 작업</button>
+      </Modal>
+    </>
+  );
+}
+
 describe('Modal focus behavior', () => {
   it('traps focus and restores it to the opener after Escape closes the modal', () => {
     render(<ModalHarness />);
@@ -102,5 +118,26 @@ describe('Modal focus behavior', () => {
 
     expect(opener).toHaveFocus();
     opener.remove();
+  });
+
+  it('exposes one busy contract for close, Escape, backdrop, focus, and recovery', () => {
+    render(<BusyModalHarness />);
+    const dialog = screen.getByRole('dialog', { name: '처리 모달' });
+    const close = within(dialog).getByRole('button', { name: '닫기' });
+
+    expect(dialog).toHaveAttribute('aria-busy', 'true');
+    expect(close).toBeDisabled();
+    dialog.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(within(dialog).getByRole('button', { name: '내부 작업' })).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(dialog.parentElement!);
+    expect(screen.getByRole('dialog', { name: '처리 모달' })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: '작업 완료' }));
+    expect(dialog).not.toHaveAttribute('aria-busy');
+    expect(close).toBeEnabled();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: '처리 모달' })).not.toBeInTheDocument();
   });
 });

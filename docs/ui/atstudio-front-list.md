@@ -1,5 +1,5 @@
 ---
-version: 8.8
+version: 8.10
 last_updated: 2026-08-13
 project: ATS
 owner: docops
@@ -20,13 +20,13 @@ dependencies:
 
 The stable product count is **53 distinct visual page UIs**.
 
-| Unit | Count | Rule |
-|---|---:|---|
-| Path-bearing route objects | 56 | Every `path:` entry in `frontend/src/router/index.tsx` |
-| Index redirects | 1 | `/admin` redirects to `dashboard` |
-| Routable declarations | 57 | 56 paths plus 1 index redirect |
-| Lazy route-level page components | 53 | Every `createLazyPage(...)` declaration |
-| Distinct visual page UIs | 53 | Every lazy page is a distinct UI; includes 2 error screens |
+| Unit                             | Count | Rule                                                       |
+| -------------------------------- | ----: | ---------------------------------------------------------- |
+| Path-bearing route objects       |    56 | Every `path:` entry in `frontend/src/router/index.tsx`     |
+| Index redirects                  |     1 | `/admin` redirects to `dashboard`                          |
+| Routable declarations            |    57 | 56 paths plus 1 index redirect                             |
+| Lazy route-level page components |    53 | Every `createLazyPage(...)` declaration                    |
+| Distinct visual page UIs         |    53 | Every lazy page is a distinct UI; includes 2 error screens |
 
 `frontend/src/router/index.tsx` points to this inventory instead of embedding a
 fixed screen total. This inventory is derived from the route and
@@ -36,15 +36,15 @@ Repeated callback paths do not create new screens. Three checkout paths reuse on
 
 ## Screen Groups
 
-| Group | Distinct UIs | Routes / screens | Main API boundary |
-|---|---:|---|---|
-| Public discovery | 9 | Home; track list/detail; album image/list/detail; plans; notice list/detail | Tracks, tags, albums, subscriptions, notices |
-| Authentication | 6 | Login; signup; email verify; password reset; social login; social profile completion | Auth, users, public capabilities |
-| Member/subscriber | 17 | Playlist list/detail/edit; profile; likes; local play history; license list/detail; download history; subscription checkout/manage; whitelist; company certification apply/status; question list/create/detail | User, playlist, download, billing, whitelist, certification, question APIs |
-| Error | 2 | 404 and server error | No business API |
-| Creator/admin content | 5 | Track upload/edit; album manage/create/edit | Track and album admin APIs |
-| Admin operations | 14 | Dashboard; users; plans; licenses; questions; certifications; tags; tracks; user subscriptions; payments; whitelist; notice create/edit; site settings | Admin APIs |
-| **Total** | **53** | | |
+| Group                 | Distinct UIs | Routes / screens                                                                                                                                                                                               | Main API boundary                                                          |
+| --------------------- | -----------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Public discovery      |            9 | Home; track list/detail; album image/list/detail; plans; notice list/detail                                                                                                                                    | Tracks, tags, albums, subscriptions, notices                               |
+| Authentication        |            6 | Login; signup; email verify; password reset; social login; social profile completion                                                                                                                           | Auth, users, public capabilities                                           |
+| Member/subscriber     |           17 | Playlist list/detail/edit; profile; likes; local play history; license list/detail; download history; subscription checkout/manage; whitelist; company certification apply/status; question list/create/detail | User, playlist, download, billing, whitelist, certification, question APIs |
+| Error                 |            2 | 404 and server error                                                                                                                                                                                           | No business API                                                            |
+| Creator/admin content |            5 | Track upload/edit; album manage/create/edit                                                                                                                                                                    | Track and album admin APIs                                                 |
+| Admin operations      |           14 | Dashboard; users; plans; licenses; questions; certifications; tags; tracks; user subscriptions; payments; whitelist; notice create/edit; site settings                                                         | Admin APIs                                                                 |
+| **Total**             |       **53** |                                                                                                                                                                                                                |                                                                            |
 
 ## Important Current Screen Contracts
 
@@ -82,6 +82,35 @@ Repeated callback paths do not create new screens. Three checkout paths reuse on
   without raw error or chunk details and without reload/polling loops.
 - The `/error` server-error UI, public wildcard 404 UI, ADMIN index redirect,
   and the absence of an ADMIN wildcard remain unchanged.
+
+### Notice
+
+- Public Notice detail accepts only a canonical positive safe-integer ID and is
+  owned by the latest mounted route. A `404` shows fixed Korean missing-state
+  copy and Notice-list navigation without retry; transient failures show fixed
+  Korean recovery with one manual retry.
+- Attachment download state is owned per file. A pending request blocks only a
+  same-file duplicate, other files remain independently available, and failure
+  remains local and retryable. Retired route downloads cannot trigger a browser
+  download effect.
+- Admin Notice create/edit forms use associated Korean labels and enforce the
+  existing title maximum of 200 characters and canonical content maximum of
+  1,000 characters. Existing accepted-file behavior remains unchanged; exact
+  attachment type, count, and byte limits remain pending WI-066.
+- Create/edit mutations use one current-ref operation fence across submit,
+  Notice deletion, attachment changes, duplicate actions, modal close, all
+  in-app navigation, plus a browser-unload guard. An accepted mutation is not
+  aborted by component cleanup. The fence is released before
+  authoritative-success navigation.
+- Authoritative validation, authorization, permission, and not-found failures
+  preserve current form state for a deliberate retry. Network, server, and
+  unknown outcomes show the accessible Korean `처리 결과 확인 필요` state and
+  keep the same POST, PUT, or DELETE disabled until the operator leaves for a
+  Notice-list observation or completes a fresh non-counting ADMIN edit read.
+- Notice edit loads the ADMIN-only minimized projection from
+  `GET /api/notices/{noticeId}/admin`, so opening the edit form does not change
+  public `viewCount`. Invalid edit IDs make no Notice request and expose safe
+  list navigation.
 
 ### Play History
 

@@ -9,56 +9,73 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: ReactNode;
+  busy?: boolean;
 }
 
-export default function Modal({ open, onClose, title, children }: ModalProps) {
+export default function Modal({ open, onClose, title, children, busy = false }: ModalProps) {
   const backdropRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const modalIdRef = useRef(Symbol('modal'));
   const onCloseRef = useRef(onClose);
+  const busyRef = useRef(busy);
   const titleId = useId();
+  busyRef.current = busy;
 
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    const topModalId = openModalStack[openModalStack.length - 1];
-    if (topModalId !== modalIdRef.current) return;
-
-    if (e.key === 'Escape') {
-      onCloseRef.current();
-    }
-
-    /* Focus trap */
-    if (e.key === 'Tab' && modalRef.current) {
-      const focusable = Array.from(
-        modalRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        ),
-      ).filter(
-        (element) =>
-          !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true',
-      );
-      if (focusable.length === 0) return;
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const activeElement = document.activeElement;
-
-      if (!modalRef.current.contains(activeElement)) {
-        e.preventDefault();
-        (e.shiftKey ? last : first).focus();
-      } else if (e.shiftKey && (activeElement === first || activeElement === modalRef.current)) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && (activeElement === last || activeElement === modalRef.current)) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
+  const requestClose = useCallback(() => {
+    if (!busyRef.current) onCloseRef.current();
   }, []);
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      const topModalId = openModalStack[openModalStack.length - 1];
+      if (topModalId !== modalIdRef.current) return;
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        requestClose();
+      }
+
+      /* Focus trap */
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusable = Array.from(
+          modalRef.current.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter(
+          (element) =>
+            !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true',
+        );
+        if (focusable.length === 0) {
+          if (busyRef.current) {
+            e.preventDefault();
+            modalRef.current.focus();
+          }
+          return;
+        }
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const activeElement = document.activeElement;
+
+        if (!modalRef.current.contains(activeElement)) {
+          e.preventDefault();
+          (e.shiftKey ? last : first).focus();
+        } else if (e.shiftKey && (activeElement === first || activeElement === modalRef.current)) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (activeElement === last || activeElement === modalRef.current)) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    },
+    [requestClose],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -108,7 +125,7 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === backdropRef.current) {
-      onClose();
+      requestClose();
     }
   };
 
@@ -120,6 +137,7 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
+        aria-busy={busy || undefined}
         tabIndex={-1}
       >
         {title && (
@@ -130,9 +148,10 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
             <button
               type="button"
               className={styles.closeBtn}
-              onClick={onClose}
+              onClick={requestClose}
               aria-label="닫기"
               title="닫기"
+              disabled={busy}
             >
               X
             </button>

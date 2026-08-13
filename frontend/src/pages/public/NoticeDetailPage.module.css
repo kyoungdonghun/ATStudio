@@ -14,6 +14,40 @@
   font-size: 15px;
 }
 
+.recovery {
+  padding: 64px 0;
+  text-align: center;
+}
+
+.recoveryTitle {
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+
+.recoveryMessage {
+  color: var(--text2);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.recoveryActions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.retryButton {
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  padding: 8px 14px;
+  background: var(--accent);
+  color: var(--button-text, #fff);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
 /* ── Breadcrumb ── */
 
 .breadcrumb {
@@ -121,12 +155,18 @@
 
 .attachItem {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   padding: 8px 12px;
   background: var(--bg2);
   border-radius: 5px;
   font-size: 13px;
+}
+
+.attachRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .attachLink {
@@ -149,10 +189,22 @@
   text-decoration: underline;
 }
 
+.attachLink:disabled {
+  color: var(--text2);
+  cursor: wait;
+  text-decoration: none;
+}
+
 .attachSize {
   color: var(--text2);
   font-size: 12px;
   flex-shrink: 0;
+}
+
+.downloadError {
+  margin: 0;
+  color: var(--error);
+  font-size: 12px;
 }
 
 /* ── Footer ── */

@@ -1,5 +1,5 @@
 ---
-version: 2.5
+version: 2.6
 last_updated: 2026-08-13
 project: ATS
 owner: PG
@@ -111,7 +111,8 @@ task_types:
 - `GET /api/tracks`, `GET /api/tracks/*`, `GET /api/tracks/*/stream`
 - `GET /api/tags`
 - `GET /api/subscriptions`, `GET /api/subscriptions/*`
-- `GET /api/notices`, `GET /api/notices/*`
+- `GET /api/notices`, `GET /api/notices/*`, except the explicit ADMIN-only
+  `GET /api/notices/*/admin` matcher declared before the public wildcard
 - `GET /api/notices/*/attachments/*` (notice attachment download — INT-002)
 - `GET /api/albums`, `GET /api/albums/*`
 - Swagger UI (`/swagger-ui/**`, `/v3/api-docs/**`) — controlled by `SWAGGER_ENABLED` env var
@@ -386,6 +387,10 @@ deduplication, Settlement persistence, or row audit:
   `Cross-Origin-Resource-Policy: same-origin`. The `filename*` value is percent
   encoded; CRLF and disposition delimiters remain filename data and cannot
   create an additional response header.
+- `GET /api/notices/{noticeId}/admin` is ADMIN-only and returns only title,
+  content, pinned state, and attachment metadata through one read projection.
+  It does not call the public detail mode and does not increment `viewCount`;
+  public `GET /api/notices/{noticeId}` retains its one-increment behavior.
 - This containment does not define a Notice attachment type, count, or byte
   policy. Current accepted-file behavior remains unchanged pending WI-066.
   Retained files are not moved or deleted; the V1 operational baseline remains

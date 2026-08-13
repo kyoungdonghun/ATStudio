@@ -80,6 +80,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/subscriptions").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/subscriptions/admin").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/subscriptions/*").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/notices/*/admin").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/notices").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/notices/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/notices/*/attachments/*").permitAll()

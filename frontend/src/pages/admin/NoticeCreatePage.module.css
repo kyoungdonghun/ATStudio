@@ -80,6 +80,12 @@
   border-color: var(--accent-border);
 }
 
+.characterCount {
+  align-self: flex-end;
+  color: var(--text2);
+  font-size: 11px;
+}
+
 .checkboxRow {
   display: flex;
   align-items: center;
@@ -114,6 +120,11 @@
 .fileLabel:hover {
   border-color: var(--accent-border);
   color: var(--accent);
+}
+
+.fileLabelDisabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .fileHidden {
@@ -172,6 +183,43 @@
 
 .fileRemove:hover {
   color: var(--error);
+}
+
+.fileRemove:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.fieldError,
+.actionError {
+  margin: 0;
+  color: var(--error);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.actionError {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--error) 35%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+}
+
+.outcomeUnknown {
+  padding: 12px;
+  border: 1px solid var(--warning);
+  border-radius: 6px;
+  color: var(--text0);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.outcomeUnknown p {
+  margin: 4px 0 8px;
+}
+
+.observationLink {
+  color: var(--accent);
 }
 
 .formActions {

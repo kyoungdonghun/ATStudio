@@ -1,5 +1,6 @@
 package com.atstudio.atstudio.controller;
 
+import com.atstudio.atstudio.dto.notice.NoticeAdminResponse;
 import com.atstudio.atstudio.dto.notice.NoticeResponse;
 import com.atstudio.atstudio.security.CustomUserDetailsService;
 import com.atstudio.atstudio.service.NoticeService;
@@ -19,6 +20,7 @@ import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequ
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -203,6 +205,69 @@ class NoticeControllerTest {
                         HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename*=UTF-8''report%0D%0AX-Evil%3A%20injected%22%3B%20filename%3D%22owned.html"))
                 .andExpect(header().doesNotExist("X-Evil"));
+    }
+
+    @Test
+    @DisplayName("GET /api/notices/{id}/admin - unauthenticated returns 401")
+    void getNoticeForAdmin_unauthenticated_returns401() throws Exception {
+        mockMvc.perform(get("/api/notices/1/admin"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    @DisplayName("GET /api/notices/{id}/admin - USER returns 403")
+    void getNoticeForAdmin_userRole_returns403() throws Exception {
+        mockMvc.perform(get("/api/notices/1/admin"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("GET /api/notices/{id}/admin - ADMIN receives minimized edit projection")
+    void getNoticeForAdmin_adminRole_returns200() throws Exception {
+        NoticeAdminResponse response =
+                new NoticeAdminResponse("Notice", "Content", false, java.util.List.of());
+        given(noticeService.getNoticeForAdmin(1L)).willReturn(response);
+
+        mockMvc.perform(get("/api/notices/1/admin"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("""
+                        {
+                          "data": {
+                            "title": "Notice",
+                            "content": "Content",
+                            "isPinned": false,
+                            "attachments": []
+                          }
+                        }
+                        """));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("POST /api/notices rejects content longer than the canonical 1000 characters")
+    void createNotice_contentTooLong_returns400WithoutServiceCall() throws Exception {
+        mockMvc.perform(multipart("/api/notices")
+                        .param("title", "Notice")
+                        .param("content", "x".repeat(1001))
+                        .param("isPinned", "false"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(noticeService);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("PUT /api/notices/{id} rejects content longer than the canonical 1000 characters")
+    void updateNotice_contentTooLong_returns400WithoutServiceCall() throws Exception {
+        mockMvc.perform(multipartPut("/api/notices/1")
+                        .param("title", "Notice")
+                        .param("content", "x".repeat(1001))
+                        .param("isPinned", "false"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(noticeService);
     }
 
     private MockMultipartHttpServletRequestBuilder multipartPut(String urlTemplate, Object... uriVars) {

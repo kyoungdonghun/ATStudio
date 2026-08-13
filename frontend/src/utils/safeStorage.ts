@@ -54,11 +54,12 @@ export const safeSessionStorage = {
       return false;
     }
   },
-  removeItem(key: string): void {
+  removeItem(key: string): boolean {
     try {
       sessionStorage.removeItem(key);
+      return true;
     } catch {
-      // ignore
+      return false;
     }
   },
 };

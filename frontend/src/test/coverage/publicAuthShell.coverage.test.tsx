@@ -801,18 +801,25 @@ describe('public discovery pages', () => {
       updatedAt: '2026-07-02T00:00:00',
     };
     mocks.fetchNotice.mockResolvedValueOnce(notice);
+    const noticeBlob = new Blob(['guide']);
+    mocks.downloadNoticeAttachment.mockResolvedValueOnce(noticeBlob);
     const detail = renderAt(<NoticeDetailPage />, '/notices/31', '/notices/:noticeId');
     expect(await screen.findByRole('heading', { name: 'Service notice' })).toBeInTheDocument();
     expect(screen.getByText('10 B')).toBeInTheDocument();
     expect(screen.getByText('2.0 KB')).toBeInTheDocument();
     expect(screen.getByText('2.0 MB')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'guide.pdf' }));
-    expect(mocks.downloadNoticeAttachment).toHaveBeenCalledWith(31, 2, 'guide.pdf');
+    expect(mocks.downloadNoticeAttachment).toHaveBeenCalledWith(31, 2, expect.any(AbortSignal));
+    await waitFor(() =>
+      expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(noticeBlob, 'guide.pdf'),
+    );
     detail.unmount();
 
     mocks.fetchNotice.mockRejectedValueOnce(new Error('notice unavailable'));
     renderAt(<NoticeDetailPage />, '/notices/31', '/notices/:noticeId');
-    expect(await screen.findByText('Failed to load notice')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: '공지사항을 불러오지 못했습니다' }),
+    ).toBeInTheDocument();
   });
 
   it('downloads a track, refreshes the quota, and exposes authenticated track actions', async () => {

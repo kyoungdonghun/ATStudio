@@ -5,6 +5,7 @@ import { fetchNotices } from '@/api/notices';
 import { classifyLoadError, getLoadErrorMessage } from '@/api/loadError';
 import type { Notice, PageInfo } from '@/types';
 import { formatDate } from '@/utils/format';
+import { clearNoticeCreateObservation } from '@/utils/noticeCreateObservationFence';
 import Pagination from '@/components/ui/Pagination';
 import styles from './NoticeListPage.module.css';
 
@@ -41,6 +42,7 @@ export default function NoticeListPage() {
     fetchNotices({ page, size: 20, sort: sortValue })
       .then((result) => {
         if (currentRequestId !== requestId.current) return;
+        clearNoticeCreateObservation();
         setNotices(result.dataList);
         setPageInfo(result.pageInfo);
         setError(null);

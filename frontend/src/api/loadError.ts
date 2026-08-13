@@ -52,6 +52,11 @@ export function classifyLoadError(error: unknown): LoadErrorKind {
   return 'unknown';
 }
 
+export function isAmbiguousMutationError(error: unknown): boolean {
+  const kind = classifyLoadError(error);
+  return kind === 'network' || kind === 'server' || kind === 'unknown';
+}
+
 export function getLoadErrorMessageForKind(kind: LoadErrorKind, subject: string): string {
   switch (kind) {
     case 'unauthorized':

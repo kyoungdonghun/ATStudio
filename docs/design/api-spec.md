@@ -1,5 +1,5 @@
 ---
-version: 30.6
+version: 30.7
 last_updated: 2026-08-13
 project: ATS
 owner: SA
@@ -16,11 +16,11 @@ dependencies:
     reason: Current persistence contract
 ---
 
-# ATStudio API Specification v30.6
+# ATStudio API Specification v30.7
 
 ## Current Contract
 
-The current V1 backend exposes **151 method-level mappings across 25 controller
+The current V1 backend exposes **152 method-level mappings across 25 controller
 classes**. This count is derived from the current Java source by counting
 method-level `@GetMapping`, `@PostMapping`, `@PutMapping`,
 `@PatchMapping`, and `@DeleteMapping` annotations. Class-level
@@ -28,12 +28,12 @@ method-level `@GetMapping`, `@PostMapping`, `@PutMapping`,
 
 | Verb      |   Count |
 | --------- | ------: |
-| GET       |      76 |
+| GET       |      77 |
 | POST      |      41 |
 | PUT       |      20 |
 | DELETE    |      14 |
 | PATCH     |       0 |
-| **Total** | **151** |
+| **Total** | **152** |
 
 `SecurityConfig` is authoritative for authorization. Controller annotations are
 authoritative for paths and verbs. OpenAPI output generated from the running
@@ -101,6 +101,10 @@ application is authoritative for request and response schemas.
   value percent-encodes CRLF and disposition delimiters so filename data cannot
   inject another response header. Exact type, count, and byte limits remain
   pending WI-066; no retained-file migration is part of this contract.
+- `GET /api/notices/{noticeId}/admin` is ADMIN-only and returns only the edit
+  projection: `title`, `content`, `isPinned`, and attachment metadata. It uses
+  one read projection and does not increment public `viewCount`. Public
+  `GET /api/notices/{noticeId}` retains its existing one-increment contract.
 
 ## Controller Inventory
 
@@ -118,7 +122,7 @@ application is authoritative for request and response schemas.
 | `DownloadController`                        |        2 | Current user's download history and downloaded Track IDs                                      |
 | `LicenseController`                         |        4 | User and ADMIN License reads                                                                  |
 | `LikeController`                            |        6 | Track and album likes                                                                         |
-| `NoticeController`                          |        6 | Public notice reads and ADMIN mutations                                                       |
+| `NoticeController`                          |        7 | Public Notice reads/download plus ADMIN non-counting edit read and mutations                  |
 | `PaymentController`                         |        6 | USER-only recurring billing agreement lifecycle and read-only outcome recovery                 |
 | `PlaylistController`                        |        9 | Subscriber playlist CRUD and Track membership                                                 |
 | `QuestionController`                        |        7 | Inquiry, answer, attachment, status, and deletion                                             |
@@ -718,7 +722,7 @@ before announcing success or navigating.
 - `GET /api/likes/albums`
 - `POST|DELETE /api/likes/albums/{albumId}`
 
-### Questions and Notices (13)
+### Questions and Notices (14)
 
 - `GET|POST /api/questions`
 - `GET|DELETE /api/questions/{questionId}`
@@ -727,6 +731,7 @@ before announcing success or navigating.
 - `PUT /api/questions/{questionId}/status`
 - `GET|POST /api/notices`
 - `GET|PUT|DELETE /api/notices/{noticeId}`
+- `GET /api/notices/{noticeId}/admin`
 - `GET /api/notices/{noticeId}/attachments/{attachmentId}`
 
 ### Company Certification and User Whitelist (13)
