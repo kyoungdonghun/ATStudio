@@ -1,5 +1,5 @@
 /** Screen K-4: Question management (admin) */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchQuestions, updateQuestionStatus, type QuestionListItem } from '@/api/questions';
 import type { PageInfo, QuestionStatus } from '@/types';
@@ -10,6 +10,13 @@ import styles from './QuestionManagePage.module.css';
 /* ── Constants ── */
 
 type QuestionCategory = 'DOWNLOAD' | 'PAYMENT' | 'COPYRIGHT' | 'PRODUCTION' | 'OTHER';
+
+interface QuestionListProjection {
+  key: string;
+  page: number;
+  category?: QuestionCategory;
+  status?: QuestionStatus;
+}
 
 const CATEGORY_LABELS: Record<QuestionCategory, string> = {
   DOWNLOAD: '다운로드',
@@ -36,7 +43,25 @@ const STATUS_OPTIONS: Array<{ label: string; value: string }> = [
   ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ label, value })),
 ];
 
-const ALL_STATUSES: QuestionStatus[] = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
+const LEGAL_STATUS_TRANSITIONS: Record<QuestionStatus, readonly QuestionStatus[]> = {
+  OPEN: ['IN_PROGRESS', 'CLOSED'],
+  IN_PROGRESS: ['RESOLVED', 'CLOSED'],
+  RESOLVED: ['CLOSED'],
+  CLOSED: [],
+};
+
+function createQuestionListProjection(
+  page: number,
+  category: string,
+  status: string,
+): QuestionListProjection {
+  return {
+    key: `${page}:${category}:${status}`,
+    page,
+    category: category ? (category as QuestionCategory) : undefined,
+    status: status ? (status as QuestionStatus) : undefined,
+  };
+}
 
 function statusClass(status: string): string {
   const map: Record<string, string> = {
@@ -55,36 +80,77 @@ export default function QuestionManagePage() {
   const currentPage = Number(searchParams.get('page')) || 1;
   const categoryFilter = searchParams.get('category') ?? '';
   const statusFilter = searchParams.get('status') ?? '';
+  const currentProjection = createQuestionListProjection(currentPage, categoryFilter, statusFilter);
 
   const [items, setItems] = useState<QuestionListItem[]>([]);
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const pendingMutationRef = useRef<number | null>(null);
+  const currentProjectionRef = useRef(currentProjection);
+  const activeListRequestRef = useRef<AbortController | null>(null);
+  const listRequestGenerationRef = useRef(0);
+  currentProjectionRef.current = currentProjection;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (projection: QuestionListProjection) => {
+    if (currentProjectionRef.current.key !== projection.key) return;
+
+    activeListRequestRef.current?.abort();
+    const controller = new AbortController();
+    const requestGeneration = ++listRequestGenerationRef.current;
+    activeListRequestRef.current = controller;
+
     try {
       setLoading(true);
       setError(null);
-      const result = await fetchQuestions({
-        page: currentPage,
-        size: 20,
-        mine: false,
-        category: categoryFilter ? (categoryFilter as QuestionCategory) : undefined,
-        status: statusFilter ? (statusFilter as QuestionStatus) : undefined,
-      });
+      setMutationError(null);
+      const result = await fetchQuestions(
+        {
+          page: projection.page,
+          size: 20,
+          mine: false,
+          category: projection.category,
+          status: projection.status,
+        },
+        controller.signal,
+      );
+      if (
+        controller.signal.aborted ||
+        listRequestGenerationRef.current !== requestGeneration ||
+        currentProjectionRef.current.key !== projection.key
+      ) {
+        return;
+      }
       setItems(result.dataList);
       setPageInfo(result.pageInfo);
     } catch {
+      if (
+        controller.signal.aborted ||
+        listRequestGenerationRef.current !== requestGeneration ||
+        currentProjectionRef.current.key !== projection.key
+      ) {
+        return;
+      }
       setError('문의 목록을 불러오지 못했습니다.');
     } finally {
-      setLoading(false);
+      if (
+        listRequestGenerationRef.current === requestGeneration &&
+        currentProjectionRef.current.key === projection.key
+      ) {
+        setLoading(false);
+      }
+      if (activeListRequestRef.current === controller) {
+        activeListRequestRef.current = null;
+      }
     }
-  }, [currentPage, categoryFilter, statusFilter]);
+  }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    void load(createQuestionListProjection(currentPage, categoryFilter, statusFilter));
+    return () => activeListRequestRef.current?.abort();
+  }, [load, currentPage, categoryFilter, statusFilter]);
 
   function updateParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams);
@@ -98,17 +164,40 @@ export default function QuestionManagePage() {
   }
 
   async function handleStatusChange(questionId: number, newStatus: QuestionStatus) {
+    if (pendingMutationRef.current !== null) return;
+    const currentItem = items.find((item) => item.id === questionId);
+    if (!currentItem || !LEGAL_STATUS_TRANSITIONS[currentItem.status].includes(newStatus)) return;
+    const initiatingProjectionKey = currentProjectionRef.current.key;
+
+    pendingMutationRef.current = questionId;
     try {
       setUpdatingId(questionId);
-      await updateQuestionStatus(questionId, newStatus);
-      // Update local state
-      setItems((prev) =>
-        prev.map((item) => (item.id === questionId ? { ...item, status: newStatus } : item)),
-      );
+      setMutationError(null);
+      const updatedQuestion = await updateQuestionStatus(questionId, newStatus);
+      const activeProjection = currentProjectionRef.current;
+      if (activeProjection.key !== initiatingProjectionKey) {
+        await load(activeProjection);
+      } else if (
+        activeProjection.status !== undefined &&
+        activeProjection.status !== updatedQuestion.status
+      ) {
+        await load(activeProjection);
+      } else {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === questionId ? { ...item, status: updatedQuestion.status } : item,
+          ),
+        );
+      }
     } catch {
-      setError('상태 변경에 실패했습니다.');
+      if (currentProjectionRef.current.key === initiatingProjectionKey) {
+        setMutationError('상태 변경에 실패했습니다.');
+      }
     } finally {
-      setUpdatingId(null);
+      if (pendingMutationRef.current === questionId) {
+        pendingMutationRef.current = null;
+        setUpdatingId(null);
+      }
     }
   }
 
@@ -147,6 +236,12 @@ export default function QuestionManagePage() {
           ))}
         </select>
       </div>
+
+      {mutationError && (
+        <div className={styles.mutationError} role="alert">
+          {mutationError}
+        </div>
+      )}
 
       {/* Content */}
       {loading ? (
@@ -191,13 +286,15 @@ export default function QuestionManagePage() {
                       <select
                         className={styles.statusSelect}
                         value={item.status}
-                        disabled={updatingId === item.id}
+                        disabled={
+                          updatingId !== null || LEGAL_STATUS_TRANSITIONS[item.status].length === 0
+                        }
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) =>
                           handleStatusChange(item.id, e.target.value as QuestionStatus)
                         }
                       >
-                        {ALL_STATUSES.map((s) => (
+                        {[item.status, ...LEGAL_STATUS_TRANSITIONS[item.status]].map((s) => (
                           <option key={s} value={s}>
                             {STATUS_LABELS[s]}
                           </option>

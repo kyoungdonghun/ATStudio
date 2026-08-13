@@ -131,12 +131,19 @@
 | **Related UC** | QUESTION-004 (inquiry detail) |
 
 **Main Flow**
-1. Frontend sends a download request including questionId and attachmentId to the backend.
+1. Frontend starts one owned attachment request including questionId and attachmentId.
+   While it is pending, all attachment actions are disabled and the active
+   attachment displays bounded progress feedback.
 2. Backend checks inquiry viewing permissions.
 3. Backend retrieves the file from storage and returns it (Content-Disposition: attachment).
+4. Frontend triggers the browser download only if the initiating authenticated
+   owner, route, and detail projection are still current. Route, owner,
+   projection replacement, or unmount aborts and retires the request.
 
 **Exception / Alternative Flow**
 - No permission: 403 response.
+- A non-cancellation failure retains the detail projection, displays a fixed
+  retryable error, and restores all attachment actions.
 
 **Postconditions**
 - Attachment downloaded to user's device.
@@ -158,11 +165,14 @@
 | **Related UC** | - |
 
 **Main Flow**
-1. User clicks the 'Delete' button and confirms.
-2. Frontend sends a delete request including questionId to the backend.
-3. Backend checks deletion permissions. (Own + OPEN or ADMIN)
-4. Backend deletes associated answers and question_attachments, then deletes the questions record.
-5. Backend returns 204 No Content.
+1. A non-admin owner sees the 'Delete' button only while the loaded inquiry is
+   OPEN. An admin's delete policy is evaluated separately and is not restricted
+   by inquiry status.
+2. User clicks the 'Delete' button and confirms.
+3. Frontend sends a delete request including questionId to the backend.
+4. Backend checks deletion permissions. (Own + OPEN or ADMIN)
+5. Backend deletes associated answers and question_attachments, then deletes the questions record.
+6. Backend returns 204 No Content.
 
 **Exception / Alternative Flow**
 - Regular member attempting to delete a non-OPEN inquiry: 403 response.
@@ -181,18 +191,24 @@
 | **Description** | Admin changes the processing status of an inquiry. |
 | **Actor** | Admin, Backend |
 | **Preconditions** | Admin logged in. Inquiry exists in DB. |
-| **Trigger** | Admin clicks the 'Change Status' button on the inquiry detail screen. |
-| **Related UC** | QUESTION-002 (write answer), QUESTION-004 (inquiry detail) |
+| **Trigger** | Admin selects a legal target status on the ADMIN inquiry list screen. |
+| **Related UC** | QUESTION-002 (write answer), QUESTION-003 (inquiry list) |
 
 **Main Flow**
-1. Admin selects the target status.
+1. Admin selects one legal target for the inquiry's current status. While one
+   status request is pending, every status control is unavailable.
 2. Frontend sends questionId and status to the backend. (`PUT /api/questions/{questionId}/status`)
 3. Backend verifies admin authorization.
-4. Backend updates questions.status and returns a 200 response.
+4. Backend validates the transition, updates questions.status, and returns a 200 response.
+5. Frontend applies the status returned by the response. A rejection retains
+   the existing row and exposes a retryable fixed error without reloading the
+   collection.
 
 **Status Flow**
-- OPEN -> IN_PROGRESS (automatic on admin's first answer) -> RESOLVED -> CLOSED
-- OPEN -> CLOSED (admin directly closes)
+- OPEN -> IN_PROGRESS or CLOSED
+- IN_PROGRESS -> RESOLVED or CLOSED
+- RESOLVED -> CLOSED
+- CLOSED has no outgoing transition
 
 **Postconditions**
 - questions.status updated.

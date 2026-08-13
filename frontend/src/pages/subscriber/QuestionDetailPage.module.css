@@ -186,10 +186,26 @@
   text-decoration: underline;
 }
 
+.attachLink:disabled {
+  color: var(--text2);
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.attachPending {
+  color: var(--text2);
+}
+
 .attachSize {
   color: var(--text2);
   font-size: 12px;
   white-space: nowrap;
+}
+
+.attachError {
+  margin: 8px 0 0;
+  color: var(--error);
+  font-size: 13px;
 }
 
 /* ── Answers ── */

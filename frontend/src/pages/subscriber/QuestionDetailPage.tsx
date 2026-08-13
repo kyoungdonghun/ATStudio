@@ -1,13 +1,15 @@
 /** Screen 15: Question detail */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   fetchQuestionDetail,
   deleteQuestion,
   downloadAttachment,
   createAnswer,
+  type AttachmentInfo,
   type QuestionDetail,
 } from '@/api/questions';
+import { triggerBlobDownload } from '@/api/downloads';
 import { classifyLoadError } from '@/api/loadError';
 import { formatDate } from '@/utils/format';
 import { parsePositiveDecimalRouteID } from '@/utils/routeId';
@@ -69,8 +71,23 @@ export default function QuestionDetailPage() {
   const [answerContent, setAnswerContent] = useState('');
   const [answerSubmitting, setAnswerSubmitting] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
+  const [downloadingAttachment, setDownloadingAttachment] = useState<{
+    readKey: string;
+    attachmentID: number;
+  } | null>(null);
+  const [attachmentError, setAttachmentError] = useState<{
+    readKey: string;
+    message: string;
+  } | null>(null);
   const requestGeneration = useRef(0);
   const requestController = useRef<AbortController | null>(null);
+  const downloadGeneration = useRef(0);
+  const downloadOperationRef = useRef<{
+    readKey: string;
+    attachmentID: number;
+    generation: number;
+    controller: AbortController;
+  } | null>(null);
   const ownerKey = createOwnerKey(currentUser?.id ?? null, accessToken);
   const readKey = createReadKey(ownerKey, 'question-detail', parsedID);
   const currentReadKeyRef = useRef(readKey);
@@ -97,6 +114,11 @@ export default function QuestionDetailPage() {
     const requestOwnerKey = ownerKey;
     if (parsedID === null || requestKey === null) return;
     requestController.current?.abort();
+    downloadOperationRef.current?.controller.abort();
+    downloadOperationRef.current = null;
+    downloadGeneration.current += 1;
+    setDownloadingAttachment(null);
+    setAttachmentError(null);
     const controller = new AbortController();
     requestController.current = controller;
     const generation = ++requestGeneration.current;
@@ -140,6 +162,14 @@ export default function QuestionDetailPage() {
     };
   }, [accessToken, currentUser?.id, load, validID]);
 
+  useLayoutEffect(() => {
+    return () => {
+      downloadOperationRef.current?.controller.abort();
+      downloadOperationRef.current = null;
+      downloadGeneration.current += 1;
+    };
+  }, [readKey]);
+
   async function handleDelete() {
     const operationKey = readKey;
     if (parsedID === null || !isCurrentProjection(operationKey)) return;
@@ -177,6 +207,54 @@ export default function QuestionDetailPage() {
     }
   }
 
+  async function handleAttachmentDownload(attachment: AttachmentInfo) {
+    const operationKey = readKey;
+    if (
+      parsedID === null ||
+      operationKey === null ||
+      !isCurrentProjection(operationKey) ||
+      downloadOperationRef.current !== null
+    ) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const generation = ++downloadGeneration.current;
+    const operation = {
+      readKey: operationKey,
+      attachmentID: attachment.id,
+      generation,
+      controller,
+    };
+    downloadOperationRef.current = operation;
+    const isCurrent = () =>
+      downloadOperationRef.current === operation &&
+      generation === downloadGeneration.current &&
+      !controller.signal.aborted &&
+      isCurrentProjection(operationKey);
+
+    try {
+      setDownloadingAttachment({ readKey: operationKey, attachmentID: attachment.id });
+      setAttachmentError(null);
+      const blob = await downloadAttachment(parsedID, attachment.id, controller.signal);
+      if (!isCurrent()) return;
+      triggerBlobDownload(blob, attachment.originalName);
+    } catch (downloadError) {
+      if (!isCurrent() || classifyLoadError(downloadError) === 'cancelled') return;
+      setAttachmentError({
+        readKey: operationKey,
+        message: '첨부파일 다운로드에 실패했습니다.',
+      });
+    } finally {
+      if (downloadOperationRef.current === operation) {
+        downloadOperationRef.current = null;
+      }
+      if (generation === downloadGeneration.current && isCurrentProjection(operationKey)) {
+        setDownloadingAttachment(null);
+      }
+    }
+  }
+
   if (parsedID === null) {
     return (
       <div className={styles.page}>
@@ -209,6 +287,13 @@ export default function QuestionDetailPage() {
 
   const attachments = currentQuestion.attachments ?? [];
   const answers = currentQuestion.answers ?? [];
+  const currentDownloadingAttachmentID =
+    downloadingAttachment?.readKey === readKey ? downloadingAttachment.attachmentID : null;
+  const attachmentDownloadPending = currentDownloadingAttachmentID !== null;
+  const currentAttachmentError =
+    attachmentError?.readKey === readKey ? attachmentError.message : null;
+  const isOwner = currentQuestion.user?.id === currentUser?.id;
+  const canDelete = role === 'ADMIN' || (isOwner && currentQuestion.status === 'OPEN');
 
   return (
     <div className={styles.page}>
@@ -245,18 +330,24 @@ export default function QuestionDetailPage() {
                 <button
                   type="button"
                   className={styles.attachLink}
-                  onClick={() => {
-                    if (isCurrentProjection()) {
-                      void downloadAttachment(currentQuestion.id, att.id, att.originalName);
-                    }
-                  }}
+                  disabled={attachmentDownloadPending}
+                  aria-busy={currentDownloadingAttachmentID === att.id}
+                  onClick={() => void handleAttachmentDownload(att)}
                 >
                   {att.originalName}
+                  {currentDownloadingAttachmentID === att.id && (
+                    <span className={styles.attachPending}> 다운로드 중</span>
+                  )}
                 </button>
                 <span className={styles.attachSize}>{formatFileSize(att.fileSize)}</span>
               </li>
             ))}
           </ul>
+          {currentAttachmentError && (
+            <p className={styles.attachError} role="alert">
+              {currentAttachmentError}
+            </p>
+          )}
         </div>
       )}
 
@@ -316,8 +407,8 @@ export default function QuestionDetailPage() {
           </div>
         )}
 
-      {/* Actions — owner only */}
-      {currentQuestion.user && currentUser && currentQuestion.user.id === currentUser.id && (
+      {/* Actions — OPEN owner or ADMIN */}
+      {canDelete && (
         <div className={styles.actions}>
           <Button
             variant="danger"

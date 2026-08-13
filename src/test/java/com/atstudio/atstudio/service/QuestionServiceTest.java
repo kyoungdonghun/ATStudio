@@ -22,6 +22,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -468,20 +470,51 @@ class QuestionServiceTest {
     @DisplayName("updateQuestionStatus()")
     class UpdateQuestionStatus {
 
-        @Test
-        @DisplayName("성공 - OPEN → IN_PROGRESS")
-        void success() {
+        @ParameterizedTest(name = "{0} -> {1}")
+        @CsvSource({
+                "OPEN, IN_PROGRESS",
+                "OPEN, CLOSED",
+                "IN_PROGRESS, RESOLVED",
+                "IN_PROGRESS, CLOSED",
+                "RESOLVED, CLOSED"
+        })
+        @DisplayName("성공 - 모든 합법 상태 전이")
+        void success_legalTransitions(QuestionStatus currentStatus, QuestionStatus newStatus) {
             User owner = buildUser(1L, UserRole.USER);
             Question question = buildQuestion(10L, owner, "제목", "내용",
-                    QuestionCategory.DOWNLOAD, false, QuestionStatus.OPEN);
+                    QuestionCategory.DOWNLOAD, false, currentStatus);
 
             given(questionRepository.findById(10L)).willReturn(Optional.of(question));
 
             QuestionResponse result = questionService.updateQuestionStatus(10L,
-                    new QuestionStatusUpdateRequest(QuestionStatus.IN_PROGRESS));
+                    new QuestionStatusUpdateRequest(newStatus));
 
-            assertThat(result.status()).isEqualTo("IN_PROGRESS");
-            assertThat(question.getStatus()).isEqualTo(QuestionStatus.IN_PROGRESS);
+            assertThat(result.status()).isEqualTo(newStatus.name());
+            assertThat(question.getStatus()).isEqualTo(newStatus);
+        }
+
+        @ParameterizedTest(name = "{0} -/> {1}")
+        @CsvSource({
+                "OPEN, RESOLVED",
+                "IN_PROGRESS, OPEN",
+                "RESOLVED, IN_PROGRESS",
+                "CLOSED, OPEN",
+                "CLOSED, CLOSED"
+        })
+        @DisplayName("실패 - 대표 비합법 상태 전이")
+        void fail_illegalTransitions(QuestionStatus currentStatus, QuestionStatus newStatus) {
+            User owner = buildUser(1L, UserRole.USER);
+            Question question = buildQuestion(10L, owner, "제목", "내용",
+                    QuestionCategory.DOWNLOAD, false, currentStatus);
+
+            given(questionRepository.findById(10L)).willReturn(Optional.of(question));
+
+            assertThatThrownBy(() -> questionService.updateQuestionStatus(10L,
+                    new QuestionStatusUpdateRequest(newStatus)))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                            .isEqualTo(BUSINESS_ERROR.INVALID_STATE_TRANSITION));
+            assertThat(question.getStatus()).isEqualTo(currentStatus);
         }
 
         @Test

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -236,6 +236,16 @@ const firstPage = {
   prev: false,
   next: false,
 };
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
+}
 
 function renderRoute(element: ReactElement, path: string, initialEntry = path) {
   const router = createMemoryRouter(
@@ -534,33 +544,436 @@ describe('admin page behavior coverage', () => {
     await waitFor(() => expect(mocks.fetchAdminTracks).toHaveBeenCalledTimes(2));
   });
 
-  it('filters admin questions and persists a status transition', async () => {
+  it('offers only legal question transitions and applies the canonical response status', async () => {
     mocks.fetchQuestions.mockResolvedValue({
       dataList: [
         {
           id: 51,
-          title: 'Payment question',
+          title: 'Open question',
           category: 'PAYMENT',
           isPublic: false,
+          status: 'OPEN',
+          createdAt: '2026-07-01T00:00:00Z',
+        },
+        {
+          id: 52,
+          title: 'In progress question',
+          category: 'OTHER',
+          isPublic: true,
+          status: 'IN_PROGRESS',
+          createdAt: '2026-07-01T00:00:00Z',
+        },
+        {
+          id: 53,
+          title: 'Resolved question',
+          category: 'OTHER',
+          isPublic: true,
+          status: 'RESOLVED',
+          createdAt: '2026-07-01T00:00:00Z',
+        },
+        {
+          id: 54,
+          title: 'Closed question',
+          category: 'OTHER',
+          isPublic: true,
+          status: 'CLOSED',
+          createdAt: '2026-07-01T00:00:00Z',
+        },
+      ],
+      pageInfo: { ...firstPage, total: 4, end: 4 },
+    });
+    mocks.updateQuestionStatus.mockResolvedValue({
+      id: 51,
+      title: 'Open question',
+      category: 'PAYMENT',
+      isPublic: false,
+      status: 'CLOSED',
+      createdAt: '2026-07-01T00:00:00Z',
+    });
+
+    renderRoute(<QuestionManagePage />, '/admin/questions', '/admin/questions?category=PAYMENT');
+    expect(await screen.findByText('Open question')).toBeInTheDocument();
+    expect(mocks.fetchQuestions).toHaveBeenCalledWith(
+      {
+        page: 1,
+        size: 20,
+        mine: false,
+        category: 'PAYMENT',
+        status: undefined,
+      },
+      expect.any(AbortSignal),
+    );
+
+    const statusValues = (title: string) =>
+      within(screen.getByText(title).closest('tr')!)
+        .getAllByRole('option')
+        .map((option) => (option as HTMLOptionElement).value);
+    expect(statusValues('Open question')).toEqual(['OPEN', 'IN_PROGRESS', 'CLOSED']);
+    expect(statusValues('In progress question')).toEqual(['IN_PROGRESS', 'RESOLVED', 'CLOSED']);
+    expect(statusValues('Resolved question')).toEqual(['RESOLVED', 'CLOSED']);
+    const closedSelect = within(screen.getByText('Closed question').closest('tr')!).getByRole(
+      'combobox',
+    );
+    expect(statusValues('Closed question')).toEqual(['CLOSED']);
+    expect(closedSelect).toBeDisabled();
+
+    const openSelect = within(screen.getByText('Open question').closest('tr')!).getByRole(
+      'combobox',
+    );
+    fireEvent.change(openSelect, { target: { value: 'IN_PROGRESS' } });
+    await waitFor(() => expect(mocks.updateQuestionStatus).toHaveBeenCalledWith(51, 'IN_PROGRESS'));
+    await waitFor(() => expect(openSelect).toHaveValue('CLOSED'));
+  });
+
+  it('refreshes backend membership and pageInfo when a canonical status leaves the active filter', async () => {
+    const refreshedPageInfo = {
+      ...firstPage,
+      total: 21,
+      end: 2,
+      next: true,
+    };
+    mocks.fetchQuestions
+      .mockResolvedValueOnce({
+        dataList: [
+          {
+            id: 57,
+            title: 'Open question leaving the filter',
+            category: 'OTHER',
+            isPublic: true,
+            status: 'OPEN',
+            createdAt: '2026-07-01T00:00:00Z',
+          },
+        ],
+        pageInfo: firstPage,
+      })
+      .mockResolvedValueOnce({
+        dataList: [
+          {
+            id: 58,
+            title: 'Backend-refreshed open question',
+            category: 'OTHER',
+            isPublic: true,
+            status: 'OPEN',
+            createdAt: '2026-07-02T00:00:00Z',
+          },
+        ],
+        pageInfo: refreshedPageInfo,
+      });
+    mocks.updateQuestionStatus.mockResolvedValue({
+      id: 57,
+      title: 'Open question leaving the filter',
+      category: 'OTHER',
+      isPublic: true,
+      status: 'CLOSED',
+      createdAt: '2026-07-01T00:00:00Z',
+    });
+
+    renderRoute(<QuestionManagePage />, '/admin/questions', '/admin/questions?status=OPEN');
+    const row = (await screen.findByText('Open question leaving the filter')).closest('tr')!;
+
+    fireEvent.change(within(row).getByRole('combobox'), { target: { value: 'CLOSED' } });
+
+    expect(await screen.findByText('Backend-refreshed open question')).toBeInTheDocument();
+    expect(screen.queryByText('Open question leaving the filter')).not.toBeInTheDocument();
+    expect(screen.getByText('21건')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2페이지' })).toBeInTheDocument();
+    expect(mocks.fetchQuestions).toHaveBeenCalledTimes(2);
+    expect(mocks.fetchQuestions).toHaveBeenLastCalledWith(
+      {
+        page: 1,
+        size: 20,
+        mine: false,
+        category: undefined,
+        status: 'OPEN',
+      },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('keeps a canonical status locally when it still matches the active filter', async () => {
+    mocks.fetchQuestions.mockResolvedValue({
+      dataList: [
+        {
+          id: 59,
+          title: 'Canonical matching-filter question',
+          category: 'OTHER',
+          isPublic: true,
           status: 'OPEN',
           createdAt: '2026-07-01T00:00:00Z',
         },
       ],
       pageInfo: firstPage,
     });
-
-    renderRoute(<QuestionManagePage />, '/admin/questions', '/admin/questions?category=PAYMENT');
-    expect(await screen.findByText('Payment question')).toBeInTheDocument();
-    expect(mocks.fetchQuestions).toHaveBeenCalledWith({
-      page: 1,
-      size: 20,
-      mine: false,
-      category: 'PAYMENT',
-      status: undefined,
+    mocks.updateQuestionStatus.mockResolvedValue({
+      id: 59,
+      title: 'Canonical matching-filter question',
+      category: 'OTHER',
+      isPublic: true,
+      status: 'OPEN',
+      createdAt: '2026-07-01T00:00:00Z',
     });
 
-    fireEvent.change(screen.getAllByRole('combobox')[2], { target: { value: 'RESOLVED' } });
-    await waitFor(() => expect(mocks.updateQuestionStatus).toHaveBeenCalledWith(51, 'RESOLVED'));
+    renderRoute(<QuestionManagePage />, '/admin/questions', '/admin/questions?status=OPEN');
+    const row = (await screen.findByText('Canonical matching-filter question')).closest('tr')!;
+    const statusSelect = within(row).getByRole('combobox');
+
+    fireEvent.change(statusSelect, { target: { value: 'CLOSED' } });
+
+    await waitFor(() => expect(mocks.updateQuestionStatus).toHaveBeenCalledWith(59, 'CLOSED'));
+    await waitFor(() => expect(statusSelect).toBeEnabled());
+    expect(statusSelect).toHaveValue('OPEN');
+    expect(mocks.fetchQuestions).toHaveBeenCalledTimes(1);
+  });
+
+  it('prevents conflicting question status mutations while one request is pending', async () => {
+    const pending = deferred<{
+      id: number;
+      title: string;
+      category: 'OTHER';
+      isPublic: boolean;
+      status: 'IN_PROGRESS';
+      createdAt: string;
+    }>();
+    mocks.fetchQuestions.mockResolvedValue({
+      dataList: [
+        {
+          id: 55,
+          title: 'First pending question',
+          category: 'OTHER',
+          isPublic: true,
+          status: 'OPEN',
+          createdAt: '2026-07-01T00:00:00Z',
+        },
+        {
+          id: 56,
+          title: 'Second pending question',
+          category: 'OTHER',
+          isPublic: true,
+          status: 'OPEN',
+          createdAt: '2026-07-01T00:00:00Z',
+        },
+      ],
+      pageInfo: { ...firstPage, total: 2, end: 2 },
+    });
+    mocks.updateQuestionStatus.mockReturnValueOnce(pending.promise);
+
+    renderRoute(<QuestionManagePage />, '/admin/questions');
+    expect(await screen.findByText('First pending question')).toBeInTheDocument();
+    const firstSelect = within(screen.getByText('First pending question').closest('tr')!).getByRole(
+      'combobox',
+    );
+    const secondSelect = within(
+      screen.getByText('Second pending question').closest('tr')!,
+    ).getByRole('combobox');
+
+    fireEvent.change(firstSelect, { target: { value: 'IN_PROGRESS' } });
+
+    expect(firstSelect).toBeDisabled();
+    expect(secondSelect).toBeDisabled();
+    fireEvent.change(secondSelect, { target: { value: 'CLOSED' } });
+    expect(mocks.updateQuestionStatus).toHaveBeenCalledTimes(1);
+
+    await act(async () =>
+      pending.resolve({
+        id: 55,
+        title: 'First pending question',
+        category: 'OTHER',
+        isPublic: true,
+        status: 'IN_PROGRESS',
+        createdAt: '2026-07-01T00:00:00Z',
+      }),
+    );
+    await waitFor(() => expect(firstSelect).toBeEnabled());
+    expect(secondSelect).toBeEnabled();
+  });
+
+  it('keeps the newest question filter projection when an older list response finishes last', async () => {
+    const olderProjection = deferred<{
+      dataList: Array<{
+        id: number;
+        title: string;
+        category: 'PAYMENT';
+        isPublic: boolean;
+        status: 'OPEN';
+        createdAt: string;
+      }>;
+      pageInfo: typeof firstPage;
+    }>();
+    const newerProjection = deferred<{
+      dataList: Array<{
+        id: number;
+        title: string;
+        category: 'OTHER';
+        isPublic: boolean;
+        status: 'OPEN';
+        createdAt: string;
+      }>;
+      pageInfo: typeof firstPage;
+    }>();
+    mocks.fetchQuestions
+      .mockReturnValueOnce(olderProjection.promise)
+      .mockReturnValueOnce(newerProjection.promise);
+
+    renderRoute(<QuestionManagePage />, '/admin/questions');
+    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'OTHER' } });
+    await waitFor(() => expect(mocks.fetchQuestions).toHaveBeenCalledTimes(2));
+
+    await act(async () =>
+      newerProjection.resolve({
+        dataList: [
+          {
+            id: 62,
+            title: 'Newest projection question',
+            category: 'OTHER',
+            isPublic: true,
+            status: 'OPEN',
+            createdAt: '2026-07-02T00:00:00Z',
+          },
+        ],
+        pageInfo: firstPage,
+      }),
+    );
+    expect(await screen.findByText('Newest projection question')).toBeInTheDocument();
+
+    await act(async () =>
+      olderProjection.resolve({
+        dataList: [
+          {
+            id: 61,
+            title: 'Older projection question',
+            category: 'PAYMENT',
+            isPublic: true,
+            status: 'OPEN',
+            createdAt: '2026-07-01T00:00:00Z',
+          },
+        ],
+        pageInfo: firstPage,
+      }),
+    );
+    expect(screen.getByText('Newest projection question')).toBeInTheDocument();
+    expect(screen.queryByText('Older projection question')).not.toBeInTheDocument();
+  });
+
+  it('refreshes the current question projection after a detached status success', async () => {
+    const pendingMutation = deferred<{
+      id: number;
+      title: string;
+      category: 'PAYMENT';
+      isPublic: boolean;
+      status: 'IN_PROGRESS';
+      createdAt: string;
+    }>();
+    mocks.fetchQuestions
+      .mockResolvedValueOnce({
+        dataList: [
+          {
+            id: 71,
+            title: 'Initiating projection question',
+            category: 'PAYMENT',
+            isPublic: true,
+            status: 'OPEN',
+            createdAt: '2026-07-01T00:00:00Z',
+          },
+        ],
+        pageInfo: firstPage,
+      })
+      .mockResolvedValueOnce({
+        dataList: [
+          {
+            id: 72,
+            title: 'Current projection before refresh',
+            category: 'OTHER',
+            isPublic: true,
+            status: 'OPEN',
+            createdAt: '2026-07-02T00:00:00Z',
+          },
+        ],
+        pageInfo: firstPage,
+      })
+      .mockResolvedValueOnce({
+        dataList: [
+          {
+            id: 73,
+            title: 'Current projection after refresh',
+            category: 'OTHER',
+            isPublic: true,
+            status: 'OPEN',
+            createdAt: '2026-07-03T00:00:00Z',
+          },
+        ],
+        pageInfo: firstPage,
+      });
+    mocks.updateQuestionStatus.mockReturnValueOnce(pendingMutation.promise);
+
+    renderRoute(<QuestionManagePage />, '/admin/questions');
+    const initiatingRow = (await screen.findByText('Initiating projection question')).closest(
+      'tr',
+    )!;
+    fireEvent.change(within(initiatingRow).getByRole('combobox'), {
+      target: { value: 'IN_PROGRESS' },
+    });
+    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'OTHER' } });
+    expect(await screen.findByText('Current projection before refresh')).toBeInTheDocument();
+
+    await act(async () =>
+      pendingMutation.resolve({
+        id: 71,
+        title: 'Initiating projection question',
+        category: 'PAYMENT',
+        isPublic: true,
+        status: 'IN_PROGRESS',
+        createdAt: '2026-07-01T00:00:00Z',
+      }),
+    );
+
+    expect(await screen.findByText('Current projection after refresh')).toBeInTheDocument();
+    expect(mocks.fetchQuestions).toHaveBeenCalledTimes(3);
+    expect(screen.queryByText('Current projection before refresh')).not.toBeInTheDocument();
+  });
+
+  it('does not attach a detached status failure to the current question projection', async () => {
+    const pendingMutation = deferred<never>();
+    mocks.fetchQuestions
+      .mockResolvedValueOnce({
+        dataList: [
+          {
+            id: 81,
+            title: 'Failure initiating question',
+            category: 'PAYMENT',
+            isPublic: true,
+            status: 'OPEN',
+            createdAt: '2026-07-01T00:00:00Z',
+          },
+        ],
+        pageInfo: firstPage,
+      })
+      .mockResolvedValueOnce({
+        dataList: [
+          {
+            id: 82,
+            title: 'Current projection after failure',
+            category: 'OTHER',
+            isPublic: true,
+            status: 'OPEN',
+            createdAt: '2026-07-02T00:00:00Z',
+          },
+        ],
+        pageInfo: firstPage,
+      });
+    mocks.updateQuestionStatus.mockReturnValueOnce(pendingMutation.promise);
+
+    renderRoute(<QuestionManagePage />, '/admin/questions');
+    const initiatingRow = (await screen.findByText('Failure initiating question')).closest('tr')!;
+    fireEvent.change(within(initiatingRow).getByRole('combobox'), {
+      target: { value: 'IN_PROGRESS' },
+    });
+    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'OTHER' } });
+    expect(await screen.findByText('Current projection after failure')).toBeInTheDocument();
+
+    await act(async () => pendingMutation.reject(new Error('stale failure')));
+
+    expect(screen.getByText('Current projection after failure')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('reports settings load and save failures without claiming success', async () => {
@@ -738,6 +1151,13 @@ describe('admin page behavior coverage', () => {
     expect(await screen.findByText('상태 변경에 실패했습니다.')).toBeInTheDocument();
     expect(mocks.updateQuestionStatus).toHaveBeenCalledWith(52, 'CLOSED');
     expect(mocks.fetchQuestions).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Status retry question')).toBeInTheDocument();
+    expect(
+      within(screen.getByText('Status retry question').closest('tr')!).getByRole('combobox'),
+    ).toBeEnabled();
+    expect(
+      within(screen.getByText('Status retry question').closest('tr')!).getByRole('combobox'),
+    ).toHaveValue('OPEN');
   });
 });
 
@@ -880,6 +1300,7 @@ describe('subscriber page behavior coverage', () => {
   });
 
   it('downloads an attachment, posts an answer, and refreshes question detail', async () => {
+    const attachmentBlob = new Blob(['attachment']);
     const detail = {
       id: 71,
       title: 'Question detail',
@@ -900,11 +1321,15 @@ describe('subscriber page behavior coverage', () => {
       createdAt: '2026-07-01T00:00:00Z',
     };
     mocks.fetchQuestionDetail.mockResolvedValue(detail);
+    mocks.downloadAttachment.mockResolvedValue(attachmentBlob);
 
     renderRoute(<QuestionDetailPage />, '/questions/:questionId', '/questions/71');
     expect(await screen.findByText('Question detail')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'evidence.txt' }));
-    expect(mocks.downloadAttachment).toHaveBeenCalledWith(71, 8, 'evidence.txt');
+    expect(mocks.downloadAttachment).toHaveBeenCalledWith(71, 8, expect.any(AbortSignal));
+    await waitFor(() =>
+      expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(attachmentBlob, 'evidence.txt'),
+    );
 
     fireEvent.change(screen.getByPlaceholderText('답변 내용을 입력하세요'), {
       target: { value: '  New answer  ' },

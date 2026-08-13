@@ -62,6 +62,13 @@
   color: var(--error);
 }
 
+.mutationError {
+  margin: -12px 0 16px;
+  color: var(--error);
+  font-size: 13px;
+  text-align: right;
+}
+
 /* ── Table ── */
 
 .tableWrap {

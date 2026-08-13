@@ -450,6 +450,14 @@ describe('domain API contracts', () => {
   it('uses question CRUD, answer, status, and attachment contracts', async () => {
     const controller = new AbortController();
     const blob = new Blob(['question']);
+    const statusUpdate = {
+      id: 2,
+      title: 'Help',
+      category: 'OTHER',
+      isPublic: false,
+      status: 'RESOLVED',
+      createdAt: '2026-08-13T00:00:00',
+    } satisfies questions.QuestionStatusUpdateResponse;
     mockedClient.get
       .mockResolvedValueOnce({ data: paged })
       .mockResolvedValueOnce(apiResponse(payload))
@@ -457,7 +465,7 @@ describe('domain API contracts', () => {
     mockedClient.post
       .mockResolvedValueOnce(apiResponse(payload))
       .mockResolvedValueOnce(apiResponse({ id: 3, content: 'Answer' }));
-    mockedClient.put.mockResolvedValueOnce(apiResponse(payload));
+    mockedClient.put.mockResolvedValueOnce(apiResponse(statusUpdate));
     mockedClient.delete.mockResolvedValue({});
 
     const params = { page: 2, size: 10, category: 'OTHER' as const, mine: true };
@@ -486,23 +494,18 @@ describe('domain API contracts', () => {
       ['isPublic', 'false'],
       ['attachments', file],
     ]);
-    await questions.updateQuestionStatus(2, 'RESOLVED');
+    await expect(questions.updateQuestionStatus(2, 'RESOLVED')).resolves.toEqual(statusUpdate);
+    expect(mockedClient.put).toHaveBeenCalledWith('/questions/2/status', {
+      status: 'RESOLVED',
+    });
     await questions.createAnswer(2, 'Answer');
     await questions.deleteQuestion(2);
 
-    const click = vi.fn();
-    const remove = vi.fn();
-    vi.spyOn(document, 'createElement').mockReturnValueOnce({
-      href: '',
-      download: '',
-      click,
-      remove,
-    } as unknown as HTMLAnchorElement);
-    vi.spyOn(document.body, 'appendChild').mockImplementationOnce((node) => node);
-    vi.spyOn(URL, 'createObjectURL').mockReturnValueOnce('blob:question');
-    vi.spyOn(URL, 'revokeObjectURL').mockImplementationOnce(() => undefined);
-    await questions.downloadAttachment(2, 5, 'question.txt');
-    expect(click).toHaveBeenCalledOnce();
+    await expect(questions.downloadAttachment(2, 5, controller.signal)).resolves.toBe(blob);
+    expect(mockedClient.get).toHaveBeenNthCalledWith(3, '/questions/2/attachments/5', {
+      responseType: 'blob',
+      signal: controller.signal,
+    });
   });
 
   it('uses settings, plan, tag, and track query contracts', async () => {

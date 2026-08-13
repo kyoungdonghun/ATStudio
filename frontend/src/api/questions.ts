@@ -43,6 +43,15 @@ export interface QuestionListResponse {
   pageInfo: PageInfo;
 }
 
+export interface QuestionStatusUpdateResponse {
+  id: number;
+  title: string;
+  category: QuestionCategory;
+  isPublic: boolean;
+  status: QuestionStatus;
+  createdAt: string;
+}
+
 /* ── API Functions ── */
 
 /** 8.3 GET /api/questions — list (mine=true for subscriber) */
@@ -100,10 +109,11 @@ export async function deleteQuestion(id: number): Promise<void> {
 export async function updateQuestionStatus(
   id: number,
   status: QuestionStatus,
-): Promise<QuestionDetail> {
-  const { data } = await client.put<ApiResponse<QuestionDetail>>(`/questions/${id}/status`, {
-    status,
-  });
+): Promise<QuestionStatusUpdateResponse> {
+  const { data } = await client.put<ApiResponse<QuestionStatusUpdateResponse>>(
+    `/questions/${id}/status`,
+    { status },
+  );
   return data.data;
 }
 
@@ -119,17 +129,11 @@ export async function createAnswer(questionId: number, content: string): Promise
 export async function downloadAttachment(
   questionId: number,
   attachmentId: number,
-  filename: string,
-): Promise<void> {
+  signal?: AbortSignal,
+): Promise<Blob> {
   const { data } = await client.get<Blob>(`/questions/${questionId}/attachments/${attachmentId}`, {
     responseType: 'blob',
+    signal,
   });
-  const url = URL.createObjectURL(data);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  return data;
 }
