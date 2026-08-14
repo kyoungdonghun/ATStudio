@@ -134,7 +134,11 @@ export default function TagFilterModal({
       <div className={styles.body}>
         {/* Search input */}
         <div className={styles.searchWrap}>
+          <label className="sr-only" htmlFor="tag-filter-query">
+            태그 검색
+          </label>
           <input
+            id="tag-filter-query"
             ref={inputRef}
             className={styles.searchInput}
             type="text"
@@ -143,7 +147,12 @@ export default function TagFilterModal({
             onChange={(e) => setQuery(e.target.value)}
           />
           {query && (
-            <button className={styles.searchClear} onClick={() => setQuery('')}>
+            <button
+              aria-label="태그 검색어 지우기"
+              className={styles.searchClear}
+              onClick={() => setQuery('')}
+              type="button"
+            >
               {'\u2715'}
             </button>
           )}
@@ -247,10 +256,10 @@ export default function TagFilterModal({
           {totalSelected > 0 && (
             <span className={styles.selectedCount}>{`${totalSelected}개 선택됨`}</span>
           )}
-          <button className={styles.clearBtn} onClick={handleClear}>
+          <button className={styles.clearBtn} onClick={handleClear} type="button">
             {'초기화'}
           </button>
-          <button className={styles.applyBtn} onClick={handleApply}>
+          <button className={styles.applyBtn} onClick={handleApply} type="button">
             {'적용'}
           </button>
         </div>

@@ -165,7 +165,11 @@ use the same one-shot destination-focus flow.
    confirmation. One pending owner fences duplicates; failure stays visible
    with a same-target retry, and success reloads the authoritative list or
    detail projection.
-7. Add-to-Playlist renders list loading, fixed failure with manual retry, and
+7. The fixed Playlist Drawer is a named dialog while open. Entry focus,
+   Tab/Shift+Tab containment, Escape dismissal, and valid-opener focus return
+   are local UI transitions only; they do not dispatch playlist mutations.
+   Playlist, detail, and like read failures expose their existing scoped retry.
+8. Add-to-Playlist renders list loading, fixed failure with manual retry, and
    an explicit subscription-required result when no parent callback is
    available. Close/reopen, Track replacement, stale responses, and old success
    timers cannot alter the current lifecycle.

@@ -224,7 +224,9 @@ export default function SocialCompleteProfilePage() {
       <div className={styles.page}>
         <div className={styles.card}>
           <h1 className={styles.title}>프로필 완성</h1>
-          <p className={styles.errorText}>{identityError}</p>
+          <p className={styles.errorText} role="alert">
+            {identityError}
+          </p>
           <Button
             type="button"
             variant="primary"
@@ -248,13 +250,20 @@ export default function SocialCompleteProfilePage() {
         <form className={styles.form} onSubmit={handleSubmit} noValidate>
           {/* User type */}
           <div className={styles.fieldGroup}>
-            <label className={styles.label}>회원 유형</label>
-            <div className={styles.roleToggle}>
+            <span className={styles.label} id="complete-profile-user-type-label">
+              회원 유형
+            </span>
+            <div
+              aria-labelledby="complete-profile-user-type-label"
+              className={styles.roleToggle}
+              role="group"
+            >
               <button
                 type="button"
                 className={userType === 'INDIVIDUAL' ? styles.roleOptionActive : styles.roleOption}
                 onClick={() => setUserType('INDIVIDUAL')}
                 disabled={loading}
+                aria-pressed={userType === 'INDIVIDUAL'}
               >
                 개인
               </button>
@@ -263,6 +272,7 @@ export default function SocialCompleteProfilePage() {
                 className={userType === 'BUSINESS' ? styles.roleOptionActive : styles.roleOption}
                 onClick={() => setUserType('BUSINESS')}
                 disabled={loading}
+                aria-pressed={userType === 'BUSINESS'}
               >
                 기업
               </button>
@@ -357,7 +367,9 @@ export default function SocialCompleteProfilePage() {
             </div>
           )}
 
-          <p className={styles.errorText}>{error}</p>
+          <p className={styles.errorText} role="alert">
+            {error}
+          </p>
 
           <Button
             type="submit"

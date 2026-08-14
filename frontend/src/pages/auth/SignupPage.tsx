@@ -218,12 +218,19 @@ export default function SignupPage() {
         <form className={styles.form} onSubmit={handleSubmit} noValidate>
           {/* User Type Toggle */}
           <div className={styles.fieldGroup}>
-            <span className={styles.label}>회원 유형</span>
-            <div className={styles.roleToggle}>
+            <span className={styles.label} id="signup-user-type-label">
+              회원 유형
+            </span>
+            <div
+              aria-labelledby="signup-user-type-label"
+              className={styles.roleToggle}
+              role="group"
+            >
               <button
                 type="button"
                 className={userType === 'INDIVIDUAL' ? styles.roleOptionActive : styles.roleOption}
                 onClick={() => setUserType('INDIVIDUAL')}
+                aria-pressed={userType === 'INDIVIDUAL'}
               >
                 개인
               </button>
@@ -231,6 +238,7 @@ export default function SignupPage() {
                 type="button"
                 className={userType === 'BUSINESS' ? styles.roleOptionActive : styles.roleOption}
                 onClick={() => setUserType('BUSINESS')}
+                aria-pressed={userType === 'BUSINESS'}
               >
                 기업
               </button>
@@ -380,7 +388,9 @@ export default function SignupPage() {
             </div>
           )}
 
-          <p className={styles.errorText}>{error}</p>
+          <p className={styles.errorText} role="alert">
+            {error}
+          </p>
 
           {!capabilitiesLoading && capabilities && !isPasswordLoginEnabled ? (
             <p className={styles.noticeText}>

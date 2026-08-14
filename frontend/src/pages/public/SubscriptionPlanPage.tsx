@@ -232,7 +232,7 @@ export default function SubscriptionPlanPage() {
   if (loading && plans.length === 0) {
     return (
       <div className={styles.page}>
-        <div className={styles.loading}>
+        <div className={styles.loading} role="status">
           {'\uAD6C\uB3C5 \uD50C\uB79C\uC744 \uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4.'}
         </div>
       </div>
@@ -242,7 +242,7 @@ export default function SubscriptionPlanPage() {
   if (error) {
     return (
       <div className={styles.page}>
-        <div className={styles.error}>
+        <div className={styles.error} role="alert">
           <p>{error}</p>
           <Button variant="primary" onClick={() => void loadPlans(viewType)}>
             {'\uB2E4\uC2DC \uC2DC\uB3C4'}
@@ -260,7 +260,7 @@ export default function SubscriptionPlanPage() {
   if (!loading && sortedPlans.length === 0) {
     return (
       <div className={styles.page}>
-        <div className={styles.error}>
+        <div className={styles.error} role="status">
           <p>
             {
               '\uD604\uC7AC \uC120\uD0DD\uD560 \uC218 \uC788\uB294 \uAD6C\uB3C5 \uD50C\uB79C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.'
@@ -321,23 +321,27 @@ export default function SubscriptionPlanPage() {
       </div>
 
       {/* User Type Tabs */}
-      <div className={styles.userTypeTabs}>
+      <div aria-label="구독 플랜 대상 선택" className={styles.userTypeTabs} role="group">
         <button
           className={`${styles.userTypeTab} ${viewType === 'INDIVIDUAL' ? styles.userTypeTabActive : ''}`}
           onClick={() => setViewType('INDIVIDUAL')}
+          aria-pressed={viewType === 'INDIVIDUAL'}
+          type="button"
         >
           {'\uAC1C\uC778'}
         </button>
         <button
           className={`${styles.userTypeTab} ${viewType === 'BUSINESS' ? styles.userTypeTabActive : ''}`}
           onClick={() => setViewType('BUSINESS')}
+          aria-pressed={viewType === 'BUSINESS'}
+          type="button"
         >
           {'\uAE30\uC5C5'}
         </button>
       </div>
 
       {loading && (
-        <div className={styles.loading}>
+        <div className={styles.loading} role="status">
           {'\uAD6C\uB3C5 \uD50C\uB79C\uC744 \uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4.'}
         </div>
       )}
@@ -350,7 +354,9 @@ export default function SubscriptionPlanPage() {
         <button
           className={styles.toggleTrack}
           onClick={() => setIsYearly(!isYearly)}
-          aria-label="Toggle billing cycle"
+          aria-label={isYearly ? '연간 결제 선택됨' : '월간 결제 선택됨'}
+          aria-pressed={isYearly}
+          type="button"
         >
           <span className={styles.toggleThumb} style={{ [isYearly ? 'right' : 'left']: 3 }} />
         </button>

@@ -1098,11 +1098,12 @@ export default function SubscriptionManagePage() {
               : '업그레이드는 남은 기간 차액을 즉시 결제한 뒤 플랜이 바로 적용됩니다. 결제 주기 변경과 하위 플랜 변경은 다음 결제일부터 적용되며, 예약된 변경은 다시 바꿀 수 있습니다.'}
           </div>
 
-          <div className={styles.cycleTabs} aria-label="결제 주기 선택">
+          <div className={styles.cycleTabs} aria-label="결제 주기 선택" role="group">
             <Button
               variant={selectedCycle === 'MONTHLY' ? 'primary' : 'ghost'}
               size="sm"
               onClick={() => handleSelectCycle('MONTHLY')}
+              aria-pressed={selectedCycle === 'MONTHLY'}
             >
               {getBillingCycleLabel('MONTHLY')}
             </Button>
@@ -1110,6 +1111,7 @@ export default function SubscriptionManagePage() {
               variant={selectedCycle === 'YEARLY' ? 'primary' : 'ghost'}
               size="sm"
               onClick={() => handleSelectCycle('YEARLY')}
+              aria-pressed={selectedCycle === 'YEARLY'}
             >
               {getBillingCycleLabel('YEARLY')}
             </Button>
@@ -1168,10 +1170,16 @@ export default function SubscriptionManagePage() {
           </div>
 
           {/* Preview */}
-          {loadingPreview && <div className={styles.loading}>{'변경 내역을 미리 보는 중...'}</div>}
+          {loadingPreview && (
+            <div className={styles.loading} role="status">
+              {'변경 내역을 미리 보는 중입니다.'}
+            </div>
+          )}
           {previewError && !loadingPreview && (
             <>
-              <div className={styles.errorMsg}>{previewError}</div>
+              <div className={styles.errorMsg} role="alert">
+                {previewError}
+              </div>
               <div className={styles.actionButtons}>
                 <Button
                   variant="primary"
@@ -1290,8 +1298,16 @@ export default function SubscriptionManagePage() {
             </div>
           )}
 
-          {changeMsg && <div className={styles.successMsg}>{changeMsg}</div>}
-          {changeError && <div className={styles.errorMsg}>{changeError}</div>}
+          {changeMsg && (
+            <div className={styles.successMsg} role="status">
+              {changeMsg}
+            </div>
+          )}
+          {changeError && (
+            <div className={styles.errorMsg} role="alert">
+              {changeError}
+            </div>
+          )}
         </div>
       )}
 

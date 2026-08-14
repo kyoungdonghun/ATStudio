@@ -230,7 +230,9 @@ describe('CompanyCertManagePage review validation', () => {
         await act(async () => stale.reject(new Error('stale failure')));
       }
 
-      expect(screen.getByText('Loading...')).toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent(
+        '기업 인증 신청 목록을 불러오는 중입니다.',
+      );
       expect(screen.queryByText('Stale company')).not.toBeInTheDocument();
 
       await act(async () =>

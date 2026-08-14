@@ -121,7 +121,9 @@ export default function CompanyCertStatusPage() {
   if (loading) {
     return (
       <div className={styles.page}>
-        <div className={styles.loading}>{'Loading...'}</div>
+        <div className={styles.loading} role="status">
+          {'기업 인증 현황을 불러오는 중입니다.'}
+        </div>
       </div>
     );
   }
@@ -163,7 +165,12 @@ export default function CompanyCertStatusPage() {
       <div className={styles.card}>
         <div className={styles.statusRow}>
           <span className={styles.statusLabel}>{'상태'}</span>
-          <span className={`${styles.badge} ${badge.className}`}>{badge.label}</span>
+          <span
+            aria-label={`기업 인증 상태: ${badge.label}`}
+            className={`${styles.badge} ${badge.className}`}
+          >
+            {badge.label}
+          </span>
         </div>
 
         <div className={styles.infoRow}>

@@ -90,6 +90,10 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
   const showToast = useToastStore((s) => s.show);
   const sessionID = useRef(++drawerSessionSequence).current;
   const readKey = createReadKey(ownerKey, 'playlist-drawer', sessionID, tab);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   /* ── Playlist state ── */
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -161,6 +165,59 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
       capacityInFlight.current = false;
       mutationTargetRef.current = null;
       mutationOperationRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const drawer = drawerRef.current;
+    if (!drawer) return;
+    const drawerElement: HTMLDivElement = drawer;
+
+    const opener = document.activeElement;
+    returnFocusRef.current =
+      opener instanceof HTMLElement && opener !== document.body ? opener : null;
+    drawerElement.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!drawerElement.contains(document.activeElement)) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusable = Array.from(
+        drawerElement.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [href], select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        drawerElement.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (document.activeElement === drawerElement) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      const returnTarget = returnFocusRef.current;
+      if (returnTarget?.isConnected && !returnTarget.matches(':disabled, [aria-disabled="true"]')) {
+        returnTarget.focus();
+      }
     };
   }, []);
 
@@ -637,27 +694,44 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
   /* ── Render ── */
 
   return (
-    <div className={styles.drawer}>
+    <div
+      aria-label="재생목록 및 좋아요"
+      aria-modal="true"
+      aria-busy={plLoading || likesLoading || detailLoading || mutationPending || undefined}
+      className={styles.drawer}
+      ref={drawerRef}
+      role="dialog"
+      tabIndex={-1}
+    >
       {/* Header with tabs */}
       <div className={styles.header}>
-        <div className={styles.tabs}>
+        <div aria-label="재생목록 패널" className={styles.tabs} role="group">
           <button
             className={`${styles.tab} ${tab === 'playlists' ? styles.tabActive : ''}`}
             onClick={() => {
               setTab('playlists');
               closePlaylistDetail();
             }}
+            aria-pressed={tab === 'playlists'}
+            type="button"
           >
             재생목록
           </button>
           <button
             className={`${styles.tab} ${tab === 'likes' ? styles.tabActive : ''}`}
             onClick={() => setTab('likes')}
+            aria-pressed={tab === 'likes'}
+            type="button"
           >
             좋아요
           </button>
         </div>
-        <button className={styles.closeBtn} onClick={onClose} aria-label="닫기">
+        <button
+          className={styles.closeBtn}
+          onClick={onClose}
+          aria-label="재생목록 닫기"
+          type="button"
+        >
           &times;
         </button>
       </div>
@@ -671,16 +745,25 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
             /* Detail view */
             <div className={styles.body}>
               <div className={styles.detailHeader}>
-                <button className={styles.backBtn} onClick={closePlaylistDetail}>
+                <button
+                  aria-label="재생목록 목록으로 돌아가기"
+                  className={styles.backBtn}
+                  onClick={closePlaylistDetail}
+                  type="button"
+                >
                   {'\u2190'}
                 </button>
-                <span className={styles.detailTitle}>{currentSelectedPl.title}</span>
+                <span className={styles.detailTitle} role="heading" aria-level={2}>
+                  {currentSelectedPl.title}
+                </span>
                 <span className={styles.detailCount}>{currentSelectedPl.tracks.length}곡</span>
                 <button
                   className={styles.deletePlaylistBtn}
                   onClick={() => requestDeletePlaylist(currentSelectedPl.id)}
                   disabled={mutationPending}
+                  aria-label={`${currentSelectedPl.title} 재생목록 삭제`}
                   title="재생목록 삭제"
+                  type="button"
                 >
                   {'\u2715'}
                 </button>
@@ -706,13 +789,19 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
                     >
                       <span
                         className={styles.dragHandle}
+                        aria-hidden="true"
                         title="드래그하여 순서 변경"
                         onTouchStart={() => handleTouchStart(idx)}
                         style={{ touchAction: 'none' }}
                       >
                         {'\u2630'}
                       </span>
-                      <button className={styles.trackPlayBtn} onClick={() => handlePlayTrack(t)}>
+                      <button
+                        aria-label={`${t.title} 재생`}
+                        className={styles.trackPlayBtn}
+                        onClick={() => handlePlayTrack(t)}
+                        type="button"
+                      >
                         {'\u25B6'}
                       </button>
                       <div className={styles.trackInfo}>
@@ -727,7 +816,9 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
                         className={styles.removeBtn}
                         onClick={() => requestRemoveTrack(t)}
                         disabled={mutationPending}
+                        aria-label={`${t.title} 재생목록에서 삭제`}
                         title="삭제"
+                        type="button"
                       >
                         &times;
                       </button>
@@ -739,30 +830,52 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
           ) : (
             <div className={styles.body}>
               <div className={styles.detailHeader}>
-                <button className={styles.backBtn} onClick={closePlaylistDetail}>
+                <button
+                  aria-label="재생목록 목록으로 돌아가기"
+                  className={styles.backBtn}
+                  onClick={closePlaylistDetail}
+                  type="button"
+                >
                   {'\u2190'}
                 </button>
               </div>
-              <div className={styles.empty}>
+              <div className={styles.empty} role={detailLoading ? 'status' : 'alert'}>
                 {detailLoading
                   ? '재생목록 상세를 불러오는 중입니다.'
                   : (currentDetailError ?? '재생목록 상세를 불러오지 못했습니다.')}
               </div>
+              {!detailLoading && currentDetailError && selectedPlaylistID !== null && (
+                <button type="button" onClick={() => void loadPlaylistDetail(selectedPlaylistID)}>
+                  다시 시도
+                </button>
+              )}
             </div>
           )
         ) : (
           /* List view */
           <div className={styles.body}>
             {plLoading ? (
-              <div className={styles.empty}>Loading...</div>
+              <div className={styles.empty} role="status">
+                재생목록을 불러오는 중입니다.
+              </div>
             ) : currentPlaylistError ? (
-              <div className={styles.empty}>{currentPlaylistError}</div>
+              <div className={styles.empty} role="alert">
+                {currentPlaylistError}
+                <button type="button" onClick={() => void loadPlaylists()}>
+                  다시 시도
+                </button>
+              </div>
             ) : (
               <>
                 <ul className={styles.plList}>
                   {currentPlaylists.map((pl) => (
                     <li key={pl.id} className={styles.plItem}>
-                      <button className={styles.plItemBtn} onClick={() => openPlaylist(pl)}>
+                      <button
+                        aria-label={`${pl.title} 재생목록, ${pl.trackCount}곡`}
+                        className={styles.plItemBtn}
+                        onClick={() => openPlaylist(pl)}
+                        type="button"
+                      >
                         <span className={styles.plIcon}>{'\u266A'}</span>
                         <div className={styles.plItemInfo}>
                           <span className={styles.plItemName}>{pl.title}</span>
@@ -795,7 +908,11 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
 
                 {/* Create new */}
                 {canCreate && !showCreate && (
-                  <button className={styles.createBtn} onClick={() => setShowCreate(true)}>
+                  <button
+                    className={styles.createBtn}
+                    onClick={() => setShowCreate(true)}
+                    type="button"
+                  >
                     + 새 재생목록
                   </button>
                 )}
@@ -804,6 +921,7 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
                   <div className={styles.createForm}>
                     <input
                       className={styles.createInput}
+                      aria-label="새 재생목록 이름"
                       type="text"
                       placeholder="재생목록 이름"
                       value={newTitle}
@@ -811,7 +929,10 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
                       maxLength={50}
                       autoFocus
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleCreate();
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          void handleCreate();
+                        }
                         if (e.key === 'Escape') setShowCreate(false);
                       }}
                     />
@@ -819,6 +940,7 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
                       <button
                         className={styles.createCancelBtn}
                         onClick={() => setShowCreate(false)}
+                        type="button"
                       >
                         취소
                       </button>
@@ -826,6 +948,7 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
                         className={styles.createConfirmBtn}
                         onClick={handleCreate}
                         disabled={!newTitle.trim() || creating}
+                        type="button"
                       >
                         {creating ? '...' : '만들기'}
                       </button>
@@ -840,16 +963,28 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
         /* ── Likes Tab ── */
         <div className={styles.body}>
           {likesLoading ? (
-            <div className={styles.empty}>Loading...</div>
+            <div className={styles.empty} role="status">
+              좋아요 목록을 불러오는 중입니다.
+            </div>
           ) : currentLikesError ? (
-            <div className={styles.empty}>{currentLikesError}</div>
+            <div className={styles.empty} role="alert">
+              {currentLikesError}
+              <button type="button" onClick={() => void loadLikes()}>
+                다시 시도
+              </button>
+            </div>
           ) : currentLikes.length === 0 ? (
             <div className={styles.empty}>{'좋아요한 곡이 없습니다.'}</div>
           ) : (
             <ul className={styles.histList}>
               {currentLikes.map((item) => (
                 <li key={item.trackId} className={styles.histItem}>
-                  <button className={styles.histPlayBtn} onClick={() => handlePlayLike(item)}>
+                  <button
+                    aria-label={`${item.title} 재생`}
+                    className={styles.histPlayBtn}
+                    onClick={() => handlePlayLike(item)}
+                    type="button"
+                  >
                     {'\u25B6'}
                   </button>
                   <div className={styles.histInfo}>

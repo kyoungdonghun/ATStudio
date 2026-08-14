@@ -142,7 +142,9 @@ describe('WhitelistChannelManagePage persisted URL defense', () => {
     await waitFor(() => expect(mocks.fetchChannels).toHaveBeenCalledTimes(3));
 
     await act(async () => stale.reject(new Error('stale failure')));
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '화이트리스트 채널 목록을 불러오는 중입니다.',
+    );
     expect(container.querySelector('[class*="error"]')).toBeNull();
 
     await act(async () => latest.resolve(channelPage(unsafeChannel)));

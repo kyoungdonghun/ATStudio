@@ -51,6 +51,11 @@ describe('TrackUploadPage thumbnail contract', () => {
     fireEvent.change(audioInput!, { target: { files: [audioFile] } });
 
     expect(await screen.findByDisplayValue('launch')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^1 launch/ })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByLabelText('제목')).toHaveValue('launch');
     expect(screen.getByText('JPEG 또는 PNG, 1:1 필수, 10MB 이하')).toBeInTheDocument();
     expect(screen.getByText('2048x2048px 권장 (필수 아님)')).toBeInTheDocument();
     const thumbnailInput = screen.getByLabelText('썸네일 이미지');
@@ -107,6 +112,22 @@ describe('TrackUploadPage thumbnail contract', () => {
     const accepted = new File(['audio'], 'accepted.wav', { type: 'audio/wav' });
     fireEvent.change(audioInput!, { target: { files: [accepted] } });
     expect(await screen.findByDisplayValue('accepted')).toBeInTheDocument();
+  });
+
+  it('keeps tag failure recoverable without dispatching an upload', async () => {
+    mocks.fetchTags
+      .mockRejectedValueOnce(new Error('tag service unavailable'))
+      .mockResolvedValue([]);
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <TrackUploadPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('태그를 불러오지 못했습니다.');
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+    await waitFor(() => expect(mocks.fetchTags).toHaveBeenCalledTimes(8));
+    expect(mocks.createTrack).not.toHaveBeenCalled();
   });
 
   it('omits the native audio hint on iOS while still rejecting and resetting M4A', async () => {

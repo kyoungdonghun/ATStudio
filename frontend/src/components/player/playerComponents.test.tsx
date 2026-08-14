@@ -98,6 +98,25 @@ function DrawerLifecycleHarness({ onClosedLayout }: { onClosedLayout: () => void
   );
 }
 
+function DrawerFocusReturnHarness() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        재생목록 서랍 열기
+      </button>
+      <PlaylistDrawer open={open} onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
+function expectNoPlaylistMutations() {
+  expect(api.createPlaylist).not.toHaveBeenCalled();
+  expect(api.deletePlaylist).not.toHaveBeenCalled();
+  expect(api.removeTrackFromPlaylist).not.toHaveBeenCalled();
+  expect(api.reorderTracks).not.toHaveBeenCalled();
+}
+
 describe('player auxiliary components', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -745,5 +764,63 @@ describe('player auxiliary components', () => {
     const likedRow = screen.getByText('Liked Song').closest('li')!;
     fireEvent.click(within(likedRow).getByRole('button'));
     expect(play).toHaveBeenCalledWith(expect.objectContaining({ id: 21, title: 'Liked Song' }));
+  });
+
+  it('owns dialog focus and exposes selected tabs without dispatching a playlist mutation', async () => {
+    const onClose = vi.fn();
+    render(<PlaylistDrawer open onClose={onClose} />);
+
+    const dialog = screen.getByRole('dialog', { name: '재생목록 및 좋아요' });
+    expect(dialog).toHaveFocus();
+    expect(screen.getByRole('button', { name: '재생목록' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: '좋아요' })).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledOnce();
+    expectNoPlaylistMutations();
+  });
+
+  it('wraps forward Tab focus within the drawer without dispatching a playlist mutation', async () => {
+    render(<PlaylistDrawer open onClose={vi.fn()} />);
+
+    const firstFocusable = screen.getByRole('button', { name: '재생목록' });
+    const lastFocusable = await screen.findByRole('button', { name: '+ 새 재생목록' });
+    lastFocusable.focus();
+
+    fireEvent.keyDown(document, { key: 'Tab' });
+
+    expect(firstFocusable).toHaveFocus();
+    expectNoPlaylistMutations();
+  });
+
+  it('wraps reverse Shift+Tab focus within the drawer without dispatching a playlist mutation', async () => {
+    render(<PlaylistDrawer open onClose={vi.fn()} />);
+
+    const firstFocusable = screen.getByRole('button', { name: '재생목록' });
+    const lastFocusable = await screen.findByRole('button', { name: '+ 새 재생목록' });
+    firstFocusable.focus();
+
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+
+    expect(lastFocusable).toHaveFocus();
+    expectNoPlaylistMutations();
+  });
+
+  it('returns focus to its connected opener after close without dispatching a playlist mutation', async () => {
+    render(<DrawerFocusReturnHarness />);
+
+    const opener = screen.getByRole('button', { name: '재생목록 서랍 열기' });
+    opener.focus();
+    fireEvent.click(opener);
+    await screen.findByRole('dialog', { name: '재생목록 및 좋아요' });
+
+    fireEvent.click(screen.getByRole('button', { name: '재생목록 닫기' }));
+
+    expect(opener).toBeInTheDocument();
+    expect(opener).toHaveFocus();
+    expectNoPlaylistMutations();
   });
 });

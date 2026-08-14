@@ -497,8 +497,10 @@ export default function SubscriptionPaymentPage() {
   if (loading) {
     return (
       <div className={styles.page}>
-        <div className={styles.loading}>
-          {isSuccessRedirect ? 'Toss 자동결제 등록을 확인하는 중...' : '로딩 중...'}
+        <div className={styles.loading} role="status">
+          {isSuccessRedirect
+            ? '자동결제 등록을 확인하는 중입니다.'
+            : '결제 정보를 불러오는 중입니다.'}
         </div>
       </div>
     );
@@ -508,7 +510,7 @@ export default function SubscriptionPaymentPage() {
     return (
       <div className={styles.page}>
         <h1 className={styles.pageTitle}>{isFailRedirect ? '결제 상태 확인' : '자동결제 확인'}</h1>
-        <div className={styles.pgNotice}>
+        <div className={styles.pgNotice} role="alert">
           <div className={styles.pgText}>
             {errorMessage ?? '결제 상태를 확인했습니다. 다시 시도할 수 있습니다.'}
           </div>
@@ -537,7 +539,7 @@ export default function SubscriptionPaymentPage() {
     return (
       <div className={styles.page}>
         <h1 className={styles.pageTitle}>{'구독 결제'}</h1>
-        <div className={styles.error}>
+        <div className={styles.error} role="alert">
           {errorMessage ?? '선택한 플랜이 없습니다. '}
           <button className={styles.btnBack} onClick={() => navigate('/subscriptions')}>
             {'플랜 선택으로 돌아가기'}
@@ -641,7 +643,7 @@ export default function SubscriptionPaymentPage() {
         <div className={styles.providerHeader}>
           <span className={styles.providerTitle}>{'Toss 자동결제'}</span>
           <span className={styles.providerStatus}>
-            {paymentOrder ? 'READY' : errorMessage ? 'ERROR' : 'PREPARING'}
+            {paymentOrder ? '준비 완료' : errorMessage ? '오류' : '준비 중'}
           </span>
         </div>
         {paymentOrder ? (

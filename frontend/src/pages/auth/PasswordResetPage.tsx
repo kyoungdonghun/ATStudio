@@ -171,7 +171,9 @@ function ForgotForm({ isLocalMailMode }: { isLocalMailMode: boolean }) {
               autoComplete="email"
             />
           </div>
-          <p className={styles.errorText}>{error}</p>
+          <p className={styles.errorText} role="alert">
+            {error}
+          </p>
           <Button
             type="submit"
             variant="primary"
@@ -285,7 +287,9 @@ function ResetForm({ token }: { token: string }) {
               autoComplete="new-password"
             />
           </div>
-          <p className={styles.errorText}>{error}</p>
+          <p className={styles.errorText} role="alert">
+            {error}
+          </p>
           <Button
             type="submit"
             variant="primary"

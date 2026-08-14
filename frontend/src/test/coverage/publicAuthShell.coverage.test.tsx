@@ -1165,7 +1165,7 @@ describe('creator forms', () => {
     expect(await screen.findByRole('heading', { name: '음원 수정' })).toBeInTheDocument();
     expect(screen.getByDisplayValue('Fresh Track')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle active' }));
+    fireEvent.click(screen.getByRole('button', { name: '음원 활성 상태' }));
     fireEvent.click(screen.getByRole('button', { name: 'Lo-fi' }));
     const fileInputs = container.querySelectorAll('input[type="file"]');
     fireEvent.change(fileInputs[0], {

@@ -1061,7 +1061,7 @@ describe('track upload validation and recovery behavior', () => {
       },
     });
 
-    fireEvent.click(screen.getAllByRole('button', { name: '×' })[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'second 제거' }));
     expect(screen.queryByDisplayValue('second')).not.toBeInTheDocument();
     const title = screen.getByPlaceholderText('음원 제목');
     fireEvent.change(title, { target: { value: '   ' } });

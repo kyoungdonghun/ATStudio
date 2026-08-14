@@ -524,6 +524,11 @@ describe('TrackListPage latest-request-wins', () => {
       }
     });
     expect(screen.getByRole('button', { name: 'safe-fallback' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '선택한 필터에 따른 사용 가능 태그를 확인하지 못했습니다.',
+    );
+    fireEvent.click(screen.getByRole('button', { name: '사용 가능 태그 다시 확인' }));
+    await waitFor(() => expect(mocks.fetchAvailableTags).toHaveBeenCalledTimes(4));
 
     await act(async () => {
       supersededRequest.resolve([

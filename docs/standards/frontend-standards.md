@@ -608,6 +608,13 @@ const TrackListPage = () => {
   opener restoration, removes the mobile dialog, overlay, and trap, releases
   all isolation, and preserves the desktop sidebar and active route. Accepted
   mobile ADMIN routes use the shared one-shot destination-focus contract.
+- `PlaylistDrawer` keeps its established fixed layout but exposes a named modal
+  dialog while open. It receives focus on entry, traps Tab/Shift+Tab within the
+  drawer, closes on Escape, and returns focus to a connected enabled opener.
+  Its panel controls use state-correct `aria-pressed`; keyboard-only Escape and
+  focus transitions do not invoke playlist create, delete, remove, or reorder
+  requests. List/detail/like read failures remain visible and offer only their
+  existing scoped read retry.
 - Collapsed mobile `PlayerBar` detail markup is conditionally absent. Escape is
   handled only for an expanded detail event originating inside that PlayerBar
   mobile surface, collapses the detail, and returns focus to its expander.

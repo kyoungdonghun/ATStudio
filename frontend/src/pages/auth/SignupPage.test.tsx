@@ -123,6 +123,15 @@ describe('SignupPage', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('exposes the current member type as a selected control', () => {
+    renderPage();
+
+    expect(screen.getByRole('group', { name: '회원 유형' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '개인' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: '기업' }));
+    expect(screen.getByRole('button', { name: '기업' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('renders no signup form when capability discovery fails and supports explicit retry', () => {
     const retry = vi.fn();
     usePublicCapabilitiesMock.mockReturnValue({

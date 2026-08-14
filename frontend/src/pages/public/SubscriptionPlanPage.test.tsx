@@ -138,6 +138,11 @@ describe('SubscriptionPlanPage', () => {
     expect(
       await screen.findByRole('button', { name: '\uC2DC\uC791\uD558\uAE30' }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '개인' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '연간 결제 선택됨' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
   });
 
   it('keeps the empty state distinct and retries the complete read', async () => {

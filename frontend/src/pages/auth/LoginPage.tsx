@@ -283,7 +283,9 @@ export default function LoginPage() {
             />
           </div>
 
-          <p className={styles.errorText}>{error}</p>
+          <p className={styles.errorText} role="alert">
+            {error}
+          </p>
 
           <Button
             type="submit"

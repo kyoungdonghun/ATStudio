@@ -166,6 +166,8 @@ export default function TrackListPage() {
   const pendingDownloadIDsRef = useRef(new Set<number>());
   const [pendingDownloadIDs, setPendingDownloadIDs] = useState<Set<number>>(new Set());
   const availableTagsRequestGenerationRef = useRef(0);
+  const [availableTagsError, setAvailableTagsError] = useState(false);
+  const [availableTagsRetryVersion, setAvailableTagsRetryVersion] = useState(0);
   const taxonomyRequestGenerationRef = useRef(createTaxonomyRequestGenerations());
   const taxonomyRequestTokenRef = useRef(createTaxonomyRequestTokens());
 
@@ -450,6 +452,7 @@ export default function TrackListPage() {
     };
 
     showAllTags();
+    setAvailableTagsError(false);
     if (!hasActiveFilters) {
       return;
     }
@@ -490,6 +493,7 @@ export default function TrackListPage() {
           return;
         }
         showAllTags();
+        setAvailableTagsError(true);
       });
 
     return () => {
@@ -502,6 +506,7 @@ export default function TrackListPage() {
     activeUsagesKey,
     activeBpmLabel,
     hasActiveFilters,
+    availableTagsRetryVersion,
   ]);
 
   /* ── Filter helpers ── */
@@ -644,6 +649,21 @@ export default function TrackListPage() {
 
       {/* Filter Bar */}
       <div className={styles.filterBar}>
+        {availableTagsError && (
+          <div className={styles.taxonomyRequestState} role="alert">
+            <span className={styles.taxonomyError}>
+              선택한 필터에 따른 사용 가능 태그를 확인하지 못했습니다.
+            </span>
+            <button
+              aria-label="사용 가능 태그 다시 확인"
+              className={styles.taxonomyRetryButton}
+              onClick={() => setAvailableTagsRetryVersion((version) => version + 1)}
+              type="button"
+            >
+              다시 시도
+            </button>
+          </div>
+        )}
         {/* Genre row */}
         <div className={`${styles.filterRow} ${genreExpanded ? styles.filterRowExpanded : ''}`}>
           <span className={styles.filterLabel}>{'장르'}</span>

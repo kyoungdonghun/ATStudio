@@ -387,7 +387,9 @@ export default function WhitelistChannelManagePage() {
       )}
 
       {loading ? (
-        <div className={styles.loading}>{'Loading...'}</div>
+        <div className={styles.loading} role="status">
+          {'화이트리스트 채널 목록을 불러오는 중입니다.'}
+        </div>
       ) : (
         <div className={styles.tableWrap}>
           <table className={styles.table}>

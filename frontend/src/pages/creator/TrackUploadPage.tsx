@@ -84,6 +84,8 @@ export default function TrackUploadPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [tagLoadFailed, setTagLoadFailed] = useState(false);
+  const [tagRetryVersion, setTagRetryVersion] = useState(0);
 
   const audioInputRef = useRef<HTMLInputElement>(null);
 
@@ -91,6 +93,7 @@ export default function TrackUploadPage() {
   useEffect(() => {
     let cancelled = false;
     async function loadTags() {
+      setTagLoadFailed(false);
       try {
         const [genres, moods, instruments, usages] = await Promise.all([
           fetchTags('GENRE'),
@@ -105,14 +108,14 @@ export default function TrackUploadPage() {
           setUsageTags(usages);
         }
       } catch {
-        /* tags are supplementary */
+        if (!cancelled) setTagLoadFailed(true);
       }
     }
     loadTags();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [tagRetryVersion]);
 
   /* ── Add audio files ── */
   const handleAudioSelect = useCallback(
@@ -307,15 +310,22 @@ export default function TrackUploadPage() {
       <h1 className={styles.pageTitle}>{'음원 업로드'}</h1>
 
       <form className={styles.form} onSubmit={handleSubmit}>
-        {error && <div className={styles.error}>{error}</div>}
+        {error && (
+          <div className={styles.error} role="alert">
+            {error}
+          </div>
+        )}
 
         {/* File select */}
         <div className={styles.field}>
-          <span className={`${styles.label} ${styles.required}`}>{'오디오 파일 선택'}</span>
-          <label className={styles.fileLabel}>
+          <span className={`${styles.label} ${styles.required}`} id="track-upload-audio-label">
+            {'오디오 파일 선택'}
+          </span>
+          <label aria-labelledby="track-upload-audio-label" className={styles.fileLabel}>
             <input
               ref={audioInputRef}
               type="file"
+              aria-label="오디오 파일 선택"
               accept={getAudioAccept()}
               multiple
               className={styles.fileHidden}
@@ -331,7 +341,7 @@ export default function TrackUploadPage() {
         {tracks.length > 0 && (
           <div className={styles.trackList}>
             {submitting && (
-              <div className={styles.progressBar}>
+              <div className={styles.progressBar} role="status">
                 {`업로드 중... ${doneCount} / ${tracks.length}`}
               </div>
             )}
@@ -356,23 +366,28 @@ export default function TrackUploadPage() {
                   } ${state?.status === 'error' ? styles.trackError : ''}`}
                 >
                   {/* Header row */}
-                  <div
-                    className={styles.trackHeader}
-                    onClick={() => setExpandedIdx(isExpanded ? null : idx)}
-                  >
-                    <span className={styles.trackIdx}>{idx + 1}</span>
-                    <span className={styles.trackFileName}>
-                      {statusIcon} {track.title || track.audioFile.name}
-                    </span>
-                    <span className={styles.trackChevron}>{isExpanded ? '\u25B2' : '\u25BC'}</span>
+                  <div className={styles.trackHeader}>
+                    <button
+                      aria-controls={`track-upload-details-${track.id}`}
+                      aria-expanded={isExpanded}
+                      className={styles.trackHeaderButton}
+                      onClick={() => setExpandedIdx(isExpanded ? null : idx)}
+                      type="button"
+                    >
+                      <span className={styles.trackIdx}>{idx + 1}</span>
+                      <span className={styles.trackFileName}>
+                        {statusIcon} {track.title || track.audioFile.name}
+                      </span>
+                      <span className={styles.trackChevron}>
+                        {isExpanded ? '\u25B2' : '\u25BC'}
+                      </span>
+                    </button>
                     {state?.status !== 'done' && (
                       <button
+                        aria-label={`${track.title || track.audioFile.name} 제거`}
                         type="button"
                         className={styles.trackRemove}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeTrack(idx);
-                        }}
+                        onClick={() => removeTrack(idx)}
                       >
                         {'×'}
                       </button>
@@ -380,16 +395,24 @@ export default function TrackUploadPage() {
                   </div>
 
                   {state?.status === 'error' && (
-                    <div className={styles.trackErrorMsg}>{state.error}</div>
+                    <div className={styles.trackErrorMsg} role="alert">
+                      {state.error}
+                    </div>
                   )}
 
                   {/* Expanded detail */}
                   {isExpanded && state?.status !== 'done' && (
-                    <div className={styles.trackBody}>
+                    <div className={styles.trackBody} id={`track-upload-details-${track.id}`}>
                       {/* Title */}
                       <div className={styles.field}>
-                        <label className={`${styles.label} ${styles.required}`}>{'제목'}</label>
+                        <label
+                          className={`${styles.label} ${styles.required}`}
+                          htmlFor={`track-upload-title-${track.id}`}
+                        >
+                          {'제목'}
+                        </label>
                         <input
+                          id={`track-upload-title-${track.id}`}
                           className={styles.input}
                           type="text"
                           maxLength={TITLE_TRACK_MAX}
@@ -402,8 +425,14 @@ export default function TrackUploadPage() {
                       {/* BPM + Tonality */}
                       <div className={styles.numberRow}>
                         <div className={styles.field}>
-                          <label className={`${styles.label} ${styles.required}`}>BPM</label>
+                          <label
+                            className={`${styles.label} ${styles.required}`}
+                            htmlFor={`track-upload-bpm-${track.id}`}
+                          >
+                            BPM
+                          </label>
                           <input
+                            id={`track-upload-bpm-${track.id}`}
                             className={styles.input}
                             type="number"
                             min={BPM_MIN}
@@ -414,8 +443,14 @@ export default function TrackUploadPage() {
                           />
                         </div>
                         <div className={styles.field}>
-                          <label className={`${styles.label} ${styles.required}`}>{'조성'}</label>
+                          <label
+                            className={`${styles.label} ${styles.required}`}
+                            htmlFor={`track-upload-tonality-${track.id}`}
+                          >
+                            {'조성'}
+                          </label>
                           <select
+                            id={`track-upload-tonality-${track.id}`}
                             className={styles.select}
                             value={track.tonality}
                             onChange={(e) => updateTrack(idx, { tonality: e.target.value })}
@@ -439,8 +474,14 @@ export default function TrackUploadPage() {
 
                       {/* Description */}
                       <div className={styles.field}>
-                        <label className={styles.label}>{'설명'}</label>
+                        <label
+                          className={styles.label}
+                          htmlFor={`track-upload-description-${track.id}`}
+                        >
+                          {'설명'}
+                        </label>
                         <textarea
+                          id={`track-upload-description-${track.id}`}
                           className={styles.textarea}
                           maxLength={DESCRIPTION_MAX}
                           value={track.description}
@@ -510,6 +551,15 @@ export default function TrackUploadPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {tagLoadFailed && (
+          <div className={styles.error} role="alert">
+            태그를 불러오지 못했습니다.
+            <Button type="button" onClick={() => setTagRetryVersion((version) => version + 1)}>
+              다시 시도
+            </Button>
           </div>
         )}
 

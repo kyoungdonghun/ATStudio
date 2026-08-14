@@ -366,7 +366,9 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div className={styles.page}>
-        <div className={styles.loading}>{'프로필을 불러오는 중...'}</div>
+        <div className={styles.loading} role="status">
+          {'프로필을 불러오는 중입니다.'}
+        </div>
       </div>
     );
   }
@@ -374,7 +376,9 @@ export default function ProfilePage() {
   if (error || !profile) {
     return (
       <div className={styles.page}>
-        <div className={styles.error}>{error ?? '프로필을 찾을 수 없습니다.'}</div>
+        <div className={styles.error} role="alert">
+          {error ?? '프로필을 찾을 수 없습니다.'}
+        </div>
       </div>
     );
   }
@@ -491,10 +495,12 @@ export default function ProfilePage() {
             <div className={styles.section}>
               <div className={styles.sectionTitle}>{'구독 정보'}</div>
               {subscriptionState === 'loading' ? (
-                <div className={styles.noSub}>구독 정보를 불러오는 중...</div>
+                <div className={styles.noSub} role="status">
+                  구독 정보를 불러오는 중입니다.
+                </div>
               ) : subscriptionState === 'error' ? (
                 <div className={styles.noSub}>
-                  <p className={styles.errorMsg}>
+                  <p className={styles.errorMsg} role="alert">
                     {subscriptionError ?? '구독 정보를 불러오지 못했습니다.'}
                   </p>
                   <Button variant="primary" size="sm" onClick={() => void loadSubscription()}>
@@ -674,8 +680,16 @@ export default function ProfilePage() {
                 }{' '}
                 <Link to="/whitelist-channels">{'채널 관리로 이동'}</Link>
               </div>
-              {profileMsg && <div className={styles.successMsg}>{profileMsg}</div>}
-              {profileError && <div className={styles.errorMsg}>{profileError}</div>}
+              {profileMsg && (
+                <div className={styles.successMsg} role="status">
+                  {profileMsg}
+                </div>
+              )}
+              {profileError && (
+                <div className={styles.errorMsg} role="alert">
+                  {profileError}
+                </div>
+              )}
             </div>
           )}
 
@@ -719,8 +733,16 @@ export default function ProfilePage() {
                   {'비밀번호 변경'}
                 </Button>
               </div>
-              {passwordMsg && <div className={styles.successMsg}>{passwordMsg}</div>}
-              {passwordError && <div className={styles.errorMsg}>{passwordError}</div>}
+              {passwordMsg && (
+                <div className={styles.successMsg} role="status">
+                  {passwordMsg}
+                </div>
+              )}
+              {passwordError && (
+                <div className={styles.errorMsg} role="alert">
+                  {passwordError}
+                </div>
+              )}
             </div>
           )}
         </div>

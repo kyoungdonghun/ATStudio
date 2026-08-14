@@ -228,7 +228,9 @@ export default function TrackEditPage() {
   if (pageLoading) {
     return (
       <div className={styles.page}>
-        <div className={styles.loading}>{'Loading...'}</div>
+        <div className={styles.loading} role="status">
+          {'음원 정보를 불러오는 중입니다.'}
+        </div>
       </div>
     );
   }
@@ -253,16 +255,26 @@ export default function TrackEditPage() {
       <h1 className={styles.pageTitle}>{'음원 수정'}</h1>
 
       <form className={styles.form} onSubmit={handleSubmit}>
-        {error && <div className={styles.error}>{error}</div>}
+        {error && (
+          <div className={styles.error} role="alert">
+            {error}
+          </div>
+        )}
 
         {/* File uploads */}
         <div className={styles.fileRow}>
           <div className={styles.fileBox}>
             <div className={styles.field}>
-              <span className={styles.label}>{'오디오 파일'}</span>
-              <label className={`${styles.fileLabel} ${audioFile ? styles.fileLabelSelected : ''}`}>
+              <span className={styles.label} id="track-edit-audio-label">
+                {'오디오 파일'}
+              </span>
+              <label
+                aria-labelledby="track-edit-audio-label"
+                className={`${styles.fileLabel} ${audioFile ? styles.fileLabelSelected : ''}`}
+              >
                 <input
                   type="file"
+                  aria-label="오디오 파일"
                   accept={getAudioAccept()}
                   className={styles.fileHidden}
                   onChange={handleAudioChange}
@@ -291,8 +303,11 @@ export default function TrackEditPage() {
 
         {/* Title */}
         <div className={styles.field}>
-          <label className={`${styles.label} ${styles.required}`}>{'제목'}</label>
+          <label className={`${styles.label} ${styles.required}`} htmlFor="track-edit-title">
+            {'제목'}
+          </label>
           <input
+            id="track-edit-title"
             className={styles.input}
             type="text"
             maxLength={TITLE_TRACK_MAX}
@@ -304,8 +319,11 @@ export default function TrackEditPage() {
         {/* BPM + Tonality */}
         <div className={styles.numberRow}>
           <div className={styles.field}>
-            <label className={`${styles.label} ${styles.required}`}>BPM</label>
+            <label className={`${styles.label} ${styles.required}`} htmlFor="track-edit-bpm">
+              BPM
+            </label>
             <input
+              id="track-edit-bpm"
               className={styles.input}
               type="number"
               min={BPM_MIN}
@@ -315,8 +333,11 @@ export default function TrackEditPage() {
             />
           </div>
           <div className={styles.field}>
-            <label className={`${styles.label} ${styles.required}`}>{'조성'}</label>
+            <label className={`${styles.label} ${styles.required}`} htmlFor="track-edit-tonality">
+              {'조성'}
+            </label>
             <select
+              id="track-edit-tonality"
               className={styles.select}
               value={tonality}
               onChange={(e) => setTonality(e.target.value)}
@@ -333,8 +354,11 @@ export default function TrackEditPage() {
 
         {/* Description */}
         <div className={styles.field}>
-          <label className={styles.label}>{'설명'}</label>
+          <label className={styles.label} htmlFor="track-edit-description">
+            {'설명'}
+          </label>
           <textarea
+            id="track-edit-description"
             className={styles.textarea}
             maxLength={DESCRIPTION_MAX}
             value={description}
@@ -350,7 +374,8 @@ export default function TrackEditPage() {
               type="button"
               className={`${styles.toggle} ${isActive ? styles.toggleActive : ''}`}
               onClick={() => setIsActive((v) => !v)}
-              aria-label="Toggle active"
+              aria-label="음원 활성 상태"
+              aria-pressed={isActive}
             />
             <span className={styles.toggleLabel}>{isActive ? '활성' : '비활성'}</span>
           </div>

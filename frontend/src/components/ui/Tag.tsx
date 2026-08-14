@@ -11,8 +11,8 @@ export default function Tag({ label, active = false, onClick, className }: TagPr
   const classes = [styles.tag, active ? styles.on : '', className ?? ''].filter(Boolean).join(' ');
 
   return (
-    <span className={classes} onClick={onClick} role="button" tabIndex={0}>
+    <button className={classes} onClick={onClick} type="button" aria-pressed={active}>
       {label}
-    </span>
+    </button>
   );
 }

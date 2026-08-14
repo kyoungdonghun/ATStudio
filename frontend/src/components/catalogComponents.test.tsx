@@ -42,6 +42,9 @@ describe('catalog interaction components', () => {
     );
     vi.advanceTimersByTime(100);
 
+    expect(screen.getByRole('textbox', { name: '태그 검색' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Rock' })).toHaveAttribute('aria-pressed', 'true');
+
     fireEvent.click(screen.getByRole('button', { name: 'Jazz' }));
     fireEvent.click(screen.getByRole('button', { name: 'Bright' }));
     fireEvent.click(screen.getByRole('button', { name: 'Piano' }));
@@ -80,10 +83,10 @@ describe('catalog interaction components', () => {
       />,
     );
 
-    const search = screen.getByRole('textbox');
+    const search = screen.getByRole('textbox', { name: '태그 검색' });
     fireEvent.change(search, { target: { value: 'missing' } });
     expect(screen.queryByRole('button', { name: 'Rock' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '✕' }));
+    fireEvent.click(screen.getByRole('button', { name: '태그 검색어 지우기' }));
     expect(screen.getByRole('button', { name: 'Rock' })).toBeInTheDocument();
     const buttons = screen.getAllByRole('button');
     fireEvent.click(buttons[buttons.length - 2]!);

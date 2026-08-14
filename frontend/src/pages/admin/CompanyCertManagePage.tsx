@@ -267,7 +267,9 @@ export default function CompanyCertManagePage() {
   if (loading) {
     return (
       <div className={styles.page}>
-        <div className={styles.loading}>Loading...</div>
+        <div className={styles.loading} role="status">
+          기업 인증 신청 목록을 불러오는 중입니다.
+        </div>
       </div>
     );
   }
@@ -363,7 +365,11 @@ export default function CompanyCertManagePage() {
 
       <Modal open={detailOpen} onClose={closeDetail} title="기업 인증 상세" busy={reviewLoading}>
         <div className={styles.modalBody}>
-          {detailLoading && <div className={styles.loadingInline}>상세를 불러오는 중...</div>}
+          {detailLoading && (
+            <div className={styles.loadingInline} role="status">
+              상세를 불러오는 중입니다.
+            </div>
+          )}
           {detailError && (
             <div className={styles.modalError} role="alert">
               <p>{detailError}</p>
@@ -412,7 +418,7 @@ export default function CompanyCertManagePage() {
                 <h3 className={styles.sectionTitle}>제출 서류</h3>
                 {detail.documents.length === 0 ? (
                   <p className={styles.emptyDocuments}>
-                    개별 서류 메타데이터가 없습니다. 이전 방식으로 저장된 신청일 수 있습니다.
+                    개별 서류 메타데이터가 없습니다. 제출 서류 정보를 확인할 수 없습니다.
                   </p>
                 ) : (
                   <div className={styles.documentList}>

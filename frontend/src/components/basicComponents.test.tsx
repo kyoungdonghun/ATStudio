@@ -75,6 +75,7 @@ describe('small reusable UI and client state', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Shorts' }));
     expect(onFilter).toHaveBeenCalledOnce();
     expect(onTag).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Shorts' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('HOT')).toBeInTheDocument();
   });
 

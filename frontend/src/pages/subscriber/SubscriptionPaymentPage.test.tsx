@@ -234,7 +234,7 @@ describe('SubscriptionPaymentPage', () => {
     renderPage();
 
     await screen.findByText('결제 준비를 완료하지 못했습니다. 다시 시도해주세요.');
-    expect(screen.getByText('ERROR')).toBeInTheDocument();
+    expect(screen.getByText('오류')).toBeInTheDocument();
     expect(screen.getByText('결제 주문 준비에 실패했습니다.')).toBeInTheDocument();
     expect(screen.queryByText('결제 주문을 준비 중입니다.')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '새 결제 시도 시작' })).not.toBeInTheDocument();
@@ -243,7 +243,7 @@ describe('SubscriptionPaymentPage', () => {
 
     await waitFor(() => expect(prepareBillingAgreementMock).toHaveBeenCalledTimes(2));
     expect(prepareBillingAgreementMock.mock.calls[1][1]).toBe(firstAttemptKey);
-    expect(await screen.findByText('READY')).toBeInTheDocument();
+    expect(await screen.findByText('준비 완료')).toBeInTheDocument();
   });
 
   it.each([
