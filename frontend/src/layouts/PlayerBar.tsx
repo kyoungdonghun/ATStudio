@@ -1,12 +1,16 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { toUploadUrl } from '@/api/client';
+import { getApiErrorCode, toUploadUrl } from '@/api/client';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
 import { fetchMySubscription, isNoActiveSubscriptionError } from '@/api/userSubscriptions';
-import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
+import {
+  createDownloadFallbackFileName,
+  downloadTrack,
+  triggerBlobDownload,
+} from '@/api/downloads';
 import HistoryModal from '@/components/player/HistoryModal';
 import PlaylistDrawer from '@/components/player/PlaylistDrawer';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
@@ -67,6 +71,7 @@ export default function PlayerBar() {
   const [subscriptionRetryKey, setSubscriptionRetryKey] = useState(0);
   const subscriptionGenerationRef = useRef(0);
   const [downloading, setDownloading] = useState(false);
+  const downloadOwnershipRef = useRef<{ trackID: number } | null>(null);
   const [volumeOpen, setVolumeOpen] = useState(false);
   const mobileMiniProgressRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
@@ -182,31 +187,34 @@ export default function PlayerBar() {
   );
 
   const handleDownload = useCallback(async () => {
-    if (!currentTrack || downloading) return;
+    if (!currentTrack || downloading || downloadOwnershipRef.current !== null) return;
+    const ownership = { trackID: currentTrack.id };
+    downloadOwnershipRef.current = ownership;
     setDownloading(true);
     try {
-      const blob = await downloadTrack(currentTrack.id);
-      triggerBlobDownload(blob, `${currentTrack.title}.mp3`);
+      const download = await downloadTrack(
+        currentTrack.id,
+        createDownloadFallbackFileName('track', currentTrack.id, currentTrack.title, 'mp3'),
+      );
+      triggerBlobDownload(download);
       toast('success', '다운로드가 완료되었습니다.');
     } catch (err: unknown) {
-      try {
-        const errObj = err as { response?: { data?: Blob } };
-        if (errObj?.response?.data instanceof Blob) {
-          const text = await errObj.response.data.text();
-          const json = JSON.parse(text);
-          if (json?.message?.includes('초과') || json?.code === 'DOWNLOAD_LIMIT_EXCEEDED') {
-            toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
-            setDownloading(false);
-            return;
-          }
-        }
-      } catch {
-        /* ignore parse error */
+      const code = await getApiErrorCode(err);
+      if (code === 'NO_ACTIVE_SUBSCRIPTION') {
+        toast('warning', '구독이 필요한 기능입니다.');
+        navigate('/subscriptions');
+      } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
+        toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
+      } else {
+        toast('error', '다운로드에 실패했습니다.');
       }
-      toast('error', '다운로드에 실패했습니다.');
+    } finally {
+      if (downloadOwnershipRef.current === ownership) {
+        downloadOwnershipRef.current = null;
+        setDownloading(false);
+      }
     }
-    setDownloading(false);
-  }, [currentTrack, downloading, toast]);
+  }, [currentTrack, downloading, navigate, toast]);
 
   const handleMobileMiniProgressClick = useCallback(
     (e: React.MouseEvent<HTMLElement>) => {

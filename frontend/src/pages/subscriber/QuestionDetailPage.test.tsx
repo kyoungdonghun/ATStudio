@@ -20,6 +20,8 @@ const authState = vi.hoisted(() => ({
 
 vi.mock('@/api/questions', () => mocks);
 vi.mock('@/api/downloads', () => ({
+  createDownloadFallbackFileName: (_resource: string, id: number, name: string) =>
+    `question-${id}-${name}`,
   triggerBlobDownload: mocks.triggerBlobDownload,
 }));
 vi.mock('@/store/authStore', () => ({
@@ -187,7 +189,12 @@ describe('QuestionDetailPage load ownership', () => {
     fireEvent.click(firstButton);
 
     expect(mocks.downloadAttachment).toHaveBeenCalledTimes(1);
-    expect(mocks.downloadAttachment).toHaveBeenCalledWith(1, 11, expect.any(AbortSignal));
+    expect(mocks.downloadAttachment).toHaveBeenCalledWith(
+      1,
+      11,
+      'question-11-first.txt',
+      expect.any(AbortSignal),
+    );
     expect(screen.getByRole('button', { name: /first.txt.*다운로드 중/ })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'second.txt' })).toBeDisabled();
 
@@ -196,11 +203,15 @@ describe('QuestionDetailPage load ownership', () => {
     expect(await screen.findByText('첨부파일 다운로드에 실패했습니다.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'first.txt' })).toBeEnabled();
 
-    const blob = new Blob(['retry']);
-    mocks.downloadAttachment.mockResolvedValueOnce(blob);
+    const download = {
+      blob: new Blob(['retry']),
+      fileName: 'server-first.txt',
+      contentType: 'application/octet-stream',
+    };
+    mocks.downloadAttachment.mockResolvedValueOnce(download);
     fireEvent.click(screen.getByRole('button', { name: 'first.txt' }));
 
-    await waitFor(() => expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(blob, 'first.txt'));
+    await waitFor(() => expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(download));
     expect(screen.queryByText('첨부파일 다운로드에 실패했습니다.')).not.toBeInTheDocument();
   });
 
@@ -218,7 +229,7 @@ describe('QuestionDetailPage load ownership', () => {
     renderPage('/questions/1');
     expect(await screen.findByText('이전 문의')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'old.txt' }));
-    const oldSignal = mocks.downloadAttachment.mock.calls[0][2] as AbortSignal;
+    const oldSignal = mocks.downloadAttachment.mock.calls[0][3] as AbortSignal;
 
     fireEvent.click(screen.getByRole('button', { name: 'next question' }));
     expect(await screen.findByText('현재 문의')).toBeInTheDocument();
@@ -242,7 +253,7 @@ describe('QuestionDetailPage load ownership', () => {
     const view = renderPage('/questions/1');
     expect(await screen.findByText('인증 교체 문의')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'old-owner.txt' }));
-    const oldSignal = mocks.downloadAttachment.mock.calls[0][2] as AbortSignal;
+    const oldSignal = mocks.downloadAttachment.mock.calls[0][3] as AbortSignal;
 
     await act(async () => {
       authState.user = { id: 2 };
@@ -270,7 +281,7 @@ describe('QuestionDetailPage load ownership', () => {
     const view = renderPage('/questions/1');
     expect(await screen.findByText('언마운트 문의')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'unmount.txt' }));
-    const oldSignal = mocks.downloadAttachment.mock.calls[0][2] as AbortSignal;
+    const oldSignal = mocks.downloadAttachment.mock.calls[0][3] as AbortSignal;
 
     view.unmount();
 
@@ -292,7 +303,7 @@ describe('QuestionDetailPage load ownership', () => {
     renderPage('/questions/1');
     expect(await screen.findByText('답변 대상 문의')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'old.txt' }));
-    const oldSignal = mocks.downloadAttachment.mock.calls[0][2] as AbortSignal;
+    const oldSignal = mocks.downloadAttachment.mock.calls[0][3] as AbortSignal;
 
     fireEvent.change(screen.getByPlaceholderText('답변 내용을 입력하세요'), {
       target: { value: '새 답변' },

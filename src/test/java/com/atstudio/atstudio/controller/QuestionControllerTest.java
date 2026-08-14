@@ -6,6 +6,7 @@ import com.atstudio.atstudio.dto.question.QuestionAttachmentDownload;
 import com.atstudio.atstudio.dto.question.QuestionListItemResponse;
 import com.atstudio.atstudio.dto.question.QuestionResponse;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
+import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.security.CustomUserDetailsService;
 import com.atstudio.atstudio.service.QuestionService;
 import org.junit.jupiter.api.DisplayName;
@@ -14,24 +15,33 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -40,6 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class QuestionControllerTest {
 
     @Autowired MockMvc mockMvc;
+    @Autowired QuestionController questionController;
     @MockitoBean QuestionService questionService;
     @MockitoBean CustomUserDetailsService customUserDetailsService;
 
@@ -170,7 +181,11 @@ class QuestionControllerTest {
                         "evidence.html"
                 ));
 
-        mockMvc.perform(get("/api/questions/1/attachments/1"))
+        MvcResult result = mockMvc.perform(get("/api/questions/1/attachments/1"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(body))
                 .andExpect(content().contentType(MediaType.APPLICATION_OCTET_STREAM))
@@ -187,6 +202,27 @@ class QuestionControllerTest {
     }
 
     @Test
+    @DisplayName("GET /api/questions/{id}/attachments/{id} - streams the service Resource without buffering")
+    void downloadAttachment_streamsServiceResourceWithoutControllerBuffering() throws Exception {
+        byte[] body = new byte[]{1, 2, 3};
+        Resource resource = new ByteArrayResource(body);
+        CustomUserDetails userDetails = mock(CustomUserDetails.class);
+        given(questionService.downloadAttachment(1L, 2L, userDetails))
+                .willReturn(new QuestionAttachmentDownload(resource, "evidence.bin"));
+
+        ResponseEntity<StreamingResponseBody> response = questionController.downloadAttachment(
+                1L,
+                2L,
+                userDetails
+        );
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        response.getBody().writeTo(outputStream);
+        assertArrayEquals(body, outputStream.toByteArray());
+        verify(questionService).downloadAttachment(1L, 2L, userDetails);
+    }
+
+    @Test
     @WithMockUser(roles = "USER")
     @DisplayName("GET /api/questions/{id}/attachments/{id} - Range and header injection stay fail closed")
     void downloadAttachment_rangeAndHeaderInjection_returnsSafeFullAttachment() throws Exception {
@@ -197,8 +233,12 @@ class QuestionControllerTest {
                         "report\r\nX-Evil: injected.html"
                 ));
 
-        mockMvc.perform(get("/api/questions/1/attachments/1")
+        MvcResult result = mockMvc.perform(get("/api/questions/1/attachments/1")
                         .header(HttpHeaders.RANGE, "bytes=0-1"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(body))
                 .andExpect(header().string(

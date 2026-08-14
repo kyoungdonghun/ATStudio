@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { downloadNoticeAttachment, fetchNotice } from '@/api/notices';
-import { triggerBlobDownload } from '@/api/downloads';
+import { createDownloadFallbackFileName, triggerBlobDownload } from '@/api/downloads';
 import { classifyLoadError, getLoadErrorMessageForKind, type LoadErrorKind } from '@/api/loadError';
 import type { Notice, NoticeAttachmentInfo } from '@/types';
 import { formatDate } from '@/utils/format';
@@ -140,8 +140,13 @@ export default function NoticeDetailPage() {
     });
 
     try {
-      const blob = await downloadNoticeAttachment(parsedNoticeID, attachment.id, controller.signal);
-      if (isCurrent()) triggerBlobDownload(blob, attachment.originalName);
+      const download = await downloadNoticeAttachment(
+        parsedNoticeID,
+        attachment.id,
+        createDownloadFallbackFileName('notice-attachment', attachment.id, attachment.originalName),
+        controller.signal,
+      );
+      if (isCurrent()) triggerBlobDownload(download);
     } catch (error) {
       if (!isCurrent() || classifyLoadError(error) === 'cancelled') return;
       setDownloadErrors((current) => ({

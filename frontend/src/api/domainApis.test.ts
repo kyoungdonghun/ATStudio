@@ -89,17 +89,22 @@ describe('domain API contracts', () => {
     expect(mockedClient.delete).toHaveBeenCalledWith('/albums/7');
   });
 
-  it('filters download history params and downloads blobs safely', async () => {
+  it('filters download history params and normalizes binary downloads safely', async () => {
     const abortController = new AbortController();
     const blob = new Blob(['audio']);
     mockedClient.get
-      .mockResolvedValueOnce({ data: blob })
+      .mockResolvedValueOnce({ data: blob, headers: {} })
       .mockResolvedValueOnce(apiResponse({ remaining: 3 }))
       .mockResolvedValueOnce({ data: paged })
       .mockResolvedValueOnce({ data: { dataList: [9, 10] } })
       .mockResolvedValueOnce({ data: {} });
 
-    await expect(downloads.downloadTrack(9, abortController.signal)).resolves.toBe(blob);
+    const download = await downloads.downloadTrack(9, 'track-9.mp3', abortController.signal);
+    expect(download).toMatchObject({
+      blob,
+      fileName: 'track-9.mp3',
+      contentType: 'application/octet-stream',
+    });
     expect(mockedClient.get).toHaveBeenNthCalledWith(1, '/tracks/9/download', {
       responseType: 'blob',
       signal: abortController.signal,
@@ -129,7 +134,7 @@ describe('domain API contracts', () => {
     vi.spyOn(document.body, 'appendChild').mockImplementationOnce((node) => node);
     vi.spyOn(URL, 'createObjectURL').mockReturnValueOnce('blob:test');
     vi.spyOn(URL, 'revokeObjectURL').mockImplementationOnce(() => undefined);
-    downloads.triggerBlobDownload(blob, 'track.mp3');
+    downloads.triggerBlobDownload({ blob, fileName: 'track.mp3', contentType: 'audio/mpeg' });
     expect(anchor).toMatchObject({ href: 'blob:test', download: 'track.mp3' });
     expect(click).toHaveBeenCalledOnce();
     expect(remove).toHaveBeenCalledOnce();
@@ -182,7 +187,7 @@ describe('domain API contracts', () => {
     expect(mockedClient.delete).toHaveBeenCalledWith('/likes/albums/8');
   });
 
-  it('builds notice multipart bodies and returns attachment bytes', async () => {
+  it('builds notice multipart bodies and returns a normalized attachment download', async () => {
     const blob = new Blob(['notice']);
     mockedClient.get
       .mockResolvedValueOnce({ data: paged })
@@ -190,7 +195,7 @@ describe('domain API contracts', () => {
       .mockResolvedValueOnce(
         apiResponse({ title: 'Result', content: 'Body', isPinned: false, attachments: [] }),
       )
-      .mockResolvedValueOnce({ data: blob });
+      .mockResolvedValueOnce({ data: blob, headers: {} });
     mockedClient.post.mockResolvedValueOnce(apiResponse(payload));
     mockedClient.put.mockResolvedValueOnce(apiResponse(payload));
     mockedClient.delete.mockResolvedValue({});
@@ -235,7 +240,10 @@ describe('domain API contracts', () => {
       ['newAttachments', replacement],
     ]);
     await notices.deleteNotice(7);
-    await expect(notices.downloadNoticeAttachment(7, 4)).resolves.toBe(blob);
+    await expect(notices.downloadNoticeAttachment(7, 4, 'notice-4.txt')).resolves.toMatchObject({
+      blob,
+      fileName: 'notice-4.txt',
+    });
   });
 
   it('uses recurring payment and subscription contracts', async () => {
@@ -484,7 +492,7 @@ describe('domain API contracts', () => {
     mockedClient.get
       .mockResolvedValueOnce({ data: paged })
       .mockResolvedValueOnce(apiResponse(payload))
-      .mockResolvedValueOnce({ data: blob });
+      .mockResolvedValueOnce({ data: blob, headers: {} });
     mockedClient.post
       .mockResolvedValueOnce(apiResponse(payload))
       .mockResolvedValueOnce(apiResponse({ id: 3, content: 'Answer' }));
@@ -524,7 +532,12 @@ describe('domain API contracts', () => {
     await questions.createAnswer(2, 'Answer');
     await questions.deleteQuestion(2);
 
-    await expect(questions.downloadAttachment(2, 5, controller.signal)).resolves.toBe(blob);
+    await expect(
+      questions.downloadAttachment(2, 5, 'question-5.txt', controller.signal),
+    ).resolves.toMatchObject({
+      blob,
+      fileName: 'question-5.txt',
+    });
     expect(mockedClient.get).toHaveBeenNthCalledWith(3, '/questions/2/attachments/5', {
       responseType: 'blob',
       signal: controller.signal,

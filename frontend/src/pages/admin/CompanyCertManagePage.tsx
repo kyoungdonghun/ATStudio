@@ -6,6 +6,7 @@ import {
   fetchCompanyCerts,
   processCompanyCert,
 } from '@/api/admin';
+import { createDownloadFallbackFileName, triggerBlobDownload } from '@/api/downloads';
 import type {
   CompanyCertification,
   CompanyCertificationDocument,
@@ -246,13 +247,16 @@ export default function CompanyCertManagePage() {
     if (!detail) return;
     setDownloadId(document.id);
     try {
-      const { blob, fileName } = await downloadCompanyCertDocument(detail.id, document.id);
-      const url = window.URL.createObjectURL(blob);
-      const link = window.document.createElement('a');
-      link.href = url;
-      link.download = fileName || document.originalFilename;
-      link.click();
-      window.URL.revokeObjectURL(url);
+      const download = await downloadCompanyCertDocument(
+        detail.id,
+        document.id,
+        createDownloadFallbackFileName(
+          'company-certification-document',
+          document.id,
+          document.originalFilename,
+        ),
+      );
+      triggerBlobDownload(download);
     } catch {
       setDetailError('서류 다운로드에 실패했습니다.');
     } finally {

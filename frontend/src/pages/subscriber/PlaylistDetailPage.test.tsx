@@ -7,6 +7,9 @@ import PlaylistDetailPage from '@/pages/subscriber/PlaylistDetailPage';
 const api = vi.hoisted(() => ({
   fetchPlaylistDetail: vi.fn(),
   removeTrackFromPlaylist: vi.fn(),
+  downloadTrack: vi.fn(),
+  triggerBlobDownload: vi.fn(),
+  getApiErrorCode: vi.fn(),
 }));
 
 const playerState = {
@@ -21,8 +24,13 @@ const playerState = {
 
 vi.mock('@/api/playlists', () => api);
 vi.mock('@/api/downloads', () => ({
-  downloadTrack: vi.fn(),
-  triggerBlobDownload: vi.fn(),
+  createDownloadFallbackFileName: (_resource: string, id: number, title: string) =>
+    `track-${id}-${title}.mp3`,
+  downloadTrack: api.downloadTrack,
+  triggerBlobDownload: api.triggerBlobDownload,
+}));
+vi.mock('@/api/client', () => ({
+  getApiErrorCode: api.getApiErrorCode,
 }));
 vi.mock('@/store/playerStore', () => ({
   usePlayerStore: (selector: (state: typeof playerState) => unknown) => selector(playerState),
@@ -41,10 +49,12 @@ vi.mock('@/store/toastStore', () => ({
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((nextResolve) => {
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
     resolve = nextResolve;
+    reject = nextReject;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 function RouteHarness({ onLayout }: { onLayout?: (pathname: string) => void }) {
@@ -191,5 +201,48 @@ describe('PlaylistDetailPage load ownership', () => {
 
     expect(observations).toContainEqual({ pathname: '/playlists/2', retiredVisible: false });
     expect(screen.queryByText('Retired route playlist')).not.toBeInTheDocument();
+  });
+
+  it('fences repeated playlist-track downloads and releases the track after failure', async () => {
+    const firstAttempt = deferred<never>();
+    api.fetchPlaylistDetail.mockResolvedValue({
+      id: 1,
+      title: 'Fence playlist',
+      description: null,
+      thumbnail: null,
+      tracks: [
+        {
+          trackId: 7,
+          title: 'Fence playlist track',
+          trackOrder: 1,
+          duration: 120,
+          bpm: 120,
+          tonality: 'C',
+          thumbnail: null,
+          waveformData: null,
+          tags: [],
+        },
+      ],
+      createdAt: '',
+      updatedAt: '',
+    });
+    api.downloadTrack
+      .mockReturnValueOnce(firstAttempt.promise)
+      .mockRejectedValueOnce(new Error('retry'));
+
+    renderPage('/playlists/1');
+    await screen.findByText('Fence playlist track');
+    const downloadButton = screen.getByText('\u2193');
+    fireEvent.click(downloadButton);
+    fireEvent.click(downloadButton);
+
+    expect(api.downloadTrack).toHaveBeenCalledTimes(1);
+    expect(downloadButton).toBeDisabled();
+
+    await act(async () => firstAttempt.reject(new Error('offline')));
+    await waitFor(() => expect(downloadButton).toBeEnabled());
+
+    fireEvent.click(downloadButton);
+    await waitFor(() => expect(api.downloadTrack).toHaveBeenCalledTimes(2));
   });
 });

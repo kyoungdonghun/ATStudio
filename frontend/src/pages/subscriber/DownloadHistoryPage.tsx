@@ -3,6 +3,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } fr
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   downloadTrack,
+  createDownloadFallbackFileName,
   triggerBlobDownload,
   fetchDownloadCount,
   fetchDownloadHistory,
@@ -10,7 +11,7 @@ import {
   type DownloadCount,
   type DownloadHistoryItem,
 } from '@/api/downloads';
-import { toUploadUrl } from '@/api/client';
+import { getApiErrorCode, toUploadUrl } from '@/api/client';
 import { classifyLoadError } from '@/api/loadError';
 import { formatDateTime } from '@/utils/format';
 import { usePlayerStore } from '@/store/playerStore';
@@ -49,6 +50,8 @@ interface SingleDownloadState {
   trackID: number;
 }
 
+type DownloadClaim = SingleDownloadState;
+
 export default function DownloadHistoryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const currentPage = Number(searchParams.get('page') ?? '1') || 1;
@@ -74,6 +77,8 @@ export default function DownloadHistoryPage() {
   const projectionKeyRef = useRef<string | null>(null);
   const singleGenerationRef = useRef(0);
   const singleControllerRef = useRef<AbortController | null>(null);
+  const singleOwnershipRef = useRef<DownloadClaim | null>(null);
+  const downloadClaimsRef = useRef(new Map<string, Map<number, DownloadClaim>>());
   const preparationGenerationRef = useRef(0);
   const preparationControllerRef = useRef<AbortController | null>(null);
   const bulkGenerationRef = useRef(0);
@@ -112,6 +117,27 @@ export default function DownloadHistoryPage() {
 
   function isCurrentProjection(expectedReadKey = readKey): expectedReadKey is string {
     return isCurrentRead(expectedReadKey) && projectionKeyRef.current === expectedReadKey;
+  }
+
+  function acquireDownloadClaim(operationKey: string, trackID: number): DownloadClaim | null {
+    let claimsByTrack = downloadClaimsRef.current.get(operationKey);
+    if (claimsByTrack?.has(trackID)) return null;
+
+    const claim = { readKey: operationKey, trackID };
+    if (!claimsByTrack) {
+      claimsByTrack = new Map();
+      downloadClaimsRef.current.set(operationKey, claimsByTrack);
+    }
+    claimsByTrack.set(trackID, claim);
+    return claim;
+  }
+
+  function releaseDownloadClaim(claim: DownloadClaim) {
+    const claimsByTrack = downloadClaimsRef.current.get(claim.readKey);
+    if (claimsByTrack?.get(claim.trackID) !== claim) return;
+
+    claimsByTrack.delete(claim.trackID);
+    if (claimsByTrack.size === 0) downloadClaimsRef.current.delete(claim.readKey);
   }
 
   // Keep input synced if URL changes externally (back/forward nav)
@@ -185,8 +211,12 @@ export default function DownloadHistoryPage() {
   }, [load]);
 
   useLayoutEffect(() => {
+    const downloadClaims = downloadClaimsRef.current;
     return () => {
       singleControllerRef.current?.abort();
+      singleControllerRef.current = null;
+      singleOwnershipRef.current = null;
+      if (readKey !== null) downloadClaims.delete(readKey);
       preparationControllerRef.current?.abort();
       bulkControllerRef.current?.abort();
       singleGenerationRef.current += 1;
@@ -254,9 +284,12 @@ export default function DownloadHistoryPage() {
     ) {
       return;
     }
+    const ownership = acquireDownloadClaim(operationKey, item.trackId);
+    if (!ownership) return;
     singleControllerRef.current?.abort();
     const controller = new AbortController();
     singleControllerRef.current = controller;
+    singleOwnershipRef.current = ownership;
     const generation = ++singleGenerationRef.current;
     const isCurrent = () =>
       generation === singleGenerationRef.current &&
@@ -264,17 +297,34 @@ export default function DownloadHistoryPage() {
       isCurrentProjection(operationKey);
     try {
       setDownloading({ readKey: operationKey, trackID: item.trackId });
-      const blob = await downloadTrack(item.trackId, controller.signal);
+      const download = await downloadTrack(
+        item.trackId,
+        createDownloadFallbackFileName('track', item.trackId, item.title, 'mp3'),
+        controller.signal,
+      );
       if (!isCurrent()) return;
-      triggerBlobDownload(blob, `${item.title}.mp3`);
+      triggerBlobDownload(download);
       toast('success', `${item.title} 다운로드 완료`);
     } catch (err: unknown) {
       if (!isCurrent() || classifyLoadError(err) === 'cancelled') return;
-      const msg = err instanceof Error ? err.message : '다운로드에 실패했습니다.';
+      const code = await getApiErrorCode(err);
+      const msg =
+        code === 'NO_ACTIVE_SUBSCRIPTION'
+          ? '구독이 필요한 기능입니다.'
+          : code === 'DOWNLOAD_LIMIT_EXCEEDED'
+            ? '금일 다운로드 횟수를 모두 사용했습니다.'
+            : err instanceof Error
+              ? err.message
+              : '다운로드에 실패했습니다.';
       setError(msg);
       setErrorKey(operationKey);
     } finally {
-      if (isCurrent()) setDownloading(null);
+      releaseDownloadClaim(ownership);
+      if (singleOwnershipRef.current === ownership) {
+        singleOwnershipRef.current = null;
+        if (singleControllerRef.current === controller) singleControllerRef.current = null;
+        if (isCurrent()) setDownloading(null);
+      }
     }
   }
 
@@ -292,23 +342,40 @@ export default function DownloadHistoryPage() {
       setBulkBusyKey(operationKey);
       let ok = 0;
       let fail = 0;
+      let failureCode: 'NO_ACTIVE_SUBSCRIPTION' | 'DOWNLOAD_LIMIT_EXCEEDED' | null = null;
       // Look up titles on-page for a nicer filename; fall back to id.
       const titleById = new Map(currentItems.map((i) => [i.trackId, i.title] as const));
       for (const trackId of trackIds) {
         if (!isCurrent()) return;
+        const ownership = acquireDownloadClaim(operationKey, trackId);
+        if (!ownership) continue;
         try {
-          const blob = await downloadTrack(trackId, controller.signal);
+          const download = await downloadTrack(
+            trackId,
+            createDownloadFallbackFileName('track', trackId, titleById.get(trackId), 'mp3'),
+            controller.signal,
+          );
           if (!isCurrent()) return;
-          const title = titleById.get(trackId) ?? `track-${trackId}`;
-          triggerBlobDownload(blob, `${title}.mp3`);
+          triggerBlobDownload(download);
           ok += 1;
         } catch (downloadError) {
           if (!isCurrent() || classifyLoadError(downloadError) === 'cancelled') return;
+          const code = await getApiErrorCode(downloadError);
+          if (code === 'NO_ACTIVE_SUBSCRIPTION' || code === 'DOWNLOAD_LIMIT_EXCEEDED') {
+            failureCode = code;
+          }
           fail += 1;
+        } finally {
+          releaseDownloadClaim(ownership);
         }
       }
       if (!isCurrent()) return;
-      if (fail === 0) {
+      if (ok === 0 && fail === 0) return;
+      if (failureCode === 'NO_ACTIVE_SUBSCRIPTION') {
+        toast('warning', '구독이 필요한 기능입니다.');
+      } else if (failureCode === 'DOWNLOAD_LIMIT_EXCEEDED') {
+        toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
+      } else if (fail === 0) {
         toast('success', `${ok}곡 다운로드 완료`);
       } else {
         toast('error', `${ok}곡 성공, ${fail}곡 실패`);

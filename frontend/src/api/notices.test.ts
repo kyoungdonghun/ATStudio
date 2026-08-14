@@ -45,12 +45,17 @@ describe('Notice API ownership contracts', () => {
     });
   });
 
-  it('returns attachment bytes without invoking a browser download side effect', async () => {
+  it('returns a normalized attachment download without invoking a browser side effect', async () => {
     const controller = new AbortController();
     const blob = new Blob(['notice']);
-    mockedClient.get.mockResolvedValueOnce({ data: blob });
+    mockedClient.get.mockResolvedValueOnce({ data: blob, headers: {} });
 
-    await expect(downloadNoticeAttachment(7, 4, controller.signal)).resolves.toBe(blob);
+    await expect(
+      downloadNoticeAttachment(7, 4, 'notice-4.txt', controller.signal),
+    ).resolves.toMatchObject({
+      blob,
+      fileName: 'notice-4.txt',
+    });
     expect(mockedClient.get).toHaveBeenCalledWith('/notices/7/attachments/4', {
       responseType: 'blob',
       signal: controller.signal,

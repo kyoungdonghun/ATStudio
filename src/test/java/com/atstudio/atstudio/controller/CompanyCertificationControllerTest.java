@@ -13,21 +13,28 @@ import com.atstudio.atstudio.service.CompanyCertificationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -35,6 +42,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -43,6 +51,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class CompanyCertificationControllerTest {
 
     @Autowired MockMvc mockMvc;
+    @Autowired CompanyCertificationController certificationController;
     @MockitoBean CompanyCertificationService certificationService;
     @MockitoBean CustomUserDetailsService customUserDetailsService;
 
@@ -266,7 +275,11 @@ class CompanyCertificationControllerTest {
                         "doc.pdf"
                 ));
 
-        mockMvc.perform(get("/api/company-certifications/1/documents/1"))
+        MvcResult result = mockMvc.perform(get("/api/company-certifications/1/documents/1"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_OCTET_STREAM))
                 .andExpect(header().string(
@@ -283,6 +296,25 @@ class CompanyCertificationControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
+    @DisplayName("GET /api/company-certifications/{id}/documents/{id} - streams the service Resource without buffering")
+    void downloadDocument_streamsServiceResourceWithoutControllerBuffering() throws Exception {
+        byte[] body = new byte[]{1, 2, 3};
+        Resource resource = new ByteArrayResource(body);
+        CustomUserDetails actor = mock(CustomUserDetails.class);
+        given(certificationService.downloadDocument(1L, 2L, actor))
+                .willReturn(new CompanyCertificationDocumentDownload(resource, "doc.pdf"));
+
+        ResponseEntity<StreamingResponseBody> response =
+                certificationController.downloadDocument(1L, 2L, actor);
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        response.getBody().writeTo(outputStream);
+        assertArrayEquals(body, outputStream.toByteArray());
+        verify(certificationService).downloadDocument(1L, 2L, actor);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
     @DisplayName("GET /api/company-certifications/1/documents/1 - Range 요청도 attachment 전체 응답 유지")
     void downloadDocument_rangeRequestStillReturnsSafeAttachment() throws Exception {
         byte[] body = new byte[]{1, 2, 3, 4};
@@ -292,8 +324,12 @@ class CompanyCertificationControllerTest {
                         "doc.pdf"
                 ));
 
-        mockMvc.perform(get("/api/company-certifications/1/documents/1")
+        MvcResult result = mockMvc.perform(get("/api/company-certifications/1/documents/1")
                         .header(HttpHeaders.RANGE, "bytes=0-1"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(body))
                 .andExpect(content().contentType(MediaType.APPLICATION_OCTET_STREAM))
@@ -441,7 +477,11 @@ class CompanyCertificationControllerTest {
         given(certificationService.processReview(eq(1L), same(actor), any()))
                 .willReturn(MOCK_APPROVED_RESPONSE);
 
-        mockMvc.perform(get("/api/company-certifications/1/documents/1").with(user(actor)))
+        MvcResult downloadResult = mockMvc.perform(
+                        get("/api/company-certifications/1/documents/1").with(user(actor)))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(asyncDispatch(downloadResult))
                 .andExpect(status().isOk());
         mockMvc.perform(put("/api/company-certifications/1")
                         .with(user(actor))

@@ -1,6 +1,6 @@
 ---
-version: 2.2
-last_updated: 2026-08-13
+version: 2.3
+last_updated: 2026-08-14
 project: ATS
 owner: docops
 category: design
@@ -36,6 +36,12 @@ dependencies:
 - Single and bulk downloads keep the initiating key and abort signal through
   ID preparation, confirmation, each iteration, blob trigger, feedback, count
   refresh, and cleanup. Owner retirement suppresses all remaining effects.
+- Single and bulk starts share a synchronous `{readKey, trackId}` claim
+  registry. A Track currently claimed by either path is not requested again;
+  distinct Track IDs continue. Exact-owner cleanup releases only its own claim,
+  so a stale completion cannot release newer work and a later retry can claim
+  the Track. Bulk skips existing work before success/failure accounting; an
+  all-skipped run emits no competing result or count refresh.
 
 ## DOWNLOAD-002: Read Downloaded Track IDs
 
@@ -55,3 +61,7 @@ dependencies:
 - Track download counts update atomically.
 
 There is no temporary queue model, queue route, or queue API.
+
+The shared registry prevents duplicate invocation only. It does not decide a
+bulk-download ceiling or whether cancellation/ownership should outlive a route;
+those policies remain held outside WI-055.

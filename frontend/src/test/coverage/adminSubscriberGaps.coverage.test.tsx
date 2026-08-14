@@ -197,6 +197,7 @@ vi.mock('@/api/whitelistChannels', () => ({
 }));
 
 vi.mock('@/api/downloads', () => ({
+  createDownloadFallbackFileName: () => 'fallback-track.mp3',
   fetchDownloadCount: mocks.fetchDownloadCount,
   fetchDownloadHistory: mocks.fetchDownloadHistory,
   fetchDownloadHistoryTrackIds: mocks.fetchDownloadHistoryTrackIds,
@@ -588,7 +589,11 @@ beforeEach(() => {
   mocks.fetchDownloadCount.mockResolvedValue(downloadCount);
   mocks.fetchDownloadHistory.mockResolvedValue(page([]));
   mocks.fetchDownloadHistoryTrackIds.mockResolvedValue([]);
-  mocks.downloadTrack.mockResolvedValue(new Blob(['audio'], { type: 'audio/mpeg' }));
+  mocks.downloadTrack.mockResolvedValue({
+    blob: new Blob(['audio'], { type: 'audio/mpeg' }),
+    fileName: 'server-track.mp3',
+    contentType: 'audio/mpeg',
+  });
 
   vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:coverage');
   vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
@@ -1598,7 +1603,11 @@ describe('download history gaps', () => {
     });
     mocks.fetchDownloadHistory.mockResolvedValue(page([first, second]));
     mocks.downloadTrack
-      .mockResolvedValueOnce(new Blob(['first']))
+      .mockResolvedValueOnce({
+        blob: new Blob(['first']),
+        fileName: 'server-first.mp3',
+        contentType: 'audio/mpeg',
+      })
       .mockRejectedValueOnce(new Error('second failed'));
 
     renderRoute(<DownloadHistoryPage />, '/downloads', '/downloads');
@@ -1648,7 +1657,11 @@ describe('download history gaps', () => {
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(last(within(dialog).getAllByRole('button')));
     await waitFor(() =>
-      expect(mocks.downloadTrack).toHaveBeenCalledWith(191, expect.any(AbortSignal)),
+      expect(mocks.downloadTrack).toHaveBeenCalledWith(
+        191,
+        'fallback-track.mp3',
+        expect.any(AbortSignal),
+      ),
     );
     expect(mocks.fetchDownloadCount).not.toHaveBeenCalled();
   });

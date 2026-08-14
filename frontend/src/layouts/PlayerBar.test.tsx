@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PlayerBar from '@/layouts/PlayerBar';
+import type { BinaryDownload } from '@/api/downloads';
 import type { Track } from '@/types';
 
 const track: Track = {
@@ -27,6 +28,9 @@ const track: Track = {
 const mocks = vi.hoisted(() => ({
   toastShow: vi.fn(),
   fetchMySubscription: vi.fn(),
+  downloadTrack: vi.fn(),
+  triggerBlobDownload: vi.fn(),
+  getApiErrorCode: vi.fn(),
   authState: {
     authenticated: false,
     role: 'GUEST',
@@ -111,6 +115,17 @@ vi.mock('@/api/userSubscriptions', () => ({
   },
 }));
 
+vi.mock('@/api/downloads', () => ({
+  createDownloadFallbackFileName: () => 'fallback-track.mp3',
+  downloadTrack: (...args: unknown[]) => mocks.downloadTrack(...args),
+  triggerBlobDownload: (...args: unknown[]) => mocks.triggerBlobDownload(...args),
+}));
+
+vi.mock('@/api/client', () => ({
+  getApiErrorCode: (...args: unknown[]) => mocks.getApiErrorCode(...args),
+  toUploadUrl: (path: string | null | undefined) => path,
+}));
+
 vi.mock('@/components/player/WaveformCanvas', () => ({
   default: ({ progress, onSeek }: { progress: number; onSeek: (ratio: number) => void }) => (
     <div data-testid="waveform" data-progress={progress} onClick={() => onSeek(0.5)} />
@@ -165,10 +180,30 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+function binaryDownload(): BinaryDownload {
+  return {
+    blob: new Blob(['audio'], { type: 'audio/mpeg' }),
+    fileName: 'server-track.mp3',
+    contentType: 'audio/mpeg',
+  };
+}
+
+function rapidlyActivate(button: HTMLElement) {
+  act(() => {
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+}
+
 describe('PlayerBar playback feedback', () => {
   beforeEach(() => {
     mocks.toastShow.mockReset();
     mocks.fetchMySubscription.mockReset();
+    mocks.downloadTrack.mockReset();
+    mocks.triggerBlobDownload.mockReset();
+    mocks.getApiErrorCode.mockReset();
+    mocks.downloadTrack.mockResolvedValue(binaryDownload());
+    mocks.getApiErrorCode.mockResolvedValue(undefined);
     mocks.authState.authenticated = false;
     mocks.authState.role = 'GUEST';
     mocks.authState.accessToken = null;
@@ -345,6 +380,37 @@ describe('PlayerBar playback feedback', () => {
 
     expect(await screen.findAllByTitle('음원 다운로드')).not.toHaveLength(0);
     expect(screen.queryByRole('button', { name: '구독하기' })).not.toBeInTheDocument();
+  });
+
+  it('fences rapid same-Track downloads and releases ownership after failure and success', async () => {
+    const failed = deferred<BinaryDownload>();
+    const succeeded = deferred<BinaryDownload>();
+    mocks.authState.authenticated = true;
+    mocks.authState.role = 'USER';
+    mocks.authState.accessToken = 'token-a';
+    mocks.authState.user = { id: 1 };
+    mocks.fetchMySubscription.mockResolvedValue({ id: 1 });
+    mocks.downloadTrack
+      .mockReturnValueOnce(failed.promise)
+      .mockReturnValueOnce(succeeded.promise)
+      .mockResolvedValue(binaryDownload());
+
+    renderPlayerBar();
+    const downloadButton = (await screen.findAllByTitle('음원 다운로드'))[0];
+
+    rapidlyActivate(downloadButton);
+    expect(mocks.downloadTrack).toHaveBeenCalledTimes(1);
+
+    await act(async () => failed.reject(new Error('download failed')));
+    await waitFor(() => expect(downloadButton).toBeEnabled());
+
+    rapidlyActivate(downloadButton);
+    expect(mocks.downloadTrack).toHaveBeenCalledTimes(2);
+
+    await act(async () => succeeded.resolve(binaryDownload()));
+    await waitFor(() => expect(downloadButton).toBeEnabled());
+    fireEvent.click(downloadButton);
+    await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledTimes(3));
   });
 
   it('treats only the structured no-active-subscription response as inactive', async () => {

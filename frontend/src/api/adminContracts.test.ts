@@ -98,7 +98,10 @@ describe('admin API contracts', () => {
       .mockResolvedValueOnce(response(entity))
       .mockResolvedValueOnce({
         data: new Blob(['pdf']),
-        headers: { 'content-disposition': "attachment; filename*=UTF-8''business%20license.pdf" },
+        headers: {
+          'content-disposition': "attachment; filename*=UTF-8''business%20license.pdf",
+          'content-type': 'application/pdf',
+        },
       })
       .mockResolvedValueOnce({ data: page });
     mockedClient.put
@@ -147,10 +150,16 @@ describe('admin API contracts', () => {
     await fetchCompanyCerts({ page: 3, size: 10, status: 'PENDING' });
     await fetchCompanyCert(9);
     await processCompanyCert(9, { status: 'APPROVED', adminNote: 'Verified' });
-    const document = await downloadCompanyCertDocument(9, 2);
+    const document = await downloadCompanyCertDocument(
+      9,
+      2,
+      'company-certification-2.pdf',
+      controller.signal,
+    );
     expect(document.fileName).toBe('business license.pdf');
     expect(mockedClient.get).toHaveBeenNthCalledWith(6, '/company-certifications/9/documents/2', {
       responseType: 'blob',
+      signal: controller.signal,
     });
 
     await fetchAdminWhitelistChannels({

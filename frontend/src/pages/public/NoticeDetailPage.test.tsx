@@ -16,6 +16,8 @@ vi.mock('@/api/notices', () => ({
 }));
 
 vi.mock('@/api/downloads', () => ({
+  createDownloadFallbackFileName: (_resource: string, id: number, name: string) =>
+    `notice-${id}-${name}`,
   triggerBlobDownload: mocks.triggerBlobDownload,
 }));
 
@@ -137,10 +139,15 @@ describe('NoticeDetailPage', () => {
   it('owns download state per attachment, fences duplicates, and permits same-file retry', async () => {
     const first = deferred<Blob>();
     const secondBlob = new Blob(['second']);
+    const secondDownload = {
+      blob: secondBlob,
+      fileName: 'server-second.txt',
+      contentType: 'application/octet-stream',
+    };
     mocks.fetchNotice.mockResolvedValueOnce(notice(1));
     mocks.downloadNoticeAttachment
       .mockReturnValueOnce(first.promise)
-      .mockResolvedValueOnce(secondBlob);
+      .mockResolvedValueOnce(secondDownload);
 
     renderPage();
     const attachmentList = await screen.findByRole('list', { name: '첨부파일' });
@@ -153,20 +160,20 @@ describe('NoticeDetailPage', () => {
     expect(mocks.downloadNoticeAttachment).toHaveBeenCalledTimes(2);
     expect(firstButton).toBeDisabled();
     expect(secondButton).toBeDisabled();
-    await waitFor(() =>
-      expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(secondBlob, 'second.txt'),
-    );
+    await waitFor(() => expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(secondDownload));
 
     await act(async () => first.reject(new Error('offline')));
     expect(await screen.findByText('first.txt 다운로드에 실패했습니다.')).toBeVisible();
     expect(within(attachmentList).getByRole('button', { name: 'first.txt' })).toBeEnabled();
 
-    const retryBlob = new Blob(['retry']);
-    mocks.downloadNoticeAttachment.mockResolvedValueOnce(retryBlob);
+    const retryDownload = {
+      blob: new Blob(['retry']),
+      fileName: 'server-first.txt',
+      contentType: 'application/octet-stream',
+    };
+    mocks.downloadNoticeAttachment.mockResolvedValueOnce(retryDownload);
     fireEvent.click(within(attachmentList).getByRole('button', { name: 'first.txt' }));
-    await waitFor(() =>
-      expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(retryBlob, 'first.txt'),
-    );
+    await waitFor(() => expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(retryDownload));
     expect(mocks.downloadNoticeAttachment).toHaveBeenCalledTimes(3);
     expect(screen.queryByText('first.txt 다운로드에 실패했습니다.')).not.toBeInTheDocument();
   });
@@ -177,7 +184,7 @@ describe('NoticeDetailPage', () => {
     mocks.downloadNoticeAttachment.mockReturnValueOnce(oldDownload.promise);
     const view = renderPage('/notices/1');
     fireEvent.click(await screen.findByRole('button', { name: 'first.txt' }));
-    const signal = mocks.downloadNoticeAttachment.mock.calls[0][2] as AbortSignal;
+    const signal = mocks.downloadNoticeAttachment.mock.calls[0][3] as AbortSignal;
 
     await act(async () => view.router.navigate('/notices/2'));
     expect(await screen.findByRole('heading', { name: 'Notice 2' })).toBeVisible();
@@ -193,7 +200,7 @@ describe('NoticeDetailPage', () => {
     mocks.downloadNoticeAttachment.mockReturnValueOnce(pendingDownload.promise);
     const view = renderPage('/notices/1');
     fireEvent.click(await screen.findByRole('button', { name: 'first.txt' }));
-    const signal = mocks.downloadNoticeAttachment.mock.calls[0][2] as AbortSignal;
+    const signal = mocks.downloadNoticeAttachment.mock.calls[0][3] as AbortSignal;
 
     view.unmount();
     expect(signal.aborted).toBe(true);

@@ -6,7 +6,12 @@ import {
   type PlaylistDetail,
   type PlaylistTrack,
 } from '@/api/playlists';
-import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
+import {
+  createDownloadFallbackFileName,
+  downloadTrack,
+  triggerBlobDownload,
+} from '@/api/downloads';
+import { getApiErrorCode } from '@/api/client';
 import { classifyLoadError } from '@/api/loadError';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
@@ -51,6 +56,8 @@ export default function PlaylistDetailPage() {
   const projectionKeyRef = useRef<string | null>(null);
   const [projectionKey, setProjectionKey] = useState<string | null>(null);
   const [errorKey, setErrorKey] = useState<string | null>(null);
+  const pendingDownloadKeysRef = useRef(new Set<string>());
+  const [pendingDownloadKeys, setPendingDownloadKeys] = useState<Set<string>>(new Set());
   currentReadKeyRef.current = readKey;
 
   const projectionCurrent = readKey !== null && projectionKey === readKey;
@@ -161,19 +168,37 @@ export default function PlaylistDetailPage() {
 
   async function handleDownload(track: PlaylistTrack) {
     const operationKey = readKey;
+    const pendingKey = operationKey === null ? null : `${operationKey}:${track.trackId}`;
     if (
       !isCurrentProjection(operationKey) ||
-      !currentDetail?.tracks.some((item) => item.trackId === track.trackId)
+      !currentDetail?.tracks.some((item) => item.trackId === track.trackId) ||
+      pendingKey === null ||
+      pendingDownloadKeysRef.current.has(pendingKey)
     ) {
       return;
     }
+    pendingDownloadKeysRef.current.add(pendingKey);
+    setPendingDownloadKeys(new Set(pendingDownloadKeysRef.current));
     try {
-      const blob = await downloadTrack(track.trackId);
+      const download = await downloadTrack(
+        track.trackId,
+        createDownloadFallbackFileName('track', track.trackId, track.title, 'mp3'),
+      );
       if (!isCurrentProjection(operationKey)) return;
-      triggerBlobDownload(blob, `${track.title}.mp3`);
-    } catch {
+      triggerBlobDownload(download);
+    } catch (error: unknown) {
       if (!isCurrentProjection(operationKey)) return;
-      toast('error', '다운로드에 실패했습니다.');
+      const code = await getApiErrorCode(error);
+      if (code === 'NO_ACTIVE_SUBSCRIPTION') {
+        toast('warning', '구독이 필요한 기능입니다.');
+      } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
+        toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
+      } else {
+        toast('error', '다운로드에 실패했습니다.');
+      }
+    } finally {
+      pendingDownloadKeysRef.current.delete(pendingKey);
+      setPendingDownloadKeys(new Set(pendingDownloadKeysRef.current));
     }
   }
 
@@ -343,6 +368,12 @@ export default function PlaylistDetailPage() {
                       <button
                         className={styles.dlBtn}
                         onClick={() => handleDownload(track)}
+                        disabled={
+                          readKey !== null && pendingDownloadKeys.has(`${readKey}:${track.trackId}`)
+                        }
+                        aria-busy={
+                          readKey !== null && pendingDownloadKeys.has(`${readKey}:${track.trackId}`)
+                        }
                         title="다운로드"
                       >
                         {'\u2193'}

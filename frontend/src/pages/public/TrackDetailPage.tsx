@@ -4,7 +4,12 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { fetchTrackDetail, type TrackDetail } from '@/api/tracks';
 import { toUploadUrl, getApiErrorCode } from '@/api/client';
 import { classifyLoadError, getLoadErrorMessageForKind, type LoadErrorKind } from '@/api/loadError';
-import { downloadTrack, triggerBlobDownload, fetchDownloadCount } from '@/api/downloads';
+import {
+  createDownloadFallbackFileName,
+  downloadTrack,
+  triggerBlobDownload,
+  fetchDownloadCount,
+} from '@/api/downloads';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
@@ -22,6 +27,7 @@ export default function TrackDetailPage() {
   const [loadError, setLoadError] = useState<Exclude<LoadErrorKind, 'cancelled'> | null>(null);
   const [showPlModal, setShowPlModal] = useState(false);
   const [dlStatus, setDlStatus] = useState<'idle' | 'downloading'>('idle');
+  const downloadOwnershipRef = useRef<{ trackID: number } | null>(null);
   const loadGenerationRef = useRef(0);
   const loadInFlightRef = useRef(false);
   const [retryGeneration, setRetryGeneration] = useState(0);
@@ -94,11 +100,16 @@ export default function TrackDetailPage() {
   }, [isAuthenticated, likeLoaded, loadLikes]);
 
   async function handleDownload() {
-    if (!track) return;
+    if (!track || downloadOwnershipRef.current !== null) return;
+    const ownership = { trackID: track.id };
+    downloadOwnershipRef.current = ownership;
     try {
       setDlStatus('downloading');
-      const blob = await downloadTrack(track.id);
-      triggerBlobDownload(blob, `${track.title}.mp3`);
+      const download = await downloadTrack(
+        track.id,
+        createDownloadFallbackFileName('track', track.id, track.title, 'mp3'),
+      );
+      triggerBlobDownload(download);
       try {
         const count = await fetchDownloadCount();
         toast('success', `다운로드 완료! 오늘 남은 횟수: ${count.remaining}/${count.dailyLimit}`);
@@ -118,7 +129,10 @@ export default function TrackDetailPage() {
       }
       toast('error', '다운로드에 실패했습니다.');
     } finally {
-      setDlStatus('idle');
+      if (downloadOwnershipRef.current === ownership) {
+        downloadOwnershipRef.current = null;
+        setDlStatus('idle');
+      }
     }
   }
 

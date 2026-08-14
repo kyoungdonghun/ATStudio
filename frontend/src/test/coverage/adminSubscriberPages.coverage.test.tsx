@@ -55,6 +55,7 @@ const mocks = vi.hoisted(() => ({
   removeAlbumLike: vi.fn(),
   downloadTrack: vi.fn(),
   triggerBlobDownload: vi.fn(),
+  getApiErrorCode: vi.fn(),
   fetchPlaylistDetail: vi.fn(),
   updatePlaylist: vi.fn(),
   deletePlaylist: vi.fn(),
@@ -172,6 +173,7 @@ vi.mock('@/api/likes', () => ({
 }));
 
 vi.mock('@/api/downloads', () => ({
+  createDownloadFallbackFileName: () => 'fallback-track.mp3',
   downloadTrack: mocks.downloadTrack,
   triggerBlobDownload: mocks.triggerBlobDownload,
 }));
@@ -186,6 +188,7 @@ vi.mock('@/api/playlists', () => ({
 
 vi.mock('@/api/client', () => ({
   default: {},
+  getApiErrorCode: mocks.getApiErrorCode,
   toUploadUrl: (path: string | null | undefined) => (path ? `http://uploads.test${path}` : null),
 }));
 
@@ -338,7 +341,12 @@ beforeEach(() => {
   mocks.fetchPlaylistDetail.mockResolvedValue(playlistDetail());
   mocks.loadPlayHistory.mockReturnValue([]);
   mocks.hydratePlayHistory.mockResolvedValue([]);
-  mocks.downloadTrack.mockResolvedValue(new Blob(['audio'], { type: 'audio/mpeg' }));
+  mocks.downloadTrack.mockResolvedValue({
+    blob: new Blob(['audio'], { type: 'audio/mpeg' }),
+    fileName: 'server-track.mp3',
+    contentType: 'audio/mpeg',
+  });
+  mocks.getApiErrorCode.mockResolvedValue(null);
   mocks.createQuestion.mockResolvedValue({ id: 1 });
   mocks.createAnswer.mockResolvedValue({ id: 2 });
   mocks.createTag.mockResolvedValue({ id: 1, name: 'new', type: 'GENRE' });
@@ -1258,8 +1266,10 @@ describe('subscriber page behavior coverage', () => {
     expect(await screen.findByText('License Track')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '↓ 다운로드' }));
 
-    await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledWith(41));
-    expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(expect.any(Blob), 'License Track.mp3');
+    await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledWith(41, 'fallback-track.mp3'));
+    expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(
+      expect.objectContaining({ fileName: 'server-track.mp3' }),
+    );
 
     fireEvent.click(screen.getByRole('button', { name: '상세' }));
     const dialog = screen.getByRole('dialog');
@@ -1347,7 +1357,6 @@ describe('subscriber page behavior coverage', () => {
   });
 
   it('downloads an attachment, posts an answer, and refreshes question detail', async () => {
-    const attachmentBlob = new Blob(['attachment']);
     const detail = {
       id: 71,
       title: 'Question detail',
@@ -1368,14 +1377,25 @@ describe('subscriber page behavior coverage', () => {
       createdAt: '2026-07-01T00:00:00Z',
     };
     mocks.fetchQuestionDetail.mockResolvedValue(detail);
-    mocks.downloadAttachment.mockResolvedValue(attachmentBlob);
+    mocks.downloadAttachment.mockResolvedValue({
+      blob: new Blob(['attachment']),
+      fileName: 'server-evidence.txt',
+      contentType: 'text/plain',
+    });
 
     renderRoute(<QuestionDetailPage />, '/questions/:questionId', '/questions/71');
     expect(await screen.findByText('Question detail')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'evidence.txt' }));
-    expect(mocks.downloadAttachment).toHaveBeenCalledWith(71, 8, expect.any(AbortSignal));
+    expect(mocks.downloadAttachment).toHaveBeenCalledWith(
+      71,
+      8,
+      expect.any(String),
+      expect.any(AbortSignal),
+    );
     await waitFor(() =>
-      expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(attachmentBlob, 'evidence.txt'),
+      expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(
+        expect.objectContaining({ fileName: 'server-evidence.txt' }),
+      ),
     );
 
     fireEvent.change(screen.getByPlaceholderText('답변 내용을 입력하세요'), {
@@ -1413,7 +1433,7 @@ describe('subscriber page behavior coverage', () => {
     expect(mocks.playerPlay).toHaveBeenCalledWith(normalizedFirstTrack);
 
     fireEvent.click(screen.getAllByTitle('다운로드')[0]);
-    await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledWith(11));
+    await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledWith(11, 'fallback-track.mp3'));
 
     fireEvent.click(screen.getByRole('button', { name: '전체 대기열 추가' }));
     expect(mocks.playerAddToQueue).toHaveBeenCalledTimes(2);
@@ -1499,7 +1519,7 @@ describe('subscriber page behavior coverage', () => {
     expect(mocks.playerPlay).toHaveBeenCalledWith(normalizedLikedTrack);
 
     fireEvent.click(screen.getByTitle('다운로드'));
-    await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledWith(21));
+    await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledWith(21, 'fallback-track.mp3'));
     fireEvent.click(screen.getByTitle('좋아요 해제'));
     await waitFor(() => expect(mocks.removeLike).toHaveBeenCalledWith(21));
 

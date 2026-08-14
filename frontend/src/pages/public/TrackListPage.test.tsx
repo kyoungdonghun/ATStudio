@@ -43,6 +43,8 @@ vi.mock('@/api/tags', () => ({
 }));
 
 vi.mock('@/api/downloads', () => ({
+  createDownloadFallbackFileName: (_resource: string, id: number, title: string) =>
+    `track-${id}-${title}.mp3`,
   fetchDownloadCount: (...args: unknown[]) => mocks.fetchDownloadCount(...args),
   downloadTrack: (...args: unknown[]) => mocks.downloadTrack(...args),
   triggerBlobDownload: (...args: unknown[]) => mocks.triggerBlobDownload(...args),
@@ -67,9 +69,22 @@ vi.mock('@/store/toastStore', () => ({
 }));
 
 vi.mock('@/components/track/TrackRow', () => ({
-  default: ({ track }: { track: TrackListItem }) => (
+  default: ({
+    track,
+    onDownload,
+    downloadPending,
+  }: {
+    track: TrackListItem;
+    onDownload?: (track: TrackListItem) => void;
+    downloadPending?: boolean;
+  }) => (
     <tr>
       <td data-testid="track-row">{track.title}</td>
+      <td>
+        <button disabled={downloadPending} onClick={() => onDownload?.(track)} type="button">
+          Download {track.title}
+        </button>
+      </td>
     </tr>
   ),
 }));
@@ -223,6 +238,28 @@ describe('TrackListPage latest-request-wins', () => {
     mocks.playerState.setTrackListContext.mockReset();
     mocks.fetchTags.mockResolvedValue([]);
     mocks.fetchAvailableTags.mockResolvedValue([]);
+  });
+
+  it('fences repeated track downloads synchronously and releases the identity after failure', async () => {
+    const firstAttempt = deferred<never>();
+    mocks.fetchTracks.mockResolvedValue(trackPage('Fence Track', 1));
+    mocks.downloadTrack
+      .mockReturnValueOnce(firstAttempt.promise)
+      .mockRejectedValueOnce(new Error('retry'));
+
+    renderPage();
+    const downloadButton = await screen.findByRole('button', { name: 'Download Fence Track' });
+    fireEvent.click(downloadButton);
+    fireEvent.click(downloadButton);
+
+    expect(mocks.downloadTrack).toHaveBeenCalledTimes(1);
+    expect(downloadButton).toBeDisabled();
+
+    await act(async () => firstAttempt.reject(new Error('offline')));
+    await waitFor(() => expect(downloadButton).toBeEnabled());
+
+    fireEvent.click(downloadButton);
+    await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledTimes(2));
   });
 
   it('keeps the newer keyword/page result when the older success resolves last', async () => {

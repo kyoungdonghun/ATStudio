@@ -10,6 +10,9 @@ const api = vi.hoisted(() => ({
   fetchAlbumLikes: vi.fn(),
   removeLike: vi.fn(),
   removeAlbumLike: vi.fn(),
+  downloadTrack: vi.fn(),
+  triggerBlobDownload: vi.fn(),
+  getApiErrorCode: vi.fn(),
 }));
 
 const playerState = {
@@ -23,10 +26,15 @@ const playerState = {
 
 vi.mock('@/api/likes', () => api);
 vi.mock('@/api/downloads', () => ({
-  downloadTrack: vi.fn(),
-  triggerBlobDownload: vi.fn(),
+  createDownloadFallbackFileName: (_resource: string, id: number, title: string) =>
+    `track-${id}-${title}.mp3`,
+  downloadTrack: api.downloadTrack,
+  triggerBlobDownload: api.triggerBlobDownload,
 }));
-vi.mock('@/api/client', () => ({ toUploadUrl: (path: string | null) => path }));
+vi.mock('@/api/client', () => ({
+  getApiErrorCode: api.getApiErrorCode,
+  toUploadUrl: (path: string | null) => path,
+}));
 vi.mock('@/store/playerStore', () => ({
   usePlayerStore: (selector: (state: typeof playerState) => unknown) => selector(playerState),
 }));
@@ -123,5 +131,41 @@ describe('LikeListPage load ownership', () => {
     await act(async () => oldTracks.reject(new Error('old failure')));
     expect(screen.getByText('현재 좋아요')).toBeInTheDocument();
     expect(screen.queryByText('좋아요 목록을 불러오지 못했습니다.')).not.toBeInTheDocument();
+  });
+
+  it('fences repeated liked-track downloads and releases the track after failure', async () => {
+    const firstAttempt = deferred<never>();
+    api.fetchLikes.mockResolvedValue({
+      dataList: [
+        {
+          trackId: 7,
+          title: 'Fence liked track',
+          createdAt: '2026-08-13T00:00:00Z',
+          duration: 120,
+          thumbnail: null,
+          waveformData: null,
+          bpm: 120,
+          tonality: 'C',
+        },
+      ],
+    });
+    api.downloadTrack
+      .mockReturnValueOnce(firstAttempt.promise)
+      .mockRejectedValueOnce(new Error('retry'));
+
+    renderPage();
+    await screen.findByText('Fence liked track');
+    const downloadButton = screen.getByText('\u2193');
+    fireEvent.click(downloadButton);
+    fireEvent.click(downloadButton);
+
+    expect(api.downloadTrack).toHaveBeenCalledTimes(1);
+    expect(downloadButton).toBeDisabled();
+
+    await act(async () => firstAttempt.reject(new Error('offline')));
+    await waitFor(() => expect(downloadButton).toBeEnabled());
+
+    fireEvent.click(downloadButton);
+    await waitFor(() => expect(api.downloadTrack).toHaveBeenCalledTimes(2));
   });
 });

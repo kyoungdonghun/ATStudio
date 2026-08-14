@@ -4,7 +4,7 @@ import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DownloadHistoryPage from '@/pages/subscriber/DownloadHistoryPage';
 import { useAuthStore } from '@/store/authStore';
-import type { DownloadCount, DownloadHistoryItem } from '@/api/downloads';
+import type { BinaryDownload, DownloadCount, DownloadHistoryItem } from '@/api/downloads';
 import type { PageInfo, User } from '@/types';
 
 const playerState = {
@@ -27,6 +27,8 @@ const downloadTrackMock = vi.fn();
 const triggerBlobDownloadMock = vi.fn();
 
 vi.mock('@/api/downloads', () => ({
+  createDownloadFallbackFileName: (_resource: string, id: number, title?: string) =>
+    `track-${id}-${title ?? ''}.mp3`,
   downloadTrack: (...args: unknown[]) => downloadTrackMock(...args),
   triggerBlobDownload: (...args: unknown[]) => triggerBlobDownloadMock(...args),
   fetchDownloadCount: (...args: unknown[]) => fetchDownloadCountMock(...args),
@@ -35,6 +37,7 @@ vi.mock('@/api/downloads', () => ({
 }));
 
 vi.mock('@/api/client', () => ({
+  getApiErrorCode: vi.fn(),
   toUploadUrl: (path: string | null) => path,
 }));
 
@@ -141,6 +144,25 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+function binaryDownload(): BinaryDownload {
+  return {
+    blob: new Blob(['audio'], { type: 'audio/mpeg' }),
+    fileName: 'server-track.mp3',
+    contentType: 'audio/mpeg',
+  };
+}
+
+function rapidlyActivate(button: HTMLElement) {
+  act(() => {
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+}
+
+function trackDownloadCallCount(trackID: number) {
+  return downloadTrackMock.mock.calls.filter(([calledTrackID]) => calledTrackID === trackID).length;
+}
+
 describe('DownloadHistoryPage', () => {
   beforeEach(() => {
     playerState.currentTrack = null;
@@ -172,7 +194,7 @@ describe('DownloadHistoryPage', () => {
 
     fetchDownloadCountMock.mockResolvedValue(buildDownloadCount());
     fetchDownloadHistoryTrackIdsMock.mockResolvedValue([]);
-    downloadTrackMock.mockResolvedValue(new Blob(['audio']));
+    downloadTrackMock.mockResolvedValue(binaryDownload());
   });
 
   it('renders the download history empty state', async () => {
@@ -214,9 +236,13 @@ describe('DownloadHistoryPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '선택 재다운로드 (1)' }));
 
     await waitFor(() => expect(downloadTrackMock).toHaveBeenCalledTimes(1));
-    expect(downloadTrackMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
-    expect(downloadTrackMock).not.toHaveBeenCalledWith(1, expect.anything());
-    expect(downloadTrackMock).not.toHaveBeenCalledWith(2, expect.anything());
+    expect(downloadTrackMock).toHaveBeenCalledWith(
+      101,
+      expect.any(String),
+      expect.any(AbortSignal),
+    );
+    expect(downloadTrackMock).not.toHaveBeenCalledWith(1, expect.any(String), expect.anything());
+    expect(downloadTrackMock).not.toHaveBeenCalledWith(2, expect.any(String), expect.anything());
   });
 
   it('provides stable names for history filters and track actions', async () => {
@@ -245,6 +271,162 @@ describe('DownloadHistoryPage', () => {
       name: 'Accessible track 재다운로드',
     });
     expect(redownloadButton).toHaveAttribute('type', 'button');
+  });
+
+  it('fences rapid single re-downloads and releases ownership after failure and success', async () => {
+    const failed = deferred<BinaryDownload>();
+    const succeeded = deferred<BinaryDownload>();
+    fetchDownloadHistoryMock.mockResolvedValue({
+      dataList: [buildHistoryItem({ title: 'Fence track' })],
+      pageInfo: buildPageInfo(1),
+    });
+    downloadTrackMock
+      .mockReturnValueOnce(failed.promise)
+      .mockReturnValueOnce(succeeded.promise)
+      .mockResolvedValue(binaryDownload());
+    renderPage();
+
+    const downloadButton = await screen.findByRole('button', {
+      name: 'Fence track 재다운로드',
+    });
+    rapidlyActivate(downloadButton);
+    expect(downloadTrackMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => failed.reject(new DOMException('aborted', 'AbortError')));
+    await waitFor(() => expect(downloadButton).toBeEnabled());
+
+    rapidlyActivate(downloadButton);
+    expect(downloadTrackMock).toHaveBeenCalledTimes(2);
+
+    await act(async () => succeeded.resolve(binaryDownload()));
+    await waitFor(() => expect(downloadButton).toBeEnabled());
+    fireEvent.click(downloadButton);
+    await waitFor(() => expect(downloadTrackMock).toHaveBeenCalledTimes(3));
+  });
+
+  it('skips a single-owned Track in selected bulk while a distinct Track progresses', async () => {
+    const sharedDownload = deferred<BinaryDownload>();
+    fetchDownloadHistoryMock.mockResolvedValue({
+      dataList: [
+        buildHistoryItem({ downloadId: 1, trackId: 101, title: 'Single-owned track' }),
+        buildHistoryItem({ downloadId: 2, trackId: 202, title: 'Distinct selected track' }),
+      ],
+      pageInfo: buildPageInfo(2),
+    });
+    downloadTrackMock.mockImplementation((trackID: number) =>
+      trackID === 101 ? sharedDownload.promise : Promise.resolve(binaryDownload()),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Single-owned track' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Distinct selected track' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Single-owned track 재다운로드' }));
+    await waitFor(() => expect(trackDownloadCallCount(101)).toBe(1));
+
+    fireEvent.click(screen.getByRole('button', { name: '선택 재다운로드 (2)' }));
+    await waitFor(() => expect(trackDownloadCallCount(202)).toBe(1));
+    expect(trackDownloadCallCount(101)).toBe(1);
+
+    await act(async () => sharedDownload.resolve(binaryDownload()));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Single-owned track 재다운로드' })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '선택 재다운로드 (2)' }));
+    await waitFor(() => expect(trackDownloadCallCount(101)).toBe(2));
+    await waitFor(() => expect(trackDownloadCallCount(202)).toBe(2));
+  });
+
+  it('skips a single-owned Track in confirmed-all while a distinct Track progresses', async () => {
+    const sharedDownload = deferred<BinaryDownload>();
+    fetchDownloadHistoryMock.mockResolvedValue({
+      dataList: [
+        buildHistoryItem({ downloadId: 1, trackId: 101, title: 'Single before all' }),
+        buildHistoryItem({ downloadId: 2, trackId: 202, title: 'Distinct all track' }),
+      ],
+      pageInfo: buildPageInfo(2),
+    });
+    fetchDownloadHistoryTrackIdsMock.mockResolvedValue([101, 202]);
+    downloadTrackMock.mockImplementation((trackID: number) =>
+      trackID === 101 ? sharedDownload.promise : Promise.resolve(binaryDownload()),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Single before all 재다운로드' }));
+    await waitFor(() => expect(trackDownloadCallCount(101)).toBe(1));
+    fireEvent.click(screen.getByRole('button', { name: '전체 재다운로드' }));
+    fireEvent.click(await screen.findByRole('button', { name: '다운로드' }));
+
+    await waitFor(() => expect(trackDownloadCallCount(202)).toBe(1));
+    expect(trackDownloadCallCount(101)).toBe(1);
+    await act(async () => sharedDownload.resolve(binaryDownload()));
+  });
+
+  it('blocks single entry for a bulk-owned Track and retries it after settlement', async () => {
+    const bulkDownload = deferred<BinaryDownload>();
+    fetchDownloadHistoryMock.mockResolvedValue({
+      dataList: [
+        buildHistoryItem({ downloadId: 1, trackId: 101, title: 'Bulk-owned track' }),
+        buildHistoryItem({ downloadId: 2, trackId: 202, title: 'Distinct bulk track' }),
+      ],
+      pageInfo: buildPageInfo(2),
+    });
+    downloadTrackMock.mockImplementation((trackID: number) =>
+      trackID === 101 ? bulkDownload.promise : Promise.resolve(binaryDownload()),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Bulk-owned track' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Distinct bulk track' }));
+    const bulkButton = screen.getByRole('button', { name: '선택 재다운로드 (2)' });
+    const singleButton = screen.getByRole('button', { name: 'Bulk-owned track 재다운로드' });
+    act(() => {
+      bulkButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      singleButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(trackDownloadCallCount(101)).toBe(1);
+    await act(async () => bulkDownload.resolve(binaryDownload()));
+    await waitFor(() => expect(trackDownloadCallCount(202)).toBe(1));
+    await waitFor(() => expect(singleButton).toBeEnabled());
+    fireEvent.click(singleButton);
+    await waitFor(() => expect(trackDownloadCallCount(101)).toBe(2));
+  });
+
+  it('releases a cancelled bulk claim before a later single retry', async () => {
+    fetchDownloadHistoryMock.mockResolvedValue({
+      dataList: [buildHistoryItem({ trackId: 101, title: 'Cancelled bulk track' })],
+      pageInfo: buildPageInfo(1),
+    });
+    downloadTrackMock
+      .mockImplementationOnce(
+        (_trackID: number, _fallback: string, signal: AbortSignal) =>
+          new Promise<BinaryDownload>((_resolve, reject) => {
+            signal.addEventListener(
+              'abort',
+              () => reject(new DOMException('aborted', 'AbortError')),
+              { once: true },
+            );
+          }),
+      )
+      .mockResolvedValue(binaryDownload());
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Cancelled bulk track' }));
+    const bulkButton = screen.getByRole('button', { name: '선택 재다운로드 (1)' });
+    act(() => {
+      bulkButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      bulkButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(downloadTrackMock).toHaveBeenCalledTimes(1);
+    expect((downloadTrackMock.mock.calls[0][2] as AbortSignal).aborted).toBe(true);
+    await act(async () => Promise.resolve());
+    const singleButton = screen.getByRole('button', {
+      name: 'Cancelled bulk track 재다운로드',
+    });
+    await waitFor(() => expect(singleButton).toBeEnabled());
+    fireEvent.click(singleButton);
+    await waitFor(() => expect(downloadTrackMock).toHaveBeenCalledTimes(2));
   });
 
   it('opens a confirm dialog before full re-download', async () => {
@@ -449,7 +631,7 @@ describe('DownloadHistoryPage', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: '선택 재다운로드 (2)' }));
     await waitFor(() => expect(downloadTrackMock).toHaveBeenCalledTimes(1));
-    const downloadSignal = downloadTrackMock.mock.calls[0][1] as AbortSignal;
+    const downloadSignal = downloadTrackMock.mock.calls[0][2] as AbortSignal;
 
     act(() => {
       useAuthStore.setState({ accessToken: 'replacement-token' });

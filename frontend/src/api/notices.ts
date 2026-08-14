@@ -1,4 +1,5 @@
 import client from '@/api/client';
+import { getBinaryDownload, type BinaryDownload } from '@/api/downloads';
 import type { ApiResponse, Notice, PagedResponse } from '@/types';
 
 interface NoticeListParams {
@@ -100,11 +101,10 @@ export async function deleteNotice(noticeId: number, signal?: AbortSignal): Prom
 export async function downloadNoticeAttachment(
   noticeId: number,
   attachmentId: number,
+  fallbackFileName: string,
   signal?: AbortSignal,
-): Promise<Blob> {
-  const { data } = await client.get<Blob>(`/notices/${noticeId}/attachments/${attachmentId}`, {
-    responseType: 'blob',
+): Promise<BinaryDownload> {
+  return getBinaryDownload(`/notices/${noticeId}/attachments/${attachmentId}`, fallbackFileName, {
     signal,
   });
-  return data;
 }

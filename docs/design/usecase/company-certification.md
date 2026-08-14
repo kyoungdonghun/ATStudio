@@ -152,7 +152,7 @@
 | Field             | Value                                                                                                   |
 | ----------------- | ------------------------------------------------------------------------------------------------------- |
 | **Code**          | CC-005                                                                                                  |
-| **Version**       | 26-07-16                                                                                                |
+| **Version**       | 26-08-14                                                                                                |
 | **Description**   | Admin retrieves the detail of a certification application and downloads submitted documents for review. |
 | **Actor**         | Admin, Backend                                                                                          |
 | **Preconditions** | Admin logged in. Target application exists in DB.                                                       |
@@ -166,11 +166,22 @@
 3. A failed detail read exposes a manual retry for the selected certification
    ID. Closing or selecting a newer detail retires the previous request.
 4. Admin clicks a document download action.
-5. Backend resolves the private file through an authenticated admin-only API and records narrow access-grant evidence (actor, time, action, certification ID, opaque document ID) before the controller streams bytes.
+5. The ADMIN-only backend resolves the private Resource and records narrow
+   access-grant evidence (actor, time, action, certification ID, opaque
+   document ID) at authorization/resource resolution before the controller
+   streams bytes.
+6. The controller transfers the service Resource through
+   `StreamingResponseBody`, without a controller-sized intermediate byte array,
+   and closes the input stream after transfer. The response retains UTF-8
+   encoded attachment disposition, `application/octet-stream`, `no-store,
+private`, `Pragma: no-cache`, `nosniff`, sandbox CSP, and
+   `Accept-Ranges: none`.
 
 **Postconditions**
 
-- Admin can review actual submitted documents before processing the application.
+- Admin can initiate review of actual submitted documents before processing the
+  application. The access-grant audit is not proof that the browser received
+  all bytes.
 
 ---
 
@@ -220,7 +231,7 @@
 | Field             | Value                                                                                                   |
 | ----------------- | ------------------------------------------------------------------------------------------------------- |
 | **Code**          | CC-007                                                                                                  |
-| **Version**       | 26-07-16                                                                                                |
+| **Version**       | 26-08-14                                                                                                |
 | **Description**   | Company certification documents are treated as sensitive files and reviewed through authenticated APIs. |
 | **Actor**         | Admin, Backend                                                                                          |
 | **Preconditions** | Admin logged in. Document belongs to the requested certification.                                       |
@@ -231,8 +242,15 @@
 
 1. Admin requests `GET /api/company-certifications/{certificationId}/documents/{documentId}`.
 2. Backend verifies admin authority and document ownership.
-3. Backend streams the file with safe content disposition.
-4. Backend records an authorization-and-private-resource-resolution access grant, not byte-delivery completion, without persisting file bytes, storage paths, filenames, notes, profile snapshots, tokens, or raw request data.
+3. Backend resolves the private Resource and records `DOCUMENT_ACCESS_GRANTED`
+   for authorized resource access, not byte-delivery completion, without
+   persisting file bytes, storage paths, filenames, notes, profile snapshots,
+   tokens, or raw request data.
+4. The controller streams that Resource through `StreamingResponseBody` without
+   a controller-sized intermediate byte array and closes its input stream after
+   transfer. It sends UTF-8 encoded attachment disposition,
+   `application/octet-stream`, `no-store, private`, `Pragma: no-cache`,
+   `nosniff`, sandbox CSP, and `Accept-Ranges: none`.
 
 **Exception / Alternative Flow**
 
@@ -248,6 +266,9 @@
 ## Policy Boundary
 
 - Certification documents remain in private storage and are delivered only through the guarded attachment endpoint.
+- `POLICY-PENDING`: this WI does not define successful download as either a
+  durable grant or completed client byte delivery, does not set a bulk-download
+  ceiling, and does not decide route-outliving cancellation or ownership.
 - `POLICY-PENDING`: this workflow does not introduce automatic retention deletion, withdrawal deletion, a retention scheduler, or a retention duration.
 - This use case relies on the fresh-only V1 database baseline: apply `schema.sql` and `seed.sql` once to a verified-empty MySQL 8 database, then start with Hibernate validation. It does not run DDL, and retained-data migration requires a separate approved requirement.
 - `POLICY-PENDING`: signature and canonical-image validation reduce malformed-content risk but are not malware scanning. No scanner dependency is selected or required here.

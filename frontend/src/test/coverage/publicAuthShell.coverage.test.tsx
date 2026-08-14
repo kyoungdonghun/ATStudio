@@ -131,6 +131,7 @@ vi.mock('@/api/tracks', () => ({
 }));
 
 vi.mock('@/api/downloads', () => ({
+  createDownloadFallbackFileName: () => 'fallback-track.mp3',
   downloadTrack: (...args: unknown[]) => mocks.downloadTrack(...args),
   triggerBlobDownload: (...args: unknown[]) => mocks.triggerBlobDownload(...args),
   fetchDownloadCount: (...args: unknown[]) => mocks.fetchDownloadCount(...args),
@@ -358,7 +359,11 @@ function setDefaultApiResponses() {
   });
   mocks.fetchTrackDetailForAdmin.mockResolvedValue({ ...track, audioFile: 'track.mp3' });
   mocks.fetchTrackDetail.mockResolvedValue({ ...track, tags: [usage, genre, mood] });
-  mocks.downloadTrack.mockResolvedValue(new Blob(['audio'], { type: 'audio/mpeg' }));
+  mocks.downloadTrack.mockResolvedValue({
+    blob: new Blob(['audio'], { type: 'audio/mpeg' }),
+    fileName: 'server-track.mp3',
+    contentType: 'audio/mpeg',
+  });
   mocks.fetchDownloadCount.mockResolvedValue({ remaining: 4, dailyLimit: 5 });
   mocks.getApiErrorCode.mockResolvedValue(undefined);
   mocks.createAlbum.mockResolvedValue(album);
@@ -801,17 +806,27 @@ describe('public discovery pages', () => {
       updatedAt: '2026-07-02T00:00:00',
     };
     mocks.fetchNotice.mockResolvedValueOnce(notice);
-    const noticeBlob = new Blob(['guide']);
-    mocks.downloadNoticeAttachment.mockResolvedValueOnce(noticeBlob);
+    mocks.downloadNoticeAttachment.mockResolvedValueOnce({
+      blob: new Blob(['guide']),
+      fileName: 'server-guide.pdf',
+      contentType: 'application/pdf',
+    });
     const detail = renderAt(<NoticeDetailPage />, '/notices/31', '/notices/:noticeId');
     expect(await screen.findByRole('heading', { name: 'Service notice' })).toBeInTheDocument();
     expect(screen.getByText('10 B')).toBeInTheDocument();
     expect(screen.getByText('2.0 KB')).toBeInTheDocument();
     expect(screen.getByText('2.0 MB')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'guide.pdf' }));
-    expect(mocks.downloadNoticeAttachment).toHaveBeenCalledWith(31, 2, expect.any(AbortSignal));
+    expect(mocks.downloadNoticeAttachment).toHaveBeenCalledWith(
+      31,
+      2,
+      expect.any(String),
+      expect.any(AbortSignal),
+    );
     await waitFor(() =>
-      expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(noticeBlob, 'guide.pdf'),
+      expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(
+        expect.objectContaining({ fileName: 'server-guide.pdf' }),
+      ),
     );
     detail.unmount();
 
@@ -844,8 +859,10 @@ describe('public discovery pages', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/subscriptions');
 
     fireEvent.click(screen.getByRole('button', { name: '다운로드' }));
-    await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledWith(21));
-    expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(expect.any(Blob), 'Fresh Track.mp3');
+    await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledWith(21, 'fallback-track.mp3'));
+    expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(
+      expect.objectContaining({ fileName: 'server-track.mp3' }),
+    );
     expect(mocks.fetchDownloadCount).toHaveBeenCalled();
     expect(mocks.toast).toHaveBeenCalledWith('success', '다운로드 완료! 오늘 남은 횟수: 4/5');
   });

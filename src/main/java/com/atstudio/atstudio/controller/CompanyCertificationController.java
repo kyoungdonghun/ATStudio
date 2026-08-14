@@ -15,12 +15,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.util.StreamUtils;
 import org.springframework.web.util.UriUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -98,17 +97,21 @@ public class CompanyCertificationController {
 
     @GetMapping("/{certificationId}/documents/{documentId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<byte[]> downloadDocument(
+    public ResponseEntity<StreamingResponseBody> downloadDocument(
             @PathVariable Long certificationId,
             @PathVariable Long documentId,
-            @AuthenticationPrincipal CustomUserDetails actorDetails) throws IOException {
+            @AuthenticationPrincipal CustomUserDetails actorDetails) {
         CompanyCertificationDocumentDownload download = certificationService.downloadDocument(
                 certificationId,
                 documentId,
                 actorDetails
         );
         String filename = UriUtils.encode(download.originalFilename(), StandardCharsets.UTF_8);
-        byte[] body = StreamUtils.copyToByteArray(download.resource().getInputStream());
+        StreamingResponseBody body = outputStream -> {
+            try (var inputStream = download.resource().getInputStream()) {
+                inputStream.transferTo(outputStream);
+            }
+        };
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + filename)

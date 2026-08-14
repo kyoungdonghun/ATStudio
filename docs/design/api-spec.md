@@ -1,5 +1,5 @@
 ---
-version: 30.9
+version: 30.10
 last_updated: 2026-08-14
 project: ATS
 owner: SA
@@ -16,7 +16,7 @@ dependencies:
     reason: Current persistence contract
 ---
 
-# ATStudio API Specification v30.7
+# ATStudio API Specification v30.10
 
 ## Current Contract
 
@@ -105,6 +105,50 @@ application is authoritative for request and response schemas.
   projection: `title`, `content`, `isPinned`, and attachment metadata. It uses
   one read projection and does not increment public `viewCount`. Public
   `GET /api/notices/{noticeId}` retains its existing one-increment contract.
+
+### Binary Download Contract
+
+- Successful binary-download clients normalize the response into one shared
+  `BinaryDownload` result: a non-empty `Blob`, a safe filename, and a
+  normalized content type. The helper accepts the installed Axios header shape
+  (`AxiosHeaders.get`) and plain header maps, and parses RFC 5987 `filename*`
+  plus quoted or basic `filename` disposition parameters.
+- A safe server response filename takes precedence over caller metadata. A
+  malformed, Unicode-control, traversal-like, blank, or dot-only response
+  filename is never used for the browser action; it selects the deterministic
+  fallback derived from the resource's stable ID and validated metadata.
+  Response `Content-Type` takes precedence over the Blob type, followed by
+  `application/octet-stream`; callers do not override a valid server type or
+  synthesize a filename after normalization.
+- A non-Blob or zero-byte response is a download failure and creates no object
+  URL or browser action. HTTP error Blobs remain on the canonical asynchronous
+  `getApiErrorCode()` path. Track consumers use that Blob-aware error
+  normalization for `NO_ACTIVE_SUBSCRIPTION`, `DOWNLOAD_LIMIT_EXCEEDED`,
+  cancellation where the caller owns it, and unknown failures.
+- Each Track-download entry point synchronously claims its current
+  projection-and-Track identity before its first awaited request. The same
+  visible identity therefore invokes at most one request until the exact claim
+  settles; guarded release permits a later retry without allowing stale cleanup
+  to release a newer owner.
+- Download History shares one `{readKey, trackId}` claim registry between
+  single and bulk actions. An already claimed Track is skipped before bulk
+  result accounting, while distinct Track IDs continue. An all-skipped bulk
+  action publishes no competing result or count refresh.
+
+Question attachments and Company Certification documents remain private,
+authorized `StreamingResponseBody` responses. The controller resolves the
+service `Resource` only after the existing authorization/ownership checks,
+transfers it without a controller-sized intermediate byte array, and closes the
+input stream after transfer. Both responses retain UTF-8 encoded attachment
+disposition, `application/octet-stream`, `no-store, private`, `Pragma:
+no-cache`, `nosniff`, sandbox CSP, and `Accept-Ranges: none`.
+
+For Company Certification, `DOCUMENT_ACCESS_GRANTED` records authorized private
+resource access at authorization/resource resolution; it is not evidence of
+completed client byte delivery. This WI does not decide whether a durable grant
+or completed bytes define download success, a bulk-download ceiling, or
+route-outliving cancellation/ownership policy. Browser activation and client
+feedback must not be documented as durable server completion.
 
 ## Controller Inventory
 

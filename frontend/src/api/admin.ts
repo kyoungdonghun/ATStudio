@@ -1,4 +1,5 @@
 import client from '@/api/client';
+import { getBinaryDownload, type BinaryDownload } from '@/api/downloads';
 import type {
   ApiResponse,
   PagedResponse,
@@ -140,21 +141,16 @@ export async function processCompanyCert(
 export async function downloadCompanyCertDocument(
   certId: number,
   documentId: number,
-): Promise<{ blob: Blob; fileName: string }> {
-  const response = await client.get<Blob>(
+  fallbackFileName: string,
+  signal?: AbortSignal,
+): Promise<BinaryDownload> {
+  return getBinaryDownload(
     `/company-certifications/${certId}/documents/${documentId}`,
-    { responseType: 'blob' },
+    fallbackFileName,
+    {
+      signal,
+    },
   );
-  const disposition = response.headers['content-disposition'];
-  const fileNameMatch =
-    typeof disposition === 'string'
-      ? disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/)
-      : null;
-  const encodedName = fileNameMatch?.[1] ?? fileNameMatch?.[2];
-  const fileName = encodedName
-    ? decodeURIComponent(encodedName)
-    : `company-certification-${documentId}`;
-  return { blob: response.data, fileName };
 }
 
 /* ── Whitelist Channel Operations ── */

@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { fetchMyLicenses, type LicenseListItem } from '@/api/licenses';
 import { classifyLoadError } from '@/api/loadError';
-import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
+import {
+  createDownloadFallbackFileName,
+  downloadTrack,
+  triggerBlobDownload,
+} from '@/api/downloads';
+import { getApiErrorCode } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import { useToastStore } from '@/store/toastStore';
 import { useAuthStore } from '@/store/authStore';
@@ -37,6 +42,8 @@ export default function LicenseListPage() {
   const projectionKeyRef = useRef<string | null>(null);
   const [projectionKey, setProjectionKey] = useState<string | null>(null);
   const [errorKey, setErrorKey] = useState<string | null>(null);
+  const pendingDownloadKeysRef = useRef(new Set<string>());
+  const [pendingDownloadKeys, setPendingDownloadKeys] = useState<Set<string>>(new Set());
   currentReadKeyRef.current = readKey;
 
   const projectionCurrent = readKey !== null && projectionKey === readKey;
@@ -99,17 +106,38 @@ export default function LicenseListPage() {
   /* ── Re-download handler ── */
   async function handleRedownload(lic: LicenseListItem) {
     const operationKey = readKey;
-    if (!isCurrentProjection(operationKey) || !currentLicenses.some((item) => item.id === lic.id)) {
+    const pendingKey = operationKey === null ? null : `${operationKey}:${lic.track.id}`;
+    if (
+      !isCurrentProjection(operationKey) ||
+      !currentLicenses.some((item) => item.id === lic.id) ||
+      pendingKey === null ||
+      pendingDownloadKeysRef.current.has(pendingKey)
+    ) {
       return;
     }
+    pendingDownloadKeysRef.current.add(pendingKey);
+    setPendingDownloadKeys(new Set(pendingDownloadKeysRef.current));
     try {
-      const blob = await downloadTrack(lic.track.id);
+      const download = await downloadTrack(
+        lic.track.id,
+        createDownloadFallbackFileName('track', lic.track.id, lic.track.title, 'mp3'),
+      );
       if (!isCurrentProjection(operationKey)) return;
-      triggerBlobDownload(blob, `${lic.track.title}.mp3`);
+      triggerBlobDownload(download);
       toast('success', '다운로드를 시작합니다.');
-    } catch {
+    } catch (error: unknown) {
       if (!isCurrentProjection(operationKey)) return;
-      toast('error', '다운로드에 실패했습니다. 구독이 활성 상태인지 확인하세요.');
+      const code = await getApiErrorCode(error);
+      if (code === 'NO_ACTIVE_SUBSCRIPTION') {
+        toast('warning', '구독이 필요한 기능입니다.');
+      } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
+        toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
+      } else {
+        toast('error', '다운로드에 실패했습니다. 구독이 활성 상태인지 확인하세요.');
+      }
+    } finally {
+      pendingDownloadKeysRef.current.delete(pendingKey);
+      setPendingDownloadKeys(new Set(pendingDownloadKeysRef.current));
     }
   }
 
@@ -178,6 +206,12 @@ export default function LicenseListPage() {
                     <button
                       className={styles.dlBtn}
                       onClick={() => handleRedownload(lic)}
+                      disabled={
+                        readKey !== null && pendingDownloadKeys.has(`${readKey}:${lic.track.id}`)
+                      }
+                      aria-busy={
+                        readKey !== null && pendingDownloadKeys.has(`${readKey}:${lic.track.id}`)
+                      }
                       title="다시 다운로드"
                     >
                       {'↓ 다운로드'}
@@ -237,6 +271,14 @@ export default function LicenseListPage() {
               <button
                 className={styles.dlBtn}
                 onClick={() => handleRedownload(currentModalLicense)}
+                disabled={
+                  readKey !== null &&
+                  pendingDownloadKeys.has(`${readKey}:${currentModalLicense.track.id}`)
+                }
+                aria-busy={
+                  readKey !== null &&
+                  pendingDownloadKeys.has(`${readKey}:${currentModalLicense.track.id}`)
+                }
                 style={{ fontSize: 14 }}
               >
                 {'↓ 다시 다운로드'}

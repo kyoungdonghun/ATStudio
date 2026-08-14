@@ -1,6 +1,7 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { BinaryDownload } from '@/api/downloads';
 import type { TrackDetail } from '@/api/tracks';
 import type { PlayableTrack } from '@/types';
 import TrackDetailPage from '@/pages/public/TrackDetailPage';
@@ -10,6 +11,12 @@ const mocks = vi.hoisted(() => ({
   play: vi.fn(),
   pause: vi.fn(),
   resume: vi.fn(),
+  toastShow: vi.fn(),
+  downloadTrack: vi.fn(),
+  triggerBlobDownload: vi.fn(),
+  fetchDownloadCount: vi.fn(),
+  getApiErrorCode: vi.fn(),
+  authenticated: false,
   playerState: {
     currentTrack: null as PlayableTrack | null,
     isPlaying: false,
@@ -40,7 +47,7 @@ vi.mock('@/store/playerStore', () => ({
 
 vi.mock('@/store/authStore', () => ({
   useAuthStore: (selector: (state: { isAuthenticated: () => boolean }) => unknown) =>
-    selector({ isAuthenticated: () => false }),
+    selector({ isAuthenticated: () => mocks.authenticated }),
 }));
 
 vi.mock('@/store/likeStore', () => ({
@@ -62,7 +69,20 @@ vi.mock('@/store/likeStore', () => ({
 
 vi.mock('@/store/toastStore', () => ({
   useToastStore: (selector: (state: { show: ReturnType<typeof vi.fn> }) => unknown) =>
-    selector({ show: vi.fn() }),
+    selector({ show: mocks.toastShow }),
+}));
+
+vi.mock('@/api/downloads', () => ({
+  createDownloadFallbackFileName: () => 'fallback-track.mp3',
+  downloadTrack: (...args: unknown[]) => mocks.downloadTrack(...args),
+  triggerBlobDownload: (...args: unknown[]) => mocks.triggerBlobDownload(...args),
+  fetchDownloadCount: (...args: unknown[]) => mocks.fetchDownloadCount(...args),
+}));
+
+vi.mock('@/api/client', () => ({
+  default: {},
+  getApiErrorCode: (...args: unknown[]) => mocks.getApiErrorCode(...args),
+  toUploadUrl: (path: string | null | undefined) => path,
 }));
 
 vi.mock('@/components/playlist/AddToPlaylistModal', () => ({
@@ -131,6 +151,21 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+function binaryDownload(): BinaryDownload {
+  return {
+    blob: new Blob(['audio'], { type: 'audio/mpeg' }),
+    fileName: 'server-track.mp3',
+    contentType: 'audio/mpeg',
+  };
+}
+
+function rapidlyActivate(button: HTMLElement) {
+  act(() => {
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+}
+
 async function clickPlay() {
   await screen.findByRole('heading', { name: detail.title });
   fireEvent.click(screen.getByRole('button', { name: /\u25b6/ }));
@@ -143,6 +178,15 @@ describe('TrackDetailPage player mapping', () => {
     mocks.play.mockReset();
     mocks.pause.mockReset();
     mocks.resume.mockReset();
+    mocks.toastShow.mockReset();
+    mocks.downloadTrack.mockReset();
+    mocks.triggerBlobDownload.mockReset();
+    mocks.fetchDownloadCount.mockReset();
+    mocks.getApiErrorCode.mockReset();
+    mocks.authenticated = false;
+    mocks.downloadTrack.mockResolvedValue(binaryDownload());
+    mocks.fetchDownloadCount.mockResolvedValue({ remaining: 4, dailyLimit: 5 });
+    mocks.getApiErrorCode.mockResolvedValue(undefined);
     mocks.playerState.currentTrack = null;
     mocks.playerState.isPlaying = false;
   });
@@ -228,5 +272,31 @@ describe('TrackDetailPage player mapping', () => {
 
     await act(async () => retry.resolve(detail));
     expect(await screen.findByRole('heading', { name: detail.title })).toBeInTheDocument();
+  });
+
+  it('fences rapid same-Track downloads and releases ownership after failure and success', async () => {
+    const failed = deferred<BinaryDownload>();
+    const succeeded = deferred<BinaryDownload>();
+    mocks.authenticated = true;
+    mocks.downloadTrack
+      .mockReturnValueOnce(failed.promise)
+      .mockReturnValueOnce(succeeded.promise)
+      .mockResolvedValue(binaryDownload());
+    renderPage();
+
+    const downloadButton = await screen.findByRole('button', { name: '다운로드' });
+    rapidlyActivate(downloadButton);
+    expect(mocks.downloadTrack).toHaveBeenCalledTimes(1);
+
+    await act(async () => failed.reject(new Error('download failed')));
+    await waitFor(() => expect(downloadButton).toBeEnabled());
+
+    rapidlyActivate(downloadButton);
+    expect(mocks.downloadTrack).toHaveBeenCalledTimes(2);
+
+    await act(async () => succeeded.resolve(binaryDownload()));
+    await waitFor(() => expect(downloadButton).toBeEnabled());
+    fireEvent.click(downloadButton);
+    await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledTimes(3));
   });
 });

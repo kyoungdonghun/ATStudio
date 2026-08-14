@@ -15,6 +15,7 @@ interface TrackRowProps {
   onLike?: (track: TrackListItem) => void;
   onAddToPlaylist?: (track: TrackListItem) => void;
   onDownload?: (track: TrackListItem) => void;
+  downloadPending?: boolean;
   onGuestAction?: () => void;
 }
 
@@ -29,6 +30,7 @@ export default function TrackRow({
   onLike,
   onAddToPlaylist,
   onDownload,
+  downloadPending = false,
   onGuestAction,
 }: TrackRowProps) {
   const rowClass = [styles.row, playing ? styles.playing : ''].filter(Boolean).join(' ');
@@ -134,6 +136,8 @@ export default function TrackRow({
               <button
                 className={styles.actBtn}
                 onClick={() => onDownload?.(track)}
+                disabled={downloadPending}
+                aria-busy={downloadPending}
                 title="Download"
               >
                 &#8595;

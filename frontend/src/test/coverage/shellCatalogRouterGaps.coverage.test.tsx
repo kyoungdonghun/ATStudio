@@ -98,6 +98,7 @@ vi.mock('@/api/tags', () => ({
 }));
 
 vi.mock('@/api/downloads', () => ({
+  createDownloadFallbackFileName: () => 'fallback-track.mp3',
   downloadTrack: (...args: unknown[]) => mocks.downloadTrack(...args),
   triggerBlobDownload: (...args: unknown[]) => mocks.triggerBlobDownload(...args),
   fetchDownloadCount: (...args: unknown[]) => mocks.fetchDownloadCount(...args),
@@ -527,7 +528,11 @@ beforeEach(() => {
     ...instrumentTags,
     ...usageTags,
   ]);
-  mocks.downloadTrack.mockResolvedValue(new Blob(['audio'], { type: 'audio/mpeg' }));
+  mocks.downloadTrack.mockResolvedValue({
+    blob: new Blob(['audio'], { type: 'audio/mpeg' }),
+    fileName: 'server-track.mp3',
+    contentType: 'audio/mpeg',
+  });
   mocks.fetchDownloadCount.mockResolvedValue({ remaining: 4, dailyLimit: 5 });
   mocks.getApiErrorCode.mockResolvedValue(undefined);
   mocks.fetchMySubscription.mockResolvedValue({ id: 1 });
@@ -757,10 +762,11 @@ describe('player transport, subscription, and recovery behavior', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/subscriptions');
 
     fireEvent.click(downloadButtons[0]);
-    await waitFor(() => expect(mocks.downloadTrack).toHaveBeenCalledWith(currentTrack.id));
+    await waitFor(() =>
+      expect(mocks.downloadTrack).toHaveBeenCalledWith(currentTrack.id, 'fallback-track.mp3'),
+    );
     expect(mocks.triggerBlobDownload).toHaveBeenCalledWith(
-      expect.any(Blob),
-      `${currentTrack.title}.mp3`,
+      expect.objectContaining({ fileName: 'server-track.mp3' }),
     );
     expect(mocks.toast).toHaveBeenCalledWith('success', '다운로드가 완료되었습니다.');
   });
@@ -770,11 +776,8 @@ describe('player transport, subscription, and recovery behavior', () => {
     states.auth.accessToken = 'token';
     states.auth.user = member;
     states.auth.role = 'USER';
-    const limitPayload = new Blob([], { type: 'application/json' });
-    Object.defineProperty(limitPayload, 'text', {
-      value: vi.fn().mockResolvedValue(JSON.stringify({ code: 'DOWNLOAD_LIMIT_EXCEEDED' })),
-    });
-    mocks.downloadTrack.mockRejectedValueOnce({ response: { data: limitPayload } });
+    mocks.downloadTrack.mockRejectedValueOnce(new Error('limit'));
+    mocks.getApiErrorCode.mockResolvedValueOnce('DOWNLOAD_LIMIT_EXCEEDED');
     renderPlayer();
 
     const firstDownload = (await screen.findAllByTitle('음원 다운로드'))[0];

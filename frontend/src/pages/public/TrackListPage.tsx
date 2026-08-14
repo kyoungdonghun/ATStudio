@@ -2,10 +2,14 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { fetchTracks, type TrackListParams } from '@/api/tracks';
 import { fetchTags, fetchAvailableTags } from '@/api/tags';
-import { downloadTrack, triggerBlobDownload } from '@/api/downloads';
+import {
+  createDownloadFallbackFileName,
+  downloadTrack,
+  fetchDownloadCount,
+  triggerBlobDownload,
+} from '@/api/downloads';
 import { getApiErrorCode } from '@/api/client';
 import { classifyLoadError, getLoadErrorMessage } from '@/api/loadError';
-import { fetchDownloadCount } from '@/api/downloads';
 import type { TrackListItem, TagItem, PageInfo, TagType } from '@/types';
 import TrackRow from '@/components/track/TrackRow';
 import FilterChip from '@/components/ui/FilterChip';
@@ -159,6 +163,8 @@ export default function TrackListPage() {
   const trackRequestGenerationRef = useRef(0);
   const trackRequestControllerRef = useRef<AbortController | null>(null);
   const trackRetryInFlightRef = useRef(false);
+  const pendingDownloadIDsRef = useRef(new Set<number>());
+  const [pendingDownloadIDs, setPendingDownloadIDs] = useState<Set<number>>(new Set());
   const availableTagsRequestGenerationRef = useRef(0);
   const taxonomyRequestGenerationRef = useRef(createTaxonomyRequestGenerations());
   const taxonomyRequestTokenRef = useRef(createTaxonomyRequestTokens());
@@ -169,6 +175,18 @@ export default function TrackListPage() {
   function handleGuestAction() {
     toast('warning', '로그인이 필요한 기능입니다.');
     navigate('/login');
+  }
+
+  function claimDownload(trackId: number): boolean {
+    if (pendingDownloadIDsRef.current.has(trackId)) return false;
+    pendingDownloadIDsRef.current.add(trackId);
+    setPendingDownloadIDs(new Set(pendingDownloadIDsRef.current));
+    return true;
+  }
+
+  function releaseDownload(trackId: number) {
+    pendingDownloadIDsRef.current.delete(trackId);
+    setPendingDownloadIDs(new Set(pendingDownloadIDsRef.current));
   }
 
   /* ── Derive filters from URL ── */
@@ -876,9 +894,13 @@ export default function TrackListPage() {
                     onLike={(t) => toggleLike(t.id)}
                     onAddToPlaylist={(t) => setAddToPlTrackId(t.id)}
                     onDownload={async (t) => {
+                      if (!claimDownload(t.id)) return;
                       try {
-                        const blob = await downloadTrack(t.id);
-                        triggerBlobDownload(blob, `${t.title}.mp3`);
+                        const download = await downloadTrack(
+                          t.id,
+                          createDownloadFallbackFileName('track', t.id, t.title, 'mp3'),
+                        );
+                        triggerBlobDownload(download);
                         try {
                           const count = await fetchDownloadCount();
                           toast(
@@ -888,7 +910,7 @@ export default function TrackListPage() {
                         } catch {
                           toast('success', '다운로드가 완료되었습니다.');
                         }
-                      } catch (err) {
+                      } catch (err: unknown) {
                         const code = await getApiErrorCode(err);
                         if (code === 'NO_ACTIVE_SUBSCRIPTION') {
                           toast('warning', '구독이 필요한 기능입니다.');
@@ -898,8 +920,11 @@ export default function TrackListPage() {
                         } else {
                           toast('error', '다운로드에 실패했습니다.');
                         }
+                      } finally {
+                        releaseDownload(t.id);
                       }
                     }}
+                    downloadPending={pendingDownloadIDs.has(track.id)}
                   />
                 ))}
               </tbody>

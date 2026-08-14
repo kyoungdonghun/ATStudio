@@ -1,4 +1,5 @@
 import client from './client';
+import { getBinaryDownload, type BinaryDownload } from './downloads';
 import type { ApiResponse, PageInfo, QuestionCategory, QuestionStatus } from '@/types';
 
 /* ── Types ── */
@@ -129,11 +130,14 @@ export async function createAnswer(questionId: number, content: string): Promise
 export async function downloadAttachment(
   questionId: number,
   attachmentId: number,
+  fallbackFileName: string,
   signal?: AbortSignal,
-): Promise<Blob> {
-  const { data } = await client.get<Blob>(`/questions/${questionId}/attachments/${attachmentId}`, {
-    responseType: 'blob',
-    signal,
-  });
-  return data;
+): Promise<BinaryDownload> {
+  return getBinaryDownload(
+    `/questions/${questionId}/attachments/${attachmentId}`,
+    fallbackFileName,
+    {
+      signal,
+    },
+  );
 }

@@ -9,7 +9,7 @@ import {
   type AttachmentInfo,
   type QuestionDetail,
 } from '@/api/questions';
-import { triggerBlobDownload } from '@/api/downloads';
+import { createDownloadFallbackFileName, triggerBlobDownload } from '@/api/downloads';
 import { classifyLoadError } from '@/api/loadError';
 import { formatDate } from '@/utils/format';
 import { parsePositiveDecimalRouteID } from '@/utils/routeId';
@@ -236,9 +236,18 @@ export default function QuestionDetailPage() {
     try {
       setDownloadingAttachment({ readKey: operationKey, attachmentID: attachment.id });
       setAttachmentError(null);
-      const blob = await downloadAttachment(parsedID, attachment.id, controller.signal);
+      const download = await downloadAttachment(
+        parsedID,
+        attachment.id,
+        createDownloadFallbackFileName(
+          'question-attachment',
+          attachment.id,
+          attachment.originalName,
+        ),
+        controller.signal,
+      );
       if (!isCurrent()) return;
-      triggerBlobDownload(blob, attachment.originalName);
+      triggerBlobDownload(download);
     } catch (downloadError) {
       if (!isCurrent() || classifyLoadError(downloadError) === 'cancelled') return;
       setAttachmentError({

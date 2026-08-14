@@ -10,6 +10,8 @@ const downloadTrack = vi.hoisted(() => vi.fn());
 
 vi.mock('@/api/licenses', () => ({ fetchMyLicenses }));
 vi.mock('@/api/downloads', () => ({
+  createDownloadFallbackFileName: (_resource: string, id: number, title: string) =>
+    `track-${id}-${title}.mp3`,
   downloadTrack,
   triggerBlobDownload: vi.fn(),
 }));
@@ -159,5 +161,38 @@ describe('LicenseListPage load ownership', () => {
     expect(observations).toContainEqual({ token: 'owner-token-two', retiredVisible: false });
     expect(screen.queryByText('RETIRED-LICENSE-CODE')).not.toBeInTheDocument();
     expect(downloadTrack).not.toHaveBeenCalled();
+  });
+
+  it('fences a repeated re-download and releases it after failure', async () => {
+    const firstAttempt = deferred<never>();
+    fetchMyLicenses.mockResolvedValue({
+      dataList: [
+        {
+          id: 1,
+          track: { id: 10, title: 'Fence license track' },
+          licenseCode: 'FENCE-LICENSE-CODE',
+          issuedAt: '2026-08-13T00:00:00Z',
+        },
+      ],
+      pageInfo,
+    });
+    downloadTrack
+      .mockReturnValueOnce(firstAttempt.promise)
+      .mockRejectedValueOnce(new Error('retry'));
+
+    render(<LicenseListPage />);
+    await screen.findByText('Fence license track');
+    const downloadButton = document.querySelector('button[title]') as HTMLButtonElement;
+    fireEvent.click(downloadButton);
+    fireEvent.click(downloadButton);
+
+    expect(downloadTrack).toHaveBeenCalledTimes(1);
+    expect(downloadButton).toBeDisabled();
+
+    await act(async () => firstAttempt.reject(new Error('offline')));
+    await waitFor(() => expect(downloadButton).toBeEnabled());
+
+    fireEvent.click(downloadButton);
+    await waitFor(() => expect(downloadTrack).toHaveBeenCalledTimes(2));
   });
 });
