@@ -1,9 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { SEARCH_KEYWORD_MAX } from '@/utils/validation';
+import {
+  consumeNavigationDestinationFocus,
+  requestNavigationDestinationFocus,
+} from '@/utils/navigationFocus';
 import Button from '@/components/ui/Button';
+import buttonStyles from '@/components/ui/Button.module.css';
 import styles from './Header.module.css';
 
 interface NavItem {
@@ -32,6 +37,8 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { label: '관리자', path: '/admin/dashboard' },
 ];
 
+const MOBILE_MENU_ID = 'header-mobile-menu';
+
 function SearchIcon() {
   return (
     <svg
@@ -57,9 +64,10 @@ function ThemeToggle() {
 
   return (
     <button
+      type="button"
       className={styles.themeToggle}
       onClick={toggle}
-      aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      aria-label={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
       title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
     >
       {theme === 'dark' ? (
@@ -104,19 +112,80 @@ export default function Header() {
   const roleNavItems = !isAuthenticated ? [] : isAdmin ? ADMIN_NAV_ITEMS : USER_NAV_ITEMS;
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const menuOpenerRef = useRef<HTMLButtonElement | null>(null);
+
+  const closeMobileMenu = useCallback((restoreFocus: boolean) => {
+    setMenuOpen(false);
+    if (!restoreFocus) return;
+
+    const opener = menuOpenerRef.current;
+    if (
+      opener?.isConnected &&
+      !opener.disabled &&
+      opener.getAttribute('aria-disabled') !== 'true' &&
+      !opener.closest('[hidden], [aria-hidden="true"], [inert]')
+    ) {
+      opener.focus();
+    }
+  }, []);
 
   // Close mobile menu on route change
   useEffect(() => {
     setMenuOpen(false);
+    menuOpenerRef.current = null;
   }, [location.pathname]);
+
+  useEffect(() => {
+    consumeNavigationDestinationFocus();
+  }, [location.key]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      event.preventDefault();
+      closeMobileMenu(true);
+    }
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [closeMobileMenu, menuOpen]);
+
+  function toggleMobileMenu(event: React.MouseEvent<HTMLButtonElement>) {
+    setMenuOpen((isOpen) => {
+      if (!isOpen) menuOpenerRef.current = event.currentTarget;
+      return !isOpen;
+    });
+  }
+
+  function beginNavigationFocus() {
+    requestNavigationDestinationFocus();
+    menuOpenerRef.current = null;
+    closeMobileMenu(false);
+  }
+
+  function handleMobileNavigation(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+    beginNavigationFocus();
+  }
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     const q = searchQuery.trim();
     if (!q) return;
+    beginNavigationFocus();
     navigate(`/tracks?keyword=${encodeURIComponent(q)}&page=1`);
     setSearchQuery('');
-    setMenuOpen(false);
   }
 
   function isActive(path: string): boolean {
@@ -178,10 +247,11 @@ export default function Header() {
                   <strong className={styles.greetingName}>{user.nickname}</strong>
                 </span>
               )}
-              <Link to="/profile">
-                <Button variant="ghost" size="md">
-                  {'내 계정'}
-                </Button>
+              <Link
+                to="/profile"
+                className={`${buttonStyles.button} ${buttonStyles.ghost} ${buttonStyles.md}`}
+              >
+                {'내 계정'}
               </Link>
               <Button
                 variant="ghost"
@@ -196,15 +266,17 @@ export default function Header() {
             </>
           ) : (
             <>
-              <Link to="/login">
-                <Button variant="ghost" size="md">
-                  {'로그인'}
-                </Button>
+              <Link
+                to="/login"
+                className={`${buttonStyles.button} ${buttonStyles.ghost} ${buttonStyles.md}`}
+              >
+                {'로그인'}
               </Link>
-              <Link to="/subscriptions">
-                <Button variant="primary" size="md">
-                  {'구독 시작하기'}
-                </Button>
+              <Link
+                to="/subscriptions"
+                className={`${buttonStyles.button} ${buttonStyles.primary} ${buttonStyles.md}`}
+              >
+                {'구독 시작하기'}
               </Link>
             </>
           )}
@@ -215,9 +287,12 @@ export default function Header() {
           <ThemeToggle />
           {isAuthenticated && user ? (
             <button
+              type="button"
               className={styles.mobileAuthButton}
-              onClick={() => setMenuOpen((v) => !v)}
+              onClick={toggleMobileMenu}
               aria-label="계정 메뉴"
+              aria-controls={MOBILE_MENU_ID}
+              aria-expanded={menuOpen}
               title={user.nickname}
             >
               {user.nickname}
@@ -228,9 +303,11 @@ export default function Header() {
             </Link>
           ) : null}
           <button
+            type="button"
             className={styles.hamburger}
-            onClick={() => setMenuOpen((v) => !v)}
+            onClick={toggleMobileMenu}
             aria-label={menuOpen ? '메뉴 닫기' : '메뉴 열기'}
+            aria-controls={MOBILE_MENU_ID}
             aria-expanded={menuOpen}
           >
             {menuOpen ? '\u2715' : '\u2630'}
@@ -239,84 +316,108 @@ export default function Header() {
       </header>
 
       {/* Mobile: slide-down menu */}
-      {menuOpen && <div className={styles.mobileOverlay} onClick={() => setMenuOpen(false)} />}
-      <div className={`${styles.mobileMenu} ${menuOpen ? styles.mobileMenuOpen : ''}`}>
-        {/* Search */}
-        <form
-          className={styles.mobileSearch}
-          onSubmit={handleSearch}
-          role="search"
-          aria-label="모바일 곡 검색"
-        >
-          <SearchIcon />
-          <input
-            className={styles.searchInput}
-            type="text"
-            placeholder="곡 제목, 용도 검색"
-            maxLength={SEARCH_KEYWORD_MAX}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="모바일 곡 제목 및 용도 검색"
+      {menuOpen && (
+        <>
+          <div
+            className={styles.mobileOverlay}
+            aria-hidden="true"
+            onClick={() => closeMobileMenu(true)}
           />
-        </form>
-
-        {/* Nav links */}
-        <nav className={styles.mobileNav}>
-          {navItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`${styles.mobileNavItem} ${isActive(item.path) ? styles.mobileNavItemActive : ''}`}
+          <div id={MOBILE_MENU_ID} className={`${styles.mobileMenu} ${styles.mobileMenuOpen}`}>
+            {/* Search */}
+            <form
+              className={styles.mobileSearch}
+              onSubmit={handleSearch}
+              role="search"
+              aria-label="모바일 곡 검색"
             >
-              {item.label}
-            </Link>
-          ))}
-          {roleNavItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`${styles.mobileNavItem} ${isActive(item.path) ? styles.mobileNavItemActive : ''}`}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+              <SearchIcon />
+              <input
+                className={styles.searchInput}
+                type="text"
+                placeholder="곡 제목, 용도 검색"
+                maxLength={SEARCH_KEYWORD_MAX}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="모바일 곡 제목 및 용도 검색"
+              />
+            </form>
 
-        {/* Auth actions */}
-        <div className={styles.mobileAuth}>
-          {isAuthenticated ? (
-            <>
-              {user && (
-                <span className={styles.mobileGreeting}>
-                  {'안녕하세요, '}
-                  <strong>{user.nickname}</strong>
-                </span>
+            {/* Nav links */}
+            <nav className={styles.mobileNav}>
+              {navItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={handleMobileNavigation}
+                  className={`${styles.mobileNavItem} ${isActive(item.path) ? styles.mobileNavItemActive : ''}`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+              {roleNavItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={handleMobileNavigation}
+                  className={`${styles.mobileNavItem} ${isActive(item.path) ? styles.mobileNavItemActive : ''}`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+
+            {/* Auth actions */}
+            <div className={styles.mobileAuth}>
+              {isAuthenticated ? (
+                <>
+                  {user && (
+                    <span className={styles.mobileGreeting}>
+                      {'안녕하세요, '}
+                      <strong>{user.nickname}</strong>
+                    </span>
+                  )}
+                  <Link
+                    to="/profile"
+                    className={styles.mobileAuthLink}
+                    onClick={handleMobileNavigation}
+                  >
+                    {'내 계정'}
+                  </Link>
+                  <button
+                    type="button"
+                    className={styles.mobileAuthLink}
+                    onClick={() => {
+                      beginNavigationFocus();
+                      logout();
+                      navigate('/', { replace: true });
+                    }}
+                  >
+                    {'로그아웃'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className={styles.mobileAuthLink}
+                    onClick={handleMobileNavigation}
+                  >
+                    {'로그인'}
+                  </Link>
+                  <Link
+                    to="/subscriptions"
+                    className={styles.mobileAuthLinkPrimary}
+                    onClick={handleMobileNavigation}
+                  >
+                    {'구독 시작하기'}
+                  </Link>
+                </>
               )}
-              <Link to="/profile" className={styles.mobileAuthLink}>
-                {'내 계정'}
-              </Link>
-              <button
-                className={styles.mobileAuthLink}
-                onClick={() => {
-                  logout();
-                  navigate('/', { replace: true });
-                }}
-              >
-                {'로그아웃'}
-              </button>
-            </>
-          ) : (
-            <>
-              <Link to="/login" className={styles.mobileAuthLink}>
-                {'로그인'}
-              </Link>
-              <Link to="/subscriptions" className={styles.mobileAuthLinkPrimary}>
-                {'구독 시작하기'}
-              </Link>
-            </>
-          )}
-        </div>
-      </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

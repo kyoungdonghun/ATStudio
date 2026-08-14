@@ -1,5 +1,5 @@
 ---
-version: 6.4
+version: 6.5
 last_updated: 2026-08-14
 project: ATS
 owner: docops
@@ -32,6 +32,27 @@ import renders fixed Korean recovery UI without raw error details, permits one
 explicit fresh retry, then retains only safe Home/Back recovery after another
 failure. It does not poll, recurse, or hard reload. The `/error` server-error
 route, public wildcard 404, and ADMIN route matching semantics remain unchanged.
+
+The public shell conditionally mounts its mobile Header menu and PlayerBar
+detail only while each surface is open. Escape or overlay dismissal restores
+the exact surviving opener for the owned surface; PlayerBar Escape is scoped to
+its own mobile surface and leaves Header and shared Modal events to their
+owners. A normally accepted mobile navigation command closes the source surface
+immediately and requests one destination focus. The destination layout consumes
+that one-shot request synchronously across same-layout and public-to-ADMIN or
+ADMIN-to-public transitions, including StrictMode replay, then focuses an
+available main H1 or the main region. Temporary focusability is removed after
+the attempt, and no body fallback is used.
+
+The ADMIN shell keeps a permanent desktop sidebar and conditionally mounts a
+mobile navigation dialog. The mobile dialog receives initial focus, traps
+Tab/Shift+Tab, and isolates topbar content outside its opener, main content, and
+Toast controls with `inert`, `aria-hidden`, overlay coverage, and Toast pointer
+blocking. Escape or overlay dismissal returns focus to the exact valid opener.
+When `matchMedia` leaves the mobile breakpoint, the dialog, overlay, trap, and
+background isolation are released without restoring the mobile opener; the
+desktop sidebar and active route remain in place. Accepted ADMIN mobile routes
+use the same one-shot destination-focus flow.
 
 ## Authentication
 
@@ -360,3 +381,7 @@ database, deployment, schema, policy, or secret action.
 ## Environment Boundary
 
 Public access is allowed only through an operator-controlled acceptance runtime whose local page, API proxy, and newly issued public URL were verified together. Historical demo URLs and captures are not current runtime evidence. WI-014~021 focused automated evidence is not a substitute for full browser acceptance or production deployment.
+
+WI-057 shell behavior is recorded from current source, CSS, jsdom, and local
+automated-test evidence. Native viewport, keyboard, pointer, and browser-focus
+acceptance remains owned by WI-076 and is not established by this document.

@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import ToastContainer from '@/components/ui/ToastContainer';
+import {
+  consumeNavigationDestinationFocus,
+  requestNavigationDestinationFocus,
+} from '@/utils/navigationFocus';
 import { AdminMutationBoundaryContext, type AdminMutationBoundary } from './AdminMutationBoundary';
 import styles from './AdminLayout.module.css';
 
@@ -28,6 +32,18 @@ const MENU_ITEMS: MenuItem[] = [
   { label: '사이트 설정', path: '/admin/settings' },
 ];
 
+const MOBILE_SIDEBAR_ID = 'admin-mobile-sidebar';
+const MOBILE_SIDEBAR_TOGGLE_ID = 'admin-mobile-sidebar-toggle';
+const MOBILE_SIDEBAR_MEDIA_QUERY = '(max-width: 767px)';
+const DRAWER_FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
 function isActive(currentPath: string, menuPath: string): boolean {
   // Exact match for specific paths to avoid false positives
   if (menuPath === '/admin/albums') {
@@ -42,12 +58,60 @@ function isActive(currentPath: string, menuPath: string): boolean {
   return currentPath === menuPath || currentPath.startsWith(menuPath + '/');
 }
 
+function SidebarContent({
+  currentPath,
+  onNavigate,
+}: {
+  currentPath: string;
+  onNavigate?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+}) {
+  return (
+    <>
+      <div className={styles.sidebarHeader}>
+        <Link to="/admin/dashboard" className={styles.logo} onClick={onNavigate}>
+          AT.M
+        </Link>
+        <span className={styles.logoSub}>Admin</span>
+      </div>
+
+      <nav className={styles.sidebarNav}>
+        {MENU_ITEMS.map((item) => (
+          <Link
+            key={item.path}
+            to={item.path}
+            onClick={onNavigate}
+            className={`${styles.navItem} ${
+              isActive(currentPath, item.path) ? styles.navItemActive : ''
+            }`}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+
+      <div className={styles.sidebarFooter}>
+        <div className={styles.navDivider} />
+        <Link to="/" className={styles.backLink} onClick={onNavigate}>
+          {'< '}
+          {'사이트로 돌아가기'}
+        </Link>
+      </div>
+    </>
+  );
+}
+
 export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState<boolean | null>(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return null;
+    return window.matchMedia(MOBILE_SIDEBAR_MEDIA_QUERY).matches;
+  });
+  const mobileSidebarRef = useRef<HTMLElement>(null);
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
   const mutationOwnersRef = useRef(new Set<object>());
   const [activeMutationOwnerCount, setActiveMutationOwnerCount] = useState(0);
   const mountedRef = useRef(true);
@@ -71,6 +135,23 @@ export default function AdminLayout() {
     [],
   );
 
+  const closeSidebar = useCallback((restoreFocus: boolean) => {
+    setSidebarOpen(false);
+    if (!restoreFocus) return;
+
+    const opener = menuToggleRef.current;
+    if (
+      opener?.isConnected &&
+      !opener.disabled &&
+      opener.getAttribute('aria-disabled') !== 'true' &&
+      !opener.closest('[hidden], [aria-hidden="true"], [inert]')
+    ) {
+      opener.focus();
+    }
+  }, []);
+
+  const mobileDrawerOpen = sidebarOpen && isMobileViewport !== false;
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -83,84 +164,170 @@ export default function AdminLayout() {
     setSidebarOpen(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    consumeNavigationDestinationFocus();
+  }, [location.key]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+
+    const mediaQueryList = window.matchMedia(MOBILE_SIDEBAR_MEDIA_QUERY);
+    const handleMediaChange = (event: MediaQueryListEvent) => {
+      setIsMobileViewport(event.matches);
+      if (!event.matches) closeSidebar(false);
+    };
+
+    setIsMobileViewport(mediaQueryList.matches);
+    if (typeof mediaQueryList.addEventListener === 'function') {
+      mediaQueryList.addEventListener('change', handleMediaChange);
+      return () => mediaQueryList.removeEventListener('change', handleMediaChange);
+    }
+
+    mediaQueryList.addListener(handleMediaChange);
+    return () => mediaQueryList.removeListener(handleMediaChange);
+  }, [closeSidebar]);
+
+  useEffect(() => {
+    if (!mobileDrawerOpen) return;
+
+    const drawer = mobileSidebarRef.current;
+    if (!drawer) return;
+
+    const getFocusableElements = (container: HTMLElement) =>
+      Array.from(container.querySelectorAll<HTMLElement>(DRAWER_FOCUSABLE_SELECTOR));
+    getFocusableElements(drawer)[0]?.focus();
+
+    function handleDrawerKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeSidebar(true);
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      const currentDrawer = mobileSidebarRef.current;
+      if (!currentDrawer) return;
+
+      const focusableElements = getFocusableElements(currentDrawer);
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      if (!firstElement || !lastElement) return;
+
+      const activeElement = document.activeElement;
+      if (
+        event.shiftKey &&
+        (activeElement === firstElement || !currentDrawer.contains(activeElement))
+      ) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (
+        !event.shiftKey &&
+        (activeElement === lastElement || !currentDrawer.contains(activeElement))
+      ) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    }
+
+    document.addEventListener('keydown', handleDrawerKeyDown);
+    return () => document.removeEventListener('keydown', handleDrawerKeyDown);
+  }, [closeSidebar, mobileDrawerOpen]);
+
+  function beginNavigationFocus() {
+    requestNavigationDestinationFocus();
+    closeSidebar(false);
+  }
+
+  function handleMobileNavigation(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+    beginNavigationFocus();
+  }
+
   function handleLogout() {
     if (mutationBoundary.hasActiveOwner()) return;
     logout();
     navigate('/', { replace: true });
   }
 
+  const backgroundIsolationProps = mobileDrawerOpen ? { 'aria-hidden': true, inert: '' } : {};
+
   return (
     <AdminMutationBoundaryContext.Provider value={mutationBoundary}>
       <div className={styles.layout}>
-        {/* Sidebar */}
-        <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
-          <div className={styles.sidebarHeader}>
-            <Link to="/admin/dashboard" className={styles.logo}>
-              AT.M
-            </Link>
-            <span className={styles.logoSub}>Admin</span>
-          </div>
-
-          <nav className={styles.sidebarNav}>
-            {MENU_ITEMS.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`${styles.navItem} ${
-                  isActive(location.pathname, item.path) ? styles.navItemActive : ''
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className={styles.sidebarFooter}>
-            <div className={styles.navDivider} />
-            <Link to="/" className={styles.backLink}>
-              {'< '}
-              {'사이트로 돌아가기'}
-            </Link>
-          </div>
+        <aside className={`${styles.sidebar} ${styles.desktopSidebar}`}>
+          <SidebarContent currentPath={location.pathname} />
         </aside>
 
-        {/* Mobile overlay */}
-        {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
+        {mobileDrawerOpen && (
+          <>
+            <div className={styles.overlay} aria-hidden="true" onClick={() => closeSidebar(true)} />
+            <aside
+              ref={mobileSidebarRef}
+              id={MOBILE_SIDEBAR_ID}
+              className={`${styles.sidebar} ${styles.mobileSidebar}`}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Admin navigation"
+            >
+              <SidebarContent currentPath={location.pathname} onNavigate={handleMobileNavigation} />
+            </aside>
+          </>
+        )}
 
         {/* Top bar */}
         <header className={styles.topbar}>
           {/* Mobile hamburger (hidden on desktop via CSS) */}
           <button
+            ref={menuToggleRef}
+            id={MOBILE_SIDEBAR_TOGGLE_ID}
             className={styles.menuToggle}
-            onClick={() => setSidebarOpen((v) => !v)}
-            aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+            onClick={() =>
+              setSidebarOpen((isOpen) => (isMobileViewport === false ? false : !isOpen))
+            }
+            aria-label={mobileDrawerOpen ? 'Close menu' : 'Open menu'}
+            aria-controls={MOBILE_SIDEBAR_ID}
+            aria-expanded={mobileDrawerOpen}
           >
-            {sidebarOpen ? '\u2715' : '\u2630'}
+            {mobileDrawerOpen ? '\u2715' : '\u2630'}
           </button>
 
-          <div className={styles.userInfo}>
-            {user && (
-              <span>
-                <span className={styles.userName}>{user.nickname}</span>
-                {' (Admin)'}
-              </span>
-            )}
+          <div className={styles.topbarContent} {...backgroundIsolationProps}>
+            <div className={styles.userInfo}>
+              {user && (
+                <span>
+                  <span className={styles.userName}>{user.nickname}</span>
+                  {' (Admin)'}
+                </span>
+              )}
+            </div>
+            <button
+              className={styles.logoutBtn}
+              onClick={handleLogout}
+              disabled={activeMutationOwnerCount > 0}
+            >
+              {'로그아웃'}
+            </button>
           </div>
-          <button
-            className={styles.logoutBtn}
-            onClick={handleLogout}
-            disabled={activeMutationOwnerCount > 0}
-          >
-            {'로그아웃'}
-          </button>
         </header>
 
         {/* Main content */}
-        <main className={styles.content}>
+        <main className={styles.content} {...backgroundIsolationProps}>
           <Outlet />
         </main>
 
-        <ToastContainer />
+        <div className={styles.toastBoundary} {...backgroundIsolationProps}>
+          <ToastContainer />
+        </div>
       </div>
     </AdminMutationBoundaryContext.Provider>
   );

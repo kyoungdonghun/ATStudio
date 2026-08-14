@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PlayerBar from '@/layouts/PlayerBar';
+import Header from '@/layouts/Header';
 import type { BinaryDownload } from '@/api/downloads';
 import type { Track } from '@/types';
 
@@ -31,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   downloadTrack: vi.fn(),
   triggerBlobDownload: vi.fn(),
   getApiErrorCode: vi.fn(),
+  historyBusy: false,
   authState: {
     authenticated: false,
     role: 'GUEST',
@@ -132,9 +134,18 @@ vi.mock('@/components/player/WaveformCanvas', () => ({
   ),
 }));
 
-vi.mock('@/components/player/HistoryModal', () => ({
-  default: () => null,
-}));
+vi.mock('@/components/player/HistoryModal', async () => {
+  const { default: Modal } =
+    await vi.importActual<typeof import('@/components/ui/Modal')>('@/components/ui/Modal');
+
+  return {
+    default: ({ open, onClose }: { open: boolean; onClose: () => void }) => (
+      <Modal open={open} onClose={onClose} title="Player history" busy={mocks.historyBusy}>
+        <button type="button">History action</button>
+      </Modal>
+    ),
+  };
+});
 
 vi.mock('@/components/player/PlaylistDrawer', () => ({
   default: () => null,
@@ -170,6 +181,31 @@ function renderPlayerBar(initialEntry = '/') {
   );
 }
 
+function renderPublicShell() {
+  return render(
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <Header />
+      <PlayerBar />
+    </MemoryRouter>,
+  );
+}
+
+function getMobileExpander(container: HTMLElement): HTMLButtonElement {
+  const expander = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+    (button) => button.textContent === '\u25B2' || button.textContent === '\u25BC',
+  );
+
+  expect(expander).toBeDefined();
+  return expander!;
+}
+
+function getMobilePlayer(expander: HTMLButtonElement): HTMLElement {
+  const mobilePlayer = expander.parentElement?.parentElement?.parentElement;
+
+  expect(mobilePlayer).toBeInstanceOf(HTMLElement);
+  return mobilePlayer!;
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
@@ -202,6 +238,7 @@ describe('PlayerBar playback feedback', () => {
     mocks.downloadTrack.mockReset();
     mocks.triggerBlobDownload.mockReset();
     mocks.getApiErrorCode.mockReset();
+    mocks.historyBusy = false;
     mocks.downloadTrack.mockResolvedValue(binaryDownload());
     mocks.getApiErrorCode.mockResolvedValue(undefined);
     mocks.authState.authenticated = false;
@@ -351,6 +388,127 @@ describe('PlayerBar playback feedback', () => {
     const collapseButton = screen.getByLabelText('플레이어 상세 접기');
     expect(collapseButton).toHaveAttribute('aria-expanded', 'true');
     expect(collapseButton).toHaveFocus();
+  });
+
+  it('keeps collapsed mobile detail controls and their relationship out of the DOM', () => {
+    const view = renderPlayerBar();
+    const expander = getMobileExpander(view.container);
+
+    expect(expander).toHaveAttribute('aria-expanded', 'false');
+    expect(expander).not.toHaveAttribute('aria-controls');
+    expect(
+      view.container.querySelector('#player-mobile-expanded-controls'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders the mobile detail panel and a truthful expander relationship only while open', () => {
+    const view = renderPlayerBar();
+    const expander = getMobileExpander(view.container);
+
+    fireEvent.click(expander);
+
+    const panel = view.container.querySelector('#player-mobile-expanded-controls');
+    expect(panel).toBeInTheDocument();
+    expect(expander).toHaveAttribute('aria-expanded', 'true');
+    expect(expander).toHaveAttribute('aria-controls', 'player-mobile-expanded-controls');
+    expect(
+      within(panel as HTMLElement).getAllByRole('button', { hidden: true }).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('collapses mobile details on Escape and restores the exact expander focus', () => {
+    const view = renderPlayerBar();
+    const expander = getMobileExpander(view.container);
+    fireEvent.click(expander);
+    const panel = view.container.querySelector('#player-mobile-expanded-controls') as HTMLElement;
+    const detailButton = within(panel).getAllByRole('button', { hidden: true })[0];
+    detailButton.focus();
+
+    fireEvent.keyDown(detailButton, { key: 'Escape' });
+
+    expect(
+      view.container.querySelector('#player-mobile-expanded-controls'),
+    ).not.toBeInTheDocument();
+    expect(expander).toHaveAttribute('aria-expanded', 'false');
+    expect(expander).not.toHaveAttribute('aria-controls');
+    expect(expander).toHaveFocus();
+  });
+
+  it('leaves expanded PlayerBar details open when Header owns Escape', () => {
+    const view = renderPublicShell();
+    const expander = getMobileExpander(view.container);
+    fireEvent.click(expander);
+    fireEvent.click(screen.getByLabelText('메뉴 열기'));
+    const headerSearch = screen.getByLabelText('모바일 곡 제목 및 용도 검색');
+    headerSearch.focus();
+
+    fireEvent.keyDown(headerSearch, { key: 'Escape' });
+
+    expect(screen.queryByRole('search', { name: '모바일 곡 검색' })).not.toBeInTheDocument();
+    expect(view.container.querySelector('#player-mobile-expanded-controls')).toBeInTheDocument();
+    expect(expander).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText('메뉴 열기')).toHaveFocus();
+  });
+
+  it.each([
+    ['non-busy', false],
+    ['busy', true],
+  ])('lets a %s Modal own Escape above expanded PlayerBar details', (_label, busy) => {
+    mocks.historyBusy = busy;
+    const view = renderPlayerBar();
+    const expander = getMobileExpander(view.container);
+    fireEvent.click(expander);
+    const panel = view.container.querySelector('#player-mobile-expanded-controls') as HTMLElement;
+    const historyOpener = within(panel).getByRole('button', { name: '재생기록', hidden: true });
+    historyOpener.focus();
+    fireEvent.click(historyOpener);
+    const dialog = screen.getByRole('dialog', { name: 'Player history' });
+
+    fireEvent.keyDown(within(dialog).getByRole('button', { name: 'History action' }), {
+      key: 'Escape',
+    });
+
+    if (busy) {
+      expect(screen.getByRole('dialog', { name: 'Player history' })).toBeInTheDocument();
+    } else {
+      expect(screen.queryByRole('dialog', { name: 'Player history' })).not.toBeInTheDocument();
+      expect(historyOpener).toHaveFocus();
+    }
+    expect(view.container.querySelector('#player-mobile-expanded-controls')).toBeInTheDocument();
+    expect(expander).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('preserves mobile mini-bar and expanded playback and seek controls', () => {
+    const view = renderPlayerBar();
+    const expander = getMobileExpander(view.container);
+    const mobilePlayer = getMobilePlayer(expander);
+    const collapsedPlayButton = within(mobilePlayer)
+      .getAllByRole('button', { hidden: true })
+      .find((button) => button.textContent === '\u25B6');
+    const collapsedSeekControl = within(mobilePlayer).getAllByRole('slider', { hidden: true })[0];
+
+    expect(collapsedPlayButton).toBeDefined();
+    expect(collapsedSeekControl).toBeDefined();
+    fireEvent.click(collapsedPlayButton!);
+    fireEvent.keyDown(collapsedSeekControl!, { key: 'ArrowRight' });
+    expect(mocks.playerState.resume).toHaveBeenCalledTimes(1);
+    expect(mocks.playerState.seek).toHaveBeenLastCalledWith(15);
+
+    fireEvent.click(expander);
+    const panel = view.container.querySelector('#player-mobile-expanded-controls') as HTMLElement;
+    const expandedPlayButton = within(panel)
+      .getAllByRole('button', { hidden: true })
+      .find((button) => button.textContent === '\u25B6');
+    const expandedSeekControl = within(panel)
+      .getAllByRole('slider', { hidden: true })
+      .find((control) => control.getAttribute('aria-valuemax') === '100');
+
+    expect(expandedPlayButton).toBeDefined();
+    expect(expandedSeekControl).toBeDefined();
+    fireEvent.click(expandedPlayButton!);
+    fireEvent.keyDown(expandedSeekControl!, { key: 'End' });
+    expect(mocks.playerState.resume).toHaveBeenCalledTimes(2);
+    expect(mocks.playerState.seek).toHaveBeenLastCalledWith(100);
   });
 
   it.each([

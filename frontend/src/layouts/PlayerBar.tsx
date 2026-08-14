@@ -1,4 +1,11 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getApiErrorCode, toUploadUrl } from '@/api/client';
 import { usePlayerStore } from '@/store/playerStore';
@@ -74,10 +81,23 @@ export default function PlayerBar() {
   const downloadOwnershipRef = useRef<{ trackID: number } | null>(null);
   const [volumeOpen, setVolumeOpen] = useState(false);
   const mobileMiniProgressRef = useRef<HTMLDivElement>(null);
+  const mobileExpandButtonRef = useRef<HTMLButtonElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const loginPath = createLoginPath(location);
+
+  function handleMobileKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'Escape' || event.defaultPrevented || !expanded) return;
+
+    const target = event.target;
+    if (!(target instanceof Element) || !event.currentTarget.contains(target)) return;
+    if (target.closest('dialog, [role="dialog"], [aria-modal="true"]')) return;
+
+    event.preventDefault();
+    setExpanded(false);
+    mobileExpandButtonRef.current?.focus();
+  }
 
   useEffect(() => {
     void hydratePersistedState?.();
@@ -553,7 +573,7 @@ export default function PlayerBar() {
         </div>
 
         {/* Mobile empty state */}
-        <div className={styles.mobilePlayer}>
+        <div className={styles.mobilePlayer} onKeyDown={handleMobileKeyDown}>
           <div className={styles.mobileBar}>
             <div className={styles.mobileInfo}>
               <div className={styles.thumb}>{'\u266B'}</div>
@@ -564,37 +584,44 @@ export default function PlayerBar() {
             <div className={styles.mobileControls}>
               <button
                 type="button"
+                ref={mobileExpandButtonRef}
                 className={styles.mobileExpandBtn}
                 onClick={() => setExpanded((v) => !v)}
                 aria-label={expanded ? '플레이어 상세 접기' : '플레이어 상세 펼치기'}
                 aria-expanded={expanded}
+                aria-controls={expanded ? MOBILE_EXPANDED_ID : undefined}
               >
                 {expanded ? '\u25BC' : '\u25B2'}
               </button>
             </div>
           </div>
-          <div className={`${styles.mobileExpanded} ${expanded ? styles.mobileExpandedOpen : ''}`}>
-            <div className={styles.mobileActions}>
-              <button
-                className={`${styles.actionBtn} ${historyOpen ? styles.actionBtnActive : ''}`}
-                onClick={() => {
-                  setHistoryOpen((v) => !v);
-                  setPlaylistOpen(false);
-                }}
-              >
-                {'재생기록'}
-              </button>
-              <button
-                className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
-                onClick={() => {
-                  setPlaylistOpen((v) => !v);
-                  setHistoryOpen(false);
-                }}
-              >
-                {'재생목록'}
-              </button>
+          {expanded && (
+            <div
+              id={MOBILE_EXPANDED_ID}
+              className={`${styles.mobileExpanded} ${styles.mobileExpandedOpen}`}
+            >
+              <div className={styles.mobileActions}>
+                <button
+                  className={`${styles.actionBtn} ${historyOpen ? styles.actionBtnActive : ''}`}
+                  onClick={() => {
+                    setHistoryOpen((v) => !v);
+                    setPlaylistOpen(false);
+                  }}
+                >
+                  {'재생기록'}
+                </button>
+                <button
+                  className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
+                  onClick={() => {
+                    setPlaylistOpen((v) => !v);
+                    setHistoryOpen(false);
+                  }}
+                >
+                  {'재생목록'}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {historyOpen && <HistoryModal open={historyOpen} onClose={() => setHistoryOpen(false)} />}
@@ -839,7 +866,7 @@ export default function PlayerBar() {
       </div>
 
       {/* ── Mobile: mini bar ── */}
-      <div className={styles.mobilePlayer}>
+      <div className={styles.mobilePlayer} onKeyDown={handleMobileKeyDown}>
         {/* Thin progress indicator at top of mini bar */}
         <div
           className={styles.mobileProgressTrack}
@@ -915,11 +942,12 @@ export default function PlayerBar() {
               </>
             )}
             <button
+              ref={mobileExpandButtonRef}
               className={styles.mobileExpandBtn}
               onClick={() => setExpanded((v) => !v)}
               aria-label={expanded ? '플레이어 상세 접기' : '플레이어 상세 펼치기'}
               aria-expanded={expanded}
-              aria-controls={MOBILE_EXPANDED_ID}
+              aria-controls={expanded ? MOBILE_EXPANDED_ID : undefined}
               title={expanded ? '플레이어 상세 접기' : '플레이어 상세 펼치기'}
             >
               {expanded ? '\u25BC' : '\u25B2'}
@@ -928,139 +956,141 @@ export default function PlayerBar() {
         </div>
 
         {/* Expanded panel */}
-        <div
-          id={MOBILE_EXPANDED_ID}
-          className={`${styles.mobileExpanded} ${expanded ? styles.mobileExpandedOpen : ''}`}
-        >
-          {/* Transport controls */}
-          <div className={styles.mobileFullControls}>
-            <button
-              type="button"
-              className={`${styles.ctrlBtn} ${shuffle ? styles.ctrlBtnActive : ''}`}
-              onClick={toggleShuffle}
-              aria-label={shuffle ? '셔플 사용 중' : '셔플 사용 안 함'}
-              aria-pressed={shuffle}
-              title={shuffle ? '셔플 끄기' : '셔플 켜기'}
-            >
-              {'\u21CC'}
-            </button>
-            <button
-              type="button"
-              className={styles.ctrlBtn}
-              onClick={prev}
-              aria-label="이전 곡"
-              title="이전 곡"
-            >
-              {'\u23EE'}
-            </button>
-            <button
-              type="button"
-              className={styles.playBtn}
-              onClick={handlePlayPause}
-              aria-label={isPlaying ? '일시정지' : '재생'}
-              title={isPlaying ? '일시정지' : '재생'}
-            >
-              {isPlaying ? '\u275A\u275A' : '\u25B6'}
-            </button>
-            <button
-              type="button"
-              className={styles.ctrlBtn}
-              onClick={next}
-              aria-label="다음 곡"
-              title="다음 곡"
-            >
-              {'\u23ED'}
-            </button>
-            <button
-              type="button"
-              className={`${styles.ctrlBtn} ${repeat !== 'off' ? styles.ctrlBtnActive : ''}`}
-              onClick={cycleRepeat}
-              aria-label={repeatLabel}
-              title="반복 모드 변경"
-            >
-              {repeatIcon}
-            </button>
-          </div>
+        {expanded && (
+          <div
+            id={MOBILE_EXPANDED_ID}
+            className={`${styles.mobileExpanded} ${styles.mobileExpandedOpen}`}
+          >
+            {/* Transport controls */}
+            <div className={styles.mobileFullControls}>
+              <button
+                type="button"
+                className={`${styles.ctrlBtn} ${shuffle ? styles.ctrlBtnActive : ''}`}
+                onClick={toggleShuffle}
+                aria-label={shuffle ? '셔플 사용 중' : '셔플 사용 안 함'}
+                aria-pressed={shuffle}
+                title={shuffle ? '셔플 끄기' : '셔플 켜기'}
+              >
+                {'\u21CC'}
+              </button>
+              <button
+                type="button"
+                className={styles.ctrlBtn}
+                onClick={prev}
+                aria-label="이전 곡"
+                title="이전 곡"
+              >
+                {'\u23EE'}
+              </button>
+              <button
+                type="button"
+                className={styles.playBtn}
+                onClick={handlePlayPause}
+                aria-label={isPlaying ? '일시정지' : '재생'}
+                title={isPlaying ? '일시정지' : '재생'}
+              >
+                {isPlaying ? '\u275A\u275A' : '\u25B6'}
+              </button>
+              <button
+                type="button"
+                className={styles.ctrlBtn}
+                onClick={next}
+                aria-label="다음 곡"
+                title="다음 곡"
+              >
+                {'\u23ED'}
+              </button>
+              <button
+                type="button"
+                className={`${styles.ctrlBtn} ${repeat !== 'off' ? styles.ctrlBtnActive : ''}`}
+                onClick={cycleRepeat}
+                aria-label={repeatLabel}
+                title="반복 모드 변경"
+              >
+                {repeatIcon}
+              </button>
+            </div>
 
-          {/* Waveform seek (replaces plain progress bar) */}
-          <div className={styles.mobileWaveform}>
-            <span className={styles.mobileSeekTime}>{formatTime(boundedCurrentTime)}</span>
-            <div
-              className={styles.mobileWaveformWrap}
-              role="slider"
-              tabIndex={0}
-              aria-label="모바일 상세 재생 위치"
-              aria-valuemin={0}
-              aria-valuemax={trackDuration}
-              aria-valuenow={boundedCurrentTime}
-              aria-valuetext={`${formatTime(boundedCurrentTime)} / ${formatTime(trackDuration)}`}
-              onKeyDown={handleSeekKeyDown}
-            >
-              <WaveformCanvas
-                peaks={parsedPeaks}
-                progress={progressRatio}
-                onSeek={handleSeek}
-                height={32}
+            {/* Waveform seek (replaces plain progress bar) */}
+            <div className={styles.mobileWaveform}>
+              <span className={styles.mobileSeekTime}>{formatTime(boundedCurrentTime)}</span>
+              <div
+                className={styles.mobileWaveformWrap}
+                role="slider"
+                tabIndex={0}
+                aria-label="모바일 상세 재생 위치"
+                aria-valuemin={0}
+                aria-valuemax={trackDuration}
+                aria-valuenow={boundedCurrentTime}
+                aria-valuetext={`${formatTime(boundedCurrentTime)} / ${formatTime(trackDuration)}`}
+                onKeyDown={handleSeekKeyDown}
+              >
+                <WaveformCanvas
+                  peaks={parsedPeaks}
+                  progress={progressRatio}
+                  onSeek={handleSeek}
+                  height={32}
+                />
+              </div>
+              <span className={styles.mobileSeekTime}>{formatTime(trackDuration)}</span>
+            </div>
+
+            {/* Volume */}
+            <div className={styles.mobileVolumeToggle}>
+              <button
+                className={styles.volumeBtn}
+                onClick={toggleMute}
+                aria-label={muted ? '음소거 해제' : '음소거'}
+                title={muted ? '음소거 해제' : '음소거'}
+              >
+                {volumeIcon}
+              </button>
+              <input
+                type="range"
+                className={styles.mobileVolumeSlider}
+                min={0}
+                max={1}
+                step={0.01}
+                value={muted ? 0 : volume}
+                onChange={(e) => setVolume(parseFloat(e.target.value))}
+                aria-label="볼륨"
               />
             </div>
-            <span className={styles.mobileSeekTime}>{formatTime(trackDuration)}</span>
-          </div>
 
-          {/* Volume */}
-          <div className={styles.mobileVolumeToggle}>
-            <button
-              className={styles.volumeBtn}
-              onClick={toggleMute}
-              aria-label={muted ? '음소거 해제' : '음소거'}
-              title={muted ? '음소거 해제' : '음소거'}
-            >
-              {volumeIcon}
-            </button>
-            <input
-              type="range"
-              className={styles.mobileVolumeSlider}
-              min={0}
-              max={1}
-              step={0.01}
-              value={muted ? 0 : volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-              aria-label="볼륨"
-            />
-          </div>
-
-          {/* Action buttons */}
-          <div className={styles.mobileActions}>
-            <button
-              className={`${styles.actionBtn} ${historyOpen ? styles.actionBtnActive : ''}`}
-              onClick={() => {
-                setHistoryOpen((v) => !v);
-                setPlaylistOpen(false);
-              }}
-            >
-              {'재생기록'}
-            </button>
-            <button
-              className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
-              onClick={() => {
-                setPlaylistOpen((v) => !v);
-                setHistoryOpen(false);
-              }}
-            >
-              {'재생목록'}
-            </button>
-            {(role === 'ADMIN' || (isAuthenticated && hasSubscription)) && (
+            {/* Action buttons */}
+            <div className={styles.mobileActions}>
               <button
-                className={styles.downloadBtn}
-                onClick={handleDownload}
-                disabled={downloading}
-                title="음원 다운로드"
+                className={`${styles.actionBtn} ${historyOpen ? styles.actionBtnActive : ''}`}
+                onClick={() => {
+                  setHistoryOpen((v) => !v);
+                  setPlaylistOpen(false);
+                }}
               >
-                {downloading ? '...' : '\u2193 다운로드'}
+                {'재생기록'}
               </button>
-            )}
-            {renderSubscriptionAction('/login')}
+              <button
+                className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
+                onClick={() => {
+                  setPlaylistOpen((v) => !v);
+                  setHistoryOpen(false);
+                }}
+              >
+                {'재생목록'}
+              </button>
+              {(role === 'ADMIN' || (isAuthenticated && hasSubscription)) && (
+                <button
+                  className={styles.downloadBtn}
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  title="음원 다운로드"
+                >
+                  {downloading ? '...' : '\u2193 다운로드'}
+                </button>
+              )}
+              {renderSubscriptionAction('/login')}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Modals / Drawers */}

@@ -1,8 +1,54 @@
-import { type ReactNode, useEffect, useRef, useCallback, useId } from 'react';
+import { type ReactNode, type RefObject, useEffect, useRef, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './Modal.module.css';
 
-const openModalStack: symbol[] = [];
+interface OpenModalEntry {
+  id: symbol;
+  getElement: () => HTMLDivElement | null;
+}
+
+const openModalStack: OpenModalEntry[] = [];
+
+function isAvailableFocusTarget(target: HTMLElement | null): target is HTMLElement {
+  return Boolean(
+    target?.isConnected &&
+    !target.matches(':disabled, [aria-disabled="true"]') &&
+    !target.closest('[hidden], [aria-hidden="true"], [inert]'),
+  );
+}
+
+function focusIfAvailable(target: HTMLElement | null): boolean {
+  if (!isAvailableFocusTarget(target)) return false;
+
+  const needsTemporaryTabIndex = target.tabIndex < 0 && !target.hasAttribute('tabindex');
+  if (needsTemporaryTabIndex) target.setAttribute('tabindex', '-1');
+  target.focus();
+  if (needsTemporaryTabIndex) target.removeAttribute('tabindex');
+
+  return document.activeElement === target;
+}
+
+function focusMainFallback(): void {
+  const mainRegions = Array.from(document.querySelectorAll<HTMLElement>('main, [role="main"]'));
+
+  for (const mainRegion of mainRegions) {
+    const heading = mainRegion.querySelector<HTMLElement>('h1, [role="heading"][aria-level="1"]');
+    if (focusIfAvailable(heading)) return;
+  }
+
+  for (const mainRegion of mainRegions) {
+    if (focusIfAvailable(mainRegion)) return;
+  }
+}
+
+function focusHighestRemainingModal(excludedId: symbol): boolean {
+  for (let index = openModalStack.length - 1; index >= 0; index -= 1) {
+    const entry = openModalStack[index];
+    if (entry.id !== excludedId && focusIfAvailable(entry.getElement())) return true;
+  }
+
+  return false;
+}
 
 interface ModalProps {
   open: boolean;
@@ -10,17 +56,27 @@ interface ModalProps {
   title?: string;
   children: ReactNode;
   busy?: boolean;
+  focusFallbackRef?: RefObject<HTMLElement>;
 }
 
-export default function Modal({ open, onClose, title, children, busy = false }: ModalProps) {
+export default function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  busy = false,
+  focusFallbackRef,
+}: ModalProps) {
   const backdropRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  const focusFallbackPropRef = useRef(focusFallbackRef);
   const modalIdRef = useRef(Symbol('modal'));
   const onCloseRef = useRef(onClose);
   const busyRef = useRef(busy);
   const titleId = useId();
   busyRef.current = busy;
+  focusFallbackPropRef.current = focusFallbackRef;
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -32,8 +88,8 @@ export default function Modal({ open, onClose, title, children, busy = false }: 
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      const topModalId = openModalStack[openModalStack.length - 1];
-      if (topModalId !== modalIdRef.current) return;
+      const topModal = openModalStack[openModalStack.length - 1];
+      if (topModal?.id !== modalIdRef.current) return;
 
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -80,13 +136,13 @@ export default function Modal({ open, onClose, title, children, busy = false }: 
   useEffect(() => {
     if (!open) return;
     const modalId = modalIdRef.current;
-    openModalStack.push(modalId);
+    openModalStack.push({ id: modalId, getElement: () => modalRef.current });
     document.addEventListener('keydown', handleKeyDown);
     document.body.style.overflow = 'hidden';
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      const stackIndex = openModalStack.lastIndexOf(modalId);
+      const stackIndex = openModalStack.map((entry) => entry.id).lastIndexOf(modalId);
       if (stackIndex >= 0) {
         openModalStack.splice(stackIndex, 1);
       }
@@ -97,6 +153,7 @@ export default function Modal({ open, onClose, title, children, busy = false }: 
   useEffect(() => {
     if (!open) return;
 
+    const modalId = modalIdRef.current;
     const opener = document.activeElement;
     returnFocusRef.current =
       opener instanceof HTMLElement && opener !== document.body ? opener : null;
@@ -104,13 +161,10 @@ export default function Modal({ open, onClose, title, children, busy = false }: 
     return () => {
       const returnTarget = returnFocusRef.current;
       returnFocusRef.current = null;
-      if (
-        returnTarget?.isConnected &&
-        returnTarget.getAttribute('aria-disabled') !== 'true' &&
-        !('disabled' in returnTarget && returnTarget.disabled)
-      ) {
-        returnTarget.focus();
-      }
+      if (focusIfAvailable(returnTarget)) return;
+      if (focusIfAvailable(focusFallbackPropRef.current?.current ?? null)) return;
+      if (focusHighestRemainingModal(modalId)) return;
+      focusMainFallback();
     };
   }, [open]);
 

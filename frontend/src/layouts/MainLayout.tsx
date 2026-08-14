@@ -6,18 +6,74 @@ import ToastContainer from '@/components/ui/ToastContainer';
 import { usePlayerStore } from '@/store/playerStore';
 import styles from './MainLayout.module.css';
 
+const SHORTCUT_BLOCKING_TARGETS = [
+  'a[href]',
+  'area[href]',
+  'audio[controls]',
+  'button',
+  'details',
+  'dialog',
+  'input',
+  'option',
+  'select',
+  'summary',
+  'textarea',
+  'video[controls]',
+  '[contenteditable]:not([contenteditable="false"])',
+  '[tabindex]:not([tabindex="-1"])',
+  '[role="alertdialog"]',
+  '[role="application"]',
+  '[role="button"]',
+  '[role="checkbox"]',
+  '[role="combobox"]',
+  '[role="dialog"]',
+  '[role="grid"]',
+  '[role="gridcell"]',
+  '[role="link"]',
+  '[role="listbox"]',
+  '[role="menu"]',
+  '[role="menubar"]',
+  '[role="menuitem"]',
+  '[role="menuitemcheckbox"]',
+  '[role="menuitemradio"]',
+  '[role="option"]',
+  '[role="radio"]',
+  '[role="radiogroup"]',
+  '[role="scrollbar"]',
+  '[role="searchbox"]',
+  '[role="slider"]',
+  '[role="spinbutton"]',
+  '[role="switch"]',
+  '[role="tab"]',
+  '[role="tablist"]',
+  '[role="textbox"]',
+  '[role="toolbar"]',
+  '[role="tree"]',
+  '[role="treegrid"]',
+  '[role="treeitem"]',
+].join(',');
+
+function shouldIgnorePlaybackShortcut(event: KeyboardEvent): boolean {
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+    return true;
+  }
+
+  return (
+    event.target instanceof Element && Boolean(event.target.closest(SHORTCUT_BLOCKING_TARGETS))
+  );
+}
+
 export default function MainLayout() {
   /* Global keyboard shortcuts:
      - Space  → play/pause current track
      - ↑↓     → prev/next (SR-87, delegates to trackListContext) */
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement)?.tagName;
-      const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+      if (e.key !== ' ' && e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      if (shouldIgnorePlaybackShortcut(e)) return;
 
       // Space → play/pause
       if (e.key === ' ') {
-        if (isInput) return;
         const store = usePlayerStore.getState();
         if (!store.currentTrack) return;
         e.preventDefault();
@@ -25,9 +81,6 @@ export default function MainLayout() {
         else store.resume();
         return;
       }
-
-      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-      if (isInput) return;
 
       const store = usePlayerStore.getState();
       if (store.trackListContext.length === 0) return;

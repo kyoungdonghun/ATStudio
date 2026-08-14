@@ -1261,6 +1261,7 @@ describe('application shells and error routes', () => {
     );
     fireEvent.click(admin.container.querySelector('button[aria-label="Open menu"]')!);
     expect(admin.container.querySelector('button[aria-label="Close menu"]')).toBeInTheDocument();
+    fireEvent.click(admin.container.querySelector('button[aria-label="Close menu"]')!);
     fireEvent.click(adminScreen.getByRole('button', { name: '로그아웃' }));
     expect(states.auth.logout).toHaveBeenCalled();
     expect(mocks.navigate).toHaveBeenCalledWith('/', { replace: true });

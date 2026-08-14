@@ -571,7 +571,7 @@ describe('header navigation behavior', () => {
     states.theme.theme = 'light';
     renderAt(<Header />, '/tracks');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Switch to dark mode' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '다크 모드로 전환' })[0]);
     expect(states.theme.toggle).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByLabelText('메뉴 열기'));
@@ -584,8 +584,10 @@ describe('header navigation behavior', () => {
     expect(mocks.navigate).toHaveBeenCalledWith(
       `/tracks?keyword=${encodeURIComponent('봄 shorts')}&page=1`,
     );
-    expect(mobileSearch).toHaveValue('');
     expect(screen.getByLabelText('메뉴 열기')).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByLabelText('모바일 곡 제목 및 용도 검색')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('메뉴 열기'));
+    expect(screen.getByLabelText('모바일 곡 제목 및 용도 검색')).toHaveValue('');
   });
 
   it('ignores blank search and closes the mobile overlay without navigation', () => {
@@ -809,6 +811,7 @@ describe('player transport, subscription, and recovery behavior', () => {
     states.player.repeat = 'all';
     states.player.muted = true;
     renderPlayer();
+    fireEvent.click(screen.getByLabelText('플레이어 상세 펼치기'));
 
     expect(screen.getAllByRole('button', { name: 'waveform-seek' })[0]).toHaveAttribute(
       'data-peaks',

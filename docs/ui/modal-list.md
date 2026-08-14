@@ -1,5 +1,5 @@
 ---
-version: 2.8
+version: 2.9
 last_updated: 2026-08-14
 project: ATS
 owner: docops
@@ -54,6 +54,14 @@ confirmation; the removed direct update/cancel dialogs are not current flows.
   close through the same state. `ConfirmDialog` forwards its busy state to this
   contract. Notice deletion uses the same contract while its owned operation is
   pending.
+- Shared Modal focus restoration uses this order: the exact connected and
+  enabled opener, an explicit valid fallback, the highest surviving Modal in
+  the stack, then the first available page-main H1 and page main. Invalid
+  targets include removed, disabled, `aria-disabled`, hidden, and inert
+  elements. The sequence has no `body` fallback. Only the topmost Modal owns
+  Escape and focus trapping; nested order is preserved, and a busy parent
+  remains a valid surviving focus destination while its Escape, backdrop, and
+  close-button dismissal stays blocked.
 - User-role changes, Tag form/delete mutations, Track deletion, Company review,
   and local Subscription correction retain an immutable target and request
   generation while an accepted mutation owns the operation. Their owner pages

@@ -1,5 +1,5 @@
 ---
-version: 2.8
+version: 2.9
 last_updated: 2026-08-14
 project: ATS
 owner: SA
@@ -573,3 +573,49 @@ const TrackListPage = () => {
 | File (component) | PascalCase.tsx | `TrackCard.tsx` |
 | CSS Module | PascalCase.module.css | `TrackCard.module.css` |
 | File (utility/api) | camelCase.ts | `client.ts`, `likes.ts` |
+
+### 9.3 Shared Shell And Modal Accessibility
+
+- `MainLayout` playback shortcuts must return before reading player state when
+  the keyboard event is default-prevented, uses Alt/Ctrl/Meta/Shift, or
+  originates in an interactive, editable, contenteditable, dialog, slider,
+  tabbable, or ARIA composite-control target or ancestor. The existing
+  play/pause and previous/next meanings remain available only from ordinary
+  non-interactive document targets.
+- The Header mobile menu and overlay are conditionally rendered only while the
+  menu is open, so a closed menu contributes no active controls to the DOM or
+  accessibility tree. Escape and overlay dismissal close the menu and restore
+  the exact opener when it remains connected, enabled, visible, and outside an
+  inert subtree. The theme command exposes the state-correct Korean accessible
+  names `라이트 모드로 전환` and `다크 모드로 전환`. Each desktop account,
+  Login, and subscription route command is one styled interactive `Link`, with
+  no nested `Button`.
+- A normally accepted mobile navigation command closes its source disclosure
+  immediately without restoring the opener and requests one module-level
+  destination-focus intent. The destination layout consumes the intent
+  synchronously for same-layout and cross-layout navigation, including React
+  StrictMode effect replay. Focus targets the first available H1 in an active
+  main region, then the first available main region. A temporary
+  `tabindex="-1"` is removed after the focus attempt; there is no `body`
+  fallback, and a missing destination still consumes the one-shot intent.
+- `AdminLayout` keeps its desktop sidebar mounted and renders a separate mobile
+  `dialog` only while the drawer is open at the mobile breakpoint. Opening the
+  drawer focuses its first command and traps Tab/Shift+Tab. The topbar content
+  outside the opener, main content, and Toast boundary receive `inert` and
+  `aria-hidden` isolation while open; the overlay and Toast boundary also
+  prevent background pointer interaction. Escape and overlay dismissal restore
+  the exact valid opener. A `matchMedia` transition out of mobile closes without
+  opener restoration, removes the mobile dialog, overlay, and trap, releases
+  all isolation, and preserves the desktop sidebar and active route. Accepted
+  mobile ADMIN routes use the shared one-shot destination-focus contract.
+- Collapsed mobile `PlayerBar` detail markup is conditionally absent. Escape is
+  handled only for an expanded detail event originating inside that PlayerBar
+  mobile surface, collapses the detail, and returns focus to its expander.
+  Dialog-owned targets are ignored, and no document-level listener is
+  installed, so Header and shared Modal Escape ownership takes precedence.
+- When a shared `Modal` closes, focus restoration tries the exact valid opener,
+  an explicit valid fallback, the highest surviving Modal in the stack, then
+  the first available page-main H1 and page main. It never silently targets
+  `body`. Only the topmost Modal owns Escape and focus trapping; nested stack
+  order remains intact, and `busy` continues to block Escape, backdrop, and
+  close-button dismissal while retaining focus containment.

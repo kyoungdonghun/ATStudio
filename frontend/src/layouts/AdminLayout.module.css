@@ -22,6 +22,15 @@
   overflow-y: auto;
 }
 
+.desktopSidebar {
+  display: flex;
+}
+
+.mobileSidebar,
+.overlay {
+  display: none;
+}
+
 .sidebarHeader {
   padding: calc(20px + env(safe-area-inset-top)) 16px 12px;
   border-bottom: 1px solid var(--border);
@@ -122,6 +131,12 @@
   gap: 16px;
 }
 
+.topbarContent {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .userInfo {
   font-size: 13px;
   color: var(--text1);
@@ -179,6 +194,10 @@
   min-height: calc(100vh - var(--header-h));
 }
 
+.toastBoundary[inert] {
+  pointer-events: none;
+}
+
 /* ── Responsive: Tablet ── */
 
 @media (max-width: 1023px) {
@@ -199,14 +218,13 @@
 /* ── Responsive: Mobile ── */
 
 @media (max-width: 767px) {
-  .sidebar {
-    transform: translateX(-100%);
-    transition: transform 0.25s ease;
-    width: 240px;
+  .desktopSidebar {
+    display: none;
   }
 
-  .sidebarOpen {
-    transform: translateX(0);
+  .mobileSidebar {
+    display: flex;
+    width: 240px;
   }
 
   .topbar {
@@ -231,6 +249,7 @@
   }
 
   .overlay {
+    display: block;
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
