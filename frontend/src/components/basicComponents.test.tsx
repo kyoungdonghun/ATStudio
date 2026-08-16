@@ -41,10 +41,10 @@ describe('small reusable UI and client state', () => {
 
     expect(screen.getByAltText('Focus Mix')).toHaveAttribute('src', '/cover.png');
     expect(screen.getByText(/Lo-fi/)).toHaveTextContent('12');
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByRole('button', { name: '좋아요 해제' }));
     expect(onToggleLike).toHaveBeenCalledWith(4);
     expect(onClick).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByText('Focus Mix'));
+    fireEvent.click(screen.getByRole('button', { name: 'Focus Mix 앨범 보기' }));
     expect(onClick).toHaveBeenCalledOnce();
   });
 

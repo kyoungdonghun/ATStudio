@@ -8,24 +8,6 @@
   background: var(--bg1);
 }
 
-.row:hover .num {
-  display: none;
-}
-
-.row:hover .playBtn {
-  display: flex;
-}
-
-/* ── Playing state ── */
-
-.playing .num {
-  display: none;
-}
-
-.playing .playBtn {
-  display: flex;
-}
-
 .playing .title {
   color: var(--accent);
 }
@@ -89,7 +71,7 @@
 /* ── Number / Play toggle ── */
 
 .num {
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   width: 24px;
@@ -100,7 +82,7 @@
 }
 
 .playBtn {
-  display: none;
+  display: flex;
   width: 24px;
   height: 24px;
   background: var(--accent);

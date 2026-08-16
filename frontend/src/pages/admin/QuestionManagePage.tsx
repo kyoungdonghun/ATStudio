@@ -280,12 +280,15 @@ export default function QuestionManagePage() {
               <tbody>
                 {items.map((item) => (
                   <tr key={item.id} className={styles.row}>
-                    <td
-                      className={styles.cellTitle}
-                      onClick={() => navigate(`/questions/${item.id}`)}
-                    >
-                      {item.title}
-                      {!item.isPublic && <span className={styles.privateBadge}>{'비공개'}</span>}
+                    <td className={styles.cellTitle}>
+                      <button
+                        type="button"
+                        className={styles.titleButton}
+                        onClick={() => navigate(`/questions/${item.id}`)}
+                      >
+                        {item.title}
+                        {!item.isPublic && <span className={styles.privateBadge}>{'비공개'}</span>}
+                      </button>
                     </td>
                     <td className={styles.cellCenter}>
                       {CATEGORY_LABELS[item.category] ?? item.category}

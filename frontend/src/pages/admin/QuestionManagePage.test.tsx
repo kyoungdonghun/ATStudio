@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { QuestionListItem } from '@/api/questions';
@@ -82,5 +82,22 @@ describe('QuestionManagePage request ownership', () => {
     await act(async () => openRequest.resolve(questionPage(1, 'Stale open question', 'OPEN')));
     expect(screen.getByText('Newest closed question')).toBeInTheDocument();
     expect(screen.queryByText('Stale open question')).not.toBeInTheDocument();
+  });
+
+  it('uses a native button title command that navigates once on click', async () => {
+    mocks.fetchQuestions.mockResolvedValue(questionPage(4, 'Keyboard admin question', 'OPEN'));
+    const router = createMemoryRouter(
+      [
+        { path: '/admin/questions', element: <QuestionManagePage /> },
+        { path: '/questions/:questionId', element: <div>Question detail</div> },
+      ],
+      { initialEntries: ['/admin/questions'] },
+    );
+    render(<RouterProvider router={router} future={{ v7_startTransition: true }} />);
+
+    const titleButton = await screen.findByRole('button', { name: 'Keyboard admin question' });
+    expect(titleButton).toHaveAttribute('type', 'button');
+    fireEvent.click(titleButton);
+    expect(router.state.location.pathname).toBe('/questions/4');
   });
 });

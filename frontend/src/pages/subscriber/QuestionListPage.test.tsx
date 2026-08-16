@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import QuestionListPage from '@/pages/subscriber/QuestionListPage';
 import type { PageInfo } from '@/types';
@@ -30,12 +30,18 @@ const pageInfo: PageInfo = {
   next: false,
 };
 
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="question-location">{location.pathname}</div>;
+}
+
 function renderPage() {
   return render(
     <MemoryRouter
       initialEntries={['/questions']}
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
+      <LocationProbe />
       <QuestionListPage />
     </MemoryRouter>,
   );
@@ -103,5 +109,27 @@ describe('QuestionListPage load ownership', () => {
     expect(screen.getByText('현재 문의')).toBeInTheDocument();
     expect(screen.queryByText('등록된 문의가 없습니다.')).not.toBeInTheDocument();
     expect(screen.queryByText('문의 목록을 불러오지 못했습니다.')).not.toBeInTheDocument();
+  });
+
+  it('uses the title link href and isolates its single click navigation from the row', async () => {
+    fetchQuestions.mockResolvedValue({
+      dataList: [
+        {
+          id: 7,
+          title: '키보드 문의',
+          category: 'PAYMENT',
+          isPublic: true,
+          status: 'OPEN',
+          createdAt: '2026-08-13T00:00:00Z',
+        },
+      ],
+      pageInfo,
+    });
+
+    renderPage();
+    const titleLink = await screen.findByRole('link', { name: '키보드 문의' });
+    expect(titleLink).toHaveAttribute('href', '/questions/7');
+    fireEvent.click(titleLink);
+    expect(screen.getByTestId('question-location')).toHaveTextContent('/questions/7');
   });
 });

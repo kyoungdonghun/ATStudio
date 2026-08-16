@@ -12,6 +12,7 @@ import { toPlayableTrack } from '@/utils/playableTrack';
 import { useToastStore } from '@/store/toastStore';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import CatalogDetailRecovery from '@/components/catalog/CatalogDetailRecovery';
+import CatalogImage from '@/components/catalog/CatalogImage';
 import { classifyLoadError, getLoadErrorMessageForKind, type LoadErrorKind } from '@/api/loadError';
 import styles from './AlbumDetailPage.module.css';
 
@@ -153,10 +154,12 @@ export default function AlbumDetailPage() {
           <div className={styles.vinyl} />
           <div className={styles.cover}>
             {album.thumbnailUrl ? (
-              <img
+              <CatalogImage
                 src={toUploadUrl(album.thumbnailUrl)!}
                 alt={album.title}
                 className={styles.coverImg}
+                fallbackClassName={styles.coverPlaceholder}
+                fallbackLabel={`${album.title} 앨범 커버를 불러올 수 없습니다.`}
               />
             ) : (
               <span className={styles.coverPlaceholder}>{'\u266A'}</span>
@@ -254,7 +257,11 @@ export default function AlbumDetailPage() {
                     <Link to={`/tracks/${t.trackId}`} className={styles.tdInfo}>
                       <div className={styles.trThumb}>
                         {t.thumbnailUrl ? (
-                          <img src={toUploadUrl(t.thumbnailUrl)!} alt={t.title} />
+                          <CatalogImage
+                            src={toUploadUrl(t.thumbnailUrl)!}
+                            alt={t.title}
+                            fallbackLabel={`${t.title} 음원 커버를 불러올 수 없습니다.`}
+                          />
                         ) : (
                           '\u266A'
                         )}

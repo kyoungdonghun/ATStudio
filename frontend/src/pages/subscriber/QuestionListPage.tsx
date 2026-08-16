@@ -231,7 +231,13 @@ export default function QuestionListPage() {
                     }}
                   >
                     <td className={styles.cellTitle}>
-                      {item.title}
+                      <Link
+                        to={`/questions/${item.id}`}
+                        className={styles.titleLink}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {item.title}
+                      </Link>
                       {!item.isPublic && <span className={styles.privateBadge}>{'비공개'}</span>}
                     </td>
                     <td className={styles.cellCenter}>

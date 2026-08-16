@@ -151,6 +151,20 @@
   white-space: nowrap;
 }
 
+.titleLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.titleLink:hover {
+  color: var(--accent);
+}
+
+.titleLink:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .cellCenter {
   text-align: center;
   white-space: nowrap;

@@ -5,6 +5,7 @@ import { toUploadUrl } from '@/api/client';
 import { formatDate } from '@/utils/format';
 import type { Album, PageInfo } from '@/types';
 import Pagination from '@/components/ui/Pagination';
+import CatalogImage from '@/components/catalog/CatalogImage';
 import { useAuthStore } from '@/store/authStore';
 import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import { classifyLoadError, getLoadErrorMessage } from '@/api/loadError';
@@ -190,12 +191,24 @@ export default function AlbumListPage() {
                   key={album.id}
                   className={styles.albumRow}
                   onClick={() => navigate(`/albums/${album.id}`)}
+                  onKeyDown={(event) => {
+                    if (event.currentTarget !== event.target) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      navigate(`/albums/${album.id}`);
+                    }
+                  }}
+                  tabIndex={0}
                 >
                   <td>
                     <div className={styles.cellInfo}>
                       <div className={styles.albumThumb}>
                         {album.thumbnailUrl ? (
-                          <img src={toUploadUrl(album.thumbnailUrl)!} alt={album.title} />
+                          <CatalogImage
+                            src={toUploadUrl(album.thumbnailUrl)!}
+                            alt={album.title}
+                            fallbackLabel={`${album.title} 앨범 커버를 불러올 수 없습니다.`}
+                          />
                         ) : (
                           '\u266A'
                         )}

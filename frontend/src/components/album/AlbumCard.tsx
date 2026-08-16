@@ -1,5 +1,6 @@
 import type { Album } from '@/types';
 import { toUploadUrl } from '@/api/client';
+import CatalogImage from '@/components/catalog/CatalogImage';
 import styles from './AlbumCard.module.css';
 
 interface AlbumCardProps {
@@ -21,16 +22,33 @@ export default function AlbumCard({
 }: AlbumCardProps) {
   const classes = [styles.card, className ?? ''].filter(Boolean).join(' ');
 
+  function activateCard() {
+    onClick?.(album);
+  }
+
   return (
-    <div className={classes} onClick={() => onClick?.(album)}>
+    <div className={classes}>
+      {onClick && (
+        <button
+          type="button"
+          className={styles.cardLink}
+          onClick={activateCard}
+          aria-label={`${album.title} 앨범 보기`}
+        />
+      )}
       <div className={styles.thumb}>
         {album.thumbnailUrl ? (
-          <img src={toUploadUrl(album.thumbnailUrl)!} alt={album.title} />
+          <CatalogImage
+            src={toUploadUrl(album.thumbnailUrl)!}
+            alt={album.title}
+            fallbackLabel={`${album.title} 앨범 커버를 불러올 수 없습니다.`}
+          />
         ) : (
           '\u266A'
         )}
         {onToggleLike && (
           <button
+            type="button"
             className={`${styles.likeBtn} ${isLiked ? styles.likeBtnActive : ''}`}
             onClick={(e) => {
               e.stopPropagation();

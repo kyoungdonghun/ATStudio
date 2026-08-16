@@ -17,6 +17,7 @@ import { useToastStore } from '@/store/toastStore';
 import { formatDate } from '@/utils/format';
 import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import CatalogDetailRecovery from '@/components/catalog/CatalogDetailRecovery';
+import CatalogImage from '@/components/catalog/CatalogImage';
 import styles from './TrackDetailPage.module.css';
 import { toPlayableTrack } from '@/utils/playableTrack';
 
@@ -184,10 +185,12 @@ export default function TrackDetailPage() {
         <div className={styles.coverSection}>
           <div className={styles.cover}>
             {track.thumbnail ? (
-              <img
+              <CatalogImage
                 src={toUploadUrl(track.thumbnail)!}
                 alt={track.title}
                 className={styles.coverImg}
+                fallbackClassName={styles.coverPlaceholder}
+                fallbackLabel={`${track.title} 음원 커버를 불러올 수 없습니다.`}
               />
             ) : (
               <span className={styles.coverPlaceholder}>{'\u266A'}</span>

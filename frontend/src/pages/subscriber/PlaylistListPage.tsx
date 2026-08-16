@@ -342,6 +342,12 @@ export default function PlaylistListPage() {
     navigate(`/playlists/${playlist.id}`);
   }
 
+  function openDeleteModal(playlist: Playlist) {
+    if (!playlistCurrent) return;
+    setDeleteTarget(playlist);
+    setDeleteTargetOwnerKey(ownerKey);
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
@@ -397,7 +403,7 @@ export default function PlaylistListPage() {
       ) : (
         <div className={styles.plGrid}>
           {currentPlaylists.map((pl) => (
-            <div key={pl.id} className={styles.myCard} onClick={() => handleCardClick(pl)}>
+            <div key={pl.id} className={styles.myCard}>
               <div className={styles.plThumb}>
                 {pl.thumbnail ? (
                   <img
@@ -416,39 +422,41 @@ export default function PlaylistListPage() {
                 ) : (
                   <div className={styles.plThumbSingle}>{'\u266A'}</div>
                 )}
-                <div className={styles.plOverlay}>
-                  <div />
-                  <button
-                    type="button"
-                    className={styles.deleteBtn}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (playlistCurrent) setDeleteTarget(pl);
-                      if (playlistCurrent) setDeleteTargetOwnerKey(ownerKey);
-                    }}
-                    aria-label="Delete playlist"
-                  >
-                    {'\u2715'}
-                  </button>
-                </div>
-                <div className={styles.plPlayOverlay}>
-                  <button type="button" className={styles.plPlayBtn} aria-label="Play">
-                    {'\u25B6'}
-                  </button>
-                </div>
               </div>
               <div className={styles.plBody}>
                 <div className={styles.plName}>{pl.title}</div>
                 <div className={styles.plMeta}>{pl.trackCount}곡</div>
               </div>
+              <button
+                type="button"
+                className={styles.cardLink}
+                onClick={() => handleCardClick(pl)}
+                aria-label={`${pl.title} 재생목록 보기`}
+              />
+              <div className={styles.plOverlay}>
+                <div />
+                <button
+                  type="button"
+                  className={styles.deleteBtn}
+                  onClick={() => openDeleteModal(pl)}
+                  aria-label="Delete playlist"
+                >
+                  {'\u2715'}
+                </button>
+              </div>
+              <div className={styles.plPlayOverlay}>
+                <span className={styles.plPlayBtn} aria-hidden="true">
+                  {'\u25B6'}
+                </span>
+              </div>
             </div>
           ))}
 
           {canCreate && (
-            <div className={styles.addNewCard} onClick={openCreateModal}>
+            <button type="button" className={styles.addNewCard} onClick={openCreateModal}>
               <div className={styles.addIcon}>+</div>
               <div className={styles.addLabel}>새 재생목록</div>
-            </div>
+            </button>
           )}
         </div>
       )}

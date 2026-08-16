@@ -9,6 +9,7 @@ import type { User } from '@/types';
 const showToast = vi.fn();
 const fetchMyPlaylistsMock = vi.fn();
 const createPlaylistMock = vi.fn();
+const deletePlaylistMock = vi.fn();
 const fetchMySubscriptionMock = vi.fn();
 const createObjectURLMock = vi.fn();
 const revokeObjectURLMock = vi.fn();
@@ -21,7 +22,7 @@ vi.mock('@/store/toastStore', () => ({
 vi.mock('@/api/playlists', () => ({
   fetchMyPlaylists: (...args: unknown[]) => fetchMyPlaylistsMock(...args),
   createPlaylist: (...args: unknown[]) => createPlaylistMock(...args),
-  deletePlaylist: vi.fn(),
+  deletePlaylist: (...args: unknown[]) => deletePlaylistMock(...args),
 }));
 
 vi.mock('@/api/userSubscriptions', () => ({
@@ -71,6 +72,7 @@ describe('PlaylistListPage', () => {
     showToast.mockReset();
     fetchMyPlaylistsMock.mockReset();
     createPlaylistMock.mockReset();
+    deletePlaylistMock.mockReset();
     fetchMySubscriptionMock.mockReset();
     createObjectURLMock.mockReset();
     revokeObjectURLMock.mockReset();
@@ -337,5 +339,37 @@ describe('PlaylistListPage', () => {
       'blob:list-c',
       'blob:list-d',
     ]);
+  });
+
+  it('uses native playlist controls with isolated card, delete, and create actions', async () => {
+    fetchMyPlaylistsMock.mockResolvedValue({
+      dataList: [
+        { id: 1, title: '키보드 재생목록', description: null, thumbnail: null, trackCount: 2 },
+      ],
+    });
+
+    const firstRender = renderPage();
+
+    const card = await screen.findByRole('button', { name: '키보드 재생목록 재생목록 보기' });
+    expect(card).toHaveAttribute('type', 'button');
+    expect(screen.queryByRole('button', { name: 'Play' })).not.toBeInTheDocument();
+    fireEvent.click(card);
+    expect(screen.getByTestId('playlist-location')).toHaveTextContent('/playlists/1');
+
+    firstRender.unmount();
+    const secondRender = renderPage();
+    const deleteButton = await screen.findByRole('button', { name: 'Delete playlist' });
+    expect(deleteButton).toHaveAttribute('type', 'button');
+    fireEvent.click(deleteButton);
+    expect(screen.getByRole('dialog', { name: '재생목록 삭제' })).toBeInTheDocument();
+    expect(screen.getByTestId('playlist-location')).toHaveTextContent('/playlists:null');
+    expect(deletePlaylistMock).not.toHaveBeenCalled();
+
+    secondRender.unmount();
+    renderPage();
+    const createButton = await screen.findByRole('button', { name: '새 재생목록' });
+    expect(createButton).toHaveAttribute('type', 'button');
+    fireEvent.click(createButton);
+    expect(screen.getByRole('dialog', { name: '새 재생목록 만들기' })).toBeInTheDocument();
   });
 });

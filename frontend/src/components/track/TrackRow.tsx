@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import type { TrackListItem } from '@/types';
 import { toUploadUrl } from '@/api/client';
 import Badge from '@/components/ui/Badge';
+import CatalogImage from '@/components/catalog/CatalogImage';
 import styles from './TrackRow.module.css';
 
 interface TrackRowProps {
@@ -46,6 +47,7 @@ export default function TrackRow({
       <td className={styles.cellNum}>
         <span className={styles.num}>{index}</span>
         <button
+          type="button"
           className={styles.playBtn}
           onClick={() => onPlay?.(track)}
           aria-label={playing ? 'Pause' : 'Play'}
@@ -59,7 +61,11 @@ export default function TrackRow({
         <div className={styles.info}>
           <div className={styles.thumb}>
             {track.thumbnail ? (
-              <img src={toUploadUrl(track.thumbnail)!} alt={track.title} />
+              <CatalogImage
+                src={toUploadUrl(track.thumbnail)!}
+                alt={track.title}
+                fallbackLabel={`${track.title} 음원 커버를 불러올 수 없습니다.`}
+              />
             ) : (
               '\u266A'
             )}

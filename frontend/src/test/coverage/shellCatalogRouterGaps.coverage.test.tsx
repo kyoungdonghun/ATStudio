@@ -919,16 +919,19 @@ describe('catalog filters, actions, and pagination', () => {
     fireEvent.click(screen.getByRole('button', { name: 'playlist-subscription-required' }));
     expect(mocks.navigate).toHaveBeenCalledWith('/subscriptions');
 
-    fireEvent.click(screen.getByRole('button', { name: 'download-11' }));
+    const downloadButton = screen.getByRole('button', { name: 'download-11' });
+    fireEvent.click(downloadButton);
     await waitFor(() =>
       expect(mocks.toast).toHaveBeenCalledWith('success', '다운로드 완료! 오늘 남은 횟수: 4/5'),
     );
+    await waitFor(() => expect(downloadButton).toBeEnabled());
 
     mocks.fetchDownloadCount.mockRejectedValueOnce(new Error('count unavailable'));
-    fireEvent.click(screen.getByRole('button', { name: 'download-11' }));
+    fireEvent.click(downloadButton);
     await waitFor(() =>
       expect(mocks.toast).toHaveBeenCalledWith('success', '다운로드가 완료되었습니다.'),
     );
+    await waitFor(() => expect(downloadButton).toBeEnabled());
 
     for (const [code, expectedType, expectedMessage] of [
       ['NO_ACTIVE_SUBSCRIPTION', 'warning', '구독이 필요한 기능입니다.'],
@@ -937,8 +940,9 @@ describe('catalog filters, actions, and pagination', () => {
     ] as const) {
       mocks.downloadTrack.mockRejectedValueOnce(new Error(code));
       mocks.getApiErrorCode.mockResolvedValueOnce(code);
-      fireEvent.click(screen.getByRole('button', { name: 'download-11' }));
+      fireEvent.click(downloadButton);
       await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expectedType, expectedMessage));
+      await waitFor(() => expect(downloadButton).toBeEnabled());
     }
   });
 
