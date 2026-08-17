@@ -32,15 +32,15 @@ No separate client-demo branch is maintained for ATStudio V1.
 
 ## ATStudio Project Stats (PRJ-ATS-001)
 
-> Last verified from the current working tree: 2026-08-13. These source counts
-> include the approved WI-20260808-ATS-014~021 implementation in the shared
-> dirty worktree; they are not production-deployment evidence.
+> Current-source values reconciled with the WI-068 QA Integration review:
+> 2026-08-16. They include the approved WI-20260808-ATS-014~021 implementation
+> in the shared dirty worktree and are not production-deployment evidence.
 
 | Category | Count | Reference |
 | :-- | :-- | :-- |
 | Backend REST APIs | 150 method-level mappings | `docs/design/api-spec.md` v30.3 |
-| DB Tables / JPA Entities | 42 / 42 | `docs/design/db-schema.md` v24.2 |
-| V1 DB Manifest | Current 42/506/173/90/6 fresh-MySQL manifest recorded; DG-067-09B `RUN-PASS-CLEANED`; predecessor 41-table evidence historical only | `docs/design/db-schema.md` v24.2 |
+| DB Tables / JPA Entities | 43 / 43 | `docs/design/db-schema.md` v24.3 |
+| V1 DB Manifest | Recorded disposable MySQL manifest for the 43-table source: 43/511/175/91/6/6/0/0 with SHA-256 `b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4`; 42/506/173/90/6 and its hash are WI-067 historical evidence for the superseded 42-table source snapshot | `docs/design/db-schema.md` v24.3 |
 | Frontend Screens | 53 distinct visual page UIs | `docs/ui/atstudio-front-list.md` |
 | Agents | 13 | `docs/architecture/system-design.md` §2.4 |
 | SR Items completed | 82 | `docs/SR/index.md` |

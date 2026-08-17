@@ -383,11 +383,20 @@ secret.
 
 ## 13. MySQL Proof Boundary
 
-Current `schema.sql` contains 42 derived `CREATE TABLE` statements, and the
-disposable bootstrap's source preflight requires exactly 42. The active MySQL
-expectation is now `RECORDED` from the approved observation:
+Current `schema.sql` contains 43 derived `CREATE TABLE` statements, and the
+current entity source contains 43 JPA entities. The disposable bootstrap's
+source preflight requires exactly 43. The live/disposable MySQL manifest is
+`RECORDED` from guarded fresh disposable evidence; guarded `Create` and
+independent `Validate` compare the current manifest exactly. This does not
+prove retained-data migration or production readiness.
 
-| Field | Current value |
+### Historical WI-067 Evidence (Superseded 42-Table Source Snapshot)
+
+The following values are preserved only as WI-067 historical evidence. They
+are not a current manifest and do not provide a runnable current `Create` or
+`Validate` path:
+
+| Field | Historical WI-067 value |
 |---|---:|
 | Tables / columns | 42 / 506 |
 | Index rows / foreign keys | 173 / 90 |

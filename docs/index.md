@@ -68,7 +68,7 @@ status: stable
 | Config | `.claude/config/workspace.json`, `.claude/config/context-injection-rules.json` | ATStudio routing, tech_stack, context injection |
 
 - **Tech Stack**: Java 17, Spring Boot 4.x, MySQL 8.x + React 18, TypeScript 5.6, Vite 6 (Phase 2 — active)
-- **Project Stats**: 150 method-level REST mappings, 42 DB tables / 42 JPA entities, 53 distinct screen UIs, 13 agents
+- **Project Stats**: 150 method-level REST mappings, 43 DB tables / 43 JPA entities, recorded disposable MySQL manifest (43 tables, 511 columns, 175 indexes, 91 foreign keys, 6 plans/plan keys, zero forbidden tables/columns, SHA-256 `b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4`), 53 distinct screen UIs, 13 agents
 - **Screen Count Unit**: 53 distinct visual page UIs = 53 `createLazyPage(...)` declarations, including 2 error screens. The router separately contains 56 path routes plus 1 index redirect; reused pages are not additional screens.
 - **Phase 2 Freshness**: React/Vite SPA is active on the official V1 baseline branch `codex/p1-acceptance-hardening`. The current install resolves Vite 6.4.3. No separate client-demo branch is maintained. Public access requires the operator-controlled acceptance lifecycle and a newly verified URL; historical demo URLs are never current runtime evidence.
 - **Project Registry**: See [Project Registry](registry/project-registry.md)

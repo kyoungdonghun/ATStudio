@@ -1,6 +1,6 @@
 ---
-version: 1.8
-last_updated: 2026-08-13
+version: 1.9
+last_updated: 2026-08-16
 project: ATS
 owner: docops
 category: guide
@@ -84,15 +84,15 @@ Runtime DB note:
 - The backend defaults to `spring.jpa.hibernate.ddl-auto=validate`.
 - `src/main/resources/schema.sql` is the fail-closed fresh V1 baseline, not an automatic migration runner for an existing MySQL database.
 - Apply `schema.sql` and the six-plan `seed.sql` exactly once to a verified-empty database, then start with `ddl-auto=validate`. Retained-data migration is outside the V1 operator path and requires a separate approved design.
-- Current source contains 42 derived `CREATE TABLE` statements and 42 JPA
-  entities. The active disposable-MySQL manifest expectation is `RECORDED` at
-  42 tables, 506 columns, 173 index rows, 90 foreign keys, 6 plans/plan keys,
-  zero forbidden objects, and SHA-256
-  `acf28c935bf6107a8f2af431c971ebe0cd3539dba1aa1a941d966dde4a2a7a65`.
-  WI-067 passed independent manifest validation and 3/3 MySQL settlement
-  concurrency tests under `ddl-auto=validate`; both exact disposable databases
-  were dropped. The result is fresh-only evidence, not a retained-data or
-  production-readiness claim.
+- Current source contains 43 derived `CREATE TABLE` statements and 43 JPA
+  entities. The active disposable-MySQL manifest expectation is `RECORDED`:
+  43 tables, 511 columns, 175 index rows, 91 foreign keys, 6 plans/plan keys,
+  zero forbidden tables/columns, and SHA-256
+  `b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4`. The 42-table, 506-column,
+  173-index-row, 90-foreign-key WI-067 manifest and its independent validation
+  plus 3/3 MySQL settlement concurrency tests are historical evidence for the
+  prior source snapshot. The result is fresh-only evidence, not a retained-data
+  or production-readiness claim.
 
 ## 4. User APIs
 

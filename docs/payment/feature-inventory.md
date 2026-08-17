@@ -1,6 +1,6 @@
 ---
-version: 1.8
-last_updated: 2026-08-13
+version: 1.9
+last_updated: 2026-08-16
 project: ATS
 owner: docops
 category: guide
@@ -155,20 +155,25 @@ dependencies:
 ## 10. Verification Boundary
 
 - The current code/test gate passed independent follow-up review in `WI-20260715-ATS-012`.
-- Current source contains 42 tables and 42 JPA entities. Bootstrap preflight
-  derives 42 source `CREATE TABLE` statements and reports the active MySQL
-  manifest expectation as `RECORDED`. The current manifest is 42 tables,
-  506 columns, 173 index rows, 90 foreign keys, 6 plans/plan keys, zero forbidden
-  objects, and SHA-256
-  `acf28c935bf6107a8f2af431c971ebe0cd3539dba1aa1a941d966dde4a2a7a65`.
-  DG-067-09B is `RUN-PASS-CLEANED`; the predecessor 41-table result is
-  historical only.
+- Current source contains 43 tables and 43 JPA entities. Bootstrap preflight
+  derives 43 source `CREATE TABLE` statements and reports the active MySQL
+  manifest expectation as `RECORDED`. The current disposable manifest is 43
+  tables, 511 columns, 175 index rows, 91 foreign keys, 6 plans/plan keys, zero
+  forbidden tables/columns, and SHA-256
+  `b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4`. The 42-table, 506-column,
+  173-index-row, 90-foreign-key manifest with SHA-256
+  `acf28c935bf6107a8f2af431c971ebe0cd3539dba1aa1a941d966dde4a2a7a65` is
+  historical WI-067 evidence, not a current result.
 - QA-INTEG v1.2 and PG v1.1 accepted DG-067-01 through DG-067-09A at the
   reviewed repository/non-database boundary with no open P1/P2 finding. This is
   not client acceptance or production readiness.
-- WI-067 recorded 3/3 MySQL concurrency tests and the H2 import 8 plus IGNORE 2
-  regressions passing. The default environment skipped all three opt-in MySQL
-  tests as designed.
+- Historical WI-067 recorded 3/3 MySQL concurrency tests and the H2 import 8
+  plus IGNORE 2 regressions passing. The default environment skipped all three
+  opt-in MySQL tests as designed.
+- WI-068 completed its focused repository scope: three backend test classes;
+  eight frontend test files with 69 tests; frontend typecheck, lint, and format;
+  and diff check passed. Database patch application, real DB, email, OAuth,
+  Provider, browser, full-suite, and bootstrap-guard work were not run.
 - Final backend closeout passed 1,542 tests with 0 failures and 19 skips.
   JaCoCo coverage was instruction 86.72%, branch 71.877%, line 87.04%, method
   84.56%, and class 94.799%; coverage verification and assemble passed.

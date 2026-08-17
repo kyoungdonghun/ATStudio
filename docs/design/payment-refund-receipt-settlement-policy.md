@@ -490,11 +490,14 @@ Future reconciliation incident types:
   automatic retry, or polling was added.
 - This verified behavior closes `CR-031-115` through `CR-031-119` at their
   applicable repository/H2 boundaries. QA-INTEG v1.2 and PG v1.1 accepted
-  DG-067-01 through DG-067-09A. The separately approved DG-067-09B proof then
-  recorded the current 42/506/173/90/6 fresh-MySQL manifest, passed independent
-  validation and 3/3 settlement concurrency tests under `ddl-auto=validate`,
-  and removed both exact disposable databases. Its status is
-  `RUN-PASS-CLEANED`; this is not live Provider or production evidence.
+  DG-067-01 through DG-067-09A. The separately approved DG-067-09B proof is
+  historical evidence for the superseded 42-table source snapshot: it recorded
+  the 42/506/173/90/6 fresh-MySQL manifest, passed independent validation and
+  3/3 settlement concurrency tests under `ddl-auto=validate`, and removed both
+  exact disposable databases. Its status is `RUN-PASS-CLEANED`. The current
+  source is 43 tables/entities and its live/disposable MySQL manifest is
+  `RECORDED` from guarded fresh disposable evidence. This is not live Provider
+  or production evidence.
 
 ## 8. Tax Invoice Policy
 

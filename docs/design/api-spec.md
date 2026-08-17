@@ -1,6 +1,6 @@
 ---
-version: 30.10
-last_updated: 2026-08-14
+version: 30.11
+last_updated: 2026-08-16
 project: ATS
 owner: SA
 category: design
@@ -16,7 +16,7 @@ dependencies:
     reason: Current persistence contract
 ---
 
-# ATStudio API Specification v30.10
+# ATStudio API Specification v30.11
 
 ## Current Contract
 
@@ -373,12 +373,17 @@ added no typed phrase.
 
 This contract includes the implemented DG-067-01 through DG-067-08 decisions
 for `CR-031-115`, `CR-031-116`, and `CR-031-118`. QA-INTEG v1.2 and PG v1.1
-returned `ACCEPT` with no open P1/P2 finding. DG-067-09B is
-`RUN-PASS-CLEANED`: the current recorded fresh-MySQL manifest matched an
-independent proof database and all three isolated settlement concurrency tests
-passed under Hibernate `ddl-auto=validate`. This does not claim live Provider
-behavior, deployment, client acceptance, retained-data migration, or overall
-production readiness.
+returned `ACCEPT` with no open P1/P2 finding. DG-067-09B is historical WI-067
+evidence for the prior 42-table source snapshot: its recorded fresh-MySQL
+manifest matched an independent proof database and all three isolated settlement
+concurrency tests passed under Hibernate `ddl-auto=validate`. The current
+43-table source has its own recorded guarded disposable MySQL manifest: 43
+tables, 511 columns, 175 indexes, 91 foreign keys, 6 plans, 6 plan keys, zero
+forbidden tables/columns, and SHA-256
+`b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4`.
+Create/Validate/Hibernate evidence remains fresh-disposable only. This does not
+claim live Provider behavior, deployment, client acceptance,
+retained-data migration, or overall production readiness.
 
 #### ADMIN Refund and Entitlement-Correction Recovery Contract
 

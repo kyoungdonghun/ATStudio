@@ -262,11 +262,14 @@ Rule:
   count conservation are implemented at the source/H2 boundary by WI-056.
 - Strict CSV dialect/field/range policy and reconciliation ceilings are
   implemented under WI-20260809-ATS-067 and accepted by QA-INTEG v1.2 and PG
-  v1.1 at the repository/non-database boundary. DG-067-09B is
-  `RUN-PASS-CLEANED`: the recorded 42/506/173/90/6 fresh-MySQL manifest matched
-  independent validation, all three isolated settlement concurrency tests
-  passed under `ddl-auto=validate`, and both exact disposable databases were
-  dropped. This does not authorize a new database run or establish production
+  v1.1 at the repository/non-database boundary. DG-067-09B is historical
+  `RUN-PASS-CLEANED` evidence for the superseded 42-table source snapshot: its
+  recorded 42/506/173/90/6 fresh-MySQL manifest matched independent validation,
+  all three isolated settlement concurrency tests passed under
+  `ddl-auto=validate`, and both exact disposable databases were dropped. The
+  current source is 43 tables/entities and its live/disposable MySQL manifest is
+  `RECORDED` from guarded fresh disposable evidence. This history does not
+  authorize a new database run or establish production
   readiness. In the separate general local-Subscription correction flow,
   execute alone requires the trimmed exact phrase `권한 보정 실행`; approval
   remains an ordinary confirmation.

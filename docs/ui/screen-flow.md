@@ -1,6 +1,6 @@
 ---
-version: 6.5
-last_updated: 2026-08-14
+version: 6.6
+last_updated: 2026-08-16
 project: ATS
 owner: docops
 category: design

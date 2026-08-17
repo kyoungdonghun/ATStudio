@@ -1,6 +1,6 @@
 ---
-version: 1.5
-last_updated: 2026-07-17
+version: 1.6
+last_updated: 2026-08-17
 project: ATS
 owner: docops
 category: guide
@@ -36,12 +36,22 @@ The following capabilities are implemented and code/test verified for the curren
 - CSV/manual settlement import and settlement reconciliation review.
 - Local-first account-withdrawal billing stop, after-commit Provider cleanup, daily retry, Incident resolution, and no-auto-refund separation.
 - Stable payment command identity, strict Provider transaction boundaries, retry-gate consumption, refund lease fencing, and exact finalize-only reconciliation.
-- Fresh disposable MySQL 8/InnoDB schema validation and all seven required concurrency races.
+- Historical disposable MySQL 8/InnoDB schema validation and required
+  concurrency-race evidence for the prior 42-table source snapshot.
 - Bounded local/provider reconciliation keyset batches, capped API issue details with full mismatch counters, and query-aligned fresh-schema indexes.
 - Billing-key V2 key-ID envelopes with fail-closed active/retained V2 key-ring validation.
 - Explicit configurable payment cron zone with `Asia/Seoul` default under the approved single-server deployment.
 
-This is not production-readiness closure or a full financial back-office suite. V1 uses a fresh-only 39-table schema; retained-data migration is not supplied. Local automated quality gates are closed, while production data strategy, live Toss configuration, production deployment/monitoring, client acceptance, and final release approval remain open.
+This is not production-readiness closure or a full financial back-office suite.
+V1 has a fresh-only source schema with 43 derived `CREATE TABLE` statements and
+43 JPA entities. Its recorded guarded disposable MySQL manifest is 43 tables,
+511 columns, 175 indexes, 91 foreign keys, 6 plans, 6 plan keys, zero forbidden
+tables/columns, and SHA-256
+`b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4`.
+Retained-data migration is not supplied. Local automated quality gates are
+closed, while production data strategy, live Toss
+configuration, production deployment/monitoring, client acceptance, and final
+release approval remain open.
 
 Dependency boundary: the official V1 baseline branch `codex/p1-acceptance-hardening` currently resolves Vite 6.4.3, and no separate client-demo branch is maintained. Public access requires a newly verified operator-controlled acceptance runtime.
 

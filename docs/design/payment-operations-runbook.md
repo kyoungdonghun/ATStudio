@@ -1,6 +1,6 @@
 ---
-version: 1.7
-last_updated: 2026-08-13
+version: 1.8
+last_updated: 2026-08-16
 project: ATS
 owner: docops
 category: guide
@@ -16,7 +16,7 @@ dependencies:
 
 > Purpose: Define production-facing operational procedures for Toss billing-key recurring payment reconciliation and incident response.
 > Scope: ATStudio subscription payments only. This document covers reconciliation, withdrawal billing-key cleanup, receipt evidence storage, payment operation audit visibility, the admin refund ledger/provider cancel workflow, the separate refund-linked entitlement correction workflow, and settlement import/reconciliation operations. It does not introduce tax invoice workflow, cash receipt issue/cancel automation, automatic entitlement correction, or automatic withdrawal refund. Refund/receipt/settlement/tax invoice policy is defined separately in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md).
-> Last updated: 2026-08-13
+> Last updated: 2026-08-16
 
 ## 1. Operating Model
 
@@ -445,14 +445,13 @@ Settlement safety notes:
   attempt, recovery, audit, side-effect, and count invariants. QA-INTEG v1.2 and
   PG v1.1 accepted the reviewed repository/non-database boundary with no open
   P1/P2 finding.
-- The active fresh-MySQL expectation is the recorded 42 tables, 506 columns,
-  173 index rows, 90 foreign keys, 6 plans/plan keys, zero forbidden objects,
-  and SHA-256
-  `acf28c935bf6107a8f2af431c971ebe0cd3539dba1aa1a941d966dde4a2a7a65`.
-  Observation, independent proof, three `ddl-auto=validate` settlement
-  concurrency tests, and exact cleanup passed. DG-067-09B is
-  `RUN-PASS-CLEANED`; any future database run requires a new immediate approval
-  and new exact disposable names.
+- The current source preflight expects 43 tables and reports the MySQL manifest
+  as `RECORDED` from guarded fresh disposable evidence. The 42-table,
+  506-column, 173-index-row, 90-foreign-key manifest and
+  its observation, independent proof, three `ddl-auto=validate` settlement
+  concurrency tests, and exact cleanup are historical WI-067 evidence for the
+  prior source snapshot. Any future database run requires a new immediate
+  approval and new exact disposable names.
 
 ## 7. Withdrawal Billing-Key Cleanup
 
