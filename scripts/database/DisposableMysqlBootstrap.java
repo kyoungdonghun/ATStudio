@@ -46,15 +46,21 @@ public final class DisposableMysqlBootstrap {
             "src/main/resources/schema.sql";
     private static final String SEED_RELATIVE_PATH =
             "src/main/resources/seed.sql";
-    private static final long EXPECTED_SOURCE_CREATE_TABLE_STATEMENTS = 42L;
+    private static final long EXPECTED_SOURCE_CREATE_TABLE_STATEMENTS = 43L;
+    private static final String INVENTORY_COUNT_SQL =
+            "SELECT COUNT(*) FROM information_schema.schemata "
+                    + "WHERE schema_name REGEXP '^ats_disposable_[0-9]{8}_[a-z0-9]{8}$'";
     private static final MysqlManifestExpectation CURRENT_MYSQL_MANIFEST_EXPECTATION =
             new RecordedMysqlManifestExpectation(
-                    42L,
-                    506L,
-                    173L,
-                    90L,
+                    43L,
+                    511L,
+                    175L,
+                    91L,
                     6L,
-                    "acf28c935bf6107a8f2af431c971ebe0cd3539dba1aa1a941d966dde4a2a7a65");
+                    6L,
+                    0L,
+                    0L,
+                    "b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4");
     private static final int DEFAULT_PORT = 3306;
 
     private DisposableMysqlBootstrap() {
@@ -103,6 +109,8 @@ public final class DisposableMysqlBootstrap {
                 case CREATE, OBSERVE -> bootstrap.create();
                 case VALIDATE -> bootstrap.validate();
                 case DROP -> bootstrap.drop();
+                case INVENTORY -> bootstrap.inventory();
+                case HIBERNATE_VALIDATE -> bootstrap.hibernateValidate();
                 default -> throw new GuardException("UNSUPPORTED_ACTION");
             }
             safe("status", "PASS");
@@ -151,7 +159,9 @@ public final class DisposableMysqlBootstrap {
 
     private static void enforceManifestAction(Action requestedAction) {
         if (!CURRENT_MYSQL_MANIFEST_EXPECTATION.isRecorded()
-                && (requestedAction == Action.CREATE || requestedAction == Action.VALIDATE)) {
+                && (requestedAction == Action.CREATE
+                || requestedAction == Action.VALIDATE
+                || requestedAction == Action.HIBERNATE_VALIDATE)) {
             throw new GuardException("MYSQL_MANIFEST_EXPECTATION_UNRECORDED");
         }
         if (CURRENT_MYSQL_MANIFEST_EXPECTATION.isRecorded()
@@ -216,7 +226,9 @@ public final class DisposableMysqlBootstrap {
         OBSERVE("observe"),
         CREATE("create"),
         VALIDATE("validate"),
-        DROP("drop");
+        DROP("drop"),
+        INVENTORY("inventory"),
+        HIBERNATE_VALIDATE("hibernate-validate");
 
         private final String value;
 
@@ -410,6 +422,22 @@ public final class DisposableMysqlBootstrap {
             }
         }
 
+        void hibernateValidate() {
+            safe("hibernate.schemaValidation", "PASS");
+        }
+
+        void inventory() throws SQLException {
+            try (Connection admin = openAdminConnection()) {
+                long count = inventoryCount(admin);
+                safe("inventory.count", Long.toString(count));
+                safe(
+                        "inventory.state",
+                        count == 0L
+                                ? "NO_POSSIBLE_ORPHAN"
+                                : "POSSIBLE_ORPHAN_EXISTS");
+            }
+        }
+
         private Connection openAdminConnection() throws SQLException {
             return DriverManager.getConnection(
                     jdbcUrl(null),
@@ -446,6 +474,14 @@ public final class DisposableMysqlBootstrap {
                     resultSet.next();
                     return resultSet.getLong(1);
                 }
+            }
+        }
+
+        private long inventoryCount(Connection connection) throws SQLException {
+            try (PreparedStatement statement = connection.prepareStatement(INVENTORY_COUNT_SQL);
+                 ResultSet resultSet = statement.executeQuery()) {
+                resultSet.next();
+                return resultSet.getLong(1);
             }
         }
 
@@ -579,6 +615,9 @@ public final class DisposableMysqlBootstrap {
             long indexes,
             long foreignKeys,
             long plans,
+            long planKeys,
+            long forbiddenTables,
+            long forbiddenColumns,
             String sha256) implements MysqlManifestExpectation {
 
         @Override
@@ -598,9 +637,9 @@ public final class DisposableMysqlBootstrap {
                     && manifest.indexes() == indexes
                     && manifest.foreignKeys() == foreignKeys
                     && manifest.plans() == plans
-                    && manifest.planKeys() == plans
-                    && manifest.forbiddenTables() == 0L
-                    && manifest.forbiddenColumns() == 0L
+                    && manifest.planKeys() == planKeys
+                    && manifest.forbiddenTables() == forbiddenTables
+                    && manifest.forbiddenColumns() == forbiddenColumns
                     && sha256.equals(manifest.sha256());
         }
     }

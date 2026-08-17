@@ -68,7 +68,12 @@ function Invoke-JavaPreflight {
         )
         if (-not [string]::IsNullOrWhiteSpace($RequestedAction)) {
             [void] $arguments.Add("--requested-action")
-            [void] $arguments.Add($RequestedAction.ToLowerInvariant())
+            $javaRequestedAction = if ($RequestedAction -eq "HibernateValidate") {
+                "hibernate-validate"
+            } else {
+                $RequestedAction.ToLowerInvariant()
+            }
+            [void] $arguments.Add($javaRequestedAction)
         }
         $process = Start-Process `
             -FilePath (Get-JavaCommand) `
@@ -210,14 +215,14 @@ Assert-True `
     -Condition ($valid.Output.Contains("sql.order=schema.sql->seed.sql")) `
     -Message "Valid preflight should report the fixed SQL order."
 Assert-True `
-    -Condition ($valid.Output.Contains("source.schema.createTableStatements=42")) `
-    -Message "Valid preflight should derive the current 42-table source count."
+    -Condition ($valid.Output.Contains("source.schema.createTableStatements=43")) `
+    -Message "Valid preflight should derive the current 43-table source count."
 Assert-True `
     -Condition ($valid.Output.Contains("source.schema.createTableStatementsCheck=PASS")) `
     -Message "Valid preflight should report the source table-count check."
 Assert-True `
     -Condition ($valid.Output.Contains("mysql.manifest.expectation=RECORDED")) `
-    -Message "Preflight should report the current MySQL manifest as recorded."
+    -Message "Preflight should report the recorded current MySQL manifest."
 Assert-True `
     -Condition (-not $valid.Output.Contains($validName)) `
     -Message "Valid preflight should not echo the exact target database name."
@@ -229,8 +234,8 @@ $sourceCreateTableCount = [regex]::Matches(
     "(?im)^\s*CREATE\s+TABLE\b"
 ).Count
 Assert-True `
-    -Condition ($sourceCreateTableCount -eq 42) `
-    -Message "Current schema.sql should contain exactly 42 CREATE TABLE statements."
+    -Condition ($sourceCreateTableCount -eq 43) `
+    -Message "Current schema.sql should contain exactly 43 CREATE TABLE statements."
 
 $syntheticWorkspace = Join-Path `
     ([System.IO.Path]::GetTempPath()) `
@@ -238,7 +243,7 @@ $syntheticWorkspace = Join-Path `
 try {
     $syntheticResources = Join-Path $syntheticWorkspace "src\main\resources"
     [System.IO.Directory]::CreateDirectory($syntheticResources) | Out-Null
-    $syntheticSchema = 1..41 | ForEach-Object {
+    $syntheticSchema = 1..42 | ForEach-Object {
         "CREATE TABLE synthetic_$($_) (id BIGINT);"
     }
     [System.IO.File]::WriteAllText(
@@ -253,10 +258,11 @@ try {
     )
     $staleSource = Invoke-JavaPreflight `
         -Workspace $syntheticWorkspace `
-        -DatabaseName $validName
+        -DatabaseName $validName `
+        -RequestedAction "Inventory"
     Assert-True `
         -Condition ($staleSource.ExitCode -ne 0) `
-        -Message "A 41-table source should fail closed during non-DB preflight."
+        -Message "A 42-table source should fail closed during non-DB preflight."
     Assert-True `
         -Condition ($staleSource.Output.Contains(
             "reason=CURRENT_SCHEMA_CREATE_TABLE_COUNT_MISMATCH")) `
@@ -304,6 +310,18 @@ foreach ($malformed in @(
         -ExpectedReason "INVALID_DISPOSABLE_DATABASE_NAME"
 }
 
+Assert-Refusal `
+    -Action "Inventory" `
+    -DatabaseName "ats_disposable_20260724_short" `
+    -HostName "127.0.0.1" `
+    -ExpectedReason "INVALID_DISPOSABLE_DATABASE_NAME"
+
+Assert-Refusal `
+    -Action "Inventory" `
+    -DatabaseName $validName `
+    -HostName "db.example.com" `
+    -ExpectedReason "NON_LOOPBACK_HOST"
+
 foreach ($remoteHost in @(
     "db.example.com",
     "0.0.0.0",
@@ -318,27 +336,50 @@ foreach ($remoteHost in @(
         -ExpectedReason "NON_LOOPBACK_HOST"
 }
 
-foreach ($allowedAction in @("Create", "Validate")) {
+foreach ($allowedAction in @("Create", "Validate", "HibernateValidate")) {
     $allowedPreflight = Invoke-JavaPreflight `
         -Workspace (Resolve-Path (Join-Path $PSScriptRoot "..\..")) `
         -DatabaseName $validName `
         -RequestedAction $allowedAction
     Assert-True `
         -Condition ($allowedPreflight.ExitCode -eq 0) `
-        -Message "$allowedAction should pass the recorded-manifest preflight without MySQL."
+        -Message "$allowedAction should pass recorded-manifest preflight without MySQL."
     Assert-True `
         -Condition ($allowedPreflight.Output.Contains("mysql.manifest.expectation=RECORDED")) `
-        -Message "$allowedAction preflight should retain the recorded manifest state."
+        -Message "$allowedAction preflight should report the recorded manifest state."
     Assert-True `
         -Condition (-not $allowedPreflight.Output.Contains("CREDENTIALS_UNAVAILABLE")) `
         -Message "$allowedAction preflight should not read credentials or connect."
 }
 
-Assert-Refusal `
-    -Action "Observe" `
+$observationPreflight = Invoke-JavaPreflight `
+    -Workspace (Resolve-Path (Join-Path $PSScriptRoot "..\\..")) `
     -DatabaseName $validName `
-    -HostName "127.0.0.1" `
-    -ExpectedReason "MYSQL_MANIFEST_OBSERVATION_NOT_REQUIRED"
+    -RequestedAction "Observe"
+Assert-True `
+    -Condition ($observationPreflight.ExitCode -ne 0) `
+    -Message "Observe preflight should refuse after the MySQL manifest is recorded."
+Assert-True `
+    -Condition ($observationPreflight.Output.Contains("mysql.manifest.expectation=RECORDED")) `
+    -Message "Observe preflight should report the recorded manifest state."
+Assert-True `
+    -Condition ($observationPreflight.Output.Contains(
+        "reason=MYSQL_MANIFEST_OBSERVATION_NOT_REQUIRED")) `
+    -Message "Observe preflight should use the recorded-manifest refusal reason."
+
+$inventoryPreflight = Invoke-JavaPreflight `
+    -Workspace (Resolve-Path (Join-Path $PSScriptRoot "..\\..")) `
+    -DatabaseName $validName `
+    -RequestedAction "Inventory"
+Assert-True `
+    -Condition ($inventoryPreflight.ExitCode -eq 0) `
+    -Message "Inventory preflight should remain available after the MySQL manifest is recorded."
+Assert-True `
+    -Condition ($inventoryPreflight.Output.Contains("mysql.manifest.expectation=RECORDED")) `
+    -Message "Inventory preflight should report the recorded manifest state."
+Assert-True `
+    -Condition (-not $inventoryPreflight.Output.Contains("CREDENTIALS_UNAVAILABLE")) `
+    -Message "Inventory preflight should not read credentials or connect."
 
 $javaSource = Get-Content -Raw -Encoding UTF8 -LiteralPath $javaSourcePath
 $wrapperSource = Get-Content -Raw -Encoding UTF8 -LiteralPath $bootstrapPath
@@ -369,12 +410,13 @@ foreach ($manifestOutputKey in $manifestOutputKeys) {
 }
 Assert-True `
     -Condition ($javaSource.Contains(
-        "EXPECTED_SOURCE_CREATE_TABLE_STATEMENTS = 42L")) `
+        "EXPECTED_SOURCE_CREATE_TABLE_STATEMENTS = 43L")) `
     -Message "The helper should pin only the approved source-level table count."
 Assert-True `
-    -Condition ($javaSource.Contains(
-        "new RecordedMysqlManifestExpectation(")) `
-    -Message "The active MySQL manifest expectation should remain explicitly recorded."
+    -Condition ([regex]::IsMatch(
+        $javaSource,
+        "CURRENT_MYSQL_MANIFEST_EXPECTATION\s*=\s*new\s+RecordedMysqlManifestExpectation")) `
+    -Message "The active MySQL manifest expectation should be explicitly recorded."
 $recordedManifestPattern = (
     'new\s+RecordedMysqlManifestExpectation\(\s*' +
     '(?<tables>\d+)L\s*,\s*' +
@@ -382,49 +424,66 @@ $recordedManifestPattern = (
     '(?<indexes>\d+)L\s*,\s*' +
     '(?<foreignKeys>\d+)L\s*,\s*' +
     '(?<plans>\d+)L\s*,\s*' +
+    '(?<planKeys>\d+)L\s*,\s*' +
+    '(?<forbiddenTables>\d+)L\s*,\s*' +
+    '(?<forbiddenColumns>\d+)L\s*,\s*' +
     '"(?<sha256>[0-9a-f]{64})"\s*\)'
 )
 $recordedManifest = [regex]::Match($javaSource, $recordedManifestPattern)
 Assert-True `
     -Condition $recordedManifest.Success `
-    -Message "The recorded MySQL manifest should retain its bounded constructor signature."
+    -Message "The recorded MySQL manifest should retain every bounded field."
 $expectedRecordedManifest = [ordered] @{
-    tables = "42"
-    columns = "506"
-    indexes = "173"
-    foreignKeys = "90"
+    tables = "43"
+    columns = "511"
+    indexes = "175"
+    foreignKeys = "91"
     plans = "6"
-    sha256 = "acf28c935bf6107a8f2af431c971ebe0cd3539dba1aa1a941d966dde4a2a7a65"
+    planKeys = "6"
+    forbiddenTables = "0"
+    forbiddenColumns = "0"
+    sha256 = "b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4"
 }
 foreach ($entry in $expectedRecordedManifest.GetEnumerator()) {
     Assert-True `
         -Condition ($recordedManifest.Groups[$entry.Key].Value -eq $entry.Value) `
-        -Message "Recorded manifest $($entry.Key) should match the observed value."
+        -Message "Recorded manifest $($entry.Key) should match the approved observation."
 }
 Assert-True `
-    -Condition ($javaSource.Contains("manifest.planKeys() == plans")) `
-    -Message "Recorded manifest planKeys should remain equal to the observed plan count."
+    -Condition ($javaSource.Contains("manifest.planKeys() == planKeys")) `
+    -Message "Recorded manifest matching should retain the observed plan-key count."
 Assert-True `
-    -Condition ($javaSource.Contains("manifest.forbiddenTables() == 0L")) `
-    -Message "Recorded manifest forbidden-table guard should remain zero."
+    -Condition ($javaSource.Contains("manifest.forbiddenTables() == forbiddenTables")) `
+    -Message "Recorded manifest matching should retain the observed forbidden-table count."
 Assert-True `
-    -Condition ($javaSource.Contains("manifest.forbiddenColumns() == 0L")) `
-    -Message "Recorded manifest forbidden-column guard should remain zero."
+    -Condition ($javaSource.Contains("manifest.forbiddenColumns() == forbiddenColumns")) `
+    -Message "Recorded manifest matching should retain the observed forbidden-column count."
 Assert-True `
     -Condition ($javaSource.Contains('OBSERVE("observe")')) `
     -Message "The helper should retain a distinct manifest observation action."
 Assert-True `
+    -Condition ($javaSource.Contains('INVENTORY("inventory")')) `
+    -Message "The helper should add the Inventory action without removing existing actions."
+Assert-True `
+    -Condition ($wrapperSource.Contains(
+        '[ValidateSet("Preflight", "Observe", "Create", "Validate", "Drop", "Inventory", "HibernateValidate")]')) `
+    -Message "The supported wrapper should allow guarded Hibernate validation alongside existing actions."
+Assert-True `
+    -Condition ($javaSource.Contains('HIBERNATE_VALIDATE("hibernate-validate")')) `
+    -Message "The helper should retain the wrapper-managed Hibernate validation action."
+Assert-True `
+    -Condition ($javaSource.Contains('case HIBERNATE_VALIDATE -> bootstrap.hibernateValidate();')) `
+    -Message "The helper should emit the Hibernate validation proof status only after wrapper execution."
+Assert-True `
     -Condition ($javaSource.Contains("case CREATE, OBSERVE -> bootstrap.create();")) `
     -Message "Observe should use the same guarded create/apply/validate/cleanup path."
 Assert-True `
-    -Condition (-not $javaSource.Contains(
-        "c581bef61cfba143744882b0674daf8d8fe742d82adbbf66d6b61699f5b86333")) `
-    -Message "The predecessor manifest hash must not remain an active expectation."
+    -Condition ($javaSource.Contains("case INVENTORY -> bootstrap.inventory();")) `
+    -Message "Inventory should use its dedicated read-only bootstrap path."
 Assert-True `
-    -Condition (-not [regex]::IsMatch(
-        $javaSource,
-        "EXPECTED_(TABLES|COLUMNS|INDEXES|FOREIGN_KEYS|PLANS)\s*=")) `
-    -Message "Predecessor MySQL manifest constants must be absent."
+    -Condition (-not $javaSource.Contains(
+        "UnrecordedMysqlManifestExpectation.INSTANCE")) `
+    -Message "The unrecorded MySQL manifest expectation must not remain active."
 Assert-True `
     -Condition ([regex]::IsMatch(
         $javaSource,
@@ -460,6 +519,126 @@ Assert-True `
     -Condition (-not $javaSource.Contains('safe("manifest.databaseName"')) `
     -Message "Manifest observation must not emit the database name."
 
+$mysqlValidationTestPath = Join-Path `
+    $PSScriptRoot `
+    "..\\..\\src\\test\\java\\com\\atstudio\\atstudio\\service\\PaymentMysqlSchemaValidationTest.java"
+$mysqlValidationSource = Get-Content -Raw -Encoding UTF8 -LiteralPath $mysqlValidationTestPath
+Assert-True `
+    -Condition ($mysqlValidationSource.Contains('@EnabledIf("isExplicitGuardedDisposableProof")')) `
+    -Message "Hibernate validation should require an explicit guarded proof condition before Spring starts."
+Assert-True `
+    -Condition ($mysqlValidationSource.Contains('ATSTUDIO_MYSQL_PROOF_ENABLED')) `
+    -Message "Hibernate validation should require an explicit opt-in environment flag."
+Assert-True `
+    -Condition ($mysqlValidationSource.Contains('ATSTUDIO_MYSQL_PROOF_DATABASE')) `
+    -Message "Hibernate validation should bind the selected datasource to the generated disposable name."
+Assert-True `
+    -Condition ($mysqlValidationSource.Contains('^ats_disposable_\\d{8}_[a-z0-9]{8}$')) `
+    -Message "Hibernate validation should allow only the guarded disposable naming contract."
+Assert-True `
+    -Condition ($mysqlValidationSource.Contains('^jdbc:mysql://(?:localhost|127\\.0\\.0\\.1|\\[::1])(?::3306)?/')) `
+    -Message "Hibernate validation should allow only loopback MySQL JDBC targets."
+Assert-True `
+    -Condition (-not $mysqlValidationSource.Contains('"local-atstudio"')) `
+    -Message "Hibernate validation must not retain the local retained-database override."
+Assert-True `
+    -Condition (-not $mysqlValidationSource.Contains('"atstudio"')) `
+    -Message "Hibernate validation must not admit the retained application database."
+Assert-True `
+    -Condition (-not [regex]::IsMatch($mysqlValidationSource, '(?i)\bSELECT\b')) `
+    -Message "Hibernate validation proof must not use a manual SQL query."
+Assert-True `
+    -Condition ($wrapperSource.Contains('Invoke-HibernateValidation')) `
+    -Message "The supported wrapper should own the targeted Hibernate invocation."
+Assert-True `
+    -Condition ($wrapperSource.Contains('ATSTUDIO_MYSQL_PROOF_DATABASE')) `
+    -Message "The supported wrapper should bind the targeted Hibernate proof to its guarded name."
+Assert-True `
+    -Condition ($wrapperSource.Contains('jdbc:mysql://$HostName`:$Port/$DatabaseName')) `
+    -Message "The supported wrapper should construct the Hibernate JDBC target from guarded inputs only."
+
+$inventorySqlMatches = [regex]::Matches(
+    $javaSource,
+    '(?s)private static final String INVENTORY_COUNT_SQL\s*=\s*"(?<first>[^"]*)"\s*\+\s*"(?<second>[^"]*)";'
+)
+Assert-True `
+    -Condition ($inventorySqlMatches.Count -eq 1) `
+    -Message "Inventory should define exactly one fixed aggregate query."
+if ($inventorySqlMatches.Count -eq 1) {
+    $inventorySql = $inventorySqlMatches[0].Groups["first"].Value +
+        $inventorySqlMatches[0].Groups["second"].Value
+    Assert-True `
+        -Condition ($inventorySql -eq
+            "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name REGEXP '^ats_disposable_[0-9]{8}_[a-z0-9]{8}$'") `
+        -Message "Inventory query must be the fixed disposable-schema COUNT predicate."
+}
+
+$inventoryMethodMatch = [regex]::Match(
+    $javaSource,
+    '(?s)void inventory\(\) throws SQLException \{(?<body>.*?)\r?\n        \}\r?\n\r?\n        private Connection openAdminConnection'
+)
+Assert-True `
+    -Condition ($inventoryMethodMatch.Success) `
+    -Message "Inventory should have a bounded dedicated method."
+if ($inventoryMethodMatch.Success) {
+    $inventoryMethod = $inventoryMethodMatch.Groups["body"].Value
+    $inventoryOutputKeys = @(
+        [regex]::Matches($inventoryMethod, 'safe\(\s*"(?<key>[^"]+)"') |
+            ForEach-Object { $_.Groups["key"].Value }
+    )
+    Assert-True `
+        -Condition (($inventoryMethod -split "openAdminConnection\(\)").Count -eq 2) `
+        -Message "Inventory should open exactly one admin connection."
+    Assert-True `
+        -Condition (-not $inventoryMethod.Contains("openDatabaseConnection()")) `
+        -Message "Inventory must not open a selected-database connection."
+    Assert-True `
+        -Condition (-not $inventoryMethod.Contains("requireSelectedDatabase")) `
+        -Message "Inventory must not select or verify a target database."
+    Assert-True `
+        -Condition (-not $inventoryMethod.Contains("databaseCount(")) `
+        -Message "Inventory must not query its companion disposable name."
+    Assert-True `
+        -Condition (-not [regex]::IsMatch(
+            $inventoryMethod,
+            '(?i)\b(CREATE|DROP|ALTER|UPDATE|INSERT|DELETE)\b')) `
+        -Message "Inventory must not perform a mutating SQL operation."
+    Assert-True `
+        -Condition (-not [regex]::IsMatch($inventoryMethod, '(?i)manifest')) `
+        -Message "Inventory must not record, compare, or emit a manifest."
+    Assert-True `
+        -Condition ($inventoryOutputKeys.Count -eq 2 -and
+            $inventoryOutputKeys -contains "inventory.count" -and
+            $inventoryOutputKeys -contains "inventory.state") `
+        -Message "Inventory must emit only its bounded count and state fields."
+    Assert-True `
+        -Condition ([regex]::IsMatch(
+            $inventoryMethod,
+            '(?s)count\s*==\s*0L\s*\?\s*"NO_POSSIBLE_ORPHAN"\s*:\s*"POSSIBLE_ORPHAN_EXISTS"')) `
+        -Message "Inventory output state must map zero and positive counts exactly."
+}
+
+$inventoryCountMethodMatch = [regex]::Match(
+    $javaSource,
+    '(?s)private long inventoryCount\(Connection connection\) throws SQLException \{(?<body>.*?)\r?\n        \}\r?\n\r?\n        private void requireSelectedDatabase'
+)
+Assert-True `
+    -Condition ($inventoryCountMethodMatch.Success) `
+    -Message "Inventory should keep its aggregate query in one bounded helper."
+if ($inventoryCountMethodMatch.Success) {
+    $inventoryCountMethod = $inventoryCountMethodMatch.Groups["body"].Value
+    Assert-True `
+        -Condition ($inventoryCountMethod.Contains(
+            "connection.prepareStatement(INVENTORY_COUNT_SQL)")) `
+        -Message "Inventory should execute only the fixed aggregate query."
+    Assert-True `
+        -Condition (($inventoryCountMethod -split "executeQuery\(").Count -eq 2) `
+        -Message "Inventory should execute exactly one query."
+    Assert-True `
+        -Condition (-not $inventoryCountMethod.Contains("getString(")) `
+        -Message "Inventory must not select or read schema names."
+}
+
 if ($script:Failures.Count -gt 0) {
     [pscustomobject]@{
         status = "failed"
@@ -477,12 +656,18 @@ if ($script:Failures.Count -gt 0) {
         "malformed-name-refusal-before-connector",
         "non-loopback-refusal-before-connector",
         "target-name-redaction",
-        "current-source-create-table-count-42",
+        "current-source-create-table-count-43",
         "stale-source-count-refusal-without-mysql",
-        "recorded-manifest-create-validate-preflight-without-mysql",
-        "recorded-manifest-observe-refusal-before-credentials",
+        "recorded-manifest-create-validate-hibernate-preflight-without-mysql",
+        "recorded-manifest-observe-refusal-without-mysql",
+        "recorded-manifest-inventory-preflight-without-mysql",
+        "inventory-wrapper-allowlist-and-preconnection-name-refusal",
+        "inventory-preconnection-loopback-refusal",
+        "inventory-fixed-count-query-and-output-contract",
+        "inventory-admin-only-single-query-no-target-selection",
+        "recorded-manifest-active-expectation",
         "recorded-manifest-observed-values",
-        "predecessor-manifest-expectation-absence",
+        "guarded-hibernate-disposable-only-proof",
         "observe-action-path",
         "exact-target-cleanup-preservation",
         "credential-command-line-and-output-absence",

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Preflight", "Observe", "Create", "Validate", "Drop")]
+    [ValidateSet("Preflight", "Observe", "Create", "Validate", "Drop", "Inventory", "HibernateValidate")]
     [string] $Action,
 
     [Parameter(Mandatory = $true)]
@@ -150,6 +150,15 @@ function Read-DatabaseCredentials {
     }
 }
 
+function Convert-ToBootstrapAction {
+    param([Parameter(Mandatory = $true)][string] $ActionName)
+
+    if ($ActionName -eq "HibernateValidate") {
+        return "hibernate-validate"
+    }
+    return $ActionName.ToLowerInvariant()
+}
+
 function Invoke-BootstrapJava {
     param(
         [Parameter(Mandatory = $true)]
@@ -167,10 +176,10 @@ function Invoke-BootstrapJava {
     }
     [void] $arguments.Add($javaSource)
     [void] $arguments.Add("--action")
-    [void] $arguments.Add($RequestedAction.ToLowerInvariant())
+    [void] $arguments.Add((Convert-ToBootstrapAction -ActionName $RequestedAction))
     if (-not [string]::IsNullOrWhiteSpace($PreflightForAction)) {
         [void] $arguments.Add("--requested-action")
-        [void] $arguments.Add($PreflightForAction.ToLowerInvariant())
+        [void] $arguments.Add((Convert-ToBootstrapAction -ActionName $PreflightForAction))
     }
     [void] $arguments.Add("--workspace")
     [void] $arguments.Add($repoRoot)
@@ -187,6 +196,23 @@ function Invoke-BootstrapJava {
     }
 }
 
+function Invoke-HibernateValidation {
+    $gradle = Join-Path $repoRoot "gradlew.bat"
+    if (-not (Test-Path -LiteralPath $gradle -PathType Leaf)) {
+        throw "Targeted Hibernate validation runner is unavailable."
+    }
+
+    $nativeOutput = @(
+        & $gradle --no-daemon test `
+            --tests "com.atstudio.atstudio.service.PaymentMysqlSchemaValidationTest" 2>&1
+    )
+    $exitCode = $LASTEXITCODE
+    $nativeOutput = $null
+    if ($exitCode -ne 0) {
+        throw "Targeted Hibernate validation did not complete."
+    }
+}
+
 $javaPath = Get-JavaCommand
 
 # The preflight is always first and needs neither a connector nor credentials.
@@ -200,6 +226,11 @@ if ($Action -eq "Preflight") {
     return
 }
 
+if ($Action -eq "HibernateValidate" -and
+    [string]::IsNullOrWhiteSpace($BackendEnvironmentPath)) {
+    throw "Hibernate validation requires the approved repo-external environment bundle."
+}
+
 $credentials = Read-DatabaseCredentials -BundlePath $BackendEnvironmentPath
 $connector = Get-MysqlConnectorJar -ExplicitPath $ConnectorJarPath
 $savedUsername = [System.Environment]::GetEnvironmentVariable(
@@ -207,6 +238,15 @@ $savedUsername = [System.Environment]::GetEnvironmentVariable(
     "Process")
 $savedPassword = [System.Environment]::GetEnvironmentVariable(
     "SPRING_DATASOURCE_PASSWORD",
+    "Process")
+$savedDatasourceUrl = [System.Environment]::GetEnvironmentVariable(
+    "SPRING_DATASOURCE_URL",
+    "Process")
+$savedHibernateProofEnabled = [System.Environment]::GetEnvironmentVariable(
+    "ATSTUDIO_MYSQL_PROOF_ENABLED",
+    "Process")
+$savedHibernateProofDatabase = [System.Environment]::GetEnvironmentVariable(
+    "ATSTUDIO_MYSQL_PROOF_DATABASE",
     "Process")
 
 try {
@@ -218,6 +258,21 @@ try {
         "SPRING_DATASOURCE_PASSWORD",
         $credentials.Password,
         "Process")
+    if ($Action -eq "HibernateValidate") {
+        [System.Environment]::SetEnvironmentVariable(
+            "SPRING_DATASOURCE_URL",
+            "jdbc:mysql://$HostName`:$Port/$DatabaseName",
+            "Process")
+        [System.Environment]::SetEnvironmentVariable(
+            "ATSTUDIO_MYSQL_PROOF_ENABLED",
+            "true",
+            "Process")
+        [System.Environment]::SetEnvironmentVariable(
+            "ATSTUDIO_MYSQL_PROOF_DATABASE",
+            $DatabaseName,
+            "Process")
+        Invoke-HibernateValidation
+    }
     Invoke-BootstrapJava `
         -JavaPath $javaPath `
         -RequestedAction $Action `
@@ -230,6 +285,18 @@ try {
     [System.Environment]::SetEnvironmentVariable(
         "SPRING_DATASOURCE_PASSWORD",
         $savedPassword,
+        "Process")
+    [System.Environment]::SetEnvironmentVariable(
+        "SPRING_DATASOURCE_URL",
+        $savedDatasourceUrl,
+        "Process")
+    [System.Environment]::SetEnvironmentVariable(
+        "ATSTUDIO_MYSQL_PROOF_ENABLED",
+        $savedHibernateProofEnabled,
+        "Process")
+    [System.Environment]::SetEnvironmentVariable(
+        "ATSTUDIO_MYSQL_PROOF_DATABASE",
+        $savedHibernateProofDatabase,
         "Process")
     $credentials = $null
 }
