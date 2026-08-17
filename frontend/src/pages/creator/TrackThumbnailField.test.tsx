@@ -60,12 +60,14 @@ describe('TrackThumbnailField', () => {
     });
   });
 
-  it('shows the JPEG/PNG, 10MB, and recommended-size contract without requiring 1:1', () => {
+  it('shows the JPEG/PNG, 10MB, dimension, and long-edge recommendation contract', () => {
     render(<Harness />);
 
-    expect(screen.getByText('JPEG 또는 PNG, 10MB 이하')).toBeInTheDocument();
+    expect(
+      screen.getByText('JPEG 또는 PNG, 10MB 이하, 가로·세로 각각 최대 4096px'),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/1:1 필수/)).not.toBeInTheDocument();
-    expect(screen.getByText('2048x2048px 권장 (필수 아님)')).toBeInTheDocument();
+    expect(screen.getByText('긴 변 2048px 권장 (필수 아님)')).toBeInTheDocument();
     expect(screen.getByLabelText('썸네일 이미지')).toHaveAttribute(
       'accept',
       'image/jpeg,image/png',
@@ -106,6 +108,34 @@ describe('TrackThumbnailField', () => {
     expect(screen.queryByText(/가로와 세로 길이가 같은 1:1/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled();
     expect(screen.getByTestId('track-thumbnail-preview')).toBeInTheDocument();
+  });
+
+  it('rejects DSC_2446.JPG dimensions before submit with the backend-aligned bounds', async () => {
+    createObjectURL.mockReturnValue('blob:dsc-2446');
+    render(<Harness />);
+
+    selectThumbnail(new File(['photo'], 'DSC_2446.JPG', { type: 'image/jpeg' }));
+    const image = await screen.findByAltText('선택한 트랙 썸네일 미리보기');
+    loadWithDimensions(image, 6048, 4032);
+
+    expect(
+      screen.getByText(
+        '트랙 썸네일은 가로·세로 각각 4096px 이하이고 전체 16,777,216픽셀 이하여야 합니다.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
+  });
+
+  it('accepts an image at the exact backend dimension and pixel boundary', async () => {
+    createObjectURL.mockReturnValue('blob:boundary');
+    render(<Harness />);
+
+    selectThumbnail(new File(['boundary'], 'boundary.png', { type: 'image/png' }));
+    const image = await screen.findByAltText('선택한 트랙 썸네일 미리보기');
+    loadWithDimensions(image, 4096, 4096);
+
+    expect(screen.queryByText(/16,777,216픽셀 이하여야/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled();
   });
 
   it('ignores a stale load result and revokes replaced and unmounted object URLs', async () => {

@@ -32,7 +32,7 @@ describe('TrackUploadPage thumbnail contract', () => {
     vi.stubGlobal('crypto', { randomUUID: vi.fn(() => 'track-entry-1') });
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
-      value: vi.fn().mockReturnValueOnce('blob:wide'),
+      value: vi.fn().mockReturnValueOnce('blob:oversized').mockReturnValueOnce('blob:wide'),
     });
     Object.defineProperty(URL, 'revokeObjectURL', {
       configurable: true,
@@ -40,7 +40,7 @@ describe('TrackUploadPage thumbnail contract', () => {
     });
   });
 
-  it('blocks while the cover is pending and submits a valid non-square file', async () => {
+  it('blocks an oversized cover and submits a replacement within bounds', async () => {
     const view = render(
       <MemoryRouter>
         <TrackUploadPage />
@@ -56,16 +56,30 @@ describe('TrackUploadPage thumbnail contract', () => {
       'true',
     );
     expect(screen.getByLabelText('제목')).toHaveValue('launch');
-    expect(screen.getByText('JPEG 또는 PNG, 10MB 이하')).toBeInTheDocument();
+    expect(
+      screen.getByText('JPEG 또는 PNG, 10MB 이하, 가로·세로 각각 최대 4096px'),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/1:1 필수/)).not.toBeInTheDocument();
-    expect(screen.getByText('2048x2048px 권장 (필수 아님)')).toBeInTheDocument();
+    expect(screen.getByText('긴 변 2048px 권장 (필수 아님)')).toBeInTheDocument();
     const thumbnailInput = screen.getByLabelText('썸네일 이미지');
     expect(thumbnailInput).toHaveAttribute('accept', 'image/jpeg,image/png');
 
+    const oversizedFile = new File(['photo'], 'DSC_2446.JPG', { type: 'image/jpeg' });
+    fireEvent.change(thumbnailInput, { target: { files: [oversizedFile] } });
+    expect(screen.getByRole('button', { name: '업로드' })).toBeDisabled();
+    const oversizedPreview = await screen.findByAltText('선택한 트랙 썸네일 미리보기');
+    loadWithDimensions(oversizedPreview, 6048, 4032);
+    expect(
+      screen.getByText(
+        '트랙 썸네일은 가로·세로 각각 4096px 이하이고 전체 16,777,216픽셀 이하여야 합니다.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '업로드' })).toBeDisabled();
+
     const wideFile = new File(['wide'], 'wide.png', { type: 'image/png' });
     fireEvent.change(thumbnailInput, { target: { files: [wideFile] } });
-    expect(screen.getByRole('button', { name: '업로드' })).toBeDisabled();
     const widePreview = await screen.findByAltText('선택한 트랙 썸네일 미리보기');
+    await waitFor(() => expect(widePreview).toHaveAttribute('src', 'blob:wide'));
     loadWithDimensions(widePreview, 800, 600);
     expect(screen.queryByText(/가로와 세로 길이가 같은 1:1/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '업로드' })).toBeEnabled();

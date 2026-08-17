@@ -6,13 +6,19 @@ import {
   type ChangeEvent,
   type SyntheticEvent,
 } from 'react';
-import { IMAGE_MAX_SIZE_MB, isFileSizeOk } from '@/utils/validation';
+import {
+  IMAGE_MAX_DIMENSION,
+  IMAGE_MAX_PIXELS,
+  IMAGE_MAX_SIZE_MB,
+  isFileSizeOk,
+} from '@/utils/validation';
 import { emptyTrackThumbnailSelection, type TrackThumbnailSelection } from './trackThumbnail';
 import styles from './TrackThumbnailField.module.css';
 
 const TRACK_THUMBNAIL_ACCEPT = 'image/jpeg,image/png';
 // Temporary client-acceptance deviation: set to true to restore the SR-98 square requirement.
 const TRACK_THUMBNAIL_SQUARE_REQUIRED = false;
+const TRACK_THUMBNAIL_MAX_PIXELS_LABEL = IMAGE_MAX_PIXELS.toLocaleString('en-US');
 
 interface TrackThumbnailFieldProps {
   value: TrackThumbnailSelection;
@@ -132,6 +138,19 @@ export default function TrackThumbnailField({
       });
       return;
     }
+    const pixelCount = naturalWidth * naturalHeight;
+    if (
+      naturalWidth > IMAGE_MAX_DIMENSION ||
+      naturalHeight > IMAGE_MAX_DIMENSION ||
+      pixelCount > IMAGE_MAX_PIXELS
+    ) {
+      onChangeRef.current({
+        file: loadedPreview.file,
+        status: 'invalid',
+        error: `트랙 썸네일은 가로·세로 각각 ${IMAGE_MAX_DIMENSION}px 이하이고 전체 ${TRACK_THUMBNAIL_MAX_PIXELS_LABEL}픽셀 이하여야 합니다.`,
+      });
+      return;
+    }
     if (TRACK_THUMBNAIL_SQUARE_REQUIRED && naturalWidth !== naturalHeight) {
       onChangeRef.current({
         file: loadedPreview.file,
@@ -178,8 +197,10 @@ export default function TrackThumbnailField({
   return (
     <div className={styles.field}>
       <span className={styles.label}>썸네일</span>
-      <span className={styles.guidance}>JPEG 또는 PNG, {IMAGE_MAX_SIZE_MB}MB 이하</span>
-      <span className={styles.recommendation}>2048x2048px 권장 (필수 아님)</span>
+      <span className={styles.guidance}>
+        JPEG 또는 PNG, {IMAGE_MAX_SIZE_MB}MB 이하, 가로·세로 각각 최대 {IMAGE_MAX_DIMENSION}px
+      </span>
+      <span className={styles.recommendation}>긴 변 2048px 권장 (필수 아님)</span>
 
       {(preview || showExistingImage) && (
         <div

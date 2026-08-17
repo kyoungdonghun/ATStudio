@@ -65,7 +65,7 @@ describe('TrackEditPage thumbnail contract', () => {
     mocks.fetchTags.mockReset().mockResolvedValue([]);
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
-      value: vi.fn().mockReturnValueOnce('blob:wide'),
+      value: vi.fn().mockReturnValueOnce('blob:oversized').mockReturnValueOnce('blob:wide'),
     });
     Object.defineProperty(URL, 'revokeObjectURL', {
       configurable: true,
@@ -81,9 +81,11 @@ describe('TrackEditPage thumbnail contract', () => {
 
     const image = await screen.findByAltText('현재 트랙 썸네일');
     expect(image).toHaveAttribute('src', '/uploads/tracks/thumbnail/legacy-wide.jpg');
-    expect(screen.getByText('JPEG 또는 PNG, 10MB 이하')).toBeInTheDocument();
+    expect(
+      screen.getByText('JPEG 또는 PNG, 10MB 이하, 가로·세로 각각 최대 4096px'),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/1:1 필수/)).not.toBeInTheDocument();
-    expect(screen.getByText('2048x2048px 권장 (필수 아님)')).toBeInTheDocument();
+    expect(screen.getByText('긴 변 2048px 권장 (필수 아님)')).toBeInTheDocument();
     expect(screen.getByLabelText('썸네일 이미지')).toHaveAttribute(
       'accept',
       'image/jpeg,image/png',
@@ -112,18 +114,30 @@ describe('TrackEditPage thumbnail contract', () => {
     expect(screen.getByRole('button', { name: '저장' })).toBeEnabled();
   });
 
-  it('blocks while replacement is pending and accepts a non-square cover', async () => {
+  it('blocks an oversized replacement and accepts a non-square cover within bounds', async () => {
     const existing = track(null);
     mocks.fetchTrackDetailForAdmin.mockResolvedValue(existing);
     mocks.updateTrack.mockResolvedValue(existing);
     renderPage();
 
     const thumbnailInput = await screen.findByLabelText('썸네일 이미지');
-    const wideFile = new File(['wide'], 'wide.png', { type: 'image/png' });
-    fireEvent.change(thumbnailInput, { target: { files: [wideFile] } });
+    const oversizedFile = new File(['photo'], 'DSC_2446.JPG', { type: 'image/jpeg' });
+    fireEvent.change(thumbnailInput, { target: { files: [oversizedFile] } });
     expect(screen.getByRole('button', { name: '저장' })).toBeDisabled();
 
+    const oversizedPreview = await screen.findByAltText('선택한 트랙 썸네일 미리보기');
+    loadWithDimensions(oversizedPreview, 6048, 4032);
+    expect(
+      screen.getByText(
+        '트랙 썸네일은 가로·세로 각각 4096px 이하이고 전체 16,777,216픽셀 이하여야 합니다.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '저장' })).toBeDisabled();
+
+    const wideFile = new File(['wide'], 'wide.png', { type: 'image/png' });
+    fireEvent.change(thumbnailInput, { target: { files: [wideFile] } });
     const widePreview = await screen.findByAltText('선택한 트랙 썸네일 미리보기');
+    await waitFor(() => expect(widePreview).toHaveAttribute('src', 'blob:wide'));
     loadWithDimensions(widePreview, 900, 600);
     expect(screen.queryByText(/가로와 세로 길이가 같은 1:1/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '저장' })).toBeEnabled();
