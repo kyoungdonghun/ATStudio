@@ -246,62 +246,42 @@ try {
             param([hashtable] $BackendBundle, [string] $Marker, [string] $TestRoot)
 
             $script:SpawnChecks = New-Object System.Collections.ArrayList
+            $probeScriptPath = Join-Path $TestRoot "observe-child-environment.ps1"
+            $probeNamesPath = Join-Path $TestRoot "observe-child-environment-names.json"
+            [System.IO.File]::WriteAllText(
+                $probeNamesPath,
+                (@($script:BackendEnvironmentVariableNames) | ConvertTo-Json -Compress)
+            )
+            [System.IO.File]::WriteAllText($probeScriptPath, @'
+param(
+    [Parameter(Mandatory = $true)]
+    [string] $OutputPath,
+    [Parameter(Mandatory = $true)]
+    [string] $NamesPath
+)
+
+$Names = Get-Content -Raw -LiteralPath $NamesPath | ConvertFrom-Json
+$observed = [ordered]@{}
+foreach ($name in $Names) {
+    $observed[$name] = [System.Environment]::GetEnvironmentVariable($name, "Process")
+}
+$temporaryOutputPath = "$OutputPath.$PID.tmp"
+[System.IO.File]::WriteAllText($temporaryOutputPath, ($observed | ConvertTo-Json -Compress))
+[System.IO.File]::Move($temporaryOutputPath, $OutputPath)
+[Console]::Out.WriteLine("synthetic-child-stdout")
+[Console]::Error.WriteLine("synthetic-child-stderr")
+Start-Sleep -Seconds 2
+'@)
             $currentOptionalNames = @(
                 "PAYMENT_BILLING_KEY_ACTIVE_KEY_ID",
                 "PAYMENT_BILLING_KEY_0_ID",
                 "PAYMENT_BILLING_KEY_0_SECRET",
                 "APP_PAYMENT_SCHEDULER_ZONE"
             )
-            $parentNames = @("SPRING_DATASOURCE_PASSWORD", "JWT_SECRET") + $currentOptionalNames
-            $saved = @{}
+            $parentNames = @($script:BackendEnvironmentVariableNames)
+            $parentBefore = @{}
             foreach ($name in $parentNames) {
-                $saved[$name] = [System.Environment]::GetEnvironmentVariable($name, "Process")
-                [System.Environment]::SetEnvironmentVariable($name, "parent_$Marker", "Process")
-            }
-
-            function Start-Process {
-                param(
-                    [string] $FilePath,
-                    [string[]] $ArgumentList,
-                    [string] $WorkingDirectory,
-                    [string] $RedirectStandardOutput,
-                    [string] $RedirectStandardError,
-                    [System.Diagnostics.ProcessWindowStyle] $WindowStyle,
-                    [switch] $PassThru
-                )
-
-                $present = @(
-                    $script:BackendEnvironmentVariableNames |
-                        Where-Object {
-                            $null -ne [System.Environment]::GetEnvironmentVariable($_, "Process")
-                        }
-                )
-                $matchesExpected = $true
-                if ($FilePath -eq "backend") {
-                    foreach ($name in $BackendBundle.Keys) {
-                        if ([System.Environment]::GetEnvironmentVariable($name, "Process") -cne $BackendBundle[$name]) {
-                            $matchesExpected = $false
-                        }
-                    }
-                }
-                [void] $script:SpawnChecks.Add([pscustomobject]@{
-                    role = $FilePath
-                    backendNameCount = $present.Count
-                    backendNames = @($present)
-                    matchesExpected = $matchesExpected
-                })
-                return [pscustomobject]@{ Id = 100 }
-            }
-
-            function ConvertTo-AcceptanceServiceRecord {
-                param(
-                    [string] $Role,
-                    [object] $Process,
-                    [string] $WorkingDirectory,
-                    [string] $StdOutPath,
-                    [string] $StdErrPath
-                )
-                return [pscustomobject]@{ role = $Role; pid = 100 }
+                $parentBefore[$name] = [System.Environment]::GetEnvironmentVariable($name, "Process")
             }
 
             try {
@@ -310,37 +290,116 @@ try {
                 $backend = New-AcceptanceBackendEnvironment `
                     -ChildEnvironment $common `
                     -BackendEnvironmentBundle $BackendBundle
+                $powerShell = Get-AcceptancePowerShellPath
                 foreach ($role in @("tunnel", "backend", "frontend")) {
                     $environment = if ($role -eq "backend") { $backend } else { $common }
                     if ($role -eq "tunnel") {
                         $environment = @{}
                     }
-                    Start-AcceptanceOwnedProcess `
+                    $observationPath = Join-Path $TestRoot "$role-environment.json"
+                    $service = Start-AcceptanceOwnedProcess `
                         -Role $role `
-                        -FilePath $role `
-                        -ArgumentList @("mock") `
+                        -FilePath $powerShell `
+                        -ArgumentList (@(
+                            "-NoProfile",
+                            "-ExecutionPolicy",
+                            "Bypass",
+                            "-File",
+                            $probeScriptPath,
+                            "-OutputPath",
+                            $observationPath,
+                            "-NamesPath",
+                            $probeNamesPath
+                        )) `
                         -WorkingDirectory $TestRoot `
                         -StdOutPath (Join-Path $TestRoot "$role.out") `
                         -StdErrPath (Join-Path $TestRoot "$role.err") `
                         -Environment $environment `
-                        -ExcludedEnvironmentVariableNames $script:BackendEnvironmentVariableNames | Out-Null
+                        -ExcludedEnvironmentVariableNames $script:BackendEnvironmentVariableNames
+                    $deadline = (Get-Date).AddSeconds(5)
+                    $observed = $null
+                    while ($null -eq $observed) {
+                        if ((Get-Date) -gt $deadline) {
+                            throw "Synthetic child environment observation did not publish a complete payload."
+                        }
+                        if (Test-Path -LiteralPath $observationPath) {
+                            $candidate = Get-Content -Raw -LiteralPath $observationPath | ConvertFrom-Json
+                            $hasAllBackendProperties =
+                                ($candidate -is [pscustomobject]) -and
+                                (@($script:BackendEnvironmentVariableNames | Where-Object {
+                                    $null -eq $candidate.PSObject.Properties[$_]
+                                }).Count -eq 0)
+                            if ($hasAllBackendProperties) {
+                                $observed = $candidate
+                                continue
+                            }
+                        }
+                        Start-Sleep -Milliseconds 50
+                    }
+                    $stdout = Get-Content -Raw -LiteralPath (Join-Path $TestRoot "$role.out")
+                    $stderr = Get-Content -Raw -LiteralPath (Join-Path $TestRoot "$role.err")
+                    $logsCapturedWhileRunning =
+                        (Get-Process -Id $service.pid -ErrorAction SilentlyContinue) -and
+                        $stdout.Contains("synthetic-child-stdout") -and
+                        $stderr.Contains("synthetic-child-stderr")
+                    if ($role -eq "frontend") {
+                        Stop-Process -Id $service.pid -Force
+                    }
+                    Wait-Process -Id $service.pid -Timeout 5 -ErrorAction SilentlyContinue
+                    $logHandlesReleased = $false
+                    $releaseDeadline = (Get-Date).AddSeconds(5)
+                    while (-not $logHandlesReleased -and (Get-Date) -le $releaseDeadline) {
+                        $handles = @()
+                        try {
+                            foreach ($path in @(
+                                (Join-Path $TestRoot "$role.out"),
+                                (Join-Path $TestRoot "$role.err")
+                            )) {
+                                $handles += [System.IO.File]::Open(
+                                    $path,
+                                    [System.IO.FileMode]::Open,
+                                    [System.IO.FileAccess]::ReadWrite,
+                                    [System.IO.FileShare]::None
+                                )
+                            }
+                            $logHandlesReleased = $true
+                        } catch {
+                            Start-Sleep -Milliseconds 50
+                        } finally {
+                            foreach ($handle in $handles) {
+                                $handle.Dispose()
+                            }
+                        }
+                    }
+                    $present = @(
+                        $script:BackendEnvironmentVariableNames |
+                            Where-Object {
+                                $null -ne $observed.PSObject.Properties[$_].Value
+                            }
+                    )
+                    $matchesExpected = @(
+                        $BackendBundle.Keys |
+                            Where-Object {
+                                $observed.PSObject.Properties[$_].Value -cne $BackendBundle[$_]
+                            }
+                    ).Count -eq 0
+                    [void] $script:SpawnChecks.Add([pscustomobject]@{
+                        role = $role
+                        backendNameCount = $present.Count
+                        backendNames = @($present)
+                        matchesExpected = $matchesExpected
+                        logsCapturedWhileRunning = $logsCapturedWhileRunning
+                        logHandlesReleased = $logHandlesReleased
+                    })
                 }
 
                 return [pscustomobject]@{
                     checks = @($script:SpawnChecks)
                     parentRestored = @($parentNames | Where-Object {
-                        [System.Environment]::GetEnvironmentVariable($_, "Process") -ceq "parent_$Marker"
+                        [System.Environment]::GetEnvironmentVariable($_, "Process") -ceq $parentBefore[$_]
                     }).Count -eq $parentNames.Count
-                    currentOptionalNamesRestored = @($currentOptionalNames | Where-Object {
-                        [System.Environment]::GetEnvironmentVariable($_, "Process") -ceq "parent_$Marker"
-                    }).Count -eq $currentOptionalNames.Count
                 }
             } finally {
-                foreach ($name in $parentNames) {
-                    [System.Environment]::SetEnvironmentVariable($name, $saved[$name], "Process")
-                }
-                Remove-Item -Path Function:\Start-Process -Force -ErrorAction SilentlyContinue
-                Remove-Item -Path Function:\ConvertTo-AcceptanceServiceRecord -Force -ErrorAction SilentlyContinue
                 Remove-Variable -Name SpawnChecks -Scope Script -ErrorAction SilentlyContinue
             }
         }
@@ -363,7 +422,13 @@ try {
         -Message "Frontend spawn should receive no backend-only variable names."
     Assert-True `
         -Condition $isolation.parentRestored `
-        -Message "Launcher environment should be restored before frontend spawn."
+        -Message "Launcher environment should remain unchanged before frontend spawn."
+    Assert-True `
+        -Condition (@($isolation.checks | Where-Object { -not $_.logsCapturedWhileRunning }).Count -eq 0) `
+        -Message "Every synthetic child should continuously redirect stdout and stderr to its log files."
+    Assert-True `
+        -Condition (@($isolation.checks | Where-Object { -not $_.logHandlesReleased }).Count -eq 0) `
+        -Message "Child log handles should close after natural and forced process exit."
     foreach ($name in $currentOptionalNames) {
         Assert-True `
             -Condition ($isolation.checks[1].backendNames -ccontains $name) `
@@ -375,10 +440,6 @@ try {
             -Condition (-not ($isolation.checks[2].backendNames -ccontains $name)) `
             -Message "Frontend spawn should not receive current backend environment name: $name"
     }
-    Assert-True `
-        -Condition $isolation.currentOptionalNamesRestored `
-        -Message "Launcher environment should restore all current optional backend names."
-
     $order = Invoke-InAcceptanceModule `
         -ArgumentList @($repoRoot, (Join-Path $testRoot "order"), $validPath, $required) `
         -ScriptBlock {
@@ -528,6 +589,7 @@ if ($script:Failures.Count -gt 0) {
         "safe-validation-errors",
         "child-process-environment-isolation",
         "backend-environment-restoration",
+        "continuous-child-log-drainage",
         "tunnel-before-bundle-load-order",
         "temporary-fixture-cleanup"
     )

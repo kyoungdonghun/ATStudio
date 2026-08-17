@@ -58,6 +58,187 @@ $script:BackendEnvironmentVariableNames = @(
     $script:OptionalBackendEnvironmentVariableNames
 )
 
+function Initialize-AcceptanceProcessLogPumpType {
+    if ($null -ne ("AcceptanceProcessLogPump" -as [type])) {
+        return
+    }
+
+    Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.IO;
+using System.Text;
+
+public sealed class AcceptanceProcessLogPump : IDisposable
+{
+    private static readonly ConcurrentDictionary<int, AcceptanceProcessLogPump> ActivePumps =
+        new ConcurrentDictionary<int, AcceptanceProcessLogPump>();
+
+    private readonly Process process;
+    private readonly StreamWriter stdoutWriter;
+    private readonly StreamWriter stderrWriter;
+    private readonly object writeLock = new object();
+    private readonly DataReceivedEventHandler stdoutHandler;
+    private readonly DataReceivedEventHandler stderrHandler;
+    private readonly EventHandler exitedHandler;
+    private int processId = -1;
+    private bool disposed;
+
+    private AcceptanceProcessLogPump(Process process, string stdoutPath, string stderrPath)
+    {
+        this.process = process;
+        stdoutWriter = new StreamWriter(stdoutPath, false, new UTF8Encoding(false)) { AutoFlush = true };
+        stderrWriter = new StreamWriter(stderrPath, false, new UTF8Encoding(false)) { AutoFlush = true };
+        stdoutHandler = WriteStdout;
+        stderrHandler = WriteStderr;
+        exitedHandler = OnExited;
+    }
+
+    public static Process Start(ProcessStartInfo startInfo, string stdoutPath, string stderrPath)
+    {
+        var process = new Process { StartInfo = startInfo };
+        AcceptanceProcessLogPump pump = null;
+        var started = false;
+        try
+        {
+            pump = new AcceptanceProcessLogPump(process, stdoutPath, stderrPath);
+            if (!process.Start())
+            {
+                throw new InvalidOperationException("The child process did not start.");
+            }
+
+            started = true;
+            pump.processId = process.Id;
+            ActivePumps[pump.processId] = pump;
+            pump.Attach();
+            return process;
+        }
+        catch
+        {
+            if (started)
+            {
+                StopStartedProcess(process);
+            }
+            if (pump != null)
+            {
+                pump.Dispose();
+            }
+            process.Dispose();
+            throw;
+        }
+    }
+
+    private static void StopStartedProcess(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                var killTree = typeof(Process).GetMethod("Kill", new[] { typeof(bool) });
+                if (killTree != null)
+                {
+                    killTree.Invoke(process, new object[] { true });
+                }
+                else
+                {
+                    process.Kill();
+                }
+            }
+        }
+        catch
+        {
+            // Preserve the original stream-attachment failure.
+        }
+
+        try
+        {
+            process.WaitForExit(5000);
+        }
+        catch
+        {
+            // Preserve the original stream-attachment failure.
+        }
+    }
+
+    private void Attach()
+    {
+        process.OutputDataReceived += stdoutHandler;
+        process.ErrorDataReceived += stderrHandler;
+        process.Exited += exitedHandler;
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+        process.EnableRaisingEvents = true;
+        if (process.HasExited)
+        {
+            Complete();
+        }
+    }
+
+    private void WriteStdout(object sender, DataReceivedEventArgs eventArgs)
+    {
+        WriteLine(stdoutWriter, eventArgs.Data);
+    }
+
+    private void WriteStderr(object sender, DataReceivedEventArgs eventArgs)
+    {
+        WriteLine(stderrWriter, eventArgs.Data);
+    }
+
+    private void WriteLine(StreamWriter writer, string line)
+    {
+        if (line == null)
+        {
+            return;
+        }
+
+        lock (writeLock)
+        {
+            if (!disposed)
+            {
+                writer.WriteLine(line);
+            }
+        }
+    }
+
+    private void OnExited(object sender, EventArgs eventArgs)
+    {
+        Complete();
+    }
+
+    private void Complete()
+    {
+        process.WaitForExit();
+        Dispose();
+    }
+
+    public void Dispose()
+    {
+        lock (writeLock)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            disposed = true;
+            stdoutWriter.Dispose();
+            stderrWriter.Dispose();
+        }
+
+        process.OutputDataReceived -= stdoutHandler;
+        process.ErrorDataReceived -= stderrHandler;
+        process.Exited -= exitedHandler;
+        if (processId > 0)
+        {
+            AcceptanceProcessLogPump ignored;
+            ActivePumps.TryRemove(processId, out ignored);
+        }
+    }
+}
+'@
+}
+
 function Get-AcceptanceDefaultRuntimeRoot {
     $base = $env:LOCALAPPDATA
     if ([string]::IsNullOrWhiteSpace($base)) {
@@ -395,35 +576,41 @@ function Start-AcceptanceOwnedProcess {
         [string[]] $ExcludedEnvironmentVariableNames = @()
     )
 
-    $previous = @{}
-    $managedNames = @(
-        @($ExcludedEnvironmentVariableNames) + @($Environment.Keys) |
-            Sort-Object -Unique
-    )
-    foreach ($name in $managedNames) {
-        $previous[$name] = [System.Environment]::GetEnvironmentVariable($name, "Process")
+    $childEnvironment = @{}
+    foreach ($entry in [System.Environment]::GetEnvironmentVariables("Process").GetEnumerator()) {
+        $childEnvironment[[string] $entry.Key] = [string] $entry.Value
     }
     foreach ($name in $ExcludedEnvironmentVariableNames) {
-        [System.Environment]::SetEnvironmentVariable($name, $null, "Process")
+        [void] $childEnvironment.Remove($name)
     }
     foreach ($name in $Environment.Keys) {
-        [System.Environment]::SetEnvironmentVariable($name, [string] $Environment[$name], "Process")
+        $childEnvironment[$name] = [string] $Environment[$name]
     }
 
-    try {
-        $process = Start-Process `
-            -FilePath $FilePath `
-            -ArgumentList $ArgumentList `
-            -WorkingDirectory $WorkingDirectory `
-            -RedirectStandardOutput $StdOutPath `
-            -RedirectStandardError $StdErrPath `
-            -WindowStyle Hidden `
-            -PassThru
-    } finally {
-        foreach ($name in $managedNames) {
-            [System.Environment]::SetEnvironmentVariable($name, $previous[$name], "Process")
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $FilePath
+    if ($null -ne $startInfo.PSObject.Properties["ArgumentList"]) {
+        foreach ($argument in $ArgumentList) {
+            [void] $startInfo.ArgumentList.Add($argument)
         }
+    } else {
+        $startInfo.Arguments = (@($ArgumentList | ForEach-Object {
+            '"' + ($_ -replace '(\\*)"', '$1$1\\"' -replace '(\\+)$', '$1$1') + '"'
+        }) -join " ")
     }
+    $startInfo.WorkingDirectory = $WorkingDirectory
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+    $startInfo.EnvironmentVariables.Clear()
+    foreach ($entry in $childEnvironment.GetEnumerator()) {
+        $startInfo.EnvironmentVariables[$entry.Key] = $entry.Value
+    }
+
+    Initialize-AcceptanceProcessLogPumpType
+    $process = [AcceptanceProcessLogPump]::Start($startInfo, $StdOutPath, $StdErrPath)
 
     return ConvertTo-AcceptanceServiceRecord `
         -Role $Role `
