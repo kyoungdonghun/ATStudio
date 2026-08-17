@@ -2,7 +2,6 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { createLazyPage } from '@/router/LazyRoute';
-import { REACT_ROUTER_FUTURE } from '@/router/routerFuture';
 
 type PageModule = { default: () => JSX.Element };
 
@@ -30,7 +29,7 @@ function renderLazyRoute(
     ],
     { initialEntries },
   );
-  const view = render(<RouterProvider router={router} future={REACT_ROUTER_FUTURE} />);
+  const view = render(<RouterProvider router={router} />);
   return { router, ...view };
 }
 

@@ -83,7 +83,7 @@ function renderPage(initialEntry: string, onLayout?: (pathname: string) => void)
     ],
     { initialEntries: [initialEntry] },
   );
-  render(<RouterProvider router={router} future={{ v7_startTransition: true }} />);
+  render(<RouterProvider router={router} />);
 }
 
 describe('PlaylistDetailPage load ownership', () => {

@@ -24,7 +24,7 @@ const emptyPage = {
 
 function renderPage() {
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter>
       <NoticeListPage />
     </MemoryRouter>,
   );
@@ -84,10 +84,7 @@ describe('NoticeListPage load states', () => {
     });
 
     render(
-      <MemoryRouter
-        initialEntries={['/notices?page=1']}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
+      <MemoryRouter initialEntries={['/notices?page=1']}>
         <NavigationHarness />
       </MemoryRouter>,
     );

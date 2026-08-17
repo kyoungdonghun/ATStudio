@@ -101,10 +101,7 @@ function RouteControls() {
 
 function renderPage(strict = false) {
   const page = (
-    <MemoryRouter
-      initialEntries={['/albums/7']}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={['/albums/7']}>
       <RouteControls />
       <Routes>
         <Route path="/albums/:albumId" element={<AlbumDetailPage />} />

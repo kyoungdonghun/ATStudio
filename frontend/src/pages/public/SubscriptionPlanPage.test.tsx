@@ -50,7 +50,7 @@ vi.mock('@/api/userSubscriptions', () => ({
 
 function renderPage() {
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter>
       <SubscriptionPlanPage />
     </MemoryRouter>,
   );

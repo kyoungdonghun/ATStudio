@@ -43,10 +43,7 @@ function track(thumbnail: string | null, tags: AdminTrackDetail['tags'] = []): A
 
 function renderPage(initialEntry = '/admin/tracks/21/edit') {
   return render(
-    <MemoryRouter
-      initialEntries={[initialEntry]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/admin/tracks/:trackId/edit" element={<TrackEditPage />} />
         <Route path="/admin/track-manage" element={<div>Track management</div>} />

@@ -432,10 +432,7 @@ const trackPage: PagedResponse<TrackListItem> = {
 
 function renderAt(element: ReactElement, route = '/', path = '*') {
   return render(
-    <MemoryRouter
-      initialEntries={[route]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={[route]}>
       <Routes>
         <Route path={path} element={element} />
       </Routes>
@@ -453,7 +450,7 @@ function renderCatalog(route = '/tracks?page=1') {
 
 function renderAppRoute(path: string) {
   const memoryRouter = createMemoryRouter(routes, { initialEntries: [path] });
-  return render(<RouterProvider router={memoryRouter} future={{ v7_startTransition: true }} />);
+  return render(<RouterProvider router={memoryRouter} />);
 }
 
 function deferred<T>() {
@@ -691,7 +688,7 @@ describe('player transport, subscription, and recovery behavior', () => {
     states.player.shuffle = true;
     states.player.repeat = 'one';
     view.rerender(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Routes>
           <Route path="*" element={<PlayerBar />} />
         </Routes>
@@ -893,10 +890,7 @@ describe('catalog filters, actions, and pagination', () => {
     states.player.currentTrack = currentTrack;
     states.player.isPlaying = false;
     view.rerender(
-      <MemoryRouter
-        initialEntries={['/tracks?page=1']}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
+      <MemoryRouter initialEntries={['/tracks?page=1']}>
         <Routes>
           <Route path="/tracks" element={<TrackListPage />} />
         </Routes>
@@ -907,10 +901,7 @@ describe('catalog filters, actions, and pagination', () => {
 
     states.player.isPlaying = true;
     view.rerender(
-      <MemoryRouter
-        initialEntries={['/tracks?page=1']}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
+      <MemoryRouter initialEntries={['/tracks?page=1']}>
         <Routes>
           <Route path="/tracks" element={<TrackListPage />} />
         </Routes>

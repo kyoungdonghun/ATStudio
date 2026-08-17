@@ -42,7 +42,7 @@ describe('TrackUploadPage thumbnail contract', () => {
 
   it('blocks the multi-row submit for pending or invalid covers and submits a valid square file', async () => {
     const view = render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <TrackUploadPage />
       </MemoryRouter>,
     );
@@ -93,7 +93,7 @@ describe('TrackUploadPage thumbnail contract', () => {
 
   it('accepts only MP3 and WAV and clears a rejected selection for same-file retry', async () => {
     const view = render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <TrackUploadPage />
       </MemoryRouter>,
     );
@@ -119,7 +119,7 @@ describe('TrackUploadPage thumbnail contract', () => {
       .mockRejectedValueOnce(new Error('tag service unavailable'))
       .mockResolvedValue([]);
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <TrackUploadPage />
       </MemoryRouter>,
     );
@@ -133,7 +133,7 @@ describe('TrackUploadPage thumbnail contract', () => {
   it('omits the native audio hint on iOS while still rejecting and resetting M4A', async () => {
     Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'iPhone' });
     const view = render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <TrackUploadPage />
       </MemoryRouter>,
     );

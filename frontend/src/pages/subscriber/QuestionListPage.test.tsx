@@ -37,10 +37,7 @@ function LocationProbe() {
 
 function renderPage() {
   return render(
-    <MemoryRouter
-      initialEntries={['/questions']}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={['/questions']}>
       <LocationProbe />
       <QuestionListPage />
     </MemoryRouter>,

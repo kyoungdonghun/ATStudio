@@ -64,7 +64,7 @@ describe('QuestionManagePage request ownership', () => {
       [{ path: '/admin/questions', element: <QuestionManagePage /> }],
       { initialEntries: ['/admin/questions?status=OPEN'] },
     );
-    render(<RouterProvider router={router} future={{ v7_startTransition: true }} />);
+    render(<RouterProvider router={router} />);
 
     await waitFor(() => expect(mocks.fetchQuestions).toHaveBeenCalledTimes(1));
     const oldSignal = mocks.fetchQuestions.mock.calls[0][1] as AbortSignal;
@@ -93,7 +93,7 @@ describe('QuestionManagePage request ownership', () => {
       ],
       { initialEntries: ['/admin/questions'] },
     );
-    render(<RouterProvider router={router} future={{ v7_startTransition: true }} />);
+    render(<RouterProvider router={router} />);
 
     const titleButton = await screen.findByRole('button', { name: 'Keyboard admin question' });
     expect(titleButton).toHaveAttribute('type', 'button');

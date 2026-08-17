@@ -1,8 +1,7 @@
 import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { renderToString } from 'react-dom/server';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { StaticRouter } from 'react-router-dom/server';
+import { MemoryRouter, Route, Routes, StaticRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SubscriberRoute from '@/router/SubscriberRoute';
 
@@ -49,10 +48,7 @@ function LocationProbe({ label }: { label: string }) {
 
 function renderSubscriber({ strict = false, initialEntry = '/subscriber' } = {}) {
   const tree = (
-    <MemoryRouter
-      initialEntries={[initialEntry]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route
           path="/subscriber"

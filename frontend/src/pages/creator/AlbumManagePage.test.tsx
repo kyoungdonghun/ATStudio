@@ -88,10 +88,7 @@ function LocationProbe() {
 
 function renderPage(path = '/admin/albums') {
   return render(
-    <MemoryRouter
-      initialEntries={[path]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route
           path="/admin/albums"

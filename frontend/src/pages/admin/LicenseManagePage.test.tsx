@@ -88,7 +88,7 @@ function renderPage(initialEntry: string) {
   const router = createMemoryRouter([{ path: '/admin/licenses', element: <LicenseManagePage /> }], {
     initialEntries: [initialEntry],
   });
-  render(<RouterProvider router={router} future={{ v7_startTransition: true }} />);
+  render(<RouterProvider router={router} />);
   return router;
 }
 

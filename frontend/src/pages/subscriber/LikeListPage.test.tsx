@@ -61,10 +61,7 @@ function deferred<T>() {
 
 function renderPage() {
   return render(
-    <MemoryRouter
-      initialEntries={['/likes']}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={['/likes']}>
       <LikeListPage />
     </MemoryRouter>,
   );

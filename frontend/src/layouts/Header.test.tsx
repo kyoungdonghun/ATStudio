@@ -25,22 +25,19 @@ function DestinationHeading() {
 
 function renderHeader(initialEntry = '/') {
   return render(
-    <MemoryRouter
-      initialEntries={[initialEntry]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      <ToastContainer />
-    >
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Header />
       <DestinationHeading />
+      <ToastContainer />
     </MemoryRouter>,
   );
 }
 
 describe('Header accessibility', () => {
-    useToastStore.setState({ toasts: [] });
   beforeEach(() => {
     useAuthStore.setState({ accessToken: null, user: null, role: 'GUEST', logout: defaultLogout });
     useThemeStore.setState({ theme: 'dark' });
+    useToastStore.setState({ toasts: [] });
     Object.defineProperty(window, 'requestAnimationFrame', {
       configurable: true,
       value: vi.fn((callback: FrameRequestCallback) => {
@@ -223,6 +220,9 @@ describe('Header accessibility', () => {
     renderHeader();
     const accountLink = screen.getByRole('link', { name: '내 계정' });
 
+    expect(accountLink).toHaveClass(buttonStyles.button, buttonStyles.ghost, buttonStyles.md);
+    expect(within(accountLink).queryByRole('button')).not.toBeInTheDocument();
+  });
 
   it('awaits logout, blocks duplicate interaction, and warns when server revocation is unconfirmed', async () => {
     let resolveLogout!: (outcome: { serverConfirmed: boolean }) => void;
@@ -255,8 +255,5 @@ describe('Header accessibility', () => {
       '서버 로그아웃 확인에 실패했습니다. 이 기기에서는 로그아웃되었습니다.',
     );
     expect(await screen.findByRole('heading', { name: '홈 페이지' })).toBeInTheDocument();
-  });
-    expect(accountLink).toHaveClass(buttonStyles.button, buttonStyles.ghost, buttonStyles.md);
-    expect(within(accountLink).queryByRole('button')).not.toBeInTheDocument();
   });
 });

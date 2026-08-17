@@ -162,10 +162,7 @@ function LocationProbe() {
 
 function renderPlayerBar(initialEntry = '/') {
   return render(
-    <MemoryRouter
-      initialEntries={[initialEntry]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route
           path="*"
@@ -183,7 +180,7 @@ function renderPlayerBar(initialEntry = '/') {
 
 function renderPublicShell() {
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter>
       <Header />
       <PlayerBar />
     </MemoryRouter>,
@@ -340,7 +337,7 @@ describe('PlayerBar playback feedback', () => {
     mocks.playerState.currentTime = 0;
     mocks.playerState.duration = 45;
     view.rerender(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <PlayerBar />
       </MemoryRouter>,
     );
@@ -636,7 +633,7 @@ describe('PlayerBar playback feedback', () => {
     mocks.authState.accessToken = 'token-b';
     mocks.authState.user = { id: 2 };
     view.rerender(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <PlayerBar />
       </MemoryRouter>,
     );
@@ -668,7 +665,7 @@ describe('PlayerBar playback feedback', () => {
     mocks.authState.accessToken = null;
     mocks.authState.user = null;
     view.rerender(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <PlayerBar />
       </MemoryRouter>,
     );

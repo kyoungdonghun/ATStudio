@@ -43,10 +43,7 @@ function renderPage(
   strict = false,
 ) {
   const page = (
-    <MemoryRouter
-      initialEntries={[initialEntry]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={[initialEntry]}>
       <LocationProbe />
       <Routes>
         <Route path="/playlists" element={<PlaylistListPage />} />

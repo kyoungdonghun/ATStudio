@@ -59,10 +59,7 @@ function renderPage(
   path = '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=SUBSCRIBE',
 ) {
   return render(
-    <MemoryRouter
-      initialEntries={[path]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={[path]}>
       <SubscriptionPaymentPage />
     </MemoryRouter>,
   );
@@ -199,7 +196,6 @@ describe('SubscriptionPaymentPage', () => {
           initialEntries={[
             '/subscriptions/checkout?planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=SUBSCRIBE',
           ]}
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
         >
           <SubscriptionPaymentPage />
         </MemoryRouter>

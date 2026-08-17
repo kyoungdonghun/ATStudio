@@ -75,10 +75,7 @@ function EmailVerificationDestinationProbe() {
 
 function renderPage(initialEntry = '/login') {
   return render(
-    <MemoryRouter
-      initialEntries={[initialEntry]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<DestinationProbe />} />

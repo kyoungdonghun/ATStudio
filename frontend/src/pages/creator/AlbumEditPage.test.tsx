@@ -137,10 +137,7 @@ function RouteSwitchControl() {
 
 function renderPage(path = '/admin/albums/11/edit', withRouteSwitch = false) {
   return render(
-    <MemoryRouter
-      initialEntries={[path]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={[path]}>
       {withRouteSwitch ? <RouteSwitchControl /> : null}
       <Routes>
         <Route path="/admin/albums/:albumId/edit" element={<AlbumEditPage />} />

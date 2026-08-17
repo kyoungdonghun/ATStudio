@@ -87,10 +87,7 @@ function MutationOwnerHarness() {
 
 function renderAdmin(content: ReactNode = <AdminDestinationHeading />) {
   return render(
-    <MemoryRouter
-      initialEntries={['/admin/albums']}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={['/admin/albums']}>
       <Routes>
         <Route element={<AdminLayout />}>
           <Route path="/admin/*" element={content} />

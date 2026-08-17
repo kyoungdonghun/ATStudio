@@ -48,10 +48,7 @@ function renderPage(strict = false) {
     <CompanyCertApplyPage />
   );
   return render(
-    <MemoryRouter
-      initialEntries={['/company-certification/apply']}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={['/company-certification/apply']}>
       <Routes>
         <Route path="/company-certification/apply" element={page} />
         <Route path="/company-certification/status" element={<div>인증 현황</div>} />

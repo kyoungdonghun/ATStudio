@@ -209,10 +209,7 @@ function LocationProbe() {
 
 function renderPage(initialEntry = '/tracks?keyword=old&page=1') {
   return render(
-    <MemoryRouter
-      initialEntries={[initialEntry]}
-      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-    >
+    <MemoryRouter initialEntries={[initialEntry]}>
       <QueryControls />
       <LocationProbe />
       <Routes>

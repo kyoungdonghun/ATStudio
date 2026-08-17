@@ -115,7 +115,7 @@ describe('catalog interaction components', () => {
     const onAdd = vi.fn();
     const onDownload = vi.fn();
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <table>
           <tbody>
             <TrackRow
@@ -168,7 +168,7 @@ describe('catalog interaction components', () => {
       createdAt: '2026-07-17',
     };
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <table>
           <tbody>
             <TrackRow

@@ -18,10 +18,7 @@ const LazyPublicHome = lazy(
 function renderLayoutBranches(initialEntry: string) {
   return render(
     <StrictMode>
-      <MemoryRouter
-        initialEntries={[initialEntry]}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Link to="/albums">Unrelated route</Link>
         <Routes>
           <Route element={<MainLayout />}>

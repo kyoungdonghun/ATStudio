@@ -83,10 +83,7 @@ function renderPage() {
 
 function managePageElement() {
   return (
-    <MemoryRouter
-      initialEntries={['/subscriptions/manage']}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={['/subscriptions/manage']}>
       <SubscriptionManagePage />
     </MemoryRouter>
   );

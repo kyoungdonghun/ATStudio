@@ -118,10 +118,7 @@ function renderPage(
   }) => void,
 ) {
   return render(
-    <MemoryRouter
-      initialEntries={['/downloads']}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={['/downloads']}>
       <HistorySwitcher />
       <DownloadHistoryPage />
       <AuthLayoutProbe onLayout={onLayout} />

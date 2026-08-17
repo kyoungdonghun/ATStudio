@@ -102,10 +102,7 @@ function QueryControls() {
 
 function renderPages(initialEntry = '/albums?sort=trackCount&page=2') {
   return render(
-    <MemoryRouter
-      initialEntries={[initialEntry]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={[initialEntry]}>
       <QueryControls />
       <LocationProbe />
       <Routes>

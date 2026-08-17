@@ -58,7 +58,7 @@ function renderPage(initialEntry: string) {
     ],
     { initialEntries: [initialEntry] },
   );
-  const view = render(<RouterProvider router={router} future={{ v7_startTransition: true }} />);
+  const view = render(<RouterProvider router={router} />);
   return {
     ...view,
     router,

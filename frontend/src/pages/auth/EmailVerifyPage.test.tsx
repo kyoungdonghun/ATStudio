@@ -26,10 +26,7 @@ describe('EmailVerifyPage', () => {
     });
 
     render(
-      <MemoryRouter
-        initialEntries={['/verify-email?token=unsafe-token']}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
+      <MemoryRouter initialEntries={['/verify-email?token=unsafe-token']}>
         <EmailVerifyPage />
       </MemoryRouter>,
     );

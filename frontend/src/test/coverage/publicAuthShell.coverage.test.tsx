@@ -309,10 +309,7 @@ const track: Track = {
 
 function renderAt(element: ReactElement, route = '/', path = '*') {
   return render(
-    <MemoryRouter
-      initialEntries={[route]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={[route]}>
       <Routes>
         <Route path={path} element={element} />
       </Routes>
@@ -1195,7 +1192,7 @@ describe('application shells and error routes', () => {
     states.player.trackListContext = [track, { ...track, id: 22, title: 'Next' }];
     states.player.isPlaying = true;
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Routes>
           <Route element={<MainLayout />}>
             <Route index element={<input aria-label="editor" />} />
@@ -1221,7 +1218,7 @@ describe('application shells and error routes', () => {
     states.player.currentTrack = null;
     states.player.trackListContext = [track];
     const main = render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Routes>
           <Route element={<MainLayout />}>
             <Route index element={<div>main-content</div>} />
@@ -1247,10 +1244,7 @@ describe('application shells and error routes', () => {
       createdAt: '2026-01-01T00:00:00',
     };
     const admin = render(
-      <MemoryRouter
-        initialEntries={['/admin/albums/11/edit']}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
+      <MemoryRouter initialEntries={['/admin/albums/11/edit']}>
         <Routes>
           <Route element={<AdminLayout />}>
             <Route path="/admin/albums/:albumId/edit" element={<div>admin-content</div>} />

@@ -22,7 +22,7 @@ vi.mock('@/components/ui/ToastContainer', () => ({ default: () => null }));
 
 function renderMainLayout() {
   render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter>
       <Routes>
         <Route element={<MainLayout />}>
           <Route

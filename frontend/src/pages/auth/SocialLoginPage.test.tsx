@@ -44,7 +44,6 @@ function renderPage(strict = false) {
   const routes = (
     <MemoryRouter
       initialEntries={['/social-login/google?code=authorization-code&state=expected-state-1234']}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
       <Routes>
         <Route path="/social-login/:provider" element={<SocialLoginPage />} />

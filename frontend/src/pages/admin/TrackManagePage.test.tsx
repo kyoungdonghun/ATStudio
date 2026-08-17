@@ -57,7 +57,7 @@ function renderPage(initialEntry = '/admin/tracks') {
   const router = createMemoryRouter([{ path: '/admin/tracks', element: <TrackManagePage /> }], {
     initialEntries: [initialEntry],
   });
-  render(<RouterProvider router={router} future={{ v7_startTransition: true }} />);
+  render(<RouterProvider router={router} />);
   return router;
 }
 

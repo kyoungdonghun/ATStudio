@@ -108,10 +108,7 @@ function renderStrictPage() {
 
 function renderProtectedPage() {
   return render(
-    <MemoryRouter
-      initialEntries={['/admin/users']}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={['/admin/users']}>
       <Routes>
         <Route
           path="/admin/users"

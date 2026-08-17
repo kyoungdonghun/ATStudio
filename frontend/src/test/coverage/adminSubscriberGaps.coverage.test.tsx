@@ -249,7 +249,7 @@ function renderRoute(
     ],
     { initialEntries: [initialEntry] },
   );
-  const view = render(<RouterProvider router={router} future={{ v7_startTransition: true }} />);
+  const view = render(<RouterProvider router={router} />);
   return Object.assign(router, { unmount: view.unmount });
 }
 

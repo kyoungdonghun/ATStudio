@@ -52,7 +52,7 @@ function deferred<T>() {
 
 function renderPage(strict = false) {
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter>
       {strict ? (
         <StrictMode>
           <CompanyCertStatusPage />

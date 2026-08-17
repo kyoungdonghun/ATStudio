@@ -54,10 +54,7 @@ function deferred<T>() {
 
 function renderPage() {
   return render(
-    <MemoryRouter
-      initialEntries={['/complete-profile']}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={['/complete-profile']}>
       <Routes>
         <Route path="/complete-profile" element={<SocialCompleteProfilePage />} />
         <Route path="/tracks/7" element={<p>stored destination</p>} />

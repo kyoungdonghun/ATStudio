@@ -19,7 +19,7 @@ vi.mock('react-router-dom', async () => {
 
 function renderPage() {
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter>
       <AlbumCreatePage />
     </MemoryRouter>,
   );
