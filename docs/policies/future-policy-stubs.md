@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-01-28
+version: 1.1
+last_updated: 2026-08-18
 project: system
 owner: EO
 category: policy
@@ -10,6 +10,8 @@ dependencies:
     reason: HITL approval policy (currently in operation)
   - path: quality-gates.md
     reason: Quality gates (currently in operation)
+  - path: ../SR/SR-93.md
+    reason: AT.M production backup and recovery readiness boundary
 ---
 
 # Future Policy Stubs (Phase 2+ Reserved Policies)
@@ -23,7 +25,8 @@ dependencies:
 
 - **RTO/RPO**: Defined per project in `domain-context-template.md`
 - **Recovery Procedures**: Use runbook in `docs/retrospective/kick.md`
-- **Current Operation**: git revert / snapshots are sufficient. Backup retention/rehearsal deferred to Phase 2+
+- **Current Operation (System / Phase Scope)**: Git revert / repository snapshots may recover versioned repository assets only. They do **not** satisfy AT.M application runtime database/data backup, restore, retained-data, or production recovery obligations.
+- **AT.M Production Boundary**: AT.M production backup/restore readiness is tracked in [SR-93](../SR/SR-93.md), which remains `OPEN`. This draft does not claim that an AT.M production backup system, backup retention, restore rehearsal, or production recovery capability has been implemented.
 
 ## 2. Log Retention Policy
 
