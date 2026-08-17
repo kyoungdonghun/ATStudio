@@ -20,6 +20,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -91,6 +92,11 @@ public class GlobalExceptionHandler {
 
         } else if (ex instanceof MaxUploadSizeExceededException) {
             businessEx = new BusinessException(BUSINESS_ERROR.IO_LARGE);
+            logger.warn("BusinessException(Fallback): {}. Detail: {}",
+                    businessEx.getDeveloperMessage(), ex.toString(), ex);
+
+        } else if (ex instanceof NoResourceFoundException) {
+            businessEx = new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND);
             logger.warn("BusinessException(Fallback): {}. Detail: {}",
                     businessEx.getDeveloperMessage(), ex.toString(), ex);
 

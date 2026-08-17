@@ -5,12 +5,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Set;
 
@@ -55,6 +57,12 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/ex/constraint")
         void constraint() {
             throw new ConstraintViolationException("validation failed", Set.of());
+        }
+
+        @GetMapping("/ex/no-resource")
+        void noResource() throws NoResourceFoundException {
+            throw new NoResourceFoundException(
+                    HttpMethod.GET, "/missing-static-resource", "No static resource missing-static-resource.");
         }
 
         @GetMapping("/ex/unknown")
@@ -108,6 +116,15 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.errorCode").value("INVALID_VALID"));
+    }
+
+    @Test
+    @DisplayName("NoResourceFoundException -> 404 RESOURCE_NOT_FOUND (Fallback)")
+    void noResourceFound_fallback() throws Exception {
+        mockMvc.perform(get("/ex/no-resource").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_FOUND"));
     }
 
     @Test
