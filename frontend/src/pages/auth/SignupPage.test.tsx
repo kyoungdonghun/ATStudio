@@ -212,6 +212,8 @@ describe('SignupPage', () => {
       target: { value: '010-1234-5678' },
     });
     fireEvent.change(screen.getByLabelText('직업'), { target: { value: 'EDITOR' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: '이용약관 동의 (필수)' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '개인정보 처리방침 동의 (필수)' }));
     fireEvent.click(screen.getByRole('button', { name: '가입하기' }));
 
     await waitFor(() => {
@@ -219,5 +221,56 @@ describe('SignupPage', () => {
     });
     expect(screen.getByText('이미 등록된 전화번호입니다.')).toBeInTheDocument();
     expect(register).not.toHaveBeenCalled();
+  });
+
+  it('requires separate terms and privacy consent and submits the approved consent contract', async () => {
+    renderPage();
+
+    const terms = screen.getByRole('checkbox', { name: '이용약관 동의 (필수)' });
+    const privacy = screen.getByRole('checkbox', { name: '개인정보 처리방침 동의 (필수)' });
+    const marketing = screen.getByRole('checkbox', { name: '마케팅 정보 수신 동의 (선택)' });
+    expect(terms).toBeRequired();
+    expect(privacy).toBeRequired();
+    expect(marketing).not.toBeRequired();
+
+    fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: 'tester_01' } });
+    fireEvent.change(screen.getByLabelText('이메일'), { target: { value: 'tester@example.com' } });
+    fireEvent.change(screen.getByLabelText('비밀번호'), { target: { value: 'password123' } });
+    fireEvent.change(screen.getByLabelText('비밀번호 확인'), {
+      target: { value: 'password123' },
+    });
+    fireEvent.change(screen.getByLabelText('연락처'), {
+      target: { value: '010-1234-5678' },
+    });
+    fireEvent.change(screen.getByLabelText('직업'), { target: { value: 'EDITOR' } });
+
+    fireEvent.click(screen.getByRole('button', { name: '가입하기' }));
+    expect(screen.getByText('이용약관에 동의해주세요.')).toBeInTheDocument();
+    expect(register).not.toHaveBeenCalled();
+
+    fireEvent.click(terms);
+    fireEvent.click(screen.getByRole('button', { name: '가입하기' }));
+    expect(screen.getByText('개인정보 처리방침에 동의해주세요.')).toBeInTheDocument();
+    expect(register).not.toHaveBeenCalled();
+
+    fireEvent.click(privacy);
+    fireEvent.click(marketing);
+    fireEvent.click(screen.getByRole('button', { name: '가입하기' }));
+
+    await waitFor(() =>
+      expect(register).toHaveBeenCalledWith({
+        nickname: 'tester_01',
+        email: 'tester@example.com',
+        password: 'password123',
+        phonePersonal: '010-1234-5678',
+        phoneCompany: null,
+        job: 'EDITOR',
+        companyName: undefined,
+        userType: 'INDIVIDUAL',
+        termsAgreed: true,
+        privacyAgreed: true,
+        marketingAgreed: true,
+      }),
+    );
   });
 });

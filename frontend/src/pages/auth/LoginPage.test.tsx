@@ -68,6 +68,11 @@ function DestinationProbe() {
   return <div>Destination: {`${location.pathname}${location.search}`}</div>;
 }
 
+function EmailVerificationDestinationProbe() {
+  const location = useLocation();
+  return <div data-testid="email-verification-state">{JSON.stringify(location.state)}</div>;
+}
+
 function renderPage(initialEntry = '/login') {
   return render(
     <MemoryRouter
@@ -81,6 +86,7 @@ function renderPage(initialEntry = '/login') {
         <Route path="/admin/dashboard" element={<DestinationProbe />} />
         <Route path="/subscriptions/checkout" element={<DestinationProbe />} />
         <Route path="/company-certification/status" element={<DestinationProbe />} />
+        <Route path="/email-verify" element={<EmailVerificationDestinationProbe />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -250,6 +256,33 @@ describe('LoginPage', () => {
         '이 환경에서는 QA 테스트 계정이 활성화되어 있습니다. 계정은 운영자가 별도로 제공합니다.',
       ),
     ).toBeInTheDocument();
+  });
+
+  it('routes an unverified password login to fixed no-token verification guidance', async () => {
+    usePublicCapabilitiesMock.mockReturnValue({
+      capabilities: buildCapabilities(),
+      loading: false,
+      error: '',
+    });
+    loginRequestMock.mockRejectedValue({
+      response: {
+        status: 403,
+        data: {
+          errorCode: 'EMAIL_VERIFICATION_REQUIRED',
+          message: 'private account verification diagnostics',
+        },
+      },
+    });
+
+    renderPage('/login?returnTo=%2Fprofile');
+    await submitPasswordLogin();
+
+    expect(await screen.findByTestId('email-verification-state')).toHaveTextContent(
+      '{"source":"unverified-login"}',
+    );
+    expect(fetchMeMock).not.toHaveBeenCalled();
+    expect(authState.login).not.toHaveBeenCalled();
+    expect(screen.queryByText('private account verification diagnostics')).not.toBeInTheDocument();
   });
 
   it('returns once to a safe internal pathname and query after password login', async () => {

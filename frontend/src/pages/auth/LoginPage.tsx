@@ -7,8 +7,12 @@ import { usePublicCapabilities } from '@/hooks/usePublicCapabilities';
 import { isValidEmail, PASSWORD_MIN } from '@/utils/validation';
 import { createOAuthAttempt } from '@/utils/oauthAttempt';
 import { getAccessibleLoginReturnTarget, getSafeLoginReturnTarget } from '@/utils/loginReturn';
+import { getLoginErrorMessage } from '@/api/authError';
+import { getApiErrorCode } from '@/api/loadError';
 import Button from '@/components/ui/Button';
 import styles from './LoginPage.module.css';
+
+const EMAIL_VERIFICATION_REQUIRED_STATE = { source: 'unverified-login' } as const;
 
 /* ── PKCE helpers ── */
 
@@ -140,34 +144,41 @@ export default function LoginPage() {
       const tokens = await login({ email, password });
       const me: MeResponse = await fetchMe(tokens.accessToken);
 
-      authLogin(
-        tokens.accessToken,
-        {
-          id: me.id,
-          email: me.email,
-          nickname: me.nickname,
-          role: me.role,
-          phonePersonal: me.phonePersonal,
-          phoneCompany: me.phoneCompany,
-          job: me.job as import('@/types').UserJob | null,
-          companyName: me.companyName,
-          userType: me.userType as import('@/types').UserType,
-          isVerified: me.isVerified,
-          createdAt: me.createdAt,
-        },
-        tokens.refreshToken,
-      );
+      try {
+        authLogin(
+          tokens.accessToken,
+          {
+            id: me.id,
+            email: me.email,
+            nickname: me.nickname,
+            role: me.role,
+            phonePersonal: me.phonePersonal,
+            phoneCompany: me.phoneCompany,
+            job: me.job as import('@/types').UserJob | null,
+            companyName: me.companyName,
+            userType: me.userType as import('@/types').UserType,
+            isVerified: me.isVerified,
+            createdAt: me.createdAt,
+          },
+          tokens.refreshToken,
+        );
+      } catch {
+        setError('로그인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        return;
+      }
 
       navigate(getAccessibleLoginReturnTarget(requestedReturnTarget, me) ?? '/', {
         replace: true,
       });
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number } };
-      if (axiosErr.response?.status === 401) {
-        setError('이메일 또는 비밀번호가 일치하지 않습니다.');
-      } else {
-        setError('로그인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      if (getApiErrorCode(err) === 'EMAIL_VERIFICATION_REQUIRED') {
+        navigate('/email-verify', {
+          state: EMAIL_VERIFICATION_REQUIRED_STATE,
+          replace: true,
+        });
+        return;
       }
+      setError(getLoginErrorMessage(err));
     } finally {
       setLoading(false);
     }

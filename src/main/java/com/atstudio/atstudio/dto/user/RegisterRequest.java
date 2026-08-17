@@ -4,6 +4,7 @@ import com.atstudio.atstudio.common.validation.ValidRegisterProfile;
 import com.atstudio.atstudio.entity.enums.UserJob;
 import com.atstudio.atstudio.entity.enums.UserType;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -49,4 +50,14 @@ public class RegisterRequest {
 
     @NotNull
     private UserType userType;
+
+    @NotNull
+    @AssertTrue
+    private Boolean termsAgreed;
+
+    @NotNull
+    @AssertTrue
+    private Boolean privacyAgreed;
+
+    private Boolean marketingAgreed;
 }

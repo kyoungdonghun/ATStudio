@@ -538,7 +538,7 @@ describe('public authentication recovery', () => {
     expect(mocks.resetPassword).toHaveBeenLastCalledWith('reset-token', 'password123');
   });
 
-  it('validates password login input and distinguishes credential and service failures', async () => {
+  it('validates password login input and distinguishes code-bearing credentials from generic failures', async () => {
     renderAt(<LoginPage />, '/login');
     const submit = screen.getByRole('button', { name: '로그인' });
     const email = screen.getByLabelText('이메일');
@@ -557,13 +557,15 @@ describe('public authentication recovery', () => {
     expect(screen.getByText(/비밀번호는 .*자 이상/)).toBeInTheDocument();
 
     fireEvent.change(password, { target: { value: 'password123' } });
-    mocks.loginRequest.mockRejectedValueOnce({ response: { status: 401 } });
+    mocks.loginRequest.mockRejectedValueOnce({
+      response: { status: 401, data: { errorCode: 'INVALID_CREDENTIALS' } },
+    });
     fireEvent.click(submit);
     expect(
       await screen.findByText('이메일 또는 비밀번호가 일치하지 않습니다.'),
     ).toBeInTheDocument();
 
-    mocks.loginRequest.mockRejectedValueOnce(new Error('service unavailable'));
+    mocks.loginRequest.mockRejectedValueOnce({ response: { status: 401 } });
     fireEvent.click(submit);
     expect(
       await screen.findByText('로그인에 실패했습니다. 잠시 후 다시 시도해주세요.'),
@@ -620,6 +622,8 @@ describe('public authentication recovery', () => {
     fireEvent.click(screen.getByRole('button', { name: '가입하기' }));
     expect(screen.getByText('회사명을 입력해주세요.')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('회사명'), { target: { value: '  AT.M Labs  ' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: '이용약관 동의 (필수)' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '개인정보 처리방침 동의 (필수)' }));
     fireEvent.click(screen.getByRole('button', { name: '가입하기' }));
     await waitFor(() => expect(mocks.register).toHaveBeenCalledTimes(1));
     expect(mocks.register).toHaveBeenCalledWith({
@@ -631,11 +635,11 @@ describe('public authentication recovery', () => {
       job: null,
       companyName: 'AT.M Labs',
       userType: 'BUSINESS',
+      termsAgreed: true,
+      privacyAgreed: true,
+      marketingAgreed: false,
     });
-    expect(mocks.navigate).toHaveBeenCalledWith('/email-verify', {
-      state: { email: 'business@example.com' },
-      replace: true,
-    });
+    expect(mocks.navigate).toHaveBeenCalledWith('/email-verify', { replace: true });
 
     mocks.checkEmailAvailability.mockResolvedValueOnce({ available: false });
     fireEvent.click(screen.getByRole('button', { name: '가입하기' }));

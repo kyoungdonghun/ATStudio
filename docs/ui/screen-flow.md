@@ -59,19 +59,24 @@ use the same one-shot destination-focus flow.
 1. Login, signup, and password-reset screens load public runtime capabilities.
    Loading and failure expose no capability as enabled. Every failed attempt
    offers an explicit manual retry, and no automatic retry occurs.
-2. Password or enabled social login authenticates the user. A structurally safe
-   return target is retained across the login attempt, then revalidated against
-   the authenticated role and user type using a percent-decoded, lowercase
-   canonical pathname before navigation. Authorized navigation retains the
-   original validated target.
-3. A new social account revalidates current identity before profile completion.
+2. Password signup requires affirmative Terms and Privacy consent. Marketing
+   consent is optional; signup always transmits the `marketingAgreed` boolean,
+   while only `true` creates an affirmative Marketing-consent record. A
+   successful signup navigates to email verification without creating or
+   persisting a password session.
+3. Password login and refresh deny an unverified account before credentials are
+   issued or rotated. The SPA redirects the fixed
+   `EMAIL_VERIFICATION_REQUIRED` error to email verification and persists no
+   session for that result. A verified password login retains a structurally safe
+   return target, then revalidates it against the authenticated role and user
+   type using a percent-decoded, lowercase canonical pathname before navigation.
+   Authorized navigation retains the original validated target.
+4. Enabled social login and social onboarding are unchanged and remain outside
+   the WI-068 scope. A new social account revalidates current identity before
+   profile completion.
    Its one-time continuation is bound to the authenticated user ID, replacing
    any old value. Storage failure proceeds without a continuation; consumption
    removes the record even when the refreshed user does not match. Complete
-   profiles redirect to canonical Profile, while unresolved or failed identity
-   cannot mutate. One pending fence covers validation and submission.
-   Post-mutation identity refresh rejects stale session generations and user IDs;
-   logout prevents late storage updates, and unmount prevents late navigation.
 4. Logout calls `POST /api/auth/logout` and clears frontend session state.
 5. Social-only account withdrawal remains policy-pending; password confirmation is not treated as social proof.
 6. Profile keeps account, edit, password, and subscription query panels. Legacy

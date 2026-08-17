@@ -220,7 +220,10 @@ class SecurityFilterChainTest {
                   "password":"password123",
                   "phonePersonal":"010-1234-5678",
                   "job":"EDITOR",
-                  "userType":"INDIVIDUAL"
+                  "userType":"INDIVIDUAL",
+                  "termsAgreed":true,
+                  "privacyAgreed":true,
+                  "marketingAgreed":false
                 }
                 """;
 

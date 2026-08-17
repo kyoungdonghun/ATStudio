@@ -53,6 +53,9 @@ export default function SignupPage() {
   const [phoneCompany, setPhoneCompany] = useState('');
   const [job, setJob] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [privacyAgreed, setPrivacyAgreed] = useState(false);
+  const [marketingAgreed, setMarketingAgreed] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const isPasswordLoginEnabled = capabilities?.passwordLoginEnabled === true;
@@ -108,6 +111,14 @@ export default function SignupPage() {
         return false;
       }
     }
+    if (!termsAgreed) {
+      setError('이용약관에 동의해주세요.');
+      return false;
+    }
+    if (!privacyAgreed) {
+      setError('개인정보 처리방침에 동의해주세요.');
+      return false;
+    }
     return true;
   }
 
@@ -158,12 +169,12 @@ export default function SignupPage() {
         job: userType === 'BUSINESS' ? null : job,
         companyName: userType === 'BUSINESS' ? companyName.trim() : undefined,
         userType,
+        termsAgreed,
+        privacyAgreed,
+        marketingAgreed,
       });
 
-      navigate('/email-verify', {
-        state: { email },
-        replace: true,
-      });
+      navigate('/email-verify', { replace: true });
     } catch (err: unknown) {
       setError(getSignupErrorMessage(err));
     } finally {
@@ -387,6 +398,39 @@ export default function SignupPage() {
               </select>
             </div>
           )}
+
+          <fieldset className={styles.consentGroup}>
+            <legend className={styles.consentLegend}>약관 동의</legend>
+            <label className={styles.consentOption} htmlFor="signup-terms-agreed">
+              <input
+                id="signup-terms-agreed"
+                type="checkbox"
+                checked={termsAgreed}
+                onChange={(event) => setTermsAgreed(event.target.checked)}
+                required
+              />
+              <span>이용약관 동의 (필수)</span>
+            </label>
+            <label className={styles.consentOption} htmlFor="signup-privacy-agreed">
+              <input
+                id="signup-privacy-agreed"
+                type="checkbox"
+                checked={privacyAgreed}
+                onChange={(event) => setPrivacyAgreed(event.target.checked)}
+                required
+              />
+              <span>개인정보 처리방침 동의 (필수)</span>
+            </label>
+            <label className={styles.consentOption} htmlFor="signup-marketing-agreed">
+              <input
+                id="signup-marketing-agreed"
+                type="checkbox"
+                checked={marketingAgreed}
+                onChange={(event) => setMarketingAgreed(event.target.checked)}
+              />
+              <span>마케팅 정보 수신 동의 (선택)</span>
+            </label>
+          </fieldset>
 
           <p className={styles.errorText} role="alert">
             {error}

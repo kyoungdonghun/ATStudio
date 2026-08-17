@@ -561,6 +561,15 @@ failure, and completion paths cannot replace a newer request state.
 - `PUT /api/users/me/complete-profile`
 - `PUT /api/users/me/password`
 
+For password registration, `POST /api/users` requires affirmative Terms and
+Privacy consent; Marketing consent is optional and persists only when
+affirmative. The consent record holds only the user, consent type,
+server-owned version, and server-generated agreement time. Successful password
+registration directs the SPA to email verification and creates no session.
+
+`POST /api/auth/login` and `POST /api/auth/refresh` reject an unverified
+password account with `EMAIL_VERIFICATION_REQUIRED` before access or refresh
+token material is issued or rotated.
 `GET /api/users` returns paginated `UserListItemResponse` rows with exactly
 `id`, `nickname`, `email`, `userType`, `role`, `isVerified`, and `createdAt`.
 `GET|PUT /api/users/{userId}` returns `UserDetailResponse`, which additionally

@@ -4,9 +4,11 @@ import com.atstudio.atstudio.common.dto.PageInfo;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.config.ConsentPolicyProperties;
 import com.atstudio.atstudio.dto.user.*;
 import com.atstudio.atstudio.entity.BillingAgreement;
 import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.UserConsent;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
@@ -15,6 +17,7 @@ import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserJob;
+import com.atstudio.atstudio.entity.enums.UserConsentType;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
 import com.atstudio.atstudio.entity.enums.WhitelistChannelStatus;
@@ -25,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -43,7 +47,9 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("UserService 단위 테스트")
@@ -53,6 +59,8 @@ class UserServiceTest {
             "contact=alice@example.test authorization=Bearer eyJhbGciOiJub25lIn0.fake.signature";
 
     @Mock UserRepository userRepository;
+    @Mock UserConsentRepository userConsentRepository;
+    @Mock ConsentPolicyProperties consentPolicyProperties;
     @Mock PasswordEncoder passwordEncoder;
     @Mock EmailService emailService;
     @Mock LikeRepository likeRepository;
@@ -304,8 +312,10 @@ class UserServiceTest {
     @DisplayName("register() 성공 - 저장 후 UserResponse 반환")
     void register_success_returnsUserResponse() {
         RegisterRequest request = buildRegisterRequest("new@test.com", "newNick");
+        request.setMarketingAgreed(true);
         User savedUser = buildUser(1L, "new@test.com", "newNick", "010-1111-2222", UserJob.EDITOR);
 
+        stubAllConsentPolicyVersions();
         when(userRepository.findByEmail("new@test.com")).thenReturn(Optional.empty());
         when(userRepository.findByNickname("newNick")).thenReturn(Optional.empty());
         when(userRepository.findByPhonePersonal("010-1111-2222")).thenReturn(Optional.empty());
@@ -316,6 +326,51 @@ class UserServiceTest {
 
         assertThat(response.email()).isEqualTo("new@test.com");
         assertThat(response.nickname()).isEqualTo("newNick");
+
+        ArgumentCaptor<UserConsent> consentCaptor = ArgumentCaptor.forClass(UserConsent.class);
+        verify(userConsentRepository, times(3)).save(consentCaptor.capture());
+        assertThat(consentCaptor.getAllValues())
+                .extracting(UserConsent::getConsentType)
+                .containsExactly(
+                        UserConsentType.TERMS_OF_SERVICE,
+                        UserConsentType.PRIVACY_COLLECTION_AND_USE,
+                        UserConsentType.MARKETING);
+        assertThat(consentCaptor.getAllValues())
+                .extracting(UserConsent::getPolicyVersion)
+                .containsExactly("terms-v1", "privacy-v1", "marketing-v1");
+        assertThat(consentCaptor.getAllValues())
+                .extracting(UserConsent::getUser)
+                .containsOnly(savedUser);
+    }
+
+    @Test
+    @DisplayName("register() rejects missing required consent before persistence")
+    void register_missingRequiredConsent_throwsInvalidArgument() {
+        RegisterRequest request = buildRegisterRequest("new@test.com", "newNick");
+        request.setTermsAgreed(null);
+
+        assertThatThrownBy(() -> userService.register(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+
+        verifyNoInteractions(userConsentRepository, emailService);
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("register() rejects false required privacy consent before persistence")
+    void register_falseRequiredPrivacyConsent_throwsInvalidArgument() {
+        RegisterRequest request = buildRegisterRequest("new@test.com", "newNick");
+        request.setPrivacyAgreed(false);
+
+        assertThatThrownBy(() -> userService.register(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+
+        verifyNoInteractions(userConsentRepository, emailService);
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -420,6 +475,7 @@ class UserServiceTest {
                 .build();
         ReflectionTestUtils.setField(savedUser, "id", 9L);
 
+        stubRequiredConsentPolicyVersions();
         when(userRepository.findByEmail("biz@test.com")).thenReturn(Optional.empty());
         when(userRepository.findByNickname("bizNick")).thenReturn(Optional.empty());
         when(userRepository.findByPhonePersonal("010-1111-2222")).thenReturn(Optional.empty());
@@ -430,6 +486,7 @@ class UserServiceTest {
 
         assertThat(response.userType()).isEqualTo("BUSINESS");
         assertThat(response.companyName()).isEqualTo("ATStudio Biz");
+        verify(userConsentRepository, times(2)).save(any(UserConsent.class));
     }
 
     @Test
@@ -1021,7 +1078,22 @@ class UserServiceTest {
         req.setPhonePersonal("010-1111-2222");
         req.setJob(UserJob.EDITOR);
         req.setUserType(UserType.INDIVIDUAL);
+        req.setTermsAgreed(true);
+        req.setPrivacyAgreed(true);
         return req;
+    }
+
+    private void stubAllConsentPolicyVersions() {
+        stubRequiredConsentPolicyVersions();
+        when(consentPolicyProperties.versionFor(UserConsentType.MARKETING))
+                .thenReturn("marketing-v1");
+    }
+
+    private void stubRequiredConsentPolicyVersions() {
+        when(consentPolicyProperties.versionFor(UserConsentType.TERMS_OF_SERVICE))
+                .thenReturn("terms-v1");
+        when(consentPolicyProperties.versionFor(UserConsentType.PRIVACY_COLLECTION_AND_USE))
+                .thenReturn("privacy-v1");
     }
 
     private User buildUser(Long id, String email, String nickname, String phonePersonal, UserJob job) {

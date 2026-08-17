@@ -1,12 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { verifyEmail } from '@/api/auth';
 import { getEmailVerificationErrorMessage } from '@/api/authError';
 import styles from './EmailVerifyPage.module.css';
 
+interface EmailVerificationNavigationState {
+  source?: string;
+}
+
+function isUnverifiedLoginNavigationState(state: unknown): boolean {
+  return (
+    typeof state === 'object' &&
+    state !== null &&
+    (state as EmailVerificationNavigationState).source === 'unverified-login'
+  );
+}
+
 export default function EmailVerifyPage() {
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
+  const fromUnverifiedLogin = isUnverifiedLoginNavigationState(location.state);
 
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'no-token'>(
     token ? 'loading' : 'no-token',
@@ -86,7 +100,11 @@ export default function EmailVerifyPage() {
           &#9993;
         </div>
         <h1 className={styles.title}>이메일 인증</h1>
-        <p className={styles.description}>이메일에서 인증 링크를 클릭해주세요.</p>
+        <p className={styles.description}>
+          {fromUnverifiedLogin
+            ? '이메일 인증을 완료한 후 로그인할 수 있습니다. 가입할 때 받은 이메일의 인증 링크를 클릭해주세요.'
+            : '이메일에서 인증 링크를 클릭해주세요.'}
+        </p>
         <div className={styles.links}>
           <Link to="/login" className={styles.link}>
             로그인으로 돌아가기

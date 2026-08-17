@@ -18,6 +18,9 @@ export interface RegisterRequest {
   job: string | null;
   companyName?: string;
   userType: 'INDIVIDUAL' | 'BUSINESS';
+  termsAgreed: boolean;
+  privacyAgreed: boolean;
+  marketingAgreed: boolean;
 }
 
 export interface PasswordResetRequest {

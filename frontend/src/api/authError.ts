@@ -31,6 +31,20 @@ const PASSWORD_LOGIN_DISABLED_MESSAGE =
   '현재 이 환경에서는 이메일 로그인과 비밀번호 기능이 비활성화되어 있습니다.';
 const INPUT_MESSAGE = '입력값을 확인하고 다시 시도해주세요.';
 
+export function getLoginErrorMessage(error: unknown): string {
+  return getSafeAuthErrorMessage(error, {
+    codeMessages: {
+      INVALID_CREDENTIALS: '이메일 또는 비밀번호가 일치하지 않습니다.',
+      EMAIL_VERIFICATION_REQUIRED: '이메일 인증을 완료한 후 로그인할 수 있습니다.',
+      PASSWORD_LOGIN_DISABLED: PASSWORD_LOGIN_DISABLED_MESSAGE,
+      RATE_LIMIT_EXCEEDED: RATE_LIMIT_MESSAGE,
+    },
+    fallback: '로그인에 실패했습니다. 잠시 후 다시 시도해주세요.',
+    network: '네트워크 연결을 확인하고 로그인을 다시 시도해주세요.',
+    server: '서버 오류로 로그인하지 못했습니다. 잠시 후 다시 시도해주세요.',
+  });
+}
+
 export function getForgotPasswordErrorMessage(error: unknown): string {
   return getSafeAuthErrorMessage(error, {
     codeMessages: {

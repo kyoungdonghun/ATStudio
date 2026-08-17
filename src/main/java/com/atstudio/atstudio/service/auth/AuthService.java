@@ -45,12 +45,14 @@ public class AuthService {
 
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
+        User user = userRepository.findById(userDetails.getId()).orElseThrow();
+        ensureVerifiedForPasswordSession(user);
+
         // 2. 토큰 생성
         String accessToken = jwtTokenProvider.generateAccessToken(userDetails.getId(), userDetails.getRole());
         String refreshToken = jwtTokenProvider.generateRefreshToken(userDetails.getId());
 
         // 3. Refresh Token DB 저장 (SHA-256 해시 — BCrypt 72바이트 제한 회피)
-        User user = userRepository.findById(userDetails.getId()).orElseThrow();
         user.updateRefreshToken(sha256(refreshToken));
 
         return new AuthResponse(accessToken, refreshToken, "Bearer",
@@ -99,6 +101,7 @@ public class AuthService {
         if (user.isDeleted()) {
             throw new BusinessException(BUSINESS_ERROR.ACCOUNT_DEACTIVATED);
         }
+        ensureVerifiedForPasswordSession(user);
 
         // 토큰 재발급 (rotation)
         String newAccessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());
@@ -113,6 +116,12 @@ public class AuthService {
     public void logout(Long userID) {
         userRepository.findByIdForUpdate(userID)
                 .ifPresent(User::clearRefreshToken);
+    }
+
+    private void ensureVerifiedForPasswordSession(User user) {
+        if (!user.isVerified()) {
+            throw new BusinessException(BUSINESS_ERROR.EMAIL_VERIFICATION_REQUIRED);
+        }
     }
 
     /** SHA-256 해시 (refresh token용 — BCrypt 72바이트 제한 회피) */

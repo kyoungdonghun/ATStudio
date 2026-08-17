@@ -6,6 +6,7 @@ import com.atstudio.atstudio.entity.PaymentSettlement;
 import com.atstudio.atstudio.entity.PaymentSettlementImportAttempt;
 import com.atstudio.atstudio.entity.SocialAccount;
 import com.atstudio.atstudio.entity.SubscriptionPayment;
+import com.atstudio.atstudio.entity.UserConsent;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.service.payment.provider.recurring.PaymentStatusLookupProvider;
 import com.atstudio.atstudio.service.payment.provider.recurring.RecurringPaymentProvider;
@@ -49,7 +50,7 @@ class V1BackendBaselineContractTest {
     }
 
     @Test
-    @DisplayName("schema is a fail-closed 42-table fresh baseline")
+    @DisplayName("schema is a fail-closed 43-table fresh baseline")
     void schemaIsFreshOnlyAndEntityAligned() throws Exception {
         String schema = Files.readString(SCHEMA);
         long tableCount = Pattern.compile("(?m)^CREATE TABLE ")
@@ -64,7 +65,7 @@ class V1BackendBaselineContractTest {
                 .filter(identifier -> identifier.length() > 64)
                 .toList();
 
-        assertThat(tableCount).isEqualTo(42);
+        assertThat(tableCount).isEqualTo(43);
         assertThat(oversizedIdentifiers).isEmpty();
         assertThat(schema)
                 .doesNotContain(
@@ -83,6 +84,8 @@ class V1BackendBaselineContractTest {
                         "CREATE TABLE admin_operation_audit_logs",
                         "CREATE TABLE admin_subscription_corrections",
                         "CREATE TABLE payment_settlement_import_attempts",
+                        "CREATE TABLE user_consents",
+                        "UNIQUE KEY uq_user_consents_user_type_version (user_id, consent_type, policy_version)",
                         "KEY idx_admin_operation_audit_logs_actor_created (actor_user_id, created_at)",
                         "KEY idx_admin_operation_audit_logs_target (target_type, target_id)",
                         "KEY idx_admin_operation_audit_logs_action_created (action, created_at)");
@@ -197,6 +200,7 @@ class V1BackendBaselineContractTest {
         String schema = Files.readString(SCHEMA);
         Table settlementTable = PaymentSettlement.class.getAnnotation(Table.class);
         Table socialAccountTable = SocialAccount.class.getAnnotation(Table.class);
+        Table userConsentTable = UserConsent.class.getAnnotation(Table.class);
         Column deduplicationKey = PaymentSettlement.class
                 .getDeclaredField("deduplicationKey")
                 .getAnnotation(Column.class);
@@ -214,11 +218,18 @@ class V1BackendBaselineContractTest {
                 "uq_social_accounts_provider_id",
                 "provider",
                 "provider_id");
+        assertSingleUniqueConstraint(
+                userConsentTable,
+                "uq_user_consents_user_type_version",
+                "user_id",
+                "consent_type",
+                "policy_version");
 
         assertThat(schema)
                 .contains(
                         "UNIQUE KEY uq_payment_settlements_deduplication_key (deduplication_key)",
-                        "UNIQUE KEY uq_social_accounts_provider_id (provider, provider_id)")
+                        "UNIQUE KEY uq_social_accounts_provider_id (provider, provider_id)",
+                        "UNIQUE KEY uq_user_consents_user_type_version (user_id, consent_type, policy_version)")
                 .doesNotContain(
                         "idx_payment_settlements_dedup",
                         "uq_social_accounts_provider_provider_id");

@@ -4,9 +4,11 @@ import com.atstudio.atstudio.common.dto.PageInfo;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.config.ConsentPolicyProperties;
 import com.atstudio.atstudio.dto.user.*;
 import com.atstudio.atstudio.entity.BillingAgreement;
 import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.UserConsent;
 import com.atstudio.atstudio.entity.UserSubscription;
 import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
@@ -15,6 +17,7 @@ import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
+import com.atstudio.atstudio.entity.enums.UserConsentType;
 import com.atstudio.atstudio.entity.enums.WhitelistChannelStatus;
 import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.service.auth.PasswordLoginPolicy;
@@ -53,6 +56,8 @@ public class UserService {
             PaymentOrderStatus.PENDING_PROVIDER_CONFIRMATION);
 
     private final UserRepository userRepository;
+    private final UserConsentRepository userConsentRepository;
+    private final ConsentPolicyProperties consentPolicyProperties;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final LikeRepository likeRepository;
@@ -70,6 +75,7 @@ public class UserService {
     @Transactional
     public UserResponse register(RegisterRequest request) {
         passwordLoginPolicy.ensureEnabled();
+        validateRequiredConsents(request);
         validateRegisterProfileFields(
                 request.getPhonePersonal(),
                 request.getJob(),
@@ -96,6 +102,7 @@ public class UserService {
                 .build();
 
         user = userRepository.save(user);
+        recordAcceptedConsents(user, request);
         emailService.sendVerificationEmail(user);
         return toResponse(user);
     }
@@ -432,6 +439,29 @@ public class UserService {
         if (userType == UserType.BUSINESS && (companyName == null || companyName.isBlank())) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
+    }
+
+    private void validateRequiredConsents(RegisterRequest request) {
+        if (!Boolean.TRUE.equals(request.getTermsAgreed())
+                || !Boolean.TRUE.equals(request.getPrivacyAgreed())) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+    }
+
+    private void recordAcceptedConsents(User user, RegisterRequest request) {
+        recordConsent(user, UserConsentType.TERMS_OF_SERVICE);
+        recordConsent(user, UserConsentType.PRIVACY_COLLECTION_AND_USE);
+
+        if (Boolean.TRUE.equals(request.getMarketingAgreed())) {
+            recordConsent(user, UserConsentType.MARKETING);
+        }
+    }
+
+    private void recordConsent(User user, UserConsentType consentType) {
+        userConsentRepository.save(UserConsent.agree(
+                user,
+                consentType,
+                consentPolicyProperties.versionFor(consentType)));
     }
 
     private void validateCompleteProfileFields(String phonePersonal,

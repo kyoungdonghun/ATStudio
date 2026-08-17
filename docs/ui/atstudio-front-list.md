@@ -54,6 +54,13 @@ Repeated callback paths do not create new screens. Three checkout paths reuse on
   only after public capabilities load successfully. Loading and failure do not
   imply availability. Every failed attempt provides an explicit manual retry
   action, and no automatic retry occurs.
+- Password signup requires affirmative Terms and Privacy consent. Marketing is
+  optional; signup always transmits the `marketingAgreed` boolean, and only
+  `true` creates an affirmative Marketing-consent record. The successful signup
+  route gives email-verification guidance without creating an SPA session.
+- Password login and refresh reject an unverified account before tokens are
+  issued or rotated. The fixed `EMAIL_VERIFICATION_REQUIRED` result guides the
+  SPA to email verification and leaves no session persisted.
 - Social profile completion verifies current identity before showing the form.
   Complete profiles move to `/profile?tab=account`; failed identity remains
   non-mutating. One pending fence covers availability checks and profile

@@ -45,6 +45,9 @@ describe('auth API contracts', () => {
       phoneCompany: null,
       job: 'CREATOR',
       userType: 'INDIVIDUAL' as const,
+      termsAgreed: true,
+      privacyAgreed: true,
+      marketingAgreed: false,
     };
     await expect(register(registration)).resolves.toEqual(result);
     expect(mockedClient.post).toHaveBeenNthCalledWith(2, '/users', registration);

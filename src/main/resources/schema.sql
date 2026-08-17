@@ -108,7 +108,24 @@ CREATE TABLE social_accounts
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 2.2  user_subscriptions  (→ users, subscriptions)
+-- 2.2  user_consents  (→ users, immutable acceptance records)
+-- ─────────────────────────────────────────────
+CREATE TABLE user_consents
+(
+    id             BIGINT NOT NULL AUTO_INCREMENT,
+    user_id        BIGINT NOT NULL,
+    consent_type   ENUM ('TERMS_OF_SERVICE', 'PRIVACY_COLLECTION_AND_USE', 'MARKETING') NOT NULL,
+    policy_version VARCHAR(100) NOT NULL,
+    agreed_at      DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_user_consents_user_type_version (user_id, consent_type, policy_version),
+    CONSTRAINT fk_user_consents_user FOREIGN KEY (user_id) REFERENCES users (id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────
+-- 2.3  user_subscriptions  (→ users, subscriptions)
 -- ─────────────────────────────────────────────
 CREATE TABLE user_subscriptions
 (
@@ -133,7 +150,7 @@ CREATE TABLE user_subscriptions
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 2.3  company_certifications  (→ users)
+-- 2.4  company_certifications  (→ users)
 -- ─────────────────────────────────────────────
 CREATE TABLE company_certifications
 (
@@ -197,7 +214,7 @@ CREATE TABLE company_certification_audit_logs
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 2.4  tracks  (→ users)
+-- 2.5  tracks  (→ users)
 -- ─────────────────────────────────────────────
 CREATE TABLE tracks
 (
@@ -224,7 +241,7 @@ CREATE TABLE tracks
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 2.5  playlists  (→ users)
+-- 2.6  playlists  (→ users)
 -- ─────────────────────────────────────────────
 CREATE TABLE playlists
 (
@@ -243,7 +260,7 @@ CREATE TABLE playlists
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 2.6  whitelist_channels  (→ users)
+-- 2.7  whitelist_channels  (→ users)
 -- ─────────────────────────────────────────────
 CREATE TABLE whitelist_channels
 (
@@ -318,7 +335,7 @@ CREATE TABLE whitelist_export_items
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 2.7  questions  (→ users)
+-- 2.8  questions  (→ users)
 -- ─────────────────────────────────────────────
 CREATE TABLE questions
 (
@@ -338,7 +355,7 @@ CREATE TABLE questions
   COLLATE = utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- 2.8  notices  (→ users)
+-- 2.9  notices  (→ users)
 -- ─────────────────────────────────────────────
 CREATE TABLE notices
 (
@@ -1172,5 +1189,5 @@ CREATE TABLE storage_mutations
 
 -- =============================================================================
 -- END OF SCHEMA
--- Total: 42 tables
+-- Total: 43 tables
 -- =============================================================================

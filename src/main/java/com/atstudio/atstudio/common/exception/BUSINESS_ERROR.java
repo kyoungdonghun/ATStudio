@@ -226,6 +226,11 @@ public enum BUSINESS_ERROR {
             "현재 이 환경에서는 이메일 로그인과 회원가입이 비활성화되어 있습니다.",
             "Password login mode is disabled for this environment."),
 
+    EMAIL_VERIFICATION_REQUIRED(
+            HttpStatus.FORBIDDEN,
+            "이메일 인증 후 로그인할 수 있습니다.",
+            "Password session issuance requires an email-verified account."),
+
     TOKEN_EXPIRED(
             HttpStatus.UNAUTHORIZED,
             "인증이 만료되었습니다. 다시 로그인해주세요.",

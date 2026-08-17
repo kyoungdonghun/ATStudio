@@ -54,6 +54,7 @@ class AuthServiceTest {
     @DisplayName("login() 성공 - AuthResponse 반환 및 SHA-256 hashed refreshToken DB 저장")
     void login_success_storesHashedTokenAndReturnsResponse() {
         User user = buildUser(1L, false);
+        user.verify();
         CustomUserDetails userDetails = CustomUserDetails.from(user);
         Authentication auth = mock(Authentication.class);
         when(auth.getPrincipal()).thenReturn(userDetails);
@@ -72,6 +73,29 @@ class AuthServiceTest {
         assertThat(response.refreshToken()).isEqualTo("refresh-token");
         assertThat(response.tokenType()).isEqualTo("Bearer");
         assertThat(user.getRefreshToken()).isEqualTo(sha256("refresh-token"));
+    }
+
+    @Test
+    @DisplayName("login() rejects an unverified user before token creation")
+    void login_unverifiedUser_throwsEmailVerificationRequiredWithoutTokens() {
+        User user = buildUser(1L, false);
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(CustomUserDetails.from(user));
+        when(authenticationManager.authenticate(any())).thenReturn(auth);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        LoginRequest request = new LoginRequest();
+        request.setEmail("user@test.com");
+        request.setPassword("password");
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.EMAIL_VERIFICATION_REQUIRED));
+
+        verify(jwtTokenProvider, never()).generateAccessToken(1L, UserRole.USER);
+        verify(jwtTokenProvider, never()).generateRefreshToken(1L);
+        assertThat(user.getRefreshToken()).isNull();
     }
 
     @Test
@@ -155,6 +179,7 @@ class AuthServiceTest {
     @DisplayName("refresh() 성공 - VALID 토큰 + DB 해시 일치 → 토큰 rotation")
     void refresh_validToken_rotatesTokens() {
         User user = buildUser(1L, false);
+        user.verify();
         user.updateRefreshToken(sha256("old-refresh"));
 
         when(jwtTokenProvider.validateToken("old-refresh")).thenReturn(TokenValidationResult.VALID);
@@ -242,6 +267,7 @@ class AuthServiceTest {
     @DisplayName("refresh() 실패 - 탈퇴 계정 → ACCOUNT_DEACTIVATED 예외")
     void refresh_staleReplayAfterSuccessfulRotationPreservesNewSession() {
         User user = buildUser(1L, false);
+        user.verify();
         user.updateRefreshToken(sha256("old-refresh"));
 
         when(jwtTokenProvider.validateToken("old-refresh")).thenReturn(TokenValidationResult.VALID);
@@ -265,6 +291,28 @@ class AuthServiceTest {
                         .isEqualTo(BUSINESS_ERROR.REFRESH_TOKEN_INVALID));
 
         assertThat(user.getRefreshToken()).isEqualTo(sha256("new-refresh"));
+    }
+
+    @Test
+    @DisplayName("refresh() rejects an unverified user before token rotation")
+    void refresh_unverifiedUser_throwsEmailVerificationRequiredWithoutRotation() {
+        User user = buildUser(1L, false);
+        user.updateRefreshToken(sha256("old-refresh"));
+        when(jwtTokenProvider.validateToken("old-refresh")).thenReturn(TokenValidationResult.VALID);
+        when(jwtTokenProvider.getUserID("old-refresh")).thenReturn(1L);
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
+
+        RefreshRequest request = new RefreshRequest();
+        request.setRefreshToken("old-refresh");
+
+        assertThatThrownBy(() -> authService.refresh(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.EMAIL_VERIFICATION_REQUIRED));
+
+        verify(jwtTokenProvider, never()).generateAccessToken(1L, UserRole.USER);
+        verify(jwtTokenProvider, never()).generateRefreshToken(1L);
+        assertThat(user.getRefreshToken()).isEqualTo(sha256("old-refresh"));
     }
 
     @Test
