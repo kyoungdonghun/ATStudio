@@ -18,14 +18,20 @@ describe('logoutSession', () => {
   });
 
   it('posts an authenticated bodyless logout request', async () => {
-    postMock.mockResolvedValue({});
+    postMock.mockResolvedValue({ status: 204 });
 
-    await logoutSession();
+    await expect(logoutSession()).resolves.toBe('confirmed');
 
     expect(postMock).toHaveBeenCalledWith('/auth/logout');
   });
 
-  it('treats a confirmed invalid session as logout success', async () => {
+  it('treats every non-204 response as an unconfirmed logout', async () => {
+    postMock.mockResolvedValue({ status: 200 });
+
+    await expect(logoutSession()).resolves.toBe('unconfirmed');
+  });
+
+  it('treats a bare 401 response as an unconfirmed logout', async () => {
     postMock.mockRejectedValue(
       Object.assign(new Error('unauthorized'), {
         isAxiosError: true,
@@ -33,13 +39,13 @@ describe('logoutSession', () => {
       }),
     );
 
-    await expect(logoutSession()).resolves.toBeUndefined();
+    await expect(logoutSession()).resolves.toBe('unconfirmed');
   });
 
-  it('keeps transient failures observable to the store', async () => {
+  it('treats transient failures as an unconfirmed logout', async () => {
     const networkError = new Error('network unavailable');
     postMock.mockRejectedValue(networkError);
 
-    await expect(logoutSession()).rejects.toBe(networkError);
+    await expect(logoutSession()).resolves.toBe('unconfirmed');
   });
 });

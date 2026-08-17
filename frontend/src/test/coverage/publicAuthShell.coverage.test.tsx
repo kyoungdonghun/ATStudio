@@ -66,7 +66,7 @@ const states = vi.hoisted(() => ({
     role: 'GUEST' as 'GUEST' | 'USER' | 'ADMIN',
     isAuthenticated: vi.fn(() => false),
     login: vi.fn(),
-    logout: vi.fn(() => Promise.resolve(true)),
+    logout: vi.fn(() => Promise.resolve({ serverConfirmed: true })),
   },
   player: {
     currentTrack: null as Track | null,
@@ -1268,7 +1268,7 @@ describe('application shells and error routes', () => {
     fireEvent.click(admin.container.querySelector('button[aria-label="Close menu"]')!);
     fireEvent.click(adminScreen.getByRole('button', { name: '로그아웃' }));
     expect(states.auth.logout).toHaveBeenCalled();
-    expect(mocks.navigate).toHaveBeenCalledWith('/', { replace: true });
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/', { replace: true }));
   });
 
   it('renders actionable not-found and server-error recovery links', () => {

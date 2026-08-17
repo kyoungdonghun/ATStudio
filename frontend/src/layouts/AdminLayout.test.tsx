@@ -15,6 +15,8 @@ const auth = vi.hoisted(() => ({
 
 vi.mock('@/store/authStore', () => ({
   useAuthStore: (selector: (state: typeof auth) => unknown) => selector(auth),
+  UNCONFIRMED_LOGOUT_WARNING:
+    '서버 로그아웃 확인에 실패했습니다. 이 기기에서는 로그아웃되었습니다.',
 }));
 
 const originalMatchMedia = window.matchMedia;
@@ -108,6 +110,7 @@ function openDrawer() {
 describe('AdminLayout mobile drawer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    auth.logout.mockResolvedValue({ serverConfirmed: true });
     useToastStore.setState({ toasts: [] });
     Object.defineProperty(window, 'requestAnimationFrame', {
       configurable: true,
@@ -301,7 +304,7 @@ describe('AdminLayout mobile drawer', () => {
     expect(destinationHeading).not.toHaveAttribute('tabindex');
   });
 
-  it('preserves mutation-owned logout blocking and releases normal logout', () => {
+  it('preserves mutation-owned logout blocking and releases normal logout', async () => {
     renderAdmin(<MutationOwnerHarness />);
     fireEvent.click(screen.getByRole('button', { name: 'Start mutation' }));
 
@@ -317,6 +320,33 @@ describe('AdminLayout mobile drawer', () => {
     fireEvent.click(screen.getByRole('button', { name: '로그아웃' }));
 
     expect(auth.logout).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('home-page')).toBeInTheDocument();
+    expect(await screen.findByText('home-page')).toBeInTheDocument();
+  });
+
+  it('awaits logout settlement, blocks duplicates, and warns on an unconfirmed server result', async () => {
+    let resolveLogout!: (outcome: { serverConfirmed: boolean }) => void;
+    auth.logout.mockImplementation(
+      () =>
+        new Promise<{ serverConfirmed: boolean }>((resolve) => {
+          resolveLogout = resolve;
+        }),
+    );
+    renderAdmin();
+
+    const logoutButton = screen.getByRole('button', { name: '로그아웃' });
+    fireEvent.click(logoutButton);
+
+    expect(auth.logout).toHaveBeenCalledTimes(1);
+    expect(logoutButton).toBeDisabled();
+    fireEvent.click(logoutButton);
+    expect(auth.logout).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('home-page')).not.toBeInTheDocument();
+
+    resolveLogout({ serverConfirmed: false });
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '서버 로그아웃 확인에 실패했습니다. 이 기기에서는 로그아웃되었습니다.',
+    );
+    expect(await screen.findByText('home-page')).toBeInTheDocument();
   });
 });

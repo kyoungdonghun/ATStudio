@@ -77,13 +77,20 @@ use the same one-shot destination-focus flow.
    Its one-time continuation is bound to the authenticated user ID, replacing
    any old value. Storage failure proceeds without a continuation; consumption
    removes the record even when the refreshed user does not match. Complete
-4. Logout calls `POST /api/auth/logout` and clears frontend session state.
-5. Social-only account withdrawal remains policy-pending; password confirmation is not treated as social proof.
-6. Profile keeps account, edit, password, and subscription query panels. Legacy
+   profiles redirect to canonical Profile, while unresolved or failed identity
+   cannot mutate. One pending fence covers validation and submission.
+   Post-mutation identity refresh rejects stale session generations and user IDs;
+   logout prevents late storage updates, and unmount prevents late navigation.
+5. Logout callers await `POST /api/auth/logout`; duplicate requests coalesce.
+   Only `204` is a confirmed server revocation. A bare `401` or any other
+   server/network failure leaves server revocation unconfirmed, but local
+   session cleanup completes and the SPA shows its fixed warning toast.
+6. Social-only account withdrawal remains policy-pending; password confirmation is not treated as social proof.
+7. Profile keeps account, edit, password, and subscription query panels. Legacy
    activity query keys redirect to canonical activity routes, while other
    unsupported tabs normalize to `account`. Subscription loading, authoritative
    absence, and retryable failure remain distinct.
-7. Forgot-password acceptance is generic for all submitted addresses. Auth and
+8. Forgot-password acceptance is generic for all submitted addresses. Auth and
    account failures use fixed allowlisted guidance rather than backend message
    text.
 

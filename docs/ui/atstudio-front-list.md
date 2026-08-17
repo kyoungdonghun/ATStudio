@@ -61,6 +61,10 @@ Repeated callback paths do not create new screens. Three checkout paths reuse on
 - Password login and refresh reject an unverified account before tokens are
   issued or rotated. The fixed `EMAIL_VERIFICATION_REQUIRED` result guides the
   SPA to email verification and leaves no session persisted.
+- Logout callers await one coalesced `POST /api/auth/logout`. Only `204`
+  confirms server revocation; a bare `401` or other failure still clears the
+  local session and shows the fixed unconfirmed-revocation warning.
+- Social login and social profile-completion onboarding are unchanged by WI-068.
 - Social profile completion verifies current identity before showing the form.
   Complete profiles move to `/profile?tab=account`; failed identity remains
   non-mutating. One pending fence covers availability checks and profile

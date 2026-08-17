@@ -3,11 +3,14 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Header from '@/layouts/Header';
 import buttonStyles from '@/components/ui/Button.module.css';
+import ToastContainer from '@/components/ui/ToastContainer';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
+import { useToastStore } from '@/store/toastStore';
 import styles from './Header.module.css';
 
 const originalRequestAnimationFrame = window.requestAnimationFrame;
+const defaultLogout = useAuthStore.getState().logout;
 
 function DestinationHeading() {
   const location = useLocation();
@@ -25,6 +28,7 @@ function renderHeader(initialEntry = '/') {
     <MemoryRouter
       initialEntries={[initialEntry]}
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      <ToastContainer />
     >
       <Header />
       <DestinationHeading />
@@ -33,8 +37,9 @@ function renderHeader(initialEntry = '/') {
 }
 
 describe('Header accessibility', () => {
+    useToastStore.setState({ toasts: [] });
   beforeEach(() => {
-    useAuthStore.setState({ accessToken: null, user: null, role: 'GUEST' });
+    useAuthStore.setState({ accessToken: null, user: null, role: 'GUEST', logout: defaultLogout });
     useThemeStore.setState({ theme: 'dark' });
     Object.defineProperty(window, 'requestAnimationFrame', {
       configurable: true,
@@ -218,6 +223,39 @@ describe('Header accessibility', () => {
     renderHeader();
     const accountLink = screen.getByRole('link', { name: '내 계정' });
 
+
+  it('awaits logout, blocks duplicate interaction, and warns when server revocation is unconfirmed', async () => {
+    let resolveLogout!: (outcome: { serverConfirmed: boolean }) => void;
+    const logout = vi.fn(
+      () =>
+        new Promise<{ serverConfirmed: boolean }>((resolve) => {
+          resolveLogout = resolve;
+        }),
+    );
+    useAuthStore.setState({
+      accessToken: 'test-access-token',
+      role: 'USER',
+      user: { nickname: '테스터' } as NonNullable<ReturnType<typeof useAuthStore.getState>['user']>,
+      logout,
+    });
+    renderHeader('/tracks');
+
+    const logoutButton = screen.getByRole('button', { name: '로그아웃' });
+    fireEvent.click(logoutButton);
+
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect(logoutButton).toBeDisabled();
+    fireEvent.click(logoutButton);
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('heading', { name: '음원 페이지' })).toBeInTheDocument();
+
+    resolveLogout({ serverConfirmed: false });
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '서버 로그아웃 확인에 실패했습니다. 이 기기에서는 로그아웃되었습니다.',
+    );
+    expect(await screen.findByRole('heading', { name: '홈 페이지' })).toBeInTheDocument();
+  });
     expect(accountLink).toHaveClass(buttonStyles.button, buttonStyles.ghost, buttonStyles.md);
     expect(within(accountLink).queryByRole('button')).not.toBeInTheDocument();
   });

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '@/store/authStore';
+import { UNCONFIRMED_LOGOUT_WARNING, useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
+import { useToastStore } from '@/store/toastStore';
 import { SEARCH_KEYWORD_MAX } from '@/utils/validation';
 import {
   consumeNavigationDestinationFocus,
@@ -105,6 +106,7 @@ export default function Header() {
   const user = useAuthStore((s) => s.user);
   const role = useAuthStore((s) => s.role);
   const logout = useAuthStore((s) => s.logout);
+  const showToast = useToastStore((s) => s.show);
   const isAdmin = role === 'ADMIN';
   const navItems = isAdmin
     ? PUBLIC_NAV_ITEMS.filter((item) => item.path !== '/subscriptions')
@@ -112,6 +114,7 @@ export default function Header() {
   const roleNavItems = !isAuthenticated ? [] : isAdmin ? ADMIN_NAV_ITEMS : USER_NAV_ITEMS;
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [logoutPending, setLogoutPending] = useState(false);
   const menuOpenerRef = useRef<HTMLButtonElement | null>(null);
 
   const closeMobileMenu = useCallback((restoreFocus: boolean) => {
@@ -188,6 +191,22 @@ export default function Header() {
     setSearchQuery('');
   }
 
+  async function handleLogout() {
+    if (logoutPending) return;
+
+    setLogoutPending(true);
+    let serverConfirmed = false;
+    try {
+      ({ serverConfirmed } = await logout());
+    } catch {
+      serverConfirmed = false;
+    } finally {
+      if (!serverConfirmed) showToast('warning', UNCONFIRMED_LOGOUT_WARNING);
+      navigate('/', { replace: true });
+      setLogoutPending(false);
+    }
+  }
+
   function isActive(path: string): boolean {
     if (path === '/') return location.pathname === '/';
     return location.pathname.startsWith(path);
@@ -256,10 +275,9 @@ export default function Header() {
               <Button
                 variant="ghost"
                 size="md"
-                onClick={() => {
-                  logout();
-                  navigate('/', { replace: true });
-                }}
+                onClick={() => void handleLogout()}
+                loading={logoutPending}
+                aria-busy={logoutPending}
               >
                 {'로그아웃'}
               </Button>
@@ -389,9 +407,10 @@ export default function Header() {
                     className={styles.mobileAuthLink}
                     onClick={() => {
                       beginNavigationFocus();
-                      logout();
-                      navigate('/', { replace: true });
+                      void handleLogout();
                     }}
+                    disabled={logoutPending}
+                    aria-busy={logoutPending}
                   >
                     {'로그아웃'}
                   </button>

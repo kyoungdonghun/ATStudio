@@ -130,6 +130,7 @@ vi.mock('@/utils/validation', async () => {
 });
 
 vi.mock('@/store/authStore', () => ({
+  UNCONFIRMED_LOGOUT_WARNING: 'server logout warning',
   useAuthStore: Object.assign(
     (selector: (state: typeof states.auth) => unknown) => selector(states.auth),
     { getState: () => states.auth },
@@ -602,11 +603,13 @@ describe('header navigation behavior', () => {
     expect(screen.getByLabelText('메뉴 열기')).toBeInTheDocument();
   });
 
-  it('shows member navigation and logs out from desktop and mobile actions', () => {
+  it('shows member navigation and suppresses duplicate same-tick logout actions', async () => {
     states.auth.authenticated = true;
     states.auth.accessToken = 'token';
     states.auth.user = member;
     states.auth.role = 'USER';
+    const pendingLogout = deferred<{ serverConfirmed: boolean }>();
+    states.auth.logout.mockReturnValueOnce(pendingLogout.promise);
     renderAt(<Header />, '/playlists');
 
     expect(screen.getAllByText('재생목록').length).toBeGreaterThan(0);
@@ -616,9 +619,13 @@ describe('header navigation behavior', () => {
     const logoutButtons = screen.getAllByText('로그아웃');
     fireEvent.click(logoutButtons[0]);
     fireEvent.click(logoutButtons[1]);
-    expect(states.auth.logout).toHaveBeenCalledTimes(2);
-    expect(mocks.navigate).toHaveBeenNthCalledWith(1, '/', { replace: true });
-    expect(mocks.navigate).toHaveBeenNthCalledWith(2, '/', { replace: true });
+    expect(states.auth.logout).toHaveBeenCalledTimes(1);
+    expect(mocks.navigate).not.toHaveBeenCalled();
+
+    pendingLogout.resolve({ serverConfirmed: true });
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/', { replace: true }));
+    expect(mocks.navigate).toHaveBeenCalledTimes(1);
+    expect(mocks.toast).not.toHaveBeenCalled();
   });
 
   it('uses the reduced admin navigation and handles an authenticated identity without a profile', () => {

@@ -27,6 +27,14 @@ interface CurrentUserRefresh {
 
 let sessionGeneration = 0;
 let currentUserRefresh: CurrentUserRefresh | null = null;
+let logoutInFlight: Promise<LogoutOutcome> | null = null;
+
+export const UNCONFIRMED_LOGOUT_WARNING =
+  '서버 로그아웃 확인에 실패했습니다. 이 기기에서는 로그아웃되었습니다.';
+
+export interface LogoutOutcome {
+  serverConfirmed: boolean;
+}
 
 function advanceSessionGeneration(): void {
   sessionGeneration += 1;
@@ -40,7 +48,7 @@ interface AuthState {
   login: (accessToken: string, user: User, refreshToken?: string | null) => void;
   updateUser: (user: User) => boolean;
   refreshCurrentUser: () => Promise<User>;
-  logout: () => Promise<boolean>;
+  logout: () => Promise<LogoutOutcome>;
   clearSession: () => void;
   isAuthenticated: () => boolean;
 }
@@ -138,17 +146,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return promise;
   },
 
-  logout: async () => {
-    let serverConfirmed = true;
-    try {
-      const { logoutSession } = await import('@/api/auth');
-      await logoutSession();
-    } catch {
-      serverConfirmed = false;
-    } finally {
-      get().clearSession();
-    }
-    return serverConfirmed;
+  logout: () => {
+    if (logoutInFlight) return logoutInFlight;
+
+    const promise = (async (): Promise<LogoutOutcome> => {
+      let serverConfirmed = false;
+      try {
+        const { logoutSession } = await import('@/api/auth');
+        serverConfirmed = (await logoutSession()) === 'confirmed';
+      } catch {
+        serverConfirmed = false;
+      } finally {
+        get().clearSession();
+      }
+      return { serverConfirmed };
+    })();
+
+    logoutInFlight = promise;
+    const clearLogoutInFlight = () => {
+      if (logoutInFlight === promise) logoutInFlight = null;
+    };
+    void promise.then(clearLogoutInFlight, clearLogoutInFlight);
+    return promise;
   },
 
   clearSession: () => {

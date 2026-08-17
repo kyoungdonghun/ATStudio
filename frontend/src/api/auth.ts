@@ -1,4 +1,3 @@
-import axios from 'axios';
 import client from '@/api/client';
 import type { ApiResponse, UserJob, UserRole, UserType } from '@/types';
 
@@ -63,6 +62,8 @@ export interface MeResponse {
 export interface CheckAvailabilityResponse {
   available: boolean;
 }
+
+export type LogoutSessionOutcome = 'confirmed' | 'unconfirmed';
 
 export interface OAuthProviderCapability {
   enabled: boolean;
@@ -159,15 +160,13 @@ export async function resetPassword(token: string, newPassword: string): Promise
   await client.post('/auth/reset-password', { token, newPassword });
 }
 
-/** POST /api/auth/logout -- authenticated, bodyless session revocation */
-export async function logoutSession(): Promise<void> {
+/** POST /api/auth/logout -- only the documented 204 response confirms revocation. */
+export async function logoutSession(): Promise<LogoutSessionOutcome> {
   try {
-    await client.post('/auth/logout');
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      return;
-    }
-    throw error;
+    const response = await client.post('/auth/logout');
+    return response.status === 204 ? 'confirmed' : 'unconfirmed';
+  } catch {
+    return 'unconfirmed';
   }
 }
 

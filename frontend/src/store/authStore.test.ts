@@ -55,7 +55,7 @@ describe('authStore', () => {
     vi.restoreAllMocks();
     fetchMeMock.mockReset();
     logoutSessionMock.mockReset();
-    logoutSessionMock.mockResolvedValue(undefined);
+    logoutSessionMock.mockResolvedValue('confirmed');
     localStorage.clear();
     sessionStorage.clear();
     useAuthStore.setState({ user: null, accessToken: null, role: 'GUEST' });
@@ -209,7 +209,7 @@ describe('authStore', () => {
 
     const refresh = useAuthStore.getState().refreshCurrentUser();
     await vi.waitFor(() => expect(fetchMeMock).toHaveBeenCalledTimes(1));
-    await expect(useAuthStore.getState().logout()).resolves.toBe(true);
+    await expect(useAuthStore.getState().logout()).resolves.toEqual({ serverConfirmed: true });
     resolveFetch({ ...adminUser, nickname: 'stale-admin' });
 
     await expect(refresh).rejects.toThrow('Stale current-user refresh result');
@@ -310,10 +310,10 @@ describe('authStore', () => {
   });
 
   it('calls server logout before clearing persisted auth and dependent stores', async () => {
-    let resolveLogout: (() => void) | undefined;
+    let resolveLogout: ((outcome: 'confirmed') => void) | undefined;
     logoutSessionMock.mockImplementation(
       () =>
-        new Promise<void>((resolve) => {
+        new Promise<'confirmed'>((resolve) => {
           resolveLogout = resolve;
         }),
     );
@@ -337,8 +337,8 @@ describe('authStore', () => {
     expect(localStorage.getItem('accessToken')).toBe('access-token');
     expect(useAuthStore.getState().role).toBe('USER');
 
-    resolveLogout?.();
-    await expect(logoutResult).resolves.toBe(true);
+    resolveLogout?.('confirmed');
+    await expect(logoutResult).resolves.toEqual({ serverConfirmed: true });
 
     expect(localStorage.getItem('accessToken')).toBeNull();
     expect(localStorage.getItem('refreshToken')).toBeNull();
@@ -354,18 +354,46 @@ describe('authStore', () => {
     expect(usePlayerStore.getState().isPlaying).toBe(false);
   });
 
-  it('clears local auth but reports an unconfirmed server logout on network failure', async () => {
-    logoutSessionMock.mockRejectedValue(new Error('network unavailable'));
+  it('clears local auth but reports an unconfirmed server logout', async () => {
+    logoutSessionMock.mockResolvedValue('unconfirmed');
     localStorage.setItem('accessToken', 'access-token');
     localStorage.setItem('refreshToken', 'refresh-token');
     localStorage.setItem('user', JSON.stringify(user));
     useAuthStore.setState({ user, accessToken: 'access-token', role: 'USER' });
 
-    await expect(useAuthStore.getState().logout()).resolves.toBe(false);
+    await expect(useAuthStore.getState().logout()).resolves.toEqual({ serverConfirmed: false });
 
     expect(localStorage.getItem('accessToken')).toBeNull();
     expect(localStorage.getItem('refreshToken')).toBeNull();
     expect(localStorage.getItem('user')).toBeNull();
     expect(useAuthStore.getState().role).toBe('GUEST');
+  });
+
+  it('coalesces concurrent logout attempts and returns the shared safe outcome', async () => {
+    let resolveLogout!: (outcome: 'confirmed' | 'unconfirmed') => void;
+    logoutSessionMock.mockImplementation(
+      () =>
+        new Promise<'confirmed' | 'unconfirmed'>((resolve) => {
+          resolveLogout = resolve;
+        }),
+    );
+    localStorage.setItem('accessToken', 'access-token');
+    localStorage.setItem('refreshToken', 'refresh-token');
+    localStorage.setItem('user', JSON.stringify(user));
+    useAuthStore.setState({ user, accessToken: 'access-token', role: 'USER' });
+
+    const firstLogout = useAuthStore.getState().logout();
+    const secondLogout = useAuthStore.getState().logout();
+
+    expect(secondLogout).toBe(firstLogout);
+    await vi.waitFor(() => expect(logoutSessionMock).toHaveBeenCalledTimes(1));
+    resolveLogout('unconfirmed');
+    await expect(Promise.all([firstLogout, secondLogout])).resolves.toEqual([
+      { serverConfirmed: false },
+      { serverConfirmed: false },
+    ]);
+    expect(localStorage.getItem('accessToken')).toBeNull();
+    expect(localStorage.getItem('refreshToken')).toBeNull();
+    expect(localStorage.getItem('user')).toBeNull();
   });
 });

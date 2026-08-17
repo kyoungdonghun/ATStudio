@@ -569,7 +569,12 @@ registration directs the SPA to email verification and creates no session.
 
 `POST /api/auth/login` and `POST /api/auth/refresh` reject an unverified
 password account with `EMAIL_VERIFICATION_REQUIRED` before access or refresh
-token material is issued or rotated.
+token material is issued or rotated. `POST /api/auth/logout` returns `204` for
+confirmed server revocation. A bare `401` or another failed request is an
+unconfirmed server outcome; the SPA still performs local logout and presents
+its fixed warning. Social login and profile-completion onboarding are unchanged
+by WI-068.
+
 `GET /api/users` returns paginated `UserListItemResponse` rows with exactly
 `id`, `nickname`, `email`, `userType`, `role`, `isVerified`, and `createdAt`.
 `GET|PUT /api/users/{userId}` returns `UserDetailResponse`, which additionally

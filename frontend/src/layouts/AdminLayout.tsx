@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '@/store/authStore';
+import { UNCONFIRMED_LOGOUT_WARNING, useAuthStore } from '@/store/authStore';
+import { useToastStore } from '@/store/toastStore';
 import ToastContainer from '@/components/ui/ToastContainer';
 import {
   consumeNavigationDestinationFocus,
@@ -105,6 +106,7 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const showToast = useToastStore((s) => s.show);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState<boolean | null>(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return null;
@@ -114,6 +116,7 @@ export default function AdminLayout() {
   const menuToggleRef = useRef<HTMLButtonElement>(null);
   const mutationOwnersRef = useRef(new Set<object>());
   const [activeMutationOwnerCount, setActiveMutationOwnerCount] = useState(0);
+  const [logoutPending, setLogoutPending] = useState(false);
   const mountedRef = useRef(true);
   const mutationBoundary = useMemo<AdminMutationBoundary>(
     () => ({
@@ -253,10 +256,20 @@ export default function AdminLayout() {
     beginNavigationFocus();
   }
 
-  function handleLogout() {
-    if (mutationBoundary.hasActiveOwner()) return;
-    logout();
-    navigate('/', { replace: true });
+  async function handleLogout() {
+    if (mutationBoundary.hasActiveOwner() || logoutPending) return;
+
+    setLogoutPending(true);
+    let serverConfirmed = false;
+    try {
+      ({ serverConfirmed } = await logout());
+    } catch {
+      serverConfirmed = false;
+    } finally {
+      if (!serverConfirmed) showToast('warning', UNCONFIRMED_LOGOUT_WARNING);
+      navigate('/', { replace: true });
+      setLogoutPending(false);
+    }
   }
 
   const backgroundIsolationProps = mobileDrawerOpen ? { 'aria-hidden': true, inert: '' } : {};
@@ -312,8 +325,9 @@ export default function AdminLayout() {
             </div>
             <button
               className={styles.logoutBtn}
-              onClick={handleLogout}
-              disabled={activeMutationOwnerCount > 0}
+              onClick={() => void handleLogout()}
+              disabled={activeMutationOwnerCount > 0 || logoutPending}
+              aria-busy={logoutPending}
             >
               {'로그아웃'}
             </button>
