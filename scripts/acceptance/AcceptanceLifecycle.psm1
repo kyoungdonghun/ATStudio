@@ -999,29 +999,100 @@ function Get-AcceptanceStatus {
     }
 
     $serviceStatuses = New-Object System.Collections.ArrayList
+    $ownershipByRole = @{}
     foreach ($name in @("tunnel", "frontend", "backend")) {
         $service = $manifest.services.$name
-        if (-not $service) {
-            continue
+        $owned = $false
+        if ($service) {
+            $owned = Test-AcceptanceProcessOwnership -Service $service
         }
+
+        $ownershipByRole[$name] = $owned
         [void] $serviceStatuses.Add([pscustomobject]@{
-            role = $service.role
-            pid = $service.pid
-            owned = (Test-AcceptanceProcessOwnership -Service $service)
-            startTimeUtc = $service.startTimeUtc
+            role = $name
+            present = [bool] $service
+            pid = if ($service) { $service.pid } else { $null }
+            owned = $owned
+            startTimeUtc = if ($service) { $service.startTimeUtc } else { $null }
         })
     }
 
-    $running = @($serviceStatuses | Where-Object { $_.owned }).Count
-    $state = if ($running -gt 0) { "running" } else { $manifest.state }
+    $ownedServiceCount = @($serviceStatuses | Where-Object { $_.owned }).Count
+    $frontendOwned = $ownershipByRole["frontend"]
+    $backendOwned = $ownershipByRole["backend"]
+    $tunnelOwned = $ownershipByRole["tunnel"]
+    $coreServicesOwned = $frontendOwned -and $backendOwned
+
+    $localHealth = [pscustomobject]@{
+        checked = $false
+        frontend = $false
+        api = $false
+        ready = $false
+    }
+    $publicHealth = [pscustomobject]@{
+        checked = $false
+        frontend = $false
+        api = $false
+        ready = $false
+    }
+
+    if ($coreServicesOwned) {
+        $localFrontendReady = Test-AcceptanceUrlReady -Url $manifest.localFrontendUrl
+        $localApiReady = Test-AcceptanceUrlReady -Url $manifest.localApiUrl
+        $localHealth = [pscustomobject]@{
+            checked = $true
+            frontend = $localFrontendReady
+            api = $localApiReady
+            ready = $localFrontendReady -and $localApiReady
+        }
+    }
+
+    if ($coreServicesOwned -and $tunnelOwned) {
+        $publicFrontendReady = Test-AcceptanceUrlReady -Url $manifest.publicBaseUrl
+        $publicApiReady = Test-AcceptanceUrlReady -Url $manifest.publicApiUrl
+        $publicHealth = [pscustomobject]@{
+            checked = $true
+            frontend = $publicFrontendReady
+            api = $publicApiReady
+            ready = $publicFrontendReady -and $publicApiReady
+        }
+    }
+
+    $fullyReady = $coreServicesOwned -and $tunnelOwned -and $localHealth.ready -and $publicHealth.ready
+    if ($manifest.state -eq "ready") {
+        if (-not $coreServicesOwned) {
+            $state = "stale"
+        } elseif ($fullyReady) {
+            $state = "ready"
+        } else {
+            $state = "degraded"
+        }
+    } elseif ($coreServicesOwned) {
+        $state = if ($fullyReady) { "running" } else { "degraded" }
+    } elseif ($ownedServiceCount -gt 0) {
+        $state = "running"
+    } else {
+        $state = $manifest.state
+    }
 
     return [pscustomobject]@{
         state = $state
+        manifestState = $manifest.state
         manifestPath = $manifestPath
         publicBaseUrl = $manifest.publicBaseUrl
         localFrontendUrl = $manifest.localFrontendUrl
         localApiUrl = $manifest.localApiUrl
         publicApiUrl = $manifest.publicApiUrl
+        ownership = [pscustomobject]@{
+            expectedServiceCount = 3
+            ownedServiceCount = $ownedServiceCount
+            coreServicesOwned = $coreServicesOwned
+            tunnelOwned = $tunnelOwned
+        }
+        health = [pscustomobject]@{
+            local = $localHealth
+            public = $publicHealth
+        }
         services = @($serviceStatuses)
     }
 }

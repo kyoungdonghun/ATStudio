@@ -419,6 +419,163 @@ Assert-True `
     -Condition (@($cleanupContract.savedStates) -contains "failed") `
     -Message "Abnormal-start cleanup should persist a failed manifest state before teardown."
 
+$statusLifecycleContract = Invoke-InAcceptanceModule -ScriptBlock {
+    function New-StatusService {
+        param(
+            [string] $Role,
+            [int] $ProcessId
+        )
+
+        return [pscustomobject]@{
+            role = $Role
+            pid = $ProcessId
+            startTimeUtc = "2026-08-17T00:00:00.0000000Z"
+            executablePath = "C:\\acceptance\\$Role.exe"
+            commandFingerprint = "$Role-fingerprint"
+        }
+    }
+
+    $script:StatusManifest = [pscustomobject]@{
+        state = "ready"
+        publicBaseUrl = "https://abc-123.trycloudflare.com"
+        localFrontendUrl = "http://127.0.0.1:5173"
+        localApiUrl = "http://127.0.0.1:8080/api/tracks"
+        publicApiUrl = "https://abc-123.trycloudflare.com/api/tracks"
+        services = [pscustomobject]@{
+            tunnel = New-StatusService -Role "tunnel" -ProcessId 101
+            frontend = New-StatusService -Role "frontend" -ProcessId 102
+            backend = New-StatusService -Role "backend" -ProcessId 103
+        }
+    }
+    $script:StatusReadinessCalls = New-Object System.Collections.ArrayList
+
+    function Get-AcceptanceManifest {
+        param([string] $RuntimeRoot)
+
+        return $script:StatusManifest
+    }
+
+    function Get-AcceptanceProcessSnapshot {
+        param([int] $ProcessId)
+
+        return $script:StatusSnapshots[$ProcessId]
+    }
+
+    function Test-AcceptanceUrlReady {
+        param(
+            [string] $Url,
+            [int] $TimeoutSeconds = 5
+        )
+
+        [void] $script:StatusReadinessCalls.Add($Url)
+        return [bool] $script:StatusReadiness[$Url]
+    }
+
+    function Set-StatusSnapshots {
+        $script:StatusSnapshots = @{}
+        foreach ($service in @(
+            $script:StatusManifest.services.tunnel,
+            $script:StatusManifest.services.frontend,
+            $script:StatusManifest.services.backend
+        )) {
+            $script:StatusSnapshots[$service.pid] = [pscustomobject]@{
+                pid = $service.pid
+                startTimeUtc = $service.startTimeUtc
+                executablePath = $service.executablePath
+                commandFingerprint = $service.commandFingerprint
+            }
+        }
+    }
+
+    $script:StatusSnapshots = @{}
+    $script:StatusReadiness = @{}
+    $stale = Get-AcceptanceStatus -RuntimeRoot "C:\\synthetic\\stale"
+    $staleReadinessCallCount = $script:StatusReadinessCalls.Count
+
+    Set-StatusSnapshots
+    $script:StatusSnapshots[103] = [pscustomobject]@{
+        pid = 103
+        startTimeUtc = "2026-08-17T00:00:00.0000000Z"
+        executablePath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+        commandFingerprint = "unrelated-chrome-fingerprint"
+    }
+    [void] $script:StatusReadinessCalls.Clear()
+    $pidReused = Get-AcceptanceStatus -RuntimeRoot "C:\\synthetic\\pid-reused"
+    $pidReuseReadinessCallCount = $script:StatusReadinessCalls.Count
+    $pidReuseBackend = @($pidReused.services | Where-Object { $_.role -eq "backend" })[0]
+
+    Set-StatusSnapshots
+    $script:StatusReadiness = @{}
+    $script:StatusReadiness[$script:StatusManifest.localFrontendUrl] = $true
+    $script:StatusReadiness[$script:StatusManifest.localApiUrl] = $true
+    $script:StatusReadiness[$script:StatusManifest.publicBaseUrl] = $false
+    $script:StatusReadiness[$script:StatusManifest.publicApiUrl] = $false
+    [void] $script:StatusReadinessCalls.Clear()
+    $publicUnavailable = Get-AcceptanceStatus -RuntimeRoot "C:\\synthetic\\public-unavailable"
+
+    $script:StatusReadiness[$script:StatusManifest.publicBaseUrl] = $true
+    $script:StatusReadiness[$script:StatusManifest.publicApiUrl] = $true
+    [void] $script:StatusReadinessCalls.Clear()
+    $fullyReady = Get-AcceptanceStatus -RuntimeRoot "C:\\synthetic\\ready"
+
+    return [pscustomobject]@{
+        staleState = $stale.state
+        staleCoreServicesOwned = $stale.ownership.coreServicesOwned
+        staleReadinessCallCount = $staleReadinessCallCount
+        pidReuseState = $pidReused.state
+        pidReuseBackendOwned = $pidReuseBackend.owned
+        pidReuseReadinessCallCount = $pidReuseReadinessCallCount
+        publicUnavailableState = $publicUnavailable.state
+        publicUnavailableCoreServicesOwned = $publicUnavailable.ownership.coreServicesOwned
+        publicUnavailableLocalReady = $publicUnavailable.health.local.ready
+        publicUnavailablePublicChecked = $publicUnavailable.health.public.checked
+        publicUnavailablePublicReady = $publicUnavailable.health.public.ready
+        fullyReadyState = $fullyReady.state
+    }
+}
+Assert-Equal `
+    -Actual $statusLifecycleContract.staleState `
+    -Expected "stale" `
+    -Message "A ready manifest without owned frontend and backend services should be stale."
+Assert-True `
+    -Condition (-not $statusLifecycleContract.staleCoreServicesOwned) `
+    -Message "A stale ready manifest should report missing core service ownership."
+Assert-Equal `
+    -Actual $statusLifecycleContract.staleReadinessCallCount `
+    -Expected 0 `
+    -Message "Status should not probe readiness when no owned core runtime exists."
+Assert-Equal `
+    -Actual $statusLifecycleContract.pidReuseState `
+    -Expected "stale" `
+    -Message "A reused PID belonging to an unrelated executable should not preserve ready status."
+Assert-True `
+    -Condition (-not $statusLifecycleContract.pidReuseBackendOwned) `
+    -Message "PID reuse should fail the backend ownership check."
+Assert-Equal `
+    -Actual $statusLifecycleContract.pidReuseReadinessCallCount `
+    -Expected 0 `
+    -Message "Status should not probe readiness when PID reuse invalidates a core service."
+Assert-Equal `
+    -Actual $statusLifecycleContract.publicUnavailableState `
+    -Expected "degraded" `
+    -Message "An owned local runtime with an unavailable public tunnel should be degraded, not stale."
+Assert-True `
+    -Condition $statusLifecycleContract.publicUnavailableCoreServicesOwned `
+    -Message "An owned local runtime should retain its core ownership evidence."
+Assert-True `
+    -Condition $statusLifecycleContract.publicUnavailableLocalReady `
+    -Message "Local readiness should remain visible when public readiness fails."
+Assert-True `
+    -Condition $statusLifecycleContract.publicUnavailablePublicChecked `
+    -Message "Public readiness should be recorded separately for an owned tunnel."
+Assert-True `
+    -Condition (-not $statusLifecycleContract.publicUnavailablePublicReady) `
+    -Message "Public readiness should report the unavailable tunnel honestly."
+Assert-Equal `
+    -Actual $statusLifecycleContract.fullyReadyState `
+    -Expected "ready" `
+    -Message "A fully owned runtime with local and public readiness should remain ready."
+
 if ($script:Failures.Count -gt 0) {
     $result = [pscustomobject]@{
         status = "failed"
@@ -436,6 +593,7 @@ if ($script:Failures.Count -gt 0) {
             "public-base-url-validation",
             "dry-run-contract",
             "status-no-manifest",
+            "acceptance-status-lifecycle-classification",
             "stop-no-manifest",
             "readiness-http-status-contract",
             "abnormal-start-cleanup-contract",
