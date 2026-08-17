@@ -65,7 +65,7 @@ describe('TrackEditPage thumbnail contract', () => {
     mocks.fetchTags.mockReset().mockResolvedValue([]);
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
-      value: vi.fn().mockReturnValueOnce('blob:wide').mockReturnValueOnce('blob:square'),
+      value: vi.fn().mockReturnValueOnce('blob:wide'),
     });
     Object.defineProperty(URL, 'revokeObjectURL', {
       configurable: true,
@@ -81,7 +81,8 @@ describe('TrackEditPage thumbnail contract', () => {
 
     const image = await screen.findByAltText('현재 트랙 썸네일');
     expect(image).toHaveAttribute('src', '/uploads/tracks/thumbnail/legacy-wide.jpg');
-    expect(screen.getByText('JPEG 또는 PNG, 1:1 필수, 10MB 이하')).toBeInTheDocument();
+    expect(screen.getByText('JPEG 또는 PNG, 10MB 이하')).toBeInTheDocument();
+    expect(screen.queryByText(/1:1 필수/)).not.toBeInTheDocument();
     expect(screen.getByText('2048x2048px 권장 (필수 아님)')).toBeInTheDocument();
     expect(screen.getByLabelText('썸네일 이미지')).toHaveAttribute(
       'accept',
@@ -111,7 +112,7 @@ describe('TrackEditPage thumbnail contract', () => {
     expect(screen.getByRole('button', { name: '저장' })).toBeEnabled();
   });
 
-  it('blocks replacement submission while pending or invalid and enables an exact square cover', async () => {
+  it('blocks while replacement is pending and accepts a non-square cover', async () => {
     const existing = track(null);
     mocks.fetchTrackDetailForAdmin.mockResolvedValue(existing);
     mocks.updateTrack.mockResolvedValue(existing);
@@ -124,23 +125,13 @@ describe('TrackEditPage thumbnail contract', () => {
 
     const widePreview = await screen.findByAltText('선택한 트랙 썸네일 미리보기');
     loadWithDimensions(widePreview, 900, 600);
-    expect(
-      screen.getByText('트랙 썸네일은 가로와 세로 길이가 같은 1:1 이미지여야 합니다.'),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '저장' })).toBeDisabled();
-
-    const squareFile = new File(['square'], 'square.jpg', { type: 'image/jpeg' });
-    fireEvent.change(thumbnailInput, { target: { files: [squareFile] } });
-    expect(screen.getByRole('button', { name: '저장' })).toBeDisabled();
-    const squarePreview = await screen.findByAltText('선택한 트랙 썸네일 미리보기');
-    await waitFor(() => expect(squarePreview).toHaveAttribute('src', 'blob:square'));
-    loadWithDimensions(squarePreview, 2048, 2048);
+    expect(screen.queryByText(/가로와 세로 길이가 같은 1:1/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '저장' })).toBeEnabled();
 
     fireEvent.click(screen.getByRole('button', { name: '저장' }));
     await waitFor(() => expect(mocks.updateTrack).toHaveBeenCalledTimes(1));
     const formData = mocks.updateTrack.mock.calls[0][1] as FormData;
-    expect(formData.get('thumbnail')).toBe(squareFile);
+    expect(formData.get('thumbnail')).toBe(wideFile);
   });
 
   it('rejects a malformed route ID without making Track or Tag API calls', async () => {

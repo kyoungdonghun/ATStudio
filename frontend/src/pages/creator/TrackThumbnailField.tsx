@@ -11,6 +11,8 @@ import { emptyTrackThumbnailSelection, type TrackThumbnailSelection } from './tr
 import styles from './TrackThumbnailField.module.css';
 
 const TRACK_THUMBNAIL_ACCEPT = 'image/jpeg,image/png';
+// Temporary client-acceptance deviation: set to true to restore the SR-98 square requirement.
+const TRACK_THUMBNAIL_SQUARE_REQUIRED = false;
 
 interface TrackThumbnailFieldProps {
   value: TrackThumbnailSelection;
@@ -130,7 +132,7 @@ export default function TrackThumbnailField({
       });
       return;
     }
-    if (naturalWidth !== naturalHeight) {
+    if (TRACK_THUMBNAIL_SQUARE_REQUIRED && naturalWidth !== naturalHeight) {
       onChangeRef.current({
         file: loadedPreview.file,
         status: 'invalid',
@@ -176,7 +178,7 @@ export default function TrackThumbnailField({
   return (
     <div className={styles.field}>
       <span className={styles.label}>썸네일</span>
-      <span className={styles.guidance}>JPEG 또는 PNG, 1:1 필수, {IMAGE_MAX_SIZE_MB}MB 이하</span>
+      <span className={styles.guidance}>JPEG 또는 PNG, {IMAGE_MAX_SIZE_MB}MB 이하</span>
       <span className={styles.recommendation}>2048x2048px 권장 (필수 아님)</span>
 
       {(preview || showExistingImage) && (

@@ -5,7 +5,6 @@ import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.common.validation.ValidationConstants;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -78,30 +77,26 @@ class CanonicalImageServiceTest {
     }
 
     @Test
-    @DisplayName("large square Track thumbnail is scaled to 2048 by 2048")
-    void canonicalizeSquareTrackThumbnail_largeSquare_scaledTo2048() throws Exception {
+    @DisplayName("large non-square JPEG Track thumbnail is scaled with its aspect ratio preserved")
+    void canonicalizeSquareTrackThumbnail_largeNonSquareJpeg_scaledWithAspectRatio() throws Exception {
         MultipartFile result = service.canonicalizeSquareTrackThumbnail(
-                file("cover.jpg", "image/jpeg", jpegBytes(3000, 3000)));
+                file("cover.jpg", "image/jpeg", jpegBytes(3000, 1000)));
 
         BufferedImage output = ImageIO.read(new ByteArrayInputStream(result.getBytes()));
         assertThat(output.getWidth()).isEqualTo(2048);
-        assertThat(output.getHeight()).isEqualTo(2048);
+        assertThat(output.getHeight()).isEqualTo(683);
     }
 
     @Test
-    @DisplayName("non-square Track thumbnail is rejected with the stable domain error")
-    void canonicalizeSquareTrackThumbnail_nonSquare_rejectedWithStableError() throws Exception {
-        assertThatThrownBy(() -> service.canonicalizeSquareTrackThumbnail(
-                file("cover.png", "image/png", pngBytes(640, 480))))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(exception -> {
-                    BusinessException businessException = (BusinessException) exception;
-                    assertThat(businessException.getErrorCode())
-                            .isEqualTo(BUSINESS_ERROR.TRACK_THUMBNAIL_NOT_SQUARE);
-                    assertThat(businessException.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
-                    assertThat(businessException.getClientMessage())
-                            .isEqualTo("트랙 썸네일은 가로와 세로 길이가 같은 1:1 이미지여야 합니다.");
-                });
+    @DisplayName("non-square Track thumbnail is temporarily accepted and keeps its aspect ratio")
+    void canonicalizeSquareTrackThumbnail_nonSquare_temporarilyAccepted() throws Exception {
+        MultipartFile result = service.canonicalizeSquareTrackThumbnail(
+                file("cover.png", "image/png", pngBytes(640, 480)));
+
+        BufferedImage output = ImageIO.read(new ByteArrayInputStream(result.getBytes()));
+        assertThat(output.getWidth()).isEqualTo(640);
+        assertThat(output.getHeight()).isEqualTo(480);
+        assertThat(result.getContentType()).isEqualTo("image/jpeg");
     }
 
     @Test

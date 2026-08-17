@@ -60,10 +60,11 @@ describe('TrackThumbnailField', () => {
     });
   });
 
-  it('shows the JPEG/PNG, exact 1:1, 10MB, and recommended-size contract', () => {
+  it('shows the JPEG/PNG, 10MB, and recommended-size contract without requiring 1:1', () => {
     render(<Harness />);
 
-    expect(screen.getByText('JPEG 또는 PNG, 1:1 필수, 10MB 이하')).toBeInTheDocument();
+    expect(screen.getByText('JPEG 또는 PNG, 10MB 이하')).toBeInTheDocument();
+    expect(screen.queryByText(/1:1 필수/)).not.toBeInTheDocument();
     expect(screen.getByText('2048x2048px 권장 (필수 아님)')).toBeInTheDocument();
     expect(screen.getByLabelText('썸네일 이미지')).toHaveAttribute(
       'accept',
@@ -94,7 +95,7 @@ describe('TrackThumbnailField', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:square');
   });
 
-  it('keeps the selected cover preview but blocks a non-square image with a field error', async () => {
+  it('keeps the square cover preview and accepts a non-square image', async () => {
     createObjectURL.mockReturnValue('blob:wide');
     render(<Harness />);
 
@@ -102,10 +103,8 @@ describe('TrackThumbnailField', () => {
     const image = await screen.findByAltText('선택한 트랙 썸네일 미리보기');
     loadWithDimensions(image, 640, 480);
 
-    expect(
-      screen.getByText('트랙 썸네일은 가로와 세로 길이가 같은 1:1 이미지여야 합니다.'),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
+    expect(screen.queryByText(/가로와 세로 길이가 같은 1:1/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled();
     expect(screen.getByTestId('track-thumbnail-preview')).toBeInTheDocument();
   });
 

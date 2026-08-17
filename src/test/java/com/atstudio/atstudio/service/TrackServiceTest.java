@@ -106,7 +106,7 @@ class TrackServiceTest {
     }
 
     @Test
-    @DisplayName("createTrack() 성공 - thumbnail + tagIds 포함")
+    @DisplayName("createTrack() 성공 - 비정사각형 thumbnail + tagIds 포함")
     void createTrack_success_withThumbnailAndTags() {
         Tag tag = buildTag(10L, "Happy", TagType.MOOD);
 
@@ -129,7 +129,7 @@ class TrackServiceTest {
         request.setTonality("C");
         request.setTagIds(List.of(10L));
         MultipartFile audioFile = mockMultipartFile("test.mp3");
-        MultipartFile thumbnail = mockMultipartFile("cover.jpg");
+        MultipartFile thumbnail = mockMultipartFile("wide.jpg");
         MultipartFile canonicalThumbnail = mockMultipartFile("thumbnail.jpg");
         given(audioAnalysisService.analyze(audioFile)).willReturn(analysis(7, "[0.100]"));
         given(canonicalImageService.canonicalizeSquareTrackThumbnail(thumbnail))
@@ -147,14 +147,14 @@ class TrackServiceTest {
     }
 
     @Test
-    @DisplayName("createTrack() 비정사각형 thumbnail 거절 - 저장과 엔티티 생성 없음")
-    void createTrack_nonSquareThumbnailRejectedBeforeStorage() {
+    @DisplayName("createTrack() 유효하지 않은 thumbnail 거절 - 저장과 엔티티 생성 없음")
+    void createTrack_invalidThumbnailRejectedBeforeStorage() {
         given(userDetails.getId()).willReturn(1L);
         given(userRepository.findById(1L)).willReturn(Optional.of(buildUser(1L)));
         MultipartFile audioFile = mockMultipartFile("test.mp3");
-        MultipartFile thumbnail = mockMultipartFile("wide.png");
+        MultipartFile thumbnail = mockMultipartFile("corrupt.png");
         given(canonicalImageService.canonicalizeSquareTrackThumbnail(thumbnail))
-                .willThrow(new BusinessException(BUSINESS_ERROR.TRACK_THUMBNAIL_NOT_SQUARE));
+                .willThrow(new BusinessException(BUSINESS_ERROR.INVALID_VALID));
 
         TrackCreateRequest request = new TrackCreateRequest();
         request.setTitle("Test Track");
@@ -164,7 +164,7 @@ class TrackServiceTest {
         assertThatThrownBy(() -> trackService.createTrack(request, audioFile, thumbnail, userDetails))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
-                        .isEqualTo(BUSINESS_ERROR.TRACK_THUMBNAIL_NOT_SQUARE));
+                        .isEqualTo(BUSINESS_ERROR.INVALID_VALID));
 
         verifyNoInteractions(audioAnalysisService, storageMutationCoordinator);
         verify(trackRepository, never()).save(any(Track.class));
@@ -518,12 +518,12 @@ class TrackServiceTest {
     }
 
     @Test
-    @DisplayName("updateTrack() 성공 - canonical thumbnail로 기존 파일 교체")
+    @DisplayName("updateTrack() 성공 - 비정사각형 canonical thumbnail로 기존 파일 교체")
     void updateTrack_success_withCanonicalThumbnail() {
         Track track = buildTrack(1L, true);
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
         given(trackTagRepository.findAllWithTagByTrack(track)).willReturn(List.of());
-        MultipartFile thumbnail = mockMultipartFile("square.png");
+        MultipartFile thumbnail = mockMultipartFile("wide.png");
         MultipartFile canonicalThumbnail = mockMultipartFile("thumbnail.jpg");
         given(canonicalImageService.canonicalizeSquareTrackThumbnail(thumbnail))
                 .willReturn(canonicalThumbnail);
@@ -551,14 +551,14 @@ class TrackServiceTest {
     }
 
     @Test
-    @DisplayName("updateTrack() 비정사각형 thumbnail 거절 - 저장·필드·태그 변경 없음")
-    void updateTrack_nonSquareThumbnailRejectedWithoutPartialMutation() {
+    @DisplayName("updateTrack() 유효하지 않은 thumbnail 거절 - 저장·필드·태그 변경 없음")
+    void updateTrack_invalidThumbnailRejectedWithoutPartialMutation() {
         Track track = buildTrack(1L, true);
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
         MultipartFile audioFile = mockMultipartFile("replacement.mp3");
-        MultipartFile thumbnail = mockMultipartFile("wide.png");
+        MultipartFile thumbnail = mockMultipartFile("corrupt.png");
         given(canonicalImageService.canonicalizeSquareTrackThumbnail(thumbnail))
-                .willThrow(new BusinessException(BUSINESS_ERROR.TRACK_THUMBNAIL_NOT_SQUARE));
+                .willThrow(new BusinessException(BUSINESS_ERROR.INVALID_VALID));
         TrackUpdateRequest request = new TrackUpdateRequest();
         request.setTitle("Rejected Title");
         request.setBpm(140);
@@ -568,7 +568,7 @@ class TrackServiceTest {
         assertThatThrownBy(() -> trackService.updateTrack(1L, request, audioFile, thumbnail))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
-                        .isEqualTo(BUSINESS_ERROR.TRACK_THUMBNAIL_NOT_SQUARE));
+                        .isEqualTo(BUSINESS_ERROR.INVALID_VALID));
 
         assertThat(track.getTitle()).isEqualTo("Test Track");
         assertThat(track.getBpm()).isEqualTo(120);

@@ -32,7 +32,7 @@ describe('TrackUploadPage thumbnail contract', () => {
     vi.stubGlobal('crypto', { randomUUID: vi.fn(() => 'track-entry-1') });
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
-      value: vi.fn().mockReturnValueOnce('blob:wide').mockReturnValueOnce('blob:square'),
+      value: vi.fn().mockReturnValueOnce('blob:wide'),
     });
     Object.defineProperty(URL, 'revokeObjectURL', {
       configurable: true,
@@ -40,7 +40,7 @@ describe('TrackUploadPage thumbnail contract', () => {
     });
   });
 
-  it('blocks the multi-row submit for pending or invalid covers and submits a valid square file', async () => {
+  it('blocks while the cover is pending and submits a valid non-square file', async () => {
     const view = render(
       <MemoryRouter>
         <TrackUploadPage />
@@ -56,7 +56,8 @@ describe('TrackUploadPage thumbnail contract', () => {
       'true',
     );
     expect(screen.getByLabelText('제목')).toHaveValue('launch');
-    expect(screen.getByText('JPEG 또는 PNG, 1:1 필수, 10MB 이하')).toBeInTheDocument();
+    expect(screen.getByText('JPEG 또는 PNG, 10MB 이하')).toBeInTheDocument();
+    expect(screen.queryByText(/1:1 필수/)).not.toBeInTheDocument();
     expect(screen.getByText('2048x2048px 권장 (필수 아님)')).toBeInTheDocument();
     const thumbnailInput = screen.getByLabelText('썸네일 이미지');
     expect(thumbnailInput).toHaveAttribute('accept', 'image/jpeg,image/png');
@@ -66,17 +67,7 @@ describe('TrackUploadPage thumbnail contract', () => {
     expect(screen.getByRole('button', { name: '업로드' })).toBeDisabled();
     const widePreview = await screen.findByAltText('선택한 트랙 썸네일 미리보기');
     loadWithDimensions(widePreview, 800, 600);
-    expect(
-      screen.getByText('트랙 썸네일은 가로와 세로 길이가 같은 1:1 이미지여야 합니다.'),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '업로드' })).toBeDisabled();
-
-    const squareFile = new File(['square'], 'square.jpg', { type: 'image/jpeg' });
-    fireEvent.change(thumbnailInput, { target: { files: [squareFile] } });
-    expect(screen.getByRole('button', { name: '업로드' })).toBeDisabled();
-    const squarePreview = await screen.findByAltText('선택한 트랙 썸네일 미리보기');
-    await waitFor(() => expect(squarePreview).toHaveAttribute('src', 'blob:square'));
-    loadWithDimensions(squarePreview, 1200, 1200);
+    expect(screen.queryByText(/가로와 세로 길이가 같은 1:1/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '업로드' })).toBeEnabled();
 
     fireEvent.change(screen.getByPlaceholderText('BPM을 입력해주세요'), {
@@ -88,7 +79,7 @@ describe('TrackUploadPage thumbnail contract', () => {
     await waitFor(() => expect(mocks.createTrack).toHaveBeenCalledTimes(1));
     const formData = mocks.createTrack.mock.calls[0][0] as FormData;
     expect(formData.get('audioFile')).toBe(audioFile);
-    expect(formData.get('thumbnail')).toBe(squareFile);
+    expect(formData.get('thumbnail')).toBe(wideFile);
   });
 
   it('accepts only MP3 and WAV and clears a rejected selection for same-file retry', async () => {

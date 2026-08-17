@@ -36,6 +36,8 @@ public class CanonicalImageService {
     private static final long MAX_PIXELS = 16_777_216L;
     private static final int MAX_OUTPUT_DIMENSION = 2048;
     private static final float JPEG_QUALITY = 0.90f;
+    // Temporary client-acceptance deviation: set to true to restore the SR-98 square requirement.
+    private static final boolean REQUIRE_SQUARE_TRACK_THUMBNAIL = false;
 
     public MultipartFile canonicalizeThumbnail(MultipartFile file) {
         return canonicalize(file, ThumbnailPolicy.ANY_ASPECT_RATIO);
@@ -245,7 +247,7 @@ public class CanonicalImageService {
 
     private enum ThumbnailPolicy {
         ANY_ASPECT_RATIO(false),
-        SQUARE_TRACK(true);
+        SQUARE_TRACK(REQUIRE_SQUARE_TRACK_THUMBNAIL);
 
         private final boolean requiresSquare;
 
