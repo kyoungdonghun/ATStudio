@@ -309,7 +309,7 @@ describe('authStore', () => {
     expect(localStorage.getItem('user')).toBe(persistedBefore);
   });
 
-  it('calls server logout before clearing persisted auth and dependent stores', async () => {
+  it('calls server logout before clearing auth and user-specific stores without stopping playback', async () => {
     let resolveLogout: ((outcome: 'confirmed') => void) | undefined;
     logoutSessionMock.mockImplementation(
       () =>
@@ -349,9 +349,42 @@ describe('authStore', () => {
     expect(useLikeStore.getState().loaded).toBe(false);
     expect(useAlbumLikeStore.getState().likedAlbumIds.size).toBe(0);
     expect(useAlbumLikeStore.getState().loaded).toBe(false);
-    expect(usePlayerStore.getState().currentTrack).toBeNull();
-    expect(usePlayerStore.getState().queue).toEqual([]);
-    expect(usePlayerStore.getState().isPlaying).toBe(false);
+    expect(usePlayerStore.getState()).toMatchObject({
+      currentTrack: track,
+      queue: [track],
+      currentTime: 30,
+      duration: 120,
+      isPlaying: true,
+    });
+  });
+
+  it('keeps public playback when an expired session is cleared', () => {
+    localStorage.setItem('accessToken', 'expired-access-token');
+    localStorage.setItem('refreshToken', 'refresh-token');
+    localStorage.setItem('user', JSON.stringify(user));
+    useAuthStore.setState({ user, accessToken: 'expired-access-token', role: 'USER' });
+    useLikeStore.setState({ likedIds: new Set([1]), loaded: true });
+    useAlbumLikeStore.setState({ likedAlbumIds: new Set([2]), loaded: true });
+    usePlayerStore.setState({
+      currentTrack: track,
+      isPlaying: false,
+      currentTime: 30,
+      duration: 120,
+      queue: [track],
+    });
+
+    useAuthStore.getState().clearSession();
+
+    expect(useAuthStore.getState()).toMatchObject({ accessToken: null, user: null, role: 'GUEST' });
+    expect(useLikeStore.getState()).toMatchObject({ likedIds: new Set(), loaded: false });
+    expect(useAlbumLikeStore.getState()).toMatchObject({ likedAlbumIds: new Set(), loaded: false });
+    expect(usePlayerStore.getState()).toMatchObject({
+      currentTrack: track,
+      queue: [track],
+      currentTime: 30,
+      duration: 120,
+      isPlaying: false,
+    });
   });
 
   it('clears local auth but reports an unconfirmed server logout', async () => {

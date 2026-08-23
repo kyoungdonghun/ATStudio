@@ -566,8 +566,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
     pause: () => {
       playbackAttempt += 1;
+      const state = get();
+      const duration = getFiniteMediaDuration(
+        audio.duration,
+        state.currentTrack?.duration ?? state.duration,
+      );
+      const currentTime = clampPlaybackTime(audio.currentTime, duration);
+      if (audio.currentTime !== currentTime) audio.currentTime = currentTime;
       audio.pause();
-      cancelBuffering({ isPlaying: false });
+      cancelBuffering({ isPlaying: false, currentTime, duration });
+      if (state.currentTrack) {
+        persistState({ ...state, currentTime, duration });
+      }
     },
 
     resume: () => {

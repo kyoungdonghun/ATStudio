@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type { User, UserRole } from '@/types';
-import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import { safeStorage } from '@/utils/safeStorage';
@@ -177,8 +176,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     safeStorage.removeItem('user');
     set({ accessToken: null, user: null, role: 'GUEST' });
 
-    // Reset all user-dependent stores on session change
-    usePlayerStore.getState().clearQueue();
+    // Reset only user-dependent stores. Public playback survives session changes.
     useLikeStore.setState({ likedIds: new Set(), loaded: false });
     useAlbumLikeStore.setState({ likedAlbumIds: new Set(), loaded: false });
   },

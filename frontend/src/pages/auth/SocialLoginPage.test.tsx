@@ -8,6 +8,7 @@ import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import { useAuthStore } from '@/store/authStore';
 import { useLikeStore } from '@/store/likeStore';
 import { usePlayerStore } from '@/store/playerStore';
+import type { PlayableTrack } from '@/types';
 import { createOAuthAttempt } from '@/utils/oauthAttempt';
 
 const { fetchMeMock, logoutSessionMock, socialLoginMock } = vi.hoisted(() => ({
@@ -34,6 +35,18 @@ const profile: MeResponse = {
   role: 'USER',
   isVerified: true,
   createdAt: '2026-07-14T00:00:00Z',
+};
+
+const publicTrack: PlayableTrack = {
+  id: 4,
+  title: 'Public track',
+  artistName: 'Artist',
+  duration: 7,
+  bpm: 92,
+  tonality: 'C',
+  thumbnail: null,
+  waveformData: null,
+  tags: [],
 };
 
 function prepareCallbackStorage() {
@@ -217,7 +230,13 @@ describe('SocialLoginPage', () => {
     prepareCallbackStorage();
     useLikeStore.setState({ likedIds: new Set([1]), loaded: true });
     useAlbumLikeStore.setState({ likedAlbumIds: new Set([2]), loaded: true });
-    usePlayerStore.setState({ isPlaying: true });
+    usePlayerStore.setState({
+      currentTrack: publicTrack,
+      isPlaying: false,
+      currentTime: 0.7,
+      duration: publicTrack.duration,
+      queue: [publicTrack],
+    });
     socialLoginMock.mockResolvedValue({
       accessToken: 'issued-access-token',
       refreshToken: 'issued-refresh-token',
@@ -253,6 +272,12 @@ describe('SocialLoginPage', () => {
     expect(useLikeStore.getState().likedIds.size).toBe(0);
     expect(useAlbumLikeStore.getState()).toMatchObject({ loaded: false });
     expect(useAlbumLikeStore.getState().likedAlbumIds.size).toBe(0);
-    expect(usePlayerStore.getState().isPlaying).toBe(false);
+    expect(usePlayerStore.getState()).toMatchObject({
+      currentTrack: publicTrack,
+      isPlaying: false,
+      currentTime: 0.7,
+      duration: publicTrack.duration,
+      queue: [publicTrack],
+    });
   });
 });

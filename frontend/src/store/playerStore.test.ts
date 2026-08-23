@@ -254,6 +254,31 @@ describe('playerStore playback lifecycle', () => {
     vi.useRealTimers();
   });
 
+  it('persists bounded playback progress when paused', () => {
+    usePlayerStore.setState({
+      currentTrack: firstTrack,
+      isPlaying: true,
+      currentTime: 0,
+      duration: firstTrack.duration,
+      queue: [firstTrack],
+    });
+    audio.currentTime = 0.7;
+    audio.duration = firstTrack.duration;
+
+    act(() => usePlayerStore.getState().pause());
+
+    expect(usePlayerStore.getState()).toMatchObject({
+      currentTime: 0.7,
+      duration: firstTrack.duration,
+      isPlaying: false,
+    });
+    expect(JSON.parse(localStorage.getItem('playerState') ?? '{}')).toMatchObject({
+      currentTrackId: firstTrack.id,
+      queueTrackIds: [firstTrack.id],
+      currentTime: 0.7,
+    });
+  });
+
   it('replaces the prior duration in the same transition as a new track selection', () => {
     const switchedTrack = { ...secondTrack, duration: 45 };
 
@@ -685,6 +710,11 @@ describe('playerStore playback lifecycle', () => {
       isPlaying: false,
       currentTime: 0,
       duration: 0,
+    });
+    expect(JSON.parse(localStorage.getItem('playerState') ?? '{}')).toMatchObject({
+      currentTrackId: null,
+      queueTrackIds: [],
+      currentTime: 0,
     });
   });
 
