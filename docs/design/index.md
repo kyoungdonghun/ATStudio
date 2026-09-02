@@ -37,3 +37,4 @@ status: stable
 | **[P1 Payment Integrity Remediation Design](p1-payment-integrity-remediation-design.md)** | Implemented payment command, transaction, refund recovery, reconciliation, lock-order, and MySQL proof contract | stable |
 | **[P1 Payment and Database Integrity Design](p1-payment-db-integrity-design.md)** | Superseded 2026-07-14 payment/DB baseline retained for migration cautions and historical reference | archived |
 | **[P1 Security and Acceptance Hardening Design](p1-security-acceptance-hardening-design.md)** | Pre-implementation hardening contract retained in place; current controls live in security/API/operations SoT | archived |
+| **[Runtime Storage Operations](runtime-storage-operations.md)** | Database and public/private storage tuple, integrity audit, recovery boundary, and acceptance readiness contract | stable |

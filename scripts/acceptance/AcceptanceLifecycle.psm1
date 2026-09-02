@@ -12,7 +12,9 @@ $script:RequiredBackendEnvironmentVariableNames = @(
     "SPRING_DATASOURCE_PASSWORD",
     "JWT_SECRET",
     "APP_BOOTSTRAP_TEST_USERS_ENABLED",
-    "APP_BOOTSTRAP_TEST_USERS_DEFAULT_PASSWORD"
+    "APP_BOOTSTRAP_TEST_USERS_DEFAULT_PASSWORD",
+    "APP_STORAGE_PUBLIC_PATH",
+    "APP_STORAGE_PRIVATE_PATH"
 )
 $script:OptionalBackendEnvironmentVariableNames = @(
     "TOSS_CLIENT_KEY",
@@ -45,8 +47,6 @@ $script:OptionalBackendEnvironmentVariableNames = @(
     "MAIL_SMTP_AUTH",
     "MAIL_SMTP_STARTTLS",
     "MAIL_FROM",
-    "APP_STORAGE_PUBLIC_PATH",
-    "APP_STORAGE_PRIVATE_PATH",
     "APP_STORAGE_RECOVERY_BATCH_SIZE",
     "APP_STORAGE_RECOVERY_MAX_ATTEMPTS",
     "APP_STORAGE_RECOVERY_STALE_SECONDS",
@@ -286,6 +286,47 @@ function Assert-AcceptanceRuntimeOutsideRepo {
     }
 }
 
+function Assert-AcceptanceStorageRoots {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable] $BackendEnvironmentBundle
+    )
+
+    $publicPath = $BackendEnvironmentBundle["APP_STORAGE_PUBLIC_PATH"]
+    $privatePath = $BackendEnvironmentBundle["APP_STORAGE_PRIVATE_PATH"]
+    try {
+        if (-not (Test-AcceptanceAbsoluteStoragePath -Path $publicPath) -or
+            -not (Test-AcceptanceAbsoluteStoragePath -Path $privatePath)) {
+            throw "not-absolute"
+        }
+        $publicRoot = (Resolve-AcceptanceFullPath -Path $publicPath).TrimEnd('\', '/')
+        $privateRoot = (Resolve-AcceptanceFullPath -Path $privatePath).TrimEnd('\', '/')
+    } catch {
+        throw "Acceptance storage roots must be explicit absolute paths."
+    }
+
+    $comparison = [System.StringComparison]::OrdinalIgnoreCase
+    if ($publicRoot.Equals($privateRoot, $comparison) -or
+        $publicRoot.StartsWith("$privateRoot\", $comparison) -or
+        $privateRoot.StartsWith("$publicRoot\", $comparison)) {
+        throw "Acceptance public and private storage roots must be separate."
+    }
+}
+
+function Test-AcceptanceAbsoluteStoragePath {
+    param(
+        [string] $Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $false
+    }
+
+    # Keep compatibility with both Windows PowerShell 5.1 and PowerShell 7.
+    return ($Path -match '^[A-Za-z]:[\\/]') -or
+        ($Path -match '^\\\\[^\\/]+[\\/][^\\/]+')
+}
+
 function Read-AcceptanceBackendEnvironmentBundle {
     param(
         [Parameter(Mandatory = $true)]
@@ -354,6 +395,7 @@ function Read-AcceptanceBackendEnvironmentBundle {
     if ($bundle["APP_BOOTSTRAP_TEST_USERS_ENABLED"] -cne "true") {
         throw "Backend environment bundle must enable the QA bootstrap."
     }
+    Assert-AcceptanceStorageRoots -BackendEnvironmentBundle $bundle
 
     return $bundle
 }
@@ -1162,6 +1204,10 @@ function Start-AcceptanceEnvironment {
         return $existing
     }
 
+    $backendEnvironmentBundle = Read-AcceptanceBackendEnvironmentBundle `
+        -BackendEnvironmentPath $BackendEnvironmentPath `
+        -RepoRoot $resolvedRepo
+
     $cloudflared = Find-AcceptanceCloudflared -CloudflaredPath $CloudflaredPath
     $runId = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
     $runDirectory = Join-Path $resolvedRuntime $runId
@@ -1193,9 +1239,6 @@ function Start-AcceptanceEnvironment {
         $manifest.services.tunnel = $tunnel
         Save-AcceptanceManifest -Manifest $manifest -ManifestPath $manifestPath
 
-        $backendEnvironmentBundle = Read-AcceptanceBackendEnvironmentBundle `
-            -BackendEnvironmentPath $BackendEnvironmentPath `
-            -RepoRoot $resolvedRepo
         $childEnvironment = New-AcceptanceChildEnvironment -PublicBaseUrl $publicBaseUrl
         $backendEnvironment = New-AcceptanceBackendEnvironment `
             -ChildEnvironment $childEnvironment `

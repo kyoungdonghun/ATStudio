@@ -55,6 +55,8 @@ non-string values are rejected.
 | `JWT_SECRET` | Acceptance-only JWT signing secret |
 | `APP_BOOTSTRAP_TEST_USERS_ENABLED` | Must be the exact string `true` |
 | `APP_BOOTSTRAP_TEST_USERS_DEFAULT_PASSWORD` | Password for opt-in QA accounts |
+| `APP_STORAGE_PUBLIC_PATH` | Absolute acceptance public-object root paired with this acceptance database |
+| `APP_STORAGE_PRIVATE_PATH` | Absolute acceptance private-object root paired with this acceptance database |
 
 ### Optional allowlisted keys
 
@@ -90,8 +92,6 @@ Only the following optional names are accepted:
 - `MAIL_SMTP_AUTH`
 - `MAIL_SMTP_STARTTLS`
 - `MAIL_FROM`
-- `APP_STORAGE_PUBLIC_PATH`
-- `APP_STORAGE_PRIVATE_PATH`
 - `APP_STORAGE_RECOVERY_BATCH_SIZE`
 - `APP_STORAGE_RECOVERY_MAX_ATTEMPTS`
 - `APP_STORAGE_RECOVERY_STALE_SECONDS`
@@ -173,10 +173,14 @@ $bundle = "$env:LOCALAPPDATA\ATStudio\acceptance-backend-environment.json"
 When `cloudflared` is not on `PATH`, add
 `-CloudflaredPath "C:\path\to\cloudflared.exe"`.
 
-The lifecycle starts the tunnel first, validates exactly one
-`https://*.trycloudflare.com` origin, then loads the backend bundle and starts
-backend and frontend. The bundle is injected only into the backend process.
-Readiness requires all four targets to return HTTP `2xx` or `3xx`:
+The lifecycle validates the backend bundle, including explicit absolute and
+disjoint public/private storage roots, before starting any child process. It
+then starts the tunnel, validates exactly one `https://*.trycloudflare.com`
+origin, and starts backend and frontend. The bundle is injected only into the
+backend process. The `acceptance` backend performs a strict persisted-reference
+storage audit before it can become ready; a missing media, thumbnail, or
+private attachment/document reference fails startup. Readiness then requires
+all four targets to return HTTP `2xx` or `3xx`:
 
 - `http://127.0.0.1:5173`
 - `http://127.0.0.1:8080/api/tracks`
@@ -221,6 +225,10 @@ records the stopped state. A repeated stop is safe.
 - Do not send mail to real users. Use an isolated SMTP sink or an explicitly
   approved test inbox.
 - The Cloudflare URL is ephemeral and may change on every run.
+- Acceptance DB, public storage root, and private storage root are one runtime
+  tuple. Do not reuse an acceptance database with different roots. Use the
+  ADMIN read-only `GET /api/admin/storage-integrity` inspection after any
+  approved data/file recovery; it does not repair data or disclose file keys.
 - OAuth provider consoles must separately allow the generated callbacks before
   social login can be claimed as tested.
 - Passing this lifecycle proves a controlled acceptance environment. Production

@@ -1,6 +1,6 @@
 ---
-version: 30.11
-last_updated: 2026-08-16
+version: 30.12
+last_updated: 2026-09-02
 project: ATS
 owner: SA
 category: design
@@ -16,11 +16,11 @@ dependencies:
     reason: Current persistence contract
 ---
 
-# ATStudio API Specification v30.11
+# ATStudio API Specification v30.12
 
 ## Current Contract
 
-The current V1 backend exposes **152 method-level mappings across 25 controller
+The current V1 backend exposes **153 method-level mappings across 26 controller
 classes**. This count is derived from the current Java source by counting
 method-level `@GetMapping`, `@PostMapping`, `@PutMapping`,
 `@PatchMapping`, and `@DeleteMapping` annotations. Class-level
@@ -28,12 +28,12 @@ method-level `@GetMapping`, `@PostMapping`, `@PutMapping`,
 
 | Verb      |   Count |
 | --------- | ------: |
-| GET       |      77 |
+| GET       |      78 |
 | POST      |      41 |
 | PUT       |      20 |
 | DELETE    |      14 |
 | PATCH     |       0 |
-| **Total** | **152** |
+| **Total** | **153** |
 
 `SecurityConfig` is authoritative for authorization. Controller annotations are
 authoritative for paths and verbs. OpenAPI output generated from the running
@@ -71,6 +71,10 @@ application is authoritative for request and response schemas.
   correction workflow/success context.
 - Existing-Track audio analysis is exposed only as a read-only ADMIN dry-run.
   Applying a duration backfill remains a separately approved operation.
+- Storage integrity inspection is a read-only ADMIN operation. It audits every
+  persisted public/private object reference and returns aggregate counts plus
+  opaque record/domain/reference-type evidence for missing files. Storage keys,
+  original filenames, file bytes, and automatic repair actions are excluded.
 - Track create and replacement audio accepts MP3 and WAV only. On non-iOS
   platforms, the active SPA advertises those two formats through the native
   picker hint. On iOS, it omits that hint to avoid valid MP3 files being
@@ -157,6 +161,7 @@ feedback must not be documented as durable server completion.
 | `AdminPaymentController`                    |       27 | ADMIN payment ledgers, incidents, settlement, refund, and entitlement correction              |
 | `AdminSettingController`                    |        1 | ADMIN site-setting upsert                                                                     |
 | `AdminStatsController`                      |        1 | ADMIN dashboard statistics                                                                    |
+| `AdminStorageIntegrityController`           |        1 | ADMIN read-only public/private storage-reference inspection                                  |
 | `AdminTrackAudioAnalysisController`         |        1 | ADMIN read-only existing-Track audio-analysis dry-run                                         |
 | `AdminUserSubscriptionCorrectionController` |        7 | ADMIN local subscription correction workflow                                                  |
 | `AdminWhitelistChannelController`           |        5 | ADMIN whitelist review, export, and owner-scoped recovery                                     |
@@ -518,7 +523,7 @@ export request opts out of the shared authentication refresh/replay path so a
 request clears rows, pagination, and pending row edits; stale list success,
 failure, and completion paths cannot replace a newer request state.
 
-### ADMIN Subscription Correction and Track Analysis (8)
+### ADMIN Subscription Correction, Track Analysis, and Storage Integrity (9)
 
 - `POST /api/admin/user-subscription-corrections/preview`
 - `GET|POST /api/admin/user-subscription-corrections`
@@ -527,6 +532,7 @@ failure, and completion paths cannot replace a newer request state.
 - `POST /api/admin/user-subscription-corrections/{correctionId}/approve`
 - `POST /api/admin/user-subscription-corrections/{correctionId}/execute`
 - `GET /api/admin/tracks/audio-analysis/dry-run`
+- `GET /api/admin/storage-integrity`
 
 ### Albums, Tracks, Tags, and Playlists (33)
 
@@ -936,6 +942,12 @@ omits a blank note.
 - The audio-analysis dry-run is ordered by Track ID, accepts `page >= 1` and
   `1 <= size <= 100`, and returns report rows only. It exposes no storage key
   and has no update/backfill side effect.
+- The ADMIN storage-integrity inspection is read-only. It checks Track audio
+  and thumbnails, Album and Playlist thumbnails, Company Certification
+  documents, and Notice/Question attachments across their configured public or
+  private roots. A report exposes only aggregate counts and opaque
+  `domain`/`storageRoot`/`recordId`/`referenceType` evidence. It never exposes
+  a relative storage key, original filename, file bytes, or a repair action.
 
 ## Verification
 
@@ -946,4 +958,4 @@ $controllers = Get-ChildItem src/main/java/com/atstudio/atstudio/controller -Fil
 ($controllers | Select-String '^\s*@(Get|Post|Put|Patch|Delete)Mapping\b').Count
 ```
 
-Expected result: `151`.
+Expected result: `153`.

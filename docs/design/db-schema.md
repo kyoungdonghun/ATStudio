@@ -312,6 +312,21 @@ retained-data change is introduced for this recovery path.
   `--spring.config.additional-location=file:./application-local.yml`.
 - `application-local.yml` remains untracked and must never be copied into
   documentation or evidence.
+- A runtime is the explicit tuple of one database, one public storage root, and
+  one private storage root. Reusing a database with a different storage tuple
+  is not a valid restart and can leave persisted references unreadable.
+- `acceptance` requires explicit absolute, disjoint
+  `APP_STORAGE_PUBLIC_PATH` and `APP_STORAGE_PRIVATE_PATH` values. It performs
+  a strict startup integrity audit across all persistent file-reference
+  domains; any missing or unreadable reference prevents readiness.
+- Base/local runtimes audit on startup and emit a safe aggregate warning when
+  references are missing; operators may explicitly disable this with
+  `APP_STORAGE_INTEGRITY_AUDIT_ON_STARTUP=false`. Any runtime may make the
+  audit fail closed with `APP_STORAGE_INTEGRITY_STRICT_ON_STARTUP=true`. The
+  read-only ADMIN inspection endpoint remains available for an on-demand audit.
+- Any `prod`/`production` profile fails before startup when storage roots are
+  not explicit absolute paths, or when the startup integrity audit is not both
+  enabled and strict.
 
 ## Verification
 

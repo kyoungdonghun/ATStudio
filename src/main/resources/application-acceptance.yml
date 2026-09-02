@@ -29,6 +29,13 @@ app:
   acceptance:
     enabled: true
     public-base-url: ${APP_PUBLIC_BASE_URL}
+  storage:
+    public-path: ${APP_STORAGE_PUBLIC_PATH:}
+    private-path: ${APP_STORAGE_PRIVATE_PATH:}
+    require-explicit-roots: true
+    integrity:
+      audit-on-startup: true
+      strict-on-startup: true
   bootstrap:
     test-users:
       enabled: ${APP_BOOTSTRAP_TEST_USERS_ENABLED:false}

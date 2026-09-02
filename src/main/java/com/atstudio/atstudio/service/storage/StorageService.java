@@ -17,5 +17,11 @@ public interface StorageService {
 
     Resource loadAsResource(StorageRoot root, String relativeKey);
 
+    /**
+     * Checks whether a persisted storage reference currently resolves to a readable file.
+     * This is intentionally read-only and never discloses the underlying key to callers.
+     */
+    boolean exists(StorageRoot root, String relativeKey);
+
     String getUrl(StorageRoot root, String relativeKey);
 }

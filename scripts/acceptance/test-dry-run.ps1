@@ -150,7 +150,7 @@ Assert-True `
     -Message "Dry-run plan should not contain secret-bearing variable names or values."
 Assert-Equal `
     -Actual $plan.backendEnvironmentBundle.requiredVariableCount `
-    -Expected 6 `
+    -Expected 8 `
     -Message "Dry-run should report the required backend variable count without listing names."
 Assert-True `
     -Condition (-not ($plan.PSObject.Properties.Name -contains "backendEnvironmentPath")) `

@@ -3,7 +3,9 @@ package com.atstudio.atstudio.service.storage;
 import com.atstudio.atstudio.common.exception.TECHNIC_ERROR;
 import com.atstudio.atstudio.common.exception.TechnicException;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
@@ -29,18 +32,34 @@ public class LocalStorageService implements StorageService {
 
     private final String publicPath;
     private final String privatePath;
+    private final boolean requireExplicitRoots;
     private final Map<StorageRoot, Path> roots = new EnumMap<>(StorageRoot.class);
 
+    @Autowired
     public LocalStorageService(
             @Value("${app.storage.public-path:${app.storage.base-path:uploads}}") String publicPath,
-            @Value("${app.storage.private-path:private-uploads}") String privatePath) {
+            @Value("${app.storage.private-path:private-uploads}") String privatePath,
+            @Value("${app.storage.require-explicit-roots:false}") boolean requireExplicitRoots,
+            Environment environment) {
         this.publicPath = publicPath;
         this.privatePath = privatePath;
+        this.requireExplicitRoots = requireExplicitRoots || hasProductionProfile(environment);
+    }
+
+    LocalStorageService(String publicPath, String privatePath) {
+        this(publicPath, privatePath, false);
+    }
+
+    LocalStorageService(String publicPath, String privatePath, boolean requireExplicitRoots) {
+        this.publicPath = publicPath;
+        this.privatePath = privatePath;
+        this.requireExplicitRoots = requireExplicitRoots;
     }
 
     @PostConstruct
     void init() {
         try {
+            validateExplicitRootRequirement();
             Path publicRoot = initializeRoot(publicPath);
             Path privateRoot = initializeRoot(privatePath);
             if (publicRoot.equals(privateRoot)
@@ -125,6 +144,16 @@ public class LocalStorageService implements StorageService {
     }
 
     @Override
+    public boolean exists(StorageRoot root, String relativeKey) {
+        try {
+            loadAsResource(root, relativeKey);
+            return true;
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    @Override
     public String getUrl(StorageRoot root, String relativeKey) {
         if (root != StorageRoot.PUBLIC) {
             throw ioFailure();
@@ -142,6 +171,36 @@ public class LocalStorageService implements StorageService {
             throw new IllegalStateException("Storage root must be a real directory");
         }
         return candidate.toRealPath(LinkOption.NOFOLLOW_LINKS);
+    }
+
+    private void validateExplicitRootRequirement() {
+        if (!requireExplicitRoots) {
+            return;
+        }
+        if (!isAbsolutePath(publicPath) || !isAbsolutePath(privatePath)) {
+            throw new IllegalStateException(
+                    "Explicit absolute public and private storage roots are required for this runtime");
+        }
+    }
+
+    private boolean isAbsolutePath(String configuredPath) {
+        if (configuredPath == null || configuredPath.isBlank()) {
+            return false;
+        }
+        try {
+            return Path.of(configuredPath).isAbsolute();
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private boolean hasProductionProfile(Environment environment) {
+        return Arrays.stream(environment.getActiveProfiles())
+                .map(profile -> profile.toLowerCase(Locale.ROOT))
+                .anyMatch(profile -> profile.equals("prod")
+                        || profile.equals("production")
+                        || profile.startsWith("prod-")
+                        || profile.startsWith("production-"));
     }
 
     private Path resolveForWrite(StorageRoot root, String relativeKey) {

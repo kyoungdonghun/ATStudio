@@ -83,6 +83,10 @@ app:
     base-path: uploads
     public-path: ${APP_STORAGE_PUBLIC_PATH:${app.storage.base-path:uploads}}
     private-path: ${APP_STORAGE_PRIVATE_PATH:private-uploads}
+    require-explicit-roots: ${APP_STORAGE_REQUIRE_EXPLICIT_ROOTS:false}
+    integrity:
+      audit-on-startup: ${APP_STORAGE_INTEGRITY_AUDIT_ON_STARTUP:true}
+      strict-on-startup: ${APP_STORAGE_INTEGRITY_STRICT_ON_STARTUP:false}
     recovery:
       batch-size: ${APP_STORAGE_RECOVERY_BATCH_SIZE:50}
       max-attempts: ${APP_STORAGE_RECOVERY_MAX_ATTEMPTS:8}

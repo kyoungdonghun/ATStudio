@@ -3,6 +3,7 @@ package com.atstudio.atstudio.service.storage;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -127,6 +128,32 @@ class LocalStorageServiceTest {
                 regularFile.toString(),
                 tempDirectory.resolve("private-file-case").toString()).init())
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void explicitRootRuntimeRejectsRelativeStorageRoots() throws IOException {
+        Path privateRoot = Files.createDirectories(tempDirectory.resolve("private"));
+        LocalStorageService storage = new LocalStorageService("uploads", privateRoot.toString(), true);
+
+        assertThatThrownBy(storage::init)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Explicit absolute public and private storage roots");
+    }
+
+    @Test
+    void productionProfileRejectsRelativeStorageRootsWithoutAnOptInFlag() throws IOException {
+        Path privateRoot = Files.createDirectories(tempDirectory.resolve("private"));
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("production");
+        LocalStorageService storage = new LocalStorageService(
+                "uploads",
+                privateRoot.toString(),
+                false,
+                environment);
+
+        assertThatThrownBy(storage::init)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Explicit absolute public and private storage roots");
     }
 
     @Test

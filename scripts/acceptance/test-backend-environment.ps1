@@ -100,8 +100,15 @@ try {
     New-Item -ItemType Directory -Path $testRoot | Out-Null
     $missingPathRejected = $false
     try {
-        & (Join-Path $PSScriptRoot "start.ps1") `
-            -RuntimeRoot (Join-Path $testRoot "missing-path") | Out-Null
+        Invoke-InAcceptanceModule `
+            -ArgumentList @($repoRoot, (Join-Path $testRoot "missing-path")) `
+            -ScriptBlock {
+                param([string] $RepoRoot, [string] $RuntimeRoot)
+                Start-AcceptanceEnvironment `
+                    -RepoRoot $RepoRoot `
+                    -RuntimeRoot $RuntimeRoot `
+                    -BackendEnvironmentPath "" | Out-Null
+            }
     } catch {
         $missingPathRejected = $true
         Assert-True `
@@ -110,7 +117,7 @@ try {
     }
     Assert-True `
         -Condition $missingPathRejected `
-        -Message "Non-dry-run start should reject a missing backend environment path before spawn."
+        -Message "Acceptance lifecycle should reject a missing backend environment path before spawn."
 
     $required = [ordered]@{
         SPRING_DATASOURCE_URL = "jdbc:synthetic:$marker"
@@ -119,6 +126,8 @@ try {
         JWT_SECRET = "jwt_$marker"
         APP_BOOTSTRAP_TEST_USERS_ENABLED = "true"
         APP_BOOTSTRAP_TEST_USERS_DEFAULT_PASSWORD = "bootstrap_$marker"
+        APP_STORAGE_PUBLIC_PATH = (Join-Path $testRoot "storage-public")
+        APP_STORAGE_PRIVATE_PATH = (Join-Path $testRoot "storage-private")
     }
     $currentOptionalNames = @(
         "PAYMENT_BILLING_KEY_ACTIVE_KEY_ID",
@@ -153,6 +162,22 @@ try {
             -Condition (-not ($allowlistContract.allowed -ccontains $name)) `
             -Message "Obsolete backend environment name should not be allowlisted: $name"
     }
+    $storagePathContract = Invoke-InAcceptanceModule -ScriptBlock {
+        return [pscustomobject]@{
+            drive = Test-AcceptanceAbsoluteStoragePath -Path "C:\\acceptance-storage"
+            unc = Test-AcceptanceAbsoluteStoragePath -Path "\\server\share"
+            relative = Test-AcceptanceAbsoluteStoragePath -Path "relative-storage"
+        }
+    }
+    Assert-True `
+        -Condition $storagePathContract.drive `
+        -Message "Drive-qualified acceptance storage paths should be accepted."
+    Assert-True `
+        -Condition $storagePathContract.unc `
+        -Message "UNC acceptance storage paths should be accepted."
+    Assert-True `
+        -Condition (-not $storagePathContract.relative) `
+        -Message "Relative acceptance storage paths should be rejected."
 
     $validPath = Join-Path $testRoot "valid.json"
     $valid = [ordered]@{} + $required
@@ -225,6 +250,15 @@ try {
     Assert-BundleFailure `
         -Path $missingRequiredPath `
         -Case "missing-required" `
+        -ForbiddenText $forbidden
+
+    $missingStoragePath = Join-Path $testRoot "missing-storage.json"
+    $missingStorage = [ordered]@{} + $required
+    $missingStorage.Remove("APP_STORAGE_PUBLIC_PATH")
+    Write-JsonFixture -Path $missingStoragePath -Value $missingStorage
+    Assert-BundleFailure `
+        -Path $missingStoragePath `
+        -Case "missing-storage-root" `
         -ForbiddenText $forbidden
 
     $disabledBootstrapPath = Join-Path $testRoot "disabled-bootstrap.json"
@@ -541,11 +575,11 @@ Start-Sleep -Seconds 2
         }
     Assert-SequenceEqual `
         -Actual $order.events `
-        -Expected @("spawn-tunnel", "load-bundle", "spawn-backend", "spawn-frontend") `
-        -Message "Bundle loading should occur after tunnel spawn and before backend/frontend spawns."
+        -Expected @("load-bundle", "spawn-tunnel", "spawn-backend", "spawn-frontend") `
+        -Message "Bundle loading should occur before every external process spawn."
     Assert-True `
-        -Condition (-not $order.spawns[0].bundleLoaded) `
-        -Message "Tunnel should spawn before the backend bundle is loaded."
+        -Condition $order.spawns[0].bundleLoaded `
+        -Message "The backend bundle should be validated before the tunnel is spawned."
     Assert-True `
         -Condition ($order.spawns[0].backendNameCount -eq 0) `
         -Message "Tunnel launch record should contain no backend bundle names."
@@ -590,7 +624,7 @@ if ($script:Failures.Count -gt 0) {
         "child-process-environment-isolation",
         "backend-environment-restoration",
         "continuous-child-log-drainage",
-        "tunnel-before-bundle-load-order",
+        "bundle-validation-before-process-spawn",
         "temporary-fixture-cleanup"
     )
 } | ConvertTo-Json -Depth 5
