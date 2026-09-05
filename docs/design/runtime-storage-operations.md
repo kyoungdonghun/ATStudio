@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-09-02
+version: 1.2
+last_updated: 2026-09-05
 project: ATS
 owner: SA
 category: design
@@ -124,3 +124,49 @@ therefore proves the configured acceptance DB and both configured roots agree
 for all supported persisted file-reference domains. It does not prove a
 production backup, restore, retained-data migration, or production deployment
 process; those remain separate release gates.
+
+## Browser-Origin Preflight
+
+Before diagnosing missing player state as missing storage, record the exact
+browser origin (scheme, host and port) and confirm that it is explicitly
+allowed by the running backend's effective `cors.allowed-origins`. Record only
+non-secret origin values; do not print local configuration or environment bundles.
+
+For the existing local configuration, use `http://localhost:5173` throughout
+the browser scenario. The [local configuration example](../../application-local.example.yml)
+already warns against `http://127.0.0.1:5173` unless explicitly allowed. A Vite
+listener bound to 127.0.0.1 does not authorize that browser Origin. The two
+origins also have separate browser storage; do not copy, clear or migrate
+history/tokens to make a test appear to pass.
+
+1. Confirm the owned development runtime and an existing public Track ID.
+2. Check the public read-only lookup `POST /api/tracks/batch`, JSON body
+   `{"ids":[4]}`, with `Content-Type: application/json` and the **actual browser
+   Origin**. ID 4 is the recorded demo fixture; use an already-confirmed public
+   ID for another environment, without creating test data for this probe.
+3. Require the allowed-Origin request to succeed and an untrusted Origin to
+   remain rejected. Record status and a safe result summary only. A GET health
+   response or a POST without Origin is insufficient to validate browser CORS.
+4. On that same browser origin, play, pause, seek and reload through the actual
+   UI. Record restored Track/time/paused state separately from the controlled
+   request comparison. Do not infer the browser's network trace from a shell probe.
+
+[WI-005](../../deliverables/agent/WI-20260905-ATS-005-evidence-pack.md)
+records MA's 2026-09-05 comparison against the same local batch target:
+127.0.0.1 Origin returned 403 `Invalid CORS request`; localhost Origin and an
+omitted Origin returned 200. The actual localhost browser then restored Track 4
+at 5 seconds, paused, without a player fix or CORS allowlist expansion. This
+single-track test does not establish list or queue repeat behavior; subsequent
+MA observations are complete in
+[WI-002](../../deliverables/agent/WI-20260905-ATS-002-evidence-pack.md) and
+[SR-93](../SR/SR-93.md#2026-09-05-local-verification). On 2026-09-05, MA reported
+document validation PASS (665 IDs, links and index) and `git diff --check` PASS.
+MA verified the owned backend 30612 and frontend 28724 stopped and their ports
+released. These are dated local observations, not current service availability
+or production GO; only scoped staging and commit remain MA-owned for this
+local closeout.
+
+For deployment, explicitly configure and verify the real approved origin and
+callbacks. Do not introduce wildcard origins or production localhost aliases
+to work around a test-harness mismatch. Origin correctness does not replace
+the storage integrity, backup/restore or release gates above.

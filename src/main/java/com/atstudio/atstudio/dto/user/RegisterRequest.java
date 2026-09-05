@@ -26,6 +26,10 @@ public class RegisterRequest {
     @Pattern(regexp = NICKNAME_PATTERN)
     private String nickname;
 
+    public void setNickname(String nickname) {
+        this.nickname = normalizeNickname(nickname);
+    }
+
     @NotBlank
     @Email
     private String email;

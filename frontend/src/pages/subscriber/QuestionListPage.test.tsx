@@ -129,4 +129,15 @@ describe('QuestionListPage load ownership', () => {
     fireEvent.click(titleLink);
     expect(screen.getByTestId('question-location')).toHaveTextContent('/questions/7');
   });
+
+  it('exposes the dedicated question compose FAB above the fixed player area', async () => {
+    fetchQuestions.mockResolvedValue({ dataList: [], pageInfo: { ...pageInfo, total: 0 } });
+
+    renderPage();
+
+    expect(await screen.findByRole('link', { name: '새 문의 작성' })).toHaveAttribute(
+      'href',
+      '/questions/new',
+    );
+  });
 });

@@ -284,7 +284,6 @@ export default function TrackListPage() {
     activeUsages.length > 0 ||
     activeBpmLabel !== '';
   const [availableGenres, setAvailableGenres] = useState<Set<string>>(new Set());
-  const [availableMoods, setAvailableMoods] = useState<Set<string>>(new Set());
   const [availableInstruments, setAvailableInstruments] = useState<Set<string>>(new Set());
   const [availableUsages, setAvailableUsages] = useState<Set<string>>(new Set());
 
@@ -446,7 +445,6 @@ export default function TrackListPage() {
     const requestGeneration = ++availableTagsRequestGenerationRef.current;
     const showAllTags = () => {
       setAvailableGenres(new Set());
-      setAvailableMoods(new Set());
       setAvailableInstruments(new Set());
       setAvailableUsages(new Set());
     };
@@ -478,7 +476,6 @@ export default function TrackListPage() {
           return;
         }
         setAvailableGenres(new Set(tags.filter((t) => t.type === 'GENRE').map((t) => t.name)));
-        setAvailableMoods(new Set(tags.filter((t) => t.type === 'MOOD').map((t) => t.name)));
         setAvailableInstruments(
           new Set(tags.filter((t) => t.type === 'INSTRUMENT').map((t) => t.name)),
         );
@@ -710,21 +707,14 @@ export default function TrackListPage() {
         <div className={`${styles.filterRow} ${moodExpanded ? styles.filterRowExpanded : ''}`}>
           <span className={styles.filterLabel}>{'분위기'}</span>
           <div className={styles.filterChips}>
-            {visibleMoodTags
-              .filter(
-                (tag) =>
-                  activeMoods.includes(tag.name) ||
-                  availableMoods.size === 0 ||
-                  availableMoods.has(tag.name),
-              )
-              .map((tag) => (
-                <FilterChip
-                  key={tag.key}
-                  label={tag.name}
-                  active={activeMoods.includes(tag.name)}
-                  onClick={() => toggleMood(tag.name)}
-                />
-              ))}
+            {visibleMoodTags.map((tag) => (
+              <FilterChip
+                key={tag.key}
+                label={tag.name}
+                active={activeMoods.includes(tag.name)}
+                onClick={() => toggleMood(tag.name)}
+              />
+            ))}
           </div>
           <TaxonomyLoadState type="MOOD" status={taxonomies.MOOD.status} onRetry={retryTaxonomy} />
           {visibleMoodTags.length > 6 && (

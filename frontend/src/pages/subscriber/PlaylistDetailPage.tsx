@@ -37,6 +37,7 @@ export default function PlaylistDetailPage() {
   const playTrack = usePlayerStore((s) => s.play);
   const pauseTrack = usePlayerStore((s) => s.pause);
   const resumeTrack = usePlayerStore((s) => s.resume);
+  const playAll = usePlayerStore((s) => s.playAll);
   const addToPlayerQueue = usePlayerStore((s) => s.addToQueue);
   const setTrackListContext = usePlayerStore((s) => s.setTrackListContext);
   const likeStore = useLikeStore();
@@ -237,6 +238,11 @@ export default function PlaylistDetailPage() {
     toast('success', '전체 곡이 대기열에 추가되었습니다.');
   }
 
+  function handlePlayAll() {
+    if (!isCurrentProjection() || !currentDetail || currentDetail.tracks.length === 0) return;
+    playAll(currentDetail.tracks.map((track) => toPlayableTrack(track)));
+  }
+
   /* ── Render ── */
 
   if (id === null) {
@@ -289,9 +295,14 @@ export default function PlaylistDetailPage() {
         </div>
         <div className={styles.headerActions}>
           {currentDetail.tracks.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={handleAddAllToQueue}>
-              {'전체 대기열 추가'}
-            </Button>
+            <>
+              <Button variant="primary" size="sm" onClick={handlePlayAll}>
+                {'전체 재생'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleAddAllToQueue}>
+                {'전체 대기열 추가'}
+              </Button>
+            </>
           )}
           <Button
             variant="ghost"

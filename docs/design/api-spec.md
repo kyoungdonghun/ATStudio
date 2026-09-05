@@ -578,6 +578,18 @@ affirmative. The consent record holds only the user, consent type,
 server-owned version, and server-generated agreement time. Successful password
 registration directs the SPA to email verification and creates no session.
 
+For `POST /api/users`, `PUT /api/users/me/complete-profile`, `PUT /api/users/me`,
+and `GET /api/utils/check-nickname`, the nickname contract trims leading and
+trailing whitespace before client validation, availability checking, server
+validation, duplicate lookup, and persistence. Accepted internal spaces remain
+part of the nickname. Responses project the canonical stored nickname, so a
+caller cannot observe a distinct edge-whitespace variant.
+
+`INDIVIDUAL` profile input uses `job`. `BUSINESS` profile input uses the existing
+required free-text `companyName` field, labelled `Company name or industry` in
+the SPA. No separate `industry` request, response, or persistence field is part
+of this contract.
+
 `POST /api/auth/login` and `POST /api/auth/refresh` reject an unverified
 password account with `EMAIL_VERIFICATION_REQUIRED` before access or refresh
 token material is issued or rotated. `POST /api/auth/logout` returns `204` for

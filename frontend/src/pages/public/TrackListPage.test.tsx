@@ -467,7 +467,7 @@ describe('TrackListPage latest-request-wins', () => {
       await newAvailableRequest.promise;
     });
     expect(await screen.findByRole('button', { name: 'current-mood' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'stale-mood' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'stale-mood' })).toBeInTheDocument();
 
     await act(async () => {
       oldAvailableRequest.resolve([
@@ -477,7 +477,7 @@ describe('TrackListPage latest-request-wins', () => {
     });
 
     expect(screen.getByRole('button', { name: 'current-mood' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'stale-mood' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'stale-mood' })).toBeInTheDocument();
     expect((mocks.fetchAvailableTags.mock.calls[0][1] as AbortSignal).aborted).toBe(true);
   });
 
@@ -502,9 +502,7 @@ describe('TrackListPage latest-request-wins', () => {
 
     renderPage('/tracks?genre=old&page=1');
     expect(await screen.findByRole('button', { name: 'stale-mood' })).toBeInTheDocument();
-    await waitFor(() =>
-      expect(screen.queryByRole('button', { name: 'safe-fallback' })).not.toBeInTheDocument(),
-    );
+    expect(screen.getByRole('button', { name: 'safe-fallback' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'newer filter' }));
     await waitFor(() => expect(mocks.fetchAvailableTags).toHaveBeenCalledTimes(2));
@@ -535,6 +533,38 @@ describe('TrackListPage latest-request-wins', () => {
     });
     expect(screen.getByRole('button', { name: 'safe-fallback' })).toBeInTheDocument();
     expect((mocks.fetchAvailableTags.mock.calls[1][1] as AbortSignal).aborted).toBe(true);
+  });
+
+  it('keeps every mood selectable after a selected mood narrows available tags', async () => {
+    mocks.fetchTracks.mockResolvedValue(emptyTrackPage());
+    mocks.fetchTags.mockImplementation((type: string) => {
+      const tags = {
+        GENRE: [],
+        MOOD: [
+          { id: 1, name: 'calm', type: 'MOOD', createdAt: '2026-08-23' },
+          { id: 2, name: 'bright', type: 'MOOD', createdAt: '2026-08-23' },
+        ],
+        INSTRUMENT: [],
+        USAGE: [],
+      } as const;
+      return Promise.resolve(tags[type as keyof typeof tags]);
+    });
+    mocks.fetchAvailableTags.mockResolvedValue([
+      { id: 1, name: 'calm', type: 'MOOD', createdAt: '2026-08-23' },
+    ]);
+
+    renderPage('/tracks?mood=calm');
+
+    expect(await screen.findByRole('button', { name: 'calm' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'bright' }));
+
+    await waitFor(() => {
+      expect(latestTrackParams()).toMatchObject({ mood: ['calm', 'bright'] });
+      expect(screen.getByTestId('location')).toHaveTextContent('mood=calm&mood=bright');
+    });
   });
 
   it('opens all tag families and applies or resets modal filters without changing sort', async () => {

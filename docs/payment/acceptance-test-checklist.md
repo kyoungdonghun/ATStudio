@@ -1,6 +1,6 @@
 ---
-version: 1.6
-last_updated: 2026-08-13
+version: 1.8
+last_updated: 2026-09-05
 project: ATS
 owner: qa
 category: guide
@@ -25,7 +25,7 @@ dependencies:
 | Check | Expected Result | Done |
 | :-- | :-- | :-- |
 | The environment is an approved local/test/staging environment using Toss test configuration. | No live key, real-money payment, retained production DB, or production deployment is used by this checklist. | [ ] |
-| Any remotely shared frontend is started from the official V1 baseline branch `codex/p1-acceptance-hardening` through the operator-controlled acceptance lifecycle. | Local page and API proxy pass before a newly issued public URL is shared; historical URLs are not reused. No separate client-demo branch is used. | [ ] |
+| Any remotely shared frontend uses the explicitly approved release checkout and revision through the operator-controlled acceptance lifecycle. | Record checkout, branch, revision and exact browser origin; local page and API proxy pass before a newly issued public URL is shared. The 2026-09-05 local closeout uses `codex/v1-release-rehearsal-fixes`, not an instruction to switch or modify a separate client worktree. Historical URLs are not reused. | [ ] |
 | Backend and frontend are running against the intended local or staging environment. | User can open `/subscriptions` and admin can open `/admin/payments`. | [ ] |
 | The external acceptance backend-environment bundle uses only current allowlisted names. | Obsolete `APP_PAYMENT_PROVIDER`, `TOSS_CONFIRM_URL`, and `PAYMENT_BILLING_KEY_ENCRYPTION_SECRET` entries are absent; a bundle containing one of them is rejected instead of being treated as a compatibility configuration. | [ ] |
 | Toss test client key and secret key are configured for recurring billing. | Checkout opens Toss billing auth instead of provider-not-configured error. | [ ] |
@@ -147,17 +147,35 @@ The checks below are implementation-only. Client and ordinary operators should
 not inspect transaction internals, run concurrency tests, or connect to a
 database to reproduce them.
 
-Only automated technical evidence is checked in this section. No manual or
-client-acceptance row in Sections 1-11 or 13 is checked by WI-067.
+Checked technical rows retain their stated verification date and source
+snapshot. They do not check any manual or client-acceptance row in Sections
+1-11 or 13, and do not establish a current production database or deployment.
 
 | Evidence | Authoritative pointer | Done |
 | :-- | :-- | :-- |
 | Stable command identity, strict Provider boundaries, refund lease fencing, finalize-only reconciliation, and payment-key minimization | [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md) and [WI-012 Evidence Pack](../../deliverables/agent/WI-20260715-ATS-012-evidence-pack.md) | [x] |
 | Historical predecessor 41-table disposable MySQL 8/InnoDB schema validation and 7/7 race proof | [WI-007 Evidence Pack](../../deliverables/agent/WI-20260715-ATS-007-evidence-pack.md); historical only, not the current baseline | [x] |
 | WI-067 strict settlement import/reconciliation repository and embedded-H2 review | [QA-INTEG v1.2](../../deliverables/agent/WI-20260809-ATS-067-qa-integ-review.md) and [PG v1.1](../../deliverables/agent/WI-20260809-ATS-067-pg-review.md) accepted DG-067-01..09A | [x] |
-| WI-067 current fresh-MySQL manifest and concurrency proof | [WI-067 Evidence Pack](../../deliverables/agent/WI-20260809-ATS-067-evidence-pack.md): recorded 42/506/173/90/6 manifest, independent Validate, 3/3 MySQL tests, exact cleanup | [x] |
+| Historical WI-067 42-table fresh-MySQL manifest and concurrency proof (2026-08-13) | [WI-067 Evidence Pack](../../deliverables/agent/WI-20260809-ATS-067-evidence-pack.md): recorded 42/506/173/90/6 manifest, independent Validate, 3/3 MySQL tests, exact cleanup; superseded source snapshot, not the current manifest expectation | [x] |
+| Current recorded 43-table manifest contract, proven on a disposable database on 2026-08-17 | [WI-016 Evidence Pack](../../deliverables/agent/WI-20260817-ATS-016-evidence-pack.md): 43/511/175/91/6/6/0/0, SHA-256 `b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4`; Create, independent Validate, Hibernate validate, exact Drop and final zero-orphan Inventory. This is dated proof, not a new database operation. | [x] |
 | WI-067 final backend/frontend quality gates | [WI-067 Evidence Pack](../../deliverables/agent/WI-20260809-ATS-067-evidence-pack.md): backend 1,542 tests and frontend 827 tests with zero failures; coverage/build/static gates passed | [x] |
 | Retained DB, live Toss, production deployment, and client acceptance | OPEN in [SR-93](../SR/SR-93.md) | [ ] |
+
+The [2026-09-05 local evidence update](../SR/SR-93.md#2026-09-05-local-verification)
+separates initial and final MA quality results: final JUnit 1,689 total / 1,670
+executed / 19 skipped with zero failures/errors; frontend 112 files / 1,458
+tests, coverage/static/build gates PASS. It also records rebuilt-backend
+startup, storage access and canonical-origin browser results. Only
+DB Preflight was run through the bootstrap helper; no new DB or restore was
+performed. Natural visible-list next-track progression passed; repeat-all at
+the visible-list end paused under the existing policy, not a wrap PASS. Queue
+repeat outside the visible list passed after navigating Home. The WI-004
+source-patch full rerun and [WI-002 runtime evidence](../../deliverables/agent/WI-20260905-ATS-002-evidence-pack.md)
+are complete. On 2026-09-05, MA reported document validation PASS (665 IDs,
+links and index) and `git diff --check` PASS. MA verified the owned backend
+30612 and frontend 28724 stopped and their ports released. Only scoped staging
+and commit remain MA-owned for this local closeout; these results do not
+complete payment acceptance or production gates.
 
 ## 13. Final Acceptance Gate
 

@@ -173,7 +173,7 @@ describe('ProfilePage', () => {
 
     renderPage();
 
-    expect(await screen.findByLabelText('회사명')).toBeInTheDocument();
+    expect(await screen.findByLabelText('회사명 또는 업종')).toBeInTheDocument();
     expect(screen.queryByLabelText('직업')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: 'bizcreator2' } });
@@ -204,11 +204,13 @@ describe('ProfilePage', () => {
 
     renderPage();
 
-    const companyNameInput = await screen.findByLabelText('회사명');
+    const companyNameInput = await screen.findByLabelText('회사명 또는 업종');
     fireEvent.change(companyNameInput, { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: '저장' }));
 
-    expect(await screen.findByText('기업 회원은 회사명을 입력해주세요.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('기업 회원은 회사명 또는 업종을 입력해주세요.'),
+    ).toBeInTheDocument();
     expect(clientPutMock).not.toHaveBeenCalled();
   });
 
@@ -254,6 +256,30 @@ describe('ProfilePage', () => {
     expect(useAuthStore.getState().user).toEqual(initialProfile);
     expect(JSON.parse(localStorage.getItem('user') ?? 'null')).toEqual(initialProfile);
     expect(nicknameInput).toHaveValue('creator02');
+  });
+
+  it('sends a trim-normalized nickname with its internal space intact', async () => {
+    fetchMeMock.mockResolvedValue(buildProfile());
+    clientPutMock.mockResolvedValue({
+      data: {
+        data: buildProfile({ nickname: '한글 닉네임' }),
+      },
+    });
+
+    renderPage();
+
+    fireEvent.change(await screen.findByLabelText('닉네임'), {
+      target: { value: '  한글 닉네임  ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+
+    await waitFor(() => {
+      expect(checkNicknameAvailabilityMock).toHaveBeenCalledWith('한글 닉네임');
+      expect(clientPutMock).toHaveBeenCalledWith(
+        '/users/me',
+        expect.objectContaining({ nickname: '한글 닉네임' }),
+      );
+    });
   });
 
   it('normalizes an unsupported tab to account without rendering a blank panel', async () => {

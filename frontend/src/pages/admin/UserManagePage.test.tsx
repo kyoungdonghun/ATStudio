@@ -272,8 +272,9 @@ describe('UserManagePage administrator role safety', () => {
         ...adminUserDetail(secondTarget),
         phonePersonal: '010-2222-3333',
         phoneCompany: '02-222-3333',
-        job: 'EDITOR',
+        job: null,
         companyName: 'Second Company',
+        userType: 'BUSINESS',
       }),
     );
 
@@ -281,6 +282,8 @@ describe('UserManagePage administrator role safety', () => {
     expect(within(dialog).getByText('SecondTarget')).toBeInTheDocument();
     expect(within(dialog).getByText('010-2222-3333')).toBeInTheDocument();
     expect(within(dialog).getByText('Second Company')).toBeInTheDocument();
+    expect(within(dialog).getByText('Company name or industry')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Job')).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/password|token/i)).not.toBeInTheDocument();
 
     await act(async () => firstDetail.resolve(adminUserDetail(firstTarget)));

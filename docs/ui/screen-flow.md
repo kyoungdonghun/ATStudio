@@ -104,7 +104,9 @@ use the same one-shot destination-focus flow.
    `instrument` values with AND semantics. Each taxonomy has independent
    loading, error, and manual retry state. Active URL values remain visible and
    removable when their request fails or omits them; Usage adds `#` only while
-   rendering and sends the raw value to the URL and Track API.
+   rendering and sends the raw value to the URL and Track API. Selecting one
+   Mood does not hide other valid Mood chips just because the result set
+   narrows, so users can select multiple visible Moods.
 3. Streaming uses the controller-mediated public stream endpoint; storage keys are not exposed.
 4. Album, playlist, likes, downloads, queue, and history map Track data through
    one PlayableTrack contract. Omitted nullable thumbnail and waveform keys
@@ -118,18 +120,21 @@ use the same one-shot destination-focus flow.
 6. After playback starts, the SPA records the Track ID in browser
    `localStorage` under `playHistory`.
 7. The local list is capped at 100; no server Play History table participates.
-8. Public Track and Album catalogs canonicalize `page` to a bounded 1-based
+8. Player actions offer a direct Likes entry beside Play History in desktop and
+   expanded mobile layouts. The explicit action opens the shared drawer at
+   Likes; a generic drawer close/reopen retains the manually selected tab.
+9. Public Track and Album catalogs canonicalize `page` to a bounded 1-based
    value and use 20 results per page. Album grid/list switching preserves sort
    and page query state, so both views retain the same result projection.
-9. Album list/detail requests are latest-owner wins. Route, query, view, or
+10. Album list/detail requests are latest-owner wins. Route, query, view, or
    unmount retirement prevents stale data, error, empty, or loading commits.
    Missing and recoverable Track/Album detail states use fixed Korean Retry,
    Back, and Home recovery without transport text.
-10. A page that publishes a visible Track-list context releases only that
+11. A page that publishes a visible Track-list context releases only that
     context on departure. The active Track and durable queue/shuffle/repeat
     state remain intact. Album positions display as one-based while stored
     order remains zero-based.
-11. Restored and seeked playback time is finite and clamped between zero and a
+12. Restored and seeked playback time is finite and clamped between zero and a
     known positive duration. Time and waveform UI never exceed that duration.
     Public playback continues to stream the complete active Track.
 
@@ -168,6 +173,10 @@ use the same one-shot destination-focus flow.
 1. A subscriber opens the playlist list.
 2. Create actions use the existing modal.
 3. Detail/edit pages add, remove, and reorder tracks under current plan limits.
+   Playlist detail `Play all` replaces the player queue with playlist order and
+   starts its first Track; `Add all to queue` remains non-starting. These
+   actions do not change the `3/10/10` capacity policy, subscription-time
+   default-playlist creation, or three-state repeat behavior.
 4. Playlist list and capacity load independently. Create remains hidden until
    current-owner list data and a positive server `maxPlaylists` value are
    known; failure offers retry and never uses a fallback limit.
@@ -199,6 +208,10 @@ commit data, fixed errors, loading, dialogs, controls, or player context.
 Download History keeps one owner/read key and abort signal through Track-ID
 preparation, confirmation, download iterations, browser effects, feedback,
 count refresh, and cleanup. Retirement stops remaining effects.
+
+The Question list has a dedicated new-question FAB. Its desktop and mobile
+positions reserve clearance above the fixed PlayerBar, including the expanded
+mobile player, so the action remains reachable.
 
 ## Subscription And Payment
 

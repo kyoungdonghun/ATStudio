@@ -27,7 +27,7 @@
 7. Backend creates a playlists record (is_active=1) and returns a 201 response.
 
 **Exception / Alternative Flow**
-- Active playlist count already at the current plan's `subscriptions.max_playlists`: 409 `PLAYLIST_LIMIT_EXCEEDED`. The backend locks the owning user row before checking the active count and creating the playlist, so concurrent creates cannot exceed the plan. Frontend pre-empts this by hiding the 'Create Playlist' button when the active playlist count reaches the subscribed tier limit (client-side guard before API call).
+- Active playlist count already at the current plan's `subscriptions.max_playlists` (current limits: `3/10/10`): 409 `PLAYLIST_LIMIT_EXCEEDED`. The backend locks the owning user row before checking the active count and creating the playlist, so concurrent creates cannot exceed the plan. Frontend pre-empts this by hiding the 'Create Playlist' button when the active playlist count reaches the subscribed tier limit (client-side guard before API call).
 - Create actions require current-owner playlist data and a positive server
   `maxPlaylists` value. Capacity loading or failure is fail-closed, exposes a
   bounded retry, and never uses a client fallback. Owner change or either
@@ -88,6 +88,13 @@
 3. Frontend maps every playable row through the shared `PlayableTrack`
    contract for individual play, list context, and queue operations, normalizing
    omitted or null nullable media members to explicit `null`.
+4. `Play all` replaces the active player queue with the displayed playlist Track
+   order and starts the first Track. `Add all to queue` appends the displayed
+   Tracks without starting playback or replacing the current queue.
+
+`Play all` does not change the `3/10/10` playlist-capacity policy, the default
+playlist created only after subscription completion, or the Player's three-state
+repeat policy (`off`, `all`, `one`).
 
 **Exception / Alternative Flow**
 - Accessing another user's playlist: 403 response.

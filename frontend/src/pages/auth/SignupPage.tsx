@@ -14,6 +14,7 @@ import {
   isValidEmail,
   isValidNickname,
   isValidPhone,
+  normalizeNickname,
   PASSWORD_MIN,
   NICKNAME_MAX,
 } from '@/utils/validation';
@@ -63,13 +64,13 @@ export default function SignupPage() {
   const isSignupEnabled = isPasswordLoginEnabled && isEmailVerificationAvailable;
   const isLocalMailMode = capabilities?.emailVerification.deliveryMode === 'LOCAL_SMTP';
 
-  function validate(): boolean {
-    if (!nickname.trim()) {
+  function validate(nicknameToValidate: string): boolean {
+    if (!nicknameToValidate) {
       setError('닉네임을 입력해주세요.');
       return false;
     }
-    if (!isValidNickname(nickname)) {
-      setError('닉네임은 2~20자의 한글, 영문, 숫자, 밑줄(_)만 사용할 수 있습니다.');
+    if (!isValidNickname(nicknameToValidate)) {
+      setError('닉네임은 2~20자의 한글, 영문, 숫자, 밑줄(_), 공백만 사용할 수 있습니다.');
       return false;
     }
     if (!email.trim()) {
@@ -102,7 +103,7 @@ export default function SignupPage() {
     }
     if (userType === 'BUSINESS') {
       if (!companyName.trim()) {
-        setError('회사명을 입력해주세요.');
+        setError('회사명 또는 업종을 입력해주세요.');
         return false;
       }
     } else {
@@ -136,14 +137,16 @@ export default function SignupPage() {
       return;
     }
 
-    if (!validate()) return;
+    const normalizedNickname = normalizeNickname(nickname);
+    setNickname(normalizedNickname);
+    if (!validate(normalizedNickname)) return;
 
     setLoading(true);
     try {
       /* Parallel availability checks */
       const [emailCheck, nicknameCheck, phoneCheck] = await Promise.all([
         checkEmailAvailability(email),
-        checkNicknameAvailability(nickname),
+        checkNicknameAvailability(normalizedNickname),
         checkPhoneAvailability(phonePersonal),
       ]);
 
@@ -161,7 +164,7 @@ export default function SignupPage() {
       }
 
       await register({
-        nickname,
+        nickname: normalizedNickname,
         email,
         password,
         phonePersonal,
@@ -268,6 +271,7 @@ export default function SignupPage() {
               placeholder="닉네임"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
+              onBlur={() => setNickname(normalizeNickname(nickname))}
               maxLength={NICKNAME_MAX}
               autoComplete="nickname"
             />
@@ -363,17 +367,17 @@ export default function SignupPage() {
             </div>
           )}
 
-          {/* Job (INDIVIDUAL) / Company Name (BUSINESS) */}
+          {/* Job (INDIVIDUAL) / Company name or industry (BUSINESS) */}
           {userType === 'BUSINESS' ? (
             <div className={styles.fieldGroup}>
               <label className={styles.label} htmlFor="signup-company-name">
-                회사명
+                회사명 또는 업종
               </label>
               <input
                 id="signup-company-name"
                 className={styles.input}
                 type="text"
-                placeholder="회사명을 입력하세요"
+                placeholder="회사명 또는 업종을 입력하세요"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 maxLength={100}

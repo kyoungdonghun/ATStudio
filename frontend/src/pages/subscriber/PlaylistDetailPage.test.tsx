@@ -18,6 +18,7 @@ const playerState = {
   play: vi.fn(),
   pause: vi.fn(),
   resume: vi.fn(),
+  playAll: vi.fn(),
   addToQueue: vi.fn(),
   setTrackListContext: vi.fn(() => vi.fn()),
 };
@@ -244,5 +245,51 @@ describe('PlaylistDetailPage load ownership', () => {
 
     fireEvent.click(downloadButton);
     await waitFor(() => expect(api.downloadTrack).toHaveBeenCalledTimes(2));
+  });
+
+  it('starts the playlist with the existing playAll queue in playlist order', async () => {
+    api.fetchPlaylistDetail.mockResolvedValue({
+      id: 1,
+      title: 'Ordered playlist',
+      description: null,
+      thumbnail: null,
+      tracks: [
+        {
+          trackId: 9,
+          title: 'First playlist track',
+          artistName: 'Artist',
+          trackOrder: 1,
+          duration: 120,
+          bpm: 120,
+          tonality: 'C',
+          thumbnail: null,
+          waveformData: null,
+          tags: [],
+        },
+        {
+          trackId: 3,
+          title: 'Second playlist track',
+          artistName: 'Artist',
+          trackOrder: 2,
+          duration: 150,
+          bpm: 110,
+          tonality: 'D',
+          thumbnail: null,
+          waveformData: null,
+          tags: [],
+        },
+      ],
+      createdAt: '',
+      updatedAt: '',
+    });
+
+    renderPage('/playlists/1');
+    fireEvent.click(await screen.findByRole('button', { name: '전체 재생' }));
+
+    expect(playerState.playAll).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 9, title: 'First playlist track' }),
+      expect.objectContaining({ id: 3, title: 'Second playlist track' }),
+    ]);
+    expect(playerState.addToQueue).not.toHaveBeenCalled();
   });
 });

@@ -586,7 +586,7 @@ describe('player auxiliary components', () => {
     expect(screen.queryByText('Song A')).not.toBeInTheDocument();
   });
 
-  it('prevents an earlier likes response from populating a reopened drawer', async () => {
+  it('prevents an earlier likes response from populating a reopened drawer while retaining the manually selected Likes tab', async () => {
     const oldLikes = deferred<{ dataList: Array<{ trackId: number; title: string }> }>();
     const currentLikes = deferred<{ dataList: Array<{ trackId: number; title: string }> }>();
     api.fetchLikes.mockReturnValueOnce(oldLikes.promise).mockReturnValueOnce(currentLikes.promise);
@@ -600,6 +600,7 @@ describe('player auxiliary components', () => {
     rerender(<PlaylistDrawer open onClose={vi.fn()} />);
     await waitFor(() => expect(api.fetchLikes).toHaveBeenCalledTimes(2));
     expect(oldLikesSignal.aborted).toBe(true);
+    expect(screen.getByRole('button', { name: '좋아요' })).toHaveAttribute('aria-pressed', 'true');
 
     await act(async () =>
       currentLikes.resolve({ dataList: [{ trackId: 31, title: 'Current Like' }] }),

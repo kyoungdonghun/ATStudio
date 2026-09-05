@@ -411,10 +411,17 @@ export default function UserManagePage() {
               <dd>{detail.phonePersonal ?? 'Not provided'}</dd>
               <dt>Company phone</dt>
               <dd>{detail.phoneCompany ?? 'Not provided'}</dd>
-              <dt>Job</dt>
-              <dd>{detail.job ?? 'Not provided'}</dd>
-              <dt>Company</dt>
-              <dd>{detail.companyName ?? 'Not provided'}</dd>
+              {detail.userType === 'BUSINESS' ? (
+                <>
+                  <dt>Company name or industry</dt>
+                  <dd>{detail.companyName ?? 'Not provided'}</dd>
+                </>
+              ) : (
+                <>
+                  <dt>Job</dt>
+                  <dd>{detail.job ?? 'Not provided'}</dd>
+                </>
+              )}
               <dt>User type</dt>
               <dd>{detail.userType}</dd>
               <dt>Role</dt>

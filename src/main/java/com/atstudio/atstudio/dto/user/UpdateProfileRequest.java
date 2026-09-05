@@ -18,6 +18,10 @@ public class UpdateProfileRequest {
     @Pattern(regexp = NICKNAME_PATTERN)
     private String nickname;
 
+    public void setNickname(String nickname) {
+        this.nickname = normalizeNickname(nickname);
+    }
+
     @Size(max = PHONE_MAX)
     @Pattern(regexp = PHONE_PATTERN)
     private String phonePersonal;

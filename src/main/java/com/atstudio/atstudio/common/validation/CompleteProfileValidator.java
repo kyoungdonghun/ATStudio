@@ -23,6 +23,13 @@ public class CompleteProfileValidator implements ConstraintValidator<ValidComple
             valid = false;
         }
 
+        if (value.getUserType() == UserType.BUSINESS && value.getJob() != null) {
+            context.buildConstraintViolationWithTemplate("job is only allowed for individual members")
+                    .addPropertyNode("job")
+                    .addConstraintViolation();
+            valid = false;
+        }
+
         if (value.getUserType() == UserType.BUSINESS
                 && (value.getCompanyName() == null || value.getCompanyName().isBlank())) {
             context.buildConstraintViolationWithTemplate("companyName is required for business members")

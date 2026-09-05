@@ -1,5 +1,6 @@
 import client from '@/api/client';
 import type { ApiResponse, UserJob, UserRole, UserType } from '@/types';
+import { normalizeNickname } from '@/utils/validation';
 
 /* ── Request Types ── */
 
@@ -96,8 +97,11 @@ export async function login(req: LoginRequest): Promise<LoginResponse> {
   return data.data;
 }
 
-export async function register(data: RegisterRequest): Promise<RegisterResponse> {
-  const res = await client.post<ApiResponse<RegisterResponse>>('/users', data);
+export async function register(request: RegisterRequest): Promise<RegisterResponse> {
+  const res = await client.post<ApiResponse<RegisterResponse>>('/users', {
+    ...request,
+    nickname: normalizeNickname(request.nickname),
+  });
   return res.data.data;
 }
 
@@ -121,7 +125,7 @@ export async function checkNicknameAvailability(
   const { data } = await client.get<ApiResponse<CheckAvailabilityResponse>>(
     '/utils/check-nickname',
     {
-      params: { nickname },
+      params: { nickname: normalizeNickname(nickname) },
     },
   );
   return data.data;

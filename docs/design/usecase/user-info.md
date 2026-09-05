@@ -19,13 +19,22 @@
 
 **Main Flow**
 1. User navigates to the registration screen.
-2. User enters metadata (nickname, email, password, personal phone number, job, user type).
-3. Frontend performs input validation and availability checks for email, phone number, and nickname before submit.
+2. User enters nickname, email, password, personal phone number, user type, and
+   the user-type-specific descriptor:
+   - `INDIVIDUAL`: job (required)
+   - `BUSINESS`: the required `Company name or industry` free-text input backed
+     by the existing `companyName` field; no separate industry field exists.
+3. Frontend trims leading and trailing nickname whitespace while preserving
+   internal spaces, then performs input validation and availability checks for
+   email, phone number, and the normalized nickname before submit.
    - Email: UTIL-002, Phone: UTIL-003, Nickname: UTIL-012 called
 4. User clicks the 'Register' button.
-5. Frontend sends the input data to the backend.
-6. Backend performs server-side validation and repeats the same uniqueness checks for email, phone number, and nickname.
-7. Backend hashes the password with BCrypt and saves to the users table (is_verified=0).
+5. Frontend sends the normalized nickname and the input data to the backend.
+6. Backend repeats nickname edge trimming before server validation, duplicate
+   lookup, and persistence, while preserving accepted internal spaces; it also
+   repeats the uniqueness checks for email, phone number, and nickname.
+7. Backend hashes the password with BCrypt and saves the normalized values to
+   the users table (is_verified=0).
 8. Backend returns a success response (201 Created), and the frontend navigates to the login screen.
 
 **Exception / Alternative Flow**
@@ -130,7 +139,7 @@
 |-------|-------|
 | **Code** | INFO-014 |
 | **Version** | 26-08-13 |
-| **Description** | A member who first signed up via social login enters required profile information to complete their profile. `INDIVIDUAL` members provide job, while `BUSINESS` members provide companyName. |
+| **Description** | A member who first signed up via social login enters required profile information to complete their profile. `INDIVIDUAL` members provide job, while `BUSINESS` members provide the single `Company name or industry` descriptor through the existing `companyName` field. |
 | **Actor** | User (new social sign-up), Backend |
 | **Preconditions** | Logged in. users record exists with isProfileComplete=false. |
 | **Trigger** | After receiving isProfileComplete=false response from INFO-013, frontend automatically navigates to the profile completion screen. |
@@ -143,13 +152,19 @@
 2. Frontend displays the profile completion screen only for an incomplete profile.
 3. User enters nickname (required), personal phone number (required), user type (INDIVIDUAL/BUSINESS, required), and the user-type-specific profile field.
    - `INDIVIDUAL`: job (required)
-   - `BUSINESS`: companyName (required)
+   - `BUSINESS`: `Company name or industry` (required, existing `companyName`)
 4. User clicks the 'Complete' button. One pending fence immediately disables
    every related control before asynchronous validation starts.
-5. Frontend performs UTIL-003 (phone duplicate) and UTIL-012 (nickname duplicate) checks.
+5. Frontend trims nickname edge whitespace while preserving internal spaces,
+   then performs UTIL-003 (phone duplicate) and UTIL-012 (nickname duplicate)
+   checks with the normalized value.
 6. Frontend sends auth token and profile information to `PUT /api/users/me/complete-profile`.
-7. Backend verifies isProfileComplete=false and repeats the uniqueness checks for nickname and phone number.
-8. Backend updates the users record (nickname, phonePersonal, userType, and either job or companyName depending on member type).
+7. Backend verifies isProfileComplete=false, repeats nickname edge trimming
+   before validation, duplicate lookup, and persistence, and repeats the
+   uniqueness checks for nickname and phone number.
+8. Backend updates the users record (normalized nickname, phonePersonal,
+   userType, and either job or the existing companyName depending on member
+   type).
 9. Backend returns the updated user information (same format as 5.4 view my info).
 10. Frontend refreshes current identity through the session-generation and
     user-ID guarded auth-store flow. Logout or user change prevents a late result
@@ -254,16 +269,19 @@
 |-------|-------|
 | **Code** | INFO-005 |
 | **Version** | 26-08-09 |
-| **Description** | Member updates their own information. Editable fields: nickname, phonePersonal, phoneCompany, job, companyName (BUSINESS only). |
+| **Description** | Member updates their own information. Editable fields: nickname, phonePersonal, phoneCompany, job (INDIVIDUAL only), and the BUSINESS `Company name or industry` descriptor backed by existing companyName. |
 | **Actor** | User (Member), Backend |
 | **Preconditions** | Logged in. |
 | **Trigger** | User clicks the 'Edit Info' button on the 'My Info' screen. |
 | **Related UC** | UTIL-012 (nickname duplicate check) |
 
 **Main Flow**
-1. User modifies editable fields (nickname, phonePersonal, phoneCompany, job, companyName when applicable).
-2. Frontend performs real-time validation.
-3. If nickname is changed, performs duplicate check via UTIL-012 (nickname duplicate check).
+1. User modifies editable fields (nickname, phonePersonal, phoneCompany, job
+   when INDIVIDUAL, and the existing companyName descriptor when BUSINESS).
+2. Frontend performs real-time validation and trims nickname edge whitespace
+   while preserving internal spaces.
+3. If nickname is changed, performs duplicate check via UTIL-012 using the
+   normalized nickname.
 4. User clicks the 'Save' button.
 5. Frontend sends the changed data to the backend.
 6. Backend resolves the effective final state by combining omitted fields with the current stored profile.
@@ -271,7 +289,8 @@
    - `phonePersonal` must remain present
    - `INDIVIDUAL` members must retain `job`
    - `BUSINESS` members must retain non-blank `companyName`
-8. Backend updates the users record.
+8. Backend repeats nickname edge trimming before validation, duplicate lookup,
+   and persistence, then updates the users record.
 9. Returns and displays the updated info on screen.
 
 **Exception / Alternative Flow**

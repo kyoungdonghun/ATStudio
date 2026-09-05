@@ -22,6 +22,7 @@ import {
   isValidNickname,
   isValidPhone,
   NICKNAME_MAX,
+  normalizeNickname,
   PASSWORD_MIN,
 } from '@/utils/validation';
 import Button from '@/components/ui/Button';
@@ -229,7 +230,7 @@ export default function ProfilePage() {
   }, [loadSubscription]);
 
   const isBusinessUser = profile?.userType === 'BUSINESS';
-  const normalizedNickname = nickname.trim();
+  const normalizedNickname = normalizeNickname(nickname);
   const normalizedPhoneCompany = phoneCompany.trim();
   const normalizedCompanyName = companyName.trim();
   const originalPhonePersonal = profile?.phonePersonal ?? '';
@@ -253,13 +254,14 @@ export default function ProfilePage() {
 
     setProfileMsg(null);
     setProfileError(null);
+    setNickname(normalizedNickname);
 
     if (!normalizedNickname) {
       setProfileError('닉네임을 입력해주세요.');
       return;
     }
     if (!isValidNickname(normalizedNickname)) {
-      setProfileError('닉네임은 2~20자의 한글, 영문, 숫자, 밑줄(_)만 사용할 수 있습니다.');
+      setProfileError('닉네임은 2~20자의 한글, 영문, 숫자, 밑줄(_), 공백만 사용할 수 있습니다.');
       return;
     }
     if (!phonePersonal.trim()) {
@@ -272,7 +274,7 @@ export default function ProfilePage() {
     }
     if (isBusinessUser) {
       if (!normalizedCompanyName) {
-        setProfileError('기업 회원은 회사명을 입력해주세요.');
+        setProfileError('기업 회원은 회사명 또는 업종을 입력해주세요.');
         return;
       }
     } else if (!job) {
@@ -440,7 +442,7 @@ export default function ProfilePage() {
               {profile.userType === 'BUSINESS' ? (
                 <>
                   <div className={styles.infoRow}>
-                    <span className={styles.infoLabel}>{'회사명'}</span>
+                    <span className={styles.infoLabel}>{'회사명 또는 업종'}</span>
                     <span className={styles.infoValue}>{profile.companyName ?? '-'}</span>
                   </div>
                   <div className={styles.infoRow}>
@@ -590,6 +592,7 @@ export default function ProfilePage() {
                   type="text"
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
+                  onBlur={() => setNickname(normalizeNickname(nickname))}
                   maxLength={NICKNAME_MAX}
                 />
                 <div className={styles.formHint}>
@@ -629,7 +632,7 @@ export default function ProfilePage() {
               {isBusinessUser ? (
                 <div className={styles.formGroup}>
                   <label className={styles.formLabel} htmlFor="profile-company-name">
-                    {'회사명'}
+                    {'회사명 또는 업종'}
                   </label>
                   <input
                     id="profile-company-name"
@@ -638,10 +641,10 @@ export default function ProfilePage() {
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     maxLength={COMPANY_NAME_MAX}
-                    placeholder="회사명"
+                    placeholder="회사명 또는 업종"
                   />
                   <div className={styles.formHint}>
-                    {'기업 회원은 회사명이 비어 있으면 저장할 수 없습니다.'}
+                    {'기업 회원은 회사명 또는 업종이 비어 있으면 저장할 수 없습니다.'}
                   </div>
                 </div>
               ) : (

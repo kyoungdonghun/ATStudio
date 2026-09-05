@@ -273,4 +273,27 @@ describe('SignupPage', () => {
       }),
     );
   });
+
+  it('normalizes nickname edge whitespace while preserving an internal space', async () => {
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: '  한글 닉네임  ' } });
+    fireEvent.change(screen.getByLabelText('이메일'), { target: { value: 'tester@example.com' } });
+    fireEvent.change(screen.getByLabelText('비밀번호'), { target: { value: 'password123' } });
+    fireEvent.change(screen.getByLabelText('비밀번호 확인'), {
+      target: { value: 'password123' },
+    });
+    fireEvent.change(screen.getByLabelText('연락처'), {
+      target: { value: '010-1234-5678' },
+    });
+    fireEvent.change(screen.getByLabelText('직업'), { target: { value: 'EDITOR' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: '이용약관 동의 (필수)' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '개인정보 처리방침 동의 (필수)' }));
+    fireEvent.click(screen.getByRole('button', { name: '가입하기' }));
+
+    await waitFor(() => {
+      expect(checkNicknameAvailability).toHaveBeenCalledWith('한글 닉네임');
+      expect(register).toHaveBeenCalledWith(expect.objectContaining({ nickname: '한글 닉네임' }));
+    });
+  });
 });

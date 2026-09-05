@@ -11,7 +11,30 @@ public final class ValidationConstants {
     // ── User ──
     public static final int NICKNAME_MIN = 2;
     public static final int NICKNAME_MAX = 20;
-    public static final String NICKNAME_PATTERN = "^[가-힣a-zA-Z0-9_]+$";
+    public static final String NICKNAME_PATTERN = "^[가-힣a-zA-Z0-9_]+(?: +[가-힣a-zA-Z0-9_]+)*$";
+
+    public static String normalizeNickname(String nickname) {
+        if (nickname == null) return null;
+
+        int start = 0;
+        int end = nickname.length();
+        while (start < end && isNicknameEdgeWhitespace(nickname.charAt(start))) {
+            start++;
+        }
+        while (end > start && isNicknameEdgeWhitespace(nickname.charAt(end - 1))) {
+            end--;
+        }
+        return nickname.substring(start, end);
+    }
+
+    // ECMAScript WhiteSpace and LineTerminator, matching String.prototype.trim().
+    private static boolean isNicknameEdgeWhitespace(char character) {
+        return switch (character) {
+            case 0x0009, 0x000a, 0x000b, 0x000c, 0x000d, 0x0020, 0x00a0,
+                    0x1680, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff -> true;
+            default -> character >= 0x2000 && character <= 0x200a;
+        };
+    }
 
     public static final int PASSWORD_MIN = 8;
     public static final int PASSWORD_MAX = 100;

@@ -6,7 +6,6 @@ import { classifyLoadError } from '@/api/loadError';
 import { formatDate } from '@/utils/format';
 import type { PageInfo } from '@/types';
 import Pagination from '@/components/ui/Pagination';
-import Button from '@/components/ui/Button';
 import { useAuthStore } from '@/store/authStore';
 import { createOwnerKey, createReadKey, getCurrentOwnerKey } from '@/utils/ownerProjection';
 import styles from './QuestionListPage.module.css';
@@ -266,8 +265,9 @@ export default function QuestionListPage() {
       )}
 
       {/* Floating action button */}
-      <Link to="/questions/new" className={styles.fabButton}>
-        <Button variant="primary">{'새 문의'}</Button>
+      <Link to="/questions/new" className={styles.fabButton} aria-label="새 문의 작성">
+        <span aria-hidden="true">+</span>
+        <span>{'새 문의'}</span>
       </Link>
     </div>
   );

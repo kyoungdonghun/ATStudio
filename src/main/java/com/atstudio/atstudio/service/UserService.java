@@ -33,6 +33,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
+import static com.atstudio.atstudio.common.validation.ValidationConstants.normalizeNickname;
+
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
@@ -74,6 +76,7 @@ public class UserService {
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
+        String nickname = normalizeNickname(request.getNickname());
         passwordLoginPolicy.ensureEnabled();
         validateRequiredConsents(request);
         validateRegisterProfileFields(
@@ -86,11 +89,11 @@ public class UserService {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new BusinessException(BUSINESS_ERROR.EMAIL_ALREADY_REGISTERED);
         }
-        ensureNicknameAvailable(request.getNickname(), null);
+        ensureNicknameAvailable(nickname, null);
         ensurePhoneAvailable(request.getPhonePersonal(), null);
 
         User user = User.builder()
-                .nickname(request.getNickname())
+                .nickname(nickname)
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .phonePersonal(request.getPhonePersonal())
@@ -118,8 +121,14 @@ public class UserService {
         User user = userRepository.findById(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
-        if (request.getNickname() != null && !request.getNickname().equals(user.getNickname())) {
-            ensureNicknameAvailable(request.getNickname(), userID);
+        if (user.getUserType() == UserType.BUSINESS && request.getJob() != null) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
+        String nickname = normalizeNickname(request.getNickname());
+
+        if (nickname != null && !nickname.equals(user.getNickname())) {
+            ensureNicknameAvailable(nickname, userID);
         }
         if (request.getPhonePersonal() != null && !request.getPhonePersonal().equals(user.getPhonePersonal())) {
             ensurePhoneAvailable(request.getPhonePersonal(), userID);
@@ -137,7 +146,7 @@ public class UserService {
 
         validateUpdateProfileFields(phonePersonal, job, user.getUserType(), companyName);
 
-        user.updateProfile(request.getNickname(), request.getPhonePersonal(),
+        user.updateProfile(nickname, request.getPhonePersonal(),
                 request.getPhoneCompany(), request.getJob(), companyName);
         return toResponse(user);
     }
@@ -224,6 +233,7 @@ public class UserService {
     public UserResponse completeProfile(Long userID, CompleteProfileRequest request) {
         User user = userRepository.findById(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        String nickname = normalizeNickname(request.getNickname());
 
         if (user.isProfileComplete()) {
             throw new BusinessException(BUSINESS_ERROR.PROFILE_ALREADY_COMPLETE);
@@ -235,10 +245,10 @@ public class UserService {
                 request.getUserType(),
                 request.getCompanyName()
         );
-        ensureNicknameAvailable(request.getNickname(), userID);
+        ensureNicknameAvailable(nickname, userID);
         ensurePhoneAvailable(request.getPhonePersonal(), userID);
 
-        user.completeProfile(request.getNickname(), request.getPhonePersonal(),
+        user.completeProfile(nickname, request.getPhonePersonal(),
                 request.getPhoneCompany(), request.getJob(), request.getUserType(), request.getCompanyName());
         return toResponse(user);
     }
@@ -266,7 +276,7 @@ public class UserService {
     }
 
     public boolean isNicknameAvailable(String nickname) {
-        return userRepository.findByNickname(nickname).isEmpty();
+        return userRepository.findByNickname(normalizeNickname(nickname)).isEmpty();
     }
 
     public ResponseDTO<UserListItemResponse> getUsers(String keyword, UserType userType, int page, int size) {
@@ -407,7 +417,7 @@ public class UserService {
     }
 
     private void ensureNicknameAvailable(String nickname, Long currentUserId) {
-        userRepository.findByNickname(nickname)
+        userRepository.findByNickname(normalizeNickname(nickname))
                 .filter(existing -> currentUserId == null || !existing.getId().equals(currentUserId))
                 .ifPresent(existing -> {
                     throw new BusinessException(BUSINESS_ERROR.NICKNAME_DUPLICATED);
@@ -433,6 +443,10 @@ public class UserService {
         }
 
         if (userType == UserType.INDIVIDUAL && job == null) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
+        if (userType == UserType.BUSINESS && job != null) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
 
@@ -473,6 +487,10 @@ public class UserService {
         }
 
         if (userType == UserType.INDIVIDUAL && job == null) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
+        }
+
+        if (userType == UserType.BUSINESS && job != null) {
             throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
 

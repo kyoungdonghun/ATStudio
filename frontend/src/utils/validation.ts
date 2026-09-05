@@ -3,7 +3,7 @@
 // ── User ──
 export const NICKNAME_MIN = 2;
 export const NICKNAME_MAX = 20;
-export const NICKNAME_PATTERN = /^[가-힣a-zA-Z0-9_]+$/;
+export const NICKNAME_PATTERN = /^[가-힣a-zA-Z0-9_]+(?: +[가-힣a-zA-Z0-9_]+)*$/;
 
 export const PASSWORD_MIN = 8;
 export const PASSWORD_MAX = 100;
@@ -81,8 +81,17 @@ export function isValidPhone(v: string): boolean {
   return PHONE_PATTERN.test(v);
 }
 
+export function normalizeNickname(v: string): string {
+  return v.trim();
+}
+
 export function isValidNickname(v: string): boolean {
-  return v.length >= NICKNAME_MIN && v.length <= NICKNAME_MAX && NICKNAME_PATTERN.test(v);
+  const normalized = normalizeNickname(v);
+  return (
+    normalized.length >= NICKNAME_MIN &&
+    normalized.length <= NICKNAME_MAX &&
+    NICKNAME_PATTERN.test(normalized)
+  );
 }
 
 export function isValidPassword(v: string): boolean {

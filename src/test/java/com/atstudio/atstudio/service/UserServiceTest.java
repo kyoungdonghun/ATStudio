@@ -26,6 +26,8 @@ import com.atstudio.atstudio.service.auth.PasswordLoginPolicy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.ArgumentCaptor;
@@ -343,6 +345,30 @@ class UserServiceTest {
                 .containsOnly(savedUser);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {" ", "\t", "\u00a0", "\u2007", "\u202f", "\ufeff"})
+    @DisplayName("register() trims nickname edges while preserving internal spaces")
+    void register_normalizesNicknameBeforeDuplicateCheckAndPersistence(String edge) {
+        RegisterRequest request = buildRegisterRequest("space@test.com", "한글 닉네임");
+        ReflectionTestUtils.setField(request, "nickname", edge + "한글 닉네임" + edge);
+        User savedUser = buildUser(1L, "space@test.com", "한글 닉네임", "010-1111-2222", UserJob.EDITOR);
+
+        stubRequiredConsentPolicyVersions();
+        when(userRepository.findByEmail("space@test.com")).thenReturn(Optional.empty());
+        when(userRepository.findByNickname("한글 닉네임")).thenReturn(Optional.empty());
+        when(userRepository.findByPhonePersonal("010-1111-2222")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(anyString())).thenReturn("encoded-pw");
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+
+        UserResponse response = userService.register(request);
+
+        assertThat(response.nickname()).isEqualTo("한글 닉네임");
+        verify(userRepository).findByNickname("한글 닉네임");
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(userCaptor.capture());
+        assertThat(userCaptor.getValue().getNickname()).isEqualTo("한글 닉네임");
+    }
+
     @Test
     @DisplayName("register() rejects missing required consent before persistence")
     void register_missingRequiredConsent_throwsInvalidArgument() {
@@ -487,6 +513,22 @@ class UserServiceTest {
         assertThat(response.userType()).isEqualTo("BUSINESS");
         assertThat(response.companyName()).isEqualTo("ATStudio Biz");
         verify(userConsentRepository, times(2)).save(any(UserConsent.class));
+    }
+
+    @Test
+    @DisplayName("register() rejects a business direct payload containing job")
+    void register_businessWithJob_throwsInvalidArgument() {
+        RegisterRequest request = buildRegisterRequest("biz@test.com", "bizNick");
+        request.setUserType(UserType.BUSINESS);
+        request.setJob(UserJob.EDITOR);
+        request.setCompanyName("ATStudio Biz");
+
+        assertThatThrownBy(() -> userService.register(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -659,6 +701,49 @@ class UserServiceTest {
         assertThat(response.companyName()).isEqualTo("ATStudio Biz");
     }
 
+    @Test
+    @DisplayName("completeProfile() rejects a business direct payload containing job")
+    void completeProfile_businessWithJob_throwsInvalidArgument() {
+        User incompleteUser = buildUser(1L, "user@test.com", "nick", null, null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(incompleteUser));
+
+        CompleteProfileRequest request = new CompleteProfileRequest();
+        request.setNickname("biznick");
+        request.setPhonePersonal("010-1234-5678");
+        request.setJob(UserJob.EDITOR);
+        request.setUserType(UserType.BUSINESS);
+        request.setCompanyName("ATStudio Biz");
+
+        assertThatThrownBy(() -> userService.completeProfile(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+
+        assertThat(incompleteUser.getJob()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {" ", "\t", "\u00a0", "\u2007", "\u202f", "\ufeff"})
+    @DisplayName("completeProfile() trims nickname edges while preserving internal spaces")
+    void completeProfile_normalizesNicknameBeforePersistence(String edge) {
+        User incompleteUser = buildUser(1L, "user@test.com", "nick", null, null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(incompleteUser));
+        when(userRepository.findByNickname("완성 닉네임")).thenReturn(Optional.empty());
+        when(userRepository.findByPhonePersonal("010-1234-5678")).thenReturn(Optional.empty());
+
+        CompleteProfileRequest request = new CompleteProfileRequest();
+        ReflectionTestUtils.setField(request, "nickname", edge + "완성 닉네임" + edge);
+        request.setPhonePersonal("010-1234-5678");
+        request.setJob(UserJob.ARTIST);
+        request.setUserType(UserType.INDIVIDUAL);
+
+        UserResponse response = userService.completeProfile(1L, request);
+
+        assertThat(response.nickname()).isEqualTo("완성 닉네임");
+        verify(userRepository).findByNickname("완성 닉네임");
+        assertThat(incompleteUser.getNickname()).isEqualTo("완성 닉네임");
+    }
+
     // ── updateMyProfile() ────────────────────────────────────────────────────
 
     @Test
@@ -708,6 +793,33 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("updateMyProfile() rejects a business direct payload containing job")
+    void updateMyProfile_businessWithJob_throwsInvalidArgument() {
+        User businessUser = User.builder()
+                .email("biz@test.com")
+                .nickname("bizNick")
+                .password("encoded")
+                .phonePersonal("010-1111-2222")
+                .job(null)
+                .companyName("ATStudio Biz")
+                .role(UserRole.USER)
+                .userType(UserType.BUSINESS)
+                .build();
+        ReflectionTestUtils.setField(businessUser, "id", 1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(businessUser));
+
+        UpdateProfileRequest request = new UpdateProfileRequest();
+        request.setJob(UserJob.EDITOR);
+
+        assertThatThrownBy(() -> userService.updateMyProfile(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+
+        assertThat(businessUser.getJob()).isNull();
+    }
+
+    @Test
     @DisplayName("updateMyProfile() 실패 - 개인 회원의 최종 직업이 없으면 INVALID_ARGUMENT 예외")
     void updateMyProfile_individualWithoutEffectiveJob_throwsInvalidArgument() {
         User incompleteIndividual = buildUser(1L, "user@test.com", "nick", "010-1111-2222", null);
@@ -749,6 +861,54 @@ class UserServiceTest {
 
         assertThat(response.nickname()).isEqualTo("bizNick2");
         assertThat(response.companyName()).isEqualTo("ATStudio Biz");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {" ", "\t", "\u00a0", "\u2007", "\u202f", "\ufeff"})
+    @DisplayName("updateMyProfile() trims nickname edges while preserving internal spaces")
+    void updateMyProfile_normalizesNicknameBeforePersistence(String edge) {
+        User currentUser = buildUser(1L, "user@test.com", "old nick", "010-1111-2222", UserJob.EDITOR);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(currentUser));
+        when(userRepository.findByNickname("새 닉네임")).thenReturn(Optional.empty());
+
+        UpdateProfileRequest request = new UpdateProfileRequest();
+        ReflectionTestUtils.setField(request, "nickname", edge + "새 닉네임" + edge);
+        request.setPhonePersonal("010-1111-2222");
+        request.setJob(UserJob.EDITOR);
+
+        UserResponse response = userService.updateMyProfile(1L, request);
+
+        assertThat(response.nickname()).isEqualTo("새 닉네임");
+        verify(userRepository).findByNickname("새 닉네임");
+        assertThat(currentUser.getNickname()).isEqualTo("새 닉네임");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {" ", "\t", "\u00a0", "\u2007", "\u202f", "\ufeff"})
+    @DisplayName("isNicknameAvailable() trims the lookup value")
+    void isNicknameAvailable_normalizesLookupValue(String edge) {
+        when(userRepository.findByNickname("한글 닉네임")).thenReturn(Optional.empty());
+
+        assertThat(userService.isNicknameAvailable(edge + "한글 닉네임" + edge)).isTrue();
+
+        verify(userRepository).findByNickname("한글 닉네임");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"\u00a0", "\u2007", "\u202f", "\ufeff"})
+    void register_normalizedDuplicateIsRejectedBeforePersistence(String edge) {
+        RegisterRequest request = buildRegisterRequest("new@test.com", "한글 닉네임");
+        ReflectionTestUtils.setField(request, "nickname", edge + "한글 닉네임" + edge);
+        User existing = buildUser(2L, "existing@test.com", "한글 닉네임", null, UserJob.EDITOR);
+        when(userRepository.findByEmail("new@test.com")).thenReturn(Optional.empty());
+        when(userRepository.findByNickname("한글 닉네임")).thenReturn(Optional.of(existing));
+
+        assertThat(userService.isNicknameAvailable(edge + "한글 닉네임" + edge)).isFalse();
+        assertThatThrownBy(() -> userService.register(request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.NICKNAME_DUPLICATED));
+        verify(userRepository, never()).save(any(User.class));
     }
 
     // ── getUsers() (Admin) ────────────────────────────────────────────────────

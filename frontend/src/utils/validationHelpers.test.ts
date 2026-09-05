@@ -12,6 +12,7 @@ import {
   isValidNickname,
   isValidPassword,
   isValidPhone,
+  normalizeNickname,
   validateCompanyCertFileSelection,
   validateImageDimensions,
 } from '@/utils/validation';
@@ -46,12 +47,39 @@ describe('shared validation helpers', () => {
     expect(isValidPhone('010-1234-5678')).toBe(true);
     expect(isValidPhone('01012345678')).toBe(false);
     expect(isValidNickname('AT_M')).toBe(true);
+    expect(isValidNickname('한글 닉네임')).toBe(true);
+    expect(isValidNickname('  한글 닉네임  ')).toBe(true);
+    expect(normalizeNickname('  한글 닉네임  ')).toBe('한글 닉네임');
     expect(isValidNickname('x')).toBe(false);
     expect(isValidNickname('x'.repeat(21))).toBe(false);
-    expect(isValidNickname('bad nickname')).toBe(false);
+    expect(isValidNickname('bad-nickname')).toBe(false);
     expect(isValidPassword('12345678')).toBe(true);
     expect(isValidPassword('short')).toBe(false);
     expect(isValidPassword('x'.repeat(101))).toBe(false);
+  });
+
+  it('trims exactly the ECMAScript whitespace edge set', () => {
+    const edgeCodePoints = new Set([
+      0x0009, 0x000a, 0x000b, 0x000c, 0x000d, 0x0020, 0x00a0, 0x1680, 0x2000, 0x2001, 0x2002,
+      0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f,
+      0x205f, 0x3000, 0xfeff,
+    ]);
+    const mismatches: number[] = [];
+    for (let codePoint = 0; codePoint <= 0xffff; codePoint += 1) {
+      const edge = String.fromCharCode(codePoint);
+      const raw = `${edge}AT_M${edge}`;
+      if (normalizeNickname(raw) !== (edgeCodePoints.has(codePoint) ? 'AT_M' : raw)) {
+        mismatches.push(codePoint);
+      }
+    }
+    expect(mismatches).toEqual([]);
+  });
+
+  it.each(['\u00a0', '\u2007', '\u202f', '\ufeff'])('normalizes edge %j only', (edge) => {
+    expect(normalizeNickname(`${edge}AT  M${edge}`)).toBe('AT  M');
+    expect(isValidNickname(`${edge}AT  M${edge}`)).toBe(true);
+    expect(normalizeNickname(`AT${edge}M`)).toBe(`AT${edge}M`);
+    expect(isValidNickname(`AT${edge}M`)).toBe(false);
   });
 
   it('validates file size and audio extensions case-insensitively', () => {

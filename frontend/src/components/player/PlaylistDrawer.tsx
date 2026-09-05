@@ -53,13 +53,35 @@ interface DrawerMutationOperation {
 interface PlaylistDrawerProps {
   open: boolean;
   onClose: () => void;
+  requestedTab?: Tab;
+  tabRequestID?: number;
+  onTabChange?: (tab: Tab) => void;
 }
 
-export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
+export default function PlaylistDrawer({
+  open,
+  onClose,
+  requestedTab = 'playlists',
+  tabRequestID,
+  onTabChange,
+}: PlaylistDrawerProps) {
   const accessToken = useAuthStore((s) => s.accessToken);
   const userID = useAuthStore((s) => s.user?.id ?? null);
   const ownerKey = createOwnerKey(userID, accessToken);
-  const [tab, setTab] = useState<Tab>('playlists');
+  const [tab, setTab] = useState<Tab>(requestedTab);
+  const appliedTabRequestID = useRef(tabRequestID);
+
+  useLayoutEffect(() => {
+    if (tabRequestID === undefined || appliedTabRequestID.current === tabRequestID) return;
+
+    appliedTabRequestID.current = tabRequestID;
+    setTab(requestedTab);
+  }, [requestedTab, tabRequestID]);
+
+  function handleTabChange(nextTab: Tab) {
+    setTab(nextTab);
+    onTabChange?.(nextTab);
+  }
 
   if (!open) return null;
 
@@ -68,7 +90,7 @@ export default function PlaylistDrawer({ open, onClose }: PlaylistDrawerProps) {
       key={createReadKey(ownerKey, 'playlist-drawer', tab) ?? 'anonymous-drawer'}
       ownerKey={ownerKey}
       tab={tab}
-      setTab={setTab}
+      setTab={handleTabChange}
       onClose={onClose}
     />
   );

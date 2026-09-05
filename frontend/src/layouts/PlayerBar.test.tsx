@@ -148,7 +148,8 @@ vi.mock('@/components/player/HistoryModal', async () => {
 });
 
 vi.mock('@/components/player/PlaylistDrawer', () => ({
-  default: () => null,
+  default: ({ open, requestedTab }: { open: boolean; requestedTab?: 'playlists' | 'likes' }) =>
+    open ? <div data-testid="playlist-drawer-tab">{requestedTab}</div> : null,
 }));
 
 vi.mock('@/components/playlist/AddToPlaylistModal', () => ({
@@ -506,6 +507,27 @@ describe('PlayerBar playback feedback', () => {
     fireEvent.keyDown(expandedSeekControl!, { key: 'End' });
     expect(mocks.playerState.resume).toHaveBeenCalledTimes(2);
     expect(mocks.playerState.seek).toHaveBeenLastCalledWith(100);
+  });
+
+  it('opens the existing drawer at requested tabs from desktop and mobile expanded actions', () => {
+    const view = renderPlayerBar();
+
+    fireEvent.click(screen.getByRole('button', { name: '좋아요 목록 열기' }));
+    expect(screen.getByTestId('playlist-drawer-tab')).toHaveTextContent('likes');
+
+    fireEvent.click(screen.getAllByRole('button', { name: '재생목록' })[0]);
+    expect(screen.getByTestId('playlist-drawer-tab')).toHaveTextContent('playlists');
+
+    fireEvent.click(screen.getByRole('button', { name: '좋아요 목록 열기' }));
+    expect(screen.getByTestId('playlist-drawer-tab')).toHaveTextContent('likes');
+
+    fireEvent.click(screen.getByRole('button', { name: '좋아요 목록 열기' }));
+    expect(screen.queryByTestId('playlist-drawer-tab')).not.toBeInTheDocument();
+
+    fireEvent.click(getMobileExpander(view.container));
+    const panel = view.container.querySelector('#player-mobile-expanded-controls') as HTMLElement;
+    fireEvent.click(within(panel).getByText('좋아요'));
+    expect(screen.getByTestId('playlist-drawer-tab')).toHaveTextContent('likes');
   });
 
   it.each([

@@ -144,7 +144,9 @@ describe('SocialCompleteProfilePage', () => {
     fireEvent.change(screen.getByLabelText('회사 연락처 (선택)'), {
       target: { value: '0212345678' },
     });
-    fireEvent.change(screen.getByLabelText('회사명'), { target: { value: 'ATStudio Biz' } });
+    fireEvent.change(screen.getByLabelText('회사명 또는 업종'), {
+      target: { value: 'ATStudio Biz' },
+    });
     fireEvent.click(screen.getByRole('button', { name: '완료' }));
 
     await waitFor(() => {
@@ -176,7 +178,9 @@ describe('SocialCompleteProfilePage', () => {
     fireEvent.change(screen.getByLabelText('연락처'), { target: { value: '01012345678' } });
     fireEvent.click(screen.getByRole('button', { name: '완료' }));
 
-    expect(await screen.findByText('기업 회원은 회사명을 입력해주세요.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('기업 회원은 회사명 또는 업종을 입력해주세요.'),
+    ).toBeInTheDocument();
     expect(clientPutMock).not.toHaveBeenCalled();
   });
 

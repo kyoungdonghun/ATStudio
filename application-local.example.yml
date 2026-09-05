@@ -66,7 +66,7 @@ app:
       client-key: REPLACE_WITH_TOSS_TEST_CLIENT_KEY
       secret-key: REPLACE_WITH_TOSS_TEST_SECRET_KEY
     billing:
-      # Use a local-only V2 key ID and 32+ byte random secret. Never commit real values.
+      # active-key-id must match an entry in this local V2 key ring. Supply only placeholder or environment-backed secrets here.
       active-key-id: local-v1
       encryption-keys:
         - id: local-v1

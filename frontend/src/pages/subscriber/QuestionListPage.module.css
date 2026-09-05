@@ -222,9 +222,33 @@
 
 .fabButton {
   position: fixed;
-  bottom: 100px;
-  right: 24px;
-  z-index: 50;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: calc(var(--player-h) + env(safe-area-inset-bottom) + 20px);
+  z-index: 150;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 132px;
+  min-height: 52px;
+  padding: 0 18px;
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--bg0);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+}
+
+.fabButton:hover {
+  filter: brightness(1.08);
+}
+
+.fabButton:focus-visible {
+  outline: 2px solid var(--text0);
+  outline-offset: 3px;
 }
 
 /* ══ Mobile ══ */
@@ -243,5 +267,15 @@
   .table tbody td {
     padding: 8px 8px;
     font-size: 13px;
+  }
+
+  .fabButton {
+    right: max(16px, env(safe-area-inset-right));
+    min-width: 52px;
+    padding: 0 14px;
+  }
+
+  :global(body:has(#player-mobile-expanded-controls)) .fabButton {
+    bottom: calc(var(--player-h) + env(safe-area-inset-bottom) + 248px);
   }
 }

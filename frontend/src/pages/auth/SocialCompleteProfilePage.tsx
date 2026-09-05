@@ -13,6 +13,7 @@ import {
   formatPhone,
   isValidNickname,
   isValidPhone,
+  normalizeNickname,
   NICKNAME_MAX,
 } from '@/utils/validation';
 import Button from '@/components/ui/Button';
@@ -62,7 +63,7 @@ export default function SocialCompleteProfilePage() {
   const identityRequestIdRef = useRef(0);
   const submitPendingRef = useRef(false);
   const mountedRef = useRef(true);
-  const normalizedNickname = nickname.trim();
+  const normalizedNickname = normalizeNickname(nickname);
   const normalizedCompanyName = companyName.trim();
   const isBusinessUser = userType === 'BUSINESS';
 
@@ -104,7 +105,7 @@ export default function SocialCompleteProfilePage() {
       return false;
     }
     if (!isValidNickname(normalizedNickname)) {
-      setError('닉네임은 2~20자의 한글, 영문, 숫자, 밑줄(_)만 사용할 수 있습니다.');
+      setError('닉네임은 2~20자의 한글, 영문, 숫자, 밑줄(_), 공백만 사용할 수 있습니다.');
       return false;
     }
     if (!phonePersonal.trim()) {
@@ -117,7 +118,7 @@ export default function SocialCompleteProfilePage() {
     }
     if (isBusinessUser) {
       if (!normalizedCompanyName) {
-        setError('기업 회원은 회사명을 입력해주세요.');
+        setError('기업 회원은 회사명 또는 업종을 입력해주세요.');
         return false;
       }
     } else if (!job) {
@@ -157,6 +158,7 @@ export default function SocialCompleteProfilePage() {
     submitPendingRef.current = true;
     setLoading(true);
     setError('');
+    setNickname(normalizedNickname);
 
     try {
       const valid = await validate();
@@ -291,6 +293,7 @@ export default function SocialCompleteProfilePage() {
               placeholder="닉네임"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
+              onBlur={() => setNickname(normalizeNickname(nickname))}
               maxLength={NICKNAME_MAX}
               disabled={loading}
             />
@@ -333,13 +336,13 @@ export default function SocialCompleteProfilePage() {
           {isBusinessUser ? (
             <div className={styles.fieldGroup}>
               <label className={styles.label} htmlFor="cp-company-name">
-                회사명
+                회사명 또는 업종
               </label>
               <input
                 id="cp-company-name"
                 className={styles.input}
                 type="text"
-                placeholder="회사명을 입력하세요"
+                placeholder="회사명 또는 업종을 입력하세요"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 maxLength={COMPANY_NAME_MAX}

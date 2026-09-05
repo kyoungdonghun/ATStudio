@@ -7,6 +7,8 @@ import com.atstudio.atstudio.entity.enums.UserType;
 import jakarta.persistence.*;
 import lombok.*;
 
+import static com.atstudio.atstudio.common.validation.ValidationConstants.normalizeNickname;
+
 @Entity
 @Table(name = "users")
 @Getter
@@ -71,7 +73,7 @@ public class User extends BaseEntity {
     }
 
     public void updateProfile(String nickname, String phonePersonal, String phoneCompany, UserJob job, String companyName) {
-        if (nickname != null) this.nickname = nickname;
+        if (nickname != null) this.nickname = normalizeNickname(nickname);
         if (phonePersonal != null) this.phonePersonal = phonePersonal;
         if (phoneCompany != null) this.phoneCompany = phoneCompany;
         if (job != null) this.job = job;
@@ -109,7 +111,7 @@ public class User extends BaseEntity {
     }
 
     public void completeProfile(String nickname, String phonePersonal, String phoneCompany, UserJob job, UserType userType, String companyName) {
-        this.nickname = nickname;
+        this.nickname = normalizeNickname(nickname);
         this.phonePersonal = phonePersonal;
         if (phoneCompany != null) this.phoneCompany = phoneCompany;
         this.job = job;

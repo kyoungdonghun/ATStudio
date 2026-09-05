@@ -617,8 +617,10 @@ describe('public authentication recovery', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: '가입하기' }));
-    expect(screen.getByText('회사명을 입력해주세요.')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('회사명'), { target: { value: '  AT.M Labs  ' } });
+    expect(screen.getByText('회사명 또는 업종을 입력해주세요.')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('회사명 또는 업종'), {
+      target: { value: '  AT.M Labs  ' },
+    });
     fireEvent.click(screen.getByRole('checkbox', { name: '이용약관 동의 (필수)' }));
     fireEvent.click(screen.getByRole('checkbox', { name: '개인정보 처리방침 동의 (필수)' }));
     fireEvent.click(screen.getByRole('button', { name: '가입하기' }));

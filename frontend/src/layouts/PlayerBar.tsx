@@ -30,6 +30,7 @@ const STALLED_MESSAGE = '재생이 지연되고 있습니다. 연결을 확인�
 const SEEK_STEP_SECONDS = 5;
 const MOBILE_EXPANDED_ID = 'player-mobile-expanded-controls';
 type SubscriptionStatus = 'idle' | 'loading' | 'active' | 'inactive' | 'error';
+type DrawerTab = 'playlists' | 'likes';
 
 function formatTime(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return '0:00';
@@ -72,6 +73,8 @@ export default function PlayerBar() {
   const cycleRepeat = usePlayerStore((s) => s.cycleRepeat);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [playlistOpen, setPlaylistOpen] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<DrawerTab>('playlists');
+  const [drawerTabRequestID, setDrawerTabRequestID] = useState(0);
   const [showPlModal, setShowPlModal] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>('idle');
@@ -86,6 +89,13 @@ export default function PlayerBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const loginPath = createLoginPath(location);
+
+  function toggleDrawer(tab: DrawerTab) {
+    setDrawerTab(tab);
+    setDrawerTabRequestID((requestID) => requestID + 1);
+    setPlaylistOpen((isOpen) => !(isOpen && drawerTab === tab));
+    setHistoryOpen(false);
+  }
 
   function handleMobileKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (event.key !== 'Escape' || event.defaultPrevented || !expanded) return;
@@ -561,11 +571,16 @@ export default function PlayerBar() {
               {'재생기록'}
             </button>
             <button
+              className={styles.actionBtn}
+              onClick={() => toggleDrawer('likes')}
+              aria-label="좋아요 목록 열기"
+              title="좋아요 목록 열기"
+            >
+              {'좋아요'}
+            </button>
+            <button
               className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
-              onClick={() => {
-                setPlaylistOpen((v) => !v);
-                setHistoryOpen(false);
-              }}
+              onClick={() => toggleDrawer('playlists')}
             >
               {'재생목록'}
             </button>
@@ -611,11 +626,16 @@ export default function PlayerBar() {
                   {'재생기록'}
                 </button>
                 <button
+                  className={styles.actionBtn}
+                  onClick={() => toggleDrawer('likes')}
+                  aria-label="좋아요 목록 열기"
+                  title="좋아요 목록 열기"
+                >
+                  {'좋아요'}
+                </button>
+                <button
                   className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
-                  onClick={() => {
-                    setPlaylistOpen((v) => !v);
-                    setHistoryOpen(false);
-                  }}
+                  onClick={() => toggleDrawer('playlists')}
                 >
                   {'재생목록'}
                 </button>
@@ -626,7 +646,13 @@ export default function PlayerBar() {
 
         {historyOpen && <HistoryModal open={historyOpen} onClose={() => setHistoryOpen(false)} />}
         {playlistOpen && (
-          <PlaylistDrawer open={playlistOpen} onClose={() => setPlaylistOpen(false)} />
+          <PlaylistDrawer
+            open={playlistOpen}
+            requestedTab={drawerTab}
+            tabRequestID={drawerTabRequestID}
+            onTabChange={setDrawerTab}
+            onClose={() => setPlaylistOpen(false)}
+          />
         )}
       </>
     );
@@ -843,11 +869,16 @@ export default function PlayerBar() {
             {'재생기록'}
           </button>
           <button
+            className={styles.actionBtn}
+            onClick={() => toggleDrawer('likes')}
+            aria-label="좋아요 목록 열기"
+            title="좋아요 목록 열기"
+          >
+            {'좋아요'}
+          </button>
+          <button
             className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
-            onClick={() => {
-              setPlaylistOpen((v) => !v);
-              setHistoryOpen(false);
-            }}
+            onClick={() => toggleDrawer('playlists')}
           >
             {'재생목록'}
           </button>
@@ -1069,11 +1100,16 @@ export default function PlayerBar() {
                 {'재생기록'}
               </button>
               <button
+                className={styles.actionBtn}
+                onClick={() => toggleDrawer('likes')}
+                aria-label="좋아요 목록 열기"
+                title="좋아요 목록 열기"
+              >
+                {'좋아요'}
+              </button>
+              <button
                 className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
-                onClick={() => {
-                  setPlaylistOpen((v) => !v);
-                  setHistoryOpen(false);
-                }}
+                onClick={() => toggleDrawer('playlists')}
               >
                 {'재생목록'}
               </button>
@@ -1095,7 +1131,13 @@ export default function PlayerBar() {
 
       {/* Modals / Drawers */}
       <HistoryModal open={historyOpen} onClose={() => setHistoryOpen(false)} />
-      <PlaylistDrawer open={playlistOpen} onClose={() => setPlaylistOpen(false)} />
+      <PlaylistDrawer
+        open={playlistOpen}
+        requestedTab={drawerTab}
+        tabRequestID={drawerTabRequestID}
+        onTabChange={setDrawerTab}
+        onClose={() => setPlaylistOpen(false)}
+      />
       <AddToPlaylistModal
         open={showPlModal}
         trackId={currentTrack?.id ?? null}

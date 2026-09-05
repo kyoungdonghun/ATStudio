@@ -65,6 +65,22 @@ describe('HomePage tag discovery', () => {
     mocks.fetchAvailableTags.mockResolvedValue([]);
   });
 
+  it('uses the creator audience copy in the hero and footer', () => {
+    renderHome();
+
+    const heroTitle = screen.getByRole('heading', { level: 1 });
+    const footer = screen.getByRole('contentinfo');
+
+    expect(heroTitle).toHaveTextContent(/창작자를 위한\s*최고의 음악/);
+    expect(
+      screen.getByText(/창작자를 위한 고품질 라이선스 음악\.\s*구독 하나로 무제한 사용하세요\./),
+    ).toBeInTheDocument();
+    expect(footer).toHaveTextContent(/창작자를 위한\s*음악 라이선스 플랫폼/);
+    expect(heroTitle).not.toHaveTextContent('쇼츠를 위한');
+    expect(screen.queryByText('크리에이터를 위한 고품질 라이선스 음악.')).not.toBeInTheDocument();
+    expect(footer).not.toHaveTextContent('쇼츠 크리에이터를 위한');
+  });
+
   it('keeps Usage first, falls back to the first category with results, and supports roving focus', async () => {
     const registered = [
       tag(1, 'Shorts', 'USAGE'),

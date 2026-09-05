@@ -65,6 +65,13 @@ Repeated callback paths do not create new screens. Three checkout paths reuse on
   confirms server revocation; a bare `401` or other failure still clears the
   local session and shows the fixed unconfirmed-revocation warning.
 - Social login and social profile-completion onboarding are unchanged by WI-068.
+- BUSINESS signup, social completion, and profile edit use one required
+  `Company name or industry` free-text input backed by existing `companyName`;
+  no separate industry field is exposed. INDIVIDUAL members continue to use
+  `job`.
+- Nickname input trims leading and trailing whitespace while preserving internal
+  spaces before validation, availability checks, submission, server uniqueness
+  evaluation, and persistence.
 - Social profile completion verifies current identity before showing the form.
   Complete profiles move to `/profile?tab=account`; failed identity remains
   non-mutating. One pending fence covers availability checks and profile
@@ -140,10 +147,16 @@ storage snapshot. No server Play History table participates.
   types with AND semantics. Each taxonomy loads and fails independently, with
   an error and manual retry scoped to that type. Active URL values remain
   visible as removable fallback chips when a request fails or omits them.
+  Selecting a Mood does not hide the remaining valid Mood chips merely because
+  the result set narrowed, so multiple Moods remain selectable and visible.
 - Genre, Mood, and Instrument labels render their raw values. Usage keeps its
   raw value in URL and API parameters and adds `#` only to the visible label.
 - The player shows non-fatal buffering status only after 2 seconds. Actual
   playback errors use a separate assertive state.
+- Player actions provide a direct Likes entry adjacent to Play History in both
+  desktop and expanded mobile layouts. It opens the shared drawer at Likes;
+  ordinary drawer close/reopen preserves a user-selected tab until a new
+  explicit action requests a tab.
 - Album, playlist, likes, download history, queue, and persisted player state
   use the shared PlayableTrack fields. Omitted nullable thumbnail or waveform
   keys normalize to `null`, and a selected Track's duration becomes the player
@@ -179,6 +192,12 @@ storage snapshot. No server Play History table participates.
   affect a later open or Track lifecycle.
 - Playlist create/edit revoke each locally created thumbnail preview URL once
   on its lifecycle boundaries and never revoke backend media URLs.
+- Playlist detail `Play all` starts the first displayed Track and establishes
+  the displayed playlist order as the active player queue. `Add all to queue`
+  adds those Tracks without starting playback.
+- The Question list exposes a dedicated create-question FAB. Its responsive
+  bottom clearance keeps the action reachable above the fixed PlayerBar and the
+  expanded mobile player.
 - Download History binds ID preparation, confirmation, download iterations,
   browser effects, feedback, count refresh, and cleanup to the initiating
   owner/read key and abort signal.
