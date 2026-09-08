@@ -283,17 +283,17 @@ public class RecurringRenewalService {
             return;
         }
         String summary = finalFailure
-                ? "Your subscription renewal payment has failed repeatedly and automatic renewal is suspended."
-                : "Your subscription renewal payment could not be completed.";
+                ? "구독 갱신 결제가 완료되지 않아 자동 갱신이 중지되었습니다."
+                : "구독 갱신 결제를 완료하지 못했습니다.";
         String retryGuide = finalFailure
-                ? "Access remains available until the grace period ends on " + graceEndsAt
-                    + ". Please contact support or register a valid payment method."
-                : "We will retry automatically during the grace period until " + graceEndsAt
-                    + ". Please check your registered payment method.";
+                ? "서비스 이용 유예 종료일은 " + graceEndsAt
+                    + "입니다. 고객센터에 문의하거나 유효한 결제 수단을 등록해 주세요."
+                : "유예 종료일인 " + graceEndsAt
+                    + "까지 자동 결제를 재시도할 예정입니다. 등록된 결제 수단을 확인해 주세요.";
         try {
             emailService.sendSubscriptionPaymentFailureEmail(
                     user,
-                    summary + " Order: " + orderID,
+                    summary + " 주문 ID: " + orderID,
                     retryGuide);
         } catch (RuntimeException exception) {
             log.warn("Failed to send renewal failure email. orderId={}", orderID, exception);

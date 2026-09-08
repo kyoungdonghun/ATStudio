@@ -613,8 +613,8 @@ describe('admin subscription and user management gaps', () => {
     const row = (await screen.findByText('subscriber-a4')).closest('tr');
     expect(row).not.toBeNull();
 
-    fireEvent.click(within(row as HTMLElement).getByRole('button', { name: '권한 보정' }));
-    const dialog = screen.getByRole('dialog', { name: '사용자 구독 권한 보정' });
+    fireEvent.click(within(row as HTMLElement).getByRole('button', { name: '구독 이용권 조정' }));
+    const dialog = screen.getByRole('dialog', { name: '구독 이용권 조정' });
     await waitFor(() => expect(within(dialog).getByLabelText('운영 사유 (필수)')).toBeEnabled());
     expect(mocks.fetchOpenAdminSubscriptionCorrection).toHaveBeenCalledWith(
       71,
@@ -642,9 +642,12 @@ describe('admin subscription and user management gaps', () => {
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '승인 단계로 이동' }));
     fireEvent.click(
-      within(screen.getByRole('dialog', { name: '권한 보정 승인 확인' })).getByRole('button', {
-        name: '승인 확정',
-      }),
+      within(screen.getByRole('dialog', { name: '구독 이용권 조정 승인 확인' })).getByRole(
+        'button',
+        {
+          name: '승인 확정',
+        },
+      ),
     );
 
     expect(await within(dialog).findByLabelText('실행 메모 (선택)')).toBeInTheDocument();
@@ -652,17 +655,17 @@ describe('admin subscription and user management gaps', () => {
       target: { value: 'coverage execution' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '실행 확인' }));
-    const confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
+    const confirmationDialog = screen.getByRole('dialog', { name: '구독 이용권 조정 실행 확인' });
     fireEvent.change(within(confirmationDialog).getByLabelText('실행 확인 문구'), {
-      target: { value: '권한 보정 실행' },
+      target: { value: '구독 이용권 조정 실행' },
     });
     fireEvent.click(
       within(confirmationDialog).getByRole('button', {
-        name: '권한 보정 실행',
+        name: '구독 이용권 조정 실행',
       }),
     );
 
-    expect(await within(dialog).findByText('권한 보정 실행 완료')).toBeInTheDocument();
+    expect(await within(dialog).findByText('구독 이용권 조정 실행 완료')).toBeInTheDocument();
     expect(mocks.approveAdminSubscriptionCorrection).toHaveBeenCalledWith(
       901,
       { note: 'coverage approval' },
@@ -688,8 +691,8 @@ describe('admin subscription and user management gaps', () => {
 
     render(<UserSubscriptionManagePage />);
     const row = (await screen.findByText('subscriber-a4')).closest('tr') as HTMLElement;
-    fireEvent.click(within(row).getByRole('button', { name: '권한 보정' }));
-    let dialog = screen.getByRole('dialog', { name: '사용자 구독 권한 보정' });
+    fireEvent.click(within(row).getByRole('button', { name: '구독 이용권 조정' }));
+    let dialog = screen.getByRole('dialog', { name: '구독 이용권 조정' });
     await waitFor(() => expect(within(dialog).getByLabelText('운영 사유 (필수)')).toBeEnabled());
     fireEvent.change(within(dialog).getByLabelText('운영 사유 (필수)'), {
       target: { value: 'coverage rejection' },
@@ -701,14 +704,14 @@ describe('admin subscription and user management gaps', () => {
     expect(within(dialog).getByRole('button', { name: '요청 생성' })).toBeDisabled();
     fireEvent.click(last(within(dialog).getAllByRole('button', { name: '닫기' })));
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: '사용자 구독 권한 보정' })).toBeNull(),
+      expect(screen.queryByRole('dialog', { name: '구독 이용권 조정' })).toBeNull(),
     );
 
     mocks.fetchOpenAdminSubscriptionCorrection.mockClear();
     mocks.previewAdminSubscriptionCorrection.mockResolvedValueOnce(subscriptionCorrectionPreview());
     mocks.createAdminSubscriptionCorrection.mockRejectedValueOnce(new Error('request failed'));
-    fireEvent.click(within(row).getByRole('button', { name: '권한 보정' }));
-    dialog = screen.getByRole('dialog', { name: '사용자 구독 권한 보정' });
+    fireEvent.click(within(row).getByRole('button', { name: '구독 이용권 조정' }));
+    dialog = screen.getByRole('dialog', { name: '구독 이용권 조정' });
     await waitFor(() => expect(within(dialog).getByLabelText('운영 사유 (필수)')).toBeEnabled());
     fireEvent.change(within(dialog).getByLabelText('목표 결제 주기'), {
       target: { value: 'YEARLY' },
@@ -1299,7 +1302,7 @@ describe('payment operation gaps', () => {
     prompt.mockReturnValueOnce('wrong');
     fireEvent.click(within(approvedRow).getAllByRole('button')[1]);
     expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
-    prompt.mockReturnValueOnce('\uad8c\ud55c \ubcf4\uc815 \uc2e4\ud589');
+    prompt.mockReturnValueOnce('구독 이용권 조정 실행');
     fireEvent.click(within(approvedRow).getAllByRole('button')[1]);
     await waitFor(() =>
       expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledWith(202, undefined),
@@ -1319,16 +1322,12 @@ describe('payment operation gaps', () => {
     fireEvent.click(checks[0]);
     fireEvent.click(checks[0]);
     fireEvent.click(checks[1]);
-    fireEvent.change(screen.getByPlaceholderText(/\ud658\ubd88 \ud6c4 \uad8c\ud55c/), {
+    fireEvent.change(screen.getByPlaceholderText('환불 후 구독 이용권 조정 근거'), {
       target: { value: ' correction request ' },
     });
-    fireEvent.click(
-      screen.getByRole('button', { name: /\uad8c\ud55c \ubcf4\uc815 \ubbf8\ub9ac\ubcf4\uae30/ }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정 미리보기' }));
     await waitFor(() => expect(mocks.previewAdminPaymentEntitlementCorrection).toHaveBeenCalled());
-    fireEvent.click(
-      screen.getByRole('button', { name: /\uad8c\ud55c \ubcf4\uc815 \uc694\uccad \uc0dd\uc131/ }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정 요청 생성' }));
     fireEvent.click(last(within(screen.getByRole('dialog')).getAllByRole('button')));
     await waitFor(() => expect(mocks.createAdminPaymentEntitlementCorrection).toHaveBeenCalled());
     prompt.mockRestore();

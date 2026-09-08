@@ -101,19 +101,19 @@ class DownloadServiceTest {
     void download_success_existingLicense() {
         User user = buildUser(1L);
         Track track = buildTrack(1L, true);
+        Resource mockResource = mock(Resource.class);
 
         given(userDetails.getId()).willReturn(1L);
         given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(trackRepository.findById(1L)).willReturn(Optional.of(track));
         given(licenseRepository.findByUserAndTrack(user, track)).willReturn(Optional.of(buildLicense(user, track)));
-        given(storageService.loadAsResource(eq(StorageRoot.PUBLIC), anyString())).willReturn(mock(Resource.class));
+        given(storageService.loadAsResource(eq(StorageRoot.PUBLIC), anyString())).willReturn(mockResource);
 
-        downloadService.download(1L, userDetails);
+        assertThat(downloadService.download(1L, userDetails)).isSameAs(mockResource);
 
-        verify(trackDownloadRepository, never()).save(any());
         verify(licenseRepository, never()).save(any());
         verify(trackRepository, never()).incrementDownloadCountAtomically(anyLong());
-        verifyNoInteractions(userSubscriptionRepository);
+        verifyNoInteractions(userSubscriptionRepository, trackDownloadRepository);
     }
 
     @Test
@@ -245,6 +245,10 @@ class DownloadServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+
+        verifyNoInteractions(trackDownloadRepository, storageService);
+        verify(licenseRepository, never()).save(any());
+        verify(trackRepository, never()).incrementDownloadCountAtomically(anyLong());
     }
 
     @Test

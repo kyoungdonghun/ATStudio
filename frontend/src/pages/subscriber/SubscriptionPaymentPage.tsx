@@ -36,6 +36,7 @@ interface BillingCallbackContext {
   amount: number | null;
   hasAuthenticationContext: boolean;
   isMalformed: boolean;
+  reportedCardHint: string | null;
 }
 
 const INVALID_CHECKOUT_CONTEXT_MESSAGE =
@@ -85,6 +86,10 @@ export default function SubscriptionPaymentPage() {
       customerKey: toNonBlankString(customerKeyParam),
       amount: parseCallbackAmount(amountParam, callbackPurpose),
       hasAuthenticationContext,
+      reportedCardHint:
+        isFailRedirect && getSingleSearchParam(searchParams, 'code') === 'INVALID_CARD_NUMBER'
+          ? '카드 등록 화면에서 카드번호 오류가 전달되었습니다. 입력한 카드번호를 확인해주세요. 결제 완료 여부는 상태 확인이 필요합니다.'
+          : null,
       isMalformed:
         callbackPurpose === null ||
         ['orderId', 'authKey', 'customerKey', 'amount', 'purpose'].some(
@@ -123,6 +128,7 @@ export default function SubscriptionPaymentPage() {
   const [prepareRetryVersion, setPrepareRetryVersion] = useState(0);
   const [canStartNewAttempt, setCanStartNewAttempt] = useState(false);
   const [recoveryState, setRecoveryState] = useState<RecoveryState>('CHECKING');
+  const [hasDoneOutcome, setHasDoneOutcome] = useState(false);
 
   useLayoutEffect(() => {
     if (!isRedirect || (!searchParams.has('authKey') && !searchParams.has('customerKey'))) {
@@ -213,6 +219,7 @@ export default function SubscriptionPaymentPage() {
           setErrorMessage(UNKNOWN_MESSAGE);
           return;
         }
+        setHasDoneOutcome(true);
         try {
           if (await canonicalStateMatches(outcome)) {
             if (version === recoveryVersionRef.current) completeCommitted();
@@ -515,6 +522,12 @@ export default function SubscriptionPaymentPage() {
             {errorMessage ?? '결제 상태를 확인했습니다. 다시 시도할 수 있습니다.'}
           </div>
         </div>
+        {isFailRedirect &&
+          !hasDoneOutcome &&
+          !callbackContextRef.current?.isMalformed &&
+          callbackContextRef.current?.reportedCardHint && (
+            <p className={styles.pgText}>{callbackContextRef.current.reportedCardHint}</p>
+          )}
         <div className={styles.btnGroup}>
           {(recoveryState === 'RELOAD_FAILED' || recoveryState === 'UNKNOWN') && (
             <button

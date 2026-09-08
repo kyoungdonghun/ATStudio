@@ -117,7 +117,7 @@ public class EmailService {
             return;
         }
 
-        String subject = "[AT.M] Subscription payment notice";
+        String subject = "[AT.M] 구독 결제 안내";
         String body = buildSubscriptionPaymentFailureEmailBody(
                 user.getNickname(),
                 failureSummary,
@@ -133,7 +133,7 @@ public class EmailService {
             return;
         }
 
-        String subject = "[AT.M] Payment reconciliation incident";
+        String subject = "[AT.M] 결제 점검 이슈";
         String body = buildPaymentReconciliationIncidentEmailBody(summary, details);
         sendEmail(operatorEmail, subject, body);
     }
@@ -224,37 +224,37 @@ public class EmailService {
             String retryGuide) {
         return """
                 <div style="max-width:480px;margin:0 auto;font-family:'Apple SD Gothic Neo',sans-serif;">
-                  <h2 style="color:#333;">Subscription payment notice</h2>
-                  <p>Hello <strong>%s</strong>,</p>
+                  <h2 style="color:#333;">구독 결제 안내</h2>
+                  <p>안녕하세요, <strong>%s</strong>님!</p>
                   <p>%s</p>
                   <p>%s</p>
                   <p style="color:#888;font-size:13px;">
-                    This message never includes card numbers, billing keys, auth keys, or provider secrets.
+                    카드 번호 등 민감한 결제 정보는 이메일로 보내지 마세요.
                   </p>
                 </div>
                 """.formatted(
-                escapeHtml(defaultText(nickname, "AT.M user")),
+                escapeHtml(defaultText(nickname, "회원")),
                 escapeHtml(defaultText(
                         failureSummary,
-                        "Your subscription renewal payment could not be completed.")),
+                        "구독 갱신 결제를 완료하지 못했습니다.")),
                 escapeHtml(defaultText(
                         retryGuide,
-                        "Please check your payment method and try again from My Subscription.")));
+                        "내 구독에서 결제 상태와 등록된 결제 수단을 확인해 주세요.")));
     }
 
     private String buildPaymentReconciliationIncidentEmailBody(String summary, String details) {
         return """
                 <div style="max-width:640px;margin:0 auto;font-family:'Apple SD Gothic Neo',sans-serif;">
-                  <h2 style="color:#333;">Payment reconciliation incident</h2>
+                  <h2 style="color:#333;">결제 점검 이슈</h2>
                   <p>%s</p>
                   <pre style="white-space:pre-wrap;background:#f6f8fa;border:1px solid #d0d7de;
                               border-radius:6px;padding:12px;color:#24292f;">%s</pre>
                   <p style="color:#888;font-size:13px;">
-                    This message never includes card numbers, billing keys, auth keys, customer keys, or provider secrets.
+                    카드 번호나 결제 인증 정보 등 민감한 정보는 이메일로 공유하지 마세요.
                   </p>
                 </div>
                 """.formatted(
-                escapeHtml(defaultText(summary, "A payment reconciliation incident was detected.")),
+                escapeHtml(defaultText(summary, "결제 점검 이슈가 감지되었습니다.")),
                 escapeHtml(defaultText(details, "-")));
     }
 

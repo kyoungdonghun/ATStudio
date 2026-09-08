@@ -27,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -63,6 +65,7 @@ import static org.mockito.Mockito.verify;
 class SubscriptionUpgradeCommandIntegrationTest {
 
     @Autowired UserSubscriptionService service;
+    @Autowired PaymentCommandTransactionService commandTransactions;
     @Autowired SubscriptionUpgradePaymentExecutor subscriptionUpgradePaymentExecutor;
     @Autowired com.atstudio.atstudio.repository.UserRepository userRepository;
     @Autowired com.atstudio.atstudio.repository.SubscriptionRepository subscriptionRepository;
@@ -117,6 +120,10 @@ class SubscriptionUpgradeCommandIntegrationTest {
     @DisplayName("provider success is durable and retry finalizes upgrade without a second charge")
     void providerSuccessRetryFinalizesWithoutSecondCharge() {
         Fixture fixture = persistUpgradeFixture();
+        BillingAgreement agreement = billingAgreementRepository.findAll().get(0);
+        LocalDateTime prior = LocalDateTime.now().minusDays(1).withNano(0);
+        ReflectionTestUtils.setField(agreement, "lastChargedAt", prior);
+        billingAgreementRepository.saveAndFlush(agreement);
         doThrow(new IllegalStateException("forced upgrade finalization failure"))
                 .doNothing()
                 .when(paymentReceiptEvidenceService)
@@ -137,6 +144,8 @@ class SubscriptionUpgradeCommandIntegrationTest {
         assertThat(providerSucceeded.getProviderIdempotencyKey())
                 .isEqualTo("subscription-upgrade-" + providerSucceeded.getOrderId() + "-attempt-1");
         assertThat(subscriptionPaymentRepository.count()).isZero();
+        assertThat(billingAgreementRepository.findById(agreement.getId()).orElseThrow().getLastChargedAt())
+                .isEqualTo(prior);
         assertThat(reloadSubscription(fixture.userSubscriptionID()).getSubscription().getId())
                 .isEqualTo(fixture.currentSubscriptionID());
         assertThat(recurringPaymentProvider.calls()).containsExactly("charge");
@@ -148,6 +157,13 @@ class SubscriptionUpgradeCommandIntegrationTest {
                 new ChangeSubscriptionRequest(fixture.targetSubscriptionID(), BillingCycle.MONTHLY));
 
         PaymentOrder finalized = reloadOrder();
+        LocalDateTime chargedAt = billingAgreementRepository.findById(agreement.getId()).orElseThrow().getLastChargedAt();
+        assertThat(chargedAt).isAfter(prior);
+        commandTransactions.finalizeUpgrade(fixture.userID(), agreement.getId(), finalized.getOrderId());
+        assertThat(billingAgreementRepository.findById(agreement.getId()).orElseThrow().getLastChargedAt())
+                .isEqualTo(chargedAt);
+        assertThat(billingAgreementRepository.findById(agreement.getId()).orElseThrow().getNextBillingAt())
+                .isEqualTo(agreement.getNextBillingAt());
         assertThat(finalized.getStatus()).isEqualTo(PaymentOrderStatus.DONE);
         assertThat(subscriptionPaymentRepository.count()).isEqualTo(1);
         assertThat(reloadSubscription(fixture.userSubscriptionID()).getSubscription().getId())

@@ -460,7 +460,7 @@ async function openCorrections(items: AdminPaymentEntitlementCorrection[]) {
   mocks.fetchAdminPaymentEntitlementCorrections.mockReset().mockResolvedValue(pageWith(items));
   render(<PaymentOperationsPage />);
   await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
-  fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+  fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정' }));
   await waitFor(() =>
     expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
   );
@@ -509,7 +509,7 @@ function executeRefundRow(item: AdminPaymentRefund) {
 }
 
 function executeCorrectionRow(item: AdminPaymentEntitlementCorrection) {
-  vi.spyOn(window, 'prompt').mockReturnValue('권한 보정 실행');
+  vi.spyOn(window, 'prompt').mockReturnValue('구독 이용권 조정 실행');
   const row = screen.getByText(item.userNickname).closest('tr') as HTMLElement;
   fireEvent.click(within(row).getByRole('button', { name: '실행' }));
   return row;
@@ -666,7 +666,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
 
     render(<PaymentOperationsPage />);
     await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: '대사 Incident' }));
+    fireEvent.click(screen.getByRole('button', { name: '결제 점검 이슈' }));
     await waitFor(() =>
       expect(mocks.fetchAdminPaymentReconciliationIncidents).toHaveBeenCalledTimes(1),
     );
@@ -701,7 +701,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     expect(screen.queryByText('불러오는 중...')).not.toBeInTheDocument();
   });
 
-  it('opens valid HTTPS receipt URLs and renders unsafe retained URLs as text only', async () => {
+  it('shows stored receipt evidence statuses with safe links and raw unknown fallbacks', async () => {
     const baseReceipt: AdminPaymentReceipt = {
       id: 1,
       userId: 3,
@@ -729,6 +729,17 @@ describe('PaymentOperationsPage latest-request-wins', () => {
           receiptReference: 'REF-UNSAFE-RECEIPT',
           receiptUrl: "javascript:alert('provider-payment-key')",
         },
+        ...['CANCELLED', 'PARTIAL_CANCELLED', 'FAILED', 'FUTURE_STATUS', 'constructor'].map(
+          (status, index) => ({
+            ...baseReceipt,
+            id: index + 3,
+            orderId: `ORDER-RECEIPT-${index + 3}`,
+            type: 'FUTURE_RECEIPT_TYPE',
+            status,
+            receiptUrl: 'http://receipts.example.com/unsafe',
+            cancelledAt: '2026-07-17T10:00:00',
+          }),
+        ),
       ]),
     );
 
@@ -741,6 +752,28 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     const unsafeReference = screen.getByText('REF-UNSAFE-RECEIPT');
     expect(unsafeReference.closest('a')).toBeNull();
     expect(screen.getAllByRole('link', { name: '열기' })).toHaveLength(1);
+    expect(openLink).toHaveAttribute('target', '_blank');
+    expect(openLink).toHaveAttribute('rel', 'noreferrer');
+    const table = screen.getByRole('table', { name: '원결제 영수증 · 환불 상태와 별도' });
+    expect(within(table).getByRole('columnheader', { name: '증빙 상태' })).toBeVisible();
+    const issuedRow = within(table).getByText('ORDER-RECEIPT-1').closest('tr')!;
+    expect(within(issuedRow).getByText('발급 기록')).toBeVisible();
+    expect(within(issuedRow).queryByText(/환불|취소 기록/)).not.toBeInTheDocument();
+    for (const status of [
+      '취소 기록',
+      '부분 취소 기록',
+      '발급 실패',
+      'FUTURE_STATUS',
+      'constructor',
+    ]) {
+      expect(within(table).getByText(status)).toBeVisible();
+    }
+    expect(within(table).getAllByText('FUTURE_RECEIPT_TYPE')).toHaveLength(5);
+    expect(within(table).getAllByText('링크 확인 필요')).toHaveLength(5);
+    expect(table).not.toHaveTextContent('javascript:');
+    expect(table).not.toHaveTextContent('provider-payment-key');
+    expect(mocks.fetchAdminPaymentReceipts).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchAdminPaymentRefunds).not.toHaveBeenCalled();
   });
 
   it('reloads the current view once after an incident mutation', async () => {
@@ -751,7 +784,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
 
     render(<PaymentOperationsPage />);
     await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: '대사 Incident' }));
+    fireEvent.click(screen.getByRole('button', { name: '결제 점검 이슈' }));
 
     expect(await screen.findByText('STATUS_MISMATCH')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '저장' }));
@@ -763,6 +796,10 @@ describe('PaymentOperationsPage latest-request-wins', () => {
       expect(mocks.fetchAdminPaymentReconciliationIncidents).toHaveBeenCalledTimes(2),
     );
     expect(mocks.fetchAdminPaymentReconciliationIncidents).toHaveBeenCalledTimes(2);
+    expect(mocks.showToast).toHaveBeenCalledWith(
+      'success',
+      '결제 점검 이슈 상태가 저장되었습니다.',
+    );
   });
 
   it('blocks a new settlement import when a pending attempt is stored', async () => {
@@ -1258,6 +1295,160 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     expect(mocks.createAdminPaymentRefund).not.toHaveBeenCalled();
   });
 
+  it.each([
+    null,
+    '',
+    '권한 보정 실행',
+    '구독 이용권 조정',
+    '구독 이용권 조정 실행!',
+    ' 구독 이용권 조정 실행 ',
+  ])('rejects non-exact correction execute confirmation %s before any mutation', async (input) => {
+    const item = correction('APPROVED');
+    await openCorrections([item]);
+    const promptMock = vi.spyOn(window, 'prompt').mockReturnValueOnce(input);
+    const row = screen.getByText(item.userNickname).closest('tr')!;
+    fireEvent.click(within(row).getByRole('button', { name: '실행' }));
+    expect(promptMock).toHaveBeenCalledWith(expect.stringContaining("'구독 이용권 조정 실행'"));
+    expect(mocks.fetchAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+    expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+  });
+
+  it('requires an explicitly entered correction expiry before preview or creation', async () => {
+    mocks.fetchAdminSubscriptionPlans.mockResolvedValue([
+      {
+        id: 20,
+        name: 'DELUXE',
+        userType: 'INDIVIDUAL',
+        isActive: true,
+      },
+    ]);
+    await openCorrections([correction()]);
+    expect(screen.getByLabelText('목표 만료일')).toHaveValue('');
+    fireEvent.change(screen.getByLabelText('환불 ID'), { target: { value: '51' } });
+    fireEvent.change(screen.getByLabelText('대상 플랜'), { target: { value: '20' } });
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정 미리보기' }));
+    expect(mocks.previewAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+    expect(mocks.showToast).toHaveBeenCalledWith('error', '목표 만료일을 입력해주세요.');
+    expect(screen.getByRole('button', { name: '구독 이용권 조정 요청 생성' })).toBeDisabled();
+    expect(mocks.createAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+  });
+
+  it.each(['expiry', 'status', 'cancel-effect'] as const)(
+    'invalidates a correction preview and open confirmation after editing %s',
+    async (field) => {
+      mocks.fetchAdminSubscriptionPlans.mockResolvedValue([
+        {
+          id: 20,
+          name: 'DELUXE',
+          userType: 'INDIVIDUAL',
+          isActive: true,
+        },
+      ]);
+      mocks.previewAdminPaymentEntitlementCorrection.mockResolvedValue(correctionPreview);
+      await openCorrections([]);
+      fireEvent.change(screen.getByLabelText('환불 ID'), { target: { value: '51' } });
+      fireEvent.change(screen.getByLabelText('대상 플랜'), { target: { value: '20' } });
+      fireEvent.change(screen.getByLabelText('목표 만료일'), { target: { value: '2026-07-16' } });
+      fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정 미리보기' }));
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: '구독 이용권 조정 요청 생성' })).toBeEnabled(),
+      );
+      fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정 요청 생성' }));
+      const confirm = within(screen.getByRole('dialog')).getByRole('button', { name: '요청 생성' });
+      if (field === 'expiry') {
+        fireEvent.change(screen.getByLabelText('목표 만료일'), { target: { value: '' } });
+      } else if (field === 'status') {
+        fireEvent.change(screen.getByLabelText('목표 상태'), { target: { value: 'CANCELLED' } });
+      } else {
+        fireEvent.click(screen.getByLabelText('로컬 자동결제 취소'));
+      }
+      expect(screen.getByRole('button', { name: '구독 이용권 조정 요청 생성' })).toBeDisabled();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      fireEvent.click(confirm);
+      expect(mocks.createAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+    },
+  );
+
+  it('ignores a late correction preview after the explicit expiry changes and clears failed re-previews', async () => {
+    mocks.fetchAdminSubscriptionPlans.mockResolvedValue([
+      {
+        id: 20,
+        name: 'DELUXE',
+        userType: 'INDIVIDUAL',
+        isActive: true,
+      },
+    ]);
+    const late = deferred<AdminPaymentEntitlementCorrectionPreview>();
+    mocks.previewAdminPaymentEntitlementCorrection
+      .mockReturnValueOnce(late.promise)
+      .mockResolvedValueOnce(correctionPreview)
+      .mockRejectedValueOnce(new Error('unavailable'));
+    await openCorrections([]);
+    fireEvent.change(screen.getByLabelText('환불 ID'), { target: { value: '51' } });
+    fireEvent.change(screen.getByLabelText('대상 플랜'), { target: { value: '20' } });
+    fireEvent.change(screen.getByLabelText('목표 만료일'), { target: { value: '2026-07-16' } });
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정 미리보기' }));
+    fireEvent.change(screen.getByLabelText('목표 만료일'), { target: { value: '2026-08-16' } });
+    await act(async () => late.resolve(correctionPreview));
+    expect(screen.getByRole('button', { name: '구독 이용권 조정 요청 생성' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('목표 만료일'), { target: { value: '2026-07-16' } });
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정 미리보기' }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '구독 이용권 조정 요청 생성' })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정 미리보기' }));
+    await waitFor(() =>
+      expect(mocks.previewAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(3),
+    );
+    expect(screen.getByRole('button', { name: '구독 이용권 조정 요청 생성' })).toBeDisabled();
+    expect(mocks.createAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])(
+    'shows target and cancellation effect %s in correction approval and execution',
+    async (cancelBillingAgreement) => {
+      const item = correction('REQUESTED', { cancelBillingAgreement });
+      mocks.approveAdminPaymentEntitlementCorrection.mockResolvedValueOnce(undefined);
+      await openCorrections([item]);
+      const row = screen.getByText(item.userNickname).closest('tr') as HTMLElement;
+      fireEvent.click(within(row).getByRole('button', { name: '승인' }));
+      const dialog = screen.getByRole('dialog', { name: '구독 이용권 조정 요청 승인' });
+      const effect = cancelBillingAgreement ? '로컬 자동결제 취소' : '로컬 자동결제 유지';
+      for (const text of [
+        '사용자 #3',
+        '구독 #71',
+        '환불 #51',
+        'DELUXE',
+        'MONTHLY',
+        'EXPIRED',
+        '2026.08.12',
+        effect,
+      ]) {
+        expect(dialog).toHaveTextContent(text);
+      }
+      const approved = { ...item, status: 'APPROVED' as const };
+      mocks.fetchAdminPaymentEntitlementCorrections.mockResolvedValue(pageWith([approved]));
+      fireEvent.click(within(dialog).getByRole('button', { name: '승인' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: '실행' })).toBeEnabled());
+      const promptMock = vi.spyOn(window, 'prompt').mockReturnValueOnce(null);
+      fireEvent.click(screen.getByRole('button', { name: '실행' }));
+      const prompt = promptMock.mock.calls[promptMock.mock.calls.length - 1]?.[0];
+      for (const text of [
+        '사용자 #3',
+        '구독 #71',
+        '환불 #51',
+        'DELUXE',
+        'MONTHLY',
+        'EXPIRED',
+        '2026.08.12',
+        effect,
+      ]) {
+        expect(prompt).toContain(text);
+      }
+      expect(mocks.executeAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
+    },
+  );
+
   it('previews and creates one confirmed entitlement correction using local ids', async () => {
     const mutation = deferred<unknown>();
     mocks.fetchAdminSubscriptionPlans.mockResolvedValueOnce([
@@ -1279,23 +1470,24 @@ describe('PaymentOperationsPage latest-request-wins', () => {
 
     render(<PaymentOperationsPage />);
     await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정' }));
     await waitFor(() =>
       expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
     );
     fireEvent.change(screen.getByLabelText('환불 ID'), { target: { value: '51' } });
     fireEvent.change(screen.getByLabelText('대상 플랜'), { target: { value: '20' } });
-    fireEvent.change(screen.getByPlaceholderText('환불 후 권한 보정 근거'), {
+    fireEvent.change(screen.getByLabelText('목표 만료일'), { target: { value: '2026-07-16' } });
+    fireEvent.change(screen.getByPlaceholderText('환불 후 구독 이용권 조정 근거'), {
       target: { value: 'refund incident 51' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '권한 보정 미리보기' }));
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정 미리보기' }));
 
     const expectedRequest = {
       paymentRefundId: 51,
       targetSubscriptionId: 20,
       targetBillingCycle: 'MONTHLY',
       targetStatus: 'EXPIRED',
-      targetExpiresAt: expect.any(String),
+      targetExpiresAt: '2026-07-16',
       clearPendingChange: true,
       cancelBillingAgreement: true,
       reasonNote: 'refund incident 51',
@@ -1304,11 +1496,15 @@ describe('PaymentOperationsPage latest-request-wins', () => {
       expect(mocks.previewAdminPaymentEntitlementCorrection).toHaveBeenCalledWith(expectedRequest),
     );
 
-    const requestButton = await screen.findByRole('button', { name: '권한 보정 요청 생성' });
+    const requestButton = await screen.findByRole('button', { name: '구독 이용권 조정 요청 생성' });
     fireEvent.click(requestButton);
     fireEvent.click(requestButton);
     expect(mocks.createAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();
-    const dialog = screen.getByRole('dialog', { name: '권한 보정 요청 생성' });
+    const dialog = screen.getByRole('dialog', { name: '구독 이용권 조정 요청 생성' });
+    expect(dialog).toHaveTextContent('DELUXE');
+    expect(dialog).toHaveTextContent('EXPIRED');
+    expect(dialog).toHaveTextContent('2026.07.16');
+    expect(dialog).toHaveTextContent('로컬 자동결제 취소');
     const confirmButton = within(dialog).getByRole('button', { name: '요청 생성' });
     fireEvent.click(confirmButton);
     fireEvent.click(confirmButton);
@@ -1336,7 +1532,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     expect(mocks.fetchAdminPaymentRefund).not.toHaveBeenCalled();
     expect(mocks.executeAdminPaymentRefund).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getAllByRole('button', { name: '권한 보정' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '구독 이용권 조정' })[0]);
     const correctionRow = (await screen.findByText(linked.userNickname)).closest(
       'tr',
     ) as HTMLElement;
@@ -1699,7 +1895,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
       .mockResolvedValueOnce(correction('SUCCEEDED'));
     render(<PaymentOperationsPage />);
     await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정' }));
     await waitFor(() =>
       expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
     );
@@ -1754,7 +1950,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
       .mockRejectedValueOnce(new Error('detail read failed'));
     render(<PaymentOperationsPage />);
     await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정' }));
     await waitFor(() =>
       expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
     );
@@ -1821,7 +2017,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
       .mockResolvedValueOnce(fresh);
     render(<PaymentOperationsPage />);
     await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정' }));
     await waitFor(() =>
       expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
     );
@@ -2018,11 +2214,11 @@ describe('PaymentOperationsPage latest-request-wins', () => {
   );
 
   it.each([
-    ['FAILED', 'FAILED', '권한 보정이 최종 실패 상태로 확인되었습니다.'],
+    ['FAILED', 'FAILED', '구독 이용권 조정이 최종 실패 상태로 확인되었습니다.'],
     [
       'PROCESSING',
       'UNKNOWN',
-      '권한 보정 후속 상태가 아직 확정되지 않았습니다. 상태를 다시 확인해주세요.',
+      '구독 이용권 조정 후속 상태가 아직 확정되지 않았습니다. 상태를 다시 확인해주세요.',
     ],
   ] as const)(
     'uses authoritative correction detail %s after a SUCCEEDED execute response',
@@ -2076,7 +2272,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('RELOAD_FAILED');
     expect(mocks.showToast).toHaveBeenLastCalledWith(
       'error',
-      '권한 보정은 성공했지만 후속 정보를 새로고침하지 못했습니다.',
+      '구독 이용권 조정은 성공했지만 후속 정보를 새로고침하지 못했습니다.',
     );
     expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
     expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(2);
@@ -2103,7 +2299,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     executeRefundRow(item);
     await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(2));
 
-    fireEvent.click(screen.getAllByRole('button', { name: '권한 보정' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '구독 이용권 조정' })[0]);
     fireEvent.click(screen.getByRole('button', { name: '환불' }));
     expect(await screen.findByText('LATEST-REFUND-LIST')).toBeInTheDocument();
     await act(async () => oldList.resolve(pageWith([refund('SUCCEEDED'), stale])));
@@ -2129,7 +2325,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('SUCCEEDED'));
     render(<PaymentOperationsPage />);
     await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정' }));
     await waitFor(() =>
       expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
     );
@@ -2139,7 +2335,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: '환불' }));
-    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정' }));
     expect(await screen.findByText('latest-correction-list')).toBeInTheDocument();
     await act(async () => oldList.resolve(pageWith([correction('SUCCEEDED'), stale])));
 
@@ -2166,7 +2362,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(1));
     executeRefundRow(item);
     await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(2));
-    fireEvent.click(screen.getAllByRole('button', { name: '권한 보정' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '구독 이용권 조정' })[0]);
     fireEvent.click(screen.getByRole('button', { name: '환불' }));
     await waitFor(() => expect(mocks.fetchAdminPaymentRefunds).toHaveBeenCalledTimes(3));
 
@@ -2189,7 +2385,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     mocks.executeAdminPaymentEntitlementCorrection.mockResolvedValueOnce(correction('SUCCEEDED'));
     render(<PaymentOperationsPage />);
     await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정' }));
     await waitFor(() =>
       expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
     );
@@ -2198,7 +2394,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
       expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(2),
     );
     fireEvent.click(screen.getByRole('button', { name: '환불' }));
-    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정' }));
     await waitFor(() =>
       expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(3),
     );
@@ -2287,7 +2483,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     fireEvent.click(statusButton);
     expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getAllByRole('button', { name: '권한 보정' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '구독 이용권 조정' })[0]);
     const linkedRow = (await screen.findByText(linked.userNickname)).closest('tr') as HTMLElement;
     const linkedExecute = within(linkedRow).getByRole('button', { name: '실행' });
     expect(linkedExecute).toBeDisabled();
@@ -2311,7 +2507,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     mocks.fetchAdminPaymentEntitlementCorrection.mockReset().mockReturnValueOnce(preflight.promise);
     render(<PaymentOperationsPage />);
     await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정' }));
     await waitFor(() =>
       expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
     );
@@ -2336,7 +2532,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     await waitFor(() =>
       expect(mocks.showToast).toHaveBeenLastCalledWith(
         'success',
-        '권한 보정이 이미 완료된 상태입니다.',
+        '구독 이용권 조정이 이미 완료된 상태입니다.',
       ),
     );
     expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
@@ -2371,7 +2567,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     expect(mocks.fetchAdminPaymentRefund).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('refund-recovery-51')).toHaveTextContent('UNKNOWN');
 
-    fireEvent.click(screen.getAllByRole('button', { name: '권한 보정' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '구독 이용권 조정' })[0]);
     const linkedRow = (await screen.findByText(linked.userNickname)).closest('tr') as HTMLElement;
     const linkedExecute = within(linkedRow).getByRole('button', { name: '실행' });
     expect(linkedExecute).toBeDisabled();
@@ -2399,7 +2595,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     mocks.executeAdminPaymentEntitlementCorrection.mockReturnValueOnce(execute.promise);
     render(<PaymentOperationsPage />);
     await waitFor(() => expect(mocks.fetchAdminPaymentOrders).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: '권한 보정' }));
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정' }));
     await waitFor(() =>
       expect(mocks.fetchAdminPaymentEntitlementCorrections).toHaveBeenCalledTimes(1),
     );
@@ -2429,7 +2625,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
       expect(mocks.fetchAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(2),
     );
     expect(mocks.executeAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getAllByRole('button', { name: '권한 보정' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '구독 이용권 조정' })[0]);
     expect(await screen.findByTestId('correction-recovery-61')).toHaveTextContent('COMMITTED');
   });
 
@@ -2483,7 +2679,7 @@ describe('PaymentOperationsPage latest-request-wins', () => {
     executeRefundRow(refundItem);
     expect(await screen.findByTestId('refund-recovery-51')).toHaveTextContent('UNKNOWN');
 
-    fireEvent.click(screen.getAllByRole('button', { name: '권한 보정' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '구독 이용권 조정' })[0]);
     const correctionRow = (await screen.findByText(correctionItem.userNickname)).closest(
       'tr',
     ) as HTMLElement;
@@ -2574,12 +2770,13 @@ describe('PaymentOperationsPage latest-request-wins', () => {
       target: { value: '51' },
     });
     fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: '20' } });
-    fireEvent.click(screen.getByRole('button', { name: '권한 보정 미리보기' }));
+    fireEvent.change(screen.getByLabelText('목표 만료일'), { target: { value: '2026-07-16' } });
+    fireEvent.click(screen.getByRole('button', { name: '구독 이용권 조정 미리보기' }));
     await waitFor(() =>
       expect(mocks.previewAdminPaymentEntitlementCorrection).toHaveBeenCalledTimes(1),
     );
 
-    const requestButton = screen.getByRole('button', { name: '권한 보정 요청 생성' });
+    const requestButton = screen.getByRole('button', { name: '구독 이용권 조정 요청 생성' });
     expect(requestButton).toBeDisabled();
     fireEvent.click(requestButton);
     expect(mocks.createAdminPaymentEntitlementCorrection).not.toHaveBeenCalled();

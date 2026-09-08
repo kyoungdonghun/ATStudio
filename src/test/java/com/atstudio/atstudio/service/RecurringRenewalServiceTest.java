@@ -2,12 +2,14 @@ package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
+import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import com.atstudio.atstudio.repository.BillingAgreementRepository;
 import com.atstudio.atstudio.service.PaymentCommandTransactionService.ProviderFailureDisposition;
 import com.atstudio.atstudio.service.PaymentCommandTransactionService.RenewalAction;
 import com.atstudio.atstudio.service.PaymentCommandTransactionService.RenewalClaim;
+import com.atstudio.atstudio.service.PaymentCommandTransactionService.RenewalFailureResult;
 import com.atstudio.atstudio.service.payment.billing.BillingKeyCrypto;
 import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeCommand;
 import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeResult;
@@ -168,6 +170,64 @@ class RecurringRenewalServiceTest {
         verify(billingKeyCrypto, never()).decrypt(any());
         verify(recurringPaymentProvider, never()).charge(any());
         verify(paymentCommandTransactions, never()).recordProviderSuccess(any(), any(), any(), any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "false, CALL_PROVIDER",
+            "true, CALL_PROVIDER",
+            "true, FAILED_WITHOUT_ATTEMPT"
+    })
+    @DisplayName("Korean renewal guidance distinguishes retry from suspension and preserves date and order")
+    void processDueRenewals_failureGuidancePreservesMeaning(boolean finalFailure, RenewalAction action) {
+        LocalDate today = LocalDate.of(2026, 5, 17);
+        LocalDate graceEndsAt = action == RenewalAction.FAILED_WITHOUT_ATTEMPT
+                ? today.minusDays(1) : today.plusDays(3);
+        User user = User.builder().email("subscriber@atstudio.test").nickname("회원").build();
+        givenSingleDueAgreement(7L, today);
+        if (action == RenewalAction.CALL_PROVIDER) {
+            given(paymentCommandTransactions.claimRenewal(eq(7L), eq(today), any()))
+                    .willReturn(callProviderClaim());
+            given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("billing_raw_key");
+            given(recurringPaymentProvider.charge(any()))
+                    .willReturn(BillingChargeResult.failure("DECLINED", "private-provider-response"));
+            given(paymentCommandTransactions.recordRenewalProviderFailure(
+                    7L, "ORDER-7", "DECLINED", "private-provider-response",
+                    ProviderFailureDisposition.FAILED, today))
+                    .willReturn(new RenewalFailureResult("ORDER-7", user, graceEndsAt, finalFailure));
+        } else {
+            given(paymentCommandTransactions.claimRenewal(eq(7L), eq(today), any()))
+                    .willReturn(new RenewalClaim(
+                            action, 7L, "ORDER-7", user, null, null, null, null, null, null, null,
+                            graceEndsAt, finalFailure));
+        }
+
+        RecurringRenewalService.RenewalRunResult result = service.processDueRenewals(today);
+
+        assertThat(result.failed()).isEqualTo(1);
+        assertThat(result.attempted()).isEqualTo(action == RenewalAction.CALL_PROVIDER ? 1 : 0);
+        ArgumentCaptor<String> summary = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> guide = ArgumentCaptor.forClass(String.class);
+        verify(emailService).sendSubscriptionPaymentFailureEmail(eq(user), summary.capture(), guide.capture());
+        assertThat(summary.getValue())
+                .contains("주문 ID: ORDER-7")
+                .doesNotContain("private-provider-response", "billing_raw_key", "customer-7");
+        assertThat(guide.getValue()).contains(graceEndsAt.toString());
+        if (finalFailure) {
+            assertThat(summary.getValue()).contains("자동 갱신이 중지되었습니다.");
+            assertThat(guide.getValue())
+                    .isEqualTo("서비스 이용 유예 종료일은 " + graceEndsAt
+                            + "입니다. 고객센터에 문의하거나 유효한 결제 수단을 등록해 주세요.")
+                    .doesNotContain("재시도할 예정", "즉시");
+        } else {
+            assertThat(summary.getValue()).contains("구독 갱신 결제를 완료하지 못했습니다.")
+                    .doesNotContain("중지");
+            assertThat(guide.getValue()).isEqualTo("유예 종료일인 " + graceEndsAt
+                    + "까지 자동 결제를 재시도할 예정입니다. 등록된 결제 수단을 확인해 주세요.");
+        }
+        if (action == RenewalAction.FAILED_WITHOUT_ATTEMPT) {
+            verify(recurringPaymentProvider, never()).charge(any());
+        }
     }
 
     @Test

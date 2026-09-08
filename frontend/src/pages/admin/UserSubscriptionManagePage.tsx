@@ -106,8 +106,8 @@ export default function UserSubscriptionManagePage() {
     const refreshed = await loadData();
     setSuccess(
       refreshed
-        ? `권한 보정 #${correctionId} 실행이 완료되어 최신 구독 목록에 반영했습니다.`
-        : `권한 보정 #${correctionId} 실행은 완료되었지만 목록 새로고침에 실패했습니다.`,
+        ? `구독 이용권 조정 #${correctionId} 실행이 완료되어 최신 구독 목록에 반영했습니다.`
+        : `구독 이용권 조정 #${correctionId} 실행은 완료되었지만 목록 새로고침에 실패했습니다.`,
     );
   }
 
@@ -186,7 +186,7 @@ export default function UserSubscriptionManagePage() {
                       setCorrectionTarget(sub);
                     }}
                   >
-                    권한 보정
+                    구독 이용권 조정
                   </Button>
                 </td>
               </tr>

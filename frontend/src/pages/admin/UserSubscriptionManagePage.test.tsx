@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   executeCorrection: vi.fn(),
 }));
 
-const EXECUTION_CONFIRM_TEXT = '권한 보정 실행';
+const EXECUTION_CONFIRM_TEXT = '구독 이용권 조정 실행';
 
 vi.mock('@/api/userSubscriptions', () => ({
   fetchAdminUserSubscriptions: (...args: unknown[]) => mocks.fetchSubscriptions(...args),
@@ -197,8 +197,8 @@ async function openWorkflow(
 ) {
   const row = screen.getByText(nickname).closest('tr');
   expect(row).not.toBeNull();
-  fireEvent.click(within(row as HTMLElement).getByRole('button', { name: '권한 보정' }));
-  const dialog = screen.getByRole('dialog', { name: '사용자 구독 권한 보정' });
+  fireEvent.click(within(row as HTMLElement).getByRole('button', { name: '구독 이용권 조정' }));
+  const dialog = screen.getByRole('dialog', { name: '구독 이용권 조정' });
   if (expectedState === 'existing') {
     await within(dialog).findByText(/진행 중 요청 #\d+을 이어서 처리합니다/);
   } else {
@@ -299,11 +299,11 @@ describe('UserSubscriptionManagePage request fencing', () => {
     render(<UserSubscriptionManagePage />);
     expect(await screen.findByText('CurrentSubscriber')).toBeInTheDocument();
     const row = screen.getByText('CurrentSubscriber').closest('tr');
-    fireEvent.click(within(row as HTMLElement).getByRole('button', { name: '권한 보정' }));
-    const dialog = screen.getByRole('dialog', { name: '사용자 구독 권한 보정' });
+    fireEvent.click(within(row as HTMLElement).getByRole('button', { name: '구독 이용권 조정' }));
+    const dialog = screen.getByRole('dialog', { name: '구독 이용권 조정' });
 
     expect(
-      within(dialog).getByText(/진행 중 권한 보정 요청을 확인하고 있습니다/),
+      within(dialog).getByText(/진행 중 구독 이용권 조정 요청을 확인하고 있습니다/),
     ).toBeInTheDocument();
     expect(within(dialog).getByLabelText('운영 사유 (필수)')).toBeDisabled();
     expect(within(dialog).getByRole('button', { name: '미리보기' })).toBeDisabled();
@@ -312,7 +312,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
     await act(async () => lookup.reject(new Error('lookup failed')));
     expect(
       await within(dialog).findByText(
-        '진행 중 권한 보정 요청을 확인하지 못했습니다. 새 요청은 차단되었습니다.',
+        '진행 중 구독 이용권 조정 요청을 확인하지 못했습니다. 새 요청은 차단되었습니다.',
       ),
     ).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: '진행 중 요청 다시 조회' }));
@@ -335,7 +335,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
     const closeButtons = within(dialog).getAllByRole('button', { name: '닫기' });
     fireEvent.click(closeButtons[closeButtons.length - 1]!);
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: '사용자 구독 권한 보정' })).toBeNull(),
+      expect(screen.queryByRole('dialog', { name: '구독 이용권 조정' })).toBeNull(),
     );
 
     dialog = await openWorkflow('CurrentSubscriber', 'existing');
@@ -347,7 +347,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
     expect(within(dialog).getByLabelText('운영 사유 (필수)')).toHaveValue('지원 티켓 ATS-501');
     expect(within(dialog).getByText(/외부 결제 실행 없음/)).toBeInTheDocument();
     expect(within(dialog).getAllByText('PREMIUM').length).toBeGreaterThan(0);
-    const comparison = within(dialog).getByRole('region', { name: '권한 보정 미리보기' });
+    const comparison = within(dialog).getByRole('region', { name: '구독 이용권 조정 미리보기' });
     expect(within(comparison).getAllByText('취소됨').length).toBeGreaterThanOrEqual(2);
 
     fireEvent.change(within(dialog).getByLabelText('승인 메모 (선택)'), {
@@ -355,9 +355,12 @@ describe('UserSubscriptionManagePage request fencing', () => {
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '승인 단계로 이동' }));
     fireEvent.click(
-      within(screen.getByRole('dialog', { name: '권한 보정 승인 확인' })).getByRole('button', {
-        name: '승인 확정',
-      }),
+      within(screen.getByRole('dialog', { name: '구독 이용권 조정 승인 확인' })).getByRole(
+        'button',
+        {
+          name: '승인 확정',
+        },
+      ),
     );
 
     await within(dialog).findByLabelText('실행 메모 (선택)');
@@ -389,13 +392,13 @@ describe('UserSubscriptionManagePage request fencing', () => {
       target: { value: '재개 실행' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '실행 확인' }));
-    const confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
+    const confirmationDialog = screen.getByRole('dialog', { name: '구독 이용권 조정 실행 확인' });
     enterExecutionConfirmation(confirmationDialog);
     fireEvent.click(
       within(confirmationDialog).getByRole('button', { name: EXECUTION_CONFIRM_TEXT }),
     );
 
-    expect(await within(dialog).findByText('권한 보정 실행 완료')).toBeInTheDocument();
+    expect(await within(dialog).findByText('구독 이용권 조정 실행 완료')).toBeInTheDocument();
     expect(mocks.executeCorrection).toHaveBeenCalledWith(
       501,
       { note: '재개 실행' },
@@ -415,7 +418,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
     const dialog = await openWorkflow('CurrentSubscriber', 'existing');
 
     expect(within(dialog).getByText('진행 중 요청 #501을 이어서 처리합니다.')).toBeInTheDocument();
-    expect(within(dialog).getByText(/로컬 보정을 처리하고 있습니다/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/로컬 조정을 처리하고 있습니다/)).toBeInTheDocument();
     expect(within(dialog).getByLabelText('운영 사유 (필수)')).toBeDisabled();
     expect(within(dialog).queryByRole('button', { name: '미리보기' })).toBeNull();
     expect(within(dialog).queryByRole('button', { name: '요청 생성' })).toBeNull();
@@ -435,20 +438,24 @@ describe('UserSubscriptionManagePage request fencing', () => {
     render(<UserSubscriptionManagePage />);
     expect(await screen.findByText('OldSubscriber')).toBeInTheDocument();
     const oldRow = screen.getByText('OldSubscriber').closest('tr');
-    fireEvent.click(within(oldRow as HTMLElement).getByRole('button', { name: '권한 보정' }));
-    let dialog = screen.getByRole('dialog', { name: '사용자 구독 권한 보정' });
+    fireEvent.click(
+      within(oldRow as HTMLElement).getByRole('button', { name: '구독 이용권 조정' }),
+    );
+    let dialog = screen.getByRole('dialog', { name: '구독 이용권 조정' });
     await waitFor(() => expect(mocks.fetchOpenCorrection).toHaveBeenCalledTimes(1));
     const oldSignal = mocks.fetchOpenCorrection.mock.calls[0][1] as AbortSignal;
     const closeButtons = within(dialog).getAllByRole('button', { name: '닫기' });
     fireEvent.click(closeButtons[closeButtons.length - 1]!);
     expect(oldSignal.aborted).toBe(true);
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: '사용자 구독 권한 보정' })).toBeNull(),
+      expect(screen.queryByRole('dialog', { name: '구독 이용권 조정' })).toBeNull(),
     );
 
     const currentRow = screen.getByText('CurrentSubscriber').closest('tr');
-    fireEvent.click(within(currentRow as HTMLElement).getByRole('button', { name: '권한 보정' }));
-    dialog = screen.getByRole('dialog', { name: '사용자 구독 권한 보정' });
+    fireEvent.click(
+      within(currentRow as HTMLElement).getByRole('button', { name: '구독 이용권 조정' }),
+    );
+    dialog = screen.getByRole('dialog', { name: '구독 이용권 조정' });
     await waitFor(() => expect(mocks.fetchOpenCorrection).toHaveBeenCalledTimes(2));
     await act(async () =>
       currentLookup.resolve(
@@ -521,11 +528,15 @@ describe('UserSubscriptionManagePage request fencing', () => {
         fireEvent.click(within(workflowDialog).getByRole('button', { name: '요청 생성' }));
       } else if (stage === 'approval') {
         fireEvent.click(within(workflowDialog).getByRole('button', { name: '승인 단계로 이동' }));
-        const confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 승인 확인' });
+        const confirmationDialog = screen.getByRole('dialog', {
+          name: '구독 이용권 조정 승인 확인',
+        });
         fireEvent.click(within(confirmationDialog).getByRole('button', { name: '승인 확정' }));
       } else {
         fireEvent.click(within(workflowDialog).getByRole('button', { name: '실행 확인' }));
-        const confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
+        const confirmationDialog = screen.getByRole('dialog', {
+          name: '구독 이용권 조정 실행 확인',
+        });
         enterExecutionConfirmation(confirmationDialog);
         fireEvent.click(
           within(confirmationDialog).getByRole('button', { name: EXECUTION_CONFIRM_TEXT }),
@@ -542,7 +553,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
 
       const targetBRow = screen.getByText('Target B').closest('tr');
       const targetBButton = within(targetBRow as HTMLElement).getByRole('button', {
-        name: '권한 보정',
+        name: '구독 이용권 조정',
       });
       expect(targetBButton).toBeDisabled();
       fireEvent.click(targetBButton);
@@ -598,7 +609,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
 
     expect(
       await within(dialog).findByText(
-        '결제사업자 결과를 아직 받을 수 있는 진행 중 주문이 있어 보정할 수 없습니다.',
+        '결제사업자 결과를 아직 받을 수 있는 진행 중 주문이 있어 조정할 수 없습니다.',
       ),
     ).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: '요청 생성' })).toBeDisabled();
@@ -618,7 +629,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
 
     expect(
       await within(dialog).findByText(
-        '보정 미리보기를 불러오지 못했습니다. 목록은 변경되지 않았습니다.',
+        '조정 미리보기를 불러오지 못했습니다. 목록은 변경되지 않았습니다.',
       ),
     ).toBeInTheDocument();
     expect(screen.getAllByText('CurrentSubscriber').length).toBeGreaterThan(0);
@@ -704,7 +715,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
       target: { value: ' 승인 메모 ' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '승인 단계로 이동' }));
-    let confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 승인 확인' });
+    let confirmationDialog = screen.getByRole('dialog', { name: '구독 이용권 조정 승인 확인' });
     expect(within(confirmationDialog).queryByLabelText('실행 확인 문구')).toBeNull();
     expect(within(confirmationDialog).getByText(/저장할 승인 메모: "승인 메모"/)).toBeVisible();
     fireEvent.click(within(confirmationDialog).getByRole('button', { name: '취소' }));
@@ -712,7 +723,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
     expect(within(dialog).getByLabelText('승인 메모 (선택)')).toHaveValue('승인 메모');
 
     fireEvent.click(within(dialog).getByRole('button', { name: '승인 단계로 이동' }));
-    confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 승인 확인' });
+    confirmationDialog = screen.getByRole('dialog', { name: '구독 이용권 조정 승인 확인' });
     fireEvent.click(within(confirmationDialog).getByRole('button', { name: '승인 확정' }));
     expect(await within(dialog).findByLabelText('실행 메모 (선택)')).toBeInTheDocument();
     expect(mocks.approveCorrection).toHaveBeenCalledWith(
@@ -725,26 +736,34 @@ describe('UserSubscriptionManagePage request fencing', () => {
       target: { value: ' 실행 메모 ' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '실행 확인' }));
-    confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
+    confirmationDialog = screen.getByRole('dialog', { name: '구독 이용권 조정 실행 확인' });
     expect(within(confirmationDialog).getByText(/저장할 실행 메모: "실행 메모"/)).toBeVisible();
     fireEvent.click(within(confirmationDialog).getByRole('button', { name: '취소' }));
     expect(mocks.executeCorrection).not.toHaveBeenCalled();
     expect(within(dialog).getByLabelText('실행 메모 (선택)')).toHaveValue('실행 메모');
 
     fireEvent.click(within(dialog).getByRole('button', { name: '실행 확인' }));
-    confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
+    confirmationDialog = screen.getByRole('dialog', { name: '구독 이용권 조정 실행 확인' });
     const executeButton = within(confirmationDialog).getByRole('button', {
       name: EXECUTION_CONFIRM_TEXT,
     });
     expect(executeButton).toBeDisabled();
-    enterExecutionConfirmation(confirmationDialog, '권한 보정');
-    fireEvent.click(executeButton);
-    expect(mocks.executeCorrection).not.toHaveBeenCalled();
+    for (const input of [
+      '구독 이용권 조정',
+      '권한 보정 실행',
+      ' 권한 보정 실행 ',
+      '구독 이용권 조정 실행!',
+    ]) {
+      enterExecutionConfirmation(confirmationDialog, input);
+      expect(executeButton).toBeDisabled();
+      fireEvent.click(executeButton);
+      expect(mocks.executeCorrection).not.toHaveBeenCalled();
+    }
     enterExecutionConfirmation(confirmationDialog, `  ${EXECUTION_CONFIRM_TEXT}  `);
     expect(executeButton).toBeEnabled();
     fireEvent.click(executeButton);
 
-    expect(await within(dialog).findByText('권한 보정 실행 완료')).toBeInTheDocument();
+    expect(await within(dialog).findByText('구독 이용권 조정 실행 완료')).toBeInTheDocument();
     expect(mocks.executeCorrection).toHaveBeenCalledWith(
       501,
       { note: '실행 메모' },
@@ -752,7 +771,9 @@ describe('UserSubscriptionManagePage request fencing', () => {
     );
     expect(mocks.fetchSubscriptions).toHaveBeenCalledTimes(2);
     expect(
-      await screen.findByText('권한 보정 #501 실행이 완료되어 최신 구독 목록에 반영했습니다.'),
+      await screen.findByText(
+        '구독 이용권 조정 #501 실행이 완료되어 최신 구독 목록에 반영했습니다.',
+      ),
     ).toBeInTheDocument();
   });
 
@@ -766,7 +787,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
     expect(await screen.findByText('CurrentSubscriber')).toBeInTheDocument();
     const workflowDialog = await openWorkflow('CurrentSubscriber', 'existing');
     fireEvent.click(within(workflowDialog).getByRole('button', { name: '실행 확인' }));
-    const confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
+    const confirmationDialog = screen.getByRole('dialog', { name: '구독 이용권 조정 실행 확인' });
     enterExecutionConfirmation(confirmationDialog);
     const executeButton = within(confirmationDialog).getByRole('button', {
       name: EXECUTION_CONFIRM_TEXT,
@@ -788,11 +809,13 @@ describe('UserSubscriptionManagePage request fencing', () => {
     fireEvent.click(confirmationDialog.parentElement!);
     fireEvent.click(within(confirmationDialog).getByRole('button', { name: '닫기' }));
     fireEvent.click(within(confirmationDialog).getByRole('button', { name: '취소' }));
-    expect(screen.getByRole('dialog', { name: '권한 보정 실행 확인' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: '구독 이용권 조정 실행 확인' })).toBeInTheDocument();
 
     await act(async () => pendingExecute.resolve(correction('SUCCEEDED')));
 
-    expect(await within(workflowDialog).findByText('권한 보정 실행 완료')).toBeInTheDocument();
+    expect(
+      await within(workflowDialog).findByText('구독 이용권 조정 실행 완료'),
+    ).toBeInTheDocument();
     expect(mocks.executeCorrection).toHaveBeenCalledTimes(1);
   });
 
@@ -889,9 +912,12 @@ describe('UserSubscriptionManagePage request fencing', () => {
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '승인 단계로 이동' }));
     fireEvent.click(
-      within(screen.getByRole('dialog', { name: '권한 보정 승인 확인' })).getByRole('button', {
-        name: '승인 확정',
-      }),
+      within(screen.getByRole('dialog', { name: '구독 이용권 조정 승인 확인' })).getByRole(
+        'button',
+        {
+          name: '승인 확정',
+        },
+      ),
     );
 
     expect(
@@ -964,7 +990,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
       target: { value: ' 실행 메모 ' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '실행 확인' }));
-    const confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
+    const confirmationDialog = screen.getByRole('dialog', { name: '구독 이용권 조정 실행 확인' });
     enterExecutionConfirmation(confirmationDialog);
     fireEvent.click(
       within(confirmationDialog).getByRole('button', { name: EXECUTION_CONFIRM_TEXT }),
@@ -975,12 +1001,14 @@ describe('UserSubscriptionManagePage request fencing', () => {
         '서버 상태를 동기화했습니다. 요청 #501의 현재 단계는 성공입니다.',
       ),
     ).toBeInTheDocument();
-    expect(within(dialog).getByText('권한 보정 실행 완료')).toBeInTheDocument();
+    expect(within(dialog).getByText('구독 이용권 조정 실행 완료')).toBeInTheDocument();
     expect(mocks.fetchCorrection).toHaveBeenCalledWith(501, expect.any(AbortSignal));
     expect(mocks.executeCorrection).toHaveBeenCalledTimes(1);
     expect(mocks.fetchSubscriptions).toHaveBeenCalledTimes(2);
     expect(
-      await screen.findByText('권한 보정 #501 실행이 완료되어 최신 구독 목록에 반영했습니다.'),
+      await screen.findByText(
+        '구독 이용권 조정 #501 실행이 완료되어 최신 구독 목록에 반영했습니다.',
+      ),
     ).toBeInTheDocument();
   });
 
@@ -1001,7 +1029,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
       target: { value: ' 재시도 메모 ' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: '실행 확인' }));
-    const confirmationDialog = screen.getByRole('dialog', { name: '권한 보정 실행 확인' });
+    const confirmationDialog = screen.getByRole('dialog', { name: '구독 이용권 조정 실행 확인' });
     enterExecutionConfirmation(confirmationDialog);
     fireEvent.click(
       within(confirmationDialog).getByRole('button', { name: EXECUTION_CONFIRM_TEXT }),
@@ -1021,7 +1049,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
     expect(mocks.executeCorrection).toHaveBeenCalledTimes(1);
     const targetBRow = screen.getByText('Target B').closest('tr');
     const targetBButton = within(targetBRow as HTMLElement).getByRole('button', {
-      name: '권한 보정',
+      name: '구독 이용권 조정',
     });
     expect(targetBButton).toBeDisabled();
     fireEvent.click(targetBButton);
@@ -1030,7 +1058,7 @@ describe('UserSubscriptionManagePage request fencing', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: '상태 다시 확인' }));
 
-    expect(await within(dialog).findByText('권한 보정 실행 완료')).toBeInTheDocument();
+    expect(await within(dialog).findByText('구독 이용권 조정 실행 완료')).toBeInTheDocument();
     expect(
       within(dialog).getByText('서버 상태를 동기화했습니다. 요청 #501의 현재 단계는 성공입니다.'),
     ).toBeInTheDocument();

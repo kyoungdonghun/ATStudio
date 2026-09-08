@@ -32,7 +32,6 @@ import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -91,10 +90,21 @@ class PaymentReconciliationIncidentServiceTest {
         assertThat(incident.getStatus()).isEqualTo(PaymentReconciliationIncidentStatus.OPEN);
         assertThat(incident.getOccurrenceCount()).isEqualTo(1);
         assertThat(incident.getNotifiedAt()).isNotNull();
+        ArgumentCaptor<String> summary = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> details = ArgumentCaptor.forClass(String.class);
         verify(emailService).sendPaymentReconciliationIncidentAlert(
-                eq("ops@test.com"),
-                contains("CRITICAL"),
-                contains("dedupeKey=PROVIDER_DONE_LOCAL_NOT_FINALIZED:order:ATS-REN-1"));
+                eq("ops@test.com"), summary.capture(), details.capture());
+        assertThat(summary.getValue()).isEqualTo(
+                "결제 점검 이슈가 감지되었습니다. 심각도=CRITICAL, 유형=PROVIDER_DONE_LOCAL_NOT_FINALIZED, 주문 ID=ATS-REN-1");
+        assertThat(details.getValue())
+                .contains("이슈 ID (incidentId)=-")
+                .contains("중복 확인 키 (dedupeKey)=PROVIDER_DONE_LOCAL_NOT_FINALIZED:order:ATS-REN-1")
+                .contains("상태 (status)=OPEN", "결제사 (provider)=TOSS", "결제 목적 (purpose)=RENEWAL")
+                .contains("내부 상태 (localStatus)=IN_PROGRESS", "결제사 상태 (providerStatus)=DONE")
+                .contains("내부 금액 (localAmount)=9900", "결제사 금액 (providerAmount)=9900")
+                .contains("발생 횟수 (occurrenceCount)=1", "감지 시각 (detectedAt)=" + incident.getLastDetectedAt())
+                .contains("실패 코드 (failureCode)=-", "실패 메시지 (failureMessage)=-")
+                .doesNotContain("payment_key");
     }
 
     @Test

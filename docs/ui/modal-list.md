@@ -83,7 +83,7 @@ confirmation; the removed direct update/cancel dialogs are not current flows.
   blocks duplicate mutation, and exposes one read-only status-retry action.
   Repeated request 204 remains unknown. Browser date bounds do not block server
   preview, and normalized persisted text is shown at preview or confirmation.
-  Execute alone requires the trimmed exact phrase `권한 보정 실행`; approval
+  Execute alone requires the trimmed exact phrase `구독 이용권 조정 실행`; approval
   remains an ordinary confirmation with no typed phrase.
 - Modal labels and buttons must describe the action, not implementation details.
 

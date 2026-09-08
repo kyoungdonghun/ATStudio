@@ -350,7 +350,7 @@ database, deployment, schema, policy, or secret action.
   and audit stay immutable, and every otherwise-valid repeat returns
   `INVALID_STATE_TRANSITION` with no new mutation or audit. No typed phrase was
   added to this flow. In the separate general local-Subscription correction
-  flow, execute alone requires the trimmed exact phrase `권한 보정 실행`;
+  flow, execute alone requires the trimmed exact phrase `구독 이용권 조정 실행`;
   approval remains an ordinary confirmation with no typed phrase.
 - Settlement operations do not mutate payment, refund, subscription,
   billing-agreement, receipt/mail, or Provider state. CSV import writes only

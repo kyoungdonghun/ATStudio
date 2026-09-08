@@ -53,7 +53,7 @@ const CORRECTION_STATUS_LABELS: Record<AdminSubscriptionCorrection['status'], st
 const PREVIEW_REASON_LABELS: Record<string, string> = {
   'A nonblank operator reason is required.': '운영 사유를 입력해야 합니다.',
   'The operator reason must not exceed 500 characters.': '운영 사유는 500자 이하여야 합니다.',
-  'The target subscription plan is inactive.': '비활성 플랜은 보정 대상으로 선택할 수 없습니다.',
+  'The target subscription plan is inactive.': '비활성 플랜은 조정 대상으로 선택할 수 없습니다.',
   "The target subscription plan does not match the user's type.":
     '사용자 유형과 맞지 않는 플랜입니다.',
   'An expired subscription must expire today or earlier.':
@@ -61,7 +61,7 @@ const PREVIEW_REASON_LABELS: Record<string, string> = {
   'An active or cancelled subscription must expire today or later.':
     '활성 또는 취소됨 상태의 만료일은 오늘 또는 이후여야 합니다.',
   'A payment order can still receive a provider outcome.':
-    '결제사업자 결과를 아직 받을 수 있는 진행 중 주문이 있어 보정할 수 없습니다.',
+    '결제사업자 결과를 아직 받을 수 있는 진행 중 주문이 있어 조정할 수 없습니다.',
   'The requested correction does not change local subscription state.':
     '현재 로컬 구독 상태와 달라지는 항목이 없습니다.',
 };
@@ -73,7 +73,7 @@ type MutationStage = 'request' | 'approve' | 'execute';
 type PendingOwner = MutationStage | 'status';
 type MutationFailureKind = 'cancelled' | 'definite' | 'ambiguous';
 
-const CORRECTION_EXECUTION_CONFIRM_TEXT = '권한 보정 실행';
+const CORRECTION_EXECUTION_CONFIRM_TEXT = '구독 이용권 조정 실행';
 
 interface UnknownOutcome {
   stage: MutationStage;
@@ -211,9 +211,9 @@ function classifyMutationFailure(error: unknown): MutationFailureKind {
 function definiteMutationErrorMessage(error: unknown, stage: MutationStage): string {
   const message = (error as AxiosLikeMutationError)?.response?.data?.message;
   if (typeof message === 'string' && message.trim()) return message.trim();
-  if (stage === 'request') return '권한 보정 요청을 생성하지 못했습니다.';
-  if (stage === 'approve') return '권한 보정 요청을 승인하지 못했습니다.';
-  return '권한 보정을 실행하지 못했습니다.';
+  if (stage === 'request') return '구독 이용권 조정 요청을 생성하지 못했습니다.';
+  if (stage === 'approve') return '구독 이용권 조정 요청을 승인하지 못했습니다.';
+  return '구독 이용권 조정을 실행하지 못했습니다.';
 }
 
 function agreementLabel(status: BillingAgreementStatus | null): string {
@@ -221,8 +221,8 @@ function agreementLabel(status: BillingAgreementStatus | null): string {
 }
 
 function previewReason(reason: string | null): string {
-  if (!reason) return '서버 검증에서 실행할 수 없는 보정으로 판단했습니다.';
-  return PREVIEW_REASON_LABELS[reason] ?? '서버 검증에서 실행할 수 없는 보정으로 판단했습니다.';
+  if (!reason) return '서버 검증에서 실행할 수 없는 조정으로 판단했습니다.';
+  return PREVIEW_REASON_LABELS[reason] ?? '서버 검증에서 실행할 수 없는 조정으로 판단했습니다.';
 }
 
 function pendingLabel(preview: AdminSubscriptionCorrectionPreview): string {
@@ -322,7 +322,7 @@ export default function UserSubscriptionCorrectionModal({
         if (result && (result.userSubscriptionId !== target.id || !isOpenCorrection(result))) {
           setOpenLookupState('error');
           setError(
-            '진행 중 요청 조회 결과가 올바르지 않아 새 보정을 차단했습니다. 다시 조회하세요.',
+            '진행 중 요청 조회 결과가 올바르지 않아 새 조정을 차단했습니다. 다시 조회하세요.',
           );
           return;
         }
@@ -338,7 +338,9 @@ export default function UserSubscriptionCorrectionModal({
       .catch((lookupError: unknown) => {
         if (isCurrent() && classifyLoadError(lookupError) !== 'cancelled') {
           setOpenLookupState('error');
-          setError('진행 중 권한 보정 요청을 확인하지 못했습니다. 새 요청은 차단되었습니다.');
+          setError(
+            '진행 중 구독 이용권 조정 요청을 확인하지 못했습니다. 새 요청은 차단되었습니다.',
+          );
         }
       })
       .finally(() => {
@@ -501,10 +503,10 @@ export default function UserSubscriptionCorrectionModal({
       try {
         await onSucceeded(result);
       } catch {
-        setError('보정 실행은 완료되었지만 구독 목록을 새로고침하지 못했습니다.');
+        setError('조정 실행은 완료되었지만 구독 목록을 새로고침하지 못했습니다.');
       }
     } else if (result.status === 'FAILED') {
-      setError('보정 실행에 실패했습니다. 실패 기록과 현재 구독 상태를 확인하세요.');
+      setError('조정 실행에 실패했습니다. 실패 기록과 현재 구독 상태를 확인하세요.');
     }
   }
 
@@ -578,7 +580,7 @@ export default function UserSubscriptionCorrectionModal({
     }
     const request = buildRequest();
     if (!request) {
-      setError(validationError ?? '보정 입력값을 확인하세요.');
+      setError(validationError ?? '조정 입력값을 확인하세요.');
       return;
     }
     setDraft((current) => (current ? { ...current, reasonNote: request.reasonNote } : current));
@@ -595,7 +597,7 @@ export default function UserSubscriptionCorrectionModal({
         isCurrentRequest(generation, controller) &&
         classifyLoadError(requestError) !== 'cancelled'
       ) {
-        setError('보정 미리보기를 불러오지 못했습니다. 목록은 변경되지 않았습니다.');
+        setError('조정 미리보기를 불러오지 못했습니다. 목록은 변경되지 않았습니다.');
       }
     } finally {
       if (isCurrentRequest(generation, controller)) setBusy(null);
@@ -702,10 +704,10 @@ export default function UserSubscriptionCorrectionModal({
       if (result.status === 'SUCCEEDED') {
         await onSucceeded(result);
       } else if (result.status === 'FAILED') {
-        setError('보정 실행에 실패했습니다. 실패 기록과 현재 구독 상태를 확인하세요.');
+        setError('조정 실행에 실패했습니다. 실패 기록과 현재 구독 상태를 확인하세요.');
       } else {
         setError(
-          `보정 실행 결과가 ${CORRECTION_STATUS_LABELS[result.status]} 상태입니다. 감사 기록을 확인하세요.`,
+          `조정 실행 결과가 ${CORRECTION_STATUS_LABELS[result.status]} 상태입니다. 감사 기록을 확인하세요.`,
         );
       }
     } catch (requestError: unknown) {
@@ -765,14 +767,14 @@ export default function UserSubscriptionCorrectionModal({
 
   return (
     <>
-      <Modal open onClose={closeWorkflow} title="사용자 구독 권한 보정" busy={workflowCloseBlocked}>
+      <Modal open onClose={closeWorkflow} title="구독 이용권 조정" busy={workflowCloseBlocked}>
         <div className={styles.workflowBody}>
           <div className={styles.targetSummary}>
             <strong>{target.userNickname ?? `사용자 #${target.userId}`}</strong>
             <span>구독 #{target.id}</span>
           </div>
 
-          <ol className={styles.stageList} aria-label="권한 보정 단계">
+          <ol className={styles.stageList} aria-label="구독 이용권 조정 단계">
             {['미리보기', '요청 생성', '승인', '실행'].map((label, index) => (
               <li
                 key={label}
@@ -801,7 +803,8 @@ export default function UserSubscriptionCorrectionModal({
 
           {openLookupState === 'loading' ? (
             <div className={styles.lookupGate} role="status">
-              진행 중 권한 보정 요청을 확인하고 있습니다. 조회가 끝날 때까지 새 요청은 차단됩니다.
+              진행 중 구독 이용권 조정 요청을 확인하고 있습니다. 조회가 끝날 때까지 새 요청은
+              차단됩니다.
             </div>
           ) : null}
 
@@ -972,7 +975,7 @@ export default function UserSubscriptionCorrectionModal({
               value={draft.reasonNote}
               maxLength={500}
               disabled={locked || busy !== null}
-              placeholder="지원 티켓 또는 보정 근거를 입력하세요."
+              placeholder="지원 티켓 또는 조정 근거를 입력하세요."
               onChange={(event) => invalidatePreview({ reasonNote: event.target.value })}
             />
             <span className={styles.characterCount}>{draft.reasonNote.length}/500</span>
@@ -983,7 +986,7 @@ export default function UserSubscriptionCorrectionModal({
           ) : null}
 
           {preview ? (
-            <section className={styles.previewSection} aria-label="권한 보정 미리보기">
+            <section className={styles.previewSection} aria-label="구독 이용권 조정 미리보기">
               <h3>현재 상태 → 목표 상태</h3>
               <dl className={styles.comparisonList}>
                 <div>
@@ -1098,13 +1101,13 @@ export default function UserSubscriptionCorrectionModal({
 
           {correction?.status === 'PROCESSING' ? (
             <div className={styles.stageAction} role="status">
-              요청 #{correction.id}의 로컬 보정을 처리하고 있습니다. 중복 실행하지 마세요.
+              요청 #{correction.id}의 로컬 조정을 처리하고 있습니다. 중복 실행하지 마세요.
             </div>
           ) : null}
 
           {correction?.status === 'SUCCEEDED' ? (
             <div className={styles.workflowSuccess} role="status">
-              <strong>권한 보정 실행 완료</strong>
+              <strong>구독 이용권 조정 실행 완료</strong>
               <span>
                 요청 #{correction.id}의 로컬 구독 상태가 반영되었습니다. 외부 결제 작업은 실행되지
                 않았습니다.
@@ -1165,13 +1168,15 @@ export default function UserSubscriptionCorrectionModal({
 
       <ConfirmDialog
         open={confirmation !== null}
-        title={confirmation === 'execute' ? '권한 보정 실행 확인' : '권한 보정 승인 확인'}
+        title={
+          confirmation === 'execute' ? '구독 이용권 조정 실행 확인' : '구독 이용권 조정 승인 확인'
+        }
         message={
           confirmation === 'execute'
-            ? `실행하면 로컬 구독 권한과 선택한 대기 변경·자동 갱신 약정 상태가 즉시 바뀝니다. Toss 결제·환불·빌링키 삭제·이메일 발송은 실행되지 않으며, 되돌리려면 새 보정 요청이 필요합니다. 저장할 실행 메모: ${JSON.stringify(executionNote)}`
+            ? `실행하면 로컬 구독 권한과 선택한 대기 변경·자동 갱신 약정 상태가 즉시 바뀝니다. Toss 결제·환불·빌링키 삭제·이메일 발송은 실행되지 않으며, 되돌리려면 새 조정 요청이 필요합니다. 저장할 실행 메모: ${JSON.stringify(executionNote)}`
             : `요청을 승인 상태로 전환합니다. 아직 구독 데이터는 변경되지 않으며, 같은 운영자가 다음 실행 단계를 계속합니다. 저장할 승인 메모: ${JSON.stringify(approvalNote)}`
         }
-        confirmLabel={confirmation === 'execute' ? '권한 보정 실행' : '승인 확정'}
+        confirmLabel={confirmation === 'execute' ? '구독 이용권 조정 실행' : '승인 확정'}
         confirmVariant={confirmation === 'execute' ? 'danger' : 'primary'}
         busy={busy === 'approve' || busy === 'execute'}
         typedConfirmation={

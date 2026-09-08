@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SubscriptionManagePage from '@/pages/subscriber/SubscriptionManagePage';
@@ -117,6 +117,11 @@ async function confirmReactivation() {
       name: '\uAD6C\uB3C5 \uC720\uC9C0 \uD655\uC815',
     }),
   );
+}
+
+function confirmPaidUpgrade() {
+  const dialog = screen.getByRole('dialog', { name: '업그레이드 결제 확인' });
+  fireEvent.click(within(dialog).getByRole('button', { name: /원 결제 및 변경 확정/ }));
 }
 
 describe('SubscriptionManagePage', () => {
@@ -406,6 +411,7 @@ describe('SubscriptionManagePage', () => {
     await screen.findByText('다음 결제 금액');
     await screen.findByText('₩19,900/월');
     fireEvent.click(screen.getByRole('button', { name: '차액 결제 후 변경' }));
+    confirmPaidUpgrade();
 
     await waitFor(() => {
       expect(changeMySubscriptionMock).toHaveBeenCalledWith({
@@ -1018,6 +1024,125 @@ describe('SubscriptionManagePage', () => {
     expect(reactivateMySubscriptionMock).not.toHaveBeenCalled();
   });
 
+  it.each(['MONTHLY', 'YEARLY'] as const)(
+    'requires explicit paid confirmation with the retained %s period and next monthly charge',
+    async (billingCycle) => {
+      configureChargedUpgrade();
+      const current = {
+        ...subscriptionState(1, 'ACTIVE'),
+        billingCycle,
+        startedAt: billingCycle === 'YEARLY' ? '2025-09-01' : '2026-08-01',
+      };
+      fetchMySubscriptionMock.mockResolvedValue(current);
+      fetchMyBillingAgreementMock.mockResolvedValue(billingState('ACTIVE', 1, billingCycle));
+      const mutation = deferred<ReturnType<typeof upgradeResponse>>();
+      changeMySubscriptionMock.mockReturnValue(mutation.promise);
+      render(
+        <MemoryRouter
+          initialEntries={[
+            '/subscriptions/manage?planId=2&userType=INDIVIDUAL&billingCycle=MONTHLY',
+          ]}
+        >
+          <SubscriptionManagePage />
+        </MemoryRouter>,
+      );
+      const change = await screen.findByRole('button', { name: '차액 결제 후 변경' });
+      expect(screen.getByText('현재 유지 결제 주기').parentElement).toHaveTextContent(
+        billingCycle === 'YEARLY' ? '연간' : '월간',
+      );
+      expect(screen.getByText('다음 결제 주기').parentElement).toHaveTextContent('월간');
+      expect(changeMySubscriptionMock).not.toHaveBeenCalled();
+      fireEvent.click(change);
+      const dialog = screen.getByRole('dialog', { name: '업그레이드 결제 확인' });
+      expect(dialog).toHaveTextContent(
+        `현재 유지 결제 주기: ${billingCycle === 'YEARLY' ? '연간' : '월간'}`,
+      );
+      expect(dialog).toHaveTextContent('오늘 결제: 5,000원');
+      expect(dialog).toHaveTextContent(
+        `현재 구독 기간: ${billingCycle === 'YEARLY' ? '2025.09.01' : '2026.08.01'} ~ 2026.09.01`,
+      );
+      expect(dialog).toHaveTextContent('유지되는 만료일: 2026.09.01');
+      expect(dialog).toHaveTextContent('다음 결제: 월간 / 2026.09.01 / 19,900원');
+      expect(changeMySubscriptionMock).not.toHaveBeenCalled();
+      fireEvent.click(within(dialog).getByRole('button', { name: '돌아가기' }));
+      expect(changeMySubscriptionMock).not.toHaveBeenCalled();
+      fireEvent.click(change);
+      const confirm = screen.getByRole('button', { name: '5,000원 결제 및 변경 확정' });
+      fireEvent.click(confirm);
+      fireEvent.click(confirm);
+      expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
+      expect(changeMySubscriptionMock).toHaveBeenCalledWith({
+        subscriptionId: 2,
+        billingCycle: 'MONTHLY',
+      });
+      await act(async () => mutation.reject(new Error('response lost')));
+    },
+  );
+
+  it.each(['cycle', 'audience', 'unmount'] as const)(
+    'retires a paid confirmation when its %s context changes without charging',
+    async (context) => {
+      configureChargedUpgrade();
+      fetchMySubscriptionMock.mockResolvedValue(subscriptionState(1, 'ACTIVE'));
+      fetchMyBillingAgreementMock.mockResolvedValue(billingState('ACTIVE'));
+      const view = renderPage();
+      fireEvent.click(await screen.findByText('디럭스'));
+      fireEvent.click(await screen.findByRole('button', { name: '차액 결제 후 변경' }));
+      const oldConfirm = screen.getByRole('button', { name: '5,000원 결제 및 변경 확정' });
+      const latePreview = deferred<Record<string, unknown>>();
+      fetchSubscriptionChangePreviewMock.mockReturnValue(latePreview.promise);
+      if (context === 'cycle') {
+        fireEvent.click(screen.getByRole('button', { name: '연간' }));
+      } else if (context === 'audience') {
+        authState.user = { userType: 'BUSINESS' };
+        view.rerender(managePageElement());
+      } else {
+        view.unmount();
+      }
+      expect(
+        screen.queryByRole('dialog', { name: '업그레이드 결제 확인' }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(oldConfirm);
+      await act(async () =>
+        latePreview.resolve({
+          changeType: 'UPGRADE',
+          proratedAmount: 7000,
+          effectiveDate: '2026-08-12',
+          nextBillingDate: '2026-09-01',
+          nextBillingAmount: 199000,
+          newPlanName: 'DELUXE',
+          newBillingCycle: 'YEARLY',
+        }),
+      );
+      expect(
+        screen.queryByRole('dialog', { name: '업그레이드 결제 확인' }),
+      ).not.toBeInTheDocument();
+      expect(changeMySubscriptionMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not open paid confirmation for a zero-charge upgrade', async () => {
+    configureChargedUpgrade();
+    fetchSubscriptionChangePreviewMock.mockResolvedValue({
+      ...upgradeResponse(),
+      proratedAmount: 0,
+      newPlanName: 'DELUXE',
+      newBillingCycle: 'MONTHLY',
+      effectiveDate: '2026-08-12',
+      nextBillingDate: '2026-09-01',
+      nextBillingAmount: 19900,
+    });
+    fetchMySubscriptionMock.mockResolvedValue(subscriptionState(1, 'ACTIVE'));
+    fetchMyBillingAgreementMock.mockResolvedValue(billingState('ACTIVE'));
+    changeMySubscriptionMock.mockRejectedValue(new Error('response lost'));
+    renderPage();
+    fireEvent.click(await screen.findByText('디럭스'));
+    fireEvent.click(await screen.findByRole('button', { name: '차액 결제 후 변경' }));
+    await waitFor(() => expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(fetchSubscriptionUpgradeOutcomeMock).not.toHaveBeenCalled();
+  });
+
   it('preserves a successful charged upgrade as RELOAD_FAILED and retries reads only', async () => {
     configureChargedUpgrade();
     changeMySubscriptionMock.mockResolvedValue(upgradeResponse());
@@ -1036,6 +1161,7 @@ describe('SubscriptionManagePage', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD' }),
     );
+    confirmPaidUpgrade();
 
     expect(
       await screen.findByText(
@@ -1073,6 +1199,7 @@ describe('SubscriptionManagePage', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD' }),
     );
+    confirmPaidUpgrade();
 
     await waitFor(() => {
       expect(changeMySubscriptionMock).toHaveBeenCalledTimes(1);
@@ -1109,6 +1236,7 @@ describe('SubscriptionManagePage', () => {
           name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
         }),
       );
+      confirmPaidUpgrade();
 
       expect(
         await screen.findByText(
@@ -1144,6 +1272,7 @@ describe('SubscriptionManagePage', () => {
         name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
       }),
     );
+    confirmPaidUpgrade();
 
     expect(
       await screen.findByText(/\uBCC0\uACBD\uC774 \uC608\uC57D\uB418\uC5C8\uC2B5\uB2C8\uB2E4/),
@@ -1261,6 +1390,7 @@ describe('SubscriptionManagePage', () => {
     const cancelButton = screen.getByRole('button', { name: '\uCDE8\uC18C \uD655\uC815' });
 
     fireEvent.click(changeButton);
+    confirmPaidUpgrade();
     await waitFor(() => expect(cancelButton).toBeDisabled());
     fireEvent.click(cancelButton);
 
@@ -1293,6 +1423,7 @@ describe('SubscriptionManagePage', () => {
     fireEvent.click(screen.getByRole('button', { name: '\uAD6C\uB3C5 \uCDE8\uC18C' }));
     const cancelButton = screen.getByRole('button', { name: '\uCDE8\uC18C \uD655\uC815' });
     fireEvent.click(changeButton);
+    confirmPaidUpgrade();
 
     await screen.findByText(
       '\uCC98\uB9AC\uAC00 \uC774\uBBF8 \uC644\uB8CC\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC9C0 \uB9D0\uACE0 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD574\uC8FC\uC138\uC694.',
@@ -1474,6 +1605,7 @@ describe('SubscriptionManagePage', () => {
         name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
       }),
     );
+    confirmPaidUpgrade();
 
     expect(
       await screen.findByText(
@@ -1505,6 +1637,7 @@ describe('SubscriptionManagePage', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD' }),
     );
+    confirmPaidUpgrade();
 
     expect(
       await screen.findByText(
@@ -1540,6 +1673,7 @@ describe('SubscriptionManagePage', () => {
         name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
       });
       fireEvent.click(changeButton);
+      confirmPaidUpgrade();
 
       expect(
         await screen.findByText(
@@ -1615,6 +1749,7 @@ describe('SubscriptionManagePage', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD' }),
     );
+    confirmPaidUpgrade();
 
     expect(
       await screen.findByText(
@@ -1643,6 +1778,7 @@ describe('SubscriptionManagePage', () => {
           name: '\uCC28\uC561 \uACB0\uC81C \uD6C4 \uBCC0\uACBD',
         }),
       );
+      confirmPaidUpgrade();
 
       expect(
         await screen.findByText(

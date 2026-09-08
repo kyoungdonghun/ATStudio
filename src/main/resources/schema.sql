@@ -135,7 +135,7 @@ CREATE TABLE user_subscriptions
     billing_cycle           ENUM ('MONTHLY', 'YEARLY')              NOT NULL,
     status                  ENUM ('ACTIVE', 'CANCELLED', 'EXPIRED') NOT NULL DEFAULT 'ACTIVE',
     started_at              DATE                                    NOT NULL COMMENT 'Current period start date.',
-    expires_at              DATE                                    NOT NULL COMMENT 'Current period end date. Next billing date = expires_at + 1 day.',
+    expires_at              DATE                                    NOT NULL COMMENT 'Current period end date. Next billing date = expires_at.',
     pending_subscription_id BIGINT                                  NULL     COMMENT 'Downgrade scheduled plan (applied at next billing).',
     pending_billing_cycle   ENUM ('MONTHLY', 'YEARLY')              NULL     COMMENT 'MONTHLY or YEARLY for pending change.',
     created_at              DATETIME                                NOT NULL DEFAULT CURRENT_TIMESTAMP,

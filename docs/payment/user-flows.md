@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-07-16
+version: 1.3
+last_updated: 2026-09-08
 project: ATS
 owner: docops
 category: guide
@@ -65,11 +65,16 @@ Flow:
 1. User starts card registration.
 2. User leaves the screen, closes browser, or fails Toss auth.
 3. Existing `payment_orders` may stay `READY` or `IN_PROGRESS` until expiration.
-4. User can start a new checkout attempt.
+4. User can start a new checkout only when the existing outcome/recovery guards permit it; an unknown charge result requires status recovery first.
 5. Stale orders are expired by the scheduled order expiration job.
 
 Prepare failure is shown as terminal `ERROR` with bounded copy and a retry. A
 fail callback never displays raw or blank Provider query text.
+
+As of 2026-09-08, one exact `INVALID_CARD_NUMBER` code may show a bounded
+reported-input hint. It is not proof that payment failed. Matching-purpose
+`DONE` suppresses the hint even if canonical reload fails; status recovery and
+unknown-charge safeguards remain authoritative.
 
 Expected result:
 
@@ -98,6 +103,9 @@ Flow:
 Expected result:
 
 - Current subscription period and plan remain unchanged during re-registration.
+- Preparation, key cleanup and zero-amount completion preserve the previous
+  `lastChargedAt`, including null. Positive subscription, upgrade and renewal
+  charges still update it on successful local finalization.
 - The next renewal or future upgrade can use the new billing key.
 
 ## 4. Upgrade
@@ -109,8 +117,8 @@ Entry point:
 Flow:
 
 1. User selects a higher-tier plan.
-2. Frontend shows a change preview.
-3. User confirms the change.
+2. Frontend shows the current paid cycle/period, immediate charge and next renewal cycle/date/amount separately.
+3. User explicitly confirms the paid upgrade with those details. Cancel sends no paid mutation; a changed selection or subscription context retires the confirmation.
 4. Backend calculates the remaining-period price difference using the current billing cycle.
 5. Backend charges the difference through the active billing agreement.
 6. If charge succeeds, backend applies the higher plan immediately.
@@ -122,6 +130,9 @@ Expected result:
 - Current expiration date remains unchanged.
 - Next billing date remains the current period end.
 - A different next billing cycle is shown as pending and applies only on renewal.
+- Selecting MONTHLY during a YEARLY upgrade does not restart a 12-month term,
+  shorten or refund the current annual entitlement. The confirmation is not a
+  server-locked price quote; the backend remains authoritative.
 
 ## 5. Downgrade
 

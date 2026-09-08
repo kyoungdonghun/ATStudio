@@ -1,6 +1,6 @@
 ---
-version: 1.7
-last_updated: 2026-08-14
+version: 1.8
+last_updated: 2026-09-08
 project: ATS
 owner: docops
 category: guide
@@ -25,6 +25,9 @@ dependencies:
 Use `/admin/payments` for payment evidence and payment-operation workflows.
 
 Use `/admin/user-subscriptions` for ordinary subscription state management that is not tied to a specific payment operation.
+
+Both correction entry points display `구독 이용권 조정`. Their distinct refund
+prerequisites, internal identifiers, canonical terms and APIs are unchanged.
 
 | Need                                                                                                | Use                         |
 | :-------------------------------------------------------------------------------------------------- | :-------------------------- |
@@ -97,6 +100,10 @@ Rule:
 
 ## 6. Incidents Tab
 
+Display label and operator notification heading: `결제 점검 이슈`. Operator
+email copy is Korean; technical field names and enum values remain identifiable.
+This source change does not prove SMTP delivery or inbox placement.
+
 Purpose:
 
 - Review persisted local/provider reconciliation incidents.
@@ -135,6 +142,16 @@ Use when:
 Current scope:
 
 - Receipt evidence capture exists.
+- The `증빙 상태` header and `원결제 영수증 · 환불 상태와 별도` caption describe
+  stored evidence: `ISSUED` = `발급 기록`, `CANCELLED` = `취소 기록`,
+  `PARTIAL_CANCELLED` = `부분 취소 기록`, `FAILED` = `발급 실패`.
+  Unknown status/type values remain raw. The existing receipt DTO contains
+  status/type/issuedAt/cancelledAt, not a refund aggregate; the screen adds no
+  refund request or inferred refund state.
+- After a refund, the original payment order may remain `DONE`; receipt evidence
+  has its own status (`ISSUED` in the 2026-09-08 acceptance) and remains original
+  charge evidence. Read the separate refund ledger and provider cancellation
+  result to explain the net outcome.
 - Only normalized absolute HTTPS receipt links without embedded credentials or non-standard ports are clickable.
 - A retained unsafe URL appears as a non-clickable support reference or review-needed state. Do not copy it into the address bar or an incident note.
 - Cash receipt issue/cancel mutation is not implemented for the current card-only recurring scope.
@@ -271,8 +288,8 @@ Rule:
   `RECORDED` from guarded fresh disposable evidence. This history does not
   authorize a new database run or establish production
   readiness. In the separate general local-Subscription correction flow,
-  execute alone requires the trimmed exact phrase `권한 보정 실행`; approval
-  remains an ordinary confirmation.
+  execute alone requires the trimmed exact phrase `구독 이용권 조정 실행`;
+  the old phrase is rejected and approval remains an ordinary confirmation.
 
 ## 10. Refund Tab
 
@@ -319,11 +336,13 @@ Purpose:
 Workflow:
 
 1. Start from a succeeded refund.
-2. Preview target subscription, billing cycle, status, expiration, and pending-change behavior.
-3. Create correction request.
-4. Approve correction request.
-5. Enter the required confirmation text. The screen reads the exact correction
-   detail and sends one execute POST only when that fresh row is `APPROVED`.
+2. Enter the intended expiration explicitly; the field starts empty and is required before preview. Review target subscription, billing cycle, status and pending-change behavior.
+3. Confirm the request's user/subscription/refund IDs, target plan/cycle/status/expiration, pending-change effect and local billing cancellation effect before creating it.
+4. Approve only after reviewing the same target/effect summary; typed execution also shows those details.
+5. Enter `구독 이용권 조정 실행` exactly in the payment-operations prompt;
+   additional whitespace and the old phrase are rejected. The screen reads
+   the exact correction detail and sends one execute POST only when that fresh
+   row is `APPROVED`.
 6. If execute delivery is rejected or its response is lost, use the resulting
    read-only status recovery. Do not repeat correction execute.
 
@@ -332,6 +351,14 @@ Rule:
 - Entitlement correction is separate from refund.
 - Provider billing-key delete is not called by entitlement correction.
 - Local billing agreement cancellation can be selected when the support-approved outcome requires it.
+- Input edits retire the preview and open confirmation; late or failed previews
+  cannot restore an earlier executable target.
+- No correction edit/cancel API exists. Do not execute an approved row with a
+  wrong target. Obtain explicit scoped operator authorization for its disposition
+  and a correctly reviewed replacement; do not infer a standing SQL workaround.
+
+The [2026-09-08 acceptance record](acceptance-test-checklist.md#2026-09-08-acceptance-record)
+separates the earlier actual refund/correction from later fixture-only UI checks.
 
 ## 12. Shared Execute Recovery
 

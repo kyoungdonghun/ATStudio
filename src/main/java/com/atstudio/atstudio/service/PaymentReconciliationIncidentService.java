@@ -365,22 +365,22 @@ public class PaymentReconciliationIncidentService {
             return;
         }
 
-        String summary = "%s %s incident detected for orderId=%s"
+        String summary = "결제 점검 이슈가 감지되었습니다. 심각도=%s, 유형=%s, 주문 ID=%s"
                 .formatted(incident.getSeverity(), incident.getIssueType(), nullText(incident.getOrderId()));
         String details = """
-                incidentId=%s
-                dedupeKey=%s
-                status=%s
-                provider=%s
-                purpose=%s
-                localStatus=%s
-                providerStatus=%s
-                localAmount=%s
-                providerAmount=%s
-                occurrenceCount=%s
-                detectedAt=%s
-                failureCode=%s
-                failureMessage=%s
+                이슈 ID (incidentId)=%s
+                중복 확인 키 (dedupeKey)=%s
+                상태 (status)=%s
+                결제사 (provider)=%s
+                결제 목적 (purpose)=%s
+                내부 상태 (localStatus)=%s
+                결제사 상태 (providerStatus)=%s
+                내부 금액 (localAmount)=%s
+                결제사 금액 (providerAmount)=%s
+                발생 횟수 (occurrenceCount)=%s
+                감지 시각 (detectedAt)=%s
+                실패 코드 (failureCode)=%s
+                실패 메시지 (failureMessage)=%s
                 """.formatted(
                 nullText(incident.getId()),
                 incident.getDedupeKey(),

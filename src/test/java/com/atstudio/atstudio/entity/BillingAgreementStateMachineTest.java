@@ -5,6 +5,8 @@ import com.atstudio.atstudio.entity.enums.BillingKeyCleanupStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
@@ -17,10 +19,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class BillingAgreementStateMachineTest {
 
     @Test
-    @DisplayName("registration reset requires a customer key and clears all reusable payment state")
+    @DisplayName("registration reset clears reusable state while preserving actual charge history")
     void prepareRegistration_requiresIdentityAndClearsState() {
         BillingAgreement agreement = activeAgreement();
         agreement.recordSuccessfulCharge(LocalDate.of(2026, 9, 1));
+        LocalDateTime lastChargedAt = agreement.getLastChargedAt();
 
         assertThatThrownBy(() -> agreement.prepareRegistration(null))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -28,13 +31,57 @@ class BillingAgreementStateMachineTest {
                 .isInstanceOf(IllegalArgumentException.class);
 
         agreement.prepareRegistration("new-customer");
+        agreement.prepareRegistration("new-customer");
 
         assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.READY);
         assertThat(agreement.getProviderCustomerKey()).isEqualTo("new-customer");
         assertThat(agreement.getBillingKeyCiphertext()).isNull();
         assertThat(agreement.getBillingKeyFingerprint()).isNull();
         assertThat(agreement.getNextBillingAt()).isNull();
+        assertThat(agreement.getLastChargedAt()).isEqualTo(lastChargedAt);
+    }
+
+    @Test
+    @DisplayName("registration and activation without a charge keep an initial null charge timestamp")
+    void registrationWithoutChargeKeepsNullTimestamp() {
+        BillingAgreement agreement = readyAgreement();
+
+        agreement.prepareRegistration("new-customer");
+        agreement.prepareRegistration("new-customer");
+        agreement.activate("cipher", "fingerprint", "CARD", "masked", LocalDate.of(2026, 10, 8));
+
         assertThat(agreement.getLastChargedAt()).isNull();
+        assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.ACTIVE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("replayed issued-key cleanup preserves null or previous charge history and key-state semantics")
+    void clearIssuedKeyPreservesChargeHistory(boolean previouslyCharged) {
+        BillingAgreement agreement = activeAgreement();
+        if (previouslyCharged) {
+            agreement.recordSuccessfulCharge(LocalDate.of(2026, 10, 8));
+        }
+        LocalDateTime lastChargedAt = agreement.getLastChargedAt();
+        agreement.recordFailedCharge(LocalDate.of(2026, 10, 9));
+        agreement.cancel();
+        LocalDateTime cancelledAt = agreement.getCancelledAt();
+
+        agreement.clearIssuedKey();
+        agreement.clearIssuedKey();
+
+        assertThat(agreement.getLastChargedAt()).isEqualTo(lastChargedAt);
+        assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.CANCELLED);
+        assertThat(agreement.getCancelledAt()).isEqualTo(cancelledAt);
+        assertThat(agreement.getFailureCount()).isOne();
+        assertThat(agreement.getBillingKeyCiphertext()).isNull();
+        assertThat(agreement.getBillingKeyFingerprint()).isNull();
+        assertThat(agreement.getPayMethod()).isNull();
+        assertThat(agreement.getMaskedMethod()).isNull();
+        assertThat(agreement.getNextBillingAt()).isNull();
+        assertThat(agreement.getRenewalRetryAt()).isNull();
+        assertThat(agreement.getBillingKeyCleanupStatus()).isEqualTo(BillingKeyCleanupStatus.NONE);
+        assertThat(agreement.getBillingKeyCleanupStartedAt()).isNull();
     }
 
     @Test

@@ -112,7 +112,7 @@ accepted mutation. Another row cannot replace that target or abort its recovery.
 An inconclusive recovery keeps the same owner until an explicit read-only status
 retry proves the outcome. All shared close paths stay blocked during the same
 ownership interval. Execution alone requires the trimmed exact phrase
-`권한 보정 실행`; approval uses the ordinary confirmation and has no
+`구독 이용권 조정 실행`; approval uses the ordinary confirmation and has no
 typed-phrase requirement.
 
 One ADMIN may perform all stages; this is explicit single-operator confirmation,

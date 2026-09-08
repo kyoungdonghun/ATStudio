@@ -914,6 +914,86 @@ describe('SubscriptionPaymentPage', () => {
     },
   );
 
+  it.each(['READY', 'PROCESSING', 'FAILED', 'UNREADABLE', 'NO_ORDER'])(
+    'shows an unverified card hint without changing the %s outcome or replaying mutations',
+    async (status) => {
+      fetchPaymentCommandOutcomeMock.mockResolvedValue({
+        purpose: 'SUBSCRIBE',
+        orderStatus: status,
+      });
+      if (status === 'UNREADABLE') {
+        fetchPaymentCommandOutcomeMock.mockRejectedValue(new Error('unavailable'));
+      }
+      renderPage(
+        `/subscriptions/checkout/fail?code=INVALID_CARD_NUMBER&message=raw-provider-message${
+          status === 'NO_ORDER' ? '' : '&orderId=ATS-BILL-1'
+        }&planId=1&userType=INDIVIDUAL&billingCycle=MONTHLY&purpose=SUBSCRIBE`,
+      );
+
+      expect(
+        await screen.findByText(/카드 등록 화면에서 카드번호 오류가 전달되었습니다/),
+      ).toHaveTextContent('결제 완료 여부는 상태 확인이 필요합니다.');
+      expect(screen.queryByText('raw-provider-message')).not.toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        status === 'FAILED' ? '요청이 완료되지 않았습니다.' : '작업을 다시 실행하지 말고',
+      );
+      if (status !== 'FAILED' && status !== 'NO_ORDER') {
+        fireEvent.click(screen.getByRole('button', { name: '상태 다시 확인' }));
+        await waitFor(() => expect(fetchPaymentCommandOutcomeMock).toHaveBeenCalledTimes(2));
+      }
+      fireEvent.click(await screen.findByRole('button', { name: '플랜 선택으로 돌아가기' }));
+      expect(navigateMock).toHaveBeenCalledWith('/subscriptions');
+      expect(prepareBillingAgreementMock).not.toHaveBeenCalled();
+      expect(confirmBillingAgreementMock).not.toHaveBeenCalled();
+      expect(requestBillingAuthMock).not.toHaveBeenCalled();
+      expect(sessionStorage.length).toBe(0);
+    },
+  );
+
+  it.each([
+    '',
+    'code=',
+    'code=UNRECOGNIZED',
+    'code=INVALID_CARD_NUMBER&code=INVALID_CARD_NUMBER',
+    'code=INVALID_CARD_NUMBER&code=',
+    'code=%20INVALID_CARD_NUMBER',
+    'code=INVALID_CARD_NUMBER%00',
+    'code=%E0%A4%A',
+    'code=__proto__',
+  ])('ignores non-allowlisted or malformed failure code query: %s', async (query) => {
+    fetchPaymentCommandOutcomeMock.mockResolvedValue({
+      purpose: 'SUBSCRIBE',
+      orderStatus: 'PROCESSING',
+    });
+    renderPage(`/subscriptions/checkout/fail?orderId=ATS-BILL-1&${query}`);
+    expect(await screen.findByRole('alert')).toHaveTextContent('작업을 다시 실행하지 말고');
+    expect(
+      screen.queryByText(/카드 등록 화면에서 카드번호 오류가 전달되었습니다/),
+    ).not.toBeInTheDocument();
+    expect(confirmBillingAgreementMock).not.toHaveBeenCalled();
+    expect(prepareBillingAgreementMock).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])(
+    'prioritizes DONE over the card hint with canonical match %s',
+    async (matches) => {
+      if (!matches) fetchMySubscriptionMock.mockRejectedValue(new Error('reload failed'));
+      renderPage('/subscriptions/checkout/fail?orderId=ATS-BILL-1&code=INVALID_CARD_NUMBER');
+      if (matches) {
+        await waitFor(() =>
+          expect(navigateMock).toHaveBeenCalledWith('/subscriptions/manage', { replace: true }),
+        );
+      } else {
+        expect(await screen.findByRole('alert')).toHaveTextContent('작업을 다시 실행하지 말고');
+      }
+      expect(
+        screen.queryByText(/카드 등록 화면에서 카드번호 오류가 전달되었습니다/),
+      ).not.toBeInTheDocument();
+      expect(confirmBillingAgreementMock).not.toHaveBeenCalled();
+      expect(prepareBillingAgreementMock).not.toHaveBeenCalled();
+    },
+  );
+
   it('uses bounded failure copy when the provider message is blank', async () => {
     fetchPaymentCommandOutcomeMock.mockResolvedValueOnce({
       purpose: 'SUBSCRIBE',

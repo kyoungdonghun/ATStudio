@@ -87,6 +87,13 @@
   border-collapse: collapse;
 }
 
+.receiptCaption {
+  padding: 10px 16px;
+  color: var(--text2);
+  font-size: 12px;
+  text-align: left;
+}
+
 .table thead th {
   font-size: 12px;
   font-weight: 600;

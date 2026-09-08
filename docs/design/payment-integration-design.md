@@ -1,6 +1,6 @@
 ---
-version: 3.4
-last_updated: 2026-08-12
+version: 3.5
+last_updated: 2026-09-08
 project: ATS
 owner: SA
 category: design
@@ -209,6 +209,11 @@ fails closed.
    entered from an upgrade preview, immutable return plan identity and audience
    are retained, but the upgrade is not executed by registration.
 
+Charge-history ownership (2026-09-08): preparation, issued-key cleanup and
+zero-amount registration finalization preserve `lastChargedAt`, including null.
+Successful positive SUBSCRIBE, UPGRADE and RENEWAL finalization records the
+existing local successful-charge time; completed replay does not rewrite it.
+
 ### Upgrade and Scheduled Change
 
 - An upgrade charges the prorated difference through the active billing
@@ -218,6 +223,13 @@ fails closed.
 - Manage recovery uses the mutation response's `changeType` and prorated amount
   as the result source. A stale preview never overrides a successful response.
 - There is no fallback checkout path.
+
+The paid-upgrade confirmation shows the immediate server-preview amount, target
+plan, retained current cycle/start/expiry, and next cycle/date/amount. It binds
+to preview identity, request generation, source Subscription and selected
+plan/cycle; changed context retires it. Cancellation performs no paid mutation.
+The current paid period remains intact, including YEARLY-to-next-MONTHLY
+selection. This is client confirmation safety, not a new quote-lock or billing policy.
 
 ### Renewal and Cancellation
 
@@ -257,6 +269,11 @@ Callback fields use single-value allowlist parsing. Missing, blank, malformed,
 unsupported, or duplicate required state cannot invoke confirmation or
 prepare. Provider `message` query content is never rendered; fail callbacks
 use bounded product copy even when that value is blank or arbitrary.
+
+One exact single `INVALID_CARD_NUMBER` code may supply an unverified input hint;
+unknown, duplicated or altered values supply none. The hint creates no prepare,
+confirmation or SDK call and never decides financial state. Matching-purpose
+`DONE` suppresses it even when canonical reload fails.
 
 - A success callback with authorization values invokes confirmation once, then
   performs the owner-scoped order-outcome read and canonical Subscription and
@@ -324,6 +341,13 @@ machines. Each recovery intent owns its domain, durable ID, operation
 generation, current outcome, and view request. A correction intent also owns
 its linked refund ID. Evidence from one domain never proves the other domain's
 result.
+
+Refund-linked correction expiry starts empty and is required before preview.
+Request, approval and typed execution confirmations display user/subscription/
+refund IDs, target plan/cycle/status/expiry, pending-change effect and local
+billing cancellation effect. Input changes invalidate preview/confirmation;
+late or failed reads cannot revive a retired preview. Existing server
+authorization, approval and recovery remain authoritative.
 
 Before one typed execute action can mutate state, the SPA reads the exact
 existing ADMIN detail endpoint and requires the same durable ID with fresh

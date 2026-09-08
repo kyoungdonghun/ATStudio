@@ -81,6 +81,13 @@ const INCIDENT_STATUSES: AdminPaymentReconciliationIncidentStatus[] = [
   'IGNORED',
 ];
 
+const RECEIPT_STATUS_LABELS = new Map<string, string>([
+  ['ISSUED', '발급 기록'],
+  ['CANCELLED', '취소 기록'],
+  ['PARTIAL_CANCELLED', '부분 취소 기록'],
+  ['FAILED', '발급 실패'],
+]);
+
 const REFUND_REASONS: AdminPaymentRefundReasonCode[] = [
   'CUSTOMER_REQUEST',
   'DUPLICATE_PAYMENT',
@@ -114,7 +121,7 @@ const SETTLEMENT_SOURCES: AdminPaymentSettlementSource[] = [
 ];
 
 const REFUND_EXECUTION_CONFIRM_TEXT = '환불 실행';
-const CORRECTION_EXECUTION_CONFIRM_TEXT = '권한 보정 실행';
+const CORRECTION_EXECUTION_CONFIRM_TEXT = '구독 이용권 조정 실행';
 const SETTLEMENT_IMPORT_ATTEMPT_CORRUPT_MESSAGE =
   '저장된 정산 import 복구 정보가 손상되어 새 import를 시작할 수 없습니다. 브라우저 세션을 지운 후 다시 시도해주세요.';
 const SETTLEMENT_IMPORT_ATTEMPT_PENDING_MESSAGE =
@@ -264,20 +271,23 @@ function refundExecutionFeedback(outcome: RecoveryOutcome) {
 
 function correctionExecutionFeedback(outcome: RecoveryOutcome) {
   if (outcome === 'COMMITTED') {
-    return { type: 'success' as const, message: '권한 보정 결과가 확인되었습니다.' };
+    return { type: 'success' as const, message: '구독 이용권 조정 결과가 확인되었습니다.' };
   }
   if (outcome === 'FAILED') {
-    return { type: 'error' as const, message: '권한 보정이 최종 실패 상태로 확인되었습니다.' };
+    return {
+      type: 'error' as const,
+      message: '구독 이용권 조정이 최종 실패 상태로 확인되었습니다.',
+    };
   }
   if (outcome === 'UNKNOWN') {
     return {
       type: 'error' as const,
-      message: '권한 보정 후속 상태가 아직 확정되지 않았습니다. 상태를 다시 확인해주세요.',
+      message: '구독 이용권 조정 후속 상태가 아직 확정되지 않았습니다. 상태를 다시 확인해주세요.',
     };
   }
   return {
     type: 'error' as const,
-    message: '권한 보정은 성공했지만 후속 정보를 새로고침하지 못했습니다.',
+    message: '구독 이용권 조정은 성공했지만 후속 정보를 새로고침하지 못했습니다.',
   };
 }
 
@@ -335,13 +345,14 @@ export default function PaymentOperationsPage() {
     targetSubscriptionId: '',
     targetBillingCycle: 'MONTHLY',
     targetStatus: 'EXPIRED',
-    targetExpiresAt: todayInputValue(),
+    targetExpiresAt: '',
     clearPendingChange: true,
     cancelBillingAgreement: true,
     reasonNote: '',
   });
   const [correctionPreview, setCorrectionPreview] =
     useState<AdminPaymentEntitlementCorrectionPreview | null>(null);
+  const correctionPreviewVersionRef = useRef(0);
   const [correctionActionNotes, setCorrectionActionNotes] = useState<Record<number, string>>({});
   const [correctionBusy, setCorrectionBusy] = useState<string | null>(null);
   const [refundRecoveries, setRefundRecoveries] = useState<Record<number, RefundRecoveryIntent>>(
@@ -647,6 +658,13 @@ export default function PaymentOperationsPage() {
     tab,
   ]);
 
+  useEffect(
+    () => () => {
+      correctionPreviewVersionRef.current += 1;
+    },
+    [],
+  );
+
   useEffect(() => {
     if (tab !== 'corrections' || plans.length > 0) {
       return;
@@ -706,8 +724,11 @@ export default function PaymentOperationsPage() {
   }
 
   function changeCorrectionForm(patch: Partial<CorrectionForm>) {
+    correctionPreviewVersionRef.current += 1;
     setCorrectionForm((prev) => ({ ...prev, ...patch }));
     setCorrectionPreview(null);
+    setCorrectionBusy((current) => (current === 'preview' ? null : current));
+    setConfirmation(null);
   }
 
   function changeCorrectionActionNote(correctionId: number, note: string) {
@@ -944,10 +965,10 @@ export default function PaymentOperationsPage() {
         status: edit.status,
         note: edit.note.trim() || undefined,
       });
-      showToast('success', 'Incident 상태가 저장되었습니다.');
+      showToast('success', '결제 점검 이슈 상태가 저장되었습니다.');
       await loadData();
     } catch {
-      showToast('error', 'Incident 상태를 저장하지 못했습니다.');
+      showToast('error', '결제 점검 이슈 상태를 저장하지 못했습니다.');
     } finally {
       setUpdatingIncidentId(null);
     }
@@ -1214,6 +1235,8 @@ export default function PaymentOperationsPage() {
   }
 
   async function previewCorrection() {
+    const version = ++correctionPreviewVersionRef.current;
+    setCorrectionPreview(null);
     const request = correctionRequest();
     if (!request) {
       return;
@@ -1221,19 +1244,25 @@ export default function PaymentOperationsPage() {
     setCorrectionBusy('preview');
     try {
       const result = await previewAdminPaymentEntitlementCorrection(request);
+      if (version !== correctionPreviewVersionRef.current) return;
       setCorrectionPreview(result);
-      showToast(result.executable ? 'success' : 'error', '권한 보정 미리보기를 확인했습니다.');
+      showToast(
+        result.executable ? 'success' : 'error',
+        '구독 이용권 조정 미리보기를 확인했습니다.',
+      );
     } catch {
-      showToast('error', '권한 보정 미리보기를 불러오지 못했습니다.');
+      if (version !== correctionPreviewVersionRef.current) return;
+      showToast('error', '구독 이용권 조정 미리보기를 불러오지 못했습니다.');
     } finally {
-      setCorrectionBusy(null);
+      if (version === correctionPreviewVersionRef.current) setCorrectionBusy(null);
     }
   }
 
   function requestCorrection() {
+    const version = correctionPreviewVersionRef.current;
     const request = correctionRequest();
     if (!request || !correctionPreview?.executable) {
-      showToast('error', '실행 가능한 권한 보정 미리보기를 먼저 확인해주세요.');
+      showToast('error', '실행 가능한 구독 이용권 조정 미리보기를 먼저 확인해주세요.');
       return;
     }
     const refundIntent = refundRecoveryRef.current[request.paymentRefundId];
@@ -1244,19 +1273,20 @@ export default function PaymentOperationsPage() {
       return;
     }
     requestConfirmation({
-      title: '권한 보정 요청 생성',
-      message: '권한 보정 요청 원장을 생성합니다. 아직 구독 상태는 변경되지 않습니다.',
+      title: '구독 이용권 조정 요청 생성',
+      message: `구독 이용권 조정 요청 원장을 생성합니다. 아직 구독 상태는 변경되지 않습니다. ${correctionTargetSummary(correctionPreview)}`,
       confirmLabel: '요청 생성',
       confirmVariant: 'danger',
       action: async () => {
+        if (version !== correctionPreviewVersionRef.current) return;
         setCorrectionBusy('create');
         try {
           await createAdminPaymentEntitlementCorrection(request);
-          showToast('success', '권한 보정 요청이 생성되었습니다.');
+          showToast('success', '구독 이용권 조정 요청이 생성되었습니다.');
           setCorrectionPreview(null);
           await loadData();
         } catch {
-          showToast('error', '권한 보정 요청을 생성하지 못했습니다.');
+          showToast('error', '구독 이용권 조정 요청을 생성하지 못했습니다.');
         } finally {
           setCorrectionBusy(null);
         }
@@ -1268,18 +1298,18 @@ export default function PaymentOperationsPage() {
     if (isCorrectionMutationBlocked(correction)) return;
     const note = correctionActionNotes[correction.id]?.trim() || undefined;
     requestConfirmation({
-      title: '권한 보정 요청 승인',
-      message: `권한 보정 #${correction.id} 요청을 승인합니다.`,
+      title: '구독 이용권 조정 요청 승인',
+      message: `구독 이용권 조정 #${correction.id} 요청을 승인합니다. ${correctionTargetSummary(correction)}`,
       confirmLabel: '승인',
       confirmVariant: 'danger',
       action: async () => {
         setCorrectionBusy(`approve-${correction.id}`);
         try {
           await approveAdminPaymentEntitlementCorrection(correction.id, note);
-          showToast('success', '권한 보정 요청이 승인되었습니다.');
+          showToast('success', '구독 이용권 조정 요청이 승인되었습니다.');
           await loadData();
         } catch {
-          showToast('error', '권한 보정 요청을 승인하지 못했습니다.');
+          showToast('error', '구독 이용권 조정 요청을 승인하지 못했습니다.');
         } finally {
           setCorrectionBusy(null);
         }
@@ -1363,7 +1393,7 @@ export default function PaymentOperationsPage() {
     }
     if (
       !confirmTypedAction(
-        `권한 보정 #${correction.id}을 실행합니다. 이 작업은 로컬 구독 상태를 변경하며, provider 환불과는 별도입니다.`,
+        `구독 이용권 조정 #${correction.id}을 실행합니다. 이 작업은 로컬 구독 상태를 변경하며, provider 환불과는 별도입니다. ${correctionTargetSummary(correction)}`,
         CORRECTION_EXECUTION_CONFIRM_TEXT,
       )
     ) {
@@ -1393,7 +1423,7 @@ export default function PaymentOperationsPage() {
     } catch {
       if (isCurrentCorrectionIntent(intent)) {
         setCorrectionRecovery({ ...intent, outcome: 'UNKNOWN' });
-        showToast('error', '권한 보정 실행 전 최신 상태를 확인하지 못했습니다.');
+        showToast('error', '구독 이용권 조정 실행 전 최신 상태를 확인하지 못했습니다.');
       }
       releaseExecuteLock();
       return;
@@ -1404,7 +1434,7 @@ export default function PaymentOperationsPage() {
     }
     if (preflight.id !== correction.id) {
       setCorrectionRecovery({ ...intent, outcome: 'UNKNOWN' });
-      showToast('error', '권한 보정 실행 전 최신 상태를 확인하지 못했습니다.');
+      showToast('error', '구독 이용권 조정 실행 전 최신 상태를 확인하지 못했습니다.');
       releaseExecuteLock();
       return;
     }
@@ -1418,10 +1448,10 @@ export default function PaymentOperationsPage() {
       showToast(
         preflightOutcome === 'COMMITTED' ? 'success' : 'error',
         preflightOutcome === 'COMMITTED'
-          ? '권한 보정이 이미 완료된 상태입니다.'
+          ? '구독 이용권 조정이 이미 완료된 상태입니다.'
           : preflightOutcome === 'FAILED'
-            ? '권한 보정이 최종 실패 상태입니다.'
-            : '권한 보정 실행 가능 상태를 확인할 수 없습니다.',
+            ? '구독 이용권 조정이 최종 실패 상태입니다.'
+            : '구독 이용권 조정 실행 가능 상태를 확인할 수 없습니다.',
       );
       releaseExecuteLock();
       return;
@@ -1444,9 +1474,9 @@ export default function PaymentOperationsPage() {
         const feedback = correctionExecutionFeedback(current?.outcome ?? 'RELOAD_FAILED');
         showToast(feedback.type, feedback.message);
       } else if (outcome === 'FAILED') {
-        showToast('error', '권한 보정이 최종 실패 상태로 확인되었습니다.');
+        showToast('error', '구독 이용권 조정이 최종 실패 상태로 확인되었습니다.');
       } else {
-        showToast('error', '권한 보정 결과를 확정할 수 없습니다. 상태를 다시 확인해주세요.');
+        showToast('error', '구독 이용권 조정 결과를 확정할 수 없습니다. 상태를 다시 확인해주세요.');
       }
     } catch {
       await refreshCorrectionStatus(preflightIntent, 'UNKNOWN', false);
@@ -1454,10 +1484,10 @@ export default function PaymentOperationsPage() {
       showToast(
         current?.outcome === 'COMMITTED' ? 'success' : 'error',
         current?.outcome === 'COMMITTED'
-          ? '응답은 유실됐지만 권한 보정 완료 상태를 확인했습니다.'
+          ? '응답은 유실됐지만 구독 이용권 조정 완료 상태를 확인했습니다.'
           : current?.outcome === 'FAILED'
-            ? '권한 보정이 최종 실패 상태로 확인되었습니다.'
-            : '권한 보정 결과를 확정할 수 없습니다. 상태를 다시 확인해주세요.',
+            ? '구독 이용권 조정이 최종 실패 상태로 확인되었습니다.'
+            : '구독 이용권 조정 결과를 확정할 수 없습니다. 상태를 다시 확인해주세요.',
       );
     } finally {
       releaseExecuteLock();
@@ -1506,7 +1536,7 @@ export default function PaymentOperationsPage() {
           {'결제내역'}
         </TabButton>
         <TabButton active={tab === 'incidents'} onClick={() => changeTab('incidents')}>
-          {'대사 Incident'}
+          {'결제 점검 이슈'}
         </TabButton>
         <TabButton active={tab === 'receipts'} onClick={() => changeTab('receipts')}>
           {'영수증'}
@@ -1521,7 +1551,7 @@ export default function PaymentOperationsPage() {
           {'환불'}
         </TabButton>
         <TabButton active={tab === 'corrections'} onClick={() => changeTab('corrections')}>
-          {'권한 보정'}
+          {'구독 이용권 조정'}
         </TabButton>
       </div>
 
@@ -2037,10 +2067,10 @@ function EntitlementCorrectionPanel({
     <section className={styles.operationPanel}>
       <div className={styles.panelHeader}>
         <div>
-          <h2>{'권한 보정 요청'}</h2>
+          <h2>{'구독 이용권 조정 요청'}</h2>
           <p>
-            {'성공한 환불 이후에만 명시한 목표 구독 상태로 로컬 권한을 보정합니다.'}
-            {' 일반 사용자 구독 관리와 달리 환불 근거가 있는 보정 작업만 다룹니다.'}
+            {'성공한 환불 이후에만 명시한 목표 구독 상태로 로컬 권한을 조정합니다.'}
+            {' 일반 사용자 구독 관리와 달리 환불 근거가 있는 조정 작업만 다룹니다.'}
           </p>
         </div>
         <span className={styles.panelBadge}>{'LOCAL ACCESS'}</span>
@@ -2113,6 +2143,7 @@ function EntitlementCorrectionPanel({
             className={styles.textInput}
             type="date"
             value={form.targetExpiresAt}
+            required
             onChange={(e) => onChange({ targetExpiresAt: e.target.value })}
           />
         </label>
@@ -2139,7 +2170,7 @@ function EntitlementCorrectionPanel({
             maxLength={500}
             value={form.reasonNote}
             onChange={(e) => onChange({ reasonNote: e.target.value })}
-            placeholder="환불 후 권한 보정 근거"
+            placeholder="환불 후 구독 이용권 조정 근거"
           />
         </label>
       </div>
@@ -2174,7 +2205,7 @@ function EntitlementCorrectionPanel({
           onClick={onPreview}
           type="button"
         >
-          {busy === 'preview' ? '확인 중' : '권한 보정 미리보기'}
+          {busy === 'preview' ? '확인 중' : '구독 이용권 조정 미리보기'}
         </button>
         <button
           className={styles.saveBtn}
@@ -2182,7 +2213,7 @@ function EntitlementCorrectionPanel({
           onClick={onRequest}
           type="button"
         >
-          {busy === 'create' ? '요청 중' : '권한 보정 요청 생성'}
+          {busy === 'create' ? '요청 중' : '구독 이용권 조정 요청 생성'}
         </button>
       </div>
     </section>
@@ -2341,6 +2372,7 @@ function ReceiptTable({ receipts }: { receipts: AdminPaymentReceipt[] }) {
   return (
     <div className={styles.tableWrap}>
       <table className={styles.table}>
+        <caption className={styles.receiptCaption}>{'원결제 영수증 · 환불 상태와 별도'}</caption>
         <thead>
           <tr>
             <th>ID</th>
@@ -2348,7 +2380,7 @@ function ReceiptTable({ receipts }: { receipts: AdminPaymentReceipt[] }) {
             <th>{'주문번호'}</th>
             <th>{'결제내역'}</th>
             <th>{'유형'}</th>
-            <th>{'상태'}</th>
+            <th>{'증빙 상태'}</th>
             <th>{'지원 참조'}</th>
             <th>{'영수증'}</th>
             <th>{'발급일'}</th>
@@ -2367,7 +2399,9 @@ function ReceiptTable({ receipts }: { receipts: AdminPaymentReceipt[] }) {
                 <td>{receipt.subscriptionPaymentId}</td>
                 <td>{receipt.type}</td>
                 <td>
-                  <span className={statusClass(receipt.status)}>{receipt.status}</span>
+                  <span className={statusClass(receipt.status)}>
+                    {RECEIPT_STATUS_LABELS.get(receipt.status) ?? receipt.status}
+                  </span>
                 </td>
                 <td>{receipt.providerReference ?? '-'}</td>
                 <td>
@@ -2667,7 +2701,7 @@ function RefundTable({
                       onClick={() => onPrepareCorrection(refund)}
                       type="button"
                     >
-                      {'권한 보정'}
+                      {'구독 이용권 조정'}
                     </button>
                   </div>
                 </div>
@@ -2975,12 +3009,22 @@ function formatStatusCounts(counts: Record<string, number>): string {
   return entries.map(([key, value]) => `${key}:${value}`).join(', ');
 }
 
-function todayInputValue(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function correctionTargetSummary(
+  target: Pick<
+    AdminPaymentEntitlementCorrection,
+    | 'userId'
+    | 'userSubscriptionId'
+    | 'paymentRefundId'
+    | 'targetSubscriptionId'
+    | 'targetPlanName'
+    | 'targetBillingCycle'
+    | 'targetStatus'
+    | 'targetExpiresAt'
+    | 'clearPendingChange'
+    | 'cancelBillingAgreement'
+  >,
+): string {
+  return `대상: 사용자 #${target.userId} / 구독 #${target.userSubscriptionId} / 환불 #${target.paymentRefundId}. 목표 플랜: ${target.targetPlanName} (#${target.targetSubscriptionId}) / ${target.targetBillingCycle}. 목표 상태: ${target.targetStatus}. 목표 만료일: ${formatDate(target.targetExpiresAt)}. ${target.clearPendingChange ? '예약 변경 제거' : '예약 변경 유지'}. ${target.cancelBillingAgreement ? '로컬 자동결제 취소' : '로컬 자동결제 유지'}. Provider 환불 및 빌링키 삭제는 실행하지 않습니다.`;
 }
 
 function confirmTypedAction(message: string, expectedText: string): boolean {

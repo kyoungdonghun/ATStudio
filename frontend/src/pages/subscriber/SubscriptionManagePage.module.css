@@ -403,9 +403,17 @@
 
 .modalFooter {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   padding: 0 24px 20px;
+}
+
+.modalFooter button {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
 }
 
 .successMsg {
@@ -422,6 +430,10 @@
 
 /* ══ Mobile ══ */
 @media (max-width: 767px) {
+  .modalFooter {
+    flex-direction: column;
+  }
+
   .pageTitle {
     font-size: 18px;
   }

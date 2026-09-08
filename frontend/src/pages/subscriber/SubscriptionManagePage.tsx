@@ -358,6 +358,13 @@ export default function SubscriptionManagePage() {
   const [previewRetryVersion, setPreviewRetryVersion] = useState(0);
   const previewVersionRef = useRef(0);
   const previewAbortRef = useRef<AbortController | null>(null);
+  const [upgradeConfirmation, setUpgradeConfirmation] = useState<{
+    preview: SubscriptionChangePreview;
+    subscription: MySubscription;
+    planId: number;
+    cycle: BillingCycle;
+    version: number;
+  } | null>(null);
   const [changingPlan, setChangingPlan] = useState(false);
   const [changeMsg, setChangeMsg] = useState<string | null>(null);
   const [changeError, setChangeError] = useState<string | null>(null);
@@ -626,6 +633,7 @@ export default function SubscriptionManagePage() {
     previewAbortRef.current?.abort();
     previewAbortRef.current = null;
     const version = ++previewVersionRef.current;
+    setUpgradeConfirmation(null);
 
     if (!selectedPlan || !sub) {
       setPreview(null);
@@ -679,6 +687,7 @@ export default function SubscriptionManagePage() {
 
     setChangeMsg(null);
     setChangeError(null);
+    setUpgradeConfirmation(null);
     setSelectedPlan(plan);
     if (sub && isCurrentPlan && hasPendingChange) {
       setSelectedCycle(sub.billingCycle);
@@ -690,6 +699,7 @@ export default function SubscriptionManagePage() {
   }
 
   function handleSelectCycle(cycle: BillingCycle) {
+    setUpgradeConfirmation(null);
     setSelectedCycle(cycle);
     if (
       sub &&
@@ -721,8 +731,34 @@ export default function SubscriptionManagePage() {
     navigate(`/subscriptions/checkout?${params.toString()}`);
   }
 
+  function requestChangePlan() {
+    if (!selectedPlan || !preview || !sub || loadingPreview || mutationBlocked) return;
+    if (preview.changeType === 'UPGRADE' && preview.proratedAmount > 0) {
+      setUpgradeConfirmation({
+        preview,
+        subscription: sub,
+        planId: selectedPlan.id,
+        cycle: selectedCycle,
+        version: previewVersionRef.current,
+      });
+      return;
+    }
+    void handleChangePlan();
+  }
+
   async function handleChangePlan() {
-    if (!selectedPlan || !preview || !sub) return;
+    if (!selectedPlan || !preview || !sub || loadingPreview) return;
+    if (
+      preview.changeType === 'UPGRADE' &&
+      preview.proratedAmount > 0 &&
+      (!upgradeConfirmation ||
+        upgradeConfirmation.preview !== preview ||
+        upgradeConfirmation.subscription !== sub ||
+        upgradeConfirmation.planId !== selectedPlan.id ||
+        upgradeConfirmation.cycle !== selectedCycle ||
+        upgradeConfirmation.version !== previewVersionRef.current)
+    )
+      return;
     if (preview.changeType === 'UPGRADE' && !hasKnownBillingAgreementState) return;
     const hasReusablePaymentMethod = isReusableBillingAgreement(billingAgreement, sub?.status);
     if (preview.changeType === 'UPGRADE' && !hasReusablePaymentMethod) {
@@ -732,6 +768,7 @@ export default function SubscriptionManagePage() {
       return;
     }
     if (!tryBeginMutation()) return;
+    setUpgradeConfirmation(null);
     const operationContext: ManageOperationContext = {
       kind: 'CHANGE',
       mutationSucceeded: false,
@@ -1217,11 +1254,31 @@ export default function SubscriptionManagePage() {
                   <span className={styles.previewValue}>{getDisplayName(preview.newPlanName)}</span>
                 </div>
                 <div className={styles.previewItem}>
-                  <span className={styles.previewLabel}>{'결제 주기'}</span>
+                  <span className={styles.previewLabel}>{'다음 결제 주기'}</span>
                   <span className={styles.previewValue}>
                     {getBillingCycleLabel(preview.newBillingCycle)}
                   </span>
                 </div>
+                {preview.changeType === 'UPGRADE' && (
+                  <>
+                    <div className={styles.previewItem}>
+                      <span className={styles.previewLabel}>{'현재 유지 결제 주기'}</span>
+                      <span className={styles.previewValue}>
+                        {getBillingCycleLabel(sub.billingCycle)}
+                      </span>
+                    </div>
+                    <div className={styles.previewItem}>
+                      <span className={styles.previewLabel}>{'현재 구독 기간'}</span>
+                      <span className={styles.previewValue}>
+                        {formatDate(sub.startedAt)} ~ {formatDate(sub.expiresAt)}
+                      </span>
+                    </div>
+                    <div className={styles.previewItem}>
+                      <span className={styles.previewLabel}>{'유지되는 만료일'}</span>
+                      <span className={styles.previewValue}>{formatDate(sub.expiresAt)}</span>
+                    </div>
+                  </>
+                )}
                 <div className={styles.previewItem}>
                   <span className={styles.previewLabel}>{'오늘 결제'}</span>
                   <span className={styles.previewValue}>
@@ -1281,7 +1338,7 @@ export default function SubscriptionManagePage() {
                           returnCycle: selectedCycle,
                           returnAmount: preview.proratedAmount,
                         })
-                    : handleChangePlan
+                    : requestChangePlan
                 }
                 loading={changingPlan}
                 disabled={mutationBlocked || upgradeBlockedByBillingRead}
@@ -1347,6 +1404,52 @@ export default function SubscriptionManagePage() {
           </Button>
         </div>
       )}
+
+      <Modal
+        open={Boolean(
+          upgradeConfirmation &&
+          upgradeConfirmation.preview === preview &&
+          upgradeConfirmation.subscription === sub &&
+          !loadingPreview,
+        )}
+        onClose={() => setUpgradeConfirmation(null)}
+        title="업그레이드 결제 확인"
+      >
+        {upgradeConfirmation && (
+          <>
+            <div className={styles.modalBody}>
+              <p>대상 플랜: {getDisplayName(upgradeConfirmation.preview.newPlanName)}</p>
+              <p>
+                현재 유지 결제 주기:{' '}
+                {getBillingCycleLabel(upgradeConfirmation.subscription.billingCycle)}
+              </p>
+              <p>
+                현재 구독 기간: {formatDate(upgradeConfirmation.subscription.startedAt)} ~{' '}
+                {formatDate(upgradeConfirmation.subscription.expiresAt)}
+              </p>
+              <p>오늘 결제: {formatAmount(upgradeConfirmation.preview.proratedAmount)}원</p>
+              <p>유지되는 만료일: {formatDate(upgradeConfirmation.subscription.expiresAt)}</p>
+              <p>
+                다음 결제: {getBillingCycleLabel(upgradeConfirmation.preview.newBillingCycle)} /{' '}
+                {formatDate(upgradeConfirmation.preview.nextBillingDate)} /{' '}
+                {formatAmount(upgradeConfirmation.preview.nextBillingAmount)}원
+              </p>
+            </div>
+            <div className={styles.modalFooter}>
+              <Button variant="ghost" onClick={() => setUpgradeConfirmation(null)}>
+                돌아가기
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => void handleChangePlan()}
+                disabled={mutationBlocked || upgradeBlockedByBillingRead}
+              >
+                {formatAmount(upgradeConfirmation.preview.proratedAmount)}원 결제 및 변경 확정
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
 
       {/* ── Cancel Confirm Modal ── */}
       <Modal

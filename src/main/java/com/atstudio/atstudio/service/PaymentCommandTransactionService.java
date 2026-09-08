@@ -556,6 +556,7 @@ public class PaymentCommandTransactionService {
             UserSubscription existingSubscription = existingPayment.getUserSubscription();
             order.markDone(order.getPgTransactionId(), existingSubscription, order.getProviderPayload());
             activateAgreement(agreement, existingSubscription);
+            agreement.recordSuccessfulCharge(existingSubscription.getExpiresAt());
             return toConfirmResponse(order, agreement);
         }
 
@@ -596,6 +597,7 @@ public class PaymentCommandTransactionService {
 
         order.markDone(order.getPgTransactionId(), userSubscription, order.getProviderPayload());
         activateAgreement(agreement, userSubscription);
+        agreement.recordSuccessfulCharge(userSubscription.getExpiresAt());
         paymentReceiptEvidenceService.publishSuccessfulChargeEvidence(
                 order,
                 subscriptionPayment,
@@ -1144,7 +1146,6 @@ public class PaymentCommandTransactionService {
                 agreement.getPayMethod(),
                 agreement.getMaskedMethod(),
                 userSubscription.getExpiresAt());
-        agreement.recordSuccessfulCharge(userSubscription.getExpiresAt());
     }
 
     private PaymentOrderRepository.CommandLockProjection commandLockProjection(String orderID) {

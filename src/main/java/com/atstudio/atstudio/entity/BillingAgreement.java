@@ -97,6 +97,7 @@ public class BillingAgreement extends BaseEntity {
     @Column(name = "renewal_retry_at")
     private LocalDate renewalRetryAt;
 
+    // Charge history survives billing-key registration and cleanup.
     @Column(name = "last_charged_at")
     private LocalDateTime lastChargedAt;
 
@@ -150,7 +151,6 @@ public class BillingAgreement extends BaseEntity {
         this.maskedMethod = null;
         this.nextBillingAt = null;
         this.renewalRetryAt = null;
-        this.lastChargedAt = null;
         this.failureCount = 0;
         this.cancelledAt = null;
         this.billingKeyCleanupStatus = BillingKeyCleanupStatus.NONE;
@@ -182,7 +182,6 @@ public class BillingAgreement extends BaseEntity {
         this.maskedMethod = null;
         this.nextBillingAt = null;
         this.renewalRetryAt = null;
-        this.lastChargedAt = null;
         this.billingKeyCleanupStatus = BillingKeyCleanupStatus.NONE;
         this.billingKeyCleanupStartedAt = null;
     }

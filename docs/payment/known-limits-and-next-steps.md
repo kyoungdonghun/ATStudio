@@ -1,6 +1,6 @@
 ---
-version: 1.6
-last_updated: 2026-08-17
+version: 1.8
+last_updated: 2026-09-08
 project: ATS
 owner: docops
 category: guide
@@ -44,16 +44,51 @@ The following capabilities are implemented and code/test verified for the curren
 
 This is not production-readiness closure or a full financial back-office suite.
 V1 has a fresh-only source schema with 43 derived `CREATE TABLE` statements and
-43 JPA entities. Its recorded guarded disposable MySQL manifest is 43 tables,
+43 JPA entities. Its 2026-08-17 guarded disposable MySQL manifest records 43 tables,
 511 columns, 175 indexes, 91 foreign keys, 6 plans, 6 plan keys, zero forbidden
 tables/columns, and SHA-256
 `b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4`.
-Retained-data migration is not supplied. Local automated quality gates are
-closed, while production data strategy, live Toss
-configuration, production deployment/monitoring, client acceptance, and final
-release approval remain open.
+Retained-data migration is not supplied. The 2026-09-08 approved development
+round and its automated quality gates are complete; accepted user/Toss TEST/Gmail
+cases are listed in the [dated acceptance record](acceptance-test-checklist.md#2026-09-08-acceptance-record).
+Target-production decisions remain in [SR-93](../SR/SR-93.md#remaining-production-gates).
 
-Dependency boundary: the official V1 baseline branch `codex/p1-acceptance-hardening` currently resolves Vite 6.4.3, and no separate client-demo branch is maintained. Public access requires a newly verified operator-controlled acceptance runtime.
+Use the [central source/runtime snapshot](index.md#2026-09-08-source-and-runtime)
+for the current branch, retained client worktree and deployed-code boundary.
+
+### 2026-09-08 Maintenance Candidates
+
+The callback hint, paid-upgrade confirmation, registration charge-history
+preservation and explicit correction-expiry safeguards are completed fixes,
+not deferred work. These candidates are not approved feature additions.
+
+| Candidate | Current disposition |
+| :-- | :-- |
+| Correction/reconciliation Incident terminology | Source-complete in WI007: both admin entries display `구독 이용권 조정` and require `구독 이용권 조정 실행`; incident display is `결제 점검 이슈`. No route, API or canonical-term rename; old confirmation wording is rejected. |
+| Mail wording and deliverability | Korean payment/reconciliation copy is source-complete in WI006, with UTF-8 MIME and escaping tests. The earlier English mail in Gmail spam remains dated evidence; updated-mail delivery, inbox placement and an SPF/DKIM root cause are not proved. |
+| Receipt display after refund | Source-complete in WI007: `증빙 상태` and `발급 기록` clarify stored original-charge evidence, separate from refund state. Known receipt statuses are localized; unknown values and safe URL/reference fallback remain. No refund aggregate or new API was added. |
+| Correction edit/cancel workflow | No correction edit/cancel API exists. A controlled workflow is larger future scope, not implicit authorization for manual data changes. |
+| Storage-integrity pagination | Consider bounded pagination when scale warrants it; the 10 historical missing media references need a separate data/media decision, not a UI waiver. |
+
+The small copy implementations are complete under
+[REQ002](../../deliverables/user/REQ-20260908-ATS-002.md); final aggregate,
+synthetic-browser and documentation gates passed at the source boundary in
+[WI008](../../deliverables/agent/WI-20260908-ATS-008-evidence-pack.md).
+[WI009](../../deliverables/agent/WI-20260908-ATS-009-evidence-pack.md) subsequently
+confirmed restart and HTTP adoption of that tested artifact, plus basic
+unauthenticated public-page rendering. The changed mail is in the running
+artifact; fresh SMTP delivery and inbox placement remain untested. WI010 has
+MA's real authenticated admin orders/nine-tab rendering, localized receipt
+rows and guarded correction controls at both admin entry points with no
+mutations, plus focused frontend and formatting PASS. This covers observed
+desktop surfaces, not new subscriber mutation acceptance. Scoped commit/push
+is still pending in [WI010 evidence](../../deliverables/agent/WI-20260908-ATS-010-evidence-pack.md).
+Prior full-suite totals are not new runs, and these development observations
+do not close external/production gates.
+
+An actual critical money or security defect remains a release blocker regardless
+of implementation size. New PGs, webhooks and inactive OAuth providers are not
+mandatory additions to this card-recurring/password-login release scope.
 
 ## 2. Planned Features
 

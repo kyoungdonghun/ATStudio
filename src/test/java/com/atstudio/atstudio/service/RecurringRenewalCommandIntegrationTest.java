@@ -1,12 +1,16 @@
 package com.atstudio.atstudio.service;
 
+import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
+import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.config.JpaConfig;
 import com.atstudio.atstudio.config.PaymentProperties;
 import com.atstudio.atstudio.entity.BillingAgreement;
 import com.atstudio.atstudio.entity.PaymentOrder;
 import com.atstudio.atstudio.entity.Subscription;
+import com.atstudio.atstudio.entity.Track;
 import com.atstudio.atstudio.entity.User;
 import com.atstudio.atstudio.entity.UserSubscription;
+import com.atstudio.atstudio.entity.enums.BillingAgreementStatus;
 import com.atstudio.atstudio.entity.enums.BillingCycle;
 import com.atstudio.atstudio.entity.enums.PaymentOrderStatus;
 import com.atstudio.atstudio.entity.enums.PaymentProviderType;
@@ -14,37 +18,59 @@ import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import com.atstudio.atstudio.entity.enums.SubscriptionStatus;
 import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.entity.enums.UserType;
+import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.payment.billing.BillingKeyCrypto;
 import com.atstudio.atstudio.service.payment.provider.recurring.BillingChargeResult;
+import com.atstudio.atstudio.service.storage.StorageRoot;
+import com.atstudio.atstudio.service.storage.StorageService;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.sql.DataSource;
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
 @Import({
         JpaConfig.class,
         PaymentCommandKeyFactory.class,
         PaymentCommandTransactionService.class,
         RecurringRenewalService.class,
+        DownloadService.class,
         RecurringRenewalCommandIntegrationTest.PaymentConfiguration.class,
         BillingAgreementCommandIntegrationTestSupport.ProviderConfiguration.class
 })
@@ -64,12 +90,17 @@ class RecurringRenewalCommandIntegrationTest {
     }
 
     @Autowired RecurringRenewalService service;
+    @Autowired DownloadService downloadService;
+    @Autowired DataSource dataSource;
     @Autowired com.atstudio.atstudio.repository.UserRepository userRepository;
     @Autowired com.atstudio.atstudio.repository.SubscriptionRepository subscriptionRepository;
     @Autowired com.atstudio.atstudio.repository.UserSubscriptionRepository userSubscriptionRepository;
     @Autowired com.atstudio.atstudio.repository.BillingAgreementRepository billingAgreementRepository;
     @Autowired com.atstudio.atstudio.repository.PaymentOrderRepository paymentOrderRepository;
     @Autowired com.atstudio.atstudio.repository.SubscriptionPaymentRepository subscriptionPaymentRepository;
+    @Autowired com.atstudio.atstudio.repository.TrackRepository trackRepository;
+    @Autowired com.atstudio.atstudio.repository.TrackDownloadRepository trackDownloadRepository;
+    @Autowired com.atstudio.atstudio.repository.LicenseRepository licenseRepository;
     @Autowired BillingAgreementCommandIntegrationTestSupport.TestRecurringPaymentProvider recurringPaymentProvider;
     @Autowired EntityManager entityManager;
 
@@ -78,9 +109,20 @@ class RecurringRenewalCommandIntegrationTest {
     @MockitoBean PaymentReceiptEvidenceService paymentReceiptEvidenceService;
     @MockitoBean PaymentReconciliationIncidentService incidentService;
     @MockitoBean PlaylistService playlistService;
+    @MockitoBean StorageService storageService;
+
+    @BeforeEach
+    void verifyIsolatedDatabase() throws SQLException {
+        try (var connection = dataSource.getConnection()) {
+            assertThat(connection.getMetaData().getURL()).startsWith("jdbc:h2:mem:");
+        }
+    }
 
     @AfterEach
     void cleanDatabase() {
+        licenseRepository.deleteAll();
+        trackDownloadRepository.deleteAll();
+        trackRepository.deleteAll();
         subscriptionPaymentRepository.deleteAll();
         paymentOrderRepository.deleteAll();
         billingAgreementRepository.deleteAll();
@@ -219,6 +261,147 @@ class RecurringRenewalCommandIntegrationTest {
     }
 
     @Test
+    @DisplayName("three failures consume same-day retry gates and suspend one renewal command without a paid ledger")
+    void threeConsecutiveFailuresConsumeRetryGateAndSuspend() {
+        LocalDate due = LocalDate.of(2026, 9, 8);
+        LocalDate graceEndsAt = due.plusDays(3);
+        Fixture fixture = persistRenewalFixture("terminal-failure", due);
+        given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("billing_raw_key");
+        recurringPaymentProvider.chargeResults(
+                BillingChargeResult.failure("DECLINED", "First attempt declined."),
+                BillingChargeResult.failure("DECLINED", "Second attempt declined."),
+                BillingChargeResult.failure("DECLINED", "Third attempt declined."));
+        List<PaymentOrder> attempts = new ArrayList<>();
+
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            int expectedAttempt = attempt;
+            LocalDate runDay = due.plusDays(attempt - 1);
+            recurringPaymentProvider.chargeProbe(() -> {
+                entityManager.clear();
+                PaymentOrder processing = renewalOrderFor(fixture.agreementID());
+                BillingAgreement agreement = billingAgreementRepository.findById(fixture.agreementID()).orElseThrow();
+                assertThat(processing.getStatus()).isEqualTo(PaymentOrderStatus.PROCESSING);
+                assertThat(processing.getProviderAttempt()).isEqualTo(expectedAttempt);
+                assertThat(agreement.getRenewalRetryAt()).isNull();
+                assertThat(agreement.getFailureCount()).isEqualTo(expectedAttempt - 1);
+                assertThat(billingAgreementRepository.findDueRenewalCandidateIDs(
+                        BillingAgreementStatus.ACTIVE, runDay, runDay.minusDays(3))).isEmpty();
+                assertThat(service.processDueRenewals(runDay))
+                        .isEqualTo(new RecurringRenewalService.RenewalRunResult(0, 0, 0, 0));
+            });
+
+            assertThat(service.processDueRenewals(runDay))
+                    .isEqualTo(new RecurringRenewalService.RenewalRunResult(1, 0, 1, 0));
+            entityManager.clear();
+            PaymentOrder failed = renewalOrderFor(fixture.agreementID());
+            attempts.add(failed);
+            BillingAgreement agreement = billingAgreementRepository.findById(fixture.agreementID()).orElseThrow();
+            UserSubscription subscription = userSubscriptionRepository.findById(fixture.userSubscriptionID())
+                    .orElseThrow();
+            assertThat(failed.getStatus()).isEqualTo(PaymentOrderStatus.FAILED);
+            assertThat(failed.getFailureCode()).isEqualTo("DECLINED");
+            assertThat(failed.getProviderAttempt()).isEqualTo(attempt);
+            assertThat(failed.getBillingPeriodStart()).isEqualTo(due);
+            assertThat(failed.getCommandKey()).isEqualTo("RENEWAL:%d:%d:%s".formatted(
+                    fixture.agreementID(), fixture.userSubscriptionID(), due));
+            assertThat(failed.getProviderIdempotencyKey()).endsWith("attempt-" + attempt);
+            assertThat(recurringPaymentProvider.lastChargeCommand().orderId()).isEqualTo(failed.getOrderId());
+            assertThat(recurringPaymentProvider.lastChargeCommand().idempotencyKey())
+                    .isEqualTo(failed.getProviderIdempotencyKey());
+            assertThat(agreement.getFailureCount()).isEqualTo(attempt);
+            assertThat(agreement.getNextBillingAt()).isEqualTo(due);
+            assertThat(agreement.getStatus()).isEqualTo(attempt == 3
+                    ? BillingAgreementStatus.SUSPENDED : BillingAgreementStatus.ACTIVE);
+            assertThat(agreement.getRenewalRetryAt()).isEqualTo(attempt == 3 ? null : runDay.plusDays(1));
+            assertThat(subscription.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+            assertThat(subscription.getStartedAt()).isEqualTo(due.minusMonths(1));
+            assertThat(subscription.getExpiresAt()).isEqualTo(graceEndsAt);
+            assertThat(paymentOrderRepository.count()).isEqualTo(1);
+            assertThat(subscriptionPaymentRepository.count()).isZero();
+            assertThat(service.processDueRenewals(runDay))
+                    .isEqualTo(new RecurringRenewalService.RenewalRunResult(0, 0, 0, 0));
+            assertThat(recurringPaymentProvider.calls()).hasSize(attempt);
+        }
+
+        assertThat(attempts).extracting(PaymentOrder::getId).containsOnly(attempts.get(0).getId());
+        assertThat(attempts).extracting(PaymentOrder::getOrderId).containsOnly(attempts.get(0).getOrderId());
+        assertThat(attempts).extracting(PaymentOrder::getProviderIdempotencyKey).doesNotHaveDuplicates();
+        assertThat(userSubscriptionRepository.findActiveByUser(fixture.user(), graceEndsAt.minusDays(1))).isPresent();
+        assertThat(userSubscriptionRepository.findActiveByUser(fixture.user(), graceEndsAt)).isPresent();
+        assertThat(userSubscriptionRepository.findActiveByUser(fixture.user(), graceEndsAt.plusDays(1))).isEmpty();
+
+        for (LocalDate later : List.of(graceEndsAt, graceEndsAt.plusDays(1), due.plusMonths(1))) {
+            assertThat(service.processDueRenewals(later))
+                    .isEqualTo(new RecurringRenewalService.RenewalRunResult(0, 0, 0, 0));
+        }
+        entityManager.clear();
+        assertThat(renewalOrderFor(fixture.agreementID()).getProviderAttempt()).isEqualTo(3);
+        assertThat(billingAgreementRepository.findById(fixture.agreementID()).orElseThrow().getStatus())
+                .isEqualTo(BillingAgreementStatus.SUSPENDED);
+        assertThat(paymentOrderRepository.count()).isEqualTo(1);
+        assertThat(subscriptionPaymentRepository.count()).isZero();
+        assertThat(recurringPaymentProvider.calls()).containsExactly("charge", "charge", "charge");
+        verify(billingKeyCrypto, times(3)).decrypt("encrypted-key");
+        verify(emailService, times(3)).sendSubscriptionPaymentFailureEmail(any(User.class), anyString(), anyString());
+        verifyNoInteractions(paymentReceiptEvidenceService);
+    }
+
+    @Test
+    @DisplayName("terminal renewal preserves downloads through grace end, then denies first downloads but allows licensed repeats")
+    void terminalRenewalGraceBoundaryControlsFirstDownloadButNotLicensedRepeat() {
+        LocalDate due = LocalDate.of(2026, 9, 8);
+        LocalDate graceEndsAt = due.plusDays(3);
+        Fixture fixture = persistRenewalFixture("download-grace", due);
+        given(billingKeyCrypto.decrypt("encrypted-key")).willReturn("billing_raw_key");
+        recurringPaymentProvider.chargeResult(BillingChargeResult.failure("DECLINED", "Renewal declined."));
+        for (int day = 0; day < 3; day++) {
+            assertThat(service.processDueRenewals(due.plusDays(day)))
+                    .isEqualTo(new RecurringRenewalService.RenewalRunResult(1, 0, 1, 0));
+        }
+        assertThat(billingAgreementRepository.findById(fixture.agreementID()).orElseThrow().getStatus())
+                .isEqualTo(BillingAgreementStatus.SUSPENDED);
+        assertThat(userSubscriptionRepository.findById(fixture.userSubscriptionID()).orElseThrow().getExpiresAt())
+                .isEqualTo(graceEndsAt);
+
+        Track beforeBoundary = persistDownloadTrack(fixture.user(), "before-boundary");
+        Track onBoundary = persistDownloadTrack(fixture.user(), "on-boundary");
+        Track unlicensed = persistDownloadTrack(fixture.user(), "unlicensed");
+        CustomUserDetails userDetails = CustomUserDetails.builder()
+                .id(fixture.user().getId()).role(UserRole.USER).build();
+        Resource audio = new ByteArrayResource(new byte[] {1, 2, 3});
+        given(storageService.loadAsResource(eq(StorageRoot.PUBLIC), anyString())).willReturn(audio);
+
+        assertThat(downloadOn(beforeBoundary.getId(), userDetails, graceEndsAt.minusDays(1))).isSameAs(audio);
+        assertThat(downloadOn(onBoundary.getId(), userDetails, graceEndsAt)).isSameAs(audio);
+        entityManager.clear();
+        assertThat(licenseRepository.findByUserAndTrack(fixture.user(), beforeBoundary)).isPresent();
+        assertThat(licenseRepository.findByUserAndTrack(fixture.user(), onBoundary)).isPresent();
+        assertThat(licenseRepository.count()).isEqualTo(2);
+        assertThat(trackDownloadRepository.count()).isEqualTo(2);
+
+        LocalDate expiredDay = graceEndsAt.plusDays(1);
+        assertThatThrownBy(() -> downloadOn(unlicensed.getId(), userDetails, expiredDay))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+        assertThat(downloadOn(beforeBoundary.getId(), userDetails, expiredDay)).isSameAs(audio);
+        assertThat(downloadOn(onBoundary.getId(), userDetails, expiredDay)).isSameAs(audio);
+
+        entityManager.clear();
+        assertThat(licenseRepository.findByUserAndTrack(fixture.user(), unlicensed)).isEmpty();
+        assertThat(licenseRepository.count()).isEqualTo(2);
+        assertThat(trackDownloadRepository.count()).isEqualTo(2);
+        assertThat(trackRepository.findById(beforeBoundary.getId()).orElseThrow().getDownloadCount()).isEqualTo(1);
+        assertThat(trackRepository.findById(onBoundary.getId()).orElseThrow().getDownloadCount()).isEqualTo(1);
+        assertThat(trackRepository.findById(unlicensed.getId()).orElseThrow().getDownloadCount()).isZero();
+        verify(storageService, times(2)).loadAsResource(StorageRoot.PUBLIC, beforeBoundary.getAudioFile());
+        verify(storageService, times(2)).loadAsResource(StorageRoot.PUBLIC, onBoundary.getAudioFile());
+        verify(storageService, never()).loadAsResource(StorageRoot.PUBLIC, unlicensed.getAudioFile());
+        assertThat(subscriptionPaymentRepository.count()).isZero();
+        assertThat(recurringPaymentProvider.calls()).containsExactly("charge", "charge", "charge");
+    }
+
+    @Test
     @DisplayName("an ambiguous renewal is not selected for a later automatic charge")
     void ambiguousRenewalIsNotSelectedForLaterCharge() {
         LocalDate due = LocalDate.of(2026, 8, 17);
@@ -298,6 +481,25 @@ class RecurringRenewalCommandIntegrationTest {
         assertThat(subscriptionPaymentRepository.count()).isEqualTo(1);
         assertThat(subscriptionPaymentRepository.findByPaymentOrder(renewalOrderFor(laterSuccess.agreementID())))
                 .isPresent();
+    }
+
+    private Resource downloadOn(Long trackID, CustomUserDetails userDetails, LocalDate date) {
+        // DownloadService has no Clock seam; pin only its no-argument date lookup.
+        try (MockedStatic<LocalDate> dates = mockStatic(LocalDate.class, CALLS_REAL_METHODS)) {
+            dates.when(LocalDate::now).thenReturn(date);
+            return downloadService.download(trackID, userDetails);
+        }
+    }
+
+    private Track persistDownloadTrack(User user, String label) {
+        return trackRepository.saveAndFlush(Track.builder()
+                .user(user)
+                .title(label)
+                .bpm(120)
+                .tonality("C")
+                .audioFile("tracks/audio/" + label + ".mp3")
+                .isActive(true)
+                .build());
     }
 
     private Fixture persistRenewalFixture(String label, LocalDate due) {

@@ -1,6 +1,6 @@
 ---
-version: 1.7
-last_updated: 2026-07-17
+version: 1.9
+last_updated: 2026-09-08
 project: ATS
 owner: docops
 category: guide
@@ -26,7 +26,7 @@ dependencies:
 
 ## 1. Scope
 
-This directory explains the ATStudio payment system as of 2026-07-17.
+This directory explains the ATStudio payment system as of 2026-09-08.
 
 The current payment system is recurring-subscription first:
 
@@ -46,9 +46,54 @@ This directory is a guide layer. Detailed source-of-truth design documents remai
 
 The three 2026-07-13 P0 behaviors are implemented and focused-test verified in implementation commit `d11c62d`: protected Track media, secret-free mail delivery logs, and post-withdrawal renewal stop. This statement is limited to the P0 remediation slice.
 
-The later payment-integrity findings F-01 through F-05 are closed at the current repository code/test boundary. Packages A-G, the WI-008/WI-011 corrections, WI-012 independent PASS, and the disposable MySQL 7/7 proof are mapped in [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md).
+The later payment-integrity findings F-01 through F-05 were closed at their dated repository code/test boundary. Packages A-G, the WI-008/WI-011 corrections, WI-012 independent PASS, and the disposable MySQL 7/7 proof are mapped in [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md).
 
-Production readiness remains OPEN in [SR-93](../SR/SR-93.md). The local backend, frontend, schema, and tooling gates are closed, but the broader release remains NO-GO until production data strategy, live Toss, deployment/monitoring, client acceptance, and explicit release approval are complete.
+The approved 2026-09-08 source work and WI009 development-runtime adoption are
+complete. WI010's bounded checks and documentation are complete; MA scoped
+commit/push remains pending. Actual
+user/Toss TEST/Gmail acceptance and the subsequent isolated source verification
+are recorded separately in the [dated acceptance record](acceptance-test-checklist.md#2026-09-08-acceptance-record).
+Production readiness remains OPEN under the [remaining production gates](../SR/SR-93.md#remaining-production-gates).
+
+### 2026-09-08 Source And Runtime
+
+This is the central checkout/deployment snapshot for this documentation pack.
+The latest runtime evidence is MA's 2026-09-08 20:11+ KST observation in
+[WI009](../../deliverables/agent/WI-20260908-ATS-009-evidence-pack.md#latest-2026-09-08-2011-kst--restart-and-http-adoption-complete).
+DocOps has not independently rechecked processes, HTTP or browser state.
+
+| Boundary | Latest supplied evidence |
+| :-- | :-- |
+| Source and Git | Approved work remains scoped to the main development checkout, `codex/v1-release-rehearsal-fixes`. WI010 MA checked the live remote development ref at `2f2e9ecc` and hashed 27 source files before staging. Scoped commit/push is pending, not completed. The client worktree is excluded; earlier cached-ref comparisons below remain historical. |
+| Running backend artifact | WI009 launched the unchanged WI008-tested `ATStudio-20260908-copy-polish.jar` from `C:/Users/jm991/AppData/Local/ATStudio/remote-development-20260908`; SHA-256 `5AE38AC932388E24223A723DDF3FC9BD2DB2B017B3ABC6F91496BCE1BC7F37C2`. Restart and HTTP adoption are complete; historical charge timestamps were not repaired. |
+| Development runtime | Backend PID 20860 started at 20:08:51; startup confirmed at 20:09:06. Frontend PID 20468 started at 20:11:07. Preserved Cloudflare PID 12512 serves the [development runtime](https://debian-reliable-round-responses.trycloudflare.com). These are dated identities, not permanent process ownership. |
+| Preserved environment | Same local profile/MySQL, `ddl-auto=validate`, bootstrap off, public/private storage roots, non-strict audit and Gmail/Toss TEST settings. Callback/mail/CORS origins were updated only in the processes. No DB/schema/source changes or real mail/provider calls occurred during restart. |
+| HTTP and browser boundary | WI009's five local/public GETs and exact-public-origin backend OPTIONS passed 200; changed Vite-source delivery and basic public HomePage rendering passed. WI010 MA recheck confirmed unchanged PID/artifact ownership and three HTTP 200 checks. Real authenticated admin payment tabs/receipts/correction guards and the second `/admin/user-subscriptions` correction modal passed the observed desktop checks. Screenshots had no overlapping labels. No stubs, receipt-link navigation or mutations. Exact checks and user-flow limits are in WI010. |
+| Remaining limits | Fresh SMTP delivery and inbox placement are untested. Startup audit checked 30 / missing 10; visible cover fallbacks were not diagnosed or causally tied to those references. MA reports fresh WI010 focused Vitest 5 files / 354 passed in 11.42s, typecheck, lint and full Prettier PASS; backend/full frontend suites were not rerun. External/production gates and SR-93 remain OPEN. |
+| Operating pointers | Use WI009's artifact/log paths and verify actual PID ownership before operations. The old `runtime-manifest.json` is stale and intentionally unchanged. [WI010 evidence](../../deliverables/agent/WI-20260908-ATS-010-evidence-pack.md) records the completed bounded checks and documentation review separately from pending Git results and OPEN target-production gates. |
+
+#### Historical WI005 Snapshot (Before REQ002)
+
+The table below preserves the earlier checkout/runtime comparison. It is not
+the current runtime state; WI009 above supersedes its pre-restart boundary.
+
+| Boundary | Verified state |
+| :-- | :-- |
+| Main source at WI005 | `C:/Users/jm991/Desktop/project/ATStudio`, branch `codex/v1-release-rehearsal-fixes`, HEAD `2f2e9eccadd9ae9626fe8273bc635068d42b09b0` plus uncommitted fixes. No product/test changes between WI004 review and that WI005 snapshot. |
+| Client worktree | `v1-client-acceptance-20260817` still exists at ref `c5f83fc`; only its existing `HomePage.tsx` and `HomePage.test.tsx` changes were observed. This round left it untouched. |
+| Cached refs | No local `master`. Cached `origin/master` is `5a67f3a`; `origin/master...HEAD` has 3 / 176 unique commits. No fetch or current-remote claim; deployment branch is not designated. |
+| Built versus running backend at WI005 | Full build used repo-external `closeout-build.gradle` and `build-closeout/`. Public backend then used the unchanged original `build/libs` JAR; the new backend had not yet been restarted and old charge timestamps were not repaired. |
+| TEST access at WI005 | MA then observed local/public frontend and API HTTP 200. Direct-backend CORS preflight allowed the trusted public Origin (200, exact allow-origin/headers) and rejected an untrusted Origin (403). The browser used the same-origin `/api` proxy; public proxy preflight was not cross-origin or production-topology proof. PIDs 19932/19376/2372 were unchanged at that snapshot and are now historical. |
+| Evidence | [WI005 Evidence Pack](../../deliverables/agent/WI-20260908-ATS-005-evidence-pack.md) holds JAR identity, artifact paths, aggregate results, browser-fixture boundaries and the actual acceptance timeline. |
+
+The later [REQ002 copy follow-up](acceptance-test-checklist.md#req002-copy-follow-up)
+implements Korean payment/reconciliation mail, `구독 이용권 조정` in both admin
+entry points, `결제 점검 이슈`, and receipt evidence clarity. WI006/007 source
+work and WI008 validation are complete, with final MA aggregate and
+synthetic-browser results recorded there. WI009 subsequently completed
+development-runtime adoption as summarized above. WI010's bounded desktop,
+focused-test and documentation checks are complete; scoped Git recording
+remains pending. No fresh delivery of the changed mail or production GO is claimed.
 
 Closed scope:
 
@@ -67,7 +112,9 @@ Not blockers for closure:
 - A future provider adapter, if selected by an approved product requirement.
 - Additional operator notification channels.
 
-Removed payment aliases and direct-subscription creation are absent, not V1 compatibility paths. The official V1 baseline branch is `codex/p1-acceptance-hardening`; its current frontend install resolves Vite 6.4.3. No separate client-demo branch is maintained. Public access still requires a newly verified operator-controlled acceptance runtime.
+Removed payment aliases and direct-subscription creation are absent, not V1
+compatibility paths. The earlier `codex/p1-acceptance-hardening` baseline and its
+dated Vite 6.4.3 observation are historical, not the current checkout designation.
 
 On hold under the current card-only recurring subscription premise:
 

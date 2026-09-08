@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -218,11 +219,17 @@ class PaymentCommandIndependentVerificationIntegrationTest
     void completedRenewalFinalizationIsIdempotentAfterPeriodAdvance() {
         LocalDate due = LocalDate.of(2026, 8, 17);
         RenewalFixture fixture = persistRenewalFixture("renewal-retry", due);
+        LocalDateTime prior = LocalDateTime.now().minusDays(1).withNano(0);
+        BillingAgreement agreement = reloadAgreement(fixture.agreementID());
+        ReflectionTestUtils.setField(agreement, "lastChargedAt", prior);
+        billingAgreementRepository.saveAndFlush(agreement);
 
         RecurringRenewalService.RenewalRunResult completed = recurringRenewalService.processDueRenewals(due);
         PaymentOrder order = renewalOrderFor(fixture.agreementID());
+        LocalDateTime chargedAt = reloadAgreement(fixture.agreementID()).getLastChargedAt();
 
         assertThat(completed.succeeded()).isEqualTo(1);
+        assertThat(chargedAt).isAfter(prior);
         assertThat(order.getStatus()).isEqualTo(PaymentOrderStatus.DONE);
         assertThat(billingAgreementRepository.findById(fixture.agreementID()).orElseThrow().getNextBillingAt())
                 .isEqualTo(due.plusMonths(1));
@@ -240,6 +247,7 @@ class PaymentCommandIndependentVerificationIntegrationTest
                 });
         assertThat(billingAgreementRepository.findById(fixture.agreementID()).orElseThrow().getNextBillingAt())
                 .isEqualTo(due.plusMonths(1));
+        assertThat(reloadAgreement(fixture.agreementID()).getLastChargedAt()).isEqualTo(chargedAt);
         assertThat(recurringPaymentProvider.calls()).containsExactly("charge");
     }
 
