@@ -4,7 +4,7 @@ last_updated: 2026-09-09
 project: ATS
 owner: re
 category: evidence-pack
-status: active
+status: confirmed
 dependencies:
   - path: WI-20260909-ATS-015-handoff.md
     reason: Approved delegation and execution ownership
@@ -15,7 +15,7 @@ dependencies:
 # Evidence Pack: WI-20260909-ATS-015
 
 ## Summary / Scope
-**Application PARTIAL.** Product commit/push and backend application succeeded; public frontend remains unavailable after its start tool was rejected with `blocked-by-policy`. No replacement frontend process launched, no workaround was attempted, and the user was asked to change approval mode. This is not completed test-server or production acceptance.
+**Named TEST-runtime application COMPLETE.** MA subsequently started the frontend after the user changed approval mode and approved startup; local/public frontend and tracks API checks all returned 200. The earlier `blocked-by-policy` denial is a historical checkpoint, not a current blocker. Re-login and authenticated acceptance remain pending; this is not production acceptance.
 RE prepared only the external launcher, this evidence/summary, explicitly approved EOF corrections, and the authorized REQ status addition. MA owns Git, DB preflight and all runtime execution. Runtime outcomes below are MA-supplied evidence, not actions executed by RE.
 
 ## Reference Documents (Tier 0-2)
@@ -36,9 +36,15 @@ RE prepared only the external launcher, this evidence/summary, explicitly approv
 - [x] RE used PowerShell 7.6.5 `Parser::ParseFile`: 0 parse errors; all 100 existing argument tokens identical; one hidden `Start-Process`; existing launcher hash unchanged. RE never invoked either launcher, including `CheckOnly`.
 - [x] Approved handoffs `WI-20260909-ATS-006` through `012`, plus `014`: `apply_patch` removed only the surplus final blank line. All eight content hashes excluding EOF matched; LF counts changed 44 to 43; targeted working-tree `git diff --check` passed. MA owned re-staging and commit.
 - Earlier unstaged diff checking did not inspect those then-untracked handoffs. MA's subsequent 130-file staged check found their eight EOF failures. These are distinct checks; the earlier result is not represented as full staged coverage.
-- [x] Readiness was reported before execution; supplied execution/preservation evidence is recorded with provenance. [ ] Frontend restart and local/public smoke; [ ] complete application acceptance. No additional runtime commands were executed by RE during this documentation update.
+- [x] Readiness was reported before execution; supplied execution/preservation evidence is recorded with provenance. [x] Frontend restart and local/public smoke; [x] named TEST-runtime application. [ ] Re-login/authenticated acceptance; [ ] production acceptance. No additional runtime commands were executed by RE during this documentation update.
 
 ## Scheduler / Maintenance / Rollback
 Existing cron jobs remain at 00:00/00:10/00:30/01:00/01:15 in Asia/Seoul. MA reported no cron catch-up on startup at the 07:33 preflight. Storage recovery runs at startup and periodically; zero pending preflight entries is point-in-time evidence, not scheduler disablement or a future no-write guarantee. Preserve one writer, audit-on-startup=true, strict-on-startup=false and the existing SMTP connection check.
 The later MA npm audit reported 3 moderate package findings (`@vitest/mocker`, `vitest`, `@vitest/coverage-v8`) from one advisory, [GHSA-82fw-gwwq-j7x9](https://github.com/vitest-dev/vitest/security/advisories/GHSA-82fw-gwwq-j7x9). The official advisory ties unauthenticated exploitation to public mocker/interceptor plugin integration. Current `frontend/vite.config.ts` uses `vitest/config` defineConfig and `plugins: [react()]`; MA found no mockerPlugin/interceptorPlugin configuration. This is configuration evidence, not an exploitation test or universal safety claim. Record development-dependency maintenance without patching this scope. Earlier zero findings and this later result are check-time observations; no new-publication claim is made.
-REQ002 remains `in_progress`, pending frontend execution policy/approval resolution and smoke evidence. No money/provider/mail/data/DDL operation was delegated to RE. Rollback requires admission closure, single-writer control and fresh unfinished-command disposition; never blindly restart the old JAR after new monetary activity. SR-93 production HOLD remains separate. WI015 blocks no successor; REQ completion remains with MA.
+REQ002 is `completed` for the approved TEST-runtime application scope; re-login/authenticated acceptance remains pending and SR-93 production HOLD remains open. No money/provider/mail/data/DDL operation was delegated to RE. Rollback requires admission closure, single-writer control and fresh unfinished-command disposition; never blindly restart the old JAR after new monetary activity. WI015 blocks no successor; MA owns remaining checks and documentation commit.
+
+## Dated Completion Update: 2026-09-09 07:58 KST
+MA's CUA smoke: reloading public home redirected the old typeless session to `/login`; the AT.M login form/button rendered without an app crash. No login was submitted; authenticated acceptance remains the user's next step.
+MA reports that the user changed approval mode and approved startup. The same frontend `Start-Process` succeeded with `require_escalated`: PID 25196 at `2026-09-09T07:58:35+09:00`; backend PID 10292 and tunnel PID 1888 remained unchanged. No bypass of the earlier denial was used.
+MA verified HTTP 200 for `http://127.0.0.1:5173/`, `http://127.0.0.1:8080/api/tracks`, `https://final-expression-heading-header.trycloudflare.com/` and its `/api/tracks` route. Evidence: `output/test-application-20260909/frontend-start.json` and `final-http.json`. These are MA-supplied actual results; RE performed no additional probes or audits in this update.
+Product commit `2d47504` and documentation checkpoint `2a905da` were already pushed. The earlier product-ref equality and frontend-denial records above describe their original checkpoints. This update changes documentation only: no source changes, restarts, funds or DB operations by RE. The existing three-moderate audit record remains unchanged; HTTP smoke does not close authenticated or production acceptance.
