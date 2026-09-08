@@ -81,8 +81,10 @@ artifact; fresh SMTP delivery and inbox placement remain untested. WI010 has
 MA's real authenticated admin orders/nine-tab rendering, localized receipt
 rows and guarded correction controls at both admin entry points with no
 mutations, plus focused frontend and formatting PASS. This covers observed
-desktop surfaces, not new subscriber mutation acceptance. Scoped commit/push
-is still pending in [WI010 evidence](../../deliverables/agent/WI-20260908-ATS-010-evidence-pack.md).
+desktop surfaces, not new subscriber mutation acceptance. MA's verified
+70-path source/test/documentation commit/push `7eae086` completes WI010 limited
+work; [WI010 evidence](../../deliverables/agent/WI-20260908-ATS-010-evidence-pack.md)
+separates that result from this later, not-yet-committed documentation receipt.
 Prior full-suite totals are not new runs, and these development observations
 do not close external/production gates.
 

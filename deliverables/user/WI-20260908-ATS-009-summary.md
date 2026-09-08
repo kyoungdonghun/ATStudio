@@ -19,9 +19,10 @@ evidence boundary.** See [the latest successful evidence](../agent/WI-20260908-A
 and the [central current snapshot](../../docs/payment/index.md#2026-09-08-source-and-runtime).
 The failed attempts below are historical, not current backend status. No fresh
 SMTP or complete role/financial acceptance is claimed. REQ002's subsequently
-approved WI010 depends on WI009; its bounded final checks and documentation
-are complete, with MA scoped commit/push pending. MA retains browser/runtime/Git
-ownership. SR-93 remains OPEN.
+approved WI010 depends on WI009 and is complete at the bounded check/documentation
+and verified source/test/documentation commit/push `7eae086` boundary. This
+later documentation receipt is not yet claimed committed/pushed. MA retains
+browser/runtime/Git ownership. SR-93 remains OPEN.
 
 ## Historical Attempt: Rejected Before Execution
 

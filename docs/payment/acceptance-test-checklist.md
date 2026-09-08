@@ -114,7 +114,10 @@ reason kept preview/create disabled. MA inspected the screenshot with no
 overlap, closed without editing/saving and observed the same unchanged row.
 These are bounded actual desktop checks, not fresh subscriber upgrade or
 failure-callback mutation acceptance; those paths retain component-test and
-previous synthetic-browser evidence. Scoped commit/push remains pending.
+previous synthetic-browser evidence. MA committed/pushed the approved 70-path
+source/test/documentation scope as `7eae086` and verified the exact live remote
+SHA; WI010 limited work is complete. This final documentation receipt is a
+later edit, not yet claimed committed/pushed.
 MA also reports fresh focused Vitest 5 files / 354 passed in 11.42s, typecheck,
 lint and full Prettier PASS; prior backend/full frontend results were not rerun.
 MA independently recounted the prior 191 backend XML reports: 1,708 total /

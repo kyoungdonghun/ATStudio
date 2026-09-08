@@ -4,7 +4,7 @@ last_updated: 2026-09-08
 project: ATS
 owner: docops
 category: evidence-pack
-status: active
+status: stable
 dependencies:
   - path: WI-20260908-ATS-010-handoff.md
     reason: Generated approved packet and exact documentation ownership
@@ -18,10 +18,11 @@ dependencies:
 
 ## Summary
 
-**DocOps handoff complete within the bounded documentation/desktop-check scope;
-MA scoped commit/push remains pending.** Central current-runtime text reflects
-successful WI009 adoption, and all supplied final browser observations are
-recorded. This does not close WI010's Git work or any production gate.
+**WI010 limited work complete.** MA committed/pushed the approved 70-path
+source/test/documentation scope as `7eae086` and verified the exact live remote
+SHA. Current runtime and observed desktop boundaries are recorded; production
+gates remain OPEN. This final documentation receipt is a later edit for MA's
+separate commit, not yet claimed committed/pushed.
 
 ## Scope / DoD Check
 
@@ -31,7 +32,7 @@ recorded. This does not close WI010's Git work or any production gate.
 - [x] Distinguish received MA real-browser/runtime observations from synthetic and prior full-suite evidence.
 - [x] Receive final MA browser observations and document the read-only operating-gate review without claiming target execution proof.
 - [x] Complete final documentation validation and non-Git owned-content checks; MA retains Git diff/staging checks.
-- [ ] Receive MA scoped commit/push outcome; close only this approved work, leaving SR-93 and external/production gates OPEN.
+- [x] Receive verified MA scoped commit/push outcome and complete this approved work; SR-93 and external/production gates remain OPEN.
 
 ## Reference Documents (Tier 0-2)
 
@@ -58,7 +59,7 @@ regenerate routing, alter configuration or launch nested agents.
 | `docs/payment/known-limits-and-next-steps.md` | Running-artifact adoption distinguished from untested fresh SMTP delivery |
 | `docs/SR/SR-93.md` | Latest development-runtime and final-check boundaries without closing production gates |
 | `deliverables/user/WI-20260908-ATS-009-summary.md` | Current successful-evidence pointer; failed attempts preserved under historical headings |
-| This pack and `deliverables/user/WI-20260908-ATS-010-summary.md` | Provisional two-set handoff, verification limits and documentation rollback scope |
+| This pack and `deliverables/user/WI-20260908-ATS-010-summary.md` | Completed limited-work record, verified Git receipt, verification limits and documentation rollback scope |
 | `deliverables/agent/WI-20260908-ATS-001-evidence-pack.md` | WI010 handoff addendum: remove copied-log trailing spaces only at lines 143 and 152-194 |
 | `deliverables/agent/WI-20260908-ATS-003-evidence-pack.md`; `deliverables/user/WI-20260908-ATS-001-summary.md`; `deliverables/user/WI-20260908-ATS-003-summary.md` | WI010 handoff addendum: remove one extra EOF blank line from each; no semantic edits |
 
@@ -102,13 +103,13 @@ was performed. Existing SR-93 gates below remain unchanged.
 | Recovery/ownership | Backup destination/retention, demonstrated isolated restore of DB/public/private roots, alert/secret owners and single-scheduler procedure |
 | Release | Target acceptance and explicit GO; current TEST tunnel, source tests and development browser checks do not close it |
 
-### MA Pre-staging Observations
+### Historical MA Pre-staging Observations
 
 - Tested-build/runtime artifact hashes match exactly. MA independently recounted the prior 191 JUnit XML files: 1,708 total / 1,689 passed / 19 skipped / 0 failures/errors. This is artifact/report verification, not a new backend suite.
 - Basic candidate-file scan: 70 files, zero matches for the selected private-key, JWT, provider-secret, GitHub-token and Gmail/Naver address patterns. This bounded pattern check is not a complete security audit or a claim about files outside that candidate set.
 - Live remote development ref was still `2f2e9ecc`; MA hashed 27 source files before staging. No commit/push had occurred at the final browser handoff. DocOps performed no Git inspection or mutation.
 
-### Staged Whitespace Follow-up
+### Historical Staged Whitespace Follow-up
 
 MA subsequently staged exactly 70 approved paths and confirmed all 27 product
 SHA-256 values unchanged. The first staged diff check caught copied-log trailing
@@ -120,8 +121,16 @@ The skill-generated WI010 handoff addendum authorizes only whitespace changes
 to those four paths. DocOps corrected them with `apply_patch` and compared
 pre-edit/current contents after CRLF/LF and trailing/EOF whitespace normalization:
 all four exactly match, with no semantic change, remaining trailing whitespace
-or extra EOF blank line. These are working-tree corrections, not a new staged
-PASS. MA must restage them and rerun its staged check; commit/push remains pending.
+or extra EOF blank line. At that handoff these were working-tree corrections,
+not a new staged PASS; restaging and commit/push were still pending. MA's
+subsequent verified result is recorded below.
+
+### Verified Git Receipt
+
+- MA restaged only six changed approved documents; cached scope remained exactly 70 paths. `git diff --cached --check` PASS, no unstaged tracked changes at that pre-commit gate; MA documentation validation PASS (677 IDs, links and index).
+- Commit: `7eae086c899cd4534be69da03bbc1cc55fe4349d`, `fix: 결제 인수 후속 오류와 운영 안내 정리`, 70 approved source/test/documentation files.
+- `git push origin HEAD:refs/heads/codex/v1-release-rehearsal-fixes`: exit 0, remote `2f2e9ec..7eae086`. MA's live `git ls-remote` matched the full commit SHA exactly. DocOps did not execute Git.
+- This final current-status receipt follows `7eae086`; MA will commit it separately. No future receipt hash or receipt-push completion is asserted.
 
 ## Commands & Outputs
 
@@ -129,7 +138,7 @@ PASS. MA must restage them and rerun its staged check; commit/push remains pendi
 - `python .agents/skills/validate-docs/scripts/validate_docs.py`: PASS after browser/operating-result edits and again after the staged-whitespace follow-up, exit 0; Tier 0, internal links, 677 traceability IDs and index.
 - Non-Git line diff: compare pre-edit session-memory contents with `Get-Content -Raw -Encoding UTF8` for the eight owned paths, normalizing CRLF/LF. Six existing documents plus two new deliverables; zero trailing-whitespace/conflict-marker findings. WI009 historical summary body was preserved except the documented headings/current-pointer clarification.
 - Exact normalized preservation checks PASS: original 2026-09-08 acceptance tables, reusable checklist from Test Preparation onward, SR-93 body from 2026-09-05 Local Verification onward and its existing production-gate table. No historical test count or OPEN gate was silently replaced.
-- Git commands, scoped diff check, staging, commit and push remain MA-owned. MA's 70-path staged check and four-file whitespace correction are recorded above; no Git command was executed by DocOps and no commit/push outcome is supplied yet.
+- Git commands, scoped diff check, staging, commit and push remained MA-owned. Verified results and the earlier whitespace correction are recorded above; no Git command was executed by DocOps.
 
 ## Tests
 
@@ -153,11 +162,10 @@ npm test -- src/pages/admin/PaymentOperationsPage.test.tsx src/pages/admin/UserS
 
 ## Follow-ups
 
-`Depends On: WI-20260908-ATS-009`; `Blocks: -`. No browser wait remains. DocOps
-hands off the original eight paths plus the four whitespace-only corrections for
-MA's scoped diff/staging and commit/push;
-record actual Git results before closing WI010/REQ002 follow-up work. No
-downstream WI or new feature work is required. Production/external gates stay OPEN.
+`Depends On: WI-20260908-ATS-009`; `Blocks: -`. WI008 -> WI009 -> WI010 and the
+approved REQ002 follow-up are complete within their limited scope. No downstream
+WI or new feature work is required. MA owns the separate commit of this small
+receipt; production/external gates stay OPEN.
 
 ## Related Documents
 
