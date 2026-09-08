@@ -3,11 +3,17 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { socialLogin, fetchMe, type MeResponse } from '@/api/auth';
 import { getSocialLoginErrorMessage } from '@/api/authError';
-import { useAuthStore } from '@/store/authStore';
+import { getAuthSessionGeneration, isAuthSessionCurrent, useAuthStore } from '@/store/authStore';
 import { consumeOAuthCallbackAttempt, storeOAuthProfileReturnTarget } from '@/utils/oauthAttempt';
 import type { UserJob, UserType } from '@/types';
 import { getAccessibleLoginReturnTarget } from '@/utils/loginReturn';
 import styles from './LoginPage.module.css';
+
+interface CallbackRun {
+  key: string;
+  active: boolean;
+  generation: number;
+}
 
 export default function SocialLoginPage() {
   const navigate = useNavigate();
@@ -21,49 +27,97 @@ export default function SocialLoginPage() {
   const clearSession = useAuthStore((s) => s.clearSession);
 
   const [error, setError] = useState('');
-  const processed = useRef(false);
+  const callbackRun = useRef<CallbackRun | null>(null);
 
   useEffect(() => {
-    if (processed.current) return;
-    processed.current = true;
+    const key = JSON.stringify([provider, code, returnedState]);
+    const previousRun = callbackRun.current;
+    if (previousRun?.key === key) {
+      // StrictMode reattaches the same callback without consuming/exchanging it twice.
+      previousRun.active = true;
+      return () => {
+        previousRun.active = false;
+      };
+    }
+    const run: CallbackRun = { key, active: true, generation: getAuthSessionGeneration() };
+    callbackRun.current = run;
+    const isActive = () => run.active && callbackRun.current === run;
+    const isCurrent = () => isActive() && isAuthSessionCurrent(run.generation);
+    const deactivate = () => {
+      run.active = false;
+    };
+    setError('');
 
     if (!provider || !code) {
       setError('잘못된 접근입니다.');
-      return;
+      return deactivate;
     }
 
     const attempt = consumeOAuthCallbackAttempt(returnedState);
     if (!attempt) {
       setError('보안 검증에 실패했습니다. 다시 로그인해주세요.');
-      return;
+      return deactivate;
     }
+    if (!isCurrent()) return deactivate;
 
     (async () => {
       let tokensStaged = false;
       try {
         const res = await socialLogin(provider, code, attempt.codeVerifier);
-        stageTokens(res.accessToken, res.refreshToken);
+        if (!isCurrent()) return;
+        // Each successful store transition advances once; reject reentrant replacement logins.
+        const stagedGeneration = run.generation + 1;
+        try {
+          stageTokens(res.accessToken, res.refreshToken);
+        } catch (err) {
+          // Failed staging already clears its own session; never clean up a newer one.
+          if (
+            isActive() &&
+            isAuthSessionCurrent(stagedGeneration + 1) &&
+            !useAuthStore.getState().accessToken
+          ) {
+            setError(getSocialLoginErrorMessage(err));
+          }
+          return;
+        }
+        run.generation = stagedGeneration;
+        if (!isCurrent()) return;
         tokensStaged = true;
 
         const me: MeResponse = await fetchMe(res.accessToken);
+        if (!isCurrent()) return;
 
-        authLogin(
-          res.accessToken,
-          {
-            id: me.id,
-            email: me.email,
-            nickname: me.nickname,
-            role: me.role,
-            phonePersonal: me.phonePersonal,
-            phoneCompany: me.phoneCompany,
-            job: me.job as UserJob | null,
-            companyName: me.companyName,
-            userType: me.userType as UserType,
-            isVerified: me.isVerified,
-            createdAt: me.createdAt,
-          },
-          res.refreshToken,
-        );
+        const committedGeneration = run.generation + 1;
+        try {
+          authLogin(
+            res.accessToken,
+            {
+              id: me.id,
+              email: me.email,
+              nickname: me.nickname,
+              role: me.role,
+              phonePersonal: me.phonePersonal,
+              phoneCompany: me.phoneCompany,
+              job: me.job as UserJob | null,
+              companyName: me.companyName,
+              userType: me.userType as UserType,
+              isVerified: me.isVerified,
+              createdAt: me.createdAt,
+            },
+            res.refreshToken,
+          );
+        } catch (err) {
+          if (
+            isActive() &&
+            isAuthSessionCurrent(committedGeneration + 1) &&
+            !useAuthStore.getState().accessToken
+          ) {
+            setError(getSocialLoginErrorMessage(err));
+          }
+          return;
+        }
+        run.generation = committedGeneration;
+        if (!isCurrent()) return;
 
         if (!res.isProfileComplete) {
           const continuationStored = storeOAuthProfileReturnTarget(
@@ -83,15 +137,23 @@ export default function SocialLoginPage() {
           replace: true,
         });
       } catch (err: unknown) {
+        if (!isCurrent()) return;
         if (tokensStaged) {
-          await authLogout();
+          const logout = authLogout();
+          // Logout reserves one generation, then clearSession advances it on completion.
+          run.generation += 2;
+          await logout;
         } else {
           clearSession();
+          run.generation += 1;
         }
 
-        setError(getSocialLoginErrorMessage(err));
+        if (isCurrent() && !useAuthStore.getState().accessToken) {
+          setError(getSocialLoginErrorMessage(err));
+        }
       }
     })();
+    return deactivate;
   }, [provider, code, returnedState, navigate, stageTokens, authLogin, authLogout, clearSession]);
 
   return (

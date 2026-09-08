@@ -8,6 +8,7 @@ import com.atstudio.atstudio.entity.enums.PaymentPurpose;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -43,10 +44,19 @@ public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long
 
     @EntityGraph(attributePaths = {"subscription", "userSubscription"})
     @Query("select paymentOrder from PaymentOrder paymentOrder "
-            + "where paymentOrder.commandKey = :commandKey and paymentOrder.user.id = :userID")
-    Optional<PaymentOrder> findRecoveryByCommandKeyAndUserID(
+            + "where (paymentOrder.commandKey = :commandKey "
+            + "or paymentOrder.commandKey like :sourcePattern escape '!') "
+            + "and paymentOrder.user.id = :userID")
+    List<PaymentOrder> findRecoveryCandidatesByCommandKeyAndUserID(
             @Param("commandKey") String commandKey,
-            @Param("userID") Long userID);
+            @Param("sourcePattern") String sourcePattern,
+            @Param("userID") Long userID,
+            Pageable pageable);
+
+    default Optional<PaymentOrder> findRecoveryByCommandKeyAndUserID(String commandKey, Long userID) {
+        return uniqueCommand(findRecoveryCandidatesByCommandKeyAndUserID(
+                commandKey, sourcePattern(commandKey), userID, Pageable.ofSize(2)));
+    }
 
     @Query("select paymentOrder.billingAgreement.id from PaymentOrder paymentOrder "
             + "where paymentOrder.orderId = :orderID")
@@ -64,8 +74,47 @@ public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long
     Optional<PaymentOrder> findByOrderIdForUpdate(@Param("orderID") String orderID);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select paymentOrder from PaymentOrder paymentOrder where paymentOrder.commandKey = :commandKey")
-    Optional<PaymentOrder> findByCommandKeyForUpdate(@Param("commandKey") String commandKey);
+    @Query("select paymentOrder from PaymentOrder paymentOrder "
+            + "where paymentOrder.commandKey = :commandKey "
+            + "or paymentOrder.commandKey like :sourcePattern escape '!'")
+    List<PaymentOrder> findCommandCandidatesForUpdate(
+            @Param("commandKey") String commandKey,
+            @Param("sourcePattern") String sourcePattern,
+            Pageable pageable);
+
+    default Optional<PaymentOrder> findByCommandKeyForUpdate(String commandKey) {
+        return uniqueCommand(findCommandCandidatesForUpdate(commandKey, sourcePattern(commandKey), Pageable.ofSize(2)));
+    }
+
+    private static String sourcePattern(String commandKey) {
+        return commandKey.replace("!", "!!").replace("%", "!%").replace("_", "!_") + ":SOURCE:%";
+    }
+
+    private static Optional<PaymentOrder> uniqueCommand(List<PaymentOrder> candidates) {
+        if (candidates.size() > 1) {
+            throw new DataIntegrityViolationException("Ambiguous payment command identity.");
+        }
+        return candidates.stream().findFirst();
+    }
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select paymentOrder from PaymentOrder paymentOrder "
+            + "where paymentOrder.userSubscription = :userSubscription "
+            + "and paymentOrder.purpose = 'UPGRADE' "
+            + "and paymentOrder.status in ('READY', 'IN_PROGRESS', 'PROCESSING', "
+            + "'PENDING_PROVIDER_CONFIRMATION', 'PROVIDER_SUCCEEDED') order by paymentOrder.id")
+    List<PaymentOrder> findUnresolvedUpgradesForUpdate(
+            @Param("userSubscription") UserSubscription userSubscription);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select paymentOrder from PaymentOrder paymentOrder "
+            + "where paymentOrder.billingAgreement = :billingAgreement "
+            + "and paymentOrder.purpose in ('SUBSCRIBE', 'UPGRADE', 'RENEWAL') "
+            + "and paymentOrder.status in ('READY', 'IN_PROGRESS', 'PROCESSING', "
+            + "'PENDING_PROVIDER_CONFIRMATION', 'PROVIDER_SUCCEEDED') order by paymentOrder.id")
+    List<PaymentOrder> findUnresolvedMonetaryCommandsForUpdate(
+            @Param("billingAgreement") BillingAgreement billingAgreement,
+            Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select paymentOrder from PaymentOrder paymentOrder "

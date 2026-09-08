@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-09-05
+version: 1.3
+last_updated: 2026-09-09
 project: ATS
 owner: SA
 category: design
@@ -85,6 +85,32 @@ GET /api/admin/storage-integrity
 It is ADMIN-only and returns a report, not a repair operation.
 
 ## Recovery Boundary
+
+### Prospective Mutation Contract (2026-09-09)
+
+- Track deactivation preserves media, Licenses and download events; retained
+  events remain quota input. It does not authorize inactive-Track download or
+  recovery of previously deleted history.
+- Album/Playlist deletion captures the old thumbnail key and clears the parent
+  reference transactionally before after-commit cleanup. Rollback retains the
+  original object/reference. The reference checker protects shared objects
+  across catalog domains, including retained inactive rows. Integrity audit
+  continues to inspect those rows rather than hiding historical mismatches.
+- A storage batch registers in-flight ownership and durably prepares all target
+  keys before staging bytes. A partially written failing stage therefore has
+  a journal owner. Failed cleanup remains recoverable through the journal;
+  recovery does not race a currently registered operation in this single-server
+  model. This is not a multi-writer or distributed recovery guarantee.
+- Track media/metadata mutations and child/counter writers follow the reviewed
+  write-lock protocol. This avoids stale managed-row restoration of replaced
+  media keys; it adds no DDL or blanket rewrite of retained rows.
+
+The [bounded closure evidence](../../deliverables/agent/WI-20260909-ATS-013-evidence-pack.md)
+maps temporary-storage/H2 tests and their limitations. The patched source and
+sample build artifact are **not deployed** to the pinned public backend. No
+real-root reconciliation, retained-file repair or startup was performed here.
+
+### Existing Mismatch Recovery
 
 The audit does not copy, relocate, delete, regenerate, or rewrite database
 references. An identified mismatch requires an approved recovery decision:

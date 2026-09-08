@@ -443,7 +443,7 @@ class TrackServiceTest {
     @DisplayName("updateTrack() 성공 - 메타데이터만 수정, 파일·태그 변경 없음")
     void updateTrack_success_metadataOnly() {
         Track track = buildTrack(1L, true);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(trackRepository.findByIdForUpdate(1L)).willReturn(Optional.of(track));
         given(trackTagRepository.findAllWithTagByTrack(any(Track.class))).willReturn(List.of());
 
         TrackUpdateRequest request = new TrackUpdateRequest();
@@ -465,7 +465,7 @@ class TrackServiceTest {
     @DisplayName("updateTrack() 성공 - 새 audioFile 교체: 기존 삭제 + 신규 저장")
     void updateTrack_success_withNewAudioFile() {
         Track track = buildTrack(1L, true);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(trackRepository.findByIdForUpdate(1L)).willReturn(Optional.of(track));
         given(storageMutationCoordinator.replace(
                 eq(StorageDomain.TRACK),
                 eq(StorageRoot.PUBLIC),
@@ -496,7 +496,7 @@ class TrackServiceTest {
     @DisplayName("updateTrack() 분석 실패 - 기존 파일·duration·waveform 보존")
     void updateTrack_analysisFailurePreservesExistingAudioMetadata() {
         Track track = buildTrack(1L, true);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(trackRepository.findByIdForUpdate(1L)).willReturn(Optional.of(track));
         MultipartFile newAudioFile = mockMultipartFile("broken.mp3");
         given(audioAnalysisService.analyze(newAudioFile)).willThrow(new AudioAnalysisException(
                 AudioAnalysisException.Reason.INVALID_AUDIO,
@@ -521,7 +521,7 @@ class TrackServiceTest {
     @DisplayName("updateTrack() 성공 - canonical thumbnail로 기존 파일 교체")
     void updateTrack_success_withCanonicalThumbnail() {
         Track track = buildTrack(1L, true);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(trackRepository.findByIdForUpdate(1L)).willReturn(Optional.of(track));
         given(trackTagRepository.findAllWithTagByTrack(track)).willReturn(List.of());
         MultipartFile thumbnail = mockMultipartFile("square.png");
         MultipartFile canonicalThumbnail = mockMultipartFile("thumbnail.jpg");
@@ -554,7 +554,7 @@ class TrackServiceTest {
     @DisplayName("updateTrack() 비정사각형 thumbnail 거절 - 저장·필드·태그 변경 없음")
     void updateTrack_nonSquareThumbnailRejectedWithoutPartialMutation() {
         Track track = buildTrack(1L, true);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(trackRepository.findByIdForUpdate(1L)).willReturn(Optional.of(track));
         MultipartFile audioFile = mockMultipartFile("replacement.mp3");
         MultipartFile thumbnail = mockMultipartFile("wide.png");
         given(canonicalImageService.canonicalizeSquareTrackThumbnail(thumbnail))
@@ -583,7 +583,7 @@ class TrackServiceTest {
         Track track = buildTrack(1L, true);
         Tag newTag = buildTag(5L, "Chill", TagType.MOOD);
 
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(trackRepository.findByIdForUpdate(1L)).willReturn(Optional.of(track));
         given(tagRepository.findById(5L)).willReturn(Optional.of(newTag));
         given(trackTagRepository.saveAll(any())).willReturn(List.of());
 
@@ -603,7 +603,7 @@ class TrackServiceTest {
     @DisplayName("updateTrack() - explicit empty Tag replacement clears every association")
     void updateTrack_explicitEmptyTagReplacementClearsAssociations() {
         Track track = buildTrack(1L, true);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(trackRepository.findByIdForUpdate(1L)).willReturn(Optional.of(track));
 
         TrackUpdateRequest request = new TrackUpdateRequest();
         request.setReplaceTags(true);
@@ -627,7 +627,7 @@ class TrackServiceTest {
                         .track(track)
                         .tag(existingTag)
                         .build();
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(trackRepository.findByIdForUpdate(1L)).willReturn(Optional.of(track));
         given(trackTagRepository.findAllWithTagByTrack(track)).willReturn(List.of(association));
 
         TrackUpdateRequest request = new TrackUpdateRequest();
@@ -652,7 +652,7 @@ class TrackServiceTest {
                         .track(track)
                         .tag(existingTag)
                         .build();
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(trackRepository.findByIdForUpdate(1L)).willReturn(Optional.of(track));
         given(trackTagRepository.findAllWithTagByTrack(track)).willReturn(List.of(association));
 
         TrackUpdateRequest request = new TrackUpdateRequest();
@@ -673,19 +673,20 @@ class TrackServiceTest {
     @DisplayName("deleteTrack() 성공 - 소프트 삭제 (isActive → false)")
     void deleteTrack_success() {
         Track track = buildTrack(1L, true);
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(trackRepository.findByIdForUpdate(1L)).willReturn(Optional.of(track));
 
         trackService.deleteTrack(1L);
 
         assertThat(track.isActive()).isFalse();
         verifyNoInteractions(storageMutationCoordinator);
+        verifyNoInteractions(trackDownloadRepository, licenseRepository);
     }
 
     @Test
     @DisplayName("deleteTrack() - track_tags 레코드를 deactivate 전에 삭제")
     void deleteTrack_deletesTrackTagsBeforeDeactivate() {
         Track track = spy(buildTrack(1L, true));
-        given(trackRepository.findById(1L)).willReturn(Optional.of(track));
+        given(trackRepository.findByIdForUpdate(1L)).willReturn(Optional.of(track));
 
         trackService.deleteTrack(1L);
 

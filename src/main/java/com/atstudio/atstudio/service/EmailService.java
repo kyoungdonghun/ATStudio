@@ -90,7 +90,9 @@ public class EmailService {
         passwordLoginPolicy.ensureEnabled();
 
         // 존재하지 않는 이메일도 동일 응답 (계정 탐색 방지)
-        userRepository.findByEmail(email).ifPresent(user -> {
+        userRepository.findByEmail(email)
+                .flatMap(user -> userRepository.findByIdForUpdate(user.getId()))
+                .ifPresent(user -> {
             resetTokenRepository.deleteAllByUser(user);
 
             String token = UUID.randomUUID().toString();
@@ -142,7 +144,13 @@ public class EmailService {
     public void resetPassword(String token, String newPassword) {
         passwordLoginPolicy.ensureEnabled();
 
-        PasswordResetToken resetToken = resetTokenRepository.findByToken(token)
+        // Resolve only the owner ID before locking, avoiding a stale managed token.
+        // Issuance and consumption both acquire the user lock before token locks.
+        Long userId = resetTokenRepository.findUserIdByToken(token)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.INVALID_TOKEN));
+        User user = userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        PasswordResetToken resetToken = resetTokenRepository.findByTokenForUpdate(token, userId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.INVALID_TOKEN));
 
         if (resetToken.isUsed()) {
@@ -151,9 +159,6 @@ public class EmailService {
         if (resetToken.isExpired()) {
             throw new BusinessException(BUSINESS_ERROR.TOKEN_EXPIRED);
         }
-
-        User user = userRepository.findByIdForUpdate(resetToken.getUser().getId())
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
         resetToken.markUsed();
         user.updatePassword(passwordEncoder.encode(newPassword));

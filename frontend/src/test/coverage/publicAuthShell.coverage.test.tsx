@@ -156,7 +156,8 @@ vi.mock('@/hooks/usePublicCapabilities', () => ({
   usePublicCapabilities: () => states.capabilities,
 }));
 
-vi.mock('@/store/authStore', () => ({
+vi.mock('@/store/authStore', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/store/authStore')>()),
   useAuthStore: (selector: (state: typeof states.auth) => unknown) => selector(states.auth),
 }));
 

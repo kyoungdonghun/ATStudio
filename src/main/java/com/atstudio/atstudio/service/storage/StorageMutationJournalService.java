@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +25,15 @@ public class StorageMutationJournalService {
     );
 
     private final StorageMutationRepository mutationRepository;
+    private final Set<String> inFlightOperations = ConcurrentHashMap.newKeySet();
+
+    public void registerInFlight(String operationId) {
+        inFlightOperations.add(operationId);
+    }
+
+    public void releaseInFlight(String operationId) {
+        inFlightOperations.remove(operationId);
+    }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<Long> prepare(List<StorageMutationDraft> drafts) {
@@ -80,7 +91,10 @@ public class StorageMutationJournalService {
                 now,
                 staleBefore,
                 maxAttempts,
-                PageRequest.of(0, batchSize));
+                PageRequest.of(0, batchSize)).stream()
+                // Single-runtime ownership lasts through business transaction completion.
+                .filter(mutation -> !inFlightOperations.contains(mutation.getOperationId()))
+                .toList();
         claimed.forEach(mutation -> mutation.claim(claimUntil));
         return claimed.stream().map(this::snapshot).toList();
     }

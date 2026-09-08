@@ -1,6 +1,6 @@
 ---
-version: 1.8
-last_updated: 2026-08-16
+version: 1.9
+last_updated: 2026-09-09
 project: ATS
 owner: docops
 category: guide
@@ -16,7 +16,56 @@ dependencies:
 
 > Purpose: Define production-facing operational procedures for Toss billing-key recurring payment reconciliation and incident response.
 > Scope: ATStudio subscription payments only. This document covers reconciliation, withdrawal billing-key cleanup, receipt evidence storage, payment operation audit visibility, the admin refund ledger/provider cancel workflow, the separate refund-linked entitlement correction workflow, and settlement import/reconciliation operations. It does not introduce tax invoice workflow, cash receipt issue/cancel automation, automatic entitlement correction, or automatic withdrawal refund. Refund/receipt/settlement/tax invoice policy is defined separately in [Payment Refund, Receipt, Settlement, and Tax Invoice Policy](payment-refund-receipt-settlement-policy.md).
-> Last updated: 2026-08-16
+> Last updated: 2026-09-09
+
+## Source-Bound Command Rollout (2026-09-09)
+
+The patched source binds returning expired-Subscription purchases and monetary
+upgrades to the locked pricing source, and fences conflicting local mutations
+while monetary commands remain unresolved. The bounded source/test review is
+closed; deployment remains **HOLD** pending named target gates. The pinned
+public backend has not been replaced. See the
+[current closure evidence](../../deliverables/agent/WI-20260909-ATS-013-evidence-pack.md)
+and [SR-93](../SR/SR-93.md).
+
+The following is a required procedure for a separately approved deployment or
+rollback, not an action executed by this remediation:
+
+1. Name the exact runtime/database/storage tuple, responsible operator and
+   recovery evidence. Pause monetary-command admission and establish one
+   controlled writer generation before switching versions.
+2. Inventory old-format unfinished monetary commands without rewriting their
+   keys or fabricating historical source snapshots. The persisted field is
+   `payment_orders.status` (`PaymentOrderStatus`), not a separate
+   `commandStatus`. Its unresolved UPGRADE values are `READY`, `IN_PROGRESS`,
+   `PROCESSING`, `PENDING_PROVIDER_CONFIRMATION` and `PROVIDER_SUCCEEDED`.
+   `UNKNOWN` describes an ambiguous Provider outcome, stored as
+   `PENDING_PROVIDER_CONFIRMATION`; it is not a persisted status value. Old
+   unbound orders in these states fail closed under the new source guard and
+   fence competitors. Definitively `FAILED` unbound retries cannot acquire an
+   invented source either.
+3. Drain or reconcile under the approved existing controls. An unattempted
+   `READY` order may use established expiry/cancellation controls. Persisted
+   `PROCESSING`, `PENDING_PROVIDER_CONFIRMATION` and `PROVIDER_SUCCEEDED` cases
+   require authoritative Provider/local
+   evidence; callback query text is not sufficient. A charged returning
+   SUBSCRIBE lacking source evidence may need explicit reviewed remediation,
+   not the old defective finalizer or an automatic replacement charge.
+4. Confirm legacy unbound SUBSCRIBE still satisfies its original no-subscription
+   invariant before allowing continuation; it cannot adopt a retained expired
+   row. Zero-charge BILLING_AGREEMENT and legacy DONE replay remain compatible.
+   Preserve order, payment, receipt and entitlement history.
+5. Switch only after disposition is recorded. Do not run mixed old/new command
+   writers: old exact-key lookup does not understand the bound-key family or
+   enforce its competing-intent fence. Apply the same admission/drain boundary
+   before rollback; never strip suffixes, rehash history or purge ledgers.
+
+Normal local cancellation/reactivation/pending mutations reject busy before
+changing an unresolved monetary source. Out-of-band/admin source or tariff
+changes still require review; no automatic repricing or snapshot retrofit is
+authorized. This procedure introduces no DDL, retention/purge rule, refund
+policy, or external-operation permission. Old typeless JWT sessions also need
+login after deployment; no legacy-token bypass is available.
 
 ## 1. Operating Model
 

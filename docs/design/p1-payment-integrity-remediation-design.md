@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-07-17
+version: 1.3
+last_updated: 2026-09-09
 project: ATS
 owner: SA
 category: design
@@ -26,6 +26,29 @@ dependencies:
 > code/test gate only; retained-database migration is outside the V1 baseline,
 > while live-provider, deployment, and client acceptance gates remain open. See
 > [P1 Payment Integrity Closure](../audit/p1-payment-integrity-closure-20260715.md).
+
+**2026-09-09 contract extension:** Returning expired Subscription purchases
+and monetary upgrades bind their existing command identity to the locked
+pricing-source digest. Source identity includes Subscription/User/plan IDs,
+current cycle/status, period dates and normalized plan prices. Claim and
+finalization reject a replacement source; competing unresolved upgrade intents
+cannot charge separately. Durable Provider success is finalized without a new
+charge or fresh proration, while `DONE` replay preserves the recorded result.
+No schema field is added by this extension, and no historical key is rehashed.
+
+Local cancellation, reactivation, pending-choice changes and zero-charge
+changes now acquire agreement then Subscription locks before their first
+mutable read and reject unresolved monetary commands before changing source
+state. The WI011 stale cancellation-after-paid-upgrade counterexample is
+closed at the isolated source/test boundary. The historical 2026-07 design and
+evidence below remain dated records; current closure is in
+[WI013 evidence](../../deliverables/agent/WI-20260909-ATS-013-evidence-pack.md).
+The pinned public backend is not deployed from this patch. Old unbound
+unfinished monetary commands require the separate admission pause, drain and
+reconciliation procedure in the
+[runbook](payment-operations-runbook.md#source-bound-command-rollout-2026-09-09)
+before deployment or rollback; mixed writers and historical snapshot retrofit
+are prohibited.
 
 ## 1. Decision Summary
 

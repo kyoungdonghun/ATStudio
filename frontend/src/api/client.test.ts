@@ -1,21 +1,14 @@
-import axios from 'axios';
+import axios, { type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const {
-  authState,
-  clearSessionMock,
-  navigateMock,
-  refreshCurrentUserMock,
-  setAuthStateMock,
-  showToastMock,
-} = vi.hoisted(() => ({
-  authState: { role: 'USER' },
-  clearSessionMock: vi.fn(),
-  navigateMock: vi.fn(),
-  refreshCurrentUserMock: vi.fn(),
-  setAuthStateMock: vi.fn(),
-  showToastMock: vi.fn(),
-}));
+const { clearSessionMock, navigateMock, refreshCurrentUserMock, showToastMock } = vi.hoisted(
+  () => ({
+    clearSessionMock: vi.fn(),
+    navigateMock: vi.fn(),
+    refreshCurrentUserMock: vi.fn(),
+    showToastMock: vi.fn(),
+  }),
+);
 
 vi.mock('@/router', () => ({
   router: { navigate: navigateMock },
@@ -27,17 +20,6 @@ vi.mock('@/store/toastStore', () => ({
   },
 }));
 
-vi.mock('@/store/authStore', () => ({
-  useAuthStore: {
-    getState: () => ({
-      clearSession: clearSessionMock,
-      refreshCurrentUser: refreshCurrentUserMock,
-      role: authState.role,
-    }),
-    setState: setAuthStateMock,
-  },
-}));
-
 import client, {
   getApiErrorCode,
   isSubscriptionRequired,
@@ -46,12 +28,18 @@ import client, {
   toUploadUrl,
 } from '@/api/client';
 import { safeStorage } from '@/utils/safeStorage';
+import { getAuthSessionGeneration, useAuthStore } from '@/store/authStore';
+import type { User } from '@/types';
+import * as authApi from '@/api/auth';
+
+const clearSession = useAuthStore.getState().clearSession;
+const refreshCurrentUser = useAuthStore.getState().refreshCurrentUser;
 
 function getRequestInterceptors() {
   const requestInterceptors = client.interceptors.request as unknown as {
     handlers: Array<{
       fulfilled?: (config: Record<string, unknown>) => Record<string, unknown>;
-      rejected?: (error: unknown) => Promise<never>;
+      rejected?: (error: unknown) => never;
     }>;
   };
   const handler = requestInterceptors.handlers[requestInterceptors.handlers.length - 1];
@@ -72,18 +60,27 @@ function getRejectedResponseInterceptor() {
   if (!rejected) {
     throw new Error('Expected the axios response interceptor to be registered.');
   }
-  return rejected;
+  // Unit fixtures simulate dispatch before delivering a synthetic response.
+  return (error: unknown) => {
+    const config = (error as { config?: Record<string, unknown> }).config;
+    if (config) getRequestInterceptors().fulfilled(config);
+    return rejected(error);
+  };
 }
 
 describe('client auth refresh exclusions', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    clearSessionMock.mockReset();
+    clearSession();
+    clearSessionMock.mockReset().mockImplementation(clearSession);
     navigateMock.mockReset();
     refreshCurrentUserMock.mockReset();
-    setAuthStateMock.mockReset();
     showToastMock.mockReset();
-    authState.role = 'USER';
+    useAuthStore.setState({
+      role: 'USER',
+      clearSession: clearSessionMock,
+      refreshCurrentUser: refreshCurrentUserMock,
+    });
     localStorage.clear();
     sessionStorage.clear();
   });
@@ -124,7 +121,7 @@ describe('client auth refresh exclusions', () => {
     expect(explicit.headers.Authorization).toBe('Bearer explicit');
   });
 
-  it('lets Axios set multipart boundaries and propagates request setup errors', async () => {
+  it('lets Axios set multipart boundaries and propagates request setup errors', () => {
     const { fulfilled, rejected } = getRequestInterceptors();
     const config = fulfilled({
       headers: { 'Content-Type': 'application/json' },
@@ -132,7 +129,7 @@ describe('client auth refresh exclusions', () => {
     }) as { headers: Record<string, string> };
     expect(config.headers['Content-Type']).toBeUndefined();
     const error = new Error('request setup failed');
-    await expect(rejected(error)).rejects.toBe(error);
+    expect(() => rejected(error)).toThrow(error);
   });
 
   it('rejects 401s without a refresh token after clearing local auth state', async () => {
@@ -231,7 +228,7 @@ describe('client auth refresh exclusions', () => {
   });
 
   it('refreshes local ADMIN role on 403 without retrying and preserves the original error', async () => {
-    authState.role = 'ADMIN';
+    useAuthStore.setState({ role: 'ADMIN' });
     refreshCurrentUserMock.mockResolvedValue({ role: 'USER' });
     const adapter = vi.fn();
     const error = {
@@ -246,7 +243,7 @@ describe('client auth refresh exclusions', () => {
   });
 
   it('honors the admin-role sync opt-out only for centralized 403 synchronization', async () => {
-    authState.role = 'ADMIN';
+    useAuthStore.setState({ role: 'ADMIN' });
     const adapter = vi.fn();
     const error = {
       config: {
@@ -305,7 +302,7 @@ describe('client auth refresh exclusions', () => {
     ];
 
     await expect(rejected(errors[0])).rejects.toBe(errors[0]);
-    authState.role = 'ADMIN';
+    useAuthStore.setState({ role: 'ADMIN' });
     await expect(rejected(errors[1])).rejects.toBe(errors[1]);
     await expect(rejected(errors[2])).rejects.toBe(errors[2]);
 
@@ -313,7 +310,7 @@ describe('client auth refresh exclusions', () => {
   });
 
   it('coalesces concurrent admin 403 role sync and preserves each original rejection', async () => {
-    authState.role = 'ADMIN';
+    useAuthStore.setState({ role: 'ADMIN' });
     let resolveRefresh!: () => void;
     refreshCurrentUserMock.mockReturnValue(
       new Promise<void>((resolve) => {
@@ -334,7 +331,7 @@ describe('client auth refresh exclusions', () => {
   });
 
   it('preserves the original 403 when current-user resync fails', async () => {
-    authState.role = 'ADMIN';
+    useAuthStore.setState({ role: 'ADMIN' });
     refreshCurrentUserMock.mockRejectedValue(new Error('sync failed'));
     const error = { config: { url: '/admin/users' }, response: { status: 403 } };
 
@@ -361,7 +358,7 @@ describe('client auth refresh exclusions', () => {
     expect(postSpy).toHaveBeenCalledWith('/api/auth/refresh', { refreshToken: 'old-refresh' });
     expect(localStorage.getItem('accessToken')).toBe('new-access');
     expect(localStorage.getItem('refreshToken')).toBe('new-refresh');
-    expect(setAuthStateMock).toHaveBeenCalledWith({ accessToken: 'new-access' });
+    expect(useAuthStore.getState().accessToken).toBe('new-access');
     expect(adapter).toHaveBeenCalledOnce();
     expect(result).toMatchObject({ data: { ok: true } });
   });
@@ -520,7 +517,7 @@ describe('client auth refresh exclusions', () => {
     expect(adapter).not.toHaveBeenCalled();
     expect(localStorage.getItem('accessToken')).toBeNull();
     expect(localStorage.getItem('refreshToken')).toBeNull();
-    expect(setAuthStateMock).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().accessToken).toBeNull();
     expect(clearSessionMock).toHaveBeenCalledOnce();
     expect(showToastMock).toHaveBeenCalledOnce();
     expect(navigateMock).toHaveBeenCalledWith('/login');
@@ -550,7 +547,7 @@ describe('client auth refresh exclusions', () => {
     expect(adapter).not.toHaveBeenCalled();
     expect(localStorage.getItem('accessToken')).toBeNull();
     expect(localStorage.getItem('refreshToken')).toBeNull();
-    expect(setAuthStateMock).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().accessToken).toBeNull();
     expect(clearSessionMock).toHaveBeenCalledOnce();
     expect(showToastMock).toHaveBeenCalledOnce();
     expect(navigateMock).toHaveBeenCalledWith('/login');
@@ -581,6 +578,287 @@ describe('client auth refresh exclusions', () => {
     expect(clearSessionMock).toHaveBeenCalledTimes(1);
     expect(showToastMock).toHaveBeenCalledTimes(1);
     expect(navigateMock).toHaveBeenCalledWith('/login');
+  });
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+const sessionUser: User = {
+  id: 1,
+  email: 'session@example.test',
+  nickname: 'session-user',
+  role: 'USER',
+  phonePersonal: null,
+  phoneCompany: null,
+  job: null,
+  companyName: null,
+  userType: 'INDIVIDUAL',
+  isVerified: true,
+  createdAt: '2026-09-09T00:00:00Z',
+};
+
+function refreshResponse(accessToken = 'rotated-access', refreshToken = 'rotated-refresh') {
+  return { data: { data: { accessToken, refreshToken } } };
+}
+
+function protectedWrite(url = '/likes/10') {
+  const dispatched = deferred<InternalAxiosRequestConfig>();
+  const response = deferred<AxiosResponse>();
+  const adapter = vi
+    .fn<(config: InternalAxiosRequestConfig) => Promise<AxiosResponse>>()
+    .mockImplementationOnce((config) => {
+      dispatched.resolve(config);
+      return response.promise;
+    })
+    .mockImplementation(async (config) => ({
+      data: { ok: true },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    }));
+  const result = client.post(url, { fixture: true }, { adapter });
+  const outcome = Promise.allSettled([result]);
+  return {
+    adapter,
+    outcome,
+    result,
+    dispatched: dispatched.promise,
+    reject401: async () => {
+      const config = await dispatched.promise;
+      const error = { config, response: { status: 401 } };
+      response.reject(error);
+      return error;
+    },
+  };
+}
+
+describe('client session ownership (SEC-04)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    useAuthStore.setState({ clearSession, refreshCurrentUser });
+    clearSession();
+    localStorage.clear();
+    sessionStorage.clear();
+    navigateMock.mockReset();
+    showToastMock.mockReset();
+    useAuthStore.getState().login('session-access', sessionUser, 'session-refresh');
+  });
+
+  it.each([
+    ['logout', 'success'],
+    ['logout', 'failure'],
+    ['replacement', 'success'],
+    ['replacement', 'failure'],
+    ['same-user', 'success'],
+    ['same-user', 'failure'],
+  ])('rejects leader and queue after %s followed by stale refresh %s', async (change, result) => {
+    const refresh = deferred<ReturnType<typeof refreshResponse>>();
+    const postSpy = vi
+      .spyOn(axios, 'post')
+      .mockRejectedValue(new Error('unexpected refresh'))
+      .mockReturnValueOnce(refresh.promise);
+    const leader = protectedWrite();
+    await leader.reject401();
+    await vi.waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    const queued = protectedWrite('/likes/11');
+    const queuedError = await queued.reject401();
+    await vi.waitFor(() => expect(queuedError.config).toMatchObject({ _retry: true }));
+
+    const oldGeneration = getAuthSessionGeneration();
+    if (change === 'logout') {
+      useAuthStore.getState().clearSession();
+    } else {
+      // Identical tokens and, for same-user, identical identity still start a new session.
+      useAuthStore
+        .getState()
+        .login(
+          'session-access',
+          change === 'same-user' ? sessionUser : { ...sessionUser, id: 2 },
+          'session-refresh',
+        );
+    }
+    expect(getAuthSessionGeneration()).not.toBe(oldGeneration);
+    const expectedState = useAuthStore.getState();
+    const expectedStorage = { ...localStorage };
+
+    if (result === 'success') refresh.resolve(refreshResponse());
+    else refresh.reject(new Error('old refresh failed'));
+
+    expect(await leader.outcome).toMatchObject([{ status: 'rejected' }]);
+    expect(await queued.outcome).toMatchObject([{ status: 'rejected' }]);
+    expect(leader.adapter).toHaveBeenCalledTimes(1);
+    expect(queued.adapter).toHaveBeenCalledTimes(1);
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState()).toBe(expectedState);
+    expect({ ...localStorage }).toEqual(expectedStorage);
+    expect(showToastMock).not.toHaveBeenCalled();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    'rejects a late A 401 before reading replacement refresh credentials (same user: %s)',
+    async (sameUser) => {
+      const postSpy = vi.spyOn(axios, 'post').mockRejectedValue(new Error('unexpected refresh'));
+      const oldRequest = protectedWrite();
+      await oldRequest.dispatched;
+      useAuthStore
+        .getState()
+        .login(
+          'session-access',
+          sameUser ? sessionUser : { ...sessionUser, id: 2 },
+          'session-refresh',
+        );
+      const error = await oldRequest.reject401();
+
+      expect(await oldRequest.outcome).toEqual([{ status: 'rejected', reason: error }]);
+      expect(postSpy).not.toHaveBeenCalled();
+      expect(oldRequest.adapter).toHaveBeenCalledTimes(1);
+      expect(useAuthStore.getState().accessToken).toBe('session-access');
+      expect(navigateMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not clear a replacement session without refresh credentials on a late A 401', async () => {
+    const postSpy = vi.spyOn(axios, 'post').mockRejectedValue(new Error('unexpected refresh'));
+    const oldRequest = protectedWrite();
+    await oldRequest.dispatched;
+    useAuthStore.getState().login('replacement-access', { ...sessionUser, id: 2 }, null);
+    const error = await oldRequest.reject401();
+
+    expect(await oldRequest.outcome).toEqual([{ status: 'rejected', reason: error }]);
+    expect(postSpy).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().accessToken).toBe('replacement-access');
+  });
+
+  it.each(['success', 'failure'])('keeps the B flight after A %s', async (result) => {
+    const oldRefresh = deferred<ReturnType<typeof refreshResponse>>();
+    const newRefresh = deferred<ReturnType<typeof refreshResponse>>();
+    const postSpy = vi
+      .spyOn(axios, 'post')
+      .mockRejectedValue(new Error('unexpected refresh'))
+      .mockReturnValueOnce(oldRefresh.promise)
+      .mockReturnValueOnce(newRefresh.promise);
+    const oldLeader = protectedWrite();
+    const lateOldRequest = protectedWrite('/likes/11');
+    await oldLeader.reject401();
+    await vi.waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    useAuthStore.getState().login('new-access', sessionUser, 'new-refresh');
+    const newLeader = protectedWrite('/likes/12');
+    await newLeader.reject401();
+    await vi.waitFor(() => expect(postSpy).toHaveBeenCalledTimes(2));
+
+    const lateError = await lateOldRequest.reject401();
+    expect(await lateOldRequest.outcome).toEqual([{ status: 'rejected', reason: lateError }]);
+    if (result === 'success') oldRefresh.resolve(refreshResponse('stale-access', 'stale-refresh'));
+    else oldRefresh.reject(new Error('old flight failed'));
+    expect(await oldLeader.outcome).toMatchObject([{ status: 'rejected' }]);
+
+    const newQueued = protectedWrite('/likes/13');
+    const queuedError = await newQueued.reject401();
+    await vi.waitFor(() => expect(queuedError.config).toMatchObject({ _retry: true }));
+    expect(postSpy).toHaveBeenCalledTimes(2);
+    expect(newLeader.adapter).toHaveBeenCalledTimes(1);
+    expect(newQueued.adapter).toHaveBeenCalledTimes(1);
+    newRefresh.resolve(refreshResponse());
+
+    await expect(Promise.all([newLeader.result, newQueued.result])).resolves.toHaveLength(2);
+    expect(newLeader.adapter).toHaveBeenCalledTimes(2);
+    expect(newQueued.adapter).toHaveBeenCalledTimes(2);
+    expect(newQueued.adapter.mock.calls[1]?.[0].headers.Authorization).toBe(
+      'Bearer rotated-access',
+    );
+    expect(lateOldRequest.adapter).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().accessToken).toBe('rotated-access');
+    expect(localStorage.getItem('refreshToken')).toBe('rotated-refresh');
+    expect(showToastMock).not.toHaveBeenCalled();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects resolved waiters if the session changes before their replay continuation', async () => {
+    const refresh = deferred<ReturnType<typeof refreshResponse>>();
+    const postSpy = vi
+      .spyOn(axios, 'post')
+      .mockRejectedValue(new Error('unexpected refresh'))
+      .mockReturnValueOnce(refresh.promise);
+    const leader = protectedWrite();
+    await leader.reject401();
+    await vi.waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    const queued = protectedWrite('/likes/11');
+    const queuedError = await queued.reject401();
+    await vi.waitFor(() => expect(queuedError.config).toMatchObject({ _retry: true }));
+    const unsubscribe = useAuthStore.subscribe((state) => {
+      if (state.accessToken === 'rotated-access') {
+        // Run after persistence succeeds but before fulfilled refresh waiters resume.
+        queueMicrotask(() => {
+          useAuthStore.getState().login('new-access', { ...sessionUser, id: 2 }, 'new-refresh');
+        });
+      }
+    });
+    try {
+      refresh.resolve(refreshResponse());
+      expect(await leader.outcome).toMatchObject([{ status: 'rejected' }]);
+      expect(await queued.outcome).toMatchObject([{ status: 'rejected' }]);
+    } finally {
+      unsubscribe();
+    }
+    expect(leader.adapter).toHaveBeenCalledTimes(1);
+    expect(queued.adapter).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().accessToken).toBe('new-access');
+    expect(showToastMock).not.toHaveBeenCalled();
+  });
+
+  it('checks ownership again in the request interceptor for a cloned replay config', async () => {
+    const postSpy = vi.spyOn(axios, 'post').mockRejectedValue(new Error('unexpected refresh'));
+    const oldRequest = protectedWrite();
+    const config = await oldRequest.dispatched;
+    useAuthStore.getState().login('new-access', sessionUser, 'new-refresh');
+    const error = await oldRequest.reject401();
+    expect(await oldRequest.outcome).toEqual([{ status: 'rejected', reason: error }]);
+
+    await expect(client({ ...config, _retry: true } as typeof config)).rejects.toThrow(
+      'Stale authentication session',
+    );
+    expect(oldRequest.adapter).toHaveBeenCalledTimes(1);
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects an old refresh during pending server logout without restoring or replaying', async () => {
+    const refresh = deferred<ReturnType<typeof refreshResponse>>();
+    const postSpy = vi
+      .spyOn(axios, 'post')
+      .mockRejectedValue(new Error('unexpected refresh'))
+      .mockReturnValueOnce(refresh.promise);
+    const logoutResponse = deferred<'confirmed'>();
+    vi.spyOn(authApi, 'logoutSession').mockReturnValueOnce(logoutResponse.promise);
+    const oldRequest = protectedWrite();
+    await oldRequest.reject401();
+    await vi.waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+
+    const logout = useAuthStore.getState().logout();
+    await vi.waitFor(() => expect(authApi.logoutSession).toHaveBeenCalledTimes(1));
+    refresh.resolve(refreshResponse());
+    expect(await oldRequest.outcome).toMatchObject([{ status: 'rejected' }]);
+    expect(oldRequest.adapter).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem('accessToken')).toBe('session-access');
+    expect(localStorage.getItem('refreshToken')).toBe('session-refresh');
+    expect(showToastMock).not.toHaveBeenCalled();
+
+    const duringLogout = protectedWrite('/likes/11');
+    const error = await duringLogout.reject401();
+    expect(await duringLogout.outcome).toEqual([{ status: 'rejected', reason: error }]);
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    logoutResponse.resolve('confirmed');
+    await expect(logout).resolves.toEqual({ serverConfirmed: true });
+    expect(useAuthStore.getState().accessToken).toBeNull();
   });
 });
 

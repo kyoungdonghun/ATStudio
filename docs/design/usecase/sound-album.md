@@ -223,7 +223,10 @@ Includes `likeCount` field (from `albums.like_count`) in addition to id, title, 
 1. Admin clicks the album 'Delete' button.
 2. Frontend displays a deletion confirmation dialog.
 3. Upon confirmation, frontend sends a delete request including albumId to the backend.
-4. Backend sets is_active=false on the albums record and returns 204 No Content.
+4. Backend locks the active Album, captures its old thumbnail key, sets
+   is_active=false and clears the thumbnail reference in the same transaction.
+   Reference-aware thumbnail cleanup runs only after commit; response remains
+   204 No Content.
 
 **Exception / Alternative Flow**
 - Album not found: 404 response.
@@ -231,6 +234,12 @@ Includes `likeCount` field (from `albums.like_count`) in addition to id, title, 
 **Postconditions**
 - albums.is_active set to false. Album no longer appears in list/detail responses.
 - album_tracks records are retained (data preserved for potential recovery).
+- Rollback retains the original reference and object. Cleanup preserves an
+  object still referenced by another catalog row, including an inactive row.
+  Existing inactive references are not cleared retrospectively; missing ones
+  still fail strict integrity startup. This prospective fix does not repair
+  historical files. Source and isolated checks:
+  [bounded closure evidence](../../../deliverables/agent/WI-20260909-ATS-013-evidence-pack.md).
 
 ---
 

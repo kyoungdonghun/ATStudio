@@ -12,11 +12,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.Locale;
@@ -87,10 +90,24 @@ public class LocalStorageService implements StorageService {
             throw ioFailure();
         }
         Path stagedFile = resolveStaged(root, operationId, finalKey);
+        boolean created = false;
         try {
             createSecureDirectories(stagedFile.getParent(), rootPath(root));
-            Files.copy(file.getInputStream(), stagedFile);
-        } catch (IOException exception) {
+            try (InputStream input = file.getInputStream();
+                 OutputStream output = Files.newOutputStream(stagedFile, StandardOpenOption.CREATE_NEW,
+                         StandardOpenOption.WRITE)) {
+                created = true;
+                input.transferTo(output);
+            }
+        } catch (IOException | RuntimeException exception) {
+            if (created) {
+                try {
+                    // The coordinator's durable intent owns retry if immediate cleanup fails.
+                    deleteStaged(root, operationId, finalKey);
+                } catch (RuntimeException cleanupFailure) {
+                    exception.addSuppressed(cleanupFailure);
+                }
+            }
             throw ioFailure();
         }
     }

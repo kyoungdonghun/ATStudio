@@ -31,9 +31,9 @@ public class AlbumLikeService {
 
     @Transactional
     public void addAlbumLike(Long albumId, CustomUserDetails userDetails) {
-        User user = getUser(userDetails);
+        User user = getUserForUpdate(userDetails);
 
-        Album album = albumRepository.findById(albumId)
+        Album album = albumRepository.findByIdForUpdate(albumId)
                 .filter(Album::isActive)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.ALBUM_NOT_FOUND));
 
@@ -63,14 +63,19 @@ public class AlbumLikeService {
 
     @Transactional
     public void removeAlbumLike(Long albumId, CustomUserDetails userDetails) {
-        User user = getUser(userDetails);
+        User user = getUserForUpdate(userDetails);
+        Album album = albumRepository.findByIdForUpdate(albumId)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         AlbumLike albumLike = albumLikeRepository.findByUserAndAlbum_Id(user, albumId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         albumLikeRepository.delete(albumLike);
 
-        Album album = albumRepository.findById(albumId)
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.ALBUM_NOT_FOUND));
         album.decrementLikeCount();
+    }
+
+    private User getUserForUpdate(CustomUserDetails userDetails) {
+        return userRepository.findByIdForUpdate(userDetails.getId())
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
     }
 
     private User getUser(CustomUserDetails userDetails) {

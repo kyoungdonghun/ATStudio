@@ -1,6 +1,7 @@
 package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.entity.enums.BillingCycle;
+import com.atstudio.atstudio.entity.UserSubscription;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -46,6 +47,41 @@ public class PaymentCommandKeyFactory {
 
     public String billingConfirm(String orderID) {
         return "BILLING_CONFIRM:" + requiredText(orderID, "orderID");
+    }
+
+    // Keep request identity searchable while binding the immutable command to its priced source.
+    public String bindSubscriptionSource(String commandKey, UserSubscription source) {
+        Objects.requireNonNull(source, "source");
+        String snapshot = String.join(":",
+                "v1",
+                source.getId().toString(),
+                source.getUser().getId().toString(),
+                source.getSubscription().getId().toString(),
+                source.getBillingCycle().name(),
+                source.getStatus().name(),
+                source.getStartedAt().toString(),
+                source.getExpiresAt().toString(),
+                source.getSubscription().getPriceMonthly().stripTrailingZeros().toPlainString(),
+                source.getSubscription().getPriceYearly().stripTrailingZeros().toPlainString());
+        String bound = requiredText(commandKey, "commandKey") + ":SOURCE:" + sha256(snapshot);
+        if (bound.length() > 191) {
+            throw new IllegalArgumentException("Payment command key exceeds its persistence bound.");
+        }
+        return bound;
+    }
+
+    public boolean matchesSubscriptionSource(String commandKey, UserSubscription source) {
+        if (commandKey == null || source == null) {
+            return false;
+        }
+        int marker = commandKey.indexOf(":SOURCE:");
+        return marker > 0
+                && commandKey.equals(bindSubscriptionSource(commandKey.substring(0, marker), source));
+    }
+
+    public boolean matchesCommand(String persistedKey, String commandKey) {
+        return Objects.equals(persistedKey, commandKey)
+                || (persistedKey != null && persistedKey.startsWith(commandKey + ":SOURCE:"));
     }
 
     public String upgrade(

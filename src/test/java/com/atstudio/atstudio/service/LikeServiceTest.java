@@ -47,13 +47,18 @@ class LikeServiceTest {
     void addLike_success() {
         User user = buildUser(1L);
         Track track = buildTrack(2L, true);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(trackRepository.findById(2L)).willReturn(Optional.of(track));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
+        given(trackRepository.findByIdForUpdate(2L)).willReturn(Optional.of(track));
         given(likeRepository.existsById(any(LikeId.class))).willReturn(false);
 
         likeService.addLike(2L, buildUserDetails(1L));
 
         verify(likeRepository).save(any(Like.class));
+        var order = org.mockito.Mockito.inOrder(userRepository, trackRepository, likeRepository);
+        order.verify(userRepository).findByIdForUpdate(1L);
+        order.verify(trackRepository).findByIdForUpdate(2L);
+        order.verify(likeRepository).existsById(any(LikeId.class));
+        assertThat(track.getLikeCount()).isOne();
     }
 
     @Test
@@ -61,8 +66,8 @@ class LikeServiceTest {
     void addLike_duplicate() {
         User user = buildUser(1L);
         Track track = buildTrack(2L, true);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(trackRepository.findById(2L)).willReturn(Optional.of(track));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
+        given(trackRepository.findByIdForUpdate(2L)).willReturn(Optional.of(track));
         given(likeRepository.existsById(any(LikeId.class))).willReturn(true);
 
         assertThatThrownBy(() -> likeService.addLike(2L, buildUserDetails(1L)))
@@ -75,8 +80,8 @@ class LikeServiceTest {
     @DisplayName("addLike() 실패 - 트랙 없음/비활성 → TRACK_NOT_FOUND 예외")
     void addLike_trackNotFound() {
         User user = buildUser(1L);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(trackRepository.findById(2L)).willReturn(Optional.empty());
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
+        given(trackRepository.findByIdForUpdate(2L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> likeService.addLike(2L, buildUserDetails(1L)))
                 .isInstanceOf(BusinessException.class)
@@ -106,20 +111,27 @@ class LikeServiceTest {
         User user = buildUser(1L);
         Track track = buildTrack(2L, true);
         Like like = Like.builder().id(new LikeId(1L, 2L)).user(user).track(track).build();
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        track.incrementLikeCount();
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(likeRepository.findByUserAndTrack_Id(user, 2L)).willReturn(Optional.of(like));
-        given(trackRepository.findById(2L)).willReturn(Optional.of(track));
+        given(trackRepository.findByIdForUpdate(2L)).willReturn(Optional.of(track));
 
         likeService.removeLike(2L, buildUserDetails(1L));
 
         verify(likeRepository).delete(like);
+        var order = org.mockito.Mockito.inOrder(userRepository, trackRepository, likeRepository);
+        order.verify(userRepository).findByIdForUpdate(1L);
+        order.verify(trackRepository).findByIdForUpdate(2L);
+        order.verify(likeRepository).findByUserAndTrack_Id(user, 2L);
+        assertThat(track.getLikeCount()).isZero();
     }
 
     @Test
     @DisplayName("removeLike() 실패 - 좋아요 없음 → RESOURCE_NOT_FOUND 예외")
     void removeLike_notFound() {
         User user = buildUser(1L);
-        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
+        given(trackRepository.findByIdForUpdate(2L)).willReturn(Optional.of(buildTrack(2L, true)));
         given(likeRepository.findByUserAndTrack_Id(user, 2L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> likeService.removeLike(2L, buildUserDetails(1L)))

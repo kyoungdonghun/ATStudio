@@ -11,10 +11,11 @@ vi.mock('@/api/auth', () => ({
 }));
 
 import { useAlbumLikeStore } from '@/store/albumLikeStore';
-import { useAuthStore } from '@/store/authStore';
+import { getAuthSessionGeneration, isAuthSessionCurrent, useAuthStore } from '@/store/authStore';
 import { useLikeStore } from '@/store/likeStore';
 import { usePlayerStore } from '@/store/playerStore';
 import type { Track, User } from '@/types';
+import { safeStorage } from '@/utils/safeStorage';
 
 const user: User = {
   id: 1,
@@ -58,7 +59,7 @@ describe('authStore', () => {
     logoutSessionMock.mockResolvedValue('confirmed');
     localStorage.clear();
     sessionStorage.clear();
-    useAuthStore.setState({ user: null, accessToken: null, role: 'GUEST' });
+    useAuthStore.getState().clearSession();
     useLikeStore.setState({ likedIds: new Set(), loaded: false });
     useAlbumLikeStore.setState({ likedAlbumIds: new Set(), loaded: false });
     usePlayerStore.setState({
@@ -428,5 +429,185 @@ describe('authStore', () => {
     expect(localStorage.getItem('accessToken')).toBeNull();
     expect(localStorage.getItem('refreshToken')).toBeNull();
     expect(localStorage.getItem('user')).toBeNull();
+  });
+
+  it('advances generation before login persistence even for identical credentials (SEC-04)', () => {
+    useAuthStore.getState().login('access-token', user, 'refresh-token');
+    const previousGeneration = getAuthSessionGeneration();
+    const generationsDuringPersistence: number[] = [];
+    const setItem = safeStorage.setItem;
+    vi.spyOn(safeStorage, 'setItem').mockImplementation((key, value) => {
+      generationsDuringPersistence.push(getAuthSessionGeneration());
+      return setItem(key, value);
+    });
+
+    useAuthStore.getState().login('access-token', user, 'refresh-token');
+
+    expect(getAuthSessionGeneration()).toBe(previousGeneration + 1);
+    expect(generationsDuringPersistence).toEqual(Array(3).fill(previousGeneration + 1));
+    expect(isAuthSessionCurrent(previousGeneration)).toBe(false);
+  });
+
+  it('invalidates the prior session when staging tokens and when staging fails (SEC-04)', () => {
+    useAuthStore.getState().login('access-token', user, 'refresh-token');
+    const previousGeneration = getAuthSessionGeneration();
+    useAuthStore.getState().stageTokens('staged-access', 'staged-refresh');
+    expect(isAuthSessionCurrent(previousGeneration)).toBe(false);
+    expect(useAuthStore.getState()).toMatchObject({ accessToken: 'staged-access', user: null });
+
+    const stagedGeneration = getAuthSessionGeneration();
+    vi.spyOn(safeStorage, 'setItem').mockReturnValue(false);
+    expect(() => useAuthStore.getState().stageTokens('next-access', 'next-refresh')).toThrow(
+      'Failed to stage authentication tokens',
+    );
+    expect(isAuthSessionCurrent(stagedGeneration)).toBe(false);
+    expect(useAuthStore.getState().accessToken).toBeNull();
+  });
+
+  it.each(['accessToken', 'refreshToken'])(
+    'preserves a reentrant login before stale staging can fail %s persistence (WI010-F1-R1)',
+    (failedKey) => {
+      useAuthStore.getState().login('initial-access', user, 'initial-refresh');
+      const replacementUser = { ...user, id: 2 };
+      const setItem = safeStorage.setItem;
+      const persist = vi.spyOn(safeStorage, 'setItem').mockImplementation((key, value) => {
+        if (key === failedKey && value.startsWith('staged-')) return false;
+        return setItem(key, value);
+      });
+      let armed = true;
+      const unsubscribe = useAuthStore.subscribe((state) => {
+        if (!armed || state.accessToken !== null || state.user !== null) return;
+        armed = false;
+        useAuthStore.getState().login('replacement-access', replacementUser, 'replacement-refresh');
+      });
+      try {
+        expect(() =>
+          useAuthStore.getState().stageTokens('staged-access', 'staged-refresh'),
+        ).not.toThrow();
+        expect(armed).toBe(false);
+        expect(useAuthStore.getState()).toMatchObject({
+          accessToken: 'replacement-access',
+          user: replacementUser,
+          role: replacementUser.role,
+        });
+        expect(localStorage.getItem('accessToken')).toBe('replacement-access');
+        expect(localStorage.getItem('refreshToken')).toBe('replacement-refresh');
+        expect(JSON.parse(localStorage.getItem('user') ?? 'null')).toEqual(replacementUser);
+        expect(persist).not.toHaveBeenCalledWith('accessToken', 'staged-access');
+        expect(persist).not.toHaveBeenCalledWith('refreshToken', 'staged-refresh');
+      } finally {
+        unsubscribe();
+      }
+    },
+  );
+
+  it('invalidates refresh ownership immediately while server logout is pending (SEC-04)', async () => {
+    let resolveLogout!: (outcome: 'confirmed') => void;
+    logoutSessionMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveLogout = resolve;
+      }),
+    );
+    let resolveFetch!: (value: User) => void;
+    fetchMeMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+    useAuthStore.getState().login('access-token', user, 'refresh-token');
+    const generation = getAuthSessionGeneration();
+    const refresh = useAuthStore.getState().refreshCurrentUser();
+    const refreshOutcome = Promise.allSettled([refresh]);
+    await vi.waitFor(() => expect(fetchMeMock).toHaveBeenCalledTimes(1));
+
+    const logout = useAuthStore.getState().logout();
+    expect(isAuthSessionCurrent(generation)).toBe(false);
+    expect(isAuthSessionCurrent(getAuthSessionGeneration())).toBe(false);
+    expect(localStorage.getItem('accessToken')).toBe('access-token');
+    await expect(useAuthStore.getState().refreshCurrentUser()).rejects.toThrow(
+      'Cannot refresh current user without an authenticated session',
+    );
+    resolveFetch({ ...user, nickname: 'stale-user' });
+    expect(await refreshOutcome).toMatchObject([{ status: 'rejected' }]);
+    expect(useAuthStore.getState().user).toEqual(user);
+    await vi.waitFor(() => expect(logoutSessionMock).toHaveBeenCalledTimes(1));
+    resolveLogout('confirmed');
+    await expect(logout).resolves.toEqual({ serverConfirmed: true });
+    expect(useAuthStore.getState().accessToken).toBeNull();
+  });
+
+  it.each(['confirmed', 'unconfirmed', 'failure'])(
+    'preserves identical same-user re-login when an old logout returns %s (SEC-04)',
+    async (outcome) => {
+      let resolveLogout!: (value: string) => void;
+      let rejectLogout!: (reason: unknown) => void;
+      logoutSessionMock.mockReturnValue(
+        new Promise((resolve, reject) => {
+          resolveLogout = resolve;
+          rejectLogout = reject;
+        }),
+      );
+      useAuthStore.getState().login('access-token', user, 'refresh-token');
+      const logout = useAuthStore.getState().logout();
+      await vi.waitFor(() => expect(logoutSessionMock).toHaveBeenCalledTimes(1));
+      useAuthStore.getState().login('access-token', user, 'refresh-token');
+      const newGeneration = getAuthSessionGeneration();
+      useLikeStore.setState({ likedIds: new Set([9]), loaded: true });
+      if (outcome === 'failure') rejectLogout(new Error('old logout failed'));
+      else resolveLogout(outcome);
+
+      await expect(logout).resolves.toEqual({ serverConfirmed: outcome === 'confirmed' });
+      expect(getAuthSessionGeneration()).toBe(newGeneration);
+      expect(isAuthSessionCurrent(newGeneration)).toBe(true);
+      expect(useAuthStore.getState()).toMatchObject({ accessToken: 'access-token', user });
+      expect(localStorage.getItem('refreshToken')).toBe('refresh-token');
+      expect(useLikeStore.getState().likedIds).toEqual(new Set([9]));
+    },
+  );
+
+  it('keeps the replacement logout flight when the old logout finishes (SEC-04)', async () => {
+    const resolvers: Array<(value: 'confirmed') => void> = [];
+    logoutSessionMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvers.push(resolve);
+        }),
+    );
+    useAuthStore.getState().login('old-access', user, 'old-refresh');
+    const oldLogout = useAuthStore.getState().logout();
+    await vi.waitFor(() => expect(logoutSessionMock).toHaveBeenCalledTimes(1));
+    useAuthStore.getState().login('new-access', { ...user, id: 2 }, 'new-refresh');
+    const newLogout = useAuthStore.getState().logout();
+    expect(newLogout).not.toBe(oldLogout);
+    await vi.waitFor(() => expect(logoutSessionMock).toHaveBeenCalledTimes(2));
+
+    resolvers[0]?.('confirmed');
+    await oldLogout;
+    expect(useAuthStore.getState().accessToken).toBe('new-access');
+    expect(useAuthStore.getState().logout()).toBe(newLogout);
+    expect(logoutSessionMock).toHaveBeenCalledTimes(2);
+    resolvers[1]?.('confirmed');
+    await newLogout;
+    expect(useAuthStore.getState().accessToken).toBeNull();
+  });
+
+  it('does not send old logout through a replacement session after lazy import (SEC-04)', async () => {
+    useAuthStore.getState().login('old-access', user, 'old-refresh');
+    const logout = useAuthStore.getState().logout();
+    useAuthStore.getState().login('new-access', { ...user, id: 2 }, 'new-refresh');
+
+    await expect(logout).resolves.toEqual({ serverConfirmed: false });
+    expect(logoutSessionMock).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().accessToken).toBe('new-access');
+  });
+
+  it('does not dispatch an old current-user refresh after lazy import (SEC-04)', async () => {
+    useAuthStore.getState().login('old-access', user, 'old-refresh');
+    const refresh = useAuthStore.getState().refreshCurrentUser();
+    useAuthStore.getState().login('new-access', user, 'new-refresh');
+
+    await expect(refresh).rejects.toThrow('Stale current-user refresh result');
+    expect(fetchMeMock).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().accessToken).toBe('new-access');
   });
 });

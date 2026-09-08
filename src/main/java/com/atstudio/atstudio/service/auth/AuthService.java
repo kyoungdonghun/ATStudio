@@ -78,7 +78,7 @@ public class AuthService {
     public AuthResponse refresh(RefreshRequest request) {
         String requestToken = request.getRefreshToken();
 
-        TokenValidationResult result = jwtTokenProvider.validateToken(requestToken);
+        TokenValidationResult result = jwtTokenProvider.validateRefreshToken(requestToken);
         if (result == TokenValidationResult.EXPIRED) {
             throw new BusinessException(BUSINESS_ERROR.REFRESH_TOKEN_EXPIRED);
         }
@@ -101,7 +101,10 @@ public class AuthService {
         if (user.isDeleted()) {
             throw new BusinessException(BUSINESS_ERROR.ACCOUNT_DEACTIVATED);
         }
-        ensureVerifiedForPasswordSession(user);
+        // OAuth-created accounts have no password; this does not verify their email.
+        if (user.getPassword() != null) {
+            ensureVerifiedForPasswordSession(user);
+        }
 
         // 토큰 재발급 (rotation)
         String newAccessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());

@@ -41,5 +41,6 @@ public class Playlist extends BaseEntity {
 
     public void deactivate() {
         this.isActive = false;
+        this.thumbnail = null;
     }
 }

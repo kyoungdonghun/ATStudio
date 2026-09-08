@@ -6,18 +6,30 @@ import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.time.Clock;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
-@RequiredArgsConstructor
 public class JwtTokenProvider {
 
     private final JwtConfig jwtConfig;
+    private final Clock clock;
     private SecretKey key;
+
+    @Autowired
+    public JwtTokenProvider(JwtConfig jwtConfig) {
+        this(jwtConfig, Clock.systemUTC());
+    }
+
+    JwtTokenProvider(JwtConfig jwtConfig, Clock clock) {
+        this.jwtConfig = jwtConfig;
+        this.clock = clock;
+    }
 
     @PostConstruct
     public void init() {
@@ -25,10 +37,11 @@ public class JwtTokenProvider {
     }
 
     public String generateAccessToken(Long userID, UserRole role) {
-        Date now = new Date();
+        Date now = Date.from(clock.instant());
         Date expiry = new Date(now.getTime() + jwtConfig.getAccessTokenExpiration());
         return Jwts.builder()
                 .subject(String.valueOf(userID))
+                .claim("token_use", "access")
                 .claim("role", role.name())
                 .issuedAt(now)
                 .expiration(expiry)
@@ -37,10 +50,12 @@ public class JwtTokenProvider {
     }
 
     public String generateRefreshToken(Long userID) {
-        Date now = new Date();
+        Date now = Date.from(clock.instant());
         Date expiry = new Date(now.getTime() + jwtConfig.getRefreshTokenExpiration());
         return Jwts.builder()
                 .subject(String.valueOf(userID))
+                .claim("token_use", "refresh")
+                .id(UUID.randomUUID().toString())
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(key)
@@ -50,6 +65,7 @@ public class JwtTokenProvider {
     public Claims parseToken(String token) {
         return Jwts.parser()
                 .verifyWith(key)
+                .clock(() -> Date.from(clock.instant()))
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
@@ -71,12 +87,35 @@ public class JwtTokenProvider {
         return parseToken(token).get("role", String.class);
     }
 
-    public TokenValidationResult validateToken(String token) {
+    public TokenValidationResult validateAccessToken(String token) {
+        return validateToken(token, "access");
+    }
+
+    public TokenValidationResult validateRefreshToken(String token) {
+        return validateToken(token, "refresh");
+    }
+
+    private TokenValidationResult validateToken(String token, String expectedUse) {
         try {
-            parseToken(token);
-            return TokenValidationResult.VALID;
-        } catch (ExpiredJwtException e) {
-            return TokenValidationResult.EXPIRED;
+            Claims claims;
+            boolean expired = false;
+            try {
+                claims = parseToken(token);
+            } catch (ExpiredJwtException e) {
+                claims = e.getClaims();
+                expired = true;
+            }
+            // Wrong-purpose and legacy tokens are invalid even when expired.
+            if (!expectedUse.equals(claims.get("token_use", String.class))
+                    || claims.getExpiration() == null
+                    || Long.parseLong(claims.getSubject()) <= 0) {
+                return TokenValidationResult.INVALID;
+            }
+            if ("refresh".equals(expectedUse)
+                    && (claims.getId() == null || claims.getId().isBlank())) {
+                return TokenValidationResult.INVALID;
+            }
+            return expired ? TokenValidationResult.EXPIRED : TokenValidationResult.VALID;
         } catch (JwtException | IllegalArgumentException e) {
             return TokenValidationResult.INVALID;
         }

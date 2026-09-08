@@ -46,7 +46,8 @@ public class DownloadService {
         User user = userRepository.findByIdForUpdate(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
-        Track track = trackRepository.findById(trackId)
+        // Lock after the user and before reading media or touching child rows/counters.
+        Track track = trackRepository.findByIdForUpdate(trackId)
                 .filter(Track::isActive)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND));
 

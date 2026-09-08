@@ -44,6 +44,9 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Collections;
+import java.util.function.Function;
 
 import static org.mockito.BDDMockito.given;
 
@@ -165,7 +168,7 @@ abstract class BillingAgreementCommandIntegrationTestSupport {
 
     static final class TestRecurringPaymentProvider implements RecurringPaymentProvider {
 
-        private final List<String> calls = new ArrayList<>();
+        private final List<String> calls = Collections.synchronizedList(new ArrayList<>());
         private BillingAgreementConfirmResult confirmResult;
         private BillingChargeResult chargeResult;
         private final Deque<BillingChargeResult> chargeResults = new LinkedList<>();
@@ -177,6 +180,7 @@ abstract class BillingAgreementCommandIntegrationTestSupport {
         private Runnable chargeProbe = () -> { };
         private Runnable cancelProbe = () -> { };
         private BillingChargeCommand lastChargeCommand;
+        private Function<BillingChargeCommand, BillingChargeResult> chargeResponder;
 
         void reset() {
             calls.clear();
@@ -199,6 +203,7 @@ abstract class BillingAgreementCommandIntegrationTestSupport {
             chargeProbe = () -> { };
             cancelProbe = () -> { };
             lastChargeCommand = null;
+            chargeResponder = null;
         }
 
         void confirmResult(BillingAgreementConfirmResult result) {
@@ -226,6 +231,10 @@ abstract class BillingAgreementCommandIntegrationTestSupport {
             this.chargeProbe = probe;
         }
 
+        void chargeResponder(Function<BillingChargeCommand, BillingChargeResult> responder) {
+            this.chargeResponder = responder;
+        }
+
         void cancelProbe(Runnable probe) {
             this.cancelProbe = probe;
         }
@@ -244,8 +253,21 @@ abstract class BillingAgreementCommandIntegrationTestSupport {
         }
 
         @Override
+        public boolean supportsPureDeterministicPrepare() {
+            return true;
+        }
+
+        @Override
         public BillingAgreementPrepareResult prepareAgreement(BillingAgreementPrepareCommand command) {
-            throw new UnsupportedOperationException("Prepare is outside this focused test.");
+            assertNoTransaction();
+            calls.add("prepare");
+            return new BillingAgreementPrepareResult(PaymentProviderType.TOSS, "TOSS_BILLING_AUTH",
+                    "{\"phase\":\"prepare\"}", Map.of(
+                            "clientKey", "synthetic-test-client",
+                            "customerKey", command.providerCustomerKey(),
+                            "successUrl", "http://localhost/success",
+                            "failUrl", "http://localhost/fail",
+                            "method", "CARD"));
         }
 
         @Override
@@ -267,6 +289,9 @@ abstract class BillingAgreementCommandIntegrationTestSupport {
             chargeProbe.run();
             if (chargeException != null) {
                 throw chargeException;
+            }
+            if (chargeResponder != null) {
+                return chargeResponder.apply(command);
             }
             return chargeResults.isEmpty() ? chargeResult : chargeResults.removeFirst();
         }

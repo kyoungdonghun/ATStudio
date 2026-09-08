@@ -1,6 +1,6 @@
 ---
-version: 3.5
-last_updated: 2026-09-08
+version: 3.6
+last_updated: 2026-09-09
 project: ATS
 owner: SA
 category: design
@@ -139,11 +139,16 @@ CTA remains separate.
 The backend derives
 `BILLING_PREPARE:v1:<64-lowercase-hex-sha256>` from the authenticated owner and
 accepted raw UUID. Only this opaque, versioned, owner-scoped digest is persisted
-as `payment_orders.command_key`; neither the raw key nor owner ID is stored or
-logged in the command key.
+as the request-identity prefix in `payment_orders.command_key`; neither the raw
+key nor owner ID is stored or logged in that prefix. A returning `SUBSCRIBE`
+against a retained expired Subscription appends `:SOURCE:<sha256>` for the
+locked source snapshot. Fresh/no-subscription and zero-charge registration
+keep the existing format. Exact and source-bound members of one request family
+are checked together; multiple source snapshots fail closed, not as a new
+invitation to charge. Existing persisted keys are never rewritten.
 
 - Same owner, key, and exact authoritative purpose/plan/audience/cycle,
-  Billing Agreement, and active Subscription tuple reuses the same valid,
+  Billing Agreement, and source Subscription tuple reuses the same valid,
   unexpired order and returns the same `orderId` and equal response.
 - A same-owner tuple mismatch returns HTTP `409`
   `PAYMENT_PREPARE_ATTEMPT_CONFLICT` before mutation or Provider prepare.
@@ -196,6 +201,15 @@ fails closed.
 8. Subscription access activates only after durable provider success and local
    finalization.
 
+A retained but no-longer-service-enabled Subscription uses a full-price
+`SUBSCRIBE` and reuses that row only after source revalidation. Expired ACTIVE,
+CANCELLED and EXPIRED history does not become zero-charge registration. The
+source digest includes Subscription/User/plan IDs, current cycle/status,
+period dates and normalized monthly/yearly source prices; pending future
+choices are not pricing-source inputs. Claim, replay and finalization reject
+a changed source. Old ledgers remain unchanged, and an unbound legacy order
+cannot adopt a retained expired row.
+
 ### Payment-Method Registration
 
 1. An existing subscriber carries the exact current plan ID, authenticated
@@ -230,6 +244,25 @@ to preview identity, request generation, source Subscription and selected
 plan/cycle; changed context retires it. Cancellation performs no paid mutation.
 The current paid period remains intact, including YEARLY-to-next-MONTHLY
 selection. This is client confirmation safety, not a new quote-lock or billing policy.
+
+New monetary upgrade commands bind the locked priced source using the same
+source-digest contract. An unresolved competing upgrade blocks another target
+or cycle. Exact durable `PROVIDER_SUCCEEDED` recovery is finalize-only before
+recalculating proration; `DONE` replay returns the recorded outcome without
+charging or applying the entitlement again. Finalization checks source and
+charged cycle. Local cancellation, reactivation, scheduled changes,
+clear-pending and zero-charge changes lock agreement then Subscription before
+the first mutable read and reject unresolved monetary commands before mutation.
+This preserves the current paid period and next-cycle policy while preventing
+a stale local write from undoing a completed paid upgrade.
+
+Before deployment or rollback, follow the separately approved admission
+pause/drain/reconciliation boundary in the
+[Payment Operations Runbook](payment-operations-runbook.md#source-bound-command-rollout-2026-09-09).
+No mixed old/new writers, historical key rehashing or invented source snapshot
+is permitted. Source/test closure is recorded in the
+[bounded closure evidence](../../deliverables/agent/WI-20260909-ATS-013-evidence-pack.md);
+the pinned public backend has not been deployed from this patch.
 
 ### Renewal and Cancellation
 

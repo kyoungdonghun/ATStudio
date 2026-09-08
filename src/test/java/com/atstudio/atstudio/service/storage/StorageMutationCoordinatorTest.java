@@ -4,6 +4,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -123,7 +125,7 @@ class StorageMutationCoordinatorTest {
     }
 
     @Test
-    void journalsAndCleansFirstStageWhenSecondStageFails() {
+    void journalsAndCleansBothTargetsWhenSecondStageFails() {
         MockMultipartFile first = file("first.pdf");
         MockMultipartFile second = file("second.pdf");
         given(storageService.generateKey("questions/attachments", "first.pdf"))
@@ -142,11 +144,11 @@ class StorageMutationCoordinatorTest {
                         anyString(),
                         anyString(),
                         any());
-        given(journalService.prepare(anyList())).willReturn(List.of(41L));
+        given(journalService.prepare(anyList())).willReturn(List.of(41L, 42L));
         given(cleanupService.cleanupNew(
                 eq(StorageRoot.PUBLIC),
                 anyString(),
-                eq("questions/attachments/first-generated.pdf")))
+                anyString()))
                 .willReturn(StorageCleanupService.CleanupOutcome.DONE);
 
         assertThatThrownBy(() -> coordinator.storeAll(
@@ -158,8 +160,12 @@ class StorageMutationCoordinatorTest {
 
         ArgumentCaptor<List<StorageMutationDraft>> drafts = ArgumentCaptor.forClass(List.class);
         verify(journalService).prepare(drafts.capture());
-        assertThat(drafts.getValue()).hasSize(1);
+        assertThat(drafts.getValue()).hasSize(2);
         verify(journalService).transition(41L, StorageMutationState.DONE, "NEW_DELETE_DONE");
+        verify(journalService).transition(42L, StorageMutationState.DONE, "NEW_DELETE_DONE");
+        var order = org.mockito.Mockito.inOrder(journalService, storageService);
+        order.verify(journalService).prepare(anyList());
+        order.verify(storageService).stage(eq(StorageRoot.PUBLIC), anyString(), anyString(), eq(first));
         assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
     }
 
@@ -190,6 +196,58 @@ class StorageMutationCoordinatorTest {
                 file("track.mp3"),
                 "tracks/audio"))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void journalFailureCannotLeaveUnownedStageBytes() {
+        given(storageService.generateKey(anyString(), anyString())).willReturn("tracks/audio/new.mp3");
+        given(journalService.prepare(anyList())).willThrow(new IllegalStateException("journal unavailable"));
+
+        assertThatThrownBy(() -> coordinator.store(StorageDomain.TRACK, StorageRoot.PUBLIC,
+                file("new.mp3"), "tracks/audio"))
+                .isInstanceOf(IllegalStateException.class).hasMessage("journal unavailable");
+
+        verify(storageService, never()).stage(any(), anyString(), anyString(), any());
+        verify(storageService, never()).promote(any(), anyString(), anyString());
+        ArgumentCaptor<String> operation = ArgumentCaptor.forClass(String.class);
+        verify(journalService).registerInFlight(operation.capture());
+        verify(journalService).releaseInFlight(operation.getValue());
+        assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {TransactionSynchronization.STATUS_COMMITTED, TransactionSynchronization.STATUS_ROLLED_BACK,
+            TransactionSynchronization.STATUS_UNKNOWN})
+    void ownershipLastsUntilEveryTransactionCompletionStatus(int status) {
+        given(storageService.generateKey(anyString(), anyString())).willReturn("tracks/audio/new.mp3");
+        given(journalService.prepare(anyList())).willReturn(List.of(71L));
+        if (status == TransactionSynchronization.STATUS_ROLLED_BACK) {
+            given(cleanupService.cleanupNew(any(), anyString(), anyString()))
+                    .willReturn(StorageCleanupService.CleanupOutcome.DONE);
+        }
+        coordinator.store(StorageDomain.TRACK, StorageRoot.PUBLIC, file("new.mp3"), "tracks/audio");
+        ArgumentCaptor<String> operation = ArgumentCaptor.forClass(String.class);
+        verify(journalService).registerInFlight(operation.capture());
+        verify(journalService, never()).releaseInFlight(anyString());
+        synchronization().afterCompletion(status);
+        verify(journalService).releaseInFlight(operation.getValue());
+    }
+
+    @Test
+    void firstStageFailureRemainsJournalOwnedWhenCleanupTransitionFails() {
+        given(storageService.generateKey(anyString(), anyString())).willReturn("tracks/audio/new.mp3");
+        given(journalService.prepare(anyList())).willReturn(List.of(61L));
+        org.mockito.Mockito.doThrow(new IllegalStateException("partial write"))
+                .when(storageService).stage(any(), anyString(), anyString(), any());
+        org.mockito.Mockito.doThrow(new IllegalStateException("transition unavailable"))
+                .when(journalService).transition(61L, StorageMutationState.ROLLBACK_CLEANUP, "PRE_COMMIT_FAILURE");
+
+        assertThatThrownBy(() -> coordinator.store(StorageDomain.TRACK, StorageRoot.PUBLIC,
+                file("new.mp3"), "tracks/audio"))
+                .isInstanceOf(IllegalStateException.class).hasMessage("partial write")
+                .satisfies(error -> assertThat(error.getSuppressed()).hasSize(1));
+        verify(journalService).prepare(anyList());
+        verify(journalService, never()).transition(61L, StorageMutationState.DONE, "NEW_DELETE_DONE");
     }
 
     private TransactionSynchronization synchronization() {

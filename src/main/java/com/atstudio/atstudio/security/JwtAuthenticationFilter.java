@@ -31,7 +31,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        TokenValidationResult result = jwtTokenProvider.validateToken(token);
+        TokenValidationResult result = jwtTokenProvider.validateAccessToken(token);
 
         if (result == TokenValidationResult.VALID) {
             Long userID = jwtTokenProvider.getUserID(token);

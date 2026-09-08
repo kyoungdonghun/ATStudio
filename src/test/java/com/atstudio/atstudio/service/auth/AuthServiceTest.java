@@ -182,7 +182,7 @@ class AuthServiceTest {
         user.verify();
         user.updateRefreshToken(sha256("old-refresh"));
 
-        when(jwtTokenProvider.validateToken("old-refresh")).thenReturn(TokenValidationResult.VALID);
+        when(jwtTokenProvider.validateRefreshToken("old-refresh")).thenReturn(TokenValidationResult.VALID);
         when(jwtTokenProvider.getUserID("old-refresh")).thenReturn(1L);
         when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(jwtTokenProvider.generateAccessToken(1L, UserRole.USER)).thenReturn("new-access");
@@ -201,7 +201,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("refresh() 실패 - EXPIRED 토큰 → REFRESH_TOKEN_EXPIRED 예외 (CR-P-005)")
     void refresh_expiredToken_throwsRefreshTokenExpired() {
-        when(jwtTokenProvider.validateToken("expired-refresh")).thenReturn(TokenValidationResult.EXPIRED);
+        when(jwtTokenProvider.validateRefreshToken("expired-refresh")).thenReturn(TokenValidationResult.EXPIRED);
 
         RefreshRequest request = new RefreshRequest();
         request.setRefreshToken("expired-refresh");
@@ -215,7 +215,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("refresh() 실패 - INVALID 토큰 → REFRESH_TOKEN_INVALID 예외")
     void refresh_invalidToken_throwsException() {
-        when(jwtTokenProvider.validateToken("invalid-token")).thenReturn(TokenValidationResult.INVALID);
+        when(jwtTokenProvider.validateRefreshToken("invalid-token")).thenReturn(TokenValidationResult.INVALID);
 
         RefreshRequest request = new RefreshRequest();
         request.setRefreshToken("invalid-token");
@@ -229,7 +229,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("refresh() rejects a valid token whose user no longer exists")
     void refresh_missingUser_throwsResourceNotFound() {
-        when(jwtTokenProvider.validateToken("orphan-refresh")).thenReturn(TokenValidationResult.VALID);
+        when(jwtTokenProvider.validateRefreshToken("orphan-refresh")).thenReturn(TokenValidationResult.VALID);
         when(jwtTokenProvider.getUserID("orphan-refresh")).thenReturn(404L);
         when(userRepository.findByIdForUpdate(404L)).thenReturn(Optional.empty());
 
@@ -248,7 +248,7 @@ class AuthServiceTest {
         User user = buildUser(1L, false);
         user.updateRefreshToken(sha256("other-refresh"));
 
-        when(jwtTokenProvider.validateToken("some-refresh")).thenReturn(TokenValidationResult.VALID);
+        when(jwtTokenProvider.validateRefreshToken("some-refresh")).thenReturn(TokenValidationResult.VALID);
         when(jwtTokenProvider.getUserID("some-refresh")).thenReturn(1L);
         when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
 
@@ -270,7 +270,7 @@ class AuthServiceTest {
         user.verify();
         user.updateRefreshToken(sha256("old-refresh"));
 
-        when(jwtTokenProvider.validateToken("old-refresh")).thenReturn(TokenValidationResult.VALID);
+        when(jwtTokenProvider.validateRefreshToken("old-refresh")).thenReturn(TokenValidationResult.VALID);
         when(jwtTokenProvider.getUserID("old-refresh")).thenReturn(1L);
         when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(jwtTokenProvider.generateAccessToken(1L, UserRole.USER)).thenReturn("new-access");
@@ -298,7 +298,7 @@ class AuthServiceTest {
     void refresh_unverifiedUser_throwsEmailVerificationRequiredWithoutRotation() {
         User user = buildUser(1L, false);
         user.updateRefreshToken(sha256("old-refresh"));
-        when(jwtTokenProvider.validateToken("old-refresh")).thenReturn(TokenValidationResult.VALID);
+        when(jwtTokenProvider.validateRefreshToken("old-refresh")).thenReturn(TokenValidationResult.VALID);
         when(jwtTokenProvider.getUserID("old-refresh")).thenReturn(1L);
         when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
 
@@ -322,7 +322,7 @@ class AuthServiceTest {
         user.withdraw();                        // isDeleted=true, refreshToken=null
         user.updateRefreshToken(sha256("some-refresh"));  // token back for test scenario
 
-        when(jwtTokenProvider.validateToken("some-refresh")).thenReturn(TokenValidationResult.VALID);
+        when(jwtTokenProvider.validateRefreshToken("some-refresh")).thenReturn(TokenValidationResult.VALID);
         when(jwtTokenProvider.getUserID("some-refresh")).thenReturn(1L);
         when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
 
@@ -367,7 +367,7 @@ class AuthServiceTest {
         User user = buildUser(1L, false);
         user.updateRefreshToken(sha256("stale-refresh"));
         when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
-        when(jwtTokenProvider.validateToken("stale-refresh")).thenReturn(TokenValidationResult.VALID);
+        when(jwtTokenProvider.validateRefreshToken("stale-refresh")).thenReturn(TokenValidationResult.VALID);
         when(jwtTokenProvider.getUserID("stale-refresh")).thenReturn(1L);
 
         authService.logout(1L);

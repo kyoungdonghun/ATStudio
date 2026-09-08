@@ -167,7 +167,7 @@ public class TrackService {
     @Transactional
     public TrackResponse updateTrack(Long trackId, TrackUpdateRequest request,
                                      MultipartFile audioFile, MultipartFile thumbnail) {
-        Track track = findTrackById(trackId);
+        Track track = findTrackForUpdate(trackId);
         MultipartFile canonicalThumbnail = canonicalizeTrackThumbnail(thumbnail);
         AudioAnalysisResult audioAnalysis = audioFile != null && !audioFile.isEmpty()
                 ? analyzeAudio(audioFile)
@@ -215,12 +215,10 @@ public class TrackService {
 
     @Transactional
     public void deleteTrack(Long trackId) {
-        Track track = findTrackById(trackId);
+        Track track = findTrackForUpdate(trackId);
 
-        // 관련 레코드 정리 (고아 레코드 방지)
+        // Issued licenses and download events remain evidence and quota input after deactivation.
         likeRepository.deleteAllByTrack(track);
-        trackDownloadRepository.deleteAllByTrack(track);
-        licenseRepository.deleteAllByTrack(track);
         playlistTrackRepository.deleteAllByIdTrackId(track.getId());
         albumTrackRepository.deleteAllByTrack(track);
         trackTagRepository.deleteAllByTrack(track);
@@ -273,6 +271,11 @@ public class TrackService {
             throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
         }
         return track;
+    }
+
+    private Track findTrackForUpdate(Long trackId) {
+        return trackRepository.findByIdForUpdate(trackId)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND));
     }
 
     private void validatePublicSearchPage(TrackSearchRequest request) {

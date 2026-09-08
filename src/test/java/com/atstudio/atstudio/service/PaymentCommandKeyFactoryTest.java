@@ -1,11 +1,16 @@
 package com.atstudio.atstudio.service;
 
 import com.atstudio.atstudio.entity.enums.BillingCycle;
+import com.atstudio.atstudio.entity.Subscription;
+import com.atstudio.atstudio.entity.User;
+import com.atstudio.atstudio.entity.UserSubscription;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -29,6 +34,32 @@ class PaymentCommandKeyFactoryTest {
                 .isEqualTo("UPGRADE:10:2026-07-01:2026-08-01:20:MONTHLY");
         assertThat(factory.renewal(30L, 10L, LocalDate.of(2026, 8, 1)))
                 .isEqualTo("RENEWAL:30:10:2026-08-01");
+    }
+
+    @Test
+    void sourceSnapshotNormalizesDatabasePriceScaleAndRetainsKeyLengthBound() {
+        User user = User.builder().build();
+        ReflectionTestUtils.setField(user, "id", Long.MAX_VALUE);
+        Subscription plan = Subscription.builder().priceMonthly(new BigDecimal("9900"))
+                .priceYearly(new BigDecimal("99000")).build();
+        ReflectionTestUtils.setField(plan, "id", Long.MAX_VALUE);
+        UserSubscription source = UserSubscription.builder().user(user).subscription(plan)
+                .billingCycle(BillingCycle.YEARLY).startedAt(LocalDate.of(2026, 1, 1))
+                .expiresAt(LocalDate.of(2027, 1, 1)).build();
+        ReflectionTestUtils.setField(source, "id", Long.MAX_VALUE);
+        String baseKey = factory.upgrade(source.getId(), source.getStartedAt(), source.getExpiresAt(),
+                Long.MAX_VALUE, BillingCycle.MONTHLY);
+        String bound = factory.bindSubscriptionSource(baseKey, source);
+        assertThat(bound.length()).isLessThanOrEqualTo(191);
+        assertThat(factory.matchesSubscriptionSource(baseKey, source)).isFalse();
+        assertThat(factory.matchesSubscriptionSource(bound, source)).isTrue();
+        ReflectionTestUtils.setField(plan, "priceMonthly", new BigDecimal("9900.00"));
+        ReflectionTestUtils.setField(plan, "priceYearly", new BigDecimal("99000.00"));
+        assertThat(factory.matchesSubscriptionSource(bound, source)).isTrue();
+        ReflectionTestUtils.setField(plan, "priceMonthly", new BigDecimal("9901.00"));
+        assertThat(factory.matchesSubscriptionSource(bound, source)).isFalse();
+        assertThat(factory.matchesCommand(bound, baseKey)).isTrue();
+        assertThat(factory.matchesCommand(bound, baseKey + ":other")).isFalse();
     }
 
     @Test

@@ -265,11 +265,12 @@ public class PlaylistService {
         validateSubscriber(userDetails);
         Playlist playlist = getOwnedPlaylistForUpdate(playlistId, userDetails.getId());
         playlistTrackRepository.deleteAllByIdPlaylistId(playlistId);
+        String oldThumbnail = playlist.getThumbnail();
         playlist.deactivate();
         storageMutationCoordinator.deleteAfterCommit(
                 StorageDomain.PLAYLIST,
                 StorageRoot.PUBLIC,
-                playlist.getThumbnail());
+                oldThumbnail);
     }
 
     // ── Default playlist on signup ──────────────────────────────────────────

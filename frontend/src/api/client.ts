@@ -1,7 +1,7 @@
 import axios, { type InternalAxiosRequestConfig, type AxiosResponse } from 'axios';
 import { router } from '@/router';
 import { useToastStore } from '@/store/toastStore';
-import { useAuthStore } from '@/store/authStore';
+import { getAuthSessionGeneration, isAuthSessionCurrent, useAuthStore } from '@/store/authStore';
 import { safeStorage } from '@/utils/safeStorage';
 
 declare module 'axios' {
@@ -17,9 +17,23 @@ const client = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+interface AuthRequestConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean;
+  _authSessionGeneration?: number;
+}
+
+function assertCurrentSession(generation: number): void {
+  if (!isAuthSessionCurrent(generation)) {
+    throw new Error('Stale authentication session');
+  }
+}
+
 /* ── Request Interceptor: attach JWT + fix FormData Content-Type ── */
 client.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
+  (config: AuthRequestConfig) => {
+    // Preserve dispatch ownership when Axios clones a request for replay.
+    config._authSessionGeneration ??= getAuthSessionGeneration();
+    if (config._retry) assertCurrentSession(config._authSessionGeneration);
     const token = safeStorage.getItem('accessToken');
     if (token && config.headers && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -30,16 +44,20 @@ client.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error),
+  (error) => {
+    throw error;
+  },
+  { synchronous: true },
 );
 
 /* ── Response Interceptor: 401 auto-refresh ── */
-let isRefreshing = false;
+interface RefreshFlight {
+  sessionGeneration: number;
+  promise: Promise<string>;
+}
+
+let refreshFlight: RefreshFlight | null = null;
 let adminRoleSyncPromise: Promise<void> | null = null;
-let failedQueue: Array<{
-  resolve: (token: string) => void;
-  reject: (err: unknown) => void;
-}> = [];
 
 const AUTH_REFRESH_EXCLUDED_PATHS = [
   '/auth/login',
@@ -72,23 +90,54 @@ function synchronizeAdminRole(): Promise<void> {
   return adminRoleSyncPromise;
 }
 
-function processQueue(error: unknown, token: string | null) {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token!);
+function refreshSession(generation: number, refreshToken: string): Promise<string> {
+  if (refreshFlight?.sessionGeneration === generation) return refreshFlight.promise;
+
+  const promise = (async () => {
+    try {
+      const { data } = await axios.post('/api/auth/refresh', { refreshToken });
+      assertCurrentSession(generation);
+      const newAccessToken: string = data.data.accessToken;
+
+      if (!safeStorage.setItem('accessToken', newAccessToken)) {
+        throw new Error('Failed to persist refreshed authentication session');
+      }
+      if (data.data.refreshToken && !safeStorage.setItem('refreshToken', data.data.refreshToken)) {
+        throw new Error('Failed to persist refreshed authentication session');
+      }
+      useAuthStore.setState({ accessToken: newAccessToken });
+      assertCurrentSession(generation);
+      return newAccessToken;
+    } catch (refreshError) {
+      if (isAuthSessionCurrent(generation)) {
+        useAuthStore.getState().clearSession();
+        useToastStore.getState().show('error', '세션이 만료되었습니다. 다시 로그인해주세요.');
+        router.navigate('/login');
+      }
+      throw refreshError;
     }
-  });
-  failedQueue = [];
+  })();
+
+  const flight = { sessionGeneration: generation, promise };
+  refreshFlight = flight;
+  const clearFlight = () => {
+    if (refreshFlight === flight) refreshFlight = null;
+  };
+  void promise.then(clearFlight, clearFlight);
+  return promise;
 }
 
 client.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error) => {
-    const originalRequest = error.config as
-      | (InternalAxiosRequestConfig & { _retry?: boolean })
-      | undefined;
+    const originalRequest = error.config as AuthRequestConfig | undefined;
+
+    if (
+      originalRequest?._authSessionGeneration !== undefined &&
+      !isAuthSessionCurrent(originalRequest._authSessionGeneration)
+    ) {
+      return Promise.reject(error);
+    }
 
     if (
       originalRequest &&
@@ -111,6 +160,9 @@ client.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    const generation = originalRequest._authSessionGeneration;
+    if (generation === undefined) return Promise.reject(error);
+
     const refreshToken = safeStorage.getItem('refreshToken');
     if (!refreshToken) {
       useAuthStore.getState().clearSession();
@@ -119,47 +171,12 @@ client.interceptors.response.use(
 
     originalRequest._retry = true;
 
-    if (isRefreshing) {
-      return new Promise<string>((resolve, reject) => {
-        failedQueue.push({ resolve, reject });
-      }).then((token) => {
-        if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-        }
-        return client(originalRequest);
-      });
+    const token = await refreshSession(generation, refreshToken);
+    assertCurrentSession(generation);
+    if (originalRequest.headers) {
+      originalRequest.headers.Authorization = `Bearer ${token}`;
     }
-
-    isRefreshing = true;
-
-    try {
-      const { data } = await axios.post('/api/auth/refresh', { refreshToken });
-      const newAccessToken: string = data.data.accessToken;
-
-      if (!safeStorage.setItem('accessToken', newAccessToken)) {
-        throw new Error('Failed to persist refreshed authentication session');
-      }
-      if (data.data.refreshToken && !safeStorage.setItem('refreshToken', data.data.refreshToken)) {
-        throw new Error('Failed to persist refreshed authentication session');
-      }
-      useAuthStore.setState({ accessToken: newAccessToken });
-
-      processQueue(null, newAccessToken);
-      if (originalRequest.headers) {
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-      }
-      return client(originalRequest);
-    } catch (refreshError) {
-      processQueue(refreshError, null);
-      safeStorage.removeItem('accessToken');
-      safeStorage.removeItem('refreshToken');
-      useAuthStore.getState().clearSession();
-      useToastStore.getState().show('error', '세션이 만료되었습니다. 다시 로그인해주세요.');
-      router.navigate('/login');
-      return Promise.reject(refreshError);
-    } finally {
-      isRefreshing = false;
-    }
+    return client(originalRequest);
   },
 );
 

@@ -1,6 +1,6 @@
-import { type FormEvent, useState, useEffect } from 'react';
+import { type FormEvent, useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuthStore } from '@/store/authStore';
+import { getAuthSessionGeneration, isAuthSessionCurrent, useAuthStore } from '@/store/authStore';
 import { login, fetchMe } from '@/api/auth';
 import type { MeResponse, PublicCapabilitiesResponse } from '@/api/auth';
 import { usePublicCapabilities } from '@/hooks/usePublicCapabilities';
@@ -99,6 +99,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const mounted = useRef(false);
+  const attemptSequence = useRef(0);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      attemptSequence.current += 1;
+    };
+  }, []);
 
   const enabledSocialProviders = (Object.keys(PROVIDER_CONFIG) as SocialProvider[]).filter(
     (provider) => getProviderCapability(capabilities, provider)?.enabled,
@@ -139,11 +149,20 @@ export default function LoginPage() {
 
     if (!validate()) return;
 
+    const attempt = ++attemptSequence.current;
+    let generation = getAuthSessionGeneration();
+    const isActive = () => mounted.current && attemptSequence.current === attempt;
+    const isCurrent = () => isActive() && isAuthSessionCurrent(generation);
+    if (!isCurrent()) return;
     setLoading(true);
     try {
       const tokens = await login({ email, password });
+      if (!isCurrent()) return;
       const me: MeResponse = await fetchMe(tokens.accessToken);
+      if (!isCurrent()) return;
 
+      // Do not adopt a replacement login triggered by synchronous store subscribers.
+      const committedGeneration = generation + 1;
       try {
         authLogin(
           tokens.accessToken,
@@ -163,14 +182,25 @@ export default function LoginPage() {
           tokens.refreshToken,
         );
       } catch {
-        setError('로그인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        if (
+          isCurrent() ||
+          (isActive() &&
+            isAuthSessionCurrent(committedGeneration + 1) &&
+            !useAuthStore.getState().accessToken)
+        ) {
+          generation = getAuthSessionGeneration();
+          setError('로그인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        }
         return;
       }
+      generation = committedGeneration;
+      if (!isCurrent()) return;
 
       navigate(getAccessibleLoginReturnTarget(requestedReturnTarget, me) ?? '/', {
         replace: true,
       });
     } catch (err: unknown) {
+      if (!isCurrent()) return;
       if (getApiErrorCode(err) === 'EMAIL_VERIFICATION_REQUIRED') {
         navigate('/email-verify', {
           state: EMAIL_VERIFICATION_REQUIRED_STATE,
@@ -180,7 +210,7 @@ export default function LoginPage() {
       }
       setError(getLoginErrorMessage(err));
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }
 
@@ -200,10 +230,19 @@ export default function LoginPage() {
     }
 
     // CSRF: generate state
+    const attempt = ++attemptSequence.current;
+    const generation = getAuthSessionGeneration();
     const state = generateRandomString(32);
     // PKCE: generate code_verifier + code_challenge
     const codeVerifier = generateRandomString(64);
     const codeChallenge = await generateCodeChallenge(codeVerifier);
+    if (
+      !mounted.current ||
+      attemptSequence.current !== attempt ||
+      !isAuthSessionCurrent(generation)
+    ) {
+      return;
+    }
     if (!createOAuthAttempt(state, codeVerifier, requestedReturnTarget ?? '/')) {
       setError('소셜 로그인 보안 정보를 저장하지 못했습니다. 브라우저 저장소 설정을 확인해주세요.');
       return;

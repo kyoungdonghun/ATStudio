@@ -209,6 +209,8 @@ Play History paths.
 **Main Flow**
 1. User clicks the 'Download' button.
 2. Frontend sends a download request including auth token and trackId to the backend.
+   Backend locks User then Track before reading media or changing child rows
+   and counters; the Track must still be active before License lookup.
 3. For a first download, Backend checks subscription status from user_subscriptions.
 4. For a first download, Backend calculates today's download count via COUNT query on track_downloads (DATE(downloaded_at) = CURDATE()) and compares against the plan limit.
 5. Backend retrieves the audio_file (original) from file storage.
@@ -219,6 +221,7 @@ Play History paths.
 **Exception / Alternative Flow**
 - First download without an active subscription: 403 `NO_ACTIVE_SUBSCRIPTION`.
 - First download after the daily limit: 403 `DOWNLOAD_LIMIT_EXCEEDED`.
+- Inactive Track: `TRACK_NOT_FOUND`, including existing-License re-download.
 
 **Postconditions**
 - audio_file downloaded to user's device.
@@ -324,7 +327,19 @@ Play History paths.
 **Postconditions**
 - tracks.is_active=0 updated (soft delete). Actual files in storage are retained.
 - Tag mappings for this track deleted from track_tags.
+- Previously issued Licenses and `track_downloads` events remain unchanged;
+  retained events still count against the existing daily quota. Reactivation
+  reuses the same License and event history for entitled re-download. This
+  change does not recreate history deleted before the fix.
+- Metadata replacement and deactivation acquire the Track write lock before
+  managed mutation. Like/download writers use User then Track before child/FK
+  and counter changes, preventing stale full-row writes from restoring an old
+  media key. The supported concurrency evidence uses isolated H2 transactions,
+  not production MySQL.
 - Track excluded from track list queries (SOUND-005).
+
+See [2026-09-09 bounded closure evidence](../../../deliverables/agent/WI-20260909-ATS-013-evidence-pack.md)
+for source/test mapping and the not-deployed boundary.
 
 ---
 

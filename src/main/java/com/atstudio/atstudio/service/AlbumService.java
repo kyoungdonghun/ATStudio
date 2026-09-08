@@ -138,11 +138,12 @@ public class AlbumService {
     @Transactional
     public void deleteAlbum(Long id) {
         Album album = getActiveAlbumForUpdate(id);
+        String oldThumbnail = album.getThumbnail();
         album.softDelete();
         storageMutationCoordinator.deleteAfterCommit(
                 StorageDomain.ALBUM,
                 StorageRoot.PUBLIC,
-                album.getThumbnail());
+                oldThumbnail);
     }
 
     // -- 15.6 POST /api/albums/{id}/tracks ------------------------------------

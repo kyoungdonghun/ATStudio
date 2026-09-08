@@ -179,7 +179,7 @@ class UserSubscriptionServiceTest {
             LocalDate originalExpiresAt = us.getExpiresAt();
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
             PaymentCommandTransactionService.UpgradeClaim claim = upgradeClaim(
@@ -253,7 +253,7 @@ class UserSubscriptionServiceTest {
             ReflectionTestUtils.setField(newSub, "priceMonthly", BigDecimal.valueOf(19900));
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
             PaymentCommandTransactionService.UpgradeClaim claim = new PaymentCommandTransactionService.UpgradeClaim(
@@ -315,7 +315,7 @@ class UserSubscriptionServiceTest {
             LocalDate originalExpiresAt = us.getExpiresAt();
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
             PaymentCommandTransactionService.UpgradeClaim claim = upgradeClaim(
@@ -376,7 +376,7 @@ class UserSubscriptionServiceTest {
             Subscription newSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
             ReflectionTestUtils.setField(newSub, "priceMonthly", BigDecimal.valueOf(20000));
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
             PaymentCommandTransactionService.UpgradeClaim claim = upgradeClaim(
@@ -426,10 +426,10 @@ class UserSubscriptionServiceTest {
             BillingAgreement agreement = buildActiveAgreement(user);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
-            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
+            given(billingAgreementRepository.findByUserIDAndProviderForUpdate(user.getId(), PaymentProviderType.TOSS))
                     .willReturn(Optional.of(agreement));
 
             ChangeSubscriptionResponse result = userSubscriptionService.changeSubscription(
@@ -454,7 +454,7 @@ class UserSubscriptionServiceTest {
             ReflectionTestUtils.setField(newSub, "priceMonthly", BigDecimal.valueOf(19900));
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
             given(paymentCommandTransactionService.claimUpgrade(
@@ -487,7 +487,7 @@ class UserSubscriptionServiceTest {
             Subscription newSub = buildSubscription(20L, "Premium", UserType.INDIVIDUAL);
             ReflectionTestUtils.setField(newSub, "priceMonthly", BigDecimal.valueOf(19900));
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(newSub));
             PaymentCommandTransactionService.UpgradeClaim claim = upgradeClaim(
@@ -540,7 +540,7 @@ class UserSubscriptionServiceTest {
             Subscription newSub = buildSubscription(10L, "Basic", UserType.INDIVIDUAL);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(10L)).willReturn(Optional.of(newSub));
 
@@ -580,7 +580,7 @@ class UserSubscriptionServiceTest {
             us.schedulePendingChange(pendingSub, BillingCycle.MONTHLY);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(30L)).willReturn(Optional.of(newPendingSub));
 
@@ -603,7 +603,7 @@ class UserSubscriptionServiceTest {
             us.schedulePendingChange(currentSub, BillingCycle.MONTHLY);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
             given(subscriptionRepository.findById(20L)).willReturn(Optional.of(currentSub));
 
@@ -614,6 +614,7 @@ class UserSubscriptionServiceTest {
             assertThat(result.changeType()).isEqualTo("NO_CHANGE");
             assertThat(us.getPendingSubscription()).isNull();
             assertThat(us.getPendingBillingCycle()).isNull();
+            verifyMutationLockOrder(user);
             verify(paymentOrderRepository, never()).save(any(PaymentOrder.class));
             verify(recurringPaymentProvider, never()).charge(any());
         }
@@ -624,7 +625,7 @@ class UserSubscriptionServiceTest {
             User user = buildUser(1L, UserType.INDIVIDUAL);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.empty());
 
             assertThatThrownBy(() -> userSubscriptionService.changeSubscription(
@@ -652,15 +653,16 @@ class UserSubscriptionServiceTest {
             BillingAgreement agreement = buildActiveAgreement(user);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
-            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
+            given(billingAgreementRepository.findByUserIDAndProviderForUpdate(user.getId(), PaymentProviderType.TOSS))
                     .willReturn(Optional.of(agreement));
 
             userSubscriptionService.selfCancel(buildUserDetails(1L));
 
             assertThat(us.getStatus()).isEqualTo(SubscriptionStatus.CANCELLED);
             assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.CANCELLED);
+            verifyMutationLockOrder(user);
             verify(recurringPaymentProvider, never()).charge(any());
         }
 
@@ -670,7 +672,7 @@ class UserSubscriptionServiceTest {
             User user = buildUser(1L, UserType.INDIVIDUAL);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.empty());
 
             assertThatThrownBy(() -> userSubscriptionService.selfCancel(buildUserDetails(1L)))
@@ -697,9 +699,9 @@ class UserSubscriptionServiceTest {
             agreement.cancel();
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
-            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
+            given(billingAgreementRepository.findByUserIDAndProviderForUpdate(user.getId(), PaymentProviderType.TOSS))
                     .willReturn(Optional.of(agreement));
 
             UserSubscriptionResponse result = userSubscriptionService.reactivate(buildUserDetails(1L));
@@ -708,6 +710,7 @@ class UserSubscriptionServiceTest {
             assertThat(us.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
             assertThat(agreement.getStatus()).isEqualTo(BillingAgreementStatus.ACTIVE);
             assertThat(agreement.getNextBillingAt()).isEqualTo(us.getExpiresAt());
+            verifyMutationLockOrder(user);
         }
 
         @Test
@@ -725,9 +728,9 @@ class UserSubscriptionServiceTest {
             agreement.cancel();
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
-            given(billingAgreementRepository.findByUserAndProvider(user, PaymentProviderType.TOSS))
+            given(billingAgreementRepository.findByUserIDAndProviderForUpdate(user.getId(), PaymentProviderType.TOSS))
                     .willReturn(Optional.of(agreement));
 
             assertThatThrownBy(() -> userSubscriptionService.reactivate(buildUserDetails(1L)))
@@ -754,7 +757,7 @@ class UserSubscriptionServiceTest {
             ReflectionTestUtils.setField(us, "expiresAt", originalExpiresAt);
 
             given(userRepository.findById(1L)).willReturn(Optional.of(user));
-            given(userSubscriptionRepository.findActiveByUser(eq(user), any(LocalDate.class)))
+            given(userSubscriptionRepository.findActiveByUserForUpdate(eq(user), any(LocalDate.class)))
                     .willReturn(Optional.of(us));
 
             userSubscriptionService.selfCancel(buildUserDetails(1L));
@@ -801,6 +804,14 @@ class UserSubscriptionServiceTest {
     }
 
     // -- helpers -------------------------------------------------------------
+
+    private void verifyMutationLockOrder(User user) {
+        org.mockito.InOrder locks = org.mockito.Mockito.inOrder(billingAgreementRepository, userSubscriptionRepository);
+        locks.verify(billingAgreementRepository).findByUserIDAndProviderForUpdate(user.getId(), PaymentProviderType.TOSS);
+        locks.verify(userSubscriptionRepository).findActiveByUserForUpdate(eq(user), any(LocalDate.class));
+        verify(userSubscriptionRepository, never()).findActiveByUser(any(User.class), any(LocalDate.class));
+        verify(billingAgreementRepository, never()).findByUserAndProvider(any(User.class), any());
+    }
 
     private User buildUser(Long id, UserType userType) {
         User user = User.builder()

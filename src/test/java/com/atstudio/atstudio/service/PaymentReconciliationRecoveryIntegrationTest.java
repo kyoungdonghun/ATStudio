@@ -472,7 +472,9 @@ class PaymentReconciliationRecoveryIntegrationTest {
         billingAgreementRepository.saveAndFlush(agreement);
         PaymentOrder order = reconciliationOrder(
                 "ORDER-RECON-UPGRADE",
-                "UPGRADE:" + current.getId() + ":persisted-target",
+                new PaymentCommandKeyFactory().bindSubscriptionSource(
+                        new PaymentCommandKeyFactory().upgrade(current.getId(), current.getStartedAt(),
+                                current.getExpiresAt(), targetPlan.getId(), BillingCycle.MONTHLY), current),
                 user,
                 targetPlan,
                 current,

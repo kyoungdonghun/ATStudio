@@ -47,6 +47,16 @@
 
 > **Modification note**: Original precondition "must have active subscription" removed. Previously issued licenses remain viewable even after subscription expires.
 
+**Retained History Contract (2026-09-09):** Track soft deletion preserves the
+issued License and its original identity/code/time, the download event and its
+timestamp, and Track media. Inactive Tracks still reject download; retention
+does not grant playback or download of an inactive Track. If reactivated, the
+existing License permits re-download without duplicate issuance or an extra
+daily-count entry. Retained events continue to count against the existing
+daily quota. This change neither reconstructs previously deleted rows nor
+introduces a retention-duration or purge policy. See the
+[bounded closure evidence](../../../deliverables/agent/WI-20260909-ATS-013-evidence-pack.md).
+
 ---
 
 ## INFO-010: View Member License List (Admin)

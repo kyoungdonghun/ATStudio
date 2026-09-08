@@ -47,7 +47,7 @@ class JwtAuthenticationFilterTest {
         filter.doFilterInternal(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
-        verify(jwtTokenProvider, never()).validateToken("Basic credentials");
+        verify(jwtTokenProvider, never()).validateAccessToken("Basic credentials");
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }
 
@@ -61,7 +61,7 @@ class JwtAuthenticationFilterTest {
                 .password("encoded-password")
                 .role(UserRole.USER)
                 .build();
-        when(jwtTokenProvider.validateToken("valid-token")).thenReturn(TokenValidationResult.VALID);
+        when(jwtTokenProvider.validateAccessToken("valid-token")).thenReturn(TokenValidationResult.VALID);
         when(jwtTokenProvider.getUserID("valid-token")).thenReturn(7L);
         when(userDetailsService.loadUserById(7L)).thenReturn(userDetails);
 
@@ -79,7 +79,7 @@ class JwtAuthenticationFilterTest {
         MockHttpServletRequest request = bearerRequest("expired-token");
         MockHttpServletResponse response = new MockHttpServletResponse();
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("stale", null));
-        when(jwtTokenProvider.validateToken("expired-token")).thenReturn(TokenValidationResult.EXPIRED);
+        when(jwtTokenProvider.validateAccessToken("expired-token")).thenReturn(TokenValidationResult.EXPIRED);
 
         filter.doFilterInternal(request, response, filterChain);
 
@@ -93,7 +93,7 @@ class JwtAuthenticationFilterTest {
         MockHttpServletRequest request = bearerRequest("invalid-token");
         MockHttpServletResponse response = new MockHttpServletResponse();
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("stale", null));
-        when(jwtTokenProvider.validateToken("invalid-token")).thenReturn(TokenValidationResult.INVALID);
+        when(jwtTokenProvider.validateAccessToken("invalid-token")).thenReturn(TokenValidationResult.INVALID);
 
         filter.doFilterInternal(request, response, filterChain);
 

@@ -52,6 +52,7 @@ public class Album extends BaseEntity {
 
     public void softDelete() {
         this.isActive = false;
+        this.thumbnail = null;
     }
 
     public void incrementLikeCount() {

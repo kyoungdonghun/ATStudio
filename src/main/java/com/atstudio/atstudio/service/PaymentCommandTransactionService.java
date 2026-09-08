@@ -76,12 +76,7 @@ public class PaymentCommandTransactionService {
             BillingCycle targetBillingCycle,
             LocalDateTime claimedAt) {
         BillingAgreement agreement = billingAgreementRepository
-                .findByUserAndProvider(
-                        userSubscriptionRepository.findById(currentSubscriptionID)
-                                .map(UserSubscription::getUser)
-                                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION)),
-                        RECURRING_PROVIDER)
-                .map(existing -> lockAgreement(existing.getId()))
+                .findByUserIDAndProviderForUpdate(userID, RECURRING_PROVIDER)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_NOT_FOUND));
         UserSubscription current = userSubscriptionRepository.findByIdForUpdate(currentSubscriptionID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
@@ -89,20 +84,37 @@ public class PaymentCommandTransactionService {
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_NOT_FOUND));
 
         validateUpgradeOwner(userID, current, agreement);
-        validateReusableBillingAgreement(current, agreement);
-        validateUpgradeTarget(current, target, targetBillingCycle);
-
-        BigDecimal proratedAmount = calculateProratedUpgradeAmount(current, target);
-        if (proratedAmount.signum() <= 0) {
-            throw new BusinessException(BUSINESS_ERROR.PAYMENT_AMOUNT_MISMATCH);
+        if (targetBillingCycle == null) {
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
         }
-
         String commandKey = keyFactory.upgrade(
                 current.getId(),
                 current.getStartedAt(),
                 current.getExpiresAt(),
                 target.getId(),
                 targetBillingCycle);
+        // A locking read is required here even under MySQL REPEATABLE READ.
+        for (PaymentOrder unresolved : paymentOrderRepository.findUnresolvedUpgradesForUpdate(current)) {
+            if (!keyFactory.matchesCommand(unresolved.getCommandKey(), commandKey)) {
+                throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+            }
+        }
+        PaymentOrder existing = paymentOrderRepository.findByCommandKeyForUpdate(commandKey).orElse(null);
+        if (existing != null && (existing.getStatus() == PaymentOrderStatus.DONE
+                || existing.getStatus() == PaymentOrderStatus.PROVIDER_SUCCEEDED)) {
+            validateUpgradeFinalizationOrder(existing, current, agreement);
+            if (!Objects.equals(existing.getSubscription().getId(), target.getId())
+                    || existing.getUpgradeTargetBillingCycle() != targetBillingCycle) {
+                throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+            }
+            return UpgradeClaim.finalizeOnly(agreement.getId(), existing.getOrderId(), targetBillingCycle);
+        }
+        validateReusableBillingAgreement(current, agreement);
+        validateUpgradeTarget(current, target, targetBillingCycle);
+        BigDecimal proratedAmount = calculateProratedUpgradeAmount(current, target);
+        if (proratedAmount.signum() <= 0) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_AMOUNT_MISMATCH);
+        }
         PaymentOrder order = findOrCreateUpgradeOrder(
                 current,
                 target,
@@ -120,13 +132,6 @@ public class PaymentCommandTransactionService {
                 proratedAmount,
                 targetBillingCycle);
 
-        if (order.getStatus() == PaymentOrderStatus.DONE
-                || order.getStatus() == PaymentOrderStatus.PROVIDER_SUCCEEDED) {
-            return UpgradeClaim.finalizeOnly(
-                    agreement.getId(),
-                    order.getOrderId(),
-                    order.getUpgradeTargetBillingCycle());
-        }
         if (order.getStatus() == PaymentOrderStatus.PROCESSING) {
             if (order.isProcessingStale(claimedAt.minusMinutes(STALE_PROCESSING_MINUTES))) {
                 order.markProviderOutcomeUnknown(
@@ -147,7 +152,7 @@ public class PaymentCommandTransactionService {
 
         int providerAttempt = order.getProviderAttempt() + 1;
         String providerIdempotencyKey = keyFactory.upgradeAttempt(order.getOrderId(), providerAttempt);
-        order.claimProviderAttempt(commandKey, providerIdempotencyKey, claimedAt);
+        order.claimProviderAttempt(order.getCommandKey(), providerIdempotencyKey, claimedAt);
 
         return UpgradeClaim.callProvider(
                 agreement.getId(),
@@ -173,9 +178,10 @@ public class PaymentCommandTransactionService {
             LocalDateTime claimedAt) {
         Long agreementID = paymentOrderRepository.findBillingAgreementIDByOrderId(orderID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_NOT_FOUND));
-        LockedBillingCommand command = lockBillingCommand(agreementID, orderID);
-        PaymentOrder order = command.order();
-        BillingAgreement agreement = command.agreement();
+        BillingAgreement agreement = lockAgreement(agreementID);
+        UserSubscription source = userSubscriptionRepository.findByUserIDForUpdate(userID).orElse(null);
+        PaymentOrder order = lockOrder(orderID);
+        validateLockedCommand(agreementID, orderID, agreement, order);
 
         validateCommandOwner(userID, order, agreement);
         validateBillingOrder(order);
@@ -209,7 +215,7 @@ public class PaymentCommandTransactionService {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_EXPIRED);
         }
 
-        validateInitialSubscriptionState(order);
+        validateInitialSubscriptionState(order, source);
 
         int providerAttempt = order.getProviderAttempt() + 1;
         String commandKey = order.getCommandKey();
@@ -549,7 +555,7 @@ public class PaymentCommandTransactionService {
         if (order.getPurpose() != PaymentPurpose.SUBSCRIBE) {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
         }
-        validateInitialSubscriptionFinalizationState(agreement, lockedSubscription);
+        validateInitialSubscriptionFinalizationState(order, agreement, lockedSubscription);
 
         SubscriptionPayment existingPayment = lockExistingPaymentForFinalization(order);
         if (existingPayment != null) {
@@ -827,7 +833,7 @@ public class PaymentCommandTransactionService {
 
         PaymentOrder order = PaymentOrder.builder()
                 .orderId(generateUpgradeOrderID())
-                .commandKey(commandKey)
+                .commandKey(keyFactory.bindSubscriptionSource(commandKey, current))
                 .user(current.getUser())
                 .purpose(PaymentPurpose.UPGRADE)
                 .provider(RECURRING_PROVIDER)
@@ -996,7 +1002,7 @@ public class PaymentCommandTransactionService {
                 || !Objects.equals(order.getBillingAgreement().getId(), agreement.getId())
                 || order.getBillingCycle() != current.getBillingCycle()
                 || order.getUpgradeTargetBillingCycle() != targetBillingCycle
-                || !Objects.equals(order.getCommandKey(), expectedCommandKey)
+                || !Objects.equals(order.getCommandKey(), keyFactory.bindSubscriptionSource(expectedCommandKey, current))
                 || order.getAmount().compareTo(proratedAmount) != 0) {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
         }
@@ -1025,6 +1031,17 @@ public class PaymentCommandTransactionService {
                 || !"KRW".equals(order.getCurrency())
                 || isBlank(order.getCommandKey())) {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+        if (order.getStatus() != PaymentOrderStatus.DONE) {
+            String expectedKey = keyFactory.bindSubscriptionSource(keyFactory.upgrade(
+                    current.getId(), current.getStartedAt(), current.getExpiresAt(),
+                    order.getSubscription().getId(), order.getUpgradeTargetBillingCycle()), current);
+            if (!Objects.equals(order.getCommandKey(), expectedKey)
+                    || order.getBillingCycle() != current.getBillingCycle()) {
+                throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+            }
+            validateReusableBillingAgreement(current, agreement);
+            validateUpgradeTarget(current, order.getSubscription(), order.getUpgradeTargetBillingCycle());
         }
     }
 
@@ -1164,6 +1181,9 @@ public class PaymentCommandTransactionService {
     private UserSubscription lockProjectedSubscription(
             PaymentOrderRepository.CommandLockProjection projection) {
         if (projection.getUserSubscriptionID() == null) {
+            if (projection.getPurpose() == PaymentPurpose.SUBSCRIBE) {
+                return userSubscriptionRepository.findByUserIDForUpdate(projection.getUserID()).orElse(null);
+            }
             return null;
         }
         return userSubscriptionRepository.findByIdForUpdate(projection.getUserSubscriptionID())
@@ -1298,7 +1318,7 @@ public class PaymentCommandTransactionService {
         switch (order.getPurpose()) {
             case SUBSCRIBE -> {
                 validateBillingOrder(order);
-                validateInitialSubscriptionFinalizationState(agreement, subscription);
+                validateInitialSubscriptionFinalizationState(order, agreement, subscription);
             }
             case UPGRADE -> {
                 if (subscription == null) {
@@ -1317,9 +1337,25 @@ public class PaymentCommandTransactionService {
     }
 
     private void validateInitialSubscriptionFinalizationState(
+            PaymentOrder order,
             BillingAgreement agreement,
             UserSubscription subscription) {
-        if (subscription != null || !agreement.isInitialSubscriptionFinalizationEligible()) {
+        if (!agreement.isInitialSubscriptionFinalizationEligible()) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+        validateInitialSubscriptionSource(order, subscription);
+    }
+
+    private void validateInitialSubscriptionSource(PaymentOrder order, UserSubscription source) {
+        if (source == null && order.getUserSubscription() == null) {
+            return;
+        }
+        if (source == null || order.getUserSubscription() == null
+                || !Objects.equals(source.getId(), order.getUserSubscription().getId())
+                || !Objects.equals(source.getUser().getId(), order.getUser().getId())
+                || (source.getStatus() != SubscriptionStatus.EXPIRED
+                && !source.getExpiresAt().isBefore(LocalDate.now()))
+                || !keyFactory.matchesSubscriptionSource(order.getCommandKey(), source)) {
             throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
         }
     }
@@ -1394,7 +1430,7 @@ public class PaymentCommandTransactionService {
         }
     }
 
-    private void validateInitialSubscriptionState(PaymentOrder order) {
+    private void validateInitialSubscriptionState(PaymentOrder order, UserSubscription source) {
         User user = order.getUser();
         if (order.getSubscription().getUserType() != user.getUserType()) {
             throw new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_USER_TYPE_MISMATCH);
@@ -1407,9 +1443,11 @@ public class PaymentCommandTransactionService {
                     List.of(CompanyCertificationStatus.APPROVED))) {
                 throw new BusinessException(BUSINESS_ERROR.COMPANY_CERTIFICATION_REQUIRED);
             }
-            userSubscriptionRepository.findActiveByUser(user, LocalDate.now()).ifPresent(subscription -> {
+            if (source != null && source.getStatus() != SubscriptionStatus.EXPIRED
+                    && !source.getExpiresAt().isBefore(LocalDate.now())) {
                 throw new BusinessException(BUSINESS_ERROR.SUBSCRIPTION_ALREADY_EXISTS);
-            });
+            }
+            validateInitialSubscriptionSource(order, source);
             return;
         }
 

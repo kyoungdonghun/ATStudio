@@ -40,6 +40,11 @@ class DownloadConcurrencyContractTest {
         assertThat(transaction).isNotNull();
         assertThat(transaction.readOnly()).isFalse();
         assertThat(downloadService).contains("userRepository.findByIdForUpdate(userDetails.getId())");
+        Lock trackLock = TrackRepository.class.getMethod("findByIdForUpdate", Long.class).getAnnotation(Lock.class);
+        assertThat(trackLock).isNotNull();
+        assertThat(trackLock.value()).isEqualTo(LockModeType.PESSIMISTIC_WRITE);
+        assertThat(downloadService.indexOf("userRepository.findByIdForUpdate"))
+                .isLessThan(downloadService.indexOf("trackRepository.findByIdForUpdate"));
     }
 
     @Test

@@ -1,6 +1,6 @@
 ---
-version: 30.12
-last_updated: 2026-09-02
+version: 30.13
+last_updated: 2026-09-09
 project: ATS
 owner: SA
 category: design
@@ -16,7 +16,7 @@ dependencies:
     reason: Current persistence contract
 ---
 
-# ATStudio API Specification v30.12
+# ATStudio API Specification v30.13
 
 ## Current Contract
 
@@ -41,6 +41,14 @@ application is authoritative for request and response schemas.
 
 ## V1 Boundaries
 
+- Bearer authentication accepts purpose-bound Access Tokens only. Refresh
+  accepts purpose-bound Refresh Tokens with a nonblank unique `jti`, checks
+  and rotates the current digest under a user-row lock, and rejects stale
+  tokens without clearing a successor digest. Old typeless sessions require
+  login after deployment; no legacy compatibility bypass is provided.
+- Password reset atomically consumes the locked reset token, updates the
+  password and clears refresh access. Validation diagnostics omit rejected
+  values and raw exception detail; API error envelopes remain unchanged.
 - The React SPA is the only active UI. `SpaForwardController` provides SPA
   deep-link forwarding; it is not an SSR or Thymeleaf compatibility layer.
 - Public Listening streams the complete active Track through
@@ -50,6 +58,11 @@ application is authoritative for request and response schemas.
   There is no server Play History API or persistence contract.
 - Download History uses `/api/downloads/history`; there is no Download Queue
   API or persistence contract.
+- Track soft deletion retains Licenses, download events and media. Retained
+  events still consume the existing daily quota. Download first locks User
+  then the active Track; an inactive Track returns `TRACK_NOT_FOUND` even when
+  a License exists. Reactivation permits existing-License re-download without
+  duplicate issuance or an extra daily-count entry.
 - Subscription payment is card recurring-only through Toss billing agreement
   endpoints. Persisted provider identity is `TOSS`.
 - The recurring, status-lookup, and refund provider interfaces remain
@@ -75,6 +88,14 @@ application is authoritative for request and response schemas.
   persisted public/private object reference and returns aggregate counts plus
   opaque record/domain/reference-type evidence for missing files. Storage keys,
   original filenames, file bytes, and automatic repair actions are excluded.
+- Album/Playlist deletion clears the parent's thumbnail reference in the
+  same transaction before reference-aware, after-commit cleanup. Shared and
+  retained inactive references still protect an object; integrity inspection
+  does not ignore inactive rows or repair old missing objects.
+- Multipart parsing is bounded to 128 parts by the Tomcat connector, with
+  existing byte, parameter and part-header bounds unchanged. Part overflow
+  follows the existing HTTP 413 `IO_LARGE` error path. This is a parser budget,
+  not a new product quota or proof of proxy/concurrency resource bounds.
 - Track create and replacement audio accepts MP3 and WAV only. On non-iOS
   platforms, the active SPA advertises those two formats through the native
   picker hint. On iOS, it omits that hint to avoid valid MP3 files being

@@ -59,7 +59,7 @@ class JwtTokenProviderTest {
     void validateToken_valid_returnsValid() {
         String token = provider.generateAccessToken(1L, UserRole.USER);
 
-        assertThat(provider.validateToken(token)).isEqualTo(TokenValidationResult.VALID);
+        assertThat(provider.validateAccessToken(token)).isEqualTo(TokenValidationResult.VALID);
     }
 
     @Test
@@ -67,7 +67,7 @@ class JwtTokenProviderTest {
     void validateToken_expired_returnsExpired() {
         String expiredToken = buildExpiredToken(1L);
 
-        assertThat(provider.validateToken(expiredToken)).isEqualTo(TokenValidationResult.EXPIRED);
+        assertThat(provider.validateAccessToken(expiredToken)).isEqualTo(TokenValidationResult.EXPIRED);
     }
 
     @Test
@@ -76,7 +76,7 @@ class JwtTokenProviderTest {
         String token = provider.generateAccessToken(1L, UserRole.USER);
         String tampered = token.substring(0, token.length() - 5) + "XXXXX";
 
-        assertThat(provider.validateToken(tampered)).isEqualTo(TokenValidationResult.INVALID);
+        assertThat(provider.validateAccessToken(tampered)).isEqualTo(TokenValidationResult.INVALID);
     }
 
     @Test
@@ -115,10 +115,10 @@ class JwtTokenProviderTest {
     private String buildExpiredToken(Long userId) {
         JwtConfig expiredConfig = mock(JwtConfig.class);
         when(expiredConfig.getSecret()).thenReturn(TEST_SECRET);
-        when(expiredConfig.getAccessTokenExpiration()).thenReturn(0L);
-        when(expiredConfig.getRefreshTokenExpiration()).thenReturn(0L);
+        when(expiredConfig.getAccessTokenExpiration()).thenReturn(-1000L);
+        when(expiredConfig.getRefreshTokenExpiration()).thenReturn(-1000L);
         JwtTokenProvider expiredProvider = new JwtTokenProvider(expiredConfig);
         expiredProvider.init();
-        return expiredProvider.generateRefreshToken(userId);
+        return expiredProvider.generateAccessToken(userId, UserRole.USER);
     }
 }

@@ -79,7 +79,29 @@
   navigation falls back to Home.
 
 **Postconditions**
-- Access Token and Refresh Token issued successfully. Can be used as Bearer token for subsequent authenticated API calls.
+- Access Token and Refresh Token issued successfully. Only the Access Token
+  can be used as Bearer authentication for subsequent protected API calls;
+  the Refresh Token is accepted only by the refresh endpoint.
+
+**Session Contract (2026-09-09)**
+- Access and refresh tokens carry distinct `token_use` values. Refresh tokens
+  also carry a unique `jti`; old typeless sessions require login after
+  deployment, with no legacy bypass.
+- Refresh rotation is serialized under the user-row lock. A stale digest
+  mismatch rejects the caller without revoking a newer refresh session.
+- Passwordless OAuth accounts can refresh without the password-account email
+  verification gate. Their email is not thereby verified, and disabled
+  Providers remain disabled.
+- Login, current-user reads, refresh/replay and logout cleanup retain their
+  initiating session-generation owner. A late completion cannot publish into
+  another session, including a later login by the same user. Server logout
+  failure remains explicitly unconfirmed even if local logout completes.
+- Password-reset consumption is single-use under User-then-token locks;
+  password change, token consumption and refresh clearing commit together.
+  Existing access tokens are not given a new immediate-revocation mechanism.
+- Source and isolated test evidence are linked in the
+  [bounded closure evidence](../../../deliverables/agent/WI-20260909-ATS-013-evidence-pack.md).
+  The pinned public backend has not been deployed from this patch.
 
 ---
 
@@ -110,7 +132,9 @@
 6. The provider access token and required provider identity are mandatory. Text fields must be nonblank; Kakao's documented integral identity is normalized, while other wrong-type required fields fail closed. Provider errors and malformed, missing, or blank required fields return `SOCIAL_AUTH_FAILED`; no local session is issued.
 7. The backend does not log or retain real authorization codes, PKCE verifiers, provider access tokens, provider identifiers, or raw provider response bodies as error evidence. Tests use synthetic scalar fixtures only, never captured provider payloads or secrets.
 8. Checks for an existing link in the social_accounts table by (provider, provider_id).
-9. If linked: logs in as the existing user. isProfileComplete=true. Issues Access/Refresh Token and returns.
+9. If linked: logs in as the existing user. isProfileComplete=true. Issues
+   purpose-bound Access/Refresh Token, replaces the stored refresh digest, and
+   returns. A pre-login refresh token cannot revoke or refresh the new session.
 10. If not linked (new sign-up):
    a. Creates a users record with minimal information (email, social name only; password=NULL, phonePersonal=NULL, job=NULL allowed).
    b. Creates a social_accounts record and links it.
@@ -122,6 +146,14 @@
     one-time profile-continuation target bound to the authenticated user ID,
     moves to INFO-014, and applies the same access revalidation after profile
     refresh. Storage failure proceeds to INFO-014 without a continuation.
+
+Social completion rechecks its owner after each synchronous store notification
+as well as after asynchronous exchange/profile reads. Token staging checks
+again immediately after clearing the previous session and before writing
+either token. A successor login or clear operation retires the old attempt:
+it cannot overwrite successor storage, fetch identity, dispatch cleanup logout
+or navigate using the retired attempt. Current-owner persistence failure still
+clears that failed session and reports failure.
 
 **Environment Boundary**
 - Google, Kakao, and Naver happy paths are locally verified with typed-response tests. Real-provider payload compatibility remains `ENVIRONMENT-CONDITIONAL` until an approved environment run; no live provider call is part of this flow's evidence.

@@ -8,7 +8,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -66,35 +65,34 @@ public class StorageMutationCoordinator {
                 .map(write -> toDraft(operationId, domain, root, write))
                 .toList();
 
-        int stagedCount = 0;
+        journalService.registerInFlight(operationId);
+        boolean synchronizationRegistered = false;
         try {
-            for (int index = 0; index < writes.size(); index++) {
-                StorageWriteRequest write = writes.get(index);
-                storageService.stage(root, operationId, drafts.get(index).newKey(), write.file());
-                stagedCount++;
+            // Own every target durably before any bytes are written, including a failing stage.
+            List<Long> mutationIds = journalService.prepare(drafts);
+            try {
+                for (int index = 0; index < writes.size(); index++) {
+                    StorageWriteRequest write = writes.get(index);
+                    storageService.stage(root, operationId, drafts.get(index).newKey(), write.file());
+                }
+                drafts.forEach(draft -> storageService.promote(root, operationId, draft.newKey()));
+            } catch (RuntimeException exception) {
+                try {
+                    cleanupPreparedMutations(mutationIds, drafts);
+                } catch (RuntimeException cleanupFailure) {
+                    // PREPARED entries remain recoverable even when journal transitions fail.
+                    exception.addSuppressed(cleanupFailure);
+                }
+                throw exception;
             }
-        } catch (RuntimeException exception) {
-            cleanupInterruptedPreparation(drafts.subList(0, stagedCount));
-            throw exception;
+            registerSynchronization(mutationIds, drafts);
+            synchronizationRegistered = true;
+            return drafts.stream().map(StorageMutationDraft::newKey).toList();
+        } finally {
+            if (!synchronizationRegistered) {
+                journalService.releaseInFlight(operationId);
+            }
         }
-
-        List<Long> mutationIds;
-        try {
-            mutationIds = journalService.prepare(drafts);
-        } catch (RuntimeException exception) {
-            drafts.forEach(draft -> cleanupService.cleanupNew(root, operationId, draft.newKey()));
-            throw exception;
-        }
-
-        try {
-            drafts.forEach(draft -> storageService.promote(root, operationId, draft.newKey()));
-        } catch (RuntimeException exception) {
-            cleanupPreparedMutations(mutationIds, drafts);
-            throw exception;
-        }
-
-        registerSynchronization(mutationIds, drafts);
-        return drafts.stream().map(StorageMutationDraft::newKey).toList();
     }
 
     public void deleteAfterCommit(
@@ -128,8 +126,17 @@ public class StorageMutationCoordinator {
                         null,
                         key))
                 .toList();
-        List<Long> mutationIds = journalService.prepare(drafts);
-        registerSynchronization(mutationIds, drafts);
+        journalService.registerInFlight(operationId);
+        boolean synchronizationRegistered = false;
+        try {
+            List<Long> mutationIds = journalService.prepare(drafts);
+            registerSynchronization(mutationIds, drafts);
+            synchronizationRegistered = true;
+        } finally {
+            if (!synchronizationRegistered) {
+                journalService.releaseInFlight(operationId);
+            }
+        }
     }
 
     private StorageMutationDraft toDraft(
@@ -167,8 +174,12 @@ public class StorageMutationCoordinator {
 
             @Override
             public void afterCompletion(int status) {
-                if (status == STATUS_ROLLED_BACK) {
-                    runCallbackSafely(drafts.get(0).operationId(), () -> afterRollback(mutationIds, drafts));
+                try {
+                    if (status == STATUS_ROLLED_BACK) {
+                        runCallbackSafely(drafts.get(0).operationId(), () -> afterRollback(mutationIds, drafts));
+                    }
+                } finally {
+                    journalService.releaseInFlight(drafts.get(0).operationId());
                 }
             }
         });
@@ -204,21 +215,6 @@ public class StorageMutationCoordinator {
                     StorageMutationState.ROLLBACK_CLEANUP,
                     "NEW_DELETE_PENDING");
             completeNewCleanup(mutationId, draft);
-        }
-    }
-
-    private void cleanupInterruptedPreparation(List<StorageMutationDraft> drafts) {
-        if (drafts.isEmpty()) {
-            return;
-        }
-        try {
-            List<Long> mutationIds = journalService.prepare(drafts);
-            cleanupPreparedMutations(mutationIds, drafts);
-        } catch (RuntimeException journalFailure) {
-            drafts.forEach(draft -> cleanupService.cleanupNew(
-                    draft.storageRoot(),
-                    draft.operationId(),
-                    draft.newKey()));
         }
     }
 

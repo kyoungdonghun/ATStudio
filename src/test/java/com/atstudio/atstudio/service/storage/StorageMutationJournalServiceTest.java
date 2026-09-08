@@ -96,6 +96,35 @@ class StorageMutationJournalServiceTest {
     }
 
     @Test
+    void activeOperationIsNotClaimedOrChargedAnAttemptUntilReleased() {
+        StorageMutation candidate = mutation(51L, StorageMutationState.PREPARED, 0);
+        given(mutationRepository.findRecoveryCandidates(any(), any(), any(), any(), anyInt(), any()))
+                .willReturn(List.of(candidate));
+        LocalDateTime now = LocalDateTime.now();
+        service.registerInFlight(candidate.getOperationId());
+
+        assertThat(service.claimBatch(now, now.minusMinutes(5), now.plusMinutes(2), 50, 8)).isEmpty();
+        assertThat(candidate.getAttemptCount()).isZero();
+        assertThat(candidate.getNextAttemptAt()).isNull();
+        service.releaseInFlight(candidate.getOperationId());
+        assertThat(service.claimBatch(now, now.minusMinutes(5), now.plusMinutes(2), 50, 8)).hasSize(1);
+        assertThat(candidate.getAttemptCount()).isOne();
+    }
+
+    @Test
+    void newRuntimeHasNoAbandonedInMemoryOwnerAndCanClaimStalePreparedWork() {
+        StorageMutation candidate = mutation(61L, StorageMutationState.PREPARED, 0);
+        given(mutationRepository.findRecoveryCandidates(any(), any(), any(), any(), anyInt(), any()))
+                .willReturn(List.of(candidate));
+        service.registerInFlight(candidate.getOperationId());
+        StorageMutationJournalService restarted = new StorageMutationJournalService(mutationRepository);
+        LocalDateTime now = LocalDateTime.now();
+
+        assertThat(restarted.claimBatch(now, now.minusMinutes(5), now.plusMinutes(2), 50, 8)).hasSize(1);
+        assertThat(candidate.getAttemptCount()).isOne();
+    }
+
+    @Test
     void retryClaimedIsIdempotentForMissingRowsAndFailsAtBound() {
         StorageMutation exhausted = mutation(41L, StorageMutationState.RETRY, 8);
         given(mutationRepository.findById(40L)).willReturn(Optional.empty());

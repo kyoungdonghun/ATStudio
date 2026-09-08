@@ -126,8 +126,9 @@ public class UserSubscriptionService {
             CustomUserDetails userDetails,
             ChangeSubscriptionRequest request) {
         User user = findUser(userDetails);
+        BillingAgreement agreement = lockAgreementOrNull(user);
         UserSubscription current = userSubscriptionRepository
-                .findActiveByUser(user, LocalDate.now())
+                .findActiveByUserForUpdate(user, LocalDate.now())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
 
         Subscription newPlan = subscriptionRepository.findById(request.subscriptionId())
@@ -138,7 +139,8 @@ public class UserSubscriptionService {
         }
 
         if (isSamePlanAndCycle(current, newPlan, request.billingCycle())) {
-            reactivateIfCancelled(user, current);
+            validateNoUnresolvedMonetaryCommand(agreement);
+            reactivateIfCancelled(agreement, current);
             current.clearPendingChange();
             return SubscriptionChangePlan.local(new ChangeSubscriptionResponse(
                     SubscriptionResponse.from(current.getSubscription()),
@@ -164,8 +166,9 @@ public class UserSubscriptionService {
                         request.billingCycle());
             }
 
-            findReusableBillingAgreement(user, current);
-            reactivateIfCancelled(user, current);
+            validateNoUnresolvedMonetaryCommand(agreement);
+            validateReusableBillingAgreement(agreement, current);
+            reactivateIfCancelled(agreement, current);
             current.upgradeKeepingPeriod(newPlan, request.billingCycle());
 
             return SubscriptionChangePlan.local(new ChangeSubscriptionResponse(
@@ -179,7 +182,8 @@ public class UserSubscriptionService {
             ));
         }
 
-        reactivateIfCancelled(user, current);
+        validateNoUnresolvedMonetaryCommand(agreement);
+        reactivateIfCancelled(agreement, current);
         current.schedulePendingChange(newPlan, request.billingCycle());
         return SubscriptionChangePlan.local(new ChangeSubscriptionResponse(
                 SubscriptionResponse.from(newPlan),
@@ -196,24 +200,28 @@ public class UserSubscriptionService {
     @Transactional
     public void selfCancel(CustomUserDetails userDetails) {
         User user = findUser(userDetails);
+        BillingAgreement agreement = lockAgreementOrNull(user);
         UserSubscription userSubscription = userSubscriptionRepository
-                .findActiveByUser(user, LocalDate.now())
+                .findActiveByUserForUpdate(user, LocalDate.now())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
+        validateNoUnresolvedMonetaryCommand(agreement);
         userSubscription.cancel();
-        billingAgreementRepository.findByUserAndProvider(user, RECURRING_PROVIDER)
-                .filter(agreement -> agreement.getStatus() != BillingAgreementStatus.CANCELLED
-                        && agreement.getStatus() != BillingAgreementStatus.EXPIRED)
-                .ifPresent(BillingAgreement::cancel);
+        if (agreement != null && agreement.getStatus() != BillingAgreementStatus.CANCELLED
+                && agreement.getStatus() != BillingAgreementStatus.EXPIRED) {
+            agreement.cancel();
+        }
     }
 
     // 6.11 POST /api/user-subscriptions/me/reactivate
     @Transactional
     public UserSubscriptionResponse reactivate(CustomUserDetails userDetails) {
         User user = findUser(userDetails);
+        BillingAgreement agreement = lockAgreementOrNull(user);
         UserSubscription userSubscription = userSubscriptionRepository
-                .findActiveByUser(user, LocalDate.now())
+                .findActiveByUserForUpdate(user, LocalDate.now())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
-        reactivateIfCancelled(user, userSubscription);
+        validateNoUnresolvedMonetaryCommand(agreement);
+        reactivateIfCancelled(agreement, userSubscription);
         return UserSubscriptionResponse.from(userSubscription);
     }
 
@@ -222,29 +230,44 @@ public class UserSubscriptionService {
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
     }
 
-    private BillingAgreement findReusableBillingAgreement(User user, UserSubscription subscription) {
-        BillingAgreement agreement = billingAgreementRepository.findByUserAndProvider(user, RECURRING_PROVIDER)
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_NOT_FOUND));
+    private BillingAgreement lockAgreementOrNull(User user) {
+        // Match payment finalization: lock the agreement before first loading the subscription.
+        return billingAgreementRepository.findByUserIDAndProviderForUpdate(user.getId(), RECURRING_PROVIDER)
+                .orElse(null);
+    }
+
+    private void validateNoUnresolvedMonetaryCommand(BillingAgreement agreement) {
+        if (agreement != null && !paymentOrderRepository
+                .findUnresolvedMonetaryCommandsForUpdate(agreement, Pageable.ofSize(1)).isEmpty()) {
+            throw new BusinessException(BUSINESS_ERROR.PAYMENT_ORDER_INVALID_STATE);
+        }
+    }
+
+    private void validateReusableBillingAgreement(BillingAgreement agreement, UserSubscription subscription) {
+        if (agreement == null) {
+            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_NOT_FOUND);
+        }
         if (isBlank(agreement.getBillingKeyCiphertext())) {
             throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE);
         }
         if (agreement.getStatus() == BillingAgreementStatus.ACTIVE) {
-            return agreement;
+            return;
         }
         if (subscription.getStatus() == SubscriptionStatus.CANCELLED
                 && agreement.getStatus() == BillingAgreementStatus.CANCELLED) {
-            return agreement;
+            return;
         }
         throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_INVALID_STATE);
     }
 
-    private void reactivateIfCancelled(User user, UserSubscription subscription) {
+    private void reactivateIfCancelled(BillingAgreement agreement, UserSubscription subscription) {
         if (subscription.getStatus() != SubscriptionStatus.CANCELLED) {
             return;
         }
 
-        BillingAgreement agreement = billingAgreementRepository.findByUserAndProvider(user, RECURRING_PROVIDER)
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_NOT_FOUND));
+        if (agreement == null) {
+            throw new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_NOT_FOUND);
+        }
         if (agreement.getStatus() == BillingAgreementStatus.CANCELLED) {
             try {
                 agreement.resume(subscription.getExpiresAt());

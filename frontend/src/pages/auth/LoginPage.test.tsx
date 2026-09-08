@@ -1,20 +1,17 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LoginPage from '@/pages/auth/LoginPage';
 import { fetchMe, login as loginRequest } from '@/api/auth';
-import type { MeResponse, PublicCapabilitiesResponse } from '@/api/auth';
+import type { LoginResponse, MeResponse, PublicCapabilitiesResponse } from '@/api/auth';
+import { useAuthStore } from '@/store/authStore';
 
 const authState = {
   login: vi.fn(),
-  isAuthenticated: () => false,
 };
+const storeLogin = useAuthStore.getState().login;
 
 const usePublicCapabilitiesMock = vi.fn();
-
-vi.mock('@/store/authStore', () => ({
-  useAuthStore: (selector: (state: typeof authState) => unknown) => selector(authState),
-}));
 
 vi.mock('@/api/auth', () => ({
   login: vi.fn(),
@@ -116,8 +113,12 @@ async function submitPasswordLogin() {
 
 describe('LoginPage', () => {
   beforeEach(() => {
-    authState.login.mockReset();
-    authState.isAuthenticated = () => false;
+    vi.restoreAllMocks();
+    useAuthStore.getState().clearSession();
+    localStorage.clear();
+    sessionStorage.clear();
+    authState.login.mockReset().mockImplementation(storeLogin);
+    useAuthStore.setState({ login: authState.login });
     usePublicCapabilitiesMock.mockReset();
     loginRequestMock.mockReset();
     fetchMeMock.mockReset();
@@ -394,4 +395,115 @@ describe('LoginPage', () => {
 
     expect(await screen.findByText(`Destination: ${expected}`)).toBeInTheDocument();
   });
+
+  it.each(
+    (['login', 'profile'] as const).flatMap((phase) =>
+      (['replacement', 'same-user', 'logout', 'unmount'] as const).flatMap((change) =>
+        (['success', 'failure'] as const).map((result) => ({ phase, change, result })),
+      ),
+    ),
+  )(
+    'ignores stale $phase $result after $change (SEC-04 entrypoint)',
+    async ({ phase, change, result }) => {
+      usePublicCapabilitiesMock.mockReturnValue({
+        capabilities: buildCapabilities(),
+        loading: false,
+        error: '',
+      });
+      const credentials = deferred<LoginResponse>();
+      const currentUser = deferred<MeResponse>();
+      loginRequestMock.mockReturnValue(
+        phase === 'login' ? credentials.promise : Promise.resolve(tokens),
+      );
+      fetchMeMock.mockReturnValue(currentUser.promise);
+      // Keep the entrypoint mounted across navigation to exercise the generation guard itself.
+      const view = render(
+        <MemoryRouter initialEntries={['/login?returnTo=%2Fprofile']}>
+          <LoginPage />
+          <DestinationProbe />
+        </MemoryRouter>,
+      );
+      await submitPasswordLogin();
+      if (phase === 'profile') await waitFor(() => expect(fetchMeMock).toHaveBeenCalledTimes(1));
+
+      act(() => {
+        if (change === 'unmount') view.unmount();
+        else if (change === 'logout') useAuthStore.getState().clearSession();
+        else {
+          useAuthStore
+            .getState()
+            .login(
+              tokens.accessToken,
+              change === 'same-user' ? me : { ...me, id: 2 },
+              tokens.refreshToken,
+            );
+        }
+      });
+      const expectedState = useAuthStore.getState();
+      const expectedStorage = { ...localStorage };
+      const expectedDestination = screen.queryByText(/^Destination:/)?.textContent;
+      await act(async () => {
+        const error = { response: { data: { errorCode: 'EMAIL_VERIFICATION_REQUIRED' } } };
+        if (phase === 'login') {
+          if (result === 'success') credentials.resolve(tokens);
+          else credentials.reject(error);
+        } else if (result === 'success') currentUser.resolve(me);
+        else currentUser.reject(error);
+      });
+
+      expect(useAuthStore.getState()).toBe(expectedState);
+      expect({ ...localStorage }).toEqual(expectedStorage);
+      expect(screen.queryByText(/^Destination:/)?.textContent).toBe(expectedDestination);
+      expect(fetchMeMock).toHaveBeenCalledTimes(phase === 'login' ? 0 : 1);
+      expect(screen.queryByTestId('email-verification-state')).not.toBeInTheDocument();
+    },
+  );
+
+  it('lets a newer password attempt finish without an old response or finally taking ownership', async () => {
+    usePublicCapabilitiesMock.mockReturnValue({
+      capabilities: buildCapabilities(),
+      loading: false,
+      error: '',
+    });
+    const oldLogin = deferred<LoginResponse>();
+    const newLogin = deferred<LoginResponse>();
+    loginRequestMock.mockReturnValueOnce(oldLogin.promise).mockReturnValueOnce(newLogin.promise);
+    fetchMeMock.mockResolvedValue(me);
+    renderPage('/login?returnTo=%2Fprofile');
+    await submitPasswordLogin();
+    const submit = screen.getByRole('button', { name: '로그인' });
+    fireEvent.submit(submit.closest('form')!);
+    await waitFor(() => expect(loginRequestMock).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      oldLogin.resolve(tokens);
+    });
+    expect(fetchMeMock).not.toHaveBeenCalled();
+    expect(submit).toBeDisabled();
+    await act(async () => {
+      newLogin.resolve(tokens);
+    });
+
+    expect(await screen.findByText('Destination: /profile')).toBeInTheDocument();
+    expect(fetchMeMock).toHaveBeenCalledTimes(1);
+    expect(authState.login).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().user).toEqual(me);
+  });
 });
+
+const tokens: LoginResponse = {
+  accessToken: 'access-token',
+  refreshToken: 'refresh-token',
+  tokenType: 'Bearer',
+  expiresIn: 900,
+};
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}

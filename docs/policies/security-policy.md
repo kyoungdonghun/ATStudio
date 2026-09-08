@@ -1,6 +1,6 @@
 ---
-version: 2.7
-last_updated: 2026-08-14
+version: 2.8
+last_updated: 2026-09-09
 project: ATS
 owner: PG
 category: policy
@@ -79,6 +79,24 @@ task_types:
 - Minimum key length: 256 bits for HS256.
 - Rotate keys via environment variable update + rolling restart.
 
+**Token-purpose contract (2026-09-09):** API Bearer authentication accepts only
+`token_use=access`; refresh accepts only `token_use=refresh` with a nonblank
+`jti`. Both require a signed token with expiration and a positive user ID.
+Refresh issuance uses a new random identifier, including same-second issuance.
+The current refresh digest is checked and rotated under the user-row lock.
+A stale refresh mismatch is rejected without clearing a newer stored digest.
+Social login also replaces that digest for an existing linked user.
+Passwordless OAuth accounts may refresh without the password-account email
+verification gate; this does not mark their email verified or enable a Provider.
+Password-reset issuance and consumption lock User before reset-token rows;
+successful single consumption changes the password and clears refresh access
+atomically. This does not add immediate revocation of already issued access
+tokens.
+
+Old typeless JWT sessions require login after this source is deployed. There
+is no legacy-purpose bypass. This contract describes the patched source, not
+the pinned public backend; no secret rotation or session migration was run.
+
 ### 6.2 Database Credentials
 
 | Secret | Environment Variable | Description |
@@ -146,6 +164,16 @@ at most once. A replayed request that receives another `401` fails closed with
 that second response; it does not refresh, re-enter the queue, or replay again.
 Authentication endpoint exclusions and explicit `skipAuthReplay` requests do
 not enter refresh or replay processing.
+
+Refresh, queued replay, current-user reads, login/social completion and logout
+cleanup belong to the initiating session generation. Logout or a replacement
+session retires earlier work, including same-user replacement. The social token
+staging guard rechecks ownership after the synchronous clear-session
+notification, before either token write; a subscriber-created successor must
+not be overwritten or cleared by stale staging. Current-owner persistence
+failures still fail closed. A failed server logout is reported as unconfirmed
+even when local state has been cleared. Public playback remains independent
+of authenticated-user store cleanup.
 
 **ADMIN 403 role synchronization:** Generic requests rejected with `403` while
 the SPA still holds an ADMIN role use one centralized current-user refresh and
@@ -215,6 +243,24 @@ Use the committed `application.yml` as the safe shared baseline. Override throug
 - Public Listening uses `GET /api/tracks/{trackId}/stream` and serves the complete active Track resource only through the controller. A no-Range request returns the complete representation; one valid Range is resolved against the full resource length; malformed, multiple, or unsatisfiable Ranges return `416` with `Content-Range: bytes */{fullLength}`.
 - Public Listening does not disclose the original storage key or static URL and does not create a download record or License. It is not official file-download entitlement.
 - Official Download uses `GET /api/tracks/{trackId}/download`. A first download requires an active Subscription and available plan quota, then records download history and issues a License. An existing License permits entitled re-download without duplicate issuance or another daily-count entry.
+
+Track deactivation retains issued Licenses, download events and media. Retained
+events still count toward the existing daily quota. An inactive Track remains
+unavailable for download even with a License; reactivation reuses the existing
+License without duplicate issuance or another daily-count entry. This is
+prospective preservation, not recovery of previously deleted history.
+
+### 6.5.1 Validation Diagnostics
+
+Request validation logs use fixed categories, counts and at most ten distinct
+allowlisted field labels; unknown labels map to a fixed fallback. They omit
+rejected values, request bodies, tokens, raw exception messages and stack
+traces. Technical fallback logs retain only bounded category/error code and
+exception class. This application change does not sanitize retained logs or
+prove infrastructure request-capture safety.
+
+The [2026-09-09 bounded closure evidence](../../deliverables/agent/WI-20260909-ATS-013-evidence-pack.md)
+maps these contracts to source, synthetic tests and deployment exclusions.
 
 ### 6.6 Mail Delivery Logging
 

@@ -25,29 +25,34 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.sql.SQLException;
+import java.util.Set;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     private final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final Set<String> DIAGNOSTIC_FIELDS = Set.of(
+            "email", "password", "newPassword", "phonePersonal", "phoneCompany",
+            "nickname", "token", "refreshToken", "code", "codeVerifier",
+            "name", "companyName", "role", "userType", "job");
 
     // ── Direct Handlers (explicitly thrown) ──────────────────────────────────
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ExceptionResponseDTO> handleBusinessException(BusinessException ex) {
-        logger.warn("BusinessException(Throw): {}. Detail: {}", ex.getDeveloperMessage(), ex.toString(), ex);
+        logBusinessFailure(ex, ex.getErrorCode());
         return buildErrorResponse(ex.getStatus(), ex.getClientMessage(), ex.getErrorCode().name());
     }
 
     @ExceptionHandler(TechnicException.class)
     public ResponseEntity<ExceptionResponseDTO> handleTechnicException(TechnicException ex) {
-        logger.error("TechnicException(Throw): {}. Detail: {}", ex.getDeveloperMessage(), ex.toString(), ex);
+        logTechnicalFailure(ex, ex.getErrorCode());
         return buildErrorResponse(ex.getStatus(), ex.getClientMessage(), null);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ExceptionResponseDTO> handleAccessDeniedException(AccessDeniedException ex) {
-        logger.warn("AccessDeniedException: insufficient authority. Detail: {}", ex.toString());
+        logger.warn("Request rejected. category=ACCESS_DENIED");
         return buildErrorResponse(HttpStatus.FORBIDDEN, "해당 정보를 열람할 수 없습니다.", null);
     }
 
@@ -60,85 +65,82 @@ public class GlobalExceptionHandler {
 
         if (ex instanceof BadCredentialsException) {
             businessEx = new BusinessException(BUSINESS_ERROR.INVALID_CREDENTIALS);
-            logger.warn("BusinessException(Fallback): {}. Detail: {}",
-                    businessEx.getDeveloperMessage(), ex.toString(), ex);
 
         } else if (ex instanceof DisabledException || ex instanceof LockedException) {
             businessEx = new BusinessException(BUSINESS_ERROR.ACCOUNT_DEACTIVATED);
-            logger.warn("BusinessException(Fallback): {}. Detail: {}",
-                    businessEx.getDeveloperMessage(), ex.toString(), ex);
 
         } else if (ex instanceof MethodArgumentNotValidException
                 || ex instanceof ConstraintViolationException) {
             businessEx = new BusinessException(BUSINESS_ERROR.INVALID_VALID);
-            logger.warn("BusinessException(Fallback): {}. Detail: {}",
-                    businessEx.getDeveloperMessage(), ex.toString(), ex);
+            if (ex instanceof MethodArgumentNotValidException invalid) {
+                logger.warn("Validation rejected. category=BODY_FIELDS, fieldCount={}, fields={}",
+                        invalid.getBindingResult().getFieldErrorCount(),
+                        invalid.getBindingResult().getFieldErrors().stream()
+                                .map(error -> diagnosticField(error.getField()))
+                                .distinct().sorted().limit(10).toList());
+            } else {
+                logger.warn("Validation rejected. category=CONSTRAINT, violationCount={}",
+                        ((ConstraintViolationException) ex).getConstraintViolations().size());
+            }
 
         } else if (ex instanceof MissingServletRequestParameterException) {
             businessEx = new BusinessException(BUSINESS_ERROR.INVALID_VALIDATED);
-            logger.warn("BusinessException(Fallback): {}. Detail: {}",
-                    businessEx.getDeveloperMessage(), ex.toString(), ex);
 
         } else if (ex instanceof MethodArgumentTypeMismatchException
                 || ex instanceof HttpMessageNotReadableException) {
             businessEx = new BusinessException(BUSINESS_ERROR.INVALID_TYPE);
-            logger.warn("BusinessException(Fallback): {}. Detail: {}",
-                    businessEx.getDeveloperMessage(), ex.toString(), ex);
 
         } else if (ex instanceof HttpRequestMethodNotSupportedException) {
             businessEx = new BusinessException(BUSINESS_ERROR.METHOD_NOT_ALLOWED);
-            logger.warn("BusinessException(Fallback): {}. Detail: {}",
-                    businessEx.getDeveloperMessage(), ex.toString(), ex);
 
         } else if (ex instanceof MaxUploadSizeExceededException) {
             businessEx = new BusinessException(BUSINESS_ERROR.IO_LARGE);
-            logger.warn("BusinessException(Fallback): {}. Detail: {}",
-                    businessEx.getDeveloperMessage(), ex.toString(), ex);
 
         } else if (ex instanceof NoResourceFoundException) {
             businessEx = new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND);
-            logger.warn("BusinessException(Fallback): {}. Detail: {}",
-                    businessEx.getDeveloperMessage(), ex.toString(), ex);
 
         } else if (ex instanceof DataIntegrityViolationException) {
             businessEx = new BusinessException(BUSINESS_ERROR.DATA_INTEGRITY_VIOLATION);
-            logger.warn("BusinessException(Fallback): {}. Detail: {}",
-                    businessEx.getDeveloperMessage(), ex.toString(), ex);
 
         } else if (ex instanceof SQLException) {
             technicEx = new TechnicException(TECHNIC_ERROR.DATA_SQL_EXCEPTION);
-            logger.error("TechnicException(Fallback): {}. Detail: {}",
-                    technicEx.getDeveloperMessage(), ex.toString(), ex);
 
         } else if (ex instanceof DataAccessException) {
             technicEx = new TechnicException(TECHNIC_ERROR.DATA_ACCESS_EXCEPTION);
-            logger.error("TechnicException(Fallback): {}. Detail: {}",
-                    technicEx.getDeveloperMessage(), ex.toString(), ex);
 
         } else if (ex instanceof ConnectException) {
             technicEx = new TechnicException(TECHNIC_ERROR.CONNECT_EXCEPTION);
-            logger.error("TechnicException(Fallback): {}. Detail: {}",
-                    technicEx.getDeveloperMessage(), ex.toString(), ex);
 
         } else if (ex instanceof IOException) {
             technicEx = new TechnicException(TECHNIC_ERROR.IO_EXCEPTION);
-            logger.error("TechnicException(Fallback): {}. Detail: {}",
-                    technicEx.getDeveloperMessage(), ex.toString(), ex);
 
         } else {
             technicEx = new TechnicException(TECHNIC_ERROR.UNEXPECTED_ERROR);
-            logger.error("TechnicException(Fallback): {}. Detail: {}",
-                    technicEx.getDeveloperMessage(), ex.toString(), ex);
         }
 
         if (businessEx != null) {
+            logBusinessFailure(ex, businessEx.getErrorCode());
             return buildErrorResponse(businessEx.getStatus(), businessEx.getClientMessage(),
                     businessEx.getErrorCode().name());
         }
+        logTechnicalFailure(ex, technicEx.getErrorCode());
         return buildErrorResponse(technicEx.getStatus(), technicEx.getClientMessage(), null);
     }
 
     // ── Shared Builder ────────────────────────────────────────────────────────
+
+    // Causes and exception messages can contain request values, even in wrapped errors.
+    private void logBusinessFailure(Exception ex, BUSINESS_ERROR error) {
+        logger.warn("Request rejected. category={}, exceptionClass={}", error.name(), ex.getClass().getName());
+    }
+
+    private void logTechnicalFailure(Exception ex, TECHNIC_ERROR error) {
+        logger.error("Request failed. category={}, exceptionClass={}", error.name(), ex.getClass().getName());
+    }
+
+    private static String diagnosticField(String field) {
+        return DIAGNOSTIC_FIELDS.contains(field) ? field : "other";
+    }
 
     private ResponseEntity<ExceptionResponseDTO> buildErrorResponse(
             HttpStatus status, String clientMessage, String errorCode) {

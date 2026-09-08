@@ -49,6 +49,7 @@ public class BillingAgreementPrepareTransactionService {
     private final BillingAgreementRepository billingAgreementRepository;
     private final CompanyCertificationRepository companyCertificationRepository;
     private final BillingCustomerKeyGenerator billingCustomerKeyGenerator;
+    private final PaymentCommandKeyFactory keyFactory;
 
     public BillingAgreementPrepareTransactionService(
             UserRepository userRepository,
@@ -57,7 +58,8 @@ public class BillingAgreementPrepareTransactionService {
             PaymentOrderRepository paymentOrderRepository,
             BillingAgreementRepository billingAgreementRepository,
             CompanyCertificationRepository companyCertificationRepository,
-            BillingCustomerKeyGenerator billingCustomerKeyGenerator) {
+            BillingCustomerKeyGenerator billingCustomerKeyGenerator,
+            PaymentCommandKeyFactory keyFactory) {
         this.userRepository = userRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.userSubscriptionRepository = userSubscriptionRepository;
@@ -65,6 +67,7 @@ public class BillingAgreementPrepareTransactionService {
         this.billingAgreementRepository = billingAgreementRepository;
         this.companyCertificationRepository = companyCertificationRepository;
         this.billingCustomerKeyGenerator = billingCustomerKeyGenerator;
+        this.keyFactory = keyFactory;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -108,9 +111,8 @@ public class BillingAgreementPrepareTransactionService {
                 .findByUserIDAndProviderForUpdate(userID, PROVIDER)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.BILLING_AGREEMENT_NOT_FOUND));
         Subscription subscription = findSubscription(request.subscriptionId());
-        UserSubscription activeSubscription = userSubscriptionRepository
-                .findActiveByUserForUpdate(user, now.toLocalDate())
-                .orElse(null);
+        UserSubscription source = userSubscriptionRepository.findByUserIDForUpdate(userID).orElse(null);
+        UserSubscription activeSubscription = serviceEnabled(source, now.toLocalDate()) ? source : null;
         PaymentPurpose authoritativePurpose = activeSubscription == null
                 ? PaymentPurpose.SUBSCRIBE
                 : PaymentPurpose.BILLING_AGREEMENT;
@@ -126,6 +128,7 @@ public class BillingAgreementPrepareTransactionService {
                     authoritativePurpose,
                     request,
                     agreement,
+                    source,
                     now);
             return toClaim(order, agreement);
         }
@@ -137,12 +140,13 @@ public class BillingAgreementPrepareTransactionService {
                 : BigDecimal.ZERO;
         PaymentOrder order = paymentOrderRepository.saveAndFlush(PaymentOrder.builder()
                 .orderId(generateOrderId(now.toLocalDate()))
-                .commandKey(commandKey)
+                .commandKey(authoritativePurpose == PaymentPurpose.SUBSCRIBE && source != null
+                        ? keyFactory.bindSubscriptionSource(commandKey, source) : commandKey)
                 .user(user)
                 .purpose(authoritativePurpose)
                 .provider(PROVIDER)
                 .subscription(subscription)
-                .userSubscription(activeSubscription)
+                .userSubscription(source)
                 .billingAgreement(agreement)
                 .billingCycle(request.billingCycle())
                 .amount(amount)
@@ -161,9 +165,9 @@ public class BillingAgreementPrepareTransactionService {
         BillingAgreement agreement = billingAgreementRepository
                 .findByUserIDAndProviderForUpdate(expected.userID(), PROVIDER)
                 .orElseThrow(this::attemptConflict);
-        UserSubscription activeSubscription = userSubscriptionRepository
-                .findActiveByUserForUpdate(user, now.toLocalDate())
-                .orElse(null);
+        UserSubscription source = userSubscriptionRepository
+                .findByUserIDForUpdate(expected.userID()).orElse(null);
+        UserSubscription activeSubscription = serviceEnabled(source, now.toLocalDate()) ? source : null;
         PaymentOrder order = paymentOrderRepository.findByCommandKeyForUpdate(expected.commandKey())
                 .orElseThrow(this::attemptConflict);
         Subscription subscription = findSubscription(expected.subscriptionID());
@@ -180,6 +184,7 @@ public class BillingAgreementPrepareTransactionService {
                 authoritativePurpose,
                 request,
                 agreement,
+                source,
                 now);
         if (!Objects.equals(agreement.getId(), expected.agreementID())
                 || !Objects.equals(order.getOrderId(), expected.orderID())) {
@@ -201,6 +206,7 @@ public class BillingAgreementPrepareTransactionService {
             PaymentPurpose authoritativePurpose,
             BillingAgreementPrepareRequest request,
             BillingAgreement agreement,
+            UserSubscription source,
             LocalDateTime now) {
         if (!order.isOwnedBy(user)) {
             throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
@@ -215,8 +221,12 @@ public class BillingAgreementPrepareTransactionService {
                 && Objects.equals(order.getBillingAgreement().getId(), agreement.getId())
                 && Objects.equals(
                         order.getUserSubscription() == null ? null : order.getUserSubscription().getId(),
-                        activeSubscription == null ? null : activeSubscription.getId());
+                        source == null ? null : source.getId());
         if (!exactTuple) {
+            throw attemptConflict();
+        }
+        if (authoritativePurpose == PaymentPurpose.SUBSCRIBE && source != null
+                && !keyFactory.matchesSubscriptionSource(order.getCommandKey(), source)) {
             throw attemptConflict();
         }
 
@@ -289,6 +299,13 @@ public class BillingAgreementPrepareTransactionService {
     private boolean hasIssuedBillingKey(BillingAgreement agreement) {
         return agreement.getBillingKeyCiphertext() != null
                 && !agreement.getBillingKeyCiphertext().isBlank();
+    }
+
+    private boolean serviceEnabled(UserSubscription subscription, LocalDate today) {
+        return subscription != null
+                && (subscription.getStatus() == com.atstudio.atstudio.entity.enums.SubscriptionStatus.ACTIVE
+                || subscription.getStatus() == com.atstudio.atstudio.entity.enums.SubscriptionStatus.CANCELLED)
+                && !subscription.getExpiresAt().isBefore(today);
     }
 
     private PrepareClaim toClaim(PaymentOrder order, BillingAgreement agreement) {

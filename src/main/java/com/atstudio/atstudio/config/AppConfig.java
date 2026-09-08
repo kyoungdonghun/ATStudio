@@ -10,21 +10,24 @@ import org.springframework.web.client.RestClient;
 @Configuration
 public class AppConfig {
 
+    static final int MAX_MULTIPART_PART_COUNT = 128;
+
     @Bean
     public RestClient restClient() {
         return RestClient.create();
     }
 
     /**
-     * Tomcat 11 defaults Connector.maxPartCount=10 (security hardening).
-     * spring.servlet.multipart.max-parts only sets the servlet-level config
-     * and does NOT override Tomcat's connector-level parsing limit.
-     * This customizer sets it to -1 (unlimited) directly on the Connector.
+     * Track forms send each tagIds value as a separate part. The largest fixed
+     * form is a Track edit: six scalar fields and two files, leaving room for
+     * 120 tag parts. Notice replacement needs 13 parts; certification needs 10.
+     * Bound connector parsing before service validation without reducing the
+     * existing byte, parameter, or part-header limits.
      */
     @Bean
     public WebServerFactoryCustomizer<TomcatServletWebServerFactory> tomcatMaxPartCountCustomizer() {
         return factory -> factory.addConnectorCustomizers(
-                (TomcatConnectorCustomizer) connector -> connector.setMaxPartCount(-1)
+                (TomcatConnectorCustomizer) connector -> connector.setMaxPartCount(MAX_MULTIPART_PART_COUNT)
         );
     }
 }

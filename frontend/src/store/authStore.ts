@@ -26,7 +26,18 @@ interface CurrentUserRefresh {
 
 let sessionGeneration = 0;
 let currentUserRefresh: CurrentUserRefresh | null = null;
-let logoutInFlight: Promise<LogoutOutcome> | null = null;
+let logoutInFlight: {
+  sessionGeneration: number;
+  promise: Promise<LogoutOutcome>;
+} | null = null;
+
+export function getAuthSessionGeneration(): number {
+  return sessionGeneration;
+}
+
+export function isAuthSessionCurrent(generation: number): boolean {
+  return sessionGeneration === generation && logoutInFlight?.sessionGeneration !== generation;
+}
 
 export const UNCONFIRMED_LOGOUT_WARNING =
   '서버 로그아웃 확인에 실패했습니다. 이 기기에서는 로그아웃되었습니다.';
@@ -58,7 +69,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   role: loadRole(),
 
   stageTokens: (accessToken: string, refreshToken: string) => {
+    const stagedGeneration = sessionGeneration + 1;
     get().clearSession();
+    // Clearing notifies subscribers synchronously; a newer session owns any subsequent writes.
+    if (!isAuthSessionCurrent(stagedGeneration)) return;
 
     const accessTokenStored = safeStorage.setItem('accessToken', accessToken);
     const refreshTokenStored = safeStorage.setItem('refreshToken', refreshToken);
@@ -71,6 +85,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   login: (accessToken: string, user: User, refreshToken) => {
+    advanceSessionGeneration();
     const accessTokenStored = safeStorage.setItem('accessToken', accessToken);
     let refreshTokenStored = true;
     if (refreshToken !== undefined) {
@@ -85,7 +100,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       get().clearSession();
       throw new Error('Failed to persist authentication session');
     }
-    advanceSessionGeneration();
     set({ accessToken, user, role: user.role });
   },
 
@@ -102,7 +116,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const sessionAccessToken = get().accessToken;
     const sessionUserID = get().user?.id;
     const initiatingSessionGeneration = sessionGeneration;
-    if (!sessionAccessToken || sessionUserID === undefined) {
+    if (
+      !sessionAccessToken ||
+      sessionUserID === undefined ||
+      !isAuthSessionCurrent(initiatingSessionGeneration)
+    ) {
       return Promise.reject(
         new Error('Cannot refresh current user without an authenticated session'),
       );
@@ -116,10 +134,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const promise = (async () => {
       const { fetchMe } = await import('@/api/auth');
+      if (!isAuthSessionCurrent(initiatingSessionGeneration)) {
+        throw new Error('Stale current-user refresh result');
+      }
       const refreshedUser = await fetchMe();
       const currentSession = get();
       if (
-        sessionGeneration !== initiatingSessionGeneration ||
+        !isAuthSessionCurrent(initiatingSessionGeneration) ||
         currentSession.user?.id !== sessionUserID ||
         refreshedUser.id !== sessionUserID
       ) {
@@ -146,24 +167,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
-    if (logoutInFlight) return logoutInFlight;
+    if (logoutInFlight?.sessionGeneration === sessionGeneration) return logoutInFlight.promise;
+
+    // Invalidate pending refreshes before awaiting server revocation.
+    advanceSessionGeneration();
+    const initiatingSessionGeneration = sessionGeneration;
 
     const promise = (async (): Promise<LogoutOutcome> => {
       let serverConfirmed = false;
       try {
         const { logoutSession } = await import('@/api/auth');
-        serverConfirmed = (await logoutSession()) === 'confirmed';
+        if (sessionGeneration === initiatingSessionGeneration) {
+          serverConfirmed = (await logoutSession()) === 'confirmed';
+        }
       } catch {
         serverConfirmed = false;
       } finally {
-        get().clearSession();
+        if (sessionGeneration === initiatingSessionGeneration) get().clearSession();
       }
       return { serverConfirmed };
     })();
 
-    logoutInFlight = promise;
+    const logout = { sessionGeneration: initiatingSessionGeneration, promise };
+    logoutInFlight = logout;
     const clearLogoutInFlight = () => {
-      if (logoutInFlight === promise) logoutInFlight = null;
+      if (logoutInFlight === logout) logoutInFlight = null;
     };
     void promise.then(clearLogoutInFlight, clearLogoutInFlight);
     return promise;

@@ -49,6 +49,31 @@ class LocalStorageServiceTest {
     }
 
     @Test
+    void successfulStageClosesInputAndDuplicateStageKeepsOriginalBytes() throws IOException {
+        LocalStorageService storage = storage();
+        String operationId = UUID.randomUUID().toString();
+        String key = "tracks/audio/owned.mp3";
+        java.util.concurrent.atomic.AtomicBoolean closed = new java.util.concurrent.atomic.AtomicBoolean();
+        MultipartFile file = mock(MultipartFile.class);
+        given(file.isEmpty()).willReturn(false);
+        given(file.getInputStream()).willAnswer(invocation -> new ByteArrayInputStream(new byte[]{1, 2, 3}) {
+            @Override
+            public void close() throws IOException {
+                closed.set(true);
+                super.close();
+            }
+        });
+
+        storage.stage(StorageRoot.PUBLIC, operationId, key, file);
+        assertThat(closed).isTrue();
+        assertThatThrownBy(() -> storage.stage(StorageRoot.PUBLIC, operationId, key,
+                new MockMultipartFile("file", new byte[]{9}))).isInstanceOf(RuntimeException.class);
+        storage.promote(StorageRoot.PUBLIC, operationId, key);
+        assertThat(storage.loadAsResource(StorageRoot.PUBLIC, key).getContentAsByteArray())
+                .containsExactly((byte) 1, (byte) 2, (byte) 3);
+    }
+
+    @Test
     void rejectsUntrustedKeysAndPrivateUrls() {
         LocalStorageService storage = storage();
         List<String> invalidKeys = List.of(

@@ -102,7 +102,8 @@ class EmailServiceTest {
                 .token("reset-fixture")
                 .expiresAt(LocalDateTime.now().plusMinutes(10))
                 .build();
-        when(resetTokenRepository.findByToken("reset-fixture")).thenReturn(Optional.of(resetToken));
+        when(resetTokenRepository.findUserIdByToken("reset-fixture")).thenReturn(Optional.of(1L));
+        when(resetTokenRepository.findByTokenForUpdate("reset-fixture", 1L)).thenReturn(Optional.of(resetToken));
         when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.encode("new-password")).thenReturn("encoded-new");
 
@@ -111,7 +112,11 @@ class EmailServiceTest {
         assertThat(resetToken.isUsed()).isTrue();
         assertThat(user.getPassword()).isEqualTo("encoded-new");
         assertThat(user.getRefreshToken()).isNull();
-        verify(userRepository).findByIdForUpdate(1L);
+        var order = org.mockito.Mockito.inOrder(userRepository, resetTokenRepository, passwordEncoder);
+        order.verify(resetTokenRepository).findUserIdByToken("reset-fixture");
+        order.verify(userRepository).findByIdForUpdate(1L);
+        order.verify(resetTokenRepository).findByTokenForUpdate("reset-fixture", 1L);
+        order.verify(passwordEncoder).encode("new-password");
     }
 
     @Test
@@ -180,6 +185,8 @@ class EmailServiceTest {
         when(user.getEmail()).thenReturn(recipient);
         when(user.getNickname()).thenReturn(nickname);
         when(userRepository.findByEmail(recipient)).thenReturn(Optional.of(user));
+        when(user.getId()).thenReturn(1L);
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(mailSender.createMimeMessage()).thenReturn(message);
         doThrow(new MailSendException(providerMessage)).when(mailSender).send(message);
 
@@ -218,6 +225,8 @@ class EmailServiceTest {
         when(user.getEmail()).thenReturn(recipient);
         when(user.getNickname()).thenReturn(nickname);
         when(userRepository.findByEmail(recipient)).thenReturn(Optional.of(user));
+        when(user.getId()).thenReturn(1L);
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(mailSender.createMimeMessage()).thenReturn(message);
 
         emailService.sendPasswordResetEmail(recipient);

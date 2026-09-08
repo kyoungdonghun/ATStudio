@@ -233,8 +233,10 @@ once. The existing backend thumbnail URL is display-only and is never revoked.
    including playlistId. Duplicate confirmation is ignored.
 4. Backend verifies the playlist belongs to the user.
 5. Backend locks the playlist row, physically deletes its `playlist_tracks`
-   membership rows, soft-deletes the parent through `playlist.deactivate()`, and
-   returns 204 No Content.
+   membership rows, captures the old thumbnail key and soft-deletes the parent
+   through `playlist.deactivate()`, clearing its thumbnail reference in the
+   same transaction. Reference-aware cleanup runs after commit; response
+   remains 204 No Content.
 6. Success closes the retired detail and reloads the authoritative Playlist
    list. Failure retains fixed Korean copy and a retry for the same current
    target. Owner, detail, tab, drawer-session, or close retirement suppresses
@@ -243,3 +245,8 @@ once. The existing backend thumbnail URL is display-only and is never revoked.
 **Postconditions**
 - The parent `playlists` row remains as an inactive soft-deleted record, while
   associated `playlist_tracks` rows are physically deleted.
+- Rollback retains the original thumbnail reference and file. Cleanup retains
+  shared objects, including those referenced by inactive catalog rows. Old
+  inactive references are not retrospectively cleared or repaired, and strict
+  integrity startup still rejects a missing retained object. See the
+  [bounded closure evidence](../../../deliverables/agent/WI-20260909-ATS-013-evidence-pack.md).

@@ -28,9 +28,9 @@ public class LikeService {
 
     @Transactional
     public void addLike(Long trackId, CustomUserDetails userDetails) {
-        User user = getUser(userDetails);
+        User user = getUserForUpdate(userDetails);
 
-        Track track = trackRepository.findById(trackId)
+        Track track = trackRepository.findByIdForUpdate(trackId)
                 .filter(Track::isActive)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND));
 
@@ -57,13 +57,19 @@ public class LikeService {
 
     @Transactional
     public void removeLike(Long trackId, CustomUserDetails userDetails) {
-        User user = getUser(userDetails);
+        User user = getUserForUpdate(userDetails);
+        Track track = trackRepository.findByIdForUpdate(trackId)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         Like like = likeRepository.findByUserAndTrack_Id(user, trackId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         likeRepository.delete(like);
-        Track track = trackRepository.findById(trackId)
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND));
         track.decrementLikeCount();
+    }
+
+    private User getUserForUpdate(CustomUserDetails userDetails) {
+        // Match download lock order, including user FK checks when a Like is inserted.
+        return userRepository.findByIdForUpdate(userDetails.getId())
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
     }
 
     private User getUser(CustomUserDetails userDetails) {
