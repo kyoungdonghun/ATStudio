@@ -1,6 +1,6 @@
 ---
-version: 3.3
-last_updated: 2026-09-08
+version: 3.4
+last_updated: 2026-09-09
 project: ATS
 owner: EO
 category: registry
@@ -74,6 +74,10 @@ status: stable
 - **Project Registry**: See [Project Registry](registry/project-registry.md)
 
 ### Current V1 Baseline
+
+**2026-09-09 superseding update:** MA confirmed `main=origin/main` at documentation checkpoint `1c467d1` before this follow-up. Product `2d47504` was already pushed and applied to the named TEST runtime under [REQ-20260909-ATS-002](../deliverables/user/REQ-20260909-ATS-002.md). The [WI015 runtime record](payment/index.md#2026-09-09-source-and-runtime) separates that prior application and four HTTP 200 results from the [supplied post-restart UI check](payment/acceptance-test-checklist.md#2026-09-09-post-restart-ui-check). No new live checks or full suites were run for this documentation follow-up. Production SR-93 remains **HOLD**; its target gates are not closed by TEST application or limited user UI evidence.
+
+**Historical 2026-09-08 checkpoint:** The following source/runtime and review boundaries remain dated history, superseded by the update above and the later remediation record in SR-93.
 
 - **Source checkout (2026-09-08)**: `main` is the official V1 source baseline in the root `ATStudio` checkout under the latest [REQ-20260908-ATS-003 approval](../deliverables/user/REQ-20260908-ATS-003.md). The retired client worktree is not a maintained baseline; its temporary thumbnail policy is preserved as history and is not imported into `main`.
 - **Commit boundaries**: Product delivery is `7eae086c899cd4534be69da03bbc1cc55fe4349d`. The later mail-documentation closeout, `53284823b2824d04ee364f4c3f0ec9e8adeb4635`, was pushed before main unification. Neither that documentation commit nor WI014 changes the product baseline.

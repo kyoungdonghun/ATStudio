@@ -1,6 +1,6 @@
 ---
-version: 1.10
-last_updated: 2026-09-08
+version: 1.11
+last_updated: 2026-09-09
 project: ATS
 owner: qa
 category: guide
@@ -19,6 +19,20 @@ dependencies:
 > Purpose: Provide the current payment-system acceptance checklist for local verification, staging rehearsal, and client-adjacent review.
 
 ---
+
+## 2026-09-09 Post-Restart UI Check
+
+Under [REQ-20260909-ATS-002](../../deliverables/user/REQ-20260909-ATS-002.md), MA accepted the user's three supplied screenshots as the requested limited post-restart check for product `2d47504` on the named TEST runtime. DocOps records MA-supplied observations, not independent image inspection or a newly executed browser flow. Prior runtime/HTTP evidence and source checkpoint `1c467d1` are in the [dated runtime record](index.md#2026-09-09-source-and-runtime).
+
+| Supplied UI evidence | Accepted boundary |
+| :-- | :-- |
+| Logged-in user | Authenticated UI is visible after the recorded restart; the requested re-login follow-up is no longer pending. The screenshots do not trace a fresh login submission or verify every authentication path. |
+| DELUXE YEARLY subscription | Renewal is cancelled while paid access remains through 2027-09-08. Renewal eligibility and current paid access are distinct; no new charge, refund or subscription-state query is inferred. |
+| Official Download UI | Browser download-complete notification and site display of 19/20 remaining. This is download UI evidence, not public-listening evidence, a fresh DB quota/history/License count, downloaded-file contents/hash verification or Provider verification. |
+
+No private screenshots, user/card/email identifiers or new logs are embedded. This closes the requested limited user check only, not a full suite or the reusable checklist boxes below. Earlier dated counts, including September 8's 2/20 and 18 remaining, remain historical observations. No new live checks were performed in this documentation follow-up; SR-93 production **HOLD** remains.
+
+For mail, the earlier WI008/WI010 untested-mail checkpoints below were later supplemented by [WI011 recipient evidence](../../deliverables/agent/WI-20260908-ATS-011-evidence-pack.md#current-recipient-evidence-wi012-follow-up): three Korean messages received, readable and in Inbox. [WI012](../../deliverables/agent/WI-20260908-ATS-012-evidence-pack.md#ma-execution-record-2026-09-08-kst) separately records website reset-mail receipt and reset-page opening, not a password-change submission or separate Inbox/Spam verification. Those prior results do not establish a new SMTP run, scheduler execution or future deliverability.
 
 ## 2026-09-08 Acceptance Record
 

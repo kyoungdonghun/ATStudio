@@ -1,6 +1,6 @@
 ---
-version: 1.8
-last_updated: 2026-09-08
+version: 1.9
+last_updated: 2026-09-09
 project: ATS
 owner: docops
 category: guide
@@ -53,8 +53,14 @@ round and its automated quality gates are complete; accepted user/Toss TEST/Gmai
 cases are listed in the [dated acceptance record](acceptance-test-checklist.md#2026-09-08-acceptance-record).
 Target-production decisions remain in [SR-93](../SR/SR-93.md#remaining-production-gates).
 
-Use the [central source/runtime snapshot](index.md#2026-09-08-source-and-runtime)
-for the current branch, retained client worktree and deployed-code boundary.
+Use the [central source/runtime snapshot](index.md#2026-09-09-source-and-runtime)
+for the current source checkpoint and applied TEST-product boundary.
+
+### 2026-09-09 Superseding Status
+
+Product `2d47504` is applied to the named TEST runtime; MA confirmed `main=origin/main` at documentation checkpoint `1c467d1` before this follow-up. The [supplied post-restart UI check](acceptance-test-checklist.md#2026-09-09-post-restart-ui-check) closes the requested logged-in, DELUXE YEARLY paid-access and download-UI follow-up only. No new live, DB, downloaded-file or Provider checks were made; production SR-93 remains **HOLD**.
+
+The maintenance record below preserves the earlier WI009/WI010 checkpoints. Its untested-mail statements are superseded only within the later [WI011/WI012 mail evidence](index.md#wi011wi012-mail-and-documentation-closeout-2026-09-08): three Korean messages received/readable in Inbox, plus website reset-mail receipt and reset-page opening. Future Inbox placement, scheduler execution and an SPF/DKIM root cause remain unproved. This follow-up makes no new SMTP claim and does not reset earlier accepted TEST/Gmail cases.
 
 ### 2026-09-08 Maintenance Candidates
 
