@@ -295,12 +295,12 @@ export default function HomePage() {
         <div className={styles.heroBody}>
           <div className={styles.heroBadge}>{'\u2726'} New Release</div>
           <h1 className={styles.heroTitle}>
-            {'쇼츠를 위한'}
+            {'창작자를 위한'}
             <br />
             {'최고의 음악'}
           </h1>
           <p className={styles.heroSub}>
-            {'크리에이터를 위한 고품질 라이선스 음악.'}
+            {'창작자를 위한 고품질 라이선스 음악.'}
             <br />
             {'구독 하나로 무제한 사용하세요.'}
           </p>
@@ -508,7 +508,7 @@ export default function HomePage() {
         <div>
           <div className={styles.ftLogo}>AT.M</div>
           <div className={styles.ftDesc}>
-            {'쇼츠 크리에이터를 위한'}
+            {'창작자를 위한'}
             <br />
             {'음악 라이선스 플랫폼'}
           </div>
