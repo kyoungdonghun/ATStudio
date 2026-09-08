@@ -1,6 +1,6 @@
 ---
-version: 2.3
-last_updated: 2026-08-09
+version: 2.4
+last_updated: 2026-09-08
 project: ATS
 owner: docops
 category: guide
@@ -25,11 +25,13 @@ dependencies:
 - Use Toss test configuration only.
 - Do not repost the test URL in a public channel.
 
-The official V1 baseline branch is `codex/p1-acceptance-hardening`; its current
-frontend install resolves Vite 6.4.3. No separate client-demo branch is
-maintained. This is not by itself proof that a public environment is current.
-The operator must verify the local page, proxied API, and newly issued public
-URL for each acceptance run.
+The official V1 source baseline is `main` in the root `ATStudio` checkout; see
+the [current V1 baseline](../index.md#current-v1-baseline). The retired client
+worktree is not a current test source, and its temporary thumbnail policy is
+not part of `main`. Earlier branch/install observations remain historical.
+Git promotion does not update the running JAR, deploy the public environment,
+or grant production/security approval. The operator must verify the local
+page, proxied API, and newly issued public URL for each acceptance run.
 
 ## Recommended Order
 

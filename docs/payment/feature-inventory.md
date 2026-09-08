@@ -1,6 +1,6 @@
 ---
-version: 1.9
-last_updated: 2026-08-16
+version: 1.10
+last_updated: 2026-09-08
 project: ATS
 owner: docops
 category: guide
@@ -154,10 +154,14 @@ dependencies:
 
 ## 10. Verification Boundary
 
-- The current code/test gate passed independent follow-up review in `WI-20260715-ATS-012`.
-- Current source contains 43 tables and 43 JPA entities. Bootstrap preflight
+Pre-WI014 recorded snapshot (not recounted). The counts and test results below
+are preserved, not rerun or dated from prior metadata. Later evidence is in the
+[2026-09-08 source/runtime record](index.md#2026-09-08-source-and-runtime).
+
+- The dated code/test gate passed independent follow-up review in `WI-20260715-ATS-012`.
+- That source snapshot contains 43 tables and 43 JPA entities. Bootstrap preflight
   derives 43 source `CREATE TABLE` statements and reports the active MySQL
-  manifest expectation as `RECORDED`. The current disposable manifest is 43
+  manifest expectation as `RECORDED`. The recorded disposable manifest is 43
   tables, 511 columns, 175 index rows, 91 foreign keys, 6 plans/plan keys, zero
   forbidden tables/columns, and SHA-256
   `b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4`. The 42-table, 506-column,
@@ -181,7 +185,7 @@ dependencies:
   Coverage was statements 88.28%, branches 79.53%, functions 87.88%, and lines
   90.5%; typecheck, lint, repository format, and build passed.
 - Live Toss, production data strategy, deployment/monitoring, client acceptance, and explicit release approval remain separate production gates.
-- The official V1 baseline branch is `codex/p1-acceptance-hardening` and currently resolves Vite 6.4.3. No separate client-demo branch is maintained. Coverage remains an observed baseline, not a release threshold.
+- The official V1 source baseline is now `main`; see the [current V1 baseline](../index.md#current-v1-baseline) for the root-checkout and retired-client distinction. Vite 6.4.3 is a historical dependency observation, not a fresh resolution or audit. Coverage remains an observation, not a release threshold; Git promotion is not deployment or security approval.
 
 ## Related Documents
 

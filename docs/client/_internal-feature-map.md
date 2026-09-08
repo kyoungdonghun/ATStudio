@@ -1,6 +1,6 @@
 ---
-version: 2.6
-last_updated: 2026-08-13
+version: 2.7
+last_updated: 2026-09-08
 project: ATS
 owner: docops
 category: reference
@@ -18,9 +18,13 @@ dependencies:
 
 This file is excluded from the client PDF.
 
-## Exact Current Counts
+## Historical Counts
 
-| Surface | Current count | Unit |
+Pre-WI014 recorded snapshot (not recounted). These values are preserved, not
+promoted to current counts by WI014. Prior metadata does not establish a
+measurement date. Later source/runtime evidence is linked below.
+
+| Surface | Snapshot count | Unit |
 |---|---:|---|
 | REST API | 149 | Method-level mappings across 25 controller classes |
 | Database | 42 | `CREATE TABLE` declarations; also 42 JPA entities |
@@ -30,7 +34,7 @@ This file is excluded from the client PDF.
 | Modal occurrences | 22 | `<Modal>` renders across 17 non-test TSX files |
 | SR items | 100 | 82 DONE, 15 OPEN, 2 NOT CONFIRMED, 1 DROPPED |
 
-## Historical Verified V1 Quality Baseline
+## Historical Verified V1 Quality Baseline (2026-07-17)
 
 | Gate | Final verified result |
 |---|---|
@@ -57,10 +61,13 @@ This file is excluded from the client PDF.
 
 ## Dependency And Environment Boundary
 
-- Official V1 baseline branch: `codex/p1-acceptance-hardening`; current install resolves Vite 6.4.3. No separate client-demo branch is maintained.
+- Official V1 source baseline: `main` in the root checkout; see the [current V1 baseline](../index.md#current-v1-baseline). The retired client worktree and its temporary thumbnail policy are historical, not a second maintained baseline. Vite 6.4.3 is an earlier dependency observation, not a fresh install or audit result.
 - The verified coverage values above are observations, not release thresholds.
-- The current WI-014~021 implementation has focused test evidence only. Final
-  full suites, coverage, static/build gates, browser acceptance, and production
-  deployment remain later gates.
+- The earlier WI-014~021 focused-only checkpoint is historical. Subsequent
+  aggregate suites, coverage, static/build gates and bounded desktop checks
+  are recorded in the [2026-09-08 development closeout](../SR/SR-93.md#2026-09-08-development-closeout)
+  and [dated source/runtime evidence](../payment/index.md#2026-09-08-source-and-runtime).
+  No tests were rerun for WI014; those results do not establish complete
+  browser acceptance, production deployment or security approval.
 - Public runtime evidence is valid only for the current operator-controlled acceptance lifecycle and its newly verified URL. Historical captures are reference-only.
 - Retained DB rehearsal, live provider/secrets, production proxy/CORS/monitoring, and final client acceptance remain open environment gates.

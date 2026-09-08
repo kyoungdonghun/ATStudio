@@ -1,6 +1,6 @@
 ---
-version: 3.2
-last_updated: 2026-08-13
+version: 3.3
+last_updated: 2026-09-08
 project: ATS
 owner: EO
 category: registry
@@ -68,10 +68,17 @@ status: stable
 | Config | `.claude/config/workspace.json`, `.claude/config/context-injection-rules.json` | ATStudio routing, tech_stack, context injection |
 
 - **Tech Stack**: Java 17, Spring Boot 4.x, MySQL 8.x + React 18, TypeScript 5.6, Vite 6 (Phase 2 — active)
-- **Project Stats**: 150 method-level REST mappings, 43 DB tables / 43 JPA entities, recorded disposable MySQL manifest (43 tables, 511 columns, 175 indexes, 91 foreign keys, 6 plans/plan keys, zero forbidden tables/columns, SHA-256 `b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4`), 53 distinct screen UIs, 13 agents
+- **Project Stats: Pre-WI014 recorded snapshot (not recounted)**: 150 method-level REST mappings, 43 DB tables / 43 JPA entities, recorded disposable MySQL manifest (43 tables, 511 columns, 175 indexes, 91 foreign keys, 6 plans/plan keys, zero forbidden tables/columns, SHA-256 `b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4`), 53 distinct screen UIs, 13 agents
 - **Screen Count Unit**: 53 distinct visual page UIs = 53 `createLazyPage(...)` declarations, including 2 error screens. The router separately contains 56 path routes plus 1 index redirect; reused pages are not additional screens.
-- **Phase 2 Freshness**: React/Vite SPA is active on the official V1 baseline branch `codex/p1-acceptance-hardening`. The current install resolves Vite 6.4.3. No separate client-demo branch is maintained. Public access requires the operator-controlled acceptance lifecycle and a newly verified URL; historical demo URLs are never current runtime evidence.
+- **Phase 2 Freshness**: React/Vite SPA uses the [current V1 baseline](#current-v1-baseline), `main`. Public access requires the operator-controlled acceptance lifecycle and a newly verified URL; historical demo URLs are never current runtime evidence.
 - **Project Registry**: See [Project Registry](registry/project-registry.md)
+
+### Current V1 Baseline
+
+- **Source checkout (2026-09-08)**: `main` is the official V1 source baseline in the root `ATStudio` checkout under the latest [REQ-20260908-ATS-003 approval](../deliverables/user/REQ-20260908-ATS-003.md). The retired client worktree is not a maintained baseline; its temporary thumbnail policy is preserved as history and is not imported into `main`.
+- **Commit boundaries**: Product delivery is `7eae086c899cd4534be69da03bbc1cc55fe4349d`. The later mail-documentation closeout, `53284823b2824d04ee364f4c3f0ec9e8adeb4635`, was pushed before main unification. Neither that documentation commit nor WI014 changes the product baseline.
+- **Historical references**: Earlier branch names, Vite 6.4.3 observations, commit IDs, counts and acceptance records remain dated evidence. The [WI013 decision register](../deliverables/agent/WI-20260908-ATS-013-branch-decision-register.md) records the pre-promotion assessment; the latest REQ approval supersedes its original branch recommendation.
+- **Runtime and approval**: Git promotion does not restart or deploy the public runtime and is not deployed-production or security approval. Use the [dated source/runtime and mail evidence](payment/index.md#2026-09-08-source-and-runtime) for the WI009-WI012 boundaries. [SR-93 and target-production gates](SR/SR-93.md#remaining-production-gates) remain OPEN; the production target and bounded security review require separate work.
 
 ## Starting Point Guides
 
