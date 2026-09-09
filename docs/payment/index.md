@@ -1,5 +1,5 @@
 ---
-version: 1.11
+version: 1.12
 last_updated: 2026-09-09
 project: ATS
 owner: docops
@@ -63,7 +63,7 @@ This dated update supersedes the earlier source/runtime checkpoints below. Evide
 | :-- | :-- |
 | Source versus applied product | Before these document edits, MA confirmed `main=origin/main` at documentation checkpoint `1c467d1`. Product `2d47504` was already pushed and applied to the named TEST runtime under REQ-20260909-ATS-002; this follow-up is not another product deployment. |
 | Prior runtime application | Backend PID 10292 runs the separately named `ATStudio-20260909-2d47504.jar`; exact path/SHA256 are in WI015. Frontend PID 25196 and tunnel PID 1888 were unchanged afterward per MA. These are prior supplied identities, not a new ownership check. |
-| Prior HTTP evidence | MA recorded 200 for `http://127.0.0.1:5173/`, `http://127.0.0.1:8080/api/tracks`, `https://final-expression-heading-header.trycloudflare.com/` and its `/api/tracks` route in `output/test-application-20260909/final-http.json`. No new probes were made for this follow-up; the dated tunnel URL is not permanent availability evidence. |
+| Prior HTTP evidence | MA recorded 200 for `http://127.0.0.1:5173/`, `http://127.0.0.1:8080/api/tracks`, `https://final-expression-heading-header.trycloudflare.com/` and its `/api/tracks` route in `output/test-application-20260909/final-http.json` ([private local archive record](../registry/v1-artifact-retention-20260909.md#a172), not downloadable raw evidence). No new probes were made for this follow-up; the dated tunnel URL is not permanent availability evidence. |
 | Post-restart user check | The [three supplied screenshots](acceptance-test-checklist.md#2026-09-09-post-restart-ui-check) close only the requested logged-in, paid-access and download-UI check. They do not establish fresh DB counts, downloaded-file contents, Provider state, a full regression or production acceptance. |
 
 The earlier WI011/WI012 Korean Inbox and website reset-link evidence below remains valid within its recorded scope; no SMTP operation or new deliverability claim was made here. Production SR-93 remains **HOLD** under its named target gates.

@@ -1,6 +1,6 @@
 ---
-version: 1.3
-last_updated: 2026-07-16
+version: 1.4
+last_updated: 2026-09-09
 project: system
 owner: EO
 category: registry
@@ -19,6 +19,7 @@ status: stable
 | [Project Registry](project-registry.md) | system | Project Registry | stable |
 | [Project Context Instances](context-registry.md) | system | Project Context Registry | stable |
 | [Workboard (Work Status Board)](workboard.md) | system | Workboard Registry | stable |
+| [V1 Artifact Retention Register](v1-artifact-retention-20260909.md) | ATS | Exact historical path/hash dispositions and private local recovery boundary | stable |
 
 ## Inter-document Dependencies
 
@@ -26,6 +27,7 @@ status: stable
 - **project-registry.md**: Project ID issuance and management criteria
 - **context-registry.md**: Optional project context instance management
 - **workboard.md**: Advisory cross-project work summary; current ATStudio tracking SoT remains `deliverables/`
+- **v1-artifact-retention-20260909.md**: Historical artifact availability only; current operational SoT remains the design, policy and runbook documents. Archived raw evidence is not downloadable from a remote checkout.
 
 ## Related Guides
 

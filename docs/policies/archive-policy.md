@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-07-17
+version: 1.2
+last_updated: 2026-09-09
 project: system
 owner: EO
 category: policy
@@ -81,6 +81,7 @@ Notes:
 - `validate-docs` gates live operational documents strictly.
 - Historical record directories may remain indexed for discoverability, but they must never be treated as the primary operational source.
 - An exact historical-file count may be used as a release or preservation gate only when a saved path/hash manifest defines the counted set and makes the result reproducible. Without that artifact, report preservation qualitatively and use Git diff/status evidence rather than asserting an exact count.
+- For approved local artifact cleanup, preserve the exact originals and verify restored hashes before any source removal. Retain only necessary privacy-reviewed document dependencies in Git; index archival originals by path/hash and explicitly label their local-only availability. A public register is not a remote backup or raw-evidence download. Historical literal paths remain lookup keys; repair broken links to precise register entries without changing the original claims. See the [V1 retention register](../registry/v1-artifact-retention-20260909.md) for the REQ-20260909-ATS-003 set.
 - Snapshot paths such as `.claude/worktrees/` are excluded from live validation.
 - Future long-term archive storage under `docs/archive/` should also be excluded from live validation.
 

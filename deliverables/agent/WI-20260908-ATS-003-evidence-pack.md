@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-09-08
+version: 1.1
+last_updated: 2026-09-09
 project: ATS
 owner: se
 category: evidence-pack
@@ -137,20 +137,25 @@ $rows | Measure-Object Tests,Failures,Errors,Skipped -Sum
 Nine JUnit invocations were added: six in the new integration class and three in the state-machine class. Existing tests were strengthened, not deleted. WI-001's 18 tests also passed unchanged within this run.
 
 Full per-test results, exceptions and stdout/stderr are in the generated XML:
-- [TEST-com.atstudio.atstudio.entity.BillingAgreementStateMachineTest.xml](../../build/test-results/test/TEST-com.atstudio.atstudio.entity.BillingAgreementStateMachineTest.xml)
-- [TEST-com.atstudio.atstudio.entity.BillingAgreementTest.xml](../../build/test-results/test/TEST-com.atstudio.atstudio.entity.BillingAgreementTest.xml)
-- [TEST-com.atstudio.atstudio.service.BillingAgreementChargeTimestampIntegrationTest.xml](../../build/test-results/test/TEST-com.atstudio.atstudio.service.BillingAgreementChargeTimestampIntegrationTest.xml)
-- [TEST-com.atstudio.atstudio.service.BillingAgreementFailurePersistenceIntegrationTest.xml](../../build/test-results/test/TEST-com.atstudio.atstudio.service.BillingAgreementFailurePersistenceIntegrationTest.xml)
-- [TEST-com.atstudio.atstudio.service.BillingAgreementPrepareIdempotencyIntegrationTest.xml](../../build/test-results/test/TEST-com.atstudio.atstudio.service.BillingAgreementPrepareIdempotencyIntegrationTest.xml)
-- [TEST-com.atstudio.atstudio.service.BillingAgreementPrepareToConfirmIntegrationTest.xml](../../build/test-results/test/TEST-com.atstudio.atstudio.service.BillingAgreementPrepareToConfirmIntegrationTest.xml)
-- [TEST-com.atstudio.atstudio.service.DownloadServiceTest.xml](../../build/test-results/test/TEST-com.atstudio.atstudio.service.DownloadServiceTest.xml)
-- [TEST-com.atstudio.atstudio.service.PaymentCommandIndependentVerificationIntegrationTest.xml](../../build/test-results/test/TEST-com.atstudio.atstudio.service.PaymentCommandIndependentVerificationIntegrationTest.xml)
-- [TEST-com.atstudio.atstudio.service.RecurringRenewalCommandIntegrationTest.xml](../../build/test-results/test/TEST-com.atstudio.atstudio.service.RecurringRenewalCommandIntegrationTest.xml)
-- [TEST-com.atstudio.atstudio.service.SubscriptionUpgradeCommandIntegrationTest.xml](../../build/test-results/test/TEST-com.atstudio.atstudio.service.SubscriptionUpgradeCommandIntegrationTest.xml)
+- `build/test-results/test/TEST-com.atstudio.atstudio.entity.BillingAgreementStateMachineTest.xml`
+- `build/test-results/test/TEST-com.atstudio.atstudio.entity.BillingAgreementTest.xml`
+- `build/test-results/test/TEST-com.atstudio.atstudio.service.BillingAgreementChargeTimestampIntegrationTest.xml`
+- `build/test-results/test/TEST-com.atstudio.atstudio.service.BillingAgreementFailurePersistenceIntegrationTest.xml`
+- `build/test-results/test/TEST-com.atstudio.atstudio.service.BillingAgreementPrepareIdempotencyIntegrationTest.xml`
+- `build/test-results/test/TEST-com.atstudio.atstudio.service.BillingAgreementPrepareToConfirmIntegrationTest.xml`
+- `build/test-results/test/TEST-com.atstudio.atstudio.service.DownloadServiceTest.xml`
+- `build/test-results/test/TEST-com.atstudio.atstudio.service.PaymentCommandIndependentVerificationIntegrationTest.xml`
+- `build/test-results/test/TEST-com.atstudio.atstudio.service.RecurringRenewalCommandIntegrationTest.xml`
+- `build/test-results/test/TEST-com.atstudio.atstudio.service.SubscriptionUpgradeCommandIntegrationTest.xml`
 
 New timestamp-suite SHA-256: `22F4530B62DF84462EE2068A57B6F8F3A110DD6777A6E5A9DEFAC86C40D169D5`.
 State-machine-suite SHA-256: `63D62F65DC77243CBAD2BBDCF68A0A98BFB22DB339AD170057DE645A291A70C0`.
-[HTML Test Report](../../build/reports/tests/test/index.html).
+HTML Test Report: `build/reports/tests/test/index.html`.
+
+Availability correction (2026-09-09, REQ-20260909-ATS-003): These generated,
+Git-ignored output paths are not shipped with a source checkout or included in
+the 205-artifact archive. Rerunning the recorded commands generates new evidence,
+not this historical run's original reports. The dated execution claims are unchanged.
 
 The tool truncated repeated Hibernate shutdown text in the console response; full-console retention is not claimed. XML remains the authoritative count and test-log evidence. Later normal test runs can replace these generated reports.
 

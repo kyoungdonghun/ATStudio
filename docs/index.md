@@ -1,5 +1,5 @@
 ---
-version: 3.4
+version: 3.5
 last_updated: 2026-09-09
 project: ATS
 owner: EO
@@ -17,11 +17,11 @@ status: stable
 | Category | Document Count | Index File | Description |
 | ---------- | ------- | ------------------------------------------ | -------------------- |
 | Architecture | 1 | [Architecture Index](architecture/index.md) | High-level design/principles |
-| Design | 29 | [Design Index](design/index.md) | Meta + ATStudio domain design (API, DB, use cases, protocol references) |
+| Design | 30 | [Design Index](design/index.md) | Meta + ATStudio domain design (API, DB, use cases, protocol references) |
 | Policies | 8 | [Policies Index](policies/index.md) | Operational policy documents |
-| Standards | 12 | [Standards Index](standards/index.md) | Standard documents and reference assets |
+| Standards | 13 | [Standards Index](standards/index.md) | Standard documents and reference assets |
 | Templates | 18 | [Templates Index](templates/index.md) | Document/artifact templates |
-| Registry | 4 | [Registry Index](registry/index.md) | Asset/context/project registries |
+| Registry | 5 | [Registry Index](registry/index.md) | Asset/context/project registries and V1 artifact retention |
 | Audit | 6 | [Audit Index](audit/index.md) | Audit reports and remediation baselines |
 | Client | 8 | [Client Index](client/index.md) | Easy client acceptance testing guides and SR intake references |
 | Payment | 7 | [Payment Index](payment/index.md) | Payment system guide, flows, operations, acceptance checklist, and client brief |
@@ -31,7 +31,10 @@ status: stable
 | UI | 3 | [UI Index](ui/index.md) | Screen inventory, flow, and modal planning documents |
 | Eval | 0 | [Eval Index](eval/index.md) | Evaluation documents |
 
-**Total Document Count**: Managed based on "Document Count" column above (excluding index files). Current total: **201**.
+**Total Document Count**: Recursive Markdown file counts in the categories above,
+excluding `index.md` files and including retained historical/reference files.
+Current total: **204**. This documentation inventory is separate from the
+205-path artifact-cleanup baseline.
 
 ## Required Documents Mapping by Role
 
@@ -86,6 +89,17 @@ status: stable
 
 ## Starting Point Guides
 
+### Current Operations And Historical Evidence
+
+Use the current design, policy, client and payment guides for operations.
+`deliverables/`, `docs/SR/`, `docs/audit/` and `docs/retrospective/` contain dated
+work records, not fresh runtime or production approval. The
+[V1 artifact retention register](registry/v1-artifact-retention-20260909.md)
+maps the approved 205-path historical set: 13 selected document dependencies
+remain at their original paths; 192 artifacts are designated private local
+archive only. A remote checkout includes no private archive or raw evidence.
+Historical literal paths are register lookup keys, not setup dependencies.
+
 ### New Users (First Time)
 
 1. **`AGENTS.md`** (root): Current Codex work workflow, orchestration gates, routing — **start here** ⭐
@@ -135,7 +149,7 @@ These documents describe meta framework operation. **DO NOT inject for ATStudio 
 | Design | `base-agent.md` (archived), `protocols/agent-communication.md` | Agent design/A2A protocol |
 | Standards | `evidence-pack-standard.md`, `evolution-pattern.md` | Meta internal standards |
 | Policies | `template-governance.md`, `future-policy-stubs.md` | Meta governance |
-| Registry | All (`project-registry.md`, `context-registry.md`, `asset-registry.md`, `workboard.md`) | Meta work management |
+| Registry | `project-registry.md`, `context-registry.md`, `asset-registry.md`, `workboard.md` | Meta work management; the V1 artifact retention register is ATS-specific |
 
 ### Universal (Apply to All Projects)
 

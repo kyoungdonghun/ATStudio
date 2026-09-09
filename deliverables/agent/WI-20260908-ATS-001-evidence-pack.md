@@ -1,6 +1,6 @@
 ---
-version: 1.0
-last_updated: 2026-09-08
+version: 1.1
+last_updated: 2026-09-09
 project: ATS
 owner: re
 category: evidence-pack
@@ -113,9 +113,14 @@ Mode: Java 17 / JUnit5 / Gradle 9.3.0. Final status: PASS.
 Baseline XML also reported zero failures, errors and skips (suite seconds: 3.585 and 16.050). No existing tests were removed.
 
 Full generated test logs, including Hibernate stdout/stderr and individual test cases:
-- [Renewal JUnit XML](../../build/test-results/test/TEST-com.atstudio.atstudio.service.RecurringRenewalCommandIntegrationTest.xml), timestamp `2026-09-08T08:55:25.725Z`, SHA-256 `4A7C11104DF87D1E547E33F9D93669B05BE4CBED4BB07D39A32EB7988D862E17`.
-- [Download JUnit XML](../../build/test-results/test/TEST-com.atstudio.atstudio.service.DownloadServiceTest.xml), timestamp `2026-09-08T08:55:22.227Z`, SHA-256 `F4BB83AE0E6C43F7FE0C7F9FED72D3376BABC97C26DE6ACD1B02BAC6A6233527`.
-- [Gradle HTML report](../../build/reports/tests/test/index.html).
+- Renewal JUnit XML: `build/test-results/test/TEST-com.atstudio.atstudio.service.RecurringRenewalCommandIntegrationTest.xml`, timestamp `2026-09-08T08:55:25.725Z`, SHA-256 `4A7C11104DF87D1E547E33F9D93669B05BE4CBED4BB07D39A32EB7988D862E17`.
+- Download JUnit XML: `build/test-results/test/TEST-com.atstudio.atstudio.service.DownloadServiceTest.xml`, timestamp `2026-09-08T08:55:22.227Z`, SHA-256 `F4BB83AE0E6C43F7FE0C7F9FED72D3376BABC97C26DE6ACD1B02BAC6A6233527`.
+- Gradle HTML report: `build/reports/tests/test/index.html`.
+
+Availability correction (2026-09-09, REQ-20260909-ATS-003): These are generated,
+Git-ignored local output paths, not files included in a source checkout or the
+205-artifact archive. The commands above can produce new reports, not recover
+this historical run's original bytes. The dated results and hashes are unchanged.
 
 Generated build reports are overwritten by later Gradle runs; the counts, timestamps, hashes and complete final console output below preserve this run's identity.
 

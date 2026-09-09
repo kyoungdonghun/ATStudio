@@ -78,3 +78,11 @@ src/main/resources/static/
 /output/demo-seed/
 /output/client-demo-screenshots-*/
 /tmp/
+
+# Dated generated evidence; originals are classified in the V1 retention register.
+# Keep deliverables, database scripts, source and tests visible to Git.
+/output/security-readiness-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/
+/output/release-remediation-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/
+/output/test-application-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/
+/output/ui-ux-audit/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/
+/output/client-demo-screenshots-*.zip

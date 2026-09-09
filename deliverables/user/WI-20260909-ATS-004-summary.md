@@ -1,5 +1,5 @@
 ---
-version: 1.5
+version: 1.6
 last_updated: 2026-09-09
 project: ATS
 owner: SE
@@ -13,6 +13,10 @@ dependencies:
 ---
 
 # WI-20260909-ATS-004: Frontend Session Ownership
+
+> Archive pointer correction (2026-09-09, WI016): Log and snapshot links below
+> resolve to the [private local archive register](../../docs/registry/v1-artifact-retention-20260909.md),
+> not downloadable originals. Historical execution claims and dates are unchanged.
 
 ## Summary
 
@@ -74,14 +78,14 @@ enablement or dependency files were changed by WI004.
 | Executed pre-fix failure baseline / live browser verification | R1 RED established; live browser not run |
 
 The focused run used existing installed dependencies without modifying them.
-SE read the [MA test log](../../output/release-remediation-20260909/frontend-focused-initial.log)
+SE read the [MA test log](../../docs/registry/v1-artifact-retention-20260909.md#a128)
 and did not execute a test runner. SE also read the
-[expanded focused log](../../output/release-remediation-20260909/frontend-entrypoint-focused.log):
+[expanded focused log](../../docs/registry/v1-artifact-retention-20260909.md#a122):
 156 passed, two failed in 8.80 seconds. Both storage-failure fixtures throw an
 Error without a response, which the existing mapper classifies as a network
 error. Test expectations now match that existing copy; production behavior
 and UI text are unchanged. The failed run remains recorded. SE then read the
-[final focused log](../../output/release-remediation-20260909/frontend-entrypoint-focused-final.log):
+[final focused log](../../docs/registry/v1-artifact-retention-20260909.md#a121):
 5/5 files, 158/158 PASS in 9.01 seconds, starting at 04:53:51 after MA's 04:53:50
 snapshot refresh. The later R1 store/test changes are not covered by that run.
 
@@ -90,20 +94,20 @@ frontend files: both exit 0. Only `LoginPage.test.tsx` needed final formatting;
 its before/after diff was line wrapping/indentation and an optional trailing
 comma, with no semantic changes. No package installation was performed.
 
-The [final coverage log](../../output/release-remediation-20260909/frontend-full-coverage.log)
+The [final coverage log](../../docs/registry/v1-artifact-retention-20260909.md#a130)
 is the complete 1,516-test run. The earlier 1,399-test snapshot was incomplete
 and must not be described as full verification. The complete 1,516-test run
 also predates the additional F1 fix. SE subsequently read the
-[pre-R1 full coverage log](../../output/release-remediation-20260909/frontend-full-final-coverage.log):
+[pre-R1 full coverage log](../../docs/registry/v1-artifact-retention-20260909.md#a131):
 1,558/1,558 PASS. That complete newer checkpoint still predates the R1
 internal-clear regression, so another focused/full run is required.
 
-For [RED](../../output/release-remediation-20260909/frontend-r1-red.log), MA copied
+For [RED](../../docs/registry/v1-artifact-retention-20260909.md#a140), MA copied
 only `authStore.test.ts` and `SocialLoginPage.test.tsx` to the isolated pre-R1
 source and selected `WI010-F1-R1`: all five new cases failed. The
-[RED snapshot](../../output/release-remediation-20260909/frontend-r1-red-snapshot.json)
+[RED snapshot](../../docs/registry/v1-artifact-retention-20260909.md#a139)
 preserves the original source hash. MA then copied fixed `authStore.ts` and
-passed the broader five-file [GREEN focused selection](../../output/release-remediation-20260909/frontend-r1-green-focused.log):
+passed the broader five-file [GREEN focused selection](../../docs/registry/v1-artifact-retention-20260909.md#a138):
 163/163 tests. SE read both execution logs. Old/fixed hashes and the isolated
 read pointer are preserved in the evidence pack. Only these three files
 changed for R1; no caller edits were needed. The coverage mock adaptation

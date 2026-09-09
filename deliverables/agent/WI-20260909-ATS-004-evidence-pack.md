@@ -1,5 +1,5 @@
 ---
-version: 1.5
+version: 1.6
 last_updated: 2026-09-09
 project: ATS
 owner: SE
@@ -15,6 +15,10 @@ dependencies:
 ---
 
 # Evidence Pack: WI-20260909-ATS-004
+
+> Archive pointer correction (2026-09-09, WI016): Log and snapshot links below
+> resolve to the [private local archive register](../../docs/registry/v1-artifact-retention-20260909.md),
+> not downloadable originals. Historical execution claims and dates are unchanged.
 
 ## Summary
 
@@ -246,7 +250,7 @@ npm run test -- src/api/client.test.ts src/store/authStore.test.ts --maxWorkers=
 
 - Runner: Vitest 4.1.4; log start time `04:14:44` on 2026-09-09.
 - Result: **2/2 files, 63/63 tests passed; duration 3.53 seconds**.
-- Evidence: [MA initial focused log](../../output/release-remediation-20260909/frontend-focused-initial.log).
+- Evidence: [MA initial focused log](../../docs/registry/v1-artifact-retention-20260909.md#a128).
 - SE read the log after MA supplied the result. SE did not run a test process.
 - At initial handback no product/test edits followed that run. The later
   formatter correction and then MA-authorized F1 lifecycle extension are
@@ -285,12 +289,12 @@ SE read the named logs and attributes execution/results to MA.
 
 | Check | Result / evidence |
 |---|---|
-| Complete coverage suite | **112/112 files, 1,516/1,516 tests PASS**, 198.38 seconds; [coverage log](../../output/release-remediation-20260909/frontend-full-coverage.log) |
+| Complete coverage suite | **112/112 files, 1,516/1,516 tests PASS**, 198.38 seconds; [coverage log](../../docs/registry/v1-artifact-retention-20260909.md#a130) |
 | Coverage | Statements **90.27%**, lines **92.85%**, functions **91.19%**, branches **82.86%** |
-| Typecheck | MA-reported PASS; [typecheck log](../../output/release-remediation-20260909/frontend-typecheck.log) |
-| ESLint | MA-reported PASS; [lint log](../../output/release-remediation-20260909/frontend-lint.log) |
-| Build | PASS, Vite completed in 2.80 seconds; [build log](../../output/release-remediation-20260909/frontend-build.log) |
-| Prettier before correction | FAIL only `src/api/client.test.ts`; [format log](../../output/release-remediation-20260909/frontend-format.log) |
+| Typecheck | MA-reported PASS; [typecheck log](../../docs/registry/v1-artifact-retention-20260909.md#a142) |
+| ESLint | MA-reported PASS; [lint log](../../docs/registry/v1-artifact-retention-20260909.md#a136) |
+| Build | PASS, Vite completed in 2.80 seconds; [build log](../../docs/registry/v1-artifact-retention-20260909.md#a118) |
+| Prettier before correction | FAIL only `src/api/client.test.ts`; [format log](../../docs/registry/v1-artifact-retention-20260909.md#a129) |
 
 The coverage log starts at `04:25:21` on 2026-09-09. The earlier 1,399-test
 snapshot was incomplete and is explicitly **not** full-suite evidence. Only
@@ -304,7 +308,7 @@ MA ran the five-file selection below in the refreshed isolated snapshot:
 
 - Result: **4/5 files passed; 156/158 tests passed, 2 failed**.
 - Start: `04:49:31` on 2026-09-09; duration **8.80 seconds**.
-- Evidence: [MA expanded focused log](../../output/release-remediation-20260909/frontend-entrypoint-focused.log).
+- Evidence: [MA expanded focused log](../../docs/registry/v1-artifact-retention-20260909.md#a122).
 - Both failures were the parameterized SocialLoginPage storage-persistence
   cases (`stage`, `commit`), at the then-current test line 493.
 
@@ -330,18 +334,18 @@ npm run test -- src/api/client.test.ts src/store/authStore.test.ts src/pages/aut
 
 - Result: **5/5 files, 158/158 tests PASS; duration 9.01 seconds**.
 - Log start: `04:53:51` on 2026-09-09; Vitest 4.1.4, isolated validation directory.
-- Evidence: [MA final focused log](../../output/release-remediation-20260909/frontend-entrypoint-focused-final.log).
+- Evidence: [MA final focused log](../../docs/registry/v1-artifact-retention-20260909.md#a121).
 - SE read the log; MA owns execution. The later R1 tests/fence are a separate
   subsequent change, not covered by this run.
 
 ### Complete Pre-R1 Coverage Checkpoint
 
-SE read [MA's pre-R1 full coverage log](../../output/release-remediation-20260909/frontend-full-final-coverage.log):
+SE read [MA's pre-R1 full coverage log](../../docs/registry/v1-artifact-retention-20260909.md#a131):
 **112/112 files, 1,558/1,558 tests PASS**, starting `04:54:20`, duration
 **78.36 seconds**. Statements **90.26%**, lines **92.84%**, functions **91.21%**,
 branches **82.82%**. This completed the expanded F1 snapshot but predates the
 five R1 regressions and stageTokens fence. The corresponding checkpoint JSON
-is [pre-R1 coverage summary](../../output/release-remediation-20260909/frontend-full-pre-r1-coverage-summary.json).
+is [pre-R1 coverage summary](../../docs/registry/v1-artifact-retention-20260909.md#a132).
 It is not final verification of R1, and no later quality-gate PASS is inferred.
 
 ### R1 RED/GREEN Executed by MA
@@ -356,8 +360,8 @@ npm run test -- src/store/authStore.test.ts src/pages/auth/SocialLoginPage.test.
 
 RED: **2 files failed, all 5 selected R1 cases failed, 57 other tests skipped
 by the name filter**, starting `05:00:30`, duration **3.57 seconds**. SE read
-the [RED log](../../output/release-remediation-20260909/frontend-r1-red.log)
-and [RED snapshot](../../output/release-remediation-20260909/frontend-r1-red-snapshot.json),
+the [RED log](../../docs/registry/v1-artifact-retention-20260909.md#a140)
+and [RED snapshot](../../docs/registry/v1-artifact-retention-20260909.md#a139),
 which records the old D2784A7F source hash and the two copied test paths.
 The failures demonstrate mixed/newly restored A tokens after replacement or
 logout, and stale staging reaching storage failure instead of preserving B.
@@ -369,7 +373,7 @@ npm run test -- src/api/client.test.ts src/store/authStore.test.ts src/pages/aut
 ```
 
 GREEN: **5/5 files, 163/163 tests PASS**, starting `05:01:04`, duration
-**8.43 seconds**. SE read the [GREEN focused log](../../output/release-remediation-20260909/frontend-r1-green-focused.log).
+**8.43 seconds**. SE read the [GREEN focused log](../../docs/registry/v1-artifact-retention-20260909.md#a138).
 This broader run includes all five R1 regressions and retained normal/error
 paths. MA owns both executions; SE started no runner and did not revert any
 shared-workspace source. No source/test edits followed the GREEN readiness
