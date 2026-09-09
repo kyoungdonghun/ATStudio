@@ -16,6 +16,10 @@ dependencies:
 
 # Evidence Pack: WI-20260909-ATS-028
 
+Current phone acceptance and cleanup boundary: see the
+[dated user-acceptance follow-up](#user-acceptance-follow-up-2026-09-09).
+The initial closeout below is preserved as historical evidence.
+
 ## Summary
 
 COMPLETE WITH RECORDED LIMITATIONS. Independently verified all 22 stored runtime pairs, the original
@@ -303,3 +307,60 @@ preservation checkpoint, with browser OS-save UNKNOWN retained. The final health
 observations are attributed to MA, not independently executed by qa-integ.
 No pending MA UI work remains for this WI. Any further OS-save investigation,
 maintenance fix or expanded acceptance scope needs separate authorization.
+
+## User-Acceptance Follow-up (2026-09-09)
+
+**Scope / DoD:** The user authorized step 3, normal-browser downloaded-WAV
+verification, under the same approved REQ006/WI028. Reused the existing
+[handoff](WI-20260909-ATS-028-handoff.md) through create-wi-handoff-packet;
+create-wi-evidence-pack appends this receipt without a new WI or deliverable.
+AGENTS.md, all four Tier 0 documents, the relevant skills, REQ006 and both WI028
+outputs were loaded before edits. WI028 still blocks no further WI.
+
+| Evidence pointer | Provenance and accepted result |
+|---|---|
+| 2026-09-09 smartphone screenshot in the acceptance thread | MA reports visual review: `qa_admin` on public `/tracks/33`, `WI027-sine-20`, site download toast, and native browser download-complete notification naming exactly `2ae25c112fd34162b1e9a2b1874707c8.wav` with `파일 열기` (Open file). Supplied MA observation, not a new qa-integ image review or browser run |
+| Subsequent user message in that thread: `재생되네 굳` | Explicit local playback confirmation after the download/open check. Together with the native completion notification, this closes only the human-assisted actual-phone download-save/open-play check: PASS |
+
+Screenshot pointer: `.codex-remote-attachments/019e30c8-16ba-7d71-9adb-82894b7cb77d/258a27d1-17b9-4cb0-80a3-5e2eb52f1937/1-Photo-1.jpg`.
+MA identifies this attachment as private/untracked; it was not copied, edited or staged.
+
+**Evidence boundaries:** Browser brand/version, actual phone-local byte length
+and SHA-256, and whole 59-second playback/duration were not independently
+verified. No desktop Chrome/Edge test or full all-mobile regression PASS is
+claimed. The earlier in-app browser's 60-second native-event timeout and absent
+expected Downloads file remain historical UNKNOWN for that environment, not a
+current blanket missing-save/mobile check. The separate API artifact's byte/SHA
+PASS remains separate and does not establish the phone file's bytes or hash.
+
+**Cleanup / final corroboration (MA-supplied):** MA confirmed actual CUA editing
+of the existing READY `WI027-sine-20` / same WAV: active before, only active
+toggled off and saved. Fresh row 33 DOM shows `비활성`; no other test Track edit
+or file deletion. MA then logged out; fresh DOM shows `로그인` and no `qa_admin`.
+Read-only checks report local frontend root 200, local
+`8080/api/tracks?page=1&size=1` 200, public root 200 and public `/api/tracks/33`
+404 as intended while inactive. The repository ORIGINAL at
+`uploads/tracks/audio/2ae25c112fd34162b1e9a2b1874707c8.wav` remains 10485760 bytes,
+SHA-256 `418EBE155705B5C463462F4FF9C8D0E7AA3A477646D73854A5A0C374AB84956C`.
+This is MA's supplied stored-original check, NOT the phone copy or a new
+qa-integ probe. No restart, new download/replay, charge or mail was performed
+for this final corroboration. Cleanup is confirmed; no pending MA cleanup
+remains. Admin toast `0/0` stays record-only display debt without a source fix.
+
+**Changed paths:** This evidence pack, `deliverables/user/WI-20260909-ATS-028-summary.md`,
+`deliverables/user/REQ-20260909-ATS-006.md`, `docs/index.md`, `docs/SR/SR-93.md`,
+and `docs/design/runtime-storage-operations.md`. Only dated acceptance additions
+and directly relevant current pointers change; historical snapshots and WI029
+receipts remain intact.
+
+**Tests / quality:** `python -B .agents/skills/validate-docs/scripts/validate_docs.py`
+PASS, exit 0: Tier 0, links, 723 supported traceability IDs and index checks.
+`git diff --check` PASS, exit 0; Git emitted only a CRLF-to-LF notice for
+`docs/index.md`. Diff review confirms only the six named documents changed;
+no application tests or runtime checks were rerun by qa-integ for this receipt.
+
+**Risks / rollback:** Remove only this follow-up's additions/current-pointer
+edits if correction is needed; preserve earlier evidence and concurrent work.
+No runtime, DB, browser, code, test, secret, media or private-report changes,
+commit or push by qa-integ. This is the same bounded test closeout, not a product
+change, expanded acceptance or release approval; production remains HOLD.

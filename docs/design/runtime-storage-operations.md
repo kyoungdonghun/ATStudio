@@ -27,8 +27,11 @@ REQ006/WI028 subsequently verified actual application to the retained TEST
 runtime. Start with [rollout gates](#audio-processing-rollout-gates) and the
 [actual-runtime addendum](#actual-retained-runtime-verification-addendum-2026-09-09).
 Retained DB: **43 tables / 520 columns**; fresh-bootstrap manifest: **UNRECORDED**.
-Browser OS save remains **UNKNOWN**, ten historical missing references remain
-with strict startup false, and production remains **HOLD**. Earlier dated
+The [phone acceptance follow-up](#user-acceptance-follow-up-2026-09-09) closes only
+human-assisted download-save/open-play; earlier in-app native-event UNKNOWN is
+environment-specific. MA confirmed test33-only follow-up deactivation and logout. Ten
+historical missing references remain with strict startup false, and production
+remains **HOLD**. Earlier dated
 source-only evidence is preserved, not the current deployment status.
 
 ## Purpose
@@ -349,8 +352,8 @@ refresh/retry errors. It never renders raw codes/native diagnostics. Distinguish
 | Native tool | Historical parent synthetic checks below remain distinct from WI028's independent verification of 22 actual stored original/128000bps MP3 pairs with full decoded lengths |
 | Database | Retained TEST is 43 tables / 520 columns per WI029 handoff/REQ007; WI028 corroborated nine added definitions/defaults and queue index after MA's migration. Startup under `ddl-auto=validate` verified. Retained ALTER ordinals differ from fresh source; fresh-bootstrap manifest stays UNRECORDED |
 | Existing runtime | MA applied the new JAR with explicit FFmpeg and the same DB/public/private roots; WI028 verified startup logs, JAR hash and post-restart preservation. Not a fresh startup check by WI029 |
-| Actual UI / transport | WI028 reviewed MA's 20-item UI batch, interrupted-processing retry, list/detail playback, keyboard/mouse seek and refresh/manual resume. Independent 22-pair checks and separate API original SHA-256 PASS; MA's local/public stream and Range probes are attributed evidence. Native browser OS save UNKNOWN |
-| Remaining target gates | Ten historical missing references untouched; strict-on-startup=false, not strict integrity PASS. Full audio-plus-thumbnail multipart boundary, actual mobile, broad queue/next behavior, automatic OS orphan cleanup, fresh install and restore remain unverified |
+| Actual UI / transport | WI028 reviewed MA's 20-item UI batch, interrupted-processing retry, list/detail playback, keyboard/mouse seek and refresh/manual resume. Independent 22-pair checks and separate API original SHA-256 PASS; MA's local/public stream and Range probes are attributed evidence. Later human-assisted phone download-save/open-play PASS is recorded in the dated follow-up below; earlier in-app native-event UNKNOWN remains environment-specific |
+| Remaining target gates | Ten historical missing references untouched; strict-on-startup=false, not strict integrity PASS. Full audio-plus-thumbnail multipart boundary, mobile scenarios beyond the recorded phone download/open/play check, broad queue/next behavior, automatic OS orphan cleanup, fresh install and restore remain unverified. Phone browser brand/version, local bytes/SHA and whole-duration playback are independently unverified; desktop Chrome/Edge coverage is not claimed |
 | Review / release | WI026 source review PASS and WI028 bounded TEST verification COMPLETE WITH RECORDED LIMITATIONS. Source findings resolved; production HOLD and target-specific approval remain. WI029 documentation/MA Git delivery are not another deployment or acceptance run |
 
 For a future separately approved retained-data target, stop the owning writer, confirm the
@@ -588,3 +591,24 @@ no-thumbnail near-cap request does not establish every proxy/thumbnail boundary.
 Audio plus 10MiB-thumbnail multipart and actual mobile acceptance were not run.
 UI/log maintenance observations are recorded in WI028 without source fixes.
 No fresh DB, global manifest update, restore rehearsal or production GO follows.
+
+## User-Acceptance Follow-up (2026-09-09)
+
+The same approved REQ006/WI028 step 3 closes only the human-assisted actual-phone
+download-save/open-play check: **PASS**. MA reviewed the supplied smartphone
+native download-complete notification for the test33 WAV with `파일 열기`, and
+the user explicitly confirmed local playback (`재생되네 굳`). See
+[WI028 follow-up evidence](../../deliverables/agent/WI-20260909-ATS-028-evidence-pack.md#user-acceptance-follow-up-2026-09-09)
+for the exact filename, account/Track context and evidence attribution.
+This supersedes only the earlier blanket missing-save/mobile limitation; the
+in-app native-event timeout remains historical UNKNOWN for that environment.
+Separate API bytes/SHA evidence is unchanged. Browser brand/version, phone-local
+bytes/SHA and whole 59-second playback/duration are independently unverified;
+no desktop Chrome/Edge or full mobile regression PASS is claimed.
+MA confirmed follow-up test33-only deactivation and logout through fresh CUA DOM;
+the public Track API now returns the intended 404. Three other local/public
+health checks returned 200. MA's unchanged original byte/SHA check concerns the
+repository original, NOT the phone copy. Admin toast `0/0` is record-only display
+debt. qa-integ changed documents only, with no runtime/DB/browser actions or
+code changes; MA's active-state/UI cleanup is recorded above. No new WI,
+expanded acceptance or production approval.

@@ -14,6 +14,10 @@ dependencies:
 
 # WI-20260909-ATS-028 Summary
 
+Current phone acceptance and cleanup boundary: see the
+[dated user-acceptance follow-up](#user-acceptance-follow-up-2026-09-09).
+The initial closeout below is preserved as historical evidence.
+
 Status: COMPLETE WITH RECORDED LIMITATIONS. REQ006 is closed for this bounded
 verification, not an all-browser PASS or production approval.
 
@@ -51,3 +55,25 @@ cleanup or production approval is claimed. Native event timeout is not a proven
 product bug. No DB or media writes, process/browser control, payment/mail, new DB, commit or push were
 performed by qa-integ. Details and private report pointers are in the
 [evidence pack](../agent/WI-20260909-ATS-028-evidence-pack.md).
+
+## User-Acceptance Follow-up (2026-09-09)
+
+Under the same approved REQ006/WI028, authorized step 3 now closes only the
+human-assisted actual-phone download-save/open-play check: **PASS**. MA's visual
+review of the supplied smartphone screenshot identifies `qa_admin`, public
+`/tracks/33` / `WI027-sine-20`, the site toast and a native download-complete
+notification for `2ae25c112fd34162b1e9a2b1874707c8.wav` with `파일 열기`.
+The user then explicitly confirmed local playback: `재생되네 굳`.
+
+Browser brand/version, phone-local bytes/SHA and whole 59-second playback/duration
+remain independently unverified. No desktop Chrome/Edge or full mobile regression
+PASS is claimed. Earlier in-app native-event UNKNOWN and separate API SHA PASS
+remain distinct historical evidence, not a current blanket missing-save check.
+MA confirmed follow-up **test33-only deactivation and logout** through fresh CUA
+DOM; public `/api/tracks/33` now returns the intended 404. Three other local/public
+health checks returned 200. MA's unchanged 10485760-byte original/SHA check is for
+the repository original, NOT the phone copy. Admin toast `0/0` is record-only debt.
+qa-integ changed only six named documents, with no runtime/DB/browser actions,
+code/test changes or commit/push; MA's active-state/UI cleanup is recorded above.
+No release approval. See the [follow-up evidence](../agent/WI-20260909-ATS-028-evidence-pack.md#user-acceptance-follow-up-2026-09-09)
+for provenance, document checks and remaining boundaries.
