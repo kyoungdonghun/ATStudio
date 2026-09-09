@@ -4,7 +4,7 @@ last_updated: 2026-09-09
 project: ATS
 owner: qa
 category: summary
-status: handoff-ready
+status: complete
 dependencies:
   - path: REQ-20260909-ATS-003.md
     reason: Approved artifact cleanup and separate publication gates
@@ -13,6 +13,9 @@ dependencies:
 ---
 
 # WI-20260909-ATS-017: Independent Artifact Cleanup Review
+
+> Completed: The independent-review handoff below is preserved as its checkpoint;
+> MA's later delivery receipt is recorded at the end.
 
 ## Outcome
 
@@ -83,3 +86,16 @@ MA owns restaging the corrected index, final integration of these two outputs, r
 candidate/allowlist validation, commit/push/remote-SHA receipts and REQ closure.
 WI017 blocks no further WI. Public archive metadata is not a remote backup or
 raw-evidence download; production SR-93 approval remains a separate boundary.
+
+## MA Delivery Receipt
+
+Final source-only documentation validation passed after integrating this review.
+MA pushed cleanup commit `1904805841fcb9b863bf14ca2143ad3f840a9c87` and
+verified the same remote `main` SHA; the repository was clean before this note.
+All 205 original ZIP members passed a final hash/size check.
+
+External verification copies remain because the tool rejected their recursive
+cleanup before execution. The original 192 workspace removals are complete,
+and the protected archive remains intact. See the
+[completed REQ](REQ-20260909-ATS-003.md) for the exact exception. No release,
+DB, payment, mail or runtime action was added by this delivery record.

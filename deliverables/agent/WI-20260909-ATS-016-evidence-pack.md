@@ -4,7 +4,7 @@ last_updated: 2026-09-09
 project: ATS
 owner: docops
 category: evidence-pack
-status: handoff-ready
+status: complete
 dependencies:
   - path: WI-20260909-ATS-016-handoff.md
     reason: Approved role, write allowlist and ownership
@@ -15,6 +15,9 @@ dependencies:
 ---
 
 # Evidence Pack: WI-20260909-ATS-016
+
+> Completed: The handoff checkpoint below is historical. See MA Delivery Closeout
+> at the end for final verification, publication and the bounded local-temp exception.
 
 ## Summary
 
@@ -208,3 +211,29 @@ without changing the original 205-path population:
 WI017 independent review and final Git publication remain distinct closing
 gates. Final publication receipts must record the delivered revision rather
 than treating the staged candidate as remotely published.
+
+## MA Delivery Closeout
+
+WI017 independently verified the exact archive/retention sets, retained Git
+bytes, references, preservation and narrow ignores. Both its findings were
+resolved; no unresolved scoped finding remained. The final 30-file staged Git
+tree was exported without ignored/private material; its documentation validator
+passed (`docs-final-source.log`). Product/test/build paths were unchanged from
+the clean source that passed the automated gates above.
+
+Cleanup commit `1904805841fcb9b863bf14ca2143ad3f840a9c87` was pushed to
+`origin/main` and matched `git ls-remote`. Both tracked and untracked changes
+were zero immediately before this separate delivery-record update. These are
+actual MA publication receipts, not part of the earlier DocOps claim.
+
+The original archive's 205 ZIP members were rehashed and size-checked again.
+An attempted cleanup of four external verification directories and three
+source ZIPs was rejected by the execution tool before execution. Those temporary
+copies therefore remain outside the repository; no removal is claimed.
+`temporary-cleanup-receipt.json` records this non-product exception. The original
+archive, manifest and test evidence remain preserved locally, not remotely.
+
+REQ003 is closed within this exact repository-cleanup scope. No additional WI,
+runtime/DB/media action, live external acceptance or production approval is
+implied. The [REQ completion record](../user/REQ-20260909-ATS-003.md) is the
+current closeout pointer.

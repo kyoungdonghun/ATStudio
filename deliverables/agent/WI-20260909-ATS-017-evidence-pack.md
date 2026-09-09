@@ -4,7 +4,7 @@ last_updated: 2026-09-09
 project: ATS
 owner: qa
 category: evidence-pack
-status: handoff-ready
+status: complete
 dependencies:
   - path: WI-20260909-ATS-017-handoff.md
     reason: Approved independent review scope and two-file write boundary
@@ -17,6 +17,9 @@ dependencies:
 ---
 
 # Evidence Pack: WI-20260909-ATS-017
+
+> Completed: QA's handoff checkpoints remain below. MA's subsequent publication
+> receipt and bounded temporary-copy exception are recorded at the end.
 
 ## Summary
 
@@ -216,3 +219,19 @@ by QA.
 WI017 has **Blocks: none**. Return these two outputs to MA now; do not wait for
 publication to complete this independent review. REQ003 stays open until MA's
 remaining integration, final publication and closure gates actually finish.
+
+## Subsequent MA Delivery Receipt
+
+MA integrated both review outputs and all resolved index/link changes, verified
+the final 30-path allowlist and unchanged product scope, and exported the final
+staged Git tree for a passing source-only documentation check. Cleanup commit
+`1904805841fcb9b863bf14ca2143ad3f840a9c87` was actually pushed and matched
+`origin/main`; the repository then had no tracked or untracked changes.
+These are MA execution receipts, not retroactive QA execution claims.
+
+The original ZIP still passed all 205 member-hash/size checks. A command to remove
+the external temporary verification copies was rejected before execution; the
+copies remain locally and are not treated as removed or remotely backed up.
+Details: private `temporary-cleanup-receipt.json` and the
+[REQ closeout](../user/REQ-20260909-ATS-003.md). This scoped review/cleanup is
+complete; production SR-93 and live external acceptance remain separate.
