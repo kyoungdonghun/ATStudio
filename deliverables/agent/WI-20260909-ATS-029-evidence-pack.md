@@ -20,7 +20,8 @@ dependencies:
 
 Aligned current entry points with WI028 retained TEST application while
 preserving historical snapshots, fresh-bootstrap UNRECORDED and production
-HOLD. COMPLETE for the documentation scope; MA Git delivery remains separate.
+HOLD. COMPLETE for the documentation scope; the dated MA-supplied final Git
+receipt also closes REQ007 delivery without independent DocOps Git verification.
 
 ## Scope / DoD Check
 
@@ -32,7 +33,7 @@ HOLD. COMPLETE for the documentation scope; MA Git delivery remains separate.
 - [x] Historical missing references, strict startup false and production HOLD retained.
 - [x] Only ten owned documentation paths edited/created; no new audit or agents.
 - [x] Final validate-docs, bounded content diff, metadata/link/whitespace checks.
-- [x] Blocks none; MA owns Git delivery, not yet full REQ007 completion.
+- [x] Blocks none; MA-supplied final Git receipt closes approved REQ007 delivery.
 
 ## Reference Documents (Tier 0-2)
 
@@ -71,7 +72,7 @@ Exact WI029 changed paths, relative to the repository root:
 | `docs/design/runtime-storage-operations.md` | Current entry note/rollout gates; historical source-only labels; existing addendum retained |
 | `scripts/database/README.md` | Fresh-only manifest scope; manual SQL already applied to TEST, no replay/new DB |
 | `deliverables/user/REQ-20260909-ATS-005.md` | Current-status link only; WI025/026 chronological records unchanged |
-| `deliverables/user/REQ-20260909-ATS-007.md` | Documentation closeout plus explicit MA-owned pending Git delivery |
+| `deliverables/user/REQ-20260909-ATS-007.md` | Documentation closeout and dated MA-supplied completed Git delivery |
 | `deliverables/user/WI-20260909-ATS-029-summary.md` | New user-facing summary |
 | `deliverables/agent/WI-20260909-ATS-029-evidence-pack.md` | This skill-generated evidence pack |
 
@@ -124,7 +125,7 @@ pre-existing changes are not attributed to this WI. No snapshot files or new
 validation scripts were written. Git inspection/diff/staging/commit/push and
 helper checks remain MA-owned; no DocOps `git diff --check` claim is made.
 
-### MA-Supplied Checkpoint (2026-09-09)
+### Historical MA-Supplied Pre-Push Checkpoint (2026-09-09)
 
 - Fresh fetch initially showed ahead/behind 0/0 at dated snapshot `69a5145`.
 - Separate reconstruction-only commit `fb8a239`: eight documents, 460 insertions,
@@ -145,6 +146,24 @@ helper checks remain MA-owned; no DocOps `git diff --check` claim is made.
   13:10:42 and frontend test 13:11:09. These are prior-results checks, not rerun
   suites or new production proof.
 
+### MA-Supplied Final Git Receipt (2026-09-09)
+
+- Reconstruction commit `fb8a239` contains eight documents. Subsequent WAV/docs
+  commit `1649de5da033eb3142301490559097e3307c23be` contains 89 files,
+  7,140 insertions and 182 deletions.
+- MA reports `git push origin main` exit 0, updating `69a5145..1649de5`.
+  Fresh `git ls-remote origin refs/heads/main` equaled the full local HEAD
+  `1649de5da033eb3142301490559097e3307c23be`; worktree status was empty
+  immediately after that first push. This is a dated receipt, not permanent HEAD.
+- All 57 product/helper raw SHA-256 values remained unchanged after docs.
+  MA's staged scan covered 89 files / 1,040,346 bytes: three configured secret
+  values plus credential patterns, zero hits, no prohibited runtime/media/dump
+  paths. Cached diff check PASS. No secret values or private contents reproduced.
+- These are MA-executed and MA-supplied results, not DocOps reruns. They
+  supersede pending delivery above and close approved REQ007 and WI029.
+  This receipt update touches only REQ007, WI029 summary and this evidence pack;
+  only a quick whitespace check is required, with no new validator or repo audit.
+
 ## Tests
 
 No product suite, native encode, browser, HTTP, MySQL, restore or runtime test
@@ -163,7 +182,7 @@ retained runtime results remain WI028 evidence.
 
 ## Follow-ups
 
-WI029 blocks none. Return the documentation result and exact paths to MA for
-the approved separate WAV/docs commit and push. REQ007 remains approved/open
-until MA confirms Git delivery and remote verification. Use one later MA
-delivery receipt; no recurring audit or self-referential hash-update loop.
+WI029 blocks none; REQ007 and WI029 are complete on the dated delivery receipt.
+MA will separately commit/push this three-document receipt update. That report
+commit is not yet claimed as delivered and requires no self-hash update or
+further DocOps investigation. Production HOLD and all verification limits remain.
