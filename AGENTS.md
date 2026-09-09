@@ -387,6 +387,8 @@ ATStudio/
 
 ## Documentation Entry Points
 
+Development reconstruction: [Root README](README.md) and [read-only preflight / restore guide](scripts/reconstruction/README.md).
+
 | 문서 | 설명 | Tier |
 |------|------|------|
 | `docs/standards/core-principles.md` | 시스템 헌법 + ATStudio 도메인 원칙 | 0 |

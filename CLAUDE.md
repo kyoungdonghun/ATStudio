@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+Development reconstruction: [Root README](README.md) and [read-only preflight / restore guide](scripts/reconstruction/README.md).
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 > **Operational Notice:** `CLAUDE.md` is the active entry point for Claude Code sessions.

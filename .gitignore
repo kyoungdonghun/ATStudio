@@ -55,6 +55,7 @@ server*.log
 
 ### User uploads (runtime data, never commit) ###
 uploads/
+/private-uploads/
 
 ### Certificates / Keys ###
 *.pem

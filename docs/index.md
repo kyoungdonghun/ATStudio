@@ -21,7 +21,7 @@ status: stable
 | Policies | 8 | [Policies Index](policies/index.md) | Operational policy documents |
 | Standards | 13 | [Standards Index](standards/index.md) | Standard documents and reference assets |
 | Templates | 18 | [Templates Index](templates/index.md) | Document/artifact templates |
-| Registry | 5 | [Registry Index](registry/index.md) | Asset/context/project registries and V1 artifact retention |
+| Registry | 6 | [Registry Index](registry/index.md) | Asset/context/project registries and V1 artifact retention |
 | Audit | 6 | [Audit Index](audit/index.md) | Audit reports and remediation baselines |
 | Client | 8 | [Client Index](client/index.md) | Easy client acceptance testing guides and SR intake references |
 | Payment | 7 | [Payment Index](payment/index.md) | Payment system guide, flows, operations, acceptance checklist, and client brief |
@@ -33,7 +33,7 @@ status: stable
 
 **Total Document Count**: Recursive Markdown file counts in the categories above,
 excluding `index.md` files and including retained historical/reference files.
-Current total: **204**. This documentation inventory is separate from the
+Current total: **205**. This documentation inventory is separate from the
 205-path artifact-cleanup baseline.
 
 ## Required Documents Mapping by Role
@@ -89,16 +89,28 @@ Current total: **204**. This documentation inventory is separate from the
 
 ## Starting Point Guides
 
+### Development Reconstruction
+
+Start with the [root README](../README.md) and
+[development reconstruction guide](../scripts/reconstruction/README.md) for
+toolchain setup, read-only source preflight, selected local configuration and
+private DB/media/keyring restore gates. A source check or same-PC clean build
+is not a new-PC/full restore or production approval. The historical retention
+register below locates recovered records; private originals remain separate.
+
 ### Current Operations And Historical Evidence
 
 Use the current design, policy, client and payment guides for operations.
 `deliverables/`, `docs/SR/`, `docs/audit/` and `docs/retrospective/` contain dated
 work records, not fresh runtime or production approval. The
 [V1 artifact retention register](registry/v1-artifact-retention-20260909.md)
-maps the approved 205-path historical set: 13 selected document dependencies
-remain at their original paths; 192 artifacts are designated private local
-archive only. A remote checkout includes no private archive or raw evidence.
+maps the approved 205-path historical set and its latest reviewed retention
+decisions, including recovered development documents. Use its per-entry
+classification for Git availability. A remote checkout includes no private
+archive or raw evidence.
 Historical literal paths are register lookup keys, not setup dependencies.
+The [development history recovery register](registry/development-history-recovery-20260909.md)
+provides per-document recovery rationale and provenance for reviewed public history.
 
 ### New Users (First Time)
 

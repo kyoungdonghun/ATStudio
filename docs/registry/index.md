@@ -1,5 +1,5 @@
 ---
-version: 1.4
+version: 1.5
 last_updated: 2026-09-09
 project: system
 owner: EO
@@ -20,6 +20,7 @@ status: stable
 | [Project Context Instances](context-registry.md) | system | Project Context Registry | stable |
 | [Workboard (Work Status Board)](workboard.md) | system | Workboard Registry | stable |
 | [V1 Artifact Retention Register](v1-artifact-retention-20260909.md) | ATS | Exact historical path/hash dispositions and private local recovery boundary | stable |
+| [Development History Recovery Register](development-history-recovery-20260909.md) | ATS | Full 96-document semantic review, original/public hashes and current decision entry points | stable |
 
 ## Inter-document Dependencies
 
@@ -28,6 +29,7 @@ status: stable
 - **context-registry.md**: Optional project context instance management
 - **workboard.md**: Advisory cross-project work summary; current ATStudio tracking SoT remains `deliverables/`
 - **v1-artifact-retention-20260909.md**: Historical artifact availability only; current operational SoT remains the design, policy and runbook documents. Archived raw evidence is not downloadable from a remote checkout.
+- **development-history-recovery-20260909.md**: Privacy-reviewed historical documents at original paths; original dates/claims remain historical, and private backup or production recovery is not implied.
 
 ## Related Guides
 
