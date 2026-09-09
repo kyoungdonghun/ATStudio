@@ -197,8 +197,17 @@ Keep mail on an isolated sink and Providers inaccessible until separately approv
 
 Git alone cannot reconstruct these assets. The authorized operator must name an
 approved **off-device encrypted** backup destination, backup owner, recovery
-point and retention policy. No destination is yet approved for REQ004; no
-backup upload, dump, secret inspection or full restore is claimed here.
+point and retention policy. No off-device destination is yet approved for
+REQ004. Its approved local-only amendment has now prepared sibling folder
+`<project-parent>/ATStudio-private-handoff-20260909-105744/` with restricted
+user/SYSTEM ACLs, raw configuration/key sources, both storage roots, the
+original 205-member ZIP, selected receipts and a verified 43-table native dump.
+See [WI021 evidence](../../deliverables/agent/WI-20260909-ATS-021-evidence-pack.md).
+This plaintext folder must be portably encrypted before upload; no new aggregate
+ZIP, encryption, cloud upload or real restore was performed. Independent [WI022
+review passed](../../deliverables/agent/WI-20260909-ATS-022-evidence-pack.md). Both preserved key sources require deliberate assembly,
+not automatic import; CLI overrides and Java-environment verification limits
+are recorded privately. DB/filesystem capture is non-atomic; REQ004 remains partial.
 
 Keep private backups **outside the repository**. `/private-uploads/` and
 `uploads/` are ignored as a last-line safeguard, not a backup destination.
