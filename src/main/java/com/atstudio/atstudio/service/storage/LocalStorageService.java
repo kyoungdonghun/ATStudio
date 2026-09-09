@@ -26,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.function.Consumer;
 
 @Service
 public class LocalStorageService implements StorageService {
@@ -123,6 +124,19 @@ public class LocalStorageService implements StorageService {
             pruneEmptyStagingDirectories(stagedFile.getParent(), stagingOperationRoot(root, operationId));
         } catch (AtomicMoveNotSupportedException exception) {
             throw ioFailure();
+        } catch (IOException exception) {
+            throw ioFailure();
+        }
+    }
+
+    @Override
+    public void stageGenerated(StorageRoot root, String operationId, String finalKey, Consumer<Path> generator) {
+        Path stagedFile = resolveStaged(root, operationId, finalKey);
+        try {
+            createSecureDirectories(stagedFile.getParent(), rootPath(root));
+            if (Files.exists(stagedFile, LinkOption.NOFOLLOW_LINKS)) throw ioFailure();
+            generator.accept(stagedFile);
+            requireRegularFile(stagedFile);
         } catch (IOException exception) {
             throw ioFailure();
         }

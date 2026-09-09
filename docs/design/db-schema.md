@@ -1,6 +1,6 @@
 ---
-version: 24.3
-last_updated: 2026-08-16
+version: 24.5
+last_updated: 2026-09-09
 project: ATS
 owner: SA
 category: design
@@ -16,9 +16,11 @@ dependencies:
     reason: Current API persistence consumers
   - path: ../../scripts/database/README.md
     reason: Guarded disposable MySQL preflight and proof procedure
+  - path: ../../deliverables/agent/WI-20260909-ATS-028-evidence-pack.md
+    reason: Actual retained migration and independently checked additive definitions
 ---
 
-# ATStudio DB Schema Definition v24.3
+# ATStudio DB Schema Definition v24.5
 
 ## V1 Baseline
 
@@ -39,30 +41,56 @@ The checked-in DDL is a fresh-only, fail-closed baseline:
 5. A second schema application is expected to fail; the file is not an
    idempotent migration mechanism.
 
-The retired manual SQL directory is not part of the current runtime,
-bootstrap, or operator workflow. Existing databases are not upgraded by this
-repository baseline. Any retained-data migration requires a separate approved
-requirement and migration design.
+Retired migration files remain outside the current workflow. REQ005 adds one
+explicit retained-data migration source:
+[manual-wi023-audio-processing.sql](../../scripts/database/manual-wi023-audio-processing.sql).
+It is additive, apply-once SQL, not automatic startup logic. Source changes do
+not migrate an existing database. REQ006 authorized its application to the
+existing TEST database; WI028 records that completed application. Do not replay
+it there. Any other target requires separate deployment approval, a backup and
+stopped writers; it does not require the user to create another database. Never apply the fresh-only
+`schema.sql` or `seed.sql` over retained data to install this feature.
 
 ### Current Source and MySQL Verification Boundary
+
+**Retained TEST checkpoint, 2026-09-09:** The WI029 handoff / approved REQ007
+records **43 tables / 520 columns** after the additive migration. The authoritative
+[WI028 QA report](../../deliverables/agent/WI-20260909-ATS-028-evidence-pack.md#runtime--browser-coverage)
+independently corroborates all nine added column definitions/defaults and
+`idx_tracks_audio_queue (audio_processing_state, id)`, plus successful startup
+logs under MA's `ddl-auto=validate` launcher. Retained ALTER column ordinals
+differ from fresh-source installation. This is not a canonical fresh manifest
+or a reason to update `DisposableMysqlBootstrap` from retained metadata.
 
 Current source contains 43 derived `CREATE TABLE` statements and 43 JPA
 entities. `DisposableMysqlBootstrap` preflight parses current `schema.sql`,
 fails unless that source count is exactly 43, and reports the active MySQL
-manifest expectation as `RECORDED`.
+manifest expectation as `UNRECORDED`. WI023 adds nine Track columns and the
+`idx_tracks_audio_queue` index without adding tables. Unchanged table count is
+not unchanged schema. `Create`, `Validate` and `HibernateValidate` fail closed
+with `MYSQL_MANIFEST_EXPECTATION_UNRECORDED` until a separately approved new
+observation is recorded; no such observation or database application occurred
+in WI025.
 
-The approved guarded observation established the current 43-table MySQL
+The approved guarded observation established the historical pre-WI023 43-table MySQL
 manifest: 43 tables, 511 columns, 175 index rows, 91 foreign keys, 6 plans,
 6 plan keys, zero forbidden tables, zero forbidden columns, and SHA-256
 `b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4`.
-The bootstrap compares guarded `Create` and independent `Validate` results
-against every recorded field. This is fresh disposable evidence only, not a
-retained-data migration or production-readiness claim.
+The old values/hash are preserved, not repurposed as a current expectation or
+replaced with calculated MySQL results. WI025's then-unchanged live DB and
+pre-feature private backup remain historical evidence. WI028 subsequently
+verified the retained migration and preserved its frozen pre-migration backup;
+no backup was rewritten as a new-schema restore proof. The earlier private
+reconstruction handoff was not refreshed by WI029. Prior disposable/restore
+PASS evidence does not validate the added columns, and WI028 retained validation
+does not close fresh installation or restore gates. No new DB was created for
+this retained application or documentation closeout. Ten historical missing
+references remain with strict-on-startup=false; production remains HOLD.
 
 The following 42-table manifest is historical WI-067 evidence for the prior
 source snapshot, not the current MySQL manifest:
 
-| Manifest field | Current value |
+| Manifest field | Historical WI-067 value |
 |---|---:|
 | Tables | 42 |
 | Columns | 506 |
@@ -203,17 +231,58 @@ Total: **43 tables**.
 
 ### Track Media
 
-- `tracks.audio_file` is the private storage key used by controller-mediated
-  Public Listening and Official Download.
+- `tracks.audio_file` remains the original protected storage key for Official
+  Download. Public Listening selects `stream_audio_file` when present and
+  otherwise the original only if `stream_required=false`. Both files use the
+  existing denied `tracks/audio` prefix under the PUBLIC storage root; the
+  root name does not make these audio objects statically public.
 - Public DTOs do not expose private storage keys.
 - There is no separate preview-column or preview-generation contract.
 - Browser-local Play History does not own a database table.
-- Track creation and audio replacement persist duration and waveform from one
-  decoded-PCM analysis result. Existing rows are not rewritten by the
-  read-only audio-analysis dry-run.
+- Track duration and waveform come from decoded PCM. New WAV is retained and
+  queued; verified completion promotes the pending original and full-length
+  MP3 derivative together with audio analysis. WAV replacement preserves old
+  original/stream/duration/waveform until completion, which does not overwrite
+  title, tags or manual activation. Existing rows are not rewritten by the
+  dry-run or queued for automatic conversion.
 - New or replacement Track thumbnails must be square and are canonicalized to
   JPEG. Existing non-square thumbnail keys remain unchanged unless an operator
   explicitly uploads a replacement.
+
+#### WI023 Additive Track Columns
+
+These definitions match [schema.sql](../../src/main/resources/schema.sql) and
+the [manual SQL](../../scripts/database/manual-wi023-audio-processing.sql);
+they describe source, not an applied MySQL manifest.
+
+| Column | SQL definition | Meaning |
+|---|---|---|
+| `stream_audio_file` | `VARCHAR(255) NULL` | Verified full-length MP3 derivative key |
+| `stream_required` | `TINYINT(1) NOT NULL DEFAULT 0` | Required derivative has no original fallback |
+| `audio_processing_state` | `VARCHAR(16) NOT NULL DEFAULT 'READY'` | Five-state enum persisted as text |
+| `audio_generation` | `BIGINT NOT NULL DEFAULT 0` | Fences superseded replacement/retry/completion |
+| `pending_audio_file` | `VARCHAR(255) NULL` | Retained queued/failed WAV input |
+| `claimed_audio_file` | `VARCHAR(255) NULL` | Input protected until its encoder claim releases |
+| `audio_claim_token` | `VARCHAR(36) NULL` | Internal ownership token, never an API field |
+| `audio_attempt_count` | `INT NOT NULL DEFAULT 0` | Number of claims for the replacement, including retries |
+| `audio_error_code` | `VARCHAR(64) NULL` | Fixed safe processing failure code |
+
+Index: `idx_tracks_audio_queue (audio_processing_state, id)`. Existing rows
+default to `READY`, generation/attempt zero, no new file keys and
+`stream_required=false`; legacy WAV/MP3 still play directly, with no backfill.
+New WAV starts inactive with a required stream and pending original; only a
+verified current-generation result makes it ready. Activation remains manual.
+Reference checking/journaling protects original, stream, pending and claimed
+keys, including inactive rows. Nullable derivative absence while pending is
+not an integrity failure; readiness and persisted-reference availability are
+different checks.
+
+Retain the original database plus both absolute roots as one tuple during an
+approved rollout. Use `ddl-auto=validate` and strict integrity before enabling
+the worker and admitting new WAVs. Preserve added columns/media for recovery;
+old binaries are unsafe over newly stream-required rows. No automatic DROP,
+backfill, file deletion or binary rollback is authorized. See the
+[audio rollout procedure](runtime-storage-operations.md#audio-processing-rollout-gates).
 
 ### Album and Notice Storage
 
@@ -344,5 +413,10 @@ Expected results: `43` and `43`.
 The non-database bootstrap preflight must additionally report
 `source.schema.createTableStatements=43`,
 `source.schema.createTableStatementsCheck=PASS`, and
-`mysql.manifest.expectation=RECORDED`. A separately approved guarded `Create`
-and independent `Validate` must match the recorded 43-table manifest exactly.
+`mysql.manifest.expectation=UNRECORDED`. This is a fresh-source guard only.
+REQ006/WI028 subsequently verified the retained SQL application, startup under
+Hibernate validation and bounded actual TEST browser flows, as recorded in
+the current boundary above. Fresh MySQL manifest capture, strict integrity,
+restore and the remaining browser/target limits are not closed; do not report
+a new PASS from the historical 43-table/511-column manifest. WI029 did not run
+these source-count commands, preflight or any runtime verification again.

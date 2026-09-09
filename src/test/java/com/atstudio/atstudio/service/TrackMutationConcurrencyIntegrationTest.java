@@ -117,20 +117,28 @@ class TrackMutationConcurrencyIntegrationTest {
         if (writer == Writer.REMOVE_LIKE) {
             likes.addLike(id, user);
         }
-        CountDownLatch replacementLoaded = new CountDownLatch(1);
+        CountDownLatch replacementLocked = new CountDownLatch(1);
         CountDownLatch releaseReplacement = new CountDownLatch(1);
         CountDownLatch writerStarted = new CountDownLatch(1);
         MockMultipartFile replacement = new MockMultipartFile("audio", "new.mp3", "audio/mpeg", new byte[]{1});
         MockMultipartFile thumbnail = new MockMultipartFile("thumbnail", "new.jpg", "image/jpeg", new byte[]{2});
         given(images.canonicalizeSquareTrackThumbnail(thumbnail)).willReturn(thumbnail);
-        given(audio.analyze(replacement)).willAnswer(invocation -> {
-            replacementLoaded.countDown();
-            await(releaseReplacement);
-            return new AudioAnalysisResult(2, "[0.9]", AudioAnalysisFormat.MP3, 88200, 44100, 2);
-        });
+        given(audio.analyze(replacement))
+                .willReturn(new AudioAnalysisResult(2, "[0.9]", AudioAnalysisFormat.MP3, 88200, 44100, 2));
         given(mutations.replace(any(), any(), any(), anyString(), anyString()))
-                .willAnswer(invocation -> invocation.getArgument(2) == replacement
-                        ? "tracks/new.mp3" : "tracks/new.jpg");
+                .willAnswer(invocation -> {
+                    if (invocation.getArgument(2) == replacement) {
+                        // Analysis precedes the row lock; hold the writer only after that lock is acquired.
+                        assertThat(entityManager.getLockMode(entityManager.getReference(Track.class, id)))
+                                .isEqualTo(LockModeType.PESSIMISTIC_WRITE);
+                        assertThat(invocation.getArgument(4, String.class)).isEqualTo("tracks/old.mp3");
+                        replacementLocked.countDown();
+                        await(releaseReplacement);
+                        return "tracks/new.mp3";
+                    }
+                    assertThat(invocation.getArgument(4, String.class)).isEqualTo("tracks/old.jpg");
+                    return "tracks/new.jpg";
+                });
         if (writer == Writer.DOWNLOAD) {
             given(storage.loadAsResource(StorageRoot.PUBLIC, "tracks/new.mp3"))
                     .willReturn(new ByteArrayResource(new byte[]{3}));
@@ -138,7 +146,7 @@ class TrackMutationConcurrencyIntegrationTest {
         var executor = Executors.newFixedThreadPool(2);
         try {
             var first = executor.submit(() -> tracks.updateTrack(id, new TrackUpdateRequest(), replacement, thumbnail));
-            assertThat(replacementLoaded.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(replacementLocked.await(5, TimeUnit.SECONDS)).isTrue();
             var second = executor.submit(() -> {
                 writerStarted.countDown();
                 switch (writer) {
@@ -178,6 +186,67 @@ class TrackMutationConcurrencyIntegrationTest {
             }
         } finally {
             releaseReplacement.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(15, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    void analysisAllowsWritersAndReplacementPreservesTheirLatestMetadataAndCounters() throws Exception {
+        Track original = seed();
+        Long id = original.getId();
+        CustomUserDetails user = principal(original.getUser().getId());
+        CountDownLatch analysisStarted = new CountDownLatch(1);
+        CountDownLatch releaseAnalysis = new CountDownLatch(1);
+        MockMultipartFile replacement = new MockMultipartFile("audio", "new.mp3", "audio/mpeg", new byte[]{1});
+        MockMultipartFile thumbnail = new MockMultipartFile("thumbnail", "new.jpg", "image/jpeg", new byte[]{2});
+        given(images.canonicalizeSquareTrackThumbnail(thumbnail)).willReturn(thumbnail);
+        given(audio.analyze(replacement)).willAnswer(invocation -> {
+            analysisStarted.countDown();
+            await(releaseAnalysis);
+            return new AudioAnalysisResult(2, "[0.9]", AudioAnalysisFormat.MP3, 88200, 44100, 2);
+        });
+        given(mutations.replace(any(), any(), any(), anyString(), anyString()))
+                .willAnswer(invocation -> invocation.getArgument(2) == replacement
+                        ? "tracks/new.mp3" : "tracks/new.jpg");
+        given(storage.loadAsResource(StorageRoot.PUBLIC, "tracks/old.mp3"))
+                .willReturn(new ByteArrayResource(new byte[]{3}));
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var replacing = executor.submit(() -> tracks.updateTrack(id, new TrackUpdateRequest(), replacement, thumbnail));
+            assertThat(analysisStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            var writing = executor.submit(() -> {
+                TrackUpdateRequest metadata = new TrackUpdateRequest();
+                metadata.setTitle("Changed during analysis");
+                tracks.updateTrack(id, metadata, null, null);
+                likes.addLike(id, user);
+                assertThat(downloads.download(id, user)).isNotNull();
+                new TransactionTemplate(transactionManager).executeWithoutResult(
+                        status -> trackRepository.incrementPlayCount(id));
+            });
+            // Writers must commit while analysis is still blocked, before replacement acquires its row lock.
+            writing.get(5, TimeUnit.SECONDS);
+            Track duringAnalysis = trackRepository.findById(id).orElseThrow();
+            assertThat(duringAnalysis.getAudioFile()).isEqualTo("tracks/old.mp3");
+            assertThat(duringAnalysis.getTitle()).isEqualTo("Changed during analysis");
+            assertThat(duringAnalysis.getLikeCount()).isOne();
+            assertThat(duringAnalysis.getDownloadCount()).isOne();
+            assertThat(duringAnalysis.getPlayCount()).isOne();
+
+            releaseAnalysis.countDown();
+            replacing.get(10, TimeUnit.SECONDS);
+            Track reloaded = trackRepository.findById(id).orElseThrow();
+            assertThat(reloaded.getAudioFile()).isEqualTo("tracks/new.mp3");
+            assertThat(reloaded.getThumbnail()).isEqualTo("tracks/new.jpg");
+            assertThat(reloaded.getDuration()).isEqualTo(2);
+            assertThat(reloaded.getWaveformData()).isEqualTo("[0.9]");
+            assertThat(reloaded.getTitle()).isEqualTo("Changed during analysis");
+            assertThat(reloaded.getLikeCount()).isOne();
+            assertThat(reloaded.getDownloadCount()).isOne();
+            assertThat(reloaded.getPlayCount()).isOne();
+            assertThat(reloaded.isActive()).isTrue();
+        } finally {
+            releaseAnalysis.countDown();
             executor.shutdownNow();
             assertThat(executor.awaitTermination(15, TimeUnit.SECONDS)).isTrue();
         }

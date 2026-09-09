@@ -105,6 +105,9 @@ class AudioAnalysisServiceTest {
     @Test
     @DisplayName("malformed and unsupported audio fail closed")
     void malformedAndUnsupportedAudioFailClosed() {
+        byte[] complete = SyntheticAudioFixtures.wav16(44100, 2, 44100);
+        assertReason(file("truncated.wav", "audio/wav", java.util.Arrays.copyOf(complete, complete.length - 400)),
+                AudioAnalysisException.Reason.INVALID_AUDIO);
         assertReason(
                 file("broken.wav", "audio/wav", new byte[44]),
                 AudioAnalysisException.Reason.INVALID_AUDIO);

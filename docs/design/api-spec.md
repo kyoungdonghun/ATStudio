@@ -1,5 +1,5 @@
 ---
-version: 30.13
+version: 30.14
 last_updated: 2026-09-09
 project: ATS
 owner: SA
@@ -16,11 +16,11 @@ dependencies:
     reason: Current persistence contract
 ---
 
-# ATStudio API Specification v30.13
+# ATStudio API Specification v30.14
 
 ## Current Contract
 
-The current V1 backend exposes **153 method-level mappings across 26 controller
+The current V1 backend source exposes **155 method-level mappings across 26 controller
 classes**. This count is derived from the current Java source by counting
 method-level `@GetMapping`, `@PostMapping`, `@PutMapping`,
 `@PatchMapping`, and `@DeleteMapping` annotations. Class-level
@@ -28,16 +28,20 @@ method-level `@GetMapping`, `@PostMapping`, `@PutMapping`,
 
 | Verb      |   Count |
 | --------- | ------: |
-| GET       |      78 |
-| POST      |      41 |
+| GET       |      79 |
+| POST      |      42 |
 | PUT       |      20 |
 | DELETE    |      14 |
 | PATCH     |       0 |
-| **Total** | **153** |
+| **Total** | **155** |
 
 `SecurityConfig` is authoritative for authorization. Controller annotations are
 authoritative for paths and verbs. OpenAPI output generated from the running
 application is authoritative for request and response schemas.
+
+WI025 documents the WI023/WI024 source contract, not the pinned backend's
+OpenAPI or deployed behavior. Database rollout, server deployment and live
+audio verification remain pending under REQ-20260909-ATS-005.
 
 ## V1 Boundaries
 
@@ -93,14 +97,19 @@ application is authoritative for request and response schemas.
   retained inactive references still protect an object; integrity inspection
   does not ignore inactive rows or repair old missing objects.
 - Multipart parsing is bounded to 128 parts by the Tomcat connector, with
-  existing byte, parameter and part-header bounds unchanged. Part overflow
+  parameter and part-header bounds unchanged. Audio byte limits below changed
+  under REQ005; unrelated domain limits did not. Part overflow
   follows the existing HTTP 413 `IO_LARGE` error path. This is a parser budget,
   not a new product quota or proof of proxy/concurrency resource bounds.
 - Track create and replacement audio accepts MP3 and WAV only. On non-iOS
   platforms, the active SPA advertises those two formats through the native
   picker hint. On iOS, it omits that hint to avoid valid MP3 files being
   disabled by UTI matching while JavaScript still rejects every non-MP3/WAV
-  selection and clears the rejected input.
+  selection and clears the rejected input. Audio is limited to 100MiB
+  (104857600 bytes; UI 100MB), with multipart `max-file-size=100MB` and
+  `max-request-size=120MB`. Over-limit input follows 413 `IO_LARGE`.
+  [Proxy limits](runtime-storage-operations.md#audio-processing-rollout-gates)
+  can reject a smaller total request before the application receives it.
 - `PUT /api/tracks/{trackId}` replaces Tag associations only when multipart
   field `replaceTags=true`. A true value with no `tagIds` clears associations;
   false or omitted preserves them for non-UI callers, including when `tagIds`
@@ -200,7 +209,7 @@ feedback must not be documented as durable server completion.
 | `SpaForwardController`                      |        1 | SPA deep-link forwarding                                                                      |
 | `SubscriptionController`                    |        3 | Public active plans and ADMIN all-plan read                                                   |
 | `TagController`                             |        6 | Public reads, ADMIN deletion impact, and ADMIN mutations                                      |
-| `TrackController`                           |       10 | Public Track reads/listening/batch hydration and protected create/update/download/admin reads |
+| `TrackController`                           |       12 | Public Track reads/listening/batch hydration, protected mutations/downloads and ADMIN processing status/retry |
 | `UserController`                            |        9 | Registration, profile, password, withdrawal, and ADMIN user operations                        |
 | `UserSubscriptionController`                |        5 | My subscription lifecycle plus ADMIN list read                                                |
 | `UtilController`                            |        6 | Availability, download count, change preview, and public capabilities                         |
@@ -402,12 +411,15 @@ for `CR-031-115`, `CR-031-116`, and `CR-031-118`. QA-INTEG v1.2 and PG v1.1
 returned `ACCEPT` with no open P1/P2 finding. DG-067-09B is historical WI-067
 evidence for the prior 42-table source snapshot: its recorded fresh-MySQL
 manifest matched an independent proof database and all three isolated settlement
-concurrency tests passed under Hibernate `ddl-auto=validate`. The current
-43-table source has its own recorded guarded disposable MySQL manifest: 43
+concurrency tests passed under Hibernate `ddl-auto=validate`. The pre-WI023
+43-table source had a recorded guarded disposable MySQL manifest: 43
 tables, 511 columns, 175 indexes, 91 foreign keys, 6 plans, 6 plan keys, zero
 forbidden tables/columns, and SHA-256
 `b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4`.
-Create/Validate/Hibernate evidence remains fresh-disposable only. This does not
+These values remain historical after WI023 adds nine Track columns and a queue
+index; the new source manifest expectation is `UNRECORDED`, despite still
+having 43 tables. Create/Validate/Hibernate evidence remains fresh-disposable
+and pre-feature only. This does not
 claim live Provider behavior, deployment, client acceptance,
 retained-data migration, or overall production readiness.
 
@@ -555,7 +567,7 @@ failure, and completion paths cannot replace a newer request state.
 - `GET /api/admin/tracks/audio-analysis/dry-run`
 - `GET /api/admin/storage-integrity`
 
-### Albums, Tracks, Tags, and Playlists (33)
+### Albums, Tracks, Tags, and Playlists (35)
 
 - `GET|POST /api/albums`
 - `GET|PUT|DELETE /api/albums/{id}`
@@ -568,6 +580,8 @@ failure, and completion paths cannot replace a newer request state.
 - `GET /api/tracks/{trackId}/download`
 - `GET /api/tracks/admin`
 - `GET /api/tracks/admin/{trackId}`
+- `GET /api/tracks/admin/{trackId}/audio-processing`
+- `POST /api/tracks/admin/{trackId}/audio-processing/retry`
 - `GET|POST /api/tags`
 - `PUT|DELETE /api/tags/{tagId}`
 - `GET /api/tags/{tagId}/deletion-impact`
@@ -577,6 +591,67 @@ failure, and completion paths cannot replace a newer request state.
 - `POST|PUT /api/playlists/{playlistId}/tracks`
 - `DELETE /api/playlists/{playlistId}/tracks/{trackId}`
 - `POST /api/playlists/{playlistId}/tracks/batch`
+
+#### ADMIN Track Audio Processing Contract
+
+Both new endpoints require ADMIN. GET returns 200 and retry returns 202,
+each with `ResponseDTO.data` containing:
+
+| Field | Type / meaning |
+|---|---|
+| `trackId` | Track ID |
+| `state` | `READY`, `PENDING`, `PROCESSING`, `FAILED`, `CANCELLED` |
+| `generation` | Non-negative long identifying the current audio operation |
+| `streamReady` | Existing original plus required derivative reference are available in the row; not a fresh filesystem/codec audit |
+| `retryAllowed` | `FAILED`, pending input retained, no active claim token |
+| `attemptCount` | Claims attempted; increments on claim, resets on replacement, retained across retry |
+| `errorCode` | Nullable fixed processing code; no native stderr, commands or file paths |
+| `updatedAt` | Track `LocalDateTime` update timestamp; not a dedicated job clock |
+
+Retry body is `{"generation":1}` with required non-null, non-negative
+generation. A locked row must match that generation and be retryable; otherwise
+409 `AUDIO_PROCESSING_CONFLICT`. An accepted retry advances the generation,
+clears the error and returns `PENDING`; 202 does not mean encoding completed.
+Activation without the required stream returns 409 `AUDIO_STREAM_NOT_READY`.
+Missing Track and authentication/role failures retain existing API errors.
+An accepted WAV can later fail with `AUDIO_OUTPUT_TOO_LARGE` when the estimated
+complete 128kbps MP3 plus 64KiB framing exceeds the fixed 256MiB derivative
+budget. This processing failure occurs before encoder start; it is not a
+reduced upload cap or a successful truncated preview, and preserves the original.
+
+Create (201), update (200), ADMIN detail and ADMIN list include
+`audioProcessing`. Public Track detail retains `audioFile=null` and
+`audioProcessing=null`; no public projection exposes original, stream,
+pending or claimed storage keys. ADMIN detail retains only its existing
+original `audioFile` edit field, not new processing keys.
+
+New WAV queues `PENDING -> PROCESSING -> READY` or `FAILED`. Explicit
+deactivation of an active Track/deletion cancels outstanding replacement
+(`CANCELLED`); there is no separate cancel endpoint. Retry is manual, not
+automatic. Legacy rows and new MP3 use direct `READY` playback without a
+backfill. `READY` alone does not prove a derivative exists or publish a Track.
+
+Public Listening selects the full-length MP3 128kbps CBR derivative when
+present, otherwise the original only for `stream_required=false`. No required
+derivative fallback, preview truncation, new static route, download quota or
+License change is introduced. Range 200/206/416 behavior applies to the selected
+full resource. Official Download still transfers `audio_file` unchanged.
+Compatible WAV rate/channels are retained in the MP3; only the derivative is
+resampled/downmixed when necessary for 128kbps MP3 compatibility (for example,
+96kHz to 48kHz and six channels to stereo). No volume normalization or original
+rewrite occurs. See the [deterministic output policy](runtime-storage-operations.md#encoder-input-and-output-policy).
+WAV replacement retains old audio/analysis until fenced completion, which
+updates audio fields only and preserves concurrent title/tag/manual-state edits.
+
+The SPA tolerates missing/null historical processing data, polls pending work
+at 3-second intervals after reads (single flight per mounted instance, 60
+automatic reads per cycle), then offers manual refresh. Terminal/error/hidden/
+disabled/unmounted instances stop or suspend reads. Retry disables auth replay;
+uncertain mutation outcomes require a fresh GET. The UI shows fixed state
+labels and known-code Korean failure explanations for FAILED, with a generic
+safe fallback for unknown codes; raw code values, native stderr and server
+messages are not rendered. This is source-inspected UI behavior, not browser
+validation. See [encoder errors and recovery](runtime-storage-operations.md#audio-failure-and-recovery).
 
 ### Authentication and Users (16)
 
@@ -975,7 +1050,8 @@ omits a blank note.
 - The audio-analysis dry-run is ordered by Track ID, accepts `page >= 1` and
   `1 <= size <= 100`, and returns report rows only. It exposes no storage key
   and has no update/backfill side effect.
-- The ADMIN storage-integrity inspection is read-only. It checks Track audio
+- The ADMIN storage-integrity inspection is read-only. It checks Track original,
+  optional stream, pending and claimed audio references
   and thumbnails, Album and Playlist thumbnails, Company Certification
   documents, and Notice/Question attachments across their configured public or
   private roots. A report exposes only aggregate counts and opaque
@@ -991,4 +1067,4 @@ $controllers = Get-ChildItem src/main/java/com/atstudio/atstudio/controller -Fil
 ($controllers | Select-String '^\s*@(Get|Post|Put|Patch|Delete)Mapping\b').Count
 ```
 
-Expected result: `153`.
+Expected result: `155` (source count only; no deployed API verification).

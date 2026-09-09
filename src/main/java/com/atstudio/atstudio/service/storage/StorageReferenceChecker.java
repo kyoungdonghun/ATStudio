@@ -35,6 +35,9 @@ public class StorageReferenceChecker {
             case TRACK -> """
                     SELECT COUNT(track) FROM Track track
                     WHERE track.audioFile = :key
+                       OR track.streamAudioFile = :key
+                       OR track.pendingAudioFile = :key
+                       OR track.claimedAudioFile = :key
                        OR track.thumbnail = :key
                     """;
             case PLAYLIST -> """

@@ -6,6 +6,8 @@ import com.atstudio.atstudio.dto.track.PlayableTrackResponse;
 import com.atstudio.atstudio.dto.track.TrackSearchRequest;
 import com.atstudio.atstudio.dto.track.TrackUpdateRequest;
 import com.atstudio.atstudio.dto.track.TrackResponse;
+import com.atstudio.atstudio.dto.track.AudioProcessingResponse;
+import com.atstudio.atstudio.entity.enums.AudioProcessingState;
 import com.atstudio.atstudio.security.CustomUserDetailsService;
 import com.atstudio.atstudio.service.DownloadService;
 import com.atstudio.atstudio.service.PlayableTrackService;
@@ -55,6 +57,43 @@ class TrackControllerTest {
     @MockitoBean PlayableTrackService playableTrackService;
     @MockitoBean DownloadService downloadService;
     @MockitoBean CustomUserDetailsService customUserDetailsService;
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void audioProcessingStatusAndRetryAreAdminOnly() throws Exception {
+        mockMvc.perform(get("/api/tracks/admin/1/audio-processing")).andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/tracks/admin/1/audio-processing/retry")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"generation\":1}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(trackService);
+    }
+
+    @Test
+    void anonymousAudioProcessingAndStaticOriginalAreDenied() throws Exception {
+        mockMvc.perform(get("/api/tracks/admin/1/audio-processing")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/uploads/tracks/audio/private.wav")).andExpect(status().isUnauthorized());
+        verifyNoInteractions(trackService);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void audioProcessingRetryReturnsAcceptedDtoAndRejectsMissingGeneration() throws Exception {
+        var response = new AudioProcessingResponse(1L, AudioProcessingState.PENDING, 2,
+                false, false, 1, null, null);
+        given(trackService.retryAudioProcessing(1L, 1)).willReturn(response);
+        given(trackService.getAudioProcessing(1L)).willReturn(response);
+        mockMvc.perform(get("/api/tracks/admin/1/audio-processing")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.state").value("PENDING"))
+                .andExpect(jsonPath("$.data.audioFile").doesNotExist())
+                .andExpect(jsonPath("$.data.pendingAudioFile").doesNotExist());
+        mockMvc.perform(post("/api/tracks/admin/1/audio-processing/retry")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"generation\":1}"))
+                .andExpect(status().isAccepted()).andExpect(jsonPath("$.data.generation").value(2));
+        mockMvc.perform(post("/api/tracks/admin/1/audio-processing/retry")
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/uploads/tracks/audio/private.wav")).andExpect(status().isForbidden());
+    }
 
     @Test
     @DisplayName("POST /api/tracks/batch is public and excludes audio storage keys")
@@ -139,7 +178,7 @@ class TrackControllerTest {
     @DisplayName("POST /api/tracks - ADMIN → 보안 통과 (201)")
     void createTrack_adminRole_returns201() throws Exception {
         TrackResponse mockResponse = new TrackResponse(1L, "Track", "Artist", 0, 120, "C", null,
-                "tracks/audio/test.mp3", null, false, 0L, 0L, 0L, null, List.of(), null, null);
+                "tracks/audio/test.mp3", null, false, 0L, 0L, 0L, null, List.of(), null, null, null);
         given(trackService.createTrack(any(), any(), any(), any())).willReturn(mockResponse);
 
         mockMvc.perform(multipart("/api/tracks")
@@ -481,6 +520,6 @@ class TrackControllerTest {
 
     private TrackResponse trackResponse(String audioFile) {
         return new TrackResponse(1L, "Track", "Artist", 120, 120, "C", null,
-                audioFile, null, true, 0L, 0L, 0L, null, List.of(), null, null);
+                audioFile, null, true, 0L, 0L, 0L, null, List.of(), null, null, null);
     }
 }

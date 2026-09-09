@@ -106,7 +106,12 @@ public class AudioAnalysisService {
         }
 
         try (AudioInputStream pcm = AudioSystem.getAudioInputStream(pcmFormat, encoded)) {
-            return analyzeDecodedPcm(pcm, pcmFormat, format);
+            AudioAnalysisResult result = analyzeDecodedPcm(pcm, pcmFormat, format);
+            if (format == AudioAnalysisFormat.WAV && encoded.getFrameLength() > 0
+                    && encoded.getFrameLength() != result.decodedFrameCount()) {
+                throw new AudioAnalysisException(AudioAnalysisException.Reason.INVALID_AUDIO, format);
+            }
+            return result;
         }
     }
 

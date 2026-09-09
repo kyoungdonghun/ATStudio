@@ -51,6 +51,9 @@ public final class DisposableMysqlBootstrap {
             "SELECT COUNT(*) FROM information_schema.schemata "
                     + "WHERE schema_name REGEXP '^ats_disposable_[0-9]{8}_[a-z0-9]{8}$'";
     private static final MysqlManifestExpectation CURRENT_MYSQL_MANIFEST_EXPECTATION =
+            UnrecordedMysqlManifestExpectation.INSTANCE;
+    // Historical evidence only: WI023 adds Track columns/indexes. A new approved observation is required.
+    private static final MysqlManifestExpectation PRE_WI023_MYSQL_MANIFEST =
             new RecordedMysqlManifestExpectation(
                     43L,
                     511L,

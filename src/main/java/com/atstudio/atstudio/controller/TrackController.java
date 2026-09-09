@@ -82,6 +82,21 @@ public class TrackController {
         return ResponseEntity.ok(trackService.getTracksForAdmin(isActive, keyword, page, size));
     }
 
+    @GetMapping("/admin/{trackId}/audio-processing")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AudioProcessingResponse>> getAudioProcessing(@PathVariable Long trackId) {
+        return ResponseEntity.ok(ResponseDTO.<AudioProcessingResponse>withSingleData()
+                .data(trackService.getAudioProcessing(trackId)).build());
+    }
+
+    @PostMapping("/admin/{trackId}/audio-processing/retry")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<AudioProcessingResponse>> retryAudioProcessing(
+            @PathVariable Long trackId, @Valid @RequestBody AudioProcessingRetryRequest request) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(ResponseDTO.<AudioProcessingResponse>withSingleData()
+                .data(trackService.retryAudioProcessing(trackId, request.generation())).build());
+    }
+
     @GetMapping("/{trackId}")
     public ResponseEntity<ResponseDTO<TrackResponse>> getTrack(
             @PathVariable Long trackId) {

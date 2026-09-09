@@ -45,6 +45,9 @@ public class StorageIntegrityService {
 
         trackRepository.findAll().forEach(track -> {
             auditReference(audit, "TRACK", StorageRoot.PUBLIC, track.getId(), "AUDIO", track.getAudioFile());
+            auditOptionalReference(audit, "TRACK", StorageRoot.PUBLIC, track.getId(), "STREAM_AUDIO", track.getStreamAudioFile());
+            auditOptionalReference(audit, "TRACK", StorageRoot.PUBLIC, track.getId(), "PENDING_AUDIO", track.getPendingAudioFile());
+            auditOptionalReference(audit, "TRACK", StorageRoot.PUBLIC, track.getId(), "CLAIMED_AUDIO", track.getClaimedAudioFile());
             auditOptionalReference(audit, "TRACK", StorageRoot.PUBLIC, track.getId(), "THUMBNAIL", track.getThumbnail());
         });
         albumRepository.findAll().forEach(album -> auditOptionalReference(

@@ -72,6 +72,32 @@ class TrackServiceTest {
 
     @InjectMocks TrackService trackService;
 
+    @Test
+    void oversizeAudioFailsBeforeAnalysisStorageOrTrackLock() {
+        MultipartFile file = mock(MultipartFile.class);
+        given(file.getSize()).willReturn(104857601L);
+        given(file.isEmpty()).willReturn(false);
+        assertThatThrownBy(() -> trackService.updateTrack(1L, new TrackUpdateRequest(), file, null))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(BUSINESS_ERROR.IO_LARGE));
+        verifyNoInteractions(audioAnalysisService, storageMutationCoordinator, trackRepository);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {104857599L, 104857600L})
+    void audioSizeAtOrBelowCapContinuesThroughValidation(long size) {
+        MultipartFile file = mock(MultipartFile.class);
+        given(file.getSize()).willReturn(size);
+        given(file.isEmpty()).willReturn(false);
+        given(audioAnalysisService.analyze(file)).willReturn(analysis(7, "[0.1]"));
+        Track track = buildTrack(1L, false);
+        given(trackRepository.findByIdForUpdate(1L)).willReturn(Optional.of(track));
+        given(storageMutationCoordinator.replace(any(), any(), eq(file), any(), any()))
+                .willReturn("tracks/audio/new.mp3");
+        trackService.updateTrack(1L, new TrackUpdateRequest(), file, null);
+        verify(audioAnalysisService).analyze(file);
+    }
+
     // ── createTrack() ─────────────────────────────────────────────────────────
 
     @Test
@@ -496,7 +522,6 @@ class TrackServiceTest {
     @DisplayName("updateTrack() 분석 실패 - 기존 파일·duration·waveform 보존")
     void updateTrack_analysisFailurePreservesExistingAudioMetadata() {
         Track track = buildTrack(1L, true);
-        given(trackRepository.findByIdForUpdate(1L)).willReturn(Optional.of(track));
         MultipartFile newAudioFile = mockMultipartFile("broken.mp3");
         given(audioAnalysisService.analyze(newAudioFile)).willThrow(new AudioAnalysisException(
                 AudioAnalysisException.Reason.INVALID_AUDIO,
@@ -554,7 +579,6 @@ class TrackServiceTest {
     @DisplayName("updateTrack() 비정사각형 thumbnail 거절 - 저장·필드·태그 변경 없음")
     void updateTrack_nonSquareThumbnailRejectedWithoutPartialMutation() {
         Track track = buildTrack(1L, true);
-        given(trackRepository.findByIdForUpdate(1L)).willReturn(Optional.of(track));
         MultipartFile audioFile = mockMultipartFile("replacement.mp3");
         MultipartFile thumbnail = mockMultipartFile("wide.png");
         given(canonicalImageService.canonicalizeSquareTrackThumbnail(thumbnail))

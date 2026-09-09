@@ -1,3 +1,21 @@
+---
+version: 1.1
+last_updated: 2026-09-09
+project: ATS
+owner: DocOps
+category: guide
+status: active
+dependencies:
+  - path: ../../docs/design/db-schema.md
+    reason: Current DDL and historical manifest boundary
+  - path: ../../docs/design/runtime-storage-operations.md
+    reason: Approved retained-data rollout and environment tuple
+  - path: manual-wi023-audio-processing.sql
+    reason: Apply-once retained audio migration, applied to TEST under REQ006
+  - path: ../../deliverables/agent/WI-20260909-ATS-028-evidence-pack.md
+    reason: Retained-runtime verification distinct from fresh-bootstrap proof
+---
+
 # Disposable MySQL Bootstrap
 
 ## Purpose
@@ -9,12 +27,17 @@ current manifest, proving one fresh database without touching the protected
 or inventory possible orphan disposable schemas on loopback MySQL. Every
 action requires one explicitly named disposable companion database; Inventory
 uses that name only for its preconnection guard and never as a query target. The current
-43-table source snapshot has a recorded live/disposable MySQL manifest. Guarded
-`Create`, independent `Validate`, and explicit Hibernate validation are the
-only runnable current proof actions.
+43-table source snapshot has an `UNRECORDED` MySQL manifest expectation after
+WI023 added Track columns/indexes. `Create`, `Validate` and `HibernateValidate`
+are blocked until a separately approved observation is recorded. The historical
+43-table/511-column proof remains historical, not a current PASS.
 
 It is not a retained-data migration tool and must not be used against stage,
 production, or any remote host.
+
+REQ005 does **not** require another database for the user's existing service.
+The retained-data route is the separate additive SQL described below. This
+guide does not authorize any DB creation, observation, DDL or server restart.
 
 ## Safety Contract
 
@@ -30,10 +53,10 @@ The supported entry point is
 - Every action first parses current `schema.sql`, derives its `CREATE TABLE`
   statement count, and refuses unless the source count is exactly 43. This
   source-level check needs no credentials, connector, or database connection.
-- The current live/disposable MySQL manifest expectation is `RECORDED` from the
-  approved 43-table observation. `Create` and `Validate` compare every bounded
-  manifest field against that current expectation; they cannot use the
-  historical WI-067 manifest as a current expectation.
+- The current fresh/disposable MySQL manifest expectation is `UNRECORDED`.
+  `Create`, `Validate` and `HibernateValidate` fail closed with
+  `MYSQL_MANIFEST_EXPECTATION_UNRECORDED`; neither the historical pre-WI023
+  43-table manifest nor WI-067 may substitute for a new observation.
 - `Inventory` keeps the same action, loopback, companion-name, and 43-table
   preconnection guards, but is not a manifest operation.
 - `Inventory` opens only the root/admin connection, runs one fixed
@@ -42,8 +65,9 @@ The supported entry point is
   or schema name. Its additional successful output is numeric `inventory.count`
   and `inventory.state`, which is `NO_POSSIBLE_ORPHAN` for zero or
   `POSSIBLE_ORPHAN_EXISTS` for a positive count.
-- `Observe` is refused after a manifest is recorded. Nothing in this guide
-  authorizes a new observation.
+- `Observe` is refused after a manifest is recorded. In the current unrecorded
+  state it remains a separately approved, database-creating observation,
+  not a read-only inspection of the retained database. Nothing here authorizes it.
 - `Create` applies only
   `src/main/resources/schema.sql` and then
   `src/main/resources/seed.sql`.
@@ -67,12 +91,28 @@ The supported entry point is
 Current `schema.sql` contains 43 derived `CREATE TABLE` statements, and the
 current entity source contains 43 JPA entities. `Preflight` enforces the
 43-table source-level fact without loading credentials or connecting to MySQL.
-The live/disposable MySQL manifest is `RECORDED` from a guarded observation:
+WI023 adds nine Track columns and a queue index, leaving 43 tables but invalidating
+the previous expectation. Current `mysql.manifest.expectation=UNRECORDED`.
+Separately, the WI029 handoff / approved REQ007 records the retained TEST DB as
+**43 tables / 520 columns**. [WI028](../../deliverables/agent/WI-20260909-ATS-028-evidence-pack.md#runtime--browser-coverage)
+corroborates the nine additive column definitions/defaults, queue index and
+successful retained startup under `ddl-auto=validate`. Its ALTER column
+ordinals differ from fresh source, so this does not record a fresh-bootstrap
+manifest or authorize `Observe`/a new DB. The manual SQL was applied once under
+REQ006; do not replay it against that database. Other target applications remain
+separately approved work, not actions performed by this disposable utility.
+
+The historical pre-feature live/disposable MySQL observation remains:
 43 tables, 511 columns, 175 index rows, 91 foreign keys, 6 plans, 6 plan keys,
 zero forbidden tables, zero forbidden columns, and SHA-256
 `b177b34780fabc75ea8b4608a0d210167a81d414d2778cc1d1dc5c0e39c8fea4`.
-Guarded `Create`, independent `Validate`, and the explicit wrapper-managed
-Hibernate proof compare or bind only this current disposable contract.
+Those values and SHA-256 are not recalculated or labeled current. The frozen
+external private backup remains pre-feature; WI025 neither inspected nor updated
+it. The retained DB later changed under REQ006/WI028, so the old private handoff
+is not a current runtime snapshot. WI028 preserved its separate pre-migration
+backup, without claiming restore validity; WI029 read no private backup contents.
+Editing Java,
+DDL or this guide did not apply SQL, restart a server or revalidate that backup.
 
 ## Historical WI-067 Evidence (Superseded 42-Table Source Snapshot)
 
@@ -164,7 +204,8 @@ Verify guards and current SQL inputs without loading credentials:
 The successful output must include
 `source.schema.createTableStatements=43`,
 `source.schema.createTableStatementsCheck=PASS`, and
-`mysql.manifest.expectation=RECORDED`.
+`mysql.manifest.expectation=UNRECORDED`. These are expected source-guard labels,
+not a report that WI025 ran the bootstrap or connected to MySQL.
 
 ## Read-Only Inventory
 
@@ -252,10 +293,12 @@ refund, or mail behavior.
 ## Future Evidence Procedure
 
 The commands above preserve completed WI-067 evidence only. They are not the
-current 43-table proof procedure. The current source now reports its recorded
-manifest expectation and may use only a separately approved fresh disposable
-run with guarded `Create`, independent `Validate`, the wrapper-managed
-Hibernate proof, exact `Drop`, and a final read-only `Inventory`.
+current 43-table proof procedure. The new source reports `UNRECORDED`. A future
+fresh-disposable proof would need separately approved exact targets, a bounded
+observation, recording of actual observed fields/hash, and only then guarded
+`Create`, independent `Validate`, the wrapper-managed Hibernate proof and
+exact-target cleanup/inventory. No observation is authorized by REQ005 and no
+new database is needed merely to document or retain the current service.
 
 If a valid proof cannot run because credentials or Connector/J are unavailable,
 record it as an environment-conditional block. Do not weaken a guard, use the
@@ -263,6 +306,30 @@ protected database, or add a retired migration to make the proof pass.
 
 ## Retained Data
 
-V1 is fresh-only. Existing data requires a separately approved migration,
-backup, rehearsal, and rollback plan. Files under historical WI evidence are
-not active bootstrap tools and must not be copied into this execution path.
+The bootstrap remains fresh-only. For retained data, REQ005 provides
+[manual-wi023-audio-processing.sql](manual-wi023-audio-processing.sql), an
+apply-once additive `ALTER TABLE tracks` source with nine columns and
+`idx_tracks_audio_queue (audio_processing_state, id)`. MA applied it to the
+existing TEST MySQL database under REQ006; WI028 independently checked the
+additive definitions/index and successful startup under `ddl-auto=validate`.
+Do not replay it there. Review the [exact schema](../../docs/design/db-schema.md#wi023-additive-track-columns)
+and [rollout gates](../../docs/design/runtime-storage-operations.md#audio-processing-rollout-gates)
+before any separately approved application to another retained target:
+
+1. Confirm the owning existing database and absolute public/private roots as
+   one tuple, the backup/recovery point and approval; stop its writer.
+2. Inspect the target columns/index so a partial or repeated application fails
+   closed. Apply only the reviewed additive SQL once, not fresh schema/seed.
+3. Validate the actual schema with `ddl-auto=validate` and strict storage
+   integrity before enabling new processing. Record new evidence independently
+   from the historical manifest. No originals are rewritten or backfilled.
+4. Preserve added columns and media on rollback. An old binary is unsafe for
+   newly stream-required rows; use a separately approved data-aware recovery,
+   never automatic DROP or file deletion.
+
+The named TEST application is complete with WI028's recorded limitations,
+not four pending steps. Its ten historical missing references and non-strict
+startup do not satisfy the strict target gate above. Fresh installation,
+restore rehearsal and production approval remain open. Historical SQL/proofs
+and frozen pre-feature backups are not new-schema restore evidence; the global
+fresh-bootstrap manifest remains UNRECORDED.

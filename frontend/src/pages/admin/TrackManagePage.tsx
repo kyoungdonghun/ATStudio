@@ -9,6 +9,7 @@ import { SEARCH_KEYWORD_MAX } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Pagination from '@/components/ui/Pagination';
+import AudioProcessingStatus from '@/components/track/AudioProcessingStatus';
 import styles from './TrackManagePage.module.css';
 
 const PAGE_SIZE = 20;
@@ -304,7 +305,7 @@ export default function TrackManagePage() {
                   <th className={styles.thRight}>BPM</th>
                   <th className={styles.thCenter}>조성</th>
                   <th className={styles.thRight}>재생 수</th>
-                  <th>상태</th>
+                  <th className={styles.cellStatus}>상태</th>
                   <th>등록일</th>
                   <th>작업</th>
                 </tr>
@@ -328,7 +329,7 @@ export default function TrackManagePage() {
                     <td className={styles.cellBpm}>{track.bpm}</td>
                     <td className={styles.cellKey}>{track.tonality}</td>
                     <td className={styles.cellPlays}>{track.playCount.toLocaleString()}</td>
-                    <td>
+                    <td className={styles.cellStatus}>
                       <span
                         className={`${styles.statusBadge} ${
                           track.isActive ? styles.statusActive : styles.statusInactive
@@ -336,6 +337,10 @@ export default function TrackManagePage() {
                       >
                         {track.isActive ? '활성' : '비활성'}
                       </span>
+                      <AudioProcessingStatus
+                        value={track.audioProcessing}
+                        disabled={deleteTarget?.id === track.id}
+                      />
                     </td>
                     <td className={styles.cellDate}>{formatDate(track.createdAt)}</td>
                     <td className={styles.cellActions}>

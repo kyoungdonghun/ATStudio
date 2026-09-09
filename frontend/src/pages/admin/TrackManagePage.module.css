@@ -185,6 +185,11 @@
   font-size: 12px;
 }
 
+.cellStatus {
+  width: 164px;
+  max-width: 164px;
+}
+
 /* ── Status badge ── */
 
 .statusBadge {
@@ -380,6 +385,15 @@
   }
   .cellActions {
     width: 76px;
+  }
+
+  .cellStatus {
+    width: 104px;
+    max-width: 104px;
+  }
+
+  .actionBtns {
+    flex-wrap: wrap;
   }
 
   .trackTable th,

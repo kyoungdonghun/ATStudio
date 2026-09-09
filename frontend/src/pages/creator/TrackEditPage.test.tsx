@@ -1,18 +1,22 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AdminTrackDetail } from '@/api/tracks';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes } from 'react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AdminTrackDetail, AudioProcessing } from '@/api/tracks';
 import TrackEditPage from './TrackEditPage';
 
 const mocks = vi.hoisted(() => ({
   fetchTrackDetailForAdmin: vi.fn(),
   updateTrack: vi.fn(),
   fetchTags: vi.fn(),
+  fetchAudioProcessing: vi.fn(),
+  retryAudioProcessing: vi.fn(),
 }));
 
 vi.mock('@/api/tracks', () => ({
   fetchTrackDetailForAdmin: (...args: unknown[]) => mocks.fetchTrackDetailForAdmin(...args),
   updateTrack: (...args: unknown[]) => mocks.updateTrack(...args),
+  fetchAudioProcessing: (...args: unknown[]) => mocks.fetchAudioProcessing(...args),
+  retryAudioProcessing: (...args: unknown[]) => mocks.retryAudioProcessing(...args),
 }));
 
 vi.mock('@/api/tags', () => ({
@@ -58,8 +62,21 @@ function loadWithDimensions(image: HTMLElement, width: number, height: number) {
   fireEvent.load(image);
 }
 
+const pending: AudioProcessing = {
+  trackId: 21,
+  state: 'PENDING',
+  generation: 1,
+  streamReady: false,
+  retryAllowed: false,
+  attemptCount: 0,
+  errorCode: null,
+  updatedAt: null,
+};
+
 describe('TrackEditPage thumbnail contract', () => {
   beforeEach(() => {
+    mocks.fetchAudioProcessing.mockReset();
+    mocks.retryAudioProcessing.mockReset();
     mocks.fetchTrackDetailForAdmin.mockReset();
     mocks.updateTrack.mockReset();
     mocks.fetchTags.mockReset().mockResolvedValue([]);
@@ -71,6 +88,121 @@ describe('TrackEditPage thumbnail contract', () => {
       configurable: true,
       value: vi.fn(),
     });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it('guards manual activation until the stream is ready and never auto-activates', async () => {
+    vi.useFakeTimers();
+    mocks.fetchTrackDetailForAdmin.mockResolvedValue({
+      ...track(null),
+      isActive: false,
+      audioProcessing: pending,
+    });
+    mocks.fetchAudioProcessing.mockResolvedValue({ ...pending, state: 'READY', streamReady: true });
+    renderPage();
+    await act(async () => undefined);
+    const toggle = screen.getByRole('button', { name: '음원 활성 상태' });
+    expect(toggle).toBeDisabled();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    expect(toggle).toBeEnabled();
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(mocks.updateTrack).not.toHaveBeenCalled();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('keeps active replacement playback and metadata while the queued file is processed', async () => {
+    const existing = {
+      ...track(null),
+      audioProcessing: { ...pending, state: 'READY' as const, streamReady: true },
+    };
+    mocks.fetchTrackDetailForAdmin.mockResolvedValue(existing);
+    mocks.updateTrack.mockResolvedValue({
+      ...existing,
+      audioProcessing: { ...pending, state: 'PROCESSING', streamReady: true, generation: 2 },
+    });
+    renderPage();
+    await screen.findByDisplayValue('Fresh Track');
+    const exact = new File(['x'], 'exact.wav', { type: 'audio/wav' });
+    Object.defineProperty(exact, 'size', { value: 104857600 });
+    fireEvent.change(screen.getByLabelText('오디오 파일', { selector: 'input' }), {
+      target: { files: [exact] },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    await screen.findByText('수정 요청 접수 완료');
+    expect(screen.getByText('변환 중')).toBeInTheDocument();
+    expect(screen.getByText('기존 재생 파일 유지')).toBeInTheDocument();
+    expect(screen.getByText('현재: fresh.mp3')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('110')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '음원 활성 상태' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect((mocks.updateTrack.mock.calls[0][1] as FormData).get('audioFile')).toBe(exact);
+  });
+
+  it('rejects one byte over 100MiB for replacement without selecting that file', async () => {
+    mocks.fetchTrackDetailForAdmin.mockResolvedValue(track(null));
+    renderPage();
+    const input = await screen.findByLabelText('오디오 파일', { selector: 'input' });
+    const over = new File(['x'], 'over.wav', { type: 'audio/wav' });
+    Object.defineProperty(over, 'size', { value: 104857601 });
+    fireEvent.change(input, { target: { files: [over] } });
+    expect(screen.getByRole('alert')).toHaveTextContent('100MB 이하');
+    expect(screen.queryByText('over.wav')).not.toBeInTheDocument();
+    expect(mocks.updateTrack).not.toHaveBeenCalled();
+  });
+
+  it('maps an authoritative activation conflict without exposing backend diagnostics', async () => {
+    mocks.fetchTrackDetailForAdmin.mockResolvedValue(track(null));
+    mocks.updateTrack.mockRejectedValue({
+      response: { data: { errorCode: 'AUDIO_STREAM_NOT_READY', message: 'secret path' } },
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: '저장' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '재생 파일이 아직 준비되지 않아 활성화할 수 없습니다.',
+    );
+    expect(screen.queryByText('secret path')).not.toBeInTheDocument();
+  });
+
+  it('ignores a late save when the edit route changes and clears the previous selected audio', async () => {
+    let resolve!: (value: AdminTrackDetail) => void;
+    mocks.updateTrack.mockReturnValue(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    mocks.fetchTrackDetailForAdmin.mockImplementation((id: number) =>
+      Promise.resolve({ ...track(null), id, title: `Track ${id}` }),
+    );
+    const router = createMemoryRouter(
+      [
+        { path: '/admin/tracks/:trackId/edit', element: <TrackEditPage /> },
+        { path: '/admin/track-manage', element: <div>Track management</div> },
+      ],
+      { initialEntries: ['/admin/tracks/21/edit'] },
+    );
+    render(<RouterProvider router={router} />);
+    await screen.findByDisplayValue('Track 21');
+    fireEvent.change(screen.getByLabelText('오디오 파일', { selector: 'input' }), {
+      target: { files: [new File(['x'], 'replacement.wav')] },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    await act(async () => {
+      await router.navigate('/admin/tracks/22/edit');
+    });
+    await screen.findByDisplayValue('Track 22');
+    expect(screen.queryByText('replacement.wav')).not.toBeInTheDocument();
+    await act(async () => resolve(track(null)));
+    expect(router.state.location.pathname).toBe('/admin/tracks/22/edit');
+    expect(screen.getByDisplayValue('Track 22')).toBeInTheDocument();
   });
 
   it('renders and warns for an existing non-square cover without replacing it on save', async () => {

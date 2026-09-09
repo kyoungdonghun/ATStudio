@@ -2,12 +2,17 @@ package com.atstudio.atstudio.service.storage;
 
 import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
+import java.nio.file.Path;
+import java.util.function.Consumer;
 
 public interface StorageService {
 
     String generateKey(String directory, String submittedFilename);
 
     void stage(StorageRoot root, String operationId, String finalKey, MultipartFile file);
+
+    /** The caller must durably own this target before invoking the local generator. */
+    void stageGenerated(StorageRoot root, String operationId, String finalKey, Consumer<Path> generator);
 
     void promote(StorageRoot root, String operationId, String finalKey);
 

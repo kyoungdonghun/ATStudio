@@ -19,6 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
@@ -85,7 +86,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/notices/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/notices/*/attachments/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/settings/*").permitAll()
-                .requestMatchers("/uploads/tracks/audio/**").denyAll()
+                // Windows storage is case-insensitive; raw and staged audio must stay protected.
+                .requestMatchers(new RegexRequestMatcher("^/uploads/(?:\\.staging|tracks/audio)(?:/.*)?$", null, true)).denyAll()
                 .requestMatchers("/uploads/company-docs/**").denyAll()
                 .requestMatchers("/uploads/questions/**").denyAll()
                 // Swagger (dev only -- SEC-15: checked at application level via profile)

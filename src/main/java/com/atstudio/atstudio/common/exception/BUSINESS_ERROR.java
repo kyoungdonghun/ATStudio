@@ -317,6 +317,16 @@ public enum BUSINESS_ERROR {
             "음원 파일을 분석할 수 없습니다. MP3 또는 WAV 파일을 확인해주세요.",
             "업로드 음원에서 유효한 duration과 waveform을 함께 추출하지 못했습니다."),
 
+    AUDIO_STREAM_NOT_READY(
+            HttpStatus.CONFLICT,
+            "재생 파일 준비가 끝난 뒤 활성화할 수 있습니다.",
+            "The required audio derivative is not ready."),
+
+    AUDIO_PROCESSING_CONFLICT(
+            HttpStatus.CONFLICT,
+            "처리 상태가 변경되었습니다. 새로고침 후 다시 확인해주세요.",
+            "Only the current failed audio generation can be retried."),
+
     TAG_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "태그 정보를 찾을 수 없습니다.",

@@ -1,10 +1,15 @@
 ---
-version: 3.5
+version: 3.6
 last_updated: 2026-09-09
 project: ATS
 owner: EO
 category: registry
 status: stable
+dependencies:
+  - path: design/index.md
+    reason: Current design and retained-runtime entry points
+  - path: ../deliverables/agent/WI-20260909-ATS-028-evidence-pack.md
+    reason: Authoritative bounded TEST runtime verification
 ---
 
 # Documentation Index
@@ -78,7 +83,11 @@ Current total: **205**. This documentation inventory is separate from the
 
 ### Current V1 Baseline
 
-**2026-09-09 superseding update:** MA confirmed `main=origin/main` at documentation checkpoint `1c467d1` before this follow-up. Product `2d47504` was already pushed and applied to the named TEST runtime under [REQ-20260909-ATS-002](../deliverables/user/REQ-20260909-ATS-002.md). The [WI015 runtime record](payment/index.md#2026-09-09-source-and-runtime) separates that prior application and four HTTP 200 results from the [supplied post-restart UI check](payment/acceptance-test-checklist.md#2026-09-09-post-restart-ui-check). No new live checks or full suites were run for this documentation follow-up. Production SR-93 remains **HOLD**; its target gates are not closed by TEST application or limited user UI evidence.
+**2026-09-09 current WAV checkpoint (WI029):** [WI026](../deliverables/agent/WI-20260909-ATS-026-evidence-pack.md) closed source implementation and automated verification; separately approved [REQ006 / WI028](../deliverables/agent/WI-20260909-ATS-028-evidence-pack.md) then verified actual retained TEST application. The retained DB is **43 tables / 520 columns**, with nine added Track columns and one queue index. Its ALTER column ordinals differ from fresh source, so the [fresh-bootstrap manifest remains UNRECORDED](design/db-schema.md#current-source-and-mysql-verification-boundary); the earlier 511-column manifest is historical. No new DB is required or authorized by this documentation closeout.
+
+WI028 records 22 actual original/128kbps MP3 pairs PASS, MA's 20-item UI batch, interrupted-processing retry, list/detail seek and refresh/manual resume. **Native browser OS save remains UNKNOWN**; separate public API original SHA-256 PASS is not browser-save proof. The ten historical missing references and strict-on-startup=false remain, so production SR-93 stays **HOLD**. See [runtime coverage and limits](design/runtime-storage-operations.md#actual-retained-runtime-verification-addendum-2026-09-09). WI029 performs documentation checks only, not a new runtime or suite run; commit/push closeout is MA-owned under [REQ007](../deliverables/user/REQ-20260909-ATS-007.md).
+
+**Earlier 2026-09-09 WI015 checkpoint (historical):** MA confirmed `main=origin/main` at documentation checkpoint `1c467d1` before that follow-up. Product `2d47504` was already pushed and applied to the named TEST runtime under [REQ-20260909-ATS-002](../deliverables/user/REQ-20260909-ATS-002.md). The [WI015 runtime record](payment/index.md#2026-09-09-source-and-runtime) separates that prior application and four HTTP 200 results from the [supplied post-restart UI check](payment/acceptance-test-checklist.md#2026-09-09-post-restart-ui-check). No new live checks or full suites were run for that documentation follow-up. Production SR-93 remained **HOLD**; its target gates were not closed by TEST application or limited user UI evidence.
 
 **Historical 2026-09-08 checkpoint:** The following source/runtime and review boundaries remain dated history, superseded by the update above and the later remediation record in SR-93.
 

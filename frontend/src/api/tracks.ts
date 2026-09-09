@@ -3,6 +3,17 @@ import type { ApiResponse, PagedResponse, PlayableTrack, TagItem, TrackListItem 
 
 /* ── Local detail types (not in shared types) ── */
 
+export interface AudioProcessing {
+  trackId: number;
+  state: 'READY' | 'PENDING' | 'PROCESSING' | 'FAILED' | 'CANCELLED';
+  generation: number;
+  streamReady: boolean;
+  retryAllowed: boolean;
+  attemptCount: number;
+  errorCode: string | null;
+  updatedAt: string | null;
+}
+
 export interface TrackDetail {
   id: number;
   title: string;
@@ -21,6 +32,7 @@ export interface TrackDetail {
   tags: TagItem[];
   createdAt: string;
   updatedAt: string;
+  audioProcessing?: AudioProcessing | null;
 }
 
 export interface AdminTrackDetail extends TrackDetail {
@@ -92,6 +104,30 @@ export async function fetchTrackDetailForAdmin(trackId: number): Promise<AdminTr
   return data.data;
 }
 
+export async function fetchAudioProcessing(
+  trackId: number,
+  signal?: AbortSignal,
+): Promise<AudioProcessing> {
+  const { data } = await client.get<ApiResponse<AudioProcessing>>(
+    `/tracks/admin/${trackId}/audio-processing`,
+    { signal },
+  );
+  return data.data;
+}
+
+export async function retryAudioProcessing(
+  trackId: number,
+  generation: number,
+  signal?: AbortSignal,
+): Promise<AudioProcessing> {
+  const { data } = await client.post<ApiResponse<AudioProcessing>>(
+    `/tracks/admin/${trackId}/audio-processing/retry`,
+    { generation },
+    { signal, skipAuthReplay: true },
+  );
+  return data.data;
+}
+
 /* ── Admin track list item (includes isActive) ── */
 
 export interface AdminTrackListItem {
@@ -108,6 +144,7 @@ export interface AdminTrackListItem {
   isActive: boolean;
   tags: TagItem[];
   createdAt: string;
+  audioProcessing?: AudioProcessing | null;
 }
 
 export interface AdminTrackListParams {

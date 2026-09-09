@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type FormEvent, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createTrack } from '@/api/tracks';
+import { createTrack, type AudioProcessing } from '@/api/tracks';
 import { fetchTags } from '@/api/tags';
 import type { TagItem } from '@/types';
 import {
@@ -17,6 +17,7 @@ import {
 } from '@/utils/validation';
 import Button from '@/components/ui/Button';
 import Tag from '@/components/ui/Tag';
+import AudioProcessingStatus from '@/components/track/AudioProcessingStatus';
 import TrackThumbnailField from './TrackThumbnailField';
 import { emptyTrackThumbnailSelection, type TrackThumbnailSelection } from './trackThumbnail';
 import styles from './TrackUploadPage.module.css';
@@ -64,6 +65,7 @@ type UploadStatus = 'idle' | 'uploading' | 'done' | 'error';
 interface TrackUploadState {
   status: UploadStatus;
   error?: string;
+  audioProcessing?: AudioProcessing | null;
 }
 
 /** Screen 6: Track upload (single + multi) */
@@ -88,6 +90,14 @@ export default function TrackUploadPage() {
   const [tagRetryVersion, setTagRetryVersion] = useState(0);
 
   const audioInputRef = useRef<HTMLInputElement>(null);
+  const submissionRef = useRef(false);
+  const lifecycleRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      lifecycleRef.current += 1;
+    };
+  }, []);
 
   /* ── Load tags ── */
   useEffect(() => {
@@ -120,6 +130,7 @@ export default function TrackUploadPage() {
   /* ── Add audio files ── */
   const handleAudioSelect = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
+      if (submissionRef.current) return;
       const selected = e.target.files;
       if (!selected) return;
 
@@ -201,6 +212,7 @@ export default function TrackUploadPage() {
 
   /* ── Remove track ── */
   function removeTrack(idx: number) {
+    if (submissionRef.current) return;
     setTracks((prev) => prev.filter((_, i) => i !== idx));
     setUploadStates((prev) => {
       const next = { ...prev };
@@ -229,6 +241,7 @@ export default function TrackUploadPage() {
   /* ── Submit all ── */
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submissionRef.current) return;
     setError(null);
 
     if (tracks.length === 0) {
@@ -238,6 +251,7 @@ export default function TrackUploadPage() {
 
     // Validate all
     for (let i = 0; i < tracks.length; i++) {
+      if (uploadStates[tracks[i].id]?.status === 'done') continue;
       const err = validateTrack(tracks[i]);
       if (err) {
         setError(`트랙 ${i + 1} (${tracks[i].title}): ${err}`);
@@ -246,11 +260,18 @@ export default function TrackUploadPage() {
       }
     }
 
+    submissionRef.current = true;
+    const lifecycle = lifecycleRef.current;
+    const ownsSubmission = () => lifecycleRef.current === lifecycle;
     setSubmitting(true);
 
     // Upload sequentially
     let hasError = false;
+    let hasProcessing = Object.values(uploadStates).some(
+      (state) => state.audioProcessing && state.audioProcessing.state !== 'READY',
+    );
     for (const track of tracks) {
+      if (!ownsSubmission()) return;
       const state = uploadStates[track.id];
       if (state?.status === 'done') continue; // Skip already uploaded
 
@@ -275,12 +296,17 @@ export default function TrackUploadPage() {
       });
 
       try {
-        await createTrack(formData);
+        const accepted = await createTrack(formData);
+        if (!ownsSubmission()) return;
+        if (accepted?.audioProcessing && accepted.audioProcessing.state !== 'READY') {
+          hasProcessing = true;
+        }
         setUploadStates((prev) => ({
           ...prev,
-          [track.id]: { status: 'done' },
+          [track.id]: { status: 'done', audioProcessing: accepted?.audioProcessing },
         }));
       } catch (err) {
+        if (!ownsSubmission()) return;
         const msg = err instanceof Error ? err.message : '업로드 실패';
         setUploadStates((prev) => ({
           ...prev,
@@ -291,11 +317,12 @@ export default function TrackUploadPage() {
       }
     }
 
+    submissionRef.current = false;
     setSubmitting(false);
 
-    if (!hasError) {
+    if (!hasError && !hasProcessing) {
       navigate('/admin/track-manage');
-    } else {
+    } else if (hasError) {
       setError('일부 트랙 업로드에 실패했습니다. 실패한 항목을 확인하고 다시 시도해주세요.');
     }
   }
@@ -330,11 +357,15 @@ export default function TrackUploadPage() {
               multiple
               className={styles.fileHidden}
               onChange={handleAudioSelect}
+              disabled={submitting}
             />
             {tracks.length === 0
               ? '파일 선택 (최대 20곡)'
               : `${tracks.length}곡 선택됨 — 추가 선택`}
           </label>
+          <span
+            className={styles.label}
+          >{`${AUDIO_FORMAT_LABEL}, 파일당 ${AUDIO_MAX_SIZE_MB}MB 이하`}</span>
         </div>
 
         {/* Track list */}
@@ -388,11 +419,19 @@ export default function TrackUploadPage() {
                         type="button"
                         className={styles.trackRemove}
                         onClick={() => removeTrack(idx)}
+                        disabled={submitting}
                       >
                         {'×'}
                       </button>
                     )}
                   </div>
+
+                  {state?.status === 'done' && (
+                    <div className={styles.trackBody}>
+                      <span role="status">업로드 접수 완료</span>
+                      <AudioProcessingStatus value={state.audioProcessing} />
+                    </div>
+                  )}
 
                   {state?.status === 'error' && (
                     <div className={styles.trackErrorMsg} role="alert">
@@ -565,13 +604,23 @@ export default function TrackUploadPage() {
 
         {/* Actions */}
         <div className={styles.actions}>
+          {doneCount > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/admin/track-manage')}
+              disabled={submitting}
+            >
+              음원 관리로 이동
+            </Button>
+          )}
           <Button variant="ghost" type="button" onClick={() => navigate(-1)} disabled={submitting}>
             {'취소'}
           </Button>
           <Button
             type="submit"
             loading={submitting}
-            disabled={tracks.length === 0 || hasBlockingThumbnail}
+            disabled={tracks.length === 0 || doneCount === tracks.length || hasBlockingThumbnail}
           >
             {tracks.length <= 1 ? '업로드' : `${tracks.length}곡 업로드`}
           </Button>

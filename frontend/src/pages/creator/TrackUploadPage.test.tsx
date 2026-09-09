@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TrackUploadPage from './TrackUploadPage';
@@ -6,10 +6,14 @@ import TrackUploadPage from './TrackUploadPage';
 const mocks = vi.hoisted(() => ({
   createTrack: vi.fn(),
   fetchTags: vi.fn(),
+  fetchAudioProcessing: vi.fn(),
+  retryAudioProcessing: vi.fn(),
 }));
 
 vi.mock('@/api/tracks', () => ({
   createTrack: (...args: unknown[]) => mocks.createTrack(...args),
+  fetchAudioProcessing: (...args: unknown[]) => mocks.fetchAudioProcessing(...args),
+  retryAudioProcessing: (...args: unknown[]) => mocks.retryAudioProcessing(...args),
 }));
 
 vi.mock('@/api/tags', () => ({
@@ -24,6 +28,8 @@ function loadWithDimensions(image: HTMLElement, width: number, height: number) {
 
 describe('TrackUploadPage thumbnail contract', () => {
   beforeEach(() => {
+    mocks.fetchAudioProcessing.mockReset();
+    mocks.retryAudioProcessing.mockReset();
     mocks.createTrack.mockReset().mockResolvedValue(undefined);
     mocks.fetchTags.mockReset().mockResolvedValue([]);
     Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Desktop' });
@@ -38,6 +44,71 @@ describe('TrackUploadPage thumbnail contract', () => {
       configurable: true,
       value: vi.fn(),
     });
+  });
+
+  it('accepts a sized 100MiB WAV and rejects one byte more before creating a row', async () => {
+    render(
+      <MemoryRouter>
+        <TrackUploadPage />
+      </MemoryRouter>,
+    );
+    const audioInput = screen.getByLabelText('오디오 파일 선택', { selector: 'input' });
+    const over = new File(['x'], 'over.wav', { type: 'audio/wav' });
+    Object.defineProperty(over, 'size', { value: 104857601 });
+    fireEvent.change(audioInput, { target: { files: [over] } });
+    expect(screen.getByRole('alert')).toHaveTextContent('100MB 이하');
+    expect(screen.queryByDisplayValue('over')).not.toBeInTheDocument();
+    const exact = new File(['x'], 'exact.wav', { type: 'audio/wav' });
+    Object.defineProperty(exact, 'size', { value: 104857600 });
+    fireEvent.change(audioInput, { target: { files: [exact] } });
+    expect(await screen.findByDisplayValue('exact')).toBeInTheDocument();
+    expect(mocks.createTrack).not.toHaveBeenCalled();
+  });
+
+  it('separates upload acceptance from conversion readiness and blocks duplicate submits', async () => {
+    let resolve!: (value: unknown) => void;
+    mocks.createTrack.mockReturnValue(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    render(
+      <MemoryRouter>
+        <TrackUploadPage />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText('오디오 파일 선택', { selector: 'input' }), {
+      target: { files: [new File(['x'], 'queued.wav', { type: 'audio/wav' })] },
+    });
+    fireEvent.change(await screen.findByLabelText('BPM'), { target: { value: '120' } });
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'C' } });
+    const form = screen.getByRole('button', { name: '업로드' }).closest('form')!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    expect(screen.getByRole('button', { name: 'queued 제거' })).toBeDisabled();
+    expect(mocks.createTrack).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      resolve({
+        id: 21,
+        audioProcessing: {
+          trackId: 21,
+          state: 'PENDING',
+          generation: 1,
+          streamReady: false,
+          retryAllowed: false,
+          attemptCount: 0,
+          errorCode: null,
+          updatedAt: null,
+        },
+      }),
+    );
+    expect(screen.getByText('업로드 접수 완료')).toBeInTheDocument();
+    expect(screen.getByText('변환 대기')).toBeInTheDocument();
+    expect(screen.queryByText('재생 준비 완료')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '업로드' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '음원 관리로 이동' })).toBeEnabled();
+    fireEvent.submit(form);
+    expect(mocks.createTrack).toHaveBeenCalledTimes(1);
   });
 
   it('blocks the multi-row submit for pending or invalid covers and submits a valid square file', async () => {

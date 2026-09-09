@@ -24,7 +24,8 @@ public record TrackResponse(
         String waveformData,
         List<TagResponse> tags,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        AudioProcessingResponse audioProcessing
 ) {
     public static TrackResponse fromPublic(Track track, List<Tag> tags) {
         return from(track, tags, null);
@@ -52,7 +53,8 @@ public record TrackResponse(
                 track.getWaveformData(),
                 tags.stream().map(TagResponse::from).toList(),
                 track.getCreatedAt(),
-                track.getUpdatedAt()
+                track.getUpdatedAt(),
+                audioFile == null ? null : AudioProcessingResponse.from(track)
         );
     }
 }

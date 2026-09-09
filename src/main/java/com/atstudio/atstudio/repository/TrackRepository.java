@@ -36,6 +36,14 @@ public interface TrackRepository extends JpaRepository<Track, Long>, JpaSpecific
 
     long countByIsActiveTrue();
 
+    @Query("SELECT t.id FROM Track t WHERE t.audioProcessingState = "
+            + "com.atstudio.atstudio.entity.enums.AudioProcessingState.PENDING "
+            + "AND t.audioClaimToken IS NULL ORDER BY t.id")
+    List<Long> findPendingAudioIds(Pageable pageable);
+
+    @Query("SELECT t.id FROM Track t WHERE t.audioClaimToken IS NOT NULL ORDER BY t.id")
+    List<Long> findClaimedAudioIds(Pageable pageable);
+
     @Modifying
     @Query("UPDATE Track t SET t.playCount = t.playCount + 1 WHERE t.id = :trackId")
     void incrementPlayCount(@Param("trackId") Long trackId);

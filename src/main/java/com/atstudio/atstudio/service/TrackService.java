@@ -5,6 +5,7 @@ import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.common.validation.TagNamePolicy;
+import com.atstudio.atstudio.common.validation.ValidationConstants;
 import com.atstudio.atstudio.dto.track.*;
 import com.atstudio.atstudio.entity.Tag;
 import com.atstudio.atstudio.entity.Track;
@@ -15,6 +16,7 @@ import com.atstudio.atstudio.repository.*;
 import com.atstudio.atstudio.repository.spec.TrackSpecification;
 import com.atstudio.atstudio.security.CustomUserDetails;
 import com.atstudio.atstudio.service.audio.AudioAnalysisException;
+import com.atstudio.atstudio.service.audio.AudioAnalysisFormat;
 import com.atstudio.atstudio.service.audio.AudioAnalysisResult;
 import com.atstudio.atstudio.service.audio.AudioAnalysisService;
 import com.atstudio.atstudio.service.image.CanonicalImageService;
@@ -93,6 +95,10 @@ public class TrackService {
                 .user(user)
                 .build();
 
+        if (analysis.format() == AudioAnalysisFormat.WAV) {
+            track.enqueueAudio(audioFilePath, true);
+        }
+
         track = trackRepository.save(track);
 
         List<Tag> tags = saveTrackTags(track, request.getTagIds());
@@ -153,9 +159,11 @@ public class TrackService {
 
     public StreamResource getStreamResource(Long trackId) {
         Track track = findActiveTrack(trackId);
+        String listeningKey = track.listeningAudioFile();
+        if (listeningKey == null) throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
         Resource resource = storageService.loadAsResource(
                 StorageRoot.PUBLIC,
-                track.getAudioFile());
+                listeningKey);
 
         try {
             return new StreamResource(resource, resource.contentLength());
@@ -167,26 +175,28 @@ public class TrackService {
     @Transactional
     public TrackResponse updateTrack(Long trackId, TrackUpdateRequest request,
                                      MultipartFile audioFile, MultipartFile thumbnail) {
-        Track track = findTrackForUpdate(trackId);
         MultipartFile canonicalThumbnail = canonicalizeTrackThumbnail(thumbnail);
         AudioAnalysisResult audioAnalysis = audioFile != null && !audioFile.isEmpty()
                 ? analyzeAudio(audioFile)
                 : null;
+        Track track = findTrackForUpdate(trackId);
 
         track.update(request.getTitle(), request.getBpm(), request.getTonality(), request.getDescription());
 
         if (audioAnalysis != null) {
-            String oldAudioFile = track.getAudioFile();
-            String newAudioFile = storageMutationCoordinator.replace(
-                    StorageDomain.TRACK,
-                    StorageRoot.PUBLIC,
-                    audioFile,
-                    "tracks/audio",
-                    oldAudioFile);
-            track.updateAudioAnalysis(
-                    newAudioFile,
-                    audioAnalysis.durationSeconds(),
-                    audioAnalysis.waveformJson());
+            String oldPending = track.getPendingAudioFile();
+            if (audioAnalysis.format() == AudioAnalysisFormat.WAV) {
+                String pending = storageMutationCoordinator.store(
+                        StorageDomain.TRACK, StorageRoot.PUBLIC, audioFile, "tracks/audio");
+                track.enqueueAudio(pending, false);
+            } else {
+                String oldStream = track.getStreamAudioFile();
+                String newAudio = storageMutationCoordinator.replace(
+                        StorageDomain.TRACK, StorageRoot.PUBLIC, audioFile, "tracks/audio", track.getAudioFile());
+                track.useDirectAudio(newAudio, audioAnalysis.durationSeconds(), audioAnalysis.waveformJson());
+                deleteUnreferencedAudioAfterCommit(oldStream);
+            }
+            deleteUnreferencedAudioAfterCommit(oldPending);
         }
         if (canonicalThumbnail != null) {
             String oldThumbnail = track.getThumbnail();
@@ -198,6 +208,11 @@ public class TrackService {
                     oldThumbnail));
         }
         if (request.getIsActive() != null) {
+            if (request.getIsActive() && !track.isStreamReady()) {
+                throw new BusinessException(BUSINESS_ERROR.AUDIO_STREAM_NOT_READY);
+            }
+            // Explicit deactivation of a published track fences its outstanding replacement.
+            if (!request.getIsActive() && track.isActive()) cancelPendingAudio(track);
             track.updateIsActive(request.getIsActive());
         }
 
@@ -216,6 +231,8 @@ public class TrackService {
     @Transactional
     public void deleteTrack(Long trackId) {
         Track track = findTrackForUpdate(trackId);
+
+        cancelPendingAudio(track);
 
         // Issued licenses and download events remain evidence and quota input after deactivation.
         likeRepository.deleteAllByTrack(track);
@@ -273,6 +290,20 @@ public class TrackService {
         return track;
     }
 
+    public AudioProcessingResponse getAudioProcessing(Long trackId) {
+        return AudioProcessingResponse.from(findTrackById(trackId));
+    }
+
+    @Transactional
+    public AudioProcessingResponse retryAudioProcessing(Long trackId, long generation) {
+        Track track = findTrackForUpdate(trackId);
+        if (track.getAudioGeneration() != generation || !track.canRetryAudio()) {
+            throw new BusinessException(BUSINESS_ERROR.AUDIO_PROCESSING_CONFLICT);
+        }
+        track.retryAudio();
+        return AudioProcessingResponse.from(track);
+    }
+
     private Track findTrackForUpdate(Long trackId) {
         return trackRepository.findByIdForUpdate(trackId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND));
@@ -311,11 +342,24 @@ public class TrackService {
     }
 
     private AudioAnalysisResult analyzeAudio(MultipartFile audioFile) {
+        if (audioFile != null && audioFile.getSize() > ValidationConstants.AUDIO_MAX_SIZE_BYTES) {
+            throw new BusinessException(BUSINESS_ERROR.IO_LARGE);
+        }
         try {
             return audioAnalysisService.analyze(audioFile);
         } catch (AudioAnalysisException exception) {
             throw new BusinessException(BUSINESS_ERROR.AUDIO_ANALYSIS_FAILED, exception);
         }
+    }
+
+    private void cancelPendingAudio(Track track) {
+        String pending = track.getPendingAudioFile();
+        track.cancelAudio();
+        deleteUnreferencedAudioAfterCommit(pending);
+    }
+
+    private void deleteUnreferencedAudioAfterCommit(String key) {
+        if (key != null) storageMutationCoordinator.deleteAfterCommit(StorageDomain.TRACK, StorageRoot.PUBLIC, key);
     }
 
     private MultipartFile canonicalizeTrackThumbnail(MultipartFile thumbnail) {

@@ -20,7 +20,8 @@ public record AdminTrackListItemResponse(
         long downloadCount,
         boolean isActive,
         List<TagResponse> tags,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        AudioProcessingResponse audioProcessing
 ) {
     public static AdminTrackListItemResponse from(Track track, List<Tag> tags) {
         return new AdminTrackListItemResponse(
@@ -36,7 +37,8 @@ public record AdminTrackListItemResponse(
                 track.getDownloadCount(),
                 track.isActive(),
                 tags.stream().map(TagResponse::from).toList(),
-                track.getCreatedAt()
+                track.getCreatedAt(),
+                AudioProcessingResponse.from(track)
         );
     }
 }

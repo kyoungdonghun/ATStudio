@@ -1,16 +1,20 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import TrackManagePage from './TrackManagePage';
 
 const mocks = vi.hoisted(() => ({
   fetchAdminTracks: vi.fn(),
   deleteTrack: vi.fn(),
+  fetchAudioProcessing: vi.fn(),
+  retryAudioProcessing: vi.fn(),
 }));
 
 vi.mock('@/api/tracks', () => ({
   fetchAdminTracks: (...args: unknown[]) => mocks.fetchAdminTracks(...args),
   deleteTrack: (...args: unknown[]) => mocks.deleteTrack(...args),
+  fetchAudioProcessing: (...args: unknown[]) => mocks.fetchAudioProcessing(...args),
+  retryAudioProcessing: (...args: unknown[]) => mocks.retryAudioProcessing(...args),
 }));
 
 vi.mock('@/api/client', () => ({
@@ -63,8 +67,62 @@ function renderPage(initialEntry = '/admin/tracks') {
 
 describe('TrackManagePage', () => {
   beforeEach(() => {
+    mocks.fetchAudioProcessing.mockReset();
+    mocks.retryAudioProcessing.mockReset();
     mocks.fetchAdminTracks.mockReset().mockResolvedValue({ dataList: [track], pageInfo });
     mocks.deleteTrack.mockReset().mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it('polls only visible pending rows and ignores a retry response after filter navigation', async () => {
+    vi.useFakeTimers();
+    const pending = {
+      trackId: 15,
+      state: 'PROCESSING',
+      generation: 2,
+      streamReady: true,
+      retryAllowed: false,
+      attemptCount: 1,
+      errorCode: null,
+      updatedAt: null,
+    };
+    const failed = { ...pending, state: 'FAILED', retryAllowed: true };
+    mocks.fetchAdminTracks
+      .mockResolvedValueOnce({
+        dataList: [
+          { ...track, audioProcessing: pending },
+          { ...track, id: 16, title: 'Historical Track' },
+        ],
+        pageInfo: { ...pageInfo, total: 2 },
+      })
+      .mockResolvedValueOnce({
+        dataList: [{ ...track, id: 17, title: 'New Filter Track', isActive: false }],
+        pageInfo,
+      });
+    mocks.fetchAudioProcessing.mockResolvedValue(failed);
+    const retry = deferred<typeof pending>();
+    mocks.retryAudioProcessing.mockReturnValue(retry.promise);
+    const router = renderPage();
+    await act(async () => undefined);
+    expect(screen.getByText('기존 재생 파일 유지')).toBeInTheDocument();
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    expect(mocks.fetchAudioProcessing).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchAudioProcessing).toHaveBeenCalledWith(15, expect.any(AbortSignal));
+    fireEvent.click(screen.getByRole('button', { name: '음원 변환 재시도' }));
+    const signal = mocks.retryAudioProcessing.mock.calls[0][2] as AbortSignal;
+    await act(async () => {
+      await router.navigate('/admin/tracks?filter=inactive');
+    });
+    expect(signal.aborted).toBe(true);
+    await act(async () => retry.resolve(pending));
+    expect(screen.getByText('New Filter Track')).toBeInTheDocument();
+    expect(screen.queryByText('변환 중')).not.toBeInTheDocument();
+    await act(() => vi.advanceTimersByTimeAsync(30000));
+    expect(mocks.fetchAudioProcessing).toHaveBeenCalledTimes(1);
   });
 
   it('normalizes malformed URL state before issuing one bounded request', async () => {

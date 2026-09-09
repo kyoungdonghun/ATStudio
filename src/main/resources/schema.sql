@@ -225,6 +225,15 @@ CREATE TABLE tracks
     tonality     VARCHAR(10)  NOT NULL COMMENT 'e.g. C, Am, F#m',
     description  TEXT         NULL,
     audio_file   VARCHAR(255) NOT NULL COMMENT 'Original storage path for entitled download; never expose through the public static route.',
+    stream_audio_file VARCHAR(255) NULL,
+    stream_required TINYINT(1) NOT NULL DEFAULT 0,
+    audio_processing_state VARCHAR(16) NOT NULL DEFAULT 'READY',
+    audio_generation BIGINT NOT NULL DEFAULT 0,
+    pending_audio_file VARCHAR(255) NULL,
+    claimed_audio_file VARCHAR(255) NULL,
+    audio_claim_token VARCHAR(36) NULL,
+    audio_attempt_count INT NOT NULL DEFAULT 0,
+    audio_error_code VARCHAR(64) NULL,
     duration     INT          NOT NULL DEFAULT 0 COMMENT 'Duration in seconds, auto-extracted from audio file.',
     waveform_data TEXT        NULL     COMMENT 'Waveform peak data extracted from the uploaded audio file.',
     user_id      BIGINT       NOT NULL COMMENT 'Copyright holder (currently admin/artist only).',
@@ -235,6 +244,7 @@ CREATE TABLE tracks
     created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
+    INDEX idx_tracks_audio_queue (audio_processing_state, id),
     CONSTRAINT fk_tracks_user FOREIGN KEY (user_id) REFERENCES users (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4

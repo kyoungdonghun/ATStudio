@@ -221,8 +221,8 @@ Assert-True `
     -Condition ($valid.Output.Contains("source.schema.createTableStatementsCheck=PASS")) `
     -Message "Valid preflight should report the source table-count check."
 Assert-True `
-    -Condition ($valid.Output.Contains("mysql.manifest.expectation=RECORDED")) `
-    -Message "Preflight should report the recorded current MySQL manifest."
+    -Condition ($valid.Output.Contains("mysql.manifest.expectation=UNRECORDED")) `
+    -Message "Changed schema must report an unrecorded current MySQL manifest."
 Assert-True `
     -Condition (-not $valid.Output.Contains($validName)) `
     -Message "Valid preflight should not echo the exact target database name."
@@ -272,7 +272,13 @@ try {
         -Message "Source-count refusal should not read credentials."
 } finally {
     if (Test-Path -LiteralPath $syntheticWorkspace -PathType Container) {
-        [System.IO.Directory]::Delete($syntheticWorkspace, $true)
+        $resolvedSynthetic = [System.IO.Path]::GetFullPath($syntheticWorkspace)
+        $resolvedTemp = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\', '/')
+        if ([System.IO.Path]::GetDirectoryName($resolvedSynthetic) -ne $resolvedTemp -or
+            [System.IO.Path]::GetFileName($resolvedSynthetic) -notmatch '^atstudio-db-source-preflight-[0-9a-f]{32}$') {
+            throw "Synthetic workspace cleanup target is outside the expected temporary directory."
+        }
+        [System.IO.Directory]::Delete($resolvedSynthetic, $true)
     }
 }
 
@@ -342,11 +348,11 @@ foreach ($allowedAction in @("Create", "Validate", "HibernateValidate")) {
         -DatabaseName $validName `
         -RequestedAction $allowedAction
     Assert-True `
-        -Condition ($allowedPreflight.ExitCode -eq 0) `
-        -Message "$allowedAction should pass recorded-manifest preflight without MySQL."
+        -Condition ($allowedPreflight.ExitCode -ne 0 -and $allowedPreflight.Output.Contains("MYSQL_MANIFEST_EXPECTATION_UNRECORDED")) `
+        -Message "$allowedAction must refuse before credentials until a new manifest is observed."
     Assert-True `
-        -Condition ($allowedPreflight.Output.Contains("mysql.manifest.expectation=RECORDED")) `
-        -Message "$allowedAction preflight should report the recorded manifest state."
+        -Condition ($allowedPreflight.Output.Contains("mysql.manifest.expectation=UNRECORDED")) `
+        -Message "$allowedAction preflight should report the unrecorded manifest state."
     Assert-True `
         -Condition (-not $allowedPreflight.Output.Contains("CREDENTIALS_UNAVAILABLE")) `
         -Message "$allowedAction preflight should not read credentials or connect."
@@ -357,15 +363,14 @@ $observationPreflight = Invoke-JavaPreflight `
     -DatabaseName $validName `
     -RequestedAction "Observe"
 Assert-True `
-    -Condition ($observationPreflight.ExitCode -ne 0) `
-    -Message "Observe preflight should refuse after the MySQL manifest is recorded."
+    -Condition ($observationPreflight.ExitCode -eq 0) `
+    -Message "Observe preflight may pass without executing an observation or connecting."
 Assert-True `
-    -Condition ($observationPreflight.Output.Contains("mysql.manifest.expectation=RECORDED")) `
-    -Message "Observe preflight should report the recorded manifest state."
+    -Condition ($observationPreflight.Output.Contains("mysql.manifest.expectation=UNRECORDED")) `
+    -Message "Observe preflight should report the unrecorded manifest state."
 Assert-True `
-    -Condition ($observationPreflight.Output.Contains(
-        "reason=MYSQL_MANIFEST_OBSERVATION_NOT_REQUIRED")) `
-    -Message "Observe preflight should use the recorded-manifest refusal reason."
+    -Condition (-not $observationPreflight.Output.Contains("CREDENTIALS_UNAVAILABLE")) `
+    -Message "Observe preflight must not load credentials or connect."
 
 $inventoryPreflight = Invoke-JavaPreflight `
     -Workspace (Resolve-Path (Join-Path $PSScriptRoot "..\\..")) `
@@ -375,8 +380,8 @@ Assert-True `
     -Condition ($inventoryPreflight.ExitCode -eq 0) `
     -Message "Inventory preflight should remain available after the MySQL manifest is recorded."
 Assert-True `
-    -Condition ($inventoryPreflight.Output.Contains("mysql.manifest.expectation=RECORDED")) `
-    -Message "Inventory preflight should report the recorded manifest state."
+    -Condition ($inventoryPreflight.Output.Contains("mysql.manifest.expectation=UNRECORDED")) `
+    -Message "Inventory preflight should report the unrecorded manifest state."
 Assert-True `
     -Condition (-not $inventoryPreflight.Output.Contains("CREDENTIALS_UNAVAILABLE")) `
     -Message "Inventory preflight should not read credentials or connect."
@@ -415,8 +420,8 @@ Assert-True `
 Assert-True `
     -Condition ([regex]::IsMatch(
         $javaSource,
-        "CURRENT_MYSQL_MANIFEST_EXPECTATION\s*=\s*new\s+RecordedMysqlManifestExpectation")) `
-    -Message "The active MySQL manifest expectation should be explicitly recorded."
+        "CURRENT_MYSQL_MANIFEST_EXPECTATION\s*=\s*UnrecordedMysqlManifestExpectation.INSTANCE")) `
+    -Message "The changed schema must not reuse a historical observed manifest."
 $recordedManifestPattern = (
     'new\s+RecordedMysqlManifestExpectation\(\s*' +
     '(?<tables>\d+)L\s*,\s*' +
@@ -481,9 +486,9 @@ Assert-True `
     -Condition ($javaSource.Contains("case INVENTORY -> bootstrap.inventory();")) `
     -Message "Inventory should use its dedicated read-only bootstrap path."
 Assert-True `
-    -Condition (-not $javaSource.Contains(
+    -Condition ($javaSource.Contains(
         "UnrecordedMysqlManifestExpectation.INSTANCE")) `
-    -Message "The unrecorded MySQL manifest expectation must not remain active."
+    -Message "Unrecorded expectation must remain active until a separately approved observation."
 Assert-True `
     -Condition ([regex]::IsMatch(
         $javaSource,
@@ -658,15 +663,15 @@ if ($script:Failures.Count -gt 0) {
         "target-name-redaction",
         "current-source-create-table-count-43",
         "stale-source-count-refusal-without-mysql",
-        "recorded-manifest-create-validate-hibernate-preflight-without-mysql",
-        "recorded-manifest-observe-refusal-without-mysql",
-        "recorded-manifest-inventory-preflight-without-mysql",
+        "unrecorded-manifest-create-validate-hibernate-refusal-without-mysql",
+        "unrecorded-manifest-observe-preflight-without-mysql",
+        "unrecorded-manifest-inventory-preflight-without-mysql",
         "inventory-wrapper-allowlist-and-preconnection-name-refusal",
         "inventory-preconnection-loopback-refusal",
         "inventory-fixed-count-query-and-output-contract",
         "inventory-admin-only-single-query-no-target-selection",
-        "recorded-manifest-active-expectation",
-        "recorded-manifest-observed-values",
+        "unrecorded-manifest-active-expectation",
+        "historical-manifest-observed-values-preserved",
         "guarded-hibernate-disposable-only-proof",
         "observe-action-path",
         "exact-target-cleanup-preservation",

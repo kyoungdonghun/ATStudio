@@ -33,8 +33,8 @@ spring:
   # 파일 업로드 설정
   servlet:
     multipart:
-      max-file-size: 30MB
-      max-request-size: 60MB
+      max-file-size: 100MB
+      max-request-size: 120MB
 
 server:
   forward-headers-strategy: none
@@ -73,6 +73,11 @@ springdoc:
 
 # 파일 저장소 설정
 app:
+  audio:
+    worker-enabled: ${APP_AUDIO_WORKER_ENABLED:true}
+    ffmpeg-path: ${APP_AUDIO_FFMPEG_PATH:ffmpeg}
+    timeout-seconds: ${APP_AUDIO_TIMEOUT_SECONDS:300}
+    poll-interval-ms: ${APP_AUDIO_POLL_INTERVAL_MS:5000}
   acceptance:
     enabled: ${APP_ACCEPTANCE_ENABLED:false}
     public-base-url: ${APP_PUBLIC_BASE_URL:}

@@ -3,6 +3,11 @@ import {
   CERT_DOC_ACCEPT,
   CERT_DOC_EXTENSIONS,
   validateCompanyCertFileSelection,
+  AUDIO_MAX_SIZE_MB,
+  IMAGE_MAX_SIZE_MB,
+  ATTACHMENT_MAX_SIZE_MB,
+  CERT_DOC_MAX_SIZE_MB,
+  isFileSizeOk,
 } from '@/utils/validation';
 
 const MB = 1024 * 1024;
@@ -12,6 +17,15 @@ function file(name: string, size: number): File {
   Object.defineProperty(testFile, 'size', { value: size });
   return testFile;
 }
+
+describe('audio file size boundary', () => {
+  it('accepts exactly 100MiB and rejects one byte above without allocating the payload', () => {
+    expect(AUDIO_MAX_SIZE_MB).toBe(100);
+    expect(isFileSizeOk(file('exact.wav', 104857600), AUDIO_MAX_SIZE_MB)).toBe(true);
+    expect(isFileSizeOk(file('over.wav', 104857601), AUDIO_MAX_SIZE_MB)).toBe(false);
+    expect([IMAGE_MAX_SIZE_MB, ATTACHMENT_MAX_SIZE_MB, CERT_DOC_MAX_SIZE_MB]).toEqual([10, 20, 20]);
+  });
+});
 
 describe('company certification document validation', () => {
   it('keeps the frontend extension contract aligned to PDF/JPG/JPEG/PNG', () => {

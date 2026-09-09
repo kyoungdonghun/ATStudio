@@ -1,7 +1,7 @@
-import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toUploadUrl } from '@/api/client';
-import { fetchTrackDetailForAdmin, updateTrack } from '@/api/tracks';
+import { fetchTrackDetailForAdmin, updateTrack, type AudioProcessing } from '@/api/tracks';
 import { fetchTags } from '@/api/tags';
 import type { TagItem } from '@/types';
 import {
@@ -18,6 +18,8 @@ import {
 import { parsePositiveDecimalRouteID } from '@/utils/routeId';
 import Button from '@/components/ui/Button';
 import Tag from '@/components/ui/Tag';
+import AudioProcessingStatus from '@/components/track/AudioProcessingStatus';
+import { audioProcessingError } from '@/utils/audioProcessing';
 import TrackThumbnailField from './TrackThumbnailField';
 import { emptyTrackThumbnailSelection, type TrackThumbnailSelection } from './trackThumbnail';
 import styles from './TrackEditPage.module.css';
@@ -52,6 +54,10 @@ const TONALITIES = [
 /** Screen 7: Track edit */
 export default function TrackEditPage() {
   const { trackId } = useParams<{ trackId: string }>();
+  return <TrackEditForm key={trackId} trackId={trackId} />;
+}
+
+function TrackEditForm({ trackId }: { trackId: string | undefined }) {
   const navigate = useNavigate();
   const canonicalTrackID = parsePositiveDecimalRouteID(trackId);
 
@@ -81,6 +87,18 @@ export default function TrackEditPage() {
   const [pageLoading, setPageLoading] = useState(canonicalTrackID !== null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState<AudioProcessing | null>(null);
+  const [latestProcessing, setLatestProcessing] = useState<AudioProcessing | null>(null);
+  const [acceptedMessage, setAcceptedMessage] = useState<string | null>(null);
+  const submissionRef = useRef(false);
+  const lifecycleRef = useRef(0);
+  const streamBlocked = (latestProcessing ?? processing)?.streamReady === false;
+
+  useEffect(() => {
+    return () => {
+      lifecycleRef.current += 1;
+    };
+  }, []);
 
   /* ── Load existing track + tags ── */
   useEffect(() => {
@@ -114,6 +132,7 @@ export default function TrackEditPage() {
         setCurrentAudioFile(track.audioFile);
         setCurrentThumbnail(track.thumbnail);
         setSelectedTagIds(track.tags.map((t) => t.id));
+        setProcessing(track.audioProcessing ?? null);
 
         setGenreTags(genres);
         setMoodTags(moods);
@@ -163,9 +182,14 @@ export default function TrackEditPage() {
   /* ── Submit ── */
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submissionRef.current) return;
     setError(null);
 
     if (canonicalTrackID === null) return;
+    if (isActive && streamBlocked) {
+      setError('재생 파일이 아직 준비되지 않아 활성화할 수 없습니다.');
+      return;
+    }
     if (thumbnail.status === 'pending') {
       setError('썸네일 이미지 크기를 확인하고 있습니다. 잠시 후 다시 시도해주세요.');
       return;
@@ -213,15 +237,33 @@ export default function TrackEditPage() {
       formData.append('tagIds', String(tagId));
     });
 
+    submissionRef.current = true;
+    const lifecycle = lifecycleRef.current;
+    const ownsSubmission = () => lifecycleRef.current === lifecycle;
+    setAcceptedMessage(null);
     setSubmitting(true);
     try {
-      await updateTrack(canonicalTrackID, formData);
-      navigate('/admin/track-manage');
+      const accepted = await updateTrack(canonicalTrackID, formData);
+      if (!ownsSubmission()) return;
+      if (accepted?.audioProcessing && accepted.audioProcessing.state !== 'READY') {
+        setProcessing(accepted.audioProcessing);
+        setLatestProcessing(null);
+        setCurrentAudioFile(accepted.audioFile);
+        setIsActive(accepted.isActive);
+        setAudioFile(null);
+        setThumbnail(emptyTrackThumbnailSelection());
+        setCurrentThumbnail(accepted.thumbnail);
+        setAcceptedMessage('수정 요청 접수 완료');
+      } else {
+        navigate('/admin/track-manage');
+      }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '음원 수정에 실패했습니다.';
-      setError(msg);
+      if (ownsSubmission()) setError(audioProcessingError(err, '음원 수정에 실패했습니다.'));
     } finally {
-      setSubmitting(false);
+      if (ownsSubmission()) {
+        submissionRef.current = false;
+        setSubmitting(false);
+      }
     }
   }
 
@@ -260,6 +302,12 @@ export default function TrackEditPage() {
             {error}
           </div>
         )}
+        {acceptedMessage && <div role="status">{acceptedMessage}</div>}
+        <AudioProcessingStatus
+          value={processing}
+          onChange={setLatestProcessing}
+          disabled={submitting}
+        />
 
         {/* File uploads */}
         <div className={styles.fileRow}>
@@ -278,9 +326,13 @@ export default function TrackEditPage() {
                   accept={getAudioAccept()}
                   className={styles.fileHidden}
                   onChange={handleAudioChange}
+                  disabled={submitting}
                 />
                 {audioFile ? audioFile.name : '새 파일 선택'}
               </label>
+              <span
+                className={styles.currentFile}
+              >{`${AUDIO_FORMAT_LABEL}, 파일당 ${AUDIO_MAX_SIZE_MB}MB 이하`}</span>
               {currentAudioFile && !audioFile && (
                 <span className={styles.currentFile}>
                   {'현재: '}
@@ -376,9 +428,16 @@ export default function TrackEditPage() {
               onClick={() => setIsActive((v) => !v)}
               aria-label="음원 활성 상태"
               aria-pressed={isActive}
+              disabled={submitting || (!isActive && streamBlocked)}
+              aria-describedby={streamBlocked ? 'track-stream-blocked' : undefined}
             />
             <span className={styles.toggleLabel}>{isActive ? '활성' : '비활성'}</span>
           </div>
+          {streamBlocked && (
+            <span id="track-stream-blocked" className={styles.currentFile}>
+              재생 파일이 아직 준비되지 않아 활성화할 수 없습니다.
+            </span>
+          )}
         </div>
 
         {/* Tags */}
@@ -444,6 +503,16 @@ export default function TrackEditPage() {
 
         {/* Actions */}
         <div className={styles.actions}>
+          {acceptedMessage && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/admin/track-manage')}
+              disabled={submitting}
+            >
+              음원 관리로 이동
+            </Button>
+          )}
           <Button variant="ghost" type="button" onClick={() => navigate(-1)} disabled={submitting}>
             {'취소'}
           </Button>

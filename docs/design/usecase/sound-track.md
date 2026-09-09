@@ -1,7 +1,24 @@
+---
+version: 1.0
+last_updated: 2026-09-09
+project: ATS
+owner: DocOps
+category: design
+status: active
+dependencies:
+  - path: ../api-spec.md
+    reason: Track request and processing response contract
+  - path: ../db-schema.md
+    reason: Original and derivative persistence contract
+  - path: ../runtime-storage-operations.md
+    reason: Audio processing deployment and recovery boundary
+---
+
 # Sound -- Track Use Cases
 
-> **API Reference**: `docs/design/api-spec.md` Section 1 (Track)
-> **DB Reference**: `docs/design/db-schema.md` Section 4.1 (`tracks`, `track_tags`, `track_downloads`)
+> **API Reference**: [Track routes and audio processing](../api-spec.md#admin-track-audio-processing-contract)
+> **DB Reference**: [Track media](../db-schema.md#track-media)
+> **WI025 source contract**: REQ-20260909-ATS-005 is not deployed to the pinned backend. See [runtime gates](../runtime-storage-operations.md#audio-processing-rollout-gates).
 
 ---
 
@@ -25,7 +42,9 @@
    by Track cards. The backend remains authoritative.
 4. Frontend sends metadata and files to the backend as multipart/form-data.
 5. Backend performs authorization and server-side validation.
-6. Backend decodes the audio once through the Java Sound/mp3spi path and derives
+6. Audio is capped at 100MiB (104857600 bytes; UI label 100MB) on both create
+   and replacement. Backend multipart caps are 100MB per file and 120MB total;
+   other domain caps are unchanged. Backend decodes through Java Sound/mp3spi and derives
    rounded duration plus the 200-point waveform from the same PCM pass. Invalid
    audio returns 400 `AUDIO_ANALYSIS_FAILED` before storage or DB mutation.
 7. Backend requires a new thumbnail to be square, downscales without upscaling
@@ -34,12 +53,31 @@
    the Track (`is_active=0`, `play_count=0`) with duration, waveform, and
    `track_tags` in one transactional workflow.
 9. Backend keeps the original storage key as private operational metadata and does not publish a direct static URL.
-10. Backend returns an admin response containing the original `audioFile` storage key (201 Created).
+10. Backend returns an admin response containing the original `audioFile` storage key
+    and `audioProcessing` (201 Created). MP3 is direct-play `READY`. New WAV
+    records `PENDING` with `streamReady=false`; upload acceptance is not conversion
+    completion. A single worker re-analyzes the retained WAV and generates a
+    verified, full-length MP3 CBR 128kbps derivative asynchronously.
 
 **Postconditions**
 - Track record (is_active=0) created in DB.
 - `audioFile` is saved in file storage.
 - track_tags linked. Admin must separately set is_active=1 to expose the track to users.
+  New WAV activation is blocked until the required derivative is ready; the
+  worker never activates a Track. Existing MP3 and legacy rows are not backfilled.
+- Codec compatibility clarification: valid high-rate/multichannel WAV is not
+  rejected by product policy. Original bytes remain unchanged; MP3-compatible
+  input rate/channels are preserved and only the derivative is normalized when
+  necessary (96kHz to 48kHz; at most two channels), with no volume normalization
+  or truncation. The revised source chooses the nearest rate from
+  16000/22050/24000/32000/44100/48000Hz, lower on a tie, and preserves mono or
+  downmixes channels above two to stereo. Parent reports all ten actual native
+  app-pipeline cases PASS; this is not deployment evidence. The earlier
+  rejection rule is superseded. See
+  [encoder policy](../runtime-storage-operations.md#encoder-input-and-output-policy).
+- An estimated full MP3 above 256MiB including 64KiB framing fails processing
+  with `AUDIO_OUTPUT_TOO_LARGE` before encoder start. This is a resource budget,
+  not shortened Public Listening; the retained original is not altered.
 
 ---
 
@@ -146,14 +184,17 @@
 | **Version** | 26-08-13 |
 | **Description** | User (including non-members) listens to the complete active Track through the public controller-mediated stream. Listening remains separate from official download and License entitlement. Play history recording is handled by the frontend calling SOUND-004 separately. |
 | **Actor** | User (including non-members), Backend |
-| **Preconditions** | Track exists in DB with is_active=1. audio_file exists in file storage. |
+| **Preconditions** | Track exists with is_active=1 and its selected full-length listening resource exists. |
 | **Trigger** | User clicks the 'Play' button on a track. |
 | **Related UC** | SOUND-005 (list tracks) |
 
 **Main Flow**
 1. User clicks the 'Play' button.
 2. Frontend sends a streaming request including trackId to the backend.
-3. Backend loads the active Track's `audio_file` through the stream controller without returning its storage key or publishing a direct static URL.
+3. Backend selects `stream_audio_file` when present. It falls back to `audio_file`
+   only when `stream_required=false` (MP3/legacy direct playback). A required
+   derivative has no original-file fallback. All audio stays controller-mediated;
+   neither original nor derivative keys become public DTO fields or static URLs.
 4. Without a `Range` header, Backend returns the complete resource representation. With one valid Range, Backend resolves it against the full resource length.
 5. Frontend starts playback and marks the player as playing only after `HTMLAudioElement.play()` succeeds.
 6. `waiting` or `stalled` starts a pending timer. A non-fatal buffering message
@@ -249,9 +290,12 @@ Play History paths.
 4. The Track edit UI sends the complete edit state as multipart/form-data with `replaceTags=true`. It appends each selected `tagIds` value; an empty selection sends no `tagIds` values and explicitly clears all associations.
 5. Backend replaces Track-Tag associations only when `replaceTags=true`. When `replaceTags` is false or omitted, associations are preserved for non-UI callers even if `tagIds` is present.
 6. Backend performs authorization and validation.
-7. If audio changes, Backend analyzes first, then replaces the storage key,
-   duration, and waveform as one logical change. Analysis/storage/DB failure
-   keeps all old values.
+7. If audio changes, Backend analyzes first. MP3 replacement switches the original,
+   duration and waveform transactionally and returns to direct playback. WAV
+   replacement queues a new generation while preserving the previous original,
+   listening resource, duration and waveform. Only verified current-generation
+   completion switches the audio fields; failure keeps the previous playable pair.
+   Late completion does not overwrite title, tags or manual activation state.
 8. If a new thumbnail is supplied, the same square/canonical-JPEG rule as
    create applies before replacement. An existing non-square thumbnail is
    preserved when no replacement file is supplied; the UI only warns that a
@@ -259,13 +303,33 @@ Play History paths.
 9. If explicit Tag replacement was requested: updates track_tags + updates tracks.updated_at.
 10. Metadata-only update does not decode audio and preserves duration/waveform.
 11. Backend updates the DB record and returns the updated track information.
+12. Explicit deactivation of an active Track cancels its pending replacement;
+    Track deletion also cancels pending work. Generation/claim checks fence stale
+    completion. Already-claimed input remains protected until the worker releases it.
 
 **Exception / Alternative Flow**
-- -
+- Activation with `streamReady=false`: 409 `AUDIO_STREAM_NOT_READY`.
+- Failed conversion: inspect current ADMIN status and retry only with the observed
+  generation and `retryAllowed=true`; stale/ineligible retry returns 409
+  `AUDIO_PROCESSING_CONFLICT`. Readiness never publishes automatically.
 
 **Postconditions**
 - Updated track information reflected in DB.
 - If files changed, file storage updated.
+
+### ADMIN Processing Feedback
+
+Upload results, edit and currently rendered admin rows consume the optional
+`audioProcessing` projection. Missing/null legacy projections remain silent,
+not inferred conversion success. Pending/processing status has one in-flight
+read per mounted instance, a 3-second delay after each read, and at most 60
+automatic reads per polling cycle before manual refresh. Hidden tabs, disabled
+targets, unmount, read errors and terminal states stop/suspend polling; stale
+responses cannot replace a newer generation. An ambiguous retry requires an
+authoritative read before another mutation. Status refresh does not overwrite
+the edit form. FAILED shows fixed Korean explanations for known codes and a
+safe generic fallback for unknown codes, never raw native diagnostics. Exact
+fields/routes are in the [API contract](../api-spec.md#admin-track-audio-processing-contract).
 
 ---
 
