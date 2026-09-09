@@ -1,5 +1,5 @@
 ---
-version: 1.0
+version: 1.1
 last_updated: 2026-09-09
 project: ATS
 owner: docops
@@ -40,7 +40,7 @@ only; two also normalize a redundant empty line at EOF (E1), and ten redact
 private identifiers/paths. Their historic frontmatter,
 language, dates, status and claims are preserved, not refreshed to today.
 
-| Population | Prior WI016 availability | Current WI018 candidate |
+| Population | Prior WI016 availability | Published recovery availability |
 |---|---|---|
 | Original documents | 13 in Git; 83 local-only | 13 unchanged plus 83 public derivatives at original paths |
 | Raw evidence | 109 local-only | 109 local-only, not republished |
@@ -53,8 +53,14 @@ removal or publication of the private source. The
 preserves each original path/hash and both dispositions; it supersedes only
 public availability accounting, not the original private receipt.
 
-This is a **working-tree delivery**, not a claim of committed, pushed or
-independently clone-verified recovery. WI020 and MA own those remaining gates.
+This source/history delivery is **published and remote-clone verified** at
+`65b8cce9d7c60370d761e3e6d3c34821a7c7e675` (104 scoped files). MA supplied the
+exact `origin/main` match and normal full-origin clone fast-forward: clean status,
+38 source checks, 33/33 synthetic tests, docs PASS/exit 0, all 96 public hashes
+matched, 104 selected tracked tooling files present and no private inputs. WI020 completed
+PASS with no open findings. These are MA publication/clone executions, not
+retroactive DocOps tests. [REQ004's MA receipt](../../deliverables/user/REQ-20260909-ATS-004.md#ma-delivery-receipt)
+is the current delivery boundary; private off-device recovery remains incomplete.
 Restored handoffs do not authorize fresh commands, DB changes, retries, cleanup,
 payment, SMTP, deployment or production acceptance.
 
@@ -171,9 +177,15 @@ structured baseline receipt:
 
 The archive and its raw 109 remain local-only. An off-device private backup
 destination has not been supplied, and no upload, DB dump, actual recovery or
-production approval is claimed. A source clone can retain safe decisions after
-MA publishes this candidate; it cannot recover private configuration, secrets,
+production approval is claimed. The actual published origin clone retains safe
+decisions and all 96 verified public documents; it cannot recover private configuration, secrets,
 DB records, media or original raw evidence by itself.
+
+MA's final `remote-validation.json`, `candidate-validation.json` and
+`final-preservation.json` remain private under the baseline receipt directory
+above. They record actual source delivery and preservation, not a new-OS install,
+DB restoration or fresh live-row-state inspection. REQ004 is partial; production
+steps 2-4 remain unchanged.
 
 The ledger's A097-A205 identify raw members of this specific archive.
 Other code-formatted private evidence, generated build reports, runtime bundles
@@ -298,15 +310,15 @@ The public rows support independent hash verification without private source
 access; original equality and full transformation verification require the
 preserved private originals.
 
-WI018 blocks WI020. Return this candidate and its evidence to MA for independent
-privacy, provenance, source-only discoverability and ownership review, followed
-by integration with WI019's separately owned reconstruction entry points.
-Integrated tests, live preservation and final Git/clone receipts remain MA-owned.
-Do not close REQ004 merely because the public history files now exist.
+WI018/WI019 were integrated and WI020 completed independent review with no open
+findings. MA supplied actual publication/clone and final preservation receipts;
+see [REQ004](../../deliverables/user/REQ-20260909-ATS-004.md#ma-delivery-receipt)
+for their precise source-only limits and the unresolved private backup. This
+closeout changes no original/public identity row or historical derivative.
 
 Rollback, if separately approved, is limited to removing this WI's 83 added
 derivatives and its new records, and reversing its specific registry edits.
 Keep all 13 retained files, unrelated worktree changes and private originals.
-After any later publication, use a narrowly scoped Git reversal through MA;
+For the published records, use a narrowly scoped Git reversal through MA;
 do not rewrite historical receipts, reset the shared worktree or recover raw
 SQL into an executable path. No rollback or deletion was performed by WI018.

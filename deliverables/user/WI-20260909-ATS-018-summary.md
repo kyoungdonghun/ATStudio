@@ -50,11 +50,22 @@ scoped documentation checks and separates WI018 work from MA's supplied
 MA's later staged whitespace gate found inherited blank lines at EOF in A056
 and A095. Only one redundant terminal LF was removed from each public derivative;
 both public hashes and their transformation proof were regenerated. The private
-original hashes still match the manifest. MA must restage the correction and
-rerun the integration gate; the blocked attempt created no new archive export.
+original hashes still match the manifest. The blocked attempt created no new
+archive export; MA subsequently restaged the fix and passed the integration gate.
 
-This is a working-tree candidate for WI020 independent review and MA integration
-with WI019, followed by source-only validation and verified Git/clone delivery.
-The off-device private backup destination remains unanswered. Public history
-preservation does not establish actual machine/DB/media recovery or production
-approval. REQ004 is not closed by this handoff.
+## Subsequent MA Integration Receipt
+
+MA supplied actual publication of `65b8cce9d7c60370d761e3e6d3c34821a7c7e675`
+(104 scoped files), an exact `origin/main` match and a clean normal origin clone
+fast-forward to that commit. Source checks 38, synthetic tests 33/33 and docs
+(711 IDs, exit 0) passed; all 96 public hashes matched, all 104 selected tooling
+files were present and private inputs were absent. WI020 completed PASS with no
+open findings. These are MA results, not retroactive DocOps execution claims.
+
+[REQ004's MA receipt](REQ-20260909-ATS-004.md#ma-delivery-receipt) is the current
+delivery boundary and links the private receipt filenames, earlier candidate
+build limits and final unchanged 955/79 preservation result. Source/history and
+preparation are delivered; REQ004 remains partial because the off-device private
+backup destination is unanswered and backup/restore was not performed.
+Production steps 2-4 remain unchanged. No historical document or hash changed
+in this closeout.

@@ -14,6 +14,8 @@ dependencies:
 
 # WI-20260909-ATS-020 Summary
 
+> Current state: see the [Subsequent MA Integration Receipt](#subsequent-ma-integration-receipt) and [REQ004](REQ-20260909-ATS-004.md#ma-delivery-receipt). Earlier implementation/review checkpoints and their pending labels below are preserved as dated history, not current publication status.
+
 **PASS for the reviewed source candidate; no open actionable findings.**
 Only this summary and the WI020 Evidence Pack were edited.
 
@@ -65,3 +67,19 @@ clone receipts; this candidate review does not close REQ004.
 - [WI020 Evidence Pack](../agent/WI-20260909-ATS-020-evidence-pack.md)
 - [Reconstruction Guide](../../scripts/reconstruction/README.md)
 - [History Recovery Register](../../docs/registry/development-history-recovery-20260909.md)
+
+## Subsequent MA Integration Receipt
+
+On 2026-09-09 MA supplied actual publication of
+`65b8cce9d7c60370d761e3e6d3c34821a7c7e675` (104 scoped files), an exact
+`origin/main` match and a clean full-origin clone fast-forward to that commit.
+Source checks 38, synthetic tests 33/33 and docs (711 IDs, confirmed exit 0)
+passed; all 96 public hashes matched, 104 selected tooling files were present
+and private inputs were absent. WI020 completed PASS with no open findings.
+These are subsequent MA executions, not retroactive WI020 execution claims.
+
+[REQ004's MA receipt](REQ-20260909-ATS-004.md#ma-delivery-receipt) is the current-state reference
+for `remote-validation.json`, candidate-build limits and final preservation.
+Source/history and preparation are delivered; REQ004 remains partial because
+the private off-device backup destination is unanswered and backup/restore
+was not performed. Production steps 2-4 remain unchanged.

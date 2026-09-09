@@ -16,6 +16,8 @@ dependencies:
 
 # Evidence Pack: WI-20260909-ATS-018
 
+> Current delivery: published and remote-clone verified; see the Subsequent MA Integration Receipt below and [REQ004](../user/REQ-20260909-ATS-004.md#ma-delivery-receipt). Earlier DocOps checkpoints remain dated execution records, not current pending publication status.
+
 ## Summary (one-liner)
 
 Content-reviewed all 96 original documents, restored 83 privacy-reviewed
@@ -207,9 +209,10 @@ Correction checks completed:
   no output. This checks current working content, not an independently rerun
   cached integration gate.
 
-No index write, commit, archive export, runtime or DB action was performed by WI018. MA owns
-restaging these edits and rerunning the complete cached check and export gate;
-working-tree checks alone must not be reported as a successful restaged gate.
+No index write, commit, archive export, runtime or DB action was performed by WI018.
+At this checkpoint MA still owned restaging and the cached/export gate. Those
+gates subsequently passed, as recorded below; this does not retroactively turn
+the earlier working-tree check into a staged-gate execution.
 
 ## Risks / Rollback
 
@@ -221,7 +224,8 @@ which bytes were delivered, not the truth of every historical assertion.
 Public history is not a backup of configuration, credentials, DB, media or raw
 evidence. The private off-device backup destination remains unanswered; no upload,
 DB dump, actual reconstruction or production readiness is established.
-A later source clone depends on MA publishing the final candidate.
+MA subsequently published and verified the source clone; the private recovery
+limits above remain unchanged. REQ004 is partial, not fully recovered.
 
 Rollback remains MA-owned and requires authorization for deletion. Reverse only
 this WI's 83 derivative additions, its new registry/evidence/summary and its two
@@ -231,7 +235,35 @@ do not reset the shared worktree. No rollback was executed.
 
 ## Follow-ups
 
-WI018 **Blocks WI-20260909-ATS-020**. Return the candidate and this Evidence Pack
-to MA for independent review after WI019 is ready. MA owns final source-only
-validation, protected/live-state preservation and verified Git/clone delivery.
-Do not close REQ004 or report off-device recovery complete at this DocOps handoff.
+WI018's successor WI020 completed PASS with no open findings after WI019
+integration. The source-delivery chain is complete. Current scope completion and
+the unresolved private-backup boundary are in REQ004, not the earlier handoff labels.
+
+## Subsequent MA Integration Receipt
+
+On 2026-09-09 MA supplied actual publication of 104 scoped files in commit
+`65b8cce9d7c60370d761e3e6d3c34821a7c7e675`, an exact `origin/main` remote match,
+and a normal full-origin clone fast-forward to that commit with clean status.
+The clone passed 38 source checks, 33/33 synthetic tests and docs (711 IDs,
+confirmed exit 0); all 96 public hashes matched, all 104 selected tooling files
+were present and private config/media inputs were absent. Existing tracked LF
+attributes worked under system `core.autocrlf=true`. WI020 completed PASS with
+no open findings. These are MA execution receipts, not DocOps reruns.
+
+The earlier `08d8276e3b4ff1fd434d6c3afb4d6cc7c3ccb8c5` candidate passed npm
+installation (322 packages, scripts disabled), frontend build and offline cached
+Gradle compile/bootJar (37 seconds, no product tests); prohibited JAR entries
+were zero. This is the earlier candidate build, not a new final-commit build.
+`final-preservation.json` at `2026-09-09T10:20:01.9800858+09:00` records unchanged
+955 protected/79 local hashes and original ZIP, with MA-supplied matching process
+start identities and four HTTP 200s. No DB action or fresh row-state inspection
+is claimed. MA also reported a fresh 205-member ZIP read with zero mismatches.
+
+[REQ004's MA receipt](../user/REQ-20260909-ATS-004.md#ma-delivery-receipt) is the
+current-state entry point and lists `remote-validation.json` (authoritative
+clone result), `candidate-validation.json`, `final-preservation.json` and the
+additional tree-presence proof under the private task archive. Source/history
+and preparation are delivered; REQ004 remains partial because the off-device
+private backup destination is unanswered and backup/restore was not performed.
+Production steps 2-4 remain unchanged. This follow-up changes only closeout
+documents, not any historical derivative, hash row, source or runtime.

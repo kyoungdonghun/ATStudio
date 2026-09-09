@@ -1,5 +1,5 @@
 ---
-version: 1.1
+version: 1.2
 last_updated: 2026-09-09
 project: ATS
 owner: docops
@@ -43,8 +43,12 @@ the 83 previously local-only documents. All 96 contain useful decision,
 approval, failure, verification or handoff history. The 13 previously retained
 documents remain byte-identical; 83 privacy-reviewed public derivatives are now
 present at their original repository paths. Their dates, language, decisions and
-reported claims remain historical. **The new recovery is a working-tree
-candidate; WI020 review, MA integration and verified Git publication are separate.**
+reported claims remain historical. **Source/history delivery is published and
+remote-clone verified** at `65b8cce9d7c60370d761e3e6d3c34821a7c7e675`.
+MA supplied the exact `origin/main` match and normal full-origin clone
+fast-forward with 96 matching public hashes; WI020 completed PASS with no open
+findings. Current delivery and private-backup limits are recorded in
+[REQ004's MA receipt](../../deliverables/user/REQ-20260909-ATS-004.md#ma-delivery-receipt).
 
 | Original group | Original | Previous RETAIN_GIT | Previous ARCHIVE_LOCAL | Current RETAIN_GIT | Current RESTORED_DERIVATIVE | Current ARCHIVE_LOCAL |
 |---|---:|---:|---:|---:|---:|---:|
@@ -98,10 +102,12 @@ WI018 did not repeat the full original hash walk. Its own 96-document review and
 public-file identity checks are recorded in the
 [development history recovery register](development-history-recovery-20260909.md).
 
-If the private archive is lost, the source candidate still contains all 96
+If the private archive is lost, the verified published source contains all 96
 public historical documents, but not the original private bytes or raw 109.
-Remote availability requires MA's later verified Git delivery. An off-device
-private backup destination is unanswered; **no off-device backup or actual
+MA's `remote-validation.json` records the delivered clone; `final-preservation.json`
+records the final unchanged 955/79 files, original ZIP and supplied runtime
+continuity checks. Both are under the task receipt directory above. An off-device
+private backup destination is unanswered; **REQ004 remains partial; no off-device backup or actual
 machine/DB/media recovery is claimed**.
 
 For separately authorized original recovery, verify the ZIP against the saved

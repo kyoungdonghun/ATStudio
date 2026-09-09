@@ -14,6 +14,8 @@ dependencies:
 
 # Evidence Pack: WI-20260909-ATS-019
 
+> Current state: see the [Subsequent MA Integration Receipt](#subsequent-ma-integration-receipt) and [REQ004](../user/REQ-20260909-ATS-004.md#ma-delivery-receipt). Earlier implementation/review checkpoints and their pending labels below are preserved as dated history, not current publication status.
+
 ## Summary (one-liner)
 
 Source reconstruction entry points, a bounded read-only PowerShell preflight,
@@ -163,3 +165,19 @@ items are complete. Integration/restore gates above remain explicitly separate.
   off-device encrypted backup destination. No destination has been supplied.
 - Production steps 2-4, selected target acceptance and final release approval
   remain unchanged under SR-93.
+
+## Subsequent MA Integration Receipt
+
+On 2026-09-09 MA supplied actual publication of
+`65b8cce9d7c60370d761e3e6d3c34821a7c7e675` (104 scoped files), an exact
+`origin/main` match and a clean full-origin clone fast-forward to that commit.
+Source checks 38, synthetic tests 33/33 and docs (711 IDs, confirmed exit 0)
+passed; all 96 public hashes matched, 104 selected tooling files were present
+and private inputs were absent. WI020 completed PASS with no open findings.
+These are subsequent MA executions, not retroactive WI019 execution claims.
+
+[REQ004's MA receipt](../user/REQ-20260909-ATS-004.md#ma-delivery-receipt) is the current-state reference
+for `remote-validation.json`, candidate-build limits and final preservation.
+Source/history and preparation are delivered; REQ004 remains partial because
+the private off-device backup destination is unanswered and backup/restore
+was not performed. Production steps 2-4 remain unchanged.
