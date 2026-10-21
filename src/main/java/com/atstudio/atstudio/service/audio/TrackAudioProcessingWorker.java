@@ -1,6 +1,7 @@
 package com.atstudio.atstudio.service.audio;
 
 import com.atstudio.atstudio.common.validation.ValidationConstants;
+import com.atstudio.atstudio.config.BackgroundTasksEnabledCondition;
 import com.atstudio.atstudio.service.storage.StorageDomain;
 import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
 import com.atstudio.atstudio.service.storage.StorageRoot;
@@ -10,6 +11,7 @@ import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ import static com.atstudio.atstudio.service.audio.AudioTranscodeException.Code.*
 
 @Slf4j
 @Service
+@Conditional(BackgroundTasksEnabledCondition.class)
 @ConditionalOnProperty(prefix = "app.audio", name = "worker-enabled", havingValue = "true", matchIfMissing = true)
 public class TrackAudioProcessingWorker {
     private final TrackAudioProcessingTransactions transactions;

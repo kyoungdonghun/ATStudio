@@ -8,6 +8,10 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/atstudio?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&zeroDateTimeBehavior=convertToNull}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
+      minimum-idle: ${SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE:2}
+      connection-timeout: ${SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT:5000}
 
   # JPA/Hibernate 설정
   jpa:
@@ -29,12 +33,16 @@ spring:
     properties:
       mail.smtp.auth: ${MAIL_SMTP_AUTH:false}
       mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS:false}
+      mail.smtp.connectiontimeout: ${MAIL_SMTP_CONNECTION_TIMEOUT:5000}
+      mail.smtp.timeout: ${MAIL_SMTP_TIMEOUT:10000}
+      mail.smtp.writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:10000}
 
   # 파일 업로드 설정
   servlet:
     multipart:
       max-file-size: 100MB
       max-request-size: 120MB
+      file-size-threshold: ${SPRING_SERVLET_MULTIPART_FILE_SIZE_THRESHOLD:0B}
 
 server:
   forward-headers-strategy: none
@@ -73,6 +81,9 @@ springdoc:
 
 # 파일 저장소 설정
 app:
+  background-tasks:
+    enabled: ${APP_BACKGROUND_TASKS_ENABLED:true}
+    audio-only: ${APP_BACKGROUND_TASKS_AUDIO_ONLY:false}
   audio:
     worker-enabled: ${APP_AUDIO_WORKER_ENABLED:true}
     ffmpeg-path: ${APP_AUDIO_FFMPEG_PATH:ffmpeg}
@@ -85,6 +96,11 @@ app:
     password-login:
       enabled: ${APP_AUTH_PASSWORD_LOGIN_ENABLED:true}
   storage:
+    mutation-admission:
+      enabled: ${APP_STORAGE_MUTATION_ADMISSION_ENABLED:true}
+      max-concurrent: ${APP_STORAGE_MUTATION_ADMISSION_MAX_CONCURRENT:2}
+      max-concurrent-per-ip: ${APP_STORAGE_MUTATION_ADMISSION_MAX_CONCURRENT_PER_IP:1}
+      retry-after-seconds: ${APP_STORAGE_MUTATION_ADMISSION_RETRY_AFTER_SECONDS:2}
     base-path: uploads
     public-path: ${APP_STORAGE_PUBLIC_PATH:${app.storage.base-path:uploads}}
     private-path: ${APP_STORAGE_PRIVATE_PATH:private-uploads}

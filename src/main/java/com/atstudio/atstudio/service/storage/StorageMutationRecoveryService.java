@@ -20,6 +20,12 @@ public class StorageMutationRecoveryService {
     private final StorageCleanupService cleanupService;
     private final StorageReferenceChecker referenceChecker;
 
+    @Value("${app.background-tasks.enabled:true}")
+    private boolean backgroundTasksEnabled = true;
+
+    @Value("${app.background-tasks.audio-only:false}")
+    private boolean audioOnly;
+
     @Value("${app.storage.recovery.batch-size:50}")
     private int batchSize;
 
@@ -34,6 +40,9 @@ public class StorageMutationRecoveryService {
 
     @EventListener(ApplicationReadyEvent.class)
     public void recoverOnStartup() {
+        if (!backgroundTasksEnabled || audioOnly) {
+            return;
+        }
         recoverBatch();
     }
 

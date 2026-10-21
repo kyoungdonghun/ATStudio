@@ -142,6 +142,7 @@ public class SecurityConfig {
                 // Static resources
                 .anyRequest().permitAll()
             )
+            // Storage admission is registered before servlet body parsers, outside this security chain.
             .addFilterBefore(authRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(acceptanceHostFilter, AuthRateLimitFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

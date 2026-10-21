@@ -3,6 +3,8 @@ package com.atstudio.atstudio.service.storage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -17,6 +19,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class StorageMutationRecoveryServiceTest {
@@ -33,6 +36,26 @@ class StorageMutationRecoveryServiceTest {
         ReflectionTestUtils.setField(recoveryService, "maxAttempts", 8);
         ReflectionTestUtils.setField(recoveryService, "staleSeconds", 300L);
         ReflectionTestUtils.setField(recoveryService, "claimSeconds", 120L);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false, false", "false, true", "true, true"})
+    void suppressedStartupStillAllowsExplicitManualRecovery(boolean master, boolean audioOnly) {
+        ReflectionTestUtils.setField(recoveryService, "backgroundTasksEnabled", master);
+        ReflectionTestUtils.setField(recoveryService, "audioOnly", audioOnly);
+
+        recoveryService.recoverOnStartup();
+
+        verifyNoInteractions(journalService, cleanupService, referenceChecker);
+        recoveryService.recoverBatch();
+        verify(journalService).claimBatch(any(), any(), any(), eq(25), eq(8));
+    }
+
+    @Test
+    void defaultStartupStillRecovers() {
+        recoveryService.recoverOnStartup();
+
+        verify(journalService).claimBatch(any(), any(), any(), eq(25), eq(8));
     }
 
     @Test
