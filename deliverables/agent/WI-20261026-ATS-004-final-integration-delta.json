@@ -1,0 +1,82 @@
+{
+  "wi": "WI-20261026-ATS-004",
+  "reviewer": "PG",
+  "status": "PASS",
+  "checked_at": "2026-10-26T10:54:32.199158+00:00",
+  "scope": "Nine exact final integration documents only; no Git index mutation, server access or full corpus rescan",
+  "approved": [
+    {
+      "path": "deliverables/agent/WI-20261026-ATS-004-handoff.md",
+      "sha256": "05e285ee22434398ef7d4a5fd687edfa6ca1706753524ee256f3a0b89668385a",
+      "bytes": 3631,
+      "review": "Bounded text pattern scan clear; completion-context and metadata review"
+    },
+    {
+      "path": "deliverables/agent/WI-20261026-ATS-005-handoff.md",
+      "sha256": "fe7233ee3fd138c62a328c8507fcb695ac94e331fef32b20feee15dec2aeb211",
+      "bytes": 3620,
+      "review": "Bounded text pattern scan clear; completion-context and metadata review"
+    },
+    {
+      "path": "deliverables/agent/WI-20261026-ATS-006-handoff.md",
+      "sha256": "434f9bc5f741d7d4ba234d95b3230edae33e39d02c4344e11725109c11619005",
+      "bytes": 3329,
+      "review": "Bounded text pattern scan clear; completion-context and metadata review"
+    },
+    {
+      "path": "deliverables/agent/WI-20261026-ATS-007-evidence-pack.md",
+      "sha256": "f3ea843a424e56efe69cfae1de5dbd45c8e90f99bb9dd0043ecc795b40c1b9ea",
+      "bytes": 7874,
+      "review": "Bounded text pattern scan clear; completion-context and metadata review"
+    },
+    {
+      "path": "deliverables/agent/WI-20261026-ATS-007-handoff.md",
+      "sha256": "e1208374d3fcd0ebe3af92556df4f31ed656a101ea8101e4bb73adbb84074280",
+      "bytes": 3616,
+      "review": "Bounded text pattern scan clear; completion-context and metadata review"
+    },
+    {
+      "path": "deliverables/agent/WI-20261026-ATS-007-whitespace-preservation.json",
+      "sha256": "7dfa89cf91ef099632becdf2860e83d403ed4e73d6ce2b23f3fb5d06099c1e35",
+      "bytes": 30960,
+      "review": "Bounded text pattern scan clear; completion-context and metadata review"
+    },
+    {
+      "path": "deliverables/user/REQ-20261026-ATS-001.md",
+      "sha256": "c36c35f1efbd2614d273acc0365cd44abf870c42b6d2daab9e71147e8fe8a044",
+      "bytes": 4391,
+      "review": "Bounded text pattern scan clear; completion-context and metadata review"
+    },
+    {
+      "path": "deliverables/user/WI-20261026-ATS-007-summary.md",
+      "sha256": "be63ed22fe7030c1648e20990b587aedbfdeb33293c6e8a68933f844f4a6cd6a",
+      "bytes": 2745,
+      "review": "Only category metadata changed from summary to work-summary; previous body exactly reconstructed and matched; focused pattern scan clear",
+      "previous_sha256": "037acb755145edc77e37087669b85b5379aa2c233246ababc29f80d9ac00180d"
+    },
+    {
+      "path": "docs/index.md",
+      "sha256": "861fcb8c3403b66995a2fc166943c0307e2bcdb652980af927848ce764931621",
+      "bytes": 211108,
+      "review": "Bounded text pattern scan and completion-context review; historical Java version is not a network address"
+    }
+  ],
+  "checks": {
+    "pattern_clear_files": 8,
+    "context_cleared_files": 1,
+    "unresolved_findings": 0,
+    "actual_local_commit_path_counts": [
+      7,
+      168,
+      558
+    ],
+    "all_nine_have_one_final_newline": true,
+    "category_only_followup_verified": true
+  },
+  "limits": [
+    "The base 731-path allowance and earlier delta receipts remain immutable. This receipt overrides only the named current bytes.",
+    "Existing historical index content was pattern-scanned; manual semantic review was bounded to current completion context and the single version-token finding.",
+    "No universal absence-of-secrets, new runtime validation, complete recovery or off-device backup claim. Exact staged Git blob verification remains MA-owned."
+  ],
+  "self_review": "This receipt is separately scanned and its hash is transmitted out of band to avoid recursive self hashing."
+}

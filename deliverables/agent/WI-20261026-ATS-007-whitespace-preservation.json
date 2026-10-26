@@ -1,0 +1,598 @@
+{
+  "schema": 1,
+  "wi": "WI-20261026-ATS-007",
+  "scope": "Exact pre-existing contents only; no blanket whitespace suppression",
+  "git_check_config": "blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol",
+  "groups": {
+    "02c": [
+      {
+        "path": "scripts/reconstruction/retained-20261026/files/build/WI20261025-001-stage-two-repair/test_stage_two.py",
+        "raw_sha256": "b384e3fe16afe0fda5c52fcffdefcdb5c50072b5764cf4f0d2b731209c022727",
+        "expected_git_blob": "ea74f7cdf571d08e6ef7ee3eb27c78d7f8fd3023",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      }
+    ],
+    "03c": [
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-011-handoff.md",
+        "raw_sha256": "1857dd95f7b96cb271b14a9cfeee60d975cdf5eddc6c4a5050e914145e822460",
+        "expected_git_blob": "e2668a9f1075f6497f8648bd822ee5d226cf3971",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-012-handoff.md",
+        "raw_sha256": "bcfa3c1990e5a7655372ea8532fbe68cb9cad7c35298d3fe6b45588619a52af2",
+        "expected_git_blob": "253f3408da035c5c07a353622c58c4c21c9694bd",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-013-handoff.md",
+        "raw_sha256": "f2c50b60dd4b2ac8ad28402647b4c2b8a6ca650562cd4a1fb36ccccfb80c58c5",
+        "expected_git_blob": "17ac447bff3497d109048bd16f2a1a0f1d59dc67",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-014-handoff.md",
+        "raw_sha256": "4de0968ec5518e3b2c38563ed1fc066e10dc460325bb2ca81070123118675c1b",
+        "expected_git_blob": "1282007fb71d7b3e89302a886820a0e3a4c2e0c1",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-015-handoff.md",
+        "raw_sha256": "2c9d5a70f9d37c425b44a416e8e56435447519a43cf6e01169fdc12a717dbbd5",
+        "expected_git_blob": "a7671d5fe70f216ad4e8d9faf3a7425742eadc8c",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-017-handoff.md",
+        "raw_sha256": "0e42fb47c952577cf3bac6b7676a44077d728a5e39bb33cd43ad301e9822264e",
+        "expected_git_blob": "f3818ee64637a6a4f583fee75d260080e7d87830",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-018-handoff.md",
+        "raw_sha256": "d8396e0c819b3e1e61d35f5b4df57c4204cf6bf3060309248a386663c3f19e74",
+        "expected_git_blob": "f8d2640bde23201f13e58eaefc9a106b78efa399",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-020-handoff.md",
+        "raw_sha256": "e09ddc97b242b3df30de1c68227d973b76e5a42b593863364dc30f0cd9f8e556",
+        "expected_git_blob": "9928d2cc212ef3463a0581bc21124b8203e1dc6e",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-021-handoff.md",
+        "raw_sha256": "ac893c0b180ca514ccf76bb4aa66d92e24af39317123f7147cec1991e9666023",
+        "expected_git_blob": "b8c481e8d195f92a9f3ee4a7492dd20fe8ac0529",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-025-handoff.md",
+        "raw_sha256": "641e254f8370963e2ca21a6ade95a6ba287117bff566fcf0343bf9df7cad0f27",
+        "expected_git_blob": "7d4932ce2cd43ad6acad0923a1fd7c97972b2d8a",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-026-artifact.json",
+        "raw_sha256": "fbeb74425ade0fe3882a9dddc4c97f7b67b75dda711ffa37acbd755a02fa4d9c",
+        "expected_git_blob": "94729813a12b263e0b928c191207236f393ef2ea",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-026-handoff.md",
+        "raw_sha256": "e29f86cc765c8164d379dd66da918bdcadd0ea5550ab4d74162c5c9ce47bd108",
+        "expected_git_blob": "63fc0919a9c0c0d1c00f96808d7a574b925ca778",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-029-handoff.md",
+        "raw_sha256": "f5e91cc7fff36738a4dbdefdb146ff4acd483e932d920c00dc2d7289e5895d3c",
+        "expected_git_blob": "ac422687a44839c033f5c449c7be84f46dc00bca",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-030-handoff.md",
+        "raw_sha256": "ff3b24eeb863fe3fdc0385aae7da03791cd7263c0321065d38f1c8fdf38f4cfc",
+        "expected_git_blob": "fb14b3fd14c9de89728ace33cfbfdadc7e74a93d",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-004-handoff.md",
+        "raw_sha256": "293d560e4323ae055ca1cf56c4210db645b564cc18b77e5d142db3b17315e220",
+        "expected_git_blob": "d7f4bdc2af140438276a808046c2bfbb41b62324",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-005-handoff.md",
+        "raw_sha256": "6a10a3a55d02fd749dd0a1f993bd9b4c7542d23ff104b97be2b354072b3c1a71",
+        "expected_git_blob": "9655a2e6f62cea225fabf2b7aed52689c4a93c6f",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-006-handoff.md",
+        "raw_sha256": "03f869ca4b3a72b564f98f5f92e392ec5a17bc0c1b17327cb3b733326e44c18f",
+        "expected_git_blob": "d80112a27844842ef878c486a2509b1e337d301e",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-007-handoff.md",
+        "raw_sha256": "ac10ae48505bad875c7c491b94cdf9f82e4a1d18de993c1420303c455010799e",
+        "expected_git_blob": "40efa2e470d92ebda3573918d4f73cc9f295c35b",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-008-handoff.md",
+        "raw_sha256": "998a64eb47f040378d2ea2b498c3d5b4b27774ffc4a459c240de331734f33f67",
+        "expected_git_blob": "e0d020b061c737719b5b87c79e0e9ab2e9e2436a",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-009-handoff.md",
+        "raw_sha256": "fc08bb086b1470f39f434fcf9edca1b7957ef81e665592106607542c4d48ee93",
+        "expected_git_blob": "7d08c0d23cdf8f1fe8a9bed4368e5e8aced0258f",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-010-handoff.md",
+        "raw_sha256": "3c285b8477f8251dc32ddab50af216f53488f17c65b14195f7f79a5ae34a9cb4",
+        "expected_git_blob": "368b803b0311c6ef8d22c72f8075b55002e8b8dc",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-016-handoff.md",
+        "raw_sha256": "893a5496296a112d70e4389d56081bc32e340148d030ebb444b45b3d6e1f50d1",
+        "expected_git_blob": "ee9460139df7b15911f075a71f7db6dd4259dddf",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-017-handoff.md",
+        "raw_sha256": "43a78c0e9740c6b16667af8701a00ba6a27c7c867445d37686e7fb946b7d5025",
+        "expected_git_blob": "2a95b56b761db9368ed2afae1558a523ce0c0114",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-018-evidence-pack.md",
+        "raw_sha256": "56556acab3ab6e6fefee611716c86981c030eedb8dbab8d89ed2ca25ff9a58ab",
+        "expected_git_blob": "18723d9fe4ccab18249316cf22effea05459064e",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-018-handoff.md",
+        "raw_sha256": "e0b4cf3cb787a0ef574df5eb1f8a59563efeb1004e628678a6d72e92d0220b85",
+        "expected_git_blob": "3f0aea1a21f5ff58af367b4a91915f889b45e868",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-019-handoff.md",
+        "raw_sha256": "dd8cc6279c899b9d3f960e69a0e25e3291dff708dbca661a95a890d2c5225e66",
+        "expected_git_blob": "90791a3996641ba54a259c96239521241e5f3633",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-020-handoff.md",
+        "raw_sha256": "cd27a8c89407b9498cd643612af713e1faa9f569f5bb319c6677a0afac38e3ce",
+        "expected_git_blob": "546890c6560988616a1ad10d38e41f04149cd7f5",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-025-handoff.md",
+        "raw_sha256": "4d26b18d2afa91bf06f7a0a4892abd6a3e5976aea17d4d88bf66da9c36f8fbf4",
+        "expected_git_blob": "e9da16f0e34216f40f77657e4c810477dc14cb9f",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-037-handoff.md",
+        "raw_sha256": "0450608007dea62f404c445e11b8e2b4b84a03594fd225c086500cc07326e5e6",
+        "expected_git_blob": "2a4d81a68d51f47270e2582b28cabf1bdf155711",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-038-handoff.md",
+        "raw_sha256": "d08566a752171ead714c5b1471e2361b6654d466ca615202fd8ba1a8f83ffef9",
+        "expected_git_blob": "f0ecc6109627b6c80d0e087fd60dbb19be52cd9f",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-039-handoff.md",
+        "raw_sha256": "92093f003ed0243331b5fcff1d197c1334c673c3fc45d9bc535d5625cc7aed75",
+        "expected_git_blob": "4ea868172c7fb2c1bf9cefd113a8aa5a18cd4022",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-040-handoff.md",
+        "raw_sha256": "53330648bc36f2c7a123506c8bbedf1940b54c5c990a2df57bc81a30a8957b2c",
+        "expected_git_blob": "63ce5f6587ded8e52e82e67954276dc489e574c9",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-041-handoff.md",
+        "raw_sha256": "2cdb9bf2c96c888cb63619fe9037788f676f96653576fad6ec23d047aacb659a",
+        "expected_git_blob": "5c7efcfb11efc285caa080783e3ec44fdd20e293",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-042-handoff.md",
+        "raw_sha256": "15a048322f05c5ab7f361cd95bc21b5682613f4b0350907304cb853bae9f2a3a",
+        "expected_git_blob": "eba9af7d0999483ce3edae7b42736a8af4210d5d",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-043-handoff.md",
+        "raw_sha256": "c5338ff73555d0654ec31ce8869c51d7dd3c0787f01cc5eed659968dd3793aee",
+        "expected_git_blob": "6ded1a32a87dbc822745b2d8e246fac4eb25a8cb",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-044-handoff.md",
+        "raw_sha256": "7e1dae8b61f4e28d65d1b53687e3d9b0ef8fb1d4dac5f2b59e20a838c12b1710",
+        "expected_git_blob": "5831b306c317d7efb6ca7ee9cba199cd49b56638",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-060-handoff.md",
+        "raw_sha256": "5a7e5d1b9ce9a8ec601971b3c9f628d95782cbe80044367005427a4a40aa45ee",
+        "expected_git_blob": "afee58f27da64210e090268338f5e1230924f148",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-061-handoff.md",
+        "raw_sha256": "264c7656d799330937085b41e4479ed55764810afbb638de7a7261a32553d0b5",
+        "expected_git_blob": "58026f5ad99618eeae720846f2ffe02c7c8ce867",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-062-handoff.md",
+        "raw_sha256": "2c77aed9571200d4caec1229eb678772432bc88a0e076bed3b08d340e0272968",
+        "expected_git_blob": "cbec85ee616ddfd2d53bdddfd62c830e9c52ef1f",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-063-handoff.md",
+        "raw_sha256": "3bf9fd1398fb13e140eefa1fc6f3f22250734c310829cf9afc90c1e365b6ca08",
+        "expected_git_blob": "ab0c1907e7ac23d47675cf6929789dbaff3ff1e7",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-001-handoff.md",
+        "raw_sha256": "06bf158acb00ae92d0b3092e0301366217ab0bd97ba9d039bb049ebacbc4abc6",
+        "expected_git_blob": "6fc3f8e1e71c3ccedf658cd8d7f6cfbc21472ea0",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-002-handoff.md",
+        "raw_sha256": "58e1b210ce60f876716a98676179537cac919608b5b934c7a689c71e21f2d476",
+        "expected_git_blob": "5fe4457dc38edaed5771b25dacf90000e6ad9601",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-003-handoff.md",
+        "raw_sha256": "3dd6b938c12bcc4fb66aae4e38805465f57709c3309cb9b90119400fba33f9db",
+        "expected_git_blob": "427e69ffcdac6ac3176c0671f993fbca2247d701",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-004-handoff.md",
+        "raw_sha256": "529f0d102cfa9943075b288f3ca0ea573d98d94f2e300e51ede33da4cfc5559d",
+        "expected_git_blob": "a7ed711d0f57e4de60c5df5937fc7076f30dcb71",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-005-handoff.md",
+        "raw_sha256": "f90a361b586e8c594a6b10d623935f878c98bc5e6e8edeae7858866152050e7b",
+        "expected_git_blob": "a8f865ec689e7ae9f6dbc0cb1473cf1a15f62a24",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-006-handoff.md",
+        "raw_sha256": "8472ac1f39dcec87f8136e08f4254a8c0d62ce085b50787cf9d95a57c6df244f",
+        "expected_git_blob": "1df4736aba91696c5ec55e4d9ddfb50e849c8714",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-007-handoff.md",
+        "raw_sha256": "cc94f25497690aa8671f9b7c70e4ccf8f3957a09899d5f9f50022643e24bca3e",
+        "expected_git_blob": "5898583ec1ff1c24e322a30871773d6af1cad033",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-008-handoff.md",
+        "raw_sha256": "0bbdef0750d7888b904ca4df8b7ab41fecb3b60487dce20117472d086df56ba5",
+        "expected_git_blob": "c54c2ca58a850d2fc29e7fdffaa56108317e4228",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-009-handoff.md",
+        "raw_sha256": "3611432197448ec65a63abcd3a0c31eea41a4d3f984a1750cff5197e6dc688d7",
+        "expected_git_blob": "c1b63d08f55952605ae13acd444d17187e558390",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-010-handoff.md",
+        "raw_sha256": "6665dac9df80c68ffada04cfe07f1bd00f021c986a610a4ff99951eec52df6a8",
+        "expected_git_blob": "c6d695ceef1b2117d20e66d1e312f078b527c95f",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-011-handoff.md",
+        "raw_sha256": "e65376cfe168d7b822fd67f7b1792d923891395bd47a04289679f7f0742b4bfd",
+        "expected_git_blob": "f84d5f9f74b5ccaf9117a65cd77a38494f9dea3a",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-012-handoff.md",
+        "raw_sha256": "e989abffb32999ff345abc73bd1ff6258570c31622c0f4b0da061b51a7c0cdc4",
+        "expected_git_blob": "a609e8f85936347c6658f7b0be26519aec701566",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-013-handoff.md",
+        "raw_sha256": "a5b8a61e96d4b1ed969c5bdde3956740d8c74380f65f93ff002637909a2dd193",
+        "expected_git_blob": "67619c831510f59ffb7a85f5df5d8b8626d7d023",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-014-handoff.md",
+        "raw_sha256": "ea44a13a19aef9bee7f43cf2397c9b7389d310dca064ca66753ce20ec62c8052",
+        "expected_git_blob": "dc2d901deaff1c00951832737797ca950ad9a067",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261023-ATS-015-handoff.md",
+        "raw_sha256": "23d315c504abd16732897c9253b10216ea93d2e7d0fcfbe9dba695616b147fa5",
+        "expected_git_blob": "6a272d579c8e666951abbf2df9c55188418f0e05",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-001-handoff.md",
+        "raw_sha256": "8830bce64affec0946f0df07d6ce690aa2b9b5d78a82e780129b534177d91dc2",
+        "expected_git_blob": "2f1f81fe242fec02b1030f2c67be7904d8971d01",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-002-handoff.md",
+        "raw_sha256": "50e7a72a21e8c6a1268c4426e9986a73c464cc9eca03588a290abea538cb1b41",
+        "expected_git_blob": "16f6f513a8eec4376d514dbc545071b5ec224435",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-003-handoff.md",
+        "raw_sha256": "552f264e0ee7ffdac37f08652ec8df3d089ea22063c51386aa19893437226653",
+        "expected_git_blob": "eddf61b115720519f6aa634ae57f19968ebe2c28",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-005-handoff.md",
+        "raw_sha256": "0915631638144e6febf8baa3b95870da0d331dd2a0c80bbcad11f9646a08502a",
+        "expected_git_blob": "02ab8ba1cdf092d568cea750bd284feb5cdd277e",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-006-handoff.md",
+        "raw_sha256": "10e59b0cc2877afe3d9d95f73527950aca46dc02165296c7a527a8c85d259ce3",
+        "expected_git_blob": "68134e1701a89be5ff004db6b4241cae64a55127",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-007-handoff.md",
+        "raw_sha256": "39ca31d687a8ec2a752e644064ba1239b34d4c758691c48649a4cc88de747c4a",
+        "expected_git_blob": "f146ebef9135cc7bee38c9c4bdf449c8c91fe18e",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-008-handoff.md",
+        "raw_sha256": "73eb1259b0a762fd268cc47174711b177f531e8e7f360f62b64fbbd184d31711",
+        "expected_git_blob": "c2d1553c2f92b661e5d10f44004999c1cdb25bbb",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-009-handoff.md",
+        "raw_sha256": "d4714b728f7374f5aaa7d129879a674d5a4b12b2edadc2e907addaf6fb4492d8",
+        "expected_git_blob": "621769bcf6a391eff5691f169790a99d8bccf20a",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-010-handoff.md",
+        "raw_sha256": "c31864cb71553913e7a2442fdadbb0a7361c30b1ac8e9fbd7b6b1cec5b7240e5",
+        "expected_git_blob": "e169a8cdb1d32d1891b4ec80c458894cbb177a8b",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-011-handoff.md",
+        "raw_sha256": "770ad9ada7dda9e24a0725cd5a65031859fc09362a742dce0e5613b63b9a5c6f",
+        "expected_git_blob": "e7c7bd36230073be681f4ded2b89693497475028",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-012-handoff.md",
+        "raw_sha256": "10555932ba77324bb250612a407a22216414ccbbb49ce09f3c1f942ddbbc1f0c",
+        "expected_git_blob": "54df9272402bfd05b2ea48273afb9d24ee3b0394",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-013-handoff.md",
+        "raw_sha256": "659a493c78840ae0a90cf7ba323cbb87740faa596565d23386e3db4b6b3a7553",
+        "expected_git_blob": "33b46eb30139544b867768d732a918f74ae4903e",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-014-handoff.md",
+        "raw_sha256": "a9abb12f10ac20a8deef88f77d10a7b5ebf9a6f802b377c5192b9874fdeec368",
+        "expected_git_blob": "3e31d964a95cc92c501435013abc8200d89f8963",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-015-handoff.md",
+        "raw_sha256": "435133066e910afd45217c9adf264c2709a41ee9fa2bcc914d94ab1abb11d14d",
+        "expected_git_blob": "6326654e483e1e9b0b9792c74a540d99da7327d5",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-016-handoff.md",
+        "raw_sha256": "d8c4692a60c081c882d13b87b5d19e9e927b61a1b73f238ddc9256ade68d4d01",
+        "expected_git_blob": "a75b0bb8705e977e97fac5165a63f4393d48757f",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-023-evidence-pack.md",
+        "raw_sha256": "56b4262297ea13880c7b7d35b561bcf7c775b6e1d3252bde42b61e91154eb0db",
+        "expected_git_blob": "9d065e652a5fc194c6bc6559305fbc3f7ac43cf6",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-023-handoff.md",
+        "raw_sha256": "c47c8536922230e8585e0c8b192c27a2ed75a942423b5c2ce45e0df942e78444",
+        "expected_git_blob": "7f2cb1d781424e033d56534371c651419c6fd084",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-024-handoff.md",
+        "raw_sha256": "787b52e38a1d292d984c5c98a8bc63173d8b89d21fbbc80fcf45774581978b45",
+        "expected_git_blob": "5673462ff1e964bd49dd008645354456fdadf2da",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261024-ATS-025-handoff.md",
+        "raw_sha256": "e7395444abe3a18b176ef2e5a095016311087cee5b5c75d4628af0d52c12dadb",
+        "expected_git_blob": "0c24609609e3a4a4a46a1637fa9438e01f6c3606",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261025-ATS-001-handoff.md",
+        "raw_sha256": "8939d9ad3980c9caddcf042edc731abb99819fdd7512bdbdb58933b3b1ddf905",
+        "expected_git_blob": "1997731fab2a6ff39d9a1104e8d27b171ac73548",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261025-ATS-002-handoff.md",
+        "raw_sha256": "a013e50c6ee7f79eae0f3f4407445e25a2787d75503b9d94794e97fd074559d3",
+        "expected_git_blob": "d11d287fdf4fdbbf95fc4fed053c19b39b5c2ef5",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/agent/WI-20261025-ATS-003-handoff.md",
+        "raw_sha256": "a9df24ca813c0c02219f6a8b0926ce73ab338983b55a6265d77bc771bfc0e06d",
+        "expected_git_blob": "383a561890a5288bc0bb2d65fdaf9432e177c93f",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/user/REQ-20261010-ATS-006.md",
+        "raw_sha256": "8777e46de1e4e8ad43dcb08578fefec23ca2cf72fed4c2ded4a11b822f9d42e0",
+        "expected_git_blob": "17a1065deafab2bd71b9014928705c22962ce816",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/user/REQ-20261010-ATS-008.md",
+        "raw_sha256": "9fb1496d1374df03982fe0c74fb9bbd3a4f5214c4be1a5863050a617627dd7b2",
+        "expected_git_blob": "631b4688ff701b32cab1ec6b0055b81096e63762",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/user/REQ-20261010-ATS-009.md",
+        "raw_sha256": "acb4a35968fdbd44535327259a1ac46224fd5d172d29de4e18e3d7650835509b",
+        "expected_git_blob": "3a80d06c4e2e8baae2ed009f810ddc958179b25d",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/user/REQ-20261024-ATS-001.md",
+        "raw_sha256": "a2c862ceca79b75ff8fe49e4d31d83193128e93a39c528122ac1561f4fae6d7b",
+        "expected_git_blob": "66afd3b02cf89ff178a32fde6176a504d1060ef7",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      },
+      {
+        "path": "deliverables/user/WI-20261011-ATS-018-summary.md",
+        "raw_sha256": "495c4fad19bbdac61236977569e69a0c2fbedc71223ff9d96e83fddad66e0ca6",
+        "expected_git_blob": "bb4f465ddcdc2c0fa0085cbd8dbdd2784307e207",
+        "issue": "blank_at_eof",
+        "reason": "Pre-existing exact historical content; preserve original bytes"
+      }
+    ]
+  },
+  "limits": [
+    "Raw working-file hashes and normalized or exact staged blobs must match before using any exception.",
+    "The command-local CRLF setting recognizes retained line endings; other whitespace rules remain enabled.",
+    "New helper/report EOF defects were corrected separately; original source and frozen historical bodies were not rewritten."
+  ]
+}
