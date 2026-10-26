@@ -116,7 +116,7 @@ class AuthTokenSecurityIntegrationTest {
         when(resets.findUserIdByToken("reset-fixture")).thenReturn(Optional.of(user.getId()));
         when(resets.findByTokenForUpdate("reset-fixture", user.getId())).thenReturn(Optional.of(reset));
         when(encoder.encode("new-fixture-password")).thenReturn("encoded-new");
-        EmailService email = new EmailService(mock(JavaMailSender.class),
+        EmailService email = new EmailService(mock(JavaMailSender.class), mock(com.atstudio.atstudio.service.mail.NcpMailTransport.class),
                 mock(EmailVerificationTokenRepository.class), resets, users, encoder,
                 mock(PasswordLoginPolicy.class));
 

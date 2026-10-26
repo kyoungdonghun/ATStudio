@@ -9,6 +9,7 @@ import com.atstudio.atstudio.repository.EmailVerificationTokenRepository;
 import com.atstudio.atstudio.repository.PasswordResetTokenRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.service.auth.PasswordLoginPolicy;
+import com.atstudio.atstudio.service.mail.NcpMailTransport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +30,7 @@ import java.util.UUID;
 public class EmailService {
 
     private final JavaMailSender mailSender;
+    private final NcpMailTransport ncpMailTransport;
     private final EmailVerificationTokenRepository emailTokenRepository;
     private final PasswordResetTokenRepository resetTokenRepository;
     private final UserRepository userRepository;
@@ -171,6 +173,11 @@ public class EmailService {
         String deliveryId = UUID.randomUUID().toString();
 
         try {
+            if (ncpMailTransport.isEnabled()) {
+                ncpMailTransport.submit(fromAddress, to, subject, htmlBody);
+                log.info("Email submission accepted. deliveryId={}, outcome=ACCEPTED", deliveryId);
+                return;
+            }
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromAddress);

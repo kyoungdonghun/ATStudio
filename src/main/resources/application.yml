@@ -121,6 +121,11 @@ app:
   mail:
     from: ${MAIL_FROM:noreply@atstudio.com}
     base-url: ${APP_BASE_URL:http://localhost:5173}
+    transport: ${APP_MAIL_TRANSPORT:smtp}
+    ncp:
+      service-id: ${NCP_MAIL_SERVICE_ID:}
+      access-key: ${NCP_MAIL_ACCESS_KEY:}
+      secret-key: ${NCP_MAIL_SECRET_KEY:}
   whitelist:
     max-saved-channels: ${APP_WHITELIST_MAX_SAVED_CHANNELS:100}
     export:

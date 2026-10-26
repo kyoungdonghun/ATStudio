@@ -177,7 +177,7 @@ class PasswordResetConsumptionIntegrationTest {
                 }
                 return invocation.proceed();
             });
-            return new EmailService(mail, emails, resets, (UserRepository) factory.getProxy(), encoder, policy);
+            return new EmailService(mail, org.mockito.Mockito.mock(com.atstudio.atstudio.service.mail.NcpMailTransport.class), emails, resets, (UserRepository) factory.getProxy(), encoder, policy);
         }
     }
 }

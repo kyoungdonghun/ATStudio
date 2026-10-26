@@ -9,6 +9,7 @@ import com.atstudio.atstudio.repository.EmailVerificationTokenRepository;
 import com.atstudio.atstudio.repository.PasswordResetTokenRepository;
 import com.atstudio.atstudio.repository.UserRepository;
 import com.atstudio.atstudio.service.auth.PasswordLoginPolicy;
+import com.atstudio.atstudio.service.mail.NcpMailTransport;
 import jakarta.mail.Multipart;
 import jakarta.mail.Part;
 import jakarta.mail.Session;
@@ -55,6 +56,7 @@ class EmailServiceTest {
             "deliveryId=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
     @Mock JavaMailSender mailSender;
+    @Mock NcpMailTransport ncpMailTransport;
     @Mock EmailVerificationTokenRepository emailTokenRepository;
     @Mock PasswordResetTokenRepository resetTokenRepository;
     @Mock UserRepository userRepository;
@@ -62,6 +64,31 @@ class EmailServiceTest {
     @Mock PasswordLoginPolicy passwordLoginPolicy;
 
     @InjectMocks EmailService emailService;
+
+    @Test
+    void ncpAcceptanceDoesNotUseSmtpOrClaimDelivery(CapturedOutput output) throws Exception {
+        setMailProperties();
+        User user = User.builder().email("private@example.test").nickname("private-name").build();
+        when(ncpMailTransport.isEnabled()).thenReturn(true);
+        emailService.sendVerificationEmail(user);
+        verify(ncpMailTransport).submit(org.mockito.ArgumentMatchers.eq(FROM_ADDRESS),
+                org.mockito.ArgumentMatchers.eq("private@example.test"), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.Mockito.verifyNoInteractions(mailSender);
+        assertThat(output.getAll()).contains("outcome=ACCEPTED").doesNotContain("outcome=SUCCESS", "private@example.test", "private-name");
+    }
+
+    @Test
+    void ncpUnknownOutcomeNeverFallsBackAndKeepsPublicSuccess(CapturedOutput output) throws Exception {
+        setMailProperties();
+        User user = User.builder().email("private@example.test").nickname("private-name").build();
+        when(ncpMailTransport.isEnabled()).thenReturn(true);
+        when(ncpMailTransport.submit(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new java.io.IOException("secret-token-private@example.test"));
+        assertThatCode(() -> emailService.sendVerificationEmail(user)).doesNotThrowAnyException();
+        org.mockito.Mockito.verifyNoInteractions(mailSender);
+        assertThat(output.getAll()).contains("outcome=FAILURE").doesNotContain("secret-token", "private@example.test", "private-name");
+    }
 
     @Test
     @DisplayName("sendPasswordResetEmail() 실패 - 이메일 로그인 비활성화 시 PASSWORD_LOGIN_DISABLED 예외")
