@@ -1,0 +1,115 @@
+"""Synthetic only: no actual credentials, target files, services or network."""
+import ast
+import hashlib
+import json
+from pathlib import Path
+import sys
+import time
+import types
+import unittest
+from unittest.mock import Mock,patch
+
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+import preflight as p
+import make_payload as m
+
+
+def boot_fixture():
+    module=types.ModuleType('synthetic_bootstrap')
+    raw=m.read_pinned(*m.DEPENDENCIES['bootstrap'])
+    exec(compile(raw,'<retained-reader>','exec'),module.__dict__)
+    key=b'[default]\naws_access_key_id=synthetic-only\naws_secret_access_key=fake-only\n'
+    password=b'synthetic-password-only\n'
+    encode=lambda value:json.dumps(value).encode()
+    files={
+        p.STAGE/'stage.json':encode(dict(run_id=p.BOOTSTRAP_RUN,state='STAGED',
+            credentials_sha256=m.sha(key),password_sha256=m.sha(password))),
+        p.STAGE/'install.json':encode(dict(state='INSTALLED_NOT_EXECUTED',binary_sha256=module.BINARY_SHA256)),
+        p.STAGE/'aws-credentials':key,p.STAGE/'repository-password':password,
+        p.CAPTURES/p.ORIGINAL/'repository.json':encode(dict(version=2,id=p.REPOSITORY)),
+        p.CAPTURES/p.RESTORE/'public-result.json':encode(dict(status='BOUNDED_RESTORE_ONLY_PASS',
+            operation='wi069-exact-snapshot-restore-only',run_id=p.RESTORE,original_run_id=p.ORIGINAL,
+            repository_id=p.REPOSITORY,snapshot_id=p.SNAPSHOT,stage='COMPLETE',detail=None,
+            cleanup=True,cleanup_errors=[],source_release='WI060-existing-runtime',app_start='NOT_RUN',
+            backup='NOT_RUN_EXISTING_SNAPSHOT',full_disaster_recovery=False))}
+    calls=[]
+    def read(path,limit,private=False):
+        assert private and path in files and len(files[path])<=limit
+        calls.append(path);return files[path]
+    module.read_file=read;module.secure=Mock()
+    return module,files,calls
+
+
+def approved():return dict(scope=p.SCOPE,boot_id='REDACTED_TARGET_BINDING_RUN_OR_BOOT_ID',
+    machine_id_sha256='a'*64,expires_at=int(time.time())+570)
+
+
+class PreflightTests(unittest.TestCase):
+    def test_fixed_six_files_optional_pc_match_and_no_private_projection(self):
+        boot,files,calls=boot_fixture()
+        with patch.object(p.os.path,'lexists',return_value=False):
+            value=p.references(boot)
+            self.assertEqual(value['pc_escrow'],'NOT_CHECKED')
+            self.assertEqual(set(calls),set(files));self.assertEqual(len(calls),6)
+            value=p.references(boot,m.sha(files[p.STAGE/'repository-password']))
+        self.assertEqual(value['pc_escrow'],'REFERENCE_MATCH')
+        public=json.dumps(value)
+        for secret in (p.REPOSITORY,p.SNAPSHOT,p.BOOTSTRAP_RUN,'synthetic','sha256','/var/'):
+            self.assertNotIn(secret,public)
+
+    def test_drift_and_bad_pc_pin_fail_closed(self):
+        for changed in ('password','repository','receipt','pc'):
+            with self.subTest(changed=changed):
+                boot,files,_=boot_fixture();expected=None
+                if changed=='password':files[p.STAGE/'repository-password']=b'changed'
+                if changed=='repository':files[p.CAPTURES/p.ORIGINAL/'repository.json']=b'{"version":2,"id":"wrong"}'
+                if changed=='receipt':files[p.CAPTURES/p.RESTORE/'public-result.json']=b'{}'
+                if changed=='pc':expected='b'*64
+                with patch.object(p.os.path,'lexists',return_value=False),self.assertRaises(ValueError):
+                    p.references(boot,expected)
+
+    def test_authority_exact_scope_target_type_and_expiry(self):
+        value=approved();p.authority(value)
+        for key,bad in (('scope','OLD'),('expires_at',0),('expires_at',True),
+            ('expires_at',int(time.time())+601),('boot_id','a'*36),('machine_id_sha256','A'*64)):
+            with self.subTest(key=key,bad=bad),self.assertRaises(ValueError):p.authority(dict(value,**{key:bad}))
+
+    def test_readonly_flow_and_final_cold_even_on_reference_error(self):
+        boot,_,_=boot_fixture()
+        op=types.SimpleNamespace(SCOPE='OLD_READONLY_HELPER',identity=Mock(return_value={}),cold=Mock(return_value=('cold',)))
+        with patch.object(p.os.path,'lexists',return_value=False):
+            value=p.run(None,None,None,op,boot,approved(),'inspect')
+        self.assertEqual(value['status'],'REFERENCES_OBSERVED');self.assertEqual(op.cold.call_count,2)
+        self.assertEqual(value['db'],'NOT_RUN');self.assertEqual(value['live_repository'],'NOT_QUERIED')
+        with patch.object(p,'references',side_effect=Exception('synthetic-private-diagnostic')):
+            value=p.run(None,None,None,op,boot,approved(),'inspect')
+        self.assertEqual(value['status'],'HOLD');self.assertEqual(value['cold_after'],'PASS')
+        self.assertNotIn('synthetic-private',json.dumps(value))
+        op.cold=Mock(side_effect=[('cold',),('changed',)])
+        value=p.run(None,None,None,op,boot,approved(),'probe')
+        self.assertEqual(value['cold_after'],'FAILED');self.assertEqual(value['status'],'HOLD')
+
+    def test_payload_exact_dependencies_no_operational_entry(self):
+        files={'preflight.py':m.sha((m.HERE/'preflight.py').read_bytes())}
+        with patch.object(m,'own_candidate',return_value=files):
+            raw=m.payload('inspect',approved()['boot_id'],'a'*64,int(time.time())+570,'b'*64)
+        tree=ast.parse(raw)
+        values={node.targets[0].id:ast.literal_eval(node.value) for node in tree.body[:6]}
+        self.assertEqual(set(values['SOURCES']),{'inventory','backup_evidence','account_operator','bootstrap','preflight'})
+        self.assertEqual(values['EXPECTED_ESCROW_SHA256'],'b'*64)
+        transport=m.transport_bootstrap()
+        self.assertNotIn('op.run(',transport);self.assertNotIn('authorization_receipt',transport)
+        self.assertIn("MODE,EXPECTED_ESCROW_SHA256",transport)
+        self.assertIn("result['target']",transport)
+        calls={node.func.attr for node in ast.walk(ast.parse((m.HERE/'preflight.py').read_bytes()))
+            if isinstance(node,ast.Call) and isinstance(node.func,ast.Attribute)}
+        self.assertFalse(calls & {'exclusive','write','write_bytes','mkdir','unlink','start_mysql','restic','command','run'})
+
+    def test_builder_rejects_unbound_inspect_and_noninspect_pc_pin(self):
+        for args in (('inspect',None,None,None),('probe',None,None,'b'*64),
+            ('inspect',approved()['boot_id'],'a'*64,'INVALID')):
+            with self.subTest(args=args),self.assertRaises(ValueError):
+                m.payload(args[0],args[1],args[2],int(time.time())+570,args[3])
+
+
+if __name__=='__main__':unittest.main()

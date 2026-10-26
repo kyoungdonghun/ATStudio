@@ -1,0 +1,40 @@
+{
+  "result": "PASS",
+  "files": [
+    {
+      "sha256": "6d7cfa1f33c916968dd5d68bde8aae58340d7b0dcd03d8133139f71639cf684e",
+      "endsInNewline": true,
+      "brokenLinks": [],
+      "path": "build/WI-20261026-ATS-002/privacy-data-map.md",
+      "trailingWhitespaceLines": 0,
+      "hasMetadata": true
+    },
+    {
+      "sha256": "7a174b0fa4819a8f9a87b71dda383769ed31f8722415a63dc6efc116c9f1416d",
+      "endsInNewline": true,
+      "brokenLinks": [],
+      "path": "build/WI-20261026-ATS-002/remediation-and-verification.md",
+      "trailingWhitespaceLines": 0,
+      "hasMetadata": true
+    },
+    {
+      "sha256": "3ab9c3aca9207c22c54feb919d1a1dcc9fab725c3d6dae0e6f53eae20cc0240b",
+      "endsInNewline": true,
+      "brokenLinks": [],
+      "path": "deliverables/user/WI-20261026-ATS-002-summary.md",
+      "trailingWhitespaceLines": 0,
+      "hasMetadata": true
+    },
+    {
+      "sha256": "173444e7f2481df756ce82455872555b3b59e62236729e860d12b59c6824ad6c",
+      "endsInNewline": true,
+      "brokenLinks": [],
+      "path": "deliverables/agent/WI-20261026-ATS-002-evidence-pack.md",
+      "trailingWhitespaceLines": 0,
+      "hasMetadata": true
+    }
+  ],
+  "checkedAt": "2026-10-26T19:00:12.1312072+09:00",
+  "remoteOperationsRun": false,
+  "applicationTestsRun": false
+}

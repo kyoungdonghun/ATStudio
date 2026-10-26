@@ -1,0 +1,77 @@
+# WI-20261003-ATS-001. Candidate complete configuration, not an installed file.
+user __NGINX_USER__;
+worker_processes auto;
+pid /run/nginx.pid;
+
+# Request-context error messages can contain raw query tokens. See CONFIGURATION.
+error_log /dev/null crit;
+
+events {
+    worker_connections 512;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    server_tokens off;
+    autoindex off;
+    gzip off;
+
+    # No URI, query, client identity, headers, bodies, or Referer in this format.
+    log_format ats_safe escape=json
+        '{"time":"$time_iso8601","method":"$request_method",'
+        '"status":$status,"bytes":$body_bytes_sent,"seconds":$request_time}';
+    access_log syslog:server=unix:/dev/log,facility=local6,tag=atstudio_access,severity=info ats_safe;
+
+    limit_req_zone $binary_remote_addr zone=ats_api:10m rate=10r/s;
+    limit_req_zone $binary_remote_addr zone=ats_media:10m rate=3r/s;
+    limit_conn_zone $binary_remote_addr zone=ats_client:10m;
+    limit_conn_zone $server_name zone=ats_server:1m;
+    limit_conn_zone $binary_remote_addr zone=ats_media_client:10m;
+    limit_conn_zone $server_name zone=ats_media_server:1m;
+
+    # $uri is Nginx's normalized path, without the query. Empty keys do not count.
+    map $uri $ats_download_scope {
+        default "";
+        "~^/api(?:;[^/]*)?/tracks(?:;[^/]*)?/[^/]+/download(?:;[^/]*)?/?$" original;
+    }
+    map $ats_download_scope $ats_download_client {
+        default "";
+        original $binary_remote_addr;
+    }
+    map $ats_download_scope $ats_media_rate {
+        default 256k;
+        original 2m;
+    }
+    limit_conn_zone $ats_download_scope zone=ats_download_server:1m;
+    limit_conn_zone $ats_download_client zone=ats_download_client:10m;
+
+    # Preaccess admission includes unauthenticated and noncanonical multipart requests.
+    # Do not depend on a path, method, boundary parameter, or application authorization.
+    map $http_content_type $ats_multipart_scope {
+        default "";
+        ~*^multipart/ multipart;
+    }
+    map $ats_multipart_scope $ats_multipart_client {
+        default "";
+        multipart $binary_remote_addr;
+    }
+    limit_conn_zone $ats_multipart_scope zone=ats_multipart_server:1m;
+    limit_conn_zone $ats_multipart_client zone=ats_multipart_client:10m;
+    limit_req_status 429;
+    limit_conn_status 429;
+
+    client_max_body_size 120m;
+    client_body_buffer_size 128k;
+    client_body_temp_path /var/lib/atstudio/nginx-body 1 2;
+    client_header_timeout 15s;
+    client_body_timeout 60s;
+    send_timeout 60s;
+    keepalive_timeout 30s;
+    keepalive_requests 100;
+    reset_timedout_connection on;
+
+    # Install exactly one rendered HTTP-bootstrap OR HTTPS candidate here.
+    # No conf.d/sites-enabled wildcard: avoid inherited public hosts/log formats.
+    include /etc/atstudio/nginx/active-site.conf;
+}

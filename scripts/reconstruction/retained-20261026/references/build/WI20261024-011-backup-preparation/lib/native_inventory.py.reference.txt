@@ -1,0 +1,187 @@
+"""Read-only WI069 metadata probe. Default mode performs no target inspection."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import selectors
+import shutil
+import socket
+import subprocess
+import sys
+import time
+
+
+UNITS = (
+    "mysql.service", "nginx.service", "atstudio.service",
+    "atstudio-restricted-web-wi060.service", "atstudio-wi060-supervisor.service",
+    "atstudio-restricted-web-wi055.service", "atstudio-wi055-supervisor.service",
+    "atstudio-restricted-web-wi042.service",
+    "atstudio-first-start-wi026.service", "atstudio-first-start-wi032.service",
+    "atstudio-wi035-supervisor.service", "atstudio-wi039-supervisor.service",
+)
+PROPERTIES = ("LoadState", "ActiveState", "SubState", "UnitFileState",
+              "MainPID", "ControlPID")
+STATES = {
+    "LoadState": {"loaded", "not-found", "masked", "error", "bad-setting"},
+    "ActiveState": {"active", "inactive", "failed", "activating", "deactivating"},
+    "SubState": {"running", "dead", "failed", "exited", "start", "stop", "auto-restart"},
+    "UnitFileState": {"", "enabled", "enabled-runtime", "disabled", "static",
+                      "masked", "masked-runtime", "indirect", "not-found"},
+}
+BINARIES = ("python3", "restic", "mysql", "mysqldump", "mysqld", "systemd-run")
+CLEAN_ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C",
+             "SYSTEMD_PAGER": "cat", "SYSTEMD_COLORS": "0"}
+
+
+class InventoryHold(Exception):
+    """Fixed diagnostic code; never echo raw command output or private paths."""
+
+
+def require(condition: bool, code: str) -> None:
+    """Stop on an unknown observation."""
+    if not condition:
+        raise InventoryHold(code)
+
+
+def command(argv: list[str], deadline: float) -> bytes:
+    """Run one fixed metadata query with bounded time and stdout."""
+    require(argv[:3] == ["/usr/bin/systemctl", "show", "--no-pager"]
+            and argv[-1] in UNITS, "COMMAND_NOT_ALLOWED")
+    end = min(deadline, time.monotonic() + 5)
+    require(time.monotonic() < end, "DEADLINE")
+    process = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                               stderr=subprocess.DEVNULL, env=CLEAN_ENV, close_fds=True)
+    chunks = bytearray()
+    try:
+        with selectors.DefaultSelector() as selector:
+            selector.register(process.stdout, selectors.EVENT_READ)
+            while selector.get_map():
+                require(time.monotonic() < end, "COMMAND_TIMEOUT")
+                for key, _ in selector.select(min(0.1, max(0, end - time.monotonic()))):
+                    part = os.read(key.fileobj.fileno(), 4096)
+                    if not part:
+                        selector.unregister(key.fileobj)
+                        break
+                    chunks.extend(part)
+                    require(len(chunks) <= 4096, "COMMAND_OUTPUT_LIMIT")
+        require(process.wait(timeout=max(0.01, end - time.monotonic())) == 0,
+                "COMMAND_EXIT")
+        return bytes(chunks)
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=1)
+        process.stdout.close()
+
+
+def parse_unit(data: bytes) -> dict:
+    """Expose only known states and numeric process identifiers."""
+    require(len(data) <= 4096, "UNIT_OUTPUT_LIMIT")
+    rows = data.decode("ascii").splitlines()
+    pairs = [line.split("=", 1) for line in rows]
+    require(all(len(pair) == 2 for pair in pairs), "UNIT_SHAPE")
+    require(len(pairs) == len(PROPERTIES) and {pair[0] for pair in pairs}
+            == set(PROPERTIES), "UNIT_SHAPE")
+    value = dict(pairs)
+    for key, allowed in STATES.items():
+        require(value[key] in allowed, "UNIT_STATE_UNKNOWN")
+    for key in ("MainPID", "ControlPID"):
+        require(bool(re.fullmatch(r"[0-9]{1,10}", value[key])), "UNIT_PID")
+        value[key] = int(value[key])
+    value["stopped_masked"] = (
+        value["LoadState"] != "not-found"
+        and value["ActiveState"] in {"inactive", "failed"}
+        and value["UnitFileState"] in {"masked", "masked-runtime"}
+        and value["MainPID"] == value["ControlPID"] == 0
+    )
+    return value
+
+
+def process_counts(root: Path, deadline: float) -> dict:
+    """Read comm only, never arguments, environments or user identities."""
+    counts = {name: 0 for name in ("java", "ffmpeg", "mysqld", "mariadbd")}
+    seen = 0
+    with os.scandir(root) as entries:
+        for entry in entries:
+            require(time.monotonic() < deadline, "DEADLINE")
+            if not entry.name.isdigit():
+                continue
+            seen += 1
+            require(seen <= 32768, "PROCESS_LIMIT")
+            try:
+                with (Path(entry.path) / "comm").open("rb") as stream:
+                    name = stream.read(64).strip().decode("ascii", "replace")
+            except FileNotFoundError:
+                continue
+            if name in counts:
+                counts[name] += 1
+    return counts
+
+
+def observe() -> dict:
+    """Collect a metadata sample; this is not writer-fence acceptance."""
+    require(sys.platform == "linux" and os.geteuid() == os.getegid() == 0,
+            "LINUX_ROOT_REQUIRED")
+    require(socket.gethostname() == "REDACTED_TARGET_BINDING_OS_HOSTNAME", "TARGET_MISMATCH")
+    with Path("/etc/machine-id").open("rb") as stream:
+        machine = stream.read(129)
+    require(len(machine) <= 128 and hashlib.sha256(machine.strip()).hexdigest()
+            == "877c105ec8fb00f4db513e74259f0eb057ea2c06f18e328a6851fd1ec0ca2f86",
+            "TARGET_MISMATCH")
+    deadline = time.monotonic() + 65
+    units = {}
+    for unit in UNITS:
+        units[unit] = parse_unit(command([
+            "/usr/bin/systemctl", "show", "--no-pager",
+            "--property=" + ",".join(PROPERTIES), "--", unit,
+        ], deadline))
+    path = Path("/var/lib/atstudio")
+    require(path.is_dir() and not path.is_symlink(), "STORAGE_PARENT_UNKNOWN")
+    space = os.statvfs(path)
+    binaries = {name: shutil.which(name, path=CLEAN_ENV["PATH"]) is not None
+                for name in BINARIES}
+    return {
+        "status": "OBSERVED_METADATA_ONLY", "target_match": True,
+        "observed_at_unix": int(time.time()), "units": units,
+        "process_counts": process_counts(Path("/proc"), deadline),
+        "storage_parent": {
+            "free_bytes": space.f_bavail * space.f_frsize,
+            "total_bytes": space.f_blocks * space.f_frsize,
+            "free_inodes": space.f_favail, "total_inodes": space.f_files,
+            "device": path.stat().st_dev,
+        },
+        "binary_present": binaries,
+        "python_version": list(sys.version_info[:3]),
+        "capture_ready": False, "backup": "NOT_RUN", "restore": "NOT_RUN",
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Require explicit metadata-only dispatch; remain inert by default."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--observe", action="store_true")
+    args = parser.parse_args(argv)
+    if not args.observe:
+        print(json.dumps({"status": "READ_ONLY_RECIPE", "side_effects": False,
+                          "native": "NOT_RUN", "capture_ready": False}))
+        return 0
+    try:
+        print(json.dumps(observe(), sort_keys=True))
+        return 0
+    except (InventoryHold, OSError, ValueError, UnicodeError, subprocess.SubprocessError):
+        print(json.dumps({"status": "HOLD", "code": "INVENTORY_INCOMPLETE",
+                          "capture_ready": False}))
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

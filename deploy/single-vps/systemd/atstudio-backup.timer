@@ -1,0 +1,13 @@
+# WI-20261010-ATS-013: DISABLED / UNRENDERED. No calendar or installation section.
+# A disabled-by-default expiring policy derives one daily attempt in its start window.
+[Unit]
+Description=ATStudio cold capture schedule NOT CONFIGURED
+ConditionPathExists=/etc/atstudio-backup/SCHEDULE-APPROVED
+
+[Timer]
+Unit=atstudio-backup.service
+Persistent=false
+WakeSystem=false
+AccuracySec=1s
+RandomizedDelaySec=0
+# OnCalendar deliberately absent. No OnBootSec or catch-up activation.

@@ -1,0 +1,5 @@
+# Re-include only reviewed archive copies; the repository-root build/ stays ignored.
+!files/build/
+!files/build/**
+!references/build/
+!references/build/**

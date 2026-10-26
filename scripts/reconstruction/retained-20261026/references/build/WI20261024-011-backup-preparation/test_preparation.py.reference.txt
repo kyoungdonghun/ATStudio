@@ -1,0 +1,144 @@
+"""Focused injected/local tests. No real credentials, services, DB or network."""
+import ast
+import base64
+import copy
+import io
+import json
+from pathlib import Path
+import tempfile
+import time
+from types import SimpleNamespace
+import unittest
+from unittest.mock import Mock,patch
+import backup_plan as c
+import adapter as a
+import entry
+import make_payload as builder
+
+HERE=Path(__file__).resolve().parent
+
+
+def contract(mode='capture',candidate='a'*64):
+    now=int(time.time())
+    source=dict(repository_id=c.REPOSITORY_ID,observed_repository_bytes=64000000,max_capture_bytes=900000000,
+        scope='METADATA_LIST_NEW_BACKUP_EXACT_SNAPSHOT_RESTORE',request_and_egress_bound_verified=True,
+        retained_storage_bound_verified=True,tax_included=True,no_deletion_assumed=True,
+        continuing_storage_after_horizon_accounted=True,evidence_references=['f'*64])
+    source_raw=c.canonical(source)
+    cost=dict(status='ZERO_ADDITIONAL_PAID_COST_VERIFIED_BY_MA',observed_at=now,expires_at=now+1800,
+        source_sha256=c.sha(source_raw),account_allowance_verified=True,rates_requests_egress_tax_verified=True,
+        retention_days=30,additional_paid_upper_bound_minor=0,currency='KRW',unknowns=[],
+        billing_bound_method='INDEPENDENTLY_VERIFIED_PROVIDER_OR_ALLOWANCE_BOUND',max_source_bytes=900000000,max_repository_bytes=1000000000)
+    cost_raw=c.canonical(cost)
+    approval=dict(wi=c.WI,scope=c.SCOPE,mode=mode,allow_native=True,candidate_sha256=candidate,
+        decision_sha256=None,cost_sha256=c.sha(cost_raw) if mode=='capture' else None,run_id='1'*32,
+        issued_at=now,expires_at=now+1700,boot_id='11111111-1111-1111-1111-111111111111',machine_id_sha256='b'*64,
+        repository_id=c.REPOSITORY_ID,bootstrap_run_id=c.BOOTSTRAP_RUN,recovery_password_sha256='c'*64 if mode=='capture' else None,
+        inventory_sha256='d'*64 if mode=='capture' else None,units_sha256='e'*64 if mode=='capture' else None,
+        expected_fixture_counts={'users':3,'user_subscriptions':1,'admin_operation_audit_logs':1},
+        expected_grant=dict(id=1,user_id=3,subscription_id=1,status='CANCELLED',billing_cycle='MONTHLY',
+            started_at='2026-10-24',expires_at='2026-10-24',pending_subscription_id=None,pending_billing_cycle=None))
+    decision={k:v for k,v in approval.items() if k not in ('decision_sha256','recovery_password_sha256')}
+    decision.update(source='CURRENT_EXPLICIT_USER_DECISION_RECORDED_BY_MA',no_repository_initialization=True,
+        no_original_database_restore=True,no_business_mutation=True)
+    raw=c.canonical(decision);approval['decision_sha256']=c.sha(raw)
+    return approval,raw,c.sha(raw),cost_raw if mode=='capture' else b'',source_raw if mode=='capture' else b'',candidate
+
+
+class PreparationTests(unittest.TestCase):
+    def test_default_entry_is_inert(self):
+        with patch.object(entry,'verify_candidate',side_effect=AssertionError),patch('sys.stdout',new_callable=io.StringIO) as out:
+            self.assertEqual(entry.main([]),0)
+            self.assertFalse(json.loads(out.getvalue())['allow_native'])
+        args=SimpleNamespace(action='capture',invoke=False)
+        with self.assertRaises(ValueError):entry.dispatch(args)
+
+    def test_future_exact_positive_and_authority_fail_closed(self):
+        args=contract();self.assertEqual(c.authority(*args,'capture')['additional_paid_upper_bound_minor'],0)
+        for key,value in (('allow_native',False),('mode','inventory'),('scope','old'),('expires_at',0),
+                ('run_id',c.BOOTSTRAP_RUN),('repository_id','0'*64),('candidate_sha256','9'*64)):
+            altered=copy.deepcopy(args);altered[0][key]=value
+            with self.assertRaises(ValueError):c.authority(*altered,'capture')
+        with self.assertRaises(ValueError):c.authority(args[0],args[1]+b' ',args[2],*args[3:],'capture')
+
+    def test_inventory_has_no_circular_baseline_or_cost_requirement(self):
+        args=contract('inventory');self.assertIsNone(c.authority(*args,'inventory'))
+        self.assertIsNone(args[0]['inventory_sha256']);self.assertIsNone(args[0]['recovery_password_sha256'])
+
+    def test_unknown_nonzero_stale_and_wrong_scope_cost_holds(self):
+        original=contract()
+        for key,value in (('additional_paid_upper_bound_minor',1),('unknowns',['REQUESTS']),('observed_at',0),
+                ('expires_at',int(time.time())+5),('retention_days',True)):
+            args=list(copy.deepcopy(original));cost=c.decode(args[3]);cost[key]=value;args[3]=c.canonical(cost)
+            args[0]['cost_sha256']=c.sha(args[3]);decision=c.decode(args[1]);decision['cost_sha256']=args[0]['cost_sha256']
+            args[1]=c.canonical(decision);args[2]=args[0]['decision_sha256']=c.sha(args[1])
+            with self.assertRaises(ValueError):c.authority(*args,'capture')
+
+    def test_restic_exact_no_init_or_repository_wide_read(self):
+        obj=a.ExistingCapture.__new__(a.ExistingCapture);obj.stage='BACKUP';obj.run_id='1'*32
+        obj.work=Path('/private/fresh');obj.roots=(Path('/source'),);obj.snapshot='2'*64
+        with patch.object(a.cold.Capture,'restic',return_value=b'{}') as native:
+            for command in (['cat','config'],['snapshots'],['ls',obj.snapshot],
+                    ['backup','--host=REDACTED_TARGET_BINDING_OS_HOSTNAME','--tag=wi011-'+obj.run_id,'--',str(obj.roots[0]),str(obj.work/'payload')],
+                    ['restore',obj.snapshot,'--target='+str(obj.work/'restored'),'--verify']):
+                self.assertEqual(obj.restic(command),b'{}')
+            before=native.call_count
+            for command in (['init'],['prune'],['forget'],['unlock'],['check','--read-data'],['stats'],
+                    ['restore',obj.snapshot,'--target=/var/lib/mysql','--verify'],['ls','3'*64]):
+                with self.assertRaises(ValueError):obj.restic(command)
+            self.assertEqual(native.call_count,before)
+
+    def test_isolated_database_destination_only(self):
+        obj=a.ExistingCapture.__new__(a.ExistingCapture);obj.work=Path('/private/fresh');obj.run_id='1'*32;obj.seen_units=set()
+        with patch.object(a.cold.Capture,'start_mysql',return_value='unit') as native:
+            self.assertEqual(obj.start_mysql('restore',obj.work/'isolated-database'),'unit')
+            for mode in ('initialize','restore'):
+                with self.assertRaises(ValueError):obj.start_mysql(mode,a.cold.DATABASE)
+            self.assertEqual(native.call_count,1)
+
+    def test_cleanup_failures_do_not_skip_later_observations(self):
+        obj=a.ExistingCapture.__new__(a.ExistingCapture);obj.work=Path('/synthetic');obj.stage='BACKUP'
+        obj.snapshot_state='POSSIBLE';obj.sql_proof=None;obj.ctx=(object(),None,None,None)
+        obj.owned_units={'synthetic.service'};obj.seen_units={'synthetic.service'};obj.stop_history={};obj.sql_state='synthetic.service'
+        obj.guard=Mock();obj.stages=Mock(side_effect=RuntimeError('PRIVATE'))
+        obj.stop_mysql=Mock(side_effect=RuntimeError('PRIVATE'));obj.verify_fence=Mock()
+        with patch.object(a.cold,'directory'),patch.object(a.boot,'exclusive'),patch.object(a.os.path,'lexists',return_value=False),\
+                patch.object(a.guard,'properties',side_effect=ValueError('PRIVATE')):
+            result=obj.execute()
+        self.assertEqual(result['status'],'HOLD');self.assertEqual(result['snapshot_state'],'POSSIBLE')
+        self.assertEqual(result['cleanup'],{'STOP':'FAILED','PID_ZERO':'FAILED','SOCKET_GONE':'PASS','COLD_BASELINE':'PASS'})
+        obj.verify_fence.assert_called_once();self.assertNotIn('PRIVATE',json.dumps(result))
+
+    def test_completed_units_still_have_final_pid_observation(self):
+        obj=a.ExistingCapture.__new__(a.ExistingCapture);obj.work=Path('/synthetic');obj.stage='COMPLETE'
+        obj.snapshot_state='IDENTIFIED';obj.sql_proof={'counts':{'users':3}};obj.ctx=(object(),None,None,None)
+        obj.owned_units=set();obj.seen_units={'synthetic.service'};obj.stop_history={'synthetic.service':True}
+        obj.guard=Mock();obj.stages=Mock();obj.verify_fence=Mock()
+        with patch.object(a.cold,'directory'),patch.object(a.boot,'exclusive'),patch.object(a.os.path,'lexists',return_value=False),\
+                patch.object(a.guard,'properties',return_value={'MainPID':'0','ControlPID':'0','Job':''}) as props:
+            result=obj.execute()
+        props.assert_called_once();self.assertEqual(set(result['cleanup'].values()),{'PASS'})
+
+    def test_frozen_dependencies_unchanged_and_no_business_dml(self):
+        parents={name:HERE.parent/'WI069-backup'/name for name in ('cold_capture.py','bootstrap.py','backup_checks.py','native_inventory.py','restore_equivalence.py','restore_only.py','release-allowlist.json')}
+        parents['backup_protocol.py']=HERE.parents[1]/'scripts/deployment/backup/backup_protocol.py'
+        parents.update({name:HERE.parent/'WI20261024-008-readonly-evidence'/name for name in ('account_operator.py','inventory.py','backup_evidence.py')})
+        for name,source in parents.items():self.assertEqual((HERE/'lib'/name).read_bytes(),source.read_bytes())
+        text=(HERE/'adapter.py').read_text()
+        for sql in ('UPDATE user_subscriptions','INSERT INTO','DELETE FROM','ALTER TABLE'):self.assertNotIn(sql,text)
+        self.assertIn('equivalent.verify(',text);self.assertIn("recovered['counts']==source['counts']",text)
+
+    def test_private_payload_compiles_and_preserves_raw_decision(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);(root/'backup_plan.py').write_bytes((HERE/'backup_plan.py').read_bytes())
+            manifest={'files':{'backup_plan.py':c.sha((root/'backup_plan.py').read_bytes())}}
+            raw=c.canonical(manifest);(root/'candidate.json').write_bytes(raw);args=contract('inventory',c.sha(raw))
+            with patch.object(builder,'HERE',root):
+                payload=builder.payload('inventory',args[-1],c.canonical(args[0]),args[1],args[2])
+            private=ast.literal_eval(ast.parse(payload).body[1].value)
+            self.assertEqual(base64.b64decode(private['decision.json']),args[1])
+            self.assertIn(b'os.O_EXCL',payload);self.assertIn(b'root.mkdir(mode=0o700)',payload)
+            compile(payload,'synthetic','exec')
+
+
+if __name__=='__main__':unittest.main(verbosity=2)

@@ -1,0 +1,390 @@
+"""WI069 two-step root-private bootstrap. No network, services, restic execution or deletion."""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import bz2
+import configparser
+from datetime import datetime
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import re
+import secrets
+import selectors
+import socket
+import stat
+import sys
+import time
+from typing import Callable
+
+
+ARCHIVE_BYTES = 10107515
+ARCHIVE_SHA256 = "f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c"
+MACHINE_SHA256 = "REDACTED_TARGET_BINDING_MACHINE_SHA256"
+HOST_FINGERPRINT = "REDACTED_TARGET_BINDING_HOST_FINGERPRINT"
+OS_HOSTNAME = "REDACTED_TARGET_BINDING_OS_HOSTNAME"
+BINARY_LIMIT = 64 * 1024**2
+BINARY_BYTES = 30941346
+BINARY_SHA256 = "20d4142678d0d95ec11a4759def1b73fd9190abc9ca19e4b62d067c0b387e639"
+HEX = re.compile(r"[0-9a-f]{64}\Z")
+CONFIG_KEYS = {"version", "machine_id_sha256", "ssh_hostkey_fingerprint",
+               "archive_file", "credential_input", "private_parent", "install_parent"}
+SAFE_CODES = set("""
+INPUT_SHAPE INPUT_LIMIT JSON_INVALID JSON_DUPLICATE IDENTITY_REQUIRED PATH_INVALID
+PATH_SYMLINK PATH_OWNERSHIP PATH_TYPE PRIVATE_MODE FILE_CHANGED FILE_LIMIT
+LINUX_ROOT_REQUIRED MACHINE_ID_MISMATCH SSH_KEY_MISMATCH SSH_KEY_FORMAT
+APPROVAL_SHAPE APPROVAL_MISMATCH APPROVAL_WINDOW WINDOW_EXPIRED RUN_ID
+ARCHIVE_IDENTITY BINARY_LIMIT BINARY_FORMAT CREDENTIAL_FORMAT DESTINATION_EXISTS
+BINARY_PIN_REQUIRED STAGE_IDENTITY STAGE_CONTENT_DRIFT INSTALL_IDENTITY
+BOOTSTRAP_IO_OR_INPUT BOOTSTRAP_FAILED
+STDIN_LIMIT STDIN_EMPTY
+""".split())
+
+
+class Hold(Exception):
+    """Fixed public diagnostic only."""
+
+
+def require(value: bool, code: str) -> None:
+    """Enforce a local gate without disclosing its data."""
+    if not value:
+        raise Hold(code)
+
+
+def sha(raw: bytes) -> str:
+    """Return a SHA-256 identity."""
+    return hashlib.sha256(raw).hexdigest()
+
+
+def encoded(value: dict) -> bytes:
+    """Bind approvals to exact canonical JSON."""
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+
+
+def decode(raw: bytes) -> dict:
+    """Read bounded strict JSON with no duplicate members."""
+    require(len(raw) <= 16384, "INPUT_LIMIT")
+
+    def unique(pairs: list) -> dict:
+        result = {}
+        for key, item in pairs:
+            require(key not in result, "JSON_DUPLICATE")
+            result[key] = item
+        return result
+
+    def reject(value: str) -> None:
+        raise Hold("JSON_INVALID")
+
+    try:
+        value = json.loads(raw, object_pairs_hook=unique, parse_constant=reject,
+                           parse_float=reject)
+    except (ValueError, UnicodeError):
+        raise Hold("JSON_INVALID") from None
+    require(type(value) is dict, "INPUT_SHAPE")
+    return value
+
+
+def path_value(value: str) -> Path:
+    """Accept canonical absolute Linux paths only."""
+    require(type(value) is str and value.startswith("/") and value != "/"
+            and not any(item in value for item in ("\x00", "\n", "\r", "//"))
+            and ".." not in PurePosixPath(value).parts and str(PurePosixPath(value)) == value,
+            "PATH_INVALID")
+    return Path(value)
+
+
+def secure(path: Path, *, directory: bool = False, private: bool = False) -> os.stat_result:
+    """Require root-owned no-link, non-writable ancestry and an exact object type."""
+    require(path.is_absolute() and ".." not in path.parts, "PATH_INVALID")
+    for parent in reversed(path.parents):
+        info = parent.lstat()
+        require(stat.S_ISDIR(info.st_mode), "PATH_SYMLINK")
+        require(info.st_uid == 0 and not info.st_mode & 0o022, "PATH_OWNERSHIP")
+    info = path.lstat()
+    require(not stat.S_ISLNK(info.st_mode), "PATH_SYMLINK")
+    require(info.st_uid == 0 and not info.st_mode & 0o022, "PATH_OWNERSHIP")
+    require(stat.S_ISDIR(info.st_mode) if directory else
+            stat.S_ISREG(info.st_mode) and info.st_nlink == 1, "PATH_TYPE")
+    if private:
+        require(stat.S_IMODE(info.st_mode) == (0o700 if directory else 0o600), "PRIVATE_MODE")
+    return info
+
+
+def read_file(path: Path, limit: int, *, private: bool = False) -> bytes:
+    """Read a reviewed reference privately and reject replacement or growth."""
+    expected = secure(path, private=private)
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as stream:
+        before = os.fstat(stream.fileno())
+        require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1
+                and before.st_uid == 0 and before.st_size <= limit
+                and (before.st_dev, before.st_ino) == (expected.st_dev, expected.st_ino),
+                "FILE_LIMIT")
+        raw = stream.read(limit + 1)
+        after = os.fstat(stream.fileno())
+        require((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
+                == (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)
+                and len(raw) <= limit, "FILE_CHANGED")
+    return raw
+
+
+def exclusive(path: Path, raw: bytes, mode: int = 0o600) -> None:
+    """Create only a new reviewed destination and durably flush its bytes."""
+    secure(path.parent, directory=True)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
+    with os.fdopen(descriptor, "wb") as stream:
+        os.fchmod(stream.fileno(), mode)
+        stream.write(raw)
+        stream.flush()
+        os.fsync(stream.fileno())
+    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+
+
+def validate_config(value: dict) -> None:
+    """Require strong target pins and file references, never credential values."""
+    require(set(value) == CONFIG_KEYS and type(value["version"]) is int
+            and value["version"] == 1 and value["credential_input"] == "stdin", "INPUT_SHAPE")
+    require(type(value["machine_id_sha256"]) is str
+            and value["machine_id_sha256"] == MACHINE_SHA256
+            and value["ssh_hostkey_fingerprint"] == HOST_FINGERPRINT,
+            "IDENTITY_REQUIRED")
+    values = [path_value(value[key]) for key in
+              ("archive_file", "private_parent", "install_parent")]
+    for index, path in enumerate(values):
+        require(not any(path == other or path in other.parents or other in path.parents
+                        for other in values[index + 1:]), "PATH_INVALID")
+        require(not any(path == forbidden or forbidden in path.parents
+                        for forbidden in map(Path, ("/srv/atstudio", "/opt/atstudio", "/etc/atstudio"))),
+                "PATH_INVALID")
+
+
+def verify_target(config: dict) -> None:
+    """Bind to the existing machine and SSH host key, not a console label."""
+    require(sys.platform == "linux" and os.geteuid() == os.getegid() == 0,
+            "LINUX_ROOT_REQUIRED")
+    require(socket.gethostname() == OS_HOSTNAME, "MACHINE_ID_MISMATCH")
+    machine = read_file(Path("/etc/machine-id"), 128)
+    require(sha(machine) == config["machine_id_sha256"] == MACHINE_SHA256,
+            "MACHINE_ID_MISMATCH")
+    public = read_file(Path("/etc/ssh/ssh_host_ed25519_key.pub"), 4096).split()
+    require(len(public) >= 2 and public[0] == b"ssh-ed25519", "SSH_KEY_FORMAT")
+    try:
+        blob = base64.b64decode(public[1], validate=True)
+    except ValueError:
+        raise Hold("SSH_KEY_FORMAT") from None
+    fingerprint = "SHA256:" + base64.b64encode(hashlib.sha256(blob).digest()).decode().rstrip("=")
+    require(fingerprint == config["ssh_hostkey_fingerprint"], "SSH_KEY_MISMATCH")
+
+
+def check_approval(config: dict, approval: dict, action: str, now: float) -> Callable[[], None]:
+    """Bind one staged run and a finite window; installation has a separate binary pin."""
+    keys = {"operation", "config_sha256", "run_id", "not_before", "not_after"}
+    if action == "install":
+        keys.add("binary_sha256")
+    require(set(approval) == keys, "APPROVAL_SHAPE")
+    require(approval["operation"] == "wi069-bootstrap-" + action
+            and approval["config_sha256"] == sha(encoded(config)), "APPROVAL_MISMATCH")
+    require(type(approval["run_id"]) is str
+            and bool(re.fullmatch(r"[a-f0-9]{32}", approval["run_id"])), "RUN_ID")
+    times = []
+    for key in ("not_before", "not_after"):
+        parsed = datetime.fromisoformat(approval[key].replace("Z", "+00:00"))
+        require(parsed.tzinfo is not None, "APPROVAL_WINDOW")
+        times.append(parsed.timestamp())
+    require(times[0] <= now < times[1] and 0 < times[1] - times[0] <= 120, "APPROVAL_WINDOW")
+    if action == "install":
+        require(type(approval["binary_sha256"]) is str
+                and approval["binary_sha256"] == BINARY_SHA256, "BINARY_PIN_REQUIRED")
+    end = time.monotonic() + times[1] - now
+
+    def tick() -> None:
+        require(time.time() < times[1] and time.monotonic() < end, "WINDOW_EXPIRED")
+
+    return tick
+
+
+def credentials_format(raw: bytes) -> None:
+    """Validate a provided AWS shared-credentials file without echoing any body."""
+    require(0 < len(raw) <= 16384, "CREDENTIAL_FORMAT")
+    parser = configparser.ConfigParser(interpolation=None, strict=True)
+    try:
+        parser.read_string(raw.decode("utf-8"))
+        require(parser.sections() == ["default"] and not parser.defaults()
+                and set(parser["default"]) == {"aws_access_key_id", "aws_secret_access_key"},
+                "CREDENTIAL_FORMAT")
+        for item in parser["default"].values():
+            require(0 < len(item) <= 256 and not any(char.isspace() for char in item),
+                    "CREDENTIAL_FORMAT")
+    except (configparser.Error, UnicodeError):
+        raise Hold("CREDENTIAL_FORMAT") from None
+
+
+def credential_stdin(tick: Callable[[], None]) -> bytes:
+    """Receive at most16KiB over the approved private channel, with a finite deadline."""
+    descriptor = sys.stdin.fileno()
+    require(stat.S_ISFIFO(os.fstat(descriptor).st_mode), "CREDENTIAL_FORMAT")
+    raw = bytearray()
+    with selectors.DefaultSelector() as selector:
+        selector.register(descriptor, selectors.EVENT_READ)
+        while True:
+            tick()
+            if not selector.select(0.1):
+                continue
+            chunk = os.read(descriptor, 4096)
+            if not chunk:
+                break
+            raw.extend(chunk)
+            require(len(raw) <= 16384, "STDIN_LIMIT")
+    require(bool(raw), "STDIN_EMPTY")
+    credentials_format(bytes(raw))
+    return bytes(raw)
+
+
+def unpack(raw: bytes, tick: Callable[[], None]) -> bytes:
+    """Bound decompression before allocation; reject extra streams and non-amd64 ELF."""
+    require(len(raw) == ARCHIVE_BYTES and sha(raw) == ARCHIVE_SHA256, "ARCHIVE_IDENTITY")
+    decoder = bz2.BZ2Decompressor()
+    chunks = bytearray()
+    pending = raw
+    while True:
+        tick()
+        chunk = decoder.decompress(pending, max_length=min(1024**2, BINARY_LIMIT + 1 - len(chunks)))
+        pending = b""
+        chunks.extend(chunk)
+        require(len(chunks) <= BINARY_LIMIT, "BINARY_LIMIT")
+        if decoder.eof:
+            require(not decoder.unused_data, "BINARY_FORMAT")
+            break
+        require(not decoder.needs_input, "BINARY_FORMAT")
+    require(len(chunks) >= 64 and chunks[:6] == b"\x7fELF\x02\x01"
+            and int.from_bytes(chunks[18:20], "little") == 62, "BINARY_FORMAT")
+    require(len(chunks) == BINARY_BYTES and sha(chunks) == BINARY_SHA256, "BINARY_PIN_REQUIRED")
+    return bytes(chunks)
+
+
+def stage(config: dict, approval: dict, tick: Callable[[], None], credentials: bytes) -> dict:
+    """Prepare a new private run without installing/executing the binary."""
+    parent = path_value(config["private_parent"])
+    secure(parent, directory=True, private=True)
+    secure(path_value(config["install_parent"]), directory=True)
+    run = parent / ("wi069-" + approval["run_id"])
+    require(not os.path.lexists(run), "DESTINATION_EXISTS")
+    raw = read_file(path_value(config["archive_file"]), ARCHIVE_BYTES)
+    binary = unpack(raw, tick)
+    credentials_format(credentials)
+    tick()
+    run.mkdir(mode=0o700)
+    try:
+        password = (secrets.token_urlsafe(48) + "\n").encode("ascii")
+        exclusive(run / "aws-credentials", credentials)
+        exclusive(run / "repository-password", password)
+        exclusive(run / "restic.candidate", binary)
+        tick()
+        receipt = {"version": 1, "state": "STAGED", "config_sha256": sha(encoded(config)),
+                   "run_id": approval["run_id"], "archive_sha256": ARCHIVE_SHA256,
+                   "binary_sha256": sha(binary), "binary_bytes": len(binary),
+                   "credentials_sha256": sha(credentials), "password_sha256": sha(password)}
+        exclusive(run / "stage.json", encoded(receipt))
+    except BaseException:
+        try:
+            exclusive(run / "failure.json", encoded({"state": "FAILED_STAGE"}))
+        except OSError:
+            pass
+        raise
+    return {"status": "STAGED_NOT_INSTALLED", "run_id": approval["run_id"],
+            "binary_sha256": receipt["binary_sha256"], "binary_bytes": len(binary),
+            "password_recovery": "PENDING_PRIVATE_PC_COPY", "capture_ready": False,
+            "repository": "NOT_INITIALIZED", "restic_execution": "NOT_RUN"}
+
+
+def install(config: dict, approval: dict, tick: Callable[[], None]) -> dict:
+    """Install only previously staged bytes matching a separately approved executable pin."""
+    run = path_value(config["private_parent"]) / ("wi069-" + approval["run_id"])
+    secure(run, directory=True, private=True)
+    receipt = decode(read_file(run / "stage.json", 16384, private=True))
+    require(receipt.get("state") == "STAGED" and receipt.get("run_id") == approval["run_id"]
+            and receipt.get("config_sha256") == sha(encoded(config))
+            and receipt.get("archive_sha256") == ARCHIVE_SHA256
+            and not os.path.lexists(run / "failure.json"), "STAGE_IDENTITY")
+    for name, key, cap in (("aws-credentials", "credentials_sha256", 16384),
+                           ("repository-password", "password_sha256", 128)):
+        require(sha(read_file(run / name, cap, private=True)) == receipt.get(key),
+                "STAGE_CONTENT_DRIFT")
+    binary = read_file(run / "restic.candidate", BINARY_LIMIT, private=True)
+    require(sha(binary) == receipt.get("binary_sha256") == approval["binary_sha256"]
+            == BINARY_SHA256 and len(binary) == receipt.get("binary_bytes") == BINARY_BYTES,
+            "BINARY_PIN_REQUIRED")
+    destination = path_value(config["install_parent"]) / "restic-0.19.1-wi069"
+    secure(destination.parent, directory=True)
+    require(not os.path.lexists(destination) and not os.path.lexists(run / "install.json"),
+            "DESTINATION_EXISTS")
+    tick()
+    exclusive(destination, binary)
+    require(sha(read_file(destination, BINARY_LIMIT)) == approval["binary_sha256"],
+            "INSTALL_IDENTITY")
+    tick()
+    descriptor = os.open(destination, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        os.fchmod(descriptor, 0o755)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    exclusive(run / "install.json", encoded({"state": "INSTALLED_NOT_EXECUTED",
+                                             "binary_sha256": approval["binary_sha256"]}))
+    return {"status": "INSTALLED_NOT_EXECUTED", "binary_sha256": approval["binary_sha256"],
+            "password_recovery": "NOT_VERIFIED_BY_BOOTSTRAP", "capture_ready": False,
+            "repository": "NOT_INITIALIZED", "restic_execution": "NOT_RUN"}
+
+
+def execute(action: str, config_path: Path, approval_path: Path) -> dict:
+    """Require identity and private exact-window approval before any write."""
+    require(sys.platform == "linux" and os.geteuid() == os.getegid() == 0,
+            "LINUX_ROOT_REQUIRED")
+    config = decode(read_file(config_path, 16384, private=True))
+    validate_config(config)
+    verify_target(config)
+    approval = decode(read_file(approval_path, 16384, private=True))
+    tick = check_approval(config, approval, action, time.time())
+    import resource
+    for resource_id, cap in ((resource.RLIMIT_CORE, 0), (resource.RLIMIT_AS, 384 * 1024**2),
+                             (resource.RLIMIT_CPU, 60), (resource.RLIMIT_FSIZE, BINARY_LIMIT)):
+        current, maximum = resource.getrlimit(resource_id)
+        bound = cap if maximum == resource.RLIM_INFINITY else min(cap, maximum)
+        resource.setrlimit(resource_id, (min(current, bound) if current >= 0 else bound, bound))
+    if action == "stage":
+        credentials = credential_stdin(tick)
+        return stage(config, approval, tick, credentials)
+    return install(config, approval, tick)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Default plan reads no files; target execution is MA-only after exact-byte review."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=("plan", "stage", "install"), nargs="?", default="plan")
+    parser.add_argument("--config", type=Path)
+    parser.add_argument("--approval", type=Path)
+    args = parser.parse_args(argv)
+    if args.action == "plan":
+        print(json.dumps({"status": "PREPARATION_ONLY", "side_effects": False,
+                          "native": "NOT_RUN", "capture_ready": False}))
+        return 0
+    try:
+        require(args.config is not None and args.approval is not None, "INPUT_SHAPE")
+        result = execute(args.action, args.config, args.approval)
+        print(json.dumps(result, sort_keys=True))
+        return 0
+    except BaseException as error:
+        code = str(error) if isinstance(error, Hold) and str(error) in SAFE_CODES else "BOOTSTRAP_FAILED"
+        print(json.dumps({"status": "HOLD", "code": code, "capture_ready": False}))
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

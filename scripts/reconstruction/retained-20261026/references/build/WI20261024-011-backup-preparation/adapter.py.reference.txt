@@ -1,0 +1,253 @@
+"""Existing-repository successor: reuse frozen primitives, never the first-capture entry."""
+from datetime import datetime,timezone,timedelta
+import os
+from pathlib import Path
+import sys
+import time
+
+HERE=Path(__file__).resolve().parent
+sys.path.insert(0,str(HERE/'lib'))
+import bootstrap as boot
+import cold_capture as cold
+import backup_checks as checks
+import restore_only as restore
+import restore_equivalence as equivalent
+import account_operator as guard
+import inventory as accounts
+import backup_plan as contract
+
+
+def native_context(approval):
+    """Import only the independently frozen runtime; no runtime.load/auth entry."""
+    contract.need(os.name=='posix' and os.geteuid()==0,'LINUX_ROOT_REQUIRED')
+    root=Path('/opt/atstudio/wi067-tools')
+    raw=boot.read_file(root/'binding/freeze.json',262144)
+    contract.need(boot.sha(raw)==guard.RUNTIME,'RUNTIME_PIN')
+    manifest=checks.strict_json(raw);actual={};bundle=bytearray()
+    for path in sorted(root.rglob('*')):
+        contract.need(not path.is_symlink(),'RUNTIME_LINK')
+        if path.is_file() and path!=root/'binding/freeze.json':
+            name=path.relative_to(root).as_posix();body=boot.read_file(path,2*1024**2)
+            actual[name]=boot.sha(body);bundle.extend(name.encode()+b'\0'+body)
+    contract.need(actual==manifest['files'] and boot.sha(bytes(bundle))==manifest['bundle_sha256'],'RUNTIME_TREE')
+    sys.path[:0]=[str(root/'binding'),str(root)]
+    import host as h,native as n,release as r
+    # Adapt the helper's read-only identity precondition inside the separately validated new authority.
+    readonly=dict(scope=guard.SCOPE,boot_id=approval['boot_id'],machine_id_sha256=approval['machine_id_sha256'],
+        expires_at=min(approval['expires_at'],int(time.time())+600))
+    historical=guard.identity(h,n,r,readonly)
+    return h,n,r,historical
+
+
+def current_members(ctx,tick=lambda:None):
+    h,n,r,historical=ctx
+    frontend=cold.ROOTS[4]
+    raw=boot.read_file(HERE/'lib/release-allowlist.json',128*1024)
+    contract.need(boot.sha(raw)==cold.RELEASE_SHA,'FRONTEND_ALLOWLIST_PIN')
+    old=checks.strict_json(raw)
+    contract.need(old['frontend_root']==str(frontend/'frontend'),'FRONTEND_ROOT')
+    allowed={}
+    for name,record in old['files'].items():
+        contract.need(type(name) is str and not name.startswith('/') and '..' not in Path(name).parts and '\\' not in name,'FRONTEND_PATH')
+        allowed[str(frontend/'frontend'/name)]=record
+    jar=r.RELEASE/'app.jar'
+    allowed[str(jar)]={'bytes':jar.stat().st_size,'sha256':guard.JAR}
+    frozen=h.decode(h.read(r.TOOLS/'binding/freeze.json',262144))
+    for relative,pin in frozen['files'].items():
+        path=r.TOOLS/relative
+        allowed[str(path)]={'bytes':path.stat().st_size,'sha256':pin}
+    allowed[str(r.TOOLS/'binding/freeze.json')]={'bytes':len(h.read(r.TOOLS/'binding/freeze.json',262144)),'sha256':guard.RUNTIME}
+    roots=(*cold.ROOTS[:3],r.RELEASE,frontend,r.TOOLS)
+    members=cold.collect(cold.ROOTS[:3],tick=tick)
+    members.update(cold.collect((r.RELEASE,frontend,r.TOOLS),allowed,tick))
+    contract.need(sum(row.get('size',0) for row in members.values())<900000000,'CURRENT_SOURCE_LIMIT')
+    return roots,members
+
+
+def inventory(approval):
+    ctx=native_context(approval);h,n,r,historical=ctx
+    cold.fixed_pins();cold.mysql_log_directory();cold.mysql_client_environment()
+    before=guard.cold(h,n,r,historical)
+    units=cold.units();cold.stopped(units)
+    roots,members=current_members(ctx)
+    contract.need(guard.cold(h,n,r,historical)==before and cold.units()==units,'INVENTORY_DRIFT')
+    baseline=dict(members=members,units=units,cold=before,roots=list(map(str,roots)),
+        source_bytes=sum(row.get('size',0) for row in members.values()),
+        inventory_sha256=boot.sha(boot.encoded(members)),units_sha256=boot.sha(boot.encoded(units)),
+        source_sha256=guard.SOURCE,jar_sha256=guard.JAR,runtime_sha256=guard.RUNTIME,
+        boot_id=approval['boot_id'],machine_id_sha256=approval['machine_id_sha256'])
+    return ctx,baseline
+
+
+class ExistingCapture(restore.RestoreOnly):
+    """Bounded original helpers; new stages never call init or old execute."""
+    def __init__(self,approval,baseline,ctx,cost):
+        super().__init__(dict(approval,_expires_at=approval['expires_at']),baseline)
+        self.ctx=ctx;self.cost=cost;self.roots=tuple(Path(p) for p in baseline['roots'])
+        self.snapshot_state='NOT_ATTEMPTED';self.sql_proof=None
+        self.seen_units=set();self.stop_history={}
+
+    def command(self,argv,**kwargs):
+        if kwargs.get('label') in ('MYSQL_DUMP','MYSQL_SCHEMA_DUMP'):
+            kwargs['cap']=min(kwargs.get('cap',equivalent.MAX_SQL),equivalent.MAX_SQL)
+        return super().command(argv,**kwargs)
+
+    def guard(self):
+        contract.need(time.time()<self.cost['expires_at'],'COST_EXPIRED')
+        return super().guard()
+
+    def start_mysql(self,mode,restore_directory=None):
+        if mode!='source':
+            contract.need(restore_directory==self.work/'isolated-database' and restore_directory!=cold.DATABASE,'ISOLATED_ONLY')
+        self.seen_units.add('atstudio-wi069-'+mode+'-'+self.run_id+'.service')
+        return super().start_mysql(mode,restore_directory)
+
+    def stop_unit(self,name):
+        self.seen_units.add(name)
+        try:
+            result=super().stop_unit(name);self.stop_history[name]=True;return result
+        except BaseException:
+            self.stop_history[name]=False;raise
+
+    def restic(self,action,**kwargs):
+        allowed=[['cat','config'],['snapshots']]
+        if self.stage=='BACKUP':allowed.append(['backup','--host=REDACTED_TARGET_BINDING_OS_HOSTNAME','--tag=wi011-'+self.run_id,'--',*map(str,self.roots),str(self.work/'payload')])
+        if self.snapshot:
+            allowed += [['ls',self.snapshot],['restore',self.snapshot,'--target='+str(self.work/'restored'),'--verify']]
+        contract.need(action in allowed,'EXISTING_REPOSITORY_ACTION_ONLY')
+        # Bypass RestoreOnly's consumed-snapshot allowlist, retaining Capture's bounded transport.
+        return cold.Capture.restic(self,action,**kwargs)
+
+    def verify_fence(self):
+        super().verify_fence()
+        h,n,r,historical=self.ctx
+        contract.need(guard.cold(h,n,r,historical)==self.baseline['cold'],'CURRENT_COLD_DRIFT')
+
+    def source_unchanged(self):
+        contract.need(current_members(self.ctx,self.guard)[1]==self.baseline['members'],'CURRENT_SOURCE_DRIFT')
+
+    def stages(self):
+        self.stage='EXISTING_REPOSITORY'
+        config=checks.strict_json(self.restic(['cat','config']))
+        contract.need(config.get('id')==contract.REPOSITORY_ID,'REPOSITORY_ID')
+        previous=__import__('json').loads(self.restic(['snapshots']))
+        contract.need(type(previous) is list and 0<len(previous)<=100,'EXISTING_SNAPSHOT_BOUND')
+        previous_ids={checks.exact_id(row.get('id')) for row in previous}
+        contract.need(len(previous_ids)==len(previous) and restore.SNAPSHOT_ID in previous_ids,'EXISTING_SNAPSHOT_ANCHOR')
+        # Repository size is checked through the provider/account evidence, not a false restic rate cap.
+        self.stage='SOURCE_SQL_WINDOW'
+        payload=self.work/'payload';cold.directory(payload)
+        unit=self.start_mysql('source')
+        observed=accounts.parse(self.query(accounts.queries(datetime.now(timezone(timedelta(hours=9))).date().isoformat())),{})
+        contract.need(observed['expected_actor_roles_match'] and observed['existing_work_quiet']
+            and all(not row['deleted'] and row['email_verified'] for row in observed['accounts'])
+            and observed['grants']==[self.approval['expected_grant']]
+            and [p for p in observed['plans'] if p['id']==1]==[dict(id=1,user_type='INDIVIDUAL',is_active=True,download_per_day=5)],'CURRENT_ACTORS_GRANT')
+        source=self.sql_capture(payload)
+        source_columns=self.columns(set(source['counts']))
+        self.stop_mysql(unit);self.verify_fence();self.source_unchanged()
+        contract.need(len(source['counts'])==43 and all(source['counts'].get(k)==v
+            for k,v in self.approval['expected_fixture_counts'].items()),'CURRENT_FIXTURE_COUNTS')
+        self.sql_proof=source
+        boot.exclusive(payload/'sql-proof.json',boot.encoded(source))
+        boot.exclusive(payload/'manifest.json',boot.encoded(dict(version=1,scope='CURRENT_SQL_MEDIA_PINNED_RUNTIME_NO_SECRETS',
+            members=self.baseline['members'],source_sha256=guard.SOURCE,jar_sha256=guard.JAR,runtime_sha256=guard.RUNTIME,
+            inventory_sha256=self.baseline['inventory_sha256'],units_sha256=self.baseline['units_sha256'],full_disaster_recovery=False)))
+        expected={**self.baseline['members'],**cold.collect((payload,),tick=self.guard)}
+        size=sum(row.get('size',0) for row in expected.values())
+        contract.need(size<=self.cost['max_source_bytes'],'COST_SOURCE_SIZE')
+        self.stage='BACKUP';self.snapshot_state='POSSIBLE'
+        output=self.restic(['backup','--host=REDACTED_TARGET_BINDING_OS_HOSTNAME','--tag=wi011-'+self.run_id,'--',*map(str,self.roots),str(payload)],timeout=600)
+        boot.exclusive(self.work/'backup-output.jsonl',output)
+        self.snapshot=checks.strict_backup_snapshot(output,0)
+        listing=self.restic(['ls',self.snapshot])
+        checks.verify_snapshot(expected,output,0,listing,previous_ids)
+        self.snapshot_state='IDENTIFIED';boot.exclusive(self.work/'snapshot-listing.jsonl',listing)
+        self.source_unchanged();self.verify_fence()
+        self.stage='EXACT_RESTORE';destination=self.work/'restored';cold.directory(destination)
+        self.restic(['restore',self.snapshot,'--target='+str(destination),'--verify'],timeout=600)
+        checks.verify_restored(expected,cold.collect((destination,),tick=self.guard),str(destination))
+        restored_payload=destination/str(payload).lstrip('/')
+        self.stage='ISOLATED_SQL_RESTORE';db=self.work/'isolated-database';cold.directory(db);os.chown(db,110,112)
+        self.start_mysql('initialize',db);unit=self.start_mysql('restore',db)
+        dump=restored_payload/'logical.sql'
+        contract.need(cold.sha_file(dump,equivalent.MAX_SQL)==source['dump_sha256'],'RESTORED_DUMP')
+        self.command(['/usr/bin/mysql','--no-defaults','--protocol=socket','--socket='+cold.SOCKET,'--user=root','--binary-mode','--default-character-set=utf8mb4'],
+            label='MYSQL_IMPORT',input_file=dump,timeout=120,cap=65536)
+        validation=self.work/'sql-roundtrip';cold.directory(validation)
+        recovered=self.sql_capture(validation);restored_columns=self.columns(set(recovered['counts']))
+        self.stop_mysql(unit);self.verify_fence()
+        contract.need(recovered['counts']==source['counts'] and restored_columns==source_columns,'COMPLETE_SQL_COUNTS_COLUMNS')
+        if recovered==source:
+            proof={'raw_hashes_equal':True,'all_other_bytes_equal':True,'actual_column_metadata_equal':True}
+        else:
+            proof=equivalent.verify(boot.read_file(payload/'schema.sql',equivalent.MAX_SQL,private=True),
+                boot.read_file(payload/'logical.sql',equivalent.MAX_SQL,private=True),
+                boot.read_file(validation/'schema.sql',equivalent.MAX_SQL,private=True),
+                boot.read_file(validation/'logical.sql',equivalent.MAX_SQL,private=True),source_columns,restored_columns)
+        self.source_unchanged();self.guard();self.verify_fence()
+        boot.exclusive(self.work/'verified-content.json',boot.encoded(dict(wi=contract.WI,run_id=self.run_id,
+            captured_at_utc=datetime.now(timezone.utc).isoformat(),repository_id=contract.REPOSITORY_ID,snapshot_id=self.snapshot,
+            original_sql=source,recovered_sql=recovered,equivalence=proof,baseline=self.baseline,
+            decision_sha256=self.approval['decision_sha256'],cost_sha256=self.approval['cost_sha256'],full_disaster_recovery=False)))
+        self.stage='COMPLETE'
+
+    def execute(self):
+        self.guard();cold.directory(self.work)  # Exclusive directory is the consumed one-use claim.
+        for name in ('cache','tmp','home'):cold.directory(self.work/name)
+        failure=None;cleanup={}
+        try:self.stages()
+        except BaseException:
+            failure='CAPTURE_OR_VERIFICATION_HOLD'
+        finally:
+            owned=tuple(self.owned_units)
+            for name in owned:
+                try:
+                    self.stop_mysql(name) if name==self.sql_state else self.stop_unit(name)
+                except BaseException:self.stop_history[name]=False
+            cleanup['STOP']='PASS' if all(self.stop_history.values()) else 'FAILED'
+            cleanup['PID_ZERO']='PASS'
+            for name in self.seen_units|set(owned):
+                try:
+                    state=guard.properties(self.ctx[0],name,('MainPID','ControlPID','Job'))
+                    contract.need(state['MainPID']==state['ControlPID']=='0' and not state['Job'])
+                except BaseException:cleanup['PID_ZERO']='FAILED'
+            try:
+                contract.need(not os.path.lexists('/run/mysqld'))
+                cleanup['SOCKET_GONE']='PASS'
+            except BaseException:cleanup['SOCKET_GONE']='FAILED'
+            try:self.verify_fence();cleanup['COLD_BASELINE']='PASS'
+            except BaseException:cleanup['COLD_BASELINE']='FAILED'
+        passed=failure is None and set(cleanup.values())=={'PASS'}
+        result=dict(status='CURRENT_CAPTURE_ISOLATED_VERIFY_PASS' if passed else 'HOLD',stage=self.stage,
+            snapshot_state=self.snapshot_state,cleanup=cleanup,code='NONE' if passed else failure or 'CLEANUP_HOLD',
+            tables=len(self.sql_proof['counts']) if self.sql_proof else None,
+            rows=sum(self.sql_proof['counts'].values()) if self.sql_proof else None,
+            app='NOT_RUN',business_mutation='NOT_RUN',full_disaster_recovery=False,automatic_retry=False)
+        boot.exclusive(self.work/'result.json',boot.encoded(result))
+        return result
+
+
+def execute(approval,cost):
+    """Called only after the entry's genuine external authorization/cost gate."""
+    import fcntl
+    ctx,baseline=inventory(approval)
+    contract.need(baseline['inventory_sha256']==approval['inventory_sha256'] and baseline['units_sha256']==approval['units_sha256'],'FRESH_INVENTORY')
+    credentials=cold.BASE/'wi069-runs'/('wi069-'+contract.BOOTSTRAP_RUN)
+    boot.secure(credentials,directory=True,private=True)
+    stage=checks.strict_json(boot.read_file(credentials/'stage.json',16384,private=True))
+    install=checks.strict_json(boot.read_file(credentials/'install.json',16384,private=True))
+    contract.need(stage.get('run_id')==contract.BOOTSTRAP_RUN and stage.get('state')=='STAGED'
+        and install==dict(state='INSTALLED_NOT_EXECUTED',binary_sha256=boot.BINARY_SHA256)
+        and not os.path.lexists(credentials/'failure.json'),'EXISTING_ESCROW')
+    key=boot.read_file(credentials/'aws-credentials',16384,private=True);boot.credentials_format(key)
+    password=boot.read_file(credentials/'repository-password',128,private=True)
+    contract.need(boot.sha(key)==stage['credentials_sha256'] and boot.sha(password)==stage['password_sha256']==approval['recovery_password_sha256'],'EXISTING_ESCROW_MATCH')
+    boot.secure(cold.CAPTURES,directory=True,private=True)
+    lock=Path('/run/atstudio-operations/operations.lock');boot.secure(lock,private=True)
+    fd=os.open(lock,os.O_RDWR|os.O_NOFOLLOW)
+    try:
+        fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        contract.need(inventory(approval)[1]==baseline,'PREWRITE_DRIFT')
+        return ExistingCapture(approval,baseline,ctx,cost).execute()
+    finally:os.close(fd)

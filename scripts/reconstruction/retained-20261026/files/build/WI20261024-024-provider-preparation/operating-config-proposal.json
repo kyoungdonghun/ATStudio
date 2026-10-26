@@ -1,0 +1,34 @@
+{
+  "status": "PROPOSED_NOT_APPLIED_NOT_AN_ENV_IMPORT",
+  "purpose": "Preparation overlay; not permission to start runtime or enable billing",
+  "literal_environment": {
+    "APP_BOOTSTRAP_TEST_USERS_ENABLED": "false",
+    "APP_ACCEPTANCE_ENABLED": "false",
+    "APP_PAYMENT_SCHEDULER_ZONE": "Asia/Seoul",
+    "APP_BACKGROUND_TASKS_ENABLED": "false",
+    "PAYMENT_RECONCILIATION_NOTIFICATION_ENABLED": "false"
+  },
+  "private_reference_bindings": {
+    "MAIL_HOST": "existing-approved-Gmail-reference:MAIL_HOST",
+    "MAIL_PORT": "existing-approved-Gmail-reference:MAIL_PORT",
+    "MAIL_USERNAME": "existing-approved-Gmail-reference:MAIL_USERNAME",
+    "MAIL_PASSWORD": "existing-approved-Gmail-reference:MAIL_PASSWORD",
+    "MAIL_FROM": "existing-approved-Gmail-reference:MAIL_FROM",
+    "TOSS_CLIENT_KEY": "existing-approved-TEST-reference:TOSS_CLIENT_KEY",
+    "TOSS_SECRET_KEY": "existing-approved-TEST-reference:TOSS_SECRET_KEY",
+    "PAYMENT_BILLING_KEY_ACTIVE_KEY_ID": "existing-target-keyring:active-key-id",
+    "PAYMENT_BILLING_KEY_0_ID": "existing-target-keyring:key-0-id",
+    "PAYMENT_BILLING_KEY_0_SECRET": "existing-target-keyring:key-0-secret",
+    "PAYMENT_OPERATIONS_OPERATOR_EMAIL": "existing-approved-ID1-reference:email"
+  },
+  "constraints": [
+    "Reference strings are symbolic, never export them as environment values.",
+    "Keep current Gmail SMTP transport and its validated effective TLS/auth settings; no NCP sender switch yet.",
+    "Do not copy local acceptance encryption keys over the production target key ring.",
+    "Do not activate the acceptance Spring profile or import the entire acceptance bundle.",
+    "The selected operator address is prepared but notifications remain disabled until delivery and cost scope are established.",
+    "Background task activation is a later exact operational decision; disabled does not represent final production scheduling.",
+    "Freeze actual deployed property precedence and existing overrides before applying any overlay.",
+    "Existing six plans and recurring policy remain unchanged. No provider contract, charge or refund is invoked."
+  ]
+}

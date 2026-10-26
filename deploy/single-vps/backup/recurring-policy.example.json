@@ -1,0 +1,12 @@
+{
+  "enabled": false,
+  "operation": "daily-cold-capture",
+  "config_sha256": "__EXACT_APPROVED_CANONICAL_CONFIG_SHA256__",
+  "timezone": "Asia/Seoul",
+  "start_hhmm": "__APPROVED_DAILY_KST_START__",
+  "start_grace_seconds": null,
+  "window_seconds": null,
+  "not_before": "__APPROVED_OFFSET_AWARE_POLICY_START__",
+  "expires_at": "__APPROVED_OFFSET_AWARE_POLICY_EXPIRY__",
+  "resume_authorized": false
+}

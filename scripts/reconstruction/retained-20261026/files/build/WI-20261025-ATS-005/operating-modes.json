@@ -1,0 +1,69 @@
+{
+  "status": "LOCAL_PREPARED_NOT_APPLIED_NOT_ENV_IMPORT",
+  "source_head": "91a16e72693d7cd6ed04e0d36a5bd160af96f6d8",
+  "modes": {
+    "cold_preparation": {
+      "APP_BOOTSTRAP_TEST_USERS_ENABLED": "false",
+      "APP_ACCEPTANCE_ENABLED": "false",
+      "APP_PAYMENT_SCHEDULER_ZONE": "Asia/Seoul",
+      "PAYMENT_RECONCILIATION_NOTIFICATION_ENABLED": "false",
+      "SPRING_JPA_HIBERNATE_DDL_AUTO": "validate",
+      "SPRING_JPA_SHOW_SQL": "false",
+      "SWAGGER_ENABLED": "false",
+      "APP_BACKGROUND_TASKS_ENABLED": "false",
+      "APP_BACKGROUND_TASKS_AUDIO_ONLY": "true",
+      "APP_AUDIO_WORKER_ENABLED": "false"
+    },
+    "bounded_audio_candidate": {
+      "APP_BOOTSTRAP_TEST_USERS_ENABLED": "false",
+      "APP_ACCEPTANCE_ENABLED": "false",
+      "APP_PAYMENT_SCHEDULER_ZONE": "Asia/Seoul",
+      "PAYMENT_RECONCILIATION_NOTIFICATION_ENABLED": "false",
+      "SPRING_JPA_HIBERNATE_DDL_AUTO": "validate",
+      "SPRING_JPA_SHOW_SQL": "false",
+      "SWAGGER_ENABLED": "false",
+      "APP_BACKGROUND_TASKS_ENABLED": "true",
+      "APP_BACKGROUND_TASKS_AUDIO_ONLY": "true",
+      "APP_AUDIO_WORKER_ENABLED": "true"
+    }
+  },
+  "deployment_owner": "user approval / MA reviewed execution and receipt",
+  "scheduler_owner": "one approved application process; no duplicate external cron or second application scheduler",
+  "mail": "preserve currently verified Gmail SMTP, auth, TLS and private references",
+  "payment": "reuse TEST keys only for approved tests; no automatic LIVE activation",
+  "unchanged_private_references": [
+    "database",
+    "JWT",
+    "storage",
+    "Gmail credentials and SMTP settings",
+    "target billing encryption key ring",
+    "ID1 operator mailbox"
+  ],
+  "release": {
+    "path": "build/WI068-release-run-02/build/libs/ATStudio-0.0.1-SNAPSHOT.jar",
+    "sha256": "f3b748f8b3fb4fbd4027b797ebf0bc79db62bc9671e5d7e45a8397732d2aef81"
+  },
+  "source_pins": {
+    "src/main/resources/application.yml": "1f3151a554124831997cca8979b4927a8f5bff4baf349afe9326e4d2da2955e6",
+    "src/main/java/com/atstudio/atstudio/config/BackgroundTasksEnabledCondition.java": "6cfb3393e2d722d6a953fae9f7af544d5b00063e6ad4d9a63bba27d6bff5dddc",
+    "src/main/java/com/atstudio/atstudio/config/BackgroundTasksConfiguration.java": "5bee9d224c9cc90aecd49a45c797a29190a9a33c0b8b77ff6764467e42be4d4c",
+    "src/main/java/com/atstudio/atstudio/service/audio/TrackAudioProcessingWorker.java": "dfa81ed8bfed5338de9be1976f9f16d2fdce97164977591bf8bbc3558c8fe5b9",
+    "src/main/java/com/atstudio/atstudio/service/storage/StorageMutationRecoveryService.java": "4a062207d7e6a242ce81f919f1d75015485c91256a3d12a7187e40b972e20315",
+    "src/main/java/com/atstudio/atstudio/service/WithdrawalBillingCleanupCoordinator.java": "336f284f1607b029da8e7db53a0abe2a67b289404e9db661a99f3e02fe40f559",
+    "src/main/java/com/atstudio/atstudio/service/SubscriptionScheduler.java": "4bb915dd1651f14b395abd17d8f2c48ce8a078e641494db06150a29b500f21e1",
+    "src/main/java/com/atstudio/atstudio/service/PaymentReconciliationService.java": "c9d0416ac1507d2a24873289e56b5bb8ceeea03ac238a9f2c398899a8e86e9e3",
+    "deploy/single-vps/systemd/atstudio.service": "118805e388b24e013148a796aed41b70f596ada18ff627f8417b6b7b6262e8d1",
+    "scripts/deployment/validate_bundle.py": "19361e515e694718b509e28c6223a3ffc0bf647ddf6bb972f8aa4904cc1cb593",
+    "build/WI20261024-024-provider-preparation/operating-config-proposal.json": "2b69e97ad8ee0a16e65fedec2ed6c0d9e4602da57f6898ee9be71728b55404b9"
+  },
+  "external_gates": [
+    "effective target unit/drop-in/argv/environment precedence",
+    "no unauthorized TEST-to-LIVE secret or billing key-ring replacement",
+    "current approved recipient and send-cost bounds",
+    "NCP account/contract/sender/domain/API readiness",
+    "Toss billing merchant contract and LIVE MID/key readiness",
+    "single process and pending-job inventory before activation",
+    "reviewed config-only rollback identities and bounded target verification"
+  ],
+  "full_operations_activation": "NOT_PREPARED_FOR_EXECUTION_UNTIL_PROVIDER_AND_JOB_GATES_PASS"
+}

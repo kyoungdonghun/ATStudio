@@ -1,0 +1,12 @@
+{
+  "artifact-hashes-v1.json": "c047490d99f030bb222d2e8d5595b798d8c34f568e0a017ae0e5cf5ca14a43c4",
+  "check_local.py": "8cedafcbafb81714503841d2e9bbfecbadb27d7d33b359251ff14826b7de4457",
+  "local-check-v1.json": "24cacfbbf1ae872d0b2472b02a2065087f0acf4269c7523ad6f114c523071baa",
+  "local-check.json": "24cacfbbf1ae872d0b2472b02a2065087f0acf4269c7523ad6f114c523071baa",
+  "operating-modes-v1.json": "e094432cc8d761ec22e295102067e88d5e5432b54acd6154f43c3a8c925a102f",
+  "operating-modes.json": "e1f964234e978795103b9c5b40e6b864788d25f1a5142f999e32e908c8df84bb",
+  "README.md": "e2a676141543a0b4de62e36ad23d72f8fbc9c977e166c5e5785576816d6c5bd0",
+  "template-audit.json": "6b63bf82b24c226e5d180220cdf36dee4549e7b3265c9c126a3aeb7f94af3bc0",
+  "tests.txt": "8c9f344f6272dc53c26040eb621009e5bcd8bcfb7e827d4d414b22ba57b457bb",
+  "test_modes.py": "c1575483bc67d7eeb777d560dc948f3752dd8d022b6d9f98caeda7d37240d89c"
+}

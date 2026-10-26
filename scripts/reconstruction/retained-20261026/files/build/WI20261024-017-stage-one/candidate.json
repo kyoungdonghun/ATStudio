@@ -1,0 +1,15 @@
+{
+  "bundle_sha256": "e4771cbc008f52817adbc58a6550483aa1e209a1444bb5caeb458f264661ab2b",
+  "files": {
+    "README.md": "0db0230a2bd011bc95730b928148342a9d15929d350dc77ce66dd9a53210e525",
+    "cost_bound.py": "9339f595d9788fea7a72c7ff5f8f896d6f5db3babba2c600ac162e061bbd7f7f",
+    "cost_metadata.py": "919bd4d072429ad3b9154124af79ba0a8ce4d6d26759d497df3732038af04dc0",
+    "repair-test-output.txt": "8a898f421a20b10cf975c9b7bf09cf7433b53f54b97fa9530614f2d14922a475",
+    "sql-context-test-output.txt": "edbfce530cd7170553453f8abede5f0360095538feaab0268c3016a89b70c333",
+    "stage_one.py": "dadf7e90a7826cc5a01f90680eed3ddb55f47c237e18a9908c9d5477cc242a3a",
+    "test-output.txt": "afc9e56f1c0fae117117859f032af42351958a2537211e5844331d6b7d9bfb88",
+    "test_stage_one.py": "b057c3e4c72ff6a435b6e202d4372d249e2a90f531c4c464b00127106e87b4db"
+  },
+  "scope": "STAGE_ONE_CURRENT_BACKUP_COST_METADATA",
+  "wi": "WI-20261024-ATS-017"
+}

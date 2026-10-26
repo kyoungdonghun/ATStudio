@@ -1,0 +1,90 @@
+{
+  "scope": "Explicit public source allowlist only",
+  "checkedAt": "2026-10-26T18:59:54.0478031+09:00",
+  "files": [
+    {
+      "path": "src/main/java/com/atstudio/atstudio/dto/user/RegisterRequest.java",
+      "sha256": "bee6275d3d5c73ffb3437e3cb62a9fb120325ebdb47f6c7fb71bec75ee2efda1"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/dto/user/CompleteProfileRequest.java",
+      "sha256": "58ad4848fb6830932231a3bf370cdc566152261142ad8836d22fd20830647ffe"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/service/UserService.java",
+      "sha256": "8d5e9d500958a3e7e84fbb58ef5a19366a31208cc1c742dfc6d0366dc2ed6073"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/entity/User.java",
+      "sha256": "c90af476bb33ea640e6cb4dc7eed48f192ea059d6b6495a518bb3a498063695e"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/entity/UserConsent.java",
+      "sha256": "19470917ff8ca80c4adc6275d00c89630c9a4b41405996d792dffb99c0a0104f"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/service/auth/OAuth2Service.java",
+      "sha256": "3923f7424b19c212f48116dcb66f8c8c0c2751c9f8baf54ab56f2f522274b837"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/service/auth/AuthService.java",
+      "sha256": "9927712670bc33ac66e2ad39992e37ea8ad1f6cc9a4d71cb6d03f85f08b62f13"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/service/EmailService.java",
+      "sha256": "048d04c2c661cb7c514c47ef1b2a8ad06fea4fb25c0fd6a6366735d66d98afd5"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/service/CompanyCertificationService.java",
+      "sha256": "421a25230995d0a95f7acc81d1696f48da44fc363815679d6d3247ade0b62c28"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/service/DownloadService.java",
+      "sha256": "316dc89a54c07ac6d94e8f2d837192c85960dd4c3ecf5894d28e1f6af03c43e1"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/service/PlaylistService.java",
+      "sha256": "d2a2afe1d0c0d10adfb72a9bc56ffb58de00bcc2f4c13ec51092c45df89a33f1"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/repository/WhitelistChannelRepository.java",
+      "sha256": "6e32acb306f356db6f992d351329eb8c33cdc5e3a2d80df69f376a0b215288e7"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/service/AdminWhitelistChannelService.java",
+      "sha256": "40ccace4b6d8a607ac4f4cd3ed5d87510b0cda5ea1c16ac994aa9e624a38c7a2"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/service/WithdrawalBillingCleanupCoordinator.java",
+      "sha256": "336f284f1607b029da8e7db53a0abe2a67b289404e9db661a99f3e02fe40f559"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/service/BillingAgreementCleanupTransactionService.java",
+      "sha256": "5da613397d1884c3ae2006afc0d20fd51ea58db78cb7902212342d69edddac89"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/service/payment/provider/recurring/TossBillingProvider.java",
+      "sha256": "f61b4fed32eb17d9920609153db304f8d4c86df5bbf38f58d0cffa2af5546d90"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/service/PaymentReceiptEvidenceService.java",
+      "sha256": "c56c3bd5ef78da79b42a53df3611c6525dff4f594700c39760cb70a2d710d436"
+    },
+    {
+      "path": "frontend/src/store/authStore.ts",
+      "sha256": "ff1ac52ac54ebd20db44b479e7e1185f91fdbff22e740d1c30a84ce49274fa1e"
+    },
+    {
+      "path": "frontend/src/store/playerStore.ts",
+      "sha256": "b1536ba958e1e36cbd199d0d994f1e6a4c9cf7cead309fd71531ebf0c2a98c8e"
+    },
+    {
+      "path": "frontend/src/utils/oauthAttempt.ts",
+      "sha256": "daa09f99da5db6cc270893a3e1709c3ced28a06373e6124850e576639971c40a"
+    },
+    {
+      "path": "frontend/src/utils/safeStorage.ts",
+      "sha256": "8634be992cc1efabe62be3d49f47bc6acc15bb13e4d2f6930c2ee655a56201e9"
+    }
+  ]
+}

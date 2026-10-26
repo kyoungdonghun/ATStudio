@@ -1,0 +1,15 @@
+test_cleanup_failures_do_not_skip_later_observations (test_preparation.PreparationTests.test_cleanup_failures_do_not_skip_later_observations) ... ok
+test_completed_units_still_have_final_pid_observation (test_preparation.PreparationTests.test_completed_units_still_have_final_pid_observation) ... ok
+test_default_entry_is_inert (test_preparation.PreparationTests.test_default_entry_is_inert) ... ok
+test_frozen_dependencies_unchanged_and_no_business_dml (test_preparation.PreparationTests.test_frozen_dependencies_unchanged_and_no_business_dml) ... ok
+test_future_exact_positive_and_authority_fail_closed (test_preparation.PreparationTests.test_future_exact_positive_and_authority_fail_closed) ... ok
+test_inventory_has_no_circular_baseline_or_cost_requirement (test_preparation.PreparationTests.test_inventory_has_no_circular_baseline_or_cost_requirement) ... ok
+test_isolated_database_destination_only (test_preparation.PreparationTests.test_isolated_database_destination_only) ... ok
+test_private_payload_compiles_and_preserves_raw_decision (test_preparation.PreparationTests.test_private_payload_compiles_and_preserves_raw_decision) ... ok
+test_restic_exact_no_init_or_repository_wide_read (test_preparation.PreparationTests.test_restic_exact_no_init_or_repository_wide_read) ... ok
+test_unknown_nonzero_stale_and_wrong_scope_cost_holds (test_preparation.PreparationTests.test_unknown_nonzero_stale_and_wrong_scope_cost_holds) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.035s
+
+OK

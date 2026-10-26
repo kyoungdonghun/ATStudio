@@ -1,0 +1,15 @@
+{
+  "wi": "WI-20261023-ATS-011",
+  "files": {
+    "README.md": "3dfcc1b8729653346c424ad218258399a32ed210e16e678a9a37ac33244d7d81",
+    "capture.ps1": "9514512f8334cef5151f165b147fa49cb9cd987858f0fb83cfc7139532ab7aec",
+    "inspect_tools.py": "5a21512e1bb8323b976e5f5d929b0c6b4ba74ae2400d8cec518a14f6e2610c6c",
+    "remote_inspect.py": "1df52a75453c98423e2a953690d5aa9362d32e9275954b03590d34cb62a35d66",
+    "test_inspect.py": "955ce6c27ad6c2d942b3d1f8c4fb710df82ca6742c6c74336644fadb7e26c2a3"
+  },
+  "bundle_sha256": "69b0dcd464ff08f690ab7274c744ff617fe70d9a618ea2d9a760fbe807d085a2",
+  "frozen_fixture_candidate_sha256": "3a0f4fd30afc012a8e1a0c46d70b87ed1d2ef5492c2f8143121dc741da35654c",
+  "tests": "8 synthetic + Windows ACL selftest PASS",
+  "native": "NOT_RUN_BY_SE",
+  "real_input": "NOT_COLLECTED"
+}

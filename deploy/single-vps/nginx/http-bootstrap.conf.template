@@ -1,0 +1,27 @@
+# Port 80 only: no application, no API, no storage, no existing certificate needed.
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    return 444;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __APP_FQDN__;
+
+    # Deliberately public token-only HTTP-01 exception, not application access.
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/lib/atstudio/acme;
+        default_type text/plain;
+        autoindex off;
+        disable_symlinks on;
+        limit_except GET { deny all; }
+        try_files $uri =404;
+    }
+
+    location / {
+        return 404;
+    }
+}

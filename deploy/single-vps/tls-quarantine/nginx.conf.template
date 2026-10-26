@@ -1,0 +1,51 @@
+# WI-20261011-ATS-001. Complete quarantine config; no application includes.
+user www-data;
+worker_processes 1;
+pid /run/nginx.pid;
+error_log /dev/null crit;
+
+events {
+    worker_connections 128;
+}
+
+http {
+    default_type text/plain;
+    server_tokens off;
+    access_log off;
+    autoindex off;
+    disable_symlinks on;
+    gzip off;
+    client_max_body_size 1k;
+    client_header_timeout 10s;
+    client_body_timeout 10s;
+    send_timeout 10s;
+    keepalive_timeout 5s;
+    keepalive_requests 10;
+    reset_timedout_connection on;
+
+    server {
+        listen 0.0.0.0:80 default_server;
+        server_name _;
+        return 444;
+    }
+
+    server {
+        listen 0.0.0.0:80;
+        server_name atmusic.co.kr;
+        if ($http_host !~ "^atmusic\.co\.kr(:80)?$") { return 444; }
+
+        location ~ ^/\.well-known/acme-challenge/[A-Za-z0-9_-]+$ {
+            # Raw target also rejects query, encoded and normalized traversal aliases.
+            if ($request_uri !~ "^/\.well-known/acme-challenge/[A-Za-z0-9_-]+$") { return 404; }
+            root /var/lib/atstudio-tls-quarantine/acme;
+            max_ranges 0;
+            add_header Cache-Control "no-store" always;
+            add_header X-Content-Type-Options nosniff always;
+            limit_except GET { deny all; }
+            try_files $uri =404;
+        }
+        location / { return 404; }
+    }
+
+__TLS_BLOCK__
+}

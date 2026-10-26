@@ -1,11 +1,13 @@
 ---
-version: 1.0
-last_updated: 2026-09-09
+version: 1.1
+last_updated: 2026-09-29
 project: ATS
 owner: SE
 category: guide
 status: active
 dependencies:
+  - path: ../../docs/index.md
+    reason: Current source and dated verification entry
   - path: ../../docs/policies/security-policy.md
     reason: Secrets and private restoration boundary
   - path: ../../docs/design/runtime-storage-operations.md
@@ -22,15 +24,21 @@ the previous development data requires a separate encrypted backup and an
 approved isolated restore. Keep the application disconnected from a restored
 database until automatic mutations and external actions are demonstrably contained.
 
+Read the [current decision entry](../../docs/index.md#current-decision-entry)
+before judging missing capabilities or verification. This 2026-09-29 guide
+refresh checks source/doc consistency, not a new installation or runtime.
+
 ## 1. Recover Working Context
 
 1. Clone the approved repository from its owner-provided remote and select the
    approved `main` revision. Record `git rev-parse HEAD` and `git status --short`.
    `52bbdcc0627aff404ad282cdccf4d6ce2418ea84` is the **pre-WI019** source checkpoint,
-   not the revision containing this guide. Select the later approved integration
-   revision recorded for [REQ004](../../deliverables/user/REQ-20260909-ATS-004.md)
-   after WI-20260909-ATS-020 independent review. Until that record is available,
-   final integration is pending. Do not recover from an old JAR.
+   not the revision containing this guide. [REQ004's delivery receipt](../../deliverables/user/REQ-20260909-ATS-004.md#ma-delivery-receipt)
+   records WI020 PASS and published/remote-clone-verified source/history at
+   `65b8cce9d7c60370d761e3e6d3c34821a7c7e675`; that delivery is complete.
+   Select the later approved current revision via the [dated source checkpoints](../../docs/index.md#current-v1-baseline),
+   not that historical hash or an old JAR by default. Source delivery does not
+   close private off-device backup or actual restored-runtime gates.
 2. Read [AGENTS.md](../../AGENTS.md), [CLAUDE.md](../../CLAUDE.md) for the active
    agent runtime, and the four Tier 0 documents: [constitution](../../docs/standards/core-principles.md),
    [development](../../docs/standards/development-standards.md),
@@ -61,8 +69,10 @@ new machine. This procedure does not promise cookie or conversation restoration.
 
 ## 2. Toolchain And Dependencies
 
-These are repository-derived requirements at WI019, not claims that the old
-machine's tools or versions have been restored. Install tools through trusted
+The WI019 toolchain snapshot is retained below; the FFmpeg/worker requirements
+were refreshed against current source on 2026-09-29. Other dependency versions
+were not recounted. None claims that the old machine's tools or versions have
+been restored. Install tools through trusted
 operator-managed distributions; no new package manager or orchestration layer
 is needed. Use a local checkout path without symlinks/junctions for this preflight.
 
@@ -77,7 +87,7 @@ is needed. Use a local checkout path without symlinks/junctions for this preflig
 | Frontend | [package.json](../../frontend/package.json) plus [lockfile](../../frontend/package-lock.json): React 18.3.1, Vite 6.4.3, TypeScript 5.6.3, Vitest 4.1.4, jsdom 29.0.2, Router 7.18.2 at this checkpoint. The lockfile remains authoritative. |
 | Python | 3.10+ for `.claude/scripts/` tooling; not needed by this PowerShell preflight. Inspect the particular validator's imports before use; do not blanket-install dependencies. |
 | MySQL | 8.x for a separately authorized real-DB runtime/proof; not required for source checks. `mysql` CLI presence does not prove server availability, grants or schema compatibility. |
-| FFmpeg | **Not required by this source snapshot.** [AudioAnalysisService](../../src/main/java/com/atstudio/atstudio/service/audio/AudioAnalysisService.java) uses Java Sound with the MP3 SPI dependencies in `build.gradle`. No current FFmpeg executable/version setting is defined. Historical derivative-media discussions do not introduce a setup dependency. |
+| FFmpeg | **Required for new WAV-derived 128kbps MP3 playback**, via external [FfmpegAudioEncoder](../../src/main/java/com/atstudio/atstudio/service/audio/FfmpegAudioEncoder.java) with `libmp3lame`. `APP_AUDIO_FFMPEG_PATH` maps to `app.audio.ffmpeg-path` (default `ffmpeg`); no exact native version is pinned by that setting. Legacy/new MP3 direct playback and source-only checks do not inherently require a native encode. Follow [provisioning and service-identity checks](../../docs/design/runtime-storage-operations.md#ffmpeg-provisioning-and-configuration) before separately approved processing; Java Sound analysis is not a replacement for this encoder. |
 | cloudflared | Optional, only for approved external acceptance. The [tracked launcher](../acceptance/README.md) uses PATH or `-CloudflaredPath`; no exact version is pinned. Local source/build work needs neither a tunnel nor its old URL. |
 
 After installation, check versions locally with `java -version`, `javac -version`,
@@ -114,6 +124,11 @@ Java/javac, Node/npm or Python fails that mode; missing mysql/cloudflared
 is advisory. Windows app-execution aliases can appear present but still fail
 manual version checks. Private settings always report `NOT_READ`, DB
 `NOT_CONNECTED`, restore `NOT_RUN`, and runtime `NOT_STARTED_OR_VERIFIED`.
+The current [preflight tool list](Test-DevelopmentRecovery.ps1) does **not**
+check FFmpeg, its version or `libmp3lame`, even with `-CheckTools`. A source/tool
+PASS cannot establish WAV-processing readiness. Native tool/capability checks
+belong to the separately approved runtime preparation described above; no
+preflight script change or native check is part of this documentation refresh.
 
 After tool installation and approval to download build dependencies, in that
 clean copy:
@@ -133,10 +148,11 @@ review source and use a non-privileged session. Full backend tests/coverage are
 a separate reviewed gate: [test configuration](../../src/test/resources/application.yml)
 uses H2/create-drop for test fixtures, while MySQL-specific proofs require
 their explicit guarded disposable target. Never inherit real-DB test switches
-or treat an H2 result/skip as a MySQL restore result. REQ004 assigns clean
-staged-source validation to MA, followed by WI-20260909-ATS-020 independent
-review; WI019's focused tests are synthetic. Record results in the corresponding
-WI Evidence Pack under `deliverables/agent/` before claiming either gate passed.
+or treat an H2 result/skip as a MySQL restore result. [REQ004's dated receipt](../../deliverables/user/REQ-20260909-ATS-004.md#ma-delivery-receipt)
+records the completed MA source validation and WI020 independent review;
+WI019's focused tests were synthetic. A later checkout needs its own recorded
+results in the corresponding WI Evidence Pack under `deliverables/agent/`;
+the earlier receipt is not a new validation run.
 
 A same-PC source export can still use installed tools and cached dependencies.
 It is useful isolation evidence, **not a new-PC installation or an off-device
@@ -208,6 +224,13 @@ ZIP, encryption, cloud upload or real restore was performed. Independent [WI022
 review passed](../../deliverables/agent/WI-20260909-ATS-022-evidence-pack.md). Both preserved key sources require deliberate assembly,
 not automatic import; CLI overrides and Java-environment verification limits
 are recorded privately. DB/filesystem capture is non-atomic; REQ004 remains partial.
+This completed local staging was a **2026-09-09 morning, pre-WAV set**,
+not a current post-WAV snapshot. [WI028](../../deliverables/agent/WI-20260909-ATS-028-evidence-pack.md)
+later records retained schema/media changes and preservation of the frozen
+backup, not a refreshed backup or restore proof. Do not label all backup
+preparation unperformed, or equate local staging with encryption/off-device
+upload/actual restoration. A later recovery requires an explicitly matched
+DB/media/keyring point and revision.
 
 Keep private backups **outside the repository**. `/private-uploads/` and
 `uploads/` are ignored as a last-line safeguard, not a backup destination.
@@ -257,10 +280,12 @@ by the matching secret keyring. Review restoration with the operator in this ord
 |---|---|
 | `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`, `SPRING_SQL_INIT_MODE=never` | Prevent automatic schema mutation/SQL initialization, not business writes. |
 | `APP_BOOTSTRAP_TEST_USERS_ENABLED=false`, `APP_ACCEPTANCE_ENABLED=false` | Avoid opt-in user/plan bootstrap; do not disable other workers. |
+| `APP_AUDIO_WORKER_ENABLED=false` | Disables [TrackAudioProcessingWorker](../../src/main/java/com/atstudio/atstudio/service/audio/TrackAudioProcessingWorker.java) creation and its private executor. Default is `true`, also when the property is absent: `ApplicationReadyEvent` recovers interrupted claims, then immediately polls/claims work and can write Track state and generated files. This flag does not disable upload acceptance, storage recovery, payment jobs or all writes. |
 | `APP_AUTH_PASSWORD_LOGIN_ENABLED=false` | Disables password-account flows, not all mail, jobs or Providers. |
 | `PAYMENT_RECONCILIATION_NOTIFICATION_ENABLED=false` | Disables optional reconciliation notifications, **not reconciliation itself**. |
 | `APP_PAYMENT_SCHEDULER_ZONE` | Time zone only; `@EnableScheduling` and fixed cron jobs still run. No verified `APP_PAYMENT_SCHEDULER_ENABLED` kill switch exists. |
 | `APP_STORAGE_RECOVERY_INTERVAL_MS` | Repeat interval only; storage recovery also runs on `ApplicationReadyEvent`. Extending the interval does not disable startup cleanup. |
+| `APP_AUDIO_POLL_INTERVAL_MS` | Repeat delay only; the worker's first scheduled run has zero delay and startup claim recovery precedes polling. Increasing it is not containment. |
 | `APP_STORAGE_INTEGRITY_AUDIT_ON_STARTUP=true`, `APP_STORAGE_INTEGRITY_STRICT_ON_STARTUP=true`, `APP_STORAGE_REQUIRE_EXPLICIT_ROOTS=true` | Required integrity/containment checks for a later approved restored runtime; **not an isolation mechanism** for other tasks. |
 
 Read [SubscriptionScheduler](../../src/main/java/com/atstudio/atstudio/service/SubscriptionScheduler.java),
@@ -268,7 +293,11 @@ Read [SubscriptionScheduler](../../src/main/java/com/atstudio/atstudio/service/S
 [WithdrawalBillingCleanupCoordinator](../../src/main/java/com/atstudio/atstudio/service/WithdrawalBillingCleanupCoordinator.java)
 and [StorageMutationRecoveryService](../../src/main/java/com/atstudio/atstudio/service/storage/StorageMutationRecoveryService.java).
 Renewals/order expiry/subscription expiry, provider reconciliation, withdrawal
-cleanup and storage journal recovery are active paths. Do not invent a generic
+cleanup, storage journal recovery and audio processing are active paths. Native
+FFmpeg absence is not quarantine: the worker can recover/claim/fail database
+state even when encoding cannot start. Its private executor is not controlled
+by a shared Spring scheduler setting; confirm the previous worker/encoder is
+gone before any separately approved single-owner startup. Do not invent a generic
 Spring scheduling flag or outbox disable flag; no dedicated outbox worker/switch
 was found in this source scan. Preserve pending state and reassess all workers
 if restoring another revision. Missing kill switches require separate isolation

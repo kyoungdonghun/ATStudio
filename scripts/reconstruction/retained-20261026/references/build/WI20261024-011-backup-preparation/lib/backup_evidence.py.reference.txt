@@ -1,0 +1,105 @@
+"""Read four existing WI069 JSON records only; never execute backup/restore."""
+from datetime import datetime,timezone
+import hashlib
+import json
+from pathlib import Path
+import re
+from inventory import need,unique,integer
+
+ORIGINAL='REDACTED_TARGET_BINDING_ORIGINAL'
+RESTORE='REDACTED_TARGET_BINDING_RESTORE'
+BASE=Path('/var/lib/atstudio-backup/wi069-captures')
+FILES={
+    'manifest':BASE/ORIGINAL/'payload/manifest.json',
+    'sql_proof':BASE/ORIGINAL/'payload/sql-proof.json',
+    'verified_content':BASE/RESTORE/'verified-content.json',
+    'restore_result':BASE/RESTORE/'public-result.json'}
+PINS={'manifest':'REDACTED_TARGET_BINDING_MANIFEST_SHA',
+    'sql_proof':'REDACTED_TARGET_BINDING_PROOF_SHA'}
+TABLES={'users':'users','plans':'subscriptions','subscription_rows':'user_subscriptions','admin_audits':'admin_operation_audit_logs'}
+LIMIT=262144
+
+
+def pin(value):return type(value) is str and re.fullmatch('[a-f0-9]{64}',value) is not None
+
+
+def sql_proof(value):
+    need(type(value) is dict and set(value)=={'counts','schema_sha256','dump_sha256'})
+    need(pin(value['schema_sha256']) and pin(value['dump_sha256']))
+    counts=value['counts']
+    need(type(counts) is dict and len(counts)==43)
+    for table,count in counts.items():
+        need(type(table) is str and re.fullmatch('[a-z][a-z0-9_]{0,63}',table))
+        integer(count)
+    need(set(TABLES.values())<=set(counts))
+    return counts
+
+
+def project(values,current):
+    """Called only after exact original metadata pins and secure file reads."""
+    manifest=values['manifest'];proof=values['sql_proof'];verified=values['verified_content'];result=values['restore_result']
+    need(set(manifest)=={'version','scope','members','units_sha256','inventory_sha256','full_disaster_recovery'})
+    need(type(manifest['version']) is int and manifest['version']==1
+        and manifest['scope']=='pre-feature-WI060-runtime-no-runtime-keys' and manifest['full_disaster_recovery'] is False
+        and pin(manifest['units_sha256']) and pin(manifest['inventory_sha256']))
+    members=manifest['members']
+    need(type(members) is dict and 0<len(members)<=10000)
+    audio_files=0
+    for path,row in members.items():
+        need(type(path) is str and path.startswith('/') and type(row) is dict and row.get('type') in ('file','dir'))
+        if row['type']=='file':
+            integer(row.get('size'),0,900000000);need(pin(row.get('sha256')))
+            if path.startswith(('/srv/atstudio/public/','/srv/atstudio/private/')):audio_files+=1
+    counts=sql_proof(proof)
+    need(set(verified)=={'repository_id','snapshot_id','original_run_id','original_sql','recovered_sql','equivalence','full_disaster_recovery'})
+    need(verified['original_run_id']==ORIGINAL and verified['full_disaster_recovery'] is False
+        and verified['original_sql']==proof and sql_proof(verified['recovered_sql'])==counts)
+    equivalence=verified['equivalence']
+    need(set(equivalence)=={'proof','edits','identities','raw_hashes_equal','all_other_bytes_equal','actual_column_metadata_equal'})
+    need(equivalence['proof']=='MYSQL_8046_REDUNDANT_COLUMN_CHARSET_INSERTIONS'
+        and type(equivalence['edits']) is int and equivalence['edits']==209
+        and type(equivalence['identities']) is list and len(equivalence['identities'])==209
+        and equivalence['raw_hashes_equal'] is False and equivalence['all_other_bytes_equal'] is True
+        and equivalence['actual_column_metadata_equal'] is True)
+    need(set(result)=={'status','operation','run_id','original_run_id','repository_id','snapshot_id','stage','detail','cleanup','cleanup_errors','source_release','app_start','backup','full_disaster_recovery'})
+    need(result['status']=='BOUNDED_RESTORE_ONLY_PASS' and result['operation']=='wi069-exact-snapshot-restore-only'
+        and result['run_id']==RESTORE and result['original_run_id']==ORIGINAL
+        and result['stage']=='COMPLETE' and result['detail'] is None and result['cleanup'] is True
+        and result['cleanup_errors']==[] and result['source_release']=='WI060-existing-runtime'
+        and result['app_start']=='NOT_RUN' and result['backup']=='NOT_RUN_EXISTING_SNAPSHOT'
+        and result['full_disaster_recovery'] is False)
+    for key in ('repository_id','snapshot_id'):
+        need(pin(result[key]) and result[key]==verified[key])
+    comparisons={}
+    for field,table in TABLES.items():
+        integer(current[field])
+        comparisons[field]={'historical':counts[table],'current':current[field],'same_count':counts[table]==current[field]}
+    different=any(not item['same_count'] for item in comparisons.values())
+    return dict(status='HISTORICAL_METADATA_VALIDATED',historical_restore='RECORDED_BOUNDED_PASS',
+        historical_table_count=len(counts),historical_total_rows=sum(counts.values()),historical_audio_files=audio_files,
+        historical_scope='PRE_FEATURE_WI060_RUNTIME_WITHOUT_RUNTIME_KEYS',historical_full_disaster_recovery=False,
+        selected_table_comparison=comparisons,current_fixture_coverage='NOT_ESTABLISHED',
+        coverage_reason='HISTORICAL_COUNTS_DIFFER' if different else 'MATCHING_COUNTS_ARE_NOT_CONTENT_PROOF',
+        backup_execution='NOT_RUN',restore_execution='NOT_RUN',newer_evidence_search='NOT_PERFORMED',
+        current_backup_absence_claim=False)
+
+
+def observe(h,current):
+    output=dict(status='HOLD_METADATA',historical_restore='NOT_ESTABLISHED',current_fixture_coverage='NOT_ESTABLISHED',
+        search_scope='FOUR_FIXED_WI069_METADATA_FILES_ONLY',newer_evidence_search='NOT_PERFORMED',
+        current_backup_absence_claim=False,backup_execution='NOT_RUN',restore_execution='NOT_RUN',
+        observed_at_utc=datetime.now(timezone.utc).isoformat(),files={})
+    values={}
+    for name,path in FILES.items():
+        try:
+            raw=h.read(path,LIMIT,True)
+            need(type(raw) is bytes and 0<len(raw)<=LIMIT)
+            if name in PINS:need(hashlib.sha256(raw).hexdigest()==PINS[name])
+            values[name]=json.loads(raw,object_pairs_hook=unique)
+            output['files'][name]='READ'
+        except Exception:
+            output['files'][name]='UNAVAILABLE_OR_INVALID'
+    if len(values)==len(FILES):
+        try:output.update(project(values,current))
+        except Exception:output['code']='METADATA_BINDING_OR_SHAPE'
+    return output

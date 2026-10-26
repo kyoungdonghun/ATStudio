@@ -1,0 +1,49 @@
+[Unit]
+Description=ATStudio single-instance backend
+After=network.target mysql.service
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=atstudio
+Group=atstudio
+WorkingDirectory=/opt/atstudio/current
+EnvironmentFile=/etc/atstudio/atstudio.env
+UnsetEnvironment=JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS SPRING_APPLICATION_JSON SPRING_CONFIG_ADDITIONAL_LOCATION SPRING_CONFIG_IMPORT
+ExecStartPre=/usr/bin/test -x /usr/bin/java
+ExecStartPre=/usr/bin/test -x /usr/bin/ffmpeg
+ExecStartPre=/usr/bin/test -r /opt/atstudio/current/app.jar
+ExecStartPre=/usr/bin/test -w /srv/atstudio/public
+ExecStartPre=/usr/bin/test -w /srv/atstudio/private
+ExecStartPre=/usr/bin/test -w /var/lib/atstudio/tmp
+ExecStart=/usr/bin/java -Xms256m -Xmx1024m -XX:MaxMetaspaceSize=256m -XX:+ExitOnOutOfMemoryError -Djava.io.tmpdir=/var/lib/atstudio/tmp -Duser.timezone=Asia/Seoul -jar /opt/atstudio/current/app.jar
+Restart=on-failure
+RestartSec=15s
+TimeoutStopSec=90s
+KillMode=control-group
+UMask=0077
+LimitCORE=0
+LimitNOFILE=4096
+TasksMax=256
+MemoryHigh=2G
+MemoryMax=3G
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+ReadOnlyPaths=/opt/atstudio
+ReadWritePaths=/srv/atstudio/public /srv/atstudio/private /var/lib/atstudio/tmp
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=atstudio
+
+[Install]
+WantedBy=multi-user.target

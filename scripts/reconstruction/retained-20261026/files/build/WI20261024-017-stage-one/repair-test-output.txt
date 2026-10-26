@@ -1,0 +1,10 @@
+WI-20261024-ATS-017 current-release allowlist repair
+Environment: local Windows, Python 3.14, -B; synthetic paths/data only.
+Command: python -B -m unittest test_stage_one.StageOneTests.test_two_release_shape_reproduces_old_failure_and_exact_repair test_stage_one.StageOneTests.test_repaired_collect_preserves_unexpected_missing_size_hash_and_manifest_refusal test_stage_one.StageOneTests.test_retained_inventory_payload_and_exact_extension_compile test_stage_one.StageOneTests.test_real_inherited_guard_and_native_shaped_capture_hook -v
+test_two_release_shape_reproduces_old_failure_and_exact_repair ... ok
+test_repaired_collect_preserves_unexpected_missing_size_hash_and_manifest_refusal ... ok
+test_retained_inventory_payload_and_exact_extension_compile ... ok
+test_real_inherited_guard_and_native_shaped_capture_hook ... ok
+Ran 4 tests in 0.199s
+OK
+The unchanged cost tests were not rerun. No native/server/private input access.

@@ -1,0 +1,11 @@
+test_cost_formula_positive_zero_benefits_and_account_total (test_stage_one.StageOneTests.test_cost_formula_positive_zero_benefits_and_account_total) ... ok
+test_metadata_measures_real_shape_no_xattr_values (test_stage_one.StageOneTests.test_metadata_measures_real_shape_no_xattr_values) ... ok
+test_raw_scope_and_cost_input_binding (test_stage_one.StageOneTests.test_raw_scope_and_cost_input_binding) ... ok
+test_real_inherited_guard_and_native_shaped_capture_hook (test_stage_one.StageOneTests.test_real_inherited_guard_and_native_shaped_capture_hook) ... ok
+test_retained_inventory_payload_and_exact_extension_compile (test_stage_one.StageOneTests.test_retained_inventory_payload_and_exact_extension_compile) ... ok
+test_unknown_false_stale_wrong_types_and_format_fail_closed (test_stage_one.StageOneTests.test_unknown_false_stale_wrong_types_and_format_fail_closed) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.027s
+
+OK

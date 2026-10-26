@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "files": 4,
+  "local_links_checked": 10,
+  "trailing_whitespace_checked": true,
+  "findings": [],
+  "scope": "Four new WI001 Markdown outputs only; anchors and application behavior not validated"
+}

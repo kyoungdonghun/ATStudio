@@ -1,0 +1,30 @@
+{
+  "allow_native": false,
+  "bundle_algorithm": "sha256-canonical-json-file-hash-map",
+  "bundle_sha256": "57ff70762fcb531a8ba3669a12fb33f120184931dcf6d4655988681e2bf4680f",
+  "files": {
+    "README.md": "fd4dd87f6608ffe178078e16dfc7666c64a1d98fd2ea77d0b23774f3a2ca29e4",
+    "adapter.py": "777bc372ab7c05e728b14ac0a3b8516ab2b3323b7f82344b778c0a2b1fb26305",
+    "backup_plan.py": "6519466ce150a9a152c32390e738a98f398ae22b94192df21ce8b1a2f492a2a7",
+    "entry.py": "54daf387cef56a31a3bc4725fb509faa6b895cd644ee93a7384c8a3126b30e42",
+    "grant-date-proposal.md": "19c7e6895903fa235531eb96819e2cc3f168102c2f2bd067f34166a3d1263db0",
+    "lib/account_operator.py": "d35dbf67103e3f0b913a6af292ff899971389e452da32547bfc91ae53b8c1e45",
+    "lib/backup_checks.py": "1b2881a8fb583af76f706d2b60ac6ab54546b807600ebbf8f4ff337f99dae5d2",
+    "lib/backup_evidence.py": "1b1f6a8d9815f3a5003460600355fbb1655e8f71f4a00ef578dfad3c6574a754",
+    "lib/backup_protocol.py": "a890d997b49fd6ce1d997a95951087279f2246c7d0e71a1e035254061547fd43",
+    "lib/bootstrap.py": "f2f7c90c609a3a0689153c3bb40201cec684974e53ae6d6990d47eec86f98fe8",
+    "lib/cold_capture.py": "d577629170099da3345c528e69a5fb60d7b52892dc20bf2de7b52307a86db766",
+    "lib/inventory.py": "fafa8059c6988aae21d0e135ce7abf44dbee5255344ed878f5f6b5536806f37d",
+    "lib/native_inventory.py": "2e277895c8fd844c12763f39bd79db7b4d92d04fcb51dc5a6752f7f71eee06de",
+    "lib/release-allowlist.json": "0fc6186f055c738b636ac2fdff48598dfc2811ad8274170e4f061776a5515edd",
+    "lib/restore_equivalence.py": "31ff368fc4e822fe992c1c0b7870ebb5c1b82a5ae1c99c350133ebc8f8210033",
+    "lib/restore_only.py": "bf2108e2c5e85177bbe6e694899c616512c1b7429dc0cd8f34783ec3778df665",
+    "make_payload.py": "d93b06d1cc33efe278c3a21fc9d6fccd17390cc04901a9a15be9e66eca7275e1",
+    "test-output.txt": "eebced44b0d0cf5b123b9c2967e60b54df64974a01980d7dcc3f6ce73f76afc0",
+    "test_preparation.py": "48cff2126f79c619f50c858f969a9fbbb5af9880ae35802fb0c8e4ec007ed3c2"
+  },
+  "native_executed": false,
+  "scope": "EXISTING_REPOSITORY_CURRENT_CAPTURE_ISOLATED_VERIFY",
+  "tests": 10,
+  "wi": "WI-20261024-ATS-011"
+}

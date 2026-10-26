@@ -1,0 +1,101 @@
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    return 444;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __APP_FQDN__;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/lib/atstudio/acme;
+        default_type text/plain;
+        autoindex off;
+        disable_symlinks on;
+        limit_except GET { deny all; }
+        try_files $uri =404;
+    }
+
+    # Early redirect is public; the HTTPS application's ACL is applied afterward.
+    location / {
+        return 308 https://__APP_FQDN__$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name _;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_reject_handshake on;
+    return 444;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name __APP_FQDN__;
+    ssl_certificate /etc/atstudio/tls/fullchain.pem;
+    ssl_certificate_key /etc/atstudio/tls/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:ats_tls:1m;
+    ssl_session_timeout 10m;
+    ssl_session_tickets off;
+
+    # Also reject mismatched Host after a valid SNI handshake.
+    if ($host != __APP_FQDN__) { return 444; }
+    include /etc/atstudio/nginx/restricted-access.conf;
+    limit_conn ats_client 8;
+    limit_conn ats_server 32;
+    limit_conn ats_multipart_client 1;
+    limit_conn ats_multipart_server 2;
+    root /opt/atstudio/current/frontend;
+    index index.html;
+
+    # Defense in depth; backend storage authorization remains authoritative.
+    # No ^~ on /uploads/: these deny regexes must still be evaluated.
+    location ~* ^/uploads/(\.staging|tracks/audio|company-docs|questions|notices)(/|$) {
+        return 404;
+    }
+    location ~ (^|/)\. {
+        return 404;
+    }
+    location ~* ^/(swagger-ui|v3/api-docs|actuator)(/|$) {
+        return 404;
+    }
+
+    # Cover every ID spelling and matrix suffix; quote literal semicolons.
+    location ~ "^/api(?:;[^/]*)?/tracks(?:;[^/]*)?/[^/]+/(stream|download)(?:;[^/]*)?/?$" {
+        include /etc/atstudio/nginx/proxy.conf;
+        limit_req zone=ats_media burst=8 nodelay;
+        # A child limit_conn replaces the parent set: compose every applicable zone.
+        limit_conn ats_client 8;
+        limit_conn ats_server 32;
+        limit_conn ats_multipart_client 1;
+        limit_conn ats_multipart_server 2;
+        limit_conn ats_media_client 4;
+        limit_conn ats_media_server 16;
+        limit_conn ats_download_client 1;
+        limit_conn ats_download_server 2;
+        limit_rate $ats_media_rate;
+    }
+    location = /api {
+        include /etc/atstudio/nginx/proxy.conf;
+    }
+    location /api/ {
+        include /etc/atstudio/nginx/proxy.conf;
+    }
+    location = /uploads { return 404; }
+    location /uploads/ {
+        include /etc/atstudio/nginx/proxy.conf;
+    }
+    location / {
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy no-referrer always;
+        add_header X-Frame-Options DENY always;
+        try_files $uri $uri/ /index.html;
+    }
+}

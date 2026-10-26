@@ -1,0 +1,11 @@
+test_authority_exact_scope_target_type_and_expiry (test_preflight.PreflightTests.test_authority_exact_scope_target_type_and_expiry) ... ok
+test_builder_rejects_unbound_inspect_and_noninspect_pc_pin (test_preflight.PreflightTests.test_builder_rejects_unbound_inspect_and_noninspect_pc_pin) ... ok
+test_drift_and_bad_pc_pin_fail_closed (test_preflight.PreflightTests.test_drift_and_bad_pc_pin_fail_closed) ... ok
+test_fixed_six_files_optional_pc_match_and_no_private_projection (test_preflight.PreflightTests.test_fixed_six_files_optional_pc_match_and_no_private_projection) ... ok
+test_payload_exact_dependencies_no_operational_entry (test_preflight.PreflightTests.test_payload_exact_dependencies_no_operational_entry) ... ok
+test_readonly_flow_and_final_cold_even_on_reference_error (test_preflight.PreflightTests.test_readonly_flow_and_final_cold_even_on_reference_error) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.096s
+
+OK

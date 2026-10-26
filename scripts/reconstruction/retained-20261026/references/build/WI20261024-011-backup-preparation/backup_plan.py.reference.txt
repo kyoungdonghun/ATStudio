@@ -1,0 +1,114 @@
+"""Pure future authorization contract. No native operation is approved by this file."""
+import hashlib
+import json
+import re
+import time
+from datetime import date
+
+WI='WI-20261024-ATS-011'
+SCOPE='EXISTING_REPOSITORY_CURRENT_CAPTURE_ISOLATED_VERIFY'
+BOOTSTRAP_RUN='REDACTED_TARGET_BINDING_BOOTSTRAP_RUN'
+REPOSITORY_ID='REDACTED_TARGET_BINDING_REPOSITORY_ID'
+
+
+def need(ok,code='PREPARATION_HOLD'):
+    if not ok:raise ValueError(code)
+
+
+def canonical(value):return json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False).encode()
+def sha(raw):return hashlib.sha256(raw).hexdigest()
+def pin(value):return type(value) is str and re.fullmatch('[a-f0-9]{64}',value) is not None
+
+
+def decode(raw):
+    need(type(raw) is bytes and 0<len(raw)<=262144)
+    def pairs(items):
+        result={}
+        for k,v in items:
+            need(k not in result);result[k]=v
+        return result
+    def invalid(_):raise ValueError('JSON_NUMBER')
+    value=json.loads(raw,object_pairs_hook=pairs,parse_constant=invalid,parse_float=invalid)
+    need(type(value) is dict)
+    return value
+
+
+def authority(approval,decision_raw,decision_pin,cost_raw,cost_source_raw,candidate,mode,now=None):
+    now=int(time.time()) if now is None else now
+    keys={'wi','scope','mode','allow_native','candidate_sha256','decision_sha256','cost_sha256','run_id',
+        'issued_at','expires_at','boot_id','machine_id_sha256','repository_id','bootstrap_run_id',
+        'recovery_password_sha256','inventory_sha256','units_sha256','expected_fixture_counts','expected_grant'}
+    need(type(approval) is dict and set(approval)==keys,'APPROVAL_SHAPE')
+    need(approval['wi']==WI and approval['scope']==SCOPE and approval['mode']==mode
+        and mode in ('inventory','capture') and approval['allow_native'] is True,'NATIVE_NOT_APPROVED')
+    need(pin(candidate) and approval['candidate_sha256']==candidate and pin(decision_pin)
+        and sha(decision_raw)==decision_pin==approval['decision_sha256'],'EXTERNAL_DECISION_PIN')
+    need(type(approval['issued_at']) is int and type(approval['expires_at']) is int
+        and approval['issued_at']<=now<approval['expires_at']<=approval['issued_at']+1800,'APPROVAL_WINDOW')
+    need(type(approval['run_id']) is str and re.fullmatch('[a-f0-9]{32}',approval['run_id'])
+        and approval['run_id'] not in (BOOTSTRAP_RUN,'REDACTED_TARGET_BINDING_ORIGINAL','REDACTED_TARGET_BINDING_RESTORE'),'FRESH_RUN')
+    need(type(approval['boot_id']) is str and re.fullmatch(r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}',approval['boot_id']))
+    need(pin(approval['machine_id_sha256']))
+    for k in ('recovery_password_sha256','inventory_sha256','units_sha256'):
+        need(approval[k] is None if mode=='inventory' else pin(approval[k]))
+    expected=approval['expected_fixture_counts']
+    need(type(expected) is dict and set(expected)=={'users','user_subscriptions','admin_operation_audit_logs'}
+        and type(expected['users']) is int and expected['users']==3
+        and type(expected['user_subscriptions']) is int and expected['user_subscriptions']==1
+        and type(expected['admin_operation_audit_logs']) is int and expected['admin_operation_audit_logs'] in (1,2),'FIXTURE_COUNTS')
+    grant=approval['expected_grant']
+    need(type(grant) is dict and set(grant)=={'id','user_id','subscription_id','status','billing_cycle','started_at','expires_at','pending_subscription_id','pending_billing_cycle'})
+    need(all(type(grant[k]) is int and grant[k]==v for k,v in (('id',1),('user_id',3),('subscription_id',1)))
+        and grant['status']=='CANCELLED' and grant['billing_cycle']=='MONTHLY'
+        and grant['pending_subscription_id'] is None and grant['pending_billing_cycle'] is None,'GRANT_SHAPE')
+    for key in ('started_at','expires_at'):
+        need(type(grant[key]) is str and re.fullmatch(r'\d{4}-\d{2}-\d{2}',grant[key]));date.fromisoformat(grant[key])
+    need(grant['started_at']<=grant['expires_at'],'GRANT_DATES')
+    need(approval['repository_id']==REPOSITORY_ID and approval['bootstrap_run_id']==BOOTSTRAP_RUN,'EXISTING_REPOSITORY_ONLY')
+    decision=decode(decision_raw)
+    need(decision==dict(wi=WI,source='CURRENT_EXPLICIT_USER_DECISION_RECORDED_BY_MA',scope=SCOPE,mode=mode,
+        allow_native=True,candidate_sha256=candidate,run_id=approval['run_id'],issued_at=approval['issued_at'],
+        expires_at=approval['expires_at'],boot_id=approval['boot_id'],machine_id_sha256=approval['machine_id_sha256'],
+        inventory_sha256=approval['inventory_sha256'],units_sha256=approval['units_sha256'],
+        cost_sha256=approval['cost_sha256'],repository_id=REPOSITORY_ID,bootstrap_run_id=BOOTSTRAP_RUN,
+        expected_fixture_counts=expected,expected_grant=grant,no_repository_initialization=True,no_original_database_restore=True,no_business_mutation=True), 'DECISION_BINDING')
+    if mode=='inventory':
+        need(approval['cost_sha256'] is None and cost_raw==cost_source_raw==b'','INVENTORY_NO_COST_OR_SECRET_INPUT')
+        return None
+    need(sha(cost_raw)==approval['cost_sha256'],'COST_PIN')
+    cost=decode(cost_raw)
+    need(set(cost)=={'status','observed_at','expires_at','source_sha256','account_allowance_verified',
+        'rates_requests_egress_tax_verified','retention_days','additional_paid_upper_bound_minor',
+        'currency','unknowns','billing_bound_method','max_source_bytes','max_repository_bytes'},'COST_SHAPE')
+    need(type(cost_source_raw) is bytes and 0<len(cost_source_raw)<=262144
+        and pin(cost['source_sha256']) and sha(cost_source_raw)==cost['source_sha256'],'COST_SOURCE_PIN')
+    need(type(cost['observed_at']) is int and type(cost['expires_at']) is int
+        and 0<=now-cost['observed_at']<=600 and approval['expires_at']<=cost['expires_at'],'COST_STALE')
+    need(cost['status']=='ZERO_ADDITIONAL_PAID_COST_VERIFIED_BY_MA'
+        and cost['account_allowance_verified'] is True and cost['rates_requests_egress_tax_verified'] is True
+        and type(cost['retention_days']) is int and 1<=cost['retention_days']<=365
+        and type(cost['additional_paid_upper_bound_minor']) is int and cost['additional_paid_upper_bound_minor']==0
+        and cost['currency']=='KRW' and cost['unknowns']==[]
+        and cost['billing_bound_method']=='INDEPENDENTLY_VERIFIED_PROVIDER_OR_ALLOWANCE_BOUND','COST_UNKNOWN_OR_NONZERO')
+    need(type(cost['max_source_bytes']) is int and 0<cost['max_source_bytes']<=900000000
+        and type(cost['max_repository_bytes']) is int and 0<cost['max_repository_bytes']<=1000000000,'COST_BOUNDS')
+    source=decode(cost_source_raw)
+    need(set(source)=={'repository_id','observed_repository_bytes','max_capture_bytes','scope',
+        'request_and_egress_bound_verified','retained_storage_bound_verified','tax_included',
+        'no_deletion_assumed','continuing_storage_after_horizon_accounted','evidence_references'},'COST_SOURCE_SHAPE')
+    need(source['repository_id']==REPOSITORY_ID and source['scope']=='METADATA_LIST_NEW_BACKUP_EXACT_SNAPSHOT_RESTORE'
+        and type(source['observed_repository_bytes']) is int and 0<=source['observed_repository_bytes']<=cost['max_repository_bytes']
+        and type(source['max_capture_bytes']) is int and source['max_capture_bytes']==cost['max_source_bytes']
+        and all(source[k] is True for k in ('request_and_egress_bound_verified','retained_storage_bound_verified','tax_included',
+            'no_deletion_assumed','continuing_storage_after_horizon_accounted'))
+        and type(source['evidence_references']) is list and 1<=len(source['evidence_references'])<=8
+        and all(pin(v) for v in source['evidence_references']),'COST_SCOPE_OR_BOUND')
+    return cost
+
+
+def plan():
+    return dict(wi=WI,scope=SCOPE,allow_native=False,status='LOCAL_PREPARATION_ONLY',
+        new_backup='NOT_RUN',isolated_restore='NOT_RUN',grant_date_change='PROPOSAL_ONLY',
+        additional_paid_cost_budget_minor=0,currency='KRW',cost_evidence='MISSING_HOLD',
+        required_future_approval=['exact candidate','fresh target/inventory','actual user decision raw pin',
+            'current account/rates/requests/egress/tax/retention proof','existing repository escrow reference'])

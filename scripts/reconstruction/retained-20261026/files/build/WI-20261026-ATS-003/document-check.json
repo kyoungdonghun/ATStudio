@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "checked_at": "2026-10-26T19:07:01.5194871+09:00",
+  "owner": "DocOps / WI-20261026-ATS-003",
+  "markdown_files": 8,
+  "local_link_targets": 11,
+  "issues": [],
+  "historical_pdf_sha256": "bc26e7a89384c0e440e05a7919abb14fa8983f0cf67a6819b73a0379ea7eb172",
+  "scope": "New WI documents and handoffs; current-entry/date presence for REQ/index; no runtime tests",
+  "prior_attempt": "document-check-initial.json"
+}

@@ -1,0 +1,29 @@
+# WI-20261010-ATS-013: UNRENDERED / NOT INSTALLED. No installation section.
+[Unit]
+Description=ATStudio explicitly authorized recurring cold capture
+ConditionPathExists=/etc/atstudio-backup/EXECUTION-APPROVED
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/bin/python3 -B /opt/atstudio-backup/guarded_backup.py scheduled --config /etc/atstudio-backup/config.json --approval /etc/atstudio-backup/recurring-policy.json
+MemoryAccounting=true
+MemoryHigh=768M
+MemoryMax=1G
+MemorySwapMax=0
+CPUQuota=100%
+Nice=10
+TasksMax=32
+LimitNOFILE=1024
+LimitCORE=0
+KillMode=control-group
+TimeoutStartSec=infinity
+TimeoutStopSec=15s
+SendSIGKILL=yes
+Restart=no
+NoNewPrivileges=true
+PrivateTmp=true
+StandardOutput=journal
+StandardError=null

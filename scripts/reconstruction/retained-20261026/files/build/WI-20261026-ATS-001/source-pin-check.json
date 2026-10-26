@@ -1,0 +1,23 @@
+{
+  "checked_at": "2026-10-26T18:55:12.6864139+09:00",
+  "owner": "SE / WI-20261026-ATS-001",
+  "command": "python -I -S -B build/WI-20261025-ATS-005/check_local.py",
+  "exit_code": 0,
+  "result": {
+    "status": "LOCAL_PREPARATION_PASS",
+    "source_pins": 11,
+    "jar": "PRESERVED_MATCH",
+    "target": "NOT_OBSERVED",
+    "activation": "NOT_AUTHORIZED_BY_CHECK",
+    "external_gates": [
+      "effective target unit/drop-in/argv/environment precedence",
+      "no unauthorized TEST-to-LIVE secret or billing key-ring replacement",
+      "current approved recipient and send-cost bounds",
+      "NCP account/contract/sender/domain/API readiness",
+      "Toss billing merchant contract and LIVE MID/key readiness",
+      "single process and pending-job inventory before activation",
+      "reviewed config-only rollback identities and bounded target verification"
+    ]
+  },
+  "scope": "Fixed public local paths and preserved JAR only; no target or activation"
+}

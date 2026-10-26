@@ -1,0 +1,37 @@
+{
+  "mode": "template-audit-only",
+  "template_status": "PASS",
+  "deployment_ready": false,
+  "production_status": "HOLD",
+  "target_gates": [
+    {
+      "rule": "TARGET_IDENTITY",
+      "status": "HOLD"
+    },
+    {
+      "rule": "SECRETS_FRESH_DB_APPROVAL",
+      "status": "HOLD"
+    },
+    {
+      "rule": "LINUX_NATIVE_VALIDATION",
+      "status": "NOT_RUN"
+    },
+    {
+      "rule": "TLS_FIREWALL_IP_STORAGE",
+      "status": "NOT_RUN"
+    },
+    {
+      "rule": "EGRESS_SINGLE_JVM_WORKER",
+      "status": "NOT_RUN"
+    },
+    {
+      "rule": "AUTH_MAIL_LOGS_RESTORE_REBOOT_LOAD",
+      "status": "NOT_RUN"
+    },
+    {
+      "rule": "PUBLIC_RELEASE_LIVE_PAYMENT",
+      "status": "HOLD"
+    }
+  ],
+  "errors": []
+}

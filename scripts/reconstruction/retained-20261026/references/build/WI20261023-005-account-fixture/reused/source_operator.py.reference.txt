@@ -1,0 +1,159 @@
+"""MA-only in-memory source-mode diagnostic. No imports execute native actions."""
+
+import ast
+import hashlib
+import os
+from pathlib import Path
+import re
+import signal
+import stat
+import time
+
+RUNTIME = '0c9402e1a4a47410132c0130fbd7eb9043d16963f1364137088177fa98ffda2a'
+COLD = 'd577629170099da3345c528e69a5fb60d7b52892dc20bf2de7b52307a86db766'
+CORE = '84ce1f82769c5c6a70bcc3b5090a929dd21d526dc590198a3b221545af469c7e'
+PINS = {
+    '/usr/sbin/mysqld': '77b0fe21f3e93533beee25ee911c32db7a5f0a4f6dae95923d17c13f62bb9663',
+    '/usr/bin/mysql': '27d7039f47cbf6079dd70d6bd12dce937136e69b78cea995f8d2f82c191f9d6a',
+    '/etc/mysql/mysql.conf.d/mysqld.cnf': '1568865c11250920efff06c2132e5e9e4a9bd6e8683d484d7e7cf1a37c5027fd',
+}
+SOCKET = '/run/mysqld/mysqld.sock'
+NAME = 'atstudio-wi067-ledger-source-diagnostic-v2.service'
+PROBE = 'REDACTED_TARGET_BINDING_PROBE'
+APPROVAL = 'REDACTED_TARGET_BINDING_APPROVAL'
+BOOT = 'REDACTED_TARGET_BINDING_BOOT'
+ERRORS = {'COMMAND_BOUND', 'COMMAND_FAILED', 'COMMAND_TIMEOUT', 'COMMAND_OUTPUT', 'COMMAND_REAP', 'OUTPUT_LIMIT',
+          'PATH', 'READ', 'BOOT', 'RELEASE_BYTES', 'TOOLS_DRIFT', 'FIXED_HOLD', 'SIGNAL'}
+
+
+def helpers(raw: bytes, h: object) -> dict:
+    """Extract only reviewed source helpers; never execute backup runner imports."""
+    h.need(hashlib.sha256(raw).hexdigest() == COLD)
+    names = {'mysql_log_path', 'mysql_log_directory', 'mysql_arguments',
+             'mysql_unit_arguments', 'mysql_client_environment'}
+    tree = ast.parse(raw)
+    nodes = [x for x in tree.body if isinstance(x, ast.FunctionDef) and x.name in names]
+    methods = [x for cls in tree.body if isinstance(cls, ast.ClassDef)
+               for x in cls.body if isinstance(x, ast.FunctionDef) and x.name == 'prepare_mysql_log']
+    h.need(len(nodes) == 5 and len(methods) == 1)
+    scope = dict(Path=Path, os=os, stat=stat, re=re, require=h.need,
+                 MYSQL_LOGS=Path('/var/log/mysql'), SOCKET=SOCKET,
+                 SOURCE_CONFIG=Path('/etc/mysql/mysql.conf.d/mysqld.cnf'),
+                 ENV=dict(h.CLEAN, HOME='/nonexistent', MYSQL_HISTFILE='/dev/null'))
+    exec(compile(ast.Module(nodes + methods, type_ignores=[]), '<pinned-wi069>', 'exec'), scope)
+    return scope
+
+
+def run(h: object, n: object, r: object, ledger: object, cold_raw: bytes,
+        core_raw: bytes, approval_pin: str, boot: str, probe_raw: bytes) -> dict:
+    """Caller pins this body and verifies runtime before importing h/n/r/ledger."""
+    result = dict(status='HOLD', phase='GUARD', code='NATIVE_HOLD',
+                  diagnostic_status='NOT_RUN', cleanup={})
+    armed = False
+    before = None
+    handlers = {}
+    def interrupted(signum: int, frame: object) -> None:
+        raise RuntimeError('SIGNAL')
+    def state(unit: str) -> dict:
+        keys = 'LoadState,ActiveState,MainPID,ControlPID,Job,DropInPaths'
+        raw = h.ctl('show', '--property=' + keys, '--', unit)
+        rows = [line.split('=', 1) for line in raw.decode('ascii').splitlines()]
+        h.need(len(rows) == 6 and {row[0] for row in rows} == set(keys.split(',')))
+        return dict(rows)
+    def cold() -> tuple:
+        values = [state(x) for x in (r.APP, 'mysql.service', r.SUPERVISOR)]
+        for index, value in enumerate(values):
+            h.need(value['MainPID'] == value['ControlPID'] == '0' and not value['Job'])
+            h.need(value['ActiveState'] in ('inactive', 'failed'))
+            if index < 2:
+                h.need(value['LoadState'] == 'masked' and not value['DropInPaths'])
+        h.need(not n.uid_members(999))
+        n.uid_sockets_absent(999)
+        nft = h.decode(h.command(('/usr/sbin/nft', '-j', 'list', 'tables')))
+        h.need(set(nft) == {'nftables'} and all(set(x) == {'metainfo'} for x in nft['nftables']))
+        return values, n.service('nginx.service'), n.listeners()
+    def query(sql: bytes) -> tuple:
+        return core['bounded_query'](('/usr/bin/mysql', '--no-defaults', '--protocol=socket',
+            '--socket=' + SOCKET, '--user=root', '--batch', '--raw', '--skip-column-names',
+            '--connect-timeout=3', '--database=atstudio_prod'), sql, env)
+    try:
+        h.need(os.name == 'posix' and os.geteuid() == 0)
+        h.need(approval_pin == APPROVAL and boot == BOOT)
+        h.need(h.sha(h.read(r.APPROVAL, private=True)) == approval_pin)
+        approval = r.load(live=False)
+        h.need(r.verify_tree() == RUNTIME and approval['boot_id'] == boot)
+        h.need(h.read(r.APPROVAL, private=True) == h.read(r.CONTROL / 'approval.json', private=True))
+        attempt = h.decode(h.read(r.CONTROL / 'attempt.json', private=True))
+        h.need(attempt.get('phase') == 'LEDGER_PREFLIGHT' and attempt.get('app_start') == 'NOT_RUN')
+        for name in ('release-possible.json', 'ledger-baseline.json'):
+            h.need(not os.path.lexists(r.CONTROL / name))
+        for name in ('grant.json', 'ready.json'):
+            h.need(not os.path.lexists(r.RUN / name))
+        for path, pin in PINS.items():
+            h.need(h.sha(h.read(Path(path), 100 * 1024 * 1024)) == pin)
+        h.need(hashlib.sha256(core_raw).hexdigest() == CORE)
+        core = {'__name__': 'wi067_diagnostic'}
+        exec(compile(core_raw, '<pinned-core>', 'exec'), core)
+        h.need(hashlib.sha256(probe_raw).hexdigest() == PROBE)
+        exec(compile(probe_raw, '<pinned-collation>', 'exec'), core)
+        source = helpers(cold_raw, h)
+        env = source['mysql_client_environment']()
+        before = cold()
+        h.need(not os.path.lexists('/run/mysqld'))
+        own = state(NAME)
+        h.need(own['LoadState'] == 'not-found' and own['MainPID'] == own['ControlPID'] == '0' and not own['Job'])
+        profile = h.decode(h.read(r.CONTROL / 'inputs.json', 32768, True))['profile']
+        schema = h.decode(h.read(r.TOOLS / 'schema.json'))
+        for signum in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+            handlers[signum] = signal.signal(signum, interrupted)
+        result['phase'] = 'LOG_PREPARE'
+        source['prepare_mysql_log'](None, NAME)
+        armed = True
+        result['phase'] = 'START_COMMAND'
+        h.command(tuple(source['mysql_unit_arguments'](NAME, 'source')), seconds=40)
+        result['phase'] = 'SOCKET_WAIT'
+        end = time.monotonic() + 45
+        while not Path(SOCKET).exists():
+            h.need(time.monotonic() < end)
+            time.sleep(0.2)
+        result['phase'] = 'SOURCE_IDENTITY'
+        socket = Path(SOCKET).lstat()
+        h.need(stat.S_ISSOCK(socket.st_mode) and socket.st_uid == 110 and socket.st_gid == 112)
+        pid = state(NAME)['MainPID']
+        h.need(re.fullmatch('[1-9][0-9]*', pid) is not None)
+        h.need(Path('/proc/' + pid + '/cgroup').read_text().strip() == '0::/system.slice/' + NAME)
+        expected = Path('/var/lib/mysql').stat()
+        actual = Path('/proc/' + pid + '/root/var/lib/mysql').stat()
+        h.need((expected.st_dev, expected.st_ino) == (actual.st_dev, actual.st_ino))
+        result['phase'] = 'CONTAINMENT'
+        code, raw, _ = query(b'SELECT @@version,@@skip_networking,@@event_scheduler,@@local_infile,@@read_only,@@super_read_only;\n')
+        h.need(code == 0 and raw.strip().split(b'\t') ==
+               [b'8.0.46-0ubuntu0.24.04.4', b'1', b'DISABLED', b'0', b'1', b'1'])
+        result.update(core['diagnose'](ledger, schema, profile, query))
+        result['diagnostic_status'] = result['status']
+    except Exception as error:
+        result['status'] = 'HOLD'
+        result['code'] = (error.args[0] if len(error.args) == 1
+                          and type(error.args[0]) is str and error.args[0] in ERRORS
+                          else 'NATIVE_HOLD')
+    finally:
+        for signum in handlers:
+            signal.signal(signum, signal.SIG_IGN)
+        if armed:
+            checks = (
+                ('STOP', lambda: h.ctl('stop', NAME, seconds=30)),
+                ('PID_ZERO', lambda: h.need(state(NAME)['MainPID'] == state(NAME)['ControlPID'] == '0' and not state(NAME)['Job'])),
+                ('SOCKET_GONE', lambda: h.need(not os.path.lexists('/run/mysqld'))),
+                ('BASELINE', lambda: h.need(cold() == before)),
+            )
+            for label, check in checks:
+                try:
+                    check()
+                    result['cleanup'][label] = 'PASS'
+                except Exception:
+                    result['cleanup'][label] = 'FAILED'
+            if 'FAILED' in result['cleanup'].values():
+                result['status'] = 'HOLD'
+        for signum, handler in handlers.items():
+            signal.signal(signum, handler)
+    return result

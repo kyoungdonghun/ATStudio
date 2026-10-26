@@ -1,0 +1,37 @@
+{
+  "wi": "WI-20261026-ATS-005",
+  "checked_at": "2026-10-26T19:26:07.600704+09:00",
+  "originals": "86 MATCH",
+  "roundtrip": {
+    "exact": 73,
+    "reference_only_separate": 13,
+    "hashes": "PASS"
+  },
+  "focused_safety_tests": {
+    "count": 4,
+    "result": "PASS",
+    "command": "python -I -B scripts/reconstruction/retained-20261026/test_verify.py"
+  },
+  "git_filter_identity": {
+    "files": 86,
+    "result": "PASS",
+    "method": "git hash-object stdin-paths with and without filters; read-only, no object writes"
+  },
+  "runtime": "NOT_EXECUTED",
+  "private_bindings": "Removed from reference-only derivatives; originals unchanged",
+  "git_commit": "NOT_RUN_BY_SE",
+  "archive_visibility_recovery": {
+    "checked_at": "2026-10-26T19:37:30.011677+09:00",
+    "status": "PASS",
+    "archive_payloads_visible": 86,
+    "archive_payloads_ignored": 0,
+    "original_build_paths_still_ignored": 86,
+    "archive_payload_hashes": "86 UNCHANGED",
+    "original_hashes": "86 UNCHANGED",
+    "git_index": "UNCHANGED_BY_SE",
+    "root_ignore": "UNCHANGED",
+    "force_add": "NOT_USED",
+    "input_protocol": "NUL-delimited binary stdin/stdout; no Windows newline translation",
+    "scope": "Archive-local ignore exception only; previous staging failure retained by MA"
+  }
+}

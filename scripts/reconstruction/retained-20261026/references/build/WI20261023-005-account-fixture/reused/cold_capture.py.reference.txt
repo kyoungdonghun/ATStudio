@@ -1,0 +1,901 @@
+"""Named-target WI069 first backup and isolated restore. Inert unless explicitly dispatched."""
+
+from __future__ import annotations
+
+import argparse
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import selectors
+import signal
+import stat
+import subprocess
+import sys
+import time
+from typing import Callable
+
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import bootstrap as boot
+import backup_checks as checks
+import native_inventory as probe
+
+ROOTS = (
+    Path('/srv/atstudio/public'), Path('/srv/atstudio/private'),
+    Path('/var/lib/atstudio/tmp'),
+    Path('/opt/atstudio/releases/wi060-first-start-20261011'),
+    Path('/opt/atstudio/releases/wi060-web-20261011'),
+)
+BASE = Path('/var/lib/atstudio-backup')
+CAPTURES = BASE / 'wi069-captures'
+RESTIC = Path('/opt/atstudio-backup/bin/restic-0.19.1-wi069')
+REPOSITORY = 'REDACTED_TARGET_BINDING_REPOSITORY'
+SOCKET = '/run/mysqld/mysqld.sock'
+MYSQL_LOGS = Path('/var/log/mysql')
+SCHEMA = 'atstudio_prod'
+DATABASE = Path('/var/lib/mysql')
+SOURCE_CONFIG = Path('/etc/mysql/mysql.conf.d/mysqld.cnf')
+RELEASE_SHA = '0fc6186f055c738b636ac2fdff48598dfc2811ad8274170e4f061776a5515edd'
+PINS = {
+    '/usr/sbin/mysqld': '77b0fe21f3e93533beee25ee911c32db7a5f0a4f6dae95923d17c13f62bb9663',
+    '/usr/bin/mysql': '27d7039f47cbf6079dd70d6bd12dce937136e69b78cea995f8d2f82c191f9d6a',
+    '/usr/bin/mysqldump': 'b89fe9b8a71fbd827e370130db20879857fc03b3a964e62a76eedc6ea1de775a',
+    str(SOURCE_CONFIG): '1568865c11250920efff06c2132e5e9e4a9bd6e8683d484d7e7cf1a37c5027fd',
+    '/lib/systemd/system/mysql.service': 'cf183d960ee217ad50ecd6b7f1fa59d30f8bc9574c32e63406b40794799fb45a',
+    str(RESTIC): boot.BINARY_SHA256,
+}
+FIXED_QUARANTINE = {
+    '/etc/nginx/tls-quarantine/nginx.conf': 'ac7da3611456248b40aa3963c1f993ae8a4dd540faff10ff03c8caa104c35118',
+    '/etc/systemd/system/nginx.service.d/90-atstudio-quarantine.conf': 'cecaa38ef49f92518e6c5a776cedc7c03cecb54764afd1455b8a404f13161b93',
+    '/etc/letsencrypt/renewal-hooks/deploy/40-atstudio-quarantine': '4c9d7ab410e6fa34597827fa679cc1e434f2cef108a9a7043edd32ab9f9104f0',
+}
+ENV = dict(probe.CLEAN_ENV, HOME='/nonexistent', MYSQL_HISTFILE='/dev/null')
+MASKED = ('mysql.service', 'atstudio-restricted-web-wi060.service',
+          'atstudio-restricted-web-wi055.service', 'atstudio-restricted-web-wi042.service',
+          'atstudio-first-start-wi026.service', 'atstudio-first-start-wi032.service')
+GIB = 1024**3
+SAFE_GATES = frozenset('''ANCESTOR_LINK_OR_TYPE APPROVAL_INVENTORY_DRIFT APPROVAL_REQUIRED
+APPROVAL_SHAPE APPROVAL_WINDOW BOOTSTRAP_REQUIRED CLEANUP_PID CLEANUP_STOP COMMAND_DEADLINE
+COMMAND_EXIT CREDENTIAL_DRIFT DEADLINE DESTINATION_EXISTS DIRECTORY_MODE DISK_FLOOR FILE_DRIFT
+FILE_LIMIT FILE_REPLACED FILE_TYPE_OR_LIMIT FIXED_PIN_DRIFT INITIAL_REPOSITORY_BUDGET
+INTERRUPTED INVENTORY_LIMIT LINUX_ROOT_REQUIRED MOUNT_OR_LINK MYSQL_CONFLICT MYSQL_CONTAINMENT
+MYSQL_MASK MYSQL_MODE MYSQL_MOUNT_IDENTITY MYSQL_PID MYSQL_READY_TIMEOUT MYSQL_RUNTIME_EXISTS
+MYSQL_LOG_DIRECTORY MYSQL_LOG_IDENTITY MYSQL_LOG_LIMIT MYSQL_LOG_NAME
+MYSQL_LOGIN_DEVICE MYSQL_CLIENT_CONTRACT
+MYSQL_RUNTIME_REMAINS MYSQL_WINDOW_TOO_SHORT NGINX_BASELINE OUTPUT_LIMIT OWNED_UNIT_EXISTS
+PC_ESCROW_REQUIRED PREWRITE_DRIFT RELEASE_ALLOWLIST_PIN RELEASE_DRIFT RELEASE_MISSING_FILE
+RELEASE_PATH RELEASE_SCOPE RELEASE_SIZE RELEASE_TOTAL REPOSITORY_NOT_EMPTY RESTIC_COMMAND
+RESTIC_WINDOW_TOO_SHORT RESTORE_DATABASE_REQUIRED RUN_ID SOURCE_BIND_FORBIDDEN SOURCE_BYTE_LIMIT
+SOURCE_DATABASE_METADATA SOURCE_DEVICE_DRIFT SOURCE_DRIFT SOURCE_READ_ONLY SPECIAL_FILE
+SPECIAL_MODE SQL_DRIFT STORAGE_ROOT_METADATA SYSTEM_PREFIX UNIT_DRIFT UNIT_NOT_OWNED
+UNIT_RESTORE_DRIFT UNREVIEWED_SOURCE_FILE WORK_BUDGET WORK_LINK WRITER_NOT_MASKED WRITER_PROCESS
+WRITER_UNIT_ACTIVE PATH_INVALID PATH_SYMLINK PATH_OWNERSHIP PATH_TYPE PRIVATE_MODE FILE_READ
+INPUT_LIMIT MACHINE_ID_MISMATCH SSH_KEY_FORMAT SSH_KEY_MISMATCH CREDENTIAL_FORMAT
+INVALID_JSON DUPLICATE_JSON NONFINITE_JSON JSON_OBJECT_REQUIRED JSON_LIMIT SQL_IDENTIFIER
+TABLE_OUTPUT_LIMIT TABLE_ENCODING TABLE_COUNT TABLE_ENGINE_OR_TYPE_REVIEW TABLE_DUPLICATE_OR_ORDER
+COUNT_OUTPUT_LIMIT COUNT_ENCODING COUNT_SHAPE COUNT_IDENTITY SQL_ROW_DRIFT SQL_SCHEMA_DRIFT
+SQL_DATA_DRIFT SQL_COUNT_INVALID RESTORE_MISSING_MEMBER RESTORE_UNEXPECTED_MEMBER
+RESTORE_CONTENT_OR_METADATA RESTORE_PATH_ESCAPE RESTORE_ANCESTOR_MODE WIRE_NODE_INTEGER
+WIRE_NODE_TYPE WIRE_ERROR_COUNT WIRE_DRY_RUN WIRE_MESSAGE_TYPE WIRE_MESSAGE_CONFLICT
+INVALID_JSON_LINES SNAPSHOT_NOT_NEW COMMAND_LABEL DIAGNOSTIC_LIMIT'''.split())
+SAFE_GATES |= frozenset('''SNAPSHOT_MISMATCH INVALID_NODE UNKNOWN_LS_MESSAGE INVENTORY_REQUIRED
+MISSING_MEMBER UNEXPECTED_MEMBER SOURCE_SYMLINK_REVIEW_REQUIRED MEMBER_TYPE SPECIAL_MODE_REVIEW_REQUIRED
+MEMBER_MODE MEMBER_OWNER MEMBER_SIZE INVALID_PATH INVALID_ID BACKUP_EXIT BACKUP_SUMMARY
+BACKUP_ERRORS BACKUP_DRY_RUN FILE_LIMIT FILE_CHANGED FILE_TYPE FILE_SIZE'''.split())
+COMMAND_LABELS = frozenset('''UNIT_STATE MYSQL_QUERY MYSQL_SOURCE_START MYSQL_INITIALIZE
+MYSQL_RESTORE_START MYSQL_DUMP MYSQL_SCHEMA_DUMP MYSQL_IMPORT RESTIC_INIT RESTIC_CONFIG
+RESTIC_SNAPSHOTS RESTIC_BACKUP RESTIC_LS RESTIC_CHECK RESTIC_RESTORE'''.split())
+MYSQL_CLIENT_COMMANDS = dict(MYSQL_QUERY='/usr/bin/mysql', MYSQL_IMPORT='/usr/bin/mysql',
+                            MYSQL_DUMP='/usr/bin/mysqldump', MYSQL_SCHEMA_DUMP='/usr/bin/mysqldump')
+
+
+def safe_error(error: BaseException) -> dict:
+    """Never publish exception messages, paths, SQL or arbitrary dependency gate text."""
+    code = error.args[0] if isinstance(error, (checks.GateError, boot.Hold)) and error.args else None
+    if type(code) is str and code in SAFE_GATES:
+        return dict(gate=code)
+    if isinstance(error, OSError):
+        return dict(gate='OS_ERROR', errno=error.errno if type(error.errno) is int else None)
+    if isinstance(error, subprocess.TimeoutExpired):
+        return dict(gate='PROCESS_TIMEOUT')
+    if isinstance(error, (KeyboardInterrupt, SystemExit)):
+        return dict(gate='INTERRUPTED')
+    return dict(gate='UNCLASSIFIED_ERROR')
+
+
+def diagnostic_codes(raw: bytes) -> dict:
+    """Reduce bounded private diagnostics to numeric codes and a fixed category allowlist."""
+    categories = {
+        b'access denied': 'ACCESS_DENIED', b'signaturedoesnotmatch': 'SIGNATURE_MISMATCH',
+        b'no such host': 'DNS_FAILURE', b'x509:': 'TLS_CERTIFICATE',
+        b'already initialized': 'REPOSITORY_EXISTS', b'wrong password': 'PASSWORD_REJECTED',
+        b'locked': 'REPOSITORY_LOCKED', b'connection refused': 'CONNECTION_REFUSED',
+        b'no space left': 'NO_SPACE', b'permission denied': 'PERMISSION_DENIED',
+    }
+    lowered = raw.lower()
+    selected = {value for needle, value in categories.items() if needle in lowered}
+    if re.search(rb'(?:^|\n)(?:mysql|mysqldump):[^\r\n]*(?:unknown option|unknown variable)', lowered):
+        selected.add('MYSQL_UNSUPPORTED_OPTION')
+    return dict(mysql_codes=sorted(set(code.decode('ascii') for code in re.findall(rb'\bMY-[0-9]{6}\b', raw)))[:32],
+                sql_codes=sorted(set(int(code) for code in re.findall(rb'(?:ERROR |Got error: )([0-9]{3,5})\b', raw)))[:32],
+                categories=sorted(selected))
+
+
+def disk_floor(total: int) -> int:
+    """Keep the larger of twenty percent of the filesystem and ten GiB free."""
+    return max(10 * GIB, (total + 4) // 5)
+
+
+def require(value: bool, code: str) -> None:
+    """Expose only fixed codes through the public receipt."""
+    checks.require(value, code)
+
+
+def directory(path: Path, mode: int = 0o700) -> None:
+    """Create only owned fresh output paths, preserving every existing path."""
+    boot.secure(path.parent, directory=True)
+    require(not os.path.lexists(path), 'DESTINATION_EXISTS')
+    path.mkdir(mode=mode)
+    require(stat.S_IMODE(path.stat().st_mode) == mode, 'DIRECTORY_MODE')
+
+
+def sha_file(path: Path, limit: int, tick: Callable[[], None] = lambda: None) -> str:
+    """Hash regular stable files without following final links or allocating file size."""
+    before = path.lstat()
+    require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1
+            and before.st_size <= limit, 'FILE_TYPE_OR_LIMIT')
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    result = hashlib.sha256()
+    total = 0
+    with os.fdopen(fd, 'rb') as stream:
+        opened = os.fstat(stream.fileno())
+        require((opened.st_dev, opened.st_ino) == (before.st_dev, before.st_ino), 'FILE_REPLACED')
+        while True:
+            tick()
+            raw = stream.read(1024**2)
+            if not raw:
+                break
+            total += len(raw)
+            require(total <= limit, 'FILE_LIMIT')
+            result.update(raw)
+        after = os.fstat(stream.fileno())
+    require((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
+            == (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)
+            and total == before.st_size, 'FILE_DRIFT')
+    return result.hexdigest()
+
+
+def collect(paths: tuple[Path, ...], allowed: dict | None = None,
+            tick: Callable[[], None] = lambda: None) -> dict:
+    """Inventory complete trees; source file bodies must be release-allowlisted."""
+    members = {}
+    total = 0
+    device = Path('/var/lib/atstudio').stat().st_dev
+    require(device == 64769, 'SOURCE_DEVICE_DRIFT')
+    pending = list(paths)
+    for path in paths:
+        for parent in path.parents:
+            require(stat.S_ISDIR(parent.lstat().st_mode), 'ANCESTOR_LINK_OR_TYPE')
+    while pending:
+        tick()
+        path = pending.pop()
+        require(str(path) not in members and len(members) < 10000, 'INVENTORY_LIMIT')
+        info = path.lstat()
+        require(info.st_dev == device and not stat.S_ISLNK(info.st_mode), 'MOUNT_OR_LINK')
+        mode = stat.S_IMODE(info.st_mode)
+        require(not mode & 0o7000, 'SPECIAL_MODE')
+        row = dict(type='dir', mode=mode, uid=info.st_uid, gid=info.st_gid)
+        if stat.S_ISDIR(info.st_mode):
+            with os.scandir(path) as entries:
+                for item in entries:
+                    require(len(pending) + len(members) < 10000, 'INVENTORY_LIMIT')
+                    pending.append(Path(item.path))
+        else:
+            require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1, 'SPECIAL_FILE')
+            if allowed is not None:
+                require(str(path) in allowed, 'UNREVIEWED_SOURCE_FILE')
+                require(info.st_size == allowed[str(path)]['bytes'], 'RELEASE_SIZE')
+            total += info.st_size
+            require(total < 900_000_000, 'SOURCE_BYTE_LIMIT')
+            row.update(type='file', size=info.st_size, sha256=sha_file(path, 300_000_000, tick))
+            if allowed is not None:
+                require(row['sha256'] == allowed[str(path)]['sha256'], 'RELEASE_DRIFT')
+        members[str(path)] = row
+    if allowed is not None:
+        require({path for path, row in members.items() if row['type'] == 'file'} == set(allowed),
+                'RELEASE_MISSING_FILE')
+    return members
+
+
+def release_allowlist() -> dict:
+    """Use the reviewed existing WI060 artifacts, never the prepared WI068 release."""
+    raw = boot.read_file(HERE / 'release-allowlist.json', 128 * 1024)
+    require(boot.sha(raw) == RELEASE_SHA, 'RELEASE_ALLOWLIST_PIN')
+    value = checks.strict_json(raw)
+    require(value['release'] == 'WI060-existing-runtime'
+            and value['frontend_root'] == str(ROOTS[4] / 'frontend'),
+            'RELEASE_SCOPE')
+    backend = value['backend']
+    require(backend['path'] == str(ROOTS[3] / 'app.jar'), 'RELEASE_SCOPE')
+    result = {backend['path']: dict(bytes=backend['bytes'], sha256=backend['sha256'])}
+    for relative, record in value['files'].items():
+        require(type(relative) is str and not relative.startswith('/')
+                and '..' not in Path(relative).parts and '\\' not in relative, 'RELEASE_PATH')
+        result[str(ROOTS[4] / 'frontend' / relative)] = record
+    require(len(result) == 144 and sum(row['bytes'] for row in result.values()) == 71500702,
+            'RELEASE_TOTAL')
+    return result
+
+
+def fixed_pins() -> None:
+    """Check binaries/config/quarantine identities without copying configuration to backup."""
+    for name, expected in {**PINS, **FIXED_QUARANTINE}.items():
+        path = Path(name)
+        # 확인된 Ubuntu usr-merge 별칭만 허용하며 입력 경로 별칭은 허용하지 않는다.
+        if name.startswith('/lib/') and Path('/lib').is_symlink():
+            require(os.readlink('/lib') == 'usr/lib', 'SYSTEM_PREFIX')
+            path = Path('/usr') / name.lstrip('/')
+        boot.secure(path)
+        require(sha_file(path, 300_000_000) == expected, 'FIXED_PIN_DRIFT')
+    require(os.readlink('/etc/systemd/system/mysql.service') == '/dev/null', 'MYSQL_MASK')
+    info = DATABASE.lstat()
+    require(stat.S_ISDIR(info.st_mode) and (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode))
+            == (110, 112, 0o700), 'SOURCE_DATABASE_METADATA')
+
+
+def units() -> dict:
+    """Read only previously reviewed unit fields; no generic unit matching."""
+    end = time.monotonic() + 65
+    return {name: probe.parse_unit(probe.command([
+        '/usr/bin/systemctl', 'show', '--no-pager', '--property=' + ','.join(probe.PROPERTIES),
+        '--', name], end)) for name in probe.UNITS}
+
+
+def stopped(value: dict) -> None:
+    """Accept historical failed-but-masked state only with both PIDs zero."""
+    for name, row in value.items():
+        if name == 'nginx.service':
+            require(row['ActiveState'] == 'active' and row['SubState'] == 'running'
+                    and type(row['MainPID']) is int and row['MainPID'] > 0 and row['ControlPID'] == 0
+                    and row['UnitFileState'] == 'enabled', 'NGINX_BASELINE')
+        else:
+            require(row['MainPID'] == row['ControlPID'] == 0
+                    and row['ActiveState'] in {'inactive', 'failed'}, 'WRITER_UNIT_ACTIVE')
+            if name in MASKED:
+                require(row['stopped_masked'], 'WRITER_NOT_MASKED')
+
+
+def inventory() -> dict:
+    """Read-only exact first-capture inventory, including empty roots and release hashes."""
+    boot.verify_target(dict(machine_id_sha256=boot.MACHINE_SHA256,
+                            ssh_hostkey_fingerprint=boot.HOST_FINGERPRINT))
+    fixed_pins()
+    mysql_log_directory()
+    mysql_client_environment()
+    before = units()
+    stopped(before)
+    counts = probe.process_counts(Path('/proc'), time.monotonic() + 10)
+    require(all(value == 0 for value in counts.values()), 'WRITER_PROCESS')
+    require(not os.path.lexists('/run/mysqld'), 'MYSQL_RUNTIME_EXISTS')
+    for root in ROOTS[:3]:
+        info = root.lstat()
+        require((info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (999, 988, 0o700),
+                'STORAGE_ROOT_METADATA')
+    members = collect(ROOTS, release_allowlist())
+    require(units() == before, 'UNIT_DRIFT')
+    return dict(status='OBSERVED_NOT_CAPTURED', members=members,
+                inventory_sha256=boot.sha(boot.encoded(members)), units=before,
+                units_sha256=boot.sha(boot.encoded(before)), source_bytes=71500702,
+                full_disaster_recovery=False)
+
+
+def mysql_log_path(name: str) -> Path:
+    """Use a new unit-specific name under the observed AppArmor-allowed log directory."""
+    require(type(name) is str and re.fullmatch(r'[a-z0-9-]{1,100}\.service', name) is not None,
+            'MYSQL_LOG_NAME')
+    return MYSQL_LOGS / (name + '.log')
+
+
+def mysql_log_directory() -> os.stat_result:
+    """Validate observed metadata only; never change this existing production directory."""
+    for parent in MYSQL_LOGS.parents:
+        require(stat.S_ISDIR(parent.lstat().st_mode), 'MYSQL_LOG_DIRECTORY')
+    info = MYSQL_LOGS.lstat()
+    require(stat.S_ISDIR(info.st_mode)
+            and (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (110, 4, 0o750),
+            'MYSQL_LOG_DIRECTORY')
+    return info
+
+
+def mysql_arguments(mode: str, log_path: Path) -> list[str]:
+    """Source uses one pinned config; restore ignores all production config."""
+    require(mode in {'source', 'initialize', 'restore'}, 'MYSQL_MODE')
+    args = ['/usr/sbin/mysqld', '--defaults-file=' + str(SOURCE_CONFIG)] if mode == 'source' else [
+        '/usr/sbin/mysqld', '--no-defaults']
+    args += ['--datadir=/var/lib/mysql', '--socket=' + SOCKET, '--pid-file=/run/mysqld/mysqld.pid',
+             '--log-error=' + str(log_path), '--skip-networking', '--mysqlx=OFF',
+             '--event-scheduler=DISABLED', '--skip-slave-start', '--skip-log-bin',
+             '--persisted-globals-load=OFF', '--local-infile=OFF', '--secure-file-priv=NULL',
+             '--innodb-buffer-pool-size=134217728', '--max-connections=16', '--performance-schema=OFF',
+             '--skip-name-resolve', '--default-time-zone=+00:00']
+    if mode == 'source':
+        args += ['--upgrade=NONE', '--read-only=ON', '--super-read-only=ON']
+    elif mode == 'initialize':
+        args += ['--initialize-insecure']
+    else:
+        args += ['--upgrade=NONE']
+    return args
+
+
+def mysql_unit_arguments(name: str, mode: str, restore_directory: Path | None = None) -> list[str]:
+    """Every owned MySQL process has a private network and finite cgroup lifetime."""
+    log_path = mysql_log_path(name)
+    props = ['Type=exec', 'User=mysql', 'Group=mysql', 'UMask=0077', 'PrivateNetwork=yes',
+             'RestrictAddressFamilies=AF_UNIX', 'IPAddressDeny=any', 'NoNewPrivileges=yes',
+             'PrivateTmp=yes', 'ProtectHome=yes', 'ProtectSystem=strict',
+             'RuntimeDirectory=mysqld', 'RuntimeDirectoryMode=0750', 'KillMode=control-group',
+             'TimeoutStopSec=20', 'SendSIGKILL=yes', 'RuntimeMaxSec=300', 'MemoryMax=768M',
+             'MemorySwapMax=0', 'CPUQuota=100%', 'TasksMax=128', 'LimitCORE=0',
+             'StandardOutput=null', 'StandardError=null',
+             'ReadWritePaths=/var/lib/mysql /run/mysqld ' + str(log_path)]
+    if mode != 'source':
+        require(restore_directory is not None and restore_directory.is_absolute()
+                and restore_directory.name == 'isolated-database'
+                and restore_directory.parent.parent == CAPTURES
+                and re.fullmatch('[a-f0-9]{32}', restore_directory.parent.name) is not None,
+                'RESTORE_DATABASE_REQUIRED')
+        props += ['BindPaths=' + str(restore_directory) + ':/var/lib/mysql']
+    else:
+        require(restore_directory is None, 'SOURCE_BIND_FORBIDDEN')
+    return ['/usr/bin/systemd-run', '--quiet', '--collect', '--unit=' + name,
+            *(('--wait',) if mode == 'initialize' else ()),
+            *['--property=' + item for item in props], '--', '/usr/bin/env', '-i',
+            *[key + '=' + value for key, value in ENV.items()], *mysql_arguments(mode, log_path)]
+
+
+def mysql_client_environment() -> dict[str, str]:
+    """Override login-file discovery with a verified null device, never root's login file."""
+    path = Path('/dev/null')
+    for parent in path.parents:
+        info = parent.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == info.st_gid == 0
+                and not stat.S_IMODE(info.st_mode) & 0o022, 'MYSQL_LOGIN_DEVICE')
+    info = path.lstat()
+    require(stat.S_ISCHR(info.st_mode) and info.st_nlink == 1
+            and (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (0, 0, 0o666)
+            and (os.major(info.st_rdev), os.minor(info.st_rdev)) == (1, 3), 'MYSQL_LOGIN_DEVICE')
+    return dict(ENV, MYSQL_TEST_LOGIN_FILE='/dev/null')
+
+
+def dump_arguments(schema_only: bool = False) -> list[str]:
+    """Deterministic complete logical dump using the previously proven root socket login."""
+    return ['/usr/bin/mysqldump', '--no-defaults', '--protocol=socket',
+            '--socket=' + SOCKET, '--user=root', '--single-transaction', '--quick', '--hex-blob',
+            '--routines', '--events', '--triggers', '--set-gtid-purged=OFF', '--no-tablespaces',
+            '--skip-comments', '--skip-dump-date', '--skip-extended-insert', '--order-by-primary',
+            '--skip-add-drop-table', '--tz-utc', '--default-character-set=utf8mb4',
+            *(['--no-data'] if schema_only else []), '--databases', SCHEMA]
+
+
+class Capture:
+    """One finite dispatcher with fixed stages; no hooks, generic actions or source cleanup."""
+
+    def __init__(self, approval: dict, baseline: dict) -> None:
+        self.approval = approval
+        self.baseline = baseline
+        self.run_id = approval['run_id']
+        self.work = CAPTURES / self.run_id
+        self.wall_deadline = approval['_expires_at']
+        self.deadline = time.monotonic() + min(1800, self.wall_deadline - time.time())
+        self.owned_units: set[str] = set()
+        self.counter = 0
+        self.stage = 'PRECHECK'
+        self.sql_state = None
+        self.mysql_log = None
+        self.snapshot = None
+        self.last_guard = 0.0
+        self.last_units = 0.0
+        self.last_command = None
+        self.diagnostic_sequence = 0
+        self.credentials = BASE / 'wi069-runs' / ('wi069-' + approval['bootstrap_run_id'])
+
+    def guard(self) -> None:
+        """Bound source writers, local growth, disk floor and maintenance time."""
+        require(time.monotonic() < self.deadline and time.time() < self.wall_deadline, 'DEADLINE')
+        if time.monotonic() - self.last_guard < 2:
+            return
+        self.last_guard = time.monotonic()
+        if time.monotonic() - self.last_units >= 10:
+            require(units() == self.baseline['units'], 'UNIT_DRIFT')
+            self.last_units = time.monotonic()
+        counts = probe.process_counts(Path('/proc'), time.monotonic() + 5)
+        require(counts['java'] == counts['ffmpeg'] == counts['mariadbd'] == 0
+                and counts['mysqld'] <= (1 if self.sql_state else 0), 'WRITER_PROCESS')
+        space = os.statvfs(BASE)
+        require(space.f_bavail * space.f_frsize >= disk_floor(space.f_blocks * space.f_frsize) + 4 * GIB
+                and space.f_favail >= 100000,
+                'DISK_FLOOR')
+        if self.mysql_log is not None:
+            log = self.mysql_log.lstat()
+            require(stat.S_ISREG(log.st_mode) and log.st_nlink == 1
+                    and (log.st_uid, log.st_gid, stat.S_IMODE(log.st_mode)) == (110, 112, 0o600),
+                    'MYSQL_LOG_IDENTITY')
+            require(log.st_size <= 1024**2, 'MYSQL_LOG_LIMIT')
+        if self.work.exists():
+            size = 0
+            entries = 0
+            for root, dirs, files in os.walk(self.work, followlinks=False):
+                for name in dirs + files:
+                    try:
+                        info = (Path(root) / name).lstat()
+                    except FileNotFoundError:
+                        continue
+                    entries += 1
+                    require(not stat.S_ISLNK(info.st_mode), 'WORK_LINK')
+                    size += info.st_size if stat.S_ISREG(info.st_mode) else 0
+            require(entries <= 20000 and size <= 4 * GIB, 'WORK_BUDGET')
+
+    def command(self, argv: list[str], *, label: str = 'UNIT_STATE', timeout: int = 60, cap: int = 1024**2,
+                target: Path | None = None, input_file: Path | None = None,
+                environment: dict | None = None) -> bytes:
+        """Run reviewed argv; retain only fixed metadata from bounded private diagnostics."""
+        require(label in COMMAND_LABELS, 'COMMAND_LABEL')
+        self.last_command = dict(label=label, returncode=None)
+        self.guard()
+        require(time.monotonic() < self.deadline and time.time() < self.wall_deadline, 'DEADLINE')
+        if label in MYSQL_CLIENT_COMMANDS or argv[0] in MYSQL_CLIENT_COMMANDS.values():
+            require(MYSQL_CLIENT_COMMANDS.get(label) == argv[0] and environment is None
+                    and argv[1:2] == ['--no-defaults'] and '--no-login-paths' not in argv,
+                    'MYSQL_CLIENT_CONTRACT')
+            environment = mysql_client_environment()
+        end = min(self.deadline, time.monotonic() + timeout)
+        sink = target.open('xb') if target else None
+        source = input_file.open('rb') if input_file else None
+        child = None
+        result = bytearray()
+        diagnostics = bytearray()
+        size = 0
+        try:
+            require(time.monotonic() < end and time.time() < self.wall_deadline, 'DEADLINE')
+            child = subprocess.Popen(argv, stdin=source or subprocess.DEVNULL,
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                     env=environment or ENV, close_fds=True, start_new_session=True)
+            with selectors.DefaultSelector() as selector:
+                selector.register(child.stdout, selectors.EVENT_READ)
+                selector.register(child.stderr, selectors.EVENT_READ)
+                while selector.get_map():
+                    self.guard()
+                    require(time.monotonic() < end, 'COMMAND_DEADLINE')
+                    for key, _ in selector.select(0.1):
+                        raw = os.read(key.fileobj.fileno(), 65536)
+                        if not raw:
+                            selector.unregister(key.fileobj)
+                            break
+                        if key.fileobj is child.stderr:
+                            require(len(diagnostics) + len(raw) <= 65536, 'DIAGNOSTIC_LIMIT')
+                            diagnostics.extend(raw)
+                            continue
+                        size += len(raw)
+                        require(size <= cap, 'OUTPUT_LIMIT')
+                        if sink:
+                            sink.write(raw)
+                        else:
+                            result.extend(raw)
+            self.last_command['returncode'] = child.wait(timeout=max(0.01, end - time.monotonic()))
+            require(self.last_command['returncode'] == 0, 'COMMAND_EXIT')
+            if sink:
+                sink.flush()
+                os.fsync(sink.fileno())
+            return bytes(result)
+        finally:
+            if child:
+                if child.poll() is None:
+                    os.killpg(child.pid, signal.SIGKILL)
+                    child.wait(timeout=5)
+                child.stdout.close()
+                child.stderr.close()
+            if sink:
+                sink.close()
+            if source:
+                source.close()
+            self.last_command.update(diagnostic_codes(bytes(diagnostics)))
+            self.write_diagnostic(dict(command=self.last_command))
+
+    def write_diagnostic(self, value: dict) -> None:
+        """Write bounded, root-private metadata only; never argv, stderr or SQL bodies."""
+        self.diagnostic_sequence += 1
+        require(self.diagnostic_sequence <= 512, 'DIAGNOSTIC_LIMIT')
+        boot.exclusive(self.work / ('diagnostic-' + str(self.diagnostic_sequence) + '.json'),
+                       boot.encoded(dict(stage=self.stage, **value)))
+
+    def mysql_failure_diagnostic(self) -> dict:
+        """Read only owned-unit numeric status and bounded MySQL error identifiers before stop."""
+        if self.sql_state not in self.owned_units:
+            return {}
+        result = {}
+        try:
+            reply = subprocess.run(['/usr/bin/systemctl', 'show',
+                '--property=Result,ExecMainCode,ExecMainStatus', self.sql_state],
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                env=ENV, timeout=5)
+            for line in reply.stdout[:4096].decode('ascii', errors='ignore').splitlines():
+                key, _, value = line.partition('=')
+                if key in {'ExecMainCode', 'ExecMainStatus'} and re.fullmatch('[0-9]{1,5}', value):
+                    result[key] = int(value)
+                if key == 'Result' and value in {'success', 'exit-code', 'signal', 'timeout',
+                    'resources', 'oom-kill', 'protocol', 'start-limit-hit', 'core-dump', 'watchdog'}:
+                    result[key] = value
+            path = self.mysql_log
+            require(path == mysql_log_path(self.sql_state), 'MYSQL_LOG_IDENTITY')
+            info = path.lstat()
+            if stat.S_ISREG(info.st_mode) and info.st_nlink == 1 \
+                    and (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (110, 112, 0o600):
+                fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                with os.fdopen(fd, 'rb') as stream:
+                    opened = os.fstat(stream.fileno())
+                    if (opened.st_dev, opened.st_ino) == (info.st_dev, info.st_ino):
+                        raw = stream.read(65536)
+                        boot.exclusive(self.work / ('mysql-error-' + self.sql_state + '.log'), raw)
+                        result.update(diagnostic_codes(raw))
+                        result.update(preserved_bytes=len(raw), truncated=info.st_size > len(raw))
+        except (OSError, subprocess.TimeoutExpired, checks.GateError, boot.Hold):
+            result['diagnostic_incomplete'] = True
+        return result
+
+    def prepare_mysql_log(self, name: str) -> Path:
+        """Create one fresh private log; never overwrite or repermission an existing file."""
+        path = mysql_log_path(name)
+        expected = mysql_log_directory()
+        parent = os.open(MYSQL_LOGS, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            opened = os.fstat(parent)
+            require((opened.st_dev, opened.st_ino) == (expected.st_dev, expected.st_ino),
+                    'MYSQL_LOG_DIRECTORY')
+            fd = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                         0o600, dir_fd=parent)
+            try:
+                os.fchmod(fd, 0o600)
+                os.fchown(fd, 110, 112)
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+        return path
+
+    def query(self, raw: bytes) -> bytes:
+        """Keep even fixed SQL out of argv and command logs."""
+        self.counter += 1
+        path = self.work / ('query-' + str(self.counter) + '.sql')
+        boot.exclusive(path, raw)
+        return self.command(['/usr/bin/mysql', '--no-defaults',
+                             '--protocol=socket', '--socket=' + SOCKET, '--user=root',
+                             '--batch', '--skip-column-names', '--connect-timeout=3',
+                             '--default-character-set=utf8mb4'], label='MYSQL_QUERY', input_file=path, cap=65536)
+
+    def start_mysql(self, mode: str, restore_directory: Path | None = None) -> str:
+        """Keep mysql.service untouched; create only a uniquely named transient unit."""
+        require(self.sql_state is None and not os.path.lexists('/run/mysqld'), 'MYSQL_CONFLICT')
+        require(min(self.deadline - time.monotonic(), self.wall_deadline - time.time()) >= 330,
+                'MYSQL_WINDOW_TOO_SHORT')
+        name = 'atstudio-wi069-' + mode + '-' + self.run_id + '.service'
+        state = self.command(['/usr/bin/systemctl', 'show', '--property=LoadState,MainPID,ControlPID', name])
+        require(set(state.decode().splitlines()) == {'LoadState=not-found', 'MainPID=0', 'ControlPID=0'},
+                'OWNED_UNIT_EXISTS')
+        require(os.readlink('/etc/systemd/system/mysql.service') == '/dev/null', 'MYSQL_MASK')
+        self.mysql_log = self.prepare_mysql_log(name)
+        self.owned_units.add(name)
+        self.sql_state = name
+        self.command(mysql_unit_arguments(name, mode, restore_directory), timeout=90,
+                     label={'source': 'MYSQL_SOURCE_START', 'initialize': 'MYSQL_INITIALIZE',
+                            'restore': 'MYSQL_RESTORE_START'}[mode])
+        if mode == 'initialize':
+            self.stop_mysql(name)
+            return name
+        end = min(self.deadline, time.monotonic() + 45)
+        while not Path(SOCKET).exists():
+            self.guard()
+            require(time.monotonic() < end, 'MYSQL_READY_TIMEOUT')
+            time.sleep(0.2)
+        state = self.command(['/usr/bin/systemctl', 'show', '--property=MainPID', name]).decode().strip()
+        require(re.fullmatch(r'MainPID=[1-9][0-9]*', state) is not None, 'MYSQL_PID')
+        pid = int(state.split('=')[1])
+        expected_directory = DATABASE if mode == 'source' else restore_directory
+        expected = expected_directory.stat()
+        mounted = Path(f'/proc/{pid}/root/var/lib/mysql').stat()
+        require((mounted.st_dev, mounted.st_ino) == (expected.st_dev, expected.st_ino), 'MYSQL_MOUNT_IDENTITY')
+        self.query(b'SELECT 1;\n')
+        observed = self.query(b'SELECT @@version,@@skip_networking,@@event_scheduler,@@local_infile,@@read_only,@@super_read_only;\n').decode().strip().split('\t')
+        require(len(observed) == 6 and observed[:4] == ['8.0.46-0ubuntu0.24.04.4', '1', 'DISABLED', '0'],
+                'MYSQL_CONTAINMENT')
+        if mode == 'source':
+            require(observed[4:] == ['1', '1'], 'SOURCE_READ_ONLY')
+        return name
+
+    def stop_unit(self, name: str) -> None:
+        """Confirm zero PIDs for each owned cgroup, including already collected units."""
+        require(name in self.owned_units, 'UNIT_NOT_OWNED')
+        # 정리에는 별도 제한 시간을 주어 본 작업 기한 만료 후에도 소유 프로세스를 중지한다.
+        state = subprocess.run(['/usr/bin/systemctl', 'show', '--property=LoadState,MainPID,ControlPID', name],
+                               stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                               env=ENV, timeout=5)
+        absent = state.returncode == 0 and set(state.stdout.decode().splitlines()) == {
+            'LoadState=not-found', 'MainPID=0', 'ControlPID=0'}
+        if not absent:
+            reply = subprocess.run(['/usr/bin/systemctl', 'stop', name], stdin=subprocess.DEVNULL,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=ENV, timeout=30)
+            require(reply.returncode == 0, 'CLEANUP_STOP')
+        check = subprocess.run(['/usr/bin/systemctl', 'show', '--property=MainPID,ControlPID', name],
+                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=ENV, timeout=5)
+        require(check.returncode == 0 and set(check.stdout.decode().splitlines()) == {'MainPID=0', 'ControlPID=0'},
+                'CLEANUP_PID')
+        self.owned_units.remove(name)
+
+    def stop_mysql(self, name: str) -> None:
+        """Stop only owned MySQL and confirm its runtime directory was removed."""
+        self.stop_unit(name)
+        self.sql_state = None
+        self.mysql_log = None
+        require(not os.path.lexists('/run/mysqld'), 'MYSQL_RUNTIME_REMAINS')
+
+    def sql_capture(self, destination: Path) -> dict:
+        """Observe all table counts and both deterministic complete/schema dumps."""
+        tables = checks.parse_tables(self.query(checks.mysql_inventory_query(SCHEMA)))
+        counts = checks.parse_counts(self.query(checks.row_count_query(SCHEMA, tables)), tables)
+        self.command(dump_arguments(), label='MYSQL_DUMP', target=destination / 'logical.sql', cap=200_000_000, timeout=120)
+        self.command(dump_arguments(True), label='MYSQL_SCHEMA_DUMP', target=destination / 'schema.sql', cap=50_000_000, timeout=90)
+        after = checks.parse_tables(self.query(checks.mysql_inventory_query(SCHEMA)))
+        require(after == tables and checks.parse_counts(self.query(checks.row_count_query(SCHEMA, tables)), tables)
+                == counts, 'SQL_DRIFT')
+        return dict(counts=counts, schema_sha256=sha_file(destination / 'schema.sql', 50_000_000),
+                    dump_sha256=sha_file(destination / 'logical.sql', 200_000_000))
+
+    def restic(self, action: list[str], *, timeout: int = 300, cap: int = 16 * 1024**2) -> bytes:
+        """Execute only the pinned restic with fixed IDC path-style TLS and file credentials."""
+        require(action[0] in {'init', 'cat', 'snapshots', 'backup', 'ls', 'check', 'restore'}, 'RESTIC_COMMAND')
+        timeout = min(timeout, int(min(self.deadline - time.monotonic(), self.wall_deadline - time.time())) - 20)
+        require(timeout >= 1, 'RESTIC_WINDOW_TOO_SHORT')
+        self.counter += 1
+        name = 'atstudio-wi069-restic-' + self.run_id + '-' + str(self.counter) + '.service'
+        state = self.command(['/usr/bin/systemctl', 'show', '--property=LoadState,MainPID,ControlPID', name])
+        require(set(state.decode().splitlines()) == {'LoadState=not-found', 'MainPID=0', 'ControlPID=0'},
+                'OWNED_UNIT_EXISTS')
+        self.owned_units.add(name)
+        env = dict(ENV, HOME=str(self.work / 'home'), TMPDIR=str(self.work / 'tmp'),
+                   AWS_SHARED_CREDENTIALS_FILE=str(self.credentials / 'aws-credentials'),
+                   AWS_CONFIG_FILE='/dev/null', AWS_PROFILE='default', AWS_EC2_METADATA_DISABLED='true',
+                   RESTIC_REPOSITORY=REPOSITORY, RESTIC_PASSWORD_FILE=str(self.credentials / 'repository-password'),
+                   GOMAXPROCS='2')
+        props = ['Type=exec', 'UMask=0077', 'MemoryMax=512M', 'MemorySwapMax=0', 'CPUQuota=100%',
+                 'TasksMax=128', 'LimitCORE=0', 'RuntimeMaxSec=' + str(timeout), 'TimeoutStopSec=15',
+                 'KillMode=control-group', 'NoNewPrivileges=yes', 'ProtectSystem=strict', 'ProtectHome=yes',
+                 'ReadWritePaths=' + str(self.work), 'RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6']
+        cmd = ['/usr/bin/systemd-run', '--quiet', '--wait', '--pipe', '--collect', '--unit=' + name,
+               *['--property=' + item for item in props], '--', '/usr/bin/env', '-i',
+               *[key + '=' + value for key, value in env.items()],
+               str(RESTIC), '--json', '--cache-dir=' + str(self.work / 'cache'),
+               '--limit-upload=4096', '--limit-download=4096', '-o', 's3.region=default',
+               '-o', 's3.bucket-lookup=path', *action]
+        label = 'RESTIC_CONFIG' if action[0] == 'cat' else 'RESTIC_' + action[0].upper()
+        result = self.command(cmd, label=label, timeout=timeout + 20, cap=cap)
+        self.stop_unit(name)
+        return result
+
+    def verify_fence(self) -> None:
+        """Verify exact original active/failed/masked states, zero writers and fixed pins."""
+        require(units() == self.baseline['units'], 'UNIT_RESTORE_DRIFT')
+        require(all(value == 0 for value in probe.process_counts(Path('/proc'), time.monotonic() + 10).values()),
+                'PROCESS_REMAINS')
+        fixed_pins()
+        require(not os.path.lexists('/run/mysqld'), 'MYSQL_RUNTIME_REMAINS')
+
+    def execute(self) -> dict:
+        """Capture complete source roots, round-trip every byte and SQL state, then remain cold."""
+        self.guard()
+        directory(self.work)
+        payload = self.work / 'payload'
+        for path in (payload, self.work / 'cache', self.work / 'tmp', self.work / 'home'):
+            directory(path)
+        failure = None
+        failure_detail = None
+        cleanup = []
+        cleanup_errors = []
+        try:
+            self.stage = 'SOURCE_SQL_WINDOW'
+            source = self.start_mysql('source')
+            sql = self.sql_capture(payload)
+            self.stop_mysql(source)
+            self.verify_fence()
+            self.stage = 'LOCAL_CAPTURE_READY'
+            require(collect(ROOTS, release_allowlist(), self.guard) == self.baseline['members'], 'SOURCE_DRIFT')
+            boot.exclusive(payload / 'sql-proof.json', boot.encoded(sql))
+            boot.exclusive(payload / 'manifest.json', boot.encoded(dict(
+                version=1, scope='pre-feature-WI060-runtime-no-runtime-keys',
+                members=self.baseline['members'], units_sha256=self.approval['units_sha256'],
+                inventory_sha256=self.approval['inventory_sha256'], full_disaster_recovery=False)))
+            expected = {**self.baseline['members'], **collect((payload,), tick=self.guard)}
+            size = sum(row.get('size', 0) for row in expected.values())
+            require(size + 100_000_000 < 1_000_000_000, 'INITIAL_REPOSITORY_BUDGET')
+            self.stage = 'NEW_REPOSITORY'
+            self.restic(['init', '--repository-version=2'])
+            config = checks.strict_json(self.restic(['cat', 'config']))
+            repository_id = checks.exact_id(config.get('id'))
+            boot.exclusive(self.work / 'repository.json', boot.encoded(config))
+            snapshots = self.restic(['snapshots'])
+            require(json.loads(snapshots) == [], 'REPOSITORY_NOT_EMPTY')
+            self.stage = 'BACKUP'
+            output = self.restic(['backup', '--host=REDACTED_TARGET_BINDING_OS_HOSTNAME', '--tag=wi069-' + self.run_id,
+                                  '--', *map(str, ROOTS), str(payload)], timeout=600)
+            boot.exclusive(self.work / 'backup-output.jsonl', output)
+            snapshot = checks.strict_backup_snapshot(output, 0)
+            self.snapshot = snapshot
+            listing = self.restic(['ls', snapshot])
+            self.snapshot = checks.verify_snapshot(expected, output, 0, listing, set())
+            boot.exclusive(self.work / 'snapshot-listing.jsonl', listing)
+            require(collect(ROOTS, release_allowlist(), self.guard) == self.baseline['members'], 'SOURCE_DRIFT')
+            self.verify_fence()
+            self.stage = 'EXACT_RESTORE'
+            restore = self.work / 'restored'
+            directory(restore)
+            self.restic(['check', '--read-data'], timeout=600)
+            self.restic(['restore', self.snapshot, '--target=' + str(restore), '--verify'], timeout=600)
+            actual = collect((restore,), tick=self.guard)
+            checks.verify_restored(expected, actual, str(restore))
+            self.stage = 'ISOLATED_SQL_RESTORE'
+            db = self.work / 'isolated-database'
+            directory(db)
+            os.chown(db, 110, 112)
+            self.start_mysql('initialize', db)
+            restored = self.start_mysql('restore', db)
+            dump = restore / str(payload / 'logical.sql').lstrip('/')
+            self.command(['/usr/bin/mysql', '--no-defaults', '--protocol=socket',
+                          '--socket=' + SOCKET, '--user=root', '--binary-mode', '--default-character-set=utf8mb4'],
+                         label='MYSQL_IMPORT', input_file=dump, timeout=120, cap=65536)
+            validation = self.work / 'sql-roundtrip'
+            directory(validation)
+            recovered = self.sql_capture(validation)
+            checks.verify_sql_roundtrip(sql['counts'], recovered['counts'], sql['schema_sha256'],
+                                        recovered['schema_sha256'], sql['dump_sha256'], recovered['dump_sha256'])
+            self.stop_mysql(restored)
+            require(collect(ROOTS, release_allowlist(), self.guard) == self.baseline['members'], 'SOURCE_DRIFT')
+            self.verify_fence()
+            boot.exclusive(self.work / 'verified-content.json', boot.encoded(dict(snapshot_id=self.snapshot,
+                repository_id=repository_id, sql=recovered, source_bytes=size, files=len(expected),
+                source_identity='WI060-existing-runtime', full_disaster_recovery=False)))
+            self.stage = 'COMPLETE'
+        except BaseException as error:
+            failure = 'WI069_' + self.stage + '_FAILED'
+            failure_detail = safe_error(error)
+            if self.last_command:
+                failure_detail['command'] = self.last_command
+            try:
+                boot.exclusive(self.work / 'failure.json', boot.encoded(dict(stage=self.stage,
+                               snapshot_id=self.snapshot, code=failure, detail=failure_detail,
+                               mysql=self.mysql_failure_diagnostic())))
+            except (OSError, checks.GateError, boot.Hold):
+                pass
+        finally:
+            for name in tuple(self.owned_units):
+                try:
+                    if name == self.sql_state:
+                        self.stop_mysql(name)
+                    else:
+                        self.stop_unit(name)
+                    cleanup.append(True)
+                except BaseException as error:
+                    cleanup.append(False)
+                    cleanup_errors.append(safe_error(error))
+            try:
+                self.verify_fence()
+                cleanup.append(True)
+            except BaseException as error:
+                cleanup.append(False)
+                cleanup_errors.append(safe_error(error))
+        result = dict(status='BOUNDED_BACKUP_RESTORE_PASS' if failure is None and all(cleanup) else 'HOLD',
+                      stage=self.stage, snapshot_id=self.snapshot, cleanup=all(cleanup),
+                      code=failure or ('COMPLETE' if all(cleanup) else 'WI069_CLEANUP_FAILED'),
+                      detail=failure_detail,
+                      cleanup_errors=cleanup_errors,
+                      full_disaster_recovery=False, app_start='NOT_RUN', source_release='WI060-existing-runtime')
+        boot.exclusive(self.work / 'public-result.json', boot.encoded(result))
+        return result
+
+
+def validate_approval(approval: dict, baseline: dict, now: datetime) -> dict:
+    """Reject expired/ambiguous approvals without extending their one-use window."""
+    keys = {'operation', 'run_id', 'bootstrap_run_id', 'not_before', 'not_after',
+            'inventory_sha256', 'units_sha256', 'recovery_password_sha256', 'initialize_repository'}
+    require(set(approval) == keys and approval['operation'] == 'wi069-first-backup-and-isolated-restore'
+            and approval['initialize_repository'] is True, 'APPROVAL_SHAPE')
+    for key in ('run_id', 'bootstrap_run_id'):
+        require(type(approval[key]) is str and bool(re.fullmatch('[a-f0-9]{32}', approval[key])), 'RUN_ID')
+    for key in ('inventory_sha256', 'units_sha256'):
+        require(approval[key] == baseline[key], 'APPROVAL_INVENTORY_DRIFT')
+    before, after = [datetime.fromisoformat(approval[key].replace('Z', '+00:00')) for key in ('not_before', 'not_after')]
+    require(before.tzinfo is not None and after.tzinfo is not None and before <= now < after
+            and 0 < (after - before).total_seconds() <= 1800, 'APPROVAL_WINDOW')
+    checks.exact_id(approval['recovery_password_sha256'])
+    return dict(approval, _expires_at=after.timestamp())
+
+
+def execute(approval_path: Path) -> dict:
+    """Require a fresh exact-inventory MA approval and escrow evidence before writes."""
+    import fcntl
+    baseline = inventory()
+    approval = validate_approval(checks.strict_json(boot.read_file(approval_path, 16384, private=True)),
+                                 baseline, datetime.now(timezone.utc))
+    credentials = BASE / 'wi069-runs' / ('wi069-' + approval['bootstrap_run_id'])
+    boot.secure(credentials, directory=True, private=True)
+    stage = checks.strict_json(boot.read_file(credentials / 'stage.json', 16384, private=True))
+    install = checks.strict_json(boot.read_file(credentials / 'install.json', 16384, private=True))
+    require(stage.get('run_id') == approval['bootstrap_run_id'] and stage.get('state') == 'STAGED'
+            and install == dict(state='INSTALLED_NOT_EXECUTED', binary_sha256=boot.BINARY_SHA256)
+            and not os.path.lexists(credentials / 'failure.json'), 'BOOTSTRAP_REQUIRED')
+    key = boot.read_file(credentials / 'aws-credentials', 16384, private=True)
+    boot.credentials_format(key)
+    require(boot.sha(key) == stage['credentials_sha256'], 'CREDENTIAL_DRIFT')
+    password = boot.read_file(credentials / 'repository-password', 128, private=True)
+    require(boot.sha(password) == stage['password_sha256'] == approval['recovery_password_sha256'], 'PC_ESCROW_REQUIRED')
+    boot.secure(BASE, directory=True, private=True)
+    if not CAPTURES.exists():
+        directory(CAPTURES)
+    boot.secure(CAPTURES, directory=True, private=True)
+    lock_parent = Path('/run/atstudio-operations')
+    if not os.path.lexists(lock_parent):
+        directory(lock_parent)
+    boot.secure(lock_parent, directory=True)
+    lock_path = lock_parent / 'operations.lock'
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        boot.secure(lock_path, private=True)
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        require(inventory() == baseline, 'PREWRITE_DRIFT')
+        return Capture(approval, baseline).execute()
+    finally:
+        os.close(descriptor)
+
+
+def main() -> int:
+    """Public output is metadata only; all SQL and command diagnostics remain private."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=('plan', 'inventory', 'run'), nargs='?', default='plan')
+    parser.add_argument('--approval', type=Path)
+    args = parser.parse_args()
+    if args.action == 'plan':
+        print('{"status":"PREPARATION_ONLY","native":"NOT_RUN","backup":"NOT_RUN","restore":"NOT_RUN"}')
+        return 0
+    try:
+        require(sys.platform == 'linux' and os.geteuid() == os.getegid() == 0, 'LINUX_ROOT_REQUIRED')
+        os.umask(0o077)
+        def interrupted(signum: int, frame: object) -> None:
+            raise checks.GateError('INTERRUPTED')
+        signal.signal(signal.SIGTERM, interrupted)
+        signal.signal(signal.SIGHUP, interrupted)
+        import resource
+        for identifier, cap in ((resource.RLIMIT_CORE, 0), (resource.RLIMIT_AS, 384 * 1024**2),
+                                (resource.RLIMIT_FSIZE, 300_000_000), (resource.RLIMIT_CPU, 1800)):
+            current, hard = resource.getrlimit(identifier)
+            limit = cap if hard == resource.RLIM_INFINITY else min(cap, hard)
+            resource.setrlimit(identifier, (min(current, limit) if current >= 0 else limit, limit))
+        if args.action == 'inventory':
+            result = inventory()
+            result.pop('members')
+            result.pop('units')
+        else:
+            require(args.approval is not None, 'APPROVAL_REQUIRED')
+            result = execute(args.approval)
+        print(json.dumps(result, sort_keys=True))
+        return 0 if result['status'] != 'HOLD' else 2
+    except BaseException as error:
+        print(json.dumps(dict(status='HOLD', code='WI069_GATE_OR_IO', detail=safe_error(error),
+                              backup='NOT_ACCEPTED', restore='NOT_ACCEPTED'), sort_keys=True))
+        return 2
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

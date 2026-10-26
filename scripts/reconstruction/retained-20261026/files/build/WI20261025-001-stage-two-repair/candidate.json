@@ -1,0 +1,11 @@
+{
+  "files": {
+    "README.md": "a4f8085778eeab5c267158d76b81d2f3aa69459e4c09e6a8282da745a85c46c0",
+    "make_payload.py": "f921a3067b369563ee33f935a2a7511ed5fc4f17249253370cc9a4f3e50e8aae",
+    "native_adapter.py": "26ac06a0debe05e67774e0d265b3c26cc82fa0febb3d09dc0bd1852653337de7",
+    "test_stage_two.py": "b384e3fe16afe0fda5c52fcffdefcdb5c50072b5764cf4f0d2b731209c022727",
+    "test_recovery.py": "9d7107fefc83896634a90f70e6fac32581d74e55a158096f2a714c78750a4594",
+    "transaction.py": "0d0a5456463c3224d1c6236550565646b313bebc9e1ca66817f2863fe0c2f845",
+    "unlock.ps1": "f130d6dd3893613950e35a34cd4a558399e65d721cdb324831939143d7955d0a"
+  }
+}

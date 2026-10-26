@@ -1,0 +1,11 @@
+{
+  "checked_at": "2026-10-26T18:55:12.7799343+09:00",
+  "owner": "SE / WI-20261026-ATS-001",
+  "command": "python -I -S -B deploy/single-vps/backup/host_hooks_unconfigured.py",
+  "exit_code": 2,
+  "result": {
+    "configured": false,
+    "code": "HOST_HOOK_NOT_CONFIGURED"
+  },
+  "interpretation": "Expected fail-closed marker; not an operational adapter"
+}

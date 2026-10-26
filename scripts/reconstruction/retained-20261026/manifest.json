@@ -1,0 +1,849 @@
+{
+  "schema": "ats-retained-source-v1",
+  "wi": "WI-20261026-ATS-005",
+  "date": "2026-10-26",
+  "purpose": "Source preservation only; not operational authority",
+  "records": [
+    {
+      "source": "build/WI-20261025-ATS-005/README.md",
+      "archive": "files/build/WI-20261025-ATS-005/README.md",
+      "mode": "exact",
+      "source_sha256": "e2a676141543a0b4de62e36ad23d72f8fbc9c977e166c5e5785576816d6c5bd0",
+      "archive_sha256": "e2a676141543a0b4de62e36ad23d72f8fbc9c977e166c5e5785576816d6c5bd0",
+      "bytes": 8092,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261025-ATS-005/artifact-hashes.json",
+      "archive": "files/build/WI-20261025-ATS-005/artifact-hashes.json",
+      "mode": "exact",
+      "source_sha256": "35d428c683fe0104089c1ec3065891618978891429aba53eb9ea00eff83a14a8",
+      "archive_sha256": "35d428c683fe0104089c1ec3065891618978891429aba53eb9ea00eff83a14a8",
+      "bytes": 920,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261025-ATS-005/check_local.py",
+      "archive": "files/build/WI-20261025-ATS-005/check_local.py",
+      "mode": "exact",
+      "source_sha256": "8cedafcbafb81714503841d2e9bbfecbadb27d7d33b359251ff14826b7de4457",
+      "archive_sha256": "8cedafcbafb81714503841d2e9bbfecbadb27d7d33b359251ff14826b7de4457",
+      "bytes": 3703,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261025-ATS-005/local-check.json",
+      "archive": "files/build/WI-20261025-ATS-005/local-check.json",
+      "mode": "exact",
+      "source_sha256": "24cacfbbf1ae872d0b2472b02a2065087f0acf4269c7523ad6f114c523071baa",
+      "archive_sha256": "24cacfbbf1ae872d0b2472b02a2065087f0acf4269c7523ad6f114c523071baa",
+      "bytes": 604,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261025-ATS-005/operating-modes.json",
+      "archive": "files/build/WI-20261025-ATS-005/operating-modes.json",
+      "mode": "exact",
+      "source_sha256": "e1f964234e978795103b9c5b40e6b864788d25f1a5142f999e32e908c8df84bb",
+      "archive_sha256": "e1f964234e978795103b9c5b40e6b864788d25f1a5142f999e32e908c8df84bb",
+      "bytes": 4131,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261025-ATS-005/template-audit.json",
+      "archive": "files/build/WI-20261025-ATS-005/template-audit.json",
+      "mode": "exact",
+      "source_sha256": "6b63bf82b24c226e5d180220cdf36dee4549e7b3265c9c126a3aeb7f94af3bc0",
+      "archive_sha256": "6b63bf82b24c226e5d180220cdf36dee4549e7b3265c9c126a3aeb7f94af3bc0",
+      "bytes": 763,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261025-ATS-005/test_modes.py",
+      "archive": "files/build/WI-20261025-ATS-005/test_modes.py",
+      "mode": "exact",
+      "source_sha256": "c1575483bc67d7eeb777d560dc948f3752dd8d022b6d9f98caeda7d37240d89c",
+      "archive_sha256": "c1575483bc67d7eeb777d560dc948f3752dd8d022b6d9f98caeda7d37240d89c",
+      "bytes": 1198,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261026-ATS-001/document-check.json",
+      "archive": "files/build/WI-20261026-ATS-001/document-check.json",
+      "mode": "exact",
+      "source_sha256": "55950e620be78405117710c9fa22ae3e784294d6e336700f41a6cf55fc38018e",
+      "archive_sha256": "55950e620be78405117710c9fa22ae3e784294d6e336700f41a6cf55fc38018e",
+      "bytes": 230,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261026-ATS-001/hook-marker-check.json",
+      "archive": "files/build/WI-20261026-ATS-001/hook-marker-check.json",
+      "mode": "exact",
+      "source_sha256": "98eabd29689da7a206c40ae5bd42b1b363eb4400cbd94a9d6ded152cbc5b17fe",
+      "archive_sha256": "98eabd29689da7a206c40ae5bd42b1b363eb4400cbd94a9d6ded152cbc5b17fe",
+      "bytes": 370,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261026-ATS-001/operating-readiness.md",
+      "archive": "files/build/WI-20261026-ATS-001/operating-readiness.md",
+      "mode": "exact",
+      "source_sha256": "9b19bed1337db2bcd8b65b432bb249931689fb487ed279810f715e1284c6856b",
+      "archive_sha256": "9b19bed1337db2bcd8b65b432bb249931689fb487ed279810f715e1284c6856b",
+      "bytes": 11793,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261026-ATS-001/source-pin-check.json",
+      "archive": "files/build/WI-20261026-ATS-001/source-pin-check.json",
+      "mode": "exact",
+      "source_sha256": "50a8200f29dd40b578ee2a5f1f14d7327e17f5bee383146c9e76b61de87fa268",
+      "archive_sha256": "50a8200f29dd40b578ee2a5f1f14d7327e17f5bee383146c9e76b61de87fa268",
+      "bytes": 988,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261026-ATS-002/local-document-check.json",
+      "archive": "files/build/WI-20261026-ATS-002/local-document-check.json",
+      "mode": "exact",
+      "source_sha256": "ac5fe1c9b49ab0c5c9e9c9215016f6f5f1893a12c1a11e1b143391e5adf41003",
+      "archive_sha256": "ac5fe1c9b49ab0c5c9e9c9215016f6f5f1893a12c1a11e1b143391e5adf41003",
+      "bytes": 1325,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261026-ATS-002/privacy-data-map.md",
+      "archive": "files/build/WI-20261026-ATS-002/privacy-data-map.md",
+      "mode": "exact",
+      "source_sha256": "6d7cfa1f33c916968dd5d68bde8aae58340d7b0dcd03d8133139f71639cf684e",
+      "archive_sha256": "6d7cfa1f33c916968dd5d68bde8aae58340d7b0dcd03d8133139f71639cf684e",
+      "bytes": 12906,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261026-ATS-002/remediation-and-verification.md",
+      "archive": "files/build/WI-20261026-ATS-002/remediation-and-verification.md",
+      "mode": "exact",
+      "source_sha256": "7a174b0fa4819a8f9a87b71dda383769ed31f8722415a63dc6efc116c9f1416d",
+      "archive_sha256": "7a174b0fa4819a8f9a87b71dda383769ed31f8722415a63dc6efc116c9f1416d",
+      "bytes": 8472,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261026-ATS-002/source-manifest.json",
+      "archive": "files/build/WI-20261026-ATS-002/source-manifest.json",
+      "mode": "exact",
+      "source_sha256": "27c0b3ac97067a31d2dc64d51b9df1975b97f76553a047a8684c47597ebd2c42",
+      "archive_sha256": "27c0b3ac97067a31d2dc64d51b9df1975b97f76553a047a8684c47597ebd2c42",
+      "bytes": 3946,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261026-ATS-003/client-trial-checklist.md",
+      "archive": "files/build/WI-20261026-ATS-003/client-trial-checklist.md",
+      "mode": "exact",
+      "source_sha256": "d686c9a27b968fcaabeee229f65115ab73166541fc7523ccd0c0d140f5c57d64",
+      "archive_sha256": "d686c9a27b968fcaabeee229f65115ab73166541fc7523ccd0c0d140f5c57d64",
+      "bytes": 5458,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261026-ATS-003/document-check.json",
+      "archive": "files/build/WI-20261026-ATS-003/document-check.json",
+      "mode": "exact",
+      "source_sha256": "ec79b5ee98ae83fe6cb2ad4acf034c10ac3bd61e78f2181abf82a3c216a51528",
+      "archive_sha256": "ec79b5ee98ae83fe6cb2ad4acf034c10ac3bd61e78f2181abf82a3c216a51528",
+      "bytes": 446,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261026-ATS-003/error-report-template.md",
+      "archive": "files/build/WI-20261026-ATS-003/error-report-template.md",
+      "mode": "exact",
+      "source_sha256": "a86fb3a6b30d049f89b491414db724cd387efb727c8a2bf377cafb3427e8424c",
+      "archive_sha256": "a86fb3a6b30d049f89b491414db724cd387efb727c8a2bf377cafb3427e8424c",
+      "bytes": 1338,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI-20261026-ATS-003/review-notes.md",
+      "archive": "files/build/WI-20261026-ATS-003/review-notes.md",
+      "mode": "exact",
+      "source_sha256": "355c60aa30050dbea1d0717f42c2c6ab982f784716c3b3187ee7a4a1e60b9f9d",
+      "archive_sha256": "355c60aa30050dbea1d0717f42c2c6ab982f784716c3b3187ee7a4a1e60b9f9d",
+      "bytes": 2340,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-005-account-fixture/FixturePasswords.java",
+      "archive": "files/build/WI20261023-005-account-fixture/FixturePasswords.java",
+      "mode": "exact",
+      "source_sha256": "55c2f11fb6668235fb981a773fe0b8f64e6caa653916283fcf425623c6901985",
+      "archive_sha256": "55c2f11fb6668235fb981a773fe0b8f64e6caa653916283fcf425623c6901985",
+      "bytes": 2138,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-005-account-fixture/fixture_cli.py",
+      "archive": "files/build/WI20261023-005-account-fixture/fixture_cli.py",
+      "mode": "exact",
+      "source_sha256": "fc871c95fb10835b71d1df8ff0f44f2c6e40b400d0885ad58b2973e7b7b7cca4",
+      "archive_sha256": "fc871c95fb10835b71d1df8ff0f44f2c6e40b400d0885ad58b2973e7b7b7cca4",
+      "bytes": 4615,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-005-account-fixture/fixture_core.py",
+      "archive": "files/build/WI20261023-005-account-fixture/fixture_core.py",
+      "mode": "exact",
+      "source_sha256": "6baae894f030da72234b36382c463cb417fd79f6a7ff5efe5e48890a9693d86c",
+      "archive_sha256": "6baae894f030da72234b36382c463cb417fd79f6a7ff5efe5e48890a9693d86c",
+      "bytes": 15004,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-005-account-fixture/fixture_native.py",
+      "archive": "files/build/WI20261023-005-account-fixture/fixture_native.py",
+      "mode": "exact",
+      "source_sha256": "bf1667e6c6ce2d46bfab36a055158418d04f576ee21aba7dbd8af0cc11835538",
+      "archive_sha256": "bf1667e6c6ce2d46bfab36a055158418d04f576ee21aba7dbd8af0cc11835538",
+      "bytes": 15032,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-005-account-fixture/mysql_session.py",
+      "archive": "files/build/WI20261023-005-account-fixture/mysql_session.py",
+      "mode": "exact",
+      "source_sha256": "2bcdf10d75257cd5ff119badbea821745322862881382b9ba7590fdd13da814f",
+      "archive_sha256": "2bcdf10d75257cd5ff119badbea821745322862881382b9ba7590fdd13da814f",
+      "bytes": 4073,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-005-account-fixture/prepare_crypto.py",
+      "archive": "files/build/WI20261023-005-account-fixture/prepare_crypto.py",
+      "mode": "exact",
+      "source_sha256": "1cf84bb97724a322e35a315120acad7730ad4ad0d83249383915399f98677398",
+      "archive_sha256": "1cf84bb97724a322e35a315120acad7730ad4ad0d83249383915399f98677398",
+      "bytes": 1533,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-005-account-fixture/reused/account_operator.py",
+      "archive": "files/build/WI20261023-005-account-fixture/reused/account_operator.py",
+      "mode": "exact",
+      "source_sha256": "28a56ace3c50f92f19045b82b2d97af96ed2a0e99e76523724f82d70aecfb3b3",
+      "archive_sha256": "28a56ace3c50f92f19045b82b2d97af96ed2a0e99e76523724f82d70aecfb3b3",
+      "bytes": 12072,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-005-account-fixture/reused/cold_capture.py",
+      "archive": "references/build/WI20261023-005-account-fixture/reused/cold_capture.py.reference.txt",
+      "mode": "reference-only",
+      "source_sha256": "d577629170099da3345c528e69a5fb60d7b52892dc20bf2de7b52307a86db766",
+      "archive_sha256": "af80b5b8b1860a2f72bdc6d4a75d3f9581b81ae149e71776b0dc5d1b38806d97",
+      "bytes": 50446,
+      "redacted_categories": [
+        "OS_HOSTNAME",
+        "REPOSITORY"
+      ]
+    },
+    {
+      "source": "build/WI20261023-005-account-fixture/reused/diagnostic.py",
+      "archive": "files/build/WI20261023-005-account-fixture/reused/diagnostic.py",
+      "mode": "exact",
+      "source_sha256": "84ce1f82769c5c6a70bcc3b5090a929dd21d526dc590198a3b221545af469c7e",
+      "archive_sha256": "84ce1f82769c5c6a70bcc3b5090a929dd21d526dc590198a3b221545af469c7e",
+      "bytes": 5524,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-005-account-fixture/reused/inventory.py",
+      "archive": "files/build/WI20261023-005-account-fixture/reused/inventory.py",
+      "mode": "exact",
+      "source_sha256": "9870667e2b733bf33ef7eb35ea95465bd7467c1a941388fc5158798a403e0bcd",
+      "archive_sha256": "9870667e2b733bf33ef7eb35ea95465bd7467c1a941388fc5158798a403e0bcd",
+      "bytes": 4362,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-005-account-fixture/reused/source_operator.py",
+      "archive": "references/build/WI20261023-005-account-fixture/reused/source_operator.py.reference.txt",
+      "mode": "reference-only",
+      "source_sha256": "c737d94dd8d184982167489de39b86e0c8a59a46d8c851ba6622adb7bf8b8435",
+      "archive_sha256": "9992fcd4b1a0bc4459c56da73587ff75a061ece6875a89b9e0186a179cf91a6a",
+      "bytes": 8577,
+      "redacted_categories": [
+        "APPROVAL",
+        "BOOT",
+        "PROBE"
+      ]
+    },
+    {
+      "source": "build/WI20261023-005-account-fixture/test_fixture.py",
+      "archive": "files/build/WI20261023-005-account-fixture/test_fixture.py",
+      "mode": "exact",
+      "source_sha256": "768509806a18ca2984a8a1e82c1b61f8c9bce674b83d75af77c3f7b83e3bae19",
+      "archive_sha256": "768509806a18ca2984a8a1e82c1b61f8c9bce674b83d75af77c3f7b83e3bae19",
+      "bytes": 7365,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-011-fixture-inspect/README.md",
+      "archive": "files/build/WI20261023-011-fixture-inspect/README.md",
+      "mode": "exact",
+      "source_sha256": "3dfcc1b8729653346c424ad218258399a32ed210e16e678a9a37ac33244d7d81",
+      "archive_sha256": "3dfcc1b8729653346c424ad218258399a32ed210e16e678a9a37ac33244d7d81",
+      "bytes": 9862,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-011-fixture-inspect/candidate.json",
+      "archive": "files/build/WI20261023-011-fixture-inspect/candidate.json",
+      "mode": "exact",
+      "source_sha256": "21daba86032674c87844d9a584fee5ec42e3c689db806e53c0a961ebfa407245",
+      "archive_sha256": "21daba86032674c87844d9a584fee5ec42e3c689db806e53c0a961ebfa407245",
+      "bytes": 822,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-011-fixture-inspect/capture.ps1",
+      "archive": "files/build/WI20261023-011-fixture-inspect/capture.ps1",
+      "mode": "exact",
+      "source_sha256": "9514512f8334cef5151f165b147fa49cb9cd987858f0fb83cfc7139532ab7aec",
+      "archive_sha256": "9514512f8334cef5151f165b147fa49cb9cd987858f0fb83cfc7139532ab7aec",
+      "bytes": 10292,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-011-fixture-inspect/inspect_tools.py",
+      "archive": "files/build/WI20261023-011-fixture-inspect/inspect_tools.py",
+      "mode": "exact",
+      "source_sha256": "5a21512e1bb8323b976e5f5d929b0c6b4ba74ae2400d8cec518a14f6e2610c6c",
+      "archive_sha256": "5a21512e1bb8323b976e5f5d929b0c6b4ba74ae2400d8cec518a14f6e2610c6c",
+      "bytes": 6579,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-011-fixture-inspect/remote_inspect.py",
+      "archive": "files/build/WI20261023-011-fixture-inspect/remote_inspect.py",
+      "mode": "exact",
+      "source_sha256": "1df52a75453c98423e2a953690d5aa9362d32e9275954b03590d34cb62a35d66",
+      "archive_sha256": "1df52a75453c98423e2a953690d5aa9362d32e9275954b03590d34cb62a35d66",
+      "bytes": 8800,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261023-011-fixture-inspect/test_inspect.py",
+      "archive": "files/build/WI20261023-011-fixture-inspect/test_inspect.py",
+      "mode": "exact",
+      "source_sha256": "955ce6c27ad6c2d942b3d1f8c4fb710df82ca6742c6c74336644fadb7e26c2a3",
+      "archive_sha256": "955ce6c27ad6c2d942b3d1f8c4fb710df82ca6742c6c74336644fadb7e26c2a3",
+      "bytes": 6846,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-008-readonly-evidence/account_operator.py",
+      "archive": "files/build/WI20261024-008-readonly-evidence/account_operator.py",
+      "mode": "exact",
+      "source_sha256": "d35dbf67103e3f0b913a6af292ff899971389e452da32547bfc91ae53b8c1e45",
+      "archive_sha256": "d35dbf67103e3f0b913a6af292ff899971389e452da32547bfc91ae53b8c1e45",
+      "bytes": 12239,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-008-readonly-evidence/backup_evidence.py",
+      "archive": "references/build/WI20261024-008-readonly-evidence/backup_evidence.py.reference.txt",
+      "mode": "reference-only",
+      "source_sha256": "1b1f6a8d9815f3a5003460600355fbb1655e8f71f4a00ef578dfad3c6574a754",
+      "archive_sha256": "55339cb8ab3595b2f620fb6ea2108b956fe4df1ee26060eb4feb3ab5180a57ed",
+      "bytes": 6300,
+      "redacted_categories": [
+        "MANIFEST_SHA",
+        "ORIGINAL",
+        "PROOF_SHA",
+        "RESTORE"
+      ]
+    },
+    {
+      "source": "build/WI20261024-008-readonly-evidence/inventory.py",
+      "archive": "files/build/WI20261024-008-readonly-evidence/inventory.py",
+      "mode": "exact",
+      "source_sha256": "fafa8059c6988aae21d0e135ce7abf44dbee5255344ed878f5f6b5536806f37d",
+      "archive_sha256": "fafa8059c6988aae21d0e135ce7abf44dbee5255344ed878f5f6b5536806f37d",
+      "bytes": 7229,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-008-readonly-evidence/make_payload.py",
+      "archive": "files/build/WI20261024-008-readonly-evidence/make_payload.py",
+      "mode": "exact",
+      "source_sha256": "9d4797bb73f3a13ec7e5fc56781aeaf0e09d7b937a05c13263df2d13170dfb1c",
+      "archive_sha256": "9d4797bb73f3a13ec7e5fc56781aeaf0e09d7b937a05c13263df2d13170dfb1c",
+      "bytes": 5457,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-008-readonly-evidence/test_readonly.py",
+      "archive": "files/build/WI20261024-008-readonly-evidence/test_readonly.py",
+      "mode": "exact",
+      "source_sha256": "ffaa336740d367a572fc9e4f9a65e580effee8466970f0f114342b63d3d6f09e",
+      "archive_sha256": "ffaa336740d367a572fc9e4f9a65e580effee8466970f0f114342b63d3d6f09e",
+      "bytes": 9583,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/README.md",
+      "archive": "files/build/WI20261024-011-backup-preparation/README.md",
+      "mode": "exact",
+      "source_sha256": "fd4dd87f6608ffe178078e16dfc7666c64a1d98fd2ea77d0b23774f3a2ca29e4",
+      "archive_sha256": "fd4dd87f6608ffe178078e16dfc7666c64a1d98fd2ea77d0b23774f3a2ca29e4",
+      "bytes": 10598,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/adapter.py",
+      "archive": "references/build/WI20261024-011-backup-preparation/adapter.py.reference.txt",
+      "mode": "reference-only",
+      "source_sha256": "777bc372ab7c05e728b14ac0a3b8516ab2b3323b7f82344b778c0a2b1fb26305",
+      "archive_sha256": "fcc997ae504c5fb97c57083a7a946d03ff877e67445358e248f9feb38a8d8d49",
+      "bytes": 15641,
+      "redacted_categories": [
+        "OS_HOSTNAME"
+      ]
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/backup_plan.py",
+      "archive": "references/build/WI20261024-011-backup-preparation/backup_plan.py.reference.txt",
+      "mode": "reference-only",
+      "source_sha256": "6519466ce150a9a152c32390e738a98f398ae22b94192df21ce8b1a2f492a2a7",
+      "archive_sha256": "93ada2591423bece0fdce829ce1e386cc5a5c71f3da561cec5206c766a022c9a",
+      "bytes": 8142,
+      "redacted_categories": [
+        "BOOTSTRAP_RUN",
+        "ORIGINAL",
+        "REPOSITORY_ID",
+        "RESTORE"
+      ]
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/candidate.json",
+      "archive": "files/build/WI20261024-011-backup-preparation/candidate.json",
+      "mode": "exact",
+      "source_sha256": "158d2bb3064d112e625b7b8db914925636fe9b72f68161671da862d84dc19839",
+      "archive_sha256": "158d2bb3064d112e625b7b8db914925636fe9b72f68161671da862d84dc19839",
+      "bytes": 2121,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/entry.py",
+      "archive": "files/build/WI20261024-011-backup-preparation/entry.py",
+      "mode": "exact",
+      "source_sha256": "54daf387cef56a31a3bc4725fb509faa6b895cd644ee93a7384c8a3126b30e42",
+      "archive_sha256": "54daf387cef56a31a3bc4725fb509faa6b895cd644ee93a7384c8a3126b30e42",
+      "bytes": 3340,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/grant-date-proposal.md",
+      "archive": "files/build/WI20261024-011-backup-preparation/grant-date-proposal.md",
+      "mode": "exact",
+      "source_sha256": "19c7e6895903fa235531eb96819e2cc3f168102c2f2bd067f34166a3d1263db0",
+      "archive_sha256": "19c7e6895903fa235531eb96819e2cc3f168102c2f2bd067f34166a3d1263db0",
+      "bytes": 3495,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/lib/account_operator.py",
+      "archive": "files/build/WI20261024-011-backup-preparation/lib/account_operator.py",
+      "mode": "exact",
+      "source_sha256": "d35dbf67103e3f0b913a6af292ff899971389e452da32547bfc91ae53b8c1e45",
+      "archive_sha256": "d35dbf67103e3f0b913a6af292ff899971389e452da32547bfc91ae53b8c1e45",
+      "bytes": 12239,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/lib/backup_checks.py",
+      "archive": "files/build/WI20261024-011-backup-preparation/lib/backup_checks.py",
+      "mode": "exact",
+      "source_sha256": "1b2881a8fb583af76f706d2b60ac6ab54546b807600ebbf8f4ff337f99dae5d2",
+      "archive_sha256": "1b2881a8fb583af76f706d2b60ac6ab54546b807600ebbf8f4ff337f99dae5d2",
+      "bytes": 15410,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/lib/backup_evidence.py",
+      "archive": "references/build/WI20261024-011-backup-preparation/lib/backup_evidence.py.reference.txt",
+      "mode": "reference-only",
+      "source_sha256": "1b1f6a8d9815f3a5003460600355fbb1655e8f71f4a00ef578dfad3c6574a754",
+      "archive_sha256": "55339cb8ab3595b2f620fb6ea2108b956fe4df1ee26060eb4feb3ab5180a57ed",
+      "bytes": 6300,
+      "redacted_categories": [
+        "MANIFEST_SHA",
+        "ORIGINAL",
+        "PROOF_SHA",
+        "RESTORE"
+      ]
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/lib/backup_protocol.py",
+      "archive": "files/build/WI20261024-011-backup-preparation/lib/backup_protocol.py",
+      "mode": "exact",
+      "source_sha256": "a890d997b49fd6ce1d997a95951087279f2246c7d0e71a1e035254061547fd43",
+      "archive_sha256": "a890d997b49fd6ce1d997a95951087279f2246c7d0e71a1e035254061547fd43",
+      "bytes": 13700,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/lib/bootstrap.py",
+      "archive": "references/build/WI20261024-011-backup-preparation/lib/bootstrap.py.reference.txt",
+      "mode": "reference-only",
+      "source_sha256": "f2f7c90c609a3a0689153c3bb40201cec684974e53ae6d6990d47eec86f98fe8",
+      "archive_sha256": "fef5c4246b601447c29263b4b02b6c7800c3a6af944e147c8b47ab61a5990507",
+      "bytes": 17876,
+      "redacted_categories": [
+        "HOST_FINGERPRINT",
+        "MACHINE_SHA256",
+        "OS_HOSTNAME"
+      ]
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/lib/cold_capture.py",
+      "archive": "references/build/WI20261024-011-backup-preparation/lib/cold_capture.py.reference.txt",
+      "mode": "reference-only",
+      "source_sha256": "d577629170099da3345c528e69a5fb60d7b52892dc20bf2de7b52307a86db766",
+      "archive_sha256": "af80b5b8b1860a2f72bdc6d4a75d3f9581b81ae149e71776b0dc5d1b38806d97",
+      "bytes": 50446,
+      "redacted_categories": [
+        "OS_HOSTNAME",
+        "REPOSITORY"
+      ]
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/lib/inventory.py",
+      "archive": "files/build/WI20261024-011-backup-preparation/lib/inventory.py",
+      "mode": "exact",
+      "source_sha256": "fafa8059c6988aae21d0e135ce7abf44dbee5255344ed878f5f6b5536806f37d",
+      "archive_sha256": "fafa8059c6988aae21d0e135ce7abf44dbee5255344ed878f5f6b5536806f37d",
+      "bytes": 7229,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/lib/native_inventory.py",
+      "archive": "references/build/WI20261024-011-backup-preparation/lib/native_inventory.py.reference.txt",
+      "mode": "reference-only",
+      "source_sha256": "2e277895c8fd844c12763f39bd79db7b4d92d04fcb51dc5a6752f7f71eee06de",
+      "archive_sha256": "6b4f87d7aec36f0dce49186ad4fe9df4abfd99702d4f23fa1bc48edaa8d5f9b5",
+      "bytes": 7731,
+      "redacted_categories": [
+        "OS_HOSTNAME"
+      ]
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/lib/release-allowlist.json",
+      "archive": "files/build/WI20261024-011-backup-preparation/lib/release-allowlist.json",
+      "mode": "exact",
+      "source_sha256": "0fc6186f055c738b636ac2fdff48598dfc2811ad8274170e4f061776a5515edd",
+      "archive_sha256": "0fc6186f055c738b636ac2fdff48598dfc2811ad8274170e4f061776a5515edd",
+      "bytes": 23170,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/lib/restore_equivalence.py",
+      "archive": "files/build/WI20261024-011-backup-preparation/lib/restore_equivalence.py",
+      "mode": "exact",
+      "source_sha256": "31ff368fc4e822fe992c1c0b7870ebb5c1b82a5ae1c99c350133ebc8f8210033",
+      "archive_sha256": "31ff368fc4e822fe992c1c0b7870ebb5c1b82a5ae1c99c350133ebc8f8210033",
+      "bytes": 10159,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/lib/restore_only.py",
+      "archive": "references/build/WI20261024-011-backup-preparation/lib/restore_only.py.reference.txt",
+      "mode": "reference-only",
+      "source_sha256": "bf2108e2c5e85177bbe6e694899c616512c1b7429dc0cd8f34783ec3778df665",
+      "archive_sha256": "b1eeb8c7d77aacf9fdecc02b10f0d8c61839a4d2cb726198bf50d24f4b072b1e",
+      "bytes": 16623,
+      "redacted_categories": [
+        "BOOTSTRAP_RUN",
+        "MANIFEST_SHA",
+        "ORIGINAL",
+        "OS_HOSTNAME",
+        "PROOF_SHA",
+        "REPOSITORY_ID",
+        "SNAPSHOT_ID"
+      ]
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/make_payload.py",
+      "archive": "files/build/WI20261024-011-backup-preparation/make_payload.py",
+      "mode": "exact",
+      "source_sha256": "d93b06d1cc33efe278c3a21fc9d6fccd17390cc04901a9a15be9e66eca7275e1",
+      "archive_sha256": "d93b06d1cc33efe278c3a21fc9d6fccd17390cc04901a9a15be9e66eca7275e1",
+      "bytes": 5730,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/test-output.txt",
+      "archive": "files/build/WI20261024-011-backup-preparation/test-output.txt",
+      "mode": "exact",
+      "source_sha256": "eebced44b0d0cf5b123b9c2967e60b54df64974a01980d7dcc3f6ce73f76afc0",
+      "archive_sha256": "eebced44b0d0cf5b123b9c2967e60b54df64974a01980d7dcc3f6ce73f76afc0",
+      "bytes": 1552,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-011-backup-preparation/test_preparation.py",
+      "archive": "references/build/WI20261024-011-backup-preparation/test_preparation.py.reference.txt",
+      "mode": "reference-only",
+      "source_sha256": "48cff2126f79c619f50c858f969a9fbbb5af9880ae35802fb0c8e4ec007ed3c2",
+      "archive_sha256": "032f229787edd55d472f98a40d1a9eae0f49a2b916565d4be0618e46c6e6ab2f",
+      "bytes": 10276,
+      "redacted_categories": [
+        "OS_HOSTNAME"
+      ]
+    },
+    {
+      "source": "build/WI20261024-014-backup-preflight/README.md",
+      "archive": "files/build/WI20261024-014-backup-preflight/README.md",
+      "mode": "exact",
+      "source_sha256": "acc6f855caeadf51ae38e54de56c6d7b6c366f5364057dfe39b67cab2eef95b3",
+      "archive_sha256": "acc6f855caeadf51ae38e54de56c6d7b6c366f5364057dfe39b67cab2eef95b3",
+      "bytes": 6530,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-014-backup-preflight/candidate.json",
+      "archive": "files/build/WI20261024-014-backup-preflight/candidate.json",
+      "mode": "exact",
+      "source_sha256": "e7b69cc9e44abbbac971621160285f2c55a22111729420ff3b6b0196a147eb19",
+      "archive_sha256": "e7b69cc9e44abbbac971621160285f2c55a22111729420ff3b6b0196a147eb19",
+      "bytes": 652,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-014-backup-preflight/make_payload.py",
+      "archive": "files/build/WI20261024-014-backup-preflight/make_payload.py",
+      "mode": "exact",
+      "source_sha256": "bd858e942decb62352a94e0846e4750dabd4a7e7cc8d863b611a40017d7d97ff",
+      "archive_sha256": "bd858e942decb62352a94e0846e4750dabd4a7e7cc8d863b611a40017d7d97ff",
+      "bytes": 4854,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-014-backup-preflight/preflight.py",
+      "archive": "references/build/WI20261024-014-backup-preflight/preflight.py.reference.txt",
+      "mode": "reference-only",
+      "source_sha256": "bbd4aefe7193bbd219c1ee441ca4da42d5251121f2cfc2edf4f33566b40798fa",
+      "archive_sha256": "b06797e2c1ae044e09732593f0e058214cc29a4a988e1830fa954bb77f15df36",
+      "bytes": 5677,
+      "redacted_categories": [
+        "BOOTSTRAP_RUN",
+        "ORIGINAL",
+        "REPOSITORY_ID",
+        "RESTORE",
+        "SNAPSHOT_ID"
+      ]
+    },
+    {
+      "source": "build/WI20261024-014-backup-preflight/test-output.txt",
+      "archive": "files/build/WI20261024-014-backup-preflight/test-output.txt",
+      "mode": "exact",
+      "source_sha256": "558592614459c2631acf88d39d019ae59374e18a4447e7a1effbf4242bd1adc9",
+      "archive_sha256": "558592614459c2631acf88d39d019ae59374e18a4447e7a1effbf4242bd1adc9",
+      "bytes": 989,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-014-backup-preflight/test_preflight.py",
+      "archive": "references/build/WI20261024-014-backup-preflight/test_preflight.py.reference.txt",
+      "mode": "reference-only",
+      "source_sha256": "5d156d82dbcb145436001dc6836a6f77bb093a2f2d33fc2b1b98be451a31ccc3",
+      "archive_sha256": "da455df29f9acc8eefba8e14287824526a294ffb381d28d5c4448334f1e02dec",
+      "bytes": 6591,
+      "redacted_categories": [
+        "RUN_OR_BOOT_ID"
+      ]
+    },
+    {
+      "source": "build/WI20261024-017-stage-one/README.md",
+      "archive": "files/build/WI20261024-017-stage-one/README.md",
+      "mode": "exact",
+      "source_sha256": "0db0230a2bd011bc95730b928148342a9d15929d350dc77ce66dd9a53210e525",
+      "archive_sha256": "0db0230a2bd011bc95730b928148342a9d15929d350dc77ce66dd9a53210e525",
+      "bytes": 19099,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-017-stage-one/candidate.json",
+      "archive": "files/build/WI20261024-017-stage-one/candidate.json",
+      "mode": "exact",
+      "source_sha256": "18d4b2208da305acceaafe0f8b2eac438f8ae11f1f96f372b14b10a9a88e2221",
+      "archive_sha256": "18d4b2208da305acceaafe0f8b2eac438f8ae11f1f96f372b14b10a9a88e2221",
+      "bytes": 945,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-017-stage-one/cost_bound.py",
+      "archive": "files/build/WI20261024-017-stage-one/cost_bound.py",
+      "mode": "exact",
+      "source_sha256": "9339f595d9788fea7a72c7ff5f8f896d6f5db3babba2c600ac162e061bbd7f7f",
+      "archive_sha256": "9339f595d9788fea7a72c7ff5f8f896d6f5db3babba2c600ac162e061bbd7f7f",
+      "bytes": 4984,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-017-stage-one/cost_metadata.py",
+      "archive": "files/build/WI20261024-017-stage-one/cost_metadata.py",
+      "mode": "exact",
+      "source_sha256": "919bd4d072429ad3b9154124af79ba0a8ce4d6d26759d497df3732038af04dc0",
+      "archive_sha256": "919bd4d072429ad3b9154124af79ba0a8ce4d6d26759d497df3732038af04dc0",
+      "bytes": 7045,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-017-stage-one/repair-test-output.txt",
+      "archive": "files/build/WI20261024-017-stage-one/repair-test-output.txt",
+      "mode": "exact",
+      "source_sha256": "8a898f421a20b10cf975c9b7bf09cf7433b53f54b97fa9530614f2d14922a475",
+      "archive_sha256": "8a898f421a20b10cf975c9b7bf09cf7433b53f54b97fa9530614f2d14922a475",
+      "bytes": 932,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-017-stage-one/sql-context-test-output.txt",
+      "archive": "files/build/WI20261024-017-stage-one/sql-context-test-output.txt",
+      "mode": "exact",
+      "source_sha256": "edbfce530cd7170553453f8abede5f0360095538feaab0268c3016a89b70c333",
+      "archive_sha256": "edbfce530cd7170553453f8abede5f0360095538feaab0268c3016a89b70c333",
+      "bytes": 830,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-017-stage-one/stage_one.py",
+      "archive": "files/build/WI20261024-017-stage-one/stage_one.py",
+      "mode": "exact",
+      "source_sha256": "dadf7e90a7826cc5a01f90680eed3ddb55f47c237e18a9908c9d5477cc242a3a",
+      "archive_sha256": "dadf7e90a7826cc5a01f90680eed3ddb55f47c237e18a9908c9d5477cc242a3a",
+      "bytes": 8604,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-017-stage-one/test-output.txt",
+      "archive": "files/build/WI20261024-017-stage-one/test-output.txt",
+      "mode": "exact",
+      "source_sha256": "afc9e56f1c0fae117117859f032af42351958a2537211e5844331d6b7d9bfb88",
+      "archive_sha256": "afc9e56f1c0fae117117859f032af42351958a2537211e5844331d6b7d9bfb88",
+      "bytes": 985,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-017-stage-one/test_stage_one.py",
+      "archive": "files/build/WI20261024-017-stage-one/test_stage_one.py",
+      "mode": "exact",
+      "source_sha256": "b057c3e4c72ff6a435b6e202d4372d249e2a90f531c4c464b00127106e87b4db",
+      "archive_sha256": "b057c3e4c72ff6a435b6e202d4372d249e2a90f531c4c464b00127106e87b4db",
+      "bytes": 18399,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-021-audio-repair/audio-runtime/audio/http_headers.py",
+      "archive": "files/build/WI20261024-021-audio-repair/audio-runtime/audio/http_headers.py",
+      "mode": "exact",
+      "source_sha256": "9c47113f016fc304c05788462b6641b597a0c5a9676df05acc0e4bcfcd2c0689",
+      "archive_sha256": "9c47113f016fc304c05788462b6641b597a0c5a9676df05acc0e4bcfcd2c0689",
+      "bytes": 2162,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261024-024-provider-preparation/operating-config-proposal.json",
+      "archive": "files/build/WI20261024-024-provider-preparation/operating-config-proposal.json",
+      "mode": "exact",
+      "source_sha256": "2b69e97ad8ee0a16e65fedec2ed6c0d9e4602da57f6898ee9be71728b55404b9",
+      "archive_sha256": "2b69e97ad8ee0a16e65fedec2ed6c0d9e4602da57f6898ee9be71728b55404b9",
+      "bytes": 2125,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261025-001-stage-two-repair/candidate.json",
+      "archive": "files/build/WI20261025-001-stage-two-repair/candidate.json",
+      "mode": "exact",
+      "source_sha256": "480834a7fadc69d542dd9113deb0af877d67a570170aa1819c682feec81efe2c",
+      "archive_sha256": "480834a7fadc69d542dd9113deb0af877d67a570170aa1819c682feec81efe2c",
+      "bytes": 661,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261025-001-stage-two-repair/make_payload.py",
+      "archive": "files/build/WI20261025-001-stage-two-repair/make_payload.py",
+      "mode": "exact",
+      "source_sha256": "f921a3067b369563ee33f935a2a7511ed5fc4f17249253370cc9a4f3e50e8aae",
+      "archive_sha256": "f921a3067b369563ee33f935a2a7511ed5fc4f17249253370cc9a4f3e50e8aae",
+      "bytes": 5562,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261025-001-stage-two-repair/native_adapter.py",
+      "archive": "files/build/WI20261025-001-stage-two-repair/native_adapter.py",
+      "mode": "exact",
+      "source_sha256": "26ac06a0debe05e67774e0d265b3c26cc82fa0febb3d09dc0bd1852653337de7",
+      "archive_sha256": "26ac06a0debe05e67774e0d265b3c26cc82fa0febb3d09dc0bd1852653337de7",
+      "bytes": 8701,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261025-001-stage-two-repair/test_recovery.py",
+      "archive": "files/build/WI20261025-001-stage-two-repair/test_recovery.py",
+      "mode": "exact",
+      "source_sha256": "9d7107fefc83896634a90f70e6fac32581d74e55a158096f2a714c78750a4594",
+      "archive_sha256": "9d7107fefc83896634a90f70e6fac32581d74e55a158096f2a714c78750a4594",
+      "bytes": 8139,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261025-001-stage-two-repair/test_stage_two.py",
+      "archive": "files/build/WI20261025-001-stage-two-repair/test_stage_two.py",
+      "mode": "exact",
+      "source_sha256": "b384e3fe16afe0fda5c52fcffdefcdb5c50072b5764cf4f0d2b731209c022727",
+      "archive_sha256": "b384e3fe16afe0fda5c52fcffdefcdb5c50072b5764cf4f0d2b731209c022727",
+      "bytes": 6040,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261025-001-stage-two-repair/transaction.py",
+      "archive": "files/build/WI20261025-001-stage-two-repair/transaction.py",
+      "mode": "exact",
+      "source_sha256": "0d0a5456463c3224d1c6236550565646b313bebc9e1ca66817f2863fe0c2f845",
+      "archive_sha256": "0d0a5456463c3224d1c6236550565646b313bebc9e1ca66817f2863fe0c2f845",
+      "bytes": 8399,
+      "redacted_categories": []
+    },
+    {
+      "source": "build/WI20261025-001-stage-two-repair/unlock.ps1",
+      "archive": "files/build/WI20261025-001-stage-two-repair/unlock.ps1",
+      "mode": "exact",
+      "source_sha256": "f130d6dd3893613950e35a34cd4a558399e65d721cdb324831939143d7955d0a",
+      "archive_sha256": "f130d6dd3893613950e35a34cd4a558399e65d721cdb324831939143d7955d0a",
+      "bytes": 792,
+      "redacted_categories": []
+    }
+  ],
+  "excluded": [
+    {
+      "source": "build/WI-20261026-ATS-001/next-runtime-checklist.md",
+      "reason": "personal-home-path"
+    },
+    {
+      "source": "build/WI20261025-001-stage-two-repair/README.md",
+      "reason": "personal-home-path"
+    }
+  ],
+  "external_requirements": [
+    "Private target bindings, approval/decision/cost records and runtime observations",
+    "Frozen remote runtime tree, separate release JAR and original private proof",
+    "Stage-two dependency crypto JARs/classes and original complete candidate trees"
+  ],
+  "complete_runtime_reconstruction": false
+}

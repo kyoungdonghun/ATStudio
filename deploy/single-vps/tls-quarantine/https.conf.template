@@ -1,0 +1,35 @@
+    server {
+        listen 0.0.0.0:443 ssl default_server;
+        server_name _;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_reject_handshake on;
+        return 444;
+    }
+
+    server {
+        listen 0.0.0.0:443 ssl;
+        server_name atmusic.co.kr;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_certificate /etc/letsencrypt/live/atmusic.co.kr/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/atmusic.co.kr/privkey.pem;
+        ssl_session_tickets off;
+        ssl_session_cache off;
+
+        if ($ssl_server_name != atmusic.co.kr) { return 444; }
+        if ($http_host !~ "^atmusic\.co\.kr(:443)?$") { return 444; }
+
+        location = /ready.txt {
+            satisfy all;
+            allow __CLIENT_IPV4_32__;
+            deny all;
+            if ($request_uri != /ready.txt) { return 404; }
+            root /var/lib/atstudio-tls-quarantine/marker;
+            max_ranges 0;
+            add_header Cache-Control "no-store" always;
+            add_header X-Content-Type-Options nosniff always;
+            add_header Content-Security-Policy "default-src 'none'; sandbox" always;
+            limit_except GET { deny all; }
+            try_files /ready.txt =404;
+        }
+        location / { return 404; }
+    }

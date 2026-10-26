@@ -1,0 +1,10 @@
+WI-20261024-ATS-017 fixed account-query schema repair
+Environment: local Windows, Python 3.14, -B; synthetic data/commands only.
+Command: python -B -m unittest test_stage_one.StageOneTests.test_fixed_account_schema_real_query_protocol_and_source_stage test_stage_one.StageOneTests.test_remaining_sql_protocol_is_schema_explicit_without_global_query_change test_stage_one.StageOneTests.test_real_inherited_guard_and_native_shaped_capture_hook -v
+test_fixed_account_schema_real_query_protocol_and_source_stage ... ok
+test_remaining_sql_protocol_is_schema_explicit_without_global_query_change ... ok
+test_real_inherited_guard_and_native_shaped_capture_hook ... ok
+Ran 3 tests in 0.004s
+OK
+No DB/app/cloud/native operation; real private inputs and dumps were not accessed.
+Historical cost and release-inventory suites were not rerun.

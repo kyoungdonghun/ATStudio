@@ -1,0 +1,8 @@
+{
+  "operation": "cold-capture",
+  "config_sha256": "__CANONICAL_CONFIG_SHA256_FROM_VALIDATE__",
+  "run_id": "__ONE_USE_32_LOWERCASE_HEX_ID__",
+  "not_before": "__APPROVED_OFFSET_AWARE_WINDOW_START__",
+  "not_after": "__APPROVED_OFFSET_AWARE_WINDOW_END__",
+  "resume_authorized": false
+}

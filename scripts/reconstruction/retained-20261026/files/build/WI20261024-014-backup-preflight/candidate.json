@@ -1,0 +1,12 @@
+{
+  "bundle_sha256": "484de7a31f8fd09b62a75b0eabcbcd99ae760c8fe0be7bd7d76b7460497e66c0",
+  "files": {
+    "README.md": "acc6f855caeadf51ae38e54de56c6d7b6c366f5364057dfe39b67cab2eef95b3",
+    "make_payload.py": "bd858e942decb62352a94e0846e4750dabd4a7e7cc8d863b611a40017d7d97ff",
+    "preflight.py": "bbd4aefe7193bbd219c1ee441ca4da42d5251121f2cfc2edf4f33566b40798fa",
+    "test-output.txt": "558592614459c2631acf88d39d019ae59374e18a4447e7a1effbf4242bd1adc9",
+    "test_preflight.py": "5d156d82dbcb145436001dc6836a6f77bb093a2f2d33fc2b1b98be451a31ccc3"
+  },
+  "scope": "READONLY_IN_MEMORY_FIXED_BACKUP_REFERENCE_PREFLIGHT",
+  "wi": "WI-20261024-ATS-014"
+}

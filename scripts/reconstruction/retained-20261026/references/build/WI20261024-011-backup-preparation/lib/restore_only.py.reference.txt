@@ -1,0 +1,306 @@
+"""WI069 exact-snapshot restore continuation; never initializes or backs up a repository."""
+
+from __future__ import annotations
+
+import argparse
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import re
+import signal
+import sys
+
+import cold_capture as cold
+import restore_equivalence as equivalent
+
+boot = cold.boot
+checks = cold.checks
+need = cold.require
+ORIGINAL_RUN = 'REDACTED_TARGET_BINDING_ORIGINAL'
+BOOTSTRAP_RUN = 'REDACTED_TARGET_BINDING_BOOTSTRAP_RUN'
+REPOSITORY_ID = 'REDACTED_TARGET_BINDING_REPOSITORY_ID'
+SNAPSHOT_ID = 'REDACTED_TARGET_BINDING_SNAPSHOT_ID'
+MANIFEST_SHA = 'REDACTED_TARGET_BINDING_MANIFEST_SHA'
+PROOF_SHA = 'REDACTED_TARGET_BINDING_PROOF_SHA'
+OLD = cold.CAPTURES / ORIGINAL_RUN
+PAYLOAD = OLD / 'payload'
+OPERATION = 'wi069-exact-snapshot-restore-only'
+SAFE = frozenset('''RESTORE_BINDING RESTORE_APPROVAL ORIGINAL_PROOF ORIGINAL_MANIFEST
+ORIGINAL_SNAPSHOT ORIGINAL_PAYLOAD SOURCE_ORIGINAL_DRIFT RESTORE_ONLY_COMMAND
+COLUMN_METADATA COLUMN_METADATA_DRIFT COLUMN_IDENTITY DDL_INPUT_LIMIT
+DDL_LEXICAL_PROOF DDL_OTHER_BYTES DDL_WITNESSES'''.split())
+
+
+def safe_error(error: BaseException) -> dict:
+    """Publish fixed resume codes only, retaining the existing safe diagnostic contract."""
+    if isinstance(error, checks.GateError) and error.args and error.args[0] in SAFE:
+        return dict(gate=error.args[0])
+    return cold.safe_error(error)
+
+
+def validate_approval(value: dict, baseline: dict, now: datetime, bundle_pin: str) -> dict:
+    """Bind the one-use window to existing evidence, exact snapshot and reviewed code."""
+    keys = {'operation', 'run_id', 'bootstrap_run_id', 'not_before', 'not_after',
+            'inventory_sha256', 'units_sha256', 'recovery_password_sha256', 'bundle_sha256',
+            'original_run_id', 'repository_id', 'snapshot_id', 'manifest_sha256', 'sql_proof_sha256'}
+    need(set(value) == keys and value['operation'] == OPERATION, 'RESTORE_APPROVAL')
+    need(value['bootstrap_run_id'] == BOOTSTRAP_RUN and value['original_run_id'] == ORIGINAL_RUN
+         and value['repository_id'] == REPOSITORY_ID and value['snapshot_id'] == SNAPSHOT_ID
+         and value['manifest_sha256'] == MANIFEST_SHA and value['sql_proof_sha256'] == PROOF_SHA
+         and value['bundle_sha256'] == checks.exact_id(bundle_pin), 'RESTORE_BINDING')
+    need(type(value['run_id']) is str and re.fullmatch('[a-f0-9]{32}', value['run_id']) is not None
+         and value['run_id'] != ORIGINAL_RUN, 'RUN_ID')
+    for key in ('manifest_sha256', 'sql_proof_sha256', 'recovery_password_sha256'):
+        checks.exact_id(value[key])
+    for key in ('inventory_sha256', 'units_sha256'):
+        need(value[key] == baseline[key], 'APPROVAL_INVENTORY_DRIFT')
+    before, after = [datetime.fromisoformat(value[key].replace('Z', '+00:00')) for key in ('not_before', 'not_after')]
+    need(before.tzinfo is not None and after.tzinfo is not None and before <= now < after
+         and 0 < (after - before).total_seconds() <= 1800, 'APPROVAL_WINDOW')
+    return dict(value, _expires_at=after.timestamp())
+
+
+def read_bound(path: Path, pin: str, cap: int = equivalent.MAX_SQL) -> bytes:
+    """Read stable root-private regular bytes and check their historical content identity."""
+    raw = boot.read_file(path, cap, private=True)
+    need(boot.sha(raw) == checks.exact_id(pin), 'ORIGINAL_PAYLOAD')
+    return raw
+
+
+def bound_payload(path: Path, approval: dict, baseline: dict) -> tuple[dict, dict]:
+    """Authenticate manifest/proof before using counts or member hashes as authority."""
+    need(approval['manifest_sha256'] == MANIFEST_SHA and approval['sql_proof_sha256'] == PROOF_SHA,
+         'RESTORE_BINDING')
+    manifest = checks.strict_json(read_bound(path / 'manifest.json', MANIFEST_SHA))
+    proof = checks.strict_json(read_bound(path / 'sql-proof.json', approval['sql_proof_sha256']))
+    need(set(manifest) == {'version', 'scope', 'members', 'units_sha256', 'inventory_sha256', 'full_disaster_recovery'}
+         and type(manifest['version']) is int and manifest['version'] == 1
+         and manifest['scope'] == 'pre-feature-WI060-runtime-no-runtime-keys'
+         and manifest['full_disaster_recovery'] is False
+         and manifest['members'] == baseline['members']
+         and manifest['inventory_sha256'] == baseline['inventory_sha256'], 'ORIGINAL_MANIFEST')
+    need(set(proof) == {'counts', 'schema_sha256', 'dump_sha256'} and type(proof['counts']) is dict
+         and len(proof['counts']) == 43, 'ORIGINAL_PROOF')
+    for table, count in proof['counts'].items():
+        checks.identifier(table)
+        need(type(count) is int and count >= 0, 'ORIGINAL_PROOF')
+    read_bound(path / 'schema.sql', proof['schema_sha256'])
+    read_bound(path / 'logical.sql', proof['dump_sha256'])
+    return manifest, proof
+
+
+def restored_payload(restore: Path) -> Path:
+    """Only the original snapshot prefix is valid; no new-run or fallback selection."""
+    need(restore.is_absolute() and restore.name == 'restored'
+         and restore.parent.parent == cold.CAPTURES
+         and re.fullmatch('[a-f0-9]{32}', restore.parent.name) is not None
+         and restore.parent.name != ORIGINAL_RUN, 'RESTORE_BINDING')
+    result = restore / PAYLOAD.as_posix().lstrip('/')
+    need(restore in result.parents, 'RESTORE_BINDING')
+    boot.secure(result, directory=True, private=True)
+    return result
+
+
+class RestoreOnly(cold.Capture):
+    """Reuse bounded commands/cleanup while restricting repository operations before spawn."""
+
+    def restic(self, action: list[str], **kwargs) -> bytes:
+        allowed = (['cat', 'config'], ['cat', 'snapshot', SNAPSHOT_ID], ['ls', SNAPSHOT_ID],
+                   ['check', '--read-data'],
+                   ['restore', SNAPSHOT_ID, '--target=' + str(self.work / 'restored'), '--verify'])
+        need(action in allowed, 'RESTORE_ONLY_COMMAND')
+        return super().restic(action, **kwargs)
+
+    def columns(self, tables: set[str]) -> dict:
+        self.counter += 1
+        path = self.work / ('columns-query-' + str(self.counter) + '.sql')
+        boot.exclusive(path, equivalent.column_query(cold.SCHEMA))
+        raw = self.command(['/usr/bin/mysql', '--no-defaults', '--protocol=socket',
+                            '--socket=' + cold.SOCKET, '--user=root', '--batch',
+                            '--skip-column-names', '--connect-timeout=3', '--default-character-set=utf8mb4'],
+                           label='MYSQL_QUERY', input_file=path, cap=equivalent.MAX_SQL)
+        result = equivalent.parse_columns(raw, tables)
+        boot.exclusive(self.work / ('columns-' + str(self.counter) + '.tsv'), raw)
+        return result
+
+    def original(self) -> tuple[dict, dict, bytes]:
+        manifest, proof = bound_payload(PAYLOAD, self.approval, self.baseline)
+        config = checks.strict_json(boot.read_file(OLD / 'repository.json', 16384, private=True))
+        need(config.get('id') == REPOSITORY_ID, 'ORIGINAL_SNAPSHOT')
+        backup = boot.read_file(OLD / 'backup-output.jsonl', checks.MAX_METADATA, private=True)
+        need(checks.strict_backup_snapshot(backup, 0) == SNAPSHOT_ID, 'ORIGINAL_SNAPSHOT')
+        members = cold.collect((PAYLOAD,), tick=self.guard)
+        need(set(members) == {str(PAYLOAD), *(str(PAYLOAD / name) for name in
+             ('manifest.json', 'sql-proof.json', 'logical.sql', 'schema.sql'))}, 'ORIGINAL_PAYLOAD')
+        return {**manifest['members'], **members}, proof, backup
+
+    def stages(self) -> None:
+        """Restore bytes first, re-match original source, then prove isolated SQL equivalence."""
+        self.stage = 'ORIGINAL_BINDING'
+        expected, original, backup = self.original()
+        self.stage = 'EXACT_REPOSITORY'
+        config = checks.strict_json(self.restic(['cat', 'config']))
+        need(config.get('id') == REPOSITORY_ID, 'ORIGINAL_SNAPSHOT')
+        snapshot = checks.strict_json(self.restic(['cat', 'snapshot', SNAPSHOT_ID]))
+        paths = snapshot.get('paths')
+        need(type(paths) is list and len(paths) == len(cold.ROOTS) + 1
+             and all(type(path) is str for path in paths)
+             and set(paths) == {*map(str, cold.ROOTS), str(PAYLOAD)}
+             and snapshot.get('hostname') == 'REDACTED_TARGET_BINDING_OS_HOSTNAME'
+             and snapshot.get('tags') == ['wi069-' + ORIGINAL_RUN], 'ORIGINAL_SNAPSHOT')
+        listing = self.restic(['ls', SNAPSHOT_ID])
+        need(checks.verify_snapshot(expected, backup, 0, listing, set()) == SNAPSHOT_ID, 'ORIGINAL_SNAPSHOT')
+        self.snapshot = SNAPSHOT_ID
+        boot.exclusive(self.work / 'snapshot-listing.jsonl', listing)
+        self.stage = 'EXACT_RESTORE'
+        restore = self.work / 'restored'
+        cold.directory(restore)
+        self.restic(['check', '--read-data'], timeout=600)
+        self.restic(['restore', SNAPSHOT_ID, '--target=' + str(restore), '--verify'], timeout=600)
+        checks.verify_restored(expected, cold.collect((restore,), tick=self.guard), str(restore))
+        payload = restored_payload(restore)
+        _, restored_proof = bound_payload(payload, self.approval, self.baseline)
+        need(restored_proof == original, 'ORIGINAL_PROOF')
+        self.verify_fence()
+        self.stage = 'SOURCE_ORIGINAL_RECHECK'
+        source_dir = self.work / 'source-recheck'
+        cold.directory(source_dir)
+        source = self.start_mysql('source')
+        source_proof = self.sql_capture(source_dir)
+        need(source_proof == original, 'SOURCE_ORIGINAL_DRIFT')
+        source_columns = self.columns(set(original['counts']))
+        self.stop_mysql(source)
+        self.verify_fence()
+        self.stage = 'ISOLATED_SQL_RESTORE'
+        db = self.work / 'isolated-database'
+        cold.directory(db)
+        os.chown(db, 110, 112)
+        self.start_mysql('initialize', db)
+        unit = self.start_mysql('restore', db)
+        dump = payload / 'logical.sql'
+        read_bound(dump, original['dump_sha256'])
+        self.command(['/usr/bin/mysql', '--no-defaults', '--protocol=socket',
+                      '--socket=' + cold.SOCKET, '--user=root', '--binary-mode', '--default-character-set=utf8mb4'],
+                     label='MYSQL_IMPORT', input_file=dump, timeout=120, cap=65536)
+        validation = self.work / 'sql-roundtrip'
+        cold.directory(validation)
+        recovered = self.sql_capture(validation)
+        need(recovered['counts'] == original['counts'], 'SQL_ROW_DRIFT')
+        restored_columns = self.columns(set(original['counts']))
+        self.stop_mysql(unit)
+        self.verify_fence()
+        self.stage = 'SEMANTIC_PROOF'
+        proof = equivalent.verify(
+            read_bound(source_dir / 'schema.sql', original['schema_sha256']),
+            read_bound(source_dir / 'logical.sql', original['dump_sha256']),
+            read_bound(validation / 'schema.sql', recovered['schema_sha256']),
+            read_bound(validation / 'logical.sql', recovered['dump_sha256']),
+            source_columns, restored_columns)
+        need(cold.collect(cold.ROOTS, cold.release_allowlist(), self.guard) == self.baseline['members'], 'SOURCE_DRIFT')
+        self.guard()
+        self.verify_fence()
+        boot.exclusive(self.work / 'verified-content.json', boot.encoded(dict(
+            repository_id=REPOSITORY_ID, snapshot_id=SNAPSHOT_ID, original_run_id=ORIGINAL_RUN,
+            original_sql=original, recovered_sql=recovered, equivalence=proof,
+            full_disaster_recovery=False)))
+        self.stage = 'COMPLETE'
+
+    def execute(self) -> dict:
+        self.guard()
+        cold.directory(self.work)
+        for name in ('cache', 'tmp', 'home'):
+            cold.directory(self.work / name)
+        failure = None
+        cleanup_errors = []
+        try:
+            self.stages()
+        except BaseException as error:
+            failure = safe_error(error)
+            if self.last_command:
+                failure['command'] = self.last_command
+            try:
+                boot.exclusive(self.work / 'failure.json', boot.encoded(dict(
+                    stage=self.stage, detail=failure, mysql=self.mysql_failure_diagnostic())))
+            except (OSError, checks.GateError, boot.Hold):
+                pass
+        finally:
+            for name in tuple(self.owned_units):
+                try:
+                    self.stop_mysql(name) if name == self.sql_state else self.stop_unit(name)
+                except BaseException as error:
+                    cleanup_errors.append(safe_error(error))
+            try:
+                self.verify_fence()
+                self.guard()
+            except BaseException as error:
+                cleanup_errors.append(safe_error(error))
+        result = dict(status='BOUNDED_RESTORE_ONLY_PASS' if failure is None and not cleanup_errors else 'HOLD',
+                      operation=OPERATION, run_id=self.run_id, original_run_id=ORIGINAL_RUN,
+                      repository_id=REPOSITORY_ID, snapshot_id=SNAPSHOT_ID, stage=self.stage,
+                      detail=failure, cleanup=not cleanup_errors, cleanup_errors=cleanup_errors,
+                      source_release='WI060-existing-runtime', app_start='NOT_RUN',
+                      backup='NOT_RUN_EXISTING_SNAPSHOT', full_disaster_recovery=False)
+        boot.exclusive(self.work / 'public-result.json', boot.encoded(result))
+        return result
+
+
+def execute(path: Path, bundle_pin: str) -> dict:
+    """Recheck the original bootstrap escrow and operation lock without changing secrets."""
+    import fcntl
+    baseline = cold.inventory()
+    approval = validate_approval(checks.strict_json(boot.read_file(path, 16384, private=True)),
+                                 baseline, datetime.now(timezone.utc), bundle_pin)
+    credentials = cold.BASE / 'wi069-runs' / ('wi069-' + BOOTSTRAP_RUN)
+    stage = checks.strict_json(boot.read_file(credentials / 'stage.json', 16384, private=True))
+    install = checks.strict_json(boot.read_file(credentials / 'install.json', 16384, private=True))
+    need(stage.get('run_id') == BOOTSTRAP_RUN and stage.get('state') == 'STAGED'
+         and install == dict(state='INSTALLED_NOT_EXECUTED', binary_sha256=boot.BINARY_SHA256)
+         and not os.path.lexists(credentials / 'failure.json'), 'BOOTSTRAP_REQUIRED')
+    key = boot.read_file(credentials / 'aws-credentials', 16384, private=True)
+    boot.credentials_format(key)
+    need(boot.sha(key) == stage['credentials_sha256'], 'CREDENTIAL_DRIFT')
+    password = boot.read_file(credentials / 'repository-password', 128, private=True)
+    need(boot.sha(password) == stage['password_sha256'] == approval['recovery_password_sha256'], 'PC_ESCROW_REQUIRED')
+    boot.secure(cold.CAPTURES, directory=True, private=True)
+    lock = Path('/run/atstudio-operations/operations.lock')
+    boot.secure(lock, private=True)
+    descriptor = os.open(lock, os.O_RDWR | os.O_NOFOLLOW)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        need(cold.inventory() == baseline, 'PREWRITE_DRIFT')
+        return RestoreOnly(approval, baseline).execute()
+    finally:
+        os.close(descriptor)
+
+
+def main(bundle_pin: str) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=('inventory', 'restore'))
+    parser.add_argument('--approval', type=Path)
+    args = parser.parse_args()
+    try:
+        need(sys.platform == 'linux' and os.geteuid() == os.getegid() == 0, 'LINUX_ROOT_REQUIRED')
+        os.umask(0o077)
+        def interrupted(signum: int, frame: object) -> None:
+            raise checks.GateError('INTERRUPTED')
+        signal.signal(signal.SIGTERM, interrupted)
+        signal.signal(signal.SIGHUP, interrupted)
+        import resource
+        for identifier, cap in ((resource.RLIMIT_CORE, 0), (resource.RLIMIT_AS, 384 * 1024**2),
+                                (resource.RLIMIT_FSIZE, 300_000_000), (resource.RLIMIT_CPU, 1800)):
+            current, hard = resource.getrlimit(identifier)
+            limit = cap if hard == resource.RLIM_INFINITY else min(cap, hard)
+            resource.setrlimit(identifier, (min(current, limit) if current >= 0 else limit, limit))
+        if args.action == 'inventory':
+            result = cold.inventory()
+            result.pop('members')
+            result.pop('units')
+        else:
+            need(args.approval is not None, 'APPROVAL_REQUIRED')
+            result = execute(args.approval, bundle_pin)
+        print(json.dumps(result, sort_keys=True))
+        return 2 if result['status'] == 'HOLD' else 0
+    except BaseException as error:
+        print(json.dumps(dict(status='HOLD', code='WI069_RESTORE_GATE', detail=safe_error(error))))
+        return 2

@@ -1,0 +1,100 @@
+"""In-memory fixed-reference inspection. No writes, starts or repository requests."""
+import hashlib
+import os
+from pathlib import Path
+import re
+import time
+
+SCOPE='REQ007_20261024_READONLY_BACKUP_REFERENCE_PREFLIGHT'
+BOOTSTRAP_RUN='REDACTED_TARGET_BINDING_BOOTSTRAP_RUN'
+ORIGINAL='REDACTED_TARGET_BINDING_ORIGINAL'
+RESTORE='REDACTED_TARGET_BINDING_RESTORE'
+REPOSITORY='REDACTED_TARGET_BINDING_REPOSITORY_ID'
+SNAPSHOT='REDACTED_TARGET_BINDING_SNAPSHOT_ID'
+ROOT=Path('/var/lib/atstudio-backup')
+STAGE=ROOT/'wi069-runs'/('wi069-'+BOOTSTRAP_RUN)
+CAPTURES=ROOT/'wi069-captures'
+
+
+def need(ok):
+    if not ok:raise ValueError('REFERENCE_PREFLIGHT_HOLD')
+
+
+def pin(value):return type(value) is str and re.fullmatch('[a-f0-9]{64}',value) is not None
+
+
+def authority(value,now=None):
+    now=time.time() if now is None else now
+    need(type(value) is dict and set(value)=={'scope','boot_id','machine_id_sha256','expires_at'})
+    need(value['scope']==SCOPE and type(value['boot_id']) is str
+        and re.fullmatch(r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}',value['boot_id']))
+    need(pin(value['machine_id_sha256']) and type(value['expires_at']) is int
+        and 0<value['expires_at']-now<=600)
+
+
+def references(boot,expected_escrow_sha256=None):
+    """Six exact root-private files; secrets and their hashes never leave this function."""
+    need(expected_escrow_sha256 is None or pin(expected_escrow_sha256))
+    boot.secure(STAGE,directory=True,private=True)
+    need(not os.path.lexists(STAGE/'failure.json'))
+    stage=boot.decode(boot.read_file(STAGE/'stage.json',16384,private=True))
+    install=boot.decode(boot.read_file(STAGE/'install.json',16384,private=True))
+    need(stage.get('run_id')==BOOTSTRAP_RUN and stage.get('state')=='STAGED'
+        and pin(stage.get('credentials_sha256')) and pin(stage.get('password_sha256')))
+    need(install=={'state':'INSTALLED_NOT_EXECUTED','binary_sha256':boot.BINARY_SHA256})
+    key=boot.read_file(STAGE/'aws-credentials',16384,private=True)
+    password=boot.read_file(STAGE/'repository-password',128,private=True)
+    boot.credentials_format(key)
+    need(0<len(password)<=128 and hashlib.sha256(key).hexdigest()==stage['credentials_sha256']
+        and hashlib.sha256(password).hexdigest()==stage['password_sha256'])
+    if expected_escrow_sha256 is not None:
+        need(hashlib.sha256(password).hexdigest()==expected_escrow_sha256)
+    repo=boot.decode(boot.read_file(CAPTURES/ORIGINAL/'repository.json',16384,private=True))
+    need(type(repo.get('version')) is int and repo['version']==2 and repo.get('id')==REPOSITORY)
+    result=boot.decode(boot.read_file(CAPTURES/RESTORE/'public-result.json',16384,private=True))
+    need(set(result)=={'status','operation','run_id','original_run_id','repository_id','snapshot_id',
+        'stage','detail','cleanup','cleanup_errors','source_release','app_start','backup','full_disaster_recovery'})
+    need(result==dict(status='BOUNDED_RESTORE_ONLY_PASS',operation='wi069-exact-snapshot-restore-only',
+        run_id=RESTORE,original_run_id=ORIGINAL,repository_id=REPOSITORY,snapshot_id=SNAPSHOT,
+        stage='COMPLETE',detail=None,cleanup=True,cleanup_errors=[],source_release='WI060-existing-runtime',
+        app_start='NOT_RUN',backup='NOT_RUN_EXISTING_SNAPSHOT',full_disaster_recovery=False)
+        and result['cleanup'] is True and result['full_disaster_recovery'] is False)
+    return dict(host_credentials='HOST_REFERENCE_MATCH',host_password='HOST_REFERENCE_MATCH',
+        install_receipt='REFERENCE_MATCH',pc_escrow='REFERENCE_MATCH' if expected_escrow_sha256 else 'NOT_CHECKED',
+        repository_record='HISTORICAL_BINDING_MATCH',restore_receipt='HISTORICAL_BINDING_MATCH')
+
+
+def run(h,n,r,op,boot,approved,mode,expected_escrow_sha256=None):
+    result=dict(status='HOLD',phase='AUTHORITY',code='REFERENCE_PREFLIGHT_HOLD',cold_before='NOT_CHECKED',
+        cold_after='NOT_CHECKED',host_credentials='NOT_CHECKED',host_password='NOT_CHECKED',
+        install_receipt='NOT_CHECKED',pc_escrow='NOT_CHECKED',repository_record='NOT_CHECKED',
+        restore_receipt='NOT_CHECKED',live_repository='NOT_QUERIED',live_cryptographic_identity='NOT_CHECKED',
+        cost='NOT_VERIFIED_BY_THIS_PROBE',current_fixture_coverage='NOT_ESTABLISHED',
+        db='NOT_RUN',app='NOT_RUN',backup='NOT_RUN',restore='NOT_RUN',remote_staging='NOT_RUN')
+    before=None
+    try:
+        authority(approved)
+        need(mode in ('probe','inspect') and (expected_escrow_sha256 is None or pin(expected_escrow_sha256)))
+        need(mode=='inspect' or expected_escrow_sha256 is None)
+        result['phase']='IDENTITY'
+        historical=op.identity(h,n,r,dict(approved,scope=op.SCOPE))
+        result['phase']='COLD_BEFORE'
+        before=op.cold(h,n,r,historical);result['cold_before']='PASS'
+        authority(approved)
+        result['phase']='REFERENCES'
+        if mode=='inspect':result.update(references(boot,expected_escrow_sha256))
+        authority(approved)
+        result.update(status='PREFLIGHT_PASS' if mode=='probe' else 'REFERENCES_OBSERVED',phase='COMPLETE',code='PASS')
+    except BaseException:
+        result.update(status='HOLD',code='REFERENCE_PREFLIGHT_HOLD')
+    finally:
+        if before is not None:
+            try:
+                need(op.cold(h,n,r,historical)==before)
+                result['cold_after']='PASS'
+            except BaseException:
+                result.update(status='HOLD',phase='COLD_AFTER',code='REFERENCE_PREFLIGHT_HOLD',cold_after='FAILED')
+    if result['status']!='HOLD':
+        try:authority(approved)
+        except BaseException:result.update(status='HOLD',phase='AUTHORITY',code='REFERENCE_PREFLIGHT_HOLD')
+    return result
