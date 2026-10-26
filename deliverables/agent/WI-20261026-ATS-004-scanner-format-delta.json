@@ -1,0 +1,21 @@
+{
+  "wi": "WI-20261026-ATS-004",
+  "reviewer": "PG",
+  "status": "PASS",
+  "scope": "One newly created scanner EOF normalization only; archived source originals unchanged; original scanner bytes retained ignored",
+  "approved": [
+    {
+      "path": "scripts/reconstruction/scan_commit_candidates_wi004.py",
+      "previous_sha256": "42c60009dd04eb533feaef29e1ee49484e1228d40d73efff8cf3874df8403d21",
+      "sha256": "3f0c737888f98c956d6771550149a47564814476ca704883c6c4f72b98c2e4a3",
+      "bytes": 6278,
+      "review": "Only redundant EOF blank lines removed; exact AST unchanged; syntax compilation and bounded source privacy scan PASS"
+    }
+  ],
+  "checks": {
+    "ast_equal": true,
+    "in_memory_compile": "PASS",
+    "source_scan_findings": 0,
+    "full_corpus_rescan": "NOT_NEEDED"
+  }
+}

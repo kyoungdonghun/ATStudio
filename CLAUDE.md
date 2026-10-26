@@ -380,6 +380,18 @@ ATStudio/
 - **제거 전 체크**: 다음 프로젝트에 재사용 가능한 꿀팁(기술 패턴, 함정, 프로세스 교훈)이면 제거 전에 `docs/retrospective/kick.md`에 먼저 기록.
 - MEMORY.md Key Paths 섹션은 항상 상단 유지 (압축 시 소실 방지).
 
+## Evidence Reading Before Operational Decisions
+
+- Start with [Current Decision Entry](docs/index.md#current-decision-entry) and its dated checkpoints before capability, deployment or hosting judgments.
+- Memory and chat summaries are navigation hints, not confirmed-current project state; cross-check them against current source and the latest completion evidence.
+- Verify actual branch, HEAD, working-tree changes and source/artifact identity; never treat an old checkout or process receipt as the current runtime.
+- Read the latest relevant approved REQ, WI Evidence Pack and completion addenda before claiming a feature is absent, pending or unverified. Earlier failures and pending notes remain historical evidence.
+- Check effective configuration provenance and the tested environment. Tracked defaults, including `localhost:1025`, do not establish runtime settings; external child-process overrides may apply. Do not expose private configuration bodies, credentials, addresses or reset URLs.
+- Report verification date, environment, evidence owner and unverified limits separately from document edit date. TEST/development success is not production approval, and a new target does not erase prior bounded verification.
+- Keep measured sizing values, dated assumptions and unverified provider terms separate; refresh prices/terms only within separately approved planning work.
+- Preserve historical deliverables, SR/audit records and registered hashes; explain superseding completion in current entry documents instead of rewriting original evidence.
+- Track current progress in the approved REQ and its WI handoff/Evidence Packs. The advisory [workboard](docs/registry/workboard.md) is not live ATStudio progress SoT.
+
 ## Documentation Entry Points
 
 | 문서 | 설명 | Tier |

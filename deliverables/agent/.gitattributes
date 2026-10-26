@@ -1,0 +1,27 @@
+# WI-20261026-ATS-007: Preserve exact bytes of these reviewed records only.
+/WI-20261011-ATS-020-artifact.json -text
+/WI-20261011-ATS-068-artifact.json -text
+/WI-20261021-ATS-010-evidence-pack.md -text
+/WI-20261021-ATS-012-evidence-pack.md -text
+/WI-20261023-ATS-006-evidence-pack.md -text
+/WI-20261023-ATS-009-evidence-pack.md -text
+/WI-20261024-ATS-017-handoff.md -text
+/WI-20261024-ATS-018-handoff.md -text
+/WI-20261024-ATS-019-handoff.md -text
+/WI-20261024-ATS-020-handoff.md -text
+/WI-20261024-ATS-023-evidence-pack.md -text
+/WI-20261024-ATS-025-evidence-pack.md -text
+/WI-20261025-ATS-004-evidence-pack.md -text
+/WI-20261025-ATS-004-handoff.md -text
+/WI-20261025-ATS-005-evidence-pack.md -text
+/WI-20261025-ATS-005-handoff.md -text
+/WI-20261025-ATS-006-handoff.md -text
+/WI-20261025-ATS-007-handoff.md -text
+/WI-20261025-ATS-008-evidence-pack.md -text
+/WI-20261025-ATS-008-handoff.md -text
+/WI-20261026-ATS-004-active-doc-preservation.json -text
+/WI-20261026-ATS-004-allowlist.json -text
+/WI-20261026-ATS-004-classification.json -text
+/WI-20261026-ATS-006-source-allowlist.json -text
+/WI-20261026-ATS-006-source-check.json -text
+/WI-20261026-ATS-004-archive-ignore-delta.json -text

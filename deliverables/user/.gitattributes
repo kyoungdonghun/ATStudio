@@ -1,0 +1,11 @@
+# WI-20261026-ATS-007: Preserve exact bytes of these reviewed records only.
+/REQ-20261011-ATS-007.md -text
+/REQ-20261024-ATS-001.md -text
+/WI-20261021-ATS-010-summary.md -text
+/WI-20261021-ATS-012-summary.md -text
+/WI-20261023-ATS-006-summary.md -text
+/WI-20261023-ATS-009-summary.md -text
+/WI-20261024-ATS-025-summary.md -text
+/WI-20261025-ATS-004-summary.md -text
+/WI-20261025-ATS-005-summary.md -text
+/WI-20261025-ATS-008-summary.md -text

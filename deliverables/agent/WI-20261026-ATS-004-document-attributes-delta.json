@@ -1,0 +1,24 @@
+{
+  "wi": "WI-20261026-ATS-004",
+  "reviewer": "PG",
+  "status": "PASS",
+  "scope": "36 explicit already-approved records preserve raw Git bytes; no wildcard/global changes or source body changes",
+  "approved": [
+    {
+      "path": "deliverables/agent/.gitattributes",
+      "sha256": "6d6d315e3842aa51d3651798436dabc792ced1a23e0255236449a5cff2a55f4b",
+      "bytes": 1188,
+      "rules": 26,
+      "review": "Directory-anchored exact basename -text rules only; every target already approved at unchanged raw SHA"
+    },
+    {
+      "path": "deliverables/user/.gitattributes",
+      "sha256": "9ff7e9e88fb5b8346553ca3a54c469b0d120b752b9228ea34e6b0cfa27a0a84d",
+      "bytes": 442,
+      "rules": 10,
+      "review": "Directory-anchored exact basename -text rules only; every target already approved at unchanged raw SHA"
+    }
+  ],
+  "target_count": 36,
+  "source_bytes": "UNCHANGED_AND_MATCH_BASELINE_OR_EXACT_DELTA_ALLOWANCE"
+}

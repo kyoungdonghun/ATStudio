@@ -1,0 +1,64 @@
+{
+  "wi": "WI-20261026-ATS-006",
+  "status": "SOURCE_REVIEW_ALLOWLIST_PENDING_PG_AND_STAGED_GATE",
+  "normalization": "Existing .gitattributes text=auto eol=lf; source paths have no clean filter. No working source modified.",
+  "files": [
+    {
+      "path": "src/main/java/com/atstudio/atstudio/service/mail/NcpMailTransport.java",
+      "raw_sha256": "6ffa66fa0c4aaacc01305a7e817d44d8bbcead1b060640478befedea361d8d5a",
+      "lf_sha256": "6ffa66fa0c4aaacc01305a7e817d44d8bbcead1b060640478befedea361d8d5a",
+      "lf_git_sha1": "6d7c3358d53aaec252cc49a0826454a3e45ed103",
+      "crlf_pairs": 0,
+      "scope": "optional-ncp-mail-existing-change"
+    },
+    {
+      "path": "src/main/java/com/atstudio/atstudio/service/EmailService.java",
+      "raw_sha256": "048d04c2c661cb7c514c47ef1b2a8ad06fea4fb25c0fd6a6366735d66d98afd5",
+      "lf_sha256": "c772d1529b9118da6d0404cbbbba4b15ff34cca7b4538770975c540212dbe070",
+      "lf_git_sha1": "67d8631606083022489fa2be7e63fdf838765fc4",
+      "crlf_pairs": 139,
+      "scope": "optional-ncp-mail-existing-change"
+    },
+    {
+      "path": "src/main/resources/application.yml",
+      "raw_sha256": "1f3151a554124831997cca8979b4927a8f5bff4baf349afe9326e4d2da2955e6",
+      "lf_sha256": "368b17d84e5dfcb546d5ef32cbdde10c89e23d320ce899e17d6190fdbe214e70",
+      "lf_git_sha1": "3663592187fb672db2d8b344b5422636e92bb1fa",
+      "crlf_pairs": 79,
+      "scope": "optional-ncp-mail-existing-change"
+    },
+    {
+      "path": "src/test/java/com/atstudio/atstudio/service/mail/NcpMailTransportTest.java",
+      "raw_sha256": "64732b78ebde30e74c69d33ac9eb06df7ddb7490009d06ebd76fb38e8d0ed4b6",
+      "lf_sha256": "64732b78ebde30e74c69d33ac9eb06df7ddb7490009d06ebd76fb38e8d0ed4b6",
+      "lf_git_sha1": "b72a06fcfa7fa9eaeb415f9c2df7491994e9d132",
+      "crlf_pairs": 0,
+      "scope": "optional-ncp-mail-existing-change"
+    },
+    {
+      "path": "src/test/java/com/atstudio/atstudio/service/EmailServiceTest.java",
+      "raw_sha256": "15d6d4b5e48e8e9e3018f0cca9665662de414499eb706a4ac7e549d740c3c27c",
+      "lf_sha256": "15d6d4b5e48e8e9e3018f0cca9665662de414499eb706a4ac7e549d740c3c27c",
+      "lf_git_sha1": "a0d527aefa00696b09e0c0b0e8754f2d20a98c99",
+      "crlf_pairs": 0,
+      "scope": "optional-ncp-mail-existing-change"
+    },
+    {
+      "path": "src/test/java/com/atstudio/atstudio/service/PasswordResetConsumptionIntegrationTest.java",
+      "raw_sha256": "0441d0fd20cb6d81c42d3c775d5c4bf4e3285b8ce28aa70c792def25bd862a66",
+      "lf_sha256": "0441d0fd20cb6d81c42d3c775d5c4bf4e3285b8ce28aa70c792def25bd862a66",
+      "lf_git_sha1": "16eb68917f878658df7b80922e794741b87c2d66",
+      "crlf_pairs": 0,
+      "scope": "optional-ncp-mail-existing-change"
+    },
+    {
+      "path": "src/test/java/com/atstudio/atstudio/security/AuthTokenSecurityIntegrationTest.java",
+      "raw_sha256": "a32fb322acc849ce8f5bb7f98e687f7a4549597aa173687448b6279628220373",
+      "lf_sha256": "a32fb322acc849ce8f5bb7f98e687f7a4549597aa173687448b6279628220373",
+      "lf_git_sha1": "7252da9fcb50a14050a16a21a3c269e29caf978b",
+      "crlf_pairs": 0,
+      "scope": "optional-ncp-mail-existing-change"
+    }
+  ],
+  "staging_rule": "Exact paths only. Recheck raw pins before staging and expected LF blob identity after staging; reject any other drift."
+}

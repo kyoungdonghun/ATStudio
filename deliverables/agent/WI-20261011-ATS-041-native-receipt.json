@@ -1,0 +1,324 @@
+{
+  "schema_version": "1.0",
+  "wi": "WI-20261011-ATS-041",
+  "req": "REQ-20261011-ATS-006",
+  "trial": "WI039",
+  "evidence_date": "2026-10-11",
+  "native_owner": "MA",
+  "integration_owner": "docops",
+  "provenance": "MA supplied the native result and dated observations; PG supplied the final bounded diagnosis. native.result is unchanged. Other sections are reduced public observations, omitting private addresses, keys, environment bodies, logs and VNC tokens. DocOps performed no native checks.",
+  "identity": {
+    "receipt_id": "b47be0",
+    "verified_at": "2026-10-11T16:14:47.2230170+09:00",
+    "executor": "MA using QA-INTEG WI036 helper",
+    "status": "PASS_LOCAL_IDENTITY_ONLY",
+    "head": "58b1011dad796017e47dbcc82a4225ca449bcdf6",
+    "branch": "main",
+    "backend_inputs": 641,
+    "frontend_inputs": 336,
+    "spa_files": 143,
+    "coverage_exclusions_checked_separately": 4,
+    "jar_bytes": 70306351,
+    "jar_sha256": "01d5623972e17d0b6e1d3e532096239cd87e9995a08771c59292c94bf3699dcb",
+    "spa_file_set_sha256": "43a0384c5f48d100e4af6b20d989a2186b34e6900cf4e69c94b010e9671c8647",
+    "new_build": false
+  },
+  "candidate": {
+    "bundle_sha256": "fb643ff04e5c0f1e90f1b110eafa312c311a3d560a822769ff43f5ed432d379b",
+    "review_set_sha256": "1a19015eb8e890b02d6973331dfb2ef7fd7458821694e929ba425cd1ab3c1572",
+    "runtime_sha256": "07392a980ab6a029a73e27d0ce7e1c00d8c296964d47adc5344020029d57877f",
+    "web_session_sha256": "d2aba516a7e9850ebfe18e5e48f1adcc22fc103845a1372e0e05f244ff8dc2cc",
+    "freeze": "build/WI039-restricted-web-check/freeze.json",
+    "recipe_pins": "build/WI039-restricted-web-check/recipe-pins.json",
+    "pg040_verdict": "CONDITIONAL ALLOW, exact frozen set; historical local review, not current native acceptance"
+  },
+  "management_gate": {
+    "owner": "MA",
+    "observed_at": "2026-10-11T16:15:00+09:00",
+    "method": "CUA read-only inbound screenshot and outbound accessibility observation",
+    "inbound": "22/443 management single IPv4; 80 all IPv4",
+    "outbound": "TCP80/443/53 and UDP53/123 all IPv4",
+    "changed": false
+  },
+  "preparation": {
+    "L1": {
+      "receipt_id": "b47be0",
+      "uploaded_public_files": 153,
+      "actual_upload_count": 1
+    },
+    "S1": {
+      "receipt_id": "2af38a",
+      "completed_at": "2026-10-11T16:14:58.7685523+09:00",
+      "staged_public_files": 10
+    },
+    "S2": {
+      "receipt_id": "0b7e2e",
+      "completed_at": "2026-10-11T16:15:05.9126250+09:00",
+      "result": "PREFLIGHT=PASS_READ_ONLY; runtime_and_browser=NOT_RUN"
+    },
+    "S3": {
+      "receipt_id": "d9230f",
+      "completed_at": "2026-10-11T16:15:26.3863247+09:00",
+      "result": "APPROVAL_CREATED_ONCE"
+    },
+    "S4": {
+      "receipt_id": "642825",
+      "completed_at": "2026-10-11T16:15:33.6548347+09:00",
+      "result": {
+        "admission": "DISPATCHED",
+        "status": "PENDING"
+      },
+      "dispatch_count": 1
+    }
+  },
+  "local_transport_issue": "Initial outer PowerShell nested here-string failed parsing before any execution. Caller quoting corrected; exact L1 body unchanged and hash-verified. Not a server retry.",
+  "native": {
+    "receipt_id": "5f4491",
+    "completed_at": "2026-10-11T16:15:40.5745639+09:00",
+    "ssh_exit": 0,
+    "stderr_empty": true,
+    "result": {
+      "app_start": "NOT_RUN",
+      "cleanup": "PASS",
+      "cleanup_steps": [
+        {
+          "code": "SKIPPED",
+          "status": "NOT_APPLICABLE",
+          "step": "WEB_STOP"
+        },
+        {
+          "code": "SKIPPED",
+          "status": "NOT_APPLICABLE",
+          "step": "WEB_NO_WORKERS"
+        },
+        {
+          "code": "SKIPPED",
+          "status": "NOT_APPLICABLE",
+          "step": "APP_STOP"
+        },
+        {
+          "code": "SKIPPED",
+          "status": "NOT_APPLICABLE",
+          "step": "APP_MASK"
+        },
+        {
+          "code": "SKIPPED",
+          "status": "NOT_APPLICABLE",
+          "step": "MYSQL_STOP"
+        },
+        {
+          "code": "SKIPPED",
+          "status": "NOT_APPLICABLE",
+          "step": "MYSQL_MASK"
+        },
+        {
+          "code": "SKIPPED",
+          "status": "NOT_APPLICABLE",
+          "step": "RECEIVER_CLOSE"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "MYSQL_STATE"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "MYSQL_UNIT_MASK"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "MYSQL_MASK_LINK"
+        },
+        {
+          "code": "SKIPPED",
+          "status": "NOT_APPLICABLE",
+          "step": "APP_STATE"
+        },
+        {
+          "code": "SKIPPED",
+          "status": "NOT_APPLICABLE",
+          "step": "APP_UNIT_MASK"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "LISTENERS"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "PROCESSES"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "JOBS"
+        }
+      ],
+      "code": "DUPLICATE_JSON",
+      "internet_proof": "NOT_RUN",
+      "proof_scope": "ON_HOST_ONLY",
+      "stage": "PREPARE",
+      "status": "HOLD"
+    }
+  },
+  "cleanup_counts": {
+    "pass": 6,
+    "not_applicable": 9,
+    "total": 15,
+    "full_36_step_pass": false
+  },
+  "diagnosis": {
+    "owner": "MA observations; PG final read-only diagnosis",
+    "shape_receipt_id": "e16998",
+    "observed_at": "2026-10-11T16:16:39.8992436+09:00",
+    "service_property_shape": [
+      {
+        "label": "supervisor",
+        "duplicate_property_names": [],
+        "missing_names": [
+          "ExecReload",
+          "ExecStartPre",
+          "ExecStop"
+        ]
+      },
+      {
+        "label": "nginx",
+        "duplicate_property_names": [
+          "ExecReload"
+        ],
+        "missing_names": []
+      },
+      {
+        "label": "mysql",
+        "duplicate_property_names": [],
+        "missing_names": [
+          "ExecReload",
+          "ExecStart",
+          "ExecStartPre",
+          "ExecStop"
+        ]
+      }
+    ],
+    "public_contract_duplicate_key_count": 0,
+    "baseline_exists": false,
+    "web_release_exists": false,
+    "mysql_overlay_exists": false,
+    "app_unit_exists": false,
+    "pg_finding": "P2: Session.service uses r.unique for repeated Exec command properties; two legitimate ExecReload commands are rejected with misleading DUPLICATE_JSON",
+    "configuration_pointer": "deploy/single-vps/tls-quarantine/nginx-service.conf:8",
+    "parser_pointer": "build/WI039-restricted-web-check/web_session.py:70",
+    "pg_inert_reproduction": "DUPLICATE_JSON",
+    "test_gap": "Valid multiple ExecReload commands were not covered; only rejection cases were covered",
+    "implementation_changed": false
+  },
+  "legacy_postcheck": {
+    "receipt_id": "6ef710",
+    "completed_at": "2026-10-11T16:17:12.5896767+09:00",
+    "verified_at_utc": "2026-10-11T07:17:12.394141+00:00",
+    "ssh_exit": 2,
+    "stderr_empty": true,
+    "status": "HOLD",
+    "true_checks": 22,
+    "total_checks": 23,
+    "only_false": "new_approval_absent",
+    "historical_approval_retained": true,
+    "all_other_checks_true": true
+  },
+  "final_service_state": {
+    "receipt_id": "d2e1bf",
+    "completed_at": "2026-10-11T16:18:03.1708607+09:00",
+    "ssh_exit": 0,
+    "stderr_empty": true,
+    "supervisor": {
+      "MainPID": "0",
+      "ControlPID": "0",
+      "LoadState": "loaded",
+      "ActiveState": "failed",
+      "SubState": "failed",
+      "UnitFileState": "static"
+    },
+    "app": {
+      "MainPID": "0",
+      "ControlPID": "0",
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "UnitFileState": ""
+    },
+    "mysql": {
+      "MainPID": "0",
+      "ControlPID": "0",
+      "LoadState": "masked",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "UnitFileState": "masked"
+    }
+  },
+  "access_cleanup": {
+    "owner": "MA",
+    "owned_key_removed_at": "2026-10-11T16:18:03+09:00",
+    "owned_key_removed": true,
+    "ssh_add_list_rc": 1,
+    "agent_identity_count": 0,
+    "restore_helper_exit": 0,
+    "agent_restore_at": "2026-10-11T16:18:23.975+09:00",
+    "agent_status": "Stopped",
+    "agent_start_type": "Disabled",
+    "user_console_logout_confirmed": true,
+    "cua_login_prompt_confirmed_at": "2026-10-11T16:18:30+09:00",
+    "owned_recovery_tab": "Closed after verified logout",
+    "provider_portal": "Retained",
+    "pending_required_exec_sessions": 0
+  },
+  "quarantine_https": {
+    "receipt_id": "edd026",
+    "verified_at": "2026-10-11T16:18:43.6089752+09:00",
+    "status": 200,
+    "expected_body": true,
+    "normal_tls": true,
+    "cookies": false,
+    "proxy": false,
+    "redirects": false,
+    "restricted_app_acceptance": false
+  },
+  "post_native_local_snapshot": {
+    "reported_by": "MA",
+    "frozen_files_matched": 26,
+    "recipe_blocks_matched": 11,
+    "historical_pins_matched": 42,
+    "source_candidate_changes": false,
+    "new_native_call": false
+  },
+  "unperformed": {
+    "app_start": "NOT_RUN",
+    "database_start": "NOT_RUN",
+    "OPEN": "NOT_REACHED",
+    "native_containment_proof": "NOT_REACHED",
+    "L2_L3": "NOT_RUN",
+    "application_browser": "NOT_RUN",
+    "S6": "NOT_RUN; PREPARE final cleanup already completed; no finish marker needed",
+    "S7": "NOT_RUN; recipe permits only after BOUNDED_PASS",
+    "further_native_trial": "NOT_AUTHORIZED"
+  },
+  "new_local_only_approval": {
+    "received": true,
+    "exact_timestamp_supplied": false,
+    "scope": "Parser repair, regression tests, independent review and preflight preparation only; no remote/start/secret-use authority",
+    "chain": [
+      "WI042 SE",
+      "WI043 PG",
+      "WI044 DocOps"
+    ],
+    "completion": "Outside WI041; not asserted"
+  },
+  "limits": [
+    "REQ006 remains active/HOLD; web goal unmet",
+    "WI035/WI038 and historical WI040 verdict preserved",
+    "Prior WI034 BOUNDED_PASS retained; WI026 cleanup cause NOT_DETERMINED unchanged",
+    "No login/media/mail/payment/capacity/load/public-release/pristine-browser/full-traffic proof",
+    "No new build or additional paid product; existing server billing continues"
+  ]
+}

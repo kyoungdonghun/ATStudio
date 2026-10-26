@@ -1,0 +1,91 @@
+---
+version: 1.0
+last_updated: 2026-10-10
+project: ATS
+owner: MA
+category: guide
+status: active
+dependencies:
+  - path: ../user/REQ-20261010-ATS-008.md
+    reason: Approved scope and sensitive-operation gates
+---
+# Fresh Production Bootstrap Preparation
+[WI HEADER]
+WI ID: WI-20261010-ATS-025
+REQ: REQ-20261010-ATS-008
+Agent: se
+Depends On: WI024
+Blocks: WI027
+Session: current
+
+[WI SUMMARY]
+Why: Prepare the approved existing target without exposing secrets or conflating local checks with operation.
+Scope: Implement a small reviewed operator helper/runbook and tests for exactly atstudio_prod and atstudio_app (loopback-only account chosen explicitly). Server-side secrets generated only by a later separately executed reviewed apply phase. Apply current schema/seed once with native mysql, runtime DML only; refuse existing DB/account/files/symlinks and partial retry. Preserve defaults and do not use disposable tooling on production. Prepare private incomplete app env, not runnable until domain/mail/startup gates. Reuse existing validator/contracts. Analyze fresh-manifest gate, no unapproved schema or app code fixes.
+Write set: scripts/deployment/production-bootstrap.py, scripts/deployment/test_production_bootstrap.py, deploy/single-vps/runbooks/production-bootstrap.md, and this WI's two outputs only
+Constraints: No remote commands, provider actions, credentials/secret reads or generation, SQL execution, app startup, local retained DB mutation, package installation, arbitrary deletion, new dependencies, commit/push. Preserve unrelated dirty files.
+Implementation must use apply_patch. Do not delegate descendants.
+
+[ACCEPTANCE CRITERIA]
+- [ ] Named approved scope only, fresh-only fail-closed behavior with bounded evidence.
+- [ ] No secret-bearing arguments/stdout/stderr/logs, raw endpoints/tokens or private configuration in reports.
+- [ ] Reproducible checks; report failures accurately; no claim of production capacity or server execution.
+- [ ] Two deliverables and explicit next WI.
+Performance: No capacity claim; preserve 2vCPU/8GB/100GB baseline and bounded resource assumptions.
+
+[INPUT POINTERS]
+Tier 0 (injected in full):
+- docs/standards/core-principles.md
+- docs/standards/documentation-standards.md
+- docs/standards/development-standards.md
+- docs/standards/glossary.md
+Tier 1:
+- .claude/agents/se.md
+- docs/policies/security-policy.md
+- docs/policies/access-control-policy.md
+- docs/policies/quality-gates.md
+Tier 2:
+- .agents/skills/create-wi-evidence-pack/SKILL.md
+- .agents/skills/test/SKILL.md
+- .agents/skills/build-check/SKILL.md
+- .agents/skills/react-best-practices/AGENTS.md (conditional tech-stack pointer; no frontend code change here)
+- docs/standards/frontend-standards.md (same bound)
+- docs/standards/evidence-pack-standard.md
+- docs/templates/eval-report-template.md
+- docs/index.md#current-decision-entry
+- deploy/single-vps/CONFIGURATION.md
+- deploy/single-vps/runbooks/deployment.md
+- scripts/reconstruction/README.md
+- docs/design/db-schema.md
+Context:
+- deliverables/user/REQ-20261010-ATS-008.md
+- deliverables/agent/WI-20261010-ATS-024-evidence-pack.md
+- deliverables/agent/WI-20261010-ATS-014-evidence-pack.md
+Source:
+- src/main/resources/schema.sql
+- src/main/resources/seed.sql
+- src/main/resources/application.yml
+- deploy/single-vps/env/atstudio.env.example
+- deploy/single-vps/env/contract.json
+- deploy/single-vps/systemd/atstudio.service
+- scripts/deployment/validate_bundle.py
+- build.gradle
+
+[OUTPUT CONTRACT]
+User-facing: deliverables/user/WI-20261010-ATS-025-summary.md
+Agent-facing: deliverables/agent/WI-20261010-ATS-025-evidence-pack.md
+Use create-wi-evidence-pack skill. Record pointers, tool versions, hashes, exact check commands/results, risks, non-destructive rollback and next WI. English docs; concise user summary.
+
+[TRACEABILITY REQUIREMENTS]
+Native compatibility follow-up approved 2026-10-10: User answered "검사 수정·재검토 후 계속 승인". Initial native guard failed before DB/account/approval/env/claim/receipt creation because disabled @@global.admin_address is NULL rather than the assumed empty string; all other tested configuration predicates passed. MySQL is stopped/remasked. Fix ONLY that predicate to accept NULL or empty (COALESCE(...,'')='') while rejecting every nonempty address, retain independent listener checks. Add narrowly focused regression tests and an append-only native-findings/completion addendum to this WI's two reports/runbook. Preserve original registered hashes/history; the old helper remains unchanged on server /root/wi025. Recommend a fresh /root/wi025-v2 staging location, never overwrite the old stage or change MySQL globals. Re-run helper tests/offline plan and report exact new hashes. No remote SQL/secret creation, source/schema/template/validator changes, dependency changes or unrelated refactoring. This is a reopened WI025 correction; WI027 must re-review before MA resumes any apply.
+
+Generated by create-wi-handoff-packet after approved REQ and maximum WI024 checked.
+ATS tag from workspace.json; tier ordering and role/security/testing requirements from context-injection-rules.json. Meta-only architecture inference excluded from product bootstrap scope. Do not modify handoff.
+
+## Second Native Compatibility Addendum (Approved)
+
+Generated with create-wi-handoff-packet for reopened WI025 under the same approved REQ008, scope, injected Tier documents and output contract. On 2026-10-10 the user approved: "정확한 두 내장 기능 판별로 수정 승인". Native MySQL 8.0.46 exposes ACTIVE AUDIT plugins `sha2_cache_cleaner` and `mysqlx_cache_cleaner`, each with `PLUGIN_LIBRARY IS NULL`. PG reviewed pinned vendor sources and authorized this exact classification correction, not relaxed recording protection or server changes.
+
+Functional acceptance: allow only those two exact names when the type is AUDIT and the library is SQL NULL. Reject every other ACTIVE AUDIT plugin, including built-in ones; reject either known name with any non-NULL library including the empty string; continue rejecting ACTIVE `mysqlx` or `group_replication`. Preserve listener, component, capture and all other guards. Add positive, negative, malformed/ambiguous result and SQL-error regressions. Native NULL library classification is not binary integrity proof.
+
+Write set and prohibitions are unchanged. Use apply_patch and append-only reports/runbook evidence; retain the first NULL-fix results and historical hashes. Re-run helper tests and offline plan, report exact final input/bundle hashes. No remote operations or secret generation. Existing `/root/wi025` and `/root/wi025-v2` are preserved; any MA execution uses a new real `/root/wi025-v3` and a newly pinned archive. WI025 completion immediately blocks on independent WI027 re-review; WI028 integrates actual final native and cleanup receipts only.
+

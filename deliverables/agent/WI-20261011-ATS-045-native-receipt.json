@@ -1,0 +1,1157 @@
+{
+  "schema_version": "1.0",
+  "project": "ATS",
+  "wi": "WI-20261011-ATS-045",
+  "req": "REQ-20261011-ATS-006",
+  "trial": "WI042",
+  "documentation_status": "COMPLETE_BOUNDED_RECORDING_RECOVERY_ACCESS_CLEANUP",
+  "provenance": {
+    "evidence_owner": "MA",
+    "recorder": "DocOps",
+    "source": "User-supplied MA receipts; no DocOps target access or test replay.",
+    "reduction": "Native result and L2 checker JSON retained as supplied. Identity and other observations are selected public fields; incidental paths, worktree listings, raw command output and private values omitted.",
+    "timezone": "Asia/Seoul"
+  },
+  "local_identity": {
+    "source_receipt": "e88901",
+    "verified_at": "2026-10-11T16:55:31.3814102+09:00",
+    "l1_receipt": "19534a",
+    "l1_verified_at": "2026-10-11T16:57:53.6874984+09:00",
+    "execution_owner": "MA using the pinned QA-INTEG / WI036 helper",
+    "status": "PASS_LOCAL_IDENTITY_ONLY",
+    "head": "58b1011dad796017e47dbcc82a4225ca449bcdf6",
+    "branch": "main",
+    "backend_source_files": 641,
+    "frontend_source_files": 336,
+    "frontend_output_files": 143,
+    "frontend_output_bytes": 1194351,
+    "coverage_exclusions_matched": 4,
+    "manifests": [
+      {
+        "path": "deliverables/agent/WI-20261011-ATS-020-artifact.json",
+        "bytes": 494584,
+        "sha256": "8a74e29f15708dad5a8278dffc3e8add1eb7b8dbcd6ddb18045ec85c32c63fe6"
+      },
+      {
+        "path": "deliverables/agent/WI-20261010-ATS-026-artifact.json",
+        "bytes": 483979,
+        "sha256": "fbeb74425ade0fe3882a9dddc4c97f7b67b75dda711ffa37acbd755a02fa4d9c"
+      }
+    ],
+    "jar": {
+      "path": "build/WI020-release-v3/build/libs/ATStudio-0.0.1-SNAPSHOT.jar",
+      "bytes": 70306351,
+      "sha256": "01d5623972e17d0b6e1d3e532096239cd87e9995a08771c59292c94bf3699dcb"
+    },
+    "frontend_output_set_sha256": "43A0384C5F48D100E4AF6B20D989A2186B34E6900CF4E69C94B010E9671C8647",
+    "index_html": {
+      "path": "build/WI-20261010-ATS-026-frontend-dist/index.html",
+      "bytes": 613,
+      "sha256": "4277c2c58975bcc4a2542fe9c40910e6e732e6fff2a5c9eee4c089a83c3d116b"
+    },
+    "reviewed_bundle_sha256": "78ce821757111b6f4bd440a79680ed12e4e40b6592616293e4d768ddd6dbe00c",
+    "freeze_files": 27,
+    "recipe_blocks": 11,
+    "preserved_pins": 79,
+    "no_rebuild": true
+  },
+  "stages": [
+    {
+      "stage": "L1",
+      "source_receipt": "19534a",
+      "public_files_uploaded": 153,
+      "attempts": 1
+    },
+    {
+      "stage": "S1",
+      "source_receipt": "a6f69e",
+      "completed_at": "2026-10-11T16:58:19.5269672+09:00",
+      "ssh_exit": 0,
+      "stderr_empty": true,
+      "receipt": "STAGED_PUBLIC_FILES=10"
+    },
+    {
+      "stage": "S2",
+      "source_receipt": "180b6d",
+      "completed_at": "2026-10-11T16:58:27.6989098+09:00",
+      "ssh_exit": 0,
+      "stderr_empty": true,
+      "receipt": "PREFLIGHT=PASS_READ_ONLY; runtime_and_browser=NOT_RUN"
+    },
+    {
+      "stage": "S3",
+      "source_receipt": "221cd0",
+      "completed_at": "2026-10-11T17:00:42.3262578+09:00",
+      "ssh_exit": 0,
+      "stderr_empty": true,
+      "receipt": "APPROVAL_CREATED_ONCE"
+    },
+    {
+      "stage": "S4",
+      "source_receipt": "464fd4",
+      "completed_at": "2026-10-11T17:00:52.6150757+09:00",
+      "ssh_exit": 0,
+      "stderr_empty": true,
+      "receipt": {
+        "admission": "DISPATCHED",
+        "status": "PENDING"
+      }
+    },
+    {
+      "stage": "S5",
+      "source_receipt": "f64f0e",
+      "completed_at": "2026-10-11T17:01:01.0882939+09:00",
+      "ssh_exit": 0,
+      "stderr_empty": true,
+      "receipt": {
+        "status": "PENDING"
+      }
+    },
+    {
+      "stage": "S5",
+      "source_receipt": "77d174",
+      "completed_at": "2026-10-11T17:01:12.8367589+09:00",
+      "ssh_exit": 0,
+      "stderr_empty": true,
+      "receipt": {
+        "admission": "PASS",
+        "app_start": "VERIFIED",
+        "cleanup": "NOT_RUN",
+        "status": "PENDING",
+        "view_interval": "OPEN"
+      }
+    },
+    {
+      "stage": "S6",
+      "source_receipt": "61f2ef",
+      "completed_at": "2026-10-11T17:01:33.5295126+09:00",
+      "ssh_exit": 0,
+      "stderr_empty": true,
+      "receipt": {
+        "view_interval": "FINISH_REQUESTED",
+        "status": "PENDING"
+      },
+      "requests": 1
+    }
+  ],
+  "native": {
+    "observations": [
+      {
+        "source_receipt": "03f783",
+        "completed_at": "2026-10-11T17:01:44.5322639+09:00",
+        "ssh_exit": 0,
+        "stderr_empty": true
+      },
+      {
+        "source_receipt": "1bf5f7",
+        "completed_at": "2026-10-11T17:01:57.6603903+09:00",
+        "ssh_exit": 0,
+        "stderr_empty": true
+      }
+    ],
+    "result": {
+      "app_start": "VERIFIED",
+      "bpf_attachment_checked": true,
+      "capability_gets": 1,
+      "cleanup": "FAILED",
+      "cleanup_code": "CLEANUP_VERIFICATION_FAILED",
+      "cleanup_steps": [
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "WEB_STOP"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "WEB_NO_WORKERS"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "APP_STOP"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "APP_MASK"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "MYSQL_STOP"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "MYSQL_MASK"
+        },
+        {
+          "code": "SKIPPED",
+          "status": "NOT_APPLICABLE",
+          "step": "RECEIVER_CLOSE"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "MYSQL_STATE"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "MYSQL_UNIT_MASK"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "MYSQL_MASK_LINK"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "APP_STATE"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "APP_UNIT_MASK"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "LISTENERS"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "PROCESSES"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "JOBS"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "WEB_STATE_READ"
+        },
+        {
+          "code": "UNEXPECTED_FAILURE",
+          "status": "FAILED",
+          "step": "WEB_OVERLAY_RETAIN"
+        },
+        {
+          "code": "UNEXPECTED_FAILURE",
+          "status": "FAILED",
+          "step": "MYSQL_OVERLAY_RETAIN"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "SYSTEMD_RESTORE"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "WEB_BASELINE_BYTES"
+        },
+        {
+          "code": "WEB_RESTORE",
+          "status": "FAILED",
+          "step": "WEB_SERVICE_RESTORE"
+        },
+        {
+          "code": "WEB_SERVICE",
+          "status": "FAILED",
+          "step": "MYSQL_SERVICE_RESTORE"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "WEB_BASELINE_TEST"
+        },
+        {
+          "code": "SKIPPED",
+          "status": "NOT_APPLICABLE",
+          "step": "WEB_BASELINE_START"
+        },
+        {
+          "code": "WEB_SERVICE",
+          "status": "FAILED",
+          "step": "WEB_BASELINE_ACTIVE"
+        },
+        {
+          "code": "WEB_SERVICE",
+          "status": "FAILED",
+          "step": "WEB_BASELINE_PROCESS"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "BASELINE_TLS_NGINX"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "BASELINE_TLS_SYSTEMD"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "BASELINE_TLS_RENEWAL"
+        },
+        {
+          "code": "TLS_SERVICES",
+          "status": "FAILED",
+          "step": "BASELINE_NGINX_ACTIVE"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "BASELINE_CERTBOT_ACTIVE"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "BASELINE_JOBS"
+        },
+        {
+          "code": "BASELINE_CHANGED",
+          "status": "FAILED",
+          "step": "BASELINE_NGINX_PID"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "BASELINE_CERTBOT_UNIT_STATE"
+        },
+        {
+          "code": "BASELINE_CHANGED",
+          "status": "FAILED",
+          "step": "BASELINE_LISTENERS"
+        },
+        {
+          "code": "OK",
+          "status": "PASS",
+          "step": "BASELINE_ENV"
+        }
+      ],
+      "code": "POST_STATE_CHANGED",
+      "internet_proof": "NOT_RUN",
+      "negative_deliveries": 0,
+      "proof_scope": "ON_HOST_ONLY",
+      "stage": "READ_ONLY_CHECKS",
+      "status": "HOLD",
+      "tag_gets": 1,
+      "tcp_positive_controls": 2,
+      "udp_positive_controls": 2,
+      "view_interval": "FINISHED"
+    },
+    "derived_cleanup_counts": {
+      "PASS": 25,
+      "NOT_APPLICABLE": 2,
+      "FAILED": 9
+    },
+    "observations_are_polls_not_retries": true
+  },
+  "http_allowed": {
+    "source_receipt": "7ede70",
+    "wrapper_exit_code": 1,
+    "wrapper_error": "HOLD_ALLOWED_HTTP",
+    "checker_result": {
+      "cases": [
+        {
+          "count": 0,
+          "case": "A01",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 133
+        },
+        {
+          "count": 0,
+          "case": "A02",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 134
+        },
+        {
+          "count": 0,
+          "case": "A03",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 134
+        },
+        {
+          "count": 0,
+          "case": "A04",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 129
+        },
+        {
+          "count": 0,
+          "case": "A05",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 130
+        },
+        {
+          "count": 0,
+          "case": "A06",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 130
+        },
+        {
+          "count": 0,
+          "case": "A07",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 130
+        },
+        {
+          "count": 0,
+          "case": "A08",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 46
+        },
+        {
+          "count": 0,
+          "case": "A09",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 46
+        },
+        {
+          "count": 0,
+          "case": "A10",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 46
+        },
+        {
+          "count": 0,
+          "case": "A11",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 46
+        },
+        {
+          "count": 0,
+          "case": "A12",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 46
+        },
+        {
+          "count": 0,
+          "case": "A13",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 52
+        },
+        {
+          "count": 6,
+          "case": "A14",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 1299
+        },
+        {
+          "count": 3,
+          "case": "A15",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 661
+        },
+        {
+          "count": 3,
+          "case": "A16",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 652
+        },
+        {
+          "count": 0,
+          "case": "A17",
+          "http": 200,
+          "status": "PASS",
+          "bytes": 287
+        }
+      ],
+      "status": "BOUNDED_HTTP_PASS",
+      "mode": "Allowed",
+      "browser": "SEPARATE_OBSERVATION",
+      "nonmanagement": "NOT_VERIFIED"
+    },
+    "completed_at": null,
+    "time_limit": "No exact timestamp supplied for this receipt; it occurred in the OPEN interval before S6.",
+    "wrapper_diagnostic": {
+      "source_receipt": "ab0943",
+      "environment": "MA local synthetic check",
+      "verified_at": null,
+      "observed": "LASTEXITCODE absent and ($LASTEXITCODE -ne 0) evaluates true; checker success path has no explicit exit 0, while SelfTest does.",
+      "conclusion": "Supports wrapper defect; not a repair or a repeated native HTTP trial."
+    }
+  },
+  "supplemental_preflight": {
+    "initial": {
+      "source_receipt": "a72e35",
+      "completed_at": "2026-10-11T16:59:35.2585907+09:00",
+      "ssh_exit": 2,
+      "management_peer_match": "PASS",
+      "result": "EXTRA_PREFLIGHT_FAILED"
+    },
+    "diagnosis": {
+      "source_receipt": "e1e239",
+      "completed_at": "2026-10-11T17:00:02.9988217+09:00",
+      "known_capture_services_absent": true,
+      "bounded_process_hits": [
+        "unattended-upgr"
+      ],
+      "forwarding_pattern_absent": true,
+      "pending_jobs_absent": true
+    },
+    "waiter": {
+      "source_receipt": "097165",
+      "completed_at": "2026-10-11T17:00:27.0880679+09:00",
+      "shutdown_signal_waiter_exact": true,
+      "expected_cgroup": true,
+      "root_owned_vendor_script": true,
+      "unit_active": true,
+      "unit_running": true
+    },
+    "classification": "MA supplemental process-name false positive resolved by bounded read-only observation; not candidate failure, package work, configuration change or trial retry."
+  },
+  "post_failure": {
+    "source_receipt": "6daa1f",
+    "completed_at": "2026-10-11T17:02:21.8386641+09:00",
+    "ssh_exit": 0,
+    "stderr_empty": true,
+    "receipt": {
+      "service_states": {
+        "atstudio-restricted-web-wi042.service": {
+          "MainPID": "0",
+          "ControlPID": "0",
+          "LoadState": "masked",
+          "ActiveState": "failed",
+          "SubState": "failed",
+          "UnitFileState": "masked"
+        },
+        "mysql.service": {
+          "MainPID": "0",
+          "ControlPID": "0",
+          "LoadState": "masked",
+          "ActiveState": "inactive",
+          "SubState": "dead",
+          "UnitFileState": "masked"
+        },
+        "nginx.service": {
+          "MainPID": "0",
+          "ControlPID": "0",
+          "LoadState": "loaded",
+          "ActiveState": "inactive",
+          "SubState": "dead",
+          "UnitFileState": "enabled"
+        },
+        "atstudio-wi042-supervisor.service": {
+          "MainPID": "0",
+          "ControlPID": "0",
+          "LoadState": "loaded",
+          "ActiveState": "failed",
+          "SubState": "failed",
+          "UnitFileState": "static"
+        },
+        "certbot.timer": {
+          "LoadState": "loaded",
+          "ActiveState": "active",
+          "SubState": "waiting",
+          "UnitFileState": "enabled"
+        }
+      },
+      "overlay_diagnostics": [
+        {
+          "kind": "nginx",
+          "present": true,
+          "matches_reviewed_bytes": true,
+          "cross_filesystem": true,
+          "retained_target_absent": true
+        },
+        {
+          "kind": "mysql",
+          "present": true,
+          "matches_reviewed_bytes": true,
+          "cross_filesystem": true,
+          "retained_target_absent": true
+        }
+      ],
+      "app_db_nginx_processes_absent": true,
+      "final_result_present": true
+    }
+  },
+  "failure_boundaries": {
+    "post_state_changed_cause": "NOT_DETERMINED",
+    "overlay_retention_cause": "Cross-filesystem os.rename failure strongly supported by observed device mismatch and retained-target absence; EXDEV errno not captured.",
+    "do_not_conflate": [
+      "HTTP wrapper failure",
+      "POST_STATE_CHANGED",
+      "overlay retention and service recovery failures"
+    ],
+    "post_window_database_unchanged": "NOT_ESTABLISHED"
+  },
+  "recovery": {
+    "approval_quote": "기존 HTTPS 복구만 승인",
+    "approved_at": null,
+    "handoff": "deliverables/agent/WI-20261011-ATS-046-handoff.md",
+    "chain": [
+      "WI046 SE",
+      "WI047 PG",
+      "MA one-time HTTPS-only recovery",
+      "WI045 DocOps final integration"
+    ],
+    "scope": "Preserve/detach the two overlays and restore original TLS quarantine only after local tests and independent review. Keep app/DB stopped/masked; no new app/DB or HTTP trial.",
+    "status": "HOLD",
+    "attempts_reported": 1,
+    "evidence_form": "Initial MA progress summary retained; supplied exact inner native and diagnostic receipts are added under recovery046_native_receipts. No exact L1/L2 completion timestamps supplied.",
+    "attempt_observation": {
+      "owner": "MA",
+      "L1_staging": "PASS",
+      "L2_exit_code": 1,
+      "stage": "ORIGINAL_SERVICES",
+      "code": "BASELINE",
+      "status": "HOLD",
+      "durable_copies": "PASS_BOTH",
+      "same_directory_overlay_detachments": "PASS_BOTH",
+      "daemon_reload": "PASS",
+      "receipt_durability": "PASS",
+      "nginx_start": "NOT_RUN",
+      "retained_overlays_and_durable_copies": "PRESERVED"
+    },
+    "read_only_comparison": {
+      "owner": "MA",
+      "observed_at": "2026-10-11T17:32:23+09:00",
+      "only_differing_key": "nginx.After",
+      "before_string_length": 121,
+      "current_string_length": 121,
+      "other_nginx_and_mysql_baseline_keys_equal": true,
+      "token_multiset_result": "AWAITING_MA_EVIDENCE",
+      "limit": "String difference does not establish semantic inequality, a comparator defect or the earlier POST_STATE_CHANGED cause."
+    },
+    "continuation": "Separate new approval and follow-up comparison are recorded in recovery_continuation. This WI046 attempt remains consumed HOLD; no result rewrite or rerun.",
+    "access_cleanup": "PENDING; existing approved temporary SSH retained until recovery completes, then owned key removal, agent stop/disable and console cleanup."
+  },
+  "recovery_continuation": {
+    "approval_quote": "검사 수정·재검토 후 HTTPS 복구만 계속",
+    "approval_date": "2026-10-11",
+    "approved_at": null,
+    "chain": [
+      "WI048 SE",
+      "WI049 PG",
+      "MA one-time original HTTPS-only continuation",
+      "WI045 DocOps integration"
+    ],
+    "handoff": "deliverables/agent/WI-20261011-ATS-048-handoff.md",
+    "review_handoff": "deliverables/agent/WI-20261011-ATS-049-handoff.md",
+    "read_only_follow_up": {
+      "owner": "MA",
+      "observed_at": "2026-10-11T17:32:55+09:00",
+      "nginx_after_token_multiset_exact_match": true,
+      "token_count": 7,
+      "nginx_state": "inactive",
+      "conclusion": "WI046 After-only ordering comparison false positive confirmed; original POST_STATE_CHANGED cause remains NOT_DETERMINED."
+    },
+    "scope": "Correct only unordered nginx.After comparison, retaining exact Exec command contents/order and all other checks. Local regression and independent PG review precede a separately recorded one-time original Nginx start with fresh target, TLS, consumed-receipt and retained-file checks.",
+    "prohibited": [
+      "WI046 rerun or new overlay moves",
+      "App/DB start or unmask",
+      "Web trial or L2/L3 rerun",
+      "Public opening or additional purchase",
+      "Historical result, claim or preserved-config modification"
+    ],
+    "status": "RECOVERED_ORIGINAL_HTTPS_ACCESS_CLEANUP_COMPLETE",
+    "access_cleanup": "COMPLETE for the approved scope; see final_access_cleanup. Provider handoff tab is intentionally retained."
+  },
+  "recovery046_native_receipts": {
+    "provenance": "Exact supplied inner execution/diagnostic objects; transport wrappers reduced to outcome, time and receipt ID. No raw config or address values.",
+    "staging": {
+      "source_receipt": "19c3b3",
+      "exit_code": 0,
+      "output": "STAGED_WI046",
+      "completed_at": null
+    },
+    "execution": {
+      "source_receipt": "0c3198",
+      "exit_code": 1,
+      "result": {
+        "checks": [
+          "STOPPED",
+          "NO_NGINX",
+          "TLS_BASELINE",
+          "CLAIM",
+          "PRESERVE_0",
+          "PRESERVE_1",
+          "DETACH_0",
+          "DETACH_1",
+          "DAEMON_RELOAD"
+        ],
+        "code": "BASELINE",
+        "nginx_start": "NOT_RUN",
+        "receipt_durability": "PASS",
+        "safety_stop": "NOT_NEEDED",
+        "stage": "ORIGINAL_SERVICES",
+        "status": "HOLD",
+        "trial_status": "HOLD"
+      },
+      "wrapper_error": "HOLD_RECOVERY_WI046",
+      "completed_at": null
+    },
+    "mismatch": {
+      "source_receipt": "78b51d",
+      "ssh_exit": 0,
+      "stderr_empty": true,
+      "completed_at": "2026-10-11T17:32:23.3192396+09:00",
+      "result": {
+        "mismatches": [
+          {
+            "service": "nginx",
+            "key": "After",
+            "expected_type": "str",
+            "actual_type": "str",
+            "expected_count": 121,
+            "actual_count": 121,
+            "space_token_set_equal": true,
+            "ordered_command_key": false
+          }
+        ],
+        "nginx_start": "NOT_RUN",
+        "inspection": "READ_ONLY_NO_ENV_DB"
+      }
+    },
+    "mismatch_tokens": {
+      "source_receipt": "896737",
+      "ssh_exit": 0,
+      "stderr_empty": true,
+      "completed_at": "2026-10-11T17:32:55.8520407+09:00",
+      "result": {
+        "difference": "NGINX_AFTER_SERIALIZATION_ORDER_ONLY",
+        "token_multiset_equal": true,
+        "token_count": 7,
+        "nginx_active": "inactive",
+        "recovery_receipt_preserved": true
+      }
+    },
+    "followup_metadata": {
+      "source_receipt": "e662e0",
+      "ssh_exit": 0,
+      "stderr_empty": true,
+      "completed_at": "2026-10-11T17:35:30.7863593+09:00",
+      "result": {
+        "metadata": [
+          {
+            "path": "/var/lib/atstudio/wi046-quarantine-recovery",
+            "uid": 0,
+            "gid": 0,
+            "mode": "0o700",
+            "links": 2,
+            "symlink": false
+          },
+          {
+            "path": "/var/lib/atstudio/wi046-quarantine-recovery/result.json",
+            "uid": 0,
+            "gid": 0,
+            "mode": "0o600",
+            "links": 1,
+            "symlink": false,
+            "sha256": "965d25278854bc72c91c132058adc934de949c9d2d68fce4610148ae0990d8c2"
+          },
+          {
+            "path": "/var/lib/atstudio/wi046-quarantine-recovery/95-wi042-web.conf",
+            "uid": 0,
+            "gid": 0,
+            "mode": "0o600",
+            "links": 1,
+            "symlink": false,
+            "sha256": "d4c5f241a49aceddf2651b570024b48d7c5eef7fc01226c75df77a359ef98df5"
+          },
+          {
+            "path": "/var/lib/atstudio/wi046-quarantine-recovery/95-wi042-bound.conf",
+            "uid": 0,
+            "gid": 0,
+            "mode": "0o600",
+            "links": 1,
+            "symlink": false,
+            "sha256": "9bff9f2e2fdd7f8ff09718b1117a4546d75a06504a727f63789e8e95f2ea7aa5"
+          },
+          {
+            "path": "/run/systemd/system/nginx.service.d/95-wi042-web.conf.retained-wi046",
+            "uid": 0,
+            "gid": 0,
+            "mode": "0o644",
+            "links": 1,
+            "symlink": false,
+            "sha256": "d4c5f241a49aceddf2651b570024b48d7c5eef7fc01226c75df77a359ef98df5"
+          },
+          {
+            "path": "/run/systemd/system/mysql.service.d/95-wi042-bound.conf.retained-wi046",
+            "uid": 0,
+            "gid": 0,
+            "mode": "0o644",
+            "links": 1,
+            "symlink": false,
+            "sha256": "9bff9f2e2fdd7f8ff09718b1117a4546d75a06504a727f63789e8e95f2ea7aa5"
+          },
+          {
+            "path": "/opt/atstudio/wi046-tools/recover.py",
+            "uid": 0,
+            "gid": 0,
+            "mode": "0o444",
+            "links": 1,
+            "symlink": false,
+            "sha256": "7ab8be7b2b1b94df4eeabbc8be5c03620d0ad219749ce571014d587a92ad1d94"
+          }
+        ],
+        "prior_recovery": {
+          "checks": [
+            "STOPPED",
+            "NO_NGINX",
+            "TLS_BASELINE",
+            "CLAIM",
+            "PRESERVE_0",
+            "PRESERVE_1",
+            "DETACH_0",
+            "DETACH_1",
+            "DAEMON_RELOAD"
+          ],
+          "code": "BASELINE",
+          "nginx_start": "NOT_RUN",
+          "receipt_durability": "PENDING",
+          "safety_stop": "NOT_NEEDED",
+          "stage": "ORIGINAL_SERVICES",
+          "status": "HOLD",
+          "trial_status": "HOLD"
+        }
+      }
+    },
+    "durability_boundary": "Execution stdout reports PASS; the separately observed stored receipt contains PENDING. Both are preserved, not rewritten or treated as HTTPS recovery success."
+  },
+  "waiting_checkpoint": {
+    "status": "VERIFIED_WAITING_CHECKPOINT_NOT_COMPLETION",
+    "req_status": "ACTIVE_HOLD",
+    "observation_owner": "MA",
+    "latest_access_observation_kst": "2026-10-11 17:54 (minute precision)",
+    "review": {
+      "owner": "PG049",
+      "verdict": "CONDITIONAL_ALLOW",
+      "version": "v2",
+      "source": "deliverables/agent/WI-20261011-ATS-049-evidence-pack.md",
+      "independent_tests_passed": 9,
+      "owner_tests_rerun_passed": 21,
+      "local_recipe_prefix": "PASS_NO_TRANSPORT",
+      "recipe_asts_passed": 2,
+      "native_by_reviewer": "NOT_RUN"
+    },
+    "owner_tests": {
+      "owner": "SE048",
+      "source": "deliverables/agent/WI-20261011-ATS-048-evidence-pack.md",
+      "current_mocked_tests_passed": 21,
+      "inherited_regressions_passed": 23,
+      "overlapping_review_counts_not_unique": true
+    },
+    "local_pins": {
+      "source_receipt": "1dd45e",
+      "exit_code": 0,
+      "result": {
+        "status": "LOCAL_FREEZE_PASS",
+        "files": 14,
+        "bundle": "b3befcd2a2310ef8c7461800ce35f75f2aad918eb479de12f480433c55fcacfe",
+        "freeze": "26c47507668074aea79c5f96fd5d0a99d7dd7d1c86259edb3898baf170240b2e",
+        "verified_at": "2026-10-11T17:45:07.6457954+09:00"
+      }
+    },
+    "candidate_pins": {
+      "source": "PG049 final evidence, not rehashed by DocOps",
+      "candidate": "2d617dc5a09b67a3024f628b90f6465bcac29bd8cce4ac852a0360d75484765a",
+      "readme_v2": "bbc38de19394e990262deccf1da0343b6be3934fc715a2613737b15d10aa9fc9",
+      "recipe_pins_v2": "52542ba681fe4af2ebbb7a43da98fd6f8fab2fb6252aafee7034d3b055cb2809",
+      "L1": "c2f816ee642a05d1b10b8999cef5b5d0331e8fa3746f85ee5935bb2915bd83ba",
+      "L2": "52ab891a56f1ed6a5881ec42523877f457a2e69e3d8e484a8ddafe69c41ed3b0"
+    },
+    "fresh_admission": {
+      "source_receipt": "22d5d6",
+      "ssh_exit": 0,
+      "stderr_empty": true,
+      "completed_at": "2026-10-11T17:51:18.7204298+09:00",
+      "result": {
+        "status": "PASS",
+        "checks": {
+          "host_boot": true,
+          "atstudio-restricted-web-wi042.service": true,
+          "mysql.service": true,
+          "nginx_inactive": true,
+          "jobs_empty": true,
+          "no_workers": true,
+          "certbot_inactive": true,
+          "fresh_targets": true,
+          "prior_receipt": true,
+          "detached_0": true,
+          "detached_1": true
+        }
+      },
+      "limit": "Read-only gate, not staging or recovery execution; certbot_inactive is the reported check and does not assert the timer is disabled."
+    },
+    "tls_peer_probe": {
+      "source_receipt": "552000",
+      "ssh_exit": 2,
+      "stderr_empty": true,
+      "completed_at": "2026-10-11T17:52:30.8402660+09:00",
+      "result": {
+        "status": "HOLD",
+        "checks": {
+          "/etc/nginx/tls-quarantine/nginx.conf": true,
+          "/etc/systemd/system/nginx.service.d/90-atstudio-quarantine.conf": true,
+          "/etc/letsencrypt/renewal-hooks/deploy/40-atstudio-quarantine": true,
+          "management_peer": false
+        },
+        "renewal_next": "Mon 2026-10-12 05:42:18 KST"
+      }
+    },
+    "corrected_peer_probe": {
+      "source_receipt": "eed102",
+      "ssh_exit": 0,
+      "stderr_empty": true,
+      "completed_at": "2026-10-11T17:52:55.7410852+09:00",
+      "result": {
+        "management_peer_match": true,
+        "sudo_environment_has_ssh_connection": false,
+        "ssh_transport_peer_present": true,
+        "allow_entry_count": 1
+      }
+    },
+    "peer_diagnostic_limit": "Initial false came from sudo stripping SSH_CONNECTION; corrected read-only transport-argument check passed. No observed network drift. Both receipts retained.",
+    "provider": {
+      "page": "www.iwinv.kr/member",
+      "state": "SESSION_EXPIRED_LOGIN_REQUESTED",
+      "human_login_reply": "NOT_RECEIVED",
+      "fresh_firewall_ui_recheck": "PENDING",
+      "observation_time": "No exact timestamp supplied for waiting state; MA message checkpoint."
+    },
+    "native_execution": {
+      "WI048_L1": "NOT_RUN",
+      "WI048_L2": "NOT_RUN",
+      "nginx_recovery": "NOT_RUN",
+      "no_new_app_db_trial_authorized": true
+    },
+    "current_state": {
+      "app": "STOPPED_MASKED_PID0",
+      "mysql": "STOPPED_MASKED_PID0",
+      "nginx": "INACTIVE",
+      "wi046_detached_originals_and_durable_copies": "PRESERVED",
+      "basis": "MA current checkpoint and dated read-only observations; not a fresh DocOps target check."
+    },
+    "access": {
+      "owner": "MA",
+      "agent": {
+        "observed_at_kst": "2026-10-11 17:54 (minute precision)",
+        "state": "Running/Manual",
+        "expected_sole_key": true,
+        "cleanup": "NOT_YET_DONE"
+      },
+      "root_console": {
+        "observed_at_kst": "2026-10-11 17:52 (minute precision)",
+        "state": "ROOT_PROMPT_LOGGED_IN",
+        "logout": "NOT_YET_DONE"
+      },
+      "temporary_retention_authority": "Explicitly approved through HTTPS recovery; final key removal, Stopped/Disabled and console logout still required."
+    },
+    "completion": "NOT_COMPLETE; awaiting user provider login, fresh MA gates, authorized HTTPS-only continuation and final access-cleanup receipts.",
+    "cost": "No additional paid product reported; existing server billing continues."
+  },
+  "post_waiting_update": {
+    "source": "Superseding user message relaying MA's human login confirmation",
+    "date": "2026-10-11",
+    "exact_time": null,
+    "provider_login_reply": "CONFIRMED",
+    "fresh_provider_and_target_verification": "AWAITING_MA_RESULT",
+    "WI048_L1_L2_new_receipts": "NOT_YET_SUPPLIED",
+    "https_recovery_and_final_access_cleanup": "AWAITING_MA_RECEIPTS",
+    "authority": "Existing WI048 v2 once-only HTTPS continuation, conditional on fresh gates; no scope expansion.",
+    "preservation": "waiting_checkpoint is historical, not the current login blocker; old trial and recovery results remain unchanged.",
+    "req_status": "ACTIVE_HOLD",
+    "completion": "NOT_COMPLETE"
+  },
+  "https_recovery_outcome": {
+    "provenance": "MA supplied bounded outcome fields and check count, not full unnamed check rows. No DocOps native access. Times with milliseconds are as supplied; no L1/L2 execution timestamp invented.",
+    "scope": "Original quarantine HTTPS only; prior web trial remains HOLD.",
+    "provider_and_console": {
+      "owner": "MA",
+      "management_rule_recheck": "22 and 443 restricted to the sole current management IPv4; 80 to any IPv4 for ACME",
+      "root_recovery_prompt": "VERIFIED_BEFORE_EXECUTION",
+      "private_addresses_tokens_screenshots": "NOT_STORED"
+    },
+    "local_pins": {
+      "source_receipt": "e8b7e9",
+      "frozen_files": 14,
+      "prior_inputs": 7,
+      "status": "PASS",
+      "verified_at": null
+    },
+    "fresh_gate": {
+      "source_receipt": "9bb74f",
+      "verified_at": "2026-10-11T18:04:42.841+09:00",
+      "status": "PASS",
+      "reported_checks": [
+        "expected host/boot",
+        "app/DB masked PID0",
+        "Nginx and supervisor stopped",
+        "no jobs/processes",
+        "fresh paths",
+        "TLS and prior receipt pins",
+        "management peer and firewall match"
+      ],
+      "renewal_next_kst": "2026-10-12 05:42:18"
+    },
+    "L1": {
+      "source_receipt": "a92291",
+      "invocations": 1,
+      "exit_code": 0,
+      "output": "STAGED_WI048",
+      "completed_at": null
+    },
+    "L2": {
+      "source_receipt": "4c5b60",
+      "invocations": 1,
+      "exit_code": 0,
+      "reported_result": {
+        "status": "RECOVERED_ORIGINAL_HTTPS",
+        "code": "OK",
+        "stage": "DONE",
+        "nginx_start": "VERIFIED",
+        "receipt_durability": "PASS",
+        "safety_stop": "NOT_NEEDED",
+        "trial_status": "HOLD"
+      },
+      "reported_checks_passed": 12,
+      "completed_at": null
+    },
+    "https_postcheck": {
+      "source_receipt": "27b884",
+      "verified_at": "2026-10-11T18:05:40.145+09:00",
+      "path": "/ready.txt",
+      "method": "GET",
+      "proxy": false,
+      "certificate_validation": "DEFAULT",
+      "http_status": 200,
+      "exact_body": "ATStudio TLS quarantine only",
+      "status": "PASS",
+      "scope": "Original quarantine response; not another application trial."
+    },
+    "read_only_postcheck": {
+      "source_receipt": "de821f",
+      "verified_at": "2026-10-11T18:05:42.088+09:00",
+      "status": "PASS",
+      "app": {
+        "LoadState": "masked",
+        "ActiveState": "failed",
+        "MainPID": 0
+      },
+      "mysql": {
+        "LoadState": "masked",
+        "ActiveState": "inactive",
+        "MainPID": 0
+      },
+      "nginx": {
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "MainPID": 29877,
+        "ControlPID": 0
+      },
+      "supervisor": {
+        "ActiveState": "failed",
+        "MainPID": 0
+      },
+      "tls_three_pins_match": true,
+      "prior_wi046_receipt_pin_match": true,
+      "original_overlays_absent": true,
+      "retained_and_durable_copies_match": true,
+      "java_mysqld_ffmpeg_absent": true
+    },
+    "new_disk_receipt": {
+      "state": "PENDING_DURABILITY",
+      "provisional": true,
+      "sha256": "366d744e1b19203b97ea0b8095c342c04929058635b9ffa3744d0088cf6584dd",
+      "success_authority": false
+    },
+    "success_authority": "Exit0 and bounded L2 stdout with receipt_durability PASS, plus independent HTTPS/service postchecks. Provisional disk contents are not success proof.",
+    "ma_reported_recovery_exclusions": [
+      "app/DB start",
+      "SQL",
+      "secret reads",
+      "public opening",
+      "firewall/certificate changes",
+      "additional purchase"
+    ],
+    "original_web_trial_status": "HOLD",
+    "original_post_state_changed_cause": "NOT_DETERMINED"
+  },
+  "final_access_cleanup": {
+    "owner": "MA",
+    "scope": "Approved temporary SSH/key and owned root recovery console only; not all browser sessions.",
+    "owned_key": {
+      "source_receipt": "2eab61",
+      "verified_at": "2026-10-11T18:06:23.716+09:00",
+      "exit_code": 0,
+      "expected_sole_key_removed": true,
+      "removal_command": "ssh-add -d",
+      "remove_all_identities_used": false,
+      "agent_empty": "PASS"
+    },
+    "agent_restore": {
+      "source_receipt": "57f619",
+      "verified_at": "2026-10-11T18:06:28.282+09:00",
+      "exit_code": 0,
+      "status": "Stopped",
+      "start_type": "Disabled"
+    },
+    "console": {
+      "user_reply": "완료",
+      "verified_at_kst": "2026-10-11 18:08 (minute precision)",
+      "exact_seconds": null,
+      "ma_visual_confirmation": "Ubuntu tty1 login: prompt; no root shell",
+      "logout": "PASS",
+      "earlier_blank_cursor": "Not logout proof; superseded by explicit final login prompt.",
+      "owned_noVNC_tab": 28,
+      "owned_tab_closed": true,
+      "provider_tab": 25,
+      "provider_tab_retained_for_handoff": true,
+      "unrelated_user_tab_untouched": true,
+      "private_screenshot_data_stored": false
+    },
+    "required_native_exec_sessions_running": false,
+    "status": "COMPLETE"
+  },
+  "closeout": {
+    "wi045_status": "COMPLETE_BOUNDED_RECORDING_RECOVERY_ACCESS_CLEANUP",
+    "req006_status": "ACTIVE_HOLD",
+    "original_web_objective": "NOT_COMPLETE",
+    "L3_application_browser": "NOT_RUN",
+    "original_trial_S7": "NOT_RUN",
+    "no_additional_trial_authorized": true,
+    "waiting_checkpoints": "PRESERVED_HISTORICAL",
+    "post_state_changed_cause": "NOT_DETERMINED",
+    "next_WI": "NONE_WITHIN_THIS_CLOSEOUT"
+  },
+  "not_run": {
+    "L3": true,
+    "application_browser": true,
+    "S7": true,
+    "internet_proof": true
+  },
+  "limits": [
+    "No overall trial or cleanup PASS; REQ006 remains active/HOLD.",
+    "S7 requires BOUNDED_PASS and was not run.",
+    "No inference of post-window DB equality, complete SQL audit, Internet/IPv6 delivery proof, nonmanagement rejection, production release, capacity or full application acceptance.",
+    "Earlier WI026 unresolved HOLD, WI034 bounded success and WI035/WI039 failures remain historical facts."
+  ]
+}

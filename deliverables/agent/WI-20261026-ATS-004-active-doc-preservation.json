@@ -1,0 +1,16 @@
+[
+  {
+    "path": "docs/payment/index.md",
+    "original_sha256": "8d3719e7a13985fe51e62af24d458d83baae76ed1dff26532ea87c83aa2bcf42",
+    "sanitized_sha256": "3772475fb640b4c69adc48fc50d3f1d550776060149291cedf4f5de2fd98a56c",
+    "original_retained_ignored": true,
+    "change": "Personal absolute path only; role/history/commands otherwise preserved"
+  },
+  {
+    "path": "scripts/deployment/README.md",
+    "original_sha256": "f633f74645cacbb891c3c83d2a7564e68709846122d8f202d5f5fa0101ded914",
+    "sanitized_sha256": "2c82f8845df1891bdbb05e399e604baa93cec4d63377eaccee538b9089aac8eb",
+    "original_retained_ignored": true,
+    "change": "Personal absolute path only; role/history/commands otherwise preserved"
+  }
+]

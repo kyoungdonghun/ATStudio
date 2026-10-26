@@ -1,11 +1,13 @@
 ---
-version: 1.12
-last_updated: 2026-09-09
+version: 1.13
+last_updated: 2026-09-29
 project: ATS
 owner: docops
 category: guide
 status: stable
 dependencies:
+  - path: ../index.md
+    reason: Common current decision entry and dated evidence boundaries
   - path: ../design/payment-integration-design.md
     reason: Primary payment integration design source
   - path: ../design/payment-refund-receipt-settlement-policy.md
@@ -26,7 +28,10 @@ dependencies:
 
 ## 1. Scope
 
-This directory explains the ATStudio payment system as of 2026-09-09.
+This directory explains the ATStudio payment system using the dated evidence
+below. The 2026-09-29 entry refresh is documentation-only, not new runtime
+verification. Start with the [current decision entry](../index.md#current-decision-entry)
+for latest-first checkpoints and target-specific limits.
 
 The current payment system is recurring-subscription first:
 
@@ -57,7 +62,10 @@ Production readiness remains OPEN under the [remaining production gates](../SR/S
 
 ### 2026-09-09 Source And Runtime
 
-This dated update supersedes the earlier source/runtime checkpoints below. Evidence is supplied by MA under [WI015](../../deliverables/agent/WI-20260909-ATS-015-evidence-pack.md#documentation-follow-up-2026-09-09); DocOps performed no live checks in this follow-up.
+This WI015 dated update supersedes the earlier source/runtime checkpoints below,
+but precedes the later WAV/phone closeout in the [current V1 baseline](../index.md#current-v1-baseline).
+Evidence is supplied by MA under [WI015](../../deliverables/agent/WI-20260909-ATS-015-evidence-pack.md#documentation-follow-up-2026-09-09);
+DocOps performed no live checks in this follow-up.
 
 | Boundary | Supplied result |
 | :-- | :-- |
@@ -83,7 +91,7 @@ independently rechecked processes, HTTP, browser state or recipient images.
 | Boundary | Dated WI009/WI010 evidence |
 | :-- | :-- |
 | Source and Git | MA committed/pushed exactly 70 approved source/test/documentation paths on the then-current `codex/v1-release-rehearsal-fixes` as `7eae086c899cd4534be69da03bbc1cc55fe4349d` and confirmed the exact live remote SHA. The 27 product hashes remained unchanged. The later documentation closeout is recorded separately below. The client worktree was excluded at this checkpoint; earlier cached-ref comparisons below remain historical. |
-| Running backend artifact | WI009 launched the unchanged WI008-tested `ATStudio-20260908-copy-polish.jar` from `C:/Users/jm991/AppData/Local/ATStudio/remote-development-20260908`; SHA-256 `5AE38AC932388E24223A723DDF3FC9BD2DB2B017B3ABC6F91496BCE1BC7F37C2`. Restart and HTTP adoption are complete; historical charge timestamps were not repaired. |
+| Running backend artifact | WI009 launched the unchanged WI008-tested `ATStudio-20260908-copy-polish.jar` from `%LOCALAPPDATA%/ATStudio/remote-development-20260908`; SHA-256 `5AE38AC932388E24223A723DDF3FC9BD2DB2B017B3ABC6F91496BCE1BC7F37C2`. Restart and HTTP adoption are complete; historical charge timestamps were not repaired. |
 | Development runtime | Backend PID 20860 started at 20:08:51; startup confirmed at 20:09:06. Frontend PID 20468 started at 20:11:07. Preserved Cloudflare PID 12512 serves the [development runtime](https://debian-reliable-round-responses.trycloudflare.com). These are dated identities, not permanent process ownership. |
 | Preserved environment | Same local profile/MySQL, `ddl-auto=validate`, bootstrap off, public/private storage roots, non-strict audit and Gmail/Toss TEST settings. Callback/mail/CORS origins were updated only in the processes. No DB/schema/source changes or real mail/provider calls occurred during restart. |
 | HTTP and browser boundary | WI009's five local/public GETs and exact-public-origin backend OPTIONS passed 200; changed Vite-source delivery and basic public HomePage rendering passed. WI010 MA recheck confirmed unchanged PID/artifact ownership and three HTTP 200 checks. Real authenticated admin payment tabs/receipts/correction guards and the second `/admin/user-subscriptions` correction modal passed the observed desktop checks. Screenshots had no overlapping labels. No stubs, receipt-link navigation or mutations. Exact checks and user-flow limits are in WI010. |
@@ -91,6 +99,24 @@ independently rechecked processes, HTTP, browser state or recipient images.
 | Operating pointers | Use WI009's artifact/log paths and verify actual PID ownership before operations. The old `runtime-manifest.json` is stale and intentionally unchanged. [WI010 evidence](../../deliverables/agent/WI-20260908-ATS-010-evidence-pack.md) records completed bounded checks, documentation review and verified Git results separately from OPEN target-production gates. |
 
 #### WI011/WI012 Mail And Documentation Closeout (2026-09-08)
+
+These are **2026-09-08 development / TEST** results, not a production or
+new-host mail check. WI011's final follow-up sentence still labels WI012
+recipient/link confirmation pending; that fragment is superseded by the
+[WI012 final Summary and recipient confirmation](../../deliverables/agent/WI-20260908-ATS-012-evidence-pack.md#ma-execution-record-2026-09-08-kst).
+Keep WI011 unchanged as historical evidence. WI029's older blanket mobile
+limit is separately superseded only by the [2026-09-09 phone follow-up](../design/runtime-storage-operations.md#user-acceptance-follow-up-2026-09-09),
+not by these mail checks.
+
+Configuration provenance matters: tracked [application.yml](../../src/main/resources/application.yml)
+defaults to `localhost:1025`, but WI012 records selected external mail keys
+mapped into backend child-process `SPRING_MAIL_*` and `APP_MAIL_FROM`
+overrides. Those effective overrides were distinct from base/local-file
+defaults. A default or absent parent-shell variable cannot negate that dated
+backend evidence or establish today's configuration. Do not reopen/publish
+private settings; use the recorded provenance and separately authorized target
+checks. WI012 receipt/reset-page opening does not establish Inbox placement,
+password-change submission, scheduler execution or future deliverability.
 
 | Boundary | Later supplied evidence |
 | :-- | :-- |
@@ -105,7 +131,7 @@ the current runtime state; WI009 above supersedes its pre-restart boundary.
 
 | Boundary | Verified state |
 | :-- | :-- |
-| Main source at WI005 | `C:/Users/jm991/Desktop/project/ATStudio`, branch `codex/v1-release-rehearsal-fixes`, HEAD `2f2e9eccadd9ae9626fe8273bc635068d42b09b0` plus uncommitted fixes. No product/test changes between WI004 review and that WI005 snapshot. |
+| Main source at WI005 | `<repository-root>`, branch `codex/v1-release-rehearsal-fixes`, HEAD `2f2e9eccadd9ae9626fe8273bc635068d42b09b0` plus uncommitted fixes. No product/test changes between WI004 review and that WI005 snapshot. |
 | Client worktree | `v1-client-acceptance-20260817` still exists at ref `c5f83fc`; only its existing `HomePage.tsx` and `HomePage.test.tsx` changes were observed. This round left it untouched. |
 | Cached refs | No local `master`. Cached `origin/master` is `5a67f3a`; `origin/master...HEAD` has 3 / 176 unique commits. No fetch or current-remote claim; deployment branch is not designated. |
 | Built versus running backend at WI005 | Full build used repo-external `closeout-build.gradle` and `build-closeout/`. Public backend then used the unchanged original `build/libs` JAR; the new backend had not yet been restarted and old charge timestamps were not repaired. |

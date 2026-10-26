@@ -1,6 +1,6 @@
 ---
-version: 1.2
-last_updated: 2026-04-15
+version: 1.3
+last_updated: 2026-09-29
 project: system
 owner: MA
 category: template
@@ -11,8 +11,10 @@ dependencies:
     reason: Tier 0 constitution (base injection)
   - path: ../architecture/system-design.md
     reason: Understanding MA/Subagents/Skills system
+  - path: ../index.md
+    reason: Current decision entry and dated completion evidence
   - path: ../registry/workboard.md
-    reason: Progress tracking (summary)
+    reason: Reusable advisory example only, not live project progress
 status: stable
 ---
 
@@ -43,7 +45,12 @@ User's original requirements as-is (MA does not interpret):
 ## 2) Context/Skills (summary)
 
 - Context selection, skill order, delegation routing follow **`AGENTS.md`** or **`CLAUDE.md`** according to the active runtime (Orchestration Gates, Skill Gates, Subagent Routing sections).
-- Progress status (summary): `docs/registry/workboard.md`
+- Current decision entry: [docs/index.md](../index.md#current-decision-entry).
+- Progress SoT: the approved current REQ under `deliverables/user/` and its WI handoff/Evidence Packs under `deliverables/agent/`; follow each WI's Depends On / Blocks chain.
+- [workboard.md](../registry/workboard.md) is a reusable advisory example, not live ATStudio progress.
+- Before negative capability/verification claims, check actual branch/HEAD/source identity, latest relevant completion/addenda, effective configuration provenance and the tested environment. Default YAML or an earlier pending fragment is not enough.
+- Separate original verification dates from document edit dates, supplied evidence from fresh checks, and TEST/development results from production or new-host gates. Do not print private settings or infer effective child-process settings from the parent shell.
+- Future sizing/cost work must distinguish dated measurements, assumptions and unverified provider terms; do not refresh forecasts/prices outside approved scope.
 
 ---
 
@@ -76,5 +83,6 @@ User's original requirements as-is (MA does not interpret):
 
 ## 5) Session Progress Tracking Rules (simple)
 
-- MA reflects key status in `docs/registry/workboard.md` (when possible).
-- Manage temporary work as separate deliverables, remove when complete.
+- MA records current approval/progress in the approved REQ and linked WI handoff/Evidence Packs, not the advisory workboard.
+- After each WI completes, dispatch its newly unblocked WI through create-wi-handoff-packet and the assigned Subagent; close the REQ only after its whole chain is complete.
+- Preserve completed deliverables as dated evidence. Link superseding completion from current entry documents; deletion requires separate explicit approval.

@@ -1,0 +1,84 @@
+{
+  "wi": "WI-20261026-ATS-006",
+  "checked_at_kst": "2026-10-26T19:16:27.771839+09:00",
+  "status": "CURRENT_SOURCE_AND_RETAINED_EVIDENCE_MATCH",
+  "sources": {
+    "src/main/java/com/atstudio/atstudio/service/mail/NcpMailTransport.java": "6ffa66fa0c4aaacc01305a7e817d44d8bbcead1b060640478befedea361d8d5a",
+    "src/main/java/com/atstudio/atstudio/service/EmailService.java": "048d04c2c661cb7c514c47ef1b2a8ad06fea4fb25c0fd6a6366735d66d98afd5",
+    "src/main/resources/application.yml": "1f3151a554124831997cca8979b4927a8f5bff4baf349afe9326e4d2da2955e6",
+    "src/test/java/com/atstudio/atstudio/service/mail/NcpMailTransportTest.java": "64732b78ebde30e74c69d33ac9eb06df7ddb7490009d06ebd76fb38e8d0ed4b6",
+    "src/test/java/com/atstudio/atstudio/service/EmailServiceTest.java": "15d6d4b5e48e8e9e3018f0cca9665662de414499eb706a4ac7e549d740c3c27c",
+    "src/test/java/com/atstudio/atstudio/service/PasswordResetConsumptionIntegrationTest.java": "0441d0fd20cb6d81c42d3c775d5c4bf4e3285b8ce28aa70c792def25bd862a66",
+    "src/test/java/com/atstudio/atstudio/security/AuthTokenSecurityIntegrationTest.java": "a32fb322acc849ce8f5bb7f98e687f7a4549597aa173687448b6279628220373"
+  },
+  "all_seven_match_reviewed_sources": true,
+  "changed_since_initial_mail_candidate": [
+    "src/main/java/com/atstudio/atstudio/service/mail/NcpMailTransport.java",
+    "src/test/java/com/atstudio/atstudio/service/mail/NcpMailTransportTest.java"
+  ],
+  "suites_reused_not_rerun": [
+    {
+      "group": "changed_suite_xml",
+      "name": "com.atstudio.atstudio.service.mail.NcpMailTransportTest",
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "xml_sha256": "0063097c1b010f156f2aba49b707167d26006ecb68cc3b391a15f51533b69c23",
+      "xml_pin_matches": true
+    },
+    {
+      "group": "reused_suite_xml",
+      "name": "com.atstudio.atstudio.security.AuthTokenSecurityIntegrationTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "xml_sha256": "dac1de593ab8cd91bfdeee8e2811219ad9a13b5c847b753565410e54b3a21a54",
+      "xml_pin_matches": true
+    },
+    {
+      "group": "reused_suite_xml",
+      "name": "EmailService 단위 테스트",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "xml_sha256": "5220399c9a84e93b093548a61166ce04edd16ae2091c370e58ccf44a1cc2c721",
+      "xml_pin_matches": true
+    },
+    {
+      "group": "reused_suite_xml",
+      "name": "com.atstudio.atstudio.service.PasswordResetConsumptionIntegrationTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "xml_sha256": "1dc796e1517876b881cb23fd75bdb01d8c5bb7c3c2fdafee0971904152f196ee",
+      "xml_pin_matches": true
+    }
+  ],
+  "artifacts": {
+    "mail_candidate": {
+      "sha256": "23a312c331d10d2875308ddea7e8034fb6e13ea48291027064565e833dc80d15",
+      "matches": true
+    },
+    "initial_mail_candidate": {
+      "sha256": "0ced47dc2fb6de2a01ad4984504a0fa23aa362c5c0cd0845a86c1a1e7debac3a",
+      "matches": true
+    },
+    "historical_validated_release": {
+      "sha256": "f3b748f8b3fb4fbd4027b797ebf0bc79db62bc9671e5d7e45a8397732d2aef81",
+      "matches": true
+    }
+  },
+  "reference_receipt_sha256": "0bfe6bf1c7397cc7ebe69d551208c0d4ad930d64899edbe2237942730f699ae6",
+  "fresh_test_execution": false,
+  "network_or_provider_calls": 0,
+  "source_changes": 0,
+  "limits": [
+    "Commit readiness for the seven reviewed files only",
+    "16 changed NCP cases and 26 earlier unchanged cases are reused, not a fresh 42-case run",
+    "No live provider, delivery, production boot or target readiness claim"
+  ]
+}

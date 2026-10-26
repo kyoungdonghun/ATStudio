@@ -1,0 +1,27 @@
+{
+  "wi": "WI-20261026-ATS-004",
+  "reviewer": "PG",
+  "status": "PASS",
+  "scope": "Two newly authored PG reports only; no historical source or evidence edit; no stage/commit",
+  "approved": [
+    {
+      "path": "deliverables/agent/WI-20261026-ATS-004-evidence-pack.md",
+      "previous_sha256": "564ba98bbf73350f324ed46ed59ebc47167fe86503d564478cf160656ec3438b",
+      "sha256": "e798b32c59595fb958753145f822692cd4bc9cf667d6bcad7575409b78cfe871",
+      "bytes": 6213,
+      "review": "Only redundant EOF newline sequence removed; body bytes identical; original retained ignored"
+    },
+    {
+      "path": "deliverables/user/WI-20261026-ATS-004-summary.md",
+      "previous_sha256": "362d6bbd857bc24fed843ca4e0c6fbadb11b20f4b472d22de8f5cee70b032681",
+      "sha256": "25011d67fdb1da76e2be47614b80b00d263e124bb0121b5b1954f60067ea19b1",
+      "bytes": 1562,
+      "review": "Only redundant EOF newline sequence removed; body bytes identical; original retained ignored"
+    }
+  ],
+  "checks": {
+    "body_bytes_equal": true,
+    "final_lf_count": 1,
+    "originals_retained": true
+  }
+}

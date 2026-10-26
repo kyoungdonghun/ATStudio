@@ -93,20 +93,43 @@ npm run typecheck
 
 ### Approval Before Execution (REQ-Based Single Gate)
 
-**승인 필요:**
-- REQ 승인만 → 범위, 방향, 작업 분할 확정
+**Effective from stage 2 onward:** This rule applies to stage 2 and later stages
+of the user's execution plan. This policy amendment does not itself authorize
+starting stage 2 or any other operation.
 
-**예외 (항상 물어봐야 함):**
-- 파괴적 작업: 파일 삭제, DB 스키마 변경, 데이터 삭제
-- 요구사항 변경 필요한 경우
-- 중요 결정: 아키텍처 선택, 라이브러리 선정
-- 예상치 못한 블로커
-- 보안/민감 데이터 (JWT Secret, DB 패스워드 등)
+**Approve scope once:** REQ approval establishes scope, direction and work
+division. Execute only operations covered by the user's approval. Approval
+persists across turns; later explicit user instructions govern the applicable
+scope without repeating an already satisfied permission gate.
 
-**자동 진행 가능 (REQ 승인 후):**
-- Git 작업, 빌드, 테스트, 품질 검사
-- WI에 명시된 파일 생성/수정
-- REQ에 계획된 Subagent 위임
+**Continue within approved scope without asking again:**
+- Perform necessary error recovery, tool corrections, review and safe retries,
+  including unexpected blockers resolvable without expanding approved effects.
+- Continue WI-authorized file changes, delegation, builds/tests, quality checks
+  and authorized Git operations. Routine implementation choices are not new
+  approval gates; assess their actual scope and effects.
+- Report meaningful progress, failures and recovery decisions while continuing.
+  A progress report is not an approval stop.
+
+**Ask only when a new boundary is reached:**
+- New costs not already authorized, or an increase beyond the approved cost bound.
+- Changes outside approved scope or effects, including unapproved destructive
+  work, schema/data deletion, architecture/library changes that expand scope,
+  new access/exposure or sensitive-data handling beyond existing authorization.
+- Tool-enforced confirmation or a required user handoff, such as direct secret
+  entry. Never bypass these controls. Already authorized private references do
+  not by themselves require renewed permission.
+
+**Reconcile uncertainty before retrying:** Never blindly repeat a write, payment
+or other action with an unknown outcome. Use bounded read-only evidence to
+establish what occurred and whether a retry can avoid duplicate effects. If that
+cannot be established, hold that action, preserve evidence and report the missing
+fact or decision; ask only when one of the boundaries above requires it.
+
+When the same cause recurs, stop replaying the full trial or full test suite.
+Diagnose the cause, make the smallest in-scope correction and verify the changed
+behavior before safe continuation. Preserve failed attempts, consumed claims and
+historical results; do not bypass guards or label a failed attempt PASS.
 
 ### Two-Set Deliverables
 
@@ -384,6 +407,18 @@ ATStudio/
 - 아키텍처/오케스트레이션/정책 작업 시 추가 확인: `docs/architecture/`, `docs/policies/`, `docs/registry/`, 관련 설정 파일
 - 프로젝트 문서가 `CLAUDE.md` 또는 `.claude/` 경로를 참조하는 경우, 이를 현재도 유효한 Claude 운영 컨텍스트로 간주한다.
 - 어떤 폴더도 "자동으로 이미 다 읽었다"고 가정하지 말고, 현재 작업의 근거가 되는 문서만 단계적으로 확장해서 읽는다.
+
+## Evidence Reading Before Operational Decisions
+
+- Start with [Current Decision Entry](docs/index.md#current-decision-entry) and its dated checkpoints before capability, deployment or hosting judgments.
+- Memory and chat summaries are navigation hints, not confirmed-current project state; cross-check them against current source and the latest completion evidence.
+- Verify actual branch, HEAD, working-tree changes and source/artifact identity; never treat an old checkout or process receipt as the current runtime.
+- Read the latest relevant approved REQ, WI Evidence Pack and completion addenda before claiming a feature is absent, pending or unverified. Earlier failures and pending notes remain historical evidence.
+- Check effective configuration provenance and the tested environment. Tracked defaults, including `localhost:1025`, do not establish runtime settings; external child-process overrides may apply. Do not expose private configuration bodies, credentials, addresses or reset URLs.
+- Report verification date, environment, evidence owner and unverified limits separately from document edit date. TEST/development success is not production approval, and a new target does not erase prior bounded verification.
+- Keep measured sizing values, dated assumptions and unverified provider terms separate; refresh prices/terms only within separately approved planning work.
+- Preserve historical deliverables, SR/audit records and registered hashes; explain superseding completion in current entry documents instead of rewriting original evidence.
+- Track current progress in the approved REQ and its WI handoff/Evidence Packs. The advisory [workboard](docs/registry/workboard.md) is not live ATStudio progress SoT.
 
 ## Documentation Entry Points
 

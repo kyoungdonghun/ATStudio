@@ -1,11 +1,13 @@
 ---
-version: 1.0
-last_updated: 2026-09-09
+version: 1.1
+last_updated: 2026-09-29
 project: ATS
 owner: SE
 category: guide
 status: active
 dependencies:
+  - path: docs/index.md
+    reason: Current decision entry and dated verification boundaries
   - path: scripts/reconstruction/README.md
     reason: Development reconstruction and private restore boundaries
 ---
@@ -18,6 +20,13 @@ Java 17 / Spring Boot backend and a React / TypeScript SPA in `frontend/`.
 **Start with the [development reconstruction guide](scripts/reconstruction/README.md).**
 A checkout restores source and reviewed documents. It does not restore secrets,
 the database, media, private attachments, or a running service.
+
+For current capability or hosting-readiness judgments, first use the
+[current decision entry](docs/index.md#current-decision-entry). It links the
+latest dated Gmail, WAV/MP3, phone and source/history completion evidence and
+the separate production/restore gates. Check actual Git/source identity,
+effective configuration provenance and the tested environment before claiming
+something is absent or unverified. A document edit date is not a runtime test.
 
 ## Working Context
 

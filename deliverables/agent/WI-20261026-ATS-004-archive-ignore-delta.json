@@ -1,0 +1,46 @@
+{
+  "wi": "WI-20261026-ATS-004",
+  "reviewer": "PG",
+  "status": "PASS",
+  "baseline_allowlist_sha256": "7eebb5d586d1be56b3e9d7ade7096f6561962cac4b36983f281c85e172f5008a",
+  "scope": "One archive-local ignore file plus three documentation/receipt updates; overrides only these exact paths, preserves baseline allowance and excludes all original build paths.",
+  "checks": {
+    "archive_payload_hashes_unchanged": 86,
+    "source_hashes_unchanged": 86,
+    "archive_payload_ignored": 0,
+    "original_build_ignored": 86,
+    "root_gitignore_changed": false,
+    "git_index_changed_by_pg": false,
+    "force_add": false
+  },
+  "approved": [
+    {
+      "path": "scripts/reconstruction/retained-20261026/.gitignore",
+      "sha256": "801ccf1ad445bc72b4d4e6c6818870964b591c9e4fb4bb37ebe9b0ec7565034e",
+      "bytes": 155,
+      "previous_sha256": null,
+      "disposition": "ALLOW_ARCHIVE_VISIBILITY_RECOVERY"
+    },
+    {
+      "path": "scripts/reconstruction/retained-20261026/README.md",
+      "sha256": "92346a032a97a8c50f6956e030025d6c3fe013eadc1106a32062527b5c370465",
+      "bytes": 5671,
+      "previous_sha256": "b568e2df88e62e860f90e8b9735292efae4767c3106a2deb790bfe65f87a039b",
+      "disposition": "ALLOW_ARCHIVE_VISIBILITY_RECOVERY"
+    },
+    {
+      "path": "scripts/reconstruction/retained-20261026/validation.json",
+      "sha256": "039150464375ba01eaa19edd33aba27ed488fcabb4a6ecdafa462e9e0a44e2a2",
+      "bytes": 1317,
+      "previous_sha256": "ba3981cce245ca9c0033e12a7282c4f64e572345f2e99fc43abb0237e9b0c5e8",
+      "disposition": "ALLOW_ARCHIVE_VISIBILITY_RECOVERY"
+    },
+    {
+      "path": "deliverables/agent/WI-20261026-ATS-005-evidence-pack.md",
+      "sha256": "826ffd9820fbe7fcc99059fcf4cea827316027b3ff170bc7790a7c5939ca6aaf",
+      "bytes": 6460,
+      "previous_sha256": "4102af5957ccf9e89cab952d10450aff25bf9dbdeadaa4f33972127bbc2aee73",
+      "disposition": "ALLOW_ARCHIVE_VISIBILITY_RECOVERY"
+    }
+  ]
+}
