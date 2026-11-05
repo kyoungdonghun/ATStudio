@@ -1,0 +1,20 @@
+{
+  "operation": "online-reconcile",
+  "config_sha256": "__EXACT_ORIGINAL_CONFIG_SHA256__",
+  "state_sha256": "__EXACT_HOLD_FILE_SHA256__",
+  "run_id": "__EXACT_FAILED_RUN_32_HEX__",
+  "capture_id": "__EXACT_FAILED_CAPTURE_UUID__",
+  "recovery_id": "__NEW_RECOVERY_UUID__",
+  "resolution": "__ABANDON_BEFORE_SEAL_OR_CONFIRM_VERIFIED_RELEASE_OR_CONFIRM_NO_CAPTURE__",
+  "not_before": "__APPROVED_WINDOW_START__",
+  "not_after": "__AT_MOST_TEN_MINUTES_AFTER_START__",
+  "termination": {
+    "helpers_ended": false,
+    "readers_ended": false,
+    "capture_id": "__EXACT_FAILED_CAPTURE_UUID__",
+    "machine_sha256": "__OBSERVED_MACHINE_SHA256__",
+    "boot_sha256": "__OBSERVED_BOOT_SHA256__",
+    "source_evidence_sha256": "__PRIVATE_PROCESS_GROUP_RECONCILIATION_EVIDENCE_SHA256__",
+    "observed_at": "__WITHIN_APPROVAL_WINDOW__"
+  }
+}

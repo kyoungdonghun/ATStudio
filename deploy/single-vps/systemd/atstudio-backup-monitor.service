@@ -1,0 +1,21 @@
+# WI004 unrendered, NOT INSTALLED; independent monitor host only.
+[Unit]
+Description=ATStudio protected backup receipt monitor
+ConditionPathExists=/etc/atstudio-backup/MONITOR-APPROVED
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/bin/python3 -B /opt/atstudio-backup/monitor_runner.py --execute --action monitor --config /etc/atstudio-backup/monitor-config.json
+RuntimeMaxSec=60
+TimeoutStartSec=60
+TimeoutStopSec=10
+KillMode=control-group
+Restart=no
+LimitCORE=0
+StandardOutput=journal
+StandardError=null
+# Supervisor must observe nonzero/missed invocation on a separate channel.
+# No Install section: native authorization, host, SMTP and supervisor are pending.

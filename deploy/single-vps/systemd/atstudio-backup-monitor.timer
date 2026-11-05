@@ -1,0 +1,10 @@
+# WI004 disabled template, no activation calendar or Install section.
+[Unit]
+Description=ATStudio independent receipt monitor NOT CONFIGURED
+ConditionPathExists=/etc/atstudio-backup/MONITOR-APPROVED
+
+[Timer]
+Unit=atstudio-backup-monitor.service
+Persistent=false
+WakeSystem=false
+# Select an authorized observation cadence and supervisor before rendering.

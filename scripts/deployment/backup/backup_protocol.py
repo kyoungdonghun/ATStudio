@@ -142,20 +142,37 @@ def overlap(left: str, right: str) -> bool:
 def validate_config(config: dict) -> None:
     require(config.get("configured") is True, "NOT_CONFIGURED")
     require(config.get("version") == 1, "CONFIG_VERSION")
+    require(config.get("maintenance_mode", "live-resume") in {"live-resume", "cold-preserve"}, "MAINTENANCE_MODE")
+    bindings = config.get("cold_host", {}).get("source_ownership", {})
+    if bindings:
+        require(config.get("maintenance_mode") == "cold-preserve" and
+                set(bindings) == {"/var/lib/atstudio/tmp"} and
+                "/var/lib/atstudio/tmp" in config.get("settings", []), "COLD_SOURCE_SCOPE")
+        row = bindings["/var/lib/atstudio/tmp"]
+        require(set(row) == {"uid", "gid", "mode", "device", "inode"} and
+                all(type(v) is int and v >= 0 for v in row.values()) and
+                row["uid"] > 0 and row["mode"] == 0o700, "COLD_SOURCE_METADATA")
     for key in ("target_host", "logical_host", "region", "owner_ref", "alert_ref",
                 "recovery_ref", "source_revision", "dirty_disposition", "schema_ref"):
         value = config.get(key)
         require(isinstance(value, str) and bool(value.strip()) and
                 "__" not in value and len(value) <= 256, "CONFIG_IDENTITY")
     require(config.get("class") in {"routine", "prechange"}, "CAPTURE_CLASS")
+    if "s3_bucket_lookup" in config:
+        require(config["s3_bucket_lookup"] == "path" and
+                re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,63}", config["region"]) is not None,
+                "S3_PATH_OPTIONS")
     for key in ("repository_id", "restic_sha256", "hook_sha256"):
         exact_id(config.get(key))
     uri = config.get("repository", "")
     require(isinstance(uri, str) and uri.startswith("s3:https://"), "PRIVATE_REPOSITORY")
     parsed = urlsplit(uri[3:])
+    layout = config.get("repository_layout", "bucket-prefix")
+    require(layout in {"bucket-prefix", "existing-bucket-root"}, "REPOSITORY_LAYOUT")
+    segments = len([p for p in parsed.path.split("/") if p])
     require(bool(parsed.hostname) and not parsed.username and not parsed.password
             and not parsed.query and not parsed.fragment and "__" not in uri
-            and len([p for p in parsed.path.split("/") if p]) >= 2,
+            and (segments == 1 if layout == "existing-bucket-root" else segments >= 2),
             "PRIVATE_REPOSITORY")
     source_keys = ("public_root", "private_root", "release_root")
     runtime_keys = ("state_dir", "work_dir", "cache_dir", "temp_dir")
@@ -189,7 +206,8 @@ def validate_config(config: dict) -> None:
                 "seconds", "source_bytes", "retrieval_bytes", "cost_limit_krw",
                 "projected_cost_krw", "max_entries"):
         value = limits.get(key)
-        require(type(value) is int and value > 0, "BUDGET_REQUIRED")
+        minimum = 0 if key in {"cost_limit_krw", "projected_cost_krw"} else 1
+        require(type(value) is int and value >= minimum, "BUDGET_REQUIRED")
         if key in caps:
             require(value <= caps[key], "LOCAL_BUDGET_CAP")
     require(limits["projected_cost_krw"] <= limits["cost_limit_krw"], "COST_BUDGET")
@@ -210,11 +228,29 @@ def validate_approval(config: dict, approval: dict, now: float) -> None:
     require(approval.get("resume_authorized") is True, "RESUME_APPROVAL")
 
 
+def recurring_subject(config: dict) -> str:
+    """Only refreshed proof references vary; all other authority stays pinned."""
+    import copy
+    require(config.get("maintenance_mode") == "cold-preserve", "COLD_MODE_REQUIRED")
+    subject = copy.deepcopy(config)
+    require(isinstance(subject.get("cold_host", {}).get("evidence"), dict), "EVIDENCE_REQUIRED")
+    del subject["cold_host"]["evidence"]
+    return digest(encoded(subject))
+
+
 def recurring_approval(config: dict, policy: dict, now: float) -> dict:
     """Derive one daily attempt only inside an explicit short start window."""
     require(policy.get("enabled") is True, "RECURRING_DISABLED")
+    version = policy.get("version", 1)
+    require(type(version) is int and version in (1, 2), "RECURRING_VERSION")
+    if version == 2:
+        require(bool(re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", policy.get("policy_id", ""))) and
+                policy.get("config_subject_sha256") == recurring_subject(config), "EXACT_RECURRING_APPROVAL")
+        identity = policy["policy_id"]
+    else:
+        require(policy.get("config_sha256") == digest(encoded(config)), "EXACT_RECURRING_APPROVAL")
+        identity = policy["config_sha256"]
     require(policy.get("operation") == "daily-cold-capture" and
-            policy.get("config_sha256") == digest(encoded(config)) and
             config["class"] == "routine", "EXACT_RECURRING_APPROVAL")
     require(policy.get("timezone") == "Asia/Seoul", "RECURRING_TIMEZONE")
     clock = policy.get("start_hhmm", "")
@@ -234,8 +270,8 @@ def recurring_approval(config: dict, policy: dict, now: float) -> dict:
             "RECURRING_EXPIRED")
     require(0 <= now - start.timestamp() < grace, "NO_CATCHUP_WINDOW")
     require(policy.get("resume_authorized") is True, "RESUME_APPROVAL")
-    approval = {"operation": "cold-capture", "config_sha256": policy["config_sha256"],
-                "run_id": digest(encoded([policy["config_sha256"], str(start.date()),
+    approval = {"operation": "cold-capture", "config_sha256": digest(encoded(config)),
+                "run_id": digest(encoded([identity, str(start.date()),
                                            "daily-cold-capture"]))[:32],
                 "not_before": start.isoformat(), "not_after": end.isoformat(),
                 "resume_authorized": True}

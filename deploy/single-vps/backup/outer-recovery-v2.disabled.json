@@ -1,0 +1,21 @@
+{
+  "configured": false,
+  "purpose": "Review-only fragment; not an online config or execution authority",
+  "recovery_gate": {
+    "version": null,
+    "owner_unit": null,
+    "source_units": {"app": null, "db": null},
+    "systemctl_sha256": null,
+    "python_sha256": null
+  },
+  "online_module_sha256": {
+    "backup_protocol.py": null,
+    "backup_runtime.py": null,
+    "online_capture.py": null,
+    "outer_recovery.py": null,
+    "scheduled_dispatch.py": null,
+    "live_service_capture.py": null,
+    "online_restore.py": null,
+    "online_scheduled_dispatch.py": null
+  }
+}

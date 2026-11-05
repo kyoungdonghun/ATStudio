@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "configured": false,
+  "target_host": "__EXACT_HOST__",
+  "logical_host": "__STABLE_LOGICAL_HOST__",
+  "owner_ref": "__OWNER_REFERENCE__",
+  "alert_ref": "__INDEPENDENT_ALERT_REFERENCE__",
+  "recovery_ref": "__INDEPENDENT_RECOVERY_REFERENCE__",
+  "source_revision": "__SOURCE_REVISION__",
+  "dirty_disposition": "__REVIEWED_DIRTY_DISPOSITION__",
+  "schema_ref": "__SCHEMA_AND_VERSION_INVENTORY_REFERENCE__",
+  "repository": "s3:https://__APPROVED_ENDPOINT__/__PRIVATE_BUCKET__/__PREFIX__",
+  "repository_id": "__EXACT_FORMAT2_REPOSITORY_ID__",
+  "region": "__APPROVED_REGION__",
+  "class": "routine",
+  "restic_binary": "/opt/atstudio-backup/bin/restic",
+  "restic_sha256": "__PINNED_RESTIC_BINARY_SHA256__",
+  "hook_binary": "/opt/atstudio-backup/bin/online_capture.py",
+  "hook_sha256": "__PINNED_ONLINE_CAPTURE_SHA256__",
+  "password_file": "/etc/atstudio-backup/repository-password",
+  "aws_credentials_file": "/etc/atstudio-backup/aws-credentials",
+  "mysql_defaults_file": "/etc/atstudio-backup/mysql-dump-options.cnf",
+  "public_root": "/srv/atstudio/public",
+  "private_root": "/srv/atstudio/private",
+  "release_link": "/opt/atstudio/current",
+  "release_root": "/opt/atstudio/releases/__EXACT_RELEASE__",
+  "settings": [
+    "/etc/atstudio/__REVIEWED_SETTINGS_AND_FULL_KEYRING__"
+  ],
+  "state_dir": "/var/lib/atstudio-backup/state",
+  "work_dir": "/var/lib/atstudio-backup/captures",
+  "cache_dir": "/var/cache/atstudio-backup",
+  "temp_dir": "/var/lib/atstudio-backup/temp",
+  "lock_file": "/run/atstudio-operations/operations.lock",
+  "expected_filesystems": {},
+  "limits": {
+    "dump_bytes": 2147483648,
+    "metadata_bytes": 268435456,
+    "cache_bytes": 1073741824,
+    "temp_bytes": 1073741824,
+    "other_growth_bytes": 1073741824,
+    "source_bytes": null,
+    "retrieval_bytes": null,
+    "max_entries": null,
+    "upload_kib": null,
+    "download_kib": null,
+    "seconds": null,
+    "cost_limit_krw": null,
+    "projected_cost_krw": null
+  },
+  "capture_mode": "ats-online-v1",
+  "maintenance_mode": "live-resume",
+  "online": {
+    "version": 1,
+    "bridge_dir": "/var/lib/atstudio/capture-control",
+    "app_uid": null,
+    "app_gid": null,
+    "bridge_seconds": 120,
+    "drain_seconds": 60,
+    "schema": "__EXACT_SCHEMA__",
+    "tables": [],
+    "machine_sha256": "__OBSERVED_MACHINE_SHA256__",
+    "boot_sha256": "__OBSERVED_BOOT_SHA256__",
+    "mysql_binary": "/usr/bin/mysql",
+    "mysql_sha256": "__PINNED_MYSQL_SHA256__",
+    "mysqldump_binary": "/usr/bin/mysqldump",
+    "mysqldump_sha256": "__PINNED_MYSQLDUMP_SHA256__",
+    "module_sha256": {
+      "backup_protocol.py": "__REVIEWED_FILE_SHA256__",
+      "backup_runtime.py": "__REVIEWED_FILE_SHA256__",
+      "online_capture.py": "__REVIEWED_FILE_SHA256__"
+    },
+    "proofs": {
+      "target": {
+        "path": "/etc/atstudio-backup/online-proofs/target.json",
+        "sha256": "__REVIEWED_PROOF_SHA256__"
+      },
+      "repository_acl": {
+        "path": "/etc/atstudio-backup/online-proofs/repository_acl.json",
+        "sha256": "__REVIEWED_PROOF_SHA256__"
+      },
+      "recovery_access": {
+        "path": "/etc/atstudio-backup/online-proofs/recovery_access.json",
+        "sha256": "__REVIEWED_PROOF_SHA256__"
+      },
+      "cost": {
+        "path": "/etc/atstudio-backup/online-proofs/cost.json",
+        "sha256": "__REVIEWED_PROOF_SHA256__"
+      }
+    }
+  }
+}

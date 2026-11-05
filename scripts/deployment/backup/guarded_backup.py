@@ -17,7 +17,7 @@ from backup_protocol import (GateError, backup_snapshot, digest, encoded, exact_
                              status_report, timestamp, utc_now, validate_approval,
                              validate_config, verify_nodes)
 from backup_runtime import (CommandResult, LinuxMonitor, LinuxRunner, atomic_json, checked_path,
-                            create_bytes, hash_file, inventory, operations_lock,
+                            checked_setting_source, create_bytes, hash_file, inventory, operations_lock,
                             read_json, restic_command, restic_environment)
 
 HOOK_CHECKS = {
@@ -92,7 +92,8 @@ class Capture:
             raise GateError("HOST_HOOK_PROTOCOL") from None
         require(isinstance(result, dict) and result.get("configured") is True,
                 "HOST_HOOK_NOT_CONFIGURED")
-        require(all(result.get(key) is True for key in HOOK_CHECKS[name]), "HOST_HOOK_GATE")
+        checks = ("matching_tuple", "cold_baseline_preserved") if name == "resume" and self.config.get("maintenance_mode") == "cold-preserve" else HOOK_CHECKS[name]
+        require(all(result.get(key) is True for key in checks), "HOST_HOOK_GATE")
         return result
 
     def restic(self, arguments: list[str], max_bytes: int,
@@ -102,6 +103,8 @@ class Capture:
 
     def inventory(self, paths: list[Path]) -> dict[str, dict]:
         limits = self.config["limits"]
+        for bound_source in self.config.get("cold_host", {}).get("source_ownership", {}):
+            checked_setting_source(self.config, bound_source)
         devices = {str(path): path.stat().st_dev for path in paths}
         return inventory(paths, self.tick, limits["max_entries"], limits["source_bytes"],
                          limits["metadata_bytes"], devices)
@@ -207,7 +210,7 @@ class Capture:
                 "manifest_sha256": digest(manifest_bytes), "dump_sha256": actual_sha,
                 "run_id": self.approval["run_id"], "restore_verified": False}
             create_bytes(self.run_dir / "receipt.json", encoded({
-                "status": "VERIFIED_AND_RESUMED", "last_good": self.state["last_good"],
+                "status": "VERIFIED_AND_PRESERVED_COLD" if self.config.get("maintenance_mode") == "cold-preserve" else "VERIFIED_AND_RESUMED", "last_good": self.state["last_good"],
                 "completed_at": utc_now()}))
             self.stage("COMPLETE")
             return {"status": "COMPLETE", "restore": "NOT_RUN", "copy": "NOT_RUN"}
@@ -218,6 +221,16 @@ class Capture:
                 self.runner.stop_owned()
             except BaseException:
                 code = "HELPERS_STILL_RUNNING"
+            if self.config.get("maintenance_mode") == "cold-preserve":
+                try:
+                    # Separate bounded emergency path: never gated by expired
+                    # capture monitor, no app restart, owned transient DB only.
+                    import host_adapter
+                    require(Path(host_adapter.__file__).resolve() == Path(self.config["hook_binary"]).resolve(), "CLEANUP_ADAPTER_IDENTITY")
+                    require(digest(host_adapter.read(Path(host_adapter.__file__))) == self.config["hook_sha256"], "CLEANUP_ADAPTER_PIN")
+                    host_adapter.ColdHost(self.config, self.run_dir, host_adapter.Commands()).stop()
+                except BaseException:
+                    code = "COLD_CLEANUP_UNCERTAIN"
             try:
                 self.stage("FAILED", code)
                 create_bytes(self.run_dir / "failure.json", encoded(self.state["attempt"]))
@@ -242,7 +255,7 @@ def execute(config: dict, config_path: Path, approval_path: Path,
     for key in ("public_root", "private_root", "release_root"):
         require(checked_path(config[key]).is_dir(), "SOURCE_DIRECTORY")
     for path in config["settings"]:
-        checked_path(path, trusted=True)
+        checked_setting_source(config, path)
     release_link = Path(config["release_link"])
     checked_path(release_link.parent, trusted=True)
     require(release_link.resolve(strict=True) == Path(config["release_root"]), "RELEASE_TARGET")
@@ -256,6 +269,8 @@ def execute(config: dict, config_path: Path, approval_path: Path,
         _, sha = hash_file(binary, lambda: None, 256 * 1024**2)
         require(sha == config[key + "_sha256"], "EXECUTABLE_HASH")
     with operations_lock(Path(config["lock_file"])):
+        require(not (Path(config["state_dir"]) / "live-service-ledger" / "operation.guard").exists()
+                and not config.get("recovery_gate"), "LEGACY_GATE_INCOMPATIBLE")
         if recurring:
             approval = recurring_approval(config, authorization, time.time())
         validate_approval(config, approval, time.time())

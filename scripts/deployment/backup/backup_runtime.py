@@ -32,6 +32,56 @@ def checked_path(value: str | Path, *, private: bool = False,
     return path
 
 
+def checked_setting_source(config: dict, value: str | Path) -> Path:
+    """Exact config-bound tmp source exceptions; control/code paths never use it."""
+    online_bindings = config.get("online", {}).get("source_ownership", {})
+    if online_bindings:
+        require(config.get("capture_mode") == "ats-online-v1" and
+                config.get("maintenance_mode") == "live-resume" and not config.get("cold_host") and
+                set(online_bindings) == {"/var/lib/atstudio/tmp"} and
+                "/var/lib/atstudio/tmp" in config["settings"], "ONLINE_SOURCE_SCOPE")
+        if str(value) == "/var/lib/atstudio/tmp":
+            expected = online_bindings[str(value)]
+            require(set(expected) == {"uid", "gid", "mode", "device", "inode"} and
+                    all(type(v) is int and v >= 0 for v in expected.values()) and
+                    expected["uid"] == config["online"]["app_uid"] and
+                    expected["gid"] == config["online"]["app_gid"] and
+                    expected["uid"] > 0 and expected["mode"] == 0o700, "ONLINE_SOURCE_METADATA")
+            path = Path(value)
+            checked_path(path.parent, trusted=True)
+            before = path.lstat()
+            actual = {"uid": before.st_uid, "gid": before.st_gid, "mode": stat.S_IMODE(before.st_mode),
+                      "device": before.st_dev, "inode": before.st_ino}
+            require(stat.S_ISDIR(before.st_mode) and not stat.S_ISLNK(before.st_mode) and
+                    actual == expected, "ONLINE_SOURCE_METADATA_DRIFT")
+            after = path.lstat()
+            require((before.st_dev, before.st_ino, before.st_mode, before.st_uid, before.st_gid) ==
+                    (after.st_dev, after.st_ino, after.st_mode, after.st_uid, after.st_gid), "ONLINE_SOURCE_CHANGED")
+            return path
+    bindings = config.get("cold_host", {}).get("source_ownership", {})
+    if str(value) not in bindings:
+        return checked_path(value, trusted=True)
+    require(config.get("maintenance_mode") == "cold-preserve" and
+            set(bindings) == {"/var/lib/atstudio/tmp"} and str(value) == "/var/lib/atstudio/tmp"
+            and str(value) in config["settings"], "COLD_SOURCE_SCOPE")
+    expected = bindings[str(value)]
+    require(set(expected) == {"uid", "gid", "mode", "device", "inode"} and
+            all(type(v) is int and v >= 0 for v in expected.values()) and
+            expected["uid"] > 0 and expected["mode"] == 0o700, "COLD_SOURCE_METADATA")
+    path = Path(value)
+    checked_path(path.parent, trusted=True)  # unchanged root-owned ancestor rule
+    before = path.lstat()
+    require(stat.S_ISDIR(before.st_mode) and not stat.S_ISLNK(before.st_mode) and
+            not before.st_mode & 0o077, "COLD_SOURCE_TYPE_MODE")
+    actual = {"uid": before.st_uid, "gid": before.st_gid, "mode": stat.S_IMODE(before.st_mode),
+              "device": before.st_dev, "inode": before.st_ino}
+    require(actual == expected, "COLD_SOURCE_METADATA_DRIFT")
+    after = path.lstat()
+    require((before.st_dev, before.st_ino, before.st_mode, before.st_uid, before.st_gid) ==
+            (after.st_dev, after.st_ino, after.st_mode, after.st_uid, after.st_gid), "COLD_SOURCE_CHANGED")
+    return path
+
+
 def read_json(path: Path, max_bytes: int = 65536) -> dict:
     with path.open("rb") as stream:
         data = stream.read(max_bytes + 1)
@@ -67,7 +117,7 @@ def atomic_json(path: Path, value: dict) -> None:
 
 
 @contextmanager
-def operations_lock(path: Path) -> Iterator[None]:
+def operations_lock(path: Path) -> Iterator[tuple[int, int]]:
     import fcntl
 
     checked_path(path.parent, trusted=True)
@@ -80,7 +130,9 @@ def operations_lock(path: Path) -> Iterator[None]:
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise GateError("OPERATIONS_BUSY") from None
-        yield
+        named = path.lstat()
+        require((named.st_dev, named.st_ino) == (info.st_dev, info.st_ino), "LOCK_REPLACED")
+        yield (info.st_dev, info.st_ino)
     finally:
         os.close(descriptor)
 
@@ -264,7 +316,8 @@ class LinuxRunner:
             del self.active[group]
 
     def run(self, argv: list[str], max_bytes: int,
-            output: Path | None = None, *, hash_only: bool = False) -> CommandResult:
+            output: Path | None = None, *, hash_only: bool = False,
+            input_path: Path | None = None) -> CommandResult:
         require(not self.active, "HELPER_OVERLAP")
         self.monitor.tick(force=True)
         chunks: list[bytes] = []
@@ -272,12 +325,21 @@ class LinuxRunner:
         size = 0
         sha = hashlib.sha256()
         sink = None
-        if output:
-            descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
-                                 os.O_NOFOLLOW, 0o600)
-            sink = os.fdopen(descriptor, "wb")
+        source = None
         try:
-            process = subprocess.Popen(argv, stdin=subprocess.DEVNULL,
+            if input_path is not None:
+                checked_path(input_path, private=True)
+                descriptor = os.open(input_path, os.O_RDONLY | os.O_NOFOLLOW)
+                info = os.fstat(descriptor)
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > 16 * 1024**2:
+                    os.close(descriptor)
+                    require(False, "COMMAND_INPUT_BOUND")
+                source = os.fdopen(descriptor, "rb")
+            if output:
+                descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                                     os.O_NOFOLLOW, 0o600)
+                sink = os.fdopen(descriptor, "wb")
+            process = subprocess.Popen(argv, stdin=source if source is not None else subprocess.DEVNULL,
                                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                        env=self.environment, start_new_session=True,
                                        close_fds=True)
@@ -321,6 +383,8 @@ class LinuxRunner:
         finally:
             if sink:
                 sink.close()
+            if source:
+                source.close()
 
 
 def restic_environment(config: dict) -> dict[str, str]:
@@ -335,7 +399,15 @@ def restic_environment(config: dict) -> dict[str, str]:
 def restic_command(config: dict, command: list[str]) -> list[str]:
     require(command[0] in {"cat", "backup", "ls", "dump"}, "COMMAND_NOT_ALLOWED")
     limits = config["limits"]
+    options = []
+    if "s3_bucket_lookup" in config:
+        import re
+        require(config["s3_bucket_lookup"] == "path" and
+                isinstance(config.get("region"), str) and
+                re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,63}", config["region"]) is not None,
+                "S3_PATH_OPTIONS")
+        options = ["-o", "s3.bucket-lookup=path", "-o", "s3.region=" + config["region"]]
     return [config["restic_binary"], "--cache-dir", config["cache_dir"],
             "--compression", "auto", "--pack-size", "16", "--limit-upload",
             str(limits["upload_kib"]), "--limit-download", str(limits["download_kib"]),
-            "-o", "s3.connections=2", *command]
+            "-o", "s3.connections=2", *options, *command]

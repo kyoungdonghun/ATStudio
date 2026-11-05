@@ -1,0 +1,90 @@
+{
+  "description": "SYNTHETIC STRUCTURAL GUIDE ONLY. Separate private inputs required; no execution authority.",
+  "attachment": {
+    "version": 1,
+    "configured": false,
+    "online_config_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "online_approval_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "pins_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "app_jar": "/example/release/application.jar",
+    "app_jar_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "systemctl_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "services": {
+      "app": {
+        "unit": "example-app.service",
+        "pid": 101,
+        "start_ticks": 1000,
+        "invocation_id": "00000000000000000000000000000000",
+        "cgroup": "/system.slice/example-app.service",
+        "exe": "/example/bin/app",
+        "exe_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "cmdline_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "unit_fragment": "/example/units/app.service",
+        "unit_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "uid": 1000,
+        "gid": 1000,
+        "netns_inode": 1
+      },
+      "db": {
+        "unit": "example-db.service",
+        "pid": 102,
+        "start_ticks": 1001,
+        "invocation_id": "00000000000000000000000000000000",
+        "cgroup": "/system.slice/example-db.service",
+        "exe": "/example/bin/db",
+        "exe_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "cmdline_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "unit_fragment": "/example/units/db.service",
+        "unit_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "uid": 1001,
+        "gid": 1001,
+        "netns_inode": 1
+      }
+    },
+    "runtime_proof": {
+      "path": "/example/private/runtime-proof.json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "authority": {
+    "version": 1,
+    "operation": "live-service-capture",
+    "run_id": "00000000000000000000000000000000",
+    "max_attempts": 1,
+    "attachment_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "not_before": "2000-01-01T00:00:00Z",
+    "not_after": "2000-01-01T00:10:00Z",
+    "service_control_authorized": false
+  },
+  "runtime_proof": {
+    "version": 1,
+    "kind": "live-service-runtime",
+    "scope": "ONE_EXISTING_SERVICE_CAPTURE",
+    "subject_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "run_id": "00000000000000000000000000000000",
+    "machine_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "boot_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "services_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "source_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "expires_at": "2000-01-01T00:10:00Z",
+    "effective_mode": {
+      "app.listening.enabled": true,
+      "app.listening.catalog-source": "DATABASE",
+      "app.background-tasks.audio-only": true,
+      "app.background-tasks.capture-control-only": false,
+      "app.audio.worker-enabled": true,
+      "app.storage.capture-control-enabled": true,
+      "app.bootstrap.test-users.enabled": false
+    },
+    "sole_app_writer": false,
+    "no_uncoordinated_file_writers": false,
+    "no_overlapping_deployment": false,
+    "effective_settings_verified": false,
+    "catalog_admission_verified": false,
+    "audio_worker_admission_verified": false,
+    "private_mailbox_verified": false,
+    "catalog_audit_in_dump_verified": false,
+    "reader_impact_and_freeze_bound_accepted": false
+  }
+}
