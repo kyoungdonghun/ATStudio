@@ -50,6 +50,14 @@ public class TagController {
                 .build());
     }
 
+    @GetMapping("/admin")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseDTO<TagResponse>> getTagsForAdmin(
+            @RequestParam(required = false) TagType type) {
+        return ResponseEntity.ok(ResponseDTO.<TagResponse>builder()
+                .dataList(tagService.getAllTagsForAdmin(type)).build());
+    }
+
     @GetMapping
     public ResponseEntity<ResponseDTO<TagResponse>> getAllTags(
             @RequestParam(required = false) TagType type) {

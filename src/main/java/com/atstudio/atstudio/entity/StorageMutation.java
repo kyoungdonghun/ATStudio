@@ -107,6 +107,11 @@ public class StorageMutation extends BaseEntity {
         this.nextAttemptAt = claimUntil;
     }
 
+    public void deferPreserved(LocalDateTime nextAttemptAt, boolean alreadyClaimed) {
+        if (alreadyClaimed) this.attemptCount = Math.max(0, this.attemptCount - 1);
+        scheduleRetry("BACKUP_PRESERVED", nextAttemptAt, false);
+    }
+
     public void scheduleRetry(String reasonCode, LocalDateTime nextAttemptAt, boolean incrementAttempt) {
         if (incrementAttempt) {
             this.attemptCount++;

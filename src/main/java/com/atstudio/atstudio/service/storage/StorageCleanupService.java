@@ -17,6 +17,7 @@ public class StorageCleanupService {
         try {
             StorageDeleteResult staged = storageService.deleteStaged(root, operationId, newKey);
             StorageDeleteResult promoted = storageService.delete(root, newKey);
+            if (staged == StorageDeleteResult.DEFERRED || promoted == StorageDeleteResult.DEFERRED) return CleanupOutcome.DEFERRED;
             return staged.isSuccess() && promoted.isSuccess()
                     ? CleanupOutcome.DONE
                     : CleanupOutcome.FAILED;
@@ -33,7 +34,9 @@ public class StorageCleanupService {
             if (referenceChecker.isReferenced(domain, oldKey)) {
                 return CleanupOutcome.SHARED_REFERENCE;
             }
-            return storageService.delete(root, oldKey).isSuccess()
+            StorageDeleteResult result = storageService.delete(root, oldKey);
+            if (result == StorageDeleteResult.DEFERRED) return CleanupOutcome.DEFERRED;
+            return result.isSuccess()
                     ? CleanupOutcome.DONE
                     : CleanupOutcome.FAILED;
         } catch (RuntimeException exception) {
@@ -44,6 +47,7 @@ public class StorageCleanupService {
     public enum CleanupOutcome {
         DONE,
         SHARED_REFERENCE,
+        DEFERRED,
         FAILED
     }
 }

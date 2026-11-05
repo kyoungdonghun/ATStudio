@@ -1,3 +1,4 @@
+import { isListeningMode } from '@/config/appMode';
 import { type FormEvent, useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getAuthSessionGeneration, isAuthSessionCurrent, useAuthStore } from '@/store/authStore';
@@ -92,7 +93,7 @@ export default function LoginPage() {
   } = usePublicCapabilities();
 
   useEffect(() => {
-    if (isAuthenticated) navigate(postLoginTarget, { replace: true });
+    if (isAuthenticated && !isListeningMode) navigate(postLoginTarget, { replace: true });
   }, [isAuthenticated, navigate, postLoginTarget]);
 
   const [email, setEmail] = useState('');
@@ -111,7 +112,7 @@ export default function LoginPage() {
   }, []);
 
   const enabledSocialProviders = (Object.keys(PROVIDER_CONFIG) as SocialProvider[]).filter(
-    (provider) => getProviderCapability(capabilities, provider)?.enabled,
+    (provider) => !isListeningMode && getProviderCapability(capabilities, provider)?.enabled,
   );
   const isPasswordLoginEnabled = capabilities?.passwordLoginEnabled === true;
   const isQaBootstrapEnabled = capabilities?.testUsersEnabled === true;
@@ -160,6 +161,11 @@ export default function LoginPage() {
       if (!isCurrent()) return;
       const me: MeResponse = await fetchMe(tokens.accessToken);
       if (!isCurrent()) return;
+
+      if (isListeningMode && me.role !== 'ADMIN') {
+        setError('운영자 계정으로 로그인해주세요.');
+        return;
+      }
 
       // Do not adopt a replacement login triggered by synchronous store subscribers.
       const committedGeneration = generation + 1;
@@ -382,24 +388,28 @@ export default function LoginPage() {
           </p>
         ) : null}
 
-        <div className={styles.links}>
-          {isPasswordLoginEnabled ? (
-            <Link to="/signup" className={styles.link}>
-              회원가입
-            </Link>
-          ) : (
-            <span className={`${styles.link} ${styles.linkDisabled}`}>회원가입 비활성화</span>
-          )}
-          {isPasswordResetAvailable ? (
-            <Link to="/password-reset" className={styles.link}>
-              비밀번호 찾기
-            </Link>
-          ) : (
-            <span className={`${styles.link} ${styles.linkDisabled}`}>비밀번호 찾기 비활성화</span>
-          )}
-        </div>
+        {!isListeningMode && (
+          <div className={styles.links}>
+            {isPasswordLoginEnabled ? (
+              <Link to="/signup" className={styles.link}>
+                회원가입
+              </Link>
+            ) : (
+              <span className={`${styles.link} ${styles.linkDisabled}`}>회원가입 비활성화</span>
+            )}
+            {isPasswordResetAvailable ? (
+              <Link to="/password-reset" className={styles.link}>
+                비밀번호 찾기
+              </Link>
+            ) : (
+              <span className={`${styles.link} ${styles.linkDisabled}`}>
+                비밀번호 찾기 비활성화
+              </span>
+            )}
+          </div>
+        )}
 
-        {isPasswordLoginEnabled && isLocalMailMode ? (
+        {isPasswordLoginEnabled && isLocalMailMode && !isListeningMode ? (
           <p className={styles.helperText}>
             비밀번호 재설정 메일은 현재 로컬 메일 환경에서만 확인할 수 있습니다.
           </p>

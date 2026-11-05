@@ -6,6 +6,7 @@ import com.atstudio.atstudio.service.storage.StorageDomain;
 import com.atstudio.atstudio.service.storage.StorageMutationCoordinator;
 import com.atstudio.atstudio.service.storage.StorageRoot;
 import com.atstudio.atstudio.service.storage.StorageService;
+import com.atstudio.atstudio.service.storage.StorageContinuityGuard;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,6 +46,8 @@ public class TrackAudioProcessingWorker {
     @Value("${app.audio.poll-interval-ms:5000}")
     private long pollIntervalMs = 5000;
     private boolean ready;
+    private boolean startupDeferred;
+    private boolean terminalHalt;
 
     public TrackAudioProcessingWorker(TrackAudioProcessingTransactions transactions, StorageService storage,
             StorageMutationCoordinator mutations, AudioAnalysisService analysis, FfmpegAudioEncoder encoder) {
@@ -80,12 +83,28 @@ public class TrackAudioProcessingWorker {
     }
 
     public synchronized void start() {
-        if (ready) return;
-        while (transactions.recoverInterruptedBatch() > 0) { /* short, bounded transaction per batch */ }
-        ready = true;
+        if (ready || terminalHalt) return;
+        try (var ignored = storage.enterMutation()) {
+            while (transactions.recoverInterruptedBatch() > 0) { /* short, bounded transaction per batch */ }
+            ready = true;
+            startupDeferred = false;
+        } catch (StorageContinuityGuard.AdmissionClosedException exception) {
+            startupDeferred = true;
+            // The scheduled iteration retries startup after explicit capture reconciliation.
+        }
     }
 
     public synchronized void processNext() {
+        try (var ignored = storage.enterMutation()) {
+            if (terminalHalt) return;
+            if (startupDeferred) start();
+            processAdmitted();
+        } catch (StorageContinuityGuard.AdmissionClosedException exception) {
+            // Do not claim or fail a job while admission is frozen.
+        }
+    }
+
+    private void processAdmitted() {
         if (!ready) return;
         TrackAudioProcessingTransactions.Claim claim = transactions.claimNext();
         if (claim == null) return;
@@ -102,6 +121,8 @@ public class TrackAudioProcessingWorker {
         } catch (AudioTranscodeException exception) {
             if (exception.code() == AUDIO_PROCESS_TERMINATION_FAILED) {
                 ready = false;
+                terminalHalt = true;
+                storage.haltForUncertainWriter();
                 log.error("Audio worker halted because its child did not terminate. trackId={}", claim.trackId());
                 return;
             }

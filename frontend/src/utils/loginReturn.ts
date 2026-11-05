@@ -1,3 +1,4 @@
+import { isListeningMode } from '@/config/appMode';
 import type { UserRole, UserType } from '@/types';
 
 const RETURN_TARGET_MAX_LENGTH = 2048;
@@ -88,6 +89,13 @@ export function getAccessibleLoginReturnTarget(
   identity: LoginReturnIdentity,
 ): string | null {
   const safeTarget = getSafeLoginReturnTarget(candidate);
+  if (isListeningMode) {
+    if (identity.role !== 'ADMIN') return '/tracks';
+    const path = safeTarget?.split('?')[0] ?? '';
+    return /^\/admin\/(?:track-manage|tracks\/upload|tracks\/[1-9]\d*\/edit)$/.test(path)
+      ? safeTarget
+      : '/admin/track-manage';
+  }
   if (!safeTarget) return null;
 
   const canonicalPathname = getCanonicalPathname(new URL(safeTarget, 'https://local.invalid'));

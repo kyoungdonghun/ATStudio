@@ -48,6 +48,7 @@ public class AlbumService {
     // -- 15.1 POST /api/albums ------------------------------------------------
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public AlbumResponse createAlbum(AlbumCreateRequest request,
                                      MultipartFile thumbnailFile,
                                      CustomUserDetails userDetails) {
@@ -112,6 +113,7 @@ public class AlbumService {
     // -- 15.4 PUT /api/albums/{id} --------------------------------------------
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public AlbumResponse updateAlbum(Long id,
                                      AlbumUpdateRequest request,
                                      MultipartFile thumbnailFile) {
@@ -136,6 +138,7 @@ public class AlbumService {
     // -- 15.5 DELETE /api/albums/{id} -----------------------------------------
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public void deleteAlbum(Long id) {
         Album album = getActiveAlbumForUpdate(id);
         String oldThumbnail = album.getThumbnail();

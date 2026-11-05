@@ -51,6 +51,7 @@ public class QuestionService {
     // ── 8.1 POST /api/questions ─────────────────────────────────────────────
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public QuestionResponse createQuestion(QuestionCreateRequest request,
                                             CustomUserDetails userDetails) {
         User user = userRepository.findById(userDetails.getId())
@@ -176,6 +177,7 @@ public class QuestionService {
     // ── 8.7 DELETE /api/questions/{questionId} ──────────────────────────────
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public void deleteQuestion(Long questionId, CustomUserDetails userDetails) {
         Question question = findQuestionById(questionId);
 

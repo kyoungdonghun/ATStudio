@@ -1,3 +1,4 @@
+import { isListeningMode } from '@/config/appMode';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { fetchTracks, type TrackListParams } from '@/api/tracks';
@@ -266,7 +267,7 @@ export default function TrackListPage() {
   }, [tracks, setTrackListContext]);
 
   /* Like store */
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const isAuthenticated = useAuthStore((s) => !isListeningMode && s.isAuthenticated());
   const likeLoaded = useLikeStore((s) => s.loaded);
   const loadLikes = useLikeStore((s) => s.load);
   const likedIds = useLikeStore((s) => s.likedIds);

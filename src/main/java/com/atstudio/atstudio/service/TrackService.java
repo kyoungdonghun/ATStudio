@@ -45,6 +45,27 @@ import java.util.List;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class TrackService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private ListeningCatalogService catalog;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.beans.factory.ObjectProvider<TrackService> self;
+
+    private TrackService transactionalSelf() { return self == null ? this : self.getObject(); }
+
+
+    private java.util.List<Long> selectedIds() {
+        if (catalog != null) return catalog.snapshot().trackIds();
+        if (listening.getCatalogSource() == com.atstudio.atstudio.config.ListeningProperties.CatalogSource.DATABASE) {
+            throw new IllegalStateException("Catalog service required in database mode");
+        }
+        return listening.getTrackIds().stream().sorted().toList();
+    }
+
+
+    // Initialized for standalone service fixtures; Spring always injects the bound policy.
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.atstudio.atstudio.config.ListeningProperties listening =
+            new com.atstudio.atstudio.config.ListeningProperties();
 
     private static final int MAX_PUBLIC_TRACK_PAGE_SIZE = 100;
 
@@ -62,8 +83,51 @@ public class TrackService {
     private final PlaylistTrackRepository playlistTrackRepository;
     private final AlbumTrackRepository albumTrackRepository;
 
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    @com.atstudio.atstudio.service.storage.StorageReferencePreparation
     public TrackResponse createTrack(TrackCreateRequest request, MultipartFile audioFile,
+                                     MultipartFile thumbnail, CustomUserDetails userDetails) {
+        if (catalog == null || !catalog.databaseMode()) {
+            return transactionalSelf().createTrackTransactional(request, audioFile, thumbnail, userDetails);
+        }
+        MultipartFile image = canonicalizeTrackThumbnail(thumbnail);
+        AudioAnalysisResult analysis = analyzeAudio(audioFile);
+        try (var audio = stagePrepared(audioFile, "tracks/audio");
+             var cover = image == null ? null : stagePrepared(image, "tracks/thumbnail")) {
+            return transactionalSelf().attachCreatedTrack(request, userDetails.getId(), analysis, audio, cover);
+        }
+    }
+
+    private StorageMutationCoordinator.GeneratedWrite stagePrepared(MultipartFile file, String directory) {
+        return storageMutationCoordinator.generate(StorageDomain.TRACK, StorageRoot.PUBLIC, directory,
+                file.getOriginalFilename(), path -> {
+                    try (var input = file.getInputStream()) {
+                        java.nio.file.Files.copy(input, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    } catch (IOException failure) { throw new java.io.UncheckedIOException(failure); }
+                });
+    }
+
+    @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
+    public TrackResponse attachCreatedTrack(TrackCreateRequest request, Long userId, AudioAnalysisResult analysis,
+            StorageMutationCoordinator.GeneratedWrite audio, StorageMutationCoordinator.GeneratedWrite cover) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        audio.attachToTransaction();
+        if (cover != null) cover.attachToTransaction();
+        Track track = Track.builder()
+                .title(java.text.Normalizer.normalize(request.getTitle(), java.text.Normalizer.Form.NFC))
+                .bpm(request.getBpm()).tonality(request.getTonality()).description(request.getDescription())
+                .audioFile(audio.key()).thumbnail(cover == null ? null : cover.key())
+                .duration(analysis.durationSeconds()).waveformData(analysis.waveformJson()).user(user).build();
+        if (analysis.format() == AudioAnalysisFormat.WAV) track.enqueueAudio(audio.key(), true);
+        track = trackRepository.save(track);
+        return TrackResponse.fromAdmin(track, saveTrackTags(track, request.getTagIds()));
+    }
+
+    @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
+    public TrackResponse createTrackTransactional(TrackCreateRequest request, MultipartFile audioFile,
                                      MultipartFile thumbnail, CustomUserDetails userDetails) {
         User user = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
@@ -105,6 +169,7 @@ public class TrackService {
         return TrackResponse.fromAdmin(track, tags);
     }
 
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public ResponseDTO<TrackListItemResponse> getTracks(TrackSearchRequest request) {
         validatePublicSearchPage(request);
         int pageNumber = request.getPage();
@@ -119,6 +184,11 @@ public class TrackService {
         Pageable pageable = PageRequest.of(pageNumber - 1, pageSize, sort);
 
         Specification<Track> spec = TrackSpecification.isActive();
+        if (listening.isEnabled()) {
+            var selected = selectedIds();
+            spec = spec.and((root, query, cb) -> selected.isEmpty()
+                    ? cb.disjunction() : root.get("id").in(selected));
+        }
         spec = addSpec(spec, TrackSpecification.keywordContains(request.getKeyword()));
         spec = addSpec(spec, TrackSpecification.hasBpmMin(request.getBpmMin()));
         spec = addSpec(spec, TrackSpecification.hasBpmMax(request.getBpmMax()));
@@ -147,7 +217,9 @@ public class TrackService {
                 .build();
     }
 
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public TrackResponse getTrack(Long trackId) {
+        requireSelectedTrack(trackId);
         Track track = trackRepository.findByIdWithTags(trackId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND));
         if (!track.isActive()) {
@@ -157,7 +229,9 @@ public class TrackService {
         return TrackResponse.fromPublic(track, tags);
     }
 
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public StreamResource getStreamResource(Long trackId) {
+        requireSelectedTrack(trackId);
         Track track = findActiveTrack(trackId);
         String listeningKey = track.listeningAudioFile();
         if (listeningKey == null) throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
@@ -172,9 +246,118 @@ public class TrackService {
         }
     }
 
-    @Transactional
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public Resource getPublicThumbnail(String filename) {
+        if (!filename.matches("[A-Za-z0-9_-]+\\.[A-Za-z0-9]+")) {
+            throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
+        }
+        String key = "tracks/thumbnail/" + filename;
+        if (listening.isEnabled()) {
+            var selected = selectedIds();
+            if (selected.isEmpty()) throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
+            // DB collation may match differently cased keys. Never use the untrusted request key
+            // after an equality-only ownership check; pin the exact persisted approved key.
+            key = trackRepository.findSelectedThumbnailKeys(key, selected).stream()
+                    .filter(("tracks/thumbnail/" + filename)::equals).findFirst()
+                    .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND));
+        }
+        return storageService.loadAsResource(StorageRoot.PUBLIC, key);
+    }
+
+    public Resource getThumbnailForAdmin(Long trackId) {
+        Track track = findTrackById(trackId);
+        String key = track.getThumbnail();
+        if (key == null || !key.startsWith("tracks/thumbnail/")) {
+            throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
+        }
+        return storageService.loadAsResource(StorageRoot.PUBLIC, key);
+    }
+
+    public record EditStamp(long generation, String audio, String stream, String pending, String claim,
+            String thumbnail, String title, int bpm, String tonality, String description, boolean active,
+            java.time.LocalDateTime updatedAt, List<Long> tagIds) { }
+
+    private EditStamp editStamp(Track track) {
+        return new EditStamp(track.getAudioGeneration(), track.getAudioFile(), track.getStreamAudioFile(),
+                track.getPendingAudioFile(), track.getAudioClaimToken(), track.getThumbnail(), track.getTitle(),
+                track.getBpm(), track.getTonality(), track.getDescription(), track.isActive(), track.getUpdatedAt(),
+                track.getTrackTags().stream().map(tag -> tag.getTag().getId()).sorted().toList());
+    }
+
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public EditStamp prepareEditStamp(Long trackId) {
+        catalog.requireUnselected(trackId);
+        return editStamp(findTrackById(trackId));
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    @com.atstudio.atstudio.service.storage.StorageReferencePreparation
     public TrackResponse updateTrack(Long trackId, TrackUpdateRequest request,
+            MultipartFile audioFile, MultipartFile thumbnail) {
+        if (catalog == null || !catalog.databaseMode()) {
+            return transactionalSelf().updateTrackTransactional(trackId, request, audioFile, thumbnail);
+        }
+        EditStamp stamp = transactionalSelf().prepareEditStamp(trackId);
+        MultipartFile image = canonicalizeTrackThumbnail(thumbnail);
+        AudioAnalysisResult analysis = audioFile != null && !audioFile.isEmpty() ? analyzeAudio(audioFile) : null;
+        try (var audio = analysis == null ? null : stagePrepared(audioFile, "tracks/audio");
+             var cover = image == null ? null : stagePrepared(image, "tracks/thumbnail")) {
+            return transactionalSelf().attachUpdatedTrack(trackId, stamp, request, analysis, audio, cover);
+        }
+    }
+
+    @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
+    public TrackResponse attachUpdatedTrack(Long trackId, EditStamp expected, TrackUpdateRequest request,
+            AudioAnalysisResult analysis, StorageMutationCoordinator.GeneratedWrite audio,
+            StorageMutationCoordinator.GeneratedWrite cover) {
+        catalog.requireUnselected(trackId);
+        Track track = findTrackForUpdate(trackId);
+        if (!editStamp(track).equals(expected)) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                    "Track changed during preparation; reload before deciding");
+        }
+        if (audio != null) audio.attachToTransaction();
+        if (cover != null) cover.attachToTransaction();
+        track.update(request.getTitle(), request.getBpm(), request.getTonality(), request.getDescription());
+        if (audio != null) {
+            String oldPending = track.getPendingAudioFile();
+            if (analysis.format() == AudioAnalysisFormat.WAV) {
+                track.enqueueAudio(audio.key(), false);
+            } else {
+                String oldOriginal = track.getAudioFile();
+                String oldStream = track.getStreamAudioFile();
+                track.useDirectAudio(audio.key(), analysis.durationSeconds(), analysis.waveformJson());
+                deleteUnreferencedAudioAfterCommit(oldOriginal);
+                deleteUnreferencedAudioAfterCommit(oldStream);
+            }
+            deleteUnreferencedAudioAfterCommit(oldPending);
+        }
+        if (cover != null) {
+            String oldThumbnail = track.getThumbnail();
+            track.updateThumbnail(cover.key());
+            deleteUnreferencedAudioAfterCommit(oldThumbnail);
+        }
+        if (request.getIsActive() != null) {
+            if (request.getIsActive() && !track.isStreamReady()) throw new BusinessException(BUSINESS_ERROR.AUDIO_STREAM_NOT_READY);
+            if (!request.getIsActive() && track.isActive()) cancelPendingAudio(track);
+            track.updateIsActive(request.getIsActive());
+        }
+        List<Tag> tags;
+        if (Boolean.TRUE.equals(request.getReplaceTags())) {
+            trackTagRepository.deleteAllByTrack(track);
+            tags = saveTrackTags(track, request.getTagIds());
+        } else {
+            tags = trackTagRepository.findAllWithTagByTrack(track).stream().map(TrackTag::getTag).toList();
+        }
+        return TrackResponse.fromAdmin(track, tags);
+    }
+
+    @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
+    public TrackResponse updateTrackTransactional(Long trackId, TrackUpdateRequest request,
                                      MultipartFile audioFile, MultipartFile thumbnail) {
+        if (catalog != null) catalog.requireUnselected(trackId);
         MultipartFile canonicalThumbnail = canonicalizeTrackThumbnail(thumbnail);
         AudioAnalysisResult audioAnalysis = audioFile != null && !audioFile.isEmpty()
                 ? analyzeAudio(audioFile)
@@ -229,7 +412,9 @@ public class TrackService {
     }
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public void deleteTrack(Long trackId) {
+        if (catalog != null) catalog.requireUnselected(trackId);
         Track track = findTrackForUpdate(trackId);
 
         cancelPendingAudio(track);
@@ -275,6 +460,12 @@ public class TrackService {
                 .build();
     }
 
+    private void requireSelectedTrack(Long trackId) {
+        if (listening.isEnabled() && !selectedIds().contains(trackId)) {
+            throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
+        }
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private Track findTrackById(Long trackId) {
@@ -295,7 +486,9 @@ public class TrackService {
     }
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public AudioProcessingResponse retryAudioProcessing(Long trackId, long generation) {
+        if (catalog != null) catalog.requireUnselected(trackId);
         Track track = findTrackForUpdate(trackId);
         if (track.getAudioGeneration() != generation || !track.canRetryAudio()) {
             throw new BusinessException(BUSINESS_ERROR.AUDIO_PROCESSING_CONFLICT);

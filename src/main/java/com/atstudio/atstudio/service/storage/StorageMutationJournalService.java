@@ -5,6 +5,7 @@ import com.atstudio.atstudio.repository.StorageMutationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,16 +27,39 @@ public class StorageMutationJournalService {
 
     private final StorageMutationRepository mutationRepository;
     private final Set<String> inFlightOperations = ConcurrentHashMap.newKeySet();
+    private final java.util.Map<String, StorageContinuityGuard.Lease> leases = new ConcurrentHashMap<>();
+    private StorageContinuityGuard continuity = StorageContinuityGuard.disabled();
+
+    @Autowired
+    void setContinuity(StorageContinuityGuard continuity) { this.continuity = continuity; }
+
+    public StorageContinuityGuard.Lease enterRecovery() { return continuity.enter(); }
 
     public void registerInFlight(String operationId) {
+        StorageContinuityGuard.Lease lease = continuity.enter();
+        if (leases.putIfAbsent(operationId, lease) != null) {
+            lease.close();
+            throw new IllegalStateException("Storage operation already admitted");
+        }
         inFlightOperations.add(operationId);
     }
 
     public void releaseInFlight(String operationId) {
         inFlightOperations.remove(operationId);
+        StorageContinuityGuard.Lease lease = leases.remove(operationId);
+        if (lease != null) lease.close();
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
+    public void deferPreserved(Long mutationId, boolean alreadyClaimed) {
+        mutationRepository.findById(mutationId).ifPresent(mutation -> {
+            mutation.deferPreserved(LocalDateTime.now().plusSeconds(30), alreadyClaimed);
+        });
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public List<Long> prepare(List<StorageMutationDraft> drafts) {
         List<StorageMutation> mutations = drafts.stream()
                 .map(draft -> StorageMutation.prepared(
@@ -52,18 +76,21 @@ public class StorageMutationJournalService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public void transition(List<Long> mutationIds, StorageMutationState state, String reasonCode) {
         mutationRepository.findAllById(mutationIds)
                 .forEach(mutation -> mutation.transition(state, reasonCode));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public void transition(Long mutationId, StorageMutationState state, String reasonCode) {
         mutationRepository.findById(mutationId)
                 .ifPresent(mutation -> mutation.transition(state, reasonCode));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public void recordCleanupFailure(
             Long mutationId,
             String reasonCode,
@@ -79,6 +106,7 @@ public class StorageMutationJournalService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public List<StorageMutationSnapshot> claimBatch(
             LocalDateTime now,
             LocalDateTime staleBefore,
@@ -100,6 +128,7 @@ public class StorageMutationJournalService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public void retryClaimed(
             Long mutationId,
             String reasonCode,

@@ -37,12 +37,26 @@ class BackgroundTasksConfigurationTest {
     private final ApplicationContextRunner runner = isolatedRunner()
             .withUserConfiguration(BackgroundTasksConfiguration.class, StorageMutationRecoveryService.class,
                     TrackAudioProcessingWorker.class)
+            .withBean(StorageContinuityGuard.class, StorageContinuityGuard::disabled)
+            .withBean("clearJournalInjection", org.springframework.beans.factory.config.BeanPostProcessor.class,
+                    () -> new org.springframework.beans.factory.config.BeanPostProcessor() {
+                        @Override public Object postProcessAfterInitialization(Object bean, String name) {
+                            // WI004 added guard injection to this mock; count worker actions, not wiring.
+                            if (bean instanceof StorageMutationJournalService && mockingDetails(bean).isMock())
+                                clearInvocations(bean);
+                            return bean;
+                        }
+                    })
             .withBean(TaskScheduler.class, () -> mock(TaskScheduler.class))
             .withBean(StorageMutationJournalService.class, () -> mock(StorageMutationJournalService.class))
             .withBean(StorageCleanupService.class, () -> mock(StorageCleanupService.class))
             .withBean(StorageReferenceChecker.class, () -> mock(StorageReferenceChecker.class))
             .withBean(TrackAudioProcessingTransactions.class, () -> mock(TrackAudioProcessingTransactions.class))
-            .withBean(StorageService.class, () -> mock(StorageService.class))
+            .withBean(StorageService.class, () -> {
+                StorageService storage = mock(StorageService.class);
+                when(storage.enterMutation()).thenReturn(null); // Existing WI004 admission is not file IO.
+                return storage;
+            })
             .withBean(StorageMutationCoordinator.class, () -> mock(StorageMutationCoordinator.class))
             .withBean(AudioAnalysisService.class, () -> mock(AudioAnalysisService.class))
             .withBean(FfmpegAudioEncoder.class, () -> mock(FfmpegAudioEncoder.class))
@@ -107,12 +121,18 @@ class BackgroundTasksConfigurationTest {
             }
             verifyNoInteractions(context.getBean(StorageCleanupService.class),
                     context.getBean(StorageReferenceChecker.class), context.getBean(FfmpegAudioEncoder.class),
-                    context.getBean(StorageService.class), context.getBean(StorageMutationCoordinator.class),
+                    context.getBean(StorageMutationCoordinator.class),
                     context.getBean(AudioAnalysisService.class), context.getBean(RecurringRenewalService.class),
                     context.getBean(PaymentReconciliationTransactionService.class),
                     context.getBean(PaymentReconciliationIncidentService.class),
                     context.getBean(PaymentCommandTransactionService.class),
                     context.getBean(WithdrawalBillingCleanupService.class));
+            if (audio) {
+                verify(context.getBean(StorageService.class), atLeastOnce()).enterMutation();
+                verifyNoMoreInteractions(ignoreStubs(context.getBean(StorageService.class)));
+            } else {
+                verifyNoInteractions(context.getBean(StorageService.class));
+            }
 
             if (!scheduled) {
                 context.getBean(StorageMutationRecoveryService.class).recoverBatch();
@@ -224,7 +244,9 @@ class BackgroundTasksConfigurationTest {
                     .claimBatch(any(), any(), any(), eq(50), eq(8));
             verify(context.getBean(TrackAudioProcessingTransactions.class)).recoverInterruptedBatch();
             verify(context.getBean(TrackAudioProcessingTransactions.class), timeout(2000)).claimNext();
-            verifyNoInteractions(context.getBean(FfmpegAudioEncoder.class), context.getBean(StorageService.class));
+            verifyNoInteractions(context.getBean(FfmpegAudioEncoder.class));
+            verify(context.getBean(StorageService.class), atLeastOnce()).enterMutation();
+            verifyNoMoreInteractions(ignoreStubs(context.getBean(StorageService.class)));
         });
     }
 

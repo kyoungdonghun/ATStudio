@@ -63,7 +63,9 @@ class TrackAudioProcessingWorkerIsolationTest {
         order.verify(transactions, times(3)).recoverInterruptedBatch();
         order.verify(transactions).claimNext();
         order.verifyNoMoreInteractions();
-        verifyNoInteractions(storage, mutations, analysis, encoder);
+        verify(storage, atLeastOnce()).enterMutation();
+        verifyNoMoreInteractions(storage);
+        verifyNoInteractions(mutations, analysis, encoder);
     }
 
     @Test
@@ -72,7 +74,9 @@ class TrackAudioProcessingWorkerIsolationTest {
 
         verify(transactions).recoverInterruptedBatch();
         verify(transactions, timeout(2000)).claimNext();
-        verifyNoInteractions(storage, mutations, analysis, encoder);
+        verify(storage, atLeastOnce()).enterMutation();
+        verifyNoMoreInteractions(storage);
+        verifyNoInteractions(mutations, analysis, encoder);
     }
 
     @Test

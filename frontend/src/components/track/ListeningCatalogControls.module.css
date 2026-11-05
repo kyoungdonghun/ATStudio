@@ -1,0 +1,35 @@
+.panel {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text1);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.panel h2 {
+  font-size: 18px;
+  color: var(--text0);
+}
+.panel label {
+  display: block;
+  margin: 12px 0;
+}
+.panel textarea,
+.panel input:not([type='checkbox']) {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg1);
+  color: var(--text0);
+  border: 1px solid var(--border);
+  padding: 8px;
+}
+.panel textarea {
+  min-height: 80px;
+}
+.hold {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--accent);
+}

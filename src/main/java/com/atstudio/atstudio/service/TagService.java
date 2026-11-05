@@ -23,6 +23,22 @@ import java.util.List;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class TagService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private ListeningCatalogService catalog;
+
+    private java.util.List<Long> selectedIds() {
+        if (catalog != null) return catalog.snapshot().trackIds();
+        if (listening.getCatalogSource() == com.atstudio.atstudio.config.ListeningProperties.CatalogSource.DATABASE) {
+            throw new IllegalStateException("Catalog service required in database mode");
+        }
+        return listening.getTrackIds().stream().sorted().toList();
+    }
+
+
+    // Initialized for standalone service fixtures; Spring always injects the bound policy.
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.atstudio.atstudio.config.ListeningProperties listening =
+            new com.atstudio.atstudio.config.ListeningProperties();
 
     private final TagRepository tagRepository;
     private final TrackTagRepository trackTagRepository;
@@ -47,7 +63,16 @@ public class TagService {
         }
     }
 
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public List<TagResponse> getAllTags(TagType type) {
+        if (listening.isEnabled()) {
+            return getAvailableTags(null, null, null, null, null, null).stream()
+                    .filter(tag -> type == null || tag.type() == type).toList();
+        }
+        return getAllTagsForAdmin(type);
+    }
+
+    public List<TagResponse> getAllTagsForAdmin(TagType type) {
         List<Tag> tags = (type != null)
                 ? tagRepository.findAllByType(type)
                 : tagRepository.findAll();
@@ -62,7 +87,9 @@ public class TagService {
     }
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public TagResponse updateTag(Long id, TagCreateRequest request) {
+        guardTagTracks(id);
         Tag tag = tagRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TAG_NOT_FOUND));
         String canonicalName = canonicalizeAndValidate(request.getName());
@@ -80,6 +107,16 @@ public class TagService {
         return TagResponse.from(tag);
     }
 
+    private void guardTagTracks(Long tagId) {
+        if (catalog == null || !catalog.databaseMode()) return;
+        var ids = em.createQuery("select distinct tt.track.id from TrackTag tt where tt.tag.id = :id order by tt.track.id", Long.class)
+                .setParameter("id", tagId).getResultList();
+        for (Long id : ids) {
+            catalog.requireUnselected(id);
+            em.find(com.atstudio.atstudio.entity.Track.class, id, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        }
+    }
+
     private String canonicalizeAndValidate(String rawName) {
         if (!TagNamePolicy.isWithinRawLimit(rawName)) {
             throw new BusinessException(BUSINESS_ERROR.TAG_NAME_INVALID);
@@ -93,6 +130,7 @@ public class TagService {
     }
 
     @SuppressWarnings("unchecked")
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public List<TagResponse> getAvailableTags(
             List<String> genre,
             List<String> mood,
@@ -100,6 +138,10 @@ public class TagService {
             List<String> usage,
             Integer bpmMin,
             Integer bpmMax) {
+        var selected = listening.isEnabled() ? selectedIds() : java.util.List.<Long>of();
+        if (listening.isEnabled() && selected.isEmpty()) {
+            return List.of();
+        }
         List<String> genreNames = normalizeNames(genre);
         List<String> moodNames = normalizeNames(mood);
         List<String> instrumentNames = normalizeNames(instrument);
@@ -120,6 +162,13 @@ public class TagService {
         paramIdx = appendTagFilters(sql, params, paramIdx, moodNames, TagType.MOOD);
         paramIdx = appendTagFilters(sql, params, paramIdx, instrumentNames, TagType.INSTRUMENT);
         appendTagFilters(sql, params, paramIdx, usageNames, TagType.USAGE);
+
+        if (listening.isEnabled()) {
+            sql.append(" AND tr.id IN (");
+            sql.append(String.join(",", java.util.Collections.nCopies(selected.size(), "?")));
+            sql.append(")");
+            params.addAll(selected);
+        }
 
         if (bpmMin != null) {
             sql.append(" AND tr.bpm >= ?");
@@ -168,7 +217,9 @@ public class TagService {
     }
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public void deleteTag(Long id) {
+        guardTagTracks(id);
         Tag tag = tagRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.TAG_NOT_FOUND));
         trackTagRepository.deleteAllByTag(tag);

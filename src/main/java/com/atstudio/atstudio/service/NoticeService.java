@@ -47,6 +47,7 @@ public class NoticeService {
     private final StorageMutationCoordinator storageMutationCoordinator;
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public NoticeResponse createNotice(NoticeCreateRequest request, CustomUserDetails userDetails) {
         User user = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
@@ -117,6 +118,7 @@ public class NoticeService {
     }
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public NoticeResponse updateNotice(Long noticeId, NoticeUpdateRequest request,
                                        CustomUserDetails userDetails) {
         Notice notice = noticeRepository.findById(noticeId)
@@ -147,6 +149,7 @@ public class NoticeService {
     }
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public void deleteNotice(Long noticeId, CustomUserDetails userDetails) {
         Notice notice = noticeRepository.findById(noticeId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));

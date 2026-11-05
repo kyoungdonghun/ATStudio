@@ -17,6 +17,16 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AdminOperationAuditService {
 
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void recordListeningCatalogSuccess(Long actorId, Long settingId, String before, String after, String reason) {
+        auditLogRepository.saveAndFlush(AdminOperationAuditLog.builder()
+                .action(AdminOperationAuditAction.LISTENING_CATALOG_REPLACE)
+                .targetType(AdminOperationAuditTargetType.LISTENING_CATALOG).targetId(settingId)
+                .actorUserId(actorId).outcome(AdminOperationAuditOutcome.SUCCEEDED)
+                .beforeState(before).afterState(after).reasonCode("EXPLICIT_CATALOG_APPROVAL")
+                .reasonNote(reason).build());
+    }
+
     private static final String ROLE_CHANGED = "ROLE_CHANGED";
     private static final String USER_REQUESTED_WITHDRAWAL = "USER_REQUESTED_WITHDRAWAL";
 

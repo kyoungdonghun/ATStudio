@@ -20,6 +20,7 @@ public class SettingController {
     @GetMapping("/{key}")
     public ResponseEntity<ResponseDTO<SettingResponse>> getSetting(
             @PathVariable String key) {
+        com.atstudio.atstudio.service.ReservedSettingPolicy.requireGenericKey(key);
         String value = siteSettingService.getValue(key, "");
         return ResponseEntity.ok(ResponseDTO.<SettingResponse>withSingleData()
                 .message("Setting retrieved")

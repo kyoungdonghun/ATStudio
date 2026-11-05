@@ -69,6 +69,7 @@ public class CompanyCertificationService {
     // ── 13.1 POST /api/company-certifications ────────────────────────────────
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public CompanyCertificationResponse apply(CustomUserDetails userDetails,
                                                List<MultipartFile> documents) {
         User user = findUserForUpdate(userDetails);
@@ -109,6 +110,7 @@ public class CompanyCertificationService {
     // ── 13.2 POST /api/company-certifications/me/documents ───────────────────
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public CompanyCertificationResponse resubmit(CustomUserDetails userDetails,
                                                  List<MultipartFile> documents) {
         User user = findUserForUpdate(userDetails);

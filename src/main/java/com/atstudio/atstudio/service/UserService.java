@@ -39,6 +39,9 @@ import static com.atstudio.atstudio.common.validation.ValidationConstants.normal
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class UserService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private ListeningCatalogService listeningCatalog;
+
 
     private static final int MAX_ADMIN_OPERATION_REASON_LENGTH = 500;
 
@@ -117,7 +120,9 @@ public class UserService {
     }
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public UserResponse updateMyProfile(Long userID, UpdateProfileRequest request) {
+        if (listeningCatalog != null) listeningCatalog.requireUnselectedUploader(userID);
         User user = userRepository.findById(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
@@ -152,7 +157,9 @@ public class UserService {
     }
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public void withdraw(Long userID, WithdrawRequest request) {
+        if (listeningCatalog != null) listeningCatalog.requireUnselectedUploader(userID);
         User authenticationSnapshot = userRepository.findById(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         validateWithdrawalPassword(authenticationSnapshot, request);
@@ -230,7 +237,9 @@ public class UserService {
     }
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public UserResponse completeProfile(Long userID, CompleteProfileRequest request) {
+        if (listeningCatalog != null) listeningCatalog.requireUnselectedUploader(userID);
         User user = userRepository.findById(userID)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         String nickname = normalizeNickname(request.getNickname());

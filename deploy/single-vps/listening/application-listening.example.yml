@@ -1,0 +1,31 @@
+# Local example, not applied. Empty selections expose no catalog/operator access.
+server:
+  address: 127.0.0.1
+  forward-headers-strategy: none
+app:
+  listening:
+    enabled: true
+    catalog-source: STATIC # DATABASE requires separately approved reserved-row bootstrap first
+    track-ids: []
+    operator-addresses: []
+  security:
+    trusted-client-identity:
+      enabled: true
+      trusted-proxy-addresses: [127.0.0.1, "::1"]
+  background-tasks:
+    enabled: true
+    audio-only: true
+  audio:
+    worker-enabled: true
+  bootstrap:
+    test-users:
+      enabled: false
+spring:
+  sql:
+    init:
+      mode: never
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  mail:
+    test-connection: false

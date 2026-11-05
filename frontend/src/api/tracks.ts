@@ -193,3 +193,76 @@ export async function updateTrack(trackId: number, formData: FormData): Promise<
 export async function deleteTrack(trackId: number): Promise<void> {
   await client.delete(`/tracks/${trackId}`);
 }
+
+/** Operator-only thumbnail bytes; never fall back to the public storage URL. */
+export async function fetchAdminTrackThumbnail(
+  trackId: number,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const { data } = await client.get<Blob>(`/tracks/admin/${trackId}/thumbnail`, {
+    responseType: 'blob',
+    signal,
+  });
+  return data;
+}
+
+export interface ListeningCatalog {
+  source: 'DATABASE' | 'STATIC';
+  revision: number;
+  trackIds: number[];
+  digest: string;
+}
+export interface ListeningCatalogChange {
+  attemptId: string;
+  expectedRevision: number;
+  trackIds: number[];
+  reason: string;
+  creditsConfirmed: boolean;
+}
+export async function fetchListeningCatalog(signal?: AbortSignal): Promise<ListeningCatalog> {
+  const { data } = await client.get<ApiResponse<ListeningCatalog>>(
+    '/tracks/admin/listening-catalog',
+    { signal },
+  );
+  return data.data;
+}
+export async function changeListeningCatalog(
+  change: ListeningCatalogChange,
+): Promise<ListeningCatalog> {
+  const { data } = await client.put<ApiResponse<ListeningCatalog>>(
+    '/tracks/admin/listening-catalog',
+    change,
+    {
+      skipAuthReplay: true,
+    },
+  );
+  return data.data;
+}
+
+export interface ListeningCatalogReconciliation {
+  status: 'COMMITTED' | 'UNKNOWN';
+  receipt: null | {
+    auditId: number;
+    actorId: number;
+    attemptId: string;
+    reason: string;
+    before: ListeningCatalog;
+    after: ListeningCatalog;
+    recordedAt: string;
+  };
+}
+export async function reconcileListeningCatalog(request: {
+  attemptId: string;
+  expectedRevision: number;
+  beforeTrackIds: number[];
+  beforeDigest: string;
+  trackIds: number[];
+  reason: string;
+}): Promise<ListeningCatalogReconciliation> {
+  const { data } = await client.post<ApiResponse<ListeningCatalogReconciliation>>(
+    '/tracks/admin/listening-catalog/reconcile',
+    request,
+    { skipAuthReplay: true },
+  );
+  return data.data;
+}

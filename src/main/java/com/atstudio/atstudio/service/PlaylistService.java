@@ -43,6 +43,7 @@ public class PlaylistService {
     // ── 3.1 POST /api/playlists ──────────────────────────────────────────────
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public PlaylistResponse createPlaylist(PlaylistCreateRequest request,
                                            MultipartFile thumbnailFile,
                                            CustomUserDetails userDetails) {
@@ -190,6 +191,7 @@ public class PlaylistService {
     // ── 3.5 PUT /api/playlists/{id} ──────────────────────────────────────────
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public PlaylistResponse updatePlaylist(Long playlistId,
                                            PlaylistUpdateRequest request,
                                            MultipartFile thumbnailFile,
@@ -261,6 +263,7 @@ public class PlaylistService {
     // ── 3.8 DELETE /api/playlists/{id} ───────────────────────────────────────
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public void deletePlaylist(Long playlistId, CustomUserDetails userDetails) {
         validateSubscriber(userDetails);
         Playlist playlist = getOwnedPlaylistForUpdate(playlistId, userDetails.getId());

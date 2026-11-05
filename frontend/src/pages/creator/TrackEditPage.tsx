@@ -1,6 +1,10 @@
+import { isListeningMode } from '@/config/appMode';
+import { useListeningCatalog } from '@/hooks/useListeningCatalog';
+import { ListeningCatalogStatus } from '@/components/track/ListeningCatalogControls';
+import { Link } from 'react-router-dom';
 import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { toUploadUrl } from '@/api/client';
+import { useAdminTrackThumbnail } from '@/hooks/useAdminTrackThumbnail';
 import { fetchTrackDetailForAdmin, updateTrack, type AudioProcessing } from '@/api/tracks';
 import { fetchTags } from '@/api/tags';
 import type { TagItem } from '@/types';
@@ -54,6 +58,30 @@ const TONALITIES = [
 /** Screen 7: Track edit */
 export default function TrackEditPage() {
   const { trackId } = useParams<{ trackId: string }>();
+  return isListeningMode ? (
+    <ListeningEditGate key={trackId} trackId={trackId} />
+  ) : (
+    <TrackEditForm key={trackId} trackId={trackId} />
+  );
+}
+
+function ListeningEditGate({ trackId }: { trackId: string | undefined }) {
+  const catalog = useListeningCatalog();
+  const id = parsePositiveDecimalRouteID(trackId);
+  if (
+    catalog.loading ||
+    !catalog.snapshot ||
+    catalog.hold ||
+    (id !== null && catalog.snapshot.trackIds.includes(id))
+  ) {
+    return (
+      <>
+        <ListeningCatalogStatus catalog={catalog} />
+        <p>공개 중인 음원은 공개해제 후 수정하세요. 상태를 확인할 수 없으면 수정하지 않습니다.</p>
+        <Link to="/admin/track-manage">음원 관리로 돌아가기</Link>
+      </>
+    );
+  }
   return <TrackEditForm key={trackId} trackId={trackId} />;
 }
 
@@ -76,6 +104,8 @@ function TrackEditForm({ trackId }: { trackId: string | undefined }) {
   /* ── Existing file paths ── */
   const [currentAudioFile, setCurrentAudioFile] = useState<string | null>(null);
   const [currentThumbnail, setCurrentThumbnail] = useState<string | null>(null);
+
+  const currentThumbnailURL = useAdminTrackThumbnail(canonicalTrackID, currentThumbnail);
 
   /* ── Tag data ── */
   const [genreTags, setGenreTags] = useState<TagItem[]>([]);
@@ -346,7 +376,7 @@ function TrackEditForm({ trackId }: { trackId: string | undefined }) {
             <TrackThumbnailField
               value={thumbnail}
               onChange={setThumbnail}
-              existingImageUrl={toUploadUrl(currentThumbnail)}
+              existingImageUrl={currentThumbnailURL}
               existingFileName={currentThumbnail?.split('/').pop() ?? null}
               disabled={submitting}
             />

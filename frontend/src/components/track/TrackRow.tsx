@@ -1,3 +1,4 @@
+import { isListeningMode } from '@/config/appMode';
 import { Link } from 'react-router-dom';
 import type { TrackListItem } from '@/types';
 import { toUploadUrl } from '@/api/client';
@@ -123,7 +124,7 @@ export default function TrackRow({
       {/* Actions */}
       <td className={styles.cellActs}>
         <div className={styles.actions}>
-          {showAuthActions ? (
+          {isListeningMode ? null : showAuthActions ? (
             <>
               <button
                 className={`${styles.actBtn} ${liked ? styles.liked : ''}`}

@@ -1,3 +1,4 @@
+import { isListeningMode } from '@/config/appMode';
 import {
   useState,
   useCallback,
@@ -58,8 +59,8 @@ export default function PlayerBar() {
   const setVolume = usePlayerStore((s) => s.setVolume);
   const toggleMute = usePlayerStore((s) => s.toggleMute);
 
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
-  const role = useAuthStore((s) => s.role);
+  const isAuthenticated = useAuthStore((s) => !isListeningMode && s.isAuthenticated());
+  const role = useAuthStore((s) => (isListeningMode ? 'GUEST' : s.role));
   const authIdentity = useAuthStore((s) => s.user?.id ?? s.accessToken ?? null);
   const likeLoaded = useLikeStore((s) => s.loaded);
   const loadLikes = useLikeStore((s) => s.load);
@@ -162,6 +163,7 @@ export default function PlayerBar() {
 
   const hasSubscription = subscriptionStatus === 'active';
   const renderSubscriptionAction = (guestTarget: '/login' | '/subscriptions') => {
+    if (isListeningMode) return null;
     if (!isAuthenticated) {
       return (
         <button className={styles.buyBtn} onClick={() => navigate(guestTarget)}>
@@ -570,20 +572,24 @@ export default function PlayerBar() {
             >
               {'재생기록'}
             </button>
-            <button
-              className={styles.actionBtn}
-              onClick={() => toggleDrawer('likes')}
-              aria-label="좋아요 목록 열기"
-              title="좋아요 목록 열기"
-            >
-              {'좋아요'}
-            </button>
-            <button
-              className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
-              onClick={() => toggleDrawer('playlists')}
-            >
-              {'재생목록'}
-            </button>
+            {!isListeningMode && (
+              <button
+                className={styles.actionBtn}
+                onClick={() => toggleDrawer('likes')}
+                aria-label="좋아요 목록 열기"
+                title="좋아요 목록 열기"
+              >
+                {'좋아요'}
+              </button>
+            )}
+            {!isListeningMode && (
+              <button
+                className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
+                onClick={() => toggleDrawer('playlists')}
+              >
+                {'재생목록'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -625,20 +631,24 @@ export default function PlayerBar() {
                 >
                   {'재생기록'}
                 </button>
-                <button
-                  className={styles.actionBtn}
-                  onClick={() => toggleDrawer('likes')}
-                  aria-label="좋아요 목록 열기"
-                  title="좋아요 목록 열기"
-                >
-                  {'좋아요'}
-                </button>
-                <button
-                  className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
-                  onClick={() => toggleDrawer('playlists')}
-                >
-                  {'재생목록'}
-                </button>
+                {!isListeningMode && (
+                  <button
+                    className={styles.actionBtn}
+                    onClick={() => toggleDrawer('likes')}
+                    aria-label="좋아요 목록 열기"
+                    title="좋아요 목록 열기"
+                  >
+                    {'좋아요'}
+                  </button>
+                )}
+                {!isListeningMode && (
+                  <button
+                    className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
+                    onClick={() => toggleDrawer('playlists')}
+                  >
+                    {'재생목록'}
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -715,37 +725,41 @@ export default function PlayerBar() {
             </button>
             {currentUsageText && <div className={styles.trackUsage}>{currentUsageText}</div>}
           </div>
-          <button
-            className={`${styles.heartBtn} ${likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
-            aria-label={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
-            aria-pressed={likedIds.has(currentTrack.id)}
-            title={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
-            onClick={() => {
-              if (!isAuthenticated) {
-                toast('warning', '로그인 후 이용 가능합니다.');
-                navigate(loginPath);
-                return;
-              }
-              void toggleLike(currentTrack.id);
-            }}
-          >
-            {likedIds.has(currentTrack.id) ? '\u2665' : '\u2661'}
-          </button>
-          <button
-            className={styles.addToPlBtn}
-            aria-label="재생목록에 추가"
-            onClick={() => {
-              if (!isAuthenticated) {
-                toast('warning', '로그인 후 이용 가능합니다.');
-                navigate(loginPath);
-                return;
-              }
-              setShowPlModal(true);
-            }}
-            title="재생목록에 추가"
-          >
-            +
-          </button>
+          {!isListeningMode && (
+            <button
+              className={`${styles.heartBtn} ${likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
+              aria-label={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
+              aria-pressed={likedIds.has(currentTrack.id)}
+              title={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
+              onClick={() => {
+                if (!isAuthenticated) {
+                  toast('warning', '로그인 후 이용 가능합니다.');
+                  navigate(loginPath);
+                  return;
+                }
+                void toggleLike(currentTrack.id);
+              }}
+            >
+              {likedIds.has(currentTrack.id) ? '\u2665' : '\u2661'}
+            </button>
+          )}
+          {!isListeningMode && (
+            <button
+              className={styles.addToPlBtn}
+              aria-label="재생목록에 추가"
+              onClick={() => {
+                if (!isAuthenticated) {
+                  toast('warning', '로그인 후 이용 가능합니다.');
+                  navigate(loginPath);
+                  return;
+                }
+                setShowPlModal(true);
+              }}
+              title="재생목록에 추가"
+            >
+              +
+            </button>
+          )}
         </div>
 
         {/* Center: Prev + Play + Next + Waveform + Time */}
@@ -868,20 +882,24 @@ export default function PlayerBar() {
           >
             {'재생기록'}
           </button>
-          <button
-            className={styles.actionBtn}
-            onClick={() => toggleDrawer('likes')}
-            aria-label="좋아요 목록 열기"
-            title="좋아요 목록 열기"
-          >
-            {'좋아요'}
-          </button>
-          <button
-            className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
-            onClick={() => toggleDrawer('playlists')}
-          >
-            {'재생목록'}
-          </button>
+          {!isListeningMode && (
+            <button
+              className={styles.actionBtn}
+              onClick={() => toggleDrawer('likes')}
+              aria-label="좋아요 목록 열기"
+              title="좋아요 목록 열기"
+            >
+              {'좋아요'}
+            </button>
+          )}
+          {!isListeningMode && (
+            <button
+              className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
+              onClick={() => toggleDrawer('playlists')}
+            >
+              {'재생목록'}
+            </button>
+          )}
           {(role === 'ADMIN' || (isAuthenticated && hasSubscription)) && (
             <button
               className={styles.downloadBtn}
@@ -946,22 +964,24 @@ export default function PlayerBar() {
           <div className={styles.mobileControls}>
             {!expanded && (
               <>
-                <button
-                  className={`${styles.heartBtn} ${likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
-                  aria-label={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
-                  aria-pressed={likedIds.has(currentTrack.id)}
-                  title={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
-                  onClick={() => {
-                    if (!isAuthenticated) {
-                      toast('warning', '로그인 후 이용 가능합니다.');
-                      navigate(loginPath);
-                      return;
-                    }
-                    void toggleLike(currentTrack.id);
-                  }}
-                >
-                  {likedIds.has(currentTrack.id) ? '\u2665' : '\u2661'}
-                </button>
+                {!isListeningMode && (
+                  <button
+                    className={`${styles.heartBtn} ${likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
+                    aria-label={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
+                    aria-pressed={likedIds.has(currentTrack.id)}
+                    title={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
+                    onClick={() => {
+                      if (!isAuthenticated) {
+                        toast('warning', '로그인 후 이용 가능합니다.');
+                        navigate(loginPath);
+                        return;
+                      }
+                      void toggleLike(currentTrack.id);
+                    }}
+                  >
+                    {likedIds.has(currentTrack.id) ? '\u2665' : '\u2661'}
+                  </button>
+                )}
                 <button
                   className={styles.playBtn}
                   onClick={handlePlayPause}
@@ -1099,20 +1119,24 @@ export default function PlayerBar() {
               >
                 {'재생기록'}
               </button>
-              <button
-                className={styles.actionBtn}
-                onClick={() => toggleDrawer('likes')}
-                aria-label="좋아요 목록 열기"
-                title="좋아요 목록 열기"
-              >
-                {'좋아요'}
-              </button>
-              <button
-                className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
-                onClick={() => toggleDrawer('playlists')}
-              >
-                {'재생목록'}
-              </button>
+              {!isListeningMode && (
+                <button
+                  className={styles.actionBtn}
+                  onClick={() => toggleDrawer('likes')}
+                  aria-label="좋아요 목록 열기"
+                  title="좋아요 목록 열기"
+                >
+                  {'좋아요'}
+                </button>
+              )}
+              {!isListeningMode && (
+                <button
+                  className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
+                  onClick={() => toggleDrawer('playlists')}
+                >
+                  {'재생목록'}
+                </button>
+              )}
               {(role === 'ADMIN' || (isAuthenticated && hasSubscription)) && (
                 <button
                   className={styles.downloadBtn}

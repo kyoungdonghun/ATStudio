@@ -1,0 +1,109 @@
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    return 444;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __APP_FQDN__;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/lib/atstudio/acme;
+        default_type text/plain;
+        autoindex off;
+        disable_symlinks on;
+        limit_except GET { deny all; }
+        try_files $uri =404;
+    }
+
+    # Early redirect is public; the HTTPS application's ACL is applied afterward.
+    location / {
+        return 308 https://__APP_FQDN__$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name _;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_reject_handshake on;
+    return 444;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name __APP_FQDN__;
+    ssl_certificate /etc/atstudio/tls/fullchain.pem;
+    ssl_certificate_key /etc/atstudio/tls/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:ats_tls:1m;
+    ssl_session_timeout 10m;
+    ssl_session_tickets off;
+
+    # LOCAL CANDIDATE ONLY. Replace the restricted template only after deployment approval.
+    if ($host != __APP_FQDN__) { return 444; }
+    root /opt/atstudio/current/frontend;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy no-referrer always;
+    add_header X-Frame-Options DENY always;
+    limit_conn ats_client 8;
+    limit_conn ats_server 32;
+    limit_conn ats_multipart_client 1;
+    limit_conn ats_multipart_server 2;
+
+    location = / { return 302 /tracks; }
+    location ~ ^/tracks(?:/[1-9][0-9]*)?$ {
+        limit_except GET { deny all; }
+        try_files /index.html =404;
+    }
+    location /assets/ {
+        limit_except GET { deny all; }
+        try_files $uri =404;
+    }
+    location = /favicon.ico { try_files $uri =404; }
+
+    # Operator SPA remains source-restricted; APIs also enforce ADMIN in Spring.
+    location ~ ^/(?:login|admin(?:/track-manage|/tracks/upload|/tracks/[1-9][0-9]*/edit)?)$ {
+        include /etc/atstudio/nginx/restricted-access.conf;
+        limit_except GET { deny all; }
+        try_files /index.html =404;
+    }
+    location = /api/tracks/batch {
+        limit_except POST { deny all; }
+        include /etc/atstudio/nginx/proxy.conf;
+    }
+    location ~ ^/api/tracks/[1-9][0-9]*/stream$ {
+        limit_except GET { deny all; }
+        include /etc/atstudio/nginx/proxy.conf;
+        limit_req zone=ats_media burst=8 nodelay;
+        limit_conn ats_client 8;
+        limit_conn ats_server 32;
+        limit_conn ats_media_client 4;
+        limit_conn ats_media_server 16;
+        limit_rate $ats_media_rate;
+    }
+    # /tracks and /tracks/ID are public GET and restricted operator writes.
+    # Source + role + exact method enforcement for writes lives in the backend.
+    location ~ ^/api/tracks(?:/[1-9][0-9]*)?$ {
+        include /etc/atstudio/nginx/proxy.conf;
+    }
+    location ~ ^/api/tags(?:/available)?$ {
+        limit_except GET { deny all; }
+        include /etc/atstudio/nginx/proxy.conf;
+    }
+    location ~ ^/uploads/tracks/thumbnail/[A-Za-z0-9_-]+\.[A-Za-z0-9]+$ {
+        limit_except GET { deny all; }
+        # Never serve storage directly: Spring verifies active selected ownership.
+        include /etc/atstudio/nginx/proxy.conf;
+    }
+    location ~ ^/api/(?:auth/(?:login|refresh|logout)|users/me|utils/public-capabilities|tags/admin|tracks/admin(?:/listening-catalog(?:/reconcile)?|/[1-9][0-9]*(?:/audio-processing(?:/retry)?|/thumbnail)?)?)$ {
+        include /etc/atstudio/nginx/restricted-access.conf;
+        include /etc/atstudio/nginx/proxy.conf;
+    }
+    location / { return 404; }
+}

@@ -20,18 +20,39 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class PlayableTrackService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private ListeningCatalogService catalog;
+
+    private java.util.List<Long> selectedIds() {
+        if (catalog != null) return catalog.snapshot().trackIds();
+        if (listening.getCatalogSource() == com.atstudio.atstudio.config.ListeningProperties.CatalogSource.DATABASE) {
+            throw new IllegalStateException("Catalog service required in database mode");
+        }
+        return listening.getTrackIds().stream().sorted().toList();
+    }
+
+
+    // Initialized for standalone service fixtures; Spring always injects the bound policy.
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.atstudio.atstudio.config.ListeningProperties listening =
+            new com.atstudio.atstudio.config.ListeningProperties();
 
     public static final int MAX_BATCH_SIZE = 100;
 
     private final TrackRepository trackRepository;
     private final TrackTagRepository trackTagRepository;
 
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public List<PlayableTrackResponse> hydrate(List<Long> requestedIds) {
         List<Long> ids = new LinkedHashSet<>(requestedIds).stream()
                 .limit(MAX_BATCH_SIZE + 1L)
                 .toList();
         if (ids.size() > MAX_BATCH_SIZE) {
             throw new IllegalArgumentException("Playable track batch is limited to 100 IDs");
+        }
+        if (listening.isEnabled()) {
+            var selected = selectedIds();
+            ids = ids.stream().filter(selected::contains).toList();
         }
         if (ids.isEmpty()) {
             return List.of();

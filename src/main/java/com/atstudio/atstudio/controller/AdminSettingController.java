@@ -21,6 +21,7 @@ public class AdminSettingController {
     public ResponseEntity<ResponseDTO<Void>> updateSetting(
             @PathVariable String key,
             @Valid @RequestBody SettingUpdateRequest request) {
+        com.atstudio.atstudio.service.ReservedSettingPolicy.requireGenericKey(key);
         siteSettingService.setValue(key, request.getValue());
         return ResponseEntity.ok(ResponseDTO.<Void>withMessage()
                 .message("Setting updated")

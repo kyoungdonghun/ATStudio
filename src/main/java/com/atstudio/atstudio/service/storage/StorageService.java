@@ -7,6 +7,9 @@ import java.util.function.Consumer;
 
 public interface StorageService {
 
+    default StorageContinuityGuard.Lease enterMutation() { return StorageContinuityGuard.disabled().enter(); }
+    default void haltForUncertainWriter() { throw new IllegalStateException("Storage writer state is uncertain"); }
+
     String generateKey(String directory, String submittedFilename);
 
     void stage(StorageRoot root, String operationId, String finalKey, MultipartFile file);

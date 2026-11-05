@@ -82,6 +82,18 @@ public class TrackController {
         return ResponseEntity.ok(trackService.getTracksForAdmin(isActive, keyword, page, size));
     }
 
+    @GetMapping("/admin/{trackId}/thumbnail")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Resource> getThumbnailForAdmin(@PathVariable Long trackId) {
+        Resource resource = trackService.getThumbnailForAdmin(trackId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "private, no-store")
+                .header("X-Content-Type-Options", "nosniff")
+                .contentType(org.springframework.http.MediaTypeFactory.getMediaType(resource)
+                        .orElse(MediaType.APPLICATION_OCTET_STREAM))
+                .body(resource);
+    }
+
     @GetMapping("/admin/{trackId}/audio-processing")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseDTO<AudioProcessingResponse>> getAudioProcessing(@PathVariable Long trackId) {

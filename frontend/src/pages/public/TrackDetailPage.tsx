@@ -1,3 +1,4 @@
+import { isListeningMode } from '@/config/appMode';
 /** Screen B-1: Track detail */
 import { useEffect, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
@@ -38,7 +39,7 @@ export default function TrackDetailPage() {
   const playTrack = usePlayerStore((s) => s.play);
   const pauseTrack = usePlayerStore((s) => s.pause);
   const resumeTrack = usePlayerStore((s) => s.resume);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const isAuthenticated = useAuthStore((s) => !isListeningMode && s.isAuthenticated());
   const likeLoaded = useLikeStore((s) => s.loaded);
   const loadLikes = useLikeStore((s) => s.load);
   const likedIds = useLikeStore((s) => s.likedIds);
@@ -246,6 +247,7 @@ export default function TrackDetailPage() {
         <div className={styles.infoSection}>
           <h1 className={styles.title}>{track.title}</h1>
 
+          {isListeningMode && <p>업로더: {track.artistName}</p>}
           {/* Meta grid */}
           <dl className={styles.metaGrid}>
             <div className={styles.metaRow}>
@@ -261,7 +263,7 @@ export default function TrackDetailPage() {
               <dd>{track.playCount.toLocaleString()}</dd>
             </div>
             <div className={styles.metaRow}>
-              <dt>등록일</dt>
+              <dt>{isListeningMode ? '사이트 업로드일' : '등록일'}</dt>
               <dd>{formatDate(track.createdAt)}</dd>
             </div>
           </dl>
@@ -291,24 +293,26 @@ export default function TrackDetailPage() {
           {track.description && <p className={styles.desc}>{track.description}</p>}
 
           {/* License info */}
-          <div className={styles.licenseSection}>
-            <h2 className={styles.sectionLabel}>라이선스 안내</h2>
-            <div className={styles.licenseCards}>
-              <div className={styles.licenseCard}>
-                <div className={styles.licenseType}>개인 라이선스</div>
-                <p className={styles.licenseDesc}>
-                  개인 채널에서 쇼츠, 브이로그 등 비상업적 콘텐츠에 사용 가능합니다.
-                </p>
-              </div>
-              <div className={styles.licenseCard}>
-                <div className={styles.licenseType}>상업 라이선스</div>
-                <p className={styles.licenseDesc}>
-                  기업/브랜드 채널의 광고, 프로모션 등 상업적 콘텐츠에 사용 가능합니다. Pro 이상
-                  구독 필요.
-                </p>
+          {!isListeningMode && (
+            <div className={styles.licenseSection}>
+              <h2 className={styles.sectionLabel}>라이선스 안내</h2>
+              <div className={styles.licenseCards}>
+                <div className={styles.licenseCard}>
+                  <div className={styles.licenseType}>개인 라이선스</div>
+                  <p className={styles.licenseDesc}>
+                    개인 채널에서 쇼츠, 브이로그 등 비상업적 콘텐츠에 사용 가능합니다.
+                  </p>
+                </div>
+                <div className={styles.licenseCard}>
+                  <div className={styles.licenseType}>상업 라이선스</div>
+                  <p className={styles.licenseDesc}>
+                    기업/브랜드 채널의 광고, 프로모션 등 상업적 콘텐츠에 사용 가능합니다. Pro 이상
+                    구독 필요.
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 

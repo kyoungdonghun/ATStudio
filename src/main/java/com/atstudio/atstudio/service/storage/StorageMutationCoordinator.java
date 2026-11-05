@@ -130,6 +130,14 @@ public class StorageMutationCoordinator {
             storageService.promote(root, operationId, draft.newKey());
             return generated;
         } catch (RuntimeException exception) {
+            if (exception instanceof com.atstudio.atstudio.service.audio.AudioTranscodeException audio
+                    && audio.code() == com.atstudio.atstudio.service.audio.AudioTranscodeException.Code.AUDIO_PROCESS_TERMINATION_FAILED) {
+                try {
+                    storageService.haltForUncertainWriter();
+                } catch (RuntimeException guardFailure) {
+                    exception.addSuppressed(guardFailure);
+                }
+            }
             generated.close();
             throw exception;
         }
@@ -301,6 +309,8 @@ public class StorageMutationCoordinator {
                 draft.newKey());
         if (outcome == StorageCleanupService.CleanupOutcome.DONE) {
             journalService.transition(mutationId, StorageMutationState.DONE, "NEW_DELETE_DONE");
+        } else if (outcome == StorageCleanupService.CleanupOutcome.DEFERRED) {
+            journalService.deferPreserved(mutationId, false);
         } else {
             recordRetry(mutationId, "NEW_DELETE_FAILED");
         }
@@ -318,6 +328,7 @@ public class StorageMutationCoordinator {
                     StorageMutationState.DONE,
                     "SHARED_REFERENCE_RETAINED");
             case FAILED -> recordRetry(mutationId, "OLD_DELETE_FAILED");
+            case DEFERRED -> journalService.deferPreserved(mutationId, false);
         }
     }
 

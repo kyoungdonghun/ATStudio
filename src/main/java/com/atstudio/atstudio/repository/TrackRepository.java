@@ -34,6 +34,14 @@ public interface TrackRepository extends JpaRepository<Track, Long>, JpaSpecific
     @Query("SELECT t FROM Track t WHERE t.id IN :ids AND t.isActive = true")
     List<Track> findAllActiveByIdIn(@Param("ids") List<Long> ids);
 
+    boolean existsByThumbnailAndIsActiveTrueAndIdIn(String thumbnail, java.util.Collection<Long> ids);
+
+    @Query("select distinct t.thumbnail from Track t where t.thumbnail = :key and t.isActive = true and t.id in :ids")
+    List<String> findSelectedThumbnailKeys(@Param("key") String key, @Param("ids") java.util.Collection<Long> ids);
+
+    @Query("select t.id from Track t where t.user.id = :userId order by t.id")
+    List<Long> findIdsByUserId(@Param("userId") Long userId);
+
     long countByIsActiveTrue();
 
     @Query("SELECT t.id FROM Track t WHERE t.audioProcessingState = "

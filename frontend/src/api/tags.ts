@@ -1,3 +1,4 @@
+import { isListeningMode, isListeningOperatorPath } from '@/config/appMode';
 import client from '@/api/client';
 import type { ApiResponse, TagDeletionImpact, TagItem, TagType } from '@/types';
 
@@ -6,7 +7,10 @@ export async function fetchTags(type?: string): Promise<TagItem[]> {
   const params: Record<string, string> = {};
   if (type) params.type = type;
 
-  const { data } = await client.get<{ dataList: TagItem[] }>('/tags', { params });
+  const { data } = await client.get<{ dataList: TagItem[] }>(
+    isListeningMode && isListeningOperatorPath(window.location.pathname) ? '/tags/admin' : '/tags',
+    { params },
+  );
   return data.dataList;
 }
 

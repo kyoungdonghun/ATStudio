@@ -16,14 +16,20 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class TrackAudioProcessingTransactions {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.atstudio.atstudio.service.ListeningCatalogService catalog;
+    private void requireUnselected(Long id) { if (catalog != null) catalog.requireUnselected(id); }
+
     private final TrackRepository tracks;
     private final StorageMutationCoordinator mutations;
 
     public record Claim(Long trackId, long generation, String token, String sourceKey) { }
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public Claim claimNext() {
         for (Long id : tracks.findPendingAudioIds(PageRequest.of(0, 1))) {
+            requireUnselected(id);
             Track track = tracks.findByIdForUpdate(id).orElse(null);
             if (track == null || track.getAudioProcessingState() != AudioProcessingState.PENDING
                     || track.getAudioClaimToken() != null || track.getPendingAudioFile() == null) continue;
@@ -35,8 +41,10 @@ public class TrackAudioProcessingTransactions {
     }
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public boolean complete(Claim claim, StorageMutationCoordinator.GeneratedWrite generated,
             AudioAnalysisResult analysis) {
+        requireUnselected(claim.trackId());
         Track track = tracks.findByIdForUpdate(claim.trackId()).orElse(null);
         if (track == null) return false;
         boolean current = track.ownsAudioClaim(claim.generation(), claim.token());
@@ -54,7 +62,9 @@ public class TrackAudioProcessingTransactions {
     }
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public void fail(Claim claim, AudioTranscodeException.Code code) {
+        requireUnselected(claim.trackId());
         Track track = tracks.findByIdForUpdate(claim.trackId()).orElse(null);
         if (track == null) return;
         if (track.ownsAudioClaim(claim.generation(), claim.token())) track.failAudio(code.name());
@@ -62,9 +72,11 @@ public class TrackAudioProcessingTransactions {
     }
 
     @Transactional
+    @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public int recoverInterruptedBatch() {
         var ids = tracks.findClaimedAudioIds(PageRequest.of(0, 50));
-        for (Long id : ids) {
+        for (Long id : ids.stream().sorted().toList()) {
+            requireUnselected(id);
             Track track = tracks.findByIdForUpdate(id).orElse(null);
             if (track == null || track.getAudioClaimToken() == null) continue;
             if (track.getAudioProcessingState() == AudioProcessingState.PROCESSING) {

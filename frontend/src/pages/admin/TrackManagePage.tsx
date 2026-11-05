@@ -1,8 +1,15 @@
+import { useListeningCatalog } from '@/hooks/useListeningCatalog';
+import {
+  ListeningCatalogStatus,
+  ListeningPublicationDialog,
+  type PublicationTarget,
+} from '@/components/track/ListeningCatalogControls';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { fetchAdminTracks, deleteTrack, type AdminTrackListItem } from '@/api/tracks';
 import type { PageInfo } from '@/types';
-import { toUploadUrl } from '@/api/client';
+import { isListeningMode } from '@/config/appMode';
+import { useAdminTrackThumbnail } from '@/hooks/useAdminTrackThumbnail';
 import { formatDate } from '@/utils/format';
 import { parsePositiveDecimalRouteID } from '@/utils/routeId';
 import { SEARCH_KEYWORD_MAX } from '@/utils/validation';
@@ -34,9 +41,16 @@ function normalizeKeyword(rawKeyword: string | null): string {
   return (rawKeyword ?? '').trim().slice(0, SEARCH_KEYWORD_MAX);
 }
 
+function AdminTrackThumbnail({ track }: { track: AdminTrackListItem }) {
+  const url = useAdminTrackThumbnail(track.id, track.thumbnail);
+  return url ? <img src={url} alt={track.title} /> : <span aria-label="음원 커버">{'\u266A'}</span>;
+}
+
 /** Screen K-7: Track management (admin) */
 export default function TrackManagePage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const catalog = useListeningCatalog();
+  const [publicationTarget, setPublicationTarget] = useState<PublicationTarget | null>(null);
 
   const rawPage = searchParams.get('page');
   const rawFilter = searchParams.get('filter');
@@ -166,7 +180,7 @@ export default function TrackManagePage() {
   }
 
   function openDelete(track: AdminTrackListItem) {
-    if (deletePendingRef.current) return;
+    if (isListeningMode || deletePendingRef.current) return;
     deleteGenerationRef.current += 1;
     setDeleteTarget(track);
     setDeleteError(null);
@@ -175,7 +189,7 @@ export default function TrackManagePage() {
   }
 
   function closeDeleteModal() {
-    if (deletePendingRef.current) return;
+    if (isListeningMode || deletePendingRef.current) return;
     deleteGenerationRef.current += 1;
     setDeleteTarget(null);
     setDeleteError(null);
@@ -184,7 +198,8 @@ export default function TrackManagePage() {
   }
 
   async function handleDelete() {
-    if (!deleteTarget || deletePendingRef.current || deleteCommittedRef.current) return;
+    if (isListeningMode || !deleteTarget || deletePendingRef.current || deleteCommittedRef.current)
+      return;
     const targetID = deleteTarget.id;
     const generation = deleteGenerationRef.current;
     const ownsDelete = () => deleteGenerationRef.current === generation;
@@ -252,6 +267,7 @@ export default function TrackManagePage() {
         </div>
       </div>
 
+      {isListeningMode && <ListeningCatalogStatus catalog={catalog} />}
       <div className={styles.filterBar}>
         <label className={styles.filterLabel} htmlFor="track-status-filter">
           상태
@@ -317,11 +333,7 @@ export default function TrackManagePage() {
                     <td className={styles.cellInfo}>
                       <div className={styles.info}>
                         <div className={styles.thumb}>
-                          {track.thumbnail ? (
-                            <img src={toUploadUrl(track.thumbnail)!} alt={track.title} />
-                          ) : (
-                            '\u266A'
-                          )}
+                          <AdminTrackThumbnail track={track} />
                         </div>
                         <span className={styles.trackTitle}>{track.title}</span>
                       </div>
@@ -343,21 +355,65 @@ export default function TrackManagePage() {
                       />
                     </td>
                     <td className={styles.cellDate}>{formatDate(track.createdAt)}</td>
-                    <td className={styles.cellActions}>
+                    <td
+                      className={`${styles.cellActions} ${isListeningMode ? styles.listeningActions : ''}`}
+                    >
                       <div className={styles.actionBtns}>
-                        <Link to={`/admin/tracks/${track.id}/edit`}>
-                          <button type="button" className={styles.actBtn}>
-                            수정
+                        {isListeningMode && (
+                          <>
+                            <span>
+                              {catalog.snapshot
+                                ? catalog.snapshot.trackIds.includes(track.id)
+                                  ? '공개 선정'
+                                  : '미선정'
+                                : '공개 상태 확인 불가'}
+                            </span>
+                            <Button
+                              size="sm"
+                              disabled={
+                                catalog.loading ||
+                                catalog.pending ||
+                                catalog.hold ||
+                                catalog.snapshot?.source !== 'DATABASE'
+                              }
+                              onClick={() => {
+                                if (catalog.snapshot)
+                                  setPublicationTarget({
+                                    id: track.id,
+                                    title: track.title,
+                                    publish: !catalog.snapshot.trackIds.includes(track.id),
+                                    revision: catalog.snapshot.revision,
+                                  });
+                              }}
+                            >
+                              {catalog.snapshot?.trackIds.includes(track.id) ? '공개해제' : '공개'}
+                            </Button>
+                          </>
+                        )}
+                        {!isListeningMode ||
+                        (catalog.snapshot &&
+                          !catalog.loading &&
+                          !catalog.pending &&
+                          !catalog.hold &&
+                          !catalog.snapshot.trackIds.includes(track.id)) ? (
+                          <Link to={`/admin/tracks/${track.id}/edit`}>
+                            <button type="button" className={styles.actBtn}>
+                              수정
+                            </button>
+                          </Link>
+                        ) : (
+                          <span>공개해제·상태 확인 후 수정</span>
+                        )}
+                        {!isListeningMode && (
+                          <button
+                            type="button"
+                            className={styles.actBtnDanger}
+                            onClick={() => openDelete(track)}
+                            disabled={deleting}
+                          >
+                            삭제
                           </button>
-                        </Link>
-                        <button
-                          type="button"
-                          className={styles.actBtnDanger}
-                          onClick={() => openDelete(track)}
-                          disabled={deleting}
-                        >
-                          삭제
-                        </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -372,41 +428,55 @@ export default function TrackManagePage() {
         </>
       )}
 
-      <Modal
-        open={deleteTarget !== null}
-        onClose={closeDeleteModal}
-        title="음원 삭제"
-        busy={deleting}
-      >
-        <div className={styles.modalBody}>
-          <strong>{deleteTarget?.title}</strong> 음원을 삭제하시겠습니까?
-          <br />이 작업은 기존 정책에 따라 비활성화로 처리됩니다.
-        </div>
-        {deleteError && (
-          <div className={styles.modalError} role="alert">
-            {deleteError}
+      {isListeningMode && (
+        <ListeningPublicationDialog
+          key={
+            publicationTarget
+              ? `${catalog.ownerIdentity}:${publicationTarget.id}:${publicationTarget.revision}:${publicationTarget.publish}`
+              : 'closed'
+          }
+          catalog={catalog}
+          target={publicationTarget}
+          onClose={() => setPublicationTarget(null)}
+        />
+      )}
+      {!isListeningMode && (
+        <Modal
+          open={deleteTarget !== null}
+          onClose={closeDeleteModal}
+          title="음원 삭제"
+          busy={deleting}
+        >
+          <div className={styles.modalBody}>
+            <strong>{deleteTarget?.title}</strong> 음원을 삭제하시겠습니까?
+            <br />이 작업은 기존 정책에 따라 비활성화로 처리됩니다.
           </div>
-        )}
-        <div className={styles.modalActions}>
-          <Button variant="ghost" size="sm" onClick={closeDeleteModal} disabled={deleting}>
-            닫기
-          </Button>
-          {deleteCommitted ? (
-            <Button size="sm" loading={deleting} onClick={() => void retryCommittedRefresh()}>
-              목록 새로고침
-            </Button>
-          ) : (
-            <Button
-              variant="danger"
-              size="sm"
-              loading={deleting}
-              onClick={() => void handleDelete()}
-            >
-              {deleteError ? '삭제 다시 시도' : '삭제'}
-            </Button>
+          {deleteError && (
+            <div className={styles.modalError} role="alert">
+              {deleteError}
+            </div>
           )}
-        </div>
-      </Modal>
+          <div className={styles.modalActions}>
+            <Button variant="ghost" size="sm" onClick={closeDeleteModal} disabled={deleting}>
+              닫기
+            </Button>
+            {deleteCommitted ? (
+              <Button size="sm" loading={deleting} onClick={() => void retryCommittedRefresh()}>
+                목록 새로고침
+              </Button>
+            ) : (
+              <Button
+                variant="danger"
+                size="sm"
+                loading={deleting}
+                onClick={() => void handleDelete()}
+              >
+                {deleteError ? '삭제 다시 시도' : '삭제'}
+              </Button>
+            )}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

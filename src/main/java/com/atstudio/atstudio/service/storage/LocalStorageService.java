@@ -38,6 +38,16 @@ public class LocalStorageService implements StorageService {
     private final String privatePath;
     private final boolean requireExplicitRoots;
     private final Map<StorageRoot, Path> roots = new EnumMap<>(StorageRoot.class);
+    private StorageContinuityGuard continuity = StorageContinuityGuard.disabled();
+
+    @Autowired
+    void setContinuity(StorageContinuityGuard continuity) { this.continuity = continuity; }
+
+    @Override
+    public StorageContinuityGuard.Lease enterMutation() { return continuity.enter(); }
+    @Override
+    public void haltForUncertainWriter() { continuity.haltForUncertainWriter(); }
+    Path captureRoot(StorageRoot root) { return rootPath(root); }
 
     @Autowired
     public LocalStorageService(
@@ -73,6 +83,7 @@ public class LocalStorageService implements StorageService {
             }
             roots.put(StorageRoot.PUBLIC, publicRoot);
             roots.put(StorageRoot.PRIVATE, privateRoot);
+            continuity.bindRoots(publicRoot, privateRoot);
         } catch (IOException exception) {
             throw new IllegalStateException("Storage roots could not be initialized", exception);
         }
@@ -87,6 +98,10 @@ public class LocalStorageService implements StorageService {
 
     @Override
     public void stage(StorageRoot root, String operationId, String finalKey, MultipartFile file) {
+        try (var ignored = continuity.enter()) { stageAdmitted(root, operationId, finalKey, file); }
+    }
+
+    private void stageAdmitted(StorageRoot root, String operationId, String finalKey, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw ioFailure();
         }
@@ -115,11 +130,22 @@ public class LocalStorageService implements StorageService {
 
     @Override
     public void promote(StorageRoot root, String operationId, String finalKey) {
+        Boolean promoted = continuity.mutate(new StorageContinuityGuard.FileRef(root, finalKey), false, () -> {
+            return continuity.mutate(new StorageContinuityGuard.FileRef(root, ".staging/" + operationId + "/" + finalKey), false, () -> {
+                promoteUnprotected(root, operationId, finalKey);
+                return true;
+            });
+        });
+        if (!promoted) throw ioFailure();
+    }
+
+    private void promoteUnprotected(StorageRoot root, String operationId, String finalKey) {
         Path stagedFile = resolveStaged(root, operationId, finalKey);
         Path finalFile = resolveForWrite(root, finalKey);
         try {
             requireRegularFile(stagedFile);
             createSecureDirectories(finalFile.getParent(), rootPath(root));
+            if (Files.exists(finalFile, LinkOption.NOFOLLOW_LINKS)) throw ioFailure();
             Files.move(stagedFile, finalFile, StandardCopyOption.ATOMIC_MOVE);
             pruneEmptyStagingDirectories(stagedFile.getParent(), stagingOperationRoot(root, operationId));
         } catch (AtomicMoveNotSupportedException exception) {
@@ -131,6 +157,10 @@ public class LocalStorageService implements StorageService {
 
     @Override
     public void stageGenerated(StorageRoot root, String operationId, String finalKey, Consumer<Path> generator) {
+        try (var ignored = continuity.enter()) { stageGeneratedAdmitted(root, operationId, finalKey, generator); }
+    }
+
+    private void stageGeneratedAdmitted(StorageRoot root, String operationId, String finalKey, Consumer<Path> generator) {
         Path stagedFile = resolveStaged(root, operationId, finalKey);
         try {
             createSecureDirectories(stagedFile.getParent(), rootPath(root));
@@ -144,12 +174,19 @@ public class LocalStorageService implements StorageService {
 
     @Override
     public StorageDeleteResult delete(StorageRoot root, String relativeKey) {
-        return deletePath(resolveExistingCandidate(root, relativeKey));
+        Path target = resolveExistingCandidate(root, relativeKey);
+        return continuity.mutate(new StorageContinuityGuard.FileRef(root, relativeKey),
+                StorageDeleteResult.DEFERRED, () -> deletePath(target));
     }
 
     @Override
     public StorageDeleteResult deleteStaged(StorageRoot root, String operationId, String finalKey) {
         Path stagedFile = resolveStaged(root, operationId, finalKey);
+        return continuity.mutate(new StorageContinuityGuard.FileRef(root, ".staging/" + operationId + "/" + finalKey),
+                StorageDeleteResult.DEFERRED, () -> deleteStagedUnprotected(root, operationId, stagedFile));
+    }
+
+    private StorageDeleteResult deleteStagedUnprotected(StorageRoot root, String operationId, Path stagedFile) {
         StorageDeleteResult result = deletePath(stagedFile);
         try {
             pruneEmptyStagingDirectories(stagedFile.getParent(), stagingOperationRoot(root, operationId));
@@ -262,6 +299,7 @@ public class LocalStorageService implements StorageService {
 
     private String validateRelativeKey(String value) {
         if (value == null || value.isBlank()
+                || value.equals(".continuity-owner") || value.startsWith(".continuity-owner/")
                 || value.indexOf('\0') >= 0
                 || value.contains("\\")
                 || value.contains(":")

@@ -1,3 +1,4 @@
+import { isListeningMode } from '@/config/appMode';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { UNCONFIRMED_LOGOUT_WARNING, useAuthStore } from '@/store/authStore';
@@ -69,14 +70,21 @@ function SidebarContent({
   return (
     <>
       <div className={styles.sidebarHeader}>
-        <Link to="/admin/dashboard" className={styles.logo} onClick={onNavigate}>
+        <Link
+          to={isListeningMode ? '/admin/track-manage' : '/admin/dashboard'}
+          className={styles.logo}
+          onClick={onNavigate}
+        >
           AT.M
         </Link>
         <span className={styles.logoSub}>Admin</span>
       </div>
 
       <nav className={styles.sidebarNav}>
-        {MENU_ITEMS.map((item) => (
+        {MENU_ITEMS.filter(
+          (item) =>
+            !isListeningMode || ['/admin/track-manage', '/admin/tracks/upload'].includes(item.path),
+        ).map((item) => (
           <Link
             key={item.path}
             to={item.path}

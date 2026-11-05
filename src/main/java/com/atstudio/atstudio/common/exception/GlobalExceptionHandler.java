@@ -38,6 +38,30 @@ public class GlobalExceptionHandler {
 
     // ── Direct Handlers (explicitly thrown) ──────────────────────────────────
 
+    @ExceptionHandler(org.springframework.dao.PessimisticLockingFailureException.class)
+    public org.springframework.http.ResponseEntity<java.util.Map<String, Object>> handleCatalogLockFailure(
+            org.springframework.dao.PessimisticLockingFailureException error) {
+        return org.springframework.http.ResponseEntity.status(503)
+                .body(java.util.Map.of("status", 503, "message", "Concurrent operation could not complete; reconcile before retrying"));
+    }
+
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public org.springframework.http.ResponseEntity<java.util.Map<String, Object>> handleResponseStatus(
+            org.springframework.web.server.ResponseStatusException error) {
+        return org.springframework.http.ResponseEntity.status(error.getStatusCode())
+                .body(java.util.Map.of("status", error.getStatusCode().value(), "message",
+                        error.getReason() == null ? "Request rejected" : error.getReason()));
+    }
+
+    @ExceptionHandler(com.atstudio.atstudio.service.storage.StorageContinuityGuard.AdmissionClosedException.class)
+    public ResponseEntity<ExceptionResponseDTO> handleStorageCapturePause(
+            com.atstudio.atstudio.service.storage.StorageContinuityGuard.AdmissionClosedException exception) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "30")
+                .body(ExceptionResponseDTO.builder().status(503).error("Service Unavailable")
+                        .errorCode("STORAGE_MUTATION_PAUSED")
+                        .message("파일 변경 작업을 잠시 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.").build());
+    }
+
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ExceptionResponseDTO> handleBusinessException(BusinessException ex) {
         logBusinessFailure(ex, ex.getErrorCode());

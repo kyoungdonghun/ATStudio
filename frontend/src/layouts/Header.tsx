@@ -1,3 +1,4 @@
+import { isListeningMode } from '@/config/appMode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { UNCONFIRMED_LOGOUT_WARNING, useAuthStore } from '@/store/authStore';
@@ -99,7 +100,7 @@ function ThemeToggle() {
   );
 }
 
-export default function Header() {
+function SellingHeader() {
   const location = useLocation();
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
@@ -438,5 +439,22 @@ export default function Header() {
         </>
       )}
     </>
+  );
+}
+
+export default function Header() {
+  if (!isListeningMode) return <SellingHeader />;
+  return (
+    <header className={styles.header}>
+      <Link to="/tracks" className={styles.logo}>
+        AT.M
+      </Link>
+      <nav aria-label="청취 메뉴">
+        <Link to="/tracks" className={styles.tab}>
+          음원 청취
+        </Link>
+      </nav>
+      <ThemeToggle />
+    </header>
   );
 }

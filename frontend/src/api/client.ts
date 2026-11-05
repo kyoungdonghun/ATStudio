@@ -1,3 +1,4 @@
+import { isListeningVisitor } from '@/config/appMode';
 import axios, { type InternalAxiosRequestConfig, type AxiosResponse } from 'axios';
 import { router } from '@/router';
 import { useToastStore } from '@/store/toastStore';
@@ -19,6 +20,7 @@ const client = axios.create({
 
 interface AuthRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
+  _listeningVisitor?: boolean;
   _authSessionGeneration?: number;
 }
 
@@ -34,7 +36,13 @@ client.interceptors.request.use(
     // Preserve dispatch ownership when Axios clones a request for replay.
     config._authSessionGeneration ??= getAuthSessionGeneration();
     if (config._retry) assertCurrentSession(config._authSessionGeneration);
-    const token = safeStorage.getItem('accessToken');
+    config._listeningVisitor ??= isListeningVisitor();
+    if (config._listeningVisitor) {
+      config.headers.delete('Authorization');
+      config.skipAuthReplay = true;
+      config.skipAdminRoleSync = true;
+    }
+    const token = config._listeningVisitor ? null : safeStorage.getItem('accessToken');
     if (token && config.headers && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -131,6 +139,9 @@ client.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error) => {
     const originalRequest = error.config as AuthRequestConfig | undefined;
+
+    // A public request keeps its anonymous ownership even if navigation changes in flight.
+    if (originalRequest?._listeningVisitor) return Promise.reject(error);
 
     if (
       originalRequest?._authSessionGeneration !== undefined &&

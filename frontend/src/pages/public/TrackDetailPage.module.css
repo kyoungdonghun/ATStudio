@@ -226,6 +226,7 @@
 /* ── Description ── */
 
 .desc {
+  white-space: pre-line;
   font-size: 13px;
   color: var(--text1);
   line-height: 1.7;

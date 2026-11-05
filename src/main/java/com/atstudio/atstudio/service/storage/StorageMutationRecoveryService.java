@@ -48,6 +48,14 @@ public class StorageMutationRecoveryService {
 
     @Scheduled(fixedDelayString = "${app.storage.recovery.interval-ms:60000}")
     public RecoveryResult recoverBatch() {
+        try (var ignored = journalService.enterRecovery()) {
+            return recoverAdmittedBatch();
+        } catch (StorageContinuityGuard.AdmissionClosedException exception) {
+            return new RecoveryResult(0, 0, 0, 0);
+        }
+    }
+
+    private RecoveryResult recoverAdmittedBatch() {
         LocalDateTime now = LocalDateTime.now();
         List<StorageMutationSnapshot> claimed = journalService.claimBatch(
                 now,
@@ -124,6 +132,10 @@ public class StorageMutationRecoveryService {
             complete(mutation, "RECOVERED_NEW_DELETE");
             return RecoveryOutcome.COMPLETED;
         }
+        if (outcome == StorageCleanupService.CleanupOutcome.DEFERRED) {
+            journalService.deferPreserved(mutation.id(), true);
+            return RecoveryOutcome.RETAINED;
+        }
         scheduleRetry(mutation, "RECOVERY_NEW_DELETE_FAILED", now);
         return RecoveryOutcome.RETRIED;
     }
@@ -145,6 +157,10 @@ public class StorageMutationRecoveryService {
             case FAILED -> {
                 scheduleRetry(mutation, "RECOVERY_OLD_DELETE_FAILED", now);
                 yield RecoveryOutcome.RETRIED;
+            }
+            case DEFERRED -> {
+                journalService.deferPreserved(mutation.id(), true);
+                yield RecoveryOutcome.RETAINED;
             }
         };
     }

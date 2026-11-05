@@ -1,3 +1,4 @@
+import { isListeningMode } from '@/config/appMode';
 import { createBrowserRouter, Navigate, redirect, type RouteObject } from 'react-router-dom';
 import { type ReactNode } from 'react';
 import ProtectedRoute from '@/router/ProtectedRoute';
@@ -124,7 +125,7 @@ function businessOnly(element: ReactNode): ReactNode {
 
 /* Route declarations; see docs/ui/atstudio-front-list.md for the counting contract. */
 
-export const routes: RouteObject[] = [
+const sellingRoutes: RouteObject[] = [
   {
     element: <MainLayout />,
     children: [
@@ -225,4 +226,29 @@ export const routes: RouteObject[] = [
   },
 ];
 
+const listeningRoutes: RouteObject[] = [
+  {
+    element: <MainLayout />,
+    children: [
+      { path: '/', element: <Navigate to="/tracks" replace /> },
+      { path: '/tracks', element: <TrackListPage /> },
+      { path: '/tracks/:trackId', element: <TrackDetailPage /> },
+      { path: '/login', element: <LoginPage /> },
+      { path: '*', element: <NotFoundPage /> },
+    ],
+  },
+  {
+    path: '/admin',
+    element: adminOnly(<AdminLayout />),
+    children: [
+      { index: true, element: <Navigate to="track-manage" replace /> },
+      { path: 'track-manage', element: <TrackManagePage /> },
+      { path: 'tracks/upload', element: <TrackUploadPage /> },
+      { path: 'tracks/:trackId/edit', element: <TrackEditPage /> },
+      { path: '*', element: <NotFoundPage /> },
+    ],
+  },
+];
+
+export const routes = isListeningMode ? listeningRoutes : sellingRoutes;
 export const router = createBrowserRouter(routes);
