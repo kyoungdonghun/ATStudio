@@ -148,3 +148,26 @@
 
 기존 3-way (spec→code→spec)는 **정합성** 검증. 역할×화면은 **접근 권한** 검증.
 둘 다 해야 완전한 전수조사가 된다.
+
+## 2026-11-06 — Durable recovery custody (WI-20261106-ATS-003)
+
+- Bind a permanent guard to the actual locked descriptor, the active capability,
+  and historical claims. An inode check only at acquisition does not protect the
+  next invocation; guard identity alone does not detect a replaced ledger container.
+- A newly approved manifest cannot repair contradictions in original evidence.
+  Verify claim-to-config/owner and call-to-claim/owner raw digests before effects.
+  Archive shared-state bytes separately and validate later progress through exact
+  predecessor records rather than requiring every old disposition to match live state.
+- Exercise actual script entry and copied candidates. Import-only fixtures can
+  miss a second `__main__` capability registry, and copied tests may rely on a
+  repository-relative data fixture. Preserve those failures, state the harness's
+  data-only remapping, and keep synthetic custody distinct from native acceptance.
+
+Evidence: [WI003: retained local evidence](../registry/git-checkpoint-20261106.md#retained-evidence-limits) and
+[WI004: retained local evidence](../registry/git-checkpoint-20261106.md#retained-evidence-limits).
+
+## Public checkpoint evidence boundary
+
+This public copy redirects unavailable local evidence links to the shared
+checkpoint boundary. The original document bytes and detailed REQ/WI evidence
+remain in private local custody. No runtime contract or source code changed.

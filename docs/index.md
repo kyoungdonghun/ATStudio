@@ -1,6 +1,6 @@
 ---
-version: 3.99.0
-last_updated: 2026-10-26
+version: 3.125.0
+last_updated: 2026-11-06
 project: ATS
 owner: EO
 category: registry
@@ -18,6 +18,27 @@ dependencies:
 > **Single operational flow**: `MA + Subagents + Skills` (details: `docs/architecture/system-design.md`, `AGENTS.md`, `CLAUDE.md`)
 
 ## Current Decision Entry
+
+### 2026-11-06 Reviewed Source Checkpoint
+
+[The public checkpoint](registry/git-checkpoint-20261106.md) records the current
+listening/catalog implementation, guarded online backup and v2 outer HOLD recovery,
+source identities, local verification, and private evidence exclusions. It supersedes
+earlier implementation-pending statements for these local capabilities. The approved
+scope is REQ-20261106-ATS-003 / WI-20261106-ATS-005 / WI-20261106-ATS-006.
+
+Observation: 2026-11-06 KST, Windows local source review by EO/docops with PG privacy
+review and MA-owned Git execution. Backend v2 and frontend v3 inputs still match their
+November 5 candidate manifests; all 41 November 6 outer-recovery candidate files match.
+The latest coherent local outer-recovery run passed 51 tests. Earlier overlapping
+test runs must not be summed as unique coverage.
+
+This entry publishes a bounded reconstruction summary. Detailed local chronology,
+raw logs, private configuration, data, credentials and built artifacts are not in this
+checkpoint. Git is source preservation, not a database/media/private-evidence backup.
+Native Linux/root/systemd/cgroup enforcement, current restore and live publication
+remain unverified by this checkpoint; server work remains deferred. A final MA Git
+receipt will separately identify the committed revision and remote verification.
 
 ### 2026-10-26 Local Preservation Commits Complete; Stage Two Still Open
 
