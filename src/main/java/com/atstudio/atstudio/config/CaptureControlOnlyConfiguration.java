@@ -3,7 +3,10 @@ package com.atstudio.atstudio.config;
 import com.atstudio.atstudio.service.storage.StorageCaptureMailbox;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Conditional;
+import org.springframework.context.annotation.Condition;
+import org.springframework.context.annotation.ConditionContext;
+import org.springframework.core.type.AnnotatedTypeMetadata;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,15 +19,33 @@ import java.util.concurrent.TimeUnit;
 
 /** Explicit private control mode; never enables Spring's general scheduled-method processor. */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "app.background-tasks.capture-control-only", havingValue = "true")
+@Conditional(CaptureControlOnlyConfiguration.DedicatedCaptureControlCondition.class)
 public class CaptureControlOnlyConfiguration {
     @Bean
     CaptureControlPoller captureControlPoller(StorageCaptureMailbox mailbox, Environment environment,
             @Value("${app.storage.capture-control-poll-ms:1000}") long intervalMs) {
-        if (!BackgroundTasksEnabledCondition.validateCaptureControlOnly(environment)) {
+        if (!dedicatedPollingEnabled(environment)) {
             throw new IllegalStateException("Private capture mode is not enabled");
         }
         return new CaptureControlPoller(mailbox, intervalMs);
+    }
+
+    private static boolean dedicatedPollingEnabled(Environment environment) {
+        if (BackgroundTasksEnabledCondition.validateCaptureControlOnly(environment)) return true;
+        boolean enabled = BackgroundTasksEnabledCondition.isEnabled(environment);
+        boolean audioOnly = BackgroundTasksEnabledCondition.readBoolean(environment,
+                "app.background-tasks.audio-only", "false");
+        boolean captureEnabled = BackgroundTasksEnabledCondition.readBoolean(environment,
+                "app.storage.capture-control-enabled", "false");
+        // Normal mode uses the mailbox's existing @Scheduled consumer, never both consumers.
+        return enabled && audioOnly && captureEnabled;
+    }
+
+    static final class DedicatedCaptureControlCondition implements Condition {
+        @Override
+        public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
+            return dedicatedPollingEnabled(context.getEnvironment());
+        }
     }
 
     static final class CaptureControlPoller implements DisposableBean {

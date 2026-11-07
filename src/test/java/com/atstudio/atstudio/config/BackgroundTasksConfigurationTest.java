@@ -35,7 +35,7 @@ import static org.mockito.Mockito.*;
 
 class BackgroundTasksConfigurationTest {
     private final ApplicationContextRunner runner = isolatedRunner()
-            .withUserConfiguration(BackgroundTasksConfiguration.class, StorageMutationRecoveryService.class,
+            .withUserConfiguration(com.atstudio.atstudio.support.WorkerCatalogTestConfiguration.class, BackgroundTasksConfiguration.class, StorageMutationRecoveryService.class,
                     TrackAudioProcessingWorker.class)
             .withBean(StorageContinuityGuard.class, StorageContinuityGuard::disabled)
             .withBean("clearJournalInjection", org.springframework.beans.factory.config.BeanPostProcessor.class,
@@ -157,7 +157,7 @@ class BackgroundTasksConfigurationTest {
         for (String master : List.of("true", "false", "MISSING")) {
             Runnable created = mock(Runnable.class);
             ApplicationContextRunner configured = isolatedRunner()
-                    .withUserConfiguration(BackgroundTasksConfiguration.class, TrackAudioProcessingWorker.class)
+                    .withUserConfiguration(com.atstudio.atstudio.support.WorkerCatalogTestConfiguration.class, BackgroundTasksConfiguration.class, TrackAudioProcessingWorker.class)
                     .withBean("sideEffectSentinel", Object.class, () -> {
                         created.run();
                         return new Object();
@@ -282,7 +282,7 @@ class BackgroundTasksConfigurationTest {
     void accidentalEnableSchedulingFailsClosedBeforeAnyJobRegistration(boolean audioOnly) {
         TaskScheduler scheduler = mock(TaskScheduler.class);
         isolatedRunner()
-                .withUserConfiguration(BackgroundTasksConfiguration.class, AccidentalScheduling.class)
+                .withUserConfiguration(com.atstudio.atstudio.support.WorkerCatalogTestConfiguration.class, BackgroundTasksConfiguration.class, AccidentalScheduling.class)
                 .withBean(TaskScheduler.class, () -> scheduler)
                 .withPropertyValues("app.background-tasks.enabled=" + audioOnly,
                         "app.background-tasks.audio-only=" + audioOnly)

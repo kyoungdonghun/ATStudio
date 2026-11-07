@@ -26,7 +26,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
-@Import({JpaConfig.class, TagService.class})
+@Import({com.atstudio.atstudio.support.OrdinaryModeTestConfiguration.class, JpaConfig.class, TagService.class})
 @DisplayName("TagService available-tag query contract")
 class TagServiceAvailableTagsIntegrationTest {
 

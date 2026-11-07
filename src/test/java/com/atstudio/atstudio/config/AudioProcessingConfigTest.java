@@ -15,7 +15,7 @@ import static org.mockito.Mockito.mock;
 
 class AudioProcessingConfigTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(TrackAudioProcessingWorker.class, FfmpegAudioEncoder.class)
+            .withUserConfiguration(com.atstudio.atstudio.support.WorkerCatalogTestConfiguration.class, TrackAudioProcessingWorker.class, FfmpegAudioEncoder.class)
             .withBean(TrackAudioProcessingTransactions.class, () -> mock(TrackAudioProcessingTransactions.class))
             .withBean(StorageMutationCoordinator.class, () -> mock(StorageMutationCoordinator.class))
             .withBean(StorageService.class, () -> mock(StorageService.class))

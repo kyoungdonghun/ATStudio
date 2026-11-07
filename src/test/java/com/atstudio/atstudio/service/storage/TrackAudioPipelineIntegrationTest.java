@@ -55,7 +55,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @DataJpaTest(showSql = false, properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.sql.init.mode=never",
         "spring.jpa.show-sql=false"})
-@Import({JpaConfig.class, TrackService.class, DownloadService.class, TrackAudioProcessingTransactions.class,
+@Import({com.atstudio.atstudio.support.OrdinaryModeTestConfiguration.class, JpaConfig.class, TrackService.class, DownloadService.class, TrackAudioProcessingTransactions.class,
         AudioAnalysisService.class, CanonicalImageService.class, StorageMutationCoordinator.class,
         StorageMutationJournalService.class, StorageCleanupService.class, StorageReferenceChecker.class,
         StorageIntegrityService.class, TrackAudioPipelineIntegrationTest.Config.class})

@@ -1,6 +1,6 @@
 ---
-version: 1.1
-last_updated: 2026-09-29
+version: 1.2
+last_updated: 2026-11-07
 project: ATS
 owner: SE
 category: guide
@@ -27,6 +27,16 @@ database until automatic mutations and external actions are demonstrably contain
 Read the [current decision entry](../../docs/index.md#current-decision-entry)
 before judging missing capabilities or verification. This 2026-09-29 guide
 refresh checks source/doc consistency, not a new installation or runtime.
+
+## Latest preservation checkpoint — 2026-11-07
+
+Start with the [November 7 checkpoint](../../docs/registry/git-checkpoint-20261107.md)
+for the current listening/administrator modes, capture polling correction and
+dated operational result. The November 6 source manifest is historical; later
+approved source changes are not corruption. Rebuild from the chosen current
+commit and regenerate approved native pins instead of expecting an old JAR or
+manifest to match. The original local execution records and live settings are
+not checkout dependencies. No server action follows from cloning or building.
 
 ## 1. Recover Working Context
 

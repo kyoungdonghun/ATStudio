@@ -253,15 +253,16 @@ class StorageContinuityIndependentTest {
         Process child = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
                 "-cp", classpath, CrashCaptureProcess.class.getName(), temporary.resolve("state").toString(), ready.toString())
                 .redirectErrorStream(true).redirectOutput(temporary.resolve("child.log").toFile()).start();
+        java.util.List<ProcessHandle> descendants = java.util.List.of();
         try {
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
             while (!Files.exists(ready) && child.isAlive() && System.nanoTime() < deadline) Thread.sleep(10);
             assertThat(ready).exists();
             String capture = Files.readString(ready);
             assertThatThrownBy(this::open).isInstanceOf(IllegalStateException.class);
-            var descendants = child.descendants().toList();
-            child.destroyForcibly();
-            assertThat(child.waitFor(5, TimeUnit.SECONDS)).isTrue();
+            descendants = child.descendants().toList();
+            terminateOwnedProcessTree(child, descendants);
+            assertThat(child.isAlive()).isFalse();
             assertThat(descendants).noneMatch(ProcessHandle::isAlive);
             // Distinguish native process-lock release from persisted-state validation failures.
             try (var channel = java.nio.channels.FileChannel.open(temporary.resolve("state/owner.lock"),
@@ -290,8 +291,21 @@ class StorageContinuityIndependentTest {
                 reopened.releaseReconciled(capture);
             }
         } finally {
-            if (child.isAlive()) { child.destroyForcibly(); child.waitFor(5, TimeUnit.SECONDS); }
+            terminateOwnedProcessTree(child, descendants);
         }
+    }
+
+    private static void terminateOwnedProcessTree(Process child, java.util.List<ProcessHandle> descendants) throws Exception {
+        // Capture handles before terminating the launcher: Windows may reparent the JVM afterward.
+        var owned = new java.util.LinkedHashSet<ProcessHandle>(descendants);
+        child.descendants().forEach(owned::add);
+        for (ProcessHandle handle : owned) if (handle.isAlive()) handle.destroyForcibly();
+        if (child.isAlive()) child.destroyForcibly();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while ((child.isAlive() || owned.stream().anyMatch(ProcessHandle::isAlive))
+                && System.nanoTime() < deadline) Thread.sleep(10);
+        assertThat(child.isAlive()).as("owned launcher terminated").isFalse();
+        assertThat(owned).as("owned descendant JVMs terminated").noneMatch(ProcessHandle::isAlive);
     }
 
     public static final class CrashCaptureProcess {

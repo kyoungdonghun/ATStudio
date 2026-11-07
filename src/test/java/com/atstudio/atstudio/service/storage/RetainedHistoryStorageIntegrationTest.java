@@ -68,7 +68,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.BDDMockito.given;
 
 @DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.sql.init.mode=never"})
-@Import({JpaConfig.class, TrackService.class, DownloadService.class, AlbumService.class, AlbumLikeService.class, PlaylistService.class,
+@Import({com.atstudio.atstudio.support.OrdinaryModeTestConfiguration.class, JpaConfig.class, TrackService.class, DownloadService.class, AlbumService.class, AlbumLikeService.class, PlaylistService.class,
         StorageMutationCoordinator.class, StorageMutationJournalService.class, StorageCleanupService.class,
         StorageReferenceChecker.class, StorageIntegrityService.class, RetainedHistoryStorageIntegrationTest.Config.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)

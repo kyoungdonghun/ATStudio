@@ -83,6 +83,8 @@ public class ListeningAccessFilter extends OncePerRequestFilter {
         // A proxy's loopback fallback must never grant operator access when its assertion is absent/invalid.
         return TrustedClientIdentityResolver.parseLiteral(client).isPresent()
                 && !java.net.InetAddress.getByName(client).isLoopbackAddress()
-                && properties.getOperatorAddresses().contains(client);
+                && ((properties.isEnabled()
+                        && properties.getOperatorAccess() == ListeningProperties.OperatorAccess.AUTHENTICATED_ADMIN)
+                    || properties.getOperatorAddresses().contains(client));
     }
 }

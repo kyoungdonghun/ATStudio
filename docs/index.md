@@ -1,6 +1,6 @@
 ---
-version: 3.125.0
-last_updated: 2026-11-06
+version: 3.126.0
+last_updated: 2026-11-07
 project: ATS
 owner: EO
 category: registry
@@ -18,6 +18,21 @@ dependencies:
 > **Single operational flow**: `MA + Subagents + Skills` (details: `docs/architecture/system-design.md`, `AGENTS.md`, `CLAUDE.md`)
 
 ## Current Decision Entry
+
+### 2026-11-07 Operational Listening Site and Source Preservation
+
+[The current source checkpoint](registry/git-checkpoint-20261107.md) records
+client administrator upload/edit/explicit publication and anonymous listening.
+MA's November 7 native and external HTTPS/browser observations completed this
+bounded site-readiness scope. Application and DB services were retained running
+and enabled, while temporary SSH access and local key/agent state were restored.
+The public catalog remained empty for client-owned real music upload.
+
+This Git review performs no new server operation. The dated observations do not
+establish current live health, physical-mobile/human audio playback, reboot,
+recurring backup, full recovery, mail/PG onboarding or grant acceptance.
+See the checkpoint for exact evidence ownership, source changes and exclusions;
+the previous entries remain historical and must not reverse this completion.
 
 ### 2026-11-06 Reviewed Source Checkpoint
 

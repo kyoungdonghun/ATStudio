@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
-@Import({JpaConfig.class, PlayableTrackService.class})
+@Import({com.atstudio.atstudio.support.OrdinaryModeTestConfiguration.class, JpaConfig.class, PlayableTrackService.class})
 class PlayableTrackQueryCountTest {
 
     private int userSequence;

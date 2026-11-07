@@ -51,7 +51,7 @@ public class BackgroundTasksEnabledCondition implements Condition {
         return enabled && !readBoolean(environment, AUDIO_ONLY_PROPERTY, "false");
     }
 
-    private static boolean readBoolean(Environment environment, String property, String defaultValue) {
+    static boolean readBoolean(Environment environment, String property, String defaultValue) {
         String value = environment.getProperty(property, defaultValue);
         if ("true".equalsIgnoreCase(value)) {
             return true;

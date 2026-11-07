@@ -15,6 +15,9 @@ import java.util.Set;
 @ConfigurationProperties(prefix = "app.listening")
 public class ListeningProperties {
     private boolean enabled;
+    /** Explicit opt-in for credential-authenticated clients on changing networks. */
+    private OperatorAccess operatorAccess = OperatorAccess.SOURCE_RESTRICTED;
+    public enum OperatorAccess { SOURCE_RESTRICTED, AUTHENTICATED_ADMIN }
     private CatalogSource catalogSource = CatalogSource.STATIC;
     public enum CatalogSource { STATIC, DATABASE }
     private Set<Long> trackIds = new LinkedHashSet<>();

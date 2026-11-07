@@ -1,6 +1,6 @@
 ---
 version: 1.2
-last_updated: 2026-11-05
+last_updated: 2026-11-07
 project: ATS
 owner: SE
 category: guide
@@ -10,6 +10,35 @@ dependencies:
     reason: Approved local implementation
 ---
 # Public listening local candidate
+
+## Current authenticated-administrator option — 2026-11-07
+
+The [current checkpoint](../../../docs/registry/git-checkpoint-20261107.md)
+supersedes earlier pending-only statements for the bounded deployed site.
+`app.listening.operator-access` defaults to `SOURCE_RESTRICTED`, preserving the
+source-address policy described below. Explicit `AUTHENTICATED_ADMIN` permits
+the small administrator login/SPA surface from client networks, while operator
+APIs still require a valid ADMIN JWT and normal validation. Unknown enum values
+fail configuration binding; ordinary mode gains no new authority.
+
+Pair that opt-in with the separately named
+[`listening-authenticated-admin-https.conf.template`](../nginx/listening-authenticated-admin-https.conf.template),
+not the source-restricted template. Both require the existing rate zones and
+trusted proxy snippet. Canonical non-loopback identity remains required;
+loopback fallback or forged proxy headers do not grant operator access. Keep the
+upstream private, the proxy assertion trusted, and rate limits enabled. SSH
+administration retains a separate access policy.
+
+Use DATABASE catalog mode for explicit publication. Upload/activation alone
+does not publish a track; unpublish before editing and explicitly publish after
+review. See the [client guide](../../../deliverables/user/ATStudio-client-upload-guide-20261107.html).
+Audio-only operation retains the upload worker and dedicated capture polling,
+without enabling general mail/payment/business schedules. The ordinary security
+chain is not registered alongside the listening chain.
+
+The dated checkpoint separates actual acceptance from unperformed mobile,
+audibility, reboot, recurring-backup and full-recovery checks. A template remains
+an example; it is not authorization or complete live configuration.
 
 WI-20261105-ATS-003 implements static listening; WI-20261105-ATS-008 adds the approved
 local DB catalog candidate under REQ-20261105-ATS-003. Neither is a deployed runtime.

@@ -48,7 +48,7 @@ class StorageReferenceAdmissionTest {
     @Test
     void auditedReferenceMutationEntryPointsCarryAdmissionAnnotation() throws Exception {
         java.util.Map<String,java.util.Set<String>> audited=java.util.Map.ofEntries(
-                java.util.Map.entry("TrackService",java.util.Set.of("createTrack","updateTrack","deleteTrack","retryAudioProcessing")),
+                java.util.Map.entry("TrackService",java.util.Set.of("createTrackTransactional","attachCreatedTrack","updateTrackTransactional","attachUpdatedTrack","deleteTrack","retryAudioProcessing")),
                 java.util.Map.entry("AlbumService",java.util.Set.of("createAlbum","updateAlbum","deleteAlbum")),
                 java.util.Map.entry("PlaylistService",java.util.Set.of("createPlaylist","updatePlaylist","deletePlaylist")),
                 java.util.Map.entry("NoticeService",java.util.Set.of("createNotice","updateNotice","deleteNotice")),
@@ -65,6 +65,15 @@ class StorageReferenceAdmissionTest {
                         .allMatch(value -> value.isAnnotationPresent(StorageReferenceMutation.class));
             }
         }
+        var preparations = java.util.Arrays.stream(com.atstudio.atstudio.service.TrackService.class.getDeclaredMethods())
+                .filter(method -> method.isAnnotationPresent(StorageReferencePreparation.class)).toList();
+        assertThat(preparations).extracting(java.lang.reflect.Method::getName)
+                .containsExactlyInAnyOrder("createTrack", "updateTrack");
+        assertThat(preparations).allSatisfy(method -> {
+            assertThat(method.isAnnotationPresent(StorageReferenceMutation.class)).isFalse();
+            assertThat(method.getAnnotation(Transactional.class).propagation())
+                    .isEqualTo(org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED);
+        });
         for(String normal:java.util.List.of("auth.AuthService","DownloadService")) {
             assertThat(Class.forName("com.atstudio.atstudio.service."+normal).getDeclaredMethods())
                     .noneMatch(method -> method.isAnnotationPresent(StorageReferenceMutation.class));

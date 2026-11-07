@@ -34,7 +34,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 @DataJpaTest
-@Import({JpaConfig.class, TrackService.class})
+@Import({com.atstudio.atstudio.support.OrdinaryModeTestConfiguration.class, JpaConfig.class, TrackService.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DisplayName("Track audio replacement transaction integration")
 class TrackAudioReplacementTransactionIntegrationTest {

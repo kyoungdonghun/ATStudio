@@ -47,7 +47,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 
 @DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.sql.init.mode=never"})
-@Import({JpaConfig.class, TrackService.class, LikeService.class, DownloadService.class})
+@Import({com.atstudio.atstudio.support.OrdinaryModeTestConfiguration.class, JpaConfig.class, TrackService.class, LikeService.class, DownloadService.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class TrackMutationConcurrencyIntegrationTest {
 
