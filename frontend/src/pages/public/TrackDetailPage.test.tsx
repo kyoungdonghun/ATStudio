@@ -188,6 +188,39 @@ describe('TrackDetailPage player mapping', () => {
     mocks.playerState.isPlaying = false;
   });
 
+  it('shows all taxonomy categories including instrument while preserving usage', async () => {
+    mocks.fetchTrackDetail.mockResolvedValue({
+      ...detail,
+      tags: [
+        { id: 1, name: 'Jazz', type: 'GENRE' },
+        { id: 2, name: 'Piano', type: 'INSTRUMENT' },
+        { id: 3, name: 'Calm', type: 'MOOD' },
+        { id: 4, name: 'Shorts', type: 'USAGE' },
+      ],
+    });
+    renderPage();
+    await screen.findByRole('heading', { name: detail.title });
+    expect(screen.getByText('악기').nextElementSibling).toHaveTextContent('Piano');
+    expect(screen.getByText('장르').nextElementSibling).toHaveTextContent('Jazz');
+    expect(screen.getByText('분위기').nextElementSibling).toHaveTextContent('Calm');
+    expect(screen.getByText('#Shorts')).toBeInTheDocument();
+    expect(mocks.fetchTrackDetail).toHaveBeenCalledTimes(1);
+    expect(mocks.play).not.toHaveBeenCalled();
+  });
+
+  it('does not omit a tag section when instrument is the only category', async () => {
+    const name = 'LongInstrumentName'.repeat(2);
+    mocks.fetchTrackDetail.mockResolvedValue({
+      ...detail,
+      tags: [{ id: 2, name, type: 'INSTRUMENT' }],
+    });
+    renderPage();
+    await screen.findByText(name);
+    expect(screen.getByText('악기').nextElementSibling).toHaveTextContent(name);
+    expect(screen.queryByText('장르')).not.toBeInTheDocument();
+    expect(screen.queryByText('분위기')).not.toBeInTheDocument();
+  });
+
   it('forwards waveformData with the complete Track mapping on first play', async () => {
     renderPage();
 

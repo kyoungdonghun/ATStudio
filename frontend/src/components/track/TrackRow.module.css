@@ -32,10 +32,16 @@
 
 .cellTag {
   composes: cell;
-  min-width: 450px;
-  max-width: 450px;
-  overflow: hidden;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.emptyTag {
+  color: var(--text2);
+}
+
+.mobileTaxonomies {
+  display: none;
 }
 
 .cellBpm {
@@ -171,7 +177,11 @@
   font-size: 11px;
   color: var(--text1);
   margin-right: 4px;
-  white-space: nowrap;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  margin-bottom: 3px;
 }
 
 /* ── Actions ── */
@@ -209,24 +219,11 @@
   color: var(--accent);
 }
 
-/* ══ Mid-desktop (narrow desktop) ══ */
-@media (max-width: 1200px) {
-  .cellTag {
-    min-width: 350px;
-    max-width: 350px;
-  }
-}
-
 /* ══ Tablet ══ */
 @media (max-width: 1023px) {
   .cellBpm,
   .cellKey {
     display: none;
-  }
-
-  .cellTag {
-    min-width: 132px;
-    max-width: 132px;
   }
 
   .cellActs {
@@ -255,6 +252,27 @@
 
   .cellTag {
     display: none;
+  }
+
+  .mobileTaxonomies {
+    display: grid;
+    gap: 3px;
+    margin: 5px 0 0;
+    font-size: 10px;
+  }
+
+  .mobileTaxonomy {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .mobileTaxonomy dt {
+    color: var(--text2);
+  }
+  .mobileTaxonomy dd {
+    margin: 0;
+    min-width: 0;
   }
 
   .cellActs {

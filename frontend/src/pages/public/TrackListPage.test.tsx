@@ -237,6 +237,23 @@ describe('TrackListPage latest-request-wins', () => {
     mocks.fetchAvailableTags.mockResolvedValue([]);
   });
 
+  it('labels the three taxonomy columns in the same order as the track row', async () => {
+    mocks.fetchTracks.mockResolvedValue(trackPage('Taxonomy Track', 1));
+    renderPage('/tracks');
+    await screen.findByText('Taxonomy Track');
+    expect(screen.getAllByRole('columnheader').map((node) => node.textContent)).toEqual([
+      '#',
+      '음원',
+      '장르',
+      '악기',
+      '분위기',
+      'BPM',
+      '조성',
+      '길이',
+      '액션',
+    ]);
+  });
+
   it('fences repeated track downloads synchronously and releases the identity after failure', async () => {
     const firstAttempt = deferred<never>();
     mocks.fetchTracks.mockResolvedValue(trackPage('Fence Track', 1));

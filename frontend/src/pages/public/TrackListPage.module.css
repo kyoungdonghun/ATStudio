@@ -245,7 +245,7 @@
   width: 42px;
 }
 .trackTable thead .thTag {
-  width: 450px;
+  width: 130px;
 }
 .trackTable thead .thBpm {
   width: 70px;
@@ -444,12 +444,18 @@
 /* ══ Mid-desktop (narrow desktop) ══ */
 @media (max-width: 1200px) {
   .trackTable thead .thTag {
-    width: 350px;
+    width: 105px;
   }
 }
 
 /* ══ Tablet ══ */
 @media (max-width: 1023px) {
+  .trackTable thead .thTag {
+    width: 90px;
+  }
+  .trackTable thead .thActs {
+    width: 90px;
+  }
   .trackTable thead th {
     padding: 8px 8px;
   }
@@ -462,6 +468,12 @@
 
 /* ══ Mobile ══ */
 @media (max-width: 767px) {
+  .trackTable thead .thNum {
+    width: 32px;
+  }
+  .trackTable thead .thActs {
+    width: 70px;
+  }
   .pageHeader {
     flex-direction: column;
     gap: 12px;

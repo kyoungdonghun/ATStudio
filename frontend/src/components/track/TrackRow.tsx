@@ -38,9 +38,23 @@ export default function TrackRow({
   const rowClass = [styles.row, playing ? styles.playing : ''].filter(Boolean).join(' ');
 
   const genreTags = track.tags.filter((t) => t.type === 'GENRE');
+  const instrumentTags = track.tags.filter((t) => t.type === 'INSTRUMENT');
   const moodTags = track.tags.filter((t) => t.type === 'MOOD');
   const usageTags = track.tags.filter((t) => t.type === 'USAGE');
   const usageText = usageTags.map((t) => `#${t.name}`).join(' ');
+  const taxonomyGroups = [
+    { label: '장르', tags: genreTags },
+    { label: '악기', tags: instrumentTags },
+    { label: '분위기', tags: moodTags },
+  ];
+
+  function renderTags(tags: typeof track.tags) {
+    return tags.map((tag) => (
+      <span key={tag.id} className={styles.tagChip}>
+        {tag.name}
+      </span>
+    ));
+  }
 
   return (
     <tr className={rowClass}>
@@ -90,23 +104,30 @@ export default function TrackRow({
               )}
             </div>
             {usageText && <div className={styles.usageLine}>{usageText}</div>}
+            <dl className={styles.mobileTaxonomies}>
+              {taxonomyGroups
+                .filter((group) => group.tags.length > 0)
+                .map((group) => (
+                  <div key={group.label} className={styles.mobileTaxonomy}>
+                    <dt>{group.label}</dt>
+                    <dd>{renderTags(group.tags)}</dd>
+                  </div>
+                ))}
+            </dl>
           </div>
         </div>
       </td>
 
-      {/* Tags */}
-      <td className={styles.cellTag}>
-        {genreTags.map((t) => (
-          <span key={t.id} className={styles.tagChip}>
-            {t.name}
-          </span>
-        ))}
-        {moodTags.map((t) => (
-          <span key={t.id} className={styles.tagChip}>
-            {t.name}
-          </span>
-        ))}
-      </td>
+      {/* Keep these cells aligned with the Genre / Instrument / Mood headers. */}
+      {taxonomyGroups.map((group) => (
+        <td key={group.label} className={styles.cellTag}>
+          {group.tags.length > 0 ? (
+            renderTags(group.tags)
+          ) : (
+            <span className={styles.emptyTag}>—</span>
+          )}
+        </td>
+      ))}
 
       {/* BPM */}
       <td className={styles.cellBpm}>{track.bpm ?? '-'}</td>

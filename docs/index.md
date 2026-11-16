@@ -1,5 +1,5 @@
 ---
-version: 3.143.0
+version: 3.144.0
 last_updated: 2026-11-17
 project: ATS
 owner: EO
@@ -18,6 +18,16 @@ dependencies:
 > **Single operational flow**: `MA + Subagents + Skills` (details: `docs/architecture/system-design.md`, `AGENTS.md`, `CLAUDE.md`)
 
 ## Current Decision Entry
+
+### 2026-11-17 Taxonomy display source checkpoint
+
+[The taxonomy checkpoint](registry/taxonomy-display-checkpoint-20261117.md)
+records the reviewed Genre/Instrument/Mood list columns, compact labels and
+detail Instrument display, retaining Usage and existing access restrictions.
+The November 17 frontend-only deployment and bounded public checks passed;
+temporary SSH access was restored and app/DB processes were preserved.
+This local Git preparation performs no new server operation or push. Raw private
+evidence and unrelated changes remain outside the selected source checkpoint.
 
 ### 2026-11-17 Phase-one client-test source checkpoint
 
