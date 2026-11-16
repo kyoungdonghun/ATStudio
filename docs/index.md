@@ -1,6 +1,6 @@
 ---
-version: 3.126.0
-last_updated: 2026-11-07
+version: 3.143.0
+last_updated: 2026-11-17
 project: ATS
 owner: EO
 category: registry
@@ -18,6 +18,25 @@ dependencies:
 > **Single operational flow**: `MA + Subagents + Skills` (details: `docs/architecture/system-design.md`, `AGENTS.md`, `CLAUDE.md`)
 
 ## Current Decision Entry
+
+### 2026-11-17 Phase-one client-test source checkpoint
+
+[The phase-one checkpoint](registry/git-checkpoint-20261117.md) records the
+reviewed upload/tag/publication repairs, WWW alias and deployed cache/version
+transition handling. Native and external checks passed after preserving the
+initial older-generation browser failure and applying a bounded static-only
+correction. The same old tab recovered without document reload; current HTML
+revalidation and all 81 distinct frontend file hashes were verified.
+
+Temporary TCP22 access is restored, the owned SSH key is removed, and Windows
+SSH agent is confirmed Stopped/Disabled. The application/DB remain running and
+public HTTP/HTTPS remains available. This supersedes earlier retained-SSH
+exceptions; historical checkpoints below retain their original dates and limits.
+
+The site is prepared for client testing. This bounded source-preservation
+checkpoint is not client acceptance, full production acceptance or a database/
+media backup. Private runtime records, original music, credentials and unrelated
+historical work remain outside the selected local Git commit; no push is included.
 
 ### 2026-11-07 Operational Listening Site and Source Preservation
 

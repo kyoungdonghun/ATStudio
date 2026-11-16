@@ -1,7 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLazyPage } from '@/router/LazyRoute';
+import { reloadCurrentDocument } from '@/router/reloadCurrentDocument';
+
+vi.mock('@/router/reloadCurrentDocument', () => ({ reloadCurrentDocument: vi.fn() }));
 
 type PageModule = { default: () => JSX.Element };
 
@@ -34,6 +37,7 @@ function renderLazyRoute(
 }
 
 describe('lazy route recovery', () => {
+  beforeEach(() => vi.mocked(reloadCurrentDocument).mockClear());
   it('keeps a copied deep-link URL while the first loader is pending', () => {
     const pending = deferred<PageModule>();
     const { router } = renderLazyRoute(() => pending.promise);
@@ -70,12 +74,54 @@ describe('lazy route recovery', () => {
     await waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      '잠시 후 홈에서 다시 접근해 주세요.',
+      '화면이 업데이트되었거나 연결이 일시적으로 끊겼을 수 있습니다.',
     );
     expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '최신 화면 불러오기' })).toBeEnabled();
+    expect(reloadCurrentDocument).not.toHaveBeenCalled();
     expect(`${router.state.location.pathname}${router.state.location.search}`).toBe(
       '/lazy?from=deep-link',
     );
+  });
+
+  it('reloads a stale-version failure only on explicit click without replaying the loader', async () => {
+    const loader = vi
+      .fn<() => Promise<PageModule>>()
+      .mockRejectedValue(
+        new TypeError('Failed to fetch dynamically imported module: /assets/old-version.js'),
+      );
+    const { router } = renderLazyRoute(loader, ['/lazy?from=deep-link#tags']);
+    const reloadButton = await screen.findByRole('button', { name: '최신 화면 불러오기' });
+
+    expect(screen.getByRole('alert')).toHaveTextContent('저장하지 않은 입력은 사라질 수 있습니다.');
+    expect(reloadCurrentDocument).not.toHaveBeenCalled();
+    expect(loader).toHaveBeenCalledTimes(1);
+    fireEvent.click(reloadButton);
+    fireEvent.click(reloadButton);
+
+    expect(reloadCurrentDocument).toHaveBeenCalledTimes(1);
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(reloadButton).toBeDisabled();
+    expect(screen.getByRole('button', { name: '다시 시도' })).toBeDisabled();
+    expect(router.state.location).toMatchObject({
+      pathname: '/lazy',
+      search: '?from=deep-link',
+      hash: '#tags',
+    });
+  });
+
+  it('keeps explicit reload available after a cached import rejection also defeats retry', async () => {
+    const rejectedImport = Promise.reject<PageModule>(new TypeError('offline or obsolete chunk'));
+    const loader = vi.fn(() => rejectedImport);
+    renderLazyRoute(loader);
+    fireEvent.click(await screen.findByRole('button', { name: '다시 시도' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument(),
+    );
+    expect(reloadCurrentDocument).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '최신 화면 불러오기' }));
+    expect(reloadCurrentDocument).toHaveBeenCalledTimes(1);
+    expect(loader).toHaveBeenCalledTimes(2);
   });
 
   it('offers safe Home and Back recovery actions', async () => {

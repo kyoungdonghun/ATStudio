@@ -64,6 +64,18 @@ class ListeningAuthenticatedAdminTest {
             verify(context.getBean(ListeningCatalogService.class)).reconcile(any(), eq(2L));
         });
     }
+    @Test void singleTargetPutKeepsRoleChecksAndBindsExplicitIntentWithoutClaimingCreditsReview() {
+        enabled().run(context -> {
+            var mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+            String body = "{\"expectedRevision\":0,\"trackIds\":[7],\"reason\":\"Explicit publish button\",\"creditsConfirmed\":false,\"attemptId\":\"12345678-1234-1234-1234-123456789abc\",\"targetChange\":{\"trackId\":7,\"publish\":true}}";
+            mvc.perform(client(put("/api/tracks/admin/listening-catalog")).contentType("application/json").content(body)).andExpect(status().isUnauthorized());
+            mvc.perform(client(put("/api/tracks/admin/listening-catalog")).with(user("user").roles("USER")).contentType("application/json").content(body)).andExpect(status().isForbidden());
+            mvc.perform(client(put("/api/tracks/admin/listening-catalog")).with(user(admin())).contentType("application/json").content(body)).andExpect(status().isOk());
+            verify(context.getBean(ListeningCatalogService.class)).replace(argThat(request ->
+                    request.targetChange().equals(new ListeningCatalogService.TargetChange(7L, true))
+                    && !request.creditsConfirmed()), eq(2L));
+        });
+    }
     @Test void missingDuplicateInvalidAndLoopbackProxyAssertionsStillDenyAdmin() {
         enabled().run(context -> {
             var mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();

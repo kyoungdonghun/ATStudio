@@ -69,7 +69,7 @@ server {
     location = /favicon.ico { try_files $uri =404; }
 
     # Operator SPA/login are reachable from client networks; protected APIs enforce ADMIN in Spring.
-    location ~ ^/(?:login|admin(?:/track-manage|/tracks/upload|/tracks/[1-9][0-9]*/edit)?)$ {
+    location ~ ^/(?:login|admin(?:/track-manage|/tracks/upload|/tracks/[1-9][0-9]*/edit|/tags)?)$ {
         limit_except GET { deny all; }
         try_files /index.html =404;
     }
@@ -92,8 +92,18 @@ server {
     location ~ ^/api/tracks(?:/[1-9][0-9]*)?$ {
         include /etc/atstudio/nginx/proxy.conf;
     }
-    location ~ ^/api/tags(?:/available)?$ {
+    # Public listing and ADMIN-only creation share the exact collection route.
+    # Spring retains method security and operator-source admission for writes.
+    location = /api/tags {
+        limit_except GET POST { deny all; }
+        include /etc/atstudio/nginx/proxy.conf;
+    }
+    location = /api/tags/available {
         limit_except GET { deny all; }
+        include /etc/atstudio/nginx/proxy.conf;
+    }
+    location ~ ^/api/tags/[1-9][0-9]*$ {
+        limit_except PUT { deny all; }
         include /etc/atstudio/nginx/proxy.conf;
     }
     location ~ ^/uploads/tracks/thumbnail/[A-Za-z0-9_-]+\.[A-Za-z0-9]+$ {

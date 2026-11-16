@@ -83,7 +83,8 @@ function SidebarContent({
       <nav className={styles.sidebarNav}>
         {MENU_ITEMS.filter(
           (item) =>
-            !isListeningMode || ['/admin/track-manage', '/admin/tracks/upload'].includes(item.path),
+            !isListeningMode ||
+            ['/admin/track-manage', '/admin/tracks/upload', '/admin/tags'].includes(item.path),
         ).map((item) => (
           <Link
             key={item.path}

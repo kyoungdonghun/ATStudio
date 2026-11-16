@@ -245,6 +245,7 @@ const listeningRoutes: RouteObject[] = [
       { path: 'track-manage', element: <TrackManagePage /> },
       { path: 'tracks/upload', element: <TrackUploadPage /> },
       { path: 'tracks/:trackId/edit', element: <TrackEditPage /> },
+      { path: 'tags', element: <TagManagePage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

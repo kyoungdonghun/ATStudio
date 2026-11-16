@@ -65,6 +65,83 @@ describe('TrackUploadPage thumbnail contract', () => {
     expect(mocks.createTrack).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [
+      {
+        message: 'Request failed with status code 400',
+        response: {
+          status: 400,
+          data: { errorCode: 'AUDIO_ANALYSIS_FAILED', message: 'private server diagnostic' },
+        },
+      },
+      '음원 파일을 분석하지 못했습니다.',
+    ],
+    [new Error('private network diagnostic'), '다시 시도하기 전에 음원 관리에서 저장 여부를 확인'],
+  ])(
+    'shows safe upload guidance and retains the input without automatic retries',
+    async (error, message) => {
+      mocks.createTrack.mockRejectedValue(error);
+      render(
+        <MemoryRouter>
+          <TrackUploadPage />
+        </MemoryRouter>,
+      );
+      const file = new File(['audio'], 'original.wav', { type: 'audio/wav' });
+      fireEvent.change(screen.getByLabelText('오디오 파일 선택', { selector: 'input' }), {
+        target: { files: [file] },
+      });
+      fireEvent.change(await screen.findByLabelText('BPM'), { target: { value: '75' } });
+      fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Gm' } });
+      fireEvent.click(screen.getByRole('button', { name: '업로드' }));
+
+      expect(await screen.findByText(message, { exact: false })).toBeInTheDocument();
+      expect(screen.getByLabelText('제목')).toHaveValue('original');
+      expect(screen.getByLabelText('BPM')).toHaveValue(75);
+      expect(screen.getByRole('combobox')).toHaveValue('Gm');
+      expect(screen.queryByText(/Request failed|private/)).not.toBeInTheDocument();
+      expect(mocks.createTrack).toHaveBeenCalledTimes(1);
+      expect((mocks.createTrack.mock.calls[0][0] as FormData).get('audioFile')).toBe(file);
+    },
+  );
+
+  it('preserves an accepted row and retries only the explicitly rejected row on manual submission', async () => {
+    let nextId = 0;
+    vi.stubGlobal('crypto', { randomUUID: vi.fn(() => `track-entry-${++nextId}`) });
+    mocks.createTrack.mockResolvedValueOnce(undefined).mockRejectedValueOnce({
+      response: { status: 400, data: { errorCode: 'AUDIO_ANALYSIS_FAILED' } },
+    });
+    render(
+      <MemoryRouter>
+        <TrackUploadPage />
+      </MemoryRouter>,
+    );
+    const files = [
+      new File(['mp3'], 'accepted.mp3', { type: 'audio/mpeg' }),
+      new File(['wav'], 'rejected.wav', { type: 'audio/wav' }),
+    ];
+    fireEvent.change(screen.getByLabelText('오디오 파일 선택', { selector: 'input' }), {
+      target: { files },
+    });
+    fireEvent.change(await screen.findByLabelText('BPM'), { target: { value: '120' } });
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'C' } });
+    fireEvent.click(screen.getByRole('button', { name: /^2 rejected/ }));
+    fireEvent.change(screen.getByLabelText('BPM'), { target: { value: '75' } });
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Gm' } });
+    fireEvent.click(screen.getByRole('button', { name: '2곡 업로드' }));
+
+    expect(await screen.findByText(/음원 파일을 분석하지 못했습니다/)).toBeInTheDocument();
+    expect(screen.getByText('업로드 접수 완료')).toBeInTheDocument();
+    expect(mocks.createTrack).toHaveBeenCalledTimes(2);
+    expect(screen.getByLabelText('제목')).toHaveValue('rejected');
+
+    fireEvent.click(screen.getByRole('button', { name: '2곡 업로드' }));
+    await waitFor(() => expect(mocks.createTrack).toHaveBeenCalledTimes(3));
+    const submittedFiles = mocks.createTrack.mock.calls.map(([data]) =>
+      (data as FormData).get('audioFile'),
+    );
+    expect(submittedFiles).toEqual([files[0], files[1], files[1]]);
+  });
+
   it('separates upload acceptance from conversion readiness and blocks duplicate submits', async () => {
     let resolve!: (value: unknown) => void;
     mocks.createTrack.mockReturnValue(

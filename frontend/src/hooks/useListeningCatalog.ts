@@ -5,6 +5,7 @@ import {
   reconcileListeningCatalog,
   fetchListeningCatalog,
   type ListeningCatalog,
+  type ListeningCatalogChange,
 } from '@/api/tracks';
 import { getAuthSessionGeneration, useAuthStore } from '@/store/authStore';
 import { usePlayerStore } from '@/store/playerStore';
@@ -15,18 +16,53 @@ interface Owner {
   generation: number;
 }
 interface Attempt {
-  version: 1;
+  version: 1 | 2;
   attemptId: string;
   actor: number;
   before: ListeningCatalog;
-  proposal: {
-    attemptId: string;
-    expectedRevision: number;
-    trackIds: number[];
-    reason: string;
-    creditsConfirmed: true;
-  };
+  proposal: ListeningCatalogChange;
   startedAt: string;
+}
+
+// Only these deliberately safe backend messages may be shown; never echo arbitrary response text.
+const PUBLICATION_REJECTIONS = new Set([
+  '음원을 찾을 수 없습니다.',
+  '음원 변환이 완료되지 않았습니다. 변환 상태를 확인해 주세요.',
+  '음원 변경 처리가 진행 중입니다. 완료 후 다시 시도해 주세요.',
+  '비활성 음원입니다. 목록의 공개 버튼으로 다시 시도해 주세요.',
+  '선택한 한 곡의 공개 상태만 변경할 수 있습니다.',
+]);
+function rejectionMessage(error: unknown, status: number): string {
+  if (status === 401) return '로그인이 만료되었습니다. 다시 로그인한 뒤 공개 상태를 확인해 주세요.';
+  if (status === 403)
+    return '공개 상태를 변경할 관리자 권한이 없습니다. 로그인 계정을 확인해 주세요.';
+  const message = (error as { response?: { data?: { message?: unknown } } })?.response?.data
+    ?.message;
+  if (typeof message === 'string' && PUBLICATION_REJECTIONS.has(message)) return message;
+  if (status === 409)
+    return '다른 변경과 겹쳐 적용하지 않았습니다. 최신 목록을 확인한 뒤 다시 선택해 주세요.';
+  return '공개 요청을 적용하지 못했습니다. 목록을 새로고침한 뒤 음원 상태를 확인해 주세요.';
+}
+
+function validAttemptAction(attempt: Attempt): boolean {
+  const target = attempt.proposal.targetChange;
+  if (attempt.version === 1) return attempt.proposal.creditsConfirmed === true && target == null;
+  if (
+    attempt.version !== 2 ||
+    attempt.proposal.creditsConfirmed !== false ||
+    !target ||
+    !Number.isSafeInteger(target.trackId) ||
+    target.trackId <= 0 ||
+    typeof target.publish !== 'boolean'
+  )
+    return false;
+  const expectedIDs = target.publish
+    ? [...new Set([...attempt.before.trackIds, target.trackId])].sort((a, b) => a - b)
+    : attempt.before.trackIds.filter((id) => id !== target.trackId).sort((a, b) => a - b);
+  return (
+    JSON.stringify(expectedIDs) ===
+    JSON.stringify([...attempt.proposal.trackIds].sort((a, b) => a - b))
+  );
 }
 function owner(): Owner {
   const auth = useAuthStore.getState();
@@ -98,31 +134,34 @@ export function useListeningCatalog() {
   const hold = active.blocked;
   const snapshot = loaded && owns(loaded.owner) ? loaded.value : null;
 
-  const reload = useCallback(async () => {
-    if (!isListeningMode) return;
-    const initiatingOwner = owner();
-    const activeAtStart = readActive(holdKey).raw;
-    const request = ++sequence.current;
-    const current = () =>
-      mounted.current &&
-      request === sequence.current &&
-      owns(initiatingOwner) &&
-      readActive(holdKey).raw === activeAtStart;
-    setLoading(true);
-    setLoaded(null);
-    try {
-      const result = await fetchListeningCatalog();
-      if (!validView(result)) throw new Error('Invalid catalog response');
-      if (current()) setLoaded({ value: result, owner: initiatingOwner });
-    } catch {
-      if (current())
-        setMessage(
-          '공개 목록을 확인할 수 없습니다. 변경은 중지됩니다. 운영자에게 초기 설정·상태 확인을 요청하세요.',
-        );
-    } finally {
-      if (current()) setLoading(false);
-    }
-  }, [holdKey]);
+  const reload = useCallback(
+    async (preserveMessage = false) => {
+      if (!isListeningMode) return;
+      const initiatingOwner = owner();
+      const activeAtStart = readActive(holdKey).raw;
+      const request = ++sequence.current;
+      const current = () =>
+        mounted.current &&
+        request === sequence.current &&
+        owns(initiatingOwner) &&
+        readActive(holdKey).raw === activeAtStart;
+      setLoading(true);
+      setLoaded(null);
+      try {
+        const result = await fetchListeningCatalog();
+        if (!validView(result)) throw new Error('Invalid catalog response');
+        if (current()) setLoaded({ value: result, owner: initiatingOwner });
+      } catch {
+        if (current() && !preserveMessage)
+          setMessage(
+            '공개 목록을 확인할 수 없습니다. 변경은 중지됩니다. 운영자에게 초기 설정·상태 확인을 요청하세요.',
+          );
+      } finally {
+        if (current()) setLoading(false);
+      }
+    },
+    [holdKey],
+  );
 
   useEffect(() => {
     mounted.current = true;
@@ -135,12 +174,7 @@ export function useListeningCatalog() {
     };
   }, [reload, operatorID, token, authGeneration]);
 
-  async function change(
-    trackID: number,
-    publish: boolean,
-    reason: string,
-    creditsConfirmed: boolean,
-  ): Promise<boolean> {
+  async function change(trackID: number, publish: boolean): Promise<boolean> {
     const initiatingOwner = owner();
     if (
       !isListeningMode ||
@@ -156,9 +190,8 @@ export function useListeningCatalog() {
       initiatingOwner.actor !== operatorID ||
       !Number.isSafeInteger(trackID) ||
       trackID <= 0 ||
-      !reason.trim() ||
-      reason.trim().length > 500 ||
-      !creditsConfirmed
+      typeof publish !== 'boolean' ||
+      snapshot.trackIds.includes(trackID) === publish
     )
       return false;
     const ids = publish
@@ -166,7 +199,7 @@ export function useListeningCatalog() {
       : snapshot.trackIds.filter((id) => id !== trackID);
     const attemptId = crypto.randomUUID();
     const attempt: Attempt = {
-      version: 1,
+      version: 2,
       attemptId,
       actor: initiatingOwner.actor,
       before: { ...snapshot, trackIds: [...snapshot.trackIds] },
@@ -174,8 +207,9 @@ export function useListeningCatalog() {
         attemptId,
         expectedRevision: snapshot.revision,
         trackIds: ids,
-        reason: reason.trim(),
-        creditsConfirmed: true,
+        reason: `관리자 목록에서 단일 곡 ${publish ? '공개' : '공개해제'}: ID ${trackID}`,
+        creditsConfirmed: false,
+        targetChange: { trackId: trackID, publish },
       },
       startedAt: new Date().toISOString(),
     };
@@ -238,7 +272,11 @@ export function useListeningCatalog() {
         throw new Error('Unattributable response');
       if (!settle('CONFIRMED_RESPONSE', result)) return false;
       setLoaded({ value: result, owner: initiatingOwner });
-      setMessage('이 시도의 공개 목록 변경 응답을 확인했습니다.');
+      setMessage(
+        publish
+          ? '공개했습니다. 이제 로그인 없이 들을 수 있습니다.'
+          : '공개를 해제했습니다. 이제 음원 정보를 수정할 수 있습니다.',
+      );
       applyCatalogToPlayer(result);
       return true;
     } catch (error) {
@@ -246,18 +284,14 @@ export function useListeningCatalog() {
       const status = (error as { response?: { status?: number } })?.response?.status;
       if ([400, 401, 403, 409].includes(status ?? 0)) {
         if (!settle('REJECTED_RESPONSE', { status })) return false;
-        setMessage(
-          status === 409
-            ? '변경이 거부되었습니다. 최신 목록에서 새 변경을 검토하세요.'
-            : '변경이 거부되었습니다. 활성 상태·변환 완료·권리와 접근 권한을 확인하세요.',
-        );
+        setMessage(rejectionMessage(error, status!));
       } else {
         settle('UNKNOWN', { status: status ?? null });
         setMessage(
           '변경 결과가 불명확합니다(HOLD). 현재 목록 조회는 이 요청의 성공 증거가 아닙니다. 요청을 반복하지 마세요.',
         );
       }
-      await reload();
+      await reload(true);
       return false;
     } finally {
       if (busy.current === attempt.attemptId) busy.current = null;
@@ -277,7 +311,7 @@ export function useListeningCatalog() {
     try {
       attempt = JSON.parse(raw) as Attempt;
       if (
-        attempt.version !== 1 ||
+        ![1, 2].includes(attempt.version) ||
         attempt.actor !== operatorID ||
         !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(attempt.attemptId) ||
         !validView(attempt.before) ||
@@ -291,7 +325,7 @@ export function useListeningCatalog() {
         typeof attempt.proposal.reason !== 'string' ||
         !attempt.proposal.reason.trim() ||
         attempt.proposal.reason.length > 500 ||
-        attempt.proposal.creditsConfirmed !== true ||
+        !validAttemptAction(attempt) ||
         sessionStorage.getItem(`listening-catalog-attempt:${attempt.attemptId}`) !== raw
       )
         throw new Error('Invalid attempt');
@@ -325,6 +359,7 @@ export function useListeningCatalog() {
         beforeDigest: attempt.before.digest,
         trackIds: attempt.proposal.trackIds,
         reason: attempt.proposal.reason,
+        ...(attempt.version === 2 ? { targetChange: attempt.proposal.targetChange } : {}),
       });
       if (!current()) return;
       const receipt = response?.receipt;
@@ -336,6 +371,10 @@ export function useListeningCatalog() {
         receipt.actorId !== attempt.actor ||
         receipt.attemptId !== attempt.attemptId ||
         receipt.reason !== attempt.proposal.reason ||
+        (attempt.version === 2
+          ? receipt.targetChange?.trackId !== attempt.proposal.targetChange?.trackId ||
+            receipt.targetChange?.publish !== attempt.proposal.targetChange?.publish
+          : receipt.targetChange != null) ||
         !sameView(receipt.before, attempt.before) ||
         !validView(receipt.after) ||
         receipt.after.source !== 'DATABASE' ||

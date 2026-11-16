@@ -1,9 +1,6 @@
 import { useListeningCatalog } from '@/hooks/useListeningCatalog';
-import {
-  ListeningCatalogStatus,
-  ListeningPublicationDialog,
-  type PublicationTarget,
-} from '@/components/track/ListeningCatalogControls';
+import { ListeningCatalogStatus } from '@/components/track/ListeningCatalogControls';
+import { publicationReadiness } from '@/utils/audioProcessing';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { fetchAdminTracks, deleteTrack, type AdminTrackListItem } from '@/api/tracks';
@@ -50,7 +47,6 @@ function AdminTrackThumbnail({ track }: { track: AdminTrackListItem }) {
 export default function TrackManagePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const catalog = useListeningCatalog();
-  const [publicationTarget, setPublicationTarget] = useState<PublicationTarget | null>(null);
 
   const rawPage = searchParams.get('page');
   const rawFilter = searchParams.get('filter');
@@ -146,6 +142,10 @@ export default function TrackManagePage() {
       if (activeListControllerRef.current === controller) activeListControllerRef.current = null;
     }
   }, [activeFilter, activeKeyword, currentPage, searchParams, setSearchParams]);
+
+  // A publication may finish after filter navigation; refresh the current view, not its old closure.
+  const latestLoadTracks = useRef(loadTracks);
+  latestLoadTracks.current = loadTracks;
 
   useEffect(() => {
     if (urlNeedsNormalization) return;
@@ -267,7 +267,16 @@ export default function TrackManagePage() {
         </div>
       </div>
 
-      {isListeningMode && <ListeningCatalogStatus catalog={catalog} />}
+      {isListeningMode && (
+        <ListeningCatalogStatus
+          catalog={catalog}
+          onReload={() => Promise.all([catalog.reload(), loadTracks()])}
+          onReconcile={async () => {
+            await catalog.reconcile();
+            await latestLoadTracks.current();
+          }}
+        />
+      )}
       <div className={styles.filterBar}>
         <label className={styles.filterLabel} htmlFor="track-status-filter">
           상태
@@ -351,7 +360,20 @@ export default function TrackManagePage() {
                       </span>
                       <AudioProcessingStatus
                         value={track.audioProcessing}
-                        disabled={deleteTarget?.id === track.id}
+                        disabled={
+                          deleteTarget?.id === track.id || (isListeningMode && catalog.pending)
+                        }
+                        onChange={
+                          isListeningMode
+                            ? (audioProcessing) => {
+                                setTracks((current) =>
+                                  current.map((row) =>
+                                    row.id === track.id ? { ...row, audioProcessing } : row,
+                                  ),
+                                );
+                              }
+                            : undefined
+                        }
                       />
                     </td>
                     <td className={styles.cellDate}>{formatDate(track.createdAt)}</td>
@@ -364,8 +386,8 @@ export default function TrackManagePage() {
                             <span>
                               {catalog.snapshot
                                 ? catalog.snapshot.trackIds.includes(track.id)
-                                  ? '공개 선정'
-                                  : '미선정'
+                                  ? '공개 중'
+                                  : '비공개'
                                 : '공개 상태 확인 불가'}
                             </span>
                             <Button
@@ -374,20 +396,25 @@ export default function TrackManagePage() {
                                 catalog.loading ||
                                 catalog.pending ||
                                 catalog.hold ||
-                                catalog.snapshot?.source !== 'DATABASE'
+                                catalog.snapshot?.source !== 'DATABASE' ||
+                                (!catalog.snapshot.trackIds.includes(track.id) &&
+                                  publicationReadiness(track.audioProcessing) !== null)
                               }
-                              onClick={() => {
-                                if (catalog.snapshot)
-                                  setPublicationTarget({
-                                    id: track.id,
-                                    title: track.title,
-                                    publish: !catalog.snapshot.trackIds.includes(track.id),
-                                    revision: catalog.snapshot.revision,
-                                  });
+                              aria-describedby="publication-notice"
+                              onClick={async () => {
+                                if (!catalog.snapshot) return;
+                                const publish = !catalog.snapshot.trackIds.includes(track.id);
+                                if (publish && publicationReadiness(track.audioProcessing)) return;
+                                if (await catalog.change(track.id, publish))
+                                  await latestLoadTracks.current();
                               }}
                             >
                               {catalog.snapshot?.trackIds.includes(track.id) ? '공개해제' : '공개'}
                             </Button>
+                            {!catalog.snapshot?.trackIds.includes(track.id) &&
+                              publicationReadiness(track.audioProcessing) && (
+                                <span>{publicationReadiness(track.audioProcessing)}</span>
+                              )}
                           </>
                         )}
                         {!isListeningMode ||
@@ -428,18 +455,6 @@ export default function TrackManagePage() {
         </>
       )}
 
-      {isListeningMode && (
-        <ListeningPublicationDialog
-          key={
-            publicationTarget
-              ? `${catalog.ownerIdentity}:${publicationTarget.id}:${publicationTarget.revision}:${publicationTarget.publish}`
-              : 'closed'
-          }
-          catalog={catalog}
-          target={publicationTarget}
-          onClose={() => setPublicationTarget(null)}
-        />
-      )}
       {!isListeningMode && (
         <Modal
           open={deleteTarget !== null}

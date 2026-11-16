@@ -23,7 +23,7 @@ import { parsePositiveDecimalRouteID } from '@/utils/routeId';
 import Button from '@/components/ui/Button';
 import Tag from '@/components/ui/Tag';
 import AudioProcessingStatus from '@/components/track/AudioProcessingStatus';
-import { audioProcessingError } from '@/utils/audioProcessing';
+import { audioMutationError } from '@/utils/audioProcessing';
 import TrackThumbnailField from './TrackThumbnailField';
 import { emptyTrackThumbnailSelection, type TrackThumbnailSelection } from './trackThumbnail';
 import styles from './TrackEditPage.module.css';
@@ -288,7 +288,7 @@ function TrackEditForm({ trackId }: { trackId: string | undefined }) {
         navigate('/admin/track-manage');
       }
     } catch (err) {
-      if (ownsSubmission()) setError(audioProcessingError(err, '음원 수정에 실패했습니다.'));
+      if (ownsSubmission()) setError(audioMutationError(err, '음원 수정에 실패했습니다.'));
     } finally {
       if (ownsSubmission()) {
         submissionRef.current = false;

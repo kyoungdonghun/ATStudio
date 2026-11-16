@@ -1,0 +1,30 @@
+# Append after the preserved apex listening configuration. See runbooks/www-alias.md.
+
+# WI012 www HTTP alias; canonical host is a literal, never client-controlled.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name www.atmusic.co.kr;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/lib/atstudio-tls-quarantine/acme;
+        default_type text/plain;
+        autoindex off;
+        disable_symlinks on;
+        limit_except GET { deny all; }
+        try_files $uri =404;
+    }
+    location / { return 308 https://atmusic.co.kr$request_uri; }
+}
+
+# WI012 www HTTPS alias. No application/API/storage route is exposed here.
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name www.atmusic.co.kr;
+    ssl_certificate /etc/letsencrypt/live/atmusic.co.kr/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/atmusic.co.kr/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_tickets off;
+    if ($host != www.atmusic.co.kr) { return 444; }
+    return 308 https://atmusic.co.kr$request_uri;
+}

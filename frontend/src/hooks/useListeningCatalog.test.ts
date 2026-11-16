@@ -70,11 +70,11 @@ function deferred<T>() {
   return { promise, resolve };
 }
 describe('publication attempt ownership and HOLD', () => {
-  it('does not write on load or missing reason/credit confirmation', async () => {
+  it('does not write on load, invalid target or unchanged visibility', async () => {
     const h = await ready();
     await act(async () => {
-      await h.result.current.change(99, true, '', true);
-      await h.result.current.change(99, true, 'reason', false);
+      await h.result.current.change(0, true);
+      await h.result.current.change(11, true);
     });
     expect(mocks.put).not.toHaveBeenCalled();
   });
@@ -82,14 +82,15 @@ describe('publication attempt ownership and HOLD', () => {
     mocks.put.mockResolvedValue({ ...snapshot, revision: 5, trackIds: [] });
     const h = await ready();
     await act(async () => {
-      expect(await h.result.current.change(11, false, ' reviewed ', true)).toBe(true);
+      expect(await h.result.current.change(11, false)).toBe(true);
     });
     expect(mocks.put).toHaveBeenCalledWith({
       attemptId: expect.any(String),
       expectedRevision: 4,
       trackIds: [],
-      reason: 'reviewed',
-      creditsConfirmed: true,
+      reason: '관리자 목록에서 단일 곡 공개해제: ID 11',
+      creditsConfirmed: false,
+      targetChange: { trackId: 11, publish: false },
     });
     expect(mocks.pause).toHaveBeenCalled();
     expect(h.result.current.hold).toBe(false);
@@ -99,7 +100,7 @@ describe('publication attempt ownership and HOLD', () => {
     expect(JSON.parse(sessionStorage.getItem(archive)!)).toMatchObject({
       actor: 1,
       before: snapshot,
-      proposal: { reason: 'reviewed', trackIds: [] },
+      proposal: { reason: '관리자 목록에서 단일 곡 공개해제: ID 11', trackIds: [] },
     });
     expect(sessionStorage.getItem(archive + ':outcome')).toContain('CONFIRMED_RESPONSE');
   });
@@ -108,7 +109,7 @@ describe('publication attempt ownership and HOLD', () => {
     const h = await ready();
     mocks.get.mockResolvedValue({ ...snapshot, revision: 5 });
     await act(async () => {
-      await h.result.current.change(99, true, 'reason', true);
+      await h.result.current.change(99, true);
     });
     expect(mocks.put).toHaveBeenCalledTimes(1);
     expect(h.result.current.snapshot?.revision).toBe(5);
@@ -120,19 +121,19 @@ describe('publication attempt ownership and HOLD', () => {
     const h = await ready();
     mocks.get.mockResolvedValue(result);
     await act(async () => {
-      await h.result.current.change(99, true, 'exact-audit-reason-unique', true);
+      await h.result.current.change(99, true);
     });
     const raw = sessionStorage.getItem(key)!;
     const journal = JSON.parse(raw);
     expect(journal).toMatchObject({
-      version: 1,
+      version: 2,
       actor: 1,
       before: snapshot,
       proposal: {
         expectedRevision: 4,
         trackIds: [11, 99],
-        reason: 'exact-audit-reason-unique',
-        creditsConfirmed: true,
+        reason: '관리자 목록에서 단일 곡 공개: ID 99',
+        creditsConfirmed: false,
       },
     });
     expect(journal.attemptId).toMatch(/^[0-9a-f-]{36}$/);
@@ -142,7 +143,7 @@ describe('publication attempt ownership and HOLD', () => {
     h.unmount();
     const next = await ready();
     await act(async () => {
-      await next.result.current.change(99, true, 'again', true);
+      await next.result.current.change(99, true);
       await next.result.current.reload();
     });
     expect(mocks.put).toHaveBeenCalledTimes(1);
@@ -168,7 +169,7 @@ describe('publication attempt ownership and HOLD', () => {
     const h = await ready();
     let pending!: Promise<boolean>;
     act(() => {
-      pending = h.result.current.change(99, true, 'attempt A', true);
+      pending = h.result.current.change(99, true);
     });
     const original = sessionStorage.getItem(key)!;
     const successor = JSON.stringify({
@@ -199,7 +200,7 @@ describe('publication attempt ownership and HOLD', () => {
     const h = await ready();
     let pending!: Promise<boolean>;
     act(() => {
-      pending = h.result.current.change(99, true, 'reason', true);
+      pending = h.result.current.change(99, true);
     });
     const raw = sessionStorage.getItem(key);
     mocks.token = 'token-B';
@@ -217,7 +218,7 @@ describe('publication attempt ownership and HOLD', () => {
     const h = await ready();
     let pending!: Promise<boolean>;
     act(() => {
-      pending = h.result.current.change(99, true, 'reason', true);
+      pending = h.result.current.change(99, true);
     });
     const raw = sessionStorage.getItem(key);
     mocks.generation = 2;
@@ -233,7 +234,7 @@ describe('publication attempt ownership and HOLD', () => {
     const h = await ready();
     let pending!: Promise<boolean>;
     act(() => {
-      pending = h.result.current.change(99, true, 'reason', true);
+      pending = h.result.current.change(99, true);
     });
     const raw = sessionStorage.getItem(key);
     mocks.id = 2;
@@ -270,13 +271,13 @@ describe('publication attempt ownership and HOLD', () => {
     mocks.get.mockResolvedValue({ ...snapshot, source: 'STATIC' });
     const h = await ready();
     await act(async () => {
-      await h.result.current.change(99, true, 'reason', true);
+      await h.result.current.change(99, true);
     });
     expect(mocks.put).not.toHaveBeenCalled();
     mocks.get.mockRejectedValue({ response: { status: 503 } });
     await act(async () => {
       await h.result.current.reload();
-      await h.result.current.change(99, true, 'reason', true);
+      await h.result.current.change(99, true);
     });
     expect(h.result.current.snapshot).toBeNull();
     expect(mocks.put).not.toHaveBeenCalled();
@@ -287,10 +288,10 @@ describe('publication attempt ownership and HOLD', () => {
     const h = await ready();
     let pending!: Promise<boolean>;
     act(() => {
-      pending = h.result.current.change(99, true, 'reason', true);
+      pending = h.result.current.change(99, true);
     });
     await act(async () => {
-      await h.result.current.change(99, true, 'reason', true);
+      await h.result.current.change(99, true);
     });
     expect(mocks.put).toHaveBeenCalledTimes(1);
     await act(async () => {
@@ -302,7 +303,7 @@ describe('publication attempt ownership and HOLD', () => {
     mocks.put.mockResolvedValue({ ...result, revision: 19 });
     const h = await ready();
     await act(async () => {
-      await h.result.current.change(99, true, 'reason', true);
+      await h.result.current.change(99, true);
     });
     expect(h.result.current.hold).toBe(true);
     expect(Object.values(sessionStorage).join()).toContain('UNKNOWN');
@@ -326,7 +327,7 @@ describe('publication attempt ownership and HOLD', () => {
       });
       try {
         await act(async () => {
-          expect(await h.result.current.change(99, true, 'reason', true)).toBe(false);
+          expect(await h.result.current.change(99, true)).toBe(false);
         });
         expect(mocks.put).not.toHaveBeenCalled();
       } finally {
@@ -338,7 +339,7 @@ describe('publication attempt ownership and HOLD', () => {
     sessionStorage.setItem(key, '{broken');
     const h = await ready();
     await act(async () => {
-      await h.result.current.change(99, true, 'reason', true);
+      await h.result.current.change(99, true);
       await h.result.current.reload();
     });
     expect(mocks.put).not.toHaveBeenCalled();
@@ -349,7 +350,7 @@ describe('publication attempt ownership and HOLD', () => {
     mocks.put.mockRejectedValue(new Error('lost'));
     const h = await ready();
     await act(async () => {
-      await h.result.current.change(99, true, 'exact-reason', true);
+      await h.result.current.change(99, true);
     });
     const raw = sessionStorage.getItem(key)!;
     const attempt = JSON.parse(raw);
@@ -357,7 +358,8 @@ describe('publication attempt ownership and HOLD', () => {
       auditId: 9,
       actorId: 1,
       attemptId: attempt.attemptId,
-      reason: 'exact-reason',
+      reason: attempt.proposal.reason,
+      targetChange: attempt.proposal.targetChange,
       before: snapshot,
       after: result,
       recordedAt: '2026-11-05T14:00:00Z',
@@ -382,9 +384,22 @@ describe('publication attempt ownership and HOLD', () => {
       beforeTrackIds: [11],
       beforeDigest: 'before-digest',
       trackIds: [11, 99],
-      reason: 'exact-reason',
+      reason: attempt.proposal.reason,
+      targetChange: { trackId: 99, publish: true },
     });
   });
+  it('preserves an explicit login rejection if the subsequent catalog read also fails', async () => {
+    const h = await ready();
+    mocks.put.mockRejectedValue({ response: { status: 401 } });
+    mocks.get.mockRejectedValue({ response: { status: 401 } });
+    await act(async () => {
+      await h.result.current.change(99, true);
+    });
+    expect(h.result.current.message).toContain('로그인이 만료되었습니다.');
+    expect(h.result.current.snapshot).toBeNull();
+    expect(h.result.current.hold).toBe(false);
+  });
+
   it.each([
     'UNKNOWN',
     'actor',
@@ -393,6 +408,7 @@ describe('publication attempt ownership and HOLD', () => {
     'proposal',
     'reason',
     'shape',
+    'target',
     'current',
     'error',
   ])('keeps HOLD when audit reconciliation has %s mismatch', async (mode) => {
@@ -403,6 +419,7 @@ describe('publication attempt ownership and HOLD', () => {
     if (mode === 'before') changed.before.digest = 'another';
     if (mode === 'proposal') changed.after.trackIds = [11, 100];
     if (mode === 'reason') changed.reason = 'another';
+    if (mode === 'target') changed.targetChange.trackId = 100;
     mocks.reconcile.mockResolvedValue(
       mode === 'UNKNOWN'
         ? { status: 'UNKNOWN', receipt: null }
@@ -476,4 +493,53 @@ describe('publication attempt ownership and HOLD', () => {
     });
     expect(sessionStorage.getItem(key)).toBe(raw);
   });
+
+  it('reconciles a preserved v1 journal without inventing the new target action', async () => {
+    const { h, attempt, receipt } = await unknownAttempt();
+    const legacy = {
+      ...attempt,
+      version: 1,
+      proposal: { ...attempt.proposal, creditsConfirmed: true },
+    };
+    delete legacy.proposal.targetChange;
+    const raw = JSON.stringify(legacy);
+    sessionStorage.setItem(key, raw);
+    sessionStorage.setItem('listening-catalog-attempt:' + attempt.attemptId, raw);
+    mocks.reconcile.mockResolvedValue({
+      status: 'COMMITTED',
+      receipt: { ...receipt, targetChange: null },
+    });
+    mocks.get.mockResolvedValue(result);
+    await act(async () => {
+      await h.result.current.reconcile();
+    });
+    expect(h.result.current.hold).toBe(false);
+    expect(mocks.reconcile.mock.calls[0][0]).not.toHaveProperty('targetChange');
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+    expect(sessionStorage.getItem('listening-catalog-attempt:' + attempt.attemptId)).toBe(raw);
+  });
+
+  it.each([
+    [
+      400,
+      '음원 변환이 완료되지 않았습니다. 변환 상태를 확인해 주세요.',
+      '음원 변환이 완료되지 않았습니다.',
+    ],
+    [400, '/private/path secret backend details', '공개 요청을 적용하지 못했습니다.'],
+    [401, '', '로그인이 만료되었습니다.'],
+    [403, '', '공개 상태를 변경할 관리자 권한이 없습니다.'],
+  ])(
+    'explains safe rejection %s without echoing arbitrary server details',
+    async (status, message, expected) => {
+      mocks.put.mockRejectedValue({ response: { status, data: { message } } });
+      const h = await ready();
+      await act(async () => {
+        await h.result.current.change(99, true);
+      });
+      expect(h.result.current.message).toContain(expected);
+      expect(h.result.current.message).not.toContain('/private/path');
+      expect(h.result.current.hold).toBe(false);
+      expect(mocks.put).toHaveBeenCalledTimes(1);
+    },
+  );
 });

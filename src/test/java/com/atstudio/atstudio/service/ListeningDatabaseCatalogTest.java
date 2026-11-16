@@ -59,6 +59,99 @@ class ListeningDatabaseCatalogTest {
         return new ListeningCatalogService.Update(revision, ids, "Synthetic local approval", true);
     }
 
+    ListeningCatalogService.Update target(long revision, List<Long> ids, long id, boolean publish) {
+        return new ListeningCatalogService.Update(revision, ids, "Explicit single-track button", false,
+                UUID.randomUUID().toString(), new ListeningCatalogService.TargetChange(id, publish));
+    }
+
+    @Test void explicitPublishActivatesOnlyTargetAndUnpublishPreservesActivation() {
+        tx.executeWithoutResult(s -> tracks.findById(trackId).orElseThrow().updateIsActive(false));
+        long other = tx.execute(s -> tracks.saveAndFlush(Track.builder().title("Unrelated draft").tonality("C")
+                .bpm(100).audioFile("other.mp3").isActive(false).user(users.findAll().get(0)).build()).getId());
+        catalog.replace(target(0, List.of(trackId), trackId, true), 1L);
+        assertThat(tracks.findById(trackId).orElseThrow().isActive()).isTrue();
+        assertThat(tracks.findById(other).orElseThrow().isActive()).isFalse();
+        assertThat(audits.findAll().get(0).getAfterState()).contains("\"activeBefore\":false", "\"activeAfter\":true", "\"targetChange\"");
+        catalog.replace(target(1, List.of(), trackId, false), 1L);
+        assertThat(catalog.get().trackIds()).isEmpty();
+        assertThat(tracks.findById(trackId).orElseThrow().isActive()).isTrue();
+        assertThat(tracks.findById(other).orElseThrow().isActive()).isFalse();
+    }
+
+    @Test void activeTargetCanPublishAndLegacyCallerStillCannotActivate() {
+        catalog.replace(target(0, List.of(trackId), trackId, true), 1L);
+        catalog.replace(target(1, List.of(), trackId, false), 1L);
+        tx.executeWithoutResult(s -> tracks.findById(trackId).orElseThrow().updateIsActive(false));
+        assertThatThrownBy(() -> catalog.replace(update(2, List.of(trackId)), 1L))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("비활성");
+        assertThat(catalog.get().revision()).isEqualTo(2);
+    }
+
+    @Test void targetIntentCannotModifyAnotherTrackOrReplayNoOp() {
+        assertThatThrownBy(() -> catalog.replace(target(0, List.of(trackId, 9999L), trackId, true), 1L))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("한 곡");
+        assertThatThrownBy(() -> catalog.replace(target(0, List.of(9999L), 9999L, true), 1L))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("찾을 수");
+        assertThatThrownBy(() -> catalog.replace(target(0, List.of(), trackId, false), 1L))
+                .isInstanceOf(ResponseStatusException.class);
+        assertThat(catalog.get().revision()).isZero();
+        assertThat(audits.count()).isZero();
+    }
+
+    @Test void unfinishedTargetCannotBeActivatedOrPublished() {
+        tx.executeWithoutResult(s -> {
+            Track t = tracks.findById(trackId).orElseThrow(); t.updateIsActive(false);
+            t.enqueueAudio("pending.wav", true);
+        });
+        assertThatThrownBy(() -> catalog.replace(target(0, List.of(trackId), trackId, true), 1L))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("진행 중");
+        assertThat(tracks.findById(trackId).orElseThrow().isActive()).isFalse();
+        assertThat(catalog.get().revision()).isZero();
+        tx.executeWithoutResult(s -> tracks.findById(trackId).orElseThrow().failAudio("LOCAL_FAILURE"));
+        assertThatThrownBy(() -> catalog.replace(target(0, List.of(trackId), trackId, true), 1L))
+                .isInstanceOf(ResponseStatusException.class);
+        assertThat(tracks.findById(trackId).orElseThrow().isActive()).isFalse();
+    }
+
+    @Test void missingStreamAndFailedStateWithoutPendingAreRejected() {
+        tx.executeWithoutResult(s -> {
+            Track t = tracks.findById(trackId).orElseThrow(); t.updateIsActive(false);
+            org.springframework.test.util.ReflectionTestUtils.setField(t, "streamRequired", true);
+        });
+        assertThatThrownBy(() -> catalog.replace(target(0, List.of(trackId), trackId, true), 1L))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("변환이 완료되지");
+        tx.executeWithoutResult(s -> {
+            Track t = tracks.findById(trackId).orElseThrow();
+            org.springframework.test.util.ReflectionTestUtils.setField(t, "streamRequired", false);
+            org.springframework.test.util.ReflectionTestUtils.setField(t, "audioProcessingState", com.atstudio.atstudio.entity.enums.AudioProcessingState.FAILED);
+        });
+        assertThatThrownBy(() -> catalog.replace(target(0, List.of(trackId), trackId, true), 1L))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("변환이 완료되지");
+        assertThat(tracks.findById(trackId).orElseThrow().isActive()).isFalse();
+        assertThat(audits.count()).isZero();
+    }
+
+    @Test void failedTransactionRollsBackTargetActivationCatalogAndAudit() {
+        tx.executeWithoutResult(s -> tracks.findById(trackId).orElseThrow().updateIsActive(false));
+        assertThatThrownBy(() -> writer.replaceThenFail(target(0, List.of(trackId), trackId, true)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(tracks.findById(trackId).orElseThrow().isActive()).isFalse();
+        assertThat(catalog.get().revision()).isZero(); assertThat(audits.count()).isZero();
+    }
+
+    @Test void concurrentTargetPublicationHasOneWinnerAndOneActivationAudit() throws Exception {
+        tx.executeWithoutResult(s -> tracks.findById(trackId).orElseThrow().updateIsActive(false));
+        var pool = Executors.newFixedThreadPool(2); var start = new CountDownLatch(1);
+        try {
+            Callable<Boolean> call = () -> { await(start); try { catalog.replace(target(0, List.of(trackId), trackId, true), 1L); return true; }
+                catch (ResponseStatusException conflict) { assertThat(conflict.getStatusCode().value()).isEqualTo(409); return false; } };
+            var first = pool.submit(call); var second = pool.submit(call); start.countDown();
+            assertThat(List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS))).containsExactlyInAnyOrder(true, false);
+            assertThat(audits.count()).isEqualTo(1);
+            assertThat(tracks.findById(trackId).orElseThrow().isActive()).isTrue();
+        } finally { pool.shutdownNow(); }
+    }
+
     @Test void revisionAuditAndRestartReadUseDatabase() {
         var result = catalog.replace(update(0, List.of(trackId)), 99L);
         assertThat(result.revision()).isEqualTo(1);

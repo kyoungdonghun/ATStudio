@@ -40,10 +40,13 @@ public class ListeningAccessFilter extends OncePerRequestFilter {
                     || path.equals("/api/utils/public-capabilities") || path.equals("/api/tags/admin") || path.equals("/api/tracks/admin/listening-catalog")
                     || path.matches("/api/tracks/admin(/[1-9][0-9]*(/(audio-processing|thumbnail))?)?")
                     || path.equals("/admin") || path.equals("/admin/track-manage")
-                    || path.equals("/admin/tracks/upload") || path.matches("/admin/tracks/[1-9][0-9]*/edit");
+                    || path.equals("/admin/tracks/upload") || path.equals("/admin/tags")
+                    || path.matches("/admin/tracks/[1-9][0-9]*/edit");
             case "POST" -> path.equals("/api/tracks/admin/listening-catalog/reconcile") || path.matches("/api/auth/(login|refresh|logout)") || path.equals("/api/tracks")
-                    || path.matches("/api/tracks/admin/[1-9][0-9]*/audio-processing/retry");
-            case "PUT" -> path.equals("/api/tracks/admin/listening-catalog") || path.matches("/api/tracks/[1-9][0-9]*");
+                    || path.matches("/api/tracks/admin/[1-9][0-9]*/audio-processing/retry")
+                    || path.equals("/api/tags");
+            case "PUT" -> path.equals("/api/tracks/admin/listening-catalog") || path.matches("/api/tracks/[1-9][0-9]*")
+                    || path.matches("/api/tags/[1-9][0-9]*");
             default -> false;
         };
     }

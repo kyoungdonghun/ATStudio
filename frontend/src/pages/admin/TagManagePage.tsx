@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { fetchTags, createTag, updateTag, fetchTagDeletionImpact, deleteTag } from '@/api/tags';
 import { getApiErrorCode } from '@/api/loadError';
+import { isListeningMode } from '@/config/appMode';
 import type { TagDeletionImpact, TagItem, TagType } from '@/types';
 import {
   formatTagNameForDisplay,
@@ -161,6 +162,12 @@ export default function TagManagePage() {
         setNameError(TAG_NAME_DUPLICATE_MESSAGE);
       } else if (errorCode === 'TAG_NAME_INVALID') {
         setNameError(TAG_NAME_SERVER_INVALID_MESSAGE);
+      } else if (
+        isListeningMode &&
+        operation.mode === 'edit' &&
+        getSafeApiMessage(error, '') === 'Unpublish selected track before editing'
+      ) {
+        setFormError('이 태그가 연결된 공개 음원의 공개를 먼저 해제한 뒤 수정해주세요.');
       } else {
         setFormError(getSafeApiMessage(error, TAG_SAVE_FAILURE_MESSAGE));
       }
@@ -323,9 +330,11 @@ export default function TagManagePage() {
                     <Button variant="outline" size="sm" onClick={() => openEdit(tag)}>
                       Edit
                     </Button>
-                    <Button variant="danger" size="sm" onClick={() => openDelete(tag)}>
-                      Delete
-                    </Button>
+                    {!isListeningMode ? (
+                      <Button variant="danger" size="sm" onClick={() => openDelete(tag)}>
+                        Delete
+                      </Button>
+                    ) : null}
                   </div>
                 </td>
               </tr>

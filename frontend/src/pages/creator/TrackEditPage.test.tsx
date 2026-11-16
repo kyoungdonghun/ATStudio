@@ -172,6 +172,29 @@ describe('TrackEditPage thumbnail contract', () => {
     expect(screen.queryByText('secret path')).not.toBeInTheDocument();
   });
 
+  it('retains replacement input and gives safe analysis guidance when saving is rejected', async () => {
+    mocks.fetchTrackDetailForAdmin.mockResolvedValue(track(null));
+    mocks.updateTrack.mockRejectedValue({
+      message: 'Request failed with status code 400',
+      response: {
+        status: 400,
+        data: { errorCode: 'AUDIO_ANALYSIS_FAILED', message: 'private server diagnostic' },
+      },
+    });
+    renderPage();
+    const file = new File(['audio'], 'replacement.wav', { type: 'audio/wav' });
+    fireEvent.change(await screen.findByLabelText('오디오 파일', { selector: 'input' }), {
+      target: { files: [file] },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('음원 파일을 분석하지 못했습니다.');
+    expect(screen.queryByText(/Request failed|private/)).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('Fresh Track')).toBeInTheDocument();
+    expect(screen.getByText('replacement.wav')).toBeInTheDocument();
+    expect(mocks.updateTrack).toHaveBeenCalledTimes(1);
+    expect((mocks.updateTrack.mock.calls[0][1] as FormData).get('audioFile')).toBe(file);
+  });
+
   it('ignores a late save when the edit route changes and clears the previous selected audio', async () => {
     let resolve!: (value: AdminTrackDetail) => void;
     mocks.updateTrack.mockReturnValue(
@@ -304,6 +327,27 @@ describe('TrackEditPage thumbnail contract', () => {
     expect(formData.get('replaceTags')).toBe('true');
     expect(formData.getAll('tagIds')).toEqual([]);
     expect(formData.get('description')).toBe('');
+  });
+
+  it('submits a newly available tag ID and displays its selection after a fresh edit load', async () => {
+    const createdTag = { id: 37, name: 'QA Created Tag', type: 'GENRE' as const };
+    mocks.fetchTrackDetailForAdmin.mockResolvedValue(track(null));
+    mocks.fetchTags.mockImplementation((type: string) =>
+      Promise.resolve(type === 'GENRE' ? [createdTag] : []),
+    );
+    mocks.updateTrack.mockResolvedValue(track(null, [createdTag]));
+    const first = renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'QA Created Tag' }));
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(mocks.updateTrack).toHaveBeenCalledWith(21, expect.any(FormData)));
+    const formData = mocks.updateTrack.mock.calls[0][1] as FormData;
+    expect(formData.get('replaceTags')).toBe('true');
+    expect(formData.getAll('tagIds')).toEqual(['37']);
+    first.unmount();
+    mocks.fetchTrackDetailForAdmin.mockResolvedValue(track(null, [createdTag]));
+    renderPage();
+    const selectedTag = await screen.findByRole('button', { name: 'QA Created Tag' });
+    expect(selectedTag).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('validates nonblank title, integer in-range BPM, and nonblank tonality before construction', async () => {

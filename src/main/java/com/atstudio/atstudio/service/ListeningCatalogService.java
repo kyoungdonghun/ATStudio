@@ -39,17 +39,29 @@ public class ListeningCatalogService {
         public Catalog { trackIds = List.copyOf(trackIds); }
     }
     public record View(String source, long revision, List<Long> trackIds, String digest) { }
-    public record Update(long expectedRevision, List<Long> trackIds, String reason, boolean creditsConfirmed, String attemptId) {
+    public record TargetChange(Long trackId, Boolean publish) { }
+    public record Update(long expectedRevision, List<Long> trackIds, String reason, boolean creditsConfirmed,
+            String attemptId, TargetChange targetChange) {
+        public Update(long revision, List<Long> ids, String reason, boolean confirmed, String attemptId) {
+            this(revision, ids, reason, confirmed, attemptId, null);
+        }
         // Internal fixture/caller convenience. HTTP deserialization uses the canonical constructor and requires its ID.
         public Update(long revision, List<Long> ids, String reason, boolean confirmed) {
             this(revision, ids, reason, confirmed, UUID.randomUUID().toString());
         }
     }
     public record AuditAfter(String attemptId, View catalog) { }
+    public record TargetAuditAfter(String attemptId, View catalog, TargetChange targetChange,
+            boolean activeBefore, boolean activeAfter) { }
     public record Reconcile(String attemptId, long expectedRevision, List<Long> beforeTrackIds,
-            String beforeDigest, List<Long> trackIds, String reason) { }
+            String beforeDigest, List<Long> trackIds, String reason, TargetChange targetChange) {
+        public Reconcile(String attemptId, long expectedRevision, List<Long> beforeTrackIds,
+                String beforeDigest, List<Long> trackIds, String reason) {
+            this(attemptId, expectedRevision, beforeTrackIds, beforeDigest, trackIds, reason, null);
+        }
+    }
     public record Receipt(Long auditId, Long actorId, String attemptId, String reason,
-            View before, View after, String recordedAt) { }
+            View before, View after, String recordedAt, TargetChange targetChange) { }
     public record Reconciliation(String status, Receipt receipt) {
         static Reconciliation unknown() { return new Reconciliation("UNKNOWN", null); }
     }
@@ -89,7 +101,7 @@ public class ListeningCatalogService {
     @StorageReferenceMutation
     public View replace(Update request, Long actorId) {
         if (!databaseMode()) throw new ResponseStatusException(HttpStatus.CONFLICT, "Static catalog is read-only");
-        if (request == null || !request.creditsConfirmed() || request.reason() == null
+        if (request == null || (request.targetChange() == null && !request.creditsConfirmed()) || request.reason() == null
                 || request.reason().isBlank() || request.reason().length() > 500) bad("Confirm credits and provide a reason");
         requireAttemptId(request.attemptId());
         List<Long> ids = validateIds(request.trackIds());
@@ -101,20 +113,41 @@ public class ListeningCatalogService {
         if (request.expectedRevision() != before.revision() || before.revision() == Long.MAX_VALUE) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Catalog revision conflict; reload before deciding");
         }
+        TargetChange target = request.targetChange();
+        if (target != null) validateTarget(target, before.trackIds(), ids);
+        Track targetTrack = null;
+        boolean activeBefore = false;
         SortedSet<Long> lockIds = new TreeSet<>(before.trackIds()); lockIds.addAll(ids);
         for (Long id : lockIds) {
             Track track = tracks.findByIdForUpdate(id).orElse(null);
-            if (ids.contains(id) && (track == null || !track.isActive() || !track.isStreamReady()
-                    || track.getPendingAudioFile() != null || track.getAudioClaimToken() != null
-                    || track.getAudioProcessingState() == com.atstudio.atstudio.entity.enums.AudioProcessingState.PENDING
-                    || track.getAudioProcessingState() == com.atstudio.atstudio.entity.enums.AudioProcessingState.PROCESSING)) {
-                bad("Selected tracks must exist, be active and have no pending audio generation");
+            if (target != null && id.equals(target.trackId())) {
+                if (track == null) bad("음원을 찾을 수 없습니다.");
+                targetTrack = track;
+                activeBefore = track.isActive();
+            }
+            if (ids.contains(id)) {
+                if (track == null) bad("음원을 찾을 수 없습니다.");
+                if (track.getPendingAudioFile() != null || track.getAudioClaimToken() != null
+                        || track.getAudioProcessingState() == com.atstudio.atstudio.entity.enums.AudioProcessingState.PENDING
+                        || track.getAudioProcessingState() == com.atstudio.atstudio.entity.enums.AudioProcessingState.PROCESSING) {
+                    bad("음원 변경 처리가 진행 중입니다. 완료 후 다시 시도해 주세요.");
+                }
+                if (!track.isStreamReady() || track.getAudioProcessingState() != com.atstudio.atstudio.entity.enums.AudioProcessingState.READY) {
+                    bad("음원 변환이 완료되지 않았습니다. 변환 상태를 확인해 주세요.");
+                }
+                if (!track.isActive() && !(target != null && target.publish() && id.equals(target.trackId()))) {
+                    bad("비활성 음원입니다. 목록의 공개 버튼으로 다시 시도해 주세요.");
+                }
             }
         }
+        // All guards passed: activation and publication commit (or roll back) together.
+        if (target != null && target.publish()) targetTrack.updateIsActive(true);
         Catalog after = new Catalog(before.revision() + 1, ids);
         String encoded = encode(after);
         row.updateValue(encoded);
-        audit.recordListeningCatalogSuccess(actorId, row.getId(), auditState(before), auditAfter(request.attemptId(), after), request.reason());
+        audit.recordListeningCatalogSuccess(actorId, row.getId(), auditState(before),
+                target == null ? auditAfter(request.attemptId(), after)
+                        : targetAuditAfter(request.attemptId(), after, target, activeBefore, targetTrack.isActive()), request.reason());
         return view(after);
     }
 
@@ -151,7 +184,20 @@ public class ListeningCatalogService {
                     || log.getBeforeState().getBytes(StandardCharsets.UTF_8).length > MAX_BYTES + 512
                     || log.getAfterState().getBytes(StandardCharsets.UTF_8).length > MAX_BYTES + 1024) return Reconciliation.unknown();
             View before = JSON.readValue(log.getBeforeState(), View.class);
-            AuditAfter recorded = JSON.readValue(log.getAfterState(), AuditAfter.class);
+            AuditAfter recorded;
+            TargetChange recordedTarget = null;
+            if (JSON.readTree(log.getAfterState()).has("targetChange")) {
+                TargetAuditAfter targetRecorded = JSON.readValue(log.getAfterState(), TargetAuditAfter.class);
+                recordedTarget = targetRecorded.targetChange();
+                if (!Objects.equals(request.targetChange(), recordedTarget)) return Reconciliation.unknown();
+                validateTarget(recordedTarget, before.trackIds(), targetRecorded.catalog().trackIds());
+                if (recordedTarget.publish() ? !targetRecorded.activeAfter()
+                        : targetRecorded.activeBefore() != targetRecorded.activeAfter()) return Reconciliation.unknown();
+                recorded = new AuditAfter(targetRecorded.attemptId(), targetRecorded.catalog());
+            } else {
+                if (request.targetChange() != null) return Reconciliation.unknown();
+                recorded = JSON.readValue(log.getAfterState(), AuditAfter.class);
+            }
             View after = recorded.catalog();
             if (!validAuditView(before) || !validAuditView(after)
                     || !request.attemptId().equals(recorded.attemptId())
@@ -161,7 +207,7 @@ public class ListeningCatalogService {
                     || current.revision() < after.revision()
                     || (current.revision() == after.revision() && !view(current).equals(after))) return Reconciliation.unknown();
             return new Reconciliation("COMMITTED", new Receipt(log.getId(), actorId, recorded.attemptId(),
-                    log.getReasonNote(), before, after, log.getCreatedAt().toString()));
+                    log.getReasonNote(), before, after, log.getCreatedAt().toString(), recordedTarget));
         } catch (Exception invalidOrUnavailable) { return Reconciliation.unknown(); }
     }
 
@@ -180,6 +226,20 @@ public class ListeningCatalogService {
     private String auditAfter(String attemptId, Catalog catalog) {
         try { return JSON.writeValueAsString(new AuditAfter(attemptId, view(catalog))); }
         catch (com.fasterxml.jackson.core.JsonProcessingException invalid) { throw unavailable(); }
+    }
+
+    private String targetAuditAfter(String attemptId, Catalog catalog, TargetChange target, boolean before, boolean after) {
+        try { return JSON.writeValueAsString(new TargetAuditAfter(attemptId, view(catalog), target, before, after)); }
+        catch (com.fasterxml.jackson.core.JsonProcessingException invalid) { throw unavailable(); }
+    }
+
+    private static void validateTarget(TargetChange target, List<Long> before, List<Long> after) {
+        if (target == null || target.trackId() == null || target.trackId() <= 0 || target.publish() == null)
+            bad("선택한 한 곡의 공개 상태만 변경할 수 있습니다.");
+        SortedSet<Long> expected = new TreeSet<>(before);
+        boolean changed = target.publish() ? expected.add(target.trackId()) : expected.remove(target.trackId());
+        if (!changed || !new ArrayList<>(expected).equals(after))
+            bad("선택한 한 곡의 공개 상태만 변경할 수 있습니다.");
     }
 
     private String auditState(Catalog catalog) {

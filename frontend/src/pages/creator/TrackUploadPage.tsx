@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { createTrack, type AudioProcessing } from '@/api/tracks';
 import { fetchTags } from '@/api/tags';
 import type { TagItem } from '@/types';
+import { audioMutationError } from '@/utils/audioProcessing';
 import {
   TITLE_TRACK_MAX,
   BPM_MIN,
@@ -307,7 +308,10 @@ export default function TrackUploadPage() {
         }));
       } catch (err) {
         if (!ownsSubmission()) return;
-        const msg = err instanceof Error ? err.message : '업로드 실패';
+        const msg = audioMutationError(
+          err,
+          '음원 업로드에 실패했습니다. 입력값과 파일 형식을 확인해 주세요.',
+        );
         setUploadStates((prev) => ({
           ...prev,
           [track.id]: { status: 'error', error: msg },
@@ -323,7 +327,7 @@ export default function TrackUploadPage() {
     if (!hasError && !hasProcessing) {
       navigate('/admin/track-manage');
     } else if (hasError) {
-      setError('일부 트랙 업로드에 실패했습니다. 실패한 항목을 확인하고 다시 시도해주세요.');
+      setError('일부 트랙의 업로드를 완료하지 못했습니다. 각 항목의 안내를 확인해 주세요.');
     }
   }
 

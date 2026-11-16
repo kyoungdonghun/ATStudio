@@ -218,6 +218,7 @@ export interface ListeningCatalogChange {
   trackIds: number[];
   reason: string;
   creditsConfirmed: boolean;
+  targetChange?: { trackId: number; publish: boolean };
 }
 export async function fetchListeningCatalog(signal?: AbortSignal): Promise<ListeningCatalog> {
   const { data } = await client.get<ApiResponse<ListeningCatalog>>(
@@ -249,6 +250,7 @@ export interface ListeningCatalogReconciliation {
     before: ListeningCatalog;
     after: ListeningCatalog;
     recordedAt: string;
+    targetChange?: { trackId: number; publish: boolean } | null;
   };
 }
 export async function reconcileListeningCatalog(request: {
@@ -258,6 +260,7 @@ export async function reconcileListeningCatalog(request: {
   beforeDigest: string;
   trackIds: number[];
   reason: string;
+  targetChange?: { trackId: number; publish: boolean };
 }): Promise<ListeningCatalogReconciliation> {
   const { data } = await client.post<ApiResponse<ListeningCatalogReconciliation>>(
     '/tracks/admin/listening-catalog/reconcile',

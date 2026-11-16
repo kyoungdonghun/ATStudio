@@ -7,6 +7,36 @@ import java.util.*;
 import static org.assertj.core.api.Assertions.*;
 
 class ListeningReceiptTest extends ListeningDatabaseCatalogTest {
+    @Test void targetReceiptRequiresExactIntentAndActorAndSurvivesLaterRevision() {
+        tx.executeWithoutResult(s -> tracks.findById(trackId).orElseThrow().updateIsActive(false));
+        var before = catalog.get();
+        var proposal = target(0, List.of(trackId), trackId, true);
+        var query = new ListeningCatalogService.Reconcile(proposal.attemptId(), 0, before.trackIds(), before.digest(),
+                proposal.trackIds(), proposal.reason(), proposal.targetChange());
+        catalog.replace(proposal, 7L);
+        var result = catalog.reconcile(query, 7L);
+        assertThat(result.status()).isEqualTo("COMMITTED");
+        assertThat(result.receipt().targetChange()).isEqualTo(proposal.targetChange());
+        assertThat(catalog.reconcile(query, 8L).status()).isEqualTo("UNKNOWN");
+        assertThat(catalog.reconcile(new ListeningCatalogService.Reconcile(proposal.attemptId(), 0, before.trackIds(),
+                before.digest(), proposal.trackIds(), proposal.reason()), 7L).status()).isEqualTo("UNKNOWN");
+        assertThat(catalog.reconcile(new ListeningCatalogService.Reconcile(proposal.attemptId(), 0, before.trackIds(),
+                before.digest(), proposal.trackIds(), proposal.reason(), new ListeningCatalogService.TargetChange(trackId, false)), 7L).status()).isEqualTo("UNKNOWN");
+        catalog.replace(target(1, List.of(), trackId, false), 7L);
+        assertThat(catalog.reconcile(query, 7L).status()).isEqualTo("COMMITTED");
+    }
+
+    @Test void targetCannotClaimLegacyReceiptAndRolledBackActivationHasNoReceipt() {
+        var before = catalog.get();
+        catalog.replace(proposal(), 7L);
+        assertThat(catalog.reconcile(new ListeningCatalogService.Reconcile(attempt, 0, before.trackIds(), before.digest(),
+                List.of(trackId), "Exact receipt reason", new ListeningCatalogService.TargetChange(trackId, true)), 7L).status()).isEqualTo("UNKNOWN");
+        catalog.replace(target(1, List.of(), trackId, false), 7L);
+        var secondBefore = catalog.get(); var request = target(2, List.of(trackId), trackId, true);
+        assertThatThrownBy(() -> writer.replaceThenFail(request)).isInstanceOf(IllegalStateException.class);
+        assertThat(catalog.reconcile(new ListeningCatalogService.Reconcile(request.attemptId(), 2, secondBefore.trackIds(),
+                secondBefore.digest(), request.trackIds(), request.reason(), request.targetChange()), 1L).status()).isEqualTo("UNKNOWN");
+    }
     String attempt = "12345678-1234-1234-1234-123456789abc";
     ListeningCatalogService.Update proposal() {
         return new ListeningCatalogService.Update(0, List.of(trackId), "Exact receipt reason", true, attempt);

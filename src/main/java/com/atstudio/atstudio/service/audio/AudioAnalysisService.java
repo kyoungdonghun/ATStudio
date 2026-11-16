@@ -8,12 +8,14 @@ import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.UnsupportedAudioFileException;
+import javax.sound.sampled.spi.AudioFileReader;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.ServiceLoader;
 
 @Service
 public class AudioAnalysisService {
@@ -49,12 +51,17 @@ public class AudioAnalysisService {
                     format);
         }
 
-        try (InputStream raw = source.open();
-             BufferedInputStream buffered = new BufferedInputStream(raw, 65_536)) {
-            validateContainerHeader(buffered, format);
-            try (AudioInputStream encoded = AudioSystem.getAudioInputStream(buffered)) {
-                validateEncoding(encoded.getFormat(), format);
-                return decode(encoded, format);
+        try {
+            if (format == AudioAnalysisFormat.WAV) {
+                return analyzeWav(source);
+            }
+            try (InputStream raw = source.open();
+                 BufferedInputStream buffered = new BufferedInputStream(raw, 65_536)) {
+                validateContainerHeader(buffered, format);
+                try (AudioInputStream encoded = AudioSystem.getAudioInputStream(buffered)) {
+                    validateEncoding(encoded.getFormat(), format);
+                    return decode(encoded, format);
+                }
             }
         } catch (AudioAnalysisException exception) {
             throw exception;
@@ -74,6 +81,25 @@ public class AudioAnalysisService {
                     format,
                     exception);
         }
+    }
+
+    private AudioAnalysisResult analyzeWav(InputStreamSource source)
+            throws IOException, UnsupportedAudioFileException {
+        // The classpath MP3 SPI can mistake PCM sample bytes for MPEG frames.
+        // Use public platform providers for WAV only, retaining the existing MP3 path.
+        for (AudioFileReader reader : ServiceLoader.loadInstalled(AudioFileReader.class)) {
+            try (InputStream raw = source.open();
+                 BufferedInputStream buffered = new BufferedInputStream(raw, 65_536)) {
+                validateContainerHeader(buffered, AudioAnalysisFormat.WAV);
+                try (AudioInputStream encoded = reader.getAudioInputStream(buffered)) {
+                    validateEncoding(encoded.getFormat(), AudioAnalysisFormat.WAV);
+                    return decode(encoded, AudioAnalysisFormat.WAV);
+                } catch (UnsupportedAudioFileException unsupported) {
+                    // A fresh stream keeps provider probes independent and bounded.
+                }
+            }
+        }
+        throw new UnsupportedAudioFileException("No platform reader accepted WAV input");
     }
 
     private AudioAnalysisResult decode(
