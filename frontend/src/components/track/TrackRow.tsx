@@ -123,11 +123,7 @@ export default function TrackRow({
       {/* Keep these cells aligned with the Genre / Instrument / Mood headers. */}
       {taxonomyGroups.map((group) => (
         <td key={group.label} className={styles.cellTag}>
-          {group.tags.length > 0 ? (
-            renderTags(group.tags)
-          ) : (
-            <span className={styles.emptyTag}>—</span>
-          )}
+          {renderTags(group.tags)}
         </td>
       ))}
 

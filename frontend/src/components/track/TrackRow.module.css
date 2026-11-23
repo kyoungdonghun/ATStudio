@@ -32,12 +32,10 @@
 
 .cellTag {
   composes: cell;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-.emptyTag {
-  color: var(--text2);
+  min-width: 150px;
+  max-width: 150px;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .mobileTaxonomies {
@@ -177,11 +175,7 @@
   font-size: 11px;
   color: var(--text1);
   margin-right: 4px;
-  max-width: 100%;
-  box-sizing: border-box;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  margin-bottom: 3px;
+  white-space: nowrap;
 }
 
 /* ── Actions ── */
@@ -219,6 +213,13 @@
   color: var(--accent);
 }
 
+@media (max-width: 1200px) {
+  .cellTag {
+    min-width: 116px;
+    max-width: 116px;
+  }
+}
+
 /* ══ Tablet ══ */
 @media (max-width: 1023px) {
   .cellBpm,
@@ -228,6 +229,11 @@
 
   .cellActs {
     width: 90px;
+  }
+
+  .cellTag {
+    min-width: 110px;
+    max-width: 110px;
   }
 }
 
@@ -280,6 +286,11 @@
   }
 
   .tagChip {
+    max-width: 100%;
+    box-sizing: border-box;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    margin-bottom: 3px;
     padding: 1px 5px;
     font-size: 10px;
   }

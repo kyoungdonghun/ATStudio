@@ -75,7 +75,7 @@ describe('TrackRow', () => {
     );
     const cells = screen.getAllByRole('cell');
     expect(cells).toHaveLength(9);
-    expect(cells.slice(2, 5).map((cell) => cell.textContent)).toEqual(['—', '—', '—']);
+    expect(cells.slice(2, 5).map((cell) => cell.textContent)).toEqual(['', '', '']);
     expect(cells[5]).toHaveTextContent('120');
     expect(cells[6]).toHaveTextContent('C');
   });

@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { fetchLicenseDetail, type LicenseDetail } from '@/api/licenses';
 import { classifyLoadError } from '@/api/loadError';
+import { isPilotMode } from '@/config/pilotMode';
 import { useAuthStore } from '@/store/authStore';
+import { useToastStore } from '@/store/toastStore';
 import { formatDate } from '@/utils/format';
 import { parsePositiveDecimalRouteID } from '@/utils/routeId';
 import { createOwnerKey, createReadKey, getCurrentOwnerKey } from '@/utils/ownerProjection';
@@ -76,6 +78,23 @@ export default function LicenseDetailPage() {
     };
   }, [id, ownerKey, readKey]);
 
+  async function copyCode() {
+    const generation = requestGeneration.current;
+    const isCurrent = () =>
+      readKey !== null &&
+      readKey === currentReadKeyRef.current &&
+      generation === requestGeneration.current &&
+      getCurrentOwnerKey(ownerKey) === ownerKey;
+    if (!currentDetail || !isCurrent()) return;
+
+    try {
+      await navigator.clipboard.writeText(currentDetail.licenseCode);
+      if (isCurrent()) useToastStore.getState().show('success', '라이선스 코드가 복사되었습니다.');
+    } catch {
+      if (isCurrent()) useToastStore.getState().show('error', '복사에 실패했습니다.');
+    }
+  }
+
   /* ── Render ── */
 
   if (id === null) {
@@ -133,6 +152,11 @@ export default function LicenseDetailPage() {
         <div className={styles.infoRow}>
           <span className={styles.infoLabel}>{'라이선스 코드'}</span>
           <span className={styles.licenseCode}>{currentDetail.licenseCode}</span>
+          {isPilotMode && (
+            <button type="button" className={styles.copyBtn} onClick={copyCode}>
+              코드 복사
+            </button>
+          )}
         </div>
         <div className={styles.infoRow}>
           <span className={styles.infoLabel}>{'발급일'}</span>

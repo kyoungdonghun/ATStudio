@@ -73,6 +73,27 @@
   word-break: break-all;
 }
 
+.copyBtn {
+  composes: copyBtn from './LicenseListPage.module.css';
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+  .infoRow:has(.copyBtn) {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .infoRow:has(.copyBtn) .infoLabel {
+    width: 100%;
+  }
+
+  .copyBtn {
+    margin-left: 0;
+  }
+}
+
 /* ── Loading / Error ── */
 
 .loading {

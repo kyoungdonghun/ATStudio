@@ -101,7 +101,7 @@ function ThemeToggle() {
   );
 }
 
-function SellingHeader() {
+function SearchableHeader() {
   const location = useLocation();
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
@@ -158,10 +158,8 @@ function SellingHeader() {
   }, [closeMobileMenu, menuOpen]);
 
   function toggleMobileMenu(event: React.MouseEvent<HTMLButtonElement>) {
-    setMenuOpen((isOpen) => {
-      if (!isOpen) menuOpenerRef.current = event.currentTarget;
-      return !isOpen;
-    });
+    if (!menuOpen) menuOpenerRef.current = event.currentTarget;
+    setMenuOpen(!menuOpen);
   }
 
   function beginNavigationFocus() {
@@ -214,10 +212,24 @@ function SellingHeader() {
     return location.pathname.startsWith(path);
   }
 
+  const mobileAction = isPilotMode ? '곡 검색' : '메뉴';
+  const mobileMenuButton = (
+    <button
+      type="button"
+      className={styles.hamburger}
+      onClick={toggleMobileMenu}
+      aria-label={mobileAction + (menuOpen ? ' 닫기' : ' 열기')}
+      aria-controls={MOBILE_MENU_ID}
+      aria-expanded={menuOpen}
+    >
+      {menuOpen ? '\u2715' : isPilotMode ? <SearchIcon /> : '\u2630'}
+    </button>
+  );
+
   return (
     <>
       <header className={styles.header}>
-        <Link to="/" className={styles.logo}>
+        <Link to={isPilotMode ? '/tracks' : '/'} className={styles.logo}>
           AT.M
         </Link>
 
@@ -235,104 +247,110 @@ function SellingHeader() {
           />
         </form>
 
-        {/* Desktop/Tablet: inline nav */}
-        <nav className={styles.navTabs}>
-          {navItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`${styles.tab} ${isActive(item.path) ? styles.tabActive : ''}`}
-            >
-              {item.label}
-            </Link>
-          ))}
-          {roleNavItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`${styles.tab} ${isActive(item.path) ? styles.tabActive : ''}`}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        {isPilotMode ? (
+          <>
+            <nav aria-label="청취 메뉴" className={styles.pilotNav}>
+              <Link to="/tracks" className={styles.tab}>
+                음원 청취
+              </Link>
+              <PilotNavigation />
+            </nav>
+            <ThemeToggle />
+            <div className={styles.mobileRight}>{mobileMenuButton}</div>
+          </>
+        ) : (
+          <>
+            {/* Desktop/Tablet: inline nav */}
+            <nav className={styles.navTabs}>
+              {navItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`${styles.tab} ${isActive(item.path) ? styles.tabActive : ''}`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+              {roleNavItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`${styles.tab} ${isActive(item.path) ? styles.tabActive : ''}`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
 
-        {/* Desktop/Tablet: inline right section */}
-        <div className={styles.navRight}>
-          <ThemeToggle />
-          {isAuthenticated ? (
-            <>
-              {user && (
-                <span className={styles.greeting}>
-                  {'안녕하세요, '}
-                  <strong className={styles.greetingName}>{user.nickname}</strong>
-                </span>
+            {/* Desktop/Tablet: inline right section */}
+            <div className={styles.navRight}>
+              <ThemeToggle />
+              {isAuthenticated ? (
+                <>
+                  {user && (
+                    <span className={styles.greeting}>
+                      {'안녕하세요, '}
+                      <strong className={styles.greetingName}>{user.nickname}</strong>
+                    </span>
+                  )}
+                  <Link
+                    to="/profile"
+                    className={`${buttonStyles.button} ${buttonStyles.ghost} ${buttonStyles.md}`}
+                  >
+                    {'내 계정'}
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    size="md"
+                    onClick={() => void handleLogout()}
+                    loading={logoutPending}
+                    aria-busy={logoutPending}
+                  >
+                    {'로그아웃'}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className={`${buttonStyles.button} ${buttonStyles.ghost} ${buttonStyles.md}`}
+                  >
+                    {'로그인'}
+                  </Link>
+                  <Link
+                    to="/subscriptions"
+                    className={`${buttonStyles.button} ${buttonStyles.primary} ${buttonStyles.md}`}
+                  >
+                    {'구독 시작하기'}
+                  </Link>
+                </>
               )}
-              <Link
-                to="/profile"
-                className={`${buttonStyles.button} ${buttonStyles.ghost} ${buttonStyles.md}`}
-              >
-                {'내 계정'}
-              </Link>
-              <Button
-                variant="ghost"
-                size="md"
-                onClick={() => void handleLogout()}
-                loading={logoutPending}
-                aria-busy={logoutPending}
-              >
-                {'로그아웃'}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                className={`${buttonStyles.button} ${buttonStyles.ghost} ${buttonStyles.md}`}
-              >
-                {'로그인'}
-              </Link>
-              <Link
-                to="/subscriptions"
-                className={`${buttonStyles.button} ${buttonStyles.primary} ${buttonStyles.md}`}
-              >
-                {'구독 시작하기'}
-              </Link>
-            </>
-          )}
-        </div>
+            </div>
 
-        {/* Mobile: hamburger button */}
-        <div className={styles.mobileRight}>
-          <ThemeToggle />
-          {isAuthenticated && user ? (
-            <button
-              type="button"
-              className={styles.mobileAuthButton}
-              onClick={toggleMobileMenu}
-              aria-label="계정 메뉴"
-              aria-controls={MOBILE_MENU_ID}
-              aria-expanded={menuOpen}
-              title={user.nickname}
-            >
-              {user.nickname}
-            </button>
-          ) : !isAuthenticated ? (
-            <Link to="/login" className={styles.mobileAuthButton}>
-              {'로그인'}
-            </Link>
-          ) : null}
-          <button
-            type="button"
-            className={styles.hamburger}
-            onClick={toggleMobileMenu}
-            aria-label={menuOpen ? '메뉴 닫기' : '메뉴 열기'}
-            aria-controls={MOBILE_MENU_ID}
-            aria-expanded={menuOpen}
-          >
-            {menuOpen ? '\u2715' : '\u2630'}
-          </button>
-        </div>
+            {/* Mobile: hamburger button */}
+            <div className={styles.mobileRight}>
+              <ThemeToggle />
+              {isAuthenticated && user ? (
+                <button
+                  type="button"
+                  className={styles.mobileAuthButton}
+                  onClick={toggleMobileMenu}
+                  aria-label="계정 메뉴"
+                  aria-controls={MOBILE_MENU_ID}
+                  aria-expanded={menuOpen}
+                  title={user.nickname}
+                >
+                  {user.nickname}
+                </button>
+              ) : !isAuthenticated ? (
+                <Link to="/login" className={styles.mobileAuthButton}>
+                  {'로그인'}
+                </Link>
+              ) : null}
+              {mobileMenuButton}
+            </div>
+          </>
+        )}
       </header>
 
       {/* Mobile: slide-down menu */}
@@ -359,83 +377,88 @@ function SellingHeader() {
                 maxLength={SEARCH_KEYWORD_MAX}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                autoFocus={isPilotMode}
                 aria-label="모바일 곡 제목 및 용도 검색"
               />
             </form>
 
-            {/* Nav links */}
-            <nav className={styles.mobileNav}>
-              {navItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={handleMobileNavigation}
-                  className={`${styles.mobileNavItem} ${isActive(item.path) ? styles.mobileNavItemActive : ''}`}
-                >
-                  {item.label}
-                </Link>
-              ))}
-              {roleNavItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={handleMobileNavigation}
-                  className={`${styles.mobileNavItem} ${isActive(item.path) ? styles.mobileNavItemActive : ''}`}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
+            {!isPilotMode && (
+              <>
+                {/* Nav links */}
+                <nav className={styles.mobileNav}>
+                  {navItems.map((item) => (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={handleMobileNavigation}
+                      className={`${styles.mobileNavItem} ${isActive(item.path) ? styles.mobileNavItemActive : ''}`}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                  {roleNavItems.map((item) => (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={handleMobileNavigation}
+                      className={`${styles.mobileNavItem} ${isActive(item.path) ? styles.mobileNavItemActive : ''}`}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </nav>
 
-            {/* Auth actions */}
-            <div className={styles.mobileAuth}>
-              {isAuthenticated ? (
-                <>
-                  {user && (
-                    <span className={styles.mobileGreeting}>
-                      {'안녕하세요, '}
-                      <strong>{user.nickname}</strong>
-                    </span>
+                {/* Auth actions */}
+                <div className={styles.mobileAuth}>
+                  {isAuthenticated ? (
+                    <>
+                      {user && (
+                        <span className={styles.mobileGreeting}>
+                          {'안녕하세요, '}
+                          <strong>{user.nickname}</strong>
+                        </span>
+                      )}
+                      <Link
+                        to="/profile"
+                        className={styles.mobileAuthLink}
+                        onClick={handleMobileNavigation}
+                      >
+                        {'내 계정'}
+                      </Link>
+                      <button
+                        type="button"
+                        className={styles.mobileAuthLink}
+                        onClick={() => {
+                          beginNavigationFocus();
+                          void handleLogout();
+                        }}
+                        disabled={logoutPending}
+                        aria-busy={logoutPending}
+                      >
+                        {'로그아웃'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        to="/login"
+                        className={styles.mobileAuthLink}
+                        onClick={handleMobileNavigation}
+                      >
+                        {'로그인'}
+                      </Link>
+                      <Link
+                        to="/subscriptions"
+                        className={styles.mobileAuthLinkPrimary}
+                        onClick={handleMobileNavigation}
+                      >
+                        {'구독 시작하기'}
+                      </Link>
+                    </>
                   )}
-                  <Link
-                    to="/profile"
-                    className={styles.mobileAuthLink}
-                    onClick={handleMobileNavigation}
-                  >
-                    {'내 계정'}
-                  </Link>
-                  <button
-                    type="button"
-                    className={styles.mobileAuthLink}
-                    onClick={() => {
-                      beginNavigationFocus();
-                      void handleLogout();
-                    }}
-                    disabled={logoutPending}
-                    aria-busy={logoutPending}
-                  >
-                    {'로그아웃'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link
-                    to="/login"
-                    className={styles.mobileAuthLink}
-                    onClick={handleMobileNavigation}
-                  >
-                    {'로그인'}
-                  </Link>
-                  <Link
-                    to="/subscriptions"
-                    className={styles.mobileAuthLinkPrimary}
-                    onClick={handleMobileNavigation}
-                  >
-                    {'구독 시작하기'}
-                  </Link>
-                </>
-              )}
-            </div>
+                </div>
+              </>
+            )}
           </div>
         </>
       )}
@@ -485,17 +508,16 @@ function PilotNavigation() {
 }
 
 export default function Header() {
-  if (!isListeningMode) return <SellingHeader />;
+  if (!isListeningMode || isPilotMode) return <SearchableHeader />;
   return (
     <header className={styles.header}>
       <Link to="/tracks" className={styles.logo}>
         AT.M
       </Link>
-      <nav aria-label="청취 메뉴" className={isPilotMode ? styles.pilotNav : undefined}>
+      <nav aria-label="청취 메뉴">
         <Link to="/tracks" className={styles.tab}>
           음원 청취
         </Link>
-        {isPilotMode && <PilotNavigation />}
       </nav>
       <ThemeToggle />
     </header>
