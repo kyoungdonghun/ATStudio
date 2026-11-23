@@ -237,16 +237,14 @@ describe('TrackListPage latest-request-wins', () => {
     mocks.fetchAvailableTags.mockResolvedValue([]);
   });
 
-  it('labels the three taxonomy columns in the same order as the track row', async () => {
+  it('labels the single combined tag column between the track and BPM', async () => {
     mocks.fetchTracks.mockResolvedValue(trackPage('Taxonomy Track', 1));
     renderPage('/tracks');
     await screen.findByText('Taxonomy Track');
     expect(screen.getAllByRole('columnheader').map((node) => node.textContent)).toEqual([
       '#',
       '음원',
-      '장르',
-      '악기',
-      '분위기',
+      '장르 / 태그',
       'BPM',
       '조성',
       '길이',

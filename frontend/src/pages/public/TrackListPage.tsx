@@ -882,13 +882,7 @@ export default function TrackListPage() {
                   <th className={`${styles.thCenter} ${styles.thNum}`}>#</th>
                   <th>{'음원'}</th>
                   <th scope="col" className={styles.thTag}>
-                    {'장르'}
-                  </th>
-                  <th scope="col" className={styles.thTag}>
-                    {'악기'}
-                  </th>
-                  <th scope="col" className={styles.thTag}>
-                    {'분위기'}
+                    {'장르 / 태그'}
                   </th>
                   <th className={`${styles.thRight} ${styles.thBpm}`}>BPM</th>
                   <th className={`${styles.thCenter} ${styles.thKey}`}>{'조성'}</th>

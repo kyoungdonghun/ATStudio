@@ -120,12 +120,11 @@ export default function TrackRow({
         </div>
       </td>
 
-      {/* Keep these cells aligned with the Genre / Instrument / Mood headers. */}
-      {taxonomyGroups.map((group) => (
-        <td key={group.label} className={styles.cellTag}>
-          {renderTags(group.tags)}
-        </td>
-      ))}
+      <td className={styles.cellTag}>
+        {renderTags(genreTags)}
+        {renderTags(instrumentTags)}
+        {renderTags(moodTags)}
+      </td>
 
       {/* BPM */}
       <td className={styles.cellBpm}>{track.bpm ?? '-'}</td>

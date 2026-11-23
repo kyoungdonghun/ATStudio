@@ -245,7 +245,7 @@
   width: 42px;
 }
 .trackTable thead .thTag {
-  width: 150px;
+  width: 450px;
 }
 .trackTable thead .thBpm {
   width: 70px;
@@ -444,7 +444,7 @@
 /* ══ Mid-desktop (narrow desktop) ══ */
 @media (max-width: 1200px) {
   .trackTable thead .thTag {
-    width: 116px;
+    width: 350px;
   }
 }
 

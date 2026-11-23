@@ -32,8 +32,8 @@
 
 .cellTag {
   composes: cell;
-  min-width: 150px;
-  max-width: 150px;
+  min-width: 450px;
+  max-width: 450px;
   overflow: hidden;
   white-space: nowrap;
 }
@@ -215,8 +215,8 @@
 
 @media (max-width: 1200px) {
   .cellTag {
-    min-width: 116px;
-    max-width: 116px;
+    min-width: 350px;
+    max-width: 350px;
   }
 }
 
@@ -232,8 +232,8 @@
   }
 
   .cellTag {
-    min-width: 110px;
-    max-width: 110px;
+    min-width: 132px;
+    max-width: 132px;
   }
 }
 

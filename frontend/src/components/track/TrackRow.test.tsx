@@ -22,7 +22,7 @@ const track: TrackListItem = {
 };
 
 describe('TrackRow', () => {
-  it('keeps genre, instrument and mood in separate aligned cells and preserves usage', () => {
+  it('groups genre, instrument and mood chips in one desktop cell and preserves usage', () => {
     const tagged = {
       ...track,
       tags: [
@@ -43,12 +43,13 @@ describe('TrackRow', () => {
       </MemoryRouter>,
     );
     const cells = screen.getAllByRole('cell');
-    expect(cells).toHaveLength(9);
-    expect(cells[2]).toHaveTextContent('Jazz');
-    expect(cells[3]).toHaveTextContent('Piano');
-    expect(cells[3]).toHaveTextContent('Strings');
-    expect(cells[3]).not.toHaveTextContent('Calm');
-    expect(cells[4]).toHaveTextContent('Calm');
+    expect(cells).toHaveLength(7);
+    expect(Array.from(cells[2].children, (chip) => chip.textContent)).toEqual([
+      'Jazz',
+      'Piano',
+      'Strings',
+      'Calm',
+    ]);
     expect(within(cells[1]).getByText('#Shorts')).toBeInTheDocument();
     const compact = container.querySelector('dl')!;
     expect([...compact.querySelectorAll('dt')].map((node) => node.textContent)).toEqual([
@@ -63,7 +64,7 @@ describe('TrackRow', () => {
     }
   });
 
-  it('retains all taxonomy cell positions when tags are empty', () => {
+  it('keeps the tag cell empty and subsequent columns aligned when tags are empty', () => {
     render(
       <MemoryRouter>
         <table>
@@ -74,10 +75,10 @@ describe('TrackRow', () => {
       </MemoryRouter>,
     );
     const cells = screen.getAllByRole('cell');
-    expect(cells).toHaveLength(9);
-    expect(cells.slice(2, 5).map((cell) => cell.textContent)).toEqual(['', '', '']);
-    expect(cells[5]).toHaveTextContent('120');
-    expect(cells[6]).toHaveTextContent('C');
+    expect(cells).toHaveLength(7);
+    expect(cells[2]).toBeEmptyDOMElement();
+    expect(cells[3]).toHaveTextContent('120');
+    expect(cells[4]).toHaveTextContent('C');
   });
 
   it('keeps an instrument-only long name in the desktop cell and compact labeled group', () => {
@@ -91,7 +92,7 @@ describe('TrackRow', () => {
         </table>
       </MemoryRouter>,
     );
-    expect(screen.getAllByRole('cell')[3]).toHaveTextContent(name);
+    expect(screen.getAllByRole('cell')[2]).toHaveTextContent(name);
     expect(container.querySelector('dl dt')).toHaveTextContent('악기');
     expect(container.querySelector('dl dd')).toHaveTextContent(name);
   });
