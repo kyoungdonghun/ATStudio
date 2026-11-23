@@ -17,6 +17,12 @@ public interface PlaylistRepository extends JpaRepository<Playlist, Long> {
 
     int countByUserAndIsActiveTrue(User user);
 
+    Optional<Playlist> findByIdAndUser_IdAndIsActiveTrue(Long id, Long userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Playlist p WHERE p.id = :id AND p.user.id = :userId AND p.isActive = true")
+    Optional<Playlist> findOwnedForUpdate(@Param("id") Long id, @Param("userId") Long userId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Playlist p WHERE p.id = :id")
     Optional<Playlist> findByIdForUpdate(@Param("id") Long id);

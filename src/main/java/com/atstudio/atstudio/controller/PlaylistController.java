@@ -22,6 +22,15 @@ public class PlaylistController {
 
     private final PlaylistService playlistService;
 
+    public record Capacity(int maxPlaylists) {}
+
+    @GetMapping("/capacity")
+    public ResponseEntity<ResponseDTO<Capacity>> pilotCapacity(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return ResponseEntity.ok(ResponseDTO.<Capacity>withSingleData()
+                .data(new Capacity(playlistService.pilotCapacity(userDetails))).build());
+    }
+
     // ── 3.1 POST /api/playlists ──────────────────────────────────────────────
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

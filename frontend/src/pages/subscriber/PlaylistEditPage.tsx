@@ -1,6 +1,7 @@
 /** Screen 9: Playlist edit */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { isPilotMode } from '@/config/pilotMode';
 import {
   fetchPlaylistDetail,
   updatePlaylist,
@@ -342,16 +343,29 @@ export default function PlaylistEditPage() {
             placeholder="재생목록 설명"
           />
         </div>
-        <div className={styles.formGroup}>
-          <label className={styles.formLabel}>{'썸네일'}</label>
-          <div className={styles.thumbUpload}>
-            {thumbPreview ? (
-              <div className={styles.thumbPreviewWrap}>
-                <div className={styles.thumbPreview}>
-                  <img src={thumbPreview} alt="Thumbnail" />
+        {!isPilotMode && (
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>{'썸네일'}</label>
+            <div className={styles.thumbUpload}>
+              {thumbPreview ? (
+                <div className={styles.thumbPreviewWrap}>
+                  <div className={styles.thumbPreview}>
+                    <img src={thumbPreview} alt="Thumbnail" />
+                  </div>
+                  <label className={styles.thumbChangeBtn}>
+                    {'변경'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className={styles.thumbFileInput}
+                      onChange={handleThumbChange}
+                    />
+                  </label>
                 </div>
-                <label className={styles.thumbChangeBtn}>
-                  {'변경'}
+              ) : (
+                <label className={styles.thumbDropArea}>
+                  <span className={styles.thumbDropIcon}>{'\uD83D\uDDBC'}</span>
+                  <span className={styles.thumbDropText}>{'이미지 선택'}</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -359,21 +373,10 @@ export default function PlaylistEditPage() {
                     onChange={handleThumbChange}
                   />
                 </label>
-              </div>
-            ) : (
-              <label className={styles.thumbDropArea}>
-                <span className={styles.thumbDropIcon}>{'\uD83D\uDDBC'}</span>
-                <span className={styles.thumbDropText}>{'이미지 선택'}</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className={styles.thumbFileInput}
-                  onChange={handleThumbChange}
-                />
-              </label>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       {/* ── Track list ── */}

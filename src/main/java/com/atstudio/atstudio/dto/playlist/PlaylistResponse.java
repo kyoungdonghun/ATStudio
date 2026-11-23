@@ -14,12 +14,12 @@ public record PlaylistResponse(
         int trackCount,
         LocalDateTime createdAt
 ) {
-    public static PlaylistResponse from(Playlist playlist, int trackCount) {
+    public static PlaylistResponse from(Playlist playlist, int trackCount, String thumbnail) {
         return new PlaylistResponse(
                 playlist.getId(),
                 playlist.getTitle(),
                 playlist.getDescription(),
-                playlist.getThumbnail(),
+                thumbnail,
                 trackCount,
                 playlist.getCreatedAt()
         );

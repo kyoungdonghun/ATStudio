@@ -13,7 +13,8 @@ import {
 } from '@/api/downloads';
 import { getApiErrorCode } from '@/api/client';
 import { classifyLoadError } from '@/api/loadError';
-import { usePlayerStore } from '@/store/playerStore';
+import { beginPilotLibraryPlayback, usePlayerStore } from '@/store/playerStore';
+import { isPilotMode } from '@/config/pilotMode';
 import { useLikeStore } from '@/store/likeStore';
 import { useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
@@ -133,7 +134,7 @@ export default function PlaylistDetailPage() {
 
   /* ── Like toggle (fetch on mount) ── */
   useEffect(() => {
-    if (user) likeStore.load();
+    if (user && !likeStore.loaded) void likeStore.load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -141,7 +142,7 @@ export default function PlaylistDetailPage() {
   useLayoutEffect(() => {
     if (!currentDetail) return;
     const tracks = currentDetail.tracks.map((track) => toPlayableTrack(track));
-    return setTrackListContext(tracks);
+    return isPilotMode ? setTrackListContext(tracks, true) : setTrackListContext(tracks);
   }, [currentDetail, setTrackListContext]);
 
   /* ── Track action handlers ── */
@@ -152,6 +153,7 @@ export default function PlaylistDetailPage() {
     ) {
       return;
     }
+    if (isPilotMode) beginPilotLibraryPlayback();
     if (currentTrack?.id === track.trackId) {
       if (isPlayerPlaying) pauseTrack();
       else resumeTrack();
@@ -190,6 +192,7 @@ export default function PlaylistDetailPage() {
     } catch (error: unknown) {
       if (!isCurrentProjection(operationKey)) return;
       const code = await getApiErrorCode(error);
+      if (!isCurrentProjection(operationKey)) return;
       if (code === 'NO_ACTIVE_SUBSCRIPTION') {
         toast('warning', '구독이 필요한 기능입니다.');
       } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
@@ -232,6 +235,7 @@ export default function PlaylistDetailPage() {
   /* ── Add all tracks to player queue ── */
   function handleAddAllToQueue() {
     if (!isCurrentProjection() || !currentDetail || currentDetail.tracks.length === 0) return;
+    if (isPilotMode) beginPilotLibraryPlayback();
     for (const track of currentDetail.tracks) {
       addToPlayerQueue(toPlayableTrack(track));
     }
@@ -240,6 +244,7 @@ export default function PlaylistDetailPage() {
 
   function handlePlayAll() {
     if (!isCurrentProjection() || !currentDetail || currentDetail.tracks.length === 0) return;
+    if (isPilotMode) beginPilotLibraryPlayback();
     playAll(currentDetail.tracks.map((track) => toPlayableTrack(track)));
   }
 

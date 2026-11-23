@@ -214,6 +214,7 @@
 
   /* Hide desktop elements */
   .search,
+  .pilotPersonalTab,
   .navTabs,
   .navRight {
     display: none;

@@ -246,6 +246,10 @@ const listeningRoutes: RouteObject[] = [
       ...(isPilotMode
         ? [
             { path: '/downloads', element: pilotUser(<DownloadHistoryPage />) },
+            { path: '/likes', element: pilotUser(<LikeListPage />) },
+            { path: '/playlists', element: pilotUser(<PlaylistListPage />) },
+            { path: '/playlists/:playlistId', element: pilotUser(<PlaylistDetailPage />) },
+            { path: '/playlists/:playlistId/edit', element: pilotUser(<PlaylistEditPage />) },
             { path: '/licenses', element: pilotUser(<LicenseListPage />) },
             { path: '/licenses/:licenseId', element: pilotUser(<LicenseDetailPage />) },
           ]

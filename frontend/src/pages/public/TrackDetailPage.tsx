@@ -40,11 +40,11 @@ export default function TrackDetailPage() {
   const playTrack = usePlayerStore((s) => s.play);
   const pauseTrack = usePlayerStore((s) => s.pause);
   const resumeTrack = usePlayerStore((s) => s.resume);
-  const canPilotDownload = useAuthStore(
-    (s) => isPilotMode && s.role === 'USER' && s.isAuthenticated(),
+  const isAuthenticated = useAuthStore(
+    (s) => s.isAuthenticated() && (!isListeningMode || (isPilotMode && s.role === 'USER')),
   );
-  const isAuthenticated = useAuthStore((s) => !isListeningMode && s.isAuthenticated());
   const likeLoaded = useLikeStore((s) => s.loaded);
+  const likeOwner = useAuthStore((s) => s.user?.id);
   const loadLikes = useLikeStore((s) => s.load);
   const likedIds = useLikeStore((s) => s.likedIds);
   const toggleLike = useLikeStore((s) => s.toggle);
@@ -103,7 +103,7 @@ export default function TrackDetailPage() {
     if (isAuthenticated && !likeLoaded) {
       void loadLikes();
     }
-  }, [isAuthenticated, likeLoaded, loadLikes]);
+  }, [isAuthenticated, likeOwner, likeLoaded, loadLikes]);
 
   async function handleDownload() {
     if (!track || downloadOwnershipRef.current !== null) return;
@@ -224,7 +224,7 @@ export default function TrackDetailPage() {
               {currentTrack?.id === track.id && isPlayerPlaying ? '\u23F8' : '\u25B6'}&nbsp;&nbsp;
               {currentTrack?.id === track.id && isPlayerPlaying ? '일시정지' : '재생'}
             </button>
-            {(isAuthenticated || canPilotDownload) && (
+            {isAuthenticated && (
               <button
                 className={styles.btnBuy}
                 onClick={handleDownload}
@@ -240,6 +240,7 @@ export default function TrackDetailPage() {
             <div className={styles.coverSubActions}>
               <button
                 className={`${styles.btnSubAction} ${liked ? styles.btnSubActionActive : ''}`}
+                aria-pressed={liked}
                 onClick={() => {
                   void toggleLike(track.id);
                 }}
@@ -340,13 +341,13 @@ export default function TrackDetailPage() {
       </div>
 
       <AddToPlaylistModal
-        open={showPlModal}
+        open={isAuthenticated && showPlModal}
         trackId={track.id}
         onClose={() => setShowPlModal(false)}
         onSubscriptionRequired={() => {
           setShowPlModal(false);
           toast('warning', '구독이 필요한 기능입니다.');
-          navigate('/subscriptions');
+          if (!isPilotMode) navigate('/subscriptions');
         }}
       />
     </div>

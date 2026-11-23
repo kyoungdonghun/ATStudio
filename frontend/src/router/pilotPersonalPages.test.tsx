@@ -95,6 +95,7 @@ it('keeps a public track read anonymous and performs an authenticated individual
           createdAt: '2026-11-21T12:00:00',
         },
       };
+    else if (path === '/likes') data = { dataList: [] };
     else if (path === '/tracks/7/download') data = blob;
     else if (path === '/utils/download-count') data = { data: { remaining: 4, dailyLimit: 5 } };
     else throw new Error('Unexpected request ' + path);
@@ -109,16 +110,18 @@ it('keeps a public track read anonymous and performs an authenticated individual
   );
   expect(await screen.findByRole('heading', { name: '공개 시험곡' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: '다운로드' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /재생목록에 추가/ })).not.toBeInTheDocument();
   act(() => useAuthStore.getState().login('user-A', { id: 11, role: 'USER' } as User));
   fireEvent.click(screen.getByRole('button', { name: '다운로드' }));
   await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
   expect(createUrl).toHaveBeenCalledWith(blob);
   expect(requests).toEqual([
     ['/tracks/7', undefined],
+    ['/likes', 'Bearer user-A'],
     ['/tracks/7/download', 'Bearer user-A'],
     ['/utils/download-count', 'Bearer user-A'],
   ]);
-  expect(screen.queryByRole('button', { name: /재생목록에 추가/ })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /재생목록에 추가/ })).toBeInTheDocument();
 });
 
 it('switches personal history and license owners without offering bulk or sales actions', async () => {

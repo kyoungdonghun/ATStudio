@@ -16,12 +16,12 @@ public record PlaylistDetailResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static PlaylistDetailResponse from(Playlist playlist, List<PlaylistTrackItemResponse> tracks) {
+    public static PlaylistDetailResponse from(Playlist playlist, List<PlaylistTrackItemResponse> tracks, String thumbnail) {
         return new PlaylistDetailResponse(
                 playlist.getId(),
                 playlist.getTitle(),
                 playlist.getDescription(),
-                playlist.getThumbnail(),
+                thumbnail,
                 tracks,
                 playlist.getCreatedAt(),
                 playlist.getUpdatedAt()

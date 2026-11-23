@@ -35,10 +35,21 @@ public class ListeningAccessFilter extends OncePerRequestFilter {
 
     public static boolean pilotRequest(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return request.getMethod().equals("GET") && (path.equals("/downloads") || path.equals("/licenses")
+        return switch (request.getMethod()) {
+            case "GET" -> path.equals("/downloads") || path.equals("/licenses")
                 || path.matches("/licenses/[1-9][0-9]*") || path.equals("/api/downloads/history")
                 || path.equals("/api/licenses/me") || path.matches("/api/licenses/[1-9][0-9]*")
-                || path.equals("/api/utils/download-count") || path.matches("/api/tracks/[1-9][0-9]*/download"));
+                || path.equals("/api/utils/download-count") || path.matches("/api/tracks/[1-9][0-9]*/download")
+                || path.equals("/likes") || path.equals("/playlists") || path.matches("/playlists/[1-9][0-9]*(/edit)?")
+                || path.equals("/api/likes") || path.equals("/api/playlists") || path.equals("/api/playlists/capacity")
+                || path.matches("/api/playlists/[1-9][0-9]*");
+            case "POST" -> path.matches("/api/likes/[1-9][0-9]*") || path.equals("/api/playlists")
+                    || path.matches("/api/playlists/[1-9][0-9]*/tracks");
+            case "PUT" -> path.matches("/api/playlists/[1-9][0-9]*(/tracks)?");
+            case "DELETE" -> path.matches("/api/likes/[1-9][0-9]*")
+                    || path.matches("/api/playlists/[1-9][0-9]*(/tracks/[1-9][0-9]*)?");
+            default -> false;
+        };
     }
 
     public static boolean operatorRequest(HttpServletRequest request) {

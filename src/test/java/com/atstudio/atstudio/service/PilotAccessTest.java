@@ -94,4 +94,31 @@ class PilotAccessTest {
         when(payments.existsByUser(user)).thenReturn(true);
         assertFalse(access.eligible(user.getId()));
     }
+
+    @Test void libraryReadsPinCatalogBeforeLoadingGrantAndKeepEmptySelectionClosed() {
+        enroll(today, today, SubscriptionStatus.CANCELLED, 2);
+        when(catalog.snapshot()).thenReturn(new ListeningCatalogService.Catalog(4, List.of()));
+        PilotAccess.Library library = access.libraryForRead(user.getId());
+
+        assertFalse(library.includes(7L));
+        var ordered = inOrder(catalog, grants);
+        ordered.verify(catalog).snapshot();
+        ordered.verify(grants).findByUser_Id(user.getId());
+    }
+
+    @Test void libraryWritesLockGrantAndCatalogBeforeEntitlementReads() {
+        enroll(today, today, SubscriptionStatus.CANCELLED, 2);
+        var grant = grants.findByUser_Id(user.getId());
+        when(grants.findByUserIDForUpdate(user.getId())).thenReturn(grant);
+        when(catalog.snapshot()).thenReturn(new ListeningCatalogService.Catalog(4, List.of(8L)));
+        clearInvocations(grants, catalog, orders);
+        PilotAccess.Library library = access.libraryForWrite(user);
+
+        assertTrue(library.includes(8L));
+        assertFalse(library.includes(9L));
+        var ordered = inOrder(grants, catalog, orders);
+        ordered.verify(grants).findByUserIDForUpdate(user.getId());
+        ordered.verify(catalog).snapshot();
+        ordered.verify(orders).existsByUser_Id(user.getId());
+    }
 }

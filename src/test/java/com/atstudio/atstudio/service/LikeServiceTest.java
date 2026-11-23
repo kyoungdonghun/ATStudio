@@ -37,6 +37,7 @@ class LikeServiceTest {
     @Mock LikeRepository likeRepository;
     @Mock UserRepository userRepository;
     @Mock TrackRepository trackRepository;
+    @Mock PilotAccess pilot;
 
     @InjectMocks LikeService likeService;
 

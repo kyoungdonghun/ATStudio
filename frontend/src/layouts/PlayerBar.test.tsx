@@ -27,6 +27,10 @@ const track: Track = {
 };
 
 const mocks = vi.hoisted(() => ({
+  pilot: false,
+  session: 1,
+  fetchPilotPlaylistCapacity: vi.fn(),
+  toggleLike: vi.fn(),
   toastShow: vi.fn(),
   fetchMySubscription: vi.fn(),
   downloadTrack: vi.fn(),
@@ -62,12 +66,30 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('@/config/pilotMode', () => ({
+  get isPilotMode() {
+    return mocks.pilot;
+  },
+}));
+vi.mock('@/config/appMode', async (original) => ({
+  ...(await original<typeof import('@/config/appMode')>()),
+  get isListeningMode() {
+    return mocks.pilot;
+  },
+}));
+vi.mock('@/api/playlists', async (original) => ({
+  ...(await original<typeof import('@/api/playlists')>()),
+  fetchPilotPlaylistCapacity: (...args: unknown[]) => mocks.fetchPilotPlaylistCapacity(...args),
+}));
+
 vi.mock('@/store/playerStore', () => ({
   usePlayerStore: (selector: (state: typeof mocks.playerState) => unknown) =>
     selector(mocks.playerState),
 }));
 
 vi.mock('@/store/authStore', () => ({
+  getAuthSessionGeneration: () => mocks.session,
+  isAuthSessionCurrent: (session: number) => session === mocks.session,
   useAuthStore: (
     selector: (state: {
       isAuthenticated: () => boolean;
@@ -97,7 +119,7 @@ vi.mock('@/store/likeStore', () => ({
       loaded: false,
       load: vi.fn().mockResolvedValue(undefined),
       likedIds: new Set<number>(),
-      toggle: vi.fn().mockResolvedValue(undefined),
+      toggle: mocks.toggleLike,
     }),
 }));
 
@@ -153,7 +175,8 @@ vi.mock('@/components/player/PlaylistDrawer', () => ({
 }));
 
 vi.mock('@/components/playlist/AddToPlaylistModal', () => ({
-  default: () => null,
+  default: ({ open, trackId }: { open: boolean; trackId: number | null }) =>
+    open ? <div data-testid="player-add-track">{trackId}</div> : null,
 }));
 
 function LocationProbe() {
@@ -231,6 +254,10 @@ function rapidlyActivate(button: HTMLElement) {
 
 describe('PlayerBar playback feedback', () => {
   beforeEach(() => {
+    mocks.pilot = false;
+    mocks.session = 1;
+    mocks.toggleLike.mockReset();
+    mocks.fetchPilotPlaylistCapacity.mockReset();
     mocks.toastShow.mockReset();
     mocks.fetchMySubscription.mockReset();
     mocks.downloadTrack.mockReset();
@@ -257,6 +284,80 @@ describe('PlayerBar playback feedback', () => {
       }
     });
   });
+
+  it('allows an invited listener to like and save from desktop and expanded mobile', async () => {
+    mocks.pilot = true;
+    mocks.authState.authenticated = true;
+    mocks.authState.role = 'USER';
+    mocks.authState.user = { id: 5 };
+    mocks.fetchPilotPlaylistCapacity.mockResolvedValue(3);
+    const { container } = renderPlayerBar();
+    const desktopHeart = (await screen.findAllByTitle('좋아요'))[0];
+    fireEvent.click(desktopHeart);
+    expect(mocks.toggleLike).toHaveBeenCalledWith(track.id);
+    fireEvent.click(screen.getByRole('button', { name: '재생목록에 추가' }));
+    expect(screen.getByTestId('player-add-track')).toHaveTextContent(String(track.id));
+    const expander = getMobileExpander(container);
+    fireEvent.click(expander);
+    const mobile = within(getMobilePlayer(expander));
+    fireEvent.click(mobile.getByTitle('좋아요'));
+    expect(mocks.toggleLike).toHaveBeenCalledTimes(2);
+    expect(mobile.getByText('+ 재생목록에 추가')).toBeEnabled();
+    fireEvent.click(mobile.getByText('좋아요', { selector: 'button' }));
+    expect(screen.getByTestId('playlist-drawer-tab')).toHaveTextContent('likes');
+    fireEvent.click(mobile.getByText('재생목록', { selector: 'button' }));
+    expect(screen.getByTestId('playlist-drawer-tab')).toHaveTextContent('playlists');
+    fireEvent.click(mobile.getByTitle('음원 다운로드'));
+    await waitFor(() => expect(mocks.triggerBlobDownload).toHaveBeenCalledOnce());
+    expect(mocks.fetchMySubscription).not.toHaveBeenCalled();
+    expect(screen.queryByText('구독하기')).not.toBeInTheDocument();
+  });
+
+  it('discards a pilot download completing after a switch and hides personal controls until eligible', async () => {
+    mocks.pilot = true;
+    mocks.authState.authenticated = true;
+    mocks.authState.role = 'USER';
+    mocks.authState.user = { id: 5 };
+    const pending = deferred<BinaryDownload>();
+    mocks.downloadTrack.mockReturnValue(pending.promise);
+    mocks.fetchPilotPlaylistCapacity.mockResolvedValueOnce(3);
+    const shell = () => (
+      <MemoryRouter>
+        <PlayerBar />
+      </MemoryRouter>
+    );
+    const view = render(shell());
+    fireEvent.click((await screen.findAllByTitle('음원 다운로드'))[0]);
+    fireEvent.click(screen.getByRole('button', { name: '좋아요 목록 열기' }));
+    expect(screen.getByTestId('playlist-drawer-tab')).toBeInTheDocument();
+    mocks.session++;
+    mocks.authState.user = { id: 6 };
+    mocks.fetchPilotPlaylistCapacity.mockRejectedValueOnce(new Error('expired'));
+    view.rerender(shell());
+    await waitFor(() => expect(mocks.fetchPilotPlaylistCapacity).toHaveBeenCalledTimes(2));
+    await act(async () => pending.resolve(binaryDownload()));
+    expect(mocks.triggerBlobDownload).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('playlist-drawer-tab')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('좋아요')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('음원 다운로드')).not.toBeInTheDocument();
+    expect(screen.queryByText('구독하기')).not.toBeInTheDocument();
+  });
+
+  it.each(['GUEST', 'ADMIN'])(
+    'keeps personal and sales controls closed for pilot role %s',
+    (role) => {
+      mocks.pilot = true;
+      mocks.authState.authenticated = role !== 'GUEST';
+      mocks.authState.role = role;
+      renderPlayerBar();
+      expect(screen.queryByTitle('좋아요')).not.toBeInTheDocument();
+      expect(screen.queryByTitle('음원 다운로드')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '재생목록에 추가' })).not.toBeInTheDocument();
+      expect(screen.queryByText('구독하기')).not.toBeInTheDocument();
+      expect(mocks.fetchPilotPlaylistCapacity).not.toHaveBeenCalled();
+      expect(mocks.fetchMySubscription).not.toHaveBeenCalled();
+    },
+  );
 
   it('renders no buffering feedback while the store remains pending', () => {
     renderPlayerBar();

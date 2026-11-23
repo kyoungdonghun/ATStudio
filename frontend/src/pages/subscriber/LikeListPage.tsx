@@ -1,6 +1,7 @@
 /** Screen D-1: Liked tracks + albums (tabbed) */
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { isPilotMode } from '@/config/pilotMode';
 import { fetchLikes, removeLike, fetchAlbumLikes, removeAlbumLike } from '@/api/likes';
 import { classifyLoadError } from '@/api/loadError';
 import {
@@ -10,7 +11,7 @@ import {
 } from '@/api/downloads';
 import { getApiErrorCode, toUploadUrl } from '@/api/client';
 import { formatDate } from '@/utils/format';
-import { usePlayerStore } from '@/store/playerStore';
+import { beginPilotLibraryPlayback, usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
 import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import { useToastStore } from '@/store/toastStore';
@@ -146,7 +147,7 @@ export default function LikeListPage() {
   useLayoutEffect(() => {
     if (tab !== 'tracks') return;
     const tracks = currentItems.map((item) => toPlayableTrack(item));
-    return setTrackListContext(tracks);
+    return isPilotMode ? setTrackListContext(tracks, true) : setTrackListContext(tracks);
   }, [tab, currentItems, setTrackListContext]);
 
   /* ── Track handlers ── */
@@ -164,7 +165,8 @@ export default function LikeListPage() {
       setItems((prev) => prev.filter((it) => it.trackId !== trackId));
       likeStore.remove(trackId);
     } catch {
-      /* ignore */
+      if (isPilotMode && isCurrentProjection(operationKey))
+        toast('error', '좋아요를 해제하지 못했습니다.');
     }
   }
 
@@ -191,6 +193,7 @@ export default function LikeListPage() {
     } catch (error: unknown) {
       if (!isCurrentProjection(operationKey)) return;
       const code = await getApiErrorCode(error);
+      if (!isCurrentProjection(operationKey)) return;
       if (code === 'NO_ACTIVE_SUBSCRIPTION') {
         toast('warning', '구독이 필요한 기능입니다.');
       } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
@@ -211,6 +214,7 @@ export default function LikeListPage() {
     ) {
       return;
     }
+    if (isPilotMode) beginPilotLibraryPlayback();
     if (currentTrack?.id === item.trackId) {
       if (isPlayerPlaying) pauseTrack();
       else resumeTrack();
@@ -250,20 +254,22 @@ export default function LikeListPage() {
       </div>
 
       {/* ── Tabs ── */}
-      <div className={styles.tabs}>
-        <button
-          className={`${styles.tabBtn} ${tab === 'tracks' ? styles.tabBtnActive : ''}`}
-          onClick={() => setTab('tracks')}
-        >
-          {'음원'}
-        </button>
-        <button
-          className={`${styles.tabBtn} ${tab === 'albums' ? styles.tabBtnActive : ''}`}
-          onClick={() => setTab('albums')}
-        >
-          {'앨범'}
-        </button>
-      </div>
+      {!isPilotMode && (
+        <div className={styles.tabs}>
+          <button
+            className={`${styles.tabBtn} ${tab === 'tracks' ? styles.tabBtnActive : ''}`}
+            onClick={() => setTab('tracks')}
+          >
+            {'음원'}
+          </button>
+          <button
+            className={`${styles.tabBtn} ${tab === 'albums' ? styles.tabBtnActive : ''}`}
+            onClick={() => setTab('albums')}
+          >
+            {'앨범'}
+          </button>
+        </div>
+      )}
 
       {/* ── Track tab ── */}
       {tab === 'tracks' && (

@@ -25,10 +25,12 @@ public class LikeService {
     private final LikeRepository likeRepository;
     private final UserRepository userRepository;
     private final TrackRepository trackRepository;
+    private final PilotAccess pilot;
 
     @Transactional
     public void addLike(Long trackId, CustomUserDetails userDetails) {
         User user = getUserForUpdate(userDetails);
+        requirePublishedForMutation(user, trackId);
 
         Track track = trackRepository.findByIdForUpdate(trackId)
                 .filter(Track::isActive)
@@ -49,6 +51,13 @@ public class LikeService {
     }
 
     public List<LikeResponse> getMyLikes(CustomUserDetails userDetails) {
+        if (pilot.enabled()) {
+            PilotAccess.Library library = pilot.libraryForRead(userDetails.getId());
+            return likeRepository.findAllActiveByUser(library.grant().getUser()).stream()
+                    .filter(like -> library.includes(like.getTrack().getId()))
+                    .map(LikeResponse::from)
+                    .toList();
+        }
         User user = getUser(userDetails);
         return likeRepository.findAllActiveByUser(user).stream()
                 .map(LikeResponse::from)
@@ -58,12 +67,20 @@ public class LikeService {
     @Transactional
     public void removeLike(Long trackId, CustomUserDetails userDetails) {
         User user = getUserForUpdate(userDetails);
+        requirePublishedForMutation(user, trackId);
         Track track = trackRepository.findByIdForUpdate(trackId)
+                .filter(candidate -> !pilot.enabled() || candidate.isActive())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         Like like = likeRepository.findByUserAndTrack_Id(user, trackId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         likeRepository.delete(like);
         track.decrementLikeCount();
+    }
+
+    private void requirePublishedForMutation(User user, Long trackId) {
+        if (pilot.enabled() && !pilot.libraryForWrite(user).includes(trackId)) {
+            throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
+        }
     }
 
     private User getUserForUpdate(CustomUserDetails userDetails) {

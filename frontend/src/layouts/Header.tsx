@@ -40,6 +40,13 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { label: '관리자', path: '/admin/dashboard' },
 ];
 
+const PILOT_PERSONAL_NAV: NavItem[] = [
+  { label: '좋아요', path: '/likes' },
+  { label: '내 재생목록', path: '/playlists' },
+  { label: '내 다운로드', path: '/downloads' },
+  { label: '내 라이선스', path: '/licenses' },
+];
+
 const MOBILE_MENU_ID = 'header-mobile-menu';
 
 function SearchIcon() {
@@ -212,7 +219,8 @@ function SearchableHeader() {
     return location.pathname.startsWith(path);
   }
 
-  const mobileAction = isPilotMode ? '곡 검색' : '메뉴';
+  const searchOnly = isPilotMode && role !== 'USER';
+  const mobileAction = searchOnly ? '곡 검색' : '메뉴';
   const mobileMenuButton = (
     <button
       type="button"
@@ -222,7 +230,7 @@ function SearchableHeader() {
       aria-controls={MOBILE_MENU_ID}
       aria-expanded={menuOpen}
     >
-      {menuOpen ? '\u2715' : isPilotMode ? <SearchIcon /> : '\u2630'}
+      {menuOpen ? '\u2715' : searchOnly ? <SearchIcon /> : '\u2630'}
     </button>
   );
 
@@ -382,6 +390,20 @@ function SearchableHeader() {
               />
             </form>
 
+            {isPilotMode && role === 'USER' && (
+              <nav className={styles.mobileNav} aria-label="내 음악 메뉴">
+                {PILOT_PERSONAL_NAV.map(({ label, path }) => (
+                  <Link
+                    key={path}
+                    to={path}
+                    onClick={handleMobileNavigation}
+                    className={styles.mobileNavItem}
+                  >
+                    {label}
+                  </Link>
+                ))}
+              </nav>
+            )}
             {!isPilotMode && (
               <>
                 {/* Nav links */}
@@ -479,14 +501,11 @@ function PilotNavigation() {
   return (
     <>
       {role === 'USER' ? (
-        <>
-          <Link to="/downloads" className={styles.tab}>
-            내 다운로드
+        PILOT_PERSONAL_NAV.map(({ label, path }) => (
+          <Link key={path} to={path} className={`${styles.tab} ${styles.pilotPersonalTab}`}>
+            {label}
           </Link>
-          <Link to="/licenses" className={styles.tab}>
-            내 라이선스
-          </Link>
-        </>
+        ))
       ) : (
         <Link to="/admin" className={styles.tab}>
           관리자

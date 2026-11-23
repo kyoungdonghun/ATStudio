@@ -20,6 +20,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -38,14 +40,53 @@ public class PilotAccess {
 
     @Transactional(readOnly = true)
     public boolean eligible(Long id) {
-        if (!enabled() || !properties.getPilotUserIds().contains(id)) return false;
-        return subscriptions.findByUser_Id(id).filter(this::valid).isPresent();
+        return eligibleGrant(id).isPresent();
+    }
+
+    private Optional<UserSubscription> eligibleGrant(Long id) {
+        if (!enabled() || !properties.getPilotUserIds().contains(id)) return Optional.empty();
+        return subscriptions.findByUser_Id(id).filter(this::valid);
+    }
+
+    private UserSubscription lockGrant(User user) {
+        if (!properties.getPilotUserIds().contains(user.getId())) throw denied();
+        return subscriptions.findByUserIDForUpdate(user.getId())
+                .orElseThrow(PilotAccess::denied);
     }
 
     UserSubscription requireLockedGrant(User user) {
-        if (!properties.getPilotUserIds().contains(user.getId())) throw denied();
-        return subscriptions.findByUserIDForUpdate(user.getId()).filter(this::valid)
-                .orElseThrow(PilotAccess::denied);
+        UserSubscription grant = lockGrant(user);
+        if (!valid(grant)) throw denied();
+        return grant;
+    }
+
+    record Library(UserSubscription grant, Optional<Set<Long>> publishedIds) {
+        static Library ordinary(UserSubscription grant) {
+            return new Library(grant, Optional.empty());
+        }
+
+        boolean includes(Long trackId) {
+            return publishedIds.isEmpty() || publishedIds.get().contains(trackId);
+        }
+    }
+
+    Library libraryForRead(Long userId) {
+        // Acquire the publication lock before the first consistent metadata read.
+        Set<Long> published = Set.copyOf(publishedIds());
+        UserSubscription grant = eligibleGrant(userId).orElseThrow(PilotAccess::denied);
+        return new Library(grant, Optional.of(published));
+    }
+
+    int playlistCapacity(Long userId) {
+        return eligibleGrant(userId).orElseThrow(PilotAccess::denied).getSubscription().getMaxPlaylists();
+    }
+
+    Library libraryForWrite(User lockedUser) {
+        if (!enabled()) throw denied();
+        UserSubscription grant = lockGrant(lockedUser);
+        Set<Long> published = Set.copyOf(publishedIds());
+        if (!valid(grant)) throw denied();
+        return new Library(grant, Optional.of(published));
     }
 
     private boolean valid(UserSubscription grant) {

@@ -12,11 +12,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -45,6 +48,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.audio.worker-enabled=false", "app.storage.capture-control-enabled=false"
 })
 @AutoConfigureMockMvc
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ListeningPilotWorkflowIntegrationTest {
     @TempDir static Path temp;
     @DynamicPropertySource
@@ -65,6 +69,116 @@ class ListeningPilotWorkflowIntegrationTest {
 
     private final String password = UUID.randomUUID().toString();
     private final LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+
+    @Test void invitedListenersSaveOnlyPublicMusicInTheirOwnLibraries() throws Exception {
+        User alice = account("library-a");
+        User bob = account("library-b");
+        User admin = users.saveAndFlush(User.builder().nickname("publisher").email("publisher@example.invalid")
+                .password(encoder.encode(password)).role(UserRole.ADMIN).isVerified(true).build());
+        Subscription plan = plans.save(Subscription.builder().name("Local library")
+                .userType(UserType.INDIVIDUAL).priceMonthly(BigDecimal.ZERO).priceYearly(BigDecimal.ZERO)
+                .downloadPerDay(5).maxPlaylists(1).build());
+        grant(alice, plan);
+        UserSubscription bobGrant = grant(bob, plan);
+        User outsider = account("non-invitee");
+        grant(outsider, plan);
+        mvc.perform(post("/api/auth/login").header("X-ATStudio-Client-IP", "192.0.2.55")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + outsider.getEmail() + "\",\"password\":\"" + password + "\"}"))
+                .andExpect(status().isForbidden());
+        Track first = track(admin, "first-listen", SyntheticAudioFixtures.mp3Cbr(128, 6));
+        Track second = track(admin, "second-listen", SyntheticAudioFixtures.mp3Cbr(96, 8));
+        settings.save(new SiteSetting(ReservedSettingPolicy.CATALOG_KEY, "{\"revision\":0,\"trackIds\":[]}"));
+        String operator = login(admin);
+        String a = login(alice);
+        String b = login(bob);
+        long x = first.getId(), y = second.getId();
+        publish(operator, 0, List.of(x, y));
+
+        for (String path : List.of("/api/likes", "/api/playlists", "/api/playlists/capacity")) {
+            mvc.perform(get(path).header("X-ATStudio-Client-IP", "192.0.2.55"))
+                    .andExpect(status().is4xxClientError());
+            getAs(path, operator).andExpect(status().is4xxClientError());
+        }
+        getAs("/api/likes", a).andExpect(status().isOk()).andExpect(jsonPath("$.dataList").isEmpty());
+        getAs("/api/playlists/capacity", a).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.maxPlaylists").value(1));
+        as(a, post("/api/likes/" + x)).andExpect(status().isCreated());
+        as(a, delete("/api/likes/" + x)).andExpect(status().isNoContent());
+        getAs("/api/likes", a).andExpect(jsonPath("$.dataList").isEmpty());
+        as(a, post("/api/likes/" + x)).andExpect(status().isCreated());
+        as(b, post("/api/likes/" + y)).andExpect(status().isCreated());
+        getAs("/api/likes", b).andExpect(jsonPath("$.dataList.length()").value(1))
+                .andExpect(jsonPath("$.dataList[0].trackId").value(y));
+        getAs("/api/playlists", b).andExpect(status().isOk()).andExpect(jsonPath("$.dataList").isEmpty());
+        String playlist = createPlaylist(a, "A first list");
+        as(a, multipart("/api/playlists").param("title", "Exceeds local plan"))
+                .andExpect(status().is4xxClientError());
+        String otherPlaylist = createPlaylist(b, "B first list");
+        getAs(playlist, b).andExpect(status().is4xxClientError());
+        getAs(otherPlaylist, a).andExpect(status().is4xxClientError());
+        as(b, delete(playlist)).andExpect(status().is4xxClientError());
+        as(b, post(playlist + "/tracks").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"trackId\":" + x + "}")).andExpect(status().is4xxClientError());
+        as(a, post(playlist + "/tracks").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"trackId\":" + x + "}")).andExpect(status().isCreated());
+        as(a, post(playlist + "/tracks/batch").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"trackIds\":[" + y + "]}")).andExpect(status().is4xxClientError());
+        as(a, post(playlist + "/tracks").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"trackId\":" + y + "}")).andExpect(status().isCreated());
+        as(a, put(playlist + "/tracks").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tracks\":[{\"trackId\":" + y + ",\"trackOrder\":0},{\"trackId\":" + x + ",\"trackOrder\":1}]}"))
+                .andExpect(status().isOk());
+        as(a, multipart(HttpMethod.PUT, playlist).param("title", "A saved collection")).andExpect(status().isOk());
+        a = login(alice);
+        getAs(playlist, a).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", containsString("no-store")))
+                .andExpect(jsonPath("$.data.title").value("A saved collection"))
+                .andExpect(jsonPath("$.data.tracks.length()").value(2))
+                .andExpect(jsonPath("$.data.tracks[0].trackId").value(y))
+                .andExpect(jsonPath("$.data.tracks[1].trackId").value(x));
+        getAs("/api/likes", a).andExpect(jsonPath("$.dataList.length()").value(1))
+                .andExpect(jsonPath("$.dataList[0].trackId").value(x));
+        mvc.perform(get("/api/tracks/" + x + "/stream").header("X-ATStudio-Client-IP", "192.0.2.55"))
+                .andExpect(status().isOk());
+
+        publish(operator, 1, List.of(y));
+        getAs("/api/likes", a).andExpect(status().isOk()).andExpect(jsonPath("$.dataList").isEmpty());
+        getAs("/api/playlists", a).andExpect(jsonPath("$.dataList[0].trackCount").value(1));
+        getAs(playlist, a).andExpect(jsonPath("$.data.tracks.length()").value(1))
+                .andExpect(jsonPath("$.data.tracks[0].trackId").value(y));
+        mvc.perform(get("/api/tracks/" + x + "/stream").header("X-ATStudio-Client-IP", "192.0.2.55"))
+                .andExpect(status().is4xxClientError());
+        as(b, post("/api/likes/" + x)).andExpect(status().is4xxClientError());
+        as(b, post(otherPlaylist + "/tracks").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"trackId\":" + x + "}")).andExpect(status().is4xxClientError());
+        as(a, put(playlist + "/tracks").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tracks\":[{\"trackId\":" + y + ",\"trackOrder\":0}]}")).andExpect(status().isOk());
+        as(a, delete(playlist + "/tracks/" + y)).andExpect(status().isNoContent());
+        getAs(playlist, a).andExpect(jsonPath("$.data.tracks").isEmpty());
+        as(a, delete(playlist)).andExpect(status().isNoContent());
+        getAs("/api/playlists", a).andExpect(jsonPath("$.dataList").isEmpty());
+        getAs("/api/playlists", b).andExpect(jsonPath("$.dataList[0].title").value("B first list"));
+        bobGrant.adminUpdate(SubscriptionStatus.EXPIRED, null, today.minusDays(1));
+        grants.saveAndFlush(bobGrant);
+        getAs("/api/likes", b).andExpect(status().isForbidden());
+        getAs(otherPlaylist, b).andExpect(status().isForbidden());
+        for (String closed : List.of("/api/likes/albums", "/api/user-subscriptions/me")) {
+            getAs(closed, a).andExpect(status().is4xxClientError());
+        }
+    }
+
+    private String createPlaylist(String token, String title) throws Exception {
+        String body = as(token, multipart("/api/playlists").param("title", title))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        int id = JsonPath.read(body, "$.data.id");
+        return "/api/playlists/" + id;
+    }
+
+    private ResultActions as(String token, AbstractMockHttpServletRequestBuilder<?> request) throws Exception {
+        return mvc.perform(request.header("Authorization", "Bearer " + token)
+                .header("X-ATStudio-Client-IP", "192.0.2.55"));
+    }
 
     @Test void twoRealUsersReceiveOnlyTheirOwnFilesAndRecordsWithinThePilot() throws Exception {
         User alice = account("pilot-a");

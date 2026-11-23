@@ -95,7 +95,9 @@ export function getAccessibleLoginReturnTarget(
     if (identity.role !== 'ADMIN') {
       return isPilotMode &&
         identity.role === 'USER' &&
-        /^\/(?:downloads|licenses(?:\/[1-9]\d*)?|tracks(?:\/[1-9]\d*)?)$/.test(path)
+        /^\/(?:likes|downloads|playlists(?:\/[1-9]\d*(?:\/edit)?)?|licenses(?:\/[1-9]\d*)?|tracks(?:\/[1-9]\d*)?)$/.test(
+          path,
+        )
         ? safeTarget
         : '/tracks';
     }

@@ -18,7 +18,6 @@ interface TrackRowProps {
   onAddToPlaylist?: (track: TrackListItem) => void;
   onDownload?: (track: TrackListItem) => void;
   downloadPending?: boolean;
-  pilotDownload?: boolean;
   onGuestAction?: () => void;
 }
 
@@ -28,13 +27,12 @@ export default function TrackRow({
   playing = false,
   liked = false,
   badge = null,
-  showAuthActions = true,
+  showAuthActions = !isListeningMode,
   onPlay,
   onLike,
   onAddToPlaylist,
   onDownload,
   downloadPending = false,
-  pilotDownload = false,
   onGuestAction,
 }: TrackRowProps) {
   const rowClass = [styles.row, playing ? styles.playing : ''].filter(Boolean).join(' ');
@@ -142,23 +140,13 @@ export default function TrackRow({
       {/* Actions */}
       <td className={styles.cellActs}>
         <div className={styles.actions}>
-          {isListeningMode ? (
-            pilotDownload && (
-              <button
-                className={styles.actBtn}
-                disabled={downloadPending}
-                onClick={() => onDownload?.(track)}
-                aria-label={track.title + ' 다운로드'}
-                title="다운로드"
-              >
-                ↓
-              </button>
-            )
-          ) : showAuthActions ? (
+          {showAuthActions ? (
             <>
               <button
                 className={`${styles.actBtn} ${liked ? styles.liked : ''}`}
                 onClick={() => onLike?.(track)}
+                aria-label={track.title + ' 좋아요'}
+                aria-pressed={liked}
                 title="Like"
               >
                 {liked ? '\u2665' : '\u2661'}
@@ -166,6 +154,7 @@ export default function TrackRow({
               <button
                 className={styles.actBtn}
                 onClick={() => onAddToPlaylist?.(track)}
+                aria-label={track.title + ' 재생목록에 추가'}
                 title="Add to playlist"
               >
                 +
@@ -175,27 +164,34 @@ export default function TrackRow({
                 onClick={() => onDownload?.(track)}
                 disabled={downloadPending}
                 aria-busy={downloadPending}
+                aria-label={track.title + ' 다운로드'}
                 title="Download"
               >
                 &#8595;
               </button>
             </>
           ) : (
-            <>
-              <button className={styles.actBtn} onClick={() => onGuestAction?.()} title="Like">
-                {'\u2661'}
-              </button>
-              <button
-                className={styles.actBtn}
-                onClick={() => onGuestAction?.()}
-                title="Add to playlist"
-              >
-                +
-              </button>
-              <button className={styles.actBtn} onClick={() => onGuestAction?.()} title="Download">
-                &#8595;
-              </button>
-            </>
+            !isListeningMode && (
+              <>
+                <button className={styles.actBtn} onClick={() => onGuestAction?.()} title="Like">
+                  {'\u2661'}
+                </button>
+                <button
+                  className={styles.actBtn}
+                  onClick={() => onGuestAction?.()}
+                  title="Add to playlist"
+                >
+                  +
+                </button>
+                <button
+                  className={styles.actBtn}
+                  onClick={() => onGuestAction?.()}
+                  title="Download"
+                >
+                  &#8595;
+                </button>
+              </>
+            )
           )}
         </div>
       </td>

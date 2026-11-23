@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -39,6 +40,7 @@ public class PlaylistService {
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final StorageMutationCoordinator storageMutationCoordinator;
     private final CanonicalImageService canonicalImageService;
+    private final PilotAccess pilot;
 
     // ── 3.1 POST /api/playlists ──────────────────────────────────────────────
 
@@ -47,11 +49,10 @@ public class PlaylistService {
     public PlaylistResponse createPlaylist(PlaylistCreateRequest request,
                                            MultipartFile thumbnailFile,
                                            CustomUserDetails userDetails) {
-        User user = validateSubscriberForPlaylistCreation(userDetails);
-
-        int maxPlaylists = userSubscriptionRepository.findActiveByUser(user, LocalDate.now())
-                .map(us -> us.getSubscription().getMaxPlaylists())
-                .orElse(3);
+        PilotAccess.Library library = writeLibrary(userDetails, true);
+        User user = library.grant().getUser();
+        rejectPilotThumbnail(library, thumbnailFile);
+        int maxPlaylists = library.grant().getSubscription().getMaxPlaylists();
         if (playlistRepository.countByUserAndIsActiveTrue(user) >= maxPlaylists) {
             throw new BusinessException(BUSINESS_ERROR.PLAYLIST_LIMIT_EXCEEDED);
         }
@@ -72,30 +73,29 @@ public class PlaylistService {
                 .build();
 
         playlist = playlistRepository.save(playlist);
-        return PlaylistResponse.from(playlist, 0);
+        return PlaylistResponse.from(playlist, 0, playlist.getThumbnail());
+    }
+
+    public int pilotCapacity(CustomUserDetails userDetails) {
+        return pilot.playlistCapacity(userDetails.getId());
     }
 
     // ── 3.2 GET /api/playlists ───────────────────────────────────────────────
 
     public List<PlaylistListItemResponse> getMyPlaylists(CustomUserDetails userDetails) {
-        User user = validateSubscriber(userDetails);
+        PilotAccess.Library library = readLibrary(userDetails);
+        User user = library.grant().getUser();
 
         List<Playlist> playlists = playlistRepository
                 .findAllByUserAndIsActiveTrueOrderByCreatedAtDesc(user);
 
         List<Long> playlistIds = playlists.stream().map(Playlist::getId).toList();
 
-        Map<Long, Long> countMap = playlistIds.isEmpty()
-                ? Collections.emptyMap()
-                : playlistTrackRepository.countActiveByPlaylistIdIn(playlistIds)
-                        .stream()
-                        .collect(Collectors.toMap(
-                                row -> (Long) row[0],
-                                row -> (Long) row[1]
-                        ));
+        Map<Long, Long> countMap = countsFor(playlistIds, library);
 
         return playlists.stream()
-                .map(p -> PlaylistListItemResponse.from(p, countMap.getOrDefault(p.getId(), 0L).intValue()))
+                .map(p -> PlaylistListItemResponse.from(p, countMap.getOrDefault(p.getId(), 0L).intValue(),
+                        visibleThumbnail(p, library)))
                 .toList();
     }
 
@@ -103,16 +103,18 @@ public class PlaylistService {
 
     public PlaylistDetailResponse getPlaylistDetail(Long playlistId,
                                                      CustomUserDetails userDetails) {
-        validateSubscriber(userDetails);
+        PilotAccess.Library library = readLibrary(userDetails);
         Playlist playlist = getOwnedPlaylist(playlistId, userDetails.getId());
 
-        List<PlaylistTrackItemResponse> tracks = playlistTrackRepository
-                .findAllPlayableByPlaylistIdOrderByTrackOrderAsc(playlistId)
-                .stream()
-                .map(PlaylistTrackItemResponse::from)
-                .toList();
+        List<PlaylistTrackItemResponse> tracks = new ArrayList<>();
+        for (PlaylistTrack item : playlistTrackRepository.findAllPlayableByPlaylistIdOrderByTrackOrderAsc(playlistId)) {
+            if (library.includes(item.getId().getTrackId())) {
+                int order = library.publishedIds().isPresent() ? tracks.size() : item.getTrackOrder();
+                tracks.add(PlaylistTrackItemResponse.from(item, order));
+            }
+        }
 
-        return PlaylistDetailResponse.from(playlist, tracks);
+        return PlaylistDetailResponse.from(playlist, tracks, visibleThumbnail(playlist, library));
     }
 
     // ── 3.4 POST /api/playlists/{id}/tracks ──────────────────────────────────
@@ -121,8 +123,9 @@ public class PlaylistService {
     public void addTrack(Long playlistId,
                          PlaylistAddTrackRequest request,
                          CustomUserDetails userDetails) {
-        validateSubscriber(userDetails);
+        PilotAccess.Library library = writeLibrary(userDetails, false);
         Playlist playlist = getOwnedPlaylistForUpdate(playlistId, userDetails.getId());
+        requireSelected(library, request.trackId());
 
         Track track = trackRepository.findById(request.trackId())
                 .filter(Track::isActive)
@@ -151,7 +154,7 @@ public class PlaylistService {
     public int addTracksBatch(Long playlistId,
                               PlaylistBatchAddTrackRequest request,
                               CustomUserDetails userDetails) {
-        validateSubscriber(userDetails);
+        PilotAccess.Library library = writeLibrary(userDetails, false);
         Playlist playlist = getOwnedPlaylistForUpdate(playlistId, userDetails.getId());
 
         int currentOrder = (int) playlistTrackRepository.countByIdPlaylistId(playlistId);
@@ -159,7 +162,7 @@ public class PlaylistService {
         Set<Long> requestedTrackIds = new HashSet<>();
 
         for (Long trackId : request.trackIds()) {
-            if (!requestedTrackIds.add(trackId)) {
+            if (trackId == null || !library.includes(trackId) || !requestedTrackIds.add(trackId)) {
                 continue;
             }
             PlaylistTrackId id = new PlaylistTrackId(playlistId, trackId);
@@ -196,8 +199,9 @@ public class PlaylistService {
                                            PlaylistUpdateRequest request,
                                            MultipartFile thumbnailFile,
                                            CustomUserDetails userDetails) {
-        validateSubscriber(userDetails);
+        PilotAccess.Library library = writeLibrary(userDetails, false);
         Playlist playlist = getOwnedPlaylistForUpdate(playlistId, userDetails.getId());
+        rejectPilotThumbnail(library, thumbnailFile);
 
         String thumbnailUrl = playlist.getThumbnail();
         if (thumbnailFile != null && !thumbnailFile.isEmpty()) {
@@ -211,8 +215,10 @@ public class PlaylistService {
 
         playlist.update(request.getTitle(), request.getDescription(), thumbnailUrl);
 
-        int trackCount = (int) playlistTrackRepository.countActiveByPlaylistId(playlistId);
-        return PlaylistResponse.from(playlist, trackCount);
+        int trackCount = library.publishedIds().isPresent()
+                ? countsFor(List.of(playlistId), library).getOrDefault(playlistId, 0L).intValue()
+                : (int) playlistTrackRepository.countActiveByPlaylistId(playlistId);
+        return PlaylistResponse.from(playlist, trackCount, visibleThumbnail(playlist, library));
     }
 
     // ── 3.6 PUT /api/playlists/{id}/tracks ───────────────────────────────────
@@ -221,12 +227,12 @@ public class PlaylistService {
     public void reorderTracks(Long playlistId,
                               PlaylistReorderRequest request,
                               CustomUserDetails userDetails) {
-        validateSubscriber(userDetails);
+        PilotAccess.Library library = writeLibrary(userDetails, false);
         getOwnedPlaylistForUpdate(playlistId, userDetails.getId());
         List<PlaylistTrack> playlistTracks = playlistTrackRepository
                 .findAllByIdPlaylistIdOrderByTrackOrderAsc(playlistId);
         List<PlaylistTrack> activePlaylistTracks = playlistTracks.stream()
-                .filter(playlistTrack -> playlistTrack.getTrack().isActive())
+                .filter(item -> item.getTrack().isActive() && library.includes(item.getTrack().getId()))
                 .toList();
         validatePlaylistReorderRequest(request, activePlaylistTracks);
 
@@ -238,7 +244,7 @@ public class PlaylistService {
 
         int nextInactiveOrder = activePlaylistTracks.size();
         for (PlaylistTrack playlistTrack : playlistTracks) {
-            if (!playlistTrack.getTrack().isActive()) {
+            if (!tracksById.containsKey(playlistTrack.getTrack().getId())) {
                 playlistTrack.updateOrder(nextInactiveOrder++);
             }
         }
@@ -249,11 +255,13 @@ public class PlaylistService {
     @Transactional
     public void removeTrack(Long playlistId, Long trackId,
                             CustomUserDetails userDetails) {
-        validateSubscriber(userDetails);
+        PilotAccess.Library library = writeLibrary(userDetails, false);
         getOwnedPlaylistForUpdate(playlistId, userDetails.getId());
+        requireSelected(library, trackId);
 
         PlaylistTrackId id = new PlaylistTrackId(playlistId, trackId);
         PlaylistTrack playlistTrack = playlistTrackRepository.findById(id)
+                .filter(item -> library.publishedIds().isEmpty() || item.getTrack().isActive())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
         playlistTrackRepository.delete(playlistTrack);
@@ -265,7 +273,7 @@ public class PlaylistService {
     @Transactional
     @com.atstudio.atstudio.service.storage.StorageReferenceMutation
     public void deletePlaylist(Long playlistId, CustomUserDetails userDetails) {
-        validateSubscriber(userDetails);
+        writeLibrary(userDetails, false);
         Playlist playlist = getOwnedPlaylistForUpdate(playlistId, userDetails.getId());
         playlistTrackRepository.deleteAllByIdPlaylistId(playlistId);
         String oldThumbnail = playlist.getThumbnail();
@@ -293,25 +301,57 @@ public class PlaylistService {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private User validateSubscriber(CustomUserDetails userDetails) {
-        User user = userRepository.findById(userDetails.getId())
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
-        return requireActiveSubscription(user);
+    private PilotAccess.Library readLibrary(CustomUserDetails userDetails) {
+        if (pilot.enabled()) return pilot.libraryForRead(userDetails.getId());
+        return ordinaryLibrary(getUser(userDetails, false));
     }
 
-    private User validateSubscriberForPlaylistCreation(CustomUserDetails userDetails) {
-        User user = userRepository.findByIdForUpdate(userDetails.getId())
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
-        return requireActiveSubscription(user);
+    private PilotAccess.Library writeLibrary(CustomUserDetails userDetails, boolean creating) {
+        User user = getUser(userDetails, creating || pilot.enabled());
+        return pilot.enabled() ? pilot.libraryForWrite(user) : ordinaryLibrary(user);
     }
 
-    private User requireActiveSubscription(User user) {
-        userSubscriptionRepository.findActiveByUser(user, LocalDate.now())
-                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
-        return user;
+    private User getUser(CustomUserDetails userDetails, boolean lock) {
+        return (lock ? userRepository.findByIdForUpdate(userDetails.getId()) : userRepository.findById(userDetails.getId()))
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+    }
+
+    private PilotAccess.Library ordinaryLibrary(User user) {
+        return PilotAccess.Library.ordinary(userSubscriptionRepository.findActiveByUser(user, LocalDate.now())
+                .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION)));
+    }
+
+    private Map<Long, Long> countsFor(List<Long> playlistIds, PilotAccess.Library library) {
+        if (playlistIds.isEmpty()) return Collections.emptyMap();
+        List<Object[]> counts;
+        if (library.publishedIds().isPresent()) {
+            Set<Long> published = library.publishedIds().get();
+            if (published.isEmpty()) return Collections.emptyMap();
+            counts = playlistTrackRepository.countSelectedByPlaylists(playlistIds, published);
+        } else {
+            counts = playlistTrackRepository.countActiveByPlaylistIdIn(playlistIds);
+        }
+        return counts.stream().collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
+    }
+
+    private static void requireSelected(PilotAccess.Library library, Long trackId) {
+        if (!library.includes(trackId)) throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
+    }
+
+    private static String visibleThumbnail(Playlist playlist, PilotAccess.Library library) {
+        return library.publishedIds().isPresent() ? null : playlist.getThumbnail();
+    }
+
+    private static void rejectPilotThumbnail(PilotAccess.Library library, MultipartFile file) {
+        if (library.publishedIds().isPresent() && file != null && !file.isEmpty())
+            throw new BusinessException(BUSINESS_ERROR.INVALID_ARGUMENT);
     }
 
     private Playlist getOwnedPlaylist(Long playlistId, Long userId) {
+        if (pilot.enabled()) {
+            return playlistRepository.findByIdAndUser_IdAndIsActiveTrue(playlistId, userId)
+                    .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        }
         Playlist playlist = playlistRepository.findById(playlistId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         if (!playlist.getUser().getId().equals(userId)) {
@@ -324,6 +364,10 @@ public class PlaylistService {
     }
 
     private Playlist getOwnedPlaylistForUpdate(Long playlistId, Long userId) {
+        if (pilot.enabled()) {
+            return playlistRepository.findOwnedForUpdate(playlistId, userId)
+                    .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        }
         Playlist playlist = playlistRepository.findByIdForUpdate(playlistId)
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
         if (!playlist.getUser().getId().equals(userId)) {

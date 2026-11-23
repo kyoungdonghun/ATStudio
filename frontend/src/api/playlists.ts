@@ -39,6 +39,13 @@ export async function fetchMyPlaylists(signal?: AbortSignal): Promise<{ dataList
   return data;
 }
 
+export async function fetchPilotPlaylistCapacity(signal?: AbortSignal): Promise<number> {
+  const { data } = await client.get<ApiResponse<{ maxPlaylists: number }>>('/playlists/capacity', {
+    signal,
+  });
+  return data.data.maxPlaylists;
+}
+
 /** GET /api/playlists/{playlistId} -- playlist detail with tracks */
 export async function fetchPlaylistDetail(
   playlistId: number,

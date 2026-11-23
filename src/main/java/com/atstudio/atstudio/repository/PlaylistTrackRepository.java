@@ -47,6 +47,15 @@ public interface PlaylistTrackRepository extends JpaRepository<PlaylistTrack, Pl
             """)
     List<Object[]> countActiveByPlaylistIdIn(@Param("playlistIds") List<Long> playlistIds);
 
+    @Query("""
+            SELECT pt.id.playlistId, COUNT(pt) FROM PlaylistTrack pt
+            WHERE pt.id.playlistId IN :playlistIds AND pt.id.trackId IN :trackIds
+              AND pt.track.isActive = true
+            GROUP BY pt.id.playlistId
+            """)
+    List<Object[]> countSelectedByPlaylists(@Param("playlistIds") List<Long> playlistIds,
+                                           @Param("trackIds") java.util.Set<Long> trackIds);
+
     void deleteAllByIdPlaylistId(Long playlistId);
 
     void deleteAllByIdTrackId(Long trackId);

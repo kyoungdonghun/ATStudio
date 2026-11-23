@@ -2,6 +2,7 @@ import type { User } from '@/types';
 import { safeStorage } from '@/utils/safeStorage';
 
 const ACTIVE_SESSION = 'atstudio.pilot.session';
+export const PILOT_SESSION_CHANGED = 'atstudio:pilot-session-changed';
 const recordKey = (id: string) => `${ACTIVE_SESSION}.${id}`;
 const activeKey = (id: string) => `${recordKey(id)}.active`;
 

@@ -268,11 +268,11 @@ export default function TrackListPage() {
   }, [tracks, setTrackListContext]);
 
   /* Like store */
-  const canPilotDownload = useAuthStore(
-    (s) => isPilotMode && s.role === 'USER' && s.isAuthenticated(),
+  const isAuthenticated = useAuthStore(
+    (s) => s.isAuthenticated() && (!isListeningMode || (isPilotMode && s.role === 'USER')),
   );
-  const isAuthenticated = useAuthStore((s) => !isListeningMode && s.isAuthenticated());
   const likeLoaded = useLikeStore((s) => s.loaded);
+  const likeOwner = useAuthStore((s) => s.user?.id);
   const loadLikes = useLikeStore((s) => s.load);
   const likedIds = useLikeStore((s) => s.likedIds);
   const toggleLike = useLikeStore((s) => s.toggle);
@@ -296,7 +296,7 @@ export default function TrackListPage() {
     if (isAuthenticated && !likeLoaded) {
       void loadLikes();
     }
-  }, [isAuthenticated, likeLoaded, loadLikes]);
+  }, [isAuthenticated, likeOwner, likeLoaded, loadLikes]);
 
   const loadTaxonomy = useCallback(async (type: TagType) => {
     const requestGeneration = ++taxonomyRequestGenerationRef.current[type];
@@ -887,7 +887,11 @@ export default function TrackListPage() {
                   <th className={`${styles.thRight} ${styles.thBpm}`}>BPM</th>
                   <th className={`${styles.thCenter} ${styles.thKey}`}>{'조성'}</th>
                   <th className={`${styles.thRight} ${styles.thDur}`}>{'길이'}</th>
-                  <th className={`${styles.thRight} ${styles.thActs}`}>{'액션'}</th>
+                  <th
+                    className={`${styles.thRight} ${styles.thActs} ${isPilotMode && isAuthenticated ? styles.libraryActions : ''}`}
+                  >
+                    {'액션'}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -899,7 +903,6 @@ export default function TrackListPage() {
                     playing={currentTrack?.id === track.id && isPlaying}
                     liked={likedIds.has(track.id)}
                     showAuthActions={isAuthenticated}
-                    pilotDownload={canPilotDownload}
                     onGuestAction={handleGuestAction}
                     onPlay={(t) => {
                       if (currentTrack?.id === t.id) {
@@ -961,13 +964,13 @@ export default function TrackListPage() {
       )}
 
       <AddToPlaylistModal
-        open={addToPlTrackId !== null}
+        open={isAuthenticated && addToPlTrackId !== null}
         trackId={addToPlTrackId}
         onClose={() => setAddToPlTrackId(null)}
         onSubscriptionRequired={() => {
           setAddToPlTrackId(null);
           toast('warning', '구독이 필요한 기능입니다.');
-          navigate('/subscriptions');
+          if (!isPilotMode) navigate('/subscriptions');
         }}
       />
     </div>

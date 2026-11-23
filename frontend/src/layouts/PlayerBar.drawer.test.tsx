@@ -6,17 +6,21 @@ import { useAuthStore } from '@/store/authStore';
 import { useLikeStore } from '@/store/likeStore';
 import { usePlayerStore } from '@/store/playerStore';
 import type { PlayableTrack, User } from '@/types';
+import { isPilotMode } from '@/config/pilotMode';
 
 const api = vi.hoisted(() => ({
   fetchMyPlaylists: vi.fn(),
+  fetchPilotPlaylistCapacity: vi.fn(),
+  createPlaylist: vi.fn(),
   fetchMySubscription: vi.fn(),
   fetchLikes: vi.fn(),
 }));
 
 vi.mock('@/api/playlists', () => ({
   fetchMyPlaylists: api.fetchMyPlaylists,
+  fetchPilotPlaylistCapacity: api.fetchPilotPlaylistCapacity,
   fetchPlaylistDetail: vi.fn(),
-  createPlaylist: vi.fn(),
+  createPlaylist: api.createPlaylist,
   deletePlaylist: vi.fn(),
   removeTrackFromPlaylist: vi.fn(),
   reorderTracks: vi.fn(),
@@ -44,11 +48,7 @@ const track: PlayableTrack = {
 describe.each([false, true])('PlayerBar real drawer, loaded track: %s', (hasTrack) => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useAuthStore.setState({
-      user: { id: 1 } as User,
-      accessToken: 'drawer-test-token',
-      role: 'USER',
-    });
+    useAuthStore.getState().login('drawer-test-token', { id: 1, role: 'USER' } as User);
     useLikeStore.setState({ loaded: true, likedIds: new Set<number>() });
     usePlayerStore.setState({
       currentTrack: hasTrack ? track : null,
@@ -56,8 +56,33 @@ describe.each([false, true])('PlayerBar real drawer, loaded track: %s', (hasTrac
       queue: hasTrack ? [track] : [],
     });
     api.fetchMyPlaylists.mockResolvedValue({ dataList: [] });
+    api.fetchPilotPlaylistCapacity.mockResolvedValue(3);
     api.fetchMySubscription.mockResolvedValue({ subscription: { maxPlaylists: 3 } });
     api.fetchLikes.mockResolvedValue({ dataList: [] });
+  });
+
+  it('creates the first playlist inside the drawer and refreshes its contents', async () => {
+    api.createPlaylist.mockImplementation(async ({ title }: { title: string }) => {
+      api.fetchMyPlaylists.mockResolvedValue({ dataList: [{ id: 1, title, trackCount: 0 }] });
+    });
+    render(
+      <MemoryRouter>
+        <PlayerBar />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: '재생목록' }));
+    const drawer = within(screen.getByRole('dialog', { name: '재생목록 및 좋아요' }));
+    fireEvent.click(await drawer.findByRole('button', { name: '+ 새 재생목록' }));
+    fireEvent.change(drawer.getByRole('textbox', { name: '새 재생목록 이름' }), {
+      target: { value: 'My first list' },
+    });
+    fireEvent.click(drawer.getByRole('button', { name: '만들기' }));
+    expect(await drawer.findByText('My first list')).toBeInTheDocument();
+    expect(api.createPlaylist).toHaveBeenCalledWith({ title: 'My first list' });
+    if (isPilotMode) {
+      expect(api.fetchPilotPlaylistCapacity).toHaveBeenCalled();
+      expect(api.fetchMySubscription).not.toHaveBeenCalled();
+    }
   });
 
   it.each(['desktop', 'mobile'])('uses the visible tab for %s actions', async (layout) => {

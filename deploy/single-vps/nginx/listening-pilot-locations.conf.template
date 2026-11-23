@@ -1,14 +1,41 @@
 # Optional server-context include for a pilot frontend and pilot-enabled Spring
 # application. Combine with the reviewed listening server before its catch-all.
 # All personal data and original file responses require backend authorization.
-location ~ ^/(?:downloads|licenses(?:/[1-9][0-9]*)?)$ {
+location ~ ^/(?:downloads|licenses(?:/[1-9][0-9]*)?|likes|playlists(?:/[1-9][0-9]*(?:/edit)?)?)$ {
     limit_except GET { deny all; }
     expires -1;
     try_files /index.html =404;
 }
 
-location ~ ^/api/(?:downloads/history|licenses/(?:me|[1-9][0-9]*)|utils/download-count)$ {
+location ~ ^/api/(?:downloads/history|licenses/(?:me|[1-9][0-9]*)|utils/download-count|likes|playlists/capacity)$ {
     limit_except GET { deny all; }
+    include /etc/atstudio/nginx/proxy.conf;
+}
+
+location ~ ^/api/likes/[1-9][0-9]*$ {
+    limit_except POST DELETE { deny all; }
+    include /etc/atstudio/nginx/proxy.conf;
+}
+
+location = /api/playlists {
+    limit_except GET POST { deny all; }
+    client_max_body_size 32k;
+    include /etc/atstudio/nginx/proxy.conf;
+}
+
+location ~ ^/api/playlists/[1-9][0-9]*$ {
+    limit_except GET PUT DELETE { deny all; }
+    client_max_body_size 32k;
+    include /etc/atstudio/nginx/proxy.conf;
+}
+
+location ~ ^/api/playlists/[1-9][0-9]*/tracks$ {
+    limit_except POST PUT { deny all; }
+    include /etc/atstudio/nginx/proxy.conf;
+}
+
+location ~ ^/api/playlists/[1-9][0-9]*/tracks/[1-9][0-9]*$ {
+    limit_except DELETE { deny all; }
     include /etc/atstudio/nginx/proxy.conf;
 }
 

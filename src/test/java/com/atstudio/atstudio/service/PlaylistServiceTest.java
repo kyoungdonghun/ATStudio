@@ -47,8 +47,27 @@ class PlaylistServiceTest {
     @Mock TrackRepository trackRepository;
     @Mock StorageMutationCoordinator storageMutationCoordinator;
     @Mock CanonicalImageService canonicalImageService;
+    @Mock PilotAccess pilot;
 
     @InjectMocks PlaylistService playlistService;
+
+    @Test
+    void pilotRejectsAPlaylistCoverBeforeCreatingFilesOrRows() {
+        User user = buildUser(1L);
+        given(pilot.enabled()).willReturn(true);
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
+        given(pilot.libraryForWrite(user)).willReturn(new PilotAccess.Library(buildSubscription(user),
+                Optional.of(java.util.Set.of(10L))));
+        PlaylistCreateRequest request = new PlaylistCreateRequest();
+        request.setTitle("My collection");
+        var image = new MockMultipartFile("thumbnail", "cover.png", "image/png", new byte[]{1});
+
+        assertThatThrownBy(() -> playlistService.createPlaylist(request, image, buildUserDetails(1L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(BUSINESS_ERROR.INVALID_ARGUMENT));
+        org.mockito.Mockito.verifyNoInteractions(playlistRepository, storageMutationCoordinator, canonicalImageService);
+    }
 
     // ── createPlaylist() ──────────────────────────────────────────────────────
 

@@ -16,8 +16,12 @@ public record PlaylistTrackItemResponse(
         String tonality
 ) {
     public static PlaylistTrackItemResponse from(PlaylistTrack pt) {
+        return from(pt, pt.getTrackOrder());
+    }
+
+    public static PlaylistTrackItemResponse from(PlaylistTrack pt, int trackOrder) {
         return new PlaylistTrackItemResponse(
-                pt.getTrackOrder(),
+                trackOrder,
                 pt.getTrack().getId(),
                 pt.getTrack().getTitle(),
                 pt.getTrack().getUser().getNickname(),

@@ -6,6 +6,7 @@ import { safeStorage } from '@/utils/safeStorage';
 import { isPilotMode } from '@/config/pilotMode';
 import {
   isPilotSessionStorageKey,
+  PILOT_SESSION_CHANGED,
   readPilotSession,
   removePilotSession,
   savePilotSession,
@@ -86,6 +87,7 @@ export interface LogoutOutcome {
 
 function advanceSessionGeneration(): void {
   sessionGeneration += 1;
+  if (isPilotMode) window.dispatchEvent(new Event(PILOT_SESSION_CHANGED));
 }
 
 interface AuthState {
@@ -128,6 +130,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (isPilotMode) {
       pilotSession = startPilotSession(user, accessToken, refreshToken ?? null);
       advanceSessionGeneration();
+      useLikeStore.setState({ likedIds: new Set(), loaded: false });
       set({ accessToken, user, role: user.role });
       return;
     }
@@ -281,8 +284,10 @@ function synchronizePilotSession(): void {
     next?.user.nickname === pilotSession?.user.nickname
   )
     return;
-  if (next?.id !== pilotSession?.id || next?.user.role !== pilotSession?.user.role)
+  if (next?.id !== pilotSession?.id || next?.user.role !== pilotSession?.user.role) {
     advanceSessionGeneration();
+    useLikeStore.setState({ likedIds: new Set(), loaded: false });
+  }
   pilotSession = next;
   useAuthStore.setState({
     user: next?.user ?? null,

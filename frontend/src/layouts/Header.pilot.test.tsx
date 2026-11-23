@@ -43,10 +43,10 @@ it('starts a guest keyword search from the desktop header and resets to page one
   expect(screen.queryByRole('link', { name: '구독' })).not.toBeInTheDocument();
 });
 
-it('opens just the mobile search, restores focus on Escape and submits for a participant', () => {
+it('opens mobile search and personal navigation, restores focus on Escape and submits for a participant', () => {
   useAuthStore.setState({ role: 'USER', accessToken: 'pilot-test-access' });
   renderPilot();
-  const opener = screen.getByLabelText('곡 검색 열기');
+  const opener = screen.getByLabelText('메뉴 열기');
   fireEvent.click(opener);
   expect(screen.getByLabelText('모바일 곡 제목 및 용도 검색')).toHaveFocus();
   fireEvent.keyDown(window, { key: 'Escape' });
@@ -56,7 +56,10 @@ it('opens just the mobile search, restores focus on Escape and submits for a par
   fireEvent.change(screen.getByLabelText('모바일 곡 제목 및 용도 검색'), {
     target: { value: '브이로그' },
   });
-  expect(screen.getByRole('link', { name: '내 라이선스' })).toBeInTheDocument();
+  const nav = within(screen.getByLabelText('내 음악 메뉴'));
+  expect(nav.getByText('내 라이선스')).toHaveAttribute('href', '/licenses');
+  expect(nav.getByText('좋아요')).toHaveAttribute('href', '/likes');
+  expect(nav.getByText('내 재생목록')).toHaveAttribute('href', '/playlists');
   expect(screen.queryByRole('link', { name: '내 계정' })).not.toBeInTheDocument();
   expect(screen.queryByRole('link', { name: '구독 시작하기' })).not.toBeInTheDocument();
   fireEvent.submit(form);

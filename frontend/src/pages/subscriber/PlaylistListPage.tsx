@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { fetchMyPlaylists, createPlaylist, deletePlaylist } from '@/api/playlists';
+import {
+  fetchMyPlaylists,
+  createPlaylist,
+  deletePlaylist,
+  fetchPilotPlaylistCapacity,
+} from '@/api/playlists';
+import { isPilotMode } from '@/config/pilotMode';
 import { fetchMySubscription } from '@/api/userSubscriptions';
 import { toUploadUrl, getApiErrorCode } from '@/api/client';
 import { classifyLoadError } from '@/api/loadError';
@@ -15,6 +21,9 @@ import styles from './PlaylistListPage.module.css';
 
 const NOTES = ['\u266A', '\u266B', '\u2669', '\u266C'];
 type CapacityState = 'loading' | 'known' | 'error';
+const capacityExceededMessage = isPilotMode
+  ? '시험 이용권의 재생목록 한도에 도달했습니다.'
+  : '구독 플랜의 재생목록 한도를 초과했습니다. 플랜을 업그레이드해 주세요.';
 
 export default function PlaylistListPage() {
   const navigate = useNavigate();
@@ -107,8 +116,9 @@ export default function PlaylistListPage() {
     setCapacityState('loading');
     try {
       if (ownerKey === null) return;
-      const response = await fetchMySubscription(controller.signal);
-      const capacity = response.subscription?.maxPlaylists;
+      const capacity = isPilotMode
+        ? await fetchPilotPlaylistCapacity(controller.signal)
+        : (await fetchMySubscription(controller.signal)).subscription?.maxPlaylists;
       if (!Number.isSafeInteger(capacity) || (capacity ?? 0) <= 0) {
         throw new Error('Invalid playlist capacity');
       }
@@ -226,7 +236,7 @@ export default function PlaylistListPage() {
     handledCreateRequestKeyRef.current = location.key;
 
     if (!canCreate) {
-      showToast('error', '구독 플랜의 재생목록 한도를 초과했습니다. 플랜을 업그레이드해 주세요.');
+      showToast('error', capacityExceededMessage);
       navigate('/playlists', { replace: true });
       return;
     }
@@ -290,8 +300,9 @@ export default function PlaylistListPage() {
     } catch (err) {
       if (getCurrentOwnerKey(operationOwnerKey) !== operationOwnerKey) return;
       const code = await getApiErrorCode(err);
+      if (getCurrentOwnerKey(operationOwnerKey) !== operationOwnerKey) return;
       if (code === 'PLAYLIST_LIMIT_EXCEEDED') {
-        showToast('error', '구독 플랜의 재생목록 한도를 초과했습니다. 플랜을 업그레이드해 주세요.');
+        showToast('error', capacityExceededMessage);
         return;
       }
 
@@ -368,7 +379,7 @@ export default function PlaylistListPage() {
         <div className={styles.pnLeft}>
           <span className={styles.pnIcon}>{'\uD83D\uDCCB'}</span>
           <div className={styles.pnText}>
-            <span className={styles.pnStrong}>구독 플랜</span>
+            <span className={styles.pnStrong}>{isPilotMode ? '시험 이용권' : '구독 플랜'}</span>
             {currentCapacityState === 'loading' && (
               <span>{'재생목록 생성 한도를 확인하는 중입니다.'}</span>
             )}
@@ -484,38 +495,40 @@ export default function PlaylistListPage() {
               rows={3}
             />
           </div>
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>썸네일 (선택)</label>
-            <div className={styles.thumbUpload}>
-              {newThumbPreview ? (
-                <div className={styles.thumbPreview}>
-                  <img src={newThumbPreview} alt="Preview" />
-                  <button
-                    type="button"
-                    className={styles.thumbRemoveBtn}
-                    onClick={() => {
-                      releaseNewThumbPreview();
-                      setNewThumbFile(null);
-                      setNewThumbPreview(null);
-                    }}
-                  >
-                    {'\u2715'}
-                  </button>
-                </div>
-              ) : (
-                <label className={styles.thumbDropArea}>
-                  <span className={styles.thumbDropIcon}>{'\uD83D\uDDBC'}</span>
-                  <span className={styles.thumbDropText}>이미지 선택</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className={styles.thumbFileInput}
-                    onChange={handleThumbChange}
-                  />
-                </label>
-              )}
+          {!isPilotMode && (
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>썸네일 (선택)</label>
+              <div className={styles.thumbUpload}>
+                {newThumbPreview ? (
+                  <div className={styles.thumbPreview}>
+                    <img src={newThumbPreview} alt="Preview" />
+                    <button
+                      type="button"
+                      className={styles.thumbRemoveBtn}
+                      onClick={() => {
+                        releaseNewThumbPreview();
+                        setNewThumbFile(null);
+                        setNewThumbPreview(null);
+                      }}
+                    >
+                      {'\u2715'}
+                    </button>
+                  </div>
+                ) : (
+                  <label className={styles.thumbDropArea}>
+                    <span className={styles.thumbDropIcon}>{'\uD83D\uDDBC'}</span>
+                    <span className={styles.thumbDropText}>이미지 선택</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className={styles.thumbFileInput}
+                      onChange={handleThumbChange}
+                    />
+                  </label>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
         <div className={styles.modalFooter}>
           <Button variant="ghost" onClick={closeCreateModal}>

@@ -471,6 +471,9 @@
   .trackTable thead .thActs {
     width: 70px;
   }
+  .trackTable thead .libraryActions {
+    width: 100px;
+  }
   .pageHeader {
     flex-direction: column;
     gap: 12px;

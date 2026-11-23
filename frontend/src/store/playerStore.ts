@@ -3,6 +3,8 @@ import { fetchPlayableTracks } from '@/api/tracks';
 import type { PlayableTrack } from '@/types';
 import { safeStorage } from '@/utils/safeStorage';
 import { clampPlaybackTime, getFiniteMediaDuration } from '@/utils/playbackProgress';
+import { isPilotMode } from '@/config/pilotMode';
+import { PILOT_SESSION_CHANGED } from './pilotSession';
 
 const audio = new Audio();
 const STREAM_BASE = '/api/tracks';
@@ -15,6 +17,14 @@ let bufferingTimer: ReturnType<typeof setTimeout> | null = null;
 
 const PLAYBACK_ERROR = '재생을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.';
 const MEDIA_ERROR = '오디오를 재생하는 중 오류가 발생했습니다.';
+
+// A private playlist's ordering is personal even when all its tracks are public.
+// Keep that listening session in memory and leave the shared public resume point intact.
+let pilotLibraryPlayback = false;
+let pilotLibraryHistory: LocalPlayEntry[] = [];
+export function beginPilotLibraryPlayback(): void {
+  if (isPilotMode) pilotLibraryPlayback = true;
+}
 
 type RepeatMode = 'off' | 'all' | 'one';
 
@@ -39,6 +49,7 @@ function persistState(state: {
   currentTime: number;
   duration?: number;
 }) {
+  if (pilotLibraryPlayback) return;
   try {
     const queueTrackIds = Array.from(new Set(state.queue.map((track) => track.id)));
     if (state.currentTrack && !queueTrackIds.includes(state.currentTrack.id)) {
@@ -207,6 +218,13 @@ function persistPendingPlayHistory(entries: PendingPlayEntry[]): void {
 }
 
 export function savePlayHistory(track: PlayableTrack): void {
+  if (pilotLibraryPlayback) {
+    pilotLibraryHistory = [
+      { track, playedAt: new Date().toISOString() },
+      ...pilotLibraryHistory.filter((entry) => entry.track.id !== track.id),
+    ].slice(0, HISTORY_MAX);
+    return;
+  }
   try {
     const list = loadPendingPlayHistory();
     const entry: PendingPlayEntry = {
@@ -225,6 +243,7 @@ export function savePlayHistory(track: PlayableTrack): void {
 }
 
 export function loadPlayHistory(): LocalPlayEntry[] {
+  if (pilotLibraryPlayback) return [...pilotLibraryHistory];
   return loadPendingPlayHistory().flatMap((entry) =>
     entry.track ? [{ track: entry.track, playedAt: entry.playedAt }] : [],
   );
@@ -234,6 +253,7 @@ let historyHydrated = false;
 let historyHydrationPromise: Promise<LocalPlayEntry[]> | null = null;
 
 export function hydratePlayHistory(): Promise<LocalPlayEntry[]> {
+  if (pilotLibraryPlayback) return Promise.resolve(loadPlayHistory());
   if (historyHydrated) return Promise.resolve(loadPlayHistory());
   if (historyHydrationPromise) return historyHydrationPromise;
 
@@ -271,6 +291,10 @@ export function hydratePlayHistory(): Promise<LocalPlayEntry[]> {
 }
 
 export function removePlayHistoryEntry(trackId: number): void {
+  if (pilotLibraryPlayback) {
+    pilotLibraryHistory = pilotLibraryHistory.filter((entry) => entry.track.id !== trackId);
+    return;
+  }
   try {
     const list = loadPendingPlayHistory().filter((entry) => entry.trackId !== trackId);
     persistPendingPlayHistory(list);
@@ -280,6 +304,10 @@ export function removePlayHistoryEntry(trackId: number): void {
 }
 
 export function clearPlayHistory(): void {
+  if (pilotLibraryPlayback) {
+    pilotLibraryHistory = [];
+    return;
+  }
   try {
     safeStorage.removeItem(HISTORY_KEY);
     historyHydrated = true;
@@ -325,11 +353,12 @@ interface PlayerState {
   removeFromQueue: (trackId: number) => void;
   reorderQueue: (fromIndex: number, toIndex: number) => void;
   clearQueue: () => void;
-  setTrackListContext: (tracks: PlayableTrack[]) => () => void;
+  setTrackListContext: (tracks: PlayableTrack[], personal?: boolean) => () => void;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => {
   let trackListContextOwner = 0;
+  let personalTrackListContext = false;
 
   const supersedePersistedHydration = () => {
     playerStateGeneration += 1;
@@ -452,6 +481,28 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
   // Initialize volume from localStorage
   const savedVolume = parseFloat(safeStorage.getItem('playerVolume') ?? '1');
   audio.volume = isNaN(savedVolume) ? 1 : savedVolume;
+
+  if (isPilotMode) {
+    window.addEventListener(PILOT_SESSION_CHANGED, () => {
+      if (personalTrackListContext) {
+        trackListContextOwner += 1;
+        personalTrackListContext = false;
+        set({ trackListContext: [] });
+      }
+      if (!pilotLibraryPlayback) return;
+      get().clearQueue();
+      pilotLibraryPlayback = false;
+      pilotLibraryHistory = [];
+      pendingPlayerState = loadPersistedState();
+      const snapshot = pendingPlayerState;
+      const restorePublicQueue = () => {
+        if (snapshot && pendingPlayerState === snapshot && !pilotLibraryPlayback)
+          void get().hydratePersistedState();
+      };
+      if (playerHydrationPromise) void playerHydrationPromise.then(restorePublicQueue);
+      else restorePublicQueue();
+    });
+  }
 
   return {
     currentTrack: null,
@@ -592,6 +643,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         const idx = ctx.findIndex((t) => t.id === curForCtx.id);
         if (idx >= 0) {
           if (idx < ctx.length - 1) {
+            if (personalTrackListContext) beginPilotLibraryPlayback();
             get().play(ctx[idx + 1]);
             return;
           }
@@ -644,6 +696,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       if (ctx.length > 0 && curForCtx) {
         const idx = ctx.findIndex((t) => t.id === curForCtx.id);
         if (idx > 0) {
+          if (personalTrackListContext) beginPilotLibraryPlayback();
           get().play(ctx[idx - 1]);
           return;
         }
@@ -748,12 +801,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       });
     },
 
-    setTrackListContext: (tracks: PlayableTrack[]) => {
+    setTrackListContext: (tracks: PlayableTrack[], personal = false) => {
       const owner = ++trackListContextOwner;
+      personalTrackListContext = personal;
       set({ trackListContext: tracks });
       return () => {
         if (owner !== trackListContextOwner) return;
         trackListContextOwner += 1;
+        personalTrackListContext = false;
         set({ trackListContext: [] });
       };
     },

@@ -1,4 +1,5 @@
 import { isListeningMode } from '@/config/appMode';
+import { isPilotMode } from '@/config/pilotMode';
 import {
   useState,
   useCallback,
@@ -11,9 +12,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getApiErrorCode, toUploadUrl } from '@/api/client';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
-import { useAuthStore } from '@/store/authStore';
+import { getAuthSessionGeneration, isAuthSessionCurrent, useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
 import { fetchMySubscription, isNoActiveSubscriptionError } from '@/api/userSubscriptions';
+import { fetchPilotPlaylistCapacity } from '@/api/playlists';
 import {
   createDownloadFallbackFileName,
   downloadTrack,
@@ -41,6 +43,11 @@ function formatTime(seconds: number): string {
 }
 
 export default function PlayerBar() {
+  const session = useAuthStore(() => (isPilotMode ? getAuthSessionGeneration() : 0));
+  return <PlayerBarSession key={session} />;
+}
+
+function PlayerBarSession() {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const isStalled = usePlayerStore((s) => s.isStalled);
@@ -59,8 +66,14 @@ export default function PlayerBar() {
   const setVolume = usePlayerStore((s) => s.setVolume);
   const toggleMute = usePlayerStore((s) => s.toggleMute);
 
-  const isAuthenticated = useAuthStore((s) => !isListeningMode && s.isAuthenticated());
-  const role = useAuthStore((s) => (isListeningMode ? 'GUEST' : s.role));
+  const role = useAuthStore((s) =>
+    !isListeningMode || (isPilotMode && s.role === 'USER' && s.isAuthenticated())
+      ? s.role
+      : 'GUEST',
+  );
+  const isAuthenticated = useAuthStore(
+    (s) => s.isAuthenticated() && (!isListeningMode || (isPilotMode && s.role === 'USER')),
+  );
   const authIdentity = useAuthStore((s) => s.user?.id ?? s.accessToken ?? null);
   const likeLoaded = useLikeStore((s) => s.loaded);
   const loadLikes = useLikeStore((s) => s.load);
@@ -80,6 +93,9 @@ export default function PlayerBar() {
   const [expanded, setExpanded] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>('idle');
   const [subscriptionRetryKey, setSubscriptionRetryKey] = useState(0);
+  const hasSubscription = subscriptionStatus === 'active';
+  const showLibraryActions =
+    !isListeningMode || (isPilotMode && isAuthenticated && hasSubscription);
   const subscriptionGenerationRef = useRef(0);
   const [downloading, setDownloading] = useState(false);
   const downloadOwnershipRef = useRef<{ trackID: number } | null>(null);
@@ -127,10 +143,10 @@ export default function PlayerBar() {
   }, [volumeOpen]);
 
   useEffect(() => {
-    if (isAuthenticated && !likeLoaded) {
+    if (isAuthenticated && showLibraryActions && !likeLoaded) {
       void loadLikes();
     }
-  }, [isAuthenticated, likeLoaded, loadLikes]);
+  }, [isAuthenticated, showLibraryActions, likeLoaded, loadLikes]);
 
   useEffect(() => {
     if (!isAuthenticated || role === 'ADMIN') {
@@ -142,7 +158,10 @@ export default function PlayerBar() {
     const generation = ++subscriptionGenerationRef.current;
     const controller = new AbortController();
     setSubscriptionStatus('loading');
-    fetchMySubscription(controller.signal)
+    const subscription = isPilotMode
+      ? fetchPilotPlaylistCapacity(controller.signal)
+      : fetchMySubscription(controller.signal);
+    subscription
       .then(() => {
         if (subscriptionGenerationRef.current === generation) {
           setSubscriptionStatus('active');
@@ -161,9 +180,10 @@ export default function PlayerBar() {
     };
   }, [authIdentity, isAuthenticated, role, subscriptionRetryKey]);
 
-  const hasSubscription = subscriptionStatus === 'active';
   const renderSubscriptionAction = (guestTarget: '/login' | '/subscriptions') => {
-    if (isListeningMode) return null;
+    if (isListeningMode && !(isPilotMode && isAuthenticated && subscriptionStatus === 'error')) {
+      return null;
+    }
     if (!isAuthenticated) {
       return (
         <button className={styles.buyBtn} onClick={() => navigate(guestTarget)}>
@@ -221,6 +241,8 @@ export default function PlayerBar() {
   const handleDownload = useCallback(async () => {
     if (!currentTrack || downloading || downloadOwnershipRef.current !== null) return;
     const ownership = { trackID: currentTrack.id };
+    const session = isPilotMode ? getAuthSessionGeneration() : null;
+    const current = () => session === null || isAuthSessionCurrent(session);
     downloadOwnershipRef.current = ownership;
     setDownloading(true);
     try {
@@ -228,13 +250,15 @@ export default function PlayerBar() {
         currentTrack.id,
         createDownloadFallbackFileName('track', currentTrack.id, currentTrack.title, 'mp3'),
       );
+      if (!current()) return;
       triggerBlobDownload(download);
       toast('success', '다운로드가 완료되었습니다.');
     } catch (err: unknown) {
       const code = await getApiErrorCode(err);
+      if (!current()) return;
       if (code === 'NO_ACTIVE_SUBSCRIPTION') {
         toast('warning', '구독이 필요한 기능입니다.');
-        navigate('/subscriptions');
+        if (!isPilotMode) navigate('/subscriptions');
       } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
         toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
       } else {
@@ -572,7 +596,7 @@ export default function PlayerBar() {
             >
               {'재생기록'}
             </button>
-            {!isListeningMode && (
+            {showLibraryActions && (
               <button
                 className={styles.actionBtn}
                 onClick={() => toggleDrawer('likes')}
@@ -582,7 +606,7 @@ export default function PlayerBar() {
                 {'좋아요'}
               </button>
             )}
-            {!isListeningMode && (
+            {showLibraryActions && (
               <button
                 className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
                 onClick={() => toggleDrawer('playlists')}
@@ -631,7 +655,7 @@ export default function PlayerBar() {
                 >
                   {'재생기록'}
                 </button>
-                {!isListeningMode && (
+                {showLibraryActions && (
                   <button
                     className={styles.actionBtn}
                     onClick={() => toggleDrawer('likes')}
@@ -641,7 +665,7 @@ export default function PlayerBar() {
                     {'좋아요'}
                   </button>
                 )}
-                {!isListeningMode && (
+                {showLibraryActions && (
                   <button
                     className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
                     onClick={() => toggleDrawer('playlists')}
@@ -725,7 +749,7 @@ export default function PlayerBar() {
             </button>
             {currentUsageText && <div className={styles.trackUsage}>{currentUsageText}</div>}
           </div>
-          {!isListeningMode && (
+          {showLibraryActions && (
             <button
               className={`${styles.heartBtn} ${likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
               aria-label={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
@@ -743,7 +767,7 @@ export default function PlayerBar() {
               {likedIds.has(currentTrack.id) ? '\u2665' : '\u2661'}
             </button>
           )}
-          {!isListeningMode && (
+          {showLibraryActions && (
             <button
               className={styles.addToPlBtn}
               aria-label="재생목록에 추가"
@@ -882,7 +906,7 @@ export default function PlayerBar() {
           >
             {'재생기록'}
           </button>
-          {!isListeningMode && (
+          {showLibraryActions && (
             <button
               className={styles.actionBtn}
               onClick={() => toggleDrawer('likes')}
@@ -892,7 +916,7 @@ export default function PlayerBar() {
               {'좋아요'}
             </button>
           )}
-          {!isListeningMode && (
+          {showLibraryActions && (
             <button
               className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
               onClick={() => toggleDrawer('playlists')}
@@ -962,35 +986,33 @@ export default function PlayerBar() {
             </div>
           </div>
           <div className={styles.mobileControls}>
+            {(!expanded || isPilotMode) && showLibraryActions && (
+              <button
+                className={`${styles.heartBtn} ${likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
+                aria-label={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
+                aria-pressed={likedIds.has(currentTrack.id)}
+                title={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    toast('warning', '로그인 후 이용 가능합니다.');
+                    navigate(loginPath);
+                    return;
+                  }
+                  void toggleLike(currentTrack.id);
+                }}
+              >
+                {likedIds.has(currentTrack.id) ? '\u2665' : '\u2661'}
+              </button>
+            )}
             {!expanded && (
-              <>
-                {!isListeningMode && (
-                  <button
-                    className={`${styles.heartBtn} ${likedIds.has(currentTrack.id) ? styles.heartBtnActive : ''}`}
-                    aria-label={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
-                    aria-pressed={likedIds.has(currentTrack.id)}
-                    title={likedIds.has(currentTrack.id) ? '좋아요 취소' : '좋아요'}
-                    onClick={() => {
-                      if (!isAuthenticated) {
-                        toast('warning', '로그인 후 이용 가능합니다.');
-                        navigate(loginPath);
-                        return;
-                      }
-                      void toggleLike(currentTrack.id);
-                    }}
-                  >
-                    {likedIds.has(currentTrack.id) ? '\u2665' : '\u2661'}
-                  </button>
-                )}
-                <button
-                  className={styles.playBtn}
-                  onClick={handlePlayPause}
-                  aria-label={isPlaying ? '일시정지' : '재생'}
-                  title={isPlaying ? '일시정지' : '재생'}
-                >
-                  {isPlaying ? '\u275A\u275A' : '\u25B6'}
-                </button>
-              </>
+              <button
+                className={styles.playBtn}
+                onClick={handlePlayPause}
+                aria-label={isPlaying ? '일시정지' : '재생'}
+                title={isPlaying ? '일시정지' : '재생'}
+              >
+                {isPlaying ? '\u275A\u275A' : '\u25B6'}
+              </button>
             )}
             <button
               ref={mobileExpandButtonRef}
@@ -1110,6 +1132,16 @@ export default function PlayerBar() {
 
             {/* Action buttons */}
             <div className={styles.mobileActions}>
+              {isPilotMode && showLibraryActions && (
+                <button
+                  type="button"
+                  className={styles.addToPlBtn}
+                  onClick={() => setShowPlModal(true)}
+                  aria-label="재생목록에 추가"
+                >
+                  + 재생목록에 추가
+                </button>
+              )}
               <button
                 className={`${styles.actionBtn} ${historyOpen ? styles.actionBtnActive : ''}`}
                 onClick={() => {
@@ -1119,7 +1151,7 @@ export default function PlayerBar() {
               >
                 {'재생기록'}
               </button>
-              {!isListeningMode && (
+              {showLibraryActions && (
                 <button
                   className={styles.actionBtn}
                   onClick={() => toggleDrawer('likes')}
@@ -1129,7 +1161,7 @@ export default function PlayerBar() {
                   {'좋아요'}
                 </button>
               )}
-              {!isListeningMode && (
+              {showLibraryActions && (
                 <button
                   className={`${styles.actionBtn} ${playlistOpen ? styles.actionBtnActive : ''}`}
                   onClick={() => toggleDrawer('playlists')}
@@ -1169,7 +1201,7 @@ export default function PlayerBar() {
         onSubscriptionRequired={() => {
           setShowPlModal(false);
           toast('warning', '구독이 필요한 기능입니다.');
-          navigate('/subscriptions');
+          if (!isPilotMode) navigate('/subscriptions');
         }}
       />
     </>

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { fetchMyPlaylists, addTrackToPlaylist } from '@/api/playlists';
 import { isSubscriptionRequired } from '@/api/client';
+import { Link } from 'react-router-dom';
+import { isPilotMode } from '@/config/pilotMode';
+import { getAuthSessionGeneration, useAuthStore } from '@/store/authStore';
 import type { Playlist } from '@/types';
 import Modal from '@/components/ui/Modal';
 import styles from './AddToPlaylistModal.module.css';
@@ -20,9 +23,10 @@ export default function AddToPlaylistModal({
   onClose,
   onSubscriptionRequired,
 }: AddToPlaylistModalProps) {
+  const pilotSession = useAuthStore(() => (isPilotMode ? getAuthSessionGeneration() : null));
   const lifecycleKey = useMemo(
-    () => Symbol(`add-to-playlist-lifecycle:${open ? 'open' : 'closed'}:${trackId ?? 'no-track'}`),
-    [open, trackId],
+    () => Symbol(`add-to-playlist:${pilotSession}:${open}:${trackId}`),
+    [open, trackId, pilotSession],
   );
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loadState, setLoadState] = useState<PlaylistLoadState>('idle');
@@ -282,7 +286,13 @@ export default function AddToPlaylistModal({
         <div className={styles.empty}>
           재생목록이 없습니다.
           <br />
-          재생목록을 먼저 만들어주세요.
+          {isPilotMode ? (
+            <Link to="/playlists" state={{ openCreate: true }} onClick={onClose}>
+              새 재생목록 만들기
+            </Link>
+          ) : (
+            '재생목록을 먼저 만들어주세요.'
+          )}
         </div>
       ) : currentResult === 'success' ? (
         <div className={styles.success}>추가되었습니다!</div>

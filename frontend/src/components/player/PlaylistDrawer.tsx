@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
-import { usePlayerStore } from '@/store/playerStore';
+import { isPilotMode } from '@/config/pilotMode';
+import { beginPilotLibraryPlayback, usePlayerStore } from '@/store/playerStore';
 import {
   fetchMyPlaylists,
+  fetchPilotPlaylistCapacity,
   fetchPlaylistDetail,
   createPlaylist,
   deletePlaylist,
@@ -297,8 +299,9 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
     setMaxPlaylists(null);
     setCapacityState('loading');
     try {
-      const response = await fetchMySubscription(controller.signal);
-      const capacity = response.subscription?.maxPlaylists;
+      const capacity = isPilotMode
+        ? await fetchPilotPlaylistCapacity(controller.signal)
+        : (await fetchMySubscription(controller.signal)).subscription?.maxPlaylists;
       if (!Number.isSafeInteger(capacity) || (capacity ?? 0) <= 0) {
         throw new Error('Invalid playlist capacity');
       }
@@ -608,6 +611,7 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
     ) {
       return;
     }
+    if (isPilotMode) beginPilotLibraryPlayback();
     playTrack(toPlayableTrack(t));
   }
 
@@ -708,6 +712,7 @@ function PlaylistDrawerSession({ ownerKey, tab, setTab, onClose }: PlaylistDrawe
     ) {
       return;
     }
+    if (isPilotMode) beginPilotLibraryPlayback();
     playTrack(toPlayableTrack(item));
   }
 
