@@ -1,4 +1,5 @@
-import { useAuthStore } from '@/store/authStore';
+import { isPilotMode } from '@/config/pilotMode';
+import { getAuthSessionGeneration, isAuthSessionCurrent, useAuthStore } from '@/store/authStore';
 
 export type OwnerProjectionKey = string;
 
@@ -21,6 +22,7 @@ export function createReadKey(
 export function getCurrentOwnerKey(
   fallbackOwnerKey: OwnerProjectionKey | null = null,
 ): OwnerProjectionKey | null {
+  if (isPilotMode && !isAuthSessionCurrent(getAuthSessionGeneration())) return null;
   const getState = useAuthStore.getState;
   if (typeof getState !== 'function') return fallbackOwnerKey;
   const { user, accessToken } = getState();

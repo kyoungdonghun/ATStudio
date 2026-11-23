@@ -16,6 +16,11 @@ public record LicenseResponse(
     public record TrackDetail(Long id, String title, Integer bpm, String tonality) {}
     public record UserSummary(Long id, String nickname) {}
 
+    public static LicenseResponse unpublished(License license) {
+        return new LicenseResponse(license.getId(), new TrackDetail(license.getTrack().getId(), "비공개 음원", null, null),
+                license.getLicenseCode(), license.getCreatedAt(), new UserSummary(license.getUser().getId(), license.getUser().getNickname()));
+    }
+
     public static LicenseResponse from(License license) {
         return new LicenseResponse(
                 license.getId(),

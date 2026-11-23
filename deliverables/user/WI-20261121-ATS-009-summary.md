@@ -1,0 +1,3 @@
+# WI-20261121-ATS-009 local release preparation
+
+The backend was built offline with Gradle bootJar in a dedicated build tree. The release reuses the pilot frontend from WI007, keeps the prior listening build's immutable assets and extends the active site configuration with the optional pilot routes. The public catalog and TLS server blocks retain the existing configuration. Local verification covered the JAR build, all 127 archived file hashes, the reviewed frontend entry, the old site pin, systemd transformations and nginx gate insertion. Production application and acceptance evidence is recorded separately by MA.

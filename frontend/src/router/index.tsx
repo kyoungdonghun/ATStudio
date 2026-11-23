@@ -1,3 +1,4 @@
+import { isPilotMode } from '@/config/pilotMode';
 import { isListeningMode } from '@/config/appMode';
 import { createBrowserRouter, Navigate, redirect, type RouteObject } from 'react-router-dom';
 import { type ReactNode } from 'react';
@@ -226,6 +227,14 @@ const sellingRoutes: RouteObject[] = [
   },
 ];
 
+function pilotUser(element: ReactNode): ReactNode {
+  return (
+    <ProtectedRoute minRole="USER" maxRole="USER" deniedRedirect="/tracks">
+      {element}
+    </ProtectedRoute>
+  );
+}
+
 const listeningRoutes: RouteObject[] = [
   {
     element: <MainLayout />,
@@ -234,6 +243,13 @@ const listeningRoutes: RouteObject[] = [
       { path: '/tracks', element: <TrackListPage /> },
       { path: '/tracks/:trackId', element: <TrackDetailPage /> },
       { path: '/login', element: <LoginPage /> },
+      ...(isPilotMode
+        ? [
+            { path: '/downloads', element: pilotUser(<DownloadHistoryPage />) },
+            { path: '/licenses', element: pilotUser(<LicenseListPage />) },
+            { path: '/licenses/:licenseId', element: pilotUser(<LicenseDetailPage />) },
+          ]
+        : []),
       { path: '*', element: <NotFoundPage /> },
     ],
   },

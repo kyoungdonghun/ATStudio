@@ -33,6 +33,14 @@ public class ListeningAccessFilter extends OncePerRequestFilter {
                 || (method.equals("POST") && path.equals("/api/tracks/batch"));
     }
 
+    public static boolean pilotRequest(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return request.getMethod().equals("GET") && (path.equals("/downloads") || path.equals("/licenses")
+                || path.matches("/licenses/[1-9][0-9]*") || path.equals("/api/downloads/history")
+                || path.equals("/api/licenses/me") || path.matches("/api/licenses/[1-9][0-9]*")
+                || path.equals("/api/utils/download-count") || path.matches("/api/tracks/[1-9][0-9]*/download"));
+    }
+
     public static boolean operatorRequest(HttpServletRequest request) {
         String path = request.getRequestURI();
         return switch (request.getMethod()) {
@@ -73,10 +81,11 @@ public class ListeningAccessFilter extends OncePerRequestFilter {
             return;
         }
         boolean operator = operatorSource(request, properties, clientIdentity);
-        if (!operatorRequest(request) || !operator) {
+        if ((!operatorRequest(request) && !(properties.pilotActive() && pilotRequest(request))) || !operator) {
             response.sendError(403);
             return;
         }
+        response.setHeader("Cache-Control", "no-store");
         chain.doFilter(request, response);
     }
 

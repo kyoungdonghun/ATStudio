@@ -1,5 +1,7 @@
 package com.atstudio.atstudio.config;
 
+import org.springframework.beans.factory.ObjectProvider;
+import com.atstudio.atstudio.entity.enums.UserRole;
 import com.atstudio.atstudio.repository.TrackRepository;
 import com.atstudio.atstudio.security.AuthRateLimitFilter;
 import com.atstudio.atstudio.security.AcceptanceHostFilter;
@@ -8,6 +10,9 @@ import com.atstudio.atstudio.security.ListeningAccessFilter;
 import com.atstudio.atstudio.security.TrustedClientIdentityResolver;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import com.atstudio.atstudio.service.PilotAccess;
+import com.atstudio.atstudio.security.CustomUserDetails;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -22,6 +27,7 @@ public class ListeningSecurityConfiguration {
     @Order(0)
     SecurityFilterChain listeningSecurity(HttpSecurity http, ListeningProperties properties,
             TrustedClientIdentityResolver identity, TrackRepository tracks,
+            ObjectProvider<PilotAccess> pilotAccess,
             JwtAuthenticationFilter jwt, AuthRateLimitFilter rateLimit, AcceptanceHostFilter host) throws Exception {
         http.csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -32,6 +38,17 @@ public class ListeningSecurityConfiguration {
                         .requestMatchers(ListeningAccessFilter::publicRequest).permitAll()
                         .requestMatchers("/login", "/admin", "/admin/**", "/api/auth/login",
                                 "/api/auth/refresh", "/api/utils/public-capabilities").permitAll()
+                        .requestMatchers(req -> properties.pilotActive() && (ListeningAccessFilter.pilotRequest(req)
+                                || req.getRequestURI().equals("/api/users/me")
+                                || req.getRequestURI().equals("/api/auth/logout")))
+                        .access((authentication, ctx) -> {
+                            var principal = authentication.get().getPrincipal();
+                            if (!(principal instanceof CustomUserDetails user) || !user.isEnabled()) return new AuthorizationDecision(false);
+                            boolean sharedPath = !ListeningAccessFilter.pilotRequest(ctx.getRequest());
+                            if (sharedPath && user.getRole() == UserRole.ADMIN)
+                                return new AuthorizationDecision(true);
+                            return new AuthorizationDecision(pilotAccess.getObject().eligible(user.getId()));
+                        })
                         .anyRequest().hasRole("ADMIN"))
                 .addFilterBefore(jwt, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(rateLimit, JwtAuthenticationFilter.class)

@@ -1,3 +1,4 @@
+import { isPilotMode } from '@/config/pilotMode';
 import { isListeningMode } from '@/config/appMode';
 import { type FormEvent, useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -162,7 +163,7 @@ export default function LoginPage() {
       const me: MeResponse = await fetchMe(tokens.accessToken);
       if (!isCurrent()) return;
 
-      if (isListeningMode && me.role !== 'ADMIN') {
+      if (isListeningMode && me.role !== 'ADMIN' && !(isPilotMode && me.role === 'USER')) {
         setError('운영자 계정으로 로그인해주세요.');
         return;
       }
@@ -207,7 +208,7 @@ export default function LoginPage() {
       });
     } catch (err: unknown) {
       if (!isCurrent()) return;
-      if (getApiErrorCode(err) === 'EMAIL_VERIFICATION_REQUIRED') {
+      if (!isListeningMode && getApiErrorCode(err) === 'EMAIL_VERIFICATION_REQUIRED') {
         navigate('/email-verify', {
           state: EMAIL_VERIFICATION_REQUIRED_STATE,
           replace: true,

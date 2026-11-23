@@ -37,6 +37,20 @@ import static org.mockito.Mockito.*;
 @DisplayName("DownloadService 단위 테스트")
 class DownloadServiceTest {
 
+    @Test
+    void pilotPinsCatalogBeforeReadingHistoryOwner() {
+        PilotAccess pilot = mock(PilotAccess.class);
+        ReflectionTestUtils.setField(downloadService, "pilot", pilot);
+        given(pilot.enabled()).willReturn(true);
+        given(userDetails.getId()).willReturn(1L);
+        given(userRepository.findById(1L)).willReturn(Optional.empty());
+        assertThatThrownBy(() -> downloadService.getMyDownloadHistory(userDetails, null, "latest", 1, 20))
+                .isInstanceOf(BusinessException.class);
+        var ordered = inOrder(pilot, userRepository);
+        ordered.verify(pilot).publishedIdsFor(1L);
+        ordered.verify(userRepository).findById(1L);
+    }
+
     @Mock TrackRepository trackRepository;
     @Mock UserRepository userRepository;
     @Mock UserSubscriptionRepository userSubscriptionRepository;

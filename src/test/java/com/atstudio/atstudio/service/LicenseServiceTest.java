@@ -30,10 +30,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("LicenseService 단위 테스트")
 class LicenseServiceTest {
+
+    @Test
+    void pilotPinsCatalogBeforeReadingLicenseListOwner() {
+        PilotAccess pilot = mock(PilotAccess.class);
+        ReflectionTestUtils.setField(licenseService, "pilot", pilot);
+        given(pilot.enabled()).willReturn(true);
+        given(userDetails.getId()).willReturn(1L);
+        given(userRepository.findById(1L)).willReturn(Optional.empty());
+        assertThatThrownBy(() -> licenseService.getMyLicenses(userDetails, 1, 20))
+                .isInstanceOf(BusinessException.class);
+        var ordered = inOrder(pilot, userRepository);
+        ordered.verify(pilot).publishedIdsFor(1L);
+        ordered.verify(userRepository).findById(1L);
+    }
 
     @Mock LicenseRepository licenseRepository;
     @Mock UserRepository userRepository;

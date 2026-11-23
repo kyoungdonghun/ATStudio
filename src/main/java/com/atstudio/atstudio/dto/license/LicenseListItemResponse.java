@@ -14,6 +14,11 @@ public record LicenseListItemResponse(
 ) {
     public record TrackSummary(Long id, String title) {}
 
+    public static LicenseListItemResponse unpublished(License license) {
+        return new LicenseListItemResponse(license.getId(), new TrackSummary(license.getTrack().getId(), "비공개 음원"),
+                license.getLicenseCode(), license.getCreatedAt());
+    }
+
     public static LicenseListItemResponse from(License license) {
         return new LicenseListItemResponse(
                 license.getId(),

@@ -4,6 +4,7 @@ import com.atstudio.atstudio.entity.enums.UserRole;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -71,6 +72,23 @@ class JwtAuthenticationFilterTest {
                 .isNotNull()
                 .extracting(authentication -> authentication.getPrincipal())
                 .isSameAs(userDetails);
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
+    void removedAccountClearsStaleAuthenticationAndContinuesAsAnonymous() throws Exception {
+        MockHttpServletRequest request = bearerRequest("stale-account-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("stale", null));
+        when(jwtTokenProvider.validateAccessToken("stale-account-token")).thenReturn(TokenValidationResult.VALID);
+        when(jwtTokenProvider.getUserID("stale-account-token")).thenReturn(7L);
+        when(userDetailsService.loadUserById(7L))
+                .thenThrow(new UsernameNotFoundException("deactivated"));
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(response.getHeader("X-Token-Expired")).isNull();
         verify(filterChain).doFilter(request, response);
     }
 

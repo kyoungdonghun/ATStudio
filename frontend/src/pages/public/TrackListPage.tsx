@@ -1,3 +1,4 @@
+import { isPilotMode } from '@/config/pilotMode';
 import { isListeningMode } from '@/config/appMode';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -19,7 +20,7 @@ import AddToPlaylistModal from '@/components/playlist/AddToPlaylistModal';
 import Pagination from '@/components/ui/Pagination';
 import { usePlayerStore } from '@/store/playerStore';
 import { useLikeStore } from '@/store/likeStore';
-import { useAuthStore } from '@/store/authStore';
+import { getAuthSessionGeneration, isAuthSessionCurrent, useAuthStore } from '@/store/authStore';
 import { useToastStore } from '@/store/toastStore';
 import { toPlayableTrack } from '@/utils/playableTrack';
 import { formatTagNameForDisplay } from '@/utils/tagName';
@@ -267,6 +268,9 @@ export default function TrackListPage() {
   }, [tracks, setTrackListContext]);
 
   /* Like store */
+  const canPilotDownload = useAuthStore(
+    (s) => isPilotMode && s.role === 'USER' && s.isAuthenticated(),
+  );
   const isAuthenticated = useAuthStore((s) => !isListeningMode && s.isAuthenticated());
   const likeLoaded = useLikeStore((s) => s.loaded);
   const loadLikes = useLikeStore((s) => s.load);
@@ -901,6 +905,7 @@ export default function TrackListPage() {
                     playing={currentTrack?.id === track.id && isPlaying}
                     liked={likedIds.has(track.id)}
                     showAuthActions={isAuthenticated}
+                    pilotDownload={canPilotDownload}
                     onGuestAction={handleGuestAction}
                     onPlay={(t) => {
                       if (currentTrack?.id === t.id) {
@@ -914,24 +919,29 @@ export default function TrackListPage() {
                     onAddToPlaylist={(t) => setAddToPlTrackId(t.id)}
                     onDownload={async (t) => {
                       if (!claimDownload(t.id)) return;
+                      const session = isPilotMode ? getAuthSessionGeneration() : null;
+                      const current = () => session === null || isAuthSessionCurrent(session);
                       try {
                         const download = await downloadTrack(
                           t.id,
                           createDownloadFallbackFileName('track', t.id, t.title, 'mp3'),
                         );
+                        if (!current()) return;
                         triggerBlobDownload(download);
                         try {
                           const count = await fetchDownloadCount();
+                          if (!current()) return;
                           toast(
                             'success',
                             `다운로드 완료! 오늘 남은 횟수: ${count.remaining}/${count.dailyLimit}`,
                           );
                         } catch {
-                          toast('success', '다운로드가 완료되었습니다.');
+                          if (current()) toast('success', '다운로드가 완료되었습니다.');
                         }
                       } catch (err: unknown) {
                         const code = await getApiErrorCode(err);
-                        if (code === 'NO_ACTIVE_SUBSCRIPTION') {
+                        if (!current()) return;
+                        if (code === 'NO_ACTIVE_SUBSCRIPTION' && !isPilotMode) {
                           toast('warning', '구독이 필요한 기능입니다.');
                           navigate('/subscriptions');
                         } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {

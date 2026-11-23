@@ -108,6 +108,7 @@ export async function register(request: RegisterRequest): Promise<RegisterRespon
 export async function fetchMe(accessToken?: string): Promise<MeResponse> {
   const { data } = await client.get<ApiResponse<MeResponse>>('/users/me', {
     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    ...(accessToken && { skipAuthReplay: true }),
   });
   return data.data;
 }

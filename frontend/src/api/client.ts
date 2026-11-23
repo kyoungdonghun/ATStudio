@@ -1,8 +1,16 @@
+import { isPilotMode } from '@/config/pilotMode';
 import { isListeningVisitor } from '@/config/appMode';
 import axios, { type InternalAxiosRequestConfig, type AxiosResponse } from 'axios';
 import { router } from '@/router';
 import { useToastStore } from '@/store/toastStore';
-import { getAuthSessionGeneration, isAuthSessionCurrent, useAuthStore } from '@/store/authStore';
+import {
+  getAuthSessionGeneration,
+  getSessionRefreshToken,
+  isSameAuthSession,
+  isAuthSessionCurrent,
+  replaceSessionTokens,
+  useAuthStore,
+} from '@/store/authStore';
 import { safeStorage } from '@/utils/safeStorage';
 
 declare module 'axios' {
@@ -36,13 +44,24 @@ client.interceptors.request.use(
     // Preserve dispatch ownership when Axios clones a request for replay.
     config._authSessionGeneration ??= getAuthSessionGeneration();
     if (config._retry) assertCurrentSession(config._authSessionGeneration);
-    config._listeningVisitor ??= isListeningVisitor();
+    config._listeningVisitor ??= isListeningVisitor(config.method, config.url);
     if (config._listeningVisitor) {
       config.headers.delete('Authorization');
       config.skipAuthReplay = true;
       config.skipAdminRoleSync = true;
     }
-    const token = config._listeningVisitor ? null : safeStorage.getItem('accessToken');
+    if (isPilotMode && !config._listeningVisitor) {
+      const current =
+        config.url === '/auth/logout'
+          ? isSameAuthSession(config._authSessionGeneration)
+          : isAuthSessionCurrent(config._authSessionGeneration);
+      if (!current) throw new Error('Stale authentication session');
+    }
+    const token = config._listeningVisitor
+      ? null
+      : isPilotMode
+        ? useAuthStore.getState().accessToken
+        : safeStorage.getItem('accessToken');
     if (token && config.headers && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -107,17 +126,15 @@ function refreshSession(generation: number, refreshToken: string): Promise<strin
       assertCurrentSession(generation);
       const newAccessToken: string = data.data.accessToken;
 
-      if (!safeStorage.setItem('accessToken', newAccessToken)) {
-        throw new Error('Failed to persist refreshed authentication session');
-      }
-      if (data.data.refreshToken && !safeStorage.setItem('refreshToken', data.data.refreshToken)) {
-        throw new Error('Failed to persist refreshed authentication session');
-      }
-      useAuthStore.setState({ accessToken: newAccessToken });
+      replaceSessionTokens(newAccessToken, data.data.refreshToken);
       assertCurrentSession(generation);
       return newAccessToken;
     } catch (refreshError) {
       if (isAuthSessionCurrent(generation)) {
+        if (isPilotMode && getSessionRefreshToken() !== refreshToken) {
+          const renewed = useAuthStore.getState().accessToken;
+          if (renewed) return renewed;
+        }
         useAuthStore.getState().clearSession();
         useToastStore.getState().show('error', '세션이 만료되었습니다. 다시 로그인해주세요.');
         router.navigate('/login');
@@ -136,7 +153,18 @@ function refreshSession(generation: number, refreshToken: string): Promise<strin
 }
 
 client.interceptors.response.use(
-  (response: AxiosResponse) => response,
+  (response: AxiosResponse) => {
+    const config = response.config as AuthRequestConfig;
+    if (
+      isPilotMode &&
+      !config._listeningVisitor &&
+      config.url !== '/auth/logout' &&
+      config._authSessionGeneration !== undefined
+    ) {
+      assertCurrentSession(config._authSessionGeneration);
+    }
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config as AuthRequestConfig | undefined;
 
@@ -174,7 +202,7 @@ client.interceptors.response.use(
     const generation = originalRequest._authSessionGeneration;
     if (generation === undefined) return Promise.reject(error);
 
-    const refreshToken = safeStorage.getItem('refreshToken');
+    const refreshToken = getSessionRefreshToken();
     if (!refreshToken) {
       useAuthStore.getState().clearSession();
       return Promise.reject(error);

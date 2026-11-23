@@ -1,3 +1,5 @@
+import { isPilotMode } from '@/config/pilotMode';
+import { Link } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { fetchMyLicenses, type LicenseListItem } from '@/api/licenses';
 import { classifyLoadError } from '@/api/loadError';
@@ -128,12 +130,21 @@ export default function LicenseListPage() {
     } catch (error: unknown) {
       if (!isCurrentProjection(operationKey)) return;
       const code = await getApiErrorCode(error);
+      if (!isCurrentProjection(operationKey)) return;
       if (code === 'NO_ACTIVE_SUBSCRIPTION') {
-        toast('warning', '구독이 필요한 기능입니다.');
+        toast(
+          'warning',
+          isPilotMode ? '시험 이용권 기간을 확인해주세요.' : '구독이 필요한 기능입니다.',
+        );
       } else if (code === 'DOWNLOAD_LIMIT_EXCEEDED') {
         toast('warning', '금일 다운로드 횟수를 모두 사용했습니다.');
       } else {
-        toast('error', '다운로드에 실패했습니다. 구독이 활성 상태인지 확인하세요.');
+        toast(
+          'error',
+          isPilotMode
+            ? '곡 공개 상태와 시험 이용권을 확인해주세요.'
+            : '다운로드에 실패했습니다. 구독이 활성 상태인지 확인하세요.',
+        );
       }
     } finally {
       pendingDownloadKeysRef.current.delete(pendingKey);
@@ -216,9 +227,15 @@ export default function LicenseListPage() {
                     >
                       {'↓ 다운로드'}
                     </button>
-                    <button className={styles.detailLink} onClick={() => setModalLicense(lic)}>
-                      {'상세'}
-                    </button>
+                    {isPilotMode ? (
+                      <Link className={styles.detailLink} to={`/licenses/${lic.id}`}>
+                        상세
+                      </Link>
+                    ) : (
+                      <button className={styles.detailLink} onClick={() => setModalLicense(lic)}>
+                        {'상세'}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

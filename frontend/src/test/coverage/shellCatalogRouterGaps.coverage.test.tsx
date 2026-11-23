@@ -1155,13 +1155,19 @@ describe('track upload validation and recovery behavior', () => {
       .mockRejectedValueOnce('provider failure')
       .mockResolvedValueOnce(currentTrack);
     fireEvent.click(screen.getByRole('button', { name: '2곡 업로드' }));
-    expect(await screen.findByText('업로드 실패')).toBeInTheDocument();
-    expect(screen.getByText(/일부 트랙 업로드에 실패했습니다/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        /중복 등록을 피하려면 다시 시도하기 전에 음원 관리에서 저장 여부를 확인/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/일부 트랙의 업로드를 완료하지 못했습니다/)).toBeInTheDocument();
+    expect(screen.queryByText('provider failure')).not.toBeInTheDocument();
     expect(mocks.createTrack).toHaveBeenCalledTimes(2);
 
     fireEvent.click(screen.getByRole('button', { name: '2곡 업로드' }));
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/admin/track-manage'));
     expect(mocks.createTrack).toHaveBeenCalledTimes(3);
+    expect((mocks.createTrack.mock.calls[2][0] as FormData).get('title')).toBe('Retry');
 
     const firstForm = mocks.createTrack.mock.calls[0][0] as FormData;
     expect(firstForm.get('description')).toBe('launch description');

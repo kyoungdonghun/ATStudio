@@ -3,6 +3,16 @@ import type { User, UserRole } from '@/types';
 import { useLikeStore } from '@/store/likeStore';
 import { useAlbumLikeStore } from '@/store/albumLikeStore';
 import { safeStorage } from '@/utils/safeStorage';
+import { isPilotMode } from '@/config/pilotMode';
+import {
+  isPilotSessionStorageKey,
+  readPilotSession,
+  removePilotSession,
+  savePilotSession,
+  startPilotSession,
+} from './pilotSession';
+
+let pilotSession = isPilotMode ? readPilotSession() : null;
 
 function loadUser(): User | null {
   try {
@@ -36,7 +46,35 @@ export function getAuthSessionGeneration(): number {
 }
 
 export function isAuthSessionCurrent(generation: number): boolean {
-  return sessionGeneration === generation && logoutInFlight?.sessionGeneration !== generation;
+  return isSameAuthSession(generation) && logoutInFlight?.sessionGeneration !== generation;
+}
+
+export function isSameAuthSession(generation: number): boolean {
+  if (isPilotMode) synchronizePilotSession();
+  return sessionGeneration === generation;
+}
+
+export function getSessionRefreshToken(): string | null {
+  return isPilotMode ? (pilotSession?.refreshToken ?? null) : safeStorage.getItem('refreshToken');
+}
+
+export function replaceSessionTokens(accessToken: string, refreshToken?: string): void {
+  if (isPilotMode) {
+    if (!pilotSession) throw new Error('Missing pilot session');
+    const next = {
+      ...pilotSession,
+      accessToken,
+      refreshToken: refreshToken ?? pilotSession.refreshToken,
+    };
+    savePilotSession(next);
+    pilotSession = next;
+  } else if (
+    !safeStorage.setItem('accessToken', accessToken) ||
+    (refreshToken && !safeStorage.setItem('refreshToken', refreshToken))
+  ) {
+    throw new Error('Failed to persist refreshed authentication session');
+  }
+  useAuthStore.setState({ accessToken });
 }
 
 export const UNCONFIRMED_LOGOUT_WARNING =
@@ -64,9 +102,11 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  user: loadUser(),
-  accessToken: safeStorage.getItem('accessToken'),
-  role: loadRole(),
+  user: isPilotMode ? (pilotSession?.user ?? null) : loadUser(),
+  accessToken: isPilotMode
+    ? (pilotSession?.accessToken ?? null)
+    : safeStorage.getItem('accessToken'),
+  role: isPilotMode ? (pilotSession?.user.role ?? 'GUEST') : loadRole(),
 
   stageTokens: (accessToken: string, refreshToken: string) => {
     const stagedGeneration = sessionGeneration + 1;
@@ -85,6 +125,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   login: (accessToken: string, user: User, refreshToken) => {
+    if (isPilotMode) {
+      pilotSession = startPilotSession(user, accessToken, refreshToken ?? null);
+      advanceSessionGeneration();
+      set({ accessToken, user, role: user.role });
+      return;
+    }
     advanceSessionGeneration();
     const accessTokenStored = safeStorage.setItem('accessToken', accessToken);
     let refreshTokenStored = true;
@@ -104,7 +150,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   updateUser: (user: User) => {
-    if (!get().accessToken || !safeStorage.setItem('user', JSON.stringify(user))) {
+    if (isPilotMode) {
+      if (!pilotSession || user.id !== pilotSession.user.id) return false;
+      const next = { ...pilotSession, user };
+      savePilotSession(next);
+      pilotSession = next;
+    } else if (!get().accessToken || !safeStorage.setItem('user', JSON.stringify(user))) {
       return false;
     }
 
@@ -167,6 +218,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
+    if (!isSameAuthSession(sessionGeneration)) return Promise.resolve({ serverConfirmed: false });
     if (logoutInFlight?.sessionGeneration === sessionGeneration) return logoutInFlight.promise;
 
     // Invalidate pending refreshes before awaiting server revocation.
@@ -177,13 +229,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       let serverConfirmed = false;
       try {
         const { logoutSession } = await import('@/api/auth');
-        if (sessionGeneration === initiatingSessionGeneration) {
+        if (isSameAuthSession(initiatingSessionGeneration)) {
           serverConfirmed = (await logoutSession()) === 'confirmed';
         }
       } catch {
         serverConfirmed = false;
       } finally {
-        if (sessionGeneration === initiatingSessionGeneration) get().clearSession();
+        if (isSameAuthSession(initiatingSessionGeneration)) get().clearSession();
       }
       return { serverConfirmed };
     })();
@@ -199,9 +251,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   clearSession: () => {
     advanceSessionGeneration();
-    safeStorage.removeItem('accessToken');
-    safeStorage.removeItem('refreshToken');
-    safeStorage.removeItem('user');
+    if (isPilotMode) {
+      if (pilotSession) removePilotSession(pilotSession.id);
+      pilotSession = null;
+    } else {
+      safeStorage.removeItem('accessToken');
+      safeStorage.removeItem('refreshToken');
+      safeStorage.removeItem('user');
+    }
     set({ accessToken: null, user: null, role: 'GUEST' });
 
     // Reset only user-dependent stores. Public playback survives session changes.
@@ -211,3 +268,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   isAuthenticated: () => get().accessToken !== null,
 }));
+
+// Check on storage notification and at private request/response boundaries;
+// suspended tabs may receive the browser's storage event after resuming work.
+function synchronizePilotSession(): void {
+  const next = readPilotSession();
+  if (
+    next?.id === pilotSession?.id &&
+    next?.accessToken === pilotSession?.accessToken &&
+    next?.refreshToken === pilotSession?.refreshToken &&
+    next?.user.role === pilotSession?.user.role &&
+    next?.user.nickname === pilotSession?.user.nickname
+  )
+    return;
+  if (next?.id !== pilotSession?.id || next?.user.role !== pilotSession?.user.role)
+    advanceSessionGeneration();
+  pilotSession = next;
+  useAuthStore.setState({
+    user: next?.user ?? null,
+    accessToken: next?.accessToken ?? null,
+    role: next?.user.role ?? 'GUEST',
+  });
+}
+
+if (isPilotMode && typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (isPilotSessionStorageKey(event.key)) synchronizePilotSession();
+  });
+}

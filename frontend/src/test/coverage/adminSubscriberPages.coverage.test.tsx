@@ -215,6 +215,7 @@ vi.mock('@/store/toastStore', () => ({
 }));
 
 vi.mock('@/store/authStore', () => ({
+  getAuthSessionGeneration: () => 1,
   useAuthStore: (selector: (state: typeof storeState.auth) => unknown) => selector(storeState.auth),
 }));
 

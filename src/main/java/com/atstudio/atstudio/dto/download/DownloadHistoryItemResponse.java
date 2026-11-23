@@ -26,6 +26,11 @@ public record DownloadHistoryItemResponse(
         List<TagResponse> tags,
         LocalDateTime downloadedAt
 ) {
+    public static DownloadHistoryItemResponse unpublished(TrackDownload td) {
+        return new DownloadHistoryItemResponse(td.getId(), td.getTrack().getId(), "비공개 음원", "", null,
+                0, "", 0, null, List.of(), td.getDownloadedAt());
+    }
+
     public static DownloadHistoryItemResponse from(TrackDownload td, List<Tag> tags) {
         Track t = td.getTrack();
         return new DownloadHistoryItemResponse(

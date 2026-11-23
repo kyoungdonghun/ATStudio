@@ -23,6 +23,8 @@ import java.util.Optional;
 
 public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long> {
 
+    boolean existsByUser_Id(Long userId);
+
     interface CommandLockProjection {
         Long getBillingAgreementID();
 

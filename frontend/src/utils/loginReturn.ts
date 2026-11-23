@@ -1,3 +1,4 @@
+import { isPilotMode } from '@/config/pilotMode';
 import { isListeningMode } from '@/config/appMode';
 import type { UserRole, UserType } from '@/types';
 
@@ -90,8 +91,14 @@ export function getAccessibleLoginReturnTarget(
 ): string | null {
   const safeTarget = getSafeLoginReturnTarget(candidate);
   if (isListeningMode) {
-    if (identity.role !== 'ADMIN') return '/tracks';
     const path = safeTarget?.split('?')[0] ?? '';
+    if (identity.role !== 'ADMIN') {
+      return isPilotMode &&
+        identity.role === 'USER' &&
+        /^\/(?:downloads|licenses(?:\/[1-9]\d*)?|tracks(?:\/[1-9]\d*)?)$/.test(path)
+        ? safeTarget
+        : '/tracks';
+    }
     return /^\/admin\/(?:track-manage|tracks\/upload|tracks\/[1-9]\d*\/edit)$/.test(path)
       ? safeTarget
       : '/admin/track-manage';

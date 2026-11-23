@@ -57,6 +57,7 @@ describe('auth API contracts', () => {
     await fetchMe('staged-token');
     expect(mockedClient.get).toHaveBeenNthCalledWith(1, '/users/me', {
       headers: { Authorization: 'Bearer staged-token' },
+      skipAuthReplay: true,
     });
     await fetchMe();
     expect(mockedClient.get).toHaveBeenNthCalledWith(2, '/users/me', { headers: undefined });

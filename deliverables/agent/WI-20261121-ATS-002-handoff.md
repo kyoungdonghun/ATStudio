@@ -1,0 +1,11 @@
+# WI-20261121-ATS-002 · B1 publication, records and acceptance plan
+
+[WI HEADER] REQ-20261121-ATS-001 approved November 21 addendum. Owner DocOps. Depends on WI-20261121-ATS-001. Blocks none in this planning scope.
+
+[WI SUMMARY] Reconcile the current Korean roadmap and Current Decision Entry with the user's confirmed B1: participant accounts and nonbilling grants, the existing public catalog for both first and repeat downloads, and personal history/license reads. B2 retains signup and its policy flow, operating mail and PG. No implementation, deployment, accounts, cost or Git action.
+
+[ACCEPTANCE CRITERIA] Replace contradictory criteria in current guidance, preserving historical deliverables. Order backend, frontend/proxy, role and ownership tests, independent review and bounded native acceptance. Cover two distinct trial users, quota and repeat, publication/grant changes and concurrency, UUID stability, history vs entitlement, closed adjacent functionality, existing A and commercial regression checks, and Medium handoff. Cite actual source/dated evidence. Indicate proposals rather than assumed account values. Validate changed links/anchors and preserve earlier historical sections.
+
+[INPUT POINTERS] Tier 0: docs/standards/core-principles.md, docs/standards/documentation-standards.md, docs/standards/development-standards.md, docs/standards/glossary.md. Tier 1: docs/policies/security-policy.md and docs/policies/quality-gates.md. Current approved REQ and roadmap at deliverables/user/REQ-20261104-ATS-002.md and docs/index.md. Previous WI001 evidence and source links. Check DownloadService, LicenseService, LicenseController, DownloadController, ListeningCatalogService, TrackService and ListeningAccessFilter, listening proxy and frontend login, route guards, DownloadHistoryPage and license list/detail. Cite before claiming behavior. No separate song allowlist or need for participant/client decisions to start local work.
+
+[OUTPUT CONTRACT] Update in place the latest approved directions, add paired WI summary and evidence pack, and record the planning addendum's outcome in its REQ. Use create-wi-evidence-pack and validate-docs. Distinguish local document checks from historical runtime observations and future product tests. All operational actions remain future work.

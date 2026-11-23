@@ -18,6 +18,7 @@ interface TrackRowProps {
   onAddToPlaylist?: (track: TrackListItem) => void;
   onDownload?: (track: TrackListItem) => void;
   downloadPending?: boolean;
+  pilotDownload?: boolean;
   onGuestAction?: () => void;
 }
 
@@ -33,6 +34,7 @@ export default function TrackRow({
   onAddToPlaylist,
   onDownload,
   downloadPending = false,
+  pilotDownload = false,
   onGuestAction,
 }: TrackRowProps) {
   const rowClass = [styles.row, playing ? styles.playing : ''].filter(Boolean).join(' ');
@@ -145,7 +147,19 @@ export default function TrackRow({
       {/* Actions */}
       <td className={styles.cellActs}>
         <div className={styles.actions}>
-          {isListeningMode ? null : showAuthActions ? (
+          {isListeningMode ? (
+            pilotDownload && (
+              <button
+                className={styles.actBtn}
+                disabled={downloadPending}
+                onClick={() => onDownload?.(track)}
+                aria-label={track.title + ' 다운로드'}
+                title="다운로드"
+              >
+                ↓
+              </button>
+            )
+          ) : showAuthActions ? (
             <>
               <button
                 className={`${styles.actBtn} ${liked ? styles.liked : ''}`}

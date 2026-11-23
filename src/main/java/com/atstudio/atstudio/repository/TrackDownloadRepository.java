@@ -17,6 +17,9 @@ public interface TrackDownloadRepository extends JpaRepository<TrackDownload, Lo
 
     long countByUserAndDownloadedAtBetween(User user, LocalDateTime start, LocalDateTime end);
 
+    @Query("select count(td) from TrackDownload td where td.user = :user and td.downloadedAt >= :start and td.downloadedAt < :end")
+    long countInPeriod(@Param("user") User user, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
     void deleteAllByTrack(Track track);
 
     void deleteAllByUser(User user);
@@ -46,6 +49,19 @@ public interface TrackDownloadRepository extends JpaRepository<TrackDownload, Lo
             @Param("keyword") String keyword,
             Pageable pageable
     );
+
+    // Preserve historical events even after unpublishing. Search must not reveal private edits.
+    @EntityGraph(attributePaths = {"track", "track.user"})
+    @Query("""
+            SELECT td FROM TrackDownload td JOIN td.track t
+            WHERE td.user = :user AND (:keyword IS NULL OR
+              (t.isActive = true AND t.id IN :published AND
+                (LOWER(t.title) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                 OR EXISTS (SELECT 1 FROM TrackTag tt WHERE tt.track = t
+                   AND LOWER(tt.tag.name) LIKE LOWER(CONCAT('%', :keyword, '%'))))))
+            """)
+    Page<TrackDownload> findPilotHistory(@Param("user") User user, @Param("keyword") String keyword,
+            @Param("published") List<Long> published, Pageable pageable);
 
     /**
      * Returns distinct track IDs (ordered by most recent download) matching the

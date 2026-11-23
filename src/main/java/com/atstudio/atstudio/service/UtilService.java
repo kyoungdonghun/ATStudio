@@ -1,5 +1,6 @@
 package com.atstudio.atstudio.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.bootstrap.TestUserBootstrapProperties;
@@ -102,16 +103,20 @@ public class UtilService {
         );
     }
 
+    @Autowired
+    private PilotAccess pilot;
+
     public DownloadCountResponse getDownloadCount(CustomUserDetails userDetails) {
         User user = findUser(userDetails.getId());
-        Optional<UserSubscription> subscriptionOpt = userSubscriptionRepository
-                .findActiveByUser(user, LocalDate.now());
+        boolean pilotMode = pilot != null && pilot.enabled();
+        LocalDate today = pilotMode ? LocalDate.now(PilotAccess.SEOUL) : LocalDate.now();
+        Optional<UserSubscription> subscriptionOpt = userSubscriptionRepository.findActiveByUser(user, today);
 
-        LocalDateTime todayStart = LocalDate.now().atStartOfDay();
-        LocalDateTime todayEnd = LocalDate.now().atTime(LocalTime.MAX);
-        long todayDownloads = trackDownloadRepository.countByUserAndDownloadedAtBetween(user, todayStart, todayEnd);
+        long todayDownloads = pilotMode ? PilotAccess.dayCount(trackDownloadRepository, user, today)
+                : trackDownloadRepository.countByUserAndDownloadedAtBetween(user,
+                        today.atStartOfDay(), today.atTime(LocalTime.MAX));
 
-        LocalDateTime nextResetAt = LocalDate.now().plusDays(1).atStartOfDay();
+        LocalDateTime nextResetAt = today.plusDays(1).atStartOfDay();
 
         if (subscriptionOpt.isEmpty()) {
             return new DownloadCountResponse(todayDownloads, 0, 0, nextResetAt);

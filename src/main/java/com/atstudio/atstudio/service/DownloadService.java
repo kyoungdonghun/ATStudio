@@ -1,5 +1,6 @@
 package com.atstudio.atstudio.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import com.atstudio.atstudio.common.dto.PageInfo;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
@@ -21,7 +22,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -40,11 +40,23 @@ public class DownloadService {
     private final LicenseRepository licenseRepository;
     private final StorageService storageService;
 
+    @Autowired
+    private PilotAccess pilot;
+
     @Transactional
     public Resource download(Long trackId, CustomUserDetails userDetails) {
         // One user-row lock serializes first-download quota and license decisions.
         User user = userRepository.findByIdForUpdate(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+
+        boolean pilotMode = pilot != null && pilot.enabled();
+        // Publication writers lock the catalog before tracks. Use the same order.
+        UserSubscription pilotGrant = null;
+        if (pilotMode) {
+            pilotGrant = pilot.requireLockedGrant(user);
+            if (!pilot.publishedIds().contains(trackId))
+                throw new BusinessException(BUSINESS_ERROR.TRACK_NOT_FOUND);
+        }
 
         // Lock after the user and before reading media or touching child rows/counters.
         Track track = trackRepository.findByIdForUpdate(trackId)
@@ -57,13 +69,14 @@ public class DownloadService {
         if (!isRedownload) {
             // ADMIN bypasses subscription and daily limit checks
             if (user.getRole() != UserRole.ADMIN) {
-                UserSubscription subscription = userSubscriptionRepository
+                UserSubscription subscription = pilotMode ? pilotGrant : userSubscriptionRepository
                         .findActiveByUser(user, LocalDate.now())
                         .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.NO_ACTIVE_SUBSCRIPTION));
 
-                LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-                LocalDateTime endOfDay = startOfDay.plusDays(1);
-                long todayCount = trackDownloadRepository.countByUserAndDownloadedAtBetween(user, startOfDay, endOfDay);
+                LocalDate today = pilotMode ? LocalDate.now(PilotAccess.SEOUL) : LocalDate.now();
+                long todayCount = pilotMode ? PilotAccess.dayCount(trackDownloadRepository, user, today)
+                        : trackDownloadRepository.countByUserAndDownloadedAtBetween(user,
+                                today.atStartOfDay(), today.plusDays(1).atStartOfDay());
                 int downloadPerDay = subscription.getSubscription().getDownloadPerDay();
                 if (downloadPerDay != -1 && todayCount >= downloadPerDay) {
                     throw new BusinessException(BUSINESS_ERROR.DOWNLOAD_LIMIT_EXCEEDED);
@@ -109,6 +122,8 @@ public class DownloadService {
             int page,
             int size
     ) {
+        boolean pilotMode = pilot != null && pilot.enabled();
+        List<Long> published = pilotMode ? pilot.publishedIdsFor(userDetails.getId()) : List.of();
         User user = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
 
@@ -122,10 +137,13 @@ public class DownloadService {
         );
 
         String normalizedKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
-        Page<TrackDownload> result = trackDownloadRepository
+        Page<TrackDownload> result = pilotMode
+                ? trackDownloadRepository.findPilotHistory(user, normalizedKeyword, published.isEmpty() ? List.of(-1L) : published, pageable)
+                : trackDownloadRepository
                 .findMyDownloadHistory(user, normalizedKeyword, pageable);
 
         List<Long> trackIds = result.getContent().stream()
+                .filter(td -> !pilotMode || td.getTrack().isActive() && published.contains(td.getTrack().getId()))
                 .map(trackDownload -> trackDownload.getTrack().getId())
                 .distinct()
                 .toList();
@@ -137,7 +155,10 @@ public class DownloadService {
                                 Collectors.mapping(TrackTag::getTag, Collectors.toList())
                         ));
         List<DownloadHistoryItemResponse> dataList = result.getContent().stream()
-                .map(trackDownload -> DownloadHistoryItemResponse.from(
+                .map(trackDownload -> pilotMode && (!trackDownload.getTrack().isActive()
+                        || !published.contains(trackDownload.getTrack().getId()))
+                        ? DownloadHistoryItemResponse.unpublished(trackDownload)
+                        : DownloadHistoryItemResponse.from(
                         trackDownload,
                         tagsByTrackId.getOrDefault(trackDownload.getTrack().getId(), List.of())))
                 .toList();

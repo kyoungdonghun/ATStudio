@@ -1,3 +1,4 @@
+import { isPilotMode } from '@/config/pilotMode';
 import { isListeningMode } from '@/config/appMode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -442,6 +443,47 @@ function SellingHeader() {
   );
 }
 
+function PilotNavigation() {
+  const role = useAuthStore((s) => s.role);
+  const logout = useAuthStore((s) => s.logout);
+  const navigate = useNavigate();
+  if (role === 'GUEST')
+    return (
+      <Link to="/login" className={styles.tab}>
+        로그인
+      </Link>
+    );
+  return (
+    <>
+      {role === 'USER' ? (
+        <>
+          <Link to="/downloads" className={styles.tab}>
+            내 다운로드
+          </Link>
+          <Link to="/licenses" className={styles.tab}>
+            내 라이선스
+          </Link>
+        </>
+      ) : (
+        <Link to="/admin" className={styles.tab}>
+          관리자
+        </Link>
+      )}
+      <button
+        className={styles.tab}
+        onClick={async () => {
+          const { serverConfirmed } = await logout();
+          if (!serverConfirmed)
+            useToastStore.getState().show('warning', UNCONFIRMED_LOGOUT_WARNING);
+          navigate('/tracks', { replace: true });
+        }}
+      >
+        로그아웃
+      </button>
+    </>
+  );
+}
+
 export default function Header() {
   if (!isListeningMode) return <SellingHeader />;
   return (
@@ -449,10 +491,11 @@ export default function Header() {
       <Link to="/tracks" className={styles.logo}>
         AT.M
       </Link>
-      <nav aria-label="청취 메뉴">
+      <nav aria-label="청취 메뉴" className={isPilotMode ? styles.pilotNav : undefined}>
         <Link to="/tracks" className={styles.tab}>
           음원 청취
         </Link>
+        {isPilotMode && <PilotNavigation />}
       </nav>
       <ThemeToggle />
     </header>

@@ -1,0 +1,28 @@
+# Optional server-context include for a pilot frontend and pilot-enabled Spring
+# application. Combine with the reviewed listening server before its catch-all.
+# All personal data and original file responses require backend authorization.
+location ~ ^/(?:downloads|licenses(?:/[1-9][0-9]*)?)$ {
+    limit_except GET { deny all; }
+    expires -1;
+    try_files /index.html =404;
+}
+
+location ~ ^/api/(?:downloads/history|licenses/(?:me|[1-9][0-9]*)|utils/download-count)$ {
+    limit_except GET { deny all; }
+    include /etc/atstudio/nginx/proxy.conf;
+}
+
+location ~ ^/api/tracks/[1-9][0-9]*/download$ {
+    limit_except GET { deny all; }
+    include /etc/atstudio/nginx/proxy.conf;
+    limit_req zone=ats_media burst=8 nodelay;
+    limit_conn ats_client 8;
+    limit_conn ats_server 32;
+    limit_conn ats_multipart_client 1;
+    limit_conn ats_multipart_server 2;
+    limit_conn ats_media_client 4;
+    limit_conn ats_media_server 16;
+    limit_conn ats_download_client 1;
+    limit_conn ats_download_server 2;
+    limit_rate $ats_media_rate;
+}

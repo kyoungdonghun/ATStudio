@@ -91,6 +91,22 @@
   white-space: nowrap;
 }
 
+.pilotNav {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow-x: auto;
+}
+.pilotNav button {
+  background: transparent;
+  border: 0;
+}
+@media (max-width: 480px) {
+  .pilotNav .tab {
+    padding-inline: 4px;
+  }
+}
+
 .tab:hover {
   color: var(--text0);
   background: var(--bg2);

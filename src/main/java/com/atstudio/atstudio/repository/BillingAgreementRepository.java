@@ -20,6 +20,8 @@ import java.util.Optional;
 
 public interface BillingAgreementRepository extends JpaRepository<BillingAgreement, Long> {
 
+    boolean existsByUser_Id(Long userId);
+
     String DUE_RENEWAL_FROM = " FROM BillingAgreement ba JOIN ba.user u "
             + "WHERE ba.status = :status AND ba.nextBillingAt <= :today "
             + "AND u.isDeleted = false AND ("

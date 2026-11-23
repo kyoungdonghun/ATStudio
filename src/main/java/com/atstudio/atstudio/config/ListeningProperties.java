@@ -15,6 +15,12 @@ import java.util.Set;
 @ConfigurationProperties(prefix = "app.listening")
 public class ListeningProperties {
     private boolean enabled;
+    private boolean pilotEnabled;
+    private Set<Long> pilotUserIds = new LinkedHashSet<>();
+
+    public boolean pilotActive() {
+        return enabled && pilotEnabled;
+    }
     /** Explicit opt-in for credential-authenticated clients on changing networks. */
     private OperatorAccess operatorAccess = OperatorAccess.SOURCE_RESTRICTED;
     public enum OperatorAccess { SOURCE_RESTRICTED, AUTHENTICATED_ADMIN }

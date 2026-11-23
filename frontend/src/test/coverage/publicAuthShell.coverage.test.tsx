@@ -1152,8 +1152,13 @@ describe('creator forms', () => {
 
     mocks.createTrack.mockRejectedValueOnce(new Error('upload failed'));
     fireEvent.click(screen.getByRole('button', { name: '업로드' }));
-    expect(await screen.findByText('upload failed')).toBeInTheDocument();
-    expect(screen.getByText(/일부 트랙 업로드에 실패했습니다/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        /중복 등록을 피하려면 다시 시도하기 전에 음원 관리에서 저장 여부를 확인/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/일부 트랙의 업로드를 완료하지 못했습니다/)).toBeInTheDocument();
+    expect(screen.queryByText('upload failed')).not.toBeInTheDocument();
 
     mocks.createTrack.mockResolvedValueOnce({ ...track, audioFile: 'track.mp3' });
     fireEvent.click(screen.getByRole('button', { name: '업로드' }));

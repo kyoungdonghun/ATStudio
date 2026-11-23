@@ -1,5 +1,8 @@
 package com.atstudio.atstudio.service.auth;
 
+import com.atstudio.atstudio.entity.enums.UserRole;
+import com.atstudio.atstudio.service.PilotAccess;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
 import com.atstudio.atstudio.common.exception.BusinessException;
 import com.atstudio.atstudio.dto.auth.AuthResponse;
@@ -35,6 +38,14 @@ public class AuthService {
     private final OAuth2Service oAuth2Service;
     private final PasswordLoginPolicy passwordLoginPolicy;
 
+    @Autowired
+    private PilotAccess pilot;
+
+    private void checkPilotSession(User user) {
+        if (pilot != null && pilot.enabled() && user.getRole() != UserRole.ADMIN
+                && !pilot.eligible(user.getId())) throw new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_ACCESS);
+    }
+
     @Transactional
     public AuthResponse login(LoginRequest request) {
         passwordLoginPolicy.ensureEnabled();
@@ -47,6 +58,8 @@ public class AuthService {
 
         User user = userRepository.findById(userDetails.getId()).orElseThrow();
         ensureVerifiedForPasswordSession(user);
+
+        checkPilotSession(user);
 
         // 2. 토큰 생성
         String accessToken = jwtTokenProvider.generateAccessToken(userDetails.getId(), userDetails.getRole());
@@ -105,6 +118,8 @@ public class AuthService {
         if (user.getPassword() != null) {
             ensureVerifiedForPasswordSession(user);
         }
+
+        checkPilotSession(user);
 
         // 토큰 재발급 (rotation)
         String newAccessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getRole());

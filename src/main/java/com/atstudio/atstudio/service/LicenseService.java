@@ -1,5 +1,6 @@
 package com.atstudio.atstudio.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import com.atstudio.atstudio.common.dto.PageInfo;
 import com.atstudio.atstudio.common.dto.ResponseDTO;
 import com.atstudio.atstudio.common.exception.BUSINESS_ERROR;
@@ -29,19 +30,28 @@ public class LicenseService {
     private final LicenseRepository licenseRepository;
     private final UserRepository userRepository;
 
+    @Autowired
+    private PilotAccess pilot;
+
     public ResponseDTO<LicenseListItemResponse> getMyLicenses(CustomUserDetails userDetails, int page, int size) {
+        List<Long> published = pilot != null && pilot.enabled() ? pilot.publishedIdsFor(userDetails.getId()) : null;
         User user = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
-        return buildLicensePage(licenseRepository.findAllByUser(user, toPageable(page, size)), page, size);
+        return buildLicensePage(licenseRepository.findAllByUser(user, toPageable(page, size)), page, size, published);
     }
 
     public ResponseDTO<LicenseListItemResponse> getUserLicenses(Long userId, int page, int size) {
-        return buildLicensePage(licenseRepository.findAllByUser_Id(userId, toPageable(page, size)), page, size);
+        return buildLicensePage(licenseRepository.findAllByUser_Id(userId, toPageable(page, size)), page, size, null);
     }
 
     public LicenseResponse getMyLicense(Long licenseId, CustomUserDetails userDetails) {
+        List<Long> published = pilot != null && pilot.enabled() ? pilot.publishedIdsFor(userDetails.getId()) : null;
         License license = licenseRepository.findByIdAndUser_Id(licenseId, userDetails.getId())
                 .orElseThrow(() -> new BusinessException(BUSINESS_ERROR.RESOURCE_NOT_FOUND));
+        if (published != null && (!license.getTrack().isActive()
+                || !published.contains(license.getTrack().getId()))) {
+            return LicenseResponse.unpublished(license);
+        }
         return LicenseResponse.from(license);
     }
 
@@ -57,9 +67,10 @@ public class LicenseService {
         return PageRequest.of(Math.max(0, page - 1), size, Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
-    private ResponseDTO<LicenseListItemResponse> buildLicensePage(Page<License> licensePage, int page, int size) {
+    private ResponseDTO<LicenseListItemResponse> buildLicensePage(Page<License> licensePage, int page, int size, List<Long> published) {
         List<LicenseListItemResponse> dataList = licensePage.getContent().stream()
-                .map(LicenseListItemResponse::from)
+                .map(license -> published != null && (!license.getTrack().isActive() || !published.contains(license.getTrack().getId()))
+                        ? LicenseListItemResponse.unpublished(license) : LicenseListItemResponse.from(license))
                 .toList();
         int total = (int) licensePage.getTotalElements();
         return ResponseDTO.<LicenseListItemResponse>builder()

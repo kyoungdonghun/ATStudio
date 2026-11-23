@@ -1,0 +1,18 @@
+# WI-20261121-ATS-006 · Independent backend review
+
+## Result
+
+Reviewed the B1 local candidate under [REQ003](../user/REQ-20261121-ATS-003.md) and the [review handoff](WI-20261121-ATS-006-handoff.md). The backend reviewer traced first and repeat authorization, existing UUID and quota handling, grant eligibility, catalog locking, historical projections and principal resolution. Synthetic local tests exercised the changed code.
+
+| Finding | Correction and verification |
+|---|---|
+| Personal history and license queries could establish an ordinary InnoDB read snapshot during a private edit and then lock a newer published catalog revision. This could pair the old private title with a newly public track. | [PilotAccess](../../src/main/java/com/atstudio/atstudio/service/PilotAccess.java) takes the existing catalog snapshot lock before further database reads. [History](../../src/main/java/com/atstudio/atstudio/service/DownloadService.java) and [license list/detail](../../src/main/java/com/atstudio/atstudio/service/LicenseService.java) use that order within the service transaction. Three focused tests assert the ordering for publication, owner and grant lookups. The catalog writer uses the matching exclusive lock. |
+| A still-valid token for a withdrawn or removed account could propagate a principal lookup exception before the servlet authorization handler. | [JWT filter](../../src/main/java/com/atstudio/atstudio/security/JwtAuthenticationFilter.java) clears authentication on this specific account lookup outcome, allowing the ordinary route policy to return unauthenticated access for protected pages. [Filter unit test](../../src/test/java/com/atstudio/atstudio/security/JwtAuthenticationFilterTest.java) checks context cleanup and downstream dispatch. |
+
+MA separately tested the isolation mechanism on disposable local MySQL 8.0.45, using shared memory with networking disabled and synthetic values. In a repeatable-read transaction the original ordering produced the new catalog selection alongside the earlier draft metadata. Reading the catalog with the shared lock first produced the published metadata. The shared locking read succeeded in a read-only transaction. MA observed normal exit and removed the temporary data directory. This was a native SQL mechanism check. Application-level two-owner tests use Spring MVC and H2 under WI008.
+
+## Verification and boundaries
+
+The final independent backend run passed **100 tests in 10 suites** with zero failures, errors or skips. See the [isolated final Gradle log](../../build/WI-20261121-ATS-006/final.log). Run with `gradlew.bat --offline test` and the following `--tests` filters in a dedicated build directory: `*PilotAccessTest`, `*DownloadServiceTest`, `*LicenseServiceTest`, `*Listening*Security*`, `*UtilServiceTest`, `*AuthServiceTest`, `*JwtAuthenticationFilterTest`, `*CustomUserDetailsServiceTest` and `*AuthTokenSecurityIntegrationTest`. License detail ownership is resolved by the pair of license and authenticated user IDs. Grant expiry, withdrawal, unpublishing and quota limits are distinct gates. Already delivered files and in-progress previously authorized responses cannot be recalled. Existing stateless login semantics apply across the application.
+
+Review references and injected Tier 0 standards are listed in the handoff. Historical WI003–005 execution records remain intact. A rollback of this local correction would restore the two identified defects; the existing default-off pilot configuration keeps the pilot disabled at deployment unless explicitly enabled. No live account, provider or production access took place.

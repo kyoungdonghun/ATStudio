@@ -1,3 +1,4 @@
+import { isPilotMode } from '@/config/pilotMode';
 /** SR-79: Download history */
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -242,6 +243,9 @@ export default function DownloadHistoryPage() {
      Note: download history can contain duplicates (same track downloaded multiple times),
      so we de-duplicate by trackId, keeping the first occurrence. */
   useLayoutEffect(() => {
+    // Pilot playback is sourced only from the public catalog. Private history
+    // may include withdrawn tracks and must not seed the shared player.
+    if (isPilotMode) return;
     const seen = new Set<number>();
     const tracks = currentItems
       .filter((item) => {
@@ -308,9 +312,12 @@ export default function DownloadHistoryPage() {
     } catch (err: unknown) {
       if (!isCurrent() || classifyLoadError(err) === 'cancelled') return;
       const code = await getApiErrorCode(err);
+      if (!isCurrent()) return;
       const msg =
         code === 'NO_ACTIVE_SUBSCRIPTION'
-          ? '구독이 필요한 기능입니다.'
+          ? isPilotMode
+            ? '시험 이용권 기간을 확인해주세요.'
+            : '구독이 필요한 기능입니다.'
           : code === 'DOWNLOAD_LIMIT_EXCEEDED'
             ? '금일 다운로드 횟수를 모두 사용했습니다.'
             : err instanceof Error
@@ -548,24 +555,26 @@ export default function DownloadHistoryPage() {
           <option value="latest">{'최신순'}</option>
           <option value="oldest">{'오래된순'}</option>
         </select>
-        <div className={styles.bulkActions}>
-          <button
-            type="button"
-            className={styles.bulkBtn}
-            disabled={currentSelectedIds.size === 0 || bulkBusy || bulkPreparing}
-            onClick={handleDownloadSelected}
-          >
-            {`선택 재다운로드${selectedUniqueTrackCount > 0 ? ` (${selectedUniqueTrackCount})` : ''}`}
-          </button>
-          <button
-            type="button"
-            className={styles.bulkBtnPrimary}
-            disabled={bulkBusy || bulkPreparing || currentPageInfo.total === 0}
-            onClick={handleDownloadAll}
-          >
-            {'전체 재다운로드'}
-          </button>
-        </div>
+        {!isPilotMode && (
+          <div className={styles.bulkActions}>
+            <button
+              type="button"
+              className={styles.bulkBtn}
+              disabled={currentSelectedIds.size === 0 || bulkBusy || bulkPreparing}
+              onClick={handleDownloadSelected}
+            >
+              {`선택 재다운로드${selectedUniqueTrackCount > 0 ? ` (${selectedUniqueTrackCount})` : ''}`}
+            </button>
+            <button
+              type="button"
+              className={styles.bulkBtnPrimary}
+              disabled={bulkBusy || bulkPreparing || currentPageInfo.total === 0}
+              onClick={handleDownloadAll}
+            >
+              {'전체 재다운로드'}
+            </button>
+          </div>
+        )}
       </div>
 
       {currentLoading ? (
@@ -585,14 +594,16 @@ export default function DownloadHistoryPage() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th className={styles.thCheck}>
-                    <input
-                      type="checkbox"
-                      aria-label="Select all download history items"
-                      checked={allSelected}
-                      onChange={(e) => toggleSelectAll(e.target.checked)}
-                    />
-                  </th>
+                  {!isPilotMode && (
+                    <th className={styles.thCheck}>
+                      <input
+                        type="checkbox"
+                        aria-label="Select all download history items"
+                        checked={allSelected}
+                        onChange={(e) => toggleSelectAll(e.target.checked)}
+                      />
+                    </th>
+                  )}
                   <th>{'음원'}</th>
                   <th className={styles.thTags}>{'태그'}</th>
                   <th className={`${styles.thRight} ${styles.thBpm}`}>BPM</th>
@@ -604,30 +615,39 @@ export default function DownloadHistoryPage() {
               <tbody>
                 {currentItems.map((item) => {
                   const checked = currentSelectedIds.has(item.downloadId);
+                  const thumbnail = item.thumbnail ? (
+                    <img src={toUploadUrl(item.thumbnail)!} alt="" />
+                  ) : (
+                    '\u266A'
+                  );
                   return (
                     <tr key={item.downloadId} className={styles.row}>
-                      <td className={styles.cellCheck}>
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${item.title}`}
-                          checked={checked}
-                          onChange={() => toggleSelectOne(item.downloadId)}
-                        />
-                      </td>
+                      {!isPilotMode && (
+                        <td className={styles.cellCheck}>
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${item.title}`}
+                            checked={checked}
+                            onChange={() => toggleSelectOne(item.downloadId)}
+                          />
+                        </td>
+                      )}
                       <td className={styles.cellInfo}>
                         <div className={styles.info}>
-                          <button
-                            type="button"
-                            className={styles.thumb}
-                            aria-label={`Play ${item.title}`}
-                            onClick={() => handlePlay(item)}
-                          >
-                            {item.thumbnail ? (
-                              <img src={toUploadUrl(item.thumbnail)!} alt={item.title} />
-                            ) : (
-                              '\u266A'
-                            )}
-                          </button>
+                          {isPilotMode ? (
+                            <span className={styles.thumb} aria-hidden="true">
+                              {thumbnail}
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className={styles.thumb}
+                              aria-label={`Play ${item.title}`}
+                              onClick={() => handlePlay(item)}
+                            >
+                              {thumbnail}
+                            </button>
+                          )}
                           <div className={styles.infoText}>
                             <Link to={`/tracks/${item.trackId}`} className={styles.titleLink}>
                               {item.title}
